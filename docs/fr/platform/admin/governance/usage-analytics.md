@@ -39,3 +39,5 @@ Consulte l’[analyse des retours](/fr/platform/admin/governance/feedback-analyt
 ## Comprendre un historique incomplet
 
 Les graphiques reflètent les données d’usage que Tale conserve encore. Les règles de l’organisation et du déploiement déterminent l’historique disponible ; il n’existe pas de garantie universelle de 365 jours. Vérifie la période, les filtres et la rétention du registre d’usage si une activité attendue manque.
+
+Si les métriques ne peuvent pas être chargées, la page le signale et propose **Réessayer** au lieu d’afficher des zéros ou des tableaux vides. La période et les filtres choisis restent en place. Si une actualisation échoue, les chiffres déjà affichés restent, avec une note indiquant qu’ils ne sont peut-être plus à jour. Si **Réessayer** échoue encore, demande à l’opérateur du déploiement de vérifier que les services de Tale fonctionnent.

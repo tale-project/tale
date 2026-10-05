@@ -1,4 +1,9 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { configurationHashSchema } from '@tale/shared/schemas/configuration';
+import {
+  managedProjectInstructionsSchema,
+  managedAgentInstructionsSchema,
+} from '@tale/shared/schemas/managed-configuration';
 import {
   createProjectInputSchema,
   deleteProjectInputSchema,
@@ -15,7 +20,12 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
+import { readOptionalAppJsonBody } from '../../lib/app-json-body.ts';
+import {
+  invalidBodyResponse,
+  invalidBodyIssuesResponse,
+} from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
@@ -45,6 +55,9 @@ import {
   listProjectsOverview,
   listSidebarProjects,
   ProjectError,
+  readProjectInstructionsConfiguration,
+  readAgentInstructionsConfiguration,
+  updateAgentInstructionsConfiguration,
   restoreProject,
   searchProjects,
   setProjectPinned,
@@ -76,6 +89,9 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
+  if (error instanceof ConfigurationError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
+  }
   if (error instanceof ProjectError) {
     return c.json(
       {
@@ -116,6 +132,101 @@ export function createProjectRoutes(deps: {
     return c.json({
       projects: await listProjects(deps.sql, auth, { includeArchived }),
     });
+  });
+
+  app.get('/:id/configuration/instructions', async (c) => {
+    try {
+      return c.json(
+        await readProjectInstructionsConfiguration(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('id'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/configuration/instructions', async (c) => {
+    const body = z
+      .strictObject({
+        config: managedProjectInstructionsSchema,
+        expectedHash: configurationHashSchema,
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (body.data.config.projectId !== c.req.param('id'))
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        updateProjectInstructions(
+          tx,
+          auth,
+          body.data.config.projectId,
+          body.data.config.instructions,
+          body.data.expectedHash,
+        ),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:id/agents/:agentId/configuration/instructions', async (c) => {
+    try {
+      return c.json(
+        await readAgentInstructionsConfiguration(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('id'),
+          c.req.param('agentId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/agents/:agentId/configuration/instructions', async (c) => {
+    const body = z
+      .strictObject({
+        config: managedAgentInstructionsSchema,
+        expectedHash: configurationHashSchema,
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.projectId !== c.req.param('id') ||
+      body.data.config.agentId !== c.req.param('agentId')
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        updateAgentInstructionsConfiguration(
+          tx,
+          auth,
+          body.data.config,
+          body.data.expectedHash,
+        ),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.get('/overview', async (c) => {
@@ -202,7 +313,7 @@ export function createProjectRoutes(deps: {
   app.post('/:id/duplicate', async (c) => {
     const body = z
       .object({ name: z.string().max(200).optional() })
-      .safeParse(await c.req.json().catch(() => ({})));
+      .safeParse(await readOptionalAppJsonBody(c));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
     }

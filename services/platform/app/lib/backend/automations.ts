@@ -219,14 +219,22 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
   'sandbox/session_queries_public:getAgentNodeSandboxOp': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const runId = args.runId;
+    const nodeId = args.nodeId;
+    if (nodeId !== undefined && typeof nodeId !== 'string') return null;
     if (orgId === undefined || typeof runId !== 'string' || runId === '') {
       return null;
     }
     return {
-      queryKey: backendKey(orgId, 'automation', 'agent-node-op', runId),
+      queryKey: backendKey(
+        orgId,
+        'automation',
+        'agent-node-op',
+        runId,
+        ...(typeof nodeId === 'string' ? [nodeId] : []),
+      ),
       queryFn: () =>
         backendFetch<{ op: unknown }>(
-          `/sandbox/agent-node-op?runId=${encodeURIComponent(runId)}`,
+          `/sandbox/agent-node-op?runId=${encodeURIComponent(runId)}${typeof nodeId === 'string' ? `&nodeId=${encodeURIComponent(nodeId)}` : ''}`,
           { orgId },
         ).then((body) => body.op),
       // The execution log follows a LIVE turn: poll while the dialog is

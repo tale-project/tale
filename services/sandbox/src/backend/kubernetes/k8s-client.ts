@@ -43,6 +43,8 @@ import {
   Observable,
 } from '@kubernetes/client-node';
 
+import { operationSignal } from '../../operation-budget.ts';
+
 export interface K8sClient {
   core: CoreV1Api;
   /** NetworkingV1Api — session-pod egress NetworkPolicy (the k8s egress fence). */
@@ -66,7 +68,7 @@ export function apiTimeout(ms = K8S_API_TIMEOUT_MS): ConfigurationOptions {
     middleware: [
       {
         pre: (ctx) => {
-          ctx.setSignal(AbortSignal.timeout(ms));
+          ctx.setSignal(operationSignal(AbortSignal.timeout(ms)));
           return new Observable(Promise.resolve(ctx));
         },
         post: (rsp) => new Observable(Promise.resolve(rsp)),
@@ -148,9 +150,11 @@ export async function withRetry<T>(
 ): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
+    operationSignal()?.throwIfAborted();
     try {
       return await fn();
     } catch (err) {
+      operationSignal()?.throwIfAborted();
       const status = httpStatusCode(err);
       if (status !== undefined && NON_RETRYABLE_STATUS.has(status)) throw err;
       lastErr = err;

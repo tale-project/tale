@@ -43,6 +43,11 @@ bun run test:performance --workload daemon.journal-write \
   --workload daemon.journal-reconnect --samples 100 \
   --output /tmp/tale-journals.json
 
+# Compare tiny streaming deltas with larger display updates.
+bun run test:performance --workload platform.projection-fragmented \
+  --workload platform.projection-bursts --samples 100 \
+  --output /tmp/tale-projections.json
+
 # Optional local SAST workload: requires the pinned binary already cached by lint:sast.
 bun run test:performance --workload tools.opengrep --samples 3 \
   --output /tmp/tale-opengrep.json
@@ -64,9 +69,10 @@ send authorization headers, measure browser rendering, or inspect server RSS.
 | Part | Workload | Still requires a separate run |
 | --- | --- | --- |
 | Shared process utilities | 100,000 lines into a bounded ring; 16 MiB unterminated line in 4 KiB chunks | Other utilities and Postgres transaction/retry contention |
-| Platform engine/telemetry | Cold/cached validation of 100-item automation inputs; 1000 bounded metric updates and worker spans with tracing disabled/enabled, on Node | API/worker/knowledge/chat with real Postgres, storage and controlled model responses; authenticated UI |
+| Platform engine/telemetry | Cold/cached validation of 100-item automation inputs; 1000 bounded metric updates and worker spans with tracing disabled/enabled; bounded display projection of 262,144 text units in tiny/large fragments, on Node | API/worker/knowledge/chat with real Postgres, storage and controlled model responses; authenticated UI |
+| Agent progress (`platform.agent-progress`) | 4,000 events across 1,000 tool cycles with 100 KB payloads; bounded resumable projection | Live model throughput, database write contention and end-to-end task latency |
 | Sandbox spawner | 1000 exec boundary validations with 128 environment values; 1000-event SSE burst | Docker/Kubernetes provisioning, concurrent session admission, image warmup |
-| Sandbox daemon/runtime | Real Node process output and 1 MiB replay; 16,000-record journal writes; 20 late reconnects per sample requesting the last ten records | Linux subreaper, sustained concurrent reconnects, container resource ceilings and image-only document dependencies |
+| Sandbox daemon/runtime | Real Node process output and complete 1 MiB disk replay; 16,000-record journal writes; 20 late reconnects per sample requesting the last ten records | Linux subreaper, sustained concurrent reconnects, container resource ceilings and image-only document dependencies |
 | AI gateway | Read/validate/decrypt 100 file-backed accounts and atomic update | OAuth, provider refresh, controlled credential-pool traffic |
 | UI and marketing UI | 100-button SSR, including marketing wrappers | Browser layout/hydration, all other components and animation |
 | Web/docs/UI docs | Shared server: 100 HTTP requests in batches of ten; cold/cached 250-page SEO artifact bursts | Service content/search/build/prerender and browser navigation; shared code is labelled `shared-library-only` |
@@ -115,14 +121,25 @@ is useful context, **not proof of a leak or a leak-free service**. The shared HT
 worker includes both server and client allocations. Compare like-for-like
 reports; do not claim a speedup from a contended run against an idle run.
 
-The journal workloads use actual temporary, unlinked files. Write samples include
-record encoding, backpressure, drain, a verified ten-record suffix replay and
-descriptor closure. Reconnect samples reuse a completed 16,000-record journal
-prepared before timing; each sample makes 20 sequential attachments and checks
-every returned sequence, payload and replay marker. Setup still contributes to
+The journal workloads use the segmented replay spool and actual temporary files.
+Write samples include record encoding, bounded 128 KiB admission windows, committed
+writes, a verified ten-record suffix replay and descriptor closure. Reconnect
+samples reuse a completed 16,000-record spool prepared before timing; each sample
+makes 20 sequential suffix replays and checks every returned sequence and payload.
+The exec-manager tests own replay-marker validation. Setup still contributes to
 process memory measurements. These workloads exercise Node and the host
 filesystem, without a container network or model provider; their batch timings
 do not predict complete agent-run latency.
+
+The projection workloads feed the same 262,144 UTF-16 code units in one-unit or
+4096-unit deltas. The text includes JSON escapes, multibyte characters and paired
+and lone surrogates. Every 4096 units, each sample verifies the exact retained
+text and timeline; it also checks that earlier snapshots survive subsequent text
+and tool-result updates unchanged. The complete terminal answer is checked once
+at the end. Timing includes these checks and the shared answer accumulation.
+This measures display accumulation and snapshots, excluding protocol parsing, database writes,
+model calls and rendering. Snapshots follow a fixed input cadence, not a simulated
+network rate or a production latency target.
 
 ## Completing a deployment profile
 

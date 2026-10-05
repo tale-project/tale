@@ -11,6 +11,7 @@ import { ImageUploadField } from './image-upload-field';
 import '@/app/globals.css';
 
 vi.mock('../hooks/mutations', () => ({
+  useDeleteImage: () => ({ mutateAsync: vi.fn() }),
   useSaveImage: () => ({ mutateAsync: vi.fn() }),
 }));
 

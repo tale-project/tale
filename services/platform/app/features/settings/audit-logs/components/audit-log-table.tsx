@@ -15,6 +15,7 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
+import { redactSensitiveFields } from '@/lib/shared/audit-redaction';
 
 import {
   useAuditLogTableConfig,
@@ -266,7 +267,11 @@ export function AuditLogTable({
                 />
               )}
               {selectedLog.category === 'ai' && selectedLog.metadata ? (
-                <AiMetadataSection metadata={selectedLog.metadata} t={t} />
+                <AiMetadataSection
+                  metadata={selectedLog.metadata}
+                  t={t}
+                  formatDate={formatDate}
+                />
               ) : (
                 selectedLog.metadata &&
                 Object.keys(selectedLog.metadata).length > 0 && (
@@ -294,78 +299,109 @@ function toDisplayString(val: unknown): string {
 function AiMetadataSection({
   metadata,
   t,
+  formatDate,
 }: {
   metadata: Record<string, unknown>;
   t: (key: string) => string;
+  formatDate: (d: Date, preset?: 'short' | 'medium' | 'long') => string;
 }) {
   const toolNames = Array.isArray(metadata.toolNames)
     ? metadata.toolNames.filter((n): n is string => typeof n === 'string')
     : [];
 
+  const displayedKeys = new Set(
+    [
+      'model',
+      'provider',
+      'inputTokens',
+      'outputTokens',
+      'totalTokens',
+      'agentSlug',
+    ].filter((key) => metadata[key] != null),
+  );
+  if (typeof metadata.costEstimateCents === 'number')
+    displayedKeys.add('costEstimateCents');
+  if (typeof metadata.durationMs === 'number') displayedKeys.add('durationMs');
+  if (toolNames.length > 0) displayedKeys.add('toolNames');
+  const otherMetadata = Object.fromEntries(
+    Object.entries(metadata).filter(([key]) => !displayedKeys.has(key)),
+  );
+
   return (
-    <Stack gap={2}>
-      <Text as="span" variant="muted" className="font-medium">
-        {t('logs.audit.aiMetadata.title')}
-      </Text>
-      <div className="bg-muted/50 rounded-lg p-3">
+    <>
+      {displayedKeys.size > 0 && (
         <Stack gap={2}>
-          {metadata.model != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.model')}
-              value={toDisplayString(metadata.model)}
-            />
-          )}
-          {metadata.provider != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.provider')}
-              value={toDisplayString(metadata.provider)}
-            />
-          )}
-          {metadata.inputTokens != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.inputTokens')}
-              value={toDisplayString(metadata.inputTokens)}
-            />
-          )}
-          {metadata.outputTokens != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.outputTokens')}
-              value={toDisplayString(metadata.outputTokens)}
-            />
-          )}
-          {metadata.totalTokens != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.totalTokens')}
-              value={toDisplayString(metadata.totalTokens)}
-            />
-          )}
-          {typeof metadata.costEstimateCents === 'number' && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.cost')}
-              value={`$${(metadata.costEstimateCents / 100).toFixed(4)}`}
-            />
-          )}
-          {typeof metadata.durationMs === 'number' && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.duration')}
-              value={`${metadata.durationMs.toLocaleString()} ms`}
-            />
-          )}
-          {metadata.agentSlug != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.agent')}
-              value={toDisplayString(metadata.agentSlug)}
-            />
-          )}
-          {toolNames.length > 0 && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.tools')}
-              value={toolNames.join(', ')}
-            />
-          )}
+          <Text as="span" variant="muted" className="font-medium">
+            {t('logs.audit.aiMetadata.title')}
+          </Text>
+          <div className="bg-muted/50 rounded-lg p-3">
+            <Stack gap={2}>
+              {metadata.model != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.model')}
+                  value={toDisplayString(metadata.model)}
+                />
+              )}
+              {metadata.provider != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.provider')}
+                  value={toDisplayString(metadata.provider)}
+                />
+              )}
+              {metadata.inputTokens != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.inputTokens')}
+                  value={toDisplayString(metadata.inputTokens)}
+                />
+              )}
+              {metadata.outputTokens != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.outputTokens')}
+                  value={toDisplayString(metadata.outputTokens)}
+                />
+              )}
+              {metadata.totalTokens != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.totalTokens')}
+                  value={toDisplayString(metadata.totalTokens)}
+                />
+              )}
+              {typeof metadata.costEstimateCents === 'number' && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.cost')}
+                  value={`$${(metadata.costEstimateCents / 100).toFixed(4)}`}
+                />
+              )}
+              {typeof metadata.durationMs === 'number' && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.duration')}
+                  value={`${metadata.durationMs.toLocaleString()} ms`}
+                />
+              )}
+              {metadata.agentSlug != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.agent')}
+                  value={toDisplayString(metadata.agentSlug)}
+                />
+              )}
+              {toolNames.length > 0 && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.tools')}
+                  value={toolNames.join(', ')}
+                />
+              )}
+            </Stack>
+          </div>
         </Stack>
-      </div>
-    </Stack>
+      )}
+      {Object.keys(otherMetadata).length > 0 && (
+        <DetailSection
+          label={t('logs.audit.columns.metadata')}
+          data={redactSensitiveFields(otherMetadata) ?? {}}
+          formatDate={formatDate}
+        />
+      )}
+    </>
   );
 }
 

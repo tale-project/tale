@@ -646,7 +646,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
               app.sandbox_session_ops.harness),
             deadline_ms = coalesce(EXCLUDED.deadline_ms,
               app.sandbox_session_ops.deadline_ms),
-            heartbeat_at_ms = coalesce(EXCLUDED.heartbeat_at_ms,
+            -- Delayed progress carries its callback time; it must not
+            -- erase a newer gateway, drainer or recovery heartbeat.
+            heartbeat_at_ms = greatest(EXCLUDED.heartbeat_at_ms,
               app.sandbox_session_ops.heartbeat_at_ms),
             -- Monotonic: a stale in-flight racer must not regress it.
             last_event_at_ms = greatest(
@@ -860,10 +862,11 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           status: string;
           createdAt: number;
           pinned: boolean;
+          profile: unknown;
         }[]
       >`
         SELECT session_id AS "sessionId", org_id AS "organizationId", status,
-               created_at_ms::float8 AS "createdAt", pinned
+               created_at_ms::float8 AS "createdAt", pinned, profile
         FROM app.sandbox_sessions
         WHERE owner_type = ${args.ownerType} AND owner_id = ${args.ownerId}
           AND (${args.sessionId ?? null}::text IS NULL

@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 import { parse } from 'yaml';
 
@@ -38,7 +39,7 @@ type Job = {
     matrix: {
       include?: Record<string, string>[];
       shard?: number[];
-      service?: string[];
+      service?: string[] | string;
     };
   };
 };
@@ -62,6 +63,362 @@ const sourceWorkflows = [
 ];
 const C = 'c'.repeat(40);
 const H = 'd'.repeat(40);
+
+type Result = 'success' | 'failure' | 'cancelled' | 'skipped' | '';
+type Admission = {
+  github: {
+    event_name: string;
+    sha: string;
+    event: {
+      pull_request: {
+        draft: boolean;
+        head: { repo: { fork: boolean }; sha: string };
+      };
+    };
+  };
+  needs: Record<string, { result: Result; outputs: Record<string, string> }>;
+  cancelled: boolean;
+};
+const callers = ['build', ...sourceWorkflows];
+const candidateEvent = (stem: string, event: string) =>
+  event === 'repository_dispatch' ||
+  (stem === 'build' && event === 'workflow_dispatch');
+const admission = (file: Workflow, stem: string, event: string): Admission => ({
+  github: {
+    event_name: event,
+    sha: H,
+    event: {
+      pull_request: {
+        draft: false,
+        head: { repo: { fork: false }, sha: 'a'.repeat(40) },
+      },
+    },
+  },
+  needs: Object.fromEntries(
+    Object.keys(file.jobs).map((id) => [
+      id,
+      {
+        result:
+          id === 'candidate-source' && !candidateEvent(stem, event)
+            ? 'skipped'
+            : 'success',
+        outputs: {
+          services: '["platform","web","docs","ui-docs","ai-gateway"]',
+          scannable_services: candidateEvent(stem, event)
+            ? '[]'
+            : '["platform"]',
+          ci_tests: 'true',
+          storybook: 'true',
+          run: 'true',
+          stack: 'true',
+          platform: 'true',
+          static_services: '["web","docs"]',
+          sha: candidateEvent(stem, event) ? C : '',
+          candidate_sha: candidateEvent(stem, event) ? C : '',
+          source_sha:
+            event === 'workflow_dispatch' && stem === 'cli'
+              ? 'e'.repeat(40)
+              : H,
+        },
+      },
+    ]),
+  ),
+  cancelled: false,
+});
+
+/** Deliberately limited to the boolean/string job predicates below. The
+ * fixtures use lowercase strings and booleans, so equality/truthiness match
+ * Actions here. This is not an Actions interpreter. Fixtures use empty strings
+ * for missing results/outputs and exercise the default skipped-ancestor rule.
+ * Reject unsupported syntax instead of silently guessing its semantics. */
+function expressionValue(source: string, state: Admission): unknown {
+  const expression = source
+    .replace(/^\$\{\{\s*|\s*\}\}$/g, '')
+    .replace(/\bfromJSON\b/g, 'fromJson')
+    .trim();
+  const remaining = expression
+    .replace(/'(?:[^']|'')*'/g, 'STRING')
+    .replace(
+      /\b(?:github(?:\.[A-Za-z_][\w-]*)+|needs\.[\w-]+\.(?:result|outputs\.[\w-]+))\b/g,
+      'VALUE',
+    )
+    .replace(
+      /\b(?:STRING|VALUE|true|false|always|cancelled|contains|fromJson)\b/g,
+      '',
+    )
+    .replace(/==|!=|&&|\|\||[\s(),!]/g, '');
+  if (remaining) throw new Error(`Unsupported admission expression: ${source}`);
+  return runInNewContext(
+    expression.replace(/needs\.([\w-]+)/g, "needs['$1']"),
+    {
+      github: state.github,
+      needs: state.needs,
+      cancelled: () => state.cancelled,
+      always: () => true,
+      contains: (values: string[], value: string) => values.includes(value),
+      fromJson: (value: string) => JSON.parse(value) as unknown,
+    },
+    { timeout: 100 },
+  );
+}
+function admitted(
+  job: Job,
+  state: Admission,
+  skippedAncestor = false,
+): boolean {
+  const condition = job.if ?? 'true';
+  // Actions adds success() unless the predicate contains a status function.
+  if (!/\b(?:always|cancelled|success|failure)\s*\(/.test(condition)) {
+    if (
+      state.cancelled ||
+      skippedAncestor ||
+      [job.needs ?? []]
+        .flat()
+        .some((id) => state.needs[id]?.result !== 'success')
+    )
+      return false;
+  }
+  return Boolean(expressionValue(condition, state));
+}
+
+describe('ordinary CI source admission', () => {
+  test('the limited evaluator keeps default skip propagation and rejects unsupported syntax', async () => {
+    const file = await workflow('checks');
+    const state = admission(file, 'checks', 'pull_request');
+    expect(admitted({ needs: 'candidate-source' }, state)).toBe(false);
+    expect(admitted({ needs: 'build', if: 'true' }, state, true)).toBe(false);
+    expect(admitted({ needs: 'build', if: '!cancelled()' }, state, true)).toBe(
+      true,
+    );
+    state.cancelled = true;
+    expect(admitted({ needs: 'build', if: '!cancelled()' }, state, true)).toBe(
+      false,
+    );
+    for (const source of [
+      "github.event_name = 'push'",
+      'success()',
+      "startsWith(github.sha, 'c')",
+    ])
+      expect(() => expressionValue(source, state)).toThrow(
+        'Unsupported admission expression',
+      );
+  });
+  test.each(callers)(
+    '%s requests a resolver runner only for candidate events',
+    async (stem) => {
+      const file = await workflow(stem);
+      const resolver = file.jobs['candidate-source']!;
+      for (const event of Object.keys(file.on)) {
+        const state = admission(file, stem, event);
+        expect(admitted(resolver, state), `${stem}/${event}`).toBe(
+          candidateEvent(stem, event),
+        );
+        expect(expressionValue(String(resolver.with?.candidate), state)).toBe(
+          candidateEvent(stem, event),
+        );
+        state.cancelled = true;
+        expect(admitted(resolver, state)).toBe(false);
+      }
+    },
+  );
+
+  test('all ordinary job definitions survive an intentionally skipped ancestor', async () => {
+    let count = 0;
+    for (const stem of callers) {
+      const file = await workflow(stem);
+      for (const [id, job] of Object.entries(file.jobs)) {
+        if (id === 'candidate-source' || id === 'candidate-gate') continue;
+        count++;
+        for (const event of Object.keys(file.on)) {
+          const state = admission(file, stem, event);
+          state.github.event.pull_request.head.repo.fork = id.endsWith('-fork');
+          const expected =
+            !(id.endsWith('-fork') && candidateEvent(stem, event)) &&
+            !(
+              stem === 'build' &&
+              id === 'vulnerability-scan' &&
+              candidateEvent(stem, event)
+            ) &&
+            !(
+              stem === 'cli' &&
+              id === 'release' &&
+              event !== 'workflow_dispatch'
+            );
+          if (candidateEvent(stem, event))
+            state.github.event.pull_request.head.repo.fork = false;
+          expect(
+            admitted(job, state, !candidateEvent(stem, event)),
+            `${stem}/${id}/${event}`,
+          ).toBe(expected);
+          state.cancelled = true;
+          expect(admitted(job, state, true), `${stem}/${id} cancelled`).toBe(
+            stem === 'checks' && id === 'test-ui',
+          );
+        }
+      }
+    }
+    expect(count).toBe(35);
+  });
+
+  test('direct source disposition and every other required predecessor fail closed', async () => {
+    for (const stem of callers) {
+      const file = await workflow(stem);
+      for (const [id, job] of Object.entries(file.jobs)) {
+        if (id === 'candidate-source' || id === 'candidate-gate') continue;
+        const dependencies = [job.needs ?? []].flat();
+        for (const event of [
+          'pull_request',
+          'repository_dispatch',
+          'workflow_dispatch',
+        ]) {
+          for (const dependency of dependencies) {
+            for (const result of [
+              'success',
+              'failure',
+              'cancelled',
+              'skipped',
+              '',
+            ] as const) {
+              const state = admission(file, stem, event);
+              state.github.event.pull_request.head.repo.fork =
+                id.endsWith('-fork') && !candidateEvent(stem, event);
+              state.needs[dependency]!.result = result;
+              if (result !== 'success')
+                for (const key of Object.keys(state.needs[dependency]!.outputs))
+                  state.needs[dependency]!.outputs[key] = '';
+              const publication =
+                stem !== 'cli' ||
+                id !== 'release' ||
+                event === 'workflow_dispatch';
+              const valid =
+                dependency === 'candidate-source'
+                  ? result ===
+                    (candidateEvent(stem, event) ? 'success' : 'skipped')
+                  : dependency === 'integration-scope' ||
+                    (stem === 'checks' &&
+                      id === 'test-ui' &&
+                      dependency === 'test-ui-shards') ||
+                    result === 'success';
+              expect(
+                admitted(job, state, true),
+                `${stem}/${id}/${event}/${dependency}/${result}`,
+              ).toBe(
+                valid &&
+                  publication &&
+                  !(id.endsWith('-fork') && candidateEvent(stem, event)) &&
+                  !(
+                    stem === 'build' &&
+                    id === 'vulnerability-scan' &&
+                    candidateEvent(stem, event)
+                  ),
+              );
+            }
+          }
+        }
+      }
+    }
+  });
+
+  test('draft, fork, path and integration-scope decisions remain effective', async () => {
+    for (const stem of callers) {
+      const file = await workflow(stem);
+      const state = admission(file, stem, 'pull_request');
+      state.github.event.pull_request.draft = true;
+      for (const [id, job] of Object.entries(file.jobs)) {
+        if (id === 'candidate-source' || id === 'candidate-gate') continue;
+        const draftRuns =
+          stem === 'cli'
+            ? id !== 'release'
+            : stem === 'checks'
+              ? ![
+                  'test-ui',
+                  'test-ui-shards',
+                  'test-browser',
+                  'backend-integration',
+                ].includes(id)
+              : stem === 'build' &&
+                ['changes', 'vulnerability-scan'].includes(id);
+        expect(admitted(job, state, true), `${stem}/${id} draft`).toBe(
+          draftRuns,
+        );
+      }
+    }
+    const build = await workflow('build');
+    const state = admission(build, 'build', 'pull_request');
+    for (const fork of [false, true]) {
+      state.github.event.pull_request.head.repo.fork = fork;
+      expect(admitted(build.jobs.build!, state, true)).toBe(!fork);
+      for (const id of ['smoke-test', 'image-validate']) {
+        expect(admitted(build.jobs[id]!, state, true)).toBe(!fork);
+        expect(admitted(build.jobs[`${id}-fork`]!, state, true)).toBe(fork);
+      }
+      expect(admitted(build.jobs['vulnerability-scan']!, state, true)).toBe(
+        !fork,
+      );
+    }
+    state.needs.changes!.outputs = {
+      ...state.needs.changes!.outputs,
+      services: '[]',
+      scannable_services: '[]',
+      ci_tests: 'false',
+      storybook: 'false',
+      stack: 'false',
+    };
+    for (const [id, job] of Object.entries(build.jobs)) {
+      if (!['candidate-source', 'candidate-gate', 'changes'].includes(id))
+        expect(admitted(job, state, true), `unchanged ${id}`).toBe(false);
+    }
+    const checks = await workflow('checks');
+    const scope = admission(checks, 'checks', 'pull_request');
+    scope.needs['integration-scope']!.outputs.run = 'false';
+    expect(admitted(checks.jobs['backend-integration']!, scope, true)).toBe(
+      false,
+    );
+    scope.needs['integration-scope']!.result = 'failure';
+    // Admission is deliberate: the existing first step reports the failed
+    // scope and fails the job, rather than recording a successful skip.
+    expect(admitted(checks.jobs['backend-integration']!, scope, true)).toBe(
+      true,
+    );
+  });
+
+  test('Build uses the event merge SHA and CLI keeps its resolved publication tag', async () => {
+    const build = await workflow('build');
+    for (const event of [
+      'push',
+      'pull_request',
+      'merge_group',
+      'repository_dispatch',
+      'workflow_dispatch',
+    ]) {
+      const state = admission(build, 'build', event);
+      expect(
+        expressionValue(build.jobs.changes!.outputs!.source_sha!, state),
+      ).toBe(candidateEvent('build', event) ? C : H);
+      expect(
+        expressionValue(build.jobs.changes!.outputs!.candidate_sha!, state),
+      ).toBe(candidateEvent('build', event) ? C : '');
+    }
+    const cli = await workflow('cli');
+    const ref = String(
+      cli.jobs.build!.steps!.find((entry) => entry.name === 'Checkout')!.with!
+        .ref,
+    );
+    for (const event of [
+      'pull_request',
+      'repository_dispatch',
+      'workflow_dispatch',
+    ]) {
+      expect(expressionValue(ref, admission(cli, 'cli', event))).toBe(
+        event === 'repository_dispatch'
+          ? C
+          : event === 'workflow_dispatch'
+            ? 'e'.repeat(40)
+            : H,
+      );
+    }
+  });
+});
 
 describe('push workflows used to detect contradictory arrival evidence', () => {
   const pushTrigger = async (path: string) =>
@@ -158,10 +515,17 @@ describe('one candidate event reuses the complete existing validation', () => {
             names.push(`${job.name} / ${nested.name}`);
         } else if (job.strategy) {
           const matrix = job.strategy.matrix;
+          const services =
+            typeof matrix.service === 'string'
+              ? (expressionValue(
+                  matrix.service,
+                  admission(file, stem, 'repository_dispatch'),
+                ) as string[])
+              : matrix.service;
           const entries =
             matrix.include ??
             matrix.shard?.map((shard) => ({ shard })) ??
-            matrix.service!.map((service) => ({ service }));
+            services!.map((service) => ({ service }));
           for (const entry of entries)
             names.push(
               job.name!.replace(
@@ -190,9 +554,10 @@ describe('one candidate event reuses the complete existing validation', () => {
       ).toBe(true);
     }
     const cli = await workflow('cli');
-    expect(cli.jobs.release?.if).toBe(
-      "${{ github.event_name == 'workflow_dispatch' }}",
+    expect(cli.jobs.release?.if).toContain(
+      "github.event_name == 'workflow_dispatch'",
     );
+    expect(cli.jobs.release?.if).toContain("needs.build.result == 'success'");
     expect(
       cli.jobs.build?.steps?.find((step) => step.name === 'Checkout')?.with
         ?.ref,
@@ -232,6 +597,15 @@ describe('one candidate event reuses the complete existing validation', () => {
         (step) => step.name === 'Run Opengrep',
       )?.run,
     ).toContain('bash tools/opengrep/run.sh');
+    const sast = await workflow('sast');
+    const report = sast.jobs.sast!.steps!.find(
+      (step) => step.name === 'Run Opengrep',
+    )!.env!.OPENGREP_SARIF_OUTPUT!;
+    for (const event of ['push', 'pull_request', 'repository_dispatch']) {
+      expect(expressionValue(report, admission(sast, 'sast', event))).toBe(
+        event === 'repository_dispatch' ? '' : 'opengrep.sarif',
+      );
+    }
   });
 });
 

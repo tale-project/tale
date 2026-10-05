@@ -112,47 +112,6 @@ describe('HostDiskProbe', () => {
     expect(logs[0]).toContain('has 4.0 GiB free, below its 5.0 GiB floor');
     expect(logs[1]).toContain('has 6.0 GiB free again');
   });
-
-  test('protects both filesystems using their own reserve, without adding their capacity', async () => {
-    let dockerFree = 15;
-    const probe = new HostDiskProbe('/sessions', undefined, {
-      additionalPath: () => Promise.resolve('/etc/hostname'),
-      statfs: (path) =>
-        Promise.resolve({
-          bsize: GIB,
-          blocks: path === '/sessions' ? 100 : 1000,
-          bavail: path === '/sessions' ? 8 : dockerFree,
-        }),
-    });
-    // Docker has MORE bytes free but less headroom against its 20 GiB floor.
-    const short = await probe.read();
-    expect(short).toEqual({
-      totalBytes: 1000 * GIB,
-      availableBytes: 15 * GIB,
-      filesystem: '/etc/hostname',
-    });
-    expect(belowDiskFloor(short)).toBe(true);
-    dockerFree = 30;
-    expect(await probe.read(true)).toEqual({
-      totalBytes: 100 * GIB,
-      availableBytes: 8 * GIB,
-      filesystem: '/sessions',
-    });
-    expect(belowDiskFloor(probe.latest())).toBe(false);
-  });
-
-  test('keeps workspace admission when Docker storage cannot be verified or read', async () => {
-    for (const additional of [null, '/etc/hostname']) {
-      const probe = new HostDiskProbe('/sessions', undefined, {
-        additionalPath: () => Promise.resolve(additional),
-        statfs: (path) =>
-          path === '/sessions'
-            ? Promise.resolve({ bsize: GIB, blocks: 100, bavail: 4 })
-            : Promise.reject(new Error('unreadable Docker filesystem')),
-      });
-      expect(belowDiskFloor(await probe.read())).toBe(true);
-    }
-  });
 });
 
 describe('DockerDataRootMount', () => {

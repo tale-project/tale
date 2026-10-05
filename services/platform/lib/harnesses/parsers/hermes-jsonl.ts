@@ -16,6 +16,8 @@
 //   { type: "run_end", status, session_id?, final_text?, error?,
 //     api_error_status? }
 
+import { z } from 'zod';
+
 import { asNumber, asString, LineReassembler, parseJsonLine } from '../jsonl';
 import type {
   HarnessEvent,
@@ -39,12 +41,33 @@ function mapRunStatus(
   return status ? 'error' : 'completed';
 }
 
+const checkpointSchema = z.object({
+  lines: z.string(),
+  started: z.boolean(),
+  sessionId: z.string().optional(),
+});
+
 class HermesJsonlParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
   private started = false;
   private sessionId: string | undefined;
 
   constructor(private readonly slug: HarnessSlug) {}
+
+  snapshot(): Record<string, unknown> {
+    return {
+      lines: this.lines.snapshot(),
+      started: this.started,
+      sessionId: this.sessionId,
+    };
+  }
+
+  restore(value: unknown): void {
+    const state = checkpointSchema.parse(value);
+    this.lines.restore(state.lines);
+    this.started = state.started;
+    this.sessionId = state.sessionId;
+  }
 
   feed(chunk: string): HarnessEvent[] {
     return this.lines.push(chunk).flatMap((line) => this.line(line));

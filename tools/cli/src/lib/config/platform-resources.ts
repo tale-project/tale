@@ -12,6 +12,11 @@ import {
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
+import {
+  isManagedResource,
+  readManagedResource,
+  writeManagedResource,
+} from './managed-resources';
 import type { PlatformConfigurationClient } from './platform-client';
 import {
   resourceConverged,
@@ -37,6 +42,7 @@ export async function readResource(
   client: PlatformConfigurationClient,
   resource: PlatformResource,
 ): Promise<ResourceObservation> {
+  if (isManagedResource(resource)) return readManagedResource(client, resource);
   switch (resource.kind) {
     case 'provider': {
       const view = z
@@ -186,7 +192,17 @@ export async function writeResource(
   client: PlatformConfigurationClient,
   resource: PlatformResource,
   current: ResourceObservation,
+  declaredResources: readonly PlatformResource[] = [],
 ): Promise<void> {
+  if (isManagedResource(resource)) {
+    await writeManagedResource(
+      client,
+      resource,
+      current.revision,
+      declaredResources,
+    );
+    return;
+  }
   const expectedHash = current.revision;
   switch (resource.kind) {
     case 'provider':

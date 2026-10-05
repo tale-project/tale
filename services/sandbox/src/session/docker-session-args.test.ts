@@ -52,6 +52,58 @@ const goodInput = {
 };
 
 describe('buildDockerSessionRunArgs', () => {
+  test('light agents retain the agent user and caps without DinD or its storage', () => {
+    const args = buildDockerSessionRunArgs(
+      {
+        ...cfg,
+        runtimeTier: 'runc',
+        dockerInContainer: true,
+        transparentEgress: false,
+        session: {
+          ...cfg.session,
+          agentProfile: {
+            ...cfg.session.agentProfile,
+            memory: '8g',
+            memoryWithoutDocker: '4g',
+          },
+        },
+      },
+      { ...goodInput, profile: 'agent-light', docker: true },
+    );
+    expect(args).toContain('10001:10001');
+    expect(args).toContain('tale.profile=agent-light');
+    expect(args).toContain('--memory=4g');
+    expect(args).not.toContain('--privileged');
+    expect(args).not.toContain('TALE_DIND=1');
+    expect(args).toContain('--read-only');
+  });
+  test('records the internal create attempt as a validated ownership label', () => {
+    const createAttemptId = '01020304-0506-4708-890a-0b0c0d0e0f10';
+    const args = buildDockerSessionRunArgs(cfg, {
+      ...goodInput,
+      createAttemptId,
+    });
+    expect(args).toContain(`tale.create-attempt=${createAttemptId}`);
+    expect(() =>
+      buildDockerSessionRunArgs(cfg, {
+        ...goodInput,
+        createAttemptId: 'unsafe\nattempt',
+      }),
+    ).toThrow(/createAttemptId/);
+  });
+
+  test('an agent can opt out of inner Docker while the deployment supports it', () => {
+    const args = buildDockerSessionRunArgs(
+      { ...cfg, dockerInContainer: true },
+      { ...goodInput, docker: false },
+    );
+    expect(args).toContain('--read-only');
+    expect(args).not.toContain('--privileged');
+    expect(args.some((arg) => arg === 'TALE_DIND=1')).toBe(false);
+    expect(args.some((arg) => arg.includes('pip-org_456'))).toBe(true);
+    expect(args).toContain('tale.docker=false');
+  });
+
   test('a lightweight agent keeps agent ownership but starts no Docker daemon', () => {
     const configured = {
       ...cfg,
@@ -85,6 +137,34 @@ describe('buildDockerSessionRunArgs', () => {
     });
     expect(dind).toContain('--memory=8g');
     expect(dind).toContain('--memory-swap=8g');
+  });
+
+  test('an explicit memory override applies to every agent Docker capability', () => {
+    const configured: SpawnerConfig = {
+      ...cfg,
+      runtimeTier: 'sysbox',
+      dockerInContainer: true,
+      session: {
+        ...cfg.session,
+        agentProfile: {
+          ...cfg.session.agentProfile,
+          memory: '12g',
+          memoryWithoutDocker: '12g',
+        },
+      },
+    };
+    for (const profile of ['agent', 'agent-light'] as const) {
+      for (const docker of [true, false]) {
+        const args = buildDockerSessionRunArgs(configured, {
+          ...goodInput,
+          profile,
+          docker,
+          dockerStorageVolume: 'tale-dind-test',
+        });
+        expect(args).toContain('--memory=12g');
+        expect(args).toContain('--memory-swap=12g');
+      }
+    }
   });
 
   test('passes a validated operator inner pool only to DinD agent containers', () => {

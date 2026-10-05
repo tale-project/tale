@@ -52,6 +52,31 @@ describe('SkillsMenu', () => {
     );
   });
 
+  it('lists an equipped connector the picker cannot see as a checked, removable entry', async () => {
+    const onChange = vi.fn();
+    const { user } = render(
+      <SkillsMenu
+        skills={[]}
+        connectors={[]}
+        tools={[]}
+        value={{ skills: [], connectors: ['github'], tools: [] }}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    const stale = await screen.findByRole('menuitemcheckbox', {
+      name: '"github" (unavailable)',
+    });
+    expect(stale).toHaveAttribute('aria-checked', 'true');
+
+    await user.click(stale);
+    expect(onChange).toHaveBeenCalledWith({
+      skills: [],
+      connectors: [],
+      tools: [],
+    });
+  });
+
   it('names who created each skill under its row', async () => {
     const { user } = render(
       <SkillsMenu
