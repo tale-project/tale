@@ -40,6 +40,12 @@ Tale exécute donc un abonnement dans les tâches et les automatisations, où so
 
 Pour discuter avec un modèle auquel tu accèdes par un abonnement, ajoute des identifiants par clé API ou variable d’environnement pour le même fournisseur, ou connecte un fournisseur comme OpenRouter qui sert ce modèle.
 
+## Coller un jeton OAuth Claude
+
+Pour utiliser un abonnement Anthropic sans courtier, choisis **Clé d'abonnement** et colle un jeton OAuth Claude, par exemple un jeton obtenu avec `claude setup-token`. Tale transmet ce jeton à Claude Code sous le nom `CLAUDE_CODE_OAUTH_TOKEN`, dans les tâches et les automatisations.
+
+Tale ne renouvelle pas un jeton collé. Quand il expire, ou quand tu passes à un autre compte Claude, utilise l’action de remplacement de la ligne pour en coller un nouveau, puis relance la tâche. [Renouveler ou retirer des identifiants](#renouveler-ou-retirer-des-identifiants) décrit cette action.
+
 ## Connecter un courtier d’abonnement
 
 Les courtiers d’abonnement prennent en charge les abonnements Anthropic via Claude Code et les abonnements OpenAI ChatGPT via Codex. Ces identifiants servent aux agents de tâche et d’automatisation ; les chats nécessitent des identifiants d’accès direct à l’API, pour les [raisons expliquées plus haut](#utiliser-les-abonnements-dans-les-taches-pas-dans-le-chat).
