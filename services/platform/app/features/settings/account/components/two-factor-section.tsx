@@ -12,7 +12,9 @@ import { useToast } from '@tale/ui/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { usePasswordRefusalMessage } from '@/app/features/auth/hooks/use-password-refusal-message';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { readPasswordRefusal } from '@/app/lib/auth/password-refusal';
 import { holdSessionLapseRedirects } from '@/app/lib/auth/session-lapse';
 import { twoFactorStatusQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
@@ -59,6 +61,7 @@ export function TwoFactorSection() {
 
 function NotEnrolledState({ enforced }: { enforced: boolean }) {
   const { t } = useT('twoFactor');
+  const refusalMessage = usePasswordRefusalMessage();
   const showBackupCodes = useShowBackupCodes();
   const [state, setState] = useState<EnrollState>({ step: 'idle' });
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +75,14 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
     try {
       const result = await authClient.twoFactor.enable({ password });
       if (result.error || !result.data) {
-        setError(result.error?.message ?? t('errors.enableFailed'));
+        // A wrong password and the sign-in lock are worded; any other
+        // refusal keeps Better Auth's words.
+        const refusal = readPasswordRefusal(result.error);
+        setError(
+          refusal
+            ? refusalMessage(refusal)
+            : (result.error?.message ?? t('errors.enableFailed')),
+        );
         return;
       }
       // Better Auth 1.7 answers a discriminated union: an OTP-configured
@@ -176,6 +186,7 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
 
 function EnrolledState({ enforced }: { enforced: boolean }) {
   const { t } = useT('twoFactor');
+  const refusalMessage = usePasswordRefusalMessage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const showBackupCodes = useShowBackupCodes();
@@ -191,7 +202,12 @@ function EnrolledState({ enforced }: { enforced: boolean }) {
     try {
       const result = await authClient.twoFactor.disable({ password });
       if (result.error) {
-        setError(result.error.message ?? t('errors.disableFailed'));
+        const refusal = readPasswordRefusal(result.error);
+        setError(
+          refusal
+            ? refusalMessage(refusal)
+            : (result.error.message ?? t('errors.disableFailed')),
+        );
         return;
       }
       toast({ title: t('enrollment.disabled'), variant: 'success' });
@@ -215,7 +231,12 @@ function EnrolledState({ enforced }: { enforced: boolean }) {
         password,
       });
       if (result.error || !result.data) {
-        setError(result.error?.message ?? t('errors.regenerateFailed'));
+        const refusal = readPasswordRefusal(result.error);
+        setError(
+          refusal
+            ? refusalMessage(refusal)
+            : (result.error?.message ?? t('errors.regenerateFailed')),
+        );
         return;
       }
       setRegenOpen(false);

@@ -8204,7 +8204,6 @@ twoFactor:
       revokeFailed: Couldn't remove the passkey. Try again.
       listFailed: Couldn't load your passkeys.
       refreshFailed: Couldn't refresh your passkeys. The list shown may be out of date.
-      wrongPassword: Wrong password. Repeated failed attempts temporarily lock your account.
       confirmFailed: Couldn't confirm your password. Try again.
   setup:
     title: Set up two-factor authentication
@@ -8223,6 +8222,7 @@ twoFactor:
   confirmPassword:
     label: Password
     submit: Confirm
+    wrongPassword: Wrong password. Repeated failed attempts temporarily lock your account.
   verify:
     title: Verify your identity
     description: Enter the 6-digit code from your authenticator app.

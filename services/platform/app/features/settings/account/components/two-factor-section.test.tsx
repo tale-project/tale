@@ -117,6 +117,64 @@ describe('TwoFactorSection – disable under org enforcement', () => {
   });
 });
 
+describe('TwoFactorSection – a refused password', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function confirmIn(dialogName: string, button: string) {
+    const { user } = render(<TwoFactorSection />);
+    await user.click(screen.getByRole('button', { name: button }));
+    const dialog = await screen.findByRole('dialog', { name: dialogName });
+    await user.type(within(dialog).getByLabelText('Password'), 'guess');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    return dialog;
+  }
+
+  it('words a wrong password and warns that repeated ones lock the account', async () => {
+    mockStatus.value = enrolledStatus(false);
+    vi.mocked(authClient.twoFactor.disable).mockResolvedValueOnce({
+      data: null,
+      error: {
+        status: 400,
+        statusText: 'BAD_REQUEST',
+        code: 'INVALID_PASSWORD',
+        message: 'Invalid password',
+      },
+    } as never);
+
+    const dialog = await confirmIn('Disable', 'Disable');
+
+    expect(
+      await within(dialog).findByText(
+        'Wrong password. Repeated failed attempts temporarily lock your account.',
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText('Invalid password')).toBeNull();
+  });
+
+  it('says how long a locked account waits', async () => {
+    mockStatus.value = { ...enrolledStatus(false), twoFactorEnabled: false };
+    vi.mocked(authClient.twoFactor.enable).mockResolvedValueOnce({
+      data: null,
+      error: {
+        status: 429,
+        statusText: 'TOO_MANY_REQUESTS',
+        message: 'Invalid credentials',
+        retryAfter: 120,
+      },
+    } as never);
+
+    const dialog = await confirmIn('Enable two-factor', 'Enable two-factor');
+
+    expect(
+      await within(dialog).findByText(
+        'Account temporarily locked. Try again in 2 minutes, or contact an administrator.',
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('TwoFactorSection session rotation', () => {
   const originalLocation = window.location;
   let navigations: string[];

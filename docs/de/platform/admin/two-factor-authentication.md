@@ -18,7 +18,7 @@ Ein Passkey erfüllt Tales Zwei-Faktor-Richtlinie auch ohne eingerichteten Authe
 ## Einen Authenticator einrichten
 
 1. Öffne **Einstellungen > Konto**, gehe zu **Zwei-Faktor-Authentifizierung** und wähle **Zwei-Faktor aktivieren**.
-2. Gib dein aktuelles Tale-Passwort ein und wähle **Bestätigen**.
+2. Gib dein aktuelles Tale-Passwort ein und wähle **Bestätigen**. Ein falsches Passwort zählt wie eine fehlgeschlagene Anmeldung zur vorübergehenden Sperre.
 3. Scanne den QR-Code mit deiner Authenticator-App. Falls das nicht geht, gib den angezeigten Einrichtungsschlüssel manuell in der App ein.
 4. Gib den aktuellen sechsstelligen Code unter **Bestätigungscode** ein und wähle **Prüfen und aktivieren**.
 5. Lade die Backup-Codes herunter oder kopiere sie, bevor du **Fertig** wählst. Tale zeigt sie später nicht noch einmal an.

@@ -56,7 +56,11 @@ const setMemberPasswordSchema = z.object({
 
 function toResponse(
   error: unknown,
-): { code: string; message: string; status: 400 | 401 | 403 | 404 } | null {
+): {
+  code: string;
+  message: string;
+  status: 400 | 401 | 403 | 404 | 429;
+} | null {
   if (
     error instanceof UserServiceError ||
     // createMember writes through the members domain (add_member audit +
@@ -198,6 +202,14 @@ export function createUserRoutes(deps: {
       return c.json({ ok: true, passwordExpiry });
     } catch (error) {
       const mapped = toResponse(error);
+      // A locked account says how long to wait, for the form's sentence.
+      if (error instanceof UserServiceError && error.retryAfter !== undefined) {
+        return c.json(
+          { error: error.code, data: { retryAfter: error.retryAfter } },
+          error.status,
+          { 'Retry-After': String(error.retryAfter) },
+        );
+      }
       if (mapped) {
         return c.json({ error: mapped.code }, mapped.status);
       }
