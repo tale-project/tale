@@ -54,7 +54,7 @@ const ROW_LINK_CLASS =
 /** How a row that just joined a list arrives: it drops into place. */
 const ROW_ENTER_CLASS = 'animate-row-enter motion-reduce:animate-none';
 
-export const HOME_ROW_AGE_CLASS =
+const HOME_ROW_AGE_CLASS =
   'text-muted-foreground shrink-0 text-[11px] leading-5 tabular-nums transition-opacity duration-150';
 
 /**

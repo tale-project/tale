@@ -4,9 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const source = readFileSync(join(__dirname, 'home-rows.tsx'), 'utf8');
-const ageClass = /export const HOME_ROW_AGE_CLASS =\s+'([^']+)'/.exec(
-  source,
-)?.[1];
+const ageClass = /^const HOME_ROW_AGE_CLASS =\s+'([^']+)'/m.exec(source)?.[1];
 
 describe('Home row age styling', () => {
   it('uses the full muted foreground token for AA contrast', () => {
