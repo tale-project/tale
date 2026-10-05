@@ -99,7 +99,7 @@ beforeEach(() => {
 });
 
 describe('approvals door — a run-bound approval follows its run project', () => {
-  it('hides the card and refuses the decision when the run is unreadable', async () => {
+  it('hides the card and refuses the decision when the run is unreadable [APV-R7]', async () => {
     service.getApproval.mockResolvedValue(approval({ runId: 'r-run' }));
     visibility.runControlAccess.mockResolvedValue('hidden');
 
@@ -110,7 +110,7 @@ describe('approvals door — a run-bound approval follows its run project', () =
     expect(service.decideApproval).not.toHaveBeenCalled();
   });
 
-  it('lets a reader read but refuses the decision for a read-only member', async () => {
+  it('lets a reader read but refuses the decision for a read-only member [APV-R7]', async () => {
     service.getApproval.mockResolvedValue(approval({ runId: 'r-run' }));
     visibility.runControlAccess.mockResolvedValue('forbidden');
 
@@ -122,7 +122,7 @@ describe('approvals door — a run-bound approval follows its run project', () =
     expect(service.decideApproval).not.toHaveBeenCalled();
   });
 
-  it('lets a project writer read and decide', async () => {
+  it('lets a project writer read and decide [APV-R7]', async () => {
     service.getApproval.mockResolvedValue(approval({ runId: 'r-run' }));
     visibility.runControlAccess.mockResolvedValue('ok');
 
@@ -132,7 +132,7 @@ describe('approvals door — a run-bound approval follows its run project', () =
     expect(service.decideApproval).toHaveBeenCalledTimes(1);
   });
 
-  it('fails closed when the named run resolves to nothing (UUID is not authority)', async () => {
+  it('fails closed when the named run resolves to nothing (UUID is not authority) [APV-R7]', async () => {
     service.getApproval.mockResolvedValue(approval({ runId: 'gone' }));
 
     const read = await request('/a1');
@@ -144,7 +144,7 @@ describe('approvals door — a run-bound approval follows its run project', () =
     expect(visibility.runControlAccess).not.toHaveBeenCalled();
   });
 
-  it('preserves the org-member posture for a genuinely non-run approval', async () => {
+  it('preserves the org-member posture for a genuinely non-run approval [APV-R8]', async () => {
     service.getApproval.mockResolvedValue(approval({ threadId: 't1' }));
 
     expect((await request('/a1')).status).toBe(200);
@@ -156,7 +156,7 @@ describe('approvals door — a run-bound approval follows its run project', () =
     expect(visibility.runControlAccess).not.toHaveBeenCalled();
   });
 
-  it('treats an organization-run approval as controllable by any member', async () => {
+  it('treats an organization-run approval as controllable by any member [APV-R8]', async () => {
     service.getApproval.mockResolvedValue(approval({ runId: 'r-org' }));
     store.getRun.mockResolvedValue({ id: 'r-org', projectId: null });
     visibility.runControlAccess.mockResolvedValue('ok');
@@ -167,7 +167,7 @@ describe('approvals door — a run-bound approval follows its run project', () =
   });
 
   it.each(['task_review', 'document_record_review'])(
-    'preserves the %s dedicated door when its metadata names another kind of run',
+    'preserves the %s dedicated door when its metadata names another kind of run [APV-R10]',
     async (resourceType) => {
       service.getApproval.mockResolvedValue({
         ...approval({ runId: 'project-agent-run' }),
