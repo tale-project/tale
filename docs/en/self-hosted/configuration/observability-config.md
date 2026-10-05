@@ -55,12 +55,17 @@ Do not scrape `/metrics/sla-rules` as metrics. The generated rules reference lat
 
 ## Choose where errors go
 
-`SENTRY_DSN` enables optional error reporting. It can point to Sentry or a compatible service such as GlitchTip or Bugsink. Both the browser and backend use the DSN; backend events carry the process role and release version.
+`SENTRY_DSN` enables optional error reporting. It can point to Sentry or a compatible service such as GlitchTip or Bugsink. Browser, backend and sandbox use the DSN and `SENTRY_ENVIRONMENT` reporting label; server events carry the process role and release version.
 
 ```bash
 SENTRY_DSN=https://your-key@your-sentry-host/project-id
+SENTRY_ENVIRONMENT=example-pr
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
+
+Managed deployments default the reporting label to their retained `name`. To select another label, declare `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }` in the deployment specification and supply the variable at the destination. The value starts with a lowercase letter or digit and contains 1–64 lowercase letters, digits or hyphens. Deployment identity, state and stored credentials stay at their existing paths.
+
+Sandbox errors include HTTP and background-task failures. Expected client aborts and closed SSE streams after cancellation are excluded. Sandbox reporting sends errors only; browser and backend tracing settings do not enable sandbox tracing. It uses the backend’s request privacy filter described below.
 
 `SENTRY_TRACES_SAMPLE_RATE` applies to browser performance traces; their default is 1.0 in development. Backend tracing is disabled by default. To enable it, set `BACKEND_SENTRY_TRACES_SAMPLE_RATE` between `0` and `1` (for example, `0.05` samples 5% of operations) and use a destination that accepts Sentry transactions. Recreate the backend API and worker services after changing the setting. Choose rates that fit your monitoring budget; setting the backend rate to `0` disables spans while keeping error reporting.
 

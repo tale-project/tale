@@ -39,6 +39,8 @@ RUN bun install --frozen-lockfile
 
 COPY services/sandbox/tsconfig.json ./
 COPY services/sandbox/src/ ./src/
+# The exact shared credential scrubber used by the platform backend too.
+COPY packages/shared/src/monitoring/privacy.ts /packages/shared/src/monitoring/privacy.ts
 
 # =============================================================================
 # Stage 2: RUNNER — production deps only + docker CLI for spawning siblings
@@ -75,6 +77,7 @@ RUN bun install --frozen-lockfile --production \
 
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /packages/shared/src/monitoring/privacy.ts /packages/shared/src/monitoring/privacy.ts
 
 # Two-file entrypoint pair. `docker-entrypoint.sh` owns container-level
 # bootstrap (host-side directory perms, env init); `entrypoint.sh` owns

@@ -126,6 +126,7 @@ Siehe [Audit-Log-Integrität](/de/self-hosted/operate/security/audit-log-integri
 | Name                        | Default | Beschreibung                                                                                                                                 |
 | --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SENTRY_DSN`                | unset   | Sentry-DSN für Error-Tracking. Unset zum Deaktivieren. Kompatibel mit selbst gehostetem GlitchTip und Bugsink.                               |
+| `SENTRY_ENVIRONMENT` | unset | Gemeinsame Umgebungsbezeichnung für Fehler aus Browser, Backend und Sandbox. Verwaltete Deployments verwenden standardmäßig ihren bestehenden `name`; eine explizite Umgebungsreferenz kann eine kanonische Bezeichnung setzen, ohne das Deployment umzubenennen. |
 | `SENTRY_TRACES_SAMPLE_RATE` | unset | Optionale Abtastrate für Leistungstraces im Browser (`0.0`–`1.0`), unabhängig von der Backend-Abtastrate. |
 | `BACKEND_SENTRY_TRACES_SAMPLE_RATE` | `0` | Abtastrate für HTTP- und Worker-Spans im Backend (`0.0`–`1.0`). Erfordert `SENTRY_DSN` und ein Ziel, das Sentry-Transaktionen annimmt; `0` deaktiviert Spans. |
 | `METRICS_BEARER_TOKEN` | unset | Bearer-Token für die Proxy-Routen `/metrics/*`. Ohne konfigurierten Token antworten sie mit 401. Den Netzwerkzugriff auf interne Prozessendpunkte musst du gesondert beschränken. |
