@@ -6,3 +6,19 @@ upload:
   fileTooLarge: Datei zu gross
   fileSizeExceeded: 'Datei {name} überschreitet das Limit von {maxSize} MB.
     Aktuelle Grösse: {currentSize} MB'
+  confirming: Schliesst Upload ab…
+  confirmingFileNamed: Schliesst Upload von {fileName} ab
+  announcements:
+    finalizing: Schliesst Upload von {fileName} ab
+record:
+  replace:
+    staleRevision: Diese Revision hat sich geändert. Schliesse den Dialog und
+      versuche es erneut.
+    staleDialog: Dieser Entwurf hat sich geändert. Schliesse den Dialog und öffne ihn
+      erneut, bevor du eine andere Datei auswählst.
+    approvedStaleDialog: Dieses freigegebene Dokument hat sich geändert. Schliesse den Dialog und
+      öffne ihn erneut, bevor du eine andere Datei auswählst.
+    stateChanged: Der Status dieses Dokuments hat sich geändert. Schliesse den Dialog und
+      öffne ihn erneut, bevor du die Datei ersetzt.
+    intentExpired: Dieser Ersatz-Upload ist abgelaufen. Schliesse den Dialog und starte
+      erneut.

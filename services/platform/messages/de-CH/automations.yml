@@ -1,3 +1,16 @@
 runs:
   quarantine:
-    changed: Die Sperre hat sich geändert. Schliesse diesen Dialog und prüfe die aktuellen Angaben, bevor du entscheidest.
+    changed: Die Sperre hat sich geändert. Schliesse diesen Dialog und prüfe die
+      aktuellen Angaben, bevor du entscheidest.
+  effects:
+    description: Alles, was dieser Lauf ausserhalb der Plattform verändert hat, in
+      der Reihenfolge, in der es passiert ist.
+    none: Dieser Lauf hat ausserhalb der Plattform nichts verändert.
+    noneForNode: Diese Node hat ausserhalb der Plattform nichts verändert.
+    noneYetForNode: Diese Node hat ausserhalb der Plattform noch nichts verändert.
+blank:
+  triggerFailed: "Die Automatisierung wurde angelegt, aber ihr Trigger liess sich
+    nicht setzen: {error}. Setze ihn über die Trigger-Karte."
+settings:
+  loadFailed: Einstellungen konnten nicht geladen werden — schliesse den Dialog
+    und versuch es nochmal.

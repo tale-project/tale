@@ -1,29 +1,44 @@
 account:
   chats:
-    archiveConfirm: Alle deine nicht archivierten Chats in dieser Organisation archivieren, einschliesslich Projekt-Chats. Du kannst sie später wiederherstellen. Chats unter rechtlicher Aufbewahrung bleiben unverändert.
-    deleteConfirm: Alle deine Chats in dieser Organisation in den Papierkorb verschieben, einschliesslich archivierter Chats und Projekt-Chats. Innerhalb der Aufbewahrungsfrist kannst du sie wiederherstellen. Chats unter rechtlicher Aufbewahrung oder mit einer laufenden Antwort bleiben unverändert.
+    archiveConfirm: Alle deine nicht archivierten Chats in dieser Organisation
+      archivieren, einschliesslich Projekt-Chats. Du kannst sie später
+      wiederherstellen. Chats unter rechtlicher Aufbewahrung bleiben
+      unverändert.
+    deleteConfirm: Alle deine Chats in dieser Organisation in den Papierkorb
+      verschieben, einschliesslich archivierter Chats und Projekt-Chats.
+      Innerhalb der Aufbewahrungsfrist kannst du sie wiederherstellen. Chats
+      unter rechtlicher Aufbewahrung oder mit einer laufenden Antwort bleiben
+      unverändert.
 dataResidency:
   orgStorage:
     backfill:
       confirm:
-        description:
-          Dateien dieser Organisation aus dem eingebauten Speicher des
-          Deployments werden in deinen Bucket kopiert und von dort
-          ausgeliefert. Das läuft im Hintergrund und kann bei grossen
-          Dateibeständen eine Weile dauern.
+        description: Dateien dieser Organisation aus dem eingebauten Speicher des
+          Deployments werden in deinen Bucket kopiert und von dort ausgeliefert.
+          Das läuft im Hintergrund und kann bei grossen Dateibeständen eine
+          Weile dauern.
 enterpriseSso:
   excludeGroupsLabel: Gruppen ausschliessen
   embedding:
-    toggleHelp: Ausgeschaltet bleibt jede Seite ausserhalb von Frames; die Liste unten bleibt erhalten.
+    toggleHelp: Ausgeschaltet bleibt jede Seite ausserhalb von Frames; die Liste
+      unten bleibt erhalten.
+  metadata:
+    importFailed: Die IdP-Metadaten liessen sich nicht importieren.
+    errorTooLarge: Das Metadaten-Dokument ist zu gross (max. 1 MB).
+    errorFetchFailed: Die Metadaten-URL liess sich nicht abrufen. Prüfe die Adresse oder lade
+      die Datei herunter und lade sie hier hoch.
+  redirectUrlHelp: Registrieren Sie genau diese URL als "Web"-Weiterleitungs-URI in Ihrer
+    App-Registrierung — sie muss exakt übereinstimmen (Schema, Host, Pfad, kein
+    abschliessender Schrägstrich), sonst schlägt die Anmeldung mit AADSTS50011
+    fehl.
 providers:
   subscriptionScope:
     description: >-
       Ein Abo-Token läuft nur in der Agent-Laufzeit, die sein Anbieter
-      unterstützt, etwa Claude Code oder Codex, in einer Sandbox: Die
-      Anbieter erlauben diese Tokens nicht in anderen Anwendungen, und
-      Anthropic weist sie bei jedem Client ausser Claude Code ab. Im Chat
-      lassen sich diese Zugangsdaten nicht verwenden. Um mit diesen Modellen
-      zu chatten, füge für den Anbieter Zugangsdaten per API-Schlüssel oder
-      Umgebungsvariable hinzu.
+      unterstützt, etwa Claude Code oder Codex, in einer Sandbox: Die Anbieter
+      erlauben diese Tokens nicht in anderen Anwendungen, und Anthropic weist
+      sie bei jedem Client ausser Claude Code ab. Im Chat lassen sich diese
+      Zugangsdaten nicht verwenden. Um mit diesen Modellen zu chatten, füge für
+      den Anbieter Zugangsdaten per API-Schlüssel oder Umgebungsvariable hinzu.
   broker:
     maxResponseBytes: Maximale Antwortgrösse (Bytes)

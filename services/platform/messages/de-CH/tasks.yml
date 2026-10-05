@@ -1,8 +1,16 @@
 sourceIssue:
-  independentStatus: Der Status der Quelle gilt unabhängig von dieser Aufgabe. Prüfe die Aufgabe und schliesse sie in Tale ab.
+  independentStatus: Der Status der Quelle gilt unabhängig von dieser Aufgabe.
+    Prüfe die Aufgabe und schliesse sie in Tale ab.
 repeat:
-  dateOutOfRange: Die nächsten Termine liegen ausserhalb des unterstützten Datumsbereichs. Wähle ein früheres Datum.
+  dateOutOfRange: Die nächsten Termine liegen ausserhalb des unterstützten
+    Datumsbereichs. Wähle ein früheres Datum.
   stop:
-    altText: 'Du kannst die Wiederholung auch später beenden: Öffne die Aufgabe und wähle bei «Wiederholen» die Aktion «Wiederholung beenden».'
+    altText: 'Du kannst die Wiederholung auch später beenden: Öffne die Aufgabe und
+      wähle bei «Wiederholen» die Aktion «Wiederholung beenden».'
 read:
-  activityFailedReviewFilter: Die Aktivität der Agenten und Reviews konnte nicht geladen werden. Laufende Agenten, offene Fragen und ausstehende Reviews sind deshalb möglicherweise nicht markiert, und «Wartet auf mein Review» lässt vielleicht Aufgaben aus, die auf dich warten.
+  activityFailedReviewFilter: Die Aktivität der Agenten und Reviews konnte nicht
+    geladen werden. Laufende Agenten, offene Fragen und ausstehende Reviews sind
+    deshalb möglicherweise nicht markiert, und «Wartet auf mein Review» lässt
+    vielleicht Aufgaben aus, die auf dich warten.
+detail:
+  parentCloseGuard: Schliesse alle Teilaufgaben ab, bevor du diese Aufgabe abschliesst.
