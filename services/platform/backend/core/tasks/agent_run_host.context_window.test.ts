@@ -351,6 +351,60 @@ describe('a task agent start', () => {
     },
   );
 
+  it.each([
+    {
+      name: 'a pasted Anthropic OAuth token',
+      credential: {
+        secret: 'synthetic-pasted-token',
+        targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+      },
+      expected: {
+        CLAUDE_CODE_OAUTH_TOKEN: 'synthetic-pasted-token',
+        ANTHROPIC_AUTH_TOKEN: '',
+        ANTHROPIC_API_KEY: '',
+      },
+    },
+    {
+      name: 'a static key that names no variable',
+      credential: { secret: 'synthetic-plan-key' },
+      expected: {
+        ANTHROPIC_AUTH_TOKEN: 'synthetic-plan-key',
+        CLAUDE_CODE_OAUTH_TOKEN: '',
+      },
+    },
+  ])(
+    'delivers $name on the channel its credential names',
+    async ({ credential, expected }) => {
+      io.subscription = {
+        providerSlug: 'anthropic',
+        modelId: 'claude-sonnet-4-6',
+        apiBaseUrl: 'https://api.anthropic.com',
+      };
+      vi.mocked(resolveProviderCredential).mockResolvedValue({
+        authMethod: 'subscription-key',
+        credentialId: 'credential-2',
+        name: 'Synthetic key',
+        ...credential,
+      } as never);
+      const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+      await startTaskAgentTurnImpl(ctx, {
+        ...KEYS,
+        harness: 'claude-code',
+        model: 'claude-sonnet-4-6',
+        modelProvider: 'anthropic',
+        sweep: true,
+      } as never);
+
+      expect(console.error).not.toHaveBeenCalled();
+      expect(io.starts).toHaveLength(1);
+      expect(io.starts[0]?.env).toMatchObject(expected);
+      expect(io.starts[0]?.env.ANTHROPIC_BASE_URL).toBe(
+        'https://api.anthropic.com',
+      );
+    },
+  );
+
   it('fails a start the broker refused while every account cooled down, naming when the first is back', async () => {
     io.subscription = {
       providerSlug: 'anthropic',
