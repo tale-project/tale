@@ -17,7 +17,7 @@ Ein Passkey erfüllt Tales Zwei-Faktor-Richtlinie auch ohne eingerichteten Authe
 
 ## Einen Authenticator einrichten
 
-1. Öffne **Einstellungen > Konto**, gehe zu **Sicherheit** und wähle **Zwei-Faktor aktivieren**.
+1. Öffne **Einstellungen > Konto**, gehe zu **Zwei-Faktor-Authentifizierung** und wähle **Zwei-Faktor aktivieren**.
 2. Gib dein aktuelles Tale-Passwort ein und wähle **Bestätigen**.
 3. Scanne den QR-Code mit deiner Authenticator-App. Falls das nicht geht, gib den angezeigten Einrichtungsschlüssel manuell in der App ein.
 4. Gib den aktuellen sechsstelligen Code unter **Bestätigungscode** ein und wähle **Prüfen und aktivieren**.
@@ -31,10 +31,11 @@ Bewahre Backup-Codes so auf, dass du sie auch ohne dein Anmeldegerät erreichst,
 
 ## Einen Passkey hinzufügen
 
-1. Wähle unter **Einstellungen > Konto > Sicherheit** die Aktion **Passkey hinzufügen**.
-2. Trage unter **Passkey-Name** einen Namen ein, den du wiedererkennst, etwa `Arbeitslaptop`.
-3. Lass **Authenticator-Typ** auf **Beliebig (empfohlen)**, damit der Browser alle verfügbaren Möglichkeiten anbietet. Alternativ wählst du den eingebauten Authenticator oder einen Sicherheitsschlüssel beziehungsweise ein Smartphone.
-4. Wähle **Passkey hinzufügen** und bestätige die Browserabfrage.
+1. Öffne **Einstellungen > Konto**, gehe zu **Passkeys** und wähle **Passkey hinzufügen**.
+2. Liegt deine Anmeldung mehr als einen Tag zurück, fragt Tale zuerst nach deinem Passwort. Gib es unter **Passwort** ein und wähle **Bestätigen**. Ein falsches Passwort zählt wie eine fehlgeschlagene Anmeldung zur vorübergehenden Sperre.
+3. Trage unter **Passkey-Name** einen Namen ein, den du wiedererkennst, etwa `Arbeitslaptop`.
+4. Lass **Authenticator-Typ** auf **Beliebig (empfohlen)**, damit der Browser alle verfügbaren Möglichkeiten anbietet. Alternativ wählst du den eingebauten Authenticator oder einen Sicherheitsschlüssel beziehungsweise ein Smartphone.
+5. Wähle **Passkey hinzufügen** und bestätige die Browserabfrage.
 
 Der Passkey erscheint in deiner Kontoliste. Wähle auf der Anmeldeseite **Mit einem Passkey anmelden**. Nach einer Passwortanmeldung kannst du auf der Bestätigungsseite auch **Stattdessen einen Passkey verwenden** wählen.
 
@@ -64,7 +65,7 @@ Admins richten die Richtlinie unter **Einstellungen > Richtlinien > Sicherheit**
 | **Übergangsfrist (Tage)** | Zeit für die Einrichtung ab der ersten Anmeldung des Mitglieds unter dieser Richtlinie. Null verlangt sie sofort. |
 | **Nur-SSO-Benutzer ausnehmen** | Mitglieder ohne Tale-Passwort verlassen sich auf die Anmeldung ihres Identitätsanbieters. |
 
-Während der Übergangsfrist sehen Mitglieder eine Erinnerung. Danach sperrt Tale den Organisationszugang, bis sie eine Methode einrichten. Deinen eigenen Authenticator zu deaktivieren, hebt die Richtlinie nicht auf.
+Während der Übergangsfrist sehen Mitglieder eine Erinnerung. Danach sperrt Tale den Organisationszugang, bis sie eine Methode einrichten: Die Einrichtungsseite fragt nach ihrem Passwort, um einen Authenticator einzurichten, oder bietet **Stattdessen einen Passkey registrieren** an. Wer schon länger als einen Tag angemeldet ist, bestätigt vor der Passkey-Abfrage sein Passwort. Wer sich nur per SSO anmeldet, wählt zuerst **Erneut anmelden**. Deinen eigenen Authenticator zu deaktivieren, hebt die Richtlinie nicht auf.
 
 ## Einem ausgesperrten Mitglied helfen
 

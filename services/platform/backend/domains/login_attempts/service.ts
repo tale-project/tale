@@ -74,10 +74,17 @@ export interface RecordFailureResult {
  * from the strictest applicable policy, write per-org audit rows, and (on
  * the first threshold crossing) notify org admins. Unknown emails are a
  * no-op — no row, no audit — to avoid enumeration and DoS amplification.
+ * `reauthentication` stamps the rows of a signed-in password confirmation
+ * (`auth/reauthenticate.ts`), which counts like a sign-in.
  */
 export async function recordFailure(
   tx: TransactionSql,
-  args: { email: string; ip?: string; userAgent?: string },
+  args: {
+    email: string;
+    ip?: string;
+    userAgent?: string;
+    reauthentication?: boolean;
+  },
 ): Promise<RecordFailureResult> {
   const email = normalizeAuthEmail(args.email);
   const user = await findUserByEmail(tx, email);
@@ -121,6 +128,8 @@ export async function recordFailure(
   const ipParts = args.ip !== undefined ? await splitIpForAudit(args.ip) : {};
   const notifyEmail = emailParts.hash ?? emailParts.plaintext ?? email;
   const notifyIp = ipParts.hash ?? ipParts.plaintext ?? 'unknown';
+  const stamp =
+    args.reauthentication === true ? { reauthentication: true } : {};
 
   for (const { organizationId } of orgs) {
     await createAuditLog(tx, {
@@ -149,6 +158,7 @@ export async function recordFailure(
         ...(lockedUntil !== null
           ? { lockedUntil: new Date(lockedUntil).toISOString() }
           : {}),
+        ...stamp,
       },
     });
 
@@ -178,6 +188,7 @@ export async function recordFailure(
           consecutiveFailures: newFailures,
           lockedUntil:
             lockedUntil !== null ? new Date(lockedUntil).toISOString() : null,
+          ...stamp,
         },
       });
     }
@@ -246,10 +257,16 @@ export async function recordBlocked(
   `;
 }
 
-/** Clear failure state on successful sign-in + write the success audit rows. */
+/** Clear failure state on successful sign-in + write the success audit rows.
+ * `reauthentication` stamps a signed-in password confirmation's rows. */
 export async function clearOnSuccess(
   tx: TransactionSql,
-  args: { email: string; ip?: string; userAgent?: string },
+  args: {
+    email: string;
+    ip?: string;
+    userAgent?: string;
+    reauthentication?: boolean;
+  },
 ): Promise<void> {
   const email = normalizeAuthEmail(args.email);
   await tx`DELETE FROM app.login_attempts WHERE email = ${email}`;
@@ -283,6 +300,9 @@ export async function clearOnSuccess(
       ...(ipParts.hash !== undefined ? { actorIpHash: ipParts.hash } : {}),
       ...(args.userAgent !== undefined ? { userAgent: args.userAgent } : {}),
       status: 'success',
+      ...(args.reauthentication === true
+        ? { metadata: { reauthentication: true } }
+        : {}),
     });
   }
 }
