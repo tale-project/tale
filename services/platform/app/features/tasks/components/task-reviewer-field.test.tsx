@@ -53,6 +53,8 @@ const resolveActor = (type: string, id: string) => ({
   isAgent: type === 'agent',
 });
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({ resolveActor }),
   useAssignableActors: () => ({
     scopeReady: true,

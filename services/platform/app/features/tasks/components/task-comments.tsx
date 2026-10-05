@@ -11,7 +11,7 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useIsMac } from '@tale/ui/use-is-mac';
 import { toast } from '@tale/ui/use-toast';
-import { useRef, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 
 import { CHAT_COMPOSER_FRAME_CLASS } from '@/app/features/chat/lib/layout';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
@@ -25,7 +25,12 @@ import {
   useEditTaskComment,
 } from '../hooks/mutations';
 import { useTaskDiscussion } from '../hooks/queries';
-import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  ActorDirectoryProvider,
+  useActorDirectory,
+  useProvidedActorDirectory,
+  type ActorDirectory,
+} from '../hooks/use-actor-directory';
 import { taskCommentDraftKey } from '../lib/draft-key';
 import {
   pickCommentBody,
@@ -64,22 +69,7 @@ function onModEnter(submit: () => void) {
   };
 }
 
-/**
- * One comment: author, time, the `(edited)` marker, the body with its
- * mentions, and — on hover, for whoever may — edit in place and delete. The
- * edit draft is the comment's own state, so any list (the board dialog's log,
- * the task page's conversation) renders comments the same way.
- */
-export function TaskCommentView({
-  comment: c,
-  organizationId,
-  projectId,
-  canComment,
-  canWork = false,
-  currentUserId,
-  isAdmin,
-  onRequestDelete,
-}: {
+interface TaskCommentViewProps {
   comment: TaskCommentData;
   organizationId: string;
   projectId: string;
@@ -91,19 +81,55 @@ export function TaskCommentView({
   currentUserId?: string;
   isAdmin?: boolean;
   onRequestDelete: (messageId: string) => void;
+}
+
+/**
+ * One comment: author, time, the `(edited)` marker, the body with its
+ * mentions, and — on hover, for whoever may — edit in place and delete. The
+ * edit draft is the comment's own state, so any list (the board dialog's log,
+ * the task page's conversation) renders comments the same way.
+ *
+ * A task carries hundreds of these: each names its author from the actor
+ * directory its list provides (reading its own only outside one), keeps its
+ * editor unmounted until asked, and re-renders only when its own props change.
+ */
+export const TaskCommentView = memo(function TaskCommentView(
+  props: TaskCommentViewProps,
+) {
+  const provided = useProvidedActorDirectory(
+    props.organizationId,
+    props.projectId,
+  );
+  return provided !== undefined ? (
+    <TaskCommentRow {...props} directory={provided} />
+  ) : (
+    <TaskCommentWithOwnDirectory {...props} />
+  );
+});
+
+function TaskCommentWithOwnDirectory(props: TaskCommentViewProps) {
+  const directory = useActorDirectory(props.organizationId, props.projectId);
+  return <TaskCommentRow {...props} directory={directory} />;
+}
+
+function TaskCommentRow({
+  comment: c,
+  organizationId,
+  projectId,
+  canComment,
+  canWork = false,
+  currentUserId,
+  isAdmin,
+  onRequestDelete,
+  directory: { resolveActor, resolveActorPreview },
+}: TaskCommentViewProps & {
+  directory: Pick<ActorDirectory, 'resolveActor' | 'resolveActorPreview'>;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { locale } = useLocale();
-  const { resolveActor, resolveActorPreview } = useActorDirectory(
-    organizationId,
-    projectId,
-  );
   const { formatRelative, formatDate } = useFormatDate();
-  const editComment = useEditTaskComment();
   const [editing, setEditing] = useState(false);
-  const [editDraft, setEditDraft] = useState('');
-  const isEditPending = editComment.isPending;
 
   const author = resolveActor(c.authorType, c.authorId);
   const preview = isPreviewableTaskActor(c.authorType, c.authorId)
@@ -115,18 +141,6 @@ export function TaskCommentView({
     c.authorType === 'user' &&
     !!currentUserId &&
     c.authorId === currentUserId;
-
-  const submitEdit = async () => {
-    const body = editDraft.trim();
-    if (!body || isEditPending) return;
-    try {
-      await editComment.mutateAsync({ messageId: c.messageId, body });
-      setEditing(false);
-    } catch (error) {
-      // The comment write's own toast reports the failure.
-      console.error('[tasks] comment action failed', error);
-    }
-  };
 
   return (
     <Row gap={2} align="start" className="group/comment">
@@ -151,32 +165,13 @@ export function TaskCommentView({
         </div>
 
         {editing ? (
-          <Stack gap={2} className="mt-1">
-            <MentionTextarea
-              id={`edit-comment-${c.messageId}`}
-              organizationId={organizationId}
-              projectId={projectId}
-              rows={2}
-              value={editDraft}
-              onValueChange={setEditDraft}
-              onKeyDown={onModEnter(() => {
-                if (!isEditPending) void submitEdit();
-              })}
-              autoFocus
-            />
-            <Row gap={2} align="stretch">
-              <Button
-                disabled={editDraft.trim().length === 0 || isEditPending}
-                isLoading={isEditPending}
-                onClick={() => void submitEdit()}
-              >
-                {tCommon('actions.save')}
-              </Button>
-              <Button variant="secondary" onClick={() => setEditing(false)}>
-                {tCommon('actions.cancel')}
-              </Button>
-            </Row>
-          </Stack>
+          <TaskCommentEditor
+            messageId={c.messageId}
+            initialBody={displayBody}
+            organizationId={organizationId}
+            projectId={projectId}
+            onDone={() => setEditing(false)}
+          />
         ) : (
           <MentionText
             body={displayBody}
@@ -192,12 +187,7 @@ export function TaskCommentView({
             className="mt-1 text-xs opacity-0 transition-opacity group-focus-within/comment:opacity-100 group-hover/comment:opacity-100"
           >
             {canManage && (
-              <CommentAction
-                onClick={() => {
-                  setEditing(true);
-                  setEditDraft(displayBody);
-                }}
-              >
+              <CommentAction onClick={() => setEditing(true)}>
                 {tCommon('actions.edit')}
               </CommentAction>
             )}
@@ -213,6 +203,68 @@ export function TaskCommentView({
         )}
       </div>
     </Row>
+  );
+}
+
+/** Editing one comment in place: its draft and its write, which exist only
+ *  while the editor is open. */
+function TaskCommentEditor({
+  messageId,
+  initialBody,
+  organizationId,
+  projectId,
+  onDone,
+}: {
+  messageId: string;
+  initialBody: string;
+  organizationId: string;
+  projectId: string;
+  onDone: () => void;
+}) {
+  const { t: tCommon } = useT('common');
+  const editComment = useEditTaskComment();
+  const [editDraft, setEditDraft] = useState(initialBody);
+  const isEditPending = editComment.isPending;
+
+  const submitEdit = async () => {
+    const body = editDraft.trim();
+    if (!body || isEditPending) return;
+    try {
+      await editComment.mutateAsync({ messageId, body });
+      onDone();
+    } catch (error) {
+      // The comment write's own toast reports the failure.
+      console.error('[tasks] comment action failed', error);
+    }
+  };
+
+  return (
+    <Stack gap={2} className="mt-1">
+      <MentionTextarea
+        id={`edit-comment-${messageId}`}
+        organizationId={organizationId}
+        projectId={projectId}
+        rows={2}
+        value={editDraft}
+        onValueChange={setEditDraft}
+        onKeyDown={onModEnter(() => {
+          if (!isEditPending) void submitEdit();
+        })}
+        autoFocus
+      />
+      <Row gap={2} align="stretch">
+        <Button
+          disabled={editDraft.trim().length === 0 || isEditPending}
+          isLoading={isEditPending}
+          onClick={() => void submitEdit()}
+        >
+          {tCommon('actions.save')}
+        </Button>
+        <Button variant="secondary" onClick={onDone}>
+          {tCommon('actions.cancel')}
+        </Button>
+      </Row>
+    </Stack>
   );
 }
 
@@ -443,7 +495,7 @@ export function useTaskCommentDelete() {
  * ones before them — so however busy a task gets, its freshest comment is on
  * screen and nothing older is silently cut.
  */
-export function TaskComments({
+export const TaskComments = memo(function TaskComments({
   taskId,
   organizationId,
   projectId,
@@ -486,6 +538,7 @@ export function TaskComments({
   } = useTaskDiscussion(taskId);
   const comments = order === 'desc' ? newestFirst : newestFirst.toReversed();
   const { requestDelete, dialog: deleteDialog } = useTaskCommentDelete();
+  const provided = useProvidedActorDirectory(organizationId, projectId);
 
   // The composer sits at the NEWEST end of the thread — below an ascending
   // conversation, above a newest-first log — so a fresh comment appears where
@@ -518,7 +571,7 @@ export function TaskComments({
     </Row>
   );
 
-  return (
+  const section = (
     <section>
       {showHeading ? (
         <Text as="h3" variant="label">
@@ -559,7 +612,20 @@ export function TaskComments({
       {deleteDialog}
     </section>
   );
-}
+
+  // Every comment names its author from one directory: the one the task's
+  // surface provides, else one read here for the whole list.
+  return provided !== undefined ? (
+    section
+  ) : (
+    <ActorDirectoryProvider
+      organizationId={organizationId}
+      projectId={projectId}
+    >
+      {section}
+    </ActorDirectoryProvider>
+  );
+});
 
 function CommentAction({
   children,

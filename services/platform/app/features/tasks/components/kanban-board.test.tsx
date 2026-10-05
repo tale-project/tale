@@ -22,6 +22,8 @@ vi.mock('@/app/hooks/use-backend-action', () => ({
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],

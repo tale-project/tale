@@ -85,6 +85,8 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'u-member' } }),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],

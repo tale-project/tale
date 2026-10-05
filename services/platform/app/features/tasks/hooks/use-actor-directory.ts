@@ -1,5 +1,11 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { useMemo } from 'react';
+import {
+  createContext,
+  createElement,
+  useContext,
+  useMemo,
+  type ReactNode,
+} from 'react';
 
 import {
   useProjectAgents,
@@ -278,26 +284,100 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     [organizationId, workflowCatalog, previewLabels],
   );
 
-  return {
-    resolveActor,
-    resolveAssigneeId,
-    resolveActorPreview,
-    resolveAgentRunPreview,
-    resolveWorkflowRunPreview,
-    members: memberList,
-    agents: agentList,
-    /** Deployed automations visible from this context, slug + display name. */
-    automations: automationList,
-    /** True while the project's agent list is still being fetched — an empty
-     * `agents` is only "this project HAS no agents" once this settles. */
-    agentsLoading,
-    currentUserId: me?.userId,
-    // `useActorDirectory` stays org-wide — it also resolves *historical* actors
-    // (comment authors, a current assignee who has since lost access), which a
-    // project filter would regress to raw ids. The project-scoped candidate
-    // lists for authoring live in `useAssignableActors` below.
-    projectId,
-  };
+  const currentUserId = me?.userId;
+  // One object per change, not per render: a provided directory is a context
+  // value, and a fresh object would re-render every row that reads it.
+  return useMemo(
+    () => ({
+      resolveActor,
+      resolveAssigneeId,
+      resolveActorPreview,
+      resolveAgentRunPreview,
+      resolveWorkflowRunPreview,
+      members: memberList,
+      agents: agentList,
+      /** Deployed automations visible from this context, slug + display name. */
+      automations: automationList,
+      /** The same automations as listed, for the task-contract surfaces. */
+      contractAutomations: automations,
+      /** True while the project's agent list is still being fetched — an empty
+       * `agents` is only "this project HAS no agents" once this settles. */
+      agentsLoading,
+      currentUserId,
+      organizationId,
+      // `useActorDirectory` stays org-wide — it also resolves *historical* actors
+      // (comment authors, a current assignee who has since lost access), which a
+      // project filter would regress to raw ids. The project-scoped candidate
+      // lists for authoring live in `useAssignableActors` below.
+      projectId,
+    }),
+    [
+      resolveActor,
+      resolveAssigneeId,
+      resolveActorPreview,
+      resolveAgentRunPreview,
+      resolveWorkflowRunPreview,
+      memberList,
+      agentList,
+      automationList,
+      automations,
+      agentsLoading,
+      currentUserId,
+      organizationId,
+      projectId,
+    ],
+  );
+}
+
+export type ActorDirectory = ReturnType<typeof useActorDirectory>;
+
+const ActorDirectoryContext = createContext<ActorDirectory | undefined>(
+  undefined,
+);
+
+/**
+ * Reads ONE actor directory for everything below it. A row that names people
+ * — a comment, a timeline entry, a card, each text run of a markdown body —
+ * would otherwise read its own: five queries and a rebuilt member index per
+ * row, which on a task with hundreds of comments or a board with thousands of
+ * cards cost seconds to mount and to unmount. Rows take the provided directory
+ * through {@link useProvidedActorDirectory}.
+ */
+export function ActorDirectoryProvider({
+  organizationId,
+  projectId,
+  children,
+}: {
+  organizationId: string;
+  /** Absent where the surface spans projects: no agent resolves then, and
+   * project-scoped rows read their own directory. */
+  projectId?: string;
+  children: ReactNode;
+}) {
+  const directory = useActorDirectory(organizationId, projectId);
+  return createElement(
+    ActorDirectoryContext.Provider,
+    { value: directory },
+    children,
+  );
+}
+
+/**
+ * The directory an {@link ActorDirectoryProvider} above provides for this
+ * organization and project — the same answer `useActorDirectory` would read
+ * itself — or `undefined`, when there is none or it covers another project,
+ * and the caller reads its own.
+ */
+export function useProvidedActorDirectory(
+  organizationId: string,
+  projectId?: string,
+): ActorDirectory | undefined {
+  const provided = useContext(ActorDirectoryContext);
+  return provided !== undefined &&
+    provided.organizationId === organizationId &&
+    provided.projectId === projectId
+    ? provided
+    : undefined;
 }
 
 /**

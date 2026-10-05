@@ -91,6 +91,8 @@ vi.mock('../hooks/mutations', () => ({
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     resolveActor: (type: string, id: string) => ({
       type,

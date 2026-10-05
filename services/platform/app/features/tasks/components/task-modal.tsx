@@ -75,7 +75,10 @@ import {
   useUpdateTaskStatus,
 } from '../hooks/mutations';
 import { useSubtasks, useTask } from '../hooks/queries';
-import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  ActorDirectoryProvider,
+  useActorDirectory,
+} from '../hooks/use-actor-directory';
 import { useDescriptionCap } from '../hooks/use-description-cap';
 import { useTaskAccess } from '../hooks/use-task-access';
 import {
@@ -1382,13 +1385,11 @@ export function EditTaskBody({
       ? null
       : resolveSettingsFolder(ownedBy.settings, ownedBy.contract);
   const assignTask = useAssignTask();
-  const createTask = useCreateTask();
   const { uploadingFiles, uploadFiles, clearAttachments } = useFileUpload({
     organizationId: task?.organizationId ?? '',
     allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
   });
 
-  const [subtaskTitle, setSubtaskTitle] = useState('');
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const pasteCounterRef = useRef(1);
@@ -1590,23 +1591,6 @@ export function EditTaskBody({
   const author = resolveActor(task.createdByType, task.createdBy);
   const { done: subtasksDone, total: subtasksTotal } =
     subtaskProgress(subtasks);
-
-  const addSubtask = async () => {
-    const subTitle = subtaskTitle.trim();
-    if (!subTitle || createTask.isPending) return;
-    try {
-      await createTask.mutateAsync({
-        organizationId: task.organizationId,
-        projectId: task.projectId,
-        title: subTitle,
-        status: 'todo',
-        parentTaskId: task._id,
-      });
-      setSubtaskTitle('');
-    } catch (error) {
-      onMutationError(error);
-    }
-  };
 
   const enqueueAttachmentChange = (change: () => Promise<void>) => {
     const pending = attachmentQueueRef.current.then(change);
@@ -2007,36 +1991,12 @@ export function EditTaskBody({
           </ul>
         )}
         {canMutate && (
-          <Row gap={2}>
-            {/* A one-line field, like the button beside it: a subtask is a
-                title, and the one-row textarea it used to be stood a few
-                pixels taller than the button and showed a resize grip. */}
-            <Input
-              id="new-subtask"
-              value={subtaskTitle}
-              onChange={(e) => setSubtaskTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  if (!createTask.isPending) void addSubtask();
-                }
-              }}
-              placeholder={t('detail.addSubtask')}
-              aria-label={t('detail.addSubtask')}
-              wrapperClassName="min-w-0 flex-1"
-            />
-            <Button
-              icon={Plus}
-              variant="secondary"
-              disabled={
-                subtaskTitle.trim().length === 0 || createTask.isPending
-              }
-              isLoading={createTask.isPending}
-              onClick={() => void addSubtask()}
-            >
-              {t('actions.add')}
-            </Button>
-          </Row>
+          <SubtaskComposer
+            organizationId={task.organizationId}
+            projectId={task.projectId}
+            parentTaskId={task._id}
+            onError={onMutationError}
+          />
         )}
       </Stack>
     </>
@@ -2342,7 +2302,12 @@ export function EditTaskBody({
   );
 
   return (
-    <>
+    // One actor directory for the whole task: its comments, timeline lines
+    // and markdown bodies name people from it instead of each reading its own.
+    <ActorDirectoryProvider
+      organizationId={task.organizationId}
+      projectId={task.projectId}
+    >
       {/* display:contents — a paste-event catcher, never a layout box. */}
       <div className="contents" onPaste={onPasteImages}>
         {surface === 'dialog' ? (
@@ -2484,7 +2449,76 @@ export function EditTaskBody({
         />
       )}
       {cancelConfirmDialog}
-    </>
+    </ActorDirectoryProvider>
+  );
+}
+
+/**
+ * The subtask field under a task's subtasks: its own draft, so typing a title
+ * re-renders this row and not the task around it (the comments, the
+ * timeline, the description).
+ */
+function SubtaskComposer({
+  organizationId,
+  projectId,
+  parentTaskId,
+  onError,
+}: {
+  organizationId: string;
+  projectId: string;
+  parentTaskId: string;
+  onError: (error: unknown) => void;
+}) {
+  const { t } = useT('tasks');
+  const createTask = useCreateTask();
+  const [subtaskTitle, setSubtaskTitle] = useState('');
+
+  const addSubtask = async () => {
+    const subTitle = subtaskTitle.trim();
+    if (!subTitle || createTask.isPending) return;
+    try {
+      await createTask.mutateAsync({
+        organizationId,
+        projectId,
+        title: subTitle,
+        status: 'todo',
+        parentTaskId,
+      });
+      setSubtaskTitle('');
+    } catch (error) {
+      onError(error);
+    }
+  };
+
+  return (
+    <Row gap={2}>
+      {/* A one-line field, like the button beside it: a subtask is a
+          title, and the one-row textarea it used to be stood a few
+          pixels taller than the button and showed a resize grip. */}
+      <Input
+        id="new-subtask"
+        value={subtaskTitle}
+        onChange={(e) => setSubtaskTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            if (!createTask.isPending) void addSubtask();
+          }
+        }}
+        placeholder={t('detail.addSubtask')}
+        aria-label={t('detail.addSubtask')}
+        wrapperClassName="min-w-0 flex-1"
+      />
+      <Button
+        icon={Plus}
+        variant="secondary"
+        disabled={subtaskTitle.trim().length === 0 || createTask.isPending}
+        isLoading={createTask.isPending}
+        onClick={() => void addSubtask()}
+      >
+        {t('actions.add')}
+      </Button>
+    </Row>
   );
 }
 

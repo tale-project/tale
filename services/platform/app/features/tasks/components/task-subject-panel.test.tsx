@@ -80,6 +80,8 @@ const actorNames: Record<string, string> = {
   reviewer: 'Review agent',
 };
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: (_organizationId: string, projectId?: string) => ({
     resolveActor: (type: string, id: string) => ({
       type,

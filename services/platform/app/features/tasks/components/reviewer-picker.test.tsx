@@ -54,6 +54,8 @@ const agents: AssignableActor[] = [
 let scopeReady = true;
 let agentsLoading = false;
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useAssignableActors: () => ({
     assignableMembers: members,
     assignableAgents: agents,

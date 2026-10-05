@@ -31,6 +31,8 @@ vi.mock('./mention-trigger-chips', () => ({
   MentionTriggerChips: () => null,
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({ members: [], agents: [], automations: [] }),
 }));
 vi.mock('@/app/features/shared/markdown/markdown-renderer', () => ({

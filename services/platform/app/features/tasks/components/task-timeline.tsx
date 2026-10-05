@@ -9,13 +9,18 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useRecurrenceFormat } from '@tale/ui/use-recurrence-format';
 import { Bot } from 'lucide-react';
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
-import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  ActorDirectoryProvider,
+  useActorDirectory,
+  useProvidedActorDirectory,
+  type ActorDirectory,
+} from '../hooks/use-actor-directory';
 import {
   TASK_ACTIVITY_FIELD,
   TASK_ACTIVITY_LABEL_KEY,
@@ -44,6 +49,18 @@ function formatCents(cents: number): string {
 }
 
 type TimelineItem = ReturnType<typeof mergeTaskTimeline>[number];
+
+/** How much of a changed text a timeline line quotes. A description change
+ *  records both whole descriptions (up to 20,000 characters each), and a
+ *  line that printed them both was a wall of text — and seconds of layout on
+ *  a task with a few of them. */
+const ACTIVITY_TEXT_MAX = 160;
+
+function quoteActivityText(value: string): string {
+  return value.length > ACTIVITY_TEXT_MAX
+    ? `${value.slice(0, ACTIVITY_TEXT_MAX).trimEnd()}…`
+    : value;
+}
 
 /**
  * The rule a `repeat.changed` row stored (as JSON), with when it creates its
@@ -88,30 +105,51 @@ export function timelineItemKey(item: TimelineItem): string {
   return item.kind === 'agentRun' ? `run-${item.run.runId}` : item.entry._id;
 }
 
-/**
- * One line of a task's history: an agent run (who, how it went, how long,
- * what it cost) or an activity entry (who changed what, from → to). Rendered
- * as a quiet single line, so it reads as the event it is between comments.
- */
-export function TaskTimelineEntry({
-  item,
-  runs,
-  organizationId,
-  projectId,
-}: {
+interface TaskTimelineEntryProps {
   item: TimelineItem;
   runs: ReturnType<typeof useTaskAgentRuns>['runs'];
   organizationId: string;
   projectId: string;
-}) {
-  const { t } = useT('tasks');
-  const {
+}
+
+/**
+ * One line of a task's history: an agent run (who, how it went, how long,
+ * what it cost) or an activity entry (who changed what, from → to). Rendered
+ * as a quiet single line, so it reads as the event it is between comments.
+ * Names come from the actor directory the timeline provides (a directory of
+ * its own only outside one), and a line re-renders only when its props do.
+ */
+export const TaskTimelineEntry = memo(function TaskTimelineEntry(
+  props: TaskTimelineEntryProps,
+) {
+  const provided = useProvidedActorDirectory(
+    props.organizationId,
+    props.projectId,
+  );
+  return provided !== undefined ? (
+    <TimelineEntryRow {...props} directory={provided} />
+  ) : (
+    <TimelineEntryWithOwnDirectory {...props} />
+  );
+});
+
+function TimelineEntryWithOwnDirectory(props: TaskTimelineEntryProps) {
+  const directory = useActorDirectory(props.organizationId, props.projectId);
+  return <TimelineEntryRow {...props} directory={directory} />;
+}
+
+function TimelineEntryRow({
+  item,
+  runs,
+  directory: {
     resolveActor,
     resolveAssigneeId,
     resolveActorPreview,
     resolveAgentRunPreview,
     resolveWorkflowRunPreview,
-  } = useActorDirectory(organizationId, projectId);
+  },
+}: TaskTimelineEntryProps & { directory: ActorDirectory }) {
+  const { t } = useT('tasks');
   const { formatRelative, formatDate } = useFormatDate();
   const repeatLabel = useTaskRepeatLabel();
   const { never: repeatNever } = useRecurrenceFormat();
@@ -287,8 +325,9 @@ export function TaskTimelineEntry({
         return key ? t(key) : value;
       }
       default:
-        // Titles, descriptions, label and file names, task keys: as stored.
-        return value;
+        // Titles, descriptions, label and file names, task keys: as stored,
+        // quoted to a line's length.
+        return quoteActivityText(value);
     }
   };
   // Empty on both sides (an assignee cleared that was already clear) names no
@@ -323,7 +362,7 @@ export function TaskTimelineEntry({
   );
 }
 
-export function TaskTimeline({
+export const TaskTimeline = memo(function TaskTimeline({
   taskId,
   organizationId,
   projectId,
@@ -334,10 +373,11 @@ export function TaskTimeline({
 }) {
   const { t } = useT('tasks');
   const { timeline, runs, totalCostCents } = useTaskTimeline(taskId);
+  const provided = useProvidedActorDirectory(organizationId, projectId);
 
   if (timeline.length === 0) return null;
 
-  return (
+  const section = (
     <section>
       <Stack gap={2}>
         <div className="flex items-center justify-between gap-2">
@@ -367,4 +407,17 @@ export function TaskTimeline({
       </Stack>
     </section>
   );
-}
+
+  // Every line names its actor from one directory: the one the task's
+  // surface provides, else one read here for the whole timeline.
+  return provided !== undefined ? (
+    section
+  ) : (
+    <ActorDirectoryProvider
+      organizationId={organizationId}
+      projectId={projectId}
+    >
+      {section}
+    </ActorDirectoryProvider>
+  );
+});

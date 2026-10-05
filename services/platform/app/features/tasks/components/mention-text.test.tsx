@@ -10,6 +10,8 @@ vi.mock('@tale/ui/i18n/client', () => ({
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [{ id: 'u1', name: 'Ada', email: 'ada@example.com' }],
     agents: [{ id: 'rs774n7chzm7tbf9p5fhsq2xr58br0nb', name: 'PR Reviewer' }],

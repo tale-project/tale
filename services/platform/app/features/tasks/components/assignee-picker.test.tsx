@@ -33,6 +33,8 @@ const { mockMutation, mockToast } = vi.hoisted(() => ({
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useAssignableActors: (_organizationId: string, projectId?: string) => ({
     assignableMembers: [
       { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },
