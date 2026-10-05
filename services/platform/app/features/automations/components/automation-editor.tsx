@@ -276,6 +276,10 @@ function AutomationEditorScope({
     automationSlug,
     automationQuery.data?.deployedVersion,
   );
+  const deployedRead = readStateOf(deployedQuery);
+  const deployedReadError =
+    automationQuery.data?.deployedVersion !== undefined &&
+    (deployedRead.unavailable || deployedRead.stale);
   // Only the newest run matters here — it is what the canvas overlays; the
   // Runs tab reads the log.
   const runsQuery = useAutomationRuns(organizationId, automationSlug, 1);
@@ -640,7 +644,8 @@ function AutomationEditorScope({
   const canRunLive =
     meta?.deployedVersion !== undefined &&
     !deployedQuery.isPending &&
-    deployed !== null;
+    deployed !== null &&
+    !deployedReadError;
 
   // The automation-level verbs: what to do with THIS version, not a node's
   // fields. Shared between the desktop header and the mobile canvas toolbar;
@@ -738,7 +743,11 @@ function AutomationEditorScope({
           icon={Zap}
           isLoading={startRun.isPending}
           disabled={!canRunLive}
-          disabledReason={t('detail.runLiveNeedsDeploy')}
+          disabledReason={
+            deployedReadError
+              ? t('detail.runLiveNeedsDeployedRead')
+              : t('detail.runLiveNeedsDeploy')
+          }
           onClick={() => {
             if (meta?.deployedVersion === undefined || deployed === null)
               return;
@@ -826,8 +835,16 @@ function AutomationEditorScope({
             nothing started, which the author has to read next to the automation
             it concerns. Save feedback goes through the editor cluster instead.
             The alerts keep the page inset, in a band above the workbench. */}
-        {(refusal !== null || deployRefusal !== null) && (
+        {(refusal !== null || deployRefusal !== null || deployedReadError) && (
           <div className="border-border flex flex-col gap-3 border-b p-4">
+            {deployedReadError && (
+              <CatalogLoadError
+                message={`${t('detail.deployedReadFailed')}: ${automationErrorMessage(deployedQuery.error)}`}
+                onRetry={() => void deployedQuery.refetch()}
+                isRetrying={deployedRead.retrying}
+                failureKey={deployedRead.failureCount}
+              />
+            )}
             {refusal !== null && (
               <Alert variant="destructive" description={refusal} />
             )}

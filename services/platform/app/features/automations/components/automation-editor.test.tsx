@@ -47,6 +47,7 @@ const {
     /** A `?version=` the read refuses with `AUTOMATION_VERSION_UNKNOWN`. */
     missingVersion: undefined as number | undefined,
     detailError: undefined as Error | undefined,
+    deployedDetailError: undefined as Error | undefined,
     realDetailRead: false,
   },
   /** The org's projects and the automation's bindings — the run-scope picker
@@ -117,50 +118,60 @@ vi.mock('../hooks/queries', async (importOriginal) => {
               errorUpdateCount: 1,
               refetch,
             }
-          : version !== undefined && version === state.missingVersion
+          : version !== undefined && state.deployedDetailError !== undefined
             ? {
                 data: undefined,
                 isPending: false,
                 isError: true,
+                error: state.deployedDetailError,
                 isFetching: false,
                 errorUpdateCount: 1,
-                error: {
-                  data: {
-                    code: 'AUTOMATION_VERSION_UNKNOWN',
-                    message: `version ${version} does not exist`,
-                    latestVersion: state.version,
-                  },
-                },
                 refetch,
               }
-            : {
-                data: {
-                  document:
-                    version === state.deployedVersion &&
-                    state.deployedDocument !== undefined
-                      ? state.deployedDocument
-                      : state.document,
-                  version: version ?? state.version,
-                  deployedVersion: state.deployedVersion,
-                  ...(state.presentation !== undefined
-                    ? { presentation: state.presentation }
-                    : {}),
-                  settings: state.settings,
-                  taskContract: state.taskContract,
-                  ...(state.deployedUnpinnedAgentNodes !== undefined
-                    ? {
-                        deployedUnpinnedAgentNodes:
-                          state.deployedUnpinnedAgentNodes,
-                      }
-                    : {}),
+            : version !== undefined && version === state.missingVersion
+              ? {
+                  data: undefined,
+                  isPending: false,
+                  isError: true,
+                  isFetching: false,
+                  errorUpdateCount: 1,
+                  error: {
+                    data: {
+                      code: 'AUTOMATION_VERSION_UNKNOWN',
+                      message: `version ${version} does not exist`,
+                      latestVersion: state.version,
+                    },
+                  },
+                  refetch,
+                }
+              : {
+                  data: {
+                    document:
+                      version === state.deployedVersion &&
+                      state.deployedDocument !== undefined
+                        ? state.deployedDocument
+                        : state.document,
+                    version: version ?? state.version,
+                    deployedVersion: state.deployedVersion,
+                    ...(state.presentation !== undefined
+                      ? { presentation: state.presentation }
+                      : {}),
+                    settings: state.settings,
+                    taskContract: state.taskContract,
+                    ...(state.deployedUnpinnedAgentNodes !== undefined
+                      ? {
+                          deployedUnpinnedAgentNodes:
+                            state.deployedUnpinnedAgentNodes,
+                        }
+                      : {}),
+                  },
+                  isPending: false,
+                  isError: false,
+                  isFetching: false,
+                  errorUpdateCount: 0,
+                  error: null,
+                  refetch,
                 },
-                isPending: false,
-                isError: false,
-                isFetching: false,
-                errorUpdateCount: 0,
-                error: null,
-                refetch,
-              },
     useAutomationVersions: () => ({
       data: [
         {
@@ -359,6 +370,7 @@ beforeEach(() => {
   state.deployedUnpinnedAgentNodes = undefined;
   state.missingVersion = undefined;
   state.detailError = undefined;
+  state.deployedDetailError = undefined;
   state.realDetailRead = false;
   refetch.mockClear();
 });
@@ -549,6 +561,23 @@ describe('AutomationEditor detail read failure', () => {
     expect(screen.queryByText('Loading the automation…')).toBeNull();
 
     await user.click(retryButton);
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+});
+
+describe('AutomationEditor deployed read failure', () => {
+  it('reports the read error and offers retry with an accurate live reason', async () => {
+    state.deployedDetailError = new Error('Request failed with status 503');
+    const { user } = renderPage();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the deployed version: Request failed with status 503",
+    );
+    const liveRun = screen.getByRole('button', { name: 'Run live' });
+    expect(liveRun).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      screen.getByText("Couldn't load the deployed version — try again."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(refetch).toHaveBeenCalledOnce();
   });
 });
