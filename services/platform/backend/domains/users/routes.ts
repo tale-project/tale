@@ -54,9 +54,7 @@ const setMemberPasswordSchema = z.object({
   newPassword: z.string().min(1).max(1000),
 });
 
-function toResponse(
-  error: unknown,
-): {
+function toResponse(error: unknown): {
   code: string;
   message: string;
   status: 400 | 401 | 403 | 404 | 429;
