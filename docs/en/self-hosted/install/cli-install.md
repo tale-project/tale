@@ -195,6 +195,10 @@ The example sets `runtime.containerPrefix` to make its environment recognizable 
 }
 ```
 
+#### Choose the error reporting environment
+
+Managed runtime events default `SENTRY_ENVIRONMENT` to the retained deployment `name`. To use a canonical label such as `example-pr`, declare `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }` and set that variable at the destination. The label starts with a lowercase letter or digit and contains 1–64 lowercase letters, digits or hyphens. Browser, backend and sandbox use this label without changing `name`, `composeProject`, `stateDirectory` or stored credentials.
+
 #### Choose container names
 
 Set `runtime.containerPrefix` when you want names such as `north-desk-prod-db` and `north-desk-prod-backend-api` in container listings. The prefix starts with a lowercase letter and uses lowercase letters, digits and single hyphens, up to 40 characters. Spaces, underscores, repeated hyphens and a trailing hyphen are refused.

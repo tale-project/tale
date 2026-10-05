@@ -1,18 +1,12 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 import { ensureAligned, type AlignDeps } from '../src/lib/version/align';
+import { commandTargets } from './fixtures/command-targets';
 
-const source = fileURLToPath(new URL('../src/index.ts', import.meta.url));
-const modes: [string, string[]][] = [
-  ['source', [process.execPath, source]],
-  ...(process.env.TALE_BINARY
-    ? [['compiled', [resolve(process.env.TALE_BINARY)]] as [string, string[]]]
-    : []),
-];
+const modes = commandTargets(process.env.TALE_BINARY);
 const roots: string[] = [];
 afterEach(async () => {
   for (const directory of roots.splice(0))

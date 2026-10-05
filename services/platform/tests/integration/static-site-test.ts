@@ -16,11 +16,11 @@ import { existsSync, writeFileSync } from 'node:fs';
 import {
   Compose,
   composeArgs,
-  dockerInspect,
+  imageMetadata,
   healthStatus,
   httpStatus,
-  imageSizeMb,
   nowSec,
+  nonRootImageUser,
   sleep,
 } from './lib/docker';
 import { projectRoot } from './lib/exec';
@@ -125,29 +125,28 @@ export async function runStaticSiteTest(
     // 2. Image-level checks
     header('Image checks');
 
-    const labelsJson = await dockerInspect(image, '{{json .Config.Labels}}');
-    const title = parseLabel(labelsJson, 'org.opencontainers.image.title');
+    const metadata = await imageMetadata(image);
+    const title = metadata.labels['org.opencontainers.image.title'] ?? '';
     if (title.includes(`tale-${svc}`)) {
       r.pass(`${svc}: OCI title label present (tale-${svc})`);
     } else {
       r.fail(`${svc}: OCI title label missing or wrong`);
     }
 
-    const user = await dockerInspect(image, '{{.Config.User}}');
-    if (user && user !== 'root' && user !== '0') {
+    const user = metadata.user;
+    if (nonRootImageUser(user)) {
       r.pass(`${svc}: runs as non-root user '${user}'`);
     } else {
       r.fail(`${svc}: runs as root (expected non-root for static site)`);
     }
 
-    const healthcheck = await dockerInspect(image, '{{.Config.Healthcheck}}');
-    if (healthcheck && healthcheck !== '<nil>') {
+    if (metadata.hasHealthcheck) {
       r.pass(`${svc}: HEALTHCHECK defined`);
     } else {
       r.fail(`${svc}: no HEALTHCHECK instruction`);
     }
 
-    const sizeMb = await imageSizeMb(image);
+    const sizeMb = metadata.sizeMb;
     if (sizeMb <= sizeBudgetMb) {
       r.pass(`${svc}: ${sizeMb} MB ≤ ${sizeBudgetMb} MB budget`);
     } else {
@@ -245,15 +244,4 @@ export async function runStaticSiteTest(
     await cleanup(true);
     process.exit(1);
   }
-}
-
-/**
- * Pull a single label value out of `{{json .Config.Labels}}`. Mirrors the
- * bash `grep -o '"<key>":"[^"]*"'` extraction rather than parsing the JSON,
- * which keeps the matcher free of unsafe `any` assertions.
- */
-function parseLabel(json: string, key: string): string {
-  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = new RegExp(`"${escaped}":"([^"]*)"`).exec(json);
-  return match?.[1] ?? '';
 }

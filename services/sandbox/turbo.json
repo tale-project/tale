@@ -2,10 +2,25 @@
   "$schema": "https://turbo.build/schema.v2.json",
   "extends": ["//"],
   "tasks": {
+    "lint": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/shared/src/monitoring/privacy.ts"
+      ]
+    },
+    "typecheck": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/shared/src/monitoring/privacy.ts"
+      ]
+    },
     "test": {
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/shared/src/monitoring/privacy.ts",
         "$TURBO_ROOT$/services/sandbox-buildkitd/buildkitd.toml",
         "$TURBO_ROOT$/services/sandbox-buildkitd/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/sandbox-egress/docker-entrypoint.sh",

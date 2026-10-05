@@ -899,6 +899,9 @@ automations:
       title: Journal de l'agent
       starting: "L'agent démarre dans le bac à sable…"
       empty: "L'agent n'a produit aucun journal pour cette exécution."
+      readFailed: Impossible de charger le journal de l'agent.
+      readFailedDescription: Le journal est temporairement indisponible. Réessaie pour le recharger.
+      retry: Réessayer
       servedBy: 'Ce tour a tourné sur {model}.'
       visionModel: 'Les images de cette exécution ont été lues par {model}.'
     approval:
@@ -925,6 +928,7 @@ automations:
     heading: 'Exécution de {automation}'
     empty: Cette automatisation ne s’est encore jamais exécutée.
     loading: Chargement de l’exécution…
+    loadFailed: Impossible de charger cette exécution.
     # Pendant que la plateforme retente d’elle-même l’étape agent échouée —
     # pour distinguer sa relance de la tienne.
     autoRetrying: 'Tentative automatique {n} sur {max}'
@@ -5831,6 +5835,7 @@ settings:
     editMember: Modifier le membre
     removeMember: Retirer le membre
     memberUpdated: Membre mis à jour avec succès
+    memberUpdateFailed: Impossible d'enregistrer le membre — réessaie.
     memberRemoved: Membre retiré avec succès
     twoFactorResetSuccess: Double facteur réinitialisé — le membre devra se
       réinscrire lors de sa prochaine connexion

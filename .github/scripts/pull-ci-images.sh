@@ -23,11 +23,25 @@ for SERVICE in "${SERVICES[@]}"; do
   if [[ ! "$SERVICE" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
     echo '::error::Invalid image service'; exit 1
   fi
+  MATCHES=0
+  for SELECTED in "${SERVICES[@]}"; do
+    if [ "$SELECTED" = "$SERVICE" ]; then
+      MATCHES=$((MATCHES + 1))
+    fi
+  done
+  if [ "$MATCHES" -ne 1 ]; then
+    echo "::error::Duplicate image service: ${SERVICE}"; exit 1
+  fi
   IMAGE="${REGISTRY_PATH}/tale-${SERVICE}"
   if [ -n "${RECEIPTS:-}" ]; then
     DIGEST=$(jq -er '.digest // empty' "${RECEIPTS}/${SERVICE}.json" 2>/dev/null || true)
     if [[ ! "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
       echo "::error::No image receipt with a digest for tale-${SERVICE}"; exit 1
+    fi
+    if ! jq -e --arg service "$SERVICE" --arg image "$IMAGE" --arg revision "$SOURCE_SHA" \
+      '.service == $service and .image == $image and .revision == $revision and (.tag | type == "string" and test("^[A-Za-z0-9_][A-Za-z0-9_.-]*$"))' \
+      "${RECEIPTS}/${SERVICE}.json" > /dev/null 2>&1; then
+      echo "::error::Invalid image receipt provenance for tale-${SERVICE}"; exit 1
     fi
     IMAGE="${IMAGE}@${DIGEST}"
   else

@@ -40,9 +40,10 @@ type Step = {
 type Workflow = { jobs: Record<string, { steps: Step[]; strategy?: unknown }> };
 
 async function workflow(name: string): Promise<Workflow> {
-  return parse(
+  const file: Workflow = parse(
     await readFile(join(repository, `.github/workflows/${name}.yml`), 'utf8'),
-  ) as Workflow;
+  );
+  return file;
 }
 
 async function fixture() {
@@ -97,7 +98,8 @@ else:
       SOURCE_SHA: revision,
       IMAGE_TAG: '0.5.73-amd64',
     },
-    state: async () => JSON.parse(await readFile(state, 'utf8')) as State,
+    state: async (): Promise<State> =>
+      JSON.parse(await readFile(state, 'utf8')),
   };
 }
 
@@ -158,9 +160,9 @@ test
         '#!/bin/sh\nif [ "$1 $2" = "image inspect" ]; then\n  printf "%s\\n" "$*" >> "$TEST_INSPECTIONS"\n  printf "%s\\n" "$TEST_REVISION"\nfi\n',
         { mode: 0o755 },
       );
-      const path = runInNewContext(helperExpression, {
+      const path: string = runInNewContext(helperExpression, {
         needs: { changes: { outputs: { candidate_sha: candidate } } },
-      }) as string;
+      });
       expect(path).toBe(
         candidate
           ? '.ci-workflow/.github/scripts/pull-ci-images.sh'
@@ -174,7 +176,13 @@ test
       for (const service of services) {
         await writeFile(
           join(proof.directory, `${service}.json`),
-          JSON.stringify({ digest: `sha256:${'c'.repeat(64)}` }),
+          JSON.stringify({
+            service,
+            image: `ghcr.io/tale-project/tale/tale-${service}`,
+            revision,
+            tag: 'candidate-sha-' + revision,
+            digest: `sha256:${'c'.repeat(64)}`,
+          }),
         );
       }
       const result = await run(
@@ -278,7 +286,13 @@ test.skipIf(process.platform === 'win32')(
     for (const service of services.slice(0, -1)) {
       await writeFile(
         join(proof.directory, `${service}.json`),
-        JSON.stringify({ digest: `sha256:${'c'.repeat(64)}` }),
+        JSON.stringify({
+          service,
+          image: `ghcr.io/tale-project/tale/tale-${service}`,
+          revision,
+          tag: 'candidate-sha-' + revision,
+          digest: `sha256:${'c'.repeat(64)}`,
+        }),
       );
     }
     const result = await run(['bash', helper, ...services], {
@@ -330,3 +344,61 @@ test('CLI keeps source and compiled smoke coverage on every native OS', async ()
     },
   });
 });
+
+test.skipIf(process.platform === 'win32').each([
+  ['service', 'proxy'],
+  ['image', 'ghcr.io/foreign/repository/tale-platform'],
+  ['revision', 'b'.repeat(40)],
+  ['tag', ''],
+  ['tag', '../invalid'],
+])(
+  'a mismatched receipt %s=%s prevents every Docker call before accepting a stack',
+  async (field, value) => {
+    const proof = await fixture();
+    for (const service of services)
+      await writeFile(
+        join(proof.directory, `${service}.json`),
+        JSON.stringify({
+          service,
+          image: `ghcr.io/tale-project/tale/tale-${service}`,
+          revision,
+          tag: 'candidate-sha-' + revision,
+          digest: `sha256:${'c'.repeat(64)}`,
+          ...(service === 'platform' ? { [field]: value } : {}),
+        }),
+      );
+    const result = await run(
+      [
+        process.platform === 'darwin' ? '/bin/bash' : 'bash',
+        helper,
+        ...services,
+      ],
+      { ...proof.env, IMAGE_TAG: '', RECEIPTS: proof.directory },
+    );
+    expect(result.code).not.toBe(0);
+    expect(result.stdout).toContain(
+      'Invalid image receipt provenance for tale-platform',
+    );
+    expect((await proof.state()).events).toEqual([]);
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'duplicate service admission fails before pulling or tagging any image',
+  async () => {
+    const proof = await fixture();
+    const result = await run(
+      [
+        process.platform === 'darwin' ? '/bin/bash' : 'bash',
+        helper,
+        'platform',
+        'db',
+        'platform',
+      ],
+      proof.env,
+    );
+    expect(result.code).not.toBe(0);
+    expect(result.stdout).toContain('Duplicate image service: platform');
+    expect((await proof.state()).events).toEqual([]);
+  },
+);
