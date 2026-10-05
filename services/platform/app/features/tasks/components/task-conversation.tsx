@@ -15,7 +15,6 @@
  * history never shows a gap as if nothing had been said.
  */
 
-import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useMemo, useRef } from 'react';
@@ -31,6 +30,7 @@ import {
   useTaskCommentDelete,
   type TaskCommentData,
 } from './task-comments';
+import { TaskHistoryEarlierButton } from './task-history-earlier-button';
 import {
   TaskTimelineEntry,
   timelineItemKey,
@@ -151,15 +151,11 @@ function TaskConversationContent({
     >
       {hasEarlier && (
         <Row gap={0} align="stretch" justify="center" className="mb-4">
-          <Button
-            variant="secondary"
+          <TaskHistoryEarlierButton
             size="sm"
             isLoading={isLoadingEarlier}
-            disabled={isLoadingEarlier}
-            onClick={loadEarlierWithAnchor}
-          >
-            {t('detail.showEarlierComments')}
-          </Button>
+            onLoadEarlier={loadEarlierWithAnchor}
+          />
         </Row>
       )}
 

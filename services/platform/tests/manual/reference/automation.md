@@ -39,8 +39,10 @@ in `app/features/home/components/home-panel.browser.test.tsx`. Project chat
 sections bound 2,000 rows while retaining focused share controls in
 `app/features/projects/components/project-threads-tab.browser.test.tsx`.
 Accumulated task histories skip offscreen layout, preserve edit drafts, and keep
-the reading anchor when earlier pages load in
+the reading anchor and keyboard focus through pending earlier-page reads in
 `app/features/tasks/components/task-conversation.browser.test.tsx`.
+`packages/ui/src/hooks/use-virtual-list.browser.test.tsx` covers explicit and
+restored native scroll offsets, custom observers and RTL scrollports.
 The shared menu and Markdown tests cover closed-menu laziness, unchanged-body
 render reuse and deferred offscreen syntax highlighting. Task actor-directory
 tests cover one scope for 1,000 paragraphs/mentions and shared comment histories.

@@ -6,7 +6,7 @@ import { page, userEvent } from 'vitest/browser';
 import { i18n } from '@/lib/i18n/i18n';
 import { act, cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
-import type { TaskCommentData } from './task-comments';
+import { TaskComments, type TaskCommentData } from './task-comments';
 import { TaskConversation } from './task-conversation';
 
 import '@/app/globals.css';
@@ -16,6 +16,8 @@ const reads = vi.hoisted(() => ({
   directory: vi.fn(),
   editMutation: vi.fn(),
   loadEarlier: () => {},
+  pendingPage: null as Promise<void> | null,
+  pageRequests: vi.fn(),
 }));
 const NOON = new Date(2026, 8, 23, 12).getTime();
 const DAY = 24 * 60 * 60 * 1000;
@@ -37,13 +39,25 @@ const comments: TaskCommentData[] = Array.from(
 vi.mock('../hooks/queries', () => ({
   useTaskDiscussion: () => {
     const [count, setCount] = useState(50);
+    const [isLoadingEarlier, setLoadingEarlier] = useState(false);
     const loaded = useMemo(() => comments.slice(0, count), [count]);
-    const loadEarlier = useCallback(() => setCount((prior) => prior + 50), []);
+    const loadEarlier = useCallback(() => {
+      reads.pageRequests();
+      if (reads.pendingPage === null) {
+        setCount((prior) => prior + 50);
+        return;
+      }
+      setLoadingEarlier(true);
+      void reads.pendingPage.then(() => {
+        setCount((prior) => prior + 50);
+        setLoadingEarlier(false);
+      });
+    }, []);
     reads.loadEarlier = loadEarlier;
     return {
       comments: loaded,
       hasEarlier: count < comments.length,
-      isLoadingEarlier: false,
+      isLoadingEarlier,
       loadEarlier,
     };
   },
@@ -88,7 +102,10 @@ vi.mock('@/app/features/shared/markdown/markdown-renderer', () => ({
   },
 }));
 
-function renderHistory(reverse = true) {
+function renderHistory(
+  reverse = true,
+  surface: 'conversation' | 'comments' = 'conversation',
+) {
   const rendered = render(
     <div
       data-testid="task-history-scroll"
@@ -96,13 +113,23 @@ function renderHistory(reverse = true) {
     >
       <div className="flex shrink-0 flex-col gap-8 p-6">
         <div className="h-48 shrink-0">Task brief</div>
-        <TaskConversation
-          taskId="task-1"
-          organizationId="org-1"
-          projectId="proj-1"
-          canComment
-          currentUserId="user-1"
-        />
+        {surface === 'conversation' ? (
+          <TaskConversation
+            taskId="task-1"
+            organizationId="org-1"
+            projectId="proj-1"
+            canComment
+            currentUserId="user-1"
+          />
+        ) : (
+          <TaskComments
+            taskId="task-1"
+            organizationId="org-1"
+            projectId="proj-1"
+            canComment={false}
+            currentUserId="user-1"
+          />
+        )}
       </div>
     </div>,
   );
@@ -134,6 +161,8 @@ beforeEach(async () => {
   reads.markdown.mockClear();
   reads.directory.mockClear();
   reads.editMutation.mockClear();
+  reads.pageRequests.mockClear();
+  reads.pendingPage = null;
 });
 afterEach(() => {
   cleanup();
@@ -141,10 +170,44 @@ afterEach(() => {
 });
 
 describe('TaskConversation long history (Chromium)', () => {
+  it.each(['conversation', 'comments'] as const)(
+    'keeps the earlier-history button focused through a pending %s page and blocks repeat activation',
+    async (surface) => {
+      const pending = Promise.withResolvers<void>();
+      reads.pendingPage = pending.promise;
+      renderHistory(false, surface);
+      const earlier = screen.getByRole('button', {
+        name: 'Show earlier comments',
+      });
+      earlier.focus();
+      await userEvent.keyboard('{Enter}');
+      await waitFor(() => expect(earlier).toHaveAttribute('aria-busy', 'true'));
+      expect(earlier).toHaveFocus();
+      await userEvent.keyboard('{Enter}');
+      // Browser automation treats aria-disabled as inert before dispatch;
+      // the native click proves our handler also rejects activation itself.
+      earlier.click();
+      expect(reads.pageRequests).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        pending.resolve();
+        await pending.promise;
+      });
+      await waitFor(() => expect(earlier).not.toHaveAttribute('aria-busy'));
+      expect(earlier).toHaveFocus();
+      await waitFor(() =>
+        expect(screen.getByText('Report 99')).toBeInTheDocument(),
+      );
+    },
+  );
   it('skips offscreen layout while preserving newest anchoring and added-page parse bounds', async () => {
     const { container, scroller } = renderHistory();
     await settledLayout();
     const newest = commentRow(0);
+    await Promise.all(
+      newest.parentElement
+        ?.getAnimations()
+        .map((animation) => animation.finished) ?? [],
+    );
     const before = newest.getBoundingClientRect().top;
     const rows = Array.from(
       container.querySelectorAll<HTMLElement>('[class~="group/comment"]'),
