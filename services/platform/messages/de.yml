@@ -27,6 +27,9 @@ analytics:
   automations:
     title: Automatisierungs-Metriken
     description: Laufzahlen, Erfolgsquoten und Durchschnittsdauer über alle deine Automatisierungen.
+    errors:
+      loadFailed: Die Automatisierungs-Metriken konnten nicht geladen werden.
+      refreshFailed: Die Automatisierungs-Metriken konnten nicht aktualisiert werden. Die angezeigten Zahlen sind möglicherweise veraltet.
     cappedNotice: Zeigt die letzten 5.000 Läufe in diesem Zeitraum. Ältere Läufe
       fließen nicht in diese Zahlen ein.
     cards:

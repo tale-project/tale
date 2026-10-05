@@ -27,6 +27,9 @@ analytics:
     filterBy: Filtrer par {name}
   automations:
     title: Métriques des automatisations
+    errors:
+      loadFailed: Impossible de charger les métriques des automatisations.
+      refreshFailed: Impossible d'actualiser les métriques des automatisations. Les chiffres affichés peuvent être obsolètes.
     description: Nombre d'exécutions, taux de réussite et durée moyenne sur l'ensemble de tes automatisations.
     cappedNotice: Affiche les 5 000 dernières exécutions de la période. Les plus
       anciennes ne comptent pas dans ces totaux.
