@@ -4888,6 +4888,7 @@ personalization:
       placeholder: e.g. Reply concisely. Default to TypeScript when discussing code.
   errors:
     saveFailed: Couldn't save. Try again.
+    loadFailed: Couldn't load your preferences. Custom instructions are unavailable until they load.
     tooLong: Custom instructions exceed {max} characters.
   toasts:
     preferencesUpdated: Preferences updated.

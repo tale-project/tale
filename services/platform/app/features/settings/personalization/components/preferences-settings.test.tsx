@@ -27,14 +27,30 @@ import {
 
 // Per-test preference row: `undefined` means the user has made no explicit
 // choice and follows the org default.
-let preferences: {
-  customInstructions?: string;
-  customInstructionsEnabled?: boolean;
-} | null = null;
+let preferences:
+  | {
+      customInstructions?: string;
+      customInstructionsEnabled?: boolean;
+    }
+  | null
+  | undefined = null;
 let policyEnabled = false;
+let preferencesLoading = false;
+let preferencesError = false;
+let preferencesFetching = false;
+let preferencesFailureCount = 0;
+const refetchPreferences = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: () => ({ data: preferences, isLoading: false }),
+  useBackendQuery: () => ({
+    data: preferences,
+    isLoading: preferencesLoading,
+    isError: preferencesError,
+    error: preferencesError ? new Error('503 Service Unavailable') : null,
+    isFetching: preferencesFetching,
+    errorUpdateCount: preferencesFailureCount,
+    refetch: refetchPreferences,
+  }),
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
@@ -68,20 +84,27 @@ function renderEditor() {
     capture.current = controller;
     return controller ? <EditorActions controller={controller} /> : null;
   }
+  const page = () => (
+    <ActiveEditorProvider>
+      <ActiveProbe />
+      <PreferencesSettings organizationId="org-1" />
+    </ActiveEditorProvider>
+  );
+  const result = render(page());
   return {
     capture,
-    ...render(
-      <ActiveEditorProvider>
-        <ActiveProbe />
-        <PreferencesSettings organizationId="org-1" />
-      </ActiveEditorProvider>,
-    ),
+    ...result,
+    rerenderPreferences: () => result.rerender(page()),
   };
 }
 
 beforeEach(() => {
   preferences = null;
   policyEnabled = false;
+  preferencesLoading = false;
+  preferencesError = false;
+  preferencesFetching = false;
+  preferencesFailureCount = 0;
   vi.clearAllMocks();
 });
 
@@ -91,6 +114,79 @@ afterEach(async () => {
 });
 
 describe('PreferencesSettings', () => {
+  it.each(SHIPPED_LOCALES)(
+    'shows a failed read and retries without an overwrite path (%s)',
+    async (locale) => {
+      saveLocale(locale);
+      preferences = undefined;
+      preferencesError = true;
+      preferencesFailureCount = 1;
+      const { user, capture, container, rerenderPreferences } = renderEditor();
+      await waitFor(() => expect(i18n.resolvedLanguage).toBe(locale));
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        i18n.t('errors.loadFailed', { ns: 'personalization' }),
+      );
+      expect(screen.queryByRole('switch')).toBeNull();
+      expect(screen.queryByRole('textbox')).toBeNull();
+      expect(capture.current).toBeNull();
+      await checkAccessibility(container);
+      const retry = screen.getByRole('button', {
+        name: i18n.t('actions.tryAgain', { ns: 'common' }),
+      });
+      await user.click(retry);
+      expect(refetchPreferences).toHaveBeenCalledTimes(1);
+      preferencesError = false;
+      preferencesLoading = true;
+      preferencesFetching = true;
+      rerenderPreferences();
+      expect(screen.getByRole('alert')).toBeVisible();
+      expect(retry).toHaveAttribute('aria-busy', 'true');
+      expect(retry).toHaveFocus();
+      await user.click(retry);
+      expect(refetchPreferences).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('switch')).toBeNull();
+      expect(upsert).not.toHaveBeenCalled();
+      expect(setCustomInstructionsEnabled).not.toHaveBeenCalled();
+      preferences = {
+        customInstructionsEnabled: true,
+        customInstructions: 'Saved instructions.',
+      };
+      preferencesLoading = false;
+      preferencesFetching = false;
+      rerenderPreferences();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.getByRole('switch')).toBeChecked();
+      expect(screen.getByRole('textbox')).toHaveValue('Saved instructions.');
+      await waitFor(() => expect(screen.getByRole('region')).toHaveFocus());
+    },
+  );
+
+  it('does not expose controls before the first answer', () => {
+    preferences = undefined;
+    preferencesLoading = true;
+    policyEnabled = true;
+    const { capture } = renderEditor();
+    expect(capture.current).toBeNull();
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it.each([false, true])(
+    'keeps failed first reads unknown (org default %s)',
+    (enabled) => {
+      preferences = undefined;
+      preferencesError = true;
+      preferencesFailureCount = 1;
+      policyEnabled = enabled;
+      const { capture } = renderEditor();
+      expect(screen.getByRole('alert')).toBeVisible();
+      expect(screen.queryByRole('switch')).toBeNull();
+      expect(screen.queryByRole('textbox')).toBeNull();
+      expect(capture.current).toBeNull();
+    },
+  );
+
   it.each(SHIPPED_LOCALES)(
     'refuses 3201 characters accessibly before save and allows repair to 3200 (%s)',
     async (locale) => {
@@ -228,6 +324,20 @@ describe('PreferencesSettings', () => {
     expect(
       screen.getAllByText(/Following organization default/).length,
     ).toBeGreaterThan(0);
+  });
+
+  it('keeps a successful null read editable when the org default is off', async () => {
+    const { user } = renderPage();
+    const toggle = screen.getByRole('switch', { name: 'Custom instructions' });
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toBeEnabled();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    await user.click(toggle);
+    expect(setCustomInstructionsEnabled).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      enabled: true,
+    });
   });
 
   it('says it is overriding the org default once the user chooses', () => {

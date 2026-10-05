@@ -17,13 +17,14 @@
  * stored preference would give the same behaviour two sources of truth.
  */
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Switch } from '@tale/ui/switch';
 import { Textarea } from '@tale/ui/textarea';
 import { useToast } from '@tale/ui/use-toast';
-import { useCallback, useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, type ReactNode, type Ref } from 'react';
 import { z } from 'zod';
 
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
@@ -31,6 +32,7 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { failureDetail } from '@/app/lib/backend/adapters';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import {
   CUSTOM_INSTRUCTIONS_MAX_CHARS,
@@ -79,10 +81,15 @@ export function PreferencesSettings({
 }) {
   const { t } = useT('personalization');
 
-  const { data: prefs, isLoading: prefsLoading } = useBackendQuery(
+  const preferencesQuery = useBackendQuery(
     'user_preferences/queries:getMyPreferences',
     { organizationId },
   );
+  const { data: prefs, refetch } = preferencesQuery;
+  const preferencesRead = readStateOf(preferencesQuery);
+  const readFailed = preferencesRead.unavailable;
+  const sectionRef = useRef<HTMLElement>(null);
+  const focusSection = useCallback(() => sectionRef.current?.focus(), []);
   const { data: instructionsPolicy } = useGovernancePolicy(
     organizationId,
     'custom_instructions',
@@ -94,14 +101,37 @@ export function PreferencesSettings({
   );
 
   return (
-    <Skeletonize loading={prefsLoading} label={t('page.title')}>
+    <Skeletonize
+      loading={prefs === undefined && !readFailed}
+      label={t('page.title')}
+    >
       <SettingsPage>
-        <CustomInstructionsSection
-          organizationId={organizationId}
-          gate={instructionsGate}
-          loading={prefsLoading}
-          savedInstructions={prefs?.customInstructions ?? ''}
-        />
+        {prefs === undefined || readFailed ? (
+          <SettingsSection
+            ref={sectionRef}
+            tabIndex={-1}
+            className="outline-none"
+            title={t('page.customInstructions.title')}
+            description={t('page.customInstructionsToggle.description')}
+          >
+            {readFailed && (
+              <CatalogLoadError
+                message={t('errors.loadFailed')}
+                onRetry={() => void refetch()}
+                isRetrying={preferencesRead.retrying}
+                failureKey={preferencesRead.failureCount}
+                onFocusLost={focusSection}
+              />
+            )}
+          </SettingsSection>
+        ) : (
+          <CustomInstructionsSection
+            sectionRef={sectionRef}
+            organizationId={organizationId}
+            gate={instructionsGate}
+            savedInstructions={prefs?.customInstructions ?? ''}
+          />
+        )}
       </SettingsPage>
     </Skeletonize>
   );
@@ -129,13 +159,13 @@ interface CustomInstructionsForm {
 
 function CustomInstructionsSection({
   organizationId,
+  sectionRef,
   gate,
-  loading,
   savedInstructions,
 }: {
   organizationId: string;
+  sectionRef: Ref<HTMLElement>;
   gate: FeatureGate;
-  loading: boolean;
   savedInstructions: string;
 }) {
   const { t } = useT('personalization');
@@ -162,10 +192,10 @@ function CustomInstructionsSection({
     [t],
   );
 
-  const data = useMemo<CustomInstructionsForm | undefined>(() => {
-    if (loading) return undefined;
-    return { customInstructions: savedInstructions };
-  }, [loading, savedInstructions]);
+  const data = useMemo<CustomInstructionsForm>(
+    () => ({ customInstructions: savedInstructions }),
+    [savedInstructions],
+  );
 
   // Save feedback belongs to the settings header's Save/Discard cluster: it
   // flashes "Saved" on success and raises the single destructive toast on
@@ -211,6 +241,9 @@ function CustomInstructionsSection({
 
   return (
     <SettingsSection
+      ref={sectionRef}
+      tabIndex={-1}
+      className="outline-none"
       title={t('page.customInstructions.title')}
       description={description}
       action={
