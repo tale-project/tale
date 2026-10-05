@@ -34,6 +34,7 @@ import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import { sanitizeUntrustedField } from '../../../lib/shared/sanitize-untrusted-field';
 import { parseSkillMd } from '../../../lib/skills/parse';
 import type { SkillViewer } from '../../../lib/skills/visibility';
+import { traceSandboxPhase } from '../../tracing';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
@@ -86,6 +87,7 @@ import {
   resolveGatewayRouting,
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
+import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
 import {
   isTurnBudgetExceededError,
@@ -983,6 +985,7 @@ export async function stageWorkflowFiles(
   if (files === undefined) return { mounts: [], stagedPaths: [] };
   const toStage: SessionStageFile[] = [];
   const mounts: string[] = [];
+  const replaceRoots: string[] = [];
   for (const [rawName, rawSource] of Object.entries(files)) {
     const name = mountNameOf(rawName);
     const source = parseStagingSource(rawSource);
@@ -991,17 +994,14 @@ export async function stageWorkflowFiles(
         `the files entry ${JSON.stringify(rawName)} names no usable source — use a folder id string, {folderPath}, or {content}`,
       );
     }
-    // The run's session is shared across its nodes — clear the mount first so
-    // a file from an earlier staging of the same mount cannot linger into
-    // this node's view of its inputs. Best-effort: a fresh session has
-    // nothing to clear.
-    await sessionDeleteFiles(sessionId, [`${pathPrefix}${name}`]).catch((err) =>
-      console.debug(
-        `[agent-host] mount pre-clear skipped for ${pathPrefix}${name}:`,
-        err instanceof Error ? err.message : err,
-      ),
-    );
     if ('content' in source) {
+      const cleared = await sessionDeleteFiles(sessionId, [
+        `${pathPrefix}${name}`,
+      ]);
+      if (cleared.skipped.length > 0)
+        throw new Error(
+          `staging input files failed: ${cleared.skipped.map((file) => file.path).join(', ')}`,
+        );
       toStage.push({
         path: `${pathPrefix}${name}`,
         contentBase64: Buffer.from(source.content, 'utf8').toString('base64'),
@@ -1009,6 +1009,7 @@ export async function stageWorkflowFiles(
       mounts.push(name);
       continue;
     }
+    replaceRoots.push(`${pathPrefix}${name}`);
     const listing = await ctx.runQuery(
       internal.documents.internal_queries.listFilesByFolderInternal,
       {
@@ -1041,12 +1042,19 @@ export async function stageWorkflowFiles(
       // via the token-gated stream route instead of a `_storage` URL.
       const url = await stageUrlForBlobRef(String(file.fileId), organizationId);
       if (url === null) continue; // blob purged under a live row — skip, don't fail
-      toStage.push({ path: `${pathPrefix}${name}/${file.name}`, url });
+      toStage.push({
+        path: `${pathPrefix}${name}/${file.name}`,
+        url,
+        sourceId: stageBlobCacheKey(organizationId, String(file.fileId)),
+      });
     }
     mounts.push(name);
   }
-  if (toStage.length > 0) {
-    const staged = await sessionStageFiles(sessionId, toStage);
+  if (toStage.length > 0 || replaceRoots.length > 0) {
+    const staged = await sessionStageFiles(sessionId, toStage, {
+      replaceRoots,
+      reuse: true,
+    });
     if (staged.skipped.length > 0) {
       throw new Error(
         `staging input files failed: ${staged.skipped
@@ -2395,6 +2403,7 @@ export function liveProgressSink(
   type Patch = {
     progressText?: string;
     liveTimeline?: HarnessTimelinePart[];
+    lastEventAt: number;
   };
   let pending: Patch | undefined;
   let writing: Promise<void> | undefined;
@@ -2405,18 +2414,18 @@ export function liveProgressSink(
       const patch = pending;
       pending = undefined;
       try {
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.upsertSessionOp,
-          {
+        await traceSandboxPhase('persist', () =>
+          ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
             organizationId: args.organizationId,
             sessionId: args.sessionId,
             execId: args.execId,
             kind,
             status: 'running',
-            lastEventAt: Date.now(),
+            // Queueing a delayed write is not a fresh sign of agent life.
+            heartbeatAt: patch.lastEventAt,
             ...(visionModelRef !== undefined && { visionModelRef }),
             ...patch,
-          },
+          }),
         );
       } catch (err) {
         console.warn('[agent-host] live progress write failed:', err);
@@ -2424,10 +2433,11 @@ export function liveProgressSink(
     }
     writing = undefined;
   };
-  const write = (patch: Patch) => {
+  const write = (patch: Omit<Patch, 'lastEventAt'>) => {
     pending = {
       ...pending,
       ...patch,
+      lastEventAt: Date.now(),
       ...(patch.liveTimeline !== undefined
         ? {
             liveTimeline: mergeTimelineParts(

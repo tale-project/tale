@@ -755,6 +755,14 @@ records and delete them after.
   it. A list of synced contacts only, or a Member's view, shows no checkbox
   and no **Select all**; a screen reader names the first column **Select
   row**.
+- [ ] `KNOW-B22` · **A product without a price reads as unpriced** — Products
+  → **Add product** with a name only, no **Price** and no **Stock** →
+  **Create**; a second with price `0`, currency `CHF` and stock `0` → reload
+  `/dashboard/{org}/products`: the first row's **Price** and **Stock** read
+  `-`, never `$0.00` or a blank cell, and its details (row click) show
+  neither; the second reads `CHF 0.00` and `0`, its details `CHF 0.00` and
+  **0 units** (`common.units.stock`). **Edit** the second, empty **Price**
+  and **Stock** → **Save** → reload → both read `-`.
 
 ## Accessibility (WCAG 2.1 AA)
 

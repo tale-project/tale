@@ -159,10 +159,12 @@ single warm sample.
 - [ ] `PERF-B2` · **Large list** — A DataTable with hundreds of rows
   (`/contacts`), with no search, filter or sort active. → First page renders
   quickly and only one page of rows is fetched and in the DOM; scrolling
-  loads the next page, never the whole set at once. A client-side search or
-  sort intentionally drains the remaining pages (see
-  [not-a-finding](../reference/not-a-finding.md)) — do not judge that
-  as eager paging.
+  loads the next page, never the whole set at once. Contacts search is
+  server-side: one debounced query uses no more than five list requests and
+  matches name, email and external id (plus the server's existing phone match).
+  Contacts Name sorting may drain the remaining pages for completeness, but
+  its initial rendered window stays bounded and uses the whole column model
+  (see [not-a-finding](../reference/not-a-finding.md)).
 - [ ] `PERF-B3` · **Slow network** — DevTools throttle to **Slow 3G**,
   hard-reload `/dashboard/{org}`. → Loading skeletons (`aria-busy="true"`
   regions) show during load with NO layout jank; the page eventually renders;

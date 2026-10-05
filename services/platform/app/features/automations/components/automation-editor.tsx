@@ -67,7 +67,7 @@ import {
   isMissingAutomationRead,
 } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
-import { nodeStatusMap, projectRun } from '../lib/run-view';
+import { nodeStatusMap, projectRun, readRunCursorNode } from '../lib/run-view';
 import {
   AUTOMATION_EDITOR_WORKBENCH_GRID,
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
@@ -339,6 +339,7 @@ function AutomationEditorScope({
         ? nodeStatusMap(
             lastRunProjection,
             graph.nodes.map((node) => node.id),
+            readRunCursorNode(lastRun),
           )
         : undefined,
     [showLastRun, lastRun, lastRunProjection, graph.nodes],

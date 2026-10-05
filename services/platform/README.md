@@ -126,3 +126,20 @@ required Umami headers; it drops browser cookies, credentials and referrer heade
 See the [environment reference](../../docs/en/self-hosted/configuration/environment-reference.md)
 and [observability guide](../../docs/en/self-hosted/configuration/observability-config.md) for the
 collector contract, collected fields, opt-outs and verification steps.
+
+Agent starts can use `SANDBOX_AGENT_PROFILE=agent-light` on the backend API and
+worker to create workspaces without inner Docker or shared build-cache helpers.
+The default `agent` and existing workspaces keep their Docker capability.
+`TALE_SANDBOX_CLAUDE_EFFORT=low|medium|high|max` selects Claude Code effort per
+exec; `max` preserves the existing default. Lower values omit the automatic
+Ultrathink prefix without disabling adaptive thinking. Benchmark representative
+outcomes before lowering effort. See the operator [environment reference](../../docs/en/self-hosted/configuration/environment-reference.md).
+
+Agent progress coalesces to one in-flight database update and the latest pending
+snapshot. Drain windows restore bounded parser/projection checkpoints from the
+runtime, including partial JSONL, background tasks and accumulated usage. The
+checkpoint is saved before acknowledging replay; an unrecoverable replay gap
+fails explicitly. Each JSONL record, including an unfinished one, is limited to
+8 MiB of UTF-8; oversized records fail explicitly instead of growing memory
+without bound. Sampled backend traces separate acquire, gateway, stage,
+execute, persist and harvest without carrying prompts or credentials.

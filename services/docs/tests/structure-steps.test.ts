@@ -138,18 +138,20 @@ Save the validated package.
     ).toEqual([]);
   });
 
-  it('every procedure uses titled Step children', () => {
-    const findings: Finding[] = [];
-    for (const rel of walkDocs()) {
-      const { body } = parseFrontmatter(
-        fs
-          .readFileSync(path.join(CONTENT_ROOT, rel), 'utf8')
-          .replaceAll('\r\n', '\n'),
-      );
-      if (!extractComponentTags(body).some((tag) => tag.name === 'Steps'))
-        continue;
-      findings.push(...inspectSteps(body, rel).findings);
-    }
-    assertNoFindings(findings, 'Steps-structure issues');
+  // Rendering every procedure in one test makes the five-second budget grow
+  // with the entire docs tree. Keep the same parser/assertion and budget per
+  // document so a larger corpus or shared-machine load cannot hide findings
+  // behind an aggregate timeout.
+  it.each(walkDocs())('%s uses titled Step children', (rel) => {
+    const { body } = parseFrontmatter(
+      fs
+        .readFileSync(path.join(CONTENT_ROOT, rel), 'utf8')
+        .replaceAll('\r\n', '\n'),
+    );
+    if (!extractComponentTags(body).some((tag) => tag.name === 'Steps')) return;
+    assertNoFindings(
+      inspectSteps(body, rel).findings,
+      'Steps-structure issues',
+    );
   });
 });

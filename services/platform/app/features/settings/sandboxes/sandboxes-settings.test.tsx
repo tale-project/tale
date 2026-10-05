@@ -1,7 +1,10 @@
 import { ActiveEditorProvider, EditorGroup } from '@tale/ui/editor';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { SandboxCapacity } from '@/app/lib/backend/contract/sandbox';
 import { i18n } from '@/lib/i18n/i18n';
+import type { SandboxDeviceView } from '@/lib/shared/schemas/sandbox-devices';
+import { checkAccessibility } from '@/tests/utils/a11y';
 import {
   SESSION_ENDED,
   SHIPPED_LOCALES,
@@ -179,6 +182,191 @@ function renderSettings() {
     </ActiveEditorProvider>,
   );
 }
+
+describe.each(SHIPPED_LOCALES)(
+  'SandboxesSettings placement observations (%s)',
+  (locale) => {
+    const device: SandboxDeviceView = {
+      id: 'device-other',
+      name: 'Other administrator laptop',
+      status: 'online',
+      createdAt: 1_790_000_000_000,
+      createdBy: 'admin-other',
+      lastSeenAt: 1_790_000_060_000,
+      connectedAt: 1_790_000_000_000,
+      version: '0.5.60',
+      maxSessions: 4,
+      platform: null,
+      sessions: { running: 1, starting: 0 },
+      resources: null,
+      update: null,
+    };
+    const available: Extract<SandboxCapacity, { status: 'available' }> = {
+      status: 'available',
+      observedAt: 1_790_000_060_000,
+      backend: 'docker',
+      scope: 'host',
+      sessions: {
+        running: 1,
+        starting: 0,
+        limit: 16,
+        organizationRunning: 1,
+        organizationStarting: 0,
+        organizationLimit: 16,
+      },
+      resources: {
+        cpu: { totalCores: 8, usedCores: 1 },
+        memory: { totalBytes: 32 * 1024 ** 3, usedBytes: 1024 ** 3 },
+      },
+      runtimeSessions: [{ sessionId: aliceRow.sessionId, state: 'running' }],
+      placements: [{ sessionId: aliceRow.sessionId, deviceId: device.id }],
+    };
+    let observation: {
+      data: SandboxCapacity | undefined;
+      isError?: boolean;
+      isLoading?: boolean;
+    };
+
+    beforeEach(() => {
+      state.canManage = true;
+      saveLocale(locale);
+      observation = { data: available };
+      const reads = query.getMockImplementation();
+      query.mockImplementation((name: string) => {
+        const answer = reads?.(name);
+        if (name.endsWith(':getSandboxCapacity'))
+          return { ...answer, ...observation };
+        if (name === 'sandbox_devices/queries:list') {
+          return {
+            ...answer,
+            data: {
+              devices: [device],
+              hub: 'available',
+              serverVersion: '0.5.60',
+            },
+          };
+        }
+        return name.endsWith(':listSandboxesForOrg')
+          ? { ...answer, data: [aliceRow] }
+          : answer;
+      });
+    });
+    afterEach(forgetSavedLocale);
+
+    function settingsView() {
+      return (
+        <ActiveEditorProvider>
+          <EditorGroup>
+            <SandboxesSettings organizationId="org-1" />
+          </EditorGroup>
+        </ActiveEditorProvider>
+      );
+    }
+
+    it.each([
+      {
+        data: {
+          status: 'unavailable',
+          reason: 'unreachable',
+        } satisfies SandboxCapacity,
+      },
+      {
+        data: {
+          status: 'unavailable',
+          reason: 'not_configured',
+        } satisfies SandboxCapacity,
+      },
+      { data: undefined, isLoading: true },
+      { data: available, isError: true },
+    ])(
+      'does not assert server placement after a failed observation: %j',
+      async (failed) => {
+        const { rerender } = render(settingsView());
+        await waitFor(() => expect(i18n.language).toBe(locale));
+        const translate = i18n.getFixedT(locale, 'sandboxes');
+        const row = screen.getByText('Alice').closest('tr') as HTMLElement;
+        const deviceLabel = translate('runsOn.device', { name: device.name });
+        expect(within(row).getByText(deviceLabel)).toBeInTheDocument();
+
+        observation = failed;
+        rerender(settingsView());
+        expect(screen.getByText('Alice').closest('tr')).toBe(row);
+        expect(
+          within(row).getByText(translate('status.runtime.unknown')),
+        ).toBeInTheDocument();
+        expect(
+          within(row).queryByText(translate('runsOn.server')),
+        ).not.toBeInTheDocument();
+        expect(within(row).queryByText(deviceLabel)).not.toBeInTheDocument();
+
+        observation = { data: available };
+        rerender(settingsView());
+        expect(within(row).getByText(deviceLabel)).toBeInTheDocument();
+        expect(
+          within(row).getByText(translate('status.runtime.running')),
+        ).toBeInTheDocument();
+      },
+    );
+
+    it.each([
+      { placements: [] },
+      { placements: [{ sessionId: 'session-other', deviceId: device.id }] },
+    ])(
+      'keeps a known server workspace running when available placements are %j',
+      async ({ placements }) => {
+        observation = { data: { ...available, placements } };
+        render(settingsView());
+        await waitFor(() => expect(i18n.language).toBe(locale));
+        const translate = i18n.getFixedT(locale, 'sandboxes');
+        const row = screen.getByText('Alice').closest('tr') as HTMLElement;
+        expect(
+          within(row).getByText(translate('runsOn.server')),
+        ).toBeInTheDocument();
+        expect(
+          within(row).getByText(translate('status.runtime.running')),
+        ).toBeInTheDocument();
+      },
+    );
+    it('does not assert a location when a successful capacity snapshot omits placements', async () => {
+      observation = { data: { ...available, placements: undefined } };
+      render(settingsView());
+      await waitFor(() => expect(i18n.language).toBe(locale));
+      const translate = i18n.getFixedT(locale, 'sandboxes');
+      const row = screen.getByText('Alice').closest('tr') as HTMLElement;
+      expect(
+        within(row).getByText(translate('status.runtime.running')),
+      ).toBeInTheDocument();
+      expect(
+        within(row).queryByText(translate('runsOn.server')),
+      ).not.toBeInTheDocument();
+      expect(
+        within(row).queryByText(
+          translate('runsOn.device', { name: device.name }),
+        ),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps an initially unavailable workspace unknown and accessible', async () => {
+      observation = { data: { status: 'unavailable', reason: 'unreachable' } };
+      render(settingsView());
+      await waitFor(() => expect(i18n.language).toBe(locale));
+      const translate = i18n.getFixedT(locale, 'sandboxes');
+      const table = screen.getByRole('table', { name: translate('title') });
+      expect(
+        within(table).getByText(translate('status.runtime.unknown')),
+      ).toBeInTheDocument();
+      expect(
+        within(table).queryByText(translate('runsOn.server')),
+      ).not.toBeInTheDocument();
+      expect(
+        within(table).queryByText(
+          translate('runsOn.device', { name: device.name }),
+        ),
+      ).not.toBeInTheDocument();
+      await checkAccessibility(table);
+    });
+  },
+);
 
 describe('SandboxesSettings access', () => {
   it('refreshes deployment limits alongside runtime observations', async () => {

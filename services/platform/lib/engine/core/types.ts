@@ -157,6 +157,7 @@ export interface NodeTrace {
   node: string;
   type: string;
   status: NodeStatus;
+  execId?: string;
   /** Resolved input after template evaluation. */
   input?: unknown;
   output?: unknown;

@@ -92,6 +92,23 @@ describe('backendFetch', () => {
     );
   });
 
+  it('preserves the create-only header beside the JSON content type', async () => {
+    const fetchMock = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(200, { skill: { slug: 'alpha' } }));
+    await backendFetch('/skills/alpha', {
+      orgId: 'org1',
+      method: 'PUT',
+      headers: { 'if-none-match': '*' },
+      body: { description: 'New skill', body: '' },
+    });
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect(init?.method).toBe('PUT');
+    const headers = new Headers(init?.headers);
+    expect(headers.get('content-type')).toBe('application/json');
+    expect(headers.get('if-none-match')).toBe('*');
+  });
+
   it('maps a JSON error body onto BackendApiError', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       jsonResponse(404, { error: 'thread not found' }),

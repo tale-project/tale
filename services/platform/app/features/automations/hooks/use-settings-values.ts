@@ -74,9 +74,8 @@ export function useAutomationSettingsValues(
       return byFile;
     },
     staleTime: Infinity,
-    // The adapted lane authenticates with the session cookie and never
-    // waits on the Convex socket; the WS gate only matters while this read
-    // still rides it.
+    // The adapted lane authenticates with the session cookie. Only a missing
+    // adapter row waits for the probe to hold a user before refusing by name.
     enabled:
       folder !== null && files.length > 0 && (readAdapted || isAuthenticated),
   });

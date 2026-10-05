@@ -14,6 +14,7 @@ import { backendKey } from './query-keys';
 
 type UsageMetricsResult = ReturnsOf<'governance/queries:getOrgUsageMetrics'>;
 type FeedbackStatsResult = ReturnsOf<'feedback/queries:getFeedbackStats'>;
+type FeedbackCommentResult = ReturnsOf<'feedback/queries:getFeedbackComment'>;
 type ChatHealthResult = ReturnsOf<'chat/messages:getOrgChatHealth'>;
 type GuardrailStatsResult =
   ReturnsOf<'chat_filter_events/queries:getGuardrailStats'>;
@@ -85,6 +86,19 @@ const FEEDBACK_RECENT_KEYS = [
 ] as const;
 
 export const metricsReadAdapters: Record<string, ReadAdapter> = {
+  'feedback/queries:getFeedbackComment': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const feedbackId = args.feedbackId;
+    if (orgId === undefined || typeof feedbackId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'metrics', 'feedback-comment', feedbackId),
+      queryFn: () =>
+        backendFetch<FeedbackCommentResult>(
+          `/feedback/recent/${encodeURIComponent(feedbackId)}/comment`,
+          { orgId },
+        ),
+    };
+  },
   'governance/queries:getOrgUsageMetrics': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;

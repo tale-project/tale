@@ -90,6 +90,17 @@ bun run --filter @tale/docs typecheck
 bun run --filter @tale/docs test:e2e
 ```
 
+`test:e2e` builds its local preview by default. To reuse a complete build, build
+first and set the optional Playwright setting `E2E_USE_BUILD=1`:
+
+```bash
+bunx turbo run build --filter=@tale/docs
+E2E_USE_BUILD=1 bun run --filter @tale/docs test:e2e
+```
+
+CI sets this flag after its build. Leave it unset or use `0` for the normal local
+E2E build.
+
 `DOCS_E2E_PORT` changes the Playwright preview port from `3002`. Use a free port when another
 checkout is running: local tests reuse an existing server and can otherwise inspect the wrong
 checkout. `E2E_BASE_URL` chooses the request target; it does not disable the configured local

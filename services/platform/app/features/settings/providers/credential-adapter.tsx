@@ -26,7 +26,10 @@ import {
   isBrokerDraftComplete,
   type BrokerDraft,
 } from './components/broker-form';
-import { ModelAllowlistField } from './components/model-allowlist-field';
+import {
+  ModelAllowlistField,
+  sameList,
+} from './components/model-allowlist-field';
 import {
   CUSTOM_VENDOR_KEY,
   emptyCustomProviderFacts,
@@ -241,9 +244,6 @@ export interface ProviderCredentialExtras {
    * form was seeded at, which its Save names. Never edited. */
   reviewed?: ReviewedVersions;
 }
-
-const sameList = (a: readonly string[], b: readonly string[]) =>
-  a.length === b.length && a.every((id, index) => id === b[index]);
 
 const sameFacts = (a: CustomProviderFacts, b: CustomProviderFacts) =>
   a.apiFormat === b.apiFormat &&
