@@ -41,7 +41,7 @@ const row: RecentFeedbackItem = {
 const clients: QueryClient[] = [];
 
 function mount(
-  item: RecentFeedbackItem | undefined = row,
+  item: RecentFeedbackItem | null = row,
   options: { error?: Error; retry?: () => void } = {},
 ) {
   const client = new QueryClient({
@@ -85,10 +85,11 @@ describe('RecentFeedbackTable', () => {
       saveLocale(locale);
       await i18n.changeLanguage(locale);
       const retry = vi.fn();
-      const { user } = mount(undefined, {
+      const { user } = mount(null, {
         error: new Error('read failed'),
         retry,
       });
+      expect(screen.queryByText('Ada')).not.toBeInTheDocument();
       expect(await screen.findByRole('alert')).toHaveTextContent(
         i18n.t('feedback.recent.loadFailed', { ns: 'analytics' }),
       );
@@ -103,18 +104,34 @@ describe('RecentFeedbackTable', () => {
           i18n.t('feedback.recent.emptyTitle', { ns: 'analytics' }),
         ),
       ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          i18n.t('feedback.recent.emptyDescription', { ns: 'analytics' }),
+        ),
+      ).not.toBeInTheDocument();
     },
   );
 
-  it('keeps the successful empty state when there is no error', () => {
-    mount(undefined);
-    expect(
-      screen.getByText(
-        i18n.t('feedback.recent.emptyTitle', { ns: 'analytics' }),
-      ),
-    ).toBeVisible();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
+  it.each(['en', 'de', 'fr'] as const)(
+    'keeps the successful empty state when there is no error (%s)',
+    async (locale) => {
+      saveLocale(locale);
+      await i18n.changeLanguage(locale);
+      mount(null);
+      expect(screen.queryByText('Ada')).not.toBeInTheDocument();
+      expect(
+        screen.getByText(
+          i18n.t('feedback.recent.emptyTitle', { ns: 'analytics' }),
+        ),
+      ).toBeVisible();
+      expect(
+        screen.getByText(
+          i18n.t('feedback.recent.emptyDescription', { ns: 'analytics' }),
+        ),
+      ).toBeVisible();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    },
+  );
 
   it('requests full text only after expansion and retains the preview while loading', async () => {
     let finish: (value: { comment: string }) => void = () => {};

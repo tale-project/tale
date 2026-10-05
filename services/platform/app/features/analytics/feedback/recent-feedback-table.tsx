@@ -276,11 +276,15 @@ export function RecentFeedbackTable({
             other: tAnalytics('feedback.recent.entityLabel'),
           },
         }}
-        emptyState={{
-          icon: MessageSquare,
-          title: tAnalytics('feedback.recent.emptyTitle'),
-          description: tAnalytics('feedback.recent.emptyDescription'),
-        }}
+        emptyState={
+          error
+            ? undefined
+            : {
+                icon: MessageSquare,
+                title: tAnalytics('feedback.recent.emptyTitle'),
+                description: tAnalytics('feedback.recent.emptyDescription'),
+              }
+        }
       />
     </MetricsSection>
   );
