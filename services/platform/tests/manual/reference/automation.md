@@ -6,6 +6,14 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Shared bulk Delete and Archive preserve refused selections and keep the confirmation
+open with failed item names and safe caller-supplied reasons. Retries exclude successes;
+all-success closes and clears as before. Mixed/all-refused/success controls for both
+verbs live in `packages/ui/src/components/data-table/data-table-bulk-actions.test.tsx`;
+the real ContactsTable selection and failure-only retry are covered by
+`app/features/contacts/components/contact-table.bulk-delete.test.tsx`.
+Real-browser focus, layout and visual transitions remain manual.
+
 Website content search clears submitted results when the input changes to a
 different query, without issuing another request until Enter. Whitespace-only
 edits retain results; clearing the input and late responses after edits are
@@ -50,11 +58,29 @@ cached transcript after a failed refresh. These component cases are owned by
 `app/features/tasks/components/task-agent-run-entry.test.tsx` (#3830, #3831).
 Real-browser focus trapping, speech and narrow-screen layout remain manual.
 
+Task agent latest-run read failures keep an EN/DE/FR alert and Try again in
+the assignment lane, including for read-only viewers. Retrying only refetches
+the read, restores stranded focus after another failure, and recovers Start
+and Details without changing the assignment. Initial loading remains quiet;
+cached run controls survive a failed background read. These cases are owned
+by `app/features/tasks/components/task-agent-run-entry.test.tsx` (#3829).
+Real-browser focus, speech and narrow-screen layout remain manual.
+
 Text-only edits retain the original uploaded attachment references in both
 the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:
 `app/features/chat/components/chat-surface.test.tsx` covers the component
 boundary; persisted cards after reload remain manual in `CHAT-F8`.
+
+Task attachment uploads overlap while their drain, read and replace steps are
+serialized, and replacements read the latest saved list rather than an
+upload-start snapshot.
+`app/features/tasks/components/task-modal.attachments.test.tsx` drives the real
+file input, upload hook and edit body against synthetic upload/query/write seams:
+overlapping selections, removal during upload, intervening accepted changes,
+pending saves, failure recovery and the sequential control. The shared drain's
+synchronous reset is covered in `app/features/shared/files/use-file-upload.test.ts`.
+Live storage persistence and cross-session races remain manual.
 
 One row per case group, carried over from the per-suite coverage tables the
 guides used to hold. **Don't** re-verify an automated row by hand: a red there
@@ -64,6 +90,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 | Suite | Boxes | Status | Owning spec |
 |---|---|---|---|
+| [knowledge](../suites/knowledge.md) | Products, Contacts and Knowledge entries offer no bulk selection or Delete to a read-only member; editors retain bulk Delete, and losing write permission removes an open bulk confirmation. Contacts retain source eligibility. These prove UI affordances, not server authorization (#3910) | ✅ component + real role abilities | `app/features/products/components/products-table.test.tsx`, `app/features/contacts/components/contact-table.bulk-delete.test.tsx`, `app/features/knowledge-entries/components/knowledge-entries-table.bulk-delete.test.tsx` |
 | Runtime error reporting | The managed reporting label reaches browser, backend and sandbox without changing retained deployment identity or credentials; sandbox HTTP, background, promise and fatal failures produce real SDK envelopes with scrubbed credentials, while verified aborts and closed SSE streams after cancellation produce none | ✅ runtime transport + server shell + CLI regression | `services/sandbox/src/error-reporting.test.ts`, `server.test.ts`, `tools/cli/src/lib/deployment/runtime-env.test.ts`; SDK delivery uses a local HTTP ingest server and preserves the original failure responses and exit behavior |
 | [settings](../suites/settings.md) | Platform test caching ignores generated catalog skill `.turbo` logs while real provider configuration and skill source edits still invalidate the hash; every tracked catalog source remains an input | ✅ actual Turbo dry-run regression | `tests/guards/turbo-inputs.guard.test.ts`; isolated Git fixture changes generated output and real inputs without running the platform suite |
 | [accessibility](../suites/accessibility.md) | SearchableSelect open search/list/popover names fall back to Project and Competence field labels; explicit names, rich labels, placeholder-only callers, localized unnamed-caller defaults, keyboard selection and focus return | 🔶 component + jsdom axe | `packages/ui/src/components/forms/searchable-select.test.tsx`; WCAG 2.1 A/AA axe covers the open component, not the full chat/governance flows or real-browser layout |
@@ -544,6 +571,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [projects](../suites/projects.md) | `PROJ-B9` (the backend half): a designee who cannot edit the project — a read-only role, or outside a team-restricted project's teams — is refused with 400 `TASK_REVIEWER_NO_EDIT_ACCESS` before anything is written, by the same `reviewerEligibility` rule the review gate resolves by; the refusal's copy is the picker's hint (`tasks.reviewer.editorsOnly`, `reviewerRefusalMessage`); the picker lists editors only, narrowed to the project's audience, and nobody until that audience has loaded | 🔶 backend + helper + component + real Postgres | `backend/domains/tasks/service.reviewer.test.ts`, `backend/domains/tasks/reviews.retarget.test.ts`, `app/features/tasks/lib/reviewer-refusal.test.ts`, `app/features/tasks/components/reviewer-picker.test.tsx`, `app/features/tasks/hooks/use-actor-directory.test.ts`, `backend/integration-check.ts` (`checkTasksCollabIntegrity`); the task dialog's toast on a stale pick and the picker's live candidate list stay manual |
 | [projects](../suites/projects.md) | `PROJ-F27` (the component half): the Chats tab names an untitled chat **Untitled chat** and never by its id, lists your chats with the share switch and the shared ones with their author's name (a user-id fragment when none resolves), and shares through the owner-gated chat mutation | 🔶 component | `app/features/projects/components/project-threads-tab.test.tsx`; the whole-row click, the pencil and the ages stay manual |
 | [projects](../suites/projects.md) | `PROJ-A7` (the component half): the Sharing section's Audience picker, its no-teams hint and the read-only **Effective audience** each sit in a settings field row showing its label, with no `<label>` on the combobox and no unnamed group; the Audience combobox is named **Audience** and described by the row's help, as the Name and Description fields are named and described by theirs; the Instructions textarea has no unnamed group between it and its section | 🔶 component | `app/features/projects/components/project-sharing-section.test.tsx`, `app/features/projects/components/project-overview.test.tsx`, `app/features/settings/components/settings-field-list.test.tsx`; the alignment with the Name row, both themes and what a real screen reader announces stay manual |
+| [projects](../suites/projects.md) | `PROJ-B17` (the component half, #3885): a failed project read is named inside the project shell with **Try again**, never as `projects.errors.PROJECT_NOT_FOUND` and never as a blank tab: the header and the tab strip stay and `projects.loadFailed` takes the tab's place, so no tab renders without its project; a restored arrival neither redirects nor forgets the Home memory; the alert holds through a retry with its button busy, and a retry that works opens the tab and hands the focus to the content region; a read that answered with no project (404/403) keeps the not-found message, with no retry; the Overview on its own says the same through the real `useProject`, adapter row and four-attempt retry policy against a closed synthetic transport, and shows the project once the read answers; EN/DE/FR | 🔶 component | `app/features/projects/components/project-overview.read-failure.test.tsx`, `app/routes/dashboard/$id/projects/$projectId.test.tsx`; the blocked request in a real browser stays `PROJ-B17` |
 | [projects](../suites/projects.md) | Sharing on General while the organization's teams are still loading: the **Audience** row (`projects.settings.audience`) holds a loading status and never offers **No teams yet.** (`projects.sharing.noTeamsHint`) or **Create a team** (`projects.sharing.noTeamsCreateLink`) to an administrator of an org that has teams | ✅ component | `app/features/projects/components/project-sharing-section.test.tsx` |
 | [projects](../suites/projects.md) | REST chat after the 2026-09-15 round-i evaluation: `MessagePart` is a `type` discriminator with an explicit mapping over six named part schemas (`TextPart` … `ApprovalPart`), and the contract declares nullability with `nullable` only — no OpenAPI 3.1 type list anywhere in the document | ✅ automated | `scripts/openapi/spec.test.ts` |
 | [responsive](../suites/responsive.md) | `RESP-F1` | ✅ automated | `responsive.spec.ts` (app-shell: rail hidden; the tab bar holds Home, Knowledge, Automations and Settings, no overflow sheet) + component `app/components/layout/mobile-bottom-nav.test.tsx` (the same sections as the rail, Settings included) |
@@ -810,6 +838,7 @@ Scroll-responsive navigation is covered by `packages/ui/src/hooks/use-scroll-com
 | [tasks](../suites/tasks.md) | Explicit project opt-in and task reviewer overrides retain the human default, capture pending reviewer identity, preserve source/history on handoff, reject stale or self review and old human completion, and keep missing agent ownership visible. Real serializable races exercise human approval versus explicit delegation in both orders; legacy column writes, PostgreSQL actor exclusivity and rollback are checked. | 🔶 backend + real Postgres | `packages/shared/src/schemas/task-review.test.ts`, `backend/domains/tasks/reviews.routing.test.ts`, `backend/domains/tasks/service.reviewer.test.ts`, `backend/domains/tasks/agent-review-routing.integration.ts` (`checkAgentTaskReviewRouting` in `backend:integration`); rendered reviewer controls and agent verdict lifecycle remain separate checks |
 
 | [tasks](../suites/tasks.md) | An explicitly granted live project agent decides only its captured independent native review, bound to the latest settled source and local evidence revision. Exact retries return the receipt once; revoked authority, stale evidence, foreign tasks, active engines, workflow approvals, human competence policies, open children and dependencies refuse. Feedback remains visible without mention or event dispatch, completion uses the shared repeat and rollup seam, native requested-changes receipts count once in metrics while ordinary agent withdrawals do not, and real serializable handoff races preserve one owner. | ✅ unit + real Postgres | `backend/domains/tasks/agent-review.test.ts`, `backend/domains/tasks/comments.review.test.ts`, `backend/domains/sandbox/shim.metadata.test.ts`, `backend/core/node_only/sandbox/workspace_tools_bridge.test.ts`, `backend/domains/tasks/agent-review.integration.ts` (`checkAgentTaskReviews`), `backend/domains/tasks/metrics.test.ts` |
+| [metrics](../suites/metrics.md) | Historical end-of-day status, WIP, overdue and stale counts exclude archive intervals after later restores; today's archive/restore, repeated cycles and UTC-midnight boundaries preserve earlier days. Archive/restore activity shares the bounded event scan and every day is explicitly capped when that history overflows. | ✅ unit + real Postgres | `backend/domains/tasks/metrics.test.ts`, `backend/domains/tasks/metrics.integration.ts` (`checkProjectTaskMetrics`) |
 
 | [tasks](../suites/tasks.md) | Source-less human/automation submissions and new human-policy native reviews use the human chain. Invalid policy, self-review, lost grant, deleted reviewer and changed assignee retain captured native ownership with one derived recovery reason in UI and task_get. Explicit selection rejects ineligible agents, repeats retain repairable intent, and an open picker keeps its original CAS identity across realtime changes. Human confirmation dialogs close when the gate is lost or the task/captured approval/run/reviewer changes, preserving the feedback draft; unchanged-review refreshes keep the dialog open. | ✅ unit + component + real Postgres | `backend/domains/tasks/reviews.routing.test.ts`, `backend/domains/tasks/repeat.test.ts`, `backend/domains/tasks/agent-work-state.test.ts`, `backend/domains/tasks/agent-review-routing.integration.ts`, `app/features/tasks/components/task-reviewer-field.test.tsx`, `app/features/tasks/components/task-subject-panel.test.tsx`, `scripts/openapi/spec.test.ts`; visual live two-session judgment stays in `TASK-B39` |
 | [tasks](../suites/tasks.md) | The shared reviewer picker stays inside a 375px viewport with a long help footer or an oversized trigger, keeps search, the last option and a localized footer reachable at short heights in default and switcher variants, preserves a desktop field's width, and returns keyboard focus after selection or Escape. | ✅ real Chromium component | `packages/ui/src/components/forms/searchable-select.browser.test.tsx`; localized task and project layouts remain manual in `TASK-A15` |

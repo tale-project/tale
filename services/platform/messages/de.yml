@@ -4321,6 +4321,7 @@ governance:
         userPickerLabel: Person
         userPickerPlaceholder: Nach Name oder E-Mail suchen
         userPickerEmpty: Keine passenden Mitglieder.
+        userPickerFailed: Mitglieder konnten nicht geladen werden.
         reasonCodeLabel: Rechtsgrund
         reasonCodeDescription: DSGVO Art. 17(1)(a)–(f) plus operativer Vertragsbeendigungs-Grund.
         reasonLabel: Begründung
@@ -7480,6 +7481,7 @@ tasks:
     failureTitle: Der Agent konnte diese Aufgabe nicht fertigstellen
     reported: Was der Lauf gemeldet hat
     logReadFailed: Das Agentenprotokoll konnte nicht geladen werden. Versuch es erneut.
+    runReadFailed: Der Agentenlauf konnte nicht geladen werden. Versuch es erneut.
     failure:
       budget: Ein Nutzungslimit hat diesen Lauf gestoppt. Bitte einen Admin, es anzuheben, und starte den Agenten dann erneut.
       setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
@@ -8334,6 +8336,7 @@ projects:
   title: Projekte
   entityLabel: Projekte
   entityLabelOne: Projekt
+  loadFailed: Dieses Projekt konnte nicht geladen werden.
   switcher:
     title: Projekt wechseln
     searchPlaceholder: Projekte suchen
@@ -8527,6 +8530,8 @@ projects:
     shareSuccess: Chat mit Projekt geteilt
     unshareSuccess: Chat aus Projekt ausgeblendet
     shareError: Freigabe konnte nicht aktualisiert werden
+    loadFailed: Die Chats dieses Projekts konnten nicht geladen werden.
+    refreshFailed: Die Chats dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
   agents:
     agentsHeading: Agenten
     sectionDescription: Agenten für dieses Projekt, jeder mit eigenem Modell, eigenen Skills und eigenen Anweisungen.

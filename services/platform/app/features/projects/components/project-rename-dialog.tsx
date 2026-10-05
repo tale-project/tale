@@ -5,7 +5,7 @@ import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
 import { useForm } from '@tale/ui/use-form';
 import { toast } from '@tale/ui/use-toast';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod/v4';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
@@ -55,15 +55,29 @@ export function ProjectRenameDialog({
     handleSubmit,
     reset,
     setError,
+    getFieldState,
     formState: { isSubmitting, errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: { name: currentName },
   });
 
+  // The draft starts from the project's name when the dialog opens or turns to
+  // another project. A rename from elsewhere while it is open (the row's live
+  // `currentName`) only moves an untouched field: what the user has typed is
+  // never replaced behind their back (#3916).
+  const draftProjectId = useRef<string | null>(null);
   useEffect(() => {
-    if (open) reset({ name: currentName });
-  }, [open, currentName, reset]);
+    if (!open) {
+      draftProjectId.current = null;
+      return;
+    }
+    if (draftProjectId.current === projectId && getFieldState('name').isDirty) {
+      return;
+    }
+    draftProjectId.current = projectId;
+    reset({ name: currentName });
+  }, [open, projectId, currentName, reset, getFieldState]);
 
   const onSubmit = async (data: FormData) => {
     if (data.name.trim() === currentName.trim()) {

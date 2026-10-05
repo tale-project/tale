@@ -87,7 +87,7 @@ function Actions() {
   return editor ? <EditorActions controller={editor} /> : null;
 }
 
-function showForm(branding = savedBranding()) {
+function showForm(branding = savedBranding(), onPreviewChange = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
@@ -99,7 +99,7 @@ function showForm(branding = savedBranding()) {
           <BrandingForm
             organizationId="org_test"
             branding={branding}
-            onPreviewChange={vi.fn()}
+            onPreviewChange={onPreviewChange}
           />
           <Actions />
         </ActiveEditorProvider>
@@ -920,4 +920,313 @@ it('rechecks derivation after an explicit favicon upload already queued behind t
   expect(authoritative.logoFilename).toBe('replacement.svg');
   expect(authoritative.faviconLightFilename).toBe('explicit.svg');
   expect(mockDeriveFavicon).not.toHaveBeenCalled();
+});
+
+describe('Logo-derived favicon and an explicit favicon choice', () => {
+  const derivedPreview = 'data:image/png;base64,DERIVED_PNG';
+  const generatedToast = expect.objectContaining({
+    title: 'Favicon generated',
+  });
+
+  /** An org with a logo but no favicon, so a logo upload derives one. */
+  function withoutFavicon() {
+    return {
+      ...savedBranding(),
+      faviconLightFilename: '',
+      faviconDarkFilename: '',
+      faviconLightUrl: '',
+      faviconDarkUrl: '',
+    };
+  }
+
+  function deferred() {
+    let resolve: () => void = () => {};
+    const promise = new Promise<void>((done) => {
+      resolve = done;
+    });
+    return { promise, resolve: () => resolve() };
+  }
+
+  function fieldOf(type: string) {
+    if (type === 'logo') return 'logoFilename';
+    return type === 'favicon-dark'
+      ? 'faviconDarkFilename'
+      : 'faviconLightFilename';
+  }
+
+  /**
+   * The branding endpoints over a stored config with no favicon. Image writes
+   * are logged as `<type>:<filename>` in the order they reach the server: the
+   * derived favicon is stored as `derived.png`, any other upload as
+   * `<type>.svg`. `hold` delays the response of the logo upload, the derived
+   * favicon's write or the config save.
+   */
+  function serveBranding(
+    hold: {
+      logo?: Promise<void>;
+      derived?: Promise<void>;
+      save?: Promise<void>;
+    } = {},
+  ) {
+    const stored: Record<string, unknown> = {
+      ...savedBrandingConfig(),
+      faviconLightFilename: undefined,
+      faviconDarkFilename: undefined,
+    };
+    const writes: string[] = [];
+    vi.mocked(backendFetch).mockImplementation(async (path, options) => {
+      const body = options?.body;
+      if (
+        path === '/branding/images' &&
+        body &&
+        typeof body === 'object' &&
+        'type' in body &&
+        'base64' in body
+      ) {
+        const type = String(body.type);
+        const derived = body.base64 === 'DERIVED_PNG';
+        const filename = derived ? 'derived.png' : `${type}.svg`;
+        writes.push(`${type}:${filename}`);
+        await (derived ? hold.derived : type === 'logo' ? hold.logo : null);
+        stored[fieldOf(type)] = filename;
+        return { filename };
+      }
+      if (path.startsWith('/branding/images/')) {
+        stored[fieldOf(path.slice('/branding/images/'.length))] = undefined;
+      }
+      if (path === '/branding/save') {
+        await hold.save;
+        Object.assign(stored, body);
+      }
+      return { ok: true };
+    });
+    return { stored, writes };
+  }
+
+  /** Holds the logo's conversion until the returned function finishes it. */
+  function holdDerivation() {
+    let finish: (base64: string) => void = () => {};
+    mockDeriveFavicon.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    return (base64: string) => finish(base64);
+  }
+
+  function dropSvg(control: string, filename: string) {
+    fireEvent.drop(screen.getByRole('button', { name: control }), {
+      dataTransfer: {
+        files: [new File(['<svg/>'], filename, { type: 'image/svg+xml' })],
+      },
+    });
+  }
+
+  async function saveAccent(stored: Record<string, unknown>) {
+    fireEvent.change(screen.getByLabelText('Accent color hex value'), {
+      target: { value: '224466' },
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(stored.accentColor).toBe('#224466'));
+  }
+
+  it.each([
+    {
+      name: 'light',
+      control: 'Upload favicon (Light)',
+      write: 'favicon-light:favicon-light.svg',
+      light: 'favicon-light.svg',
+      dark: undefined,
+      preview: 'blob:replacement',
+    },
+    {
+      name: 'dark',
+      control: 'Upload favicon (Dark)',
+      write: 'favicon-dark:favicon-dark.svg',
+      light: undefined,
+      dark: 'favicon-dark.svg',
+      preview: '',
+    },
+  ])(
+    'keeps a $name favicon chosen while the logo favicon is still being derived',
+    async ({ control, write, light, dark, preview }) => {
+      const finishDerivation = holdDerivation();
+      const { stored, writes } = serveBranding();
+      const onPreviewChange = vi.fn();
+      showForm(withoutFavicon(), onPreviewChange);
+      dropSvg('Upload logo', 'logo.svg');
+      await waitFor(() => expect(mockDeriveFavicon).toHaveBeenCalledTimes(1));
+      dropSvg(control, 'explicit.svg');
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: control })).toBeDisabled(),
+      );
+      await act(async () => finishDerivation('DERIVED_PNG'));
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: control })).toBeEnabled(),
+      );
+      expect(writes).toEqual(['logo:logo.svg', write]);
+      expect(stored.faviconLightFilename).toBe(light);
+      expect(stored.faviconDarkFilename).toBe(dark);
+      expect(onPreviewChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ faviconUrl: preview }),
+      );
+      expect(mockToast).not.toHaveBeenCalledWith(generatedToast);
+      // A later Save writes the references of the explicit choice.
+      await saveAccent(stored);
+      expect(stored.faviconLightFilename).toBe(light);
+      expect(stored.faviconDarkFilename).toBe(dark);
+    },
+  );
+
+  it('keeps a Reset confirmed while the logo favicon is still being derived', async () => {
+    const finishDerivation = holdDerivation();
+    const { stored, writes } = serveBranding();
+    const onPreviewChange = vi.fn();
+    showForm(withoutFavicon(), onPreviewChange);
+    dropSvg('Upload logo', 'logo.svg');
+    await waitFor(() => expect(mockDeriveFavicon).toHaveBeenCalledTimes(1));
+    act(() =>
+      registeredActions.current
+        .find((action) => action.label === 'Reset')
+        ?.onClick(),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset' }));
+    await act(async () => finishDerivation('DERIVED_PNG'));
+    await waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Branding reset' }),
+      ),
+    );
+    expect(writes).toEqual(['logo:logo.svg']);
+    expect(stored.logoFilename).toBeUndefined();
+    expect(stored.faviconLightFilename).toBeUndefined();
+    expect(stored.faviconDarkFilename).toBeUndefined();
+    expect(onPreviewChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ faviconUrl: '' }),
+    );
+    expect(mockToast).not.toHaveBeenCalledWith(generatedToast);
+  });
+
+  it('skips the conversion for a favicon chosen before the derivation starts', async () => {
+    const logo = deferred();
+    const save = deferred();
+    const { stored, writes } = serveBranding({
+      logo: logo.promise,
+      save: save.promise,
+    });
+    showForm(withoutFavicon());
+    dropSvg('Upload logo', 'logo.svg');
+    await waitFor(() => expect(writes).toEqual(['logo:logo.svg']));
+    fireEvent.change(screen.getByLabelText('Accent color hex value'), {
+      target: { value: '224466' },
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    // The logo lands and queues its derivation behind the pending Save.
+    await act(async () => logo.resolve());
+    await waitFor(() =>
+      expect(backendFetch).toHaveBeenCalledWith(
+        '/branding/save',
+        expect.anything(),
+      ),
+    );
+    dropSvg('Upload favicon (Light)', 'explicit.svg');
+    await act(async () => save.resolve());
+    await waitFor(() =>
+      expect(stored.faviconLightFilename).toBe('favicon-light.svg'),
+    );
+    expect(mockDeriveFavicon).not.toHaveBeenCalled();
+    expect(writes).toEqual([
+      'logo:logo.svg',
+      'favicon-light:favicon-light.svg',
+    ]);
+  });
+
+  it('leaves the preview to a favicon chosen while the derived one is being saved', async () => {
+    const derived = deferred();
+    const { stored, writes } = serveBranding({ derived: derived.promise });
+    const onPreviewChange = vi.fn();
+    showForm(withoutFavicon(), onPreviewChange);
+    dropSvg('Upload logo', 'logo.svg');
+    await waitFor(() =>
+      expect(writes).toEqual(['logo:logo.svg', 'favicon-light:derived.png']),
+    );
+    // Already issued: the derived write lands first, the choice replaces it.
+    dropSvg('Upload favicon (Light)', 'explicit.svg');
+    await act(async () => derived.resolve());
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Upload favicon (Light)' }),
+      ).toBeEnabled(),
+    );
+    expect(writes).toEqual([
+      'logo:logo.svg',
+      'favicon-light:derived.png',
+      'favicon-light:favicon-light.svg',
+    ]);
+    expect(stored.faviconLightFilename).toBe('favicon-light.svg');
+    expect(onPreviewChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ faviconUrl: 'blob:replacement' }),
+    );
+    expect(mockToast).not.toHaveBeenCalledWith(generatedToast);
+    await saveAccent(stored);
+    expect(stored.faviconLightFilename).toBe('favicon-light.svg');
+  });
+
+  it('still saves the derived favicon when no favicon choice intervenes', async () => {
+    const finishDerivation = holdDerivation();
+    const { stored, writes } = serveBranding();
+    const onPreviewChange = vi.fn();
+    showForm(withoutFavicon(), onPreviewChange);
+    dropSvg('Upload logo', 'logo.svg');
+    await waitFor(() => expect(mockDeriveFavicon).toHaveBeenCalledTimes(1));
+    await act(async () => finishDerivation('DERIVED_PNG'));
+    await waitFor(() =>
+      expect(onPreviewChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ faviconUrl: derivedPreview }),
+      ),
+    );
+    expect(writes).toEqual(['logo:logo.svg', 'favicon-light:derived.png']);
+    expect(stored.faviconLightFilename).toBe('derived.png');
+    expect(mockToast).toHaveBeenCalledWith(generatedToast);
+    await saveAccent(stored);
+    expect(stored.faviconLightFilename).toBe('derived.png');
+  });
+
+  it.each([
+    {
+      name: 'light',
+      favicon: {
+        faviconLightFilename: 'light.png',
+        faviconLightUrl: '/light.png',
+      },
+    },
+    {
+      name: 'dark',
+      favicon: { faviconDarkFilename: 'dark.png', faviconDarkUrl: '/dark.png' },
+    },
+  ])(
+    'does not derive a favicon when a $name favicon is already set',
+    async ({ favicon }) => {
+      const { stored, writes } = serveBranding();
+      showForm({ ...withoutFavicon(), ...favicon });
+      dropSvg('Upload logo', 'logo.svg');
+      await waitFor(() => expect(writes).toEqual(['logo:logo.svg']));
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: 'Upload logo' }),
+        ).toBeEnabled(),
+      );
+      // Save queues behind the derivation the logo upload requested.
+      await saveAccent(stored);
+      expect(mockDeriveFavicon).not.toHaveBeenCalled();
+      expect(writes).toEqual(['logo:logo.svg']);
+    },
+  );
 });
