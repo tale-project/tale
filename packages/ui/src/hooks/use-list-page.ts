@@ -60,8 +60,9 @@ interface RequestOutcome {
    * folders stay when its documents read never answered. While it holds,
    * the list loads no further, keeps its rows through a retry instead of
    * drawing a first-load skeleton, and says the rest could not be loaded —
-   * never "all". Absent, a paginated source counts as stopped once a
-   * request failed with rows loaded and more to come.
+   * never "all", and with no rows never the empty state. Absent, a
+   * paginated source counts as stopped once a request failed with rows
+   * loaded and more to come.
    */
   loadFailed?: boolean;
 }

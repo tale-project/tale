@@ -174,7 +174,8 @@ export interface DataTableProps<TData, TValue = unknown> {
      * A request failed while rows are on screen, and more may exist. Nothing
      * loads until the host's retry: no skeleton stands in for rows no
      * request is fetching, scrolling asks for nothing, and the footer says
-     * the rest could not be loaded.
+     * the rest could not be loaded. With no rows, the list is not empty
+     * either: the empty state stays away.
      */
     loadFailed?: boolean;
     /** Enable automatic loading on scroll (default: true) */
@@ -565,8 +566,10 @@ export function DataTable<TData, TValue = unknown>({
         return 'skeleton';
       // Has filters
       if (hasActiveFilters) return 'filtered-empty';
-      // Has empty state
-      if (emptyState) return 'empty';
+      // Has empty state — unless a failed read left the list short: what it
+      // could not load may be there (a documents level whose folders never
+      // answered), and the host's notice says what is missing.
+      if (emptyState && !infiniteScroll?.loadFailed) return 'empty';
       // Has neither data, filters nor empty state
       return 'idle-empty';
     }
