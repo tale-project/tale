@@ -28,6 +28,13 @@ import { loadDeviceConfig } from './devices/device-config.ts';
 import { DeviceAgent } from './devices/device.ts';
 import { DeviceHub, serveHub } from './devices/hub.ts';
 import { DockerDataDiskProbe, SandboxDiskProbe } from './docker-data-disk.ts';
+import {
+  flushSandboxErrorReporting,
+  handleSandboxRequest,
+  initSandboxErrorReporting,
+  reportSandboxError,
+  sandboxServerError,
+} from './error-reporting.ts';
 import { makeHealthProbe } from './health-probe.ts';
 import { HostDiskProbe } from './host-disk.ts';
 import {
@@ -40,6 +47,7 @@ import { ImageWarmup } from './image-warmup.ts';
 import { createRequestAuth } from './request-auth.ts';
 import { SessionRoutes } from './session/session-routes.ts';
 
+initSandboxErrorReporting();
 const cfg = loadConfig();
 // Host lifecycle backend (docker | kubernetes), chosen once at boot. Constructing
 // it has no side effects; init() runs the docker lock + boot sweep in main().
@@ -159,6 +167,7 @@ const capacity = new CapacityReader(cfg, () =>
 // are the most likely source — handled at the source too, but logged here if
 // one escapes.)
 process.on('unhandledRejection', (reason) => {
+  reportSandboxError(reason, 'unhandled-rejection');
   console.error('[sandbox] unhandledRejection (surviving):', reason);
 });
 
@@ -521,6 +530,7 @@ export async function router(req: Request): Promise<Response> {
       }
       return jsonResponse(snapshot, 200, { 'cache-control': 'no-store' });
     } catch (error) {
+      reportSandboxError(error, 'capacity-observation', req.signal, req);
       console.warn('[sandbox] capacity observation failed:', error);
       return jsonResponse({ error: 'capacity_unavailable' }, 503, {
         'cache-control': 'no-store',
@@ -568,6 +578,8 @@ async function main(): Promise<void> {
   try {
     await backend.init();
   } catch (err) {
+    reportSandboxError(err, 'backend-init');
+    await flushSandboxErrorReporting();
     console.error('[sandbox] FATAL: backend init failed:', err);
     process.exit(1);
   }
@@ -607,10 +619,12 @@ async function main(): Promise<void> {
       // while draining — see `maintain`). A pass still running joins rather
       // than stacks.
       void sessions.maintain().catch((err) => {
+        reportSandboxError(err, 'session-sweep');
         console.warn('[sandbox.session] periodic sweep failed:', err);
       });
       if (!capacitySized) {
         void sizeSessionCapacity().catch((err: unknown) => {
+          reportSandboxError(err, 'capacity-sizing');
           console.warn('[sandbox] sizing the session capacity failed:', err);
         });
       }
@@ -633,12 +647,14 @@ async function main(): Promise<void> {
             return null;
           })
           .catch((err) => {
+            reportSandboxError(err, 'linger-reap');
             console.warn('[sandbox.session] linger reap failed:', err);
           });
       }
     }, SESSION_SWEEP_INTERVAL_MS);
     stopSessionSweep = () => clearInterval(sweepTimer);
   } catch (err) {
+    reportSandboxError(err, 'session-startup');
     console.warn('[sandbox.session] session subsystem startup failed:', err);
   }
 
@@ -677,6 +693,7 @@ async function main(): Promise<void> {
         launchSelfUpdate(deviceConfig, configPath, version),
     });
     void deviceAgent.start().catch((err: unknown) => {
+      reportSandboxError(err, 'device-connection');
       console.error('[sandbox.devices] device connection loop stopped:', err);
     });
     console.log(
@@ -694,12 +711,8 @@ async function main(): Promise<void> {
     // keepalive in session exec streams, this gives a generous backstop without
     // disabling the timeout entirely.
     idleTimeout: 255,
-    fetch: (req) => {
-      return router(req).catch((err) => {
-        console.error('[sandbox] handler error:', err);
-        return jsonResponse({ error: 'internal', message: String(err) }, 500);
-      });
-    },
+    fetch: (req) => handleSandboxRequest(req, router),
+    error: sandboxServerError,
   });
 
   installSignalHandlers(() => {
@@ -708,6 +721,7 @@ async function main(): Promise<void> {
     try {
       void server.stop();
     } catch (err) {
+      reportSandboxError(err, 'server-stop');
       console.warn('[sandbox] server.stop() during shutdown failed:', err);
     }
   }, backend);
@@ -722,10 +736,12 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main)
-  main().catch((err: unknown) => {
+  main().catch(async (err: unknown) => {
     // Without this catch a boot failure after init() (e.g. Bun.serve EADDRINUSE)
     // would be swallowed by the global unhandledRejection backstop above,
     // leaving a zombie process that neither listens nor exits.
     console.error('[sandbox] FATAL: boot failed:', err);
+    reportSandboxError(err, 'boot');
+    await flushSandboxErrorReporting();
     process.exit(1);
   });

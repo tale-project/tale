@@ -222,6 +222,7 @@ interface EnvConfig {
   BASE_PATH: string;
   FILE_EVENTS_ENABLED: boolean;
   SENTRY_DSN: string | undefined;
+  SENTRY_ENVIRONMENT?: string;
   SENTRY_TRACES_SAMPLE_RATE: number;
   TALE_VERSION: string | undefined;
   SESSION_IDLE_TIMEOUT_MINUTES?: number;
@@ -399,6 +400,7 @@ function getEnvConfig(): EnvConfig {
     BASE_PATH: getBasePath(),
     FILE_EVENTS_ENABLED: fileEventsEnabled,
     SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT,
     SENTRY_TRACES_SAMPLE_RATE: parseFloat(
       process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0',
     ),

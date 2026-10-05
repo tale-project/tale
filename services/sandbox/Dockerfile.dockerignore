@@ -124,4 +124,6 @@ services/sandbox-egress/
 services/sandbox-runtime/
 services/web/
 packages/
+# The spawner shares the platform's exact credential scrubber.
+!packages/shared/src/monitoring/privacy.ts
 tools/
