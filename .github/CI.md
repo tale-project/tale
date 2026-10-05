@@ -4,8 +4,8 @@ Optimize both time to feedback and total runner work. Inspect job queue time sep
 from step duration before adding shards: a short test behind a large setup cost usually
 needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 
-The cumulative audit records [133 retained implemented improvements](CI-improvements.json)
-since `c8f31b2b9`: 83 authored here, 45 integrated from concurrent upstream work and five
+The cumulative audit records [135 retained implemented improvements](CI-improvements.json)
+since `c8f31b2b9`: 85 authored here, 45 integrated from concurrent upstream work and five
 combining both. Each entry records before/after behavior, changed paths, source commits
 and proof. Repeated patterns across workflows count once; suggestions and retained
 baseline behavior do not count.
@@ -333,6 +333,14 @@ Its shared database, session and process state requires serial lanes. The dispos
 hosted integration runner skips only Buildx teardown; it still builds the database
 from the checked-out source and requires every lane to run.
 
+Turbo 2.10.11's [SCM summary code](https://github.com/vercel/turborepo/blob/v2.10.11/crates/turborepo-run-summary/src/scm.rs)
+prefers the CI vendor's environment SHA over Git when it is present. Candidate
+`b3e73c51d` ran under workflow `b04bbb5e6`, so its summaries report H even though
+all fourteen substantive Checks checkout logs and actual cache source keys identify C.
+Use that checkout evidence for source identity and the task summaries for HIT/MISS
+and exit results; a cached verdict can legitimately come from another source with
+the same declared inputs.
+
 ## Evidence and regression checks
 
 The 2026-10-04 audit used [Checks run 37219931026](https://github.com/tale-project/tale/actions/runs/37219931026)
@@ -471,20 +479,74 @@ inherited the application builder, so source edits also repeated its install and
 runtime dependency copy. The manifest-only stage removes that dependency without
 changing the cache backend or its branch isolation.
 
+In [Build run 37291275081](https://github.com/tale-project/tale/actions/runs/37291275081)
+at `d934290d8`, the independent production install ran for 13.9 seconds while the
+22.3-second frontend build was active. The complete platform build/push took 297
+seconds, including 129 seconds exporting the unchanged GHA cache. Other source and
+runner differences contributed to this comparison; it is not an isolated measure
+of the Dockerfile change. Local real BuildKit warm and application-source mutation
+builds kept the production install cached. All fifteen runtime COPY paths and the
+production install/cleanup instructions stayed unchanged.
+
+The later changed-lock [Build run 37293441007](https://github.com/tale-project/tale/actions/runs/37293441007)
+at `b3e73c51d` took 530 seconds for that step, including 358.9 seconds of GHA cache
+export. Its protected candidate took 177 seconds without exporting that cache.
+Both amd64 production installs retained the same 1,543 packages; the native SBOM's
+1,414 npm components and every metadata hash matched `d934290d8`, with the new
+test-only glob library absent. Cache export remains a substantial, variable cost;
+these changes do not establish an overall pipeline speedup.
+
 In the [same-source CLI run](https://github.com/tale-project/tale/actions/runs/37283199170),
 Windows downloaded its 254 MiB Bun cache in about one second, then spent about
 128 seconds extracting it and 41 seconds installing dependencies. Its home-directory
 cache and checkout were on different volumes. Moving the store beside the checkout
 enables Bun's [documented Windows hardlinks](https://bun.sh/docs/pm/global-cache#fast-copying);
-it does not establish a reduction in cache extraction time. The path change starts a
-new cache version, so the first hosted run measures a cold store.
+it does not establish a reduction in cache extraction time. That path change started
+a new cache version, and the first hosted runs used a cold store.
 
-Resolve the Windows sibling with Bun's `node:path.win32.resolve` before passing it
-to the cache action. Its glob consumer rejects `.` and `..` path segments even when
-the install accepts them. At `d934290d8`, all five CLI targets passed, but the Windows
+The Windows sibling is resolved with Bun's `node:path.win32.resolve`. While its
+archive was enabled, the cache glob consumer rejected `.` and `..` path segments
+even when the install accepted them. At `d934290d8`, all five CLI targets passed, but the Windows
 save warned and retained no archive; its 75.80-second install was cold. The regression
 uses the cache action's pinned `@actions/glob` 0.5.1 to reject that original path and
 accept a resolved, populated store. A passing install alone does not prove cache reuse.
+
+The corrected [main publisher](https://github.com/tale-project/tale/actions/runs/37293503192)
+at `b04bbb5e6` saved a 252,814,413-byte archive from the absolute sibling path.
+The protected [CLI run](https://github.com/tale-project/tale/actions/runs/37293674424)
+checked out corrected source `b3e73c51d` under that workflow, restored the exact
+archive. All five targets compiled and uploaded; source and compiled smoke tests
+passed on the three native hosts, and both macOS targets passed strict signatures.
+
+| Windows step | Earlier `4653d3e3b` run | Corrected warm run |
+| --- | --- | --- |
+| Cache extraction | 128.2 seconds | 28.18 seconds |
+| Frozen install | 40.73 seconds | 55.65 seconds |
+
+The corrected frozen install retained the complete workspace and installed 1,909
+packages. The earlier run installed 1,903; the archive contents and runners also
+differ. These are observed samples, not a controlled percentage improvement.
+
+Later main (`74935ed9b`) keeps the normalized same-volume store but skips native
+Windows archive restore/save and runs the complete frozen install directly. The
+measurements above describe the validated preceding archive strategy; current
+Linux/macOS native and cross targets still use their archives.
+
+The complete protected round for corrected source `b3e73c51d` passed all seven
+workflows under workflow `b04bbb5e6`: [Checks](https://github.com/tale-project/tale/actions/runs/37293674390),
+[Build](https://github.com/tale-project/tale/actions/runs/37293674333),
+[CLI](https://github.com/tale-project/tale/actions/runs/37293674424),
+[E2E](https://github.com/tale-project/tale/actions/runs/37293674312),
+[SAST](https://github.com/tale-project/tale/actions/runs/37293674345),
+[Security](https://github.com/tale-project/tale/actions/runs/37293674361) and
+[Commitlint](https://github.com/tale-project/tale/actions/runs/37293674367).
+Strict backend integration executed all 1,576 checks across 232 lanes. The task
+summaries record 22 fresh executions and 49 valid cache hits. E2E passed 214 browser
+tests and 822 SEO tests without retries, retaining one existing skip. Both ordinary
+and protected Build passed all eight images, 45 image checks, 83 runtime probes and
+29 smoke tests. Receipt identities, actual checkouts and scanner coverage limits are
+recorded separately; cancelled ordinary checks and the red full local gate are not
+represented as complete passes.
 
 Run workflow and source-identity regressions with:
 

@@ -1,6 +1,6 @@
 {
   "baseline": "c8f31b2b92283ea027966ef1556fadf3826302db",
-  "count": 133,
+  "count": 135,
   "counting": "Distinct implemented CI execution, caching, validation, safety, or regression improvements since the task baseline. Shared patterns across workflows are merged; suggestions, cosmetic changes and retained baseline behavior are excluded. Integrated upstream contributions are labelled separately from this team\u2019s authored work.",
   "withdrawn": [
     {
@@ -1635,6 +1635,38 @@
       "proof": "Four real DB builds improve version-only filesystem cache reuse from 1/9 to 9/9 layers. Complete Config is equal at both versions; all four exported filesystems have 16,557 identical paths, including content hashes, uid/gid, modes, links and non-timestamp PAX/xattrs. Proxy images preserve normalized config, file hashes and RootFS layers while chmod switches from execution to a cache hit. Controlled actual runtime-stage fixtures with synthetic builder outputs preserve configuration, app/runtime hashes and permissions for web and docs; their version-only filesystem caches change from 0/8 to 8/8 and 0/7 to 7/7. Source guards reject early ARG and missing runtime version promotion; both rendered templates reject eight missing/commented ENV/LABEL counterfactuals (17 passing tests,142assertions). Independent source review preserves filesystem instructions and final runtime name/value settings. The unchanged sandbox LLM gateway already cached COPY across versions. Local full production builds and completed UI-docs/AI-gateway runtime fixtures are not claimed; fixture continuation stopped at its disk reserve. Rebased independent comparison covers 28 stages,229 filesystem instructions and36 RUN commands, including the new manifest-only production dependency stage.",
       "commits": ["61857248e7fdf88a41efdf6dde2a69ac006b5428"],
       "origins": ["authored"]
+    },
+    {
+      "id": "CI-135",
+      "title": "Separate platform production dependencies from application sources",
+      "before": "The production dependency stage inherited the application builder and repeated its dependency work after unrelated application source edits.",
+      "after": "Production installs inherit the minimal Bun base and receive only workspace manifests, the lockfile, Bun config and patches; runtime application files still come from the complete application builder.",
+      "paths": [
+        "services/platform/Dockerfile",
+        "services/platform/tests/guards/dockerfile-fail-closed.guard.test.ts"
+      ],
+      "proof": "Real BuildKit at Bun1.3.12:1542productionpackages;warm and actual application-source mutation builds keep productioninstallRUN CACHED. Transitive context guard catches FROMbuilder mutant;all15runtime COPY paths/ownership and exact productioninstall/cleanupRUN preserved. Exact d934 ordinaryBuild37291275081 and fullcandidate37291485437 pass8images,45image/83runtime/29smoke checks. Productioninstall13.9s overlapsVite22.3s; unchangedGHA export varies129s vs223.4s baseline, not a guaranteed exporter optimization. Native TrivySBOM retains1414npm hashes and86Debian hashes. Correctedb3 ordinaryBuild37293441007 step530s/export358.9s;candidate177s. Productionamd641543packages and all1414npm SBOMhashes identicaltod934;newtest-onlyglob absent. Changed-lock firstbuild/export can be slower thanbaseline;no overall speedupclaim.",
+      "commits": ["d934290d8e059eeeb93b3216032d743d29b35696"],
+      "origins": ["authored"]
+    },
+    {
+      "id": "CI-136",
+      "title": "Place the Windows native Bun store beside the checkout",
+      "before": "The native Windows Bun store lived on the home volume while checkout and node_modules lived on a different volume, preventing same-volume hardlinks.",
+      "after": "Windows native installs use a normalized absolute sibling store on the checkout volume, resolved through real Bun node:path.win32.resolve. Later main skips native Windows archive restore/save and runs the complete frozen install directly; other native/cross archives and complete manifest-specific keys remain.",
+      "paths": [
+        ".github/workflows/cli.yml",
+        "tools/cli/scripts/ci-build-optimization.test.ts",
+        "tools/cli/scripts/ci-cli-publication.test.ts",
+        "tools/cli/package.json",
+        "bun.lock"
+      ],
+      "proof": "Hosted d934 all5CLI targets passed but realglob rejected the dotdot cache path. Fixed with actualBunwin32.resolve and exact pinnedcacheconsumer@actions/glob0.5.1:oldpattern rejects, normalizeddrive path validates, populatedrealstore matches.55focusedtests/994assertions and independent2cases/40assertions pass. Publisherb04 CLI37293503192 coldinstall70.18s saves252814413bytes/newversiondf0009...; protectedCb3/Hb04 CLI37293674424 restores exactkey with28.177sextraction and55.65sfrozen1909packageinstall. All5compile/uploadtargets,source/smokeon3nativehosts,strictsignatureson2macOStargets andexactC/H receiptpass. Differentarchive/runner/inputs;no controlledpercentage claim. Later74935ed9b deliberately skips nativeWindows archive transfers after cold/warm observations; these historical archive measurements prove the correction, not the current transfer policy. Normalized same-volume store and complete frozen install remain.",
+      "commits": [
+        "d934290d8e059eeeb93b3216032d743d29b35696",
+        "b3e73c51d9f1b8157f08f16d170ea463793bb36c"
+      ],
+      "origins": ["authored"]
     }
   ],
   "validation": {
@@ -1658,6 +1690,19 @@
       "final_rebased_parent": "b3e73c51d9f1b8157f08f16d170ea463793bb36c",
       "final_local": "After integrating Windows cache normalization b3e73c51d, fresh frozen install succeeds. Latest CI guard suite:128pass/0fail/2057assertions across5files; CLI lint/types and actionlint exit0. Combined batch:143pass/1 unchanged container-fixture5s timeout; that case passes isolated within its original budget (4.14s total). Prior6bd integrated suite143cases passed; these results remain distinct."
     },
-    "runtime_version_iteration": "Pinned Bun1.4.2 broad gate passed49/49tasks (31fresh,18replays) in1h1m15.036s at4653d3e3b plus the pending iteration: backend/PII82121pass, frontend5827pass, UI2847pass, CLI2348pass/0fail. After retaining stronger upstream sparse/native Node coverage and rebasing implementation1177ee898 onto628a1c623,162affected guards/3400assertions,19platform Docker guards and17Plop tests/142assertions passed freshly; five affected lint/type/generate tasks all executed and passed. Frozen install, actionlint, Knip and normal commit hooks passed. Before integration, targeted full-registry SAST207rules/17files/0findings passed; the rebased workflow/Dockerfile scan passed99rules/15files/0findings with four partially analyzed files under the existing policy. Full DB filesystem/config comparison and proxy plus controlled web/docs runtime fixture proofs passed; these fixtures do not claim full production application builds. A later main advance rebased the same Docker/template content onto4dc434c86; the ledger implementation reference follows the final rebased commit. Final main-delta validation passed88tests/1936assertions,23platform Docker guards and refreshed CLI lint/types; Plop lint/types reused the already validated unchanged inputs."
+    "runtime_version_iteration": "Pinned Bun1.4.2 broad gate passed49/49tasks (31fresh,18replays) in1h1m15.036s at4653d3e3b plus the pending iteration: backend/PII82121pass, frontend5827pass, UI2847pass, CLI2348pass/0fail. After retaining stronger upstream sparse/native Node coverage and rebasing implementation1177ee898 onto628a1c623,162affected guards/3400assertions,19platform Docker guards and17Plop tests/142assertions passed freshly; five affected lint/type/generate tasks all executed and passed. Frozen install, actionlint, Knip and normal commit hooks passed. Before integration, targeted full-registry SAST207rules/17files/0findings passed; the rebased workflow/Dockerfile scan passed99rules/15files/0findings with four partially analyzed files under the existing policy. Full DB filesystem/config comparison and proxy plus controlled web/docs runtime fixture proofs passed; these fixtures do not claim full production application builds. A later main advance rebased the same Docker/template content onto4dc434c86; the ledger implementation reference follows the final rebased commit. Final main-delta validation passed88tests/1936assertions,23platform Docker guards and refreshed CLI lint/types; Plop lint/types reused the already validated unchanged inputs.",
+    "continued_pass3_2026_10_05": {
+      "implementation_commits": [
+        "d934290d8e059eeeb93b3216032d743d29b35696",
+        "b3e73c51d9f1b8157f08f16d170ea463793bb36c"
+      ],
+      "local": "Rebased CI regression gate453pass/0fail/6188assertions across10files;Dockerfile guards19pass;affectedlint/types5/5success with3validcachehits;Knip/actionlint/format/links/hooks pass. Windows correction55pass/0fail/994assertions plus independent realconsumer2cases40assertions;frozen install/types/lint/format/actionlint/links/conflicts and205-rule affectedfull-packSAST pass. No assertion, source coverage, deadline, retry or security reduction.",
+      "local_broad_limits": "Required fullroot check stayed red under sharedhostload: process/page fixture deadlines, then serial retry ENOSPC. Full local SAST explicitly interrupted, not green. No user caches/state pruned;only task-owned scans stopped. Complete hosted source verification is recorded separately.",
+      "initial_hosted": "Exactd934 protected7workflow roundpassed. Checks1576/1576strict backendchecks232/232lanes;27fresh/44HITexecutabletasks. E2E214browser/822SEO/1existing skip/0retry. CLI5targets fullserial/signature/smoke gates. Build8images/45image/83runtime/29smoke/nativeSBOMhashguard. InitialWindowssavefailedrelativeglob despitepassingtests;notcountedaswarmreuse. OrdinaryChecks/SASTcancelled aftermainadvance;candidateproof preserved.",
+      "provenance": "Turbo2.10.11scm.rs explicitly prefersCIvendorenvSHA, so candidate summaries reportworkflowH=b04.14actualsubstantiveCheckscheckoutlogs andgit-derivedsourcecachekeysproveC=b3. TaskHASH/cacheverdicts remain separatefromsourceidentity;cachehitsmayreuseHforidenticaldeclaredinputs.",
+      "benchmarks": "Observed d934 platformbuild297s/export129s vsbaseline434s/export223.4s. Newchanged-lockb3 platformbuild530s/export358.9s;protectedcandidate177s withoutcacheexport. Exportbackendunchanged;no overall pipeline speedupclaim. Windowswarmextract28.177s/install55.65s vsbaseline128.2s/40.73s;differentcachecontents(1909vs1903packages),sourcegraphandrunnersprecludecontrolledcausalpercentageclaim.",
+      "corrected_hosted": "CompleteprotectedCb3/Hb04 roundpassedall7:Checks37293674390,Build37293674333,CLI37293674424,E2E37293674312,SAST37293674345,Security37293674361,Commitlint37293674367. AllreceiptsbindcandidateC/workflowH separately. Checks1576strictchecks/232lanes/0FAIL/no truncation;22fresh/49HITexecutabletasks. E2E214browser/822SEO/1existing skip/0retry. CLIall5compile/uploadtargets,source/smokeon3nativehosts,strictsignatureson2macOStargetsandactualwarmWindowscachepass. BothordinaryBuild37293441007andcandidatepass8images/45image/83runtime/29smoke checks. All8ordinarynativeTrivy/SARIF/CycloneDX scanspass;realhashguardinScandbpass;platform1414npmhashes/inventoryidenticaltod934,devglobabsent. SAST476rules/4559files/0activefindings with36partial/2488excluded/17oversized underexistingpolicy,9realengine regressionspass.",
+      "final_integration": "Pulledlatestmain4dc434c86 and preserved6incomingcommits: correctedpriorledgerreferences, deterministicfailed-cachefixturediagnostics,expandedREADMEtransitexclusions,Windowsnativearchivebypass,onecommitnativeGitfixtures,andstrongerprunerdependencyinputguards. HistoricalCb3/Hb04 candidateproof is not representedasfresh executionofthese laterchanges. LatestnativeWindowskeepsnormalizedsame-volumestore/fullfrozeninstall butskipsarchivetransfers. Theseupstreamfollowupsarepreservedwithoutaddingduplicatedledgerentries. Latest4dc focusedintegration103pass/0fail/2181assertions across7affectedfiles29.17s;tinyprivatefixturearchives,actualGit/Turbo/cacheconsumer andprunerguards. No fullcurrent-sourcehostedgreenclaimedfromhistoricalreceipts. Documentation rebasealso preserves61857248e runtimeversionfilesystem-cache boundary and a1166132b existing proof/ledger. Previouscurrent4dcfullCLI37296112430 passed5targets,all3native serial/smoke suitesand2Macsignatures;Windowsdirectfrozen1909packages72.17s. HistoricalcandidateB3isnotclaimedasfullhostedvalidationoflaterruntimeversion changes."
+    }
   }
 }
