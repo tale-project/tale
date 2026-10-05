@@ -213,6 +213,9 @@ generator-tree guards require those effective inputs.
 Keep arbitrary outside reads explicit; workspace dependencies alone cannot hash them.
 The CLI's Vitest policy guard also hashes the platform PostCSS config and the shared
 YAML Vite plugin it loads, and disables Storybook discovery in that probe.
+The native document fixture executes the real helper while mocking only its process
+boundary. Its workbook fixtures, Python requirements, Node manifest and lockfile are
+explicit outside inputs, so changing those bytes invalidates the CLI verdict.
 
 Source archive regressions verify the complete ZIP inventory and CRCs, full TAR extraction
 and inventory, and Git symlink identity. The TAR probe dereferences the setup action and
@@ -421,7 +424,69 @@ The final optimization round's focused gates passed: 105 Checks/cache regression
 66 container/release regressions, 171 publication/cleanup/candidate regressions and
 57 E2E/security regressions. A historical-checkout probe fixture added 158 assertions
 across two tests. Exact Bun 1.4.2 lint/types, formatting and actionlint passed.
-Local SAST exited zero with no findings. Cold local full checks encountered unchanged
-five-second sandbox process-fixture timeouts on the shared machine; no budgets or
-assertions were relaxed. Hosted results must be inspected separately before calling
-all task verdicts fresh.
+Local SAST exited zero with no findings. The first two cold local full checks encountered
+unchanged five-second sandbox process-fixture timeouts on the shared machine. A complete
+continuation then finished 47 of 49 tasks successfully, including the sandbox suite;
+the remaining platform tasks identified a compiler-scope contract regression, a PII
+throughput overrun under load, and old locale imports retained across a main update.
+On a stable checkout all 34 RunDetail tests and all five PII throughput cases passed
+with their original assertions and budgets; the 50 KB prose case took 183 ms against
+its unchanged 1,500 ms limit. The scope filter uses literal compiler paths and guards
+coverage of every root compiler configuration.
+
+The full [E2E run 37265091303](https://github.com/tale-project/tale/actions/runs/37265091303)
+at `4a77db784`, directly above the landed optimization round, passed all four platform
+shards plus web and docs: 214 browser tests with zero retries and one preexisting
+`test.fixme` skip. All six browser jobs confirmed first-attempt results. Web's 822 SEO
+tests passed in 9.12 seconds against the same output. The immutable preview artifact
+was built once. [Security run 37264873901](https://github.com/tale-project/tale/actions/runs/37264873901)
+and [SAST run 37265214552](https://github.com/tale-project/tale/actions/runs/37265214552)
+also passed. Hosted validation caught legacy Compose fixtures, GitHub's different
+Turbo failure-output rendering and two narrow Knip findings; the follow-up tests
+exercise the real release JavaScript and preserve provenance, concurrency, failure
+propagation and container restrictions. Cancelled runs and cached tasks remain
+separate from fresh execution evidence.
+
+The frozen follow-up local gate finished in 30m50s with 47 of 49 tasks passing,
+including fresh platform unit (82,098 tests) and CLI (2,247 tests, 29 existing skips)
+executions and both affected workspaces' lint/type checks. Thirty-eight task verdicts
+were cache replays. The monolithic gate remained red for unchanged sandbox process
+fixtures and UI timeouts under heavy shared-machine load. All twelve failed UI files
+then passed their 241 tests sequentially with one worker, unchanged assertions and
+unchanged time limits; the unhandled rejection did not recur. This isolation evidence
+does not turn the original full run green. A new full SAST scan exited zero with no
+findings across 476 applicable rules and 4,541 files; 91 files were only partially
+analyzed under the existing engine policy. Hosted follow-up verdicts are recorded for
+their exact tested source.
+
+
+After the production corrections, [Checks run 37271033992](https://github.com/tale-project/tale/actions/runs/37271033992)
+passed at `1dcc2e523`, including backend integration and both stable test aggregates.
+Some UI and Browser verdicts were cache replays, so this is not an all-fresh run.
+[CLI run 37271033868](https://github.com/tale-project/tale/actions/runs/37271033868)
+passed all five targets at the same source, including every native source and compiled
+smoke lane; the two cross targets retain their intentional source-test skips.
+[Security run 37271160205](https://github.com/tale-project/tale/actions/runs/37271160205)
+validated that same exact candidate and passed both blocking scans.
+[SAST run 37271033889](https://github.com/tale-project/tale/actions/runs/37271033889)
+also passed its policy and nine real-engine regression tests; its fourteen raw findings
+were accepted under the existing policy and 36 files were only partially analyzed.
+
+The ordinary [Build run 37269909176](https://github.com/tale-project/tale/actions/runs/37269909176)
+at `3184c0b2b` passed all eight stack builders, smoke, image/runtime checks and the
+selected platform scan. Its real Trivy 0.70.0 check verified Node/Python SBOM hashes
+and rejected the JSON-conversion negative controls. Standalone sites were not selected
+in this push. The successful candidate-dispatch jobs headed at `3184c0b2b` selected
+`ea02ea465` as source; they prove historical-candidate compatibility, rather than
+current-source execution.
+
+
+The final guard follow-up passed the six compiler scope cases and the combined real
+Compose helper/input-closure suite (122 tests, 2,403 assertions). Both explicit
+local/Actions cache-failure cases preserve the successful archive's bytes and inventory
+and prove a changed hash, cache miss and failing execution. An integration batch passed
+185 other release/metadata/Build/deployment/cache cases; its initial fixture-import
+closure failure was corrected and the unchanged closure guard passed in the combined
+suite. Five affected-workspace lint/type/generate tasks executed freshly and passed;
+Knip, actionlint, formatting and commit hooks also passed. No original assertion or
+time budget was relaxed, and these follow-up corrections do not increase the ledger.
