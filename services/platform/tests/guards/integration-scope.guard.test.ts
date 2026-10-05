@@ -51,6 +51,7 @@ const checksSchema = z.object({
       steps: z.array(
         z.object({
           id: z.string().optional(),
+          uses: z.string().optional(),
           with: z.record(z.string(), z.unknown()).optional(),
         }),
       ),
@@ -69,11 +70,15 @@ function integrationFilter(): string[] {
     ),
   );
   const step = checks.jobs['integration-scope'].steps.find(
-    (candidate) => candidate.id === 'filter',
+    (candidate) => candidate.id === 'decide',
   );
+  expect(step?.uses).toBe('./.github/actions/ci-scope');
+  expect(step?.with?.filter).toBe('integration');
   const filters = z
     .object({ integration: z.array(z.string()) })
-    .parse(parse(z.string().parse(step?.with?.filters)));
+    .parse(
+      parse(readFileSync(path.join(REPO_ROOT, '.github/ci-scope.yml'), 'utf8')),
+    );
   return filters.integration;
 }
 

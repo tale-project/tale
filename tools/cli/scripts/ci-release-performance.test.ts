@@ -154,6 +154,7 @@ SERVICE="\${SERVICE#container-}"
 SERVICE="\${SERVICE%-test}"
 test "$SKIP_BUILD" = true
 test "$PULL_POLICY" = never
+printf '%s\\n' "$1" > "$PROOF_DIR/\${SERVICE}.argv"
 touch "$PROOF_DIR/\${SERVICE}.start"
 # A real dependency barrier proves overlap without asserting elapsed wall time.
 for ((ATTEMPT = 0; ATTEMPT < 100; ATTEMPT++)); do
@@ -202,6 +203,9 @@ test.skipIf(process.platform === 'win32').each(['', 'image', 'smoke'])(
         await Bun.file(join(proof.directory, `${name}.finish`)).exists(),
       ).toBe(true);
       expect(result.stdout).toContain(`${name} complete`);
+      expect(
+        (await readFile(join(proof.directory, `${name}.argv`), 'utf8')).trim(),
+      ).toBe(`services/platform/tests/integration/container-${name}-test.ts`);
     }
   },
 );
@@ -232,8 +236,12 @@ test.skipIf(process.platform === 'win32').each([
         .filter((name) => name.endsWith('.finish'))
         .sort(),
     ).toEqual(expected.map((name) => `${name}.finish`).sort());
-    for (const name of expected)
+    for (const name of expected) {
       expect(result.stdout).toContain(`${name} complete`);
+      expect(
+        (await readFile(join(proof.directory, `${name}.argv`), 'utf8')).trim(),
+      ).toBe(`services/platform/tests/integration/container-${name}-test.ts`);
+    }
   },
 );
 

@@ -463,19 +463,28 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     async () => {
       const changes = (await workflow()).jobs.changes!;
       const filters = Object.keys(
-        parse(String(step(changes, 'Filter paths').with?.filters)) as Record<
-          string,
-          unknown
-        >,
-      );
+        parse(
+          await readFile(
+            join(
+              repository,
+              String(step(changes, 'Filter paths').with?.filters),
+            ),
+            'utf8',
+          ),
+        ) as Record<string, unknown>,
+      )
+        .filter((name) => name.startsWith('build_'))
+        .map((name) => name.slice(6));
       expect(step(changes, 'Filter paths').if).toBe(
-        "needs.candidate-source.outputs.candidate_sha == ''",
+        "needs.candidate-source.outputs.candidate_sha == '' && github.event_name != 'pull_request' && github.event_name != 'merge_group' && needs.pr-scope.outputs.full != 'true'",
       );
       const matrix = step(changes, 'Compute service matrix').run;
       const candidate = outputs(
         (
           await execute(matrix, {
             CANDIDATE_SHA: CANDIDATE,
+            EVENT_NAME: 'repository_dispatch',
+            FULL_SCOPE: '',
             CHANGES: '',
             CI_TESTS: '',
             STORYBOOK: '',
@@ -509,7 +518,10 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       // Any other run keeps what the filter found.
       const pushed = await execute(matrix, {
         CANDIDATE_SHA: '',
-        CHANGES: '["platform","web","ci_tests"]',
+        EVENT_NAME: 'push',
+        FULL_SCOPE: '',
+        CHANGES:
+          '["build_platform","build_web","build_ci_tests","all","build"]',
         CI_TESTS: 'true',
         STORYBOOK: 'false',
         IMAGE_INPUTS: '',
@@ -522,6 +534,43 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         stack: 'true',
         storybook: 'false',
       });
+      for (const [event, full] of [
+        ['merge_group', ''],
+        ['pull_request', 'true'],
+      ]) {
+        const complete = await execute(matrix, {
+          CANDIDATE_SHA: '',
+          EVENT_NAME: event!,
+          FULL_SCOPE: full!,
+          CHANGES: '',
+          CI_TESTS: '',
+          STORYBOOK: '',
+        });
+        expect(complete.code, complete.stderr).toBe(0);
+        const all = outputs(complete.output);
+        expect(all.list).toBe(candidate.list);
+        expect(all.ci_tests).toBe('true');
+        expect(all.storybook).toBe('true');
+        expect(JSON.parse(all.scannable!)).toEqual(
+          expect.arrayContaining(BUILT),
+        );
+      }
+      // Even if the live PR has moved while this job waited, consume the
+      // one frozen scope decision; do not run a second PR files query.
+      const frozen = await execute(matrix, {
+        CANDIDATE_SHA: '',
+        EVENT_NAME: 'pull_request',
+        FULL_SCOPE: 'false',
+        PR_CHANGES: '["platform","ci_tests"]',
+        PR_CI_TESTS: 'true',
+        PR_STORYBOOK: 'false',
+        CHANGES: '["build_docs"]',
+        CI_TESTS: 'false',
+        STORYBOOK: 'false',
+      });
+      expect(frozen.code, frozen.stderr).toBe(0);
+      expect(outputs(frozen.output).list).toBe('["platform"]');
+      expect(outputs(frozen.output).ci_tests).toBe('true');
     },
   );
 
@@ -751,6 +800,11 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         });
         continue;
       }
+      if (['pr-scope', 'ci-ready'].includes(id)) {
+        expect(job.if).toContain("github.event_name == 'pull_request'");
+        expect(entry.with?.ref).toBeUndefined();
+        continue;
+      }
       if (entry.name === 'Checkout SBOM hash guard') {
         expect(id).toBe('vulnerability-scan');
         const once =
@@ -783,7 +837,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         expect(entry.with?.ref).toBe(
           '${{ needs.candidate-source.outputs.candidate_sha }}',
         );
-        expect(changes.needs).toBe('candidate-source');
+        expect(changes.needs).toEqual(['candidate-source', 'pr-scope']);
         expect(build.jobs['candidate-source']?.uses).toBe(
           './.github/workflows/release-candidate-source.yml',
         );
@@ -1230,6 +1284,8 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       // A new job in build.yml must be a candidate check or named here.
       const notCandidateChecks = new Set([
         'candidate-gate',
+        'pr-scope',
+        'ci-ready',
         'smoke-test-fork',
         'image-validate-fork',
         'vulnerability-scan',
@@ -1815,29 +1871,15 @@ describe('the Backend integration check', () => {
       await readFile(join(repository, '.github/workflows/checks.yml'), 'utf8'),
     ) as { jobs: Record<string, Job> };
 
-  test.skipIf(process.platform === 'win32')(
-    'is owed by every push, merge group and candidate, and by a pull request that touches what the suite runs',
-    async () => {
-      const script = (await checks()).jobs['integration-scope']?.steps.find(
-        (step) => step.id === 'decide',
-      )?.run;
-      for (const [event, touched, owed] of [
-        ['pull_request', 'true', 'true'],
-        ['pull_request', 'false', 'false'],
-        ['pull_request', '', 'false'],
-        ['push', '', 'true'],
-        ['merge_group', '', 'true'],
-        ['repository_dispatch', '', 'true'],
-      ] as const) {
-        const result = await execute(script, {
-          EVENT_NAME: event,
-          TOUCHED: touched,
-        });
-        expect(result.code, `${event}/${touched}`).toBe(0);
-        expect(result.output, `${event}/${touched}`).toBe(`run=${owed}\n`);
-      }
-    },
-  );
+  test('is owed by every push, merge group and candidate, and by a pull request that touches what the suite runs', async () => {
+    const decision = (await checks()).jobs['integration-scope']?.steps.find(
+      (step) => step.id === 'decide',
+    );
+    // The shared action's executable before/after API and event fixtures
+    // live in ci-ready-workflows.test.ts. Empty scope now fails closed.
+    expect(decision?.uses).toBe('./.github/actions/ci-scope');
+    expect(decision?.with?.filter).toBe('integration');
+  });
 
   test.skipIf(process.platform === 'win32')(
     "starts the object store the CLI deploys, read from the CLI's own pin",
@@ -1915,10 +1957,9 @@ describe('the Backend integration check', () => {
   );
 
   test('owes the proof to a pull request that touches the backend, the database image or the pin', async () => {
-    const filter = (await checks()).jobs['integration-scope']?.steps.find(
-      (step) => step.id === 'filter',
-    );
-    const { integration } = parse(String(filter?.with?.filters)) as {
+    const { integration } = parse(
+      await readFile(join(repository, '.github/ci-scope.yml'), 'utf8'),
+    ) as {
       integration: string[];
     };
     // The whole list is held to the harness's module graph by the platform's
@@ -2481,9 +2522,11 @@ describe('E2E efficiency', () => {
       'bunfig.toml',
     ])
       expect(
-        workflow.on.pull_request.paths.some((pattern) =>
-          new Bun.Glob(pattern).match(input),
-        ),
+        (
+          parse(
+            await readFile(join(repository, '.github/ci-scope.yml'), 'utf8'),
+          ) as Record<string, string[]>
+        ).e2e!.some((pattern) => new Bun.Glob(pattern).match(input)),
         input,
       ).toBe(true);
   });

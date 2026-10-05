@@ -106,6 +106,7 @@ describe('E2E service scheduling', () => {
     'candidate, nightly and manual runs always execute every service without a PR diff',
     async () => {
       for (const event of [
+        'merge_group',
         'repository_dispatch',
         'schedule',
         'workflow_dispatch',
@@ -139,9 +140,15 @@ describe('E2E service scheduling', () => {
 
   test('service and shared source edits trigger and select the suites that consume them', async () => {
     const file = await workflow('e2e');
-    const filters = parse(
-      String(step(file.jobs.scope, 'Filter paths').with?.filters),
+    const policies = parse(
+      await readFile(join(repository, '.github/ci-scope.yml'), 'utf8'),
     ) as Record<string, string[]>;
+    const filters = Object.fromEntries(
+      Object.entries(policies)
+        .filter(([name]) => name.startsWith('e2e_'))
+        .map(([name, globs]) => [name.slice(4), globs]),
+    );
+    expect(file.on.pull_request.paths).toBeUndefined();
     const cases: [string, string[]][] = [
       ['services/platform/tests/e2e/specs/chat.spec.ts', ['platform']],
       ['services/platform/backend/main.ts', ['platform']],
@@ -180,7 +187,7 @@ describe('E2E service scheduling', () => {
       ].map((path): [string, string[]] => [path, ['docs', 'platform', 'web']]),
     ];
     for (const [path, expected] of cases) {
-      expect(matches(file.on.pull_request.paths, path), path).toBe(true);
+      expect(matches(policies.e2e!, path), path).toBe(true);
       expect(
         Object.entries(filters)
           .filter(([, globs]) => matches(globs, path))

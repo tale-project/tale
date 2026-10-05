@@ -8,6 +8,8 @@ name: SAST
 run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
 
 on:
+  merge_group:
+    types: [checks_requested]
   repository_dispatch:
     types: [release-candidate]
   pull_request:
@@ -151,3 +153,23 @@ jobs:
       candidate_sha: ${{ github.event.client_payload.candidate_sha }}
       workflow: .github/workflows/sast.yml
       jobs: ${{ toJSON(needs) }}
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (SAST)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [candidate-source, sast, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: sast
+          jobs: ${{ toJSON(needs) }}

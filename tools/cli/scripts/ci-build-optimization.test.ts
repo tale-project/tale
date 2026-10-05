@@ -13,6 +13,8 @@ import { join, resolve } from 'node:path';
 import picomatch from 'picomatch';
 import { parse } from 'yaml';
 
+import { BUILD_FILTERS, buildScope } from './ci-ready';
+
 type Step = {
   name?: string;
   uses?: string;
@@ -58,6 +60,28 @@ async function workflow(name = 'build'): Promise<Workflow> {
   ) as Workflow;
 }
 
+async function scopePaths(name: string): Promise<string[]> {
+  const policies = parse(
+    await readFile(join(repository, '.github/ci-scope.yml'), 'utf8'),
+  ) as Record<string, string[]>;
+  return policies[name]!;
+}
+
+async function buildFilters(): Promise<Record<string, string[]>> {
+  const file = await workflow();
+  const policyPath = String(
+    findStep(file.jobs.changes!, 'Filter paths').with!.filters,
+  );
+  const policies = parse(
+    await readFile(join(repository, policyPath), 'utf8'),
+  ) as Record<string, string[]>;
+  return Object.fromEntries(
+    Object.entries(policies)
+      .filter(([name]) => name.startsWith('build_'))
+      .map(([name, globs]) => [name.slice(6), globs]),
+  );
+}
+
 function findStep(job: Workflow['jobs'][string], name: string): Step {
   const found = job.steps.find((entry) => entry.name === name);
   if (!found) throw new Error(`Missing ${name}`);
@@ -97,7 +121,13 @@ async function execute(
     throw new Error('Build CI fixtures require Bash on the host PATH');
   const child = Bun.spawn([shell, '-euo', 'pipefail', '-c', script], {
     cwd: cwd ?? directory,
-    env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, ...env },
+    env: {
+      PATH: process.env.PATH,
+      GITHUB_OUTPUT: output,
+      EVENT_NAME: 'push',
+      FULL_SCOPE: 'false',
+      ...env,
+    },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -142,8 +172,24 @@ test.skipIf(process.platform === 'win32')(
   async () => {
     const file = await workflow('build');
     const filters = parse(
-      String(step(file, 'changes', 'Filter paths').with?.filters),
+      await readFile(
+        join(
+          repository,
+          String(step(file, 'changes', 'Filter paths').with?.filters),
+        ),
+        'utf8',
+      ),
     ) as Record<string, string[]>;
+    expect(file.on.pull_request?.paths).toBeUndefined();
+    const pushPaths = file.on.push?.paths;
+    if (!pushPaths) throw new Error('Build push paths are missing');
+    expect(filters.build).toEqual(pushPaths);
+    expect(
+      Object.keys(filters)
+        .filter((name) => name.startsWith('build_'))
+        .map((name) => name.slice(6))
+        .toSorted(),
+    ).toEqual([...BUILD_FILTERS].toSorted());
     const cases: [string, string[], boolean][] = [
       ['docs/en/index.md', ['docs'], false],
       ['services/web/app/index.tsx', ['web'], false],
@@ -209,35 +255,50 @@ test.skipIf(process.platform === 'win32')(
         ['platform', 'web', 'docs', 'ui-docs', 'ai-gateway'],
         true,
       ],
+      [
+        'tools/cli/scripts/check-sbom-hashes.ts',
+        ['platform', 'web', 'docs', 'ui-docs', 'ai-gateway'],
+        true,
+      ],
     ];
     for (const [path, services, stack] of cases) {
-      for (const event of ['push', 'pull_request'])
-        expect(
-          file.on[event]?.paths?.some((pattern) =>
-            new Bun.Glob(pattern).match(path),
-          ),
-          `${event}: ${path}`,
-        ).toBe(true);
-      const changes = Object.keys(filters).filter((key) =>
-        matches(filters[key]!, path),
+      expect(matches(filters.build!, path), path).toBe(true);
+      const changes = Object.keys(filters).filter(
+        (key) => key.startsWith('build_') && matches(filters[key]!, path),
       );
-      const result = await execute(
-        step(file, 'changes', 'Compute service matrix').run!,
-        {
-          CANDIDATE_SHA: '',
-          CHANGES: JSON.stringify(changes),
-          CI_TESTS: String(changes.includes('ci_tests')),
-          STORYBOOK: String(changes.includes('storybook')),
-          IMAGE_INPUTS: String(changes.includes('image_inputs')),
-        },
+      const frozen = buildScope(
+        Object.fromEntries(
+          BUILD_FILTERS.map((name) => [
+            name,
+            String(changes.includes(`build_${name}`)),
+          ]),
+        ),
+        false,
       );
-      expect(result.code, result.stdout + result.stderr).toBe(0);
-      expect(result.outputs.stack, path).toBe(String(stack));
-      const selected = JSON.parse(result.outputs.list!) as string[];
-      expect(selected, path).toEqual(expect.arrayContaining(services));
-      if (!stack) expect(selected).toEqual(services);
-      expect(selected).not.toContain('shared_build');
-      expect(selected).not.toContain('image_inputs');
+      for (const event of ['push', 'pull_request']) {
+        const result = await execute(
+          step(file, 'changes', 'Compute service matrix').run!,
+          {
+            CANDIDATE_SHA: '',
+            EVENT_NAME: event,
+            FULL_SCOPE: 'false',
+            PR_CHANGES: frozen.changes,
+            PR_CI_TESTS: frozen.ci_tests,
+            PR_STORYBOOK: frozen.storybook,
+            CHANGES: JSON.stringify(changes),
+            CI_TESTS: String(changes.includes('build_ci_tests')),
+            STORYBOOK: String(changes.includes('build_storybook')),
+            IMAGE_INPUTS: String(changes.includes('build_image_inputs')),
+          },
+        );
+        expect(result.code, result.stdout + result.stderr).toBe(0);
+        expect(result.outputs.stack, path).toBe(String(stack));
+        const selected = JSON.parse(result.outputs.list!) as string[];
+        expect(selected, path).toEqual(expect.arrayContaining(services));
+        if (!stack) expect(selected).toEqual(services);
+        expect(selected).not.toContain('shared_build');
+        expect(selected).not.toContain('image_inputs');
+      }
     }
     for (const job of [
       'build',
@@ -645,7 +706,7 @@ describe.skipIf(process.platform === 'win32')(
         );
         const result = await execute(matrix.run!, {
           CANDIDATE_SHA: '',
-          CHANGES: JSON.stringify([service]),
+          CHANGES: JSON.stringify([`build_${service}`]),
           CI_TESTS: 'false',
           STORYBOOK: String(service === 'storybook'),
           IMAGE_INPUTS: 'false',
@@ -661,7 +722,7 @@ describe.skipIf(process.platform === 'win32')(
       for (const service of build.jobs.build!.strategy!.matrix!.service!) {
         const result = await execute(matrix.run!, {
           CANDIDATE_SHA: '',
-          CHANGES: JSON.stringify([service]),
+          CHANGES: JSON.stringify([`build_${service}`]),
           CI_TESTS: 'false',
           STORYBOOK: 'false',
           IMAGE_INPUTS: 'false',
@@ -671,7 +732,7 @@ describe.skipIf(process.platform === 'win32')(
       }
       const harness = await execute(matrix.run!, {
         CANDIDATE_SHA: '',
-        CHANGES: '["ci_tests"]',
+        CHANGES: '["build_ci_tests"]',
         CI_TESTS: 'true',
         STORYBOOK: 'false',
         IMAGE_INPUTS: 'false',
@@ -695,9 +756,7 @@ describe.skipIf(process.platform === 'win32')(
 
     test('root build inputs and SBOM helper edits validate every workspace image and keep candidate breadth', async () => {
       const build = await workflow();
-      const filters = parse(
-        String(findStep(build.jobs.changes!, 'Filter paths').with!.filters),
-      ) as Record<string, string[]>;
+      const filters = await buildFilters();
       const matrix = findStep(build.jobs.changes!, 'Compute service matrix');
       const scan = build.jobs['vulnerability-scan']!;
       const publishedServices = build.jobs.build!.strategy!.matrix!.service;
@@ -707,8 +766,9 @@ describe.skipIf(process.platform === 'win32')(
         findStep(scan, 'Checkout SBOM hash guard').with!['sparse-checkout'],
       );
       expect(sbomHelper).toBe('tools/cli/scripts/check-sbom-hashes.ts');
-      for (const event of ['pull_request', 'push'])
-        expect(build.on[event]!.paths!).toContain(sbomHelper);
+      expect(build.on.pull_request!.paths).toBeUndefined();
+      expect(await scopePaths('build')).toContain(sbomHelper);
+      expect(build.on.push!.paths!).toContain(sbomHelper);
       expect(filters.image_inputs!).toContain(sbomHelper);
       const helperChanges = Object.keys(filters).filter((key) =>
         matches(filters[key]!, sbomHelper),
@@ -723,7 +783,7 @@ describe.skipIf(process.platform === 'win32')(
       for (const candidate of ['', source]) {
         const result = await execute(matrix.run!, {
           CANDIDATE_SHA: candidate,
-          CHANGES: JSON.stringify(helperChanges),
+          CHANGES: JSON.stringify(helperChanges.map((name) => `build_${name}`)),
           CI_TESTS: 'false',
           STORYBOOK: 'false',
           IMAGE_INPUTS: String(helperChanges.includes('image_inputs')),
@@ -762,9 +822,10 @@ describe.skipIf(process.platform === 'win32')(
       ]) {
         for (const event of ['pull_request', 'push'])
           expect(
-            build.on[event]!.paths!.some((pattern) =>
-              new Bun.Glob(pattern).match(input),
-            ),
+            (event === 'pull_request'
+              ? await scopePaths('build')
+              : build.on[event]!.paths!
+            ).some((pattern) => new Bun.Glob(pattern).match(input)),
           ).toBe(true);
       }
       for (const input of [
@@ -780,9 +841,7 @@ describe.skipIf(process.platform === 'win32')(
 
 test('standalone container tests run for their own harness and shared stack inputs', async () => {
   const build = await workflow();
-  const filters = parse(
-    String(findStep(build.jobs.changes!, 'Filter paths').with!.filters),
-  ) as Record<string, string[]>;
+  const filters = await buildFilters();
   for (const service of ['web', 'docs', 'ui-docs', 'ai-gateway']) {
     for (const input of [
       `compose.${service}.yml`,
@@ -795,9 +854,10 @@ test('standalone container tests run for their own harness and shared stack inpu
       expect(matches(filters[service]!, input)).toBe(true);
       for (const event of ['pull_request', 'push'])
         expect(
-          build.on[event]!.paths!.some((pattern) =>
-            new Bun.Glob(pattern).match(input),
-          ),
+          (event === 'pull_request'
+            ? await scopePaths('build')
+            : build.on[event]!.paths!
+          ).some((pattern) => new Bun.Glob(pattern).match(input)),
         ).toBe(true);
     }
   }
@@ -805,9 +865,7 @@ test('standalone container tests run for their own harness and shared stack inpu
 
 test('every declared workspace manifest selects the workspace image consumers', async () => {
   const build = await workflow();
-  const filters = parse(
-    String(findStep(build.jobs.changes!, 'Filter paths').with!.filters),
-  ) as Record<string, string[]>;
+  const filters = await buildFilters();
   const { workspaces } = JSON.parse(
     await readFile(join(repository, 'package.json'), 'utf8'),
   ) as { workspaces: string[] };
@@ -817,20 +875,17 @@ test('every declared workspace manifest selects the workspace image consumers', 
     expect(matches(filters.image_inputs!, manifest), manifest).toBe(true);
     for (const event of ['pull_request', 'push'])
       expect(
-        build.on[event]!.paths!.some((pattern) =>
-          new Bun.Glob(pattern).match(manifest),
-        ),
+        (event === 'pull_request'
+          ? await scopePaths('build')
+          : build.on[event]!.paths!
+        ).some((pattern) => new Bun.Glob(pattern).match(manifest)),
         `${event}: ${manifest}`,
       ).toBe(true);
   }
 });
 
 test('standalone compose edits do not select the unrelated stack harness', async () => {
-  const filters = parse(
-    String(
-      findStep((await workflow()).jobs.changes!, 'Filter paths').with!.filters,
-    ),
-  ) as Record<string, string[]>;
+  const filters = await buildFilters();
   for (const service of ['web', 'docs', 'ui-docs', 'ai-gateway']) {
     for (const path of [
       `compose.${service}.yml`,

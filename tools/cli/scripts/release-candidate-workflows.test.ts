@@ -20,6 +20,7 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
 });
 type Step = {
+  id?: string;
   name?: string;
   run?: string;
   env?: Record<string, string>;
@@ -182,6 +183,106 @@ function admitted(
 }
 
 describe('ordinary CI source admission', () => {
+  test('terminal jobs still execute for failed, cancelled and skipped predecessors on PRs and merge groups', async () => {
+    for (const stem of callers) {
+      const file = await workflow(stem);
+      for (const event of ['pull_request', 'merge_group']) {
+        const state = admission(file, stem, event);
+        for (const result of ['failure', 'cancelled', 'skipped', ''] as const) {
+          for (const job of Object.values(state.needs)) job.result = result;
+          state.cancelled = result === 'cancelled';
+          expect(
+            admitted(file.jobs['ci-ready']!, state, true),
+            `${stem}/${event}/${result}`,
+          ).toBe(true);
+        }
+      }
+      expect(
+        admitted(
+          file.jobs['ci-ready']!,
+          admission(file, stem, 'repository_dispatch'),
+          true,
+        ),
+      ).toBe(false);
+    }
+  });
+
+  test('new PR scope must explicitly admit each formerly workflow-filtered root', async () => {
+    const roots = {
+      build: ['changes'],
+      e2e: ['scope'],
+      cli: ['prepare', 'build'],
+      security: ['bun-audit', 'trivy-fs'],
+    };
+    for (const [stem, ids] of Object.entries(roots)) {
+      const file = await workflow(stem);
+      for (const id of ids) {
+        const state = admission(file, stem, 'pull_request');
+        for (const value of ['', 'false', 'true']) {
+          state.needs['pr-scope']!.outputs.run = value;
+          expect(
+            admitted(file.jobs[id]!, state, true),
+            `${stem}/${id}/${value}`,
+          ).toBe(value === 'true');
+        }
+        for (const result of ['failure', 'cancelled', 'skipped', ''] as const) {
+          state.needs['pr-scope']!.result = result;
+          expect(admitted(file.jobs[id]!, state, true)).toBe(false);
+        }
+        for (const event of ['merge_group', 'repository_dispatch']) {
+          const complete = admission(file, stem, event);
+          complete.needs['pr-scope']!.result = 'skipped';
+          complete.needs['pr-scope']!.outputs = {};
+          expect(admitted(file.jobs[id]!, complete, true)).toBe(true);
+        }
+      }
+    }
+  });
+
+  test('E2E consumers inherit the native scope and platform build admission', async () => {
+    const file = await workflow('e2e');
+    expect(file.jobs.scope!.needs).toEqual(['candidate-source', 'pr-scope']);
+    expect(file.jobs.build!.needs).toEqual(['candidate-source', 'scope']);
+    expect(file.jobs['static-sites']!.needs).toEqual([
+      'candidate-source',
+      'scope',
+    ]);
+    expect(file.jobs.e2e!.needs).toEqual(['candidate-source', 'build']);
+    for (const event of [
+      'pull_request',
+      'merge_group',
+      'repository_dispatch',
+    ]) {
+      for (const result of ['failure', 'cancelled', 'skipped', ''] as const) {
+        const state = admission(file, 'e2e', event);
+        state.needs.scope!.result = result;
+        state.needs.scope!.outputs = {};
+        for (const id of ['build', 'static-sites'])
+          expect(
+            admitted(file.jobs[id]!, state, true),
+            `${event}/${id}/${result}`,
+          ).toBe(false);
+        // An unadmitted platform build is skipped; shards consume its result,
+        // not a second PR-discovery decision or an artificial successful scope.
+        state.needs.build!.result = 'skipped';
+        expect(admitted(file.jobs.e2e!, state, true)).toBe(false);
+        const build = admission(file, 'e2e', event);
+        build.needs.build!.result = result;
+        expect(
+          admitted(file.jobs.e2e!, build, true),
+          `${event}/build/${result}`,
+        ).toBe(false);
+      }
+    }
+    const unaffected = admission(file, 'e2e', 'pull_request');
+    unaffected.needs.scope!.outputs = {
+      platform: 'false',
+      static_services: '[]',
+    };
+    expect(admitted(file.jobs.build!, unaffected, true)).toBe(false);
+    expect(admitted(file.jobs['static-sites']!, unaffected, true)).toBe(false);
+  });
+
   test('the limited evaluator keeps default skip propagation and rejects unsupported syntax', async () => {
     const file = await workflow('checks');
     const state = admission(file, 'checks', 'pull_request');
@@ -227,7 +328,15 @@ describe('ordinary CI source admission', () => {
     for (const stem of callers) {
       const file = await workflow(stem);
       for (const [id, job] of Object.entries(file.jobs)) {
-        if (id === 'candidate-source' || id === 'candidate-gate') continue;
+        if (
+          [
+            'candidate-source',
+            'candidate-gate',
+            'ci-ready',
+            'pr-scope',
+          ].includes(id)
+        )
+          continue;
         count++;
         for (const event of Object.keys(file.on)) {
           const state = admission(file, stem, event);
@@ -264,7 +373,15 @@ describe('ordinary CI source admission', () => {
     for (const stem of callers) {
       const file = await workflow(stem);
       for (const [id, job] of Object.entries(file.jobs)) {
-        if (id === 'candidate-source' || id === 'candidate-gate') continue;
+        if (
+          [
+            'candidate-source',
+            'candidate-gate',
+            'ci-ready',
+            'pr-scope',
+          ].includes(id)
+        )
+          continue;
         const dependencies = [job.needs ?? []].flat();
         for (const event of [
           'pull_request',
@@ -294,16 +411,18 @@ describe('ordinary CI source admission', () => {
                 dependency === 'candidate-source'
                   ? result ===
                     (candidateEvent(stem, event) ? 'success' : 'skipped')
-                  : dependency === 'integration-scope' ||
-                    (stem === 'checks' &&
-                      id === 'test-ui' &&
-                      dependency === 'test-ui-shards') ||
-                    (stem === 'checks' &&
-                      id === 'test' &&
-                      ['test-platform-shards', 'test-workspaces'].includes(
-                        dependency,
-                      )) ||
-                    result === 'success';
+                  : dependency === 'pr-scope'
+                    ? event !== 'pull_request' || result === 'success'
+                    : dependency === 'integration-scope' ||
+                      (stem === 'checks' &&
+                        id === 'test-ui' &&
+                        dependency === 'test-ui-shards') ||
+                      (stem === 'checks' &&
+                        id === 'test' &&
+                        ['test-platform-shards', 'test-workspaces'].includes(
+                          dependency,
+                        )) ||
+                      result === 'success';
               expect(
                 admitted(job, state, true),
                 `${stem}/${id}/${event}/${dependency}/${result}`,
@@ -330,7 +449,15 @@ describe('ordinary CI source admission', () => {
       const state = admission(file, stem, 'pull_request');
       state.github.event.pull_request.draft = true;
       for (const [id, job] of Object.entries(file.jobs)) {
-        if (id === 'candidate-source' || id === 'candidate-gate') continue;
+        if (
+          [
+            'candidate-source',
+            'candidate-gate',
+            'ci-ready',
+            'pr-scope',
+          ].includes(id)
+        )
+          continue;
         const draftRuns =
           stem === 'cli'
             ? id !== 'release'
@@ -370,7 +497,15 @@ describe('ordinary CI source admission', () => {
       stack: 'false',
     };
     for (const [id, job] of Object.entries(build.jobs)) {
-      if (!['candidate-source', 'candidate-gate', 'changes'].includes(id))
+      if (
+        ![
+          'candidate-source',
+          'candidate-gate',
+          'changes',
+          'ci-ready',
+          'pr-scope',
+        ].includes(id)
+      )
         expect(admitted(job, state, true), `unchanged ${id}`).toBe(false);
     }
     const checks = await workflow('checks');
@@ -476,7 +611,8 @@ describe('one candidate event reuses the complete existing validation', () => {
       expect(file.jobs['candidate-source']?.with?.candidate_sha).toBe(
         '${{ github.event.client_payload.candidate_sha }}',
       );
-      for (const job of Object.values(file.jobs)) {
+      for (const [id, job] of Object.entries(file.jobs)) {
+        if (['ci-ready', 'pr-scope'].includes(id)) continue;
         for (const step of job.steps ?? []) {
           if (step.uses?.startsWith('actions/checkout@')) {
             expect(step.with?.ref).toContain(
@@ -496,7 +632,8 @@ describe('one candidate event reuses the complete existing validation', () => {
       expect(receipt.with?.workflow).toBe(`.github/workflows/${stem}.yml`);
       const upstream = Object.keys(file.jobs).filter(
         (id) =>
-          id !== 'candidate-gate' && !(stem === 'cli' && id === 'release'),
+          !['candidate-gate', 'ci-ready', 'pr-scope'].includes(id) &&
+          !(stem === 'cli' && id === 'release'),
       );
       expect([receipt.needs].flat().toSorted()).toEqual(upstream.toSorted());
       expect([receipt.needs].flat().toSorted()).toEqual(
@@ -511,7 +648,11 @@ describe('one candidate event reuses the complete existing validation', () => {
       const file = await workflow(stem);
       const names: string[] = [];
       for (const [id, job] of Object.entries(file.jobs)) {
-        if (stem === 'cli' && id === 'release') continue;
+        if (
+          ['ci-ready', 'pr-scope'].includes(id) ||
+          (stem === 'cli' && id === 'release')
+        )
+          continue;
         if (job.uses) {
           const called = await workflow(
             job.uses.split('/').at(-1)!.replace('.yml', ''),
@@ -665,6 +806,28 @@ async function execute(script: string, environment: Record<string, string>) {
 }
 
 test.skipIf(process.platform === 'win32')(
+  'candidate C predating the PR scope helper still owes backend integration from workflow H',
+  async () => {
+    const job = (await workflow('checks')).jobs['integration-scope']!;
+    const complete = job.steps?.find((step) => step.id === 'complete');
+    expect(complete?.if).toBe("github.event_name != 'pull_request'");
+    expect(job.outputs?.run).toBe(
+      '${{ steps.complete.outputs.run || steps.decide.outputs.run }}',
+    );
+    for (const step of job.steps ?? []) {
+      if (step.uses)
+        expect(step.if).toBe("github.event_name == 'pull_request'");
+    }
+    // execute() starts in an empty temporary checkout with no local helpers.
+    const result = await execute(complete!.run!, {
+      EVENT_NAME: 'repository_dispatch',
+    });
+    expect(result.code, result.stderr).toBe(0);
+    expect(result.output).toBe('run=true\n');
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
   'source helper pins C while normal events keep H; malformed/foreign sources fail before jobs',
   async () => {
     const step = (
@@ -770,6 +933,42 @@ PUSH_BEFORE="$PUSH_SHA"
       CANDIDATE_SHA: C,
     });
     expect(missing.code).not.toBe(0);
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'merge-group commitlint validates its actual source range, never a synthetic last commit',
+  async () => {
+    const step = (await workflow('commitlint')).jobs.commitlint?.steps?.find(
+      (entry) => entry.name === 'Run commitlint',
+    );
+    expect(step?.env?.GROUP_BASE).toBe(
+      '${{ github.event.merge_group.base_sha }}',
+    );
+    expect(step?.env?.GROUP_HEAD).toBe(
+      '${{ github.event.merge_group.head_sha }}',
+    );
+    const environment = {
+      EVENT_NAME: 'merge_group',
+      GROUP_BASE: C,
+      GROUP_HEAD: H,
+      PUSH_SHA: H,
+    };
+    const valid = await execute(step!.run!, environment);
+    expect(valid.code, valid.stderr).toBe(0);
+    expect(valid.output).toBe(
+      `args=commitlint --from ${C} --to ${H} --verbose\n`,
+    );
+    for (const override of [
+      { GROUP_BASE: '' },
+      { GROUP_HEAD: '' },
+      { GROUP_HEAD: 'main' },
+      { PUSH_SHA: C },
+    ]) {
+      const result = await execute(step!.run!, { ...environment, ...override });
+      expect(result.code).not.toBe(0);
+      expect(result.output).toBe('');
+    }
   },
 );
 

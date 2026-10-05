@@ -85,7 +85,12 @@ describe('bounded test parallelism', () => {
   });
 
   test('E2E pull requests cover the shared sources and toolchain its builds consume', async () => {
-    const paths = (await workflow('e2e')).on?.pull_request?.paths ?? [];
+    expect((await workflow('e2e')).on?.pull_request?.paths).toBeUndefined();
+    const paths = (
+      parse(
+        await readFile(join(repository, '.github/ci-scope.yml'), 'utf8'),
+      ) as Record<string, string[]>
+    ).e2e!;
     for (const input of [
       'packages/shared/src/schemas/org.ts',
       'configs/platform/system/providers/example.yml',

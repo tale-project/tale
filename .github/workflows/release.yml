@@ -349,7 +349,8 @@ jobs:
           if [ "$SITES_ONLY" != true ]; then SERVICES+=(ai-gateway); fi
           PIDS=()
           for SERVICE in "${SERVICES[@]}"; do
-            bun run "services/platform/tests/integration/container-${SERVICE}-test.ts" > "${LOG_DIR}/${SERVICE}.log" 2>&1 &
+            TEST_SCRIPT="services/platform/tests/integration/container-${SERVICE}-test.ts"
+            bun run "$TEST_SCRIPT" > "${LOG_DIR}/${SERVICE}.log" 2>&1 &
             PIDS+=("$!")
           done
           FAILED=0

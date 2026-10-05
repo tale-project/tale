@@ -17,6 +17,8 @@ import { parseArgs } from 'node:util';
 
 import { z } from 'zod';
 
+import { ordinaryOnlyJob } from './ci-ready';
+
 /** Answers a REST path, or null for a 404. Artifact ZIPs are validated and
  * decoded into their sole release-candidate.json by the real adapter. */
 export type GitHubApi = (path: string) => Promise<unknown>;
@@ -929,6 +931,7 @@ async function candidateEvidence(
     for (const job of jobs) {
       if (contract.names.includes(job.name)) continue;
       const conditional =
+        ordinaryOnlyJob(stem, job.name) ||
         (stem === 'cli' && job.name === 'Attach to release') ||
         (stem === 'build' &&
           (/^Scan(?: .*)?$/.test(job.name) ||
