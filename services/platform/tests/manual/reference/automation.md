@@ -153,6 +153,15 @@ storage and errors, completion after unmount and successful throttle expiry are
 covered by `app/features/websites/components/websites-table.test.tsx`.
 Real-browser layout, focus and screen-reader announcements remain manual.
 
+API-key creation and revocation refresh active personal-key panels and mark
+inactive lists in every organization stale within the five-minute freshness
+window. Returning to a warmed organization reads the updated account-wide list;
+organization key pickers and key-access projections are also invalidated, while
+unrelated queries stay fresh and inactive organizations are not eagerly fetched.
+Covered by `app/features/settings/api-keys/hooks/use-api-keys.test.tsx` with
+real hooks and TanStack Query using synthetic backend and auth-client responses; browser
+navigation, other browser tabs and native backend behavior remain manual.
+
 Failed single-notification and bulk reads restore unread rows and retry controls
 in both organization and personal streams, including body activation and a
 fresh unread response. Bulk failures restore only the failed stream's captured
