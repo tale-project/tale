@@ -4768,7 +4768,12 @@
         {
           "path": ["jobs", "build", "steps", 6],
           "kind": "keys",
-          "expected": ["name", "run", "working-directory"]
+          "expected": ["if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 6, "if"],
+          "kind": "value",
+          "expected": "runner.os == 'Windows' && !matrix.cross"
         },
         {
           "path": ["jobs", "build", "steps", 6, "working-directory"],
@@ -4778,19 +4783,7 @@
         {
           "path": ["jobs", "build", "steps", 7],
           "kind": "keys",
-          "expected": ["env", "if", "name", "run", "working-directory"]
-        },
-        {
-          "path": ["jobs", "build", "steps", 7, "env"],
-          "kind": "value",
-          "expected": {
-            "TALE_BINARY": ""
-          }
-        },
-        {
-          "path": ["jobs", "build", "steps", 7, "if"],
-          "kind": "value",
-          "expected": "${{ !matrix.cross }}"
+          "expected": ["name", "run", "working-directory"]
         },
         {
           "path": ["jobs", "build", "steps", 7, "working-directory"],
@@ -4800,12 +4793,19 @@
         {
           "path": ["jobs", "build", "steps", 8],
           "kind": "keys",
-          "expected": ["if", "name", "run", "working-directory"]
+          "expected": ["env", "if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 8, "env"],
+          "kind": "value",
+          "expected": {
+            "TALE_BINARY": ""
+          }
         },
         {
           "path": ["jobs", "build", "steps", 8, "if"],
           "kind": "value",
-          "expected": "matrix.platform == 'linux'"
+          "expected": "${{ !matrix.cross }}"
         },
         {
           "path": ["jobs", "build", "steps", 8, "working-directory"],
@@ -4815,7 +4815,12 @@
         {
           "path": ["jobs", "build", "steps", 9],
           "kind": "keys",
-          "expected": ["name", "run", "working-directory"]
+          "expected": ["if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 9, "if"],
+          "kind": "value",
+          "expected": "matrix.platform == 'linux'"
         },
         {
           "path": ["jobs", "build", "steps", 9, "working-directory"],
@@ -4825,15 +4830,7 @@
         {
           "path": ["jobs", "build", "steps", 10],
           "kind": "keys",
-          "expected": ["env", "name", "run", "working-directory"]
-        },
-        {
-          "path": ["jobs", "build", "steps", 10, "env"],
-          "kind": "value",
-          "expected": {
-            "PLATFORM": "${{ matrix.platform }}",
-            "BUILD_SCRIPT": "${{ matrix.build_script }}"
-          }
+          "expected": ["name", "run", "working-directory"]
         },
         {
           "path": ["jobs", "build", "steps", 10, "working-directory"],
@@ -4843,22 +4840,25 @@
         {
           "path": ["jobs", "build", "steps", 11],
           "kind": "keys",
-          "expected": ["name", "run", "working-directory"]
+          "expected": ["env", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 11, "env"],
+          "kind": "value",
+          "expected": {
+            "PLATFORM": "${{ matrix.platform }}",
+            "BUILD_SCRIPT": "${{ matrix.build_script }}"
+          }
         },
         {
           "path": ["jobs", "build", "steps", 11, "working-directory"],
           "kind": "value",
-          "expected": "tools/cli/dist"
+          "expected": "tools/cli"
         },
         {
           "path": ["jobs", "build", "steps", 12],
           "kind": "keys",
-          "expected": ["if", "name", "run", "working-directory"]
-        },
-        {
-          "path": ["jobs", "build", "steps", 12, "if"],
-          "kind": "value",
-          "expected": "startsWith(matrix.platform, 'macos')"
+          "expected": ["name", "run", "working-directory"]
         },
         {
           "path": ["jobs", "build", "steps", 12, "working-directory"],
@@ -4873,7 +4873,7 @@
         {
           "path": ["jobs", "build", "steps", 13, "if"],
           "kind": "value",
-          "expected": "${{ !matrix.cross }}"
+          "expected": "startsWith(matrix.platform, 'macos')"
         },
         {
           "path": ["jobs", "build", "steps", 13, "working-directory"],
@@ -4888,7 +4888,7 @@
         {
           "path": ["jobs", "build", "steps", 14, "if"],
           "kind": "value",
-          "expected": "startsWith(matrix.platform, 'macos')"
+          "expected": "${{ !matrix.cross }}"
         },
         {
           "path": ["jobs", "build", "steps", 14, "working-directory"],
@@ -4898,42 +4898,57 @@
         {
           "path": ["jobs", "build", "steps", 15],
           "kind": "keys",
+          "expected": ["if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 15, "if"],
+          "kind": "value",
+          "expected": "startsWith(matrix.platform, 'macos')"
+        },
+        {
+          "path": ["jobs", "build", "steps", 15, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli/dist"
+        },
+        {
+          "path": ["jobs", "build", "steps", 16],
+          "kind": "keys",
           "expected": ["env", "if", "name", "run", "working-directory"]
         },
         {
-          "path": ["jobs", "build", "steps", 15, "env"],
+          "path": ["jobs", "build", "steps", 16, "env"],
           "kind": "value",
           "expected": {
             "TALE_BINARY": "dist/${{ matrix.artifact }}"
           }
         },
         {
-          "path": ["jobs", "build", "steps", 15, "if"],
+          "path": ["jobs", "build", "steps", 16, "if"],
           "kind": "value",
           "expected": "${{ !matrix.cross }}"
         },
         {
-          "path": ["jobs", "build", "steps", 15, "working-directory"],
+          "path": ["jobs", "build", "steps", 16, "working-directory"],
           "kind": "value",
           "expected": "tools/cli"
         },
         {
-          "path": ["jobs", "build", "steps", 16],
+          "path": ["jobs", "build", "steps", 17],
           "kind": "keys",
           "expected": ["if", "name", "uses", "with"]
         },
         {
-          "path": ["jobs", "build", "steps", 16, "if"],
+          "path": ["jobs", "build", "steps", 17, "if"],
           "kind": "value",
           "expected": "github.event_name != 'pull_request'"
         },
         {
-          "path": ["jobs", "build", "steps", 16, "uses"],
+          "path": ["jobs", "build", "steps", 17, "uses"],
           "kind": "value",
           "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
         },
         {
-          "path": ["jobs", "build", "steps", 16, "with"],
+          "path": ["jobs", "build", "steps", 17, "with"],
           "kind": "value",
           "expected": {
             "name": "${{ matrix.artifact }}",
@@ -4946,7 +4961,7 @@
         {
           "path": ["jobs", "build", "steps"],
           "kind": "length",
-          "expected": 17
+          "expected": 18
         },
         {
           "path": ["jobs", "candidate-gate"],

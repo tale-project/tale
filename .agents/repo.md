@@ -180,6 +180,12 @@ restores that detail locally, and `--force` re-runs the task. A task whose resul
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
 
+For a candidate whose source C differs from workflow H, Turbo's summary `scm.sha`
+uses the CI environment's H. Verify C from the checkout log and the cache action's
+actual `git rev-parse HEAD` source key; keep task cache HIT/MISS evidence separate
+from source identity. [The CI guide](../.github/CI.md) records the upstream behavior
+and the observed C/H proof.
+
 The stable **Unit** check aggregates two platform unit shards and a separate job for
 every other workspace's unit tests. Both platform shards retain the live YouTube service
 and the PII project's isolation policy. The aggregate needs no dependency installation

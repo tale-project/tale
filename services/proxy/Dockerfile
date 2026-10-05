@@ -10,18 +10,8 @@ ARG VERSION=dev
 
 FROM caddy:2.11-alpine
 
-# Re-declare VERSION arg (ARGs don't persist after FROM)
-ARG VERSION=dev
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="tale-proxy" \
-      org.opencontainers.image.description="Tale Proxy — Caddy reverse proxy with auto-TLS" \
-      org.opencontainers.image.source="https://github.com/tale-project/tale" \
-      org.opencontainers.image.vendor="Tale" \
-      org.opencontainers.image.licenses="MIT"
-
 # Set environment variables with sensible defaults
-ENV TALE_VERSION=${VERSION} \
-    HOST=localhost \
+ENV HOST=localhost \
     TLS_MODE=selfsigned
 
 # Copy Caddyfile
@@ -34,6 +24,17 @@ COPY services/proxy/maintenance.html /var/www/maintenance.html
 # Copy entrypoint script that fixes certificate permissions
 COPY services/proxy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Keep version metadata after filesystem work so new releases reuse its layers.
+# Re-declare VERSION arg (ARGs don't persist after FROM)
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-proxy" \
+      org.opencontainers.image.description="Tale Proxy — Caddy reverse proxy with auto-TLS" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
+ENV TALE_VERSION=${VERSION}
 
 # Expose HTTP and HTTPS ports
 EXPOSE 80 443
