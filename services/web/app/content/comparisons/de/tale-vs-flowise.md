@@ -4,7 +4,7 @@ description: "Vergleiche Tale mit bestehenden Flowise-Installationen nach dem an
 competitor: "Flowise"
 slug: "tale-vs-flowise"
 relationship: "adjacent"
-reviewed: "2026-10-03"
+reviewed: "2026-10-05"
 draft: false
 ---
 
@@ -16,13 +16,13 @@ Für bestehende Flowise-Nutzer geht es inzwischen um Weiterbetrieb und Migration
 | --- | --- | --- |
 | Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Bestehende visuelle Agenten- und Retrieval-Abläufe über APIs oder eingebetteten Chat |
 | Migrationsumfang | Versionierte Automatisierungen; kein direkter Ersatz zur Ausführung von Flowise-Graphen | Vor einer Migration Eingaben, Tools, menschliche Prüfschritte und Ausgabeformate erfassen |
-| Fortführung | Gemeinsamen Arbeitsbereich für das eigentliche Teamergebnis prüfen | Offizielles Supportende am 31. August 2026; Forks und Dienste separat prüfen |
+| Fortführung | Gemeinsamen Arbeitsbereich für das eigentliche Teamergebnis prüfen | [Offizielles Supportende](https://flowiseai.com/sunset) am 31. August 2026; Forks und Dienste separat prüfen |
 
 ## Das angekündigte Supportende berücksichtigen
 
-Die offizielle Flowise-Mitteilung nennt den Entwicklungsstopp am 29. Juli 2026, die Archivierung des Repositorys am 10. August und das Supportende am 31. August. Die offizielle Betreuung durch das Kernteam endet. Prüfe Forks und Dienste jeweils gesondert. [Mitteilung lesen](https://flowiseai.com/sunset).
+Die offizielle Flowise-Mitteilung nennt den Code-Freeze am 29. Juli 2026, die Archivierung des Repositorys am 10. August und das Supportende am 31. August. Laut Mitteilung endet die offizielle Präsenz des Kernteams auf Discord und GitHub. Prüfe Forks und Dienste jeweils gesondert. [Mitteilung lesen](https://flowiseai.com/sunset).
 
-Flowise dokumentiert visuelle Agenten-Workflows, Wissensabruf, menschliche Prüfschritte sowie APIs und eingebetteten Chat für Anwendungen. Diese Funktionen gehören in die Bestandsaufnahme einer Migration. [Flowise-Produktüberblick](https://flowiseai.com/).
+Die Flowise-Dokumentation beschreibt [visuelle Agenten-Workflows mit menschlichen Prüfschritten](https://docs.flowiseai.com/using-flowise/agentflowv2), [Document Stores für den Wissensabruf](https://docs.flowiseai.com/using-flowise/document-stores), eine [Prediction-API](https://docs.flowiseai.com/using-flowise/prediction) und ein [einbettbares Chat-Widget](https://docs.flowiseai.com/using-flowise/embed). Diese Funktionen gehören in die Bestandsaufnahme einer Migration.
 
 Tale ist ein gemeinsamer Projektarbeitsbereich, in dem Teammitglieder Aufgaben zuweisen, Agenten koordinieren und Ergebnisse prüfen. Dauerhafte Arbeitsbereiche und versionierte Automatisierungen unterstützen Recherche, Dokumente, interne Werkzeuge und wiederkehrende Abläufe. Tale führt Flowise-Graphen nicht als direkten Ersatz aus. Lies [Tales Automatisierungskonzepte](https://docs.tale.dev/de/platform/automations/concepts).
 
@@ -38,4 +38,4 @@ Eine bestehende Flowise-Installation oder ein gepflegter Fork kann mit eigener S
 
 [Ein Migrationsszenario mit Tale besprechen](https://tale.dev/de/request-demo).
 
-Offizielle Quellen, geprüft am 3. Oktober 2026; keine Migration und kein praktischer Wettbewerbsvergleich durchgeführt.
+Offizielle Quellen, geprüft am 5. Oktober 2026; keine Migration und kein praktischer Wettbewerbsvergleich durchgeführt.
