@@ -80,10 +80,27 @@ const ARRIVAL_ANNOUNCE_HOLD_MS = 1000;
 type NotificationStream = 'org' | 'personal';
 
 /** A stream's unread rows past its loaded pages, as the panel last judged
- *  them, kept while the stream's unread count still reads `count`. */
+ *  them, kept while the stream's unread count still reads `count` or, after a
+ *  single read, while the list still reads that row (`readId`) as unread. */
 interface HeldUnreadBeyond {
   count: number;
   beyond: number;
+  readId?: string;
+}
+
+/** `held` while a re-read it waits for is still out: the count has not moved,
+ *  or the list still reads the row the panel read as unread. */
+function standingHold(
+  held: HeldUnreadBeyond | null,
+  count: number,
+  rows: readonly { _id: string; read: boolean }[],
+): HeldUnreadBeyond | null {
+  if (!held) return null;
+  if (held.count === count) return held;
+  return held.readId !== undefined &&
+    rows.some((row) => row._id === held.readId && !row.read)
+    ? held
+    : null;
 }
 
 // Strip a leading `notifications.` namespace prefix that was accidentally
@@ -151,30 +168,35 @@ export function NotificationListPanel({
     [myNotifications],
   );
   // A read reaches the list and the count in two separate re-reads, in either
-  // order. Until the stream's count moves, its figure stays where it was before
-  // the read — none after "Mark all as read", which reads the unloaded pages
-  // too — so whichever re-read lands first never flashes a wrong state.
+  // order. A single read keeps the stream's figure from before the read until
+  // both have landed: the count has moved and the list reads the row as read.
+  // "Mark all as read" holds zero until the count moves, since it reads the
+  // unloaded pages too. So neither order flashes a wrong state.
   const [heldBeyond, setHeldBeyond] = useState<
     Record<NotificationStream, HeldUnreadBeyond | null>
   >({ org: null, personal: null });
-  const orgUnreadBeyond =
-    heldBeyond.org?.count === orgUnread
-      ? heldBeyond.org.beyond
-      : Math.max(0, orgUnread - orgUnreadLoaded);
-  const personalUnreadBeyond =
-    heldBeyond.personal?.count === myUnread
-      ? heldBeyond.personal.beyond
-      : Math.max(0, myUnread - personalUnreadLoaded);
+  const orgHold = standingHold(heldBeyond.org, orgUnread, results);
+  const orgUnreadBeyond = orgHold
+    ? orgHold.beyond
+    : Math.max(0, orgUnread - orgUnreadLoaded);
+  const personalHold = standingHold(
+    heldBeyond.personal,
+    myUnread,
+    myNotifications,
+  );
+  const personalUnreadBeyond = personalHold
+    ? personalHold.beyond
+    : Math.max(0, myUnread - personalUnreadLoaded);
 
   useEffect(() => {
     setHeldBeyond((prev) => {
-      const org = prev.org?.count === orgUnread ? prev.org : null;
-      const personal = prev.personal?.count === myUnread ? prev.personal : null;
+      const org = standingHold(prev.org, orgUnread, results);
+      const personal = standingHold(prev.personal, myUnread, myNotifications);
       return org === prev.org && personal === prev.personal
         ? prev
         : { org, personal };
     });
-  }, [orgUnread, myUnread]);
+  }, [orgUnread, myUnread, results, myNotifications]);
 
   const holdUnreadBeyond = useCallback(
     (stream: NotificationStream, held: HeldUnreadBeyond | null) => {
@@ -202,7 +224,11 @@ export function NotificationListPanel({
         next.add(notificationId);
         return next;
       });
-      holdUnreadBeyond('org', { count: orgUnread, beyond: orgUnreadBeyond });
+      holdUnreadBeyond('org', {
+        count: orgUnread,
+        beyond: orgUnreadBeyond,
+        readId: notificationId,
+      });
       void markRead.mutateAsync({ notificationId }).catch(() => {
         restoreHiddenNotifications([notificationId]);
         holdUnreadBeyond('org', null);
@@ -227,6 +253,7 @@ export function NotificationListPanel({
       holdUnreadBeyond('personal', {
         count: myUnread,
         beyond: personalUnreadBeyond,
+        readId: notificationId,
       });
       void markMyRead.mutateAsync({ notificationId }).catch(() => {
         restoreHiddenNotifications([notificationId]);

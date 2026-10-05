@@ -639,7 +639,7 @@ describe('NotificationListPanel', () => {
         expect(screen.queryByText(OLDER_UNREAD)).not.toBeInTheDocument();
       });
 
-      it('keeps pointing at the older row after reading the loaded one, whichever re-read lands first', async () => {
+      it('keeps pointing at the older row after reading the loaded one when the list re-reads first', async () => {
         const loaded = row(`${stream}-unread`, false, 100_001);
         seed([loaded, ...readFirstPage()], 'CanLoadMore', 2);
         const { user, rerender } = renderPanel();
@@ -652,6 +652,31 @@ describe('NotificationListPanel', () => {
         seed([{ ...loaded, read: true }, ...readFirstPage()], 'CanLoadMore', 2);
         rerenderPanel(rerender);
         expect(screen.getByText(OLDER_UNREAD)).toBeInTheDocument();
+        expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled();
+
+        seed([{ ...loaded, read: true }, ...readFirstPage()], 'CanLoadMore', 1);
+        rerenderPanel(rerender);
+        expect(screen.getByText(OLDER_UNREAD)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled();
+      });
+
+      it('keeps pointing at the older row after reading the loaded one when the count re-reads first', async () => {
+        const loaded = row(`${stream}-unread`, false, 100_001);
+        seed([loaded, ...readFirstPage()], 'CanLoadMore', 2);
+        const { user, rerender } = renderPanel();
+
+        await user.click(screen.getByRole('button', { name: 'Mark as read' }));
+        expect(markOne().mutateAsync).toHaveBeenCalledTimes(1);
+        expect(screen.getByText(OLDER_UNREAD)).toBeInTheDocument();
+
+        // The count re-reads first: it says 1, the list still reads the row as
+        // unread — the read itself, so the older row is still the one left.
+        seed([loaded, ...readFirstPage()], 'CanLoadMore', 1);
+        rerenderPanel(rerender);
+        expect(screen.getByText(OLDER_UNREAD)).toBeInTheDocument();
+        expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled();
 
         seed([{ ...loaded, read: true }, ...readFirstPage()], 'CanLoadMore', 1);
         rerenderPanel(rerender);
