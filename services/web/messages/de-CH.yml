@@ -38,20 +38,48 @@ hardwarePricing:
 platformAgents:
   tour:
     stages:
-      - null
-      - title: |-
+      - id: projects
+        eyebrow: Projekte
+        title: |-
+          Agents nach Team
+          abgrenzen
+        description: Jedes Projekt hat eigene Agentenkonfigurationen. Der Projektzugriff
+          bestimmt, wer die Agenten und ihre Aufgaben sehen kann.
+      - id: knowledge
+        eyebrow: Wissen
+        title: |-
           Jeden Agent in dem
           verankern, was du weisst
+        description: Füge Aufgabenbeschreibung und Referenzdateien hinzu und erteile
+          Tools für zugängliches Unternehmenswissen. Sage dem Agenten klar,
+          welche Quellen er verwenden soll.
 platformAutomations:
   capabilities:
     items:
-      - null
-      - null
-      - null
-      - null
-      - body: Connector-Regeln können geschützte Schreibzugriffe bis zur Freigabe
+      - title: Gespeicherte Versionen und Bereitstellung
+        body: Speichere Änderungen als neue Workflow-Version. Stelle die Version für
+          künftige Live-Läufe bereit. Laufende Ausführungen behalten ihre
+          Startversion.
+        docsLabel: Konzepte der Automatisierung
+      - title: Typisierte Workflow-Schritte
+        body: Verbinde Modellaufrufe, Agentenarbeit in Sandboxes, Datentransformationen,
+          Unterautomatisierungen und angebundene Aktionen. Ergänze Bedingungen
+          oder Wiederholungen, wo sie unterstützt werden.
+        docsLabel: Workflow-Editor
+      - title: Trigger, die zur Aufgabe passen
+        body: Zeitpläne (Cron), Webhooks, Plattform-Events oder ein manueller Testlauf
+          aus dem Editor.
+        docsLabel: Trigger
+      - title: Ausführungs-Logs
+        body: Prüfe Status, Eingaben, Ausgaben und Schrittverlauf eines Laufs. Die
+          erfassten Connector-Aktionen helfen dir nachzuvollziehen, was passiert
+          ist.
+        docsLabel: Ausführungs-Logs
+      - title: Freigaben im Loop
+        body: Connector-Regeln können geschützte Schreibzugriffe bis zur Freigabe
           anhalten. Ein Agentenschritt kann ausserdem eine Person nach fehlenden
           Informationen fragen, bevor er fortfährt.
+        docsLabel: Konzepte der Automatisierung
 platformChat:
   tour:
     description: Besprich das Problem im Chat und nutze Projektaufgaben und
@@ -62,24 +90,85 @@ platformChat:
 platformGovernance:
   capabilities:
     items:
-      - body: Connector-Schreibaktionen in Automatisierungen warten auf Genehmigung,
+      - title: Connector-Schreibaktionen genehmigen
+        body: Connector-Schreibaktionen in Automatisierungen warten auf Genehmigung,
           wenn deine Richtlinie es verlangt. Für externe Schreibaktionen gilt
           das standardmässig; Lesezugriffe und interne Plattformaktionen haben
           andere Regeln.
+        docsLabel: Genehmigungen verstehen
+      - title: Die vorgeschlagene Aktion prüfen
+        body: Prüfe Ziel und genaue Eingabe vor der Genehmigung. Lehne eine fehlerhafte
+          Aktion ab, korrigiere Ablauf oder Eingabe und starte eine neue
+          Ausführung.
+        docsLabel: Genehmigungen verstehen
+      - title: Das Prüfprotokoll lesen
+        body: Prüfe aufgezeichnete Aktionen und Genehmigungsentscheidungen mit
+          handelnder Person und Zeitpunkt. Nutze das Prüfprotokoll, um Vorgänge
+          nachzuvollziehen.
+        docsLabel: Prüfprotokolle
+      - title: Organisationsregeln festlegen
+        body: Konfiguriere gemeinsame Anweisungen, Zugriffsregeln und Werkzeugfreigaben
+          für Agenten. Durchgesetzte Rechte und Filter ergänzen die Anweisungen
+          an ein Modell.
+        docsLabel: Schutzregeln
+      - title: Chat-Inhaltsfilter konfigurieren
+        body: Aktiviere Inhaltsschutz, Erkennung personenbezogener Daten und optionale
+          Moderation für die gewünschten Chat-Richtungen. Teste passende Muster
+          und das Verhalten bei Fehlern.
+        docsLabel: Schutzregeln
+      - title: Budgets für erfasste Nutzung setzen
+        body: Verfolge erfasste Modellnutzung und lege Budgets für unterstützte
+          Zugriffswege fest, darunter verwaltete Agentenausführungen. Direkte
+          Abonnementaufrufe nutzen die Kontrollen des Anbieters.
+        docsLabel: Nutzungsanalyse
   faq:
     items:
-      - null
-      - null
-      - a: Ja. Die Richtlinie lässt sich für einen Connector oder eine einzelne Aktion
+      - q: Was steuert die Governance?
+        a: Governance umfasst Zugriffsregeln, Genehmigungsrichtlinien für Connectors,
+          Prüfereignisse, Nutzungsbudgets und konfigurierbare Chat-Filter. Jede
+          Kontrolle hat einen eigenen Geltungsbereich.
+      - q: Wo entscheide ich über eine Connector-Genehmigung?
+        a: Öffne die wartende Automatisierungsausführung. Arbeitet sie an einer Aufgabe,
+          erscheint die Genehmigungskarte auch dort. Connector-Genehmigungen
+          sind von der Prüfung eines abgeschlossenen Agentenergebnisses
+          getrennt.
+      - q: Kann ich festlegen, welche Connector-Schreibaktionen eine Genehmigung
+          brauchen?
+        a: Ja. Die Richtlinie lässt sich für einen Connector oder eine einzelne Aktion
           festlegen. Externe Schreibaktionen brauchen standardmässig eine
           Genehmigung. Eine Richtlinienänderung entscheidet keine bereits
           wartende Anfrage.
+      - q: Wartet jede Agentenaktion auf Genehmigung?
+        a: Nein. Der Connector-Broker stellt Agenten Leseaktionen bereit;
+          genehmigungspflichtige Connector-Schreibaktionen laufen über
+          Automatisierungsknoten. Direkte GitHub-Werkzeuge und ausdrücklich
+          freigegebene Secrets haben eigene Zugriffswege. Prüfe auch diese
+          Freigaben.
+      - q: Wie gelten Inhaltsfilter und Datenkontrollen?
+        a: Chat-Filter können die konfigurierten Ein- und Ausgaben prüfen.
+          Modell-API-Endpunkte filtern nur Eingaben, keine Modellausgaben. Die
+          Erkennung personenbezogener Daten hängt von den eingerichteten Mustern
+          ab. Bewerte Betrieb, Anbieter und Verfahren gemeinsam.
 platformProjects:
   faq:
     items:
-      - null
-      - null
-      - a: Projekte sind standardmässig für die ganze Organisation zugänglich.
+      - q: Was ist ein Projekt in Tale?
+        a: Ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen und Aufgaben zu
+          einem Vorhaben bündelt — ein Kontakt, ein Launch, eine Recherche —
+          damit der Kontext bei der Arbeit bleibt.
+      - q: Wie arbeiten Agents an Projektaufgaben?
+        a: Weise eine Aufgabe zu und starte dann den Agenten oder verschiebe die Aufgabe
+          auf In Bearbeitung. Der Agent arbeitet in seiner Sandbox und liefert
+          einen Bericht und Dateien zur Prüfung. Eine Person oder ein separat
+          zugewiesener Prüfagent kann das Ergebnis prüfen. Die Zuweisung allein
+          startet keinen Lauf.
+      - q: Wer sieht die Chats und Dateien eines Projekts?
+        a: Projekte sind standardmässig für die ganze Organisation zugänglich.
           Beschränke den Projektzugriff bei Bedarf auf ausgewählte Teams;
           Administratoren behalten Zugriff. Chats bleiben persönlich, bis sie
           ausdrücklich geteilt werden – auch Chats innerhalb eines Projekts.
+      - q: Was unterscheidet ein Projekt von einem Chat?
+        a: Ein Chat ist ein Gespräch mit einem KI-Assistenten. Ein Projekt organisiert
+          laufende Arbeit mit Aufgabenboard, Agenten, Anweisungen, Dateien und
+          Chats. Ein neuer Chat nutzt die Projektanweisungen, übernimmt aber
+          nicht automatisch frühere Gespräche.

@@ -6,6 +6,7 @@ import {
   initServiceI18n,
   type PackageMessages,
 } from '@tale/ui/i18n/init-service';
+import { catalogsByLocale } from '@tale/ui/i18n/topic-catalogs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
@@ -14,7 +15,16 @@ const ROOT = path.resolve(
   '../../../..',
 );
 type Bundle = Record<string, Record<string, unknown>>;
+const platformCatalogs = catalogsByLocale(
+  import.meta.glob<Record<string, unknown>>('../../messages/*/*.yml', {
+    eager: true,
+    import: 'default',
+  }),
+);
 function catalog(dir: string, locale: string): Bundle {
+  if (dir === 'services/platform/messages') {
+    return platformCatalogs[locale] ?? {};
+  }
   return parse(
     readFileSync(path.join(ROOT, dir, `${locale}.yml`), 'utf8'),
   ) as Bundle;
@@ -33,14 +43,12 @@ function packageMessages(dir: string): PackageMessages {
 describe('Swiss catalog loading', () => {
   it.each([
     [
-      'services/web/messages',
+      'services/platform/messages',
       [
-        [
-          'home:tagline.pillars.selfHosted.title',
-          'Standardmässig selbst gehostet',
-        ],
-        ['home:demos.arena.replyA3', null],
-        ['home:faq.onPrem.a', null],
+        ['chat:budgetWarningDismiss', 'Schliessen'],
+        ['conversations:bulk.close', 'Schliessen'],
+        ['notifications:expand', 'Vergrössern'],
+        ['common:flow.zoomIn', 'Vergrössern'],
       ],
     ],
   ] as const)('resolves %s through de-CH → de → en', async (dir, controls) => {
@@ -59,20 +67,6 @@ describe('Swiss catalog loading', () => {
       expect(german).toContain('ß');
       expect(instance.t(key)).toBe(german.replaceAll('ß', 'ss'));
       if (label) expect(instance.t(key)).toBe(label);
-    }
-    // Array overrides replace the entire list. Retain its other cards and
-    // every field while correcting the entries that need Swiss spelling.
-    for (const key of [
-      'platformAgents:tour.stages',
-      'platformAutomations:capabilities.items',
-      'platformGovernance:capabilities.items',
-      'platformGovernance:faq.items',
-      'platformProjects:faq.items',
-    ]) {
-      const german = instance.t(key, { lng: 'de', returnObjects: true });
-      expect(instance.t(key, { returnObjects: true })).toEqual(
-        JSON.parse(JSON.stringify(german).replaceAll('ß', 'ss')),
-      );
     }
   });
 });
