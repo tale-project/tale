@@ -1845,6 +1845,10 @@ conversations:
       Connectors.
     noEmailConnectorAskAdmin: Bitte einen Org-Admin, ein E-Mail-Postfach zu
       verbinden, bevor du senden kannst.
+    emailConnectorReadErrorTitle: E-Mail-Verbindung nicht verfügbar
+    emailConnectorReadError: Deine E-Mail-Verbindungen konnten nicht geladen werden.
+      Dein Entwurf ist sicher. Versuche es erneut.
+    retryEmailConnectorRead: Erneut versuchen
     openConnectorSettings: Connector-Einstellungen öffnen
     subject: Betreff
     subjectPlaceholder: Worum geht es?

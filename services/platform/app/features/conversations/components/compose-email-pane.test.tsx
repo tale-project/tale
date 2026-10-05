@@ -11,6 +11,8 @@ import { render, screen } from '@/tests/utils/render';
 import { ComposeEmailPane } from './compose-email-pane';
 
 const emailConnectorsMock = vi.hoisted(() => ({
+  error: undefined as unknown,
+  retry: vi.fn(async () => undefined),
   current: [] as Array<{
     credentialId: string;
     slug: string;
@@ -39,6 +41,8 @@ vi.mock('../hooks/queries', () => ({
   useEmailConnectors: () => ({
     emailConnectors: emailConnectorsMock.current,
     isLoading: false,
+    error: emailConnectorsMock.error,
+    retry: emailConnectorsMock.retry,
   }),
 }));
 
@@ -146,12 +150,69 @@ function renderPane(role: keyof typeof abilities) {
 describe('ComposeEmailPane — missing email connector', () => {
   beforeEach(() => {
     emailConnectorsMock.current = [];
+    emailConnectorsMock.error = undefined;
+    emailConnectorsMock.retry.mockClear();
     persisted.clear();
     navigateMock.mockReset();
   });
 
   afterEach(() => {
     cleanup();
+  });
+
+  it('preserves the draft when reading email connections fails', async () => {
+    const draft = 'compose-user-1-org-1';
+    persisted.set(`${draft}-mailbox`, 'cred-recruitment');
+    persisted.set(`${draft}-sender`, 'billing@support.test');
+    emailConnectorsMock.error = new Error('temporary failure');
+
+    const view = renderPane('admin');
+
+    expect(
+      screen.getByRole('heading', { name: 'Email connection unavailable' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: "Can't send yet" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Try again' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send body' })).toBeDisabled();
+    expect(persisted.get(`${draft}-mailbox`)).toBe('cred-recruitment');
+    expect(persisted.get(`${draft}-sender`)).toBe('billing@support.test');
+    expect(composeMock).not.toHaveBeenCalled();
+
+    screen.getByRole('button', { name: 'Try again' }).click();
+    expect(emailConnectorsMock.retry).toHaveBeenCalledTimes(1);
+
+    emailConnectorsMock.error = undefined;
+    emailConnectorsMock.current = [
+      {
+        credentialId: 'cred-general',
+        slug: 'imap-smtp',
+        title: 'General Support',
+        type: 'imap_smtp',
+        fromAddress: 'hello@support.test',
+      },
+      {
+        credentialId: 'cred-recruitment',
+        slug: 'imap-smtp',
+        title: 'Recruitment Support',
+        type: 'imap_smtp',
+        fromAddress: 'jobs@support.test',
+      },
+    ];
+    view.rerender(
+      <AbilityContext.Provider value={abilities.admin}>
+        <ComposeEmailPane
+          organizationId="org-1"
+          onClose={vi.fn()}
+          onSent={vi.fn()}
+        />
+      </AbilityContext.Provider>,
+    );
+    expect(persisted.get(`${draft}-mailbox`)).toBe('cred-recruitment');
+    expect(persisted.get(`${draft}-sender`)).toBe('billing@support.test');
   });
 
   it('shows a warning banner instead of a muted label', async () => {

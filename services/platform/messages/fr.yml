@@ -1854,6 +1854,10 @@ conversations:
     noEmailConnector: Connecte une boîte e-mail sous Paramètres > Connectors.
     noEmailConnectorAskAdmin: Demande à un admin de l'organisation de connecter
       une boîte e-mail avant de pouvoir envoyer.
+    emailConnectorReadErrorTitle: Connexion e-mail indisponible
+    emailConnectorReadError: Nous n'avons pas pu charger tes connexions e-mail. Ton
+      brouillon est conservé. Réessaie.
+    retryEmailConnectorRead: Réessayer
     openConnectorSettings: Ouvrir les paramètres des connectors
     subject: Objet
     subjectPlaceholder: De quoi s'agit-il ?
