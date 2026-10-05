@@ -1,18 +1,14 @@
 /**
  * Shared Shiki highlighter singleton.
  *
- * Strategy: 39 common grammars are statically imported so docs / web /
- * platform get them on first paint. Anything else is lazy-loaded on
- * demand via a runtime dynamic import. Shiki's JS regex engine keeps
- * the bundle off the WASM oniguruma path.
+ * Strategy: the engine, the themes and 39 common grammars load together the
+ * first time code is highlighted (or `preloadHighlighter` asks), not with the
+ * page: a chat or a docs page without code never needs them. Anything else is
+ * lazy-loaded on demand via a runtime dynamic import. Shiki's JS regex engine
+ * keeps the bundle off the WASM oniguruma path.
  */
 
-import {
-  createHighlighterCore,
-  type HighlighterCore,
-  type ThemeRegistration,
-} from 'shiki/core';
-import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
+import type { HighlighterCore, ThemeRegistration } from 'shiki/core';
 
 let highlighterPromise: Promise<HighlighterCore> | null = null;
 
@@ -52,71 +48,78 @@ function withDiffColors(
 
 function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
-    highlighterPromise = createHighlighterCore({
-      themes: [
-        import('shiki/themes/min-dark.mjs').then((m) =>
-          withDiffColors(m.default, {
-            inserted: '#85e89d',
-            deleted: '#f97583',
-            range: '#b392f0',
-            header: '#79b8ff',
-          }),
-        ),
-        import('shiki/themes/min-light.mjs').then((m) =>
-          withDiffColors(m.default, {
-            inserted: '#22863a',
-            deleted: '#b31d28',
-            range: '#6f42c1',
-            header: '#005cc5',
-          }),
-        ),
-      ],
-      langs: [
-        import('shiki/langs/bash.mjs'),
-        import('shiki/langs/c.mjs'),
-        import('shiki/langs/cpp.mjs'),
-        import('shiki/langs/csharp.mjs'),
-        import('shiki/langs/css.mjs'),
-        import('shiki/langs/diff.mjs'),
-        import('shiki/langs/docker.mjs'),
-        import('shiki/langs/dotenv.mjs'),
-        import('shiki/langs/elixir.mjs'),
-        import('shiki/langs/go.mjs'),
-        import('shiki/langs/graphql.mjs'),
-        import('shiki/langs/hcl.mjs'),
-        import('shiki/langs/html.mjs'),
-        import('shiki/langs/http.mjs'),
-        import('shiki/langs/ini.mjs'),
-        import('shiki/langs/java.mjs'),
-        import('shiki/langs/javascript.mjs'),
-        import('shiki/langs/json.mjs'),
-        import('shiki/langs/jsx.mjs'),
-        import('shiki/langs/kotlin.mjs'),
-        import('shiki/langs/lua.mjs'),
-        import('shiki/langs/markdown.mjs'),
-        import('shiki/langs/nginx.mjs'),
-        import('shiki/langs/php.mjs'),
-        import('shiki/langs/powershell.mjs'),
-        import('shiki/langs/prisma.mjs'),
-        import('shiki/langs/python.mjs'),
-        import('shiki/langs/ruby.mjs'),
-        import('shiki/langs/rust.mjs'),
-        import('shiki/langs/scala.mjs'),
-        import('shiki/langs/scss.mjs'),
-        import('shiki/langs/sql.mjs'),
-        import('shiki/langs/swift.mjs'),
-        import('shiki/langs/toml.mjs'),
-        import('shiki/langs/tsx.mjs'),
-        import('shiki/langs/typescript.mjs'),
-        import('shiki/langs/xml.mjs'),
-        import('shiki/langs/yaml.mjs'),
-        import('shiki/langs/zig.mjs'),
-      ],
-      engine: createJavaScriptRegexEngine(),
-    }).catch((error) => {
-      highlighterPromise = null;
-      throw error;
-    });
+    highlighterPromise = Promise.all([
+      import('shiki/core'),
+      import('shiki/engine/javascript'),
+    ])
+      .then(([{ createHighlighterCore }, { createJavaScriptRegexEngine }]) =>
+        createHighlighterCore({
+          themes: [
+            import('shiki/themes/min-dark.mjs').then((m) =>
+              withDiffColors(m.default, {
+                inserted: '#85e89d',
+                deleted: '#f97583',
+                range: '#b392f0',
+                header: '#79b8ff',
+              }),
+            ),
+            import('shiki/themes/min-light.mjs').then((m) =>
+              withDiffColors(m.default, {
+                inserted: '#22863a',
+                deleted: '#b31d28',
+                range: '#6f42c1',
+                header: '#005cc5',
+              }),
+            ),
+          ],
+          langs: [
+            import('shiki/langs/bash.mjs'),
+            import('shiki/langs/c.mjs'),
+            import('shiki/langs/cpp.mjs'),
+            import('shiki/langs/csharp.mjs'),
+            import('shiki/langs/css.mjs'),
+            import('shiki/langs/diff.mjs'),
+            import('shiki/langs/docker.mjs'),
+            import('shiki/langs/dotenv.mjs'),
+            import('shiki/langs/elixir.mjs'),
+            import('shiki/langs/go.mjs'),
+            import('shiki/langs/graphql.mjs'),
+            import('shiki/langs/hcl.mjs'),
+            import('shiki/langs/html.mjs'),
+            import('shiki/langs/http.mjs'),
+            import('shiki/langs/ini.mjs'),
+            import('shiki/langs/java.mjs'),
+            import('shiki/langs/javascript.mjs'),
+            import('shiki/langs/json.mjs'),
+            import('shiki/langs/jsx.mjs'),
+            import('shiki/langs/kotlin.mjs'),
+            import('shiki/langs/lua.mjs'),
+            import('shiki/langs/markdown.mjs'),
+            import('shiki/langs/nginx.mjs'),
+            import('shiki/langs/php.mjs'),
+            import('shiki/langs/powershell.mjs'),
+            import('shiki/langs/prisma.mjs'),
+            import('shiki/langs/python.mjs'),
+            import('shiki/langs/ruby.mjs'),
+            import('shiki/langs/rust.mjs'),
+            import('shiki/langs/scala.mjs'),
+            import('shiki/langs/scss.mjs'),
+            import('shiki/langs/sql.mjs'),
+            import('shiki/langs/swift.mjs'),
+            import('shiki/langs/toml.mjs'),
+            import('shiki/langs/tsx.mjs'),
+            import('shiki/langs/typescript.mjs'),
+            import('shiki/langs/xml.mjs'),
+            import('shiki/langs/yaml.mjs'),
+            import('shiki/langs/zig.mjs'),
+          ],
+          engine: createJavaScriptRegexEngine(),
+        }),
+      )
+      .catch((error: unknown) => {
+        highlighterPromise = null;
+        throw error;
+      });
   }
   return highlighterPromise;
 }
