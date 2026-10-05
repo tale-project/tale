@@ -206,6 +206,12 @@ export function MemberTable({
       footer={
         <BulkDeleteBar
           rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          getItemLabel={(id) =>
+            members.find((item) => item._id === id)?.displayName ??
+            members.find((item) => item._id === id)?.email ??
+            id
+          }
           onClearSelection={handleClearSelection}
           onDeleteItem={handleDeleteItem}
           onDeleteComplete={handleClearSelection}

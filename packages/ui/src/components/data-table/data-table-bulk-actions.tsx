@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
@@ -14,11 +15,13 @@ import { useCallback, useState } from 'react';
 interface BulkDeleteBarProps {
   /** Current row selection state (keyed by row ID) */
   rowSelection: RowSelectionState;
+  onRowSelectionChange: (selection: RowSelectionState) => void;
+  getItemLabel?: (id: string) => string;
   /** Callback to clear selection */
   onClearSelection: () => void;
   /** Async function to delete a single item by ID */
   onDeleteItem: (id: string) => Promise<void>;
-  /** Callback after all deletions complete */
+  /** Callback after all selected deletions succeed */
   onDeleteComplete?: () => void;
   /**
    * The words under the failure toast, read from what each refused delete
@@ -33,11 +36,13 @@ interface BulkDeleteBarProps {
 interface BulkArchiveBarProps {
   /** Current row selection state (keyed by row ID) */
   rowSelection: RowSelectionState;
+  onRowSelectionChange: (selection: RowSelectionState) => void;
+  getItemLabel?: (id: string) => string;
   /** Callback to clear selection */
   onClearSelection: () => void;
   /** Async function to archive a single item by ID */
   onArchiveItem: (id: string) => Promise<void>;
-  /** Callback after all archives complete */
+  /** Callback after all selected archives succeed */
   onComplete?: () => void;
   /**
    * The words under the failure toast, read from what each refused archive
@@ -53,6 +58,8 @@ function selectedIdsFrom(rowSelection: RowSelectionState): string[] {
 
 export function BulkDeleteBar({
   rowSelection,
+  onRowSelectionChange,
+  getItemLabel,
   onClearSelection,
   onDeleteItem,
   onDeleteComplete,
@@ -61,6 +68,10 @@ export function BulkDeleteBar({
   const { t } = useT('common');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [failure, setFailure] = useState<{
+    items: { id: string; label: string }[];
+    detail?: string;
+  }>();
 
   const selectedIds = selectedIdsFrom(rowSelection);
   const count = selectedIds.length;
@@ -69,7 +80,7 @@ export function BulkDeleteBar({
     setIsDeleting(true);
     try {
       const results = await Promise.allSettled(
-        selectedIds.map((id) => onDeleteItem(id)),
+        selectedIds.map((id) => Promise.resolve().then(() => onDeleteItem(id))),
       );
       const refused = results.filter(
         (r): r is PromiseRejectedResult => r.status === 'rejected',
@@ -77,11 +88,28 @@ export function BulkDeleteBar({
       const successCount = count - refused.length;
 
       if (refused.length > 0) {
+        const failedIds = selectedIds.filter(
+          (_, index) => results[index]?.status === 'rejected',
+        );
+        const detail = describeFailure?.(
+          refused.map((result) => result.reason),
+        );
+        setFailure({
+          items: failedIds.map((id) => ({
+            id,
+            label: getItemLabel?.(id) ?? id,
+          })),
+          detail,
+        });
+        onRowSelectionChange(
+          Object.fromEntries(failedIds.map((id) => [id, true])),
+        );
         toast({
           title: t('bulkActions.deleteFailed'),
-          description: describeFailure?.(refused.map((r) => r.reason)),
+          description: detail,
           variant: 'destructive',
         });
+        return;
       } else {
         toast({
           title: t('bulkActions.deleteSuccess', { count: successCount }),
@@ -89,6 +117,7 @@ export function BulkDeleteBar({
       }
 
       setIsConfirmOpen(false);
+      setFailure(undefined);
       onClearSelection();
       onDeleteComplete?.();
     } finally {
@@ -101,6 +130,8 @@ export function BulkDeleteBar({
     onClearSelection,
     onDeleteComplete,
     describeFailure,
+    getItemLabel,
+    onRowSelectionChange,
     t,
   ]);
 
@@ -125,7 +156,10 @@ export function BulkDeleteBar({
         <Button
           variant="destructive"
           size="sm"
-          onClick={() => setIsConfirmOpen(true)}
+          onClick={() => {
+            setFailure(undefined);
+            setIsConfirmOpen(true);
+          }}
         >
           <Trash2 className="mr-1.5 size-4" />
           {t('actions.deleteSelected')}
@@ -140,7 +174,18 @@ export function BulkDeleteBar({
         onDelete={handleDelete}
         isDeleting={isDeleting}
         deletingText={t('bulkActions.deleting')}
-      />
+      >
+        {failure && (
+          <Alert variant="destructive" title={t('bulkActions.deleteFailed')}>
+            {failure.detail && <p>{failure.detail}</p>}
+            <ul>
+              {failure.items.map((item) => (
+                <li key={item.id}>{item.label}</li>
+              ))}
+            </ul>
+          </Alert>
+        )}
+      </DeleteDialog>
     </>
   );
 }
@@ -152,6 +197,8 @@ export function BulkDeleteBar({
  */
 export function BulkArchiveBar({
   rowSelection,
+  onRowSelectionChange,
+  getItemLabel,
   onClearSelection,
   onArchiveItem,
   onComplete,
@@ -160,6 +207,10 @@ export function BulkArchiveBar({
   const { t } = useT('common');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [failure, setFailure] = useState<{
+    items: { id: string; label: string }[];
+    detail?: string;
+  }>();
 
   const selectedIds = selectedIdsFrom(rowSelection);
   const count = selectedIds.length;
@@ -168,7 +219,9 @@ export function BulkArchiveBar({
     setIsArchiving(true);
     try {
       const results = await Promise.allSettled(
-        selectedIds.map((id) => onArchiveItem(id)),
+        selectedIds.map((id) =>
+          Promise.resolve().then(() => onArchiveItem(id)),
+        ),
       );
       const refused = results.filter(
         (r): r is PromiseRejectedResult => r.status === 'rejected',
@@ -176,11 +229,28 @@ export function BulkArchiveBar({
       const successCount = count - refused.length;
 
       if (refused.length > 0) {
+        const failedIds = selectedIds.filter(
+          (_, index) => results[index]?.status === 'rejected',
+        );
+        const detail = describeFailure?.(
+          refused.map((result) => result.reason),
+        );
+        setFailure({
+          items: failedIds.map((id) => ({
+            id,
+            label: getItemLabel?.(id) ?? id,
+          })),
+          detail,
+        });
+        onRowSelectionChange(
+          Object.fromEntries(failedIds.map((id) => [id, true])),
+        );
         toast({
           title: t('bulkActions.archiveFailed'),
-          description: describeFailure?.(refused.map((r) => r.reason)),
+          description: detail,
           variant: 'destructive',
         });
+        return;
       } else {
         toast({
           title: t('bulkActions.archiveSuccess', { count: successCount }),
@@ -188,6 +258,7 @@ export function BulkArchiveBar({
       }
 
       setIsConfirmOpen(false);
+      setFailure(undefined);
       onClearSelection();
       onComplete?.();
     } finally {
@@ -200,6 +271,8 @@ export function BulkArchiveBar({
     onClearSelection,
     onComplete,
     describeFailure,
+    getItemLabel,
+    onRowSelectionChange,
     t,
   ]);
 
@@ -224,7 +297,10 @@ export function BulkArchiveBar({
         <Button
           variant="secondary"
           size="sm"
-          onClick={() => setIsConfirmOpen(true)}
+          onClick={() => {
+            setFailure(undefined);
+            setIsConfirmOpen(true);
+          }}
         >
           <Archive className="mr-1.5 size-4" />
           {t('actions.archiveSelected')}
@@ -240,7 +316,18 @@ export function BulkArchiveBar({
         loadingText={t('bulkActions.archiving')}
         isLoading={isArchiving}
         onConfirm={() => void handleArchive()}
-      />
+      >
+        {failure && (
+          <Alert variant="destructive" title={t('bulkActions.archiveFailed')}>
+            {failure.detail && <p>{failure.detail}</p>}
+            <ul>
+              {failure.items.map((item) => (
+                <li key={item.id}>{item.label}</li>
+              ))}
+            </ul>
+          </Alert>
+        )}
+      </ConfirmDialog>
     </>
   );
 }

@@ -7587,6 +7587,7 @@ tasks:
     failureTitle: L’agent n’a pas pu terminer cette tâche
     reported: Ce que l’exécution a signalé
     logReadFailed: Le journal de l’agent n’a pas pu être chargé. Réessaie.
+    runReadFailed: L’exécution de l’agent n’a pas pu être chargée. Réessaie.
     failure:
       budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
       setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
@@ -8628,6 +8629,8 @@ projects:
     shareSuccess: Chat partagé avec le projet
     unshareSuccess: Chat retiré du projet
     shareError: Impossible de mettre à jour le partage
+    loadFailed: Impossible de charger les chats de ce projet.
+    refreshFailed: Impossible d'actualiser les chats de ce projet. L'affichage n'est peut-être plus à jour.
   agents:
     agentsHeading: Agents
     sectionDescription: Agents rattachés à ce projet, chacun avec son propre modèle, ses skills et ses instructions.

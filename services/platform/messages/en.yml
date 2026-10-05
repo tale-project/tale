@@ -5527,6 +5527,8 @@ projects:
     shareSuccess: Chat shared with project
     unshareSuccess: Chat hidden from project
     shareError: Couldn't update sharing
+    loadFailed: Couldn't load this project's chats.
+    refreshFailed: Couldn't refresh this project's chats. What's shown may be out of date.
   agents:
     agentsHeading: Agents
     sectionDescription: Agents assigned to this project, each with their own model, skills, and instructions.
@@ -7633,6 +7635,7 @@ tasks:
     failureTitle: The agent couldn't finish this task
     reported: What the run reported
     logReadFailed: The agent log could not be loaded. Try again.
+    runReadFailed: The agent run could not be loaded. Try again.
     failure:
       budget: A usage limit stopped this run. Ask an Admin to raise it, then start the agent again.
       setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.

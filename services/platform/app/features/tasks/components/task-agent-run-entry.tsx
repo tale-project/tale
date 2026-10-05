@@ -203,6 +203,7 @@ export function TaskAgentRunEntry({
   assigneeLive = true,
 }: TaskAgentRunEntryProps) {
   const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
   // Kicking a run is for whoever may work the task (an editor, or the
   // member it belongs to), with an agent that can actually run it.
   const canKick = canEdit && assigneeLive;
@@ -214,6 +215,34 @@ export function TaskAgentRunEntry({
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   const run = runQuery.data;
+  const readStatus =
+    run !== undefined
+      ? 'ready'
+      : runQuery.isFetching
+        ? 'loading'
+        : runQuery.isError
+          ? 'failed'
+          : 'loading';
+  const retryFocus = useRetryFocus(readStatus, `${organizationId}:${taskId}`);
+  if (readStatus === 'failed') {
+    return (
+      <div ref={retryFocus.ref} className="min-w-0">
+        <Alert variant="destructive" title={t('agentRun.runReadFailed')}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              retryFocus.arm();
+              void runQuery.refetch();
+            }}
+          >
+            {tCommon('actions.tryAgain')}
+          </Button>
+        </Alert>
+      </div>
+    );
+  }
   if (run === undefined) return null;
   const live =
     run !== null && (run.status === 'queued' || run.status === 'running');
