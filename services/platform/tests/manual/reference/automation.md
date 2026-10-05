@@ -72,6 +72,12 @@ staged, and keep regeneration on its original-prompt path:
 `app/features/chat/components/chat-surface.test.tsx` covers the component
 boundary; persisted cards after reload remain manual in `CHAT-F8`.
 
+Automation-owned tasks retain their workflow name and description after a failed
+live-run read, show an accessible error with retry, keep that surface during
+retry, and restore workflow actions only after a successful read. Successful
+empty reads retain the normal no-live-run state. These cases are owned by
+`app/features/tasks/components/task-subject-panel.test.tsx` (#3849).
+
 Task attachment uploads overlap while their drain, read and replace steps are
 serialized, and replacements read the latest saved list rather than an
 upload-start snapshot.
