@@ -130,17 +130,25 @@ function observerCount(client: QueryClient): number {
 describe('board cards and the board directory', () => {
   it('adds no query observer per card, however many cards mount', () => {
     const client = new QueryClient();
-    const few = renderBoard(client, makeTasks(5));
-    expect(screen.getAllByRole('button', { name: /^Card \d+$/ })).toHaveLength(
-      5,
-    );
+    const fewTasks = makeTasks(5);
+    const few = renderBoard(client, fewTasks);
+    // Count the actual keyed card roots for this subscription invariant.
+    // The neighbouring interaction cases own their controls' accessible names.
+    expect(
+      [...few.container.querySelectorAll('[data-task-id]')].map((card) =>
+        card.getAttribute('data-task-id'),
+      ),
+    ).toEqual(fewTasks.map((task) => task._id));
     const observersWithFew = observerCount(client);
     few.unmount();
 
-    renderBoard(client, makeTasks(40));
-    expect(screen.getAllByRole('button', { name: /^Card \d+$/ })).toHaveLength(
-      40,
-    );
+    const manyTasks = makeTasks(40);
+    const many = renderBoard(client, manyTasks);
+    expect(
+      [...many.container.querySelectorAll('[data-task-id]')].map((card) =>
+        card.getAttribute('data-task-id'),
+      ),
+    ).toEqual(manyTasks.map((task) => task._id));
     // The provider's own reads, and nothing per card.
     expect(observersWithFew).toBeGreaterThan(0);
     expect(observerCount(client)).toBe(observersWithFew);
