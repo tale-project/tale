@@ -160,6 +160,7 @@
     "./i18n/init": "./src/i18n/init.ts",
     "./i18n/init-service": "./src/i18n/init-service.ts",
     "./i18n/is-valid-locale": "./src/i18n/is-valid-locale.ts",
+    "./i18n/load-locale": "./src/i18n/load-locale.ts",
     "./i18n/locale-provider": "./src/i18n/locale-provider.tsx",
     "./i18n/locales": "./src/i18n/locales.ts",
     "./i18n/messages": "./src/i18n/messages.ts",

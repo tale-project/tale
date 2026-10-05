@@ -62,7 +62,15 @@ const i18n = initServiceI18n({ bundles, regional, global, packages: [uiMessages]
 ```
 
 Use `locale={{ mode: 'client' }}` for a saved browser preference. URL-driven services such as
-web and docs omit it and mount `LocaleSync` with the route’s locale. `theme` enables the shared
+web and docs omit it and mount `LocaleSync` with the route’s locale.
+
+A service with large catalogs can ship English alone and fetch German and French when a session
+first needs them: list them in `lazyBundles` (`de: () => import('…/de.yml').then((m) => m.default)`)
+instead of `bundles`. `LocaleSync` loads a language before switching to it. To start in the
+person’s language from the first frame, load and switch to `detectPreferredLocale()` before
+rendering, as the platform does (`services/platform/lib/i18n/i18n.ts`). A screen that reads
+languages other than the session’s (`i18n.getFixedT(locale)`) waits for them with
+`useLocalesLoaded` from `@tale/ui/i18n/load-locale`. `theme` enables the shared
 provider with its system preference default. Routing, authentication, and query providers
 remain the host’s responsibility.
 

@@ -5,6 +5,8 @@ import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it, vi } from 'vitest';
 
 import { useT } from './client';
+import { isLocaleLoaded, registerLocaleLoader } from './load-locale';
+import { LocaleSync } from './sync';
 
 async function instance(): Promise<I18nInstance> {
   const i18n = createInstance();
@@ -134,5 +136,50 @@ describe('useT', () => {
     }
     render(<Bare />);
     expect(screen.getByText('title')).toBeInTheDocument();
+  });
+});
+
+describe('useT with a language fetched on first use', () => {
+  it('re-renders its readers in that language once LocaleSync has loaded it', async () => {
+    const i18n = createInstance();
+    await i18n.init({
+      lng: 'en',
+      fallbackLng: 'en',
+      resources: { en: { home: { title: 'Home' } } },
+    });
+    let deliver = (_bundle: Record<string, Record<string, unknown>>) => {};
+    registerLocaleLoader(
+      i18n,
+      'de',
+      () =>
+        new Promise((resolve) => {
+          deliver = resolve;
+        }),
+    );
+
+    const view = render(
+      <Provider i18n={i18n}>
+        <Title />
+      </Provider>,
+    );
+    view.rerender(
+      <Provider i18n={i18n}>
+        <LocaleSync locale="de" />
+        <Title />
+      </Provider>,
+    );
+    // The switch waits for the messages: the page stays in English, whole.
+    expect(screen.getByText('Home')).toBeInTheDocument();
+    expect(i18n.language).toBe('en');
+    expect(document.documentElement.lang).not.toBe('de');
+
+    await act(async () => {
+      deliver({ home: { title: 'Startseite' } });
+      await Promise.resolve();
+    });
+    expect(isLocaleLoaded(i18n, 'de')).toBe(true);
+    expect(await screen.findByText('Startseite')).toBeInTheDocument();
+    expect(i18n.language).toBe('de');
+    expect(document.documentElement.lang).toBe('de');
   });
 });

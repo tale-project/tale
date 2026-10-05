@@ -10,11 +10,8 @@ import {
   useState,
 } from 'react';
 
-import { parseAcceptLanguage } from './accept-language';
+import { detectPreferredLocale, LOCALE_STORAGE_KEY } from './detect-locale';
 import { isValidLocale } from './is-valid-locale';
-import { resolveLocale } from './resolve-locale';
-
-const STORAGE_KEY = 'user-locale';
 
 interface LocaleContextValue {
   locale: string;
@@ -22,37 +19,6 @@ interface LocaleContextValue {
 }
 
 const LocaleContext = createContext<LocaleContextValue | undefined>(undefined);
-
-// Optional global injected by SSR-aware services (platform's `server.ts`
-// rewrites a placeholder in `index.html` with the request's
-// `Accept-Language` header). Declared here so the provider can read it
-// without `any`; merges with platform's identical declaration in
-// `services/platform/lib/env.ts` and is harmless for services that don't
-// inject it (the read just returns `undefined`).
-declare global {
-  interface Window {
-    __ACCEPT_LANGUAGE__?: string;
-  }
-}
-
-function readAcceptLanguageHeader(): string | undefined {
-  return window.__ACCEPT_LANGUAGE__;
-}
-
-function detectLocale(defaultLocale: string): string {
-  const savedLocale = localStorage.getItem(STORAGE_KEY);
-  if (savedLocale && isValidLocale(savedLocale)) return savedLocale;
-
-  const serverHeader = readAcceptLanguageHeader();
-  if (serverHeader) {
-    return resolveLocale(parseAcceptLanguage(serverHeader), defaultLocale);
-  }
-
-  return resolveLocale(
-    navigator.languages ?? [navigator.language],
-    defaultLocale,
-  );
-}
 
 interface LocaleProviderProps {
   children: ReactNode;
@@ -87,7 +53,9 @@ export function LocaleProvider({
   defaultLocale = 'en-US',
   onLocaleChange,
 }: LocaleProviderProps) {
-  const [locale, setLocaleState] = useState(() => detectLocale(defaultLocale));
+  const [locale, setLocaleState] = useState(() =>
+    detectPreferredLocale(defaultLocale),
+  );
 
   useEffect(() => {
     if (onLocaleChange) void onLocaleChange(locale);
@@ -102,7 +70,7 @@ export function LocaleProvider({
         );
       }
       setLocaleState(resolved);
-      localStorage.setItem(STORAGE_KEY, resolved);
+      localStorage.setItem(LOCALE_STORAGE_KEY, resolved);
     },
     [defaultLocale],
   );
