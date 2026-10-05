@@ -1132,6 +1132,8 @@ logs:
     topActors:
       title: Most active users
     empty: No activity in this period.
+    readFailed: Couldn’t load activity summary. Try again.
+    retry: Retry
   errors:
     entityLabel: error logs
     entityLabelOne: error log

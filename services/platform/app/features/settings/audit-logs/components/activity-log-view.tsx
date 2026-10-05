@@ -1,5 +1,7 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import {
   DataTableFilters,
   type FilterConfig,
@@ -269,7 +271,10 @@ export function ActivityLogView({
   const { t } = useT('settings');
   const [periodDays, setPeriodDays] = useState<7 | 30 | 90>(7);
 
-  const { data, isLoading } = useActivitySummary(organizationId, periodDays);
+  const { data, isLoading, isError, refetch } = useActivitySummary(
+    organizationId,
+    periodDays,
+  );
 
   const handlePeriod = useCallback((value: string) => {
     if (value === '30') setPeriodDays(30);
@@ -278,15 +283,31 @@ export function ActivityLogView({
   }, []);
 
   return (
-    <Skeletonize loading={isLoading} label={t('logs.activityLogs')}>
-      <ActivityLogViewInner
-        summary={data}
-        isLoading={isLoading}
-        periodDays={periodDays}
-        onPeriod={handlePeriod}
-        actions={actions}
-        userEmailMap={userEmailMap}
-      />
-    </Skeletonize>
+    <>
+      {isError && (
+        <Alert variant="destructive" className="mb-4">
+          <p>{t('logs.activity.readFailed')}</p>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void refetch()}
+          >
+            {t('logs.activity.retry')}
+          </Button>
+        </Alert>
+      )}
+      <Skeletonize loading={isLoading} label={t('logs.activityLogs')}>
+        {data || isLoading ? (
+          <ActivityLogViewInner
+            summary={data}
+            isLoading={isLoading}
+            periodDays={periodDays}
+            onPeriod={handlePeriod}
+            actions={actions}
+            userEmailMap={userEmailMap}
+          />
+        ) : null}
+      </Skeletonize>
+    </>
   );
 }
