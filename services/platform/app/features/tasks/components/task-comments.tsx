@@ -31,6 +31,7 @@ import {
   useProvidedActorDirectory,
   type ActorDirectory,
 } from '../hooks/use-actor-directory';
+import { useFirstFrameSlice } from '../hooks/use-first-frame-slice';
 import { taskCommentDraftKey } from '../lib/draft-key';
 import {
   pickCommentBody,
@@ -58,6 +59,11 @@ export interface TaskCommentData {
   mentions?: Array<{ type: 'user' | 'agent' | 'automation'; id: string }>;
   bodyByLocale?: CommentBodyByLocale;
 }
+
+/** How many comments the opening frame of a discussion renders: more than a
+ *  screen holds. The rest render right after, in an interruptible background
+ *  pass, so a task with hundreds of comments opens at the cost of a few. */
+const FIRST_FRAME_COMMENTS = 20;
 
 /** Submit on ⌘/Ctrl+Enter; a bare Enter stays a newline (comments are prose). */
 function onModEnter(submit: () => void) {
@@ -537,6 +543,14 @@ export const TaskComments = memo(function TaskComments({
     loadEarlier,
   } = useTaskDiscussion(taskId);
   const comments = order === 'desc' ? newestFirst : newestFirst.toReversed();
+  // The newest-first log mounts its first screens of comments with the task,
+  // and the older ones in a background pass right after. An ascending
+  // conversation renders whole: its newest end is at the bottom, and
+  // inserting rows above it would move the page under the reader.
+  const shownComments = useFirstFrameSlice(
+    comments,
+    order === 'desc' ? FIRST_FRAME_COMMENTS : Number.POSITIVE_INFINITY,
+  );
   const { requestDelete, dialog: deleteDialog } = useTaskCommentDelete();
   const provided = useProvidedActorDirectory(organizationId, projectId);
 
@@ -590,7 +604,7 @@ export const TaskComments = memo(function TaskComments({
             </Text>
           </li>
         )}
-        {comments.map((c) => (
+        {shownComments.map((c) => (
           <li key={c.messageId}>
             <TaskCommentView
               comment={c}

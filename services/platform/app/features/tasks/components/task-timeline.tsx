@@ -21,6 +21,7 @@ import {
   useProvidedActorDirectory,
   type ActorDirectory,
 } from '../hooks/use-actor-directory';
+import { useFirstFrameSlice } from '../hooks/use-first-frame-slice';
 import {
   TASK_ACTIVITY_FIELD,
   TASK_ACTIVITY_LABEL_KEY,
@@ -49,6 +50,10 @@ function formatCents(cents: number): string {
 }
 
 type TimelineItem = ReturnType<typeof mergeTaskTimeline>[number];
+
+/** How many history lines the opening frame renders; the rest follow in an
+ *  interruptible background pass right after (see `TaskTimeline`). */
+const FIRST_FRAME_LINES = 20;
 
 /** How much of a changed text a timeline line quotes. A description change
  *  records both whole descriptions (up to 20,000 characters each), and a
@@ -374,6 +379,9 @@ export const TaskTimeline = memo(function TaskTimeline({
   const { t } = useT('tasks');
   const { timeline, runs, totalCostCents } = useTaskTimeline(taskId);
   const provided = useProvidedActorDirectory(organizationId, projectId);
+  // The newest lines mount with the task, the older ones right after — a
+  // long history sits below the comments, out of the opening screen.
+  const shownTimeline = useFirstFrameSlice(timeline, FIRST_FRAME_LINES);
 
   if (timeline.length === 0) return null;
 
@@ -393,7 +401,7 @@ export const TaskTimeline = memo(function TaskTimeline({
           )}
         </div>
         <Stack as="ul" gap={3}>
-          {timeline.map((item) => (
+          {shownTimeline.map((item) => (
             <li key={timelineItemKey(item)}>
               <TaskTimelineEntry
                 item={item}
