@@ -6183,6 +6183,9 @@ settings:
       save: Herkünfte speichern
       saved: Einbettungseinstellungen gespeichert
       saveFailed: Einbettungseinstellungen konnten nicht gespeichert werden
+      unavailable: Nicht verfügbar
+      readFailed: Einbettungseinstellungen konnten nicht geladen werden. Bitte erneut versuchen.
+      retry: Erneut versuchen
       sameSiteNote:
         Ein Frame erhält die angemeldete Sitzung nur, wenn die umgebende Seite
         zur selben Site wie Tale gehört, etwa eine Subdomain des Hosts oder Tale unter
