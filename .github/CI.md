@@ -78,9 +78,13 @@ baseline behavior do not count.
   host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
   and keep its download cache in a separate namespace. Native source tests retain
   the full workspace install because they import platform auth modules. Windows
-  places its download store beside the checkout, outside the source tree, so Bun
-  can hardlink packages into `node_modules` on the same volume. Linux and macOS
-  native rows retain their home-directory store. Source tests
+  keeps its normalized download store beside the checkout, outside the source tree,
+  so Bun can hardlink on the same volume. Its native row skips archive restore/save
+  and runs that complete frozen install directly. Matched dependency inputs took
+  70 seconds cold, versus 25 seconds restoring plus 55 seconds installing from a
+  warm archive; compare final hosted results before treating that difference as a
+  fixed saving. Linux/macOS native and cross rows retain their download archives.
+  Source tests
   and compiled smoke discovery run serially on all three hosts. Two workers made
   Windows fixtures exceed their unchanged 30-second limits; Linux two-worker runs
   failed to finish promptly, and a macOS candidate reached the unchanged 15-minute

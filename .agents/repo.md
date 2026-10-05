@@ -338,6 +338,8 @@ architecture, Bun version, manifests, lockfile and patches, and saves after a su
 install so a later workload failure does not lose the downloaded packages.
 CLI's Windows native row keeps its Bun store beside the checkout, outside the source
 tree, to permit same-volume hardlinks; Linux/macOS native rows retain their home store.
+Native Windows skips download-archive restore/save; its normalized store still backs
+the complete frozen install. Other native and cross rows retain their archives.
 All native rows keep the full frozen install. Cross rows retain the separate CLI-only
 store and filtered frozen install.
 Browser checks and Playwright share an exact installed-version/OS/architecture
