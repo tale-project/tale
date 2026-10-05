@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { SendButton } from '@tale/ui/send-button';
 import { act, cleanup } from '@testing-library/react';
+import { useTransition } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AbilityContext } from '@/app/context/ability-context';
@@ -37,6 +38,8 @@ const navigateMock = vi.hoisted(() => vi.fn());
 const editorSaveMock = vi.hoisted(() =>
   vi.fn(async (_message: string, _attachments?: AttachedFile[]) => {}),
 );
+// What the editor reports when its send rejects (it keeps the body and toasts).
+const editorSendFailedMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
@@ -103,33 +106,47 @@ vi.mock('@/app/hooks/use-persisted-state', async () => {
 });
 
 vi.mock('./contact-recipient-picker', () => ({
-  ContactRecipientPicker: () => <div data-testid="recipient-picker" />,
+  ContactRecipientPicker: ({ disabled }: { disabled?: boolean }) => (
+    <div data-testid="recipient-picker" data-disabled={disabled || undefined} />
+  ),
 }));
 
 // Only the field-to-send mapping is isolated here. The real editor and upload
 // failure/retry lifecycle are covered by inbox-upload-failure.browser.test.tsx.
+// Its send gesture is kept as the real one: onSave runs inside the editor's
+// send transition, where React holds a plain state update until the send ends.
+function EditorSendGesture({
+  onSave,
+  disabled,
+  sendDisabledReason,
+}: {
+  onSave: (message: string, attachments?: AttachedFile[]) => Promise<void>;
+  disabled?: boolean;
+  sendDisabledReason?: string;
+}) {
+  const [isSending, startSendingTransition] = useTransition();
+  editorSaveMock.mockImplementation(onSave);
+  return (
+    <SendButton
+      label="Send body"
+      disabled={disabled}
+      disabledReason={sendDisabledReason}
+      sending={isSending}
+      onClick={() =>
+        startSendingTransition(async () => {
+          try {
+            await onSave('<p>Body</p>');
+          } catch (error) {
+            editorSendFailedMock(error);
+          }
+        })
+      }
+    />
+  );
+}
+
 vi.mock('@tale/ui/lazy-component', () => ({
-  lazyComponent:
-    () =>
-    ({
-      onSave,
-      disabled,
-      sendDisabledReason,
-    }: {
-      onSave: (message: string, attachments?: AttachedFile[]) => Promise<void>;
-      disabled?: boolean;
-      sendDisabledReason?: string;
-    }) => {
-      editorSaveMock.mockImplementation(onSave);
-      return (
-        <SendButton
-          label="Send body"
-          disabled={disabled}
-          disabledReason={sendDisabledReason}
-          onClick={() => void onSave('<p>Body</p>')}
-        />
-      );
-    },
+  lazyComponent: () => EditorSendGesture,
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
@@ -140,6 +157,16 @@ const abilities = {
   admin: defineAbilityFor('admin'),
   member: defineAbilityFor('member'),
 } as const;
+
+// A send that rejects is reported by the editor; only a test that makes one
+// fail on purpose may leave a report behind (it clears it once checked).
+beforeEach(() => {
+  editorSendFailedMock.mockClear();
+});
+
+afterEach(() => {
+  expect(editorSendFailedMock).not.toHaveBeenCalled();
+});
 
 function renderPane(role: keyof typeof abilities) {
   return render(
@@ -450,5 +477,205 @@ describe('ComposeEmailPane — the mailbox', () => {
       credentialId: 'cred-general',
       from: 'hello@support.test',
     });
+  });
+});
+
+/**
+ * The request carries the draft as it was when Send was pressed, and a success
+ * clears the draft. Edits made while the send is in flight would be neither
+ * sent nor kept, so the draft stays frozen until the send settles (#3898).
+ */
+describe('ComposeEmailPane — a send in flight', () => {
+  const DRAFT = 'compose-user-1-org-1';
+  const SENDING = 'Sending… The draft is locked until the send finishes.';
+
+  beforeEach(() => {
+    emailConnectorsMock.error = undefined;
+    emailConnectorsMock.current = [
+      {
+        credentialId: 'cred-general',
+        slug: 'imap-smtp',
+        title: 'General Support',
+        type: 'imap_smtp',
+        fromAddress: 'hello@support.test',
+      },
+      {
+        credentialId: 'cred-recruitment',
+        slug: 'imap-smtp',
+        title: 'Recruitment Support',
+        type: 'imap_smtp',
+        fromAddress: 'jobs@support.test',
+      },
+    ];
+    persisted.clear();
+    persisted.set(`${DRAFT}-contact`, 'ct1');
+    persisted.set(`${DRAFT}-mailbox`, 'cred-recruitment');
+    persisted.set(`${DRAFT}-subject`, 'Quote 7');
+    // Drop a held send a failed test left queued, then answer at once again.
+    composeMock.mockReset();
+    composeMock.mockImplementation(async () => ({
+      conversationId: 'c-new',
+      messageId: 'm-new',
+    }));
+    generateUploadUrlMock.mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    cleanup();
+  });
+
+  function renderCompose(onSent = vi.fn()) {
+    return render(
+      <AbilityContext.Provider value={abilities.admin}>
+        <ComposeEmailPane
+          organizationId="org-1"
+          onClose={vi.fn()}
+          onSent={onSent}
+        />
+      </AbilityContext.Provider>,
+    );
+  }
+
+  function holdSend() {
+    let settle = {
+      resolve: (_value: { conversationId: string; messageId: string }) => {},
+      reject: (_error: Error) => {},
+    };
+    composeMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve, reject) => {
+          settle = { resolve, reject };
+        }),
+    );
+    return {
+      succeed: () =>
+        act(async () => {
+          settle.resolve({ conversationId: 'c-new', messageId: 'm-new' });
+        }),
+      fail: () =>
+        act(async () => {
+          settle.reject(new Error('Mail server unavailable'));
+        }),
+    };
+  }
+
+  async function pressSend(view: ReturnType<typeof renderCompose>) {
+    await view.user.click(screen.getByRole('button', { name: 'Send body' }));
+    await vi.waitFor(() => expect(composeMock).toHaveBeenCalledTimes(1));
+    return composeMock.mock.calls[0]?.[0];
+  }
+
+  it('keeps the draft read-only while it sends, so the success clears only what was sent', async () => {
+    const onSent = vi.fn();
+    const send = holdSend();
+    const view = renderCompose(onSent);
+
+    expect(await pressSend(view)).toMatchObject({ subject: 'Quote 7' });
+
+    const subject = screen.getByRole('textbox', { name: /Subject/ });
+    await view.user.type(subject, ' — newer unsent correction');
+    expect(subject).toHaveValue('Quote 7');
+    expect(persisted.get(`${DRAFT}-subject`)).toBe('Quote 7');
+    expect(subject).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent(SENDING);
+
+    expect(screen.getByRole('textbox', { name: /From/ })).toBeDisabled();
+    expect(screen.getByTestId('recipient-picker')).toHaveAttribute(
+      'data-disabled',
+      'true',
+    );
+    expect(screen.getByLabelText('Assign to')).toBeDisabled();
+    expect(screen.getByLabelText(/Inbox/)).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeDisabled();
+    await checkAccessibility(view.container);
+
+    await send.succeed();
+
+    expect(onSent).toHaveBeenCalledWith('c-new');
+    expect(composeMock).toHaveBeenCalledTimes(1);
+    expect(persisted.has(`${DRAFT}-subject`)).toBe(false);
+    expect(persisted.has(`${DRAFT}-contact`)).toBe(false);
+    expect(persisted.get(`${DRAFT}-mailbox`) ?? '').toBe('');
+  });
+
+  it('hands the draft back, editable, when the send fails', async () => {
+    const onSent = vi.fn();
+    const send = holdSend();
+    const view = renderCompose(onSent);
+    // Mounted before it speaks, so assistive tech hears the change.
+    const status = screen.getByRole('status');
+    expect(status).toBeEmptyDOMElement();
+
+    await pressSend(view);
+    const subject = screen.getByRole('textbox', { name: /Subject/ });
+    expect(subject).toBeDisabled();
+    expect(status).toHaveTextContent(SENDING);
+
+    await send.fail();
+
+    expect(editorSendFailedMock).toHaveBeenCalledTimes(1);
+    editorSendFailedMock.mockClear();
+    expect(onSent).not.toHaveBeenCalled();
+    expect(subject).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeEnabled();
+    expect(status).toBeEmptyDOMElement();
+    expect(persisted.get(`${DRAFT}-subject`)).toBe('Quote 7');
+    expect(persisted.get(`${DRAFT}-contact`)).toBe('ct1');
+    await view.user.type(subject, ' (revised)');
+    expect(persisted.get(`${DRAFT}-subject`)).toBe('Quote 7 (revised)');
+  });
+
+  it('freezes the draft from the first upload on', async () => {
+    let failUpload = (_error: Error) => {};
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(
+      () =>
+        new Promise<Response>((_resolve, reject) => {
+          failUpload = reject;
+        }),
+    );
+    const view = renderCompose();
+
+    let sent: Promise<void> = Promise.resolve();
+    act(() => {
+      sent = editorSaveMock('<p>Body</p>', [
+        {
+          id: 'attachment-1',
+          file: new File(['draft'], 'draft.txt', { type: 'text/plain' }),
+          type: 'document',
+        },
+      ]);
+    });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    const subject = screen.getByRole('textbox', { name: /Subject/ });
+    expect(subject).toBeDisabled();
+    await view.user.type(subject, ' — newer unsent correction');
+    expect(persisted.get(`${DRAFT}-subject`)).toBe('Quote 7');
+
+    await act(async () => {
+      failUpload(new Error('Upload refused'));
+      await expect(sent).rejects.toThrow('Upload refused');
+    });
+
+    expect(composeMock).not.toHaveBeenCalled();
+    expect(subject).toBeEnabled();
+    expect(persisted.get(`${DRAFT}-subject`)).toBe('Quote 7');
+  });
+
+  it('clears the sent draft and opens the conversation after a plain send', async () => {
+    const onSent = vi.fn();
+    const view = renderCompose(onSent);
+
+    expect(await pressSend(view)).toMatchObject({
+      contactId: 'ct1',
+      credentialId: 'cred-recruitment',
+      subject: 'Quote 7',
+    });
+
+    await vi.waitFor(() => expect(onSent).toHaveBeenCalledWith('c-new'));
+    expect(persisted.has(`${DRAFT}-subject`)).toBe(false);
+    expect(persisted.has(`${DRAFT}-contact`)).toBe(false);
+    expect(persisted.get(`${DRAFT}-mailbox`) ?? '').toBe('');
   });
 });

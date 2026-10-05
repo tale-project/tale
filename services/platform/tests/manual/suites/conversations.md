@@ -626,6 +626,21 @@ subject.
   **Try again** (`common.actions.tryAgain`), never **No conversations**; the
   search box and **Filter** stay usable. Unblock and press **Try again** → The
   rows load in place.
+- [ ] `CONV-B8` · **Compose freezes the draft while it sends** — As an admin,
+  with two inboxes, one of them IMAP/SMTP on your own domain (not a public one
+  such as gmail.com), add a network throttling profile with 10 s of latency in
+  the browser's developer tools and select it. Fill a Compose draft on the
+  IMAP/SMTP inbox (**To**, **Inbox**, **Subject** `Quote 7`, a body, a file)
+  and press **Send** → Until the send settles, **To**, **Assign to**,
+  **Subject**, **Inbox**, **From** and **Discard** are disabled, the file's
+  remove button is disabled, the body cannot be reached with Tab, and the
+  footer reads **Sending… The draft is locked until the send finishes.**
+  (`conversations.compose.sending`), announced once by a screen reader; typing
+  into **Subject** changes nothing. Let it succeed → The new thread opens, and
+  Compose reopens with no recipient, subject or body. Block the request
+  instead (**Network request blocking**, pattern `*/conversations/compose`)
+  and send again → The send-failure toast appears and every field is editable
+  again, still holding `Quote 7` and the body.
 
 ## Accessibility (WCAG 2.1 AA)
 

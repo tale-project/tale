@@ -25,6 +25,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -107,7 +108,10 @@ interface UploadedAttachment {
  * reopening resumes the in-progress email. Arriving from a contact row seeds the
  * recipient. A successful send — and the explicit Discard — clear the whole
  * draft. The body draft is owned by `MessageEditor` (keyed via
- * {@link messageDraftKeys}); Discard clears that same key.
+ * {@link messageDraftKeys}); Discard clears that same key. While a send is in
+ * flight the draft is frozen: its fields and Discard are inert until the send
+ * settles, so the success that clears the sent draft never takes a newer edit
+ * with it.
  *
  * "Empty" fields are stored as `''` rather than `null`: `usePersistedState`'s
  * type guard rejects a stored string when the initial value is `null`, which
@@ -172,6 +176,7 @@ export function ComposeEmailPane({
     usePersistedState(`${draftPrefix}-assignee-team`, '');
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   // Default the assignee to the creator once auth resolves (a fresh draft has no
   // stored value). Only admins can pick someone else or a team; the field is
@@ -408,35 +413,49 @@ export function ComposeEmailPane({
     }
     if (!contactId || !selectedConnector || !subject.trim()) return;
 
-    // Let upload failures reject the editor's onSave, just like send failures:
-    // it keeps the body/files and reports the error once.
-    const uploaded = attachments?.length
-      ? await uploadAttachments(attachments)
-      : undefined;
-
+    // Freeze the draft before anything leaves: the request carries the fields
+    // as they are now, and a success clears them, so an edit made meanwhile
+    // would be neither sent nor kept. MessageEditor calls this inside its send
+    // transition, where a plain update would wait for the whole send to settle;
+    // flushSync commits the lock at once.
+    flushSync(() => setIsSending(true));
     try {
-      const result = await composeEmail({
-        organizationId,
-        contactId: contactId,
-        connectorName: selectedConnector.slug,
-        credentialId: selectedConnector.credentialId,
-        subject: subject.trim(),
-        content: message,
-        ...(sourceMarkdown ? { sourceMarkdown } : {}),
-        ...(assigneeUserId ? { assigneeUserId } : {}),
-        ...(assigneeTeamId ? { assigneeTeamId } : {}),
-        ...(dynamicSender && effectiveSender ? { from: effectiveSender } : {}),
-        ...(uploaded?.length ? { attachments: uploaded } : {}),
-      });
-      toast({ title: t('compose.sent'), variant: 'success' });
-      // MessageEditor clears its own body draft on a successful send; clear the
-      // field drafts here so a sent email never reappears as a draft.
-      clearDraftFields();
-      onSent(result.conversationId);
-    } catch (error) {
-      // Re-throw so MessageEditor keeps the draft and shows its own error toast.
-      console.error('Failed to compose email:', error);
-      throw error;
+      // Let upload failures reject the editor's onSave, just like send failures:
+      // it keeps the body/files and reports the error once.
+      const uploaded = attachments?.length
+        ? await uploadAttachments(attachments)
+        : undefined;
+
+      try {
+        const result = await composeEmail({
+          organizationId,
+          contactId: contactId,
+          connectorName: selectedConnector.slug,
+          credentialId: selectedConnector.credentialId,
+          subject: subject.trim(),
+          content: message,
+          ...(sourceMarkdown ? { sourceMarkdown } : {}),
+          ...(assigneeUserId ? { assigneeUserId } : {}),
+          ...(assigneeTeamId ? { assigneeTeamId } : {}),
+          ...(dynamicSender && effectiveSender
+            ? { from: effectiveSender }
+            : {}),
+          ...(uploaded?.length ? { attachments: uploaded } : {}),
+        });
+        toast({ title: t('compose.sent'), variant: 'success' });
+        // MessageEditor clears its own body draft on a successful send; clear
+        // the field drafts here so a sent email never reappears as a draft.
+        clearDraftFields();
+        onSent(result.conversationId);
+      } catch (error) {
+        // Re-throw so MessageEditor keeps the draft and shows its own error toast.
+        console.error('Failed to compose email:', error);
+        throw error;
+      }
+    } finally {
+      // Settled: a failure hands the draft back as it was, editable again; a
+      // success has already cleared it.
+      setIsSending(false);
     }
   };
 
@@ -462,6 +481,7 @@ export function ComposeEmailPane({
                   variant="ghost"
                   size="sm"
                   icon={Trash2Icon}
+                  disabled={isSending}
                   onClick={() => setConfirmDiscardOpen(true)}
                 >
                   {t('compose.discard')}
@@ -477,6 +497,7 @@ export function ComposeEmailPane({
                 organizationId={organizationId}
                 value={contactId || null}
                 onChange={setContactId}
+                disabled={isSending}
               />
 
               <SearchableSelect
@@ -487,7 +508,7 @@ export function ComposeEmailPane({
                 value={null}
                 onValueChange={handleAssignChange}
                 options={assigneeOptions}
-                disabled={!canReassign}
+                disabled={!canReassign || isSending}
                 open={assignOpen}
                 onOpenChange={setAssignOpen}
                 placeholder={t('compose.assignPlaceholder')}
@@ -498,7 +519,7 @@ export function ComposeEmailPane({
                   <button
                     type="button"
                     id={assignTriggerId}
-                    disabled={!canReassign}
+                    disabled={!canReassign || isSending}
                     className={selectTriggerClasses()}
                   >
                     <span
@@ -568,6 +589,7 @@ export function ComposeEmailPane({
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
                 placeholder={t('compose.subjectPlaceholder')}
+                disabled={isSending}
               />
 
               {/* Sending details — demoted below the message fields when an
@@ -624,6 +646,7 @@ export function ComposeEmailPane({
                       required
                       value={mailboxId || null}
                       onValueChange={handleInboxChange}
+                      disabled={isSending}
                       options={emailConnectors.map((i) => ({
                         value: i.credentialId,
                         label: i.title,
@@ -653,6 +676,7 @@ export function ComposeEmailPane({
                           domain: senderDomain,
                         })}
                         placeholder={t('compose.fromLocalPlaceholder')}
+                        disabled={isSending}
                       />
                     ) : (
                       <Text variant="muted">
@@ -692,6 +716,14 @@ export function ComposeEmailPane({
                 {t('compose.fillRequired')}
               </Text>
             )}
+            {/* The frozen draft's reason, announced: mounted before it speaks. */}
+            <div role="status">
+              {isSending && (
+                <Text variant="muted" className="mt-2 text-xs">
+                  {t('compose.sending')}
+                </Text>
+              )}
+            </div>
           </div>
         </PanelFooter>
       </Stack>

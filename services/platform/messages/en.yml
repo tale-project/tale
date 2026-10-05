@@ -1814,6 +1814,7 @@ conversations:
       title: Discard draft?
       description: This draft will be permanently discarded.
     sent: Email sent
+    sending: Sending… The draft is locked until the send finishes.
   updating: Updating conversations...
   bulk:
     progress: 'Updating conversations... {settled} of {total}'
