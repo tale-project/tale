@@ -10,30 +10,57 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 2. **`egress-sidecar`** — the Kubernetes native sidecar that installs the
    transparent-egress redirect and runs redsocks beside the session container.
 
-Any other argument exits 65 (there is no per-call language lane).
+`internal-dockerd` is reserved for the root supervisor's engine child. Any
+other argument exits 65 (there is no per-call language lane).
 
-runnerd keeps the complete exec protocol in a disk-backed journal for
-reconnection during the runtime's lifetime. Each journal is limited to 64 MiB
-of encoded NDJSON, with a 256 MiB session budget; stdout/stderr's base64
-encoding counts toward those limits. Completed journals are evicted oldest
-first when space is needed. The 256 KiB in-memory ring is diagnostic only.
-Exceeding the remaining storage budget ends the writer with `OUTPUT_LIMIT`;
-an evicted or unreadable transcript reports `REPLAY_UNAVAILABLE`, never a
-partial replay presented as complete. Journals are unlinked after opening and
-held through file descriptors: stopping or restarting the runtime loses them,
-while the workspace remains persistent.
+When DinD is enabled, the session starts with the standard Docker socket and
+no inner engine. Its first Docker client starts the engine automatically;
+concurrent clients share that startup. After five minutes without clients,
+the supervisor stops the engine only if no container is running, restarting
+or paused and every container has its restart policy disabled. Unknown
+inventory keeps it running. The next Docker command starts
+it again with the same image store, volumes and workspace. Existing container
+state at session-container boot starts the engine immediately so restart
+policies still work. This needs no agent setting and does not change the
+deployment's runtime isolation or resource limits.
 
-An exec output reader is disconnected before its pending writes exceed 8 MiB.
-Eight exec/attach consumers share a session-wide admission limit, including
-exec requests receiving their body; excess consumers receive a retryable
-`503 busy` response without changing the exec. Invalid or future replay cursors
-fail explicitly. Attach replay waits for socket drain, disconnecting a reader stalled for two
-seconds, so historical output cannot fill memory faster than the client reads.
-The command continues under its existing deadline. Reconnect through attach
-with the last sequence number. `replay-start` precedes journal history;
-`replay-complete` names the sequence through
-which the history present at attachment has been delivered. Session idle and
-TTL cleanup atomically checks the current work generation and activity clock
+runnerd keeps the exec protocol in checkpointed disk segments for reconnection
+within the runtime's lifetime. Each exec may retain up to 64 MiB of unacknowledged
+encoded NDJSON; stdout/stderr base64 counts toward that bound. All live and
+retained execs share a 256 MiB physical storage budget, including checkpoints and
+unlinked segments still held by readers. Completed spools are evicted first.
+Disk replay is the sole retained output history. A committed parser checkpoint
+acknowledges its prefix before segments are pruned, allowing long runs to exceed
+the per-exec bound over time. Unacknowledged overflow ends the writer with
+`OUTPUT_LIMIT`; evicted or unreadable replay reports `REPLAY_UNAVAILABLE`.
+An acknowledged prefix missing from an older reader's cursor produces an exact
+gap range, which the platform can recover from a covering checkpoint.
+Spools live under `/agent/.runtime/tmp` on the workspace disk, independently
+of `TMPDIR`; descriptor-anchored creation rejects a symlinked runtime directory.
+Replay disk operations and queued control calls have a five-second deadline.
+Failure does not release the physical storage charge before the outstanding
+operation and descriptor close.
+
+Output framing retains at most three trailing bytes until a split UTF-8
+character is complete, without changing raw bytes. Each stdout/stderr record
+contains at most 64 KiB of base64, split before encoding at a complete character.
+Writes batch up to 64 records
+or 128 KiB (a larger single record stays intact), and backpressure child output
+at 128 KiB queued, plus the chunk already delivered by the pipe. Sparse record
+indexes every 64 KiB let reconnects seek near their cursor within a segment.
+An exec reader is disconnected before pending writes exceed 8 MiB. Eight
+exec/attach consumers share a session-wide admission limit, including exec
+requests receiving their body; excess consumers receive a retryable `503 busy`
+without changing the exec. Invalid or future replay cursors fail explicitly.
+Attach replay waits for socket drain and disconnects a reader stalled for two
+seconds. The command continues under its existing deadline. Reconnect using
+the last sequence number. `replay-start` precedes history; `replay-complete`
+names the attachment's initial sequence watermark. Checkpoints are atomically
+committed and synced before acknowledged segments are removed. Normal disposal
+removes runtime-owned spool files; the entrypoint cleans their temporary directory
+at restart. Replay does not survive runtime restart, while the workspace does.
+
+Session idle and TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
 
 Process cleanup indexes each process-table snapshot once by execution, parent,
@@ -53,11 +80,11 @@ and replaces the destination only after a complete, bounded download. Cancelling
 or failing a download preserves the previous file. Atomic replacement preserves
 the destination's permission bits, including executable files. At most two stage requests
 are admitted at once, including their JSON intake; excess requests report
-`busy`. URL inputs retain their 100 MiB limit; one 25-second deadline covers the
-whole batch, including cache verification and final reconciliation. Queued items
-cannot extend the deadline by taking turns. Cancellation propagates through the
-platform and spawner to the active transfer.
-Inline inputs retain their 1 MiB limit. Output reads also stream, within their
+`busy`. Two transfers run concurrently across all admitted batches. A 25-second
+deadline covers the whole batch, including cache verification and final
+reconciliation. Queued items share the same deadline. Cancellation propagates
+through the platform and spawner to the active transfer. URL inputs retain their
+100 MiB limit and inline inputs their 1 MiB limit. Output reads also stream, within their
 20 MiB file limit. Immutable source identities can skip a transfer only after
 rehashing the current destination and checking that its pathname still names
 the same unchanged file; a changed file is repaired. Reads and cache probes
@@ -144,13 +171,29 @@ verifying the source, revision and version labels. Both builds must pass before
 the release manifests are published.
 
 Inner Docker startup has a 30-second readiness budget, with each Docker client
-probe bounded to two seconds. After startup, runnerd checks the fixed local
-socket directly with a 750 ms deadline and shares results for one second.
-A failed engine makes `/readyz` and new acquire/exec requests return 503;
+probe bounded to one second; timed-out probe process groups are killed.
+Runnerd checks the supervisor's fixed control socket within 750 ms and shares
+results for one second. The supervisor probes an active engine within 500 ms;
+it leaves an intentionally sleeping engine asleep. A failed probe makes
+`/readyz` and new acquire/exec requests return 503;
 authenticated `/healthz` keeps reporting process activity with
-`dockerReady: false`. The spawner recycles only an atomically claimed idle,
-unpinned session, preserving its workspace. Running work and pinned sessions
-remain protected; engine recovery makes them ready again.
+`dockerReady: false`.
+
+One slow probe does not authorize session recycling. At least three completed
+failed probes spanning five seconds are needed for `dockerRecoveryRequired`;
+cached reads do not add evidence. A healthy result or a new engine clears the
+engine's failure history. An observed failed startup or unexpected engine exit
+is direct failure evidence and can request recovery immediately. The spawner
+still recycles only an atomically claimed idle, unpinned session. Its workspace
+survives, but the Docker backend removes the session's ephemeral inner Docker
+store when stopping the session. Running work and pinned sessions remain
+protected; engine recovery makes them ready again.
+
+During a rolling upgrade, keep old spawners pinned to their existing runtime
+image until they are replaced. Do not move a runtime tag still used by an old
+spawner: it does not understand the recovery-confidence field. A new spawner with
+an older runtime refuses unhealthy new work but retains ordinary idle and
+lifetime cleanup instead of accelerating cleanup from a boolean health result.
 
 Before starting inner Docker on either backend, the runtime checks IPv4 routes
 and gateways from all tables, interface addresses and prefixes, DNS servers,
@@ -186,10 +229,12 @@ bun run --filter @tale/sandbox-runtime docker:build
 ## Container
 
 `docker-entrypoint.sh` (PID 1, container-level envelope) `exec`s `entrypoint.sh`
-with args preserved, which dispatches on mode and `exec`s the daemon so
-signals (SIGTERM) reach it directly. The `daemon` (session) dispatch `exec`s
-`tini -g` with runnerd as its child on every path, so PID 1 reaps the orphans a
-long-lived session accumulates. runnerd starts every exec under
+with args preserved, which dispatches on mode. The `daemon` (session) dispatch
+`exec`s `tini -g`, so PID 1 reaps the orphans a long-lived session accumulates.
+Without DinD its child is runnerd; with DinD its child is the root Docker
+supervisor, which forwards shutdown and starts runnerd as uid 10001. The
+supervisor uses a private engine socket and proxies the ordinary
+`/var/run/docker.sock` with bounded, backpressured connections. runnerd starts every exec under
 `/usr/local/bin/tale-exec-shim`, built in its own stage from
 `daemon/exec-shim/tale-exec-shim.c`: a child subreaper that keeps whatever the
 exec starts its descendant, so runnerd can end what the exec left
@@ -331,3 +376,12 @@ browser screenshots and still has the batch lane for its scripts.
 ### Per-request vision thinking
 
 `tale-vision --thinking disabled` requests the standard Anthropic disabled-thinking mode for that batch only. The default (`--thinking provider`, or omission) leaves provider behavior unchanged. Choose the override only for a compatible vision model; it does not change provider defaults, output-token limits, image processing, per-image deadlines or the ordinary Read-hook fallback. The batch cache distinguishes the override from the provider default, while the default retains historical cache entries. Runtime tests cover both request forms, cache isolation, exact original image bytes and invalid-value refusal.
+
+File staging streams downloads to temporary files and atomically renames them on
+success. At most two files stage concurrently under one 25-second batch deadline;
+cancellation removes temporary files. Verified SHA-256 manifests skip unchanged
+managed inputs, while changed or deleted workspace files are repaired. `/livez`
+checks daemon liveness; `/readyz` also checks requested Docker capability.
+`/healthz` reuses that Docker snapshot and adds bounded, coalesced egress
+diagnostics when configured. Docker-disabled sessions remain ready; health
+failures do not hide activity or prevent file access and exec cancellation.

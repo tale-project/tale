@@ -52,8 +52,8 @@ function isGatewayModelRef(model: string): boolean {
  * default back with TALE_SANDBOX_CONTEXT_1M=0, and a model string that
  * already encodes a window (`…[1m]`) is left as-is. (Reasoning depth is the
  * separate CLAUDE_CODE_EFFORT_LEVEL knob — set as an overridable env floor in
- * the sandbox image, NOT here: a per-exec env value would override the user's
- * session env.) */
+ * the sandbox image. An explicit TALE_SANDBOX_CLAUDE_EFFORT operator setting
+ * overrides it per exec; unset preserves the user's session env.) */
 function withMaxContext(model: string): string {
   if (process.env.TALE_SANDBOX_CONTEXT_1M === '0') return model;
   if (isGatewayModelRef(model)) return model;
@@ -93,6 +93,8 @@ export function isClaudeModelRef(model: string | undefined): boolean {
  * TALE_SANDBOX_ULTRATHINK=0; skipped when the prompt already asks. */
 function withUltrathink(prompt: string, model: string | undefined): string {
   if (process.env.TALE_SANDBOX_ULTRATHINK === '0') return prompt;
+  const effort = process.env.TALE_SANDBOX_CLAUDE_EFFORT || undefined;
+  if (effort !== undefined && effort !== 'max') return prompt;
   if (!isClaudeModelRef(model)) return prompt;
   if (/\bultrathink\b/i.test(prompt)) return prompt; // caller already asked
   return `Ultrathink: ${prompt}`;
@@ -744,6 +746,14 @@ export function buildHarnessExec(
   // Claude models keep it, and the subscription lane only ever serves Claude.
   // Env-only variants run the same CLI and need the same adaptations.
   // The parser family alone is not enough: Qwen shares its JSON dialect.
+  if (
+    exec.bin === 'claude' &&
+    isClaudeModelRef(spec.model) &&
+    Boolean(process.env.TALE_SANDBOX_CLAUDE_EFFORT)
+  ) {
+    env.CLAUDE_CODE_EFFORT_LEVEL =
+      process.env.TALE_SANDBOX_CLAUDE_EFFORT ?? 'max';
+  }
   if (exec.bin === 'claude' && !isClaudeModelRef(spec.model)) {
     env.CLAUDE_CODE_DISABLE_THINKING = '1';
     env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING = '1';

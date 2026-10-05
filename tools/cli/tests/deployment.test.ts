@@ -1,19 +1,13 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 import { writeDeploymentBundle } from '../src/lib/deployment/bundle';
 import { deploymentSpecSchema } from '../src/lib/deployment/model';
+import { commandTargets } from './fixtures/command-targets';
 
-const source = fileURLToPath(new URL('../src/index.ts', import.meta.url));
-const modes: [string, string[]][] = [
-  ['source', [process.execPath, source]],
-  ...(process.env.TALE_BINARY
-    ? [['compiled', [resolve(process.env.TALE_BINARY)]] as [string, string[]]]
-    : []),
-];
+const modes = commandTargets(process.env.TALE_BINARY);
 const describePosix = describe.skipIf(process.platform === 'win32');
 
 const roots: string[] = [];
@@ -55,10 +49,15 @@ async function fixture() {
   return { root, bundle, metadata };
 }
 
-async function run(executable: string[], cwd: string, args: string[]) {
+async function run(
+  executable: string[],
+  cwd: string,
+  args: string[],
+  stdin?: string,
+) {
   const child = Bun.spawn([...executable, ...args], {
     cwd,
-    stdin: 'ignore',
+    stdin: stdin === undefined ? 'ignore' : new Blob([stdin]),
     stdout: 'pipe',
     stderr: 'pipe',
     env: { PATH: process.env.PATH, HOME: cwd, CI: 'true', NO_COLOR: '1' },
@@ -119,6 +118,73 @@ for (const [mode, executable] of modes) {
   );
   // NTFS cannot prove the executable-mode contract of a Linux bundle.
   describePosix(`managed deployment commands (${mode})`, () => {
+    test('configuration-only refuses missing custody and partial retained identity flags', async () => {
+      const { root, bundle } = await fixture();
+      const input = JSON.stringify({
+        origin: 'https://example.invalid',
+        email: 'operator@example.invalid',
+        password: 'synthetic-password',
+        slug: 'example',
+        name: 'Example',
+        ssoEnabled: false,
+        nativeClients: [],
+      });
+      const missingBundle = await run(executable, root, [
+        'deploy',
+        '--configuration-only',
+        '--yes',
+        '--json',
+      ]);
+      expect(missingBundle.code).toBe(2);
+      expect(missingBundle.stdout).toContain('require --bundle');
+      for (const args of [
+        ['--configuration-only'],
+        ['--configuration-only', '--bundle', bundle],
+        [
+          '--configuration-only',
+          '--bundle',
+          bundle,
+          '--expected-user',
+          'operator',
+        ],
+        [
+          '--configuration-only',
+          '--bundle',
+          bundle,
+          '--expected-organization',
+          'organization',
+        ],
+      ]) {
+        const result = await run(
+          executable,
+          root,
+          ['deploy', 'provision', ...args, '--yes', '--json'],
+          input,
+        );
+        expect(result.code).toBe(2);
+        expect(result.stdout).toContain('both retained identity IDs');
+      }
+      const unscoped = await run(
+        executable,
+        root,
+        [
+          'deploy',
+          'provision',
+          '--bundle',
+          bundle,
+          '--expected-user',
+          'operator',
+          '--yes',
+          '--json',
+        ],
+        input,
+      );
+      expect(unscoped.code).toBe(2);
+      expect(unscoped.stdout).toContain('require --configuration-only');
+      expect(await readdir(root)).not.toContain('state');
+      expect(await readdir(root)).not.toContain('.tale');
+    }, 30_000);
+
     test('child commands refuse unsupported inherited flags instead of silently ignoring them', async () => {
       const { root, bundle } = await fixture();
       for (const child of [
@@ -131,7 +197,12 @@ for (const [mode, executable] of modes) {
           join(root, 'output'),
         ],
       ]) {
-        for (const flag of ['--dry-run', '--override-all', '--skip-backup']) {
+        for (const flag of [
+          '--dry-run',
+          '--override-all',
+          '--skip-backup',
+          '--configuration-only',
+        ]) {
           const result = await run(executable, root, [
             'deploy',
             ...child,

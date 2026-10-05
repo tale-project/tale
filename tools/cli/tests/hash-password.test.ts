@@ -1,18 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 import { verifyPassword } from 'better-auth/crypto';
 
-const source = fileURLToPath(new URL('../src/index.ts', import.meta.url));
-const modes: [string, string[]][] = [
-  ['source', [process.execPath, source]],
-  ...(process.env.TALE_BINARY
-    ? [['compiled', [resolve(process.env.TALE_BINARY)]] as [string, string[]]]
-    : []),
-];
+import { commandTargets } from './fixtures/command-targets';
+
+const modes = commandTargets(process.env.TALE_BINARY);
 const password = 'Synthetic!Break-Glass1';
 
 async function run(executable: string[], stdin: string, args: string[] = []) {

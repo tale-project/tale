@@ -537,9 +537,11 @@ describe('useBulkActions status verbs', () => {
     await waitFor(() => expect(verbs.close).toHaveBeenCalledTimes(2));
 
     expect(result.current.isBulkProcessing).toBe(true);
-    expect(result.current.bulkProgress).toEqual({
-      settled: BULK_CONVERSATION_LIMIT,
-      total: BULK_CONVERSATION_LIMIT + 1,
+    await waitFor(() => {
+      expect(result.current.bulkProgress).toEqual({
+        settled: BULK_CONVERSATION_LIMIT,
+        total: BULK_CONVERSATION_LIMIT + 1,
+      });
     });
     // A second press while the batches go out starts nothing.
     await act(async () => {

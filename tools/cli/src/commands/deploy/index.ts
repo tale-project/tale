@@ -24,6 +24,11 @@ export function createDeployCommand(): Command {
     .option('--cli-ref <sha>', 'Expected bundle CLI source commit')
     .option('--deployment-ref <sha>', 'Expected bundle orchestrator commit')
     .option(
+      '--configuration-only',
+      'Apply hot managed configuration to the exact healthy runtime without a snapshot or restart',
+      false,
+    )
+    .option(
       '--stop',
       `Also update the stop-gated tier (${STOP_GATED_SERVICES.join(', ')}) — recreates them, so accepts a brief downtime. Without it, running ${STOP_GATED_SERVICES.join('/')} are left untouched.`,
       false,
@@ -91,12 +96,19 @@ export function createDeployCommand(): Command {
             cliRef: options.cliRef,
             deploymentRef: options.deploymentRef,
             dryRun: options.dryRun,
+            configurationOnly: options.configurationOnly,
             yes: options.yes,
           });
           return;
         }
-        if (options.cliRef !== undefined || options.deploymentRef !== undefined)
-          throw usageError('--cli-ref and --deployment-ref require --bundle.');
+        if (
+          options.cliRef !== undefined ||
+          options.deploymentRef !== undefined ||
+          options.configurationOnly
+        )
+          throw usageError(
+            '--cli-ref, --deployment-ref and --configuration-only require --bundle.',
+          );
         await runDeploy({
           stop: options.stop,
           services: options.services,

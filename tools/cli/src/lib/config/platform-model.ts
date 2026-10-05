@@ -8,6 +8,7 @@ import {
   KNOWLEDGE_EMBEDDING_KEPT_KEYS,
   knowledgeEmbeddingWriteSchema,
 } from '@tale/shared/schemas/knowledge';
+import { managedPlatformResourceSchema } from '@tale/shared/schemas/managed-configuration';
 import {
   modelCatalogFileSchema,
   providerDefinitionSchema,
@@ -45,6 +46,7 @@ const governance = z
   });
 
 export const platformResourceSchema = z.union([
+  managedPlatformResourceSchema,
   governance,
   z.strictObject({
     kind: z.literal('branding'),
@@ -80,6 +82,16 @@ export type PlatformResource = z.infer<typeof platformResourceSchema>;
 
 export function resourceId(resource: PlatformResource): string {
   switch (resource.kind) {
+    case 'project-instructions':
+      return `project-instructions/${resource.config.projectId}`;
+    case 'agent-instructions':
+      return `agent-instructions/${resource.config.projectId}/${resource.config.agentId}`;
+    case 'task-instructions':
+      return `task-instructions/${resource.config.projectId}/${resource.config.taskId}`;
+    case 'automation-definition':
+    case 'automation-deployment':
+    case 'automation-schedule':
+      return `${resource.kind}/${resource.config.projectId}/${resource.config.name}`;
     case 'governance':
       return `governance/${resource.key}`;
     case 'provider':
@@ -102,6 +114,44 @@ const declarationSchema = z
       context.addIssue({ code: 'custom', message });
     if (new Set(ids).size !== ids.length)
       fail('Duplicate native configuration resource');
+    for (const resource of configuration.resources) {
+      if (
+        resource.kind !== 'automation-deployment' &&
+        resource.kind !== 'automation-schedule'
+      )
+        continue;
+      const definition = configuration.resources.find(
+        (candidate) =>
+          candidate.kind === 'automation-definition' &&
+          candidate.config.name === resource.config.name &&
+          candidate.config.projectId === resource.config.projectId,
+      );
+      if (
+        !definition ||
+        (resource.kind === 'automation-deployment' &&
+          valueHash(definition.config) !== resource.config.definitionSha256)
+      )
+        fail(
+          'Managed automation deployment requires its exact declared definition',
+        );
+      if (
+        resource.kind === 'automation-schedule' &&
+        !configuration.resources.some(
+          (candidate) =>
+            candidate.kind === 'automation-deployment' &&
+            candidate.config.name === resource.config.name &&
+            candidate.config.projectId === resource.config.projectId,
+        )
+      )
+        fail('Managed schedule requires its declared automation deployment');
+    }
+    const managedNames = configuration.resources
+      .filter((resource) => resource.kind === 'automation-definition')
+      .map((resource) => resource.config.name);
+    if (new Set(managedNames).size !== managedNames.length)
+      fail(
+        'An organization-wide automation cannot have two managed project owners',
+      );
     const providers = configuration.resources.filter(
       (resource) => resource.kind === 'provider',
     );

@@ -52,6 +52,31 @@ const goodInput = {
 };
 
 describe('buildDockerSessionRunArgs', () => {
+  test('light agents retain the agent user and caps without DinD or its storage', () => {
+    const args = buildDockerSessionRunArgs(
+      {
+        ...cfg,
+        runtimeTier: 'runc',
+        dockerInContainer: true,
+        transparentEgress: false,
+        session: {
+          ...cfg.session,
+          agentProfile: {
+            ...cfg.session.agentProfile,
+            memory: '8g',
+            memoryWithoutDocker: '4g',
+          },
+        },
+      },
+      { ...goodInput, profile: 'agent-light', docker: true },
+    );
+    expect(args).toContain('10001:10001');
+    expect(args).toContain('tale.profile=agent-light');
+    expect(args).toContain('--memory=4g');
+    expect(args).not.toContain('--privileged');
+    expect(args).not.toContain('TALE_DIND=1');
+    expect(args).toContain('--read-only');
+  });
   test('records the internal create attempt as a validated ownership label', () => {
     const createAttemptId = '01020304-0506-4708-890a-0b0c0d0e0f10';
     const args = buildDockerSessionRunArgs(cfg, {
@@ -112,6 +137,34 @@ describe('buildDockerSessionRunArgs', () => {
     });
     expect(dind).toContain('--memory=8g');
     expect(dind).toContain('--memory-swap=8g');
+  });
+
+  test('an explicit memory override applies to every agent Docker capability', () => {
+    const configured: SpawnerConfig = {
+      ...cfg,
+      runtimeTier: 'sysbox',
+      dockerInContainer: true,
+      session: {
+        ...cfg.session,
+        agentProfile: {
+          ...cfg.session.agentProfile,
+          memory: '12g',
+          memoryWithoutDocker: '12g',
+        },
+      },
+    };
+    for (const profile of ['agent', 'agent-light'] as const) {
+      for (const docker of [true, false]) {
+        const args = buildDockerSessionRunArgs(configured, {
+          ...goodInput,
+          profile,
+          docker,
+          dockerStorageVolume: 'tale-dind-test',
+        });
+        expect(args).toContain('--memory=12g');
+        expect(args).toContain('--memory-swap=12g');
+      }
+    }
   });
 
   test('passes a validated operator inner pool only to DinD agent containers', () => {

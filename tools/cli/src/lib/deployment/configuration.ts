@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import { preconditionError, externalDepError } from '../../utils/fail';
+import { isManagedResource } from '../config/managed-resources';
 import {
   applyPlatformConfiguration,
   planPlatformConfiguration,
@@ -27,6 +28,7 @@ import type { RuntimeConfigurationEffect } from './runtime-configuration';
 export async function provisionDeploymentConfiguration(
   directory: string,
   context: ProvisionContext,
+  options: { managedOnly?: boolean } = {},
 ) {
   const deployment = await verifyDeploymentBundle(directory);
   if (!deployment.spec.configuration) return undefined;
@@ -60,6 +62,22 @@ export async function provisionDeploymentConfiguration(
     )
       ? previous.plan
       : await planPlatformConfiguration(deployment.spec.configuration, client);
+  if (options.managedOnly) {
+    const hotResources = new Set(
+      deployment.spec.configuration.resources
+        .filter(isManagedResource)
+        .map(resourceId),
+    );
+    if (
+      plan.resources.some(
+        (resource) =>
+          resource.action !== 'unchanged' && !hotResources.has(resource.id),
+      )
+    )
+      throw preconditionError(
+        'Configuration-only deployment may change managed instructions and automations only. Use a full deployment for other native configuration.',
+      );
+  }
   const result = await applyPlatformConfiguration(
     deployment.spec.configuration,
     plan,

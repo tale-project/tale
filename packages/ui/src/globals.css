@@ -410,6 +410,19 @@
     -moz-osx-font-smoothing: grayscale;
     @apply bg-background text-foreground;
   }
+
+  /* Apply modal pointer isolation with the portal's first style pass. Radix
+     later writes the same value inline; deferring this inherited change until
+     its effect otherwise recalculates the entire background a second time.
+     Only our direct body portals participate, for their full exit presence.
+     Radix still owns inline restoration and nested-layer pointer ordering. */
+  body:has(> [data-tale-modal]) {
+    pointer-events: none;
+  }
+
+  body > [data-tale-modal] {
+    pointer-events: auto;
+  }
 }
 
 @layer utilities {

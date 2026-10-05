@@ -30,16 +30,18 @@ import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
+import {
+  CUSTOM_INSTRUCTIONS_MAX_CHARS,
+  normalizeCustomInstructions,
+} from '@/lib/shared/custom-instructions';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import {
   useSetCustomInstructionsEnabled,
   useUpsertMyPreferences,
 } from '../hooks/mutations';
-
-/** Backend cap, mirrored so the counter and the field agree with the writer. */
-const CUSTOM_INSTRUCTIONS_MAX_CHARS = 5000;
 
 /**
  * A feature is on when the user said so, and follows the org's default when
@@ -147,9 +149,14 @@ function CustomInstructionsSection({
       z.object({
         customInstructions: z
           .string()
-          .max(
-            CUSTOM_INSTRUCTIONS_MAX_CHARS,
-            t('errors.tooLong', { max: CUSTOM_INSTRUCTIONS_MAX_CHARS }),
+          .transform(normalizeCustomInstructions)
+          .pipe(
+            z
+              .string()
+              .max(
+                CUSTOM_INSTRUCTIONS_MAX_CHARS,
+                t('errors.tooLong', { max: CUSTOM_INSTRUCTIONS_MAX_CHARS }),
+              ),
           ),
       }),
     [t],
@@ -162,8 +169,7 @@ function CustomInstructionsSection({
 
   // Save feedback belongs to the settings header's Save/Discard cluster: it
   // flashes "Saved" on success and raises the single destructive toast on
-  // failure. So this only persists and, when the write fails, throws the
-  // translated line for the cluster to show.
+  // failure.
   const save = useCallback(
     async (values: CustomInstructionsForm) => {
       try {
@@ -173,7 +179,9 @@ function CustomInstructionsSection({
         });
       } catch (err) {
         console.error('[personalization] custom instructions save failed', err);
-        throw new Error(t('errors.saveFailed'), { cause: err });
+        throw new Error(failureDetail(err) ?? t('errors.saveFailed'), {
+          cause: err,
+        });
       }
     },
     [organizationId, t, upsert],
@@ -188,6 +196,13 @@ function CustomInstructionsSection({
     register,
     formState: { errors },
   } = editor.form;
+  const instructionLength = normalizeCustomInstructions(
+    editor.form.watch('customInstructions') ?? '',
+  ).length;
+  const instructionError =
+    instructionLength > CUSTOM_INSTRUCTIONS_MAX_CHARS
+      ? t('errors.tooLong', { max: CUSTOM_INSTRUCTIONS_MAX_CHARS })
+      : errors.customInstructions?.message;
 
   const description = useGateHint(
     gate,
@@ -228,8 +243,9 @@ function CustomInstructionsSection({
               // the 20rem control column and dangles off the row's left edge.
               wideControl
               disabled={editor.isSaving}
-              errorMessage={errors.customInstructions?.message}
+              errorMessage={instructionError}
               counterMax={CUSTOM_INSTRUCTIONS_MAX_CHARS}
+              counterValue={instructionLength}
               {...register('customInstructions')}
             />
           </Stack>

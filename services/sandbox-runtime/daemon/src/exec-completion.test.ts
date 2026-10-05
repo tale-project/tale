@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { runnerdExec } from '../../../sandbox/src/session/runnerd-client.ts';
 import { isRunnerdExecEvent as canonicalEvent } from '../../../sandbox/src/session/runnerd-protocol.ts';
 import { EnvStore } from './env-store.ts';
-import { ExecJournal } from './exec-journal.ts';
 import { ExecManager } from './exec-manager.ts';
+import { ExecReplay } from './exec-replay.ts';
 import { isRunnerdExecEvent, type RunnerdExecEvent } from './protocol.ts';
 
 const root = realpathSync(mkdtempSync(`${tmpdir()}/exec-completion-`));
@@ -47,7 +47,7 @@ function alive(pid: number): boolean {
 }
 
 test.skipIf(process.platform !== 'linux')(
-  'attach during terminal journal drain cannot rearm the orphan deadline or reap sibling-dependent leftovers',
+  'attach during terminal replay finish cannot rearm the orphan deadline or reap sibling-dependent leftovers',
   async () => {
     const sent: Array<[number, NodeJS.Signals]> = [];
     using manager = new ExecManager(
@@ -64,12 +64,12 @@ test.skipIf(process.platform !== 'linux')(
     );
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
-    const originalDrain: (this: ExecJournal) => Promise<void> = Reflect.get(
-      ExecJournal.prototype,
-      'drain',
+    const originalDrain: (this: ExecReplay) => Promise<void> = Reflect.get(
+      ExecReplay.prototype,
+      'finish',
     );
-    const drain = spyOn(ExecJournal.prototype, 'drain').mockImplementation(
-      async function (this: ExecJournal) {
+    const drain = spyOn(ExecReplay.prototype, 'finish').mockImplementation(
+      async function (this: ExecReplay) {
         entered.resolve();
         await release.promise;
         await originalDrain.call(this);

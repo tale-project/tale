@@ -2269,3 +2269,116 @@ describe('break-glass administrator over real local HTTP', () => {
     },
   );
 });
+
+describe('configuration-only existing identity session', () => {
+  const existingOnly = { userId: 'native-user', organizationId: 'org-example' };
+  test('uses only bounded native authentication and never reconciles SSO or clients', async () => {
+    await withFixture({}, async (f) => {
+      let calls = 0;
+      const result = await configureInstance(
+        { ...INPUT, ...ENTRA, nativeClients: [PORTAL] },
+        {
+          fetchImpl: f.fetchImpl,
+          existingOnly,
+          provision: async (context) => {
+            calls++;
+            expect(context.user.id).toBe(existingOnly.userId);
+            expect(context.organization.id).toBe(existingOnly.organizationId);
+            expect(context.headers().get('cookie')).toContain('synthetic-');
+          },
+        },
+      );
+      expect(calls).toBe(1);
+      expect(result).toMatchObject({
+        userId: existingOnly.userId,
+        organizationId: existingOnly.organizationId,
+        nativeClients: [],
+      });
+      expect(f.calls.map(({ path }) => path)).toEqual([
+        '/api/auth/sign-in/email',
+        '/api/auth/get-session',
+        '/api/auth/organization/list',
+        '/api/auth/organization/set-active',
+        '/api/auth/get-session',
+        '/api/auth/sign-out',
+      ]);
+    });
+  });
+
+  test.each([
+    { expected: { ...existingOnly, userId: 'another-user' }, fixture: {} },
+    {
+      expected: { ...existingOnly, organizationId: 'another-org' },
+      fixture: {},
+    },
+    { expected: existingOnly, fixture: { organizations: [] } },
+    {
+      expected: existingOnly,
+      fixture: {
+        organizations: [
+          { id: 'org-example', slug: INPUT.slug },
+          { id: 'duplicate', slug: INPUT.slug },
+        ],
+      },
+    },
+  ])(
+    'refuses identity replacement and still signs out',
+    async ({ expected, fixture: options }) => {
+      await withFixture(options, async (f) => {
+        let called = false;
+        await expect(
+          configureInstance(
+            { ...INPUT, ...ENTRA },
+            {
+              fetchImpl: f.fetchImpl,
+              existingOnly: expected,
+              provision: async () => {
+                called = true;
+              },
+            },
+          ),
+        ).rejects.toThrow('differs from');
+        expect(called).toBe(false);
+        expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
+        expect(
+          f.calls.some(
+            ({ path }) => path.includes('/create') || path.includes('/sso/'),
+          ),
+        ).toBe(false);
+      });
+    },
+  );
+
+  test('a rejected sign-in never creates a replacement operator', async () => {
+    await withFixture({ loginStatus: 401 }, async (f) => {
+      await expect(
+        configureInstance(
+          { ...INPUT, ...ENTRA, bootstrap: 'fresh' },
+          {
+            fetchImpl: f.fetchImpl,
+            existingOnly,
+            provision: async () => {},
+          },
+        ),
+      ).rejects.toThrow();
+      expect(f.calls.map(({ path }) => path)).toEqual([
+        '/api/auth/sign-in/email',
+      ]);
+    });
+  });
+
+  test('cleanup failure prevents a successful configuration receipt', async () => {
+    await withFixture({ cleanupFailure: true }, async (f) => {
+      await expect(
+        configureInstance(
+          { ...INPUT, ...ENTRA },
+          {
+            fetchImpl: f.fetchImpl,
+            existingOnly,
+            provision: async () => {},
+          },
+        ),
+      ).rejects.toThrow('cleanup failed');
+    });
+  });
+});

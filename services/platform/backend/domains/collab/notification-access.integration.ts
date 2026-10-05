@@ -28,11 +28,8 @@ import { checkProjectAccess } from '../../core/projects/access.ts';
 import type { ProjectAuthContext } from '../projects/service.ts';
 import { addTaskComment } from '../tasks/comments.ts';
 import { assignTask, updateTask, updateTaskStatus } from '../tasks/service.ts';
-import {
-  listMyNotifications,
-  markAllNotificationsRead,
-  myUnreadCount,
-} from './service.ts';
+import { runNotificationEmailJob } from './email-sink.ts';
+import { listMyNotifications, myUnreadCount } from './service.ts';
 
 type Recorder = (name: string, ok: boolean, detail: string) => void;
 
@@ -57,16 +54,30 @@ export async function checkTaskNotificationAccess(
   const departed = `nacc-departed-${suffix}`;
   const admin = `nacc-admin-${suffix}`;
   const foreign = `nacc-foreign-${suffix}`;
-  const people = [actor, watcher, muted, departed, admin, foreign];
+  const disabled = `nacc-disabled-${suffix}`;
+  const foreignTeamMember = `nacc-foreign-team-${suffix}`;
+  const people = [
+    actor,
+    watcher,
+    muted,
+    departed,
+    admin,
+    foreign,
+    disabled,
+    foreignTeamMember,
+  ];
   const roles = new Map([
     [actor, 'editor'],
     [watcher, 'member'],
     [muted, 'member'],
     [departed, 'member'],
     [admin, 'admin'],
+    [disabled, 'disabled'],
+    [foreignTeamMember, 'member'],
   ]);
   const otherOrgId = `nacc-org-${suffix}`;
   const teamId = `nacc-team-${suffix}`;
+  const foreignTeamId = `nacc-other-team-${suffix}`;
   const projectId = randomUUID();
   const taskId = randomUUID();
   const firstTitle = `Quarterly plan ${suffix}`;
@@ -134,7 +145,15 @@ export async function checkTaskNotificationAccess(
                           "updatedAt")
       VALUES (${teamId}, 'Deal room', ${orgId}, ${new Date()}, ${new Date()})
     `;
-    for (const person of [actor, watcher, muted, departed]) {
+    await sql`
+      INSERT INTO "team" ("id", "name", "organizationId", "createdAt", "updatedAt")
+      VALUES (${foreignTeamId}, 'Elsewhere team', ${otherOrgId}, ${new Date()}, ${new Date()})
+    `;
+    await sql`
+      INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+      VALUES (${`tm-${foreignTeamMember}`}, ${foreignTeamId}, ${foreignTeamMember}, ${new Date()})
+    `;
+    for (const person of [actor, watcher, muted, departed, disabled]) {
       await sql`
         INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
         VALUES (${`tm-${person}`}, ${teamId}, ${person}, ${new Date()})
@@ -143,7 +162,7 @@ export async function checkTaskNotificationAccess(
     await sql`
       INSERT INTO app.projects (id, org_id, name, team_ids, team_id,
                                 created_by, created_at_ms, updated_at_ms)
-      VALUES (${projectId}, ${orgId}, 'Deal room board', ${sql.array([teamId])},
+      VALUES (${projectId}, ${orgId}, 'Deal room board', ${sql.array([teamId, foreignTeamId])},
               ${teamId}, ${userId}, ${now}, ${now})
     `;
     await sql`
@@ -159,6 +178,8 @@ export async function checkTaskNotificationAccess(
       [muted, true],
       [admin, false],
       [foreign, false],
+      [disabled, false],
+      [foreignTeamMember, false],
     ] as const) {
       await sql`
         INSERT INTO app.task_subscriptions (org_id, task_id, subscriber_type,
@@ -183,7 +204,31 @@ export async function checkTaskNotificationAccess(
       }),
     );
     const onTeam = await bell(departed);
-    await markAllNotificationsRead(sql, orgId, departed);
+    const beforeUnread = await myUnreadCount(sql, orgId, departed);
+    const queued = await sql<{ id: string; epoch: number }[]>`
+      SELECT id, email_epoch::float8 AS epoch FROM app.user_notifications
+      WHERE task_id = ${taskId} AND user_id = ${departed}
+        AND type = 'task_assigned' AND read = false
+    `;
+    const assignment = queued[0];
+    if (assignment === undefined)
+      throw new Error('Expected an unread assignment');
+    await sql`UPDATE "user" SET email = '' WHERE id = ${departed}`;
+    const emailQueries: string[] = [];
+    const emailSql = new Proxy(sql, {
+      apply(target, receiver, args: unknown[]) {
+        const [strings] = args;
+        if (Array.isArray(strings) && Object.hasOwn(strings, 'raw'))
+          emailQueries.push(strings.join('?'));
+        return Reflect.apply(target, receiver, args);
+      },
+    });
+    const payload = { notificationId: assignment.id, epoch: assignment.epoch };
+    await runNotificationEmailJob(emailSql, payload);
+    const triedEmailWhileAllowed = emailQueries.some((text) =>
+      text.includes('FROM "user"'),
+    );
+    emailQueries.length = 0;
 
     const removal = await fetch(
       `${baseUrl}/api/app/teams/members/by-id/tm-${departed}?orgId=${orgId}`,
@@ -216,6 +261,15 @@ export async function checkTaskNotificationAccess(
       `status=${removal.status} body=${JSON.stringify(removed)} role=${membership[0]?.role} subscribed=${subscription.length} teams=${JSON.stringify(departedTeams)} canRead=${canRead}`,
     );
 
+    await runNotificationEmailJob(emailSql, payload);
+    record(
+      'task notifications: the queued assignment email rechecks real SQL access before reading the recipient email',
+      triedEmailWhileAllowed &&
+        emailQueries.length === 2 &&
+        !emailQueries.some((text) => text.includes('FROM "user"')),
+      `allowedReadEmail=${triedEmailWhileAllowed} deniedQueries=${emailQueries.length}`,
+    );
+
     // An editor still on the team renames the task, moves it, comments, and
     // hands it to the watcher.
     await write((tx) => updateTask(tx, actorAuth, { taskId, title: newTitle }));
@@ -235,15 +289,16 @@ export async function checkTaskNotificationAccess(
     const leaked = departedBell.filter((row) => row.title === newTitle);
     const departedUnread = await myUnreadCount(sql, orgId, departed);
     record(
-      "task notifications: a member taken off the team gets no row with the task's new title (status, comment or unassignment) and no new unread",
-      leaked.length === 0 && departedUnread === 0,
+      "task notifications: a member taken off the team gets no row with the task's new title (status, comment or unassignment) and keeps only the original unread assignment",
+      leaked.length === 0 &&
+        beforeUnread > 0 &&
+        departedUnread === beforeUnread,
       `newTitleRows=${show(leaked)} unread=${departedUnread}`,
     );
     const history = departedBell.filter((row) => row.title !== newTitle);
     record(
       'task notifications: what the removed member was told on the team stays as written',
-      toldOld(onTeam) &&
-        show(history) === show(onTeam.map((row) => ({ ...row, read: true }))),
+      toldOld(onTeam) && show(history) === show(onTeam),
       `onTeam=${show(onTeam)} now=${show(history)}`,
     );
 
@@ -259,6 +314,14 @@ export async function checkTaskNotificationAccess(
         toldNew(adminBell, 'task_commented') &&
         mutedBell.length === 0,
       `watcher=${show(watcherBell)} admin=${show(adminBell)} muted=${show(mutedBell)}`,
+    );
+
+    const disabledBell = await bell(disabled);
+    const foreignTeamBell = await bell(foreignTeamMember);
+    record(
+      'task notifications: a disabled member on the project team and a member of a foreign team get no row',
+      disabledBell.length === 0 && foreignTeamBell.length === 0,
+      `disabled=${show(disabledBell)} foreignTeam=${show(foreignTeamBell)}`,
     );
 
     const foreignRows = await sql<{ type: string; orgId: string }[]>`
@@ -306,8 +369,8 @@ export async function checkTaskNotificationAccess(
     if (threadIds.length > 0) {
       await sql`DELETE FROM app.threads WHERE id IN ${sql(threadIds)}`;
     }
-    await sql`DELETE FROM "teamMember" WHERE "teamId" = ${teamId}`;
-    await sql`DELETE FROM "team" WHERE "id" = ${teamId}`;
+    await sql`DELETE FROM "teamMember" WHERE "teamId" IN ${sql([teamId, foreignTeamId])}`;
+    await sql`DELETE FROM "team" WHERE "id" IN ${sql([teamId, foreignTeamId])}`;
     await sql`DELETE FROM "member" WHERE "userId" IN ${sql(people)}`;
     await sql`DELETE FROM "organization" WHERE "id" = ${otherOrgId}`;
     await sql`DELETE FROM "user" WHERE "id" IN ${sql(people)}`;

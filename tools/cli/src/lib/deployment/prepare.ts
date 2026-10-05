@@ -7,6 +7,7 @@ import { gitSha } from '../config/releases/model';
 import { deploymentBuild } from './build';
 import { copyDeploymentCli, writeDeploymentBundle } from './bundle';
 import { prepareDeploymentConfig } from './config-source';
+import { resolveConfigurationSource } from './configuration-source';
 import { resolveDeploymentSpec, resolveValue } from './model';
 import { prepareRuntime } from './runtime';
 import { TALE_REPOSITORY, withDeploymentSources } from './sources';
@@ -30,7 +31,10 @@ export async function prepareDeployment(
 ) {
   const build = (dependencies.build ?? deploymentBuild)();
   const spec = resolveDeploymentSpec(
-    JSON.parse(await readFile(options.spec, 'utf8')),
+    await resolveConfigurationSource(
+      JSON.parse(await readFile(options.spec, 'utf8')),
+      options.spec,
+    ),
   );
   const deploymentRef =
     options.deploymentRef !== undefined

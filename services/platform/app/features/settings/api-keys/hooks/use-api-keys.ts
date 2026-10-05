@@ -3,6 +3,8 @@ import { queryOptions } from '@tanstack/react-query';
 import { useReactMutation } from '@/app/hooks/use-react-mutation';
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
+import { runAdapted } from '@/app/lib/backend/adapters';
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
 import { API_KEY_HINT_ENTITY } from '@/lib/shared/hint-entities';
@@ -43,28 +45,33 @@ export function useCreateApiKey(organizationId: string) {
   const queryClient = useReactQueryClient();
 
   return useReactMutation({
-    mutationFn: async ({
+    mutationFn: ({
       name,
       expiresIn,
-    }: CreateApiKeyParams): Promise<CreateApiKeyResult> => {
-      const result = await authClient.apiKey.create({
-        name,
-        expiresIn,
-      });
+    }: CreateApiKeyParams): Promise<CreateApiKeyResult> =>
+      runAdapted(async () => {
+        const result = await authClient.apiKey.create({
+          name,
+          expiresIn,
+        });
 
-      if (result.error) {
-        throw new Error(result.error.message);
-      }
+        if (result.error) {
+          throw new BackendApiError(
+            result.error.status,
+            result.error.message ?? '',
+            result.error.code,
+          );
+        }
 
-      if (!result.data?.key || !result.data?.id) {
-        throw new Error('API key creation returned no key/id');
-      }
+        if (!result.data?.key || !result.data?.id) {
+          throw new Error('API key creation returned no key/id');
+        }
 
-      return {
-        key: result.data.key,
-        id: result.data.id,
-      };
-    },
+        return {
+          key: result.data.key,
+          id: result.data.id,
+        };
+      }),
     // Returned, so the mutation settles only once the list holds the new key.
     // The first key moves the table's Create button from the empty state to
     // the toolbar (a remount); were the success dialog shown first, a quick

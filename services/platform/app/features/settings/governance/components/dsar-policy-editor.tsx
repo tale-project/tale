@@ -25,6 +25,7 @@ import {
   useProposeDsarPolicy,
 } from '../hooks/mutations';
 import { useDsarPolicyForUi } from '../hooks/queries';
+import { withDsarPolicyReadBoundary } from './policy-read-boundary';
 
 interface DsarPolicyEditorProps {
   organizationId: string;
@@ -50,7 +51,7 @@ type DsarPendingFields = {
  * Notifications fan out on propose / apply / cancel / tighten so other
  * admins can react before a weakened policy takes effect.
  */
-export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
+function DsarPolicyEditorContent({ organizationId }: DsarPolicyEditorProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
 
@@ -433,3 +434,7 @@ function PendingChangeBanner({
     </Alert>
   );
 }
+
+export const DsarPolicyEditor = withDsarPolicyReadBoundary(
+  DsarPolicyEditorContent,
+);

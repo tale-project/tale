@@ -26,6 +26,7 @@ import {
   hubDevicesSchema,
   type HubDevices,
 } from '../../../../../lib/shared/schemas/sandbox-devices.ts';
+import { traceSandboxPhase } from '../../../../tracing';
 
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
@@ -347,7 +348,7 @@ export interface SessionCreateBody {
   workload?: 'project' | 'workflow';
   sessionId: string;
   organizationId: string;
-  profile: 'default' | 'agent';
+  profile: 'default' | 'agent' | 'agent-light';
   ttlMs?: number;
   idleTimeoutMs?: number;
   env?: Record<string, string>;
@@ -360,7 +361,7 @@ export interface SessionCreateBody {
 export interface SessionInfo {
   sessionId: string;
   organizationId: string;
-  profile: 'default' | 'agent';
+  profile: 'default' | 'agent' | 'agent-light';
   state: string;
   backend: string;
   createdAtMs: number;
@@ -450,32 +451,34 @@ export async function sandboxDeviceDisconnect(
 /** Claim warm compute before staging any new work. A concurrent idle stop
  * finishes first; a definitive 404 then allows the caller to recreate it. */
 export async function sessionAcquire(sessionId: string): Promise<boolean> {
-  const response = await spawnerFetch(
-    'POST',
-    `/v1/sessions/${encodeURIComponent(sessionId)}/acquire`,
-    { signal: AbortSignal.timeout(15_000) },
-  );
-  await throwIfDeviceOffline(response);
-  if (response.status === 429) throw await spawnerBusyErrorOf(response);
-  if (response.status === 404) {
-    // Rolling upgrade: an old spawner has neither activity routes nor the
-    // limits endpoint (and cannot pressure-reclaim compute). Only that
-    // positively identified legacy protocol may use the old liveness door.
-    const limits = await spawnerFetch('GET', '/v1/limits', {
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (limits.status === 404) return sessionIsAlive(sessionId);
-    if (!limits.ok)
-      throw new Error(
-        `Sandbox acquisition protocol unavailable (${limits.status})`,
-      );
-    sandboxDeploymentLimitsSchema.parse(await limits.json());
-    return false;
-  }
-  if (!response.ok)
-    throw new Error(`Sandbox acquisition unavailable (${response.status})`);
-  acquisitionSchema.parse(await response.json());
-  return true;
+  return traceSandboxPhase('acquire', async () => {
+    const response = await spawnerFetch(
+      'POST',
+      `/v1/sessions/${encodeURIComponent(sessionId)}/acquire`,
+      { signal: AbortSignal.timeout(15_000) },
+    );
+    await throwIfDeviceOffline(response);
+    if (response.status === 429) throw await spawnerBusyErrorOf(response);
+    if (response.status === 404) {
+      // Rolling upgrade: an old spawner has neither activity routes nor the
+      // limits endpoint (and cannot pressure-reclaim compute). Only that
+      // positively identified legacy protocol may use the old liveness door.
+      const limits = await spawnerFetch('GET', '/v1/limits', {
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (limits.status === 404) return sessionIsAlive(sessionId);
+      if (!limits.ok)
+        throw new Error(
+          `Sandbox acquisition protocol unavailable (${limits.status})`,
+        );
+      sandboxDeploymentLimitsSchema.parse(await limits.json());
+      return false;
+    }
+    if (!response.ok)
+      throw new Error(`Sandbox acquisition unavailable (${response.status})`);
+    acquisitionSchema.parse(await response.json());
+    return true;
+  });
 }
 
 /** Capture BEFORE releasing the database allocation. The generation binds a
@@ -515,7 +518,7 @@ export async function sessionReleaseIdle(
     .released;
 }
 
-const CREATE_TIMEOUT_MS = 200_000; // create polls runnerd readiness (≤180s)
+const CREATE_TIMEOUT_MS = 240_000; // bounded creation (180s) plus failed-start cleanup
 // Drain-retry for session create. A 503 "draining" means the spawner is being
 // rolled in place at deploy time — it refuses NEW sessions while it drains
 // in-flight work before its restart. Re-POST so the create lands once the
@@ -551,7 +554,13 @@ const IDLE_READ_TIMEOUT_MS = Number(
  * POST /v1/sessions — create + wait for runnerd ready. Throws on 4xx/5xx.
  * Targets the bare `sandbox` alias.
  */
-export async function sessionCreate(
+export function sessionCreate(
+  body: SessionCreateBody,
+): Promise<SessionCreateResult> {
+  return traceSandboxPhase('acquire', () => createSession(body));
+}
+
+async function createSession(
   body: SessionCreateBody,
 ): Promise<SessionCreateResult> {
   const path = '/v1/sessions';
@@ -597,10 +606,16 @@ export async function sessionCreate(
 /** GET /v1/sessions/:id — is the session alive spawner-side? `false` ONLY on
  * a definitive 404 (the phantom-session signal); transport errors throw so a
  * spawner blip is never misread as "session gone". */
-export async function sessionIsAlive(sessionId: string): Promise<boolean> {
+export async function sessionIsAlive(
+  sessionId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
   const res = await spawnerFetch('GET', path, {
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(15_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   if (res.status === 404) return false;
   await throwIfDeviceOffline(res);
@@ -629,14 +644,15 @@ export async function sessionObserve(
   if (res.status === 404) return null;
   await throwIfDeviceOffline(res);
   if (!res.ok) throw new Error(`sandbox session get failed (${res.status})`);
-  return z
+  const observed = z
     .object({
       session: z.object({
         pinned: z.boolean().optional(),
         pinSynchronized: z.boolean().optional(),
       }),
     })
-    .parse(await res.json()).session;
+    .safeParse(await res.json().catch(() => null));
+  return observed.success ? observed.data.session : {};
 }
 
 /** Returns true when the spawner destroyed a live session, false when it had
@@ -666,10 +682,14 @@ export async function sessionDestroy(sessionId: string): Promise<boolean> {
  * non-2xx THROW contract as sessionDestroy. */
 export async function sessionDestroyIfIdle(
   sessionId: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<{ destroyed: boolean; busy: boolean }> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1`;
   const res = await spawnerFetch('DELETE', path, {
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(30_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   await throwIfDeviceOffline(res);
   if (!res.ok) {
@@ -811,7 +831,7 @@ export async function sandboxOrganizationTeardown(
 export async function sessionSetPinned(
   sessionId: string,
   pinned: boolean,
-  signal?: AbortSignal,
+  options: { signal?: AbortSignal } = {},
 ): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/pin`;
   const bodyJson = JSON.stringify({ pinned });
@@ -819,7 +839,7 @@ export async function sessionSetPinned(
     body: bodyJson,
     signal: AbortSignal.any([
       AbortSignal.timeout(30_000),
-      ...(signal ? [signal] : []),
+      ...(options.signal ? [options.signal] : []),
     ]),
   });
   if (!res.ok) return false;
@@ -915,6 +935,8 @@ export interface SessionStageFile {
   /** Trusted immutable source identity. Runnerd verifies actual target bytes
    * against its own manifest before reusing them; this is never permission. */
   sourceId?: string;
+  sha256?: string;
+  cacheKey?: string;
 }
 
 export interface SessionStageResult {
@@ -1050,94 +1072,124 @@ export async function sessionStageFiles(
   files: SessionStageFile[],
   options: StageOptions = {},
 ): Promise<SessionStageResult> {
-  const merged: SessionStageResult = { staged: [], skipped: [] };
-  const identified = options.reuse
-    ? files.map((file) =>
-        file.contentBase64 !== undefined
-          ? {
-              ...file,
-              sourceId: `sha256:${createHash('sha256').update(Buffer.from(file.contentBase64, 'base64')).digest('hex')}`,
-            }
-          : file,
+  return traceSandboxPhase('stage', async () => {
+    options.signal?.throwIfAborted();
+    // A previous node (or the agent) can replace a managed directory with a
+    // file/link. Prepare directory roots even for an empty desired manifest. Intact
+    // directory contents stay available for current-byte verification; the
+    // daemon prunes stale children only after every transfer succeeds.
+    for (const root of new Set(options.replaceRoots ?? [])) {
+      // An explicitly staged root file is not a directory to prepare.
+      if (files.some((file) => file.path === root.replace(/\/$/, ''))) continue;
+      if (
+        (await sessionListFiles(sessionId, root, {
+          signal: options.signal,
+        })) !== null
       )
-    : files;
-  let missing = identified;
-  if (
-    options.reuse &&
-    identified.length > 0 &&
-    identified.every((file) => file.sourceId !== undefined)
-  ) {
-    try {
-      const hits = new Map<string, { path: string; bytes: number }>();
-      for (const batch of chunkStageFiles(
-        identified.map(({ path, sourceId }) => ({ path, sourceId })),
-      )) {
-        const probe = await postStageFiles(
-          sessionId,
-          batch,
-          undefined,
-          options.signal,
-        );
-        // Legacy runtimes may accept a source-only entry but report no_source;
-        // only explicit staged paths count as verified cache hits.
-        for (const hit of probe.staged) {
-          if (typeof hit === 'object' && typeof hit.path === 'string')
-            hits.set(hit.path, hit);
-        }
-      }
-      missing = identified.filter((file) => !hits.has(file.path));
-      merged.staged.push(...hits.values());
-    } catch (error) {
-      // Old controls reject source-only probes. Their normal stage path still
-      // works during rolling upgrades; other failures must remain visible.
-      if (!(error instanceof StageRequestError && error.status === 400))
-        throw error;
-    }
-  }
-  for (const batch of chunkStageFiles(missing)) {
-    const result = await postStageFiles(
-      sessionId,
-      batch,
-      undefined,
-      options.signal,
-    );
-    merged.staged.push(...result.staged);
-    merged.skipped.push(...result.skipped);
-  }
-  if (options.replaceRoots?.length && merged.skipped.length === 0) {
-    const final = await postStageFiles(
-      sessionId,
-      [],
-      {
-        replaceRoots: options.replaceRoots,
-        keepPaths: identified.map((file) => file.path),
-      },
-      options.signal,
-    );
-    merged.skipped.push(...final.skipped);
-    if (final.skipped.length === 0 && final.reconciled !== true) {
-      // A legacy runtime ignored the new reconciliation fields. Restore the
-      // old clear-and-copy behavior so removed files cannot survive a roll.
-      options.signal?.throwIfAborted();
-      const cleared = await sessionDeleteFiles(sessionId, options.replaceRoots);
+        continue;
+      const cleared = await sessionDeleteFiles(sessionId, [root], {
+        signal: options.signal,
+      });
       if (cleared.skipped.length > 0) {
-        merged.skipped.push(...cleared.skipped);
-      } else {
-        merged.staged = [];
-        for (const batch of chunkStageFiles(identified)) {
-          const result = await postStageFiles(
+        throw new Error(
+          `managed staging roots could not be prepared: ${cleared.skipped.map((file) => file.path).join(', ')}`,
+        );
+      }
+    }
+    const merged: SessionStageResult = { staged: [], skipped: [] };
+    const identified = options.reuse
+      ? files.map((file) =>
+          file.contentBase64 !== undefined
+            ? {
+                ...file,
+                sourceId: `sha256:${createHash('sha256').update(Buffer.from(file.contentBase64, 'base64')).digest('hex')}`,
+              }
+            : file,
+        )
+      : files;
+    let missing = identified;
+    if (
+      options.reuse &&
+      identified.length > 0 &&
+      identified.every((file) => file.sourceId !== undefined)
+    ) {
+      try {
+        const hits = new Map<string, { path: string; bytes: number }>();
+        for (const batch of chunkStageFiles(
+          identified.map(({ path, sourceId }) => ({ path, sourceId })),
+        )) {
+          const probe = await postStageFiles(
             sessionId,
             batch,
             undefined,
             options.signal,
           );
-          merged.staged.push(...result.staged);
-          merged.skipped.push(...result.skipped);
+          // Legacy runtimes may accept a source-only entry but report no_source;
+          // only explicit staged paths count as verified cache hits.
+          for (const hit of probe.staged) {
+            if (typeof hit === 'object' && typeof hit.path === 'string')
+              hits.set(hit.path, hit);
+          }
+        }
+        missing = identified.filter((file) => !hits.has(file.path));
+        merged.staged.push(...hits.values());
+      } catch (error) {
+        // Old controls reject source-only probes. Their normal stage path still
+        // works during rolling upgrades; other failures must remain visible.
+        if (!(error instanceof StageRequestError && error.status === 400))
+          throw error;
+      }
+    }
+    for (const batch of chunkStageFiles(missing)) {
+      const result = await postStageFiles(
+        sessionId,
+        batch,
+        undefined,
+        options.signal,
+      );
+      merged.staged.push(...result.staged);
+      merged.skipped.push(...result.skipped);
+    }
+    if (options.replaceRoots?.length && merged.skipped.length === 0) {
+      const final = await postStageFiles(
+        sessionId,
+        [],
+        {
+          replaceRoots: options.replaceRoots,
+          keepPaths: identified.map((file) => file.path),
+        },
+        options.signal,
+      );
+      merged.skipped.push(...final.skipped);
+      if (final.skipped.length === 0 && final.reconciled !== true) {
+        // A legacy runtime ignored the new reconciliation fields. Restore the
+        // old clear-and-copy behavior so removed files cannot survive a roll.
+        options.signal?.throwIfAborted();
+        const cleared = await sessionDeleteFiles(
+          sessionId,
+          options.replaceRoots,
+          { signal: options.signal },
+        );
+        if (cleared.skipped.length > 0) {
+          merged.skipped.push(...cleared.skipped);
+        } else {
+          merged.staged = [];
+          for (const batch of chunkStageFiles(identified)) {
+            const result = await postStageFiles(
+              sessionId,
+              batch,
+              undefined,
+              options.signal,
+            );
+            merged.staged.push(...result.staged);
+            merged.skipped.push(...result.skipped);
+          }
         }
       }
     }
-  }
-  return merged;
+    options.signal?.throwIfAborted();
+    return merged;
+  });
 }
 
 export interface SessionDeleteResult {
@@ -1152,12 +1204,18 @@ export interface SessionDeleteResult {
 export async function sessionDeleteFiles(
   sessionId: string,
   paths: string[],
+  options: { signal?: AbortSignal } = {},
 ): Promise<SessionDeleteResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/delete`;
   const bodyJson = JSON.stringify({ paths });
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(30_000),
+    ...(options.signal ? [options.signal] : []),
+  ]);
+  signal.throwIfAborted();
   const res = await spawnerFetch('POST', path, {
     body: bodyJson,
-    signal: AbortSignal.timeout(30_000),
+    signal,
   });
   if (res.status === 404) throw new SessionNotFoundError(sessionId);
   if (!res.ok) {
@@ -1180,10 +1238,16 @@ export interface SessionFsEntry {
 export async function sessionListFiles(
   sessionId: string,
   dirPath: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<SessionFsEntry[] | null> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files?path=${encodeURIComponent(dirPath)}`;
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(30_000),
+    ...(options.signal ? [options.signal] : []),
+  ]);
+  signal.throwIfAborted();
   const res = await spawnerFetch('GET', path, {
-    signal: AbortSignal.timeout(30_000),
+    signal,
   });
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -1409,6 +1473,127 @@ export class ExecStreamProtocolError extends Error {
   }
 }
 
+const execCheckpointSchema = z.object({
+  seq: z.number().int().nonnegative(),
+  state: z.unknown(),
+});
+export type SessionExecCheckpoint = z.infer<typeof execCheckpointSchema>;
+
+/** The daemon stores parser state beside its replay spool. A 404 is the
+ * rolling-upgrade fallback; attaching still determines whether the exec lives.
+ * A transient read must get the same recovery opportunity as the following
+ * attach: five retries, each bounded to 5s, with the reconnect backoff. */
+export async function sessionGetExecCheckpoint(
+  sessionId: string,
+  execId: string,
+): Promise<SessionExecCheckpoint | null> {
+  // fetch reports malformed URL configuration as TypeError too. Refuse it
+  // before classifying transport errors, without exposing URL credentials.
+  let target: URL;
+  try {
+    target = new URL(getSpawnerUrl());
+  } catch {
+    throw new Error('Invalid SANDBOX_URL configuration');
+  }
+  if (
+    !['http:', 'https:'].includes(target.protocol) ||
+    target.username ||
+    target.password
+  )
+    throw new Error('Invalid SANDBOX_URL configuration');
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/checkpoint`;
+  for (let attempt = 0; ; attempt += 1) {
+    let transientStatus = false;
+    try {
+      const response = await spawnerFetch('GET', path, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!response.ok) {
+        // No error body is needed for recovery. Release it rather than
+        // leaving a failed attempt's connection alive through the backoff.
+        void response.body?.cancel().catch(() => {
+          // A failed transport may already have closed its response body.
+        });
+        if (response.status === 404) return null;
+        transientStatus = [408, 429, 500, 502, 503, 504].includes(
+          response.status,
+        );
+        throw new Error(
+          `sandbox exec checkpoint read failed (${response.status})`,
+        );
+      }
+      return z
+        .object({ checkpoint: execCheckpointSchema.nullable() })
+        .parse(await response.json()).checkpoint;
+    } catch (error) {
+      const transient =
+        transientStatus ||
+        error instanceof SpawnerUnreachableError ||
+        error instanceof TypeError ||
+        (error instanceof Error &&
+          (error.name === 'TimeoutError' || error.name === 'AbortError'));
+      if (!transient || attempt >= MAX_RECONNECT_ATTEMPTS) throw error;
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          Math.min(RECONNECT_BACKOFF_MS * (attempt + 1), MAX_BACKOFF_MS),
+        ),
+      );
+    }
+  }
+}
+
+/** Acknowledge only a complete cursor + parser snapshot. Oversized partial
+ * JSONL records wait for their closing newline rather than acknowledging
+ * bytes whose parser state cannot fit; the spool retains them meanwhile. */
+export async function sessionPutExecCheckpoint(
+  sessionId: string,
+  execId: string,
+  checkpoint: SessionExecCheckpoint,
+): Promise<void> {
+  const body = JSON.stringify(checkpoint);
+  if (Buffer.byteLength(body) > 1024 * 1024) return;
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/checkpoint`;
+  const response = await spawnerFetch('PUT', path, {
+    body,
+    signal: AbortSignal.timeout(5_000),
+  });
+  // A later checkpoint may have won on a concurrent recovering drainer.
+  // Neither that nor an old runtime's absent endpoint justifies restarting.
+  if (response.status === 404 || response.status === 409) return;
+  if (!response.ok)
+    throw new Error(
+      `sandbox exec checkpoint write failed (${response.status})`,
+    );
+}
+
+const execReplayGapSchema = z
+  .object({
+    fromSeq: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    toSeq: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  })
+  .refine((range) => range.toSeq >= range.fromSeq);
+
+/** Output outside the durable replay retention is not a valid parser prefix. */
+export class ExecReplayGapError extends Error {
+  readonly fromSeq: number | undefined;
+  readonly toSeq: number | undefined;
+
+  constructor(execId: string, range?: { fromSeq: number; toSeq: number }) {
+    super(
+      `sandbox exec ${execId} output is no longer available for lossless replay`,
+    );
+    this.name = 'ExecReplayGapError';
+    this.fromSeq = range?.fromSeq;
+    this.toSeq = range?.toSeq;
+  }
+}
+
+/** Missing earlier control/output records cannot be repaired by reattaching. */
+export class ExecOutputGapError extends ExecStreamProtocolError {
+  readonly code = 'OUTPUT_GAP';
+}
+
 /**
  * POST /v1/sessions/:id/exec as SSE. Streams stdout/stderr deltas to the
  * callbacks (the progress-bridge action feeds these through the agent adapter
@@ -1427,22 +1612,29 @@ async function sessionExec(
   // One healthy connection holds for the whole turn (timeoutMs + grace); the
   // resilient drain only re-attaches when this connection actually DROPS before
   // the terminal result (network blip / spawner restart), not on a fixed cycle.
+  const subscription = new AbortController();
   const fetchAbort = AbortSignal.any([
     signal,
+    subscription.signal,
     AbortSignal.timeout(
       (body.timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
     ),
   ]);
-  const res = await spawnerFetch('POST', path, {
-    body: bodyJson,
-    accept: 'text/event-stream',
-    signal: fetchAbort,
-  });
-  if (res.status === 404) throw new SessionNotFoundError(sessionId);
-  if (!res.ok || !res.body) {
-    throw new Error(`sandbox session exec failed (${res.status})`);
+  try {
+    const res = await spawnerFetch('POST', path, {
+      body: bodyJson,
+      accept: 'text/event-stream; tale-output=base64',
+      signal: fetchAbort,
+    });
+    if (res.status === 404) throw new SessionNotFoundError(sessionId);
+    if (!res.ok || !res.body) {
+      throw new Error(`sandbox session exec failed (${res.status})`);
+    }
+    return await consumeExecSse(res.body, body.execId, callbacks, cursor);
+  } finally {
+    // Own this attachment's transport without aborting the caller's turn.
+    subscription.abort();
   }
-  return consumeExecSse(res.body, body.execId, callbacks, cursor);
 }
 
 /**
@@ -1468,21 +1660,27 @@ async function sessionAttachExec(
   // a non-zero cursor (i.e. every real continuation), which silently killed
   // the resilient drain + the stdin-steering continuation path.
   const signedPath = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/attach${query}`;
+  const subscription = new AbortController();
   const fetchAbort = AbortSignal.any([
     signal,
+    subscription.signal,
     AbortSignal.timeout(
       (timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
     ),
   ]);
-  const res = await spawnerFetch('GET', signedPath, {
-    accept: 'text/event-stream',
-    signal: fetchAbort,
-  });
-  if (res.status === 404) throw new SessionNotFoundError(sessionId);
-  if (!res.ok || !res.body) {
-    throw new Error(`sandbox session attach failed (${res.status})`);
+  try {
+    const res = await spawnerFetch('GET', signedPath, {
+      accept: 'text/event-stream; tale-output=base64',
+      signal: fetchAbort,
+    });
+    if (res.status === 404) throw new SessionNotFoundError(sessionId);
+    if (!res.ok || !res.body) {
+      throw new Error(`sandbox session attach failed (${res.status})`);
+    }
+    return await consumeExecSse(res.body, execId, callbacks, cursor, true);
+  } finally {
+    subscription.abort();
   }
-  return consumeExecSse(res.body, execId, callbacks, cursor, true);
 }
 
 /**
@@ -1545,6 +1743,8 @@ export async function drainSessionExecResilient(
       // A 404 means the session is gone, not a transient drop — retrying can't
       // help. Surface it so the caller self-heals the stale platform row.
       if (err instanceof SessionNotFoundError) throw err;
+      if (err instanceof ExecReplayGapError) throw err;
+      if (err instanceof ExecOutputConsumerError) throw err.cause;
       if (err instanceof ExecStreamProtocolError) throw err;
       if (err instanceof ExecAttachBusyError) {
         // Reader admission is temporary pressure, not a failure of the exec.
@@ -1586,6 +1786,12 @@ export async function drainSessionExecResilient(
  * resilient drain passes this so a re-attach replays only newer events. */
 export interface ExecCursor {
   lastSeq: number;
+}
+
+class ExecOutputConsumerError extends Error {
+  constructor(cause: unknown) {
+    super('Sandbox exec output consumer failed', { cause });
+  }
 }
 
 // Decoding is part of the cursor's in-memory state: a runnerd chunk can end
@@ -1643,8 +1849,8 @@ async function consumeExecSse(
   const frameBudget = new SseFrameBudget();
   let result: SessionExecResult | null = null;
   const outputDecoders = (cursor && cursorDecoders.get(cursor)) || {
-    stdout: new TextDecoder(),
-    stderr: new TextDecoder(),
+    stdout: new TextDecoder('utf-8', { ignoreBOM: true }),
+    stderr: new TextDecoder('utf-8', { ignoreBOM: true }),
   };
   if (cursor) cursorDecoders.set(cursor, outputDecoders);
   let replay: 'unknown' | 'journal' | 'complete' = attaching
@@ -1690,6 +1896,11 @@ async function consumeExecSse(
       // replay retains its old progress and completion behavior; a visible
       // ring rollover is refused instead of reconstructing partial state.
       if (replay === 'unknown') completeReplay();
+      // Include these bytes in a checkpoint taken synchronously by the
+      // consumer; a rejected record rolls back the candidate cursor below.
+      const previousSeq = cursor?.lastSeq;
+      if (cursor && typeof parsed?.seq === 'number')
+        cursor.lastSeq = parsed.seq;
       try {
         const text =
           bytes !== undefined
@@ -1700,20 +1911,16 @@ async function consumeExecSse(
           else callbacks.onStderr?.(text);
         }
       } catch (cause) {
-        throw new ExecStreamProtocolError(
-          cause instanceof Error
-            ? cause.message
-            : 'Harness stream consumer failed',
-          { cause },
-        );
+        if (cursor !== undefined && previousSeq !== undefined)
+          cursor.lastSeq = previousSeq;
+        if (cause instanceof ExecStreamProtocolError) throw cause;
+        throw new ExecOutputConsumerError(cause);
       }
-      // Advance only AFTER consumption, so a refused protocol record cannot
-      // be silently skipped on reconnect.
-      // Advance the reconnect cursor as each seq'd delta is consumed, so a drop
-      // resumes from exactly here (no missed or replayed bytes).
-      if (cursor && parsed.seq !== undefined && parsed.seq > cursor.lastSeq) {
-        cursor.lastSeq = parsed.seq;
-      }
+    } else if (event === 'gap') {
+      throw new ExecReplayGapError(
+        execId,
+        parseExecData(data, execReplayGapSchema, event),
+      );
     } else if (event === 'replay-complete') {
       parseExecData(data, replayCompleteSchema, event);
       completeReplay();
@@ -1728,6 +1935,7 @@ async function consumeExecSse(
       // `exec <id> not found`.
       if (parsed?.code === 'ATTACH_BUSY')
         throw new ExecAttachBusyError(message);
+      if (parsed?.code === 'OUTPUT_GAP') throw new ExecOutputGapError(message);
       if (message === `exec ${execId} not found`) {
         throw new ExecNotFoundError(execId);
       }
@@ -1765,9 +1973,6 @@ async function consumeExecSse(
             );
           }),
         ]);
-      } catch (err) {
-        await reader.cancel().catch(() => {});
-        throw err;
       } finally {
         if (idleTimer) clearTimeout(idleTimer);
       }
@@ -1796,7 +2001,9 @@ async function consumeExecSse(
     // A transport drop must discard its incomplete event. Only the cursor's
     // accepted output decoder state survives a reconnect.
     parser.reset();
-    await reader.cancel().catch(() => {});
+    // Cancellation acknowledgements can stall forever. Release the reader now;
+    // the attachment owner also aborts its fetch before retrying or returning.
+    void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

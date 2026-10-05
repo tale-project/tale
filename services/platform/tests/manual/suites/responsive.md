@@ -256,6 +256,17 @@ if you want to keep a write.
   inside the box. The chat's empty composer is two lines tall and the
   thread shows above it.
 
+- [ ] `RESP-B8` · **Document preview reading width** — Store a short plain-text
+  document named `folder-audit.txt` in Knowledge > Documents, then open its
+  preview at **320×844** and **390×844**, in EN, DE and FR → The filename is
+  readable above the Download and Close actions; text uses the full preview
+  width, without a fixed metadata column or horizontal dialog overflow.
+  Scroll below the preview to read metadata and Tab into its indexing status
+  control. Download and Close remain reachable. At **1280×900**, the metadata
+  is again a **260 px** right-hand column with its own scroll area. Capture
+  mobile and desktop screenshots in real Chrome; also check a long filename
+  and a loading preview before closing with Escape.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `RESP-A1` · **Touch targets** → Bottom-tab buttons are ≥ 44×44 CSS px. Other controls meet the app design

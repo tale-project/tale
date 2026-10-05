@@ -1,7 +1,8 @@
 name: Scorecard
 
 # OpenSSF Scorecard — supply-chain posture score for the repo. Runs on the
-# default branch and weekly, uploads SARIF to the Security tab, and publishes the
+# default branch weekly and when branch protections change, uploads SARIF to the
+# Security tab, and publishes the
 # result to the public OpenSSF API (for the README badge). Informational only;
 # it never blocks a PR.
 
@@ -9,8 +10,6 @@ on:
   branch_protection_rule:
   schedule:
     - cron: '0 4 * * 1'
-  push:
-    branches: [main]
   workflow_dispatch:
 
 # Read-only by default; the analysis job opts into the few writes it needs.

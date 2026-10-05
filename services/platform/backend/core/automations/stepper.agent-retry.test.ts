@@ -126,6 +126,53 @@ function parkedCursor(suspended: Array<Record<string, unknown>>) {
 }
 
 describe('the stepper re-kicking a failed agent attempt', () => {
+  it('records the settled agent execution identity in the durable node trace', async () => {
+    const { ctx, finished } = harness(
+      parkedAttempt({
+        execId: 'final-exec',
+        result: { errored: false, text: 'distinct reply', files: [] },
+      }),
+    );
+    await stepRunImpl(ctx, RUN);
+    expect(finished[0]).toMatchObject({
+      status: 'success',
+      trace: [
+        {
+          node: 'repair',
+          type: 'agent',
+          execId: 'final-exec',
+          output: { text: 'distinct reply' },
+        },
+      ],
+    });
+  });
+
+  it('retains the failed agent execution identity in the final error trace', async () => {
+    const { ctx, finished } = harness(
+      parkedAttempt({
+        execId: 'failed-exec',
+        result: {
+          errored: true,
+          reason: 'budget used',
+          failureCode: 'budget_exceeded',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+    await stepRunImpl(ctx, RUN);
+    expect(finished[0]).toMatchObject({
+      status: 'failed',
+      trace: [
+        {
+          node: 'repair',
+          type: 'agent',
+          execId: 'failed-exec',
+          status: 'error',
+        },
+      ],
+    });
+  });
   it('resumes a credential rotation on the same account pool, without spending an attempt', async () => {
     const { ctx, kicks, suspended } = harness(
       parkedAttempt({

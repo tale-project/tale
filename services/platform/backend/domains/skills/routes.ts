@@ -1,3 +1,4 @@
+import { parseEntityTagList } from '@tale/shared/http/entity-tag';
 import {
   SKILL_VISIBILITIES,
   skillEditFields,
@@ -199,6 +200,16 @@ export function createSkillRoutes(deps: {
             ...who,
             slug,
             ...body.data,
+            ...(c.req.header('if-none-match') !== undefined
+              ? {
+                  precondition: {
+                    ifNoneMatch: parseEntityTagList(
+                      c.req.header('if-none-match') ?? '',
+                    ),
+                  },
+                }
+              : {}),
+
             assertTeamsAssignable: (ids) => who.assertTeamsAssignable(ids, tx),
             mayPublishOrgWide,
           });

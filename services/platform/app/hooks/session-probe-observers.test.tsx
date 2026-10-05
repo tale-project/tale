@@ -1,3 +1,4 @@
+import type { AutomationSettings } from '@tale/shared/schemas/automation-settings';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   act,
@@ -12,6 +13,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import type { CurrentUserView } from '@/app/lib/backend/account';
 import { currentUserQuery } from '@/app/lib/backend/account';
+import { ACTION_QUERY_ADAPTERS } from '@/app/lib/backend/adapters';
 import type { BackendName, QueryName } from '@/app/lib/backend/contract';
 
 // The adapter registries are swapped for one controllable row each, as in
@@ -58,6 +60,15 @@ const NO_ROW_ACTION = 'items:walk' as BackendName;
 const READ_KEY = ['backend', 'org-1', 'fake', 'list'];
 const ACTION_KEY = ['fake-action', 'org-1'];
 const USER: CurrentUserView = { userId: 'user-1' };
+const SETTINGS: AutomationSettings = {
+  forms: [
+    {
+      file: 'settings.yml',
+      title: 'Settings',
+      fields: [{ key: 'name', label: 'Name', type: 'text' }],
+    },
+  ],
+};
 
 readRow.mockReturnValue({
   queryKey: READ_KEY,
@@ -152,12 +163,13 @@ describe('session probe observers (#4062)', () => {
     const prefetches = vi.spyOn(client, 'prefetchQuery');
     const view = render(<Board client={client} cards={1} />);
     const oneCard = sharedObservers(client);
+    const cards = 2_000;
 
-    view.rerender(<Board client={client} cards={60} />);
+    view.rerender(<Board client={client} cards={cards} />);
 
     // Every read mounted and subscribed to its own query…
-    expect(observers(client, READ_KEY)).toBe(60);
-    expect(observers(client, ACTION_KEY)).toBe(60);
+    expect(observers(client, READ_KEY)).toBe(cards);
+    expect(observers(client, ACTION_KEY)).toBe(cards);
     // …and none of them to the two queries all of them share.
     expect(sharedObservers(client)).toEqual(oneCard);
     expect(oneCard).toEqual({ probe: 0, session: 0 });
@@ -274,6 +286,39 @@ describe('session probe observers (#4062)', () => {
     expect(listens).not.toHaveBeenCalled();
   });
 
+  it('the unadapted automation settings read waits for a user, then refuses by name', async () => {
+    const name = 'documents/public_actions:readProjectTextValues';
+    const adapter = ACTION_QUERY_ADAPTERS[name];
+    delete ACTION_QUERY_ADAPTERS[name];
+    const client = newClient(null);
+    const listens = spyCacheListeners(client);
+    try {
+      const held = renderHook(
+        () =>
+          useAutomationSettingsValues('org-1', 'project-1', 'Setup', SETTINGS),
+        { wrapper: wrapperFor(client) },
+      );
+
+      expect(held.result.current.fetchStatus).toBe('idle');
+      expect(held.result.current.error).toBeNull();
+      expect(listens).toHaveBeenCalledTimes(1);
+      expect(sharedObservers(client)).toEqual({ probe: 0, session: 0 });
+
+      act(() => {
+        client.setQueryData(currentUserQuery().queryKey, USER);
+      });
+      await waitFor(() => {
+        expect(held.result.current.error?.message).toContain(
+          `"${name}" has no 0.5 backend row`,
+        );
+      });
+      held.unmount();
+      expect(client.getQueryCache().hasListeners()).toBe(false);
+    } finally {
+      ACTION_QUERY_ADAPTERS[name] = adapter;
+    }
+  });
+
   it('useSessionUser observes the probe alone, not the Better Auth session', () => {
     const client = newClient();
     const held = renderHook(() => useSessionUser(), {
@@ -287,8 +332,8 @@ describe('session probe observers (#4062)', () => {
     expect(sharedObservers(client)).toEqual({ probe: 1, session: 0 });
   });
 
-  it('useSessionProbeSignedIn follows the probe only when asked', () => {
-    const client = newClient(null);
+  it('useSessionProbeSignedIn follows the probe only when asked, even with a cached user', async () => {
+    const client = newClient();
     const wrapper = wrapperFor(client);
     let quietRenders = 0;
     const quiet = renderHook(
@@ -299,20 +344,89 @@ describe('session probe observers (#4062)', () => {
       { wrapper },
     );
     const asked = renderHook(() => useSessionProbeSignedIn(true), { wrapper });
-    expect(asked.result.current).toBe(false);
-
-    act(() => {
-      client.setQueryData(currentUserQuery().queryKey, USER);
-    });
+    expect(quiet.result.current).toBe(false);
     expect(asked.result.current).toBe(true);
+
     act(() => {
       client.setQueryData(currentUserQuery().queryKey, null);
     });
-    expect(asked.result.current).toBe(false);
+    await waitFor(() => expect(asked.result.current).toBe(false));
+    act(() => {
+      client.setQueryData(currentUserQuery().queryKey, USER);
+    });
+    await waitFor(() => expect(asked.result.current).toBe(true));
 
     // Not asked: it read nothing, and the probe's answers never re-rendered it.
     expect(quiet.result.current).toBe(false);
     expect(quietRenders).toBe(1);
     expect(sharedObservers(client)).toEqual({ probe: 0, session: 0 });
+  });
+
+  it('releases its cache listener when no longer asked and on unmount', () => {
+    const client = newClient();
+    const cache = client.getQueryCache();
+    const held = renderHook((when: boolean) => useSessionProbeSignedIn(when), {
+      initialProps: true,
+      wrapper: wrapperFor(client),
+    });
+    expect(cache.hasListeners()).toBe(true);
+    held.rerender(false);
+    expect(held.result.current).toBe(false);
+    expect(cache.hasListeners()).toBe(false);
+    held.rerender(true);
+    expect(held.result.current).toBe(true);
+    expect(cache.hasListeners()).toBe(true);
+    held.unmount();
+    expect(cache.hasListeners()).toBe(false);
+  });
+
+  it('ignores unrelated cache events and follows the configured probe hash', async () => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: Infinity,
+          retry: false,
+          queryKeyHashFn: (key) => `custom:${JSON.stringify(key)}`,
+        },
+      },
+    });
+    client.setQueryData(currentUserQuery().queryKey, USER);
+    const cache = client.getQueryCache();
+    const probe = cache.build(
+      client,
+      client.defaultQueryOptions(currentUserQuery()),
+    );
+    const unrelated = cache.build(client, { queryKey: ['unrelated'] });
+    renderHook(() => useSessionProbeSignedIn(true), {
+      wrapper: wrapperFor(client),
+    });
+    const reads = vi.spyOn(client, 'getQueryData');
+
+    await act(async () => {
+      cache.notify({ type: 'observerResultsUpdated', query: unrelated });
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+    expect(reads).not.toHaveBeenCalled();
+
+    await act(async () => {
+      cache.notify({ type: 'observerResultsUpdated', query: probe });
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+    expect(reads).toHaveBeenCalledWith(currentUserQuery().queryKey);
+  });
+
+  it('batches probe notifications instead of reading synchronously in the cache listener', async () => {
+    const client = newClient(null);
+    const held = renderHook(() => useSessionProbeSignedIn(true), {
+      wrapper: wrapperFor(client),
+    });
+    const reads = vi.spyOn(client, 'getQueryData');
+
+    act(() => {
+      client.setQueryData(currentUserQuery().queryKey, USER);
+    });
+    expect(reads).not.toHaveBeenCalled();
+    await waitFor(() => expect(held.result.current).toBe(true));
+    expect(reads).toHaveBeenCalledWith(currentUserQuery().queryKey);
   });
 });

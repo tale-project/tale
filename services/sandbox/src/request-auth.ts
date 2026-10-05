@@ -14,7 +14,11 @@ import {
   TIMESTAMP_HEADER,
   verify,
 } from './auth.ts';
-import { jsonResponse, readBodyCapped } from './http-util.ts';
+import {
+  jsonResponse,
+  readBodyCapped,
+  sessionRequestBodyLimit,
+} from './http-util.ts';
 
 export interface RequestAuth {
   /** Verify `req` against an already-read body. `null` = authorized;
@@ -65,7 +69,10 @@ export function createRequestAuth(
   ): Promise<{ body: string } | { error: Response }> {
     let body: string;
     try {
-      body = await readBodyCapped(req, maxRequestBodyBytes);
+      body = await readBodyCapped(
+        req,
+        sessionRequestBodyLimit(new URL(req.url).pathname, maxRequestBodyBytes),
+      );
     } catch (err) {
       const status =
         err && typeof err === 'object' && 'httpStatus' in err
