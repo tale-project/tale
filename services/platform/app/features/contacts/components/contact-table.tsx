@@ -41,6 +41,7 @@ export function ContactsTable({
 }: ContactsTableProps) {
   const navigate = useNavigate();
   const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tContacts } = useT('contacts');
@@ -257,13 +258,15 @@ export function ContactsTable({
           headingLevel: 2,
         }}
         footer={
-          <BulkDeleteBar
-            rowSelection={deletableSelection}
-            onClearSelection={handleClearSelection}
-            onDeleteItem={handleDeleteItem}
-            onDeleteComplete={handleClearSelection}
-            describeFailure={firstFailureDetail}
-          />
+          canWrite && (
+            <BulkDeleteBar
+              rowSelection={deletableSelection}
+              onClearSelection={handleClearSelection}
+              onDeleteItem={handleDeleteItem}
+              onDeleteComplete={handleClearSelection}
+              describeFailure={firstFailureDetail}
+            />
+          )
         }
         {...list.tableProps}
       />

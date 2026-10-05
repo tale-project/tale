@@ -625,6 +625,18 @@
       "height": 550
     },
     {
+      "file": "images/platform/settings-account-security.webp",
+      "shot": "settings-account-security",
+      "route": "/dashboard/:orgId/settings/account",
+      "viewport": {
+        "width": 1440,
+        "height": 1260
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 2520
+    },
+    {
       "file": "images/platform/settings-branding.webp",
       "shot": "settings-branding",
       "route": "/dashboard/:orgId/settings/branding",

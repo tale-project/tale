@@ -2,15 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProductDoc } from '@/app/lib/backend/contract/docs';
 import { engagementPaginatedAdapters } from '@/app/lib/backend/engagement';
+import { defineAbilityFor } from '@/lib/permissions/ability';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, within } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { ProductsTable } from './products-table';
 
 type Product = ProductDoc;
 
 let mockProducts: Product[] = [];
-const canWrite = { current: true };
+let mockAbility = defineAbilityFor('editor');
+const mockDelete = vi.fn();
 
 function makeProduct(name: string): Product {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal fixture; the table reads name/price/stock/status
@@ -33,10 +35,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
-  useAbility: () => ({
-    can: () => canWrite.current,
-    cannot: () => !canWrite.current,
-  }),
+  useAbility: () => mockAbility,
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({
@@ -51,7 +50,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 vi.mock('../hooks/mutations', () => ({
   useCreateProduct: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateProduct: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteProduct: () => ({ mutateAsync: vi.fn() }),
+  useDeleteProduct: () => ({ mutateAsync: mockDelete }),
   useBulkCreateProducts: () => ({ mutateAsync: vi.fn() }),
 }));
 
@@ -93,10 +92,79 @@ function plainSpaces(text: string | null): string {
 
 beforeEach(() => {
   mockProducts = [];
-  canWrite.current = true;
+  mockAbility = defineAbilityFor('editor');
+  mockDelete.mockReset().mockResolvedValue(undefined);
 });
 
 describe('ProductsTable', () => {
+  describe('bulk delete permissions', () => {
+    it('gives a member View but no row Delete or bulk selection', async () => {
+      mockAbility = defineAbilityFor('member');
+      mockProducts = [makeProduct('Read-only gadget')];
+      const { user, container } = render(
+        <ProductsTable organizationId="test-org-id" />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Open menu' }));
+      expect(
+        screen.getByRole('menuitem', { name: 'View' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('menuitem', { name: 'Delete' }),
+      ).not.toBeInTheDocument();
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Delete selected' }),
+      ).not.toBeInTheDocument();
+      expect(mockDelete).not.toHaveBeenCalled();
+      await checkAccessibility(container, {
+        rules: {
+          'aria-allowed-attr': { enabled: false },
+          'image-redundant-alt': { enabled: false },
+        },
+      });
+    });
+
+    it('keeps row and bulk Delete for an editor', async () => {
+      mockProducts = [makeProduct('Editable gadget')];
+      const { user } = render(<ProductsTable organizationId="test-org-id" />);
+      await user.click(screen.getByRole('button', { name: 'Open menu' }));
+      expect(
+        screen.getByRole('menuitem', { name: 'Delete' }),
+      ).toBeInTheDocument();
+      await user.keyboard('{Escape}');
+      const checkbox = screen.getByRole('checkbox', { name: 'Select row' });
+      checkbox.focus();
+      await user.keyboard(' ');
+      await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+      const dialog = await screen.findByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+      await waitFor(() =>
+        expect(mockDelete).toHaveBeenCalledWith({
+          productId: 'product-Editable gadget',
+        }),
+      );
+    });
+
+    it('removes a selected bulk workflow when the editor becomes a member', async () => {
+      mockProducts = [makeProduct('Selected gadget')];
+      const { user, rerender } = render(
+        <ProductsTable organizationId="test-org-id" />,
+      );
+      await user.click(screen.getByRole('checkbox', { name: 'Select row' }));
+      await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+      expect(await screen.findByRole('dialog')).toBeInTheDocument();
+      mockAbility = defineAbilityFor('member');
+      rerender(<ProductsTable organizationId="test-org-id" />);
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Delete selected' }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(mockDelete).not.toHaveBeenCalled();
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit in empty state', async () => {
       const { container } = render(
@@ -131,7 +199,7 @@ describe('ProductsTable', () => {
     });
 
     it('hides Edit on the view dialog for a reader', async () => {
-      canWrite.current = false;
+      mockAbility = defineAbilityFor('member');
       mockProducts = [makeProduct('Draft gadget')];
       const { user } = render(<ProductsTable organizationId="test-org-id" />);
 

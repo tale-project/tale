@@ -128,6 +128,22 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **Judge the platform against its user docs** — the pages under `docs/en/platform/` are the
   behaviour oracle for a manual round; a mismatch between the running app and its documented
   behaviour is a reportable defect of one or the other, never a silent judgment call.
+- **A domain's rules are a checked spec** — `services/platform/backend/domains/<domain>/spec.md`
+  states what a domain guarantees for a reader who has not opened the code, in the shape
+  [`spec-template.md`](../services/platform/backend/domains/spec-template.md) describes: a prefix
+  shared with the feature's manual suite (`TASK-R4` beside `TASK-F63`), topic headings a reader
+  would look up, one card per rule, then Not yet. A card's heading is the rule as one plain
+  sentence ("Only owners and admins can delete a task"); under it comes an example with a named
+  person. A spec carries rules and nothing about them: no status and no list of tests. Whether
+  a rule is the intended one is settled in the review of the change that adds it. Never guess
+  an intent: a question nobody has decided goes under Not yet as `**Undecided: …?**`, not into
+  a rule. A test holds every rule and says so in its title (`it('… [TASK-R4]', …)`, or the
+  `describe` when the whole block does). The guard,
+  `services/platform/tests/guards/domain-specs.guard.test.ts`, parses every spec and the test
+  titles of the workspace, and fails on a shape it does not know, a rule with no example, a
+  rule no running test names, and a title that names a rule no spec states. Change what a rule
+  says the code does, and its card and its test move in the same change. This is a trial on
+  `tasks` (2026-10): the other domains have no spec, and none is owed yet.
 - **Pencil**: `design/docs/comments.md` is strictly designer↔developer UI communication. Put
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
@@ -179,6 +195,12 @@ evidence. Type check retains full logs (`cache hit, replaying logs`); `--output-
 restores that detail locally, and `--force` re-runs the task. A task whose result depends on anything but its
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
+
+For a candidate whose source C differs from workflow H, Turbo's summary `scm.sha`
+uses the CI environment's H. Verify C from the checkout log and the cache action's
+actual `git rev-parse HEAD` source key; keep task cache HIT/MISS evidence separate
+from source identity. [The CI guide](../.github/CI.md) records the upstream behavior
+and the observed C/H proof.
 
 The stable **Unit** check aggregates two platform unit shards and a separate job for
 every other workspace's unit tests. Both platform shards retain the live YouTube service
@@ -275,7 +297,11 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
-- [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
+- [`tools/cli/turbo.json`](../tools/cli/turbo.json) hashes the shared root
+  `.github/release-candidate-contract.json` through CLI transit for lint/typecheck/test
+  and directly for its source-reading tests. The candidate contract refresh script
+  and existing graph guard own its admission assertions; `.github/RELEASING.md`
+  describes the reviewed Ops digest transition. It also gives `@tale/cli`'s tests the CLI install
   pages; the CI files `scripts/deployment-ci.test.ts` and the candidate graph suite
   (`scripts/release-candidate-workflows.test.ts`) check: the `build.yml`, `checks.yml`,
   `cleanup-pr-images.yml`, `commitlint.yml`, `e2e.yml`, `sast.yml`, `security.yml` and both
@@ -303,6 +329,12 @@ Explicit outside-file inputs remain necessary for imports and reads that are not
 workspace dependencies. The platform's UI input guards still hold its direct source
 reads and exported files to that contract. Every root `tsconfig*.json`, `bunfig.toml`,
 lint and formatter configuration, patch and the setup action participate in the global hash.
+The UI, marketing-UI and E2E transit lists omit only package-root `README.md` prose;
+package-owned checks and ordinary `^build` consumers keep their default inputs, and CLI
+publication tests explicitly hash the published READMEs. Source, catalogs, exports and
+toolchains still invalidate consumers. The dependency fixture also models the root's
+`@tale/shared` dependency: its README must retain global invalidation, since narrowing
+only shared transit would not change that separate hash.
 
 Checks skip echo-only setup tasks. The CLI keeps its real generation prerequisite explicitly;
 a workspace that adds substantive setup must attach it to its checks. The dependency fixture
@@ -330,6 +362,12 @@ verifying their complete source identity.
 `setup-turbo` always runs a frozen install. Its download cache separates OS,
 architecture, Bun version, manifests, lockfile and patches, and saves after a successful
 install so a later workload failure does not lose the downloaded packages.
+CLI's Windows native row keeps its Bun store beside the checkout, outside the source
+tree, to permit same-volume hardlinks; Linux/macOS native rows retain their home store.
+Native Windows skips download-archive restore/save; its normalized store still backs
+the complete frozen install. Other native and cross rows retain their archives.
+All native rows keep the full frozen install. Cross rows retain the separate CLI-only
+store and filtered frozen install.
 Browser checks and Playwright share an exact installed-version/OS/architecture
 headless-shell cache. Successful browser provisioning is saved before later suites can
 fail. Native dependencies are installed for every E2E runner and cold Browser run;

@@ -23,7 +23,7 @@ import {
   useMatch,
   useNavigate,
 } from '@tanstack/react-router';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import {
   TabNavigation,
@@ -42,6 +42,7 @@ import {
   isProjectTasksPath,
   ProjectBreadcrumbSwitcher,
 } from '@/app/features/projects/components/project-breadcrumb-switcher';
+import { ProjectReadError } from '@/app/features/projects/components/project-read-error';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { ensureAdaptedQueryData } from '@/app/lib/backend/prefetch';
@@ -104,8 +105,14 @@ function ProjectDetailLayout() {
     shouldThrow: false,
   });
 
-  const { project, isLoading } = useProject(asProjectId(projectId));
-  const isMissing = !isLoading && !project;
+  const projectRead = useProject(asProjectId(projectId));
+  const { project, isLoading, unavailable: readFailed } = projectRead;
+  // Gone or out of reach: the read ANSWERED without a project. A read that
+  // failed is not that — the shell stays and says so (#3885), rather than
+  // telling the reader their project may have been deleted.
+  const isMissing = !isLoading && !project && !readFailed;
+  const contentRef = useRef<HTMLDivElement>(null);
+  const focusContent = useCallback(() => contentRef.current?.focus(), []);
 
   // Remember this project's detail page, so the Home rail tile can reopen it
   // instead of always resuming the last chat thread (see
@@ -391,14 +398,30 @@ function ProjectDetailLayout() {
             views with a sticky-bottom composer, like the main chat) anchor
             correctly instead of collapsing to content height. Auto-height
             tabs (ContentArea-based) are unaffected — they size to content
-            and top-align as before. */}
-        <Skeletonize
-          loading={isLoading}
-          label={t('title')}
-          className="flex min-h-0 flex-1 flex-col"
+            and top-align as before. The region is where focus lands when a
+            retry that worked takes a focused read error away. */}
+        <div
+          ref={contentRef}
+          role="region"
+          aria-label={project?.name ?? t('title')}
+          tabIndex={-1}
+          className="flex min-h-0 flex-1 flex-col outline-none"
         >
-          <Outlet />
-        </Skeletonize>
+          {readFailed ? (
+            // No tab can stand without its project — Files and Agents would
+            // render nothing — so the failed read takes the tab's place, with
+            // the header and the tab strip kept.
+            <ProjectReadError read={projectRead} onFocusLost={focusContent} />
+          ) : (
+            <Skeletonize
+              loading={isLoading}
+              label={t('title')}
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <Outlet />
+            </Skeletonize>
+          )}
+        </div>
       </PageLayout>
     </ActiveEditorProvider>
   );

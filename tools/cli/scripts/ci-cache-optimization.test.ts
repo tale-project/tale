@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
@@ -601,6 +602,7 @@ test('Bun download caches preserve frozen installs and save before later checks'
     'bun.lock',
     'package.json',
     'patches/**',
+    'bunfig.toml',
     ...workspaces.map((workspace) => `${workspace}/package.json`),
   ])
     expect(key, input).toContain(`'${input}'`);
@@ -620,6 +622,158 @@ test('Bun download caches preserve frozen installs and save before later checks'
       (step) => step.name === 'Identify the checked-out cache source',
     ),
   );
+});
+
+test('native CLI and shared Bun downloads render one canonical dependency identity', () => {
+  const shared = setupAction().runs.steps.find(
+    (step) => step.id === 'bun-cache',
+  )!;
+  const cli = z
+    .object({
+      jobs: z.object({
+        build: z.object({
+          steps: z.array(
+            z.object({
+              id: z.string().optional(),
+              with: z.record(z.string(), z.unknown()).optional(),
+            }),
+          ),
+        }),
+      }),
+    })
+    .parse(
+      parse(readFileSync(join(REPO_ROOT, '.github/workflows/cli.yml'), 'utf8')),
+    )
+    .jobs.build.steps.find((step) => step.id === 'bun-cache')!;
+  const { workspaces, packageManager } = z
+    .object({ workspaces: z.array(z.string()), packageManager: z.string() })
+    .parse(JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')));
+  const bunVersion = packageManager.replace(/^bun@/, '');
+  const canonical = [
+    'bun.lock',
+    'package.json',
+    ...workspaces.map((workspace) => `${workspace}/package.json`),
+    'patches/**',
+    'bunfig.toml',
+  ];
+  const patterns = (expression: string) => {
+    const argumentsText = expression.match(/hashFiles\(([^)]+)\)/)?.[1];
+    expect(argumentsText).toBeDefined();
+    const inputs = [...argumentsText!.matchAll(/'([^']+)'/g)].map(
+      (match) => match[1]!,
+    );
+    expect(argumentsText).toBe(inputs.map((input) => `'${input}'`).join(', '));
+    return inputs;
+  };
+  const sharedKey = z.string().parse(shared.with?.key);
+  const cliKey = z.string().parse(cli.with?.key);
+  expect(patterns(sharedKey)).toEqual(canonical);
+  expect(patterns(cliKey)).toEqual(canonical);
+  const fixture = mkdtempSync(join(tmpdir(), 'tale-bun-key-'));
+  try {
+    const files = [
+      ...new Set(
+        canonical.flatMap((pattern) =>
+          Array.from(
+            new Bun.Glob(pattern).scanSync({
+              cwd: REPO_ROOT,
+              onlyFiles: true,
+            }),
+          ),
+        ),
+      ),
+    ].sort();
+    const independent = 'services/sandbox-runtime/document-node/package.json';
+    expect(files).not.toContain(independent);
+    for (const file of [...files, independent]) {
+      mkdirSync(dirname(join(fixture, file)), { recursive: true });
+      writeFileSync(join(fixture, file), readFileSync(join(REPO_ROOT, file)));
+    }
+    const render = (
+      template: string,
+      os = 'Linux',
+      arch = 'X64',
+      cross = false,
+      version = bunVersion,
+    ) =>
+      template.replace(/\$\{\{\s*([^}]+)\}\}/g, (_match, source: string) => {
+        const expression = source.trim();
+        if (expression.startsWith('hashFiles(')) {
+          const matched = [
+            ...new Set(
+              patterns(expression).flatMap((pattern) =>
+                Array.from(
+                  new Bun.Glob(pattern).scanSync({
+                    cwd: fixture,
+                    onlyFiles: true,
+                  }),
+                ),
+              ),
+            ),
+          ].sort();
+          const hash = createHash('sha256');
+          for (const file of matched)
+            hash.update(
+              createHash('sha256')
+                .update(readFileSync(join(fixture, file)))
+                .digest(),
+            );
+          return matched.length > 0 ? hash.digest('hex') : '';
+        }
+        const values: Record<string, string> = {
+          'runner.os': os,
+          'runner.arch': arch,
+          'inputs.bun-version': version,
+          "matrix.cross && 'bun-cli-install' || 'bun-install'": cross
+            ? 'bun-cli-install'
+            : 'bun-install',
+        };
+        const value = values[expression];
+        if (value === undefined)
+          throw new Error(`Unrecognized Bun cache expression: ${expression}`);
+        return value;
+      });
+    const identities = [
+      ['Linux', 'X64'],
+      ['Linux', 'ARM64'],
+      ['macOS', 'X64'],
+      ['macOS', 'ARM64'],
+      ['Windows', 'X64'],
+    ];
+    for (const [os, arch] of identities) {
+      expect(render(cliKey, os, arch)).toBe(render(sharedKey, os, arch));
+      expect(render(String(cli.with?.['restore-keys']), os, arch)).toBe(
+        render(String(shared.with?.['restore-keys']), os, arch),
+      );
+    }
+    expect(
+      new Set(identities.map(([os, arch]) => render(cliKey, os, arch))).size,
+    ).toBe(identities.length);
+    expect(
+      render(sharedKey, 'Linux', 'X64', false, `${bunVersion}-other`),
+    ).not.toBe(render(cliKey));
+    expect(render(cliKey, 'Linux', 'X64', true)).toBe(
+      render(cliKey).replace(/^bun-install-/, 'bun-cli-install-'),
+    );
+    const snapshot = () => [render(sharedKey), render(cliKey)];
+    const baseline = snapshot();
+    for (const file of files) {
+      const original = readFileSync(join(fixture, file));
+      writeFileSync(
+        join(fixture, file),
+        Buffer.concat([original, Buffer.from('\nchanged\n')]),
+      );
+      const changed = snapshot();
+      expect(changed[0], file).not.toBe(baseline[0]);
+      expect(changed[1], file).toBe(changed[0]);
+      writeFileSync(join(fixture, file), original);
+      expect(snapshot(), file).toEqual(baseline);
+    }
+    writeFileSync(join(fixture, independent), '{}\n');
+    expect(snapshot()).toEqual(baseline);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
 });
 
 test('Turbo uses one native branch-scoped cache archive with distinct workflow writers', () => {

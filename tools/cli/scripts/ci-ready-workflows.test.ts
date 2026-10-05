@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { readFile, readdir } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { constants, runInNewContext } from 'node:vm';
 
@@ -15,6 +25,21 @@ import {
 import { CANDIDATE_JOBS, IMAGE_SERVICES } from './release-candidate-gate';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
+const checkout = 'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd';
+const scopeFiles = [
+  '.github/actions/ci-scope/action.yml',
+  '.github/ci-scope.yml',
+  'tools/cli/scripts/ci-ready.ts',
+];
+const readyFiles = [
+  '.github/actions/ci-ready/action.yml',
+  'tools/cli/scripts/ci-ready.ts',
+];
+const sparseInputs = (files: string[]) => ({
+  'persist-credentials': false,
+  'sparse-checkout': files.map((file) => `/${file}`).join('\n') + '\n',
+  'sparse-checkout-cone-mode': false,
+});
 type Step = {
   id?: string;
   uses?: string;
@@ -67,7 +92,8 @@ describe('seven complete native merge gates', () => {
         expect.stringMatching(/^actions\/checkout@/),
         './.github/actions/ci-ready',
       ]);
-      expect(gate.steps?.[0]?.with?.['persist-credentials']).toBe(false);
+      expect(gate.steps?.[0]?.uses).toBe(checkout);
+      expect(gate.steps?.[0]?.with).toEqual(sparseInputs(readyFiles));
       expect(gate.steps?.[1]?.with).toEqual({
         workflow: stem,
         jobs: '${{ toJSON(needs) }}',
@@ -124,7 +150,7 @@ describe('seven complete native merge gates', () => {
   test('all current native matrix legs and fork/advisory dispositions survive', async () => {
     const build = await workflow('build');
     expect(build.jobs.build!.strategy?.matrix.service).toEqual(IMAGE_SERVICES);
-    expect(COMPOSE_SERVICES).toEqual(IMAGE_SERVICES);
+    expect<readonly string[]>(COMPOSE_SERVICES).toEqual(IMAGE_SERVICES);
     const checks = await workflow('checks');
     expect(checks.jobs['test-platform-shards']!.strategy?.matrix.shard).toEqual(
       [1, 2],
@@ -231,6 +257,8 @@ describe('seven complete native merge gates', () => {
         contents: 'read',
         'pull-requests': 'read',
       });
+      expect(scope.steps?.[0]?.uses).toBe(checkout);
+      expect(scope.steps?.[0]?.with).toEqual(sparseInputs(scopeFiles));
       expect(scope.steps?.find((step) => step.id === 'scope')?.with).toEqual({
         filter: stem,
       });
@@ -248,6 +276,14 @@ describe('seven complete native merge gates', () => {
       }
     }
     const checks = await workflow('checks');
+    const integrationCheckout = checks.jobs['integration-scope']?.steps?.find(
+      (step) => step.uses === checkout,
+    );
+    expect(integrationCheckout?.if).toBe("github.event_name == 'pull_request'");
+    expect(integrationCheckout?.with).toEqual({
+      ref: '${{ needs.candidate-source.outputs.candidate_sha }}',
+      ...sparseInputs(scopeFiles),
+    });
     expect(
       checks.jobs['integration-scope']?.steps?.find(
         (step) => step.id === 'decide',
@@ -276,6 +312,8 @@ async function execute(
   eventName: string,
   env: Record<string, string>,
   answer: unknown,
+  workspace = root,
+  coreOverrides: Record<string, unknown> = {},
 ) {
   const outputs: Record<string, string> = {};
   let calls = 0;
@@ -288,6 +326,7 @@ async function execute(
           outputs[name] = value;
         },
         info: () => {},
+        ...coreOverrides,
       },
       github: {
         rest: {
@@ -300,12 +339,18 @@ async function execute(
           },
         },
       },
-      context: { eventName, payload, repo: { owner: 'test', repo: 'test' } },
+      context: {
+        eventName,
+        payload,
+        repo: { owner: 'test', repo: 'test' },
+        sha: B,
+        runId: 1,
+      },
       require: (specifier: string) => {
         if (specifier !== 'node:url') throw new Error('Unexpected require');
         return { pathToFileURL };
       },
-      process: { env: { GITHUB_WORKSPACE: root, ...env } },
+      process: { env: { GITHUB_WORKSPACE: workspace, ...env } },
     },
     {
       timeout: 1000,
@@ -314,6 +359,323 @@ async function execute(
   );
   return { outputs, calls };
 }
+
+// Use native Node as well as Bun's VM: the pinned github-script runtime must
+// resolve the sparse TypeScript module without a package manifest or install.
+function executeNative(
+  step: Step,
+  workspace: string,
+  env: Record<string, string>,
+  answer: unknown = pr(),
+) {
+  const script = `
+const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
+Object.assign(process.env, input.env, { GITHUB_WORKSPACE: process.cwd() });
+const outputs = {}, failures = [];
+let calls = 0;
+const summary = {};
+for (const name of ['addHeading', 'addRaw', 'addTable', 'addList']) summary[name] = () => summary;
+summary.write = async () => {};
+const core = { summary, info: () => {}, setOutput: (name, value) => { outputs[name] = value; }, setFailed: message => failures.push(message) };
+const github = { rest: { pulls: { get: async () => { calls++; return { data: input.answer }; } } } };
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+new AsyncFunction('core', 'github', 'context', 'require', input.script)(core, github, input.context, require)
+  .then(() => process.stdout.write(JSON.stringify({ outputs, failures, calls })))
+  .catch(error => { console.error(error); process.exitCode = 1; });
+`;
+  const result = spawnSync('node', ['--input-type=commonjs', '-e', script], {
+    cwd: workspace,
+    encoding: 'utf8',
+    timeout: 10_000,
+    input: JSON.stringify({
+      script: step.with?.script,
+      env,
+      answer,
+      context: {
+        eventName: 'pull_request',
+        sha: B,
+        runId: 1,
+        repo: { owner: 'test', repo: 'test' },
+        payload: {
+          pull_request: {
+            ...pr(),
+            draft: false,
+            head: { sha: B, repo: { fork: false } },
+          },
+        },
+      },
+    }),
+  });
+  expect(result.error).toBeUndefined();
+  expect(result.status, result.stderr).toBe(0);
+  return JSON.parse(result.stdout) as {
+    outputs: Record<string, string>;
+    failures: string[];
+    calls: number;
+  };
+}
+
+async function sparseFixture(
+  checkoutStep: Step,
+  files: string[],
+  verify: (workspace: string) => Promise<void>,
+) {
+  const workspace = await mkdtemp(join(tmpdir(), 'tale-ci-sparse-'));
+  try {
+    const sources = [...new Set([...scopeFiles, ...readyFiles])];
+    const excluded = [
+      'README.md',
+      'package.json',
+      'node_modules/synthetic/index.js',
+      '.github/actions/ci-scope/sibling.yml',
+      '.github/actions/ci-ready/sibling.yml',
+      'tools/cli/scripts/sibling.ts',
+      ...sources.map((file) => `nested/${file}`),
+    ];
+    for (const file of [...sources, ...excluded]) {
+      await mkdir(join(workspace, dirname(file)), { recursive: true });
+      await writeFile(
+        join(workspace, file),
+        sources.includes(file)
+          ? await readFile(join(root, file))
+          : 'not needed by scope or readiness\n',
+      );
+    }
+    const git = (args: string[], input?: string) => {
+      const result = spawnSync(
+        'git',
+        [
+          '-c',
+          'core.hooksPath=/dev/null',
+          '-c',
+          'commit.gpgsign=false',
+          ...args,
+        ],
+        { cwd: workspace, encoding: 'utf8', timeout: 10_000, input },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+      return result.stdout;
+    };
+    git(['init', '--quiet']);
+    git(['add', '.']);
+    git([
+      '-c',
+      'user.name=CI sparse fixture',
+      '-c',
+      'user.email=ci-sparse-fixture@example.invalid',
+      'commit',
+      '--quiet',
+      '-m',
+      'fixture',
+    ]);
+    git(
+      ['sparse-checkout', 'set', '--no-cone', '--stdin'],
+      String(checkoutStep.with?.['sparse-checkout']),
+    );
+    expect(git(['config', 'core.sparseCheckoutCone']).trim()).toBe('false');
+    expect(
+      git(['ls-files', '-t'])
+        .split('\n')
+        .filter((line) => line.startsWith('H '))
+        .map((line) => line.slice(2))
+        .toSorted(),
+    ).toEqual(files.toSorted());
+    for (const file of [
+      ...excluded,
+      ...sources.filter((source) => !files.includes(source)),
+    ])
+      expect(await Bun.file(join(workspace, file)).exists(), file).toBe(false);
+    expect(git(['status', '--porcelain'])).toBe('');
+    expect(
+      new Bun.Transpiler({ loader: 'ts' }).scanImports(
+        await readFile(
+          join(workspace, 'tools/cli/scripts/ci-ready.ts'),
+          'utf8',
+        ),
+      ),
+    ).toEqual([]);
+    await verify(workspace);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+}
+
+describe('real non-cone scope and readiness checkouts', () => {
+  test('three materialized scope files retain API discovery and all five policies', async () => {
+    const checkoutStep = (await workflow('checks')).jobs[
+      'integration-scope'
+    ]!.steps!.find((step) => step.uses === checkout)!;
+    await sparseFixture(checkoutStep, scopeFiles, async (workspace) => {
+      const steps: Step[] = parse(
+        await readFile(
+          join(workspace, '.github/actions/ci-scope/action.yml'),
+          'utf8',
+        ),
+      ).runs.steps;
+      const filters = parse(
+        await readFile(join(workspace, '.github/ci-scope.yml'), 'utf8'),
+      );
+      expect(steps[1]?.uses).toBe(
+        'dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d',
+      );
+      expect(steps[1]?.with).toEqual({
+        filters: '.github/ci-scope.yml',
+        'list-files': 'json',
+      });
+      const before = await execute(
+        steps[0]!,
+        { pull_request: pr() },
+        'pull_request',
+        {},
+        pr(),
+        workspace,
+      );
+      expect(before.calls).toBe(1);
+      expect(before.outputs.full).toBe('false');
+      expect(executeNative(steps[0]!, workspace, {})).toMatchObject(before);
+      expect(JSON.parse(before.outputs.identity!)).toEqual({
+        base: { sha: A },
+        head: { sha: B },
+        changed_files: 2,
+      });
+      for (const filter of ['integration', 'build', 'e2e', 'cli', 'security']) {
+        expect(filters[filter].length).toBeGreaterThan(0);
+        const env = {
+          SCOPE_FILTER: filter,
+          SCOPE_FULL: before.outputs.full!,
+          SCOPE_BEFORE: before.outputs.identity!,
+          SCOPE_TOUCHED: 'true',
+          SCOPE_GUARD: 'false',
+          SCOPE_COUNT: '2',
+          SCOPE_FILES: '["services/web/a.ts","README.md"]',
+          SCOPE_ADDED: 'false',
+          SCOPE_DELETED: 'false',
+          ...Object.fromEntries(
+            BUILD_FILTERS.map((name) => [
+              `BUILD_${name.replaceAll('-', '_')}`,
+              'false',
+            ]),
+          ),
+          E2E_platform: 'false',
+          E2E_web: 'true',
+          E2E_docs: 'false',
+        };
+        const result = await execute(
+          steps[2]!,
+          { pull_request: pr() },
+          'pull_request',
+          env,
+          pr(),
+          workspace,
+        );
+        expect(executeNative(steps[2]!, workspace, env)).toMatchObject(result);
+        expect(result.calls).toBe(1);
+        expect(result.outputs).toMatchObject({ run: 'true', full: 'false' });
+        if (filter === 'build')
+          expect(result.outputs).toMatchObject({
+            changes: '[]',
+            ci_tests: 'false',
+            storybook: 'false',
+          });
+        if (filter === 'e2e')
+          expect(result.outputs).toMatchObject({
+            platform: 'false',
+            web: 'true',
+            docs: 'false',
+          });
+      }
+    });
+  });
+
+  test('two materialized readiness files execute the complete native verdict without dependencies', async () => {
+    const checkoutStep = (await workflow('sast')).jobs['ci-ready']!.steps![0]!;
+    await sparseFixture(checkoutStep, readyFiles, async (workspace) => {
+      const step: Step = parse(
+        await readFile(
+          join(workspace, '.github/actions/ci-ready/action.yml'),
+          'utf8',
+        ),
+      ).runs.steps[0];
+      const headings: string[] = [];
+      const raw: string[] = [];
+      const failures: string[] = [];
+      let writes = 0;
+      const summary = {
+        addHeading: (value: string) => {
+          headings.push(value);
+          return summary;
+        },
+        addRaw: (value: string) => {
+          raw.push(value);
+          return summary;
+        },
+        addTable: () => summary,
+        addList: () => summary,
+        write: async () => {
+          writes++;
+        },
+      };
+      const needs = {
+        'candidate-source': { result: 'skipped' },
+        sast: { result: 'success' },
+        'candidate-gate': { result: 'skipped' },
+      };
+      const run = (nativeNeeds: unknown) =>
+        execute(
+          step,
+          {
+            pull_request: {
+              ...pr(),
+              draft: false,
+              head: { sha: B, repo: { fork: false } },
+            },
+          },
+          'pull_request',
+          {
+            CI_WORKFLOW: 'sast',
+            CI_NEEDS: JSON.stringify(nativeNeeds),
+            GITHUB_RUN_ATTEMPT: '2',
+          },
+          null,
+          workspace,
+          { summary, setFailed: (reason: string) => failures.push(reason) },
+        );
+      expect((await run(needs)).calls).toBe(0);
+      expect(headings).toEqual(['CI readiness: passed']);
+      expect(raw).toEqual([`Run 1, attempt 2, source ${B}\n`]);
+      expect(failures).toEqual([]);
+      const native = (nativeNeeds: unknown) =>
+        executeNative(step, workspace, {
+          CI_WORKFLOW: 'sast',
+          CI_NEEDS: JSON.stringify(nativeNeeds),
+          GITHUB_RUN_ATTEMPT: '2',
+        });
+      expect(native(needs)).toEqual({ outputs: {}, failures: [], calls: 0 });
+      expect(
+        native({ ...needs, sast: { result: 'failure' } }).failures,
+      ).toEqual(['sast: expected success, got failure']);
+      expect(native({ sast: needs.sast }).failures).toEqual([
+        'Native needs must cover every classified job exactly',
+      ]);
+      await run({ ...needs, sast: { result: 'failure' } });
+      expect(failures).toEqual(['sast: expected success, got failure']);
+      await run({
+        'candidate-source': needs['candidate-source'],
+        sast: needs.sast,
+      });
+      expect(failures.at(-1)).toBe(
+        'Native needs must cover every classified job exactly',
+      );
+      expect(headings).toEqual([
+        'CI readiness: passed',
+        'CI readiness: held',
+        'CI readiness: held',
+      ]);
+      expect(writes).toBe(3);
+    });
+  });
+});
 
 describe('actual scope action boundaries', () => {
   test('E2E service decisions use the same frozen identity and refuse incomplete discovery', async () => {

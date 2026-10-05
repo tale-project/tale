@@ -24,12 +24,15 @@ Use the example file alongside this reference and inspect your effective service
 | `HOST`      | `localhost`         | **Required.** Hostname without protocol. Used for Docker networking and outbound email.                                   |
 | `SITE_URL`  | `https://localhost` | **Required.** Full canonical URL including scheme and any non-standard port. Auth callbacks and external links use this.  |
 | `ADDITIONAL_SITE_URLS` | unset      | **Optional.** Other origins the same deployment answers on, comma- or whitespace-separated (e.g. `https://a.example,https://b.example`). Each is a full entry point. See [TLS and domains](/self-hosted/configuration/tls-and-domains#several-domains-at-once). |
+| `TOTP_ENVIRONMENT` | unset | Authenticator environment label for `backend-api` and the `all` role: 1–32 letters, digits, underscores or hyphens, trimmed and uppercased. `pr` or unset keeps `Tale`; `te` names newly generated entries `Tale <TE>`. Invalid labels prevent backend startup. |
 | `BASE_PATH` | unset               | **Optional.** Path prefix for subpath deployments behind a reverse proxy (e.g. `/app`). Leave unset for root deployments. |
 | `DOCS_URL` | `https://docs.<HOST>` | Public origin for the proxy’s separate documentation host. The deployment must also include the docs service. |
 
 `SITE_URL` identifies the canonical public origin. Keep scheme, hostname, and port consistent with the browser address and registered callbacks; `BASE_PATH` supplies a deployment path prefix. A trailing slash is normalized by the proxy. Additional addresses belong in `ADDITIONAL_SITE_URLS` as bare origins. Invalid additional origins stop backend startup.
 
 The prose documentation uses its own origin. On the platform origin, `/docs` opens the interactive API reference and `/openapi.json` serves its schema. `DOCS_URL` changes the proxy’s docs host; it does not install the docs service or rewrite links in existing client bundles. The SEO tooling’s `TALE_DOCS_URL` and the docs service’s build/runtime path prefix `DOCS_BASE_URL` are separate settings.
+
+Changing `TOTP_ENVIRONMENT` affects newly generated QR codes and setup URIs, including when an existing secret is displayed again. It does not rotate secrets or rename entries already saved on a device; rename those in your authenticator app if needed.
 
 ## TLS
 

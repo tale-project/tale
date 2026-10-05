@@ -1,0 +1,6145 @@
+{
+  "schemaVersion": 1,
+  "requiredWorkflows": [
+    ".github/workflows/checks.yml",
+    ".github/workflows/sast.yml",
+    ".github/workflows/commitlint.yml",
+    ".github/workflows/e2e.yml",
+    ".github/workflows/cli.yml",
+    ".github/workflows/security.yml"
+  ],
+  "imageServices": [
+    "db",
+    "platform",
+    "proxy",
+    "sandbox-llm-gateway",
+    "sandbox",
+    "sandbox-egress",
+    "sandbox-buildkitd",
+    "sandbox-runtime"
+  ],
+  "candidateJobs": {
+    "build": {
+      "ids": [
+        "candidate-source",
+        "changes",
+        "build",
+        "smoke-test",
+        "image-validate",
+        "web-test",
+        "docs-test",
+        "ui-docs-test",
+        "ai-gateway-test",
+        "storybook"
+      ],
+      "names": [
+        "Candidate source / Resolve source",
+        "Detect changes",
+        "Build db",
+        "Build platform",
+        "Build proxy",
+        "Build sandbox-llm-gateway",
+        "Build sandbox",
+        "Build sandbox-egress",
+        "Build sandbox-buildkitd",
+        "Build sandbox-runtime",
+        "Smoke test",
+        "Validate images",
+        "Web container test",
+        "Docs container test",
+        "UI docs container test",
+        "AI gateway container test",
+        "Storybook",
+        "Candidate gate"
+      ]
+    },
+    "checks": {
+      "ids": [
+        "candidate-source",
+        "format",
+        "lint",
+        "typecheck",
+        "build",
+        "test",
+        "test-platform-shards",
+        "test-workspaces",
+        "test-ui-shards",
+        "test-ui",
+        "performance",
+        "knip",
+        "test-browser",
+        "integration-scope",
+        "backend-integration"
+      ],
+      "names": [
+        "Candidate source / Resolve source",
+        "Format",
+        "Lint",
+        "Type check",
+        "Build",
+        "Unit",
+        "Unit (platform 1/2)",
+        "Unit (platform 2/2)",
+        "Unit (workspaces)",
+        "UI (platform 1/4)",
+        "UI (platform 2/4)",
+        "UI (platform 3/4)",
+        "UI (platform 4/4)",
+        "UI",
+        "Performance",
+        "Knip",
+        "Browser",
+        "Integration scope",
+        "Backend integration",
+        "Candidate gate / Record receipt"
+      ]
+    },
+    "sast": {
+      "ids": ["candidate-source", "sast"],
+      "names": [
+        "Candidate source / Resolve source",
+        "Opengrep",
+        "Candidate gate / Record receipt"
+      ]
+    },
+    "commitlint": {
+      "ids": ["candidate-source", "commitlint"],
+      "names": [
+        "Candidate source / Resolve source",
+        "Lint commits",
+        "Candidate gate / Record receipt"
+      ]
+    },
+    "e2e": {
+      "ids": ["candidate-source", "scope", "build", "e2e", "static-sites"],
+      "names": [
+        "Candidate source / Resolve source",
+        "E2E scope",
+        "Build platform (E2E preview bundle)",
+        "Playwright (platform 1/4)",
+        "Playwright (platform 2/4)",
+        "Playwright (platform 3/4)",
+        "Playwright (platform 4/4)",
+        "Playwright (web)",
+        "Playwright (docs)",
+        "Candidate gate / Record receipt"
+      ]
+    },
+    "cli": {
+      "ids": ["candidate-source", "prepare", "build"],
+      "names": [
+        "Candidate source / Resolve source",
+        "Prepare",
+        "Build (linux)",
+        "Build (linux-arm64)",
+        "Build (macos)",
+        "Build (macos-x64)",
+        "Build (windows)",
+        "Candidate gate / Record receipt"
+      ]
+    },
+    "security": {
+      "ids": ["candidate-source", "bun-audit", "trivy-fs"],
+      "names": [
+        "Candidate source / Resolve source",
+        "Bun audit",
+        "Trivy filesystem scan",
+        "Candidate gate / Record receipt"
+      ]
+    }
+  },
+  "helpers": {
+    ".github/workflows/release-candidate-source.yml": "f27c2c2d1a8fe47b7dbe469d31c33b69c6d23419726813c3aec6558627bf884f",
+    ".github/workflows/release-candidate-receipt.yml": "37cbe33210a4ff01e3dc138031284d3364ce7034eb0ad19631c375b7f46c4c2b"
+  },
+  "sourceWorkflows": {
+    "checks.yml": {
+      "events": ["push"],
+      "assertions": [
+        {
+          "path": [],
+          "kind": "keys",
+          "expected": ["concurrency", "jobs", "name", "on", "run-name"]
+        },
+        {
+          "path": ["concurrency"],
+          "kind": "value",
+          "expected": {
+            "group": "${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}",
+            "cancel-in-progress": "${{ github.event_name != 'repository_dispatch' }}"
+          }
+        },
+        {
+          "path": ["on"],
+          "kind": "value",
+          "expected": {
+            "repository_dispatch": {
+              "types": ["release-candidate"]
+            },
+            "pull_request": {
+              "types": [
+                "opened",
+                "synchronize",
+                "reopened",
+                "ready_for_review"
+              ],
+              "branches": ["main"]
+            },
+            "push": {
+              "branches": ["main"]
+            },
+            "merge_group": null
+          }
+        },
+        {
+          "path": ["run-name"],
+          "kind": "value",
+          "expected": "${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}"
+        },
+        {
+          "path": ["jobs"],
+          "kind": "keys",
+          "expected": [
+            "backend-integration",
+            "build",
+            "candidate-gate",
+            "candidate-source",
+            "ci-ready",
+            "format",
+            "integration-scope",
+            "knip",
+            "lint",
+            "performance",
+            "test",
+            "test-browser",
+            "test-platform-shards",
+            "test-ui",
+            "test-ui-shards",
+            "test-workspaces",
+            "typecheck"
+          ]
+        },
+        {
+          "path": ["jobs", "backend-integration"],
+          "kind": "keys",
+          "expected": [
+            "env",
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "backend-integration", "env"],
+          "kind": "value",
+          "expected": {
+            "ITEST_DB_PASSWORD": "tale_itest_ci",
+            "ITEST_S3_ACCESS_KEY": "tale-itest",
+            "ITEST_S3_SECRET_KEY": "tale_itest_object_store"
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true && (needs.integration-scope.result != 'success' || needs.integration-scope.outputs.run == 'true'))"
+        },
+        {
+          "path": ["jobs", "backend-integration", "name"],
+          "kind": "value",
+          "expected": "Backend integration"
+        },
+        {
+          "path": ["jobs", "backend-integration", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "integration-scope"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "backend-integration", "timeout-minutes"],
+          "kind": "value",
+          "expected": 40
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 0],
+          "kind": "keys",
+          "expected": ["env", "if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 0, "env"],
+          "kind": "value",
+          "expected": {
+            "SCOPE": "${{ needs.integration-scope.result }}"
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 0, "if"],
+          "kind": "value",
+          "expected": "needs.integration-scope.result != 'success'"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 2],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 3],
+          "kind": "keys",
+          "expected": ["id", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 3, "id"],
+          "kind": "value",
+          "expected": "toolchain"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 3, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 3, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "turbo-cache": "false"
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 4],
+          "kind": "keys",
+          "expected": ["id", "if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 4, "id"],
+          "kind": "value",
+          "expected": "node"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 4, "if"],
+          "kind": "value",
+          "expected": "steps.toolchain.outputs.node-version == ''"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 5],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 5, "if"],
+          "kind": "value",
+          "expected": "steps.toolchain.outputs.node-version == ''"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 5, "uses"],
+          "kind": "value",
+          "expected": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 5, "with"],
+          "kind": "value",
+          "expected": {
+            "node-version": "${{ steps.node.outputs.version }}",
+            "package-manager-cache": false
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 6],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 6, "env"],
+          "kind": "value",
+          "expected": {
+            "NODE_VERSION": "${{ steps.toolchain.outputs.node-version || steps.node.outputs.version }}"
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 7],
+          "kind": "keys",
+          "expected": ["name", "run", "timeout-minutes"]
+        },
+        {
+          "path": [
+            "jobs",
+            "backend-integration",
+            "steps",
+            7,
+            "timeout-minutes"
+          ],
+          "kind": "value",
+          "expected": 8
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 8],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 8, "uses"],
+          "kind": "value",
+          "expected": "docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 8, "with"],
+          "kind": "value",
+          "expected": {
+            "cleanup": false
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 9],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 9, "uses"],
+          "kind": "value",
+          "expected": "docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 9, "with"],
+          "kind": "value",
+          "expected": {
+            "context": ".",
+            "file": "services/db/Dockerfile",
+            "platforms": "linux/amd64",
+            "push": false,
+            "load": true,
+            "tags": "tale-db:itest",
+            "cache-from": "type=gha,scope=db",
+            "provenance": false
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 10],
+          "kind": "keys",
+          "expected": ["id", "name", "run"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 10, "id"],
+          "kind": "value",
+          "expected": "object-store"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 11],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 11, "env"],
+          "kind": "value",
+          "expected": {
+            "OBJECT_STORE_IMAGE": "${{ steps.object-store.outputs.image }}"
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 12],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 12, "env"],
+          "kind": "value",
+          "expected": {
+            "OBJECT_STORE_IMAGE": "${{ steps.object-store.outputs.image }}"
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 13],
+          "kind": "keys",
+          "expected": [
+            "env",
+            "name",
+            "run",
+            "timeout-minutes",
+            "working-directory"
+          ]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 13, "env"],
+          "kind": "value",
+          "expected": {
+            "DATABASE_URL": "postgres://tale:${{ env.ITEST_DB_PASSWORD }}@127.0.0.1:5432/tale_app",
+            "KNOWLEDGE_DATABASE_URL": "postgres://tale:${{ env.ITEST_DB_PASSWORD }}@127.0.0.1:5432/tale_knowledge",
+            "ITEST_S3_ENDPOINT": "http://127.0.0.1:9000",
+            "ITEST_REQUIRE_ALL_LANES": "1",
+            "TALE_CONFIG_DIR": "${{ runner.temp }}/itest-config",
+            "TALE_CONFIG_BUILTIN_DIR": "${{ runner.temp }}/itest-builtin"
+          }
+        },
+        {
+          "path": [
+            "jobs",
+            "backend-integration",
+            "steps",
+            13,
+            "timeout-minutes"
+          ],
+          "kind": "value",
+          "expected": 30
+        },
+        {
+          "path": [
+            "jobs",
+            "backend-integration",
+            "steps",
+            13,
+            "working-directory"
+          ],
+          "kind": "value",
+          "expected": "services/platform"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 14],
+          "kind": "keys",
+          "expected": ["if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 14, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 15],
+          "kind": "keys",
+          "expected": ["if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 15, "if"],
+          "kind": "value",
+          "expected": "failure()"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 16],
+          "kind": "keys",
+          "expected": ["if", "name", "run", "timeout-minutes"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 16, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": [
+            "jobs",
+            "backend-integration",
+            "steps",
+            16,
+            "timeout-minutes"
+          ],
+          "kind": "value",
+          "expected": 2
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 17],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 17, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 17, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 17, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "backend-integration-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "${{ env.PROOF_DIR }}/*.txt\n${{ env.PROOF_DIR }}/*.log\n",
+            "if-no-files-found": "error",
+            "retention-days": 14
+          }
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps"],
+          "kind": "length",
+          "expected": 18
+        },
+        {
+          "path": ["jobs", "build"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "build", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+        },
+        {
+          "path": ["jobs", "build", "name"],
+          "kind": "value",
+          "expected": "Build"
+        },
+        {
+          "path": ["jobs", "build", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "build", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "build", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "build", "timeout-minutes"],
+          "kind": "value",
+          "expected": 30
+        },
+        {
+          "path": ["jobs", "build", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "build", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "build", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "cache-scope": "build"
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 2],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 2, "env"],
+          "kind": "value",
+          "expected": {
+            "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}"
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 3],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 4],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 4, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "build", "steps", 4, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "build", "steps", 4, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "turbo-build-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": ".turbo/runs/*.json",
+            "include-hidden-files": true,
+            "if-no-files-found": "ignore",
+            "retention-days": 7
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps"],
+          "kind": "length",
+          "expected": 5
+        },
+        {
+          "path": ["jobs", "candidate-gate"],
+          "kind": "keys",
+          "expected": ["if", "name", "needs", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "if"],
+          "kind": "value",
+          "expected": "always() && github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "name"],
+          "kind": "value",
+          "expected": "Candidate gate"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "needs"],
+          "kind": "value",
+          "expected": [
+            "candidate-source",
+            "format",
+            "lint",
+            "typecheck",
+            "build",
+            "test",
+            "test-platform-shards",
+            "test-workspaces",
+            "test-ui",
+            "test-ui-shards",
+            "performance",
+            "knip",
+            "test-browser",
+            "integration-scope",
+            "backend-integration"
+          ]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "permissions"],
+          "kind": "value",
+          "expected": {}
+        },
+        {
+          "path": ["jobs", "candidate-gate", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-receipt.yml"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}",
+            "workflow": ".github/workflows/checks.yml",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source"],
+          "kind": "keys",
+          "expected": ["if", "name", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-source", "if"],
+          "kind": "value",
+          "expected": "github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-source", "name"],
+          "kind": "value",
+          "expected": "Candidate source"
+        },
+        {
+          "path": ["jobs", "candidate-source", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-source.yml"
+        },
+        {
+          "path": ["jobs", "candidate-source", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate": "${{ github.event_name == 'repository_dispatch' }}",
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "ci-ready", "if"],
+          "kind": "value",
+          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+        },
+        {
+          "path": ["jobs", "ci-ready", "name"],
+          "kind": "value",
+          "expected": "CI ready (Checks)"
+        },
+        {
+          "path": ["jobs", "ci-ready", "needs"],
+          "kind": "value",
+          "expected": [
+            "candidate-source",
+            "format",
+            "lint",
+            "typecheck",
+            "build",
+            "test",
+            "test-platform-shards",
+            "test-workspaces",
+            "test-ui",
+            "test-ui-shards",
+            "performance",
+            "knip",
+            "test-browser",
+            "integration-scope",
+            "backend-integration",
+            "candidate-gate"
+          ]
+        },
+        {
+          "path": ["jobs", "ci-ready", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "ci-ready", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/ci-ready"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "workflow": "checks",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps"],
+          "kind": "length",
+          "expected": 2
+        },
+        {
+          "path": ["jobs", "format"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "format", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+        },
+        {
+          "path": ["jobs", "format", "name"],
+          "kind": "value",
+          "expected": "Format"
+        },
+        {
+          "path": ["jobs", "format", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "format", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "format", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "format", "timeout-minutes"],
+          "kind": "value",
+          "expected": 10
+        },
+        {
+          "path": ["jobs", "format", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "format", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "format", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false,
+            "fetch-depth": 2
+          }
+        },
+        {
+          "path": ["jobs", "format", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "format", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "format", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "turbo-cache": "false"
+          }
+        },
+        {
+          "path": ["jobs", "format", "steps", 2],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "format", "steps", 2, "uses"],
+          "kind": "value",
+          "expected": "astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e"
+        },
+        {
+          "path": ["jobs", "format", "steps", 2, "with"],
+          "kind": "value",
+          "expected": {
+            "cache-dependency-glob": "package.json"
+          }
+        },
+        {
+          "path": ["jobs", "format", "steps", 3],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "format", "steps", 4],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "format", "steps", 5],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "format", "steps"],
+          "kind": "length",
+          "expected": 6
+        },
+        {
+          "path": ["jobs", "integration-scope"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "outputs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "integration-scope", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+        },
+        {
+          "path": ["jobs", "integration-scope", "name"],
+          "kind": "value",
+          "expected": "Integration scope"
+        },
+        {
+          "path": ["jobs", "integration-scope", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "integration-scope", "outputs"],
+          "kind": "value",
+          "expected": {
+            "run": "${{ steps.complete.outputs.run || steps.decide.outputs.run }}"
+          }
+        },
+        {
+          "path": ["jobs", "integration-scope", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read",
+            "pull-requests": "read"
+          }
+        },
+        {
+          "path": ["jobs", "integration-scope", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "integration-scope", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 0],
+          "kind": "keys",
+          "expected": ["id", "if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 0, "id"],
+          "kind": "value",
+          "expected": "complete"
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 0, "if"],
+          "kind": "value",
+          "expected": "github.event_name != 'pull_request'"
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 1],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 1, "if"],
+          "kind": "value",
+          "expected": "github.event_name == 'pull_request'"
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-scope/action.yml\n/.github/ci-scope.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 2],
+          "kind": "keys",
+          "expected": ["id", "if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 2, "id"],
+          "kind": "value",
+          "expected": "decide"
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 2, "if"],
+          "kind": "value",
+          "expected": "github.event_name == 'pull_request'"
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 2, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/ci-scope"
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps", 2, "with"],
+          "kind": "value",
+          "expected": {
+            "filter": "integration"
+          }
+        },
+        {
+          "path": ["jobs", "integration-scope", "steps"],
+          "kind": "length",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "knip"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "knip", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+        },
+        {
+          "path": ["jobs", "knip", "name"],
+          "kind": "value",
+          "expected": "Knip"
+        },
+        {
+          "path": ["jobs", "knip", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "knip", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "knip", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "knip", "timeout-minutes"],
+          "kind": "value",
+          "expected": 10
+        },
+        {
+          "path": ["jobs", "knip", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "knip", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "knip", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "knip", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "knip", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "knip", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "turbo-cache": "false"
+          }
+        },
+        {
+          "path": ["jobs", "knip", "steps", 2],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "knip", "steps"],
+          "kind": "length",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "lint"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "lint", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+        },
+        {
+          "path": ["jobs", "lint", "name"],
+          "kind": "value",
+          "expected": "Lint"
+        },
+        {
+          "path": ["jobs", "lint", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "lint", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "lint", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "lint", "timeout-minutes"],
+          "kind": "value",
+          "expected": 10
+        },
+        {
+          "path": ["jobs", "lint", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "lint", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "lint", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "lint", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "lint", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "lint", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}"
+          }
+        },
+        {
+          "path": ["jobs", "lint", "steps", 2],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "lint", "steps", 3],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "lint", "steps", 3, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "lint", "steps", 3, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "lint", "steps", 3, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "turbo-lint-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": ".turbo/runs/*.json",
+            "include-hidden-files": true,
+            "if-no-files-found": "ignore",
+            "retention-days": 7
+          }
+        },
+        {
+          "path": ["jobs", "lint", "steps"],
+          "kind": "length",
+          "expected": 4
+        },
+        {
+          "path": ["jobs", "performance"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "performance", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+        },
+        {
+          "path": ["jobs", "performance", "name"],
+          "kind": "value",
+          "expected": "Performance"
+        },
+        {
+          "path": ["jobs", "performance", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "performance", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "performance", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "performance", "timeout-minutes"],
+          "kind": "value",
+          "expected": 15
+        },
+        {
+          "path": ["jobs", "performance", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "performance", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "performance", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "performance", "steps", 1],
+          "kind": "keys",
+          "expected": ["id", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "performance", "steps", 1, "id"],
+          "kind": "value",
+          "expected": "toolchain"
+        },
+        {
+          "path": ["jobs", "performance", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "performance", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "turbo-cache": "false"
+          }
+        },
+        {
+          "path": ["jobs", "performance", "steps", 2],
+          "kind": "keys",
+          "expected": ["id", "if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "performance", "steps", 2, "id"],
+          "kind": "value",
+          "expected": "node"
+        },
+        {
+          "path": ["jobs", "performance", "steps", 2, "if"],
+          "kind": "value",
+          "expected": "steps.toolchain.outputs.node-version == ''"
+        },
+        {
+          "path": ["jobs", "performance", "steps", 3],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "performance", "steps", 3, "if"],
+          "kind": "value",
+          "expected": "steps.toolchain.outputs.node-version == ''"
+        },
+        {
+          "path": ["jobs", "performance", "steps", 3, "uses"],
+          "kind": "value",
+          "expected": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"
+        },
+        {
+          "path": ["jobs", "performance", "steps", 3, "with"],
+          "kind": "value",
+          "expected": {
+            "node-version": "${{ steps.node.outputs.version }}",
+            "package-manager-cache": false
+          }
+        },
+        {
+          "path": ["jobs", "performance", "steps", 4],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "performance", "steps", 5],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "performance", "steps", 6],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "performance", "steps", 6, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "performance", "steps", 6, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "performance", "steps", 6, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "tale-performance-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "${{ runner.temp }}/tale-performance.json",
+            "retention-days": 14,
+            "if-no-files-found": "warn"
+          }
+        },
+        {
+          "path": ["jobs", "performance", "steps"],
+          "kind": "length",
+          "expected": 7
+        },
+        {
+          "path": ["jobs", "test"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "test", "if"],
+          "kind": "value",
+          "expected": "always() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+        },
+        {
+          "path": ["jobs", "test", "name"],
+          "kind": "value",
+          "expected": "Unit"
+        },
+        {
+          "path": ["jobs", "test", "needs"],
+          "kind": "value",
+          "expected": [
+            "candidate-source",
+            "test-platform-shards",
+            "test-workspaces"
+          ]
+        },
+        {
+          "path": ["jobs", "test", "permissions"],
+          "kind": "value",
+          "expected": {}
+        },
+        {
+          "path": ["jobs", "test", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "test", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "test", "steps", 0],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "test", "steps", 0, "env"],
+          "kind": "value",
+          "expected": {
+            "PLATFORM_RESULT": "${{ needs.test-platform-shards.result }}",
+            "WORKSPACES_RESULT": "${{ needs.test-workspaces.result }}"
+          }
+        },
+        {
+          "path": ["jobs", "test", "steps"],
+          "kind": "length",
+          "expected": 1
+        },
+        {
+          "path": ["jobs", "test-browser"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "test-browser", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
+        },
+        {
+          "path": ["jobs", "test-browser", "name"],
+          "kind": "value",
+          "expected": "Browser"
+        },
+        {
+          "path": ["jobs", "test-browser", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "test-browser", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "test-browser", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "test-browser", "timeout-minutes"],
+          "kind": "value",
+          "expected": 15
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}"
+          }
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 2],
+          "kind": "keys",
+          "expected": ["env", "id", "if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 2, "env"],
+          "kind": "value",
+          "expected": {
+            "TURBO_CACHE_MAX_SIZE": "0",
+            "TURBO_CACHE_MAX_AGE": "0"
+          }
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 2, "id"],
+          "kind": "value",
+          "expected": "browser-cache"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 2, "if"],
+          "kind": "value",
+          "expected": "github.event_name != 'repository_dispatch' && hashFiles('scripts/ci-task-cache.ts') != ''"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 3],
+          "kind": "keys",
+          "expected": ["id", "if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 3, "id"],
+          "kind": "value",
+          "expected": "playwright-version"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 3, "if"],
+          "kind": "value",
+          "expected": "steps.browser-cache.outputs.provision != 'false'"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 3, "working-directory"],
+          "kind": "value",
+          "expected": "services/platform"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 4],
+          "kind": "keys",
+          "expected": ["env", "id", "if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 4, "env"],
+          "kind": "value",
+          "expected": {
+            "SEGMENT_DOWNLOAD_TIMEOUT_MINS": "2"
+          }
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 4, "id"],
+          "kind": "value",
+          "expected": "playwright-cache"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 4, "if"],
+          "kind": "value",
+          "expected": "steps.browser-cache.outputs.provision != 'false'"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 4, "uses"],
+          "kind": "value",
+          "expected": "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 4, "with"],
+          "kind": "value",
+          "expected": {
+            "path": "~/.cache/ms-playwright",
+            "key": "playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}"
+          }
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 5],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "run",
+            "timeout-minutes",
+            "working-directory"
+          ]
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 5, "if"],
+          "kind": "value",
+          "expected": "steps.browser-cache.outputs.provision != 'false'"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 5, "timeout-minutes"],
+          "kind": "value",
+          "expected": 12
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 5, "working-directory"],
+          "kind": "value",
+          "expected": "services/platform"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 6],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 6, "if"],
+          "kind": "value",
+          "expected": "steps.browser-cache.outputs.provision != 'false' && steps.playwright-cache.outputs.cache-hit != 'true'"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 6, "uses"],
+          "kind": "value",
+          "expected": "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 6, "with"],
+          "kind": "value",
+          "expected": {
+            "path": "~/.cache/ms-playwright",
+            "key": "${{ steps.playwright-cache.outputs.cache-primary-key }}"
+          }
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 7],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 7, "env"],
+          "kind": "value",
+          "expected": {
+            "TURBO_CACHE_MAX_SIZE": "0",
+            "TURBO_CACHE_MAX_AGE": "0"
+          }
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 8],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 8, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 8, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "test-browser", "steps", 8, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "turbo-test-browser-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": ".turbo/runs/*.json\npackages/*/.turbo/turbo-test$colon$browser.log\nservices/*/.turbo/turbo-test$colon$browser.log\nservices/sandbox-runtime/daemon/.turbo/turbo-test$colon$browser.log\ntools/*/.turbo/turbo-test$colon$browser.log\nconfigs/platform/custom/skills/*/.turbo/turbo-test$colon$browser.log\n",
+            "include-hidden-files": true,
+            "if-no-files-found": "ignore",
+            "retention-days": 7
+          }
+        },
+        {
+          "path": ["jobs", "test-browser", "steps"],
+          "kind": "length",
+          "expected": 9
+        },
+        {
+          "path": ["jobs", "test-platform-shards"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "services",
+            "steps",
+            "strategy",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "name"],
+          "kind": "value",
+          "expected": "Unit (platform ${{ matrix.shard }}/2)"
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "services"],
+          "kind": "value",
+          "expected": {
+            "bgutil": {
+              "image": "brainicism/bgutil-ytdlp-pot-provider:1.3.1",
+              "ports": ["4416:4416"]
+            }
+          }
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "strategy"],
+          "kind": "value",
+          "expected": {
+            "fail-fast": false,
+            "matrix": {
+              "shard": [1, 2]
+            }
+          }
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "timeout-minutes"],
+          "kind": "value",
+          "expected": 20
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "cache-scope": "test-platform-${{ matrix.shard }}"
+          }
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 2],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 2, "env"],
+          "kind": "value",
+          "expected": {
+            "YOUTUBE_LIVE_TEST": "1",
+            "VIDEO_INGEST_POT_PROVIDER_URL": "http://127.0.0.1:4416",
+            "NODE_COMPILE_CACHE": "${{ runner.temp }}/node-compile-cache"
+          }
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 3],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 3, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 3, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps", 3, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "turbo-test-platform-shards-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": ".turbo/runs/*.json\npackages/*/.turbo/turbo-test.log\nservices/*/.turbo/turbo-test.log\nservices/sandbox-runtime/daemon/.turbo/turbo-test.log\ntools/*/.turbo/turbo-test.log\nconfigs/platform/custom/skills/*/.turbo/turbo-test.log\n",
+            "include-hidden-files": true,
+            "if-no-files-found": "ignore",
+            "retention-days": 7
+          }
+        },
+        {
+          "path": ["jobs", "test-platform-shards", "steps"],
+          "kind": "length",
+          "expected": 4
+        },
+        {
+          "path": ["jobs", "test-ui"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "test-ui", "if"],
+          "kind": "value",
+          "expected": "always() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
+        },
+        {
+          "path": ["jobs", "test-ui", "name"],
+          "kind": "value",
+          "expected": "UI"
+        },
+        {
+          "path": ["jobs", "test-ui", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "test-ui-shards"]
+        },
+        {
+          "path": ["jobs", "test-ui", "permissions"],
+          "kind": "value",
+          "expected": {}
+        },
+        {
+          "path": ["jobs", "test-ui", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "test-ui", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "test-ui", "steps", 0],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "test-ui", "steps", 0, "env"],
+          "kind": "value",
+          "expected": {
+            "SHARDS_RESULT": "${{ needs.test-ui-shards.result }}"
+          }
+        },
+        {
+          "path": ["jobs", "test-ui", "steps"],
+          "kind": "length",
+          "expected": 1
+        },
+        {
+          "path": ["jobs", "test-ui-shards"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "strategy",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "name"],
+          "kind": "value",
+          "expected": "UI (platform ${{ matrix.shard }}/4)"
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "strategy"],
+          "kind": "value",
+          "expected": {
+            "fail-fast": false,
+            "matrix": {
+              "shard": [1, 2, 3, 4]
+            }
+          }
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "timeout-minutes"],
+          "kind": "value",
+          "expected": 15
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "cache-scope": "test-ui-${{ matrix.shard }}"
+          }
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 2],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 2, "env"],
+          "kind": "value",
+          "expected": {
+            "NODE_COMPILE_CACHE": "${{ runner.temp }}/node-compile-cache"
+          }
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 3],
+          "kind": "keys",
+          "expected": ["env", "if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 3, "env"],
+          "kind": "value",
+          "expected": {
+            "NODE_COMPILE_CACHE": "${{ runner.temp }}/node-compile-cache"
+          }
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 3, "if"],
+          "kind": "value",
+          "expected": "matrix.shard == 1"
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 4],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 4, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 4, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps", 4, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "turbo-test-ui-shards-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": ".turbo/runs/*.json\npackages/*/.turbo/turbo-test$colon$ui.log\nservices/*/.turbo/turbo-test$colon$ui.log\nservices/sandbox-runtime/daemon/.turbo/turbo-test$colon$ui.log\ntools/*/.turbo/turbo-test$colon$ui.log\nconfigs/platform/custom/skills/*/.turbo/turbo-test$colon$ui.log\n",
+            "include-hidden-files": true,
+            "if-no-files-found": "ignore",
+            "retention-days": 7
+          }
+        },
+        {
+          "path": ["jobs", "test-ui-shards", "steps"],
+          "kind": "length",
+          "expected": 5
+        },
+        {
+          "path": ["jobs", "test-workspaces"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "test-workspaces", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+        },
+        {
+          "path": ["jobs", "test-workspaces", "name"],
+          "kind": "value",
+          "expected": "Unit (workspaces)"
+        },
+        {
+          "path": ["jobs", "test-workspaces", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "test-workspaces", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "test-workspaces", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "test-workspaces", "timeout-minutes"],
+          "kind": "value",
+          "expected": 20
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "cache-scope": "test-workspaces"
+          }
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 2],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 2, "env"],
+          "kind": "value",
+          "expected": {
+            "NODE_COMPILE_CACHE": "${{ runner.temp }}/node-compile-cache"
+          }
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 3],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 3, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 3, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps", 3, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "turbo-test-workspaces-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": ".turbo/runs/*.json\npackages/*/.turbo/turbo-test.log\nservices/*/.turbo/turbo-test.log\nservices/sandbox-runtime/daemon/.turbo/turbo-test.log\ntools/*/.turbo/turbo-test.log\nconfigs/platform/custom/skills/*/.turbo/turbo-test.log\n",
+            "include-hidden-files": true,
+            "if-no-files-found": "ignore",
+            "retention-days": 7
+          }
+        },
+        {
+          "path": ["jobs", "test-workspaces", "steps"],
+          "kind": "length",
+          "expected": 4
+        },
+        {
+          "path": ["jobs", "typecheck"],
+          "kind": "keys",
+          "expected": [
+            "env",
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "typecheck", "env"],
+          "kind": "value",
+          "expected": {
+            "NODE_OPTIONS": "--max-old-space-size=6144"
+          }
+        },
+        {
+          "path": ["jobs", "typecheck", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+        },
+        {
+          "path": ["jobs", "typecheck", "name"],
+          "kind": "value",
+          "expected": "Type check"
+        },
+        {
+          "path": ["jobs", "typecheck", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "typecheck", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "typecheck", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "typecheck", "timeout-minutes"],
+          "kind": "value",
+          "expected": 15
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}"
+          }
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 2],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 3],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 4],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 4, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 4, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "typecheck", "steps", 4, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "turbo-typecheck-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": ".turbo/runs/*.json",
+            "include-hidden-files": true,
+            "if-no-files-found": "ignore",
+            "retention-days": 7
+          }
+        },
+        {
+          "path": ["jobs", "typecheck", "steps"],
+          "kind": "length",
+          "expected": 5
+        }
+      ],
+      "candidateSkipped": ["CI ready (Checks)"],
+      "normal": {
+        "success": [
+          "Format",
+          "Lint",
+          "Type check",
+          "Build",
+          "Unit",
+          "Unit (platform 1/2)",
+          "Unit (platform 2/2)",
+          "Unit (workspaces)",
+          "UI (platform 1/4)",
+          "UI (platform 2/4)",
+          "UI (platform 3/4)",
+          "UI (platform 4/4)",
+          "UI",
+          "Performance",
+          "Knip",
+          "Browser",
+          "Integration scope",
+          "Backend integration"
+        ],
+        "skipped": ["Candidate source", "Candidate gate", "CI ready (Checks)"]
+      }
+    },
+    "sast.yml": {
+      "events": ["push", "schedule", "workflow_dispatch"],
+      "assertions": [
+        {
+          "path": [],
+          "kind": "keys",
+          "expected": [
+            "concurrency",
+            "jobs",
+            "name",
+            "on",
+            "permissions",
+            "run-name"
+          ]
+        },
+        {
+          "path": ["concurrency"],
+          "kind": "value",
+          "expected": {
+            "group": "${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}",
+            "cancel-in-progress": "${{ github.event_name != 'repository_dispatch' }}"
+          }
+        },
+        {
+          "path": ["on"],
+          "kind": "value",
+          "expected": {
+            "merge_group": {
+              "types": ["checks_requested"]
+            },
+            "repository_dispatch": {
+              "types": ["release-candidate"]
+            },
+            "pull_request": {
+              "types": ["opened", "synchronize", "reopened", "ready_for_review"]
+            },
+            "push": {
+              "branches": ["main"]
+            },
+            "schedule": [
+              {
+                "cron": "0 3 * * 2"
+              }
+            ],
+            "workflow_dispatch": null
+          }
+        },
+        {
+          "path": ["permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["run-name"],
+          "kind": "value",
+          "expected": "${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}"
+        },
+        {
+          "path": ["jobs"],
+          "kind": "keys",
+          "expected": ["candidate-gate", "candidate-source", "ci-ready", "sast"]
+        },
+        {
+          "path": ["jobs", "candidate-gate"],
+          "kind": "keys",
+          "expected": ["if", "name", "needs", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "if"],
+          "kind": "value",
+          "expected": "always() && github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "name"],
+          "kind": "value",
+          "expected": "Candidate gate"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "sast"]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "permissions"],
+          "kind": "value",
+          "expected": {}
+        },
+        {
+          "path": ["jobs", "candidate-gate", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-receipt.yml"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}",
+            "workflow": ".github/workflows/sast.yml",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source"],
+          "kind": "keys",
+          "expected": ["if", "name", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-source", "if"],
+          "kind": "value",
+          "expected": "github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-source", "name"],
+          "kind": "value",
+          "expected": "Candidate source"
+        },
+        {
+          "path": ["jobs", "candidate-source", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-source.yml"
+        },
+        {
+          "path": ["jobs", "candidate-source", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate": "${{ github.event_name == 'repository_dispatch' }}",
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "ci-ready", "if"],
+          "kind": "value",
+          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+        },
+        {
+          "path": ["jobs", "ci-ready", "name"],
+          "kind": "value",
+          "expected": "CI ready (SAST)"
+        },
+        {
+          "path": ["jobs", "ci-ready", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "sast", "candidate-gate"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "ci-ready", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/ci-ready"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "workflow": "sast",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps"],
+          "kind": "length",
+          "expected": 2
+        },
+        {
+          "path": ["jobs", "sast"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "sast", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
+        },
+        {
+          "path": ["jobs", "sast", "name"],
+          "kind": "value",
+          "expected": "Opengrep"
+        },
+        {
+          "path": ["jobs", "sast", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "sast", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read",
+            "security-events": "write"
+          }
+        },
+        {
+          "path": ["jobs", "sast", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "sast", "timeout-minutes"],
+          "kind": "value",
+          "expected": 15
+        },
+        {
+          "path": ["jobs", "sast", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "sast", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "sast", "steps", 1],
+          "kind": "keys",
+          "expected": ["env", "id", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "sast", "steps", 1, "env"],
+          "kind": "value",
+          "expected": {
+            "SEGMENT_DOWNLOAD_TIMEOUT_MINS": "2"
+          }
+        },
+        {
+          "path": ["jobs", "sast", "steps", 1, "id"],
+          "kind": "value",
+          "expected": "scanner-cache"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "path": "~/.cache/opengrep",
+            "key": "opengrep-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/opengrep/run.sh') }}",
+            "restore-keys": "opengrep-${{ runner.os }}-${{ runner.arch }}-\n"
+          }
+        },
+        {
+          "path": ["jobs", "sast", "steps", 2],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "sast", "steps", 2, "if"],
+          "kind": "value",
+          "expected": "hashFiles('tools/opengrep/run.test.ts') != ''"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 2, "uses"],
+          "kind": "value",
+          "expected": "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 2, "with"],
+          "kind": "value",
+          "expected": {
+            "bun-version": "1.4.2"
+          }
+        },
+        {
+          "path": ["jobs", "sast", "steps", 3],
+          "kind": "keys",
+          "expected": ["env", "id", "name", "run"]
+        },
+        {
+          "path": ["jobs", "sast", "steps", 3, "env"],
+          "kind": "value",
+          "expected": {
+            "OPENGREP_SARIF_OUTPUT": "${{ github.event_name != 'repository_dispatch' && 'opengrep.sarif' || '' }}"
+          }
+        },
+        {
+          "path": ["jobs", "sast", "steps", 3, "id"],
+          "kind": "value",
+          "expected": "scanner"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 4],
+          "kind": "keys",
+          "expected": ["id", "if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "sast", "steps", 4, "id"],
+          "kind": "value",
+          "expected": "scanner-regressions"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 4, "if"],
+          "kind": "value",
+          "expected": "always() && !cancelled() && hashFiles('tools/opengrep/run.test.ts') != ''"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 5],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "sast", "steps", 5, "if"],
+          "kind": "value",
+          "expected": "!cancelled() && steps.scanner-cache.outputs.cache-hit != 'true' && (steps.scanner.outcome == 'success' || steps.scanner-regressions.outcome == 'success')"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 5, "uses"],
+          "kind": "value",
+          "expected": "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 5, "with"],
+          "kind": "value",
+          "expected": {
+            "path": "~/.cache/opengrep",
+            "key": "${{ steps.scanner-cache.outputs.cache-primary-key }}"
+          }
+        },
+        {
+          "path": ["jobs", "sast", "steps", 6],
+          "kind": "keys",
+          "expected": [
+            "continue-on-error",
+            "if",
+            "name",
+            "timeout-minutes",
+            "uses",
+            "with"
+          ]
+        },
+        {
+          "path": ["jobs", "sast", "steps", 6, "continue-on-error"],
+          "kind": "value",
+          "expected": true
+        },
+        {
+          "path": ["jobs", "sast", "steps", 6, "if"],
+          "kind": "value",
+          "expected": "!cancelled() && github.event_name != 'repository_dispatch' && hashFiles('opengrep.sarif') != ''"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 6, "timeout-minutes"],
+          "kind": "value",
+          "expected": 1
+        },
+        {
+          "path": ["jobs", "sast", "steps", 6, "uses"],
+          "kind": "value",
+          "expected": "github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 6, "with"],
+          "kind": "value",
+          "expected": {
+            "sarif_file": "opengrep.sarif",
+            "category": "opengrep"
+          }
+        },
+        {
+          "path": ["jobs", "sast", "steps", 7],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "sast", "steps", 7, "if"],
+          "kind": "value",
+          "expected": "!cancelled() && github.event_name != 'repository_dispatch' && hashFiles('opengrep.sarif') != ''"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 7, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "sast", "steps", 7, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "opengrep-attempt-${{ github.run_attempt }}",
+            "path": "opengrep.sarif",
+            "retention-days": 14,
+            "if-no-files-found": "error"
+          }
+        },
+        {
+          "path": ["jobs", "sast", "steps", 8],
+          "kind": "keys",
+          "expected": ["if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "sast", "steps", 8, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "sast", "steps"],
+          "kind": "length",
+          "expected": 9
+        }
+      ],
+      "candidateSkipped": ["CI ready (SAST)"],
+      "normal": {
+        "success": ["Opengrep"],
+        "skipped": ["Candidate source", "Candidate gate", "CI ready (SAST)"]
+      }
+    },
+    "commitlint.yml": {
+      "events": ["push"],
+      "assertions": [
+        {
+          "path": [],
+          "kind": "keys",
+          "expected": ["concurrency", "jobs", "name", "on", "run-name"]
+        },
+        {
+          "path": ["concurrency"],
+          "kind": "value",
+          "expected": {
+            "group": "${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}",
+            "cancel-in-progress": "${{ github.event_name != 'repository_dispatch' }}"
+          }
+        },
+        {
+          "path": ["on"],
+          "kind": "value",
+          "expected": {
+            "merge_group": {
+              "types": ["checks_requested"]
+            },
+            "repository_dispatch": {
+              "types": ["release-candidate"]
+            },
+            "pull_request": {
+              "types": [
+                "opened",
+                "synchronize",
+                "reopened",
+                "ready_for_review"
+              ],
+              "branches": ["main"]
+            },
+            "push": {
+              "branches": ["main"]
+            }
+          }
+        },
+        {
+          "path": ["run-name"],
+          "kind": "value",
+          "expected": "${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}"
+        },
+        {
+          "path": ["jobs"],
+          "kind": "keys",
+          "expected": [
+            "candidate-gate",
+            "candidate-source",
+            "ci-ready",
+            "commitlint"
+          ]
+        },
+        {
+          "path": ["jobs", "candidate-gate"],
+          "kind": "keys",
+          "expected": ["if", "name", "needs", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "if"],
+          "kind": "value",
+          "expected": "always() && github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "name"],
+          "kind": "value",
+          "expected": "Candidate gate"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "commitlint"]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "permissions"],
+          "kind": "value",
+          "expected": {}
+        },
+        {
+          "path": ["jobs", "candidate-gate", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-receipt.yml"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}",
+            "workflow": ".github/workflows/commitlint.yml",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source"],
+          "kind": "keys",
+          "expected": ["if", "name", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-source", "if"],
+          "kind": "value",
+          "expected": "github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-source", "name"],
+          "kind": "value",
+          "expected": "Candidate source"
+        },
+        {
+          "path": ["jobs", "candidate-source", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-source.yml"
+        },
+        {
+          "path": ["jobs", "candidate-source", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate": "${{ github.event_name == 'repository_dispatch' }}",
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "ci-ready", "if"],
+          "kind": "value",
+          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+        },
+        {
+          "path": ["jobs", "ci-ready", "name"],
+          "kind": "value",
+          "expected": "CI ready (Commitlint)"
+        },
+        {
+          "path": ["jobs", "ci-ready", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "commitlint", "candidate-gate"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "ci-ready", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/ci-ready"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "workflow": "commitlint",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps"],
+          "kind": "length",
+          "expected": 2
+        },
+        {
+          "path": ["jobs", "commitlint"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "commitlint", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
+        },
+        {
+          "path": ["jobs", "commitlint", "name"],
+          "kind": "value",
+          "expected": "Lint commits"
+        },
+        {
+          "path": ["jobs", "commitlint", "needs"],
+          "kind": "value",
+          "expected": "candidate-source"
+        },
+        {
+          "path": ["jobs", "commitlint", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "commitlint", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "commitlint", "timeout-minutes"],
+          "kind": "value",
+          "expected": 5
+        },
+        {
+          "path": ["jobs", "commitlint", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "commitlint", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "commitlint", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "fetch-depth": "${{ github.event_name == 'repository_dispatch' && 1 || 0 }}",
+            "filter": "blob:none",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "commitlint", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "commitlint", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "commitlint", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "turbo-cache": "false"
+          }
+        },
+        {
+          "path": ["jobs", "commitlint", "steps", 2],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "commitlint", "steps", 2, "env"],
+          "kind": "value",
+          "expected": {
+            "EVENT_NAME": "${{ github.event_name }}",
+            "CANDIDATE_SHA": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "GROUP_BASE": "${{ github.event.merge_group.base_sha }}",
+            "GROUP_HEAD": "${{ github.event.merge_group.head_sha }}",
+            "PR_BASE": "${{ github.event.pull_request.base.sha }}",
+            "PR_HEAD": "${{ github.event.pull_request.head.sha }}",
+            "PUSH_BEFORE": "${{ github.event.before }}",
+            "PUSH_SHA": "${{ github.sha }}"
+          }
+        },
+        {
+          "path": ["jobs", "commitlint", "steps"],
+          "kind": "length",
+          "expected": 3
+        }
+      ],
+      "candidateSkipped": ["CI ready (Commitlint)"],
+      "normal": {
+        "success": ["Lint commits"],
+        "skipped": [
+          "Candidate source",
+          "Candidate gate",
+          "CI ready (Commitlint)"
+        ]
+      }
+    },
+    "e2e.yml": {
+      "events": ["schedule", "workflow_dispatch"],
+      "assertions": [
+        {
+          "path": [],
+          "kind": "keys",
+          "expected": ["concurrency", "jobs", "name", "on", "run-name"]
+        },
+        {
+          "path": ["concurrency"],
+          "kind": "value",
+          "expected": {
+            "group": "${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}",
+            "cancel-in-progress": "${{ github.event_name != 'repository_dispatch' }}"
+          }
+        },
+        {
+          "path": ["on"],
+          "kind": "value",
+          "expected": {
+            "merge_group": {
+              "types": ["checks_requested"]
+            },
+            "repository_dispatch": {
+              "types": ["release-candidate"]
+            },
+            "pull_request": {
+              "types": [
+                "opened",
+                "synchronize",
+                "reopened",
+                "ready_for_review"
+              ],
+              "branches": ["main"]
+            },
+            "schedule": [
+              {
+                "cron": "30 2 * * *"
+              }
+            ],
+            "workflow_dispatch": null
+          }
+        },
+        {
+          "path": ["run-name"],
+          "kind": "value",
+          "expected": "${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}"
+        },
+        {
+          "path": ["jobs"],
+          "kind": "keys",
+          "expected": [
+            "build",
+            "candidate-gate",
+            "candidate-source",
+            "ci-ready",
+            "e2e",
+            "pr-scope",
+            "scope",
+            "static-sites"
+          ]
+        },
+        {
+          "path": ["jobs", "build"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "outputs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "build", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && needs.scope.result == 'success' && needs.scope.outputs.platform == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft != true)"
+        },
+        {
+          "path": ["jobs", "build", "name"],
+          "kind": "value",
+          "expected": "Build platform (E2E preview bundle)"
+        },
+        {
+          "path": ["jobs", "build", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "scope"]
+        },
+        {
+          "path": ["jobs", "build", "outputs"],
+          "kind": "value",
+          "expected": {
+            "dist_artifact_id": "${{ steps.bundle-artifact.outputs.artifact-id }}"
+          }
+        },
+        {
+          "path": ["jobs", "build", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "build", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "build", "timeout-minutes"],
+          "kind": "value",
+          "expected": 30
+        },
+        {
+          "path": ["jobs", "build", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "build", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "build", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "cache-scope": "build"
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 2],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 3],
+          "kind": "keys",
+          "expected": ["id", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 3, "id"],
+          "kind": "value",
+          "expected": "bundle-artifact"
+        },
+        {
+          "path": ["jobs", "build", "steps", 3, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "build", "steps", 3, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "e2e-platform-dist-attempt-${{ github.run_attempt }}",
+            "path": "services/platform/dist",
+            "retention-days": 7,
+            "if-no-files-found": "error",
+            "compression-level": 0
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps"],
+          "kind": "length",
+          "expected": 4
+        },
+        {
+          "path": ["jobs", "candidate-gate"],
+          "kind": "keys",
+          "expected": ["if", "name", "needs", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "if"],
+          "kind": "value",
+          "expected": "always() && github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "name"],
+          "kind": "value",
+          "expected": "Candidate gate"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "needs"],
+          "kind": "value",
+          "expected": [
+            "candidate-source",
+            "scope",
+            "build",
+            "e2e",
+            "static-sites"
+          ]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "permissions"],
+          "kind": "value",
+          "expected": {}
+        },
+        {
+          "path": ["jobs", "candidate-gate", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-receipt.yml"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}",
+            "workflow": ".github/workflows/e2e.yml",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source"],
+          "kind": "keys",
+          "expected": ["if", "name", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-source", "if"],
+          "kind": "value",
+          "expected": "github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-source", "name"],
+          "kind": "value",
+          "expected": "Candidate source"
+        },
+        {
+          "path": ["jobs", "candidate-source", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-source.yml"
+        },
+        {
+          "path": ["jobs", "candidate-source", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate": "${{ github.event_name == 'repository_dispatch' }}",
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "ci-ready", "if"],
+          "kind": "value",
+          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+        },
+        {
+          "path": ["jobs", "ci-ready", "name"],
+          "kind": "value",
+          "expected": "CI ready (E2E)"
+        },
+        {
+          "path": ["jobs", "ci-ready", "needs"],
+          "kind": "value",
+          "expected": [
+            "pr-scope",
+            "candidate-source",
+            "scope",
+            "build",
+            "e2e",
+            "static-sites",
+            "candidate-gate"
+          ]
+        },
+        {
+          "path": ["jobs", "ci-ready", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "ci-ready", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/ci-ready"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "workflow": "e2e",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps"],
+          "kind": "length",
+          "expected": 2
+        },
+        {
+          "path": ["jobs", "e2e"],
+          "kind": "keys",
+          "expected": [
+            "env",
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "services",
+            "steps",
+            "strategy",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "e2e", "env"],
+          "kind": "value",
+          "expected": {
+            "DB_PASSWORD": "test_password_e2e",
+            "DATABASE_URL": "postgresql://tale:test_password_e2e@127.0.0.1:5432/tale_app"
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && needs.build.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.draft != true)"
+        },
+        {
+          "path": ["jobs", "e2e", "name"],
+          "kind": "value",
+          "expected": "Playwright (platform ${{ matrix.shard }}/4)"
+        },
+        {
+          "path": ["jobs", "e2e", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "build"]
+        },
+        {
+          "path": ["jobs", "e2e", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "e2e", "services"],
+          "kind": "value",
+          "expected": {
+            "postgres": {
+              "image": "postgres:16",
+              "env": {
+                "POSTGRES_USER": "tale",
+                "POSTGRES_PASSWORD": "test_password_e2e",
+                "POSTGRES_DB": "tale_app"
+              },
+              "ports": ["5432:5432"],
+              "options": "--health-cmd \"pg_isready -U tale -d tale_app\" --health-interval 10s --health-timeout 5s --health-retries 5"
+            }
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "strategy"],
+          "kind": "value",
+          "expected": {
+            "fail-fast": false,
+            "matrix": {
+              "shard": [1, 2, 3, 4]
+            }
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "timeout-minutes"],
+          "kind": "value",
+          "expected": 30
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 1],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 1, "env"],
+          "kind": "value",
+          "expected": {
+            "DIST_ARTIFACT_ID": "${{ needs.build.outputs.dist_artifact_id }}"
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 2],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 2, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 2, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "turbo-cache": "false"
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 3],
+          "kind": "keys",
+          "expected": ["id", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 3, "id"],
+          "kind": "value",
+          "expected": "playwright-version"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 3, "working-directory"],
+          "kind": "value",
+          "expected": "services/platform"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 4],
+          "kind": "keys",
+          "expected": ["env", "id", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 4, "env"],
+          "kind": "value",
+          "expected": {
+            "SEGMENT_DOWNLOAD_TIMEOUT_MINS": "2"
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 4, "id"],
+          "kind": "value",
+          "expected": "playwright-cache"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 4, "uses"],
+          "kind": "value",
+          "expected": "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 4, "with"],
+          "kind": "value",
+          "expected": {
+            "path": "~/.cache/ms-playwright",
+            "key": "playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}"
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 5],
+          "kind": "keys",
+          "expected": ["name", "run", "timeout-minutes", "working-directory"]
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 5, "timeout-minutes"],
+          "kind": "value",
+          "expected": 12
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 5, "working-directory"],
+          "kind": "value",
+          "expected": "services/platform"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 6],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 6, "if"],
+          "kind": "value",
+          "expected": "steps.playwright-cache.outputs.cache-hit != 'true'"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 6, "uses"],
+          "kind": "value",
+          "expected": "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 6, "with"],
+          "kind": "value",
+          "expected": {
+            "path": "~/.cache/ms-playwright",
+            "key": "${{ steps.playwright-cache.outputs.cache-primary-key }}"
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 7],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 7, "uses"],
+          "kind": "value",
+          "expected": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 7, "with"],
+          "kind": "value",
+          "expected": {
+            "artifact-ids": "${{ needs.build.outputs.dist_artifact_id }}",
+            "path": "services/platform/dist"
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 8],
+          "kind": "keys",
+          "expected": ["env", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 8, "env"],
+          "kind": "value",
+          "expected": {
+            "E2E_WORKERS": "1",
+            "TALE_E2E_SERVE_BUILD": "1",
+            "TALE_E2E": "1"
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 8, "working-directory"],
+          "kind": "value",
+          "expected": "services/platform"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 9],
+          "kind": "keys",
+          "expected": ["id", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 9, "id"],
+          "kind": "value",
+          "expected": "diagnostics"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 9, "working-directory"],
+          "kind": "value",
+          "expected": "services/platform"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 10],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 10, "if"],
+          "kind": "value",
+          "expected": "failure() || steps.diagnostics.outputs.found == 'true'"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 10, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "e2e", "steps", 10, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "playwright-report-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}",
+            "path": "services/platform/playwright-report/\nservices/platform/test-results/\n",
+            "retention-days": 14,
+            "if-no-files-found": "ignore"
+          }
+        },
+        {
+          "path": ["jobs", "e2e", "steps"],
+          "kind": "length",
+          "expected": 11
+        },
+        {
+          "path": ["jobs", "pr-scope"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "outputs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "pr-scope", "if"],
+          "kind": "value",
+          "expected": "github.event_name == 'pull_request'"
+        },
+        {
+          "path": ["jobs", "pr-scope", "name"],
+          "kind": "value",
+          "expected": "PR scope"
+        },
+        {
+          "path": ["jobs", "pr-scope", "outputs"],
+          "kind": "value",
+          "expected": {
+            "run": "${{ steps.scope.outputs.run }}",
+            "full": "${{ steps.scope.outputs.full }}",
+            "platform": "${{ steps.scope.outputs.platform }}",
+            "web": "${{ steps.scope.outputs.web }}",
+            "docs": "${{ steps.scope.outputs.docs }}"
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read",
+            "pull-requests": "read"
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "pr-scope", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-scope/action.yml\n/.github/ci-scope.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1],
+          "kind": "keys",
+          "expected": ["id", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1, "id"],
+          "kind": "value",
+          "expected": "scope"
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/ci-scope"
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "filter": "e2e"
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps"],
+          "kind": "length",
+          "expected": 2
+        },
+        {
+          "path": ["jobs", "scope"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "outputs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "scope", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event_name != 'pull_request' || github.event.pull_request.draft != true) && (github.event_name != 'pull_request' || (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))"
+        },
+        {
+          "path": ["jobs", "scope", "name"],
+          "kind": "value",
+          "expected": "E2E scope"
+        },
+        {
+          "path": ["jobs", "scope", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "pr-scope"]
+        },
+        {
+          "path": ["jobs", "scope", "outputs"],
+          "kind": "value",
+          "expected": {
+            "platform": "${{ steps.decide.outputs.platform }}",
+            "static_services": "${{ steps.decide.outputs.static_services }}"
+          }
+        },
+        {
+          "path": ["jobs", "scope", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "scope", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "scope", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "scope", "steps", 0],
+          "kind": "keys",
+          "expected": ["env", "id", "name", "run"]
+        },
+        {
+          "path": ["jobs", "scope", "steps", 0, "env"],
+          "kind": "value",
+          "expected": {
+            "EVENT_NAME": "${{ github.event_name }}",
+            "PLATFORM": "${{ needs.pr-scope.outputs.platform }}",
+            "WEB": "${{ needs.pr-scope.outputs.web }}",
+            "DOCS": "${{ needs.pr-scope.outputs.docs }}"
+          }
+        },
+        {
+          "path": ["jobs", "scope", "steps", 0, "id"],
+          "kind": "value",
+          "expected": "decide"
+        },
+        {
+          "path": ["jobs", "scope", "steps"],
+          "kind": "length",
+          "expected": 1
+        },
+        {
+          "path": ["jobs", "static-sites"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "strategy",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "static-sites", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && needs.scope.result == 'success' && needs.scope.outputs.static_services != '[]' && (github.event_name != 'pull_request' || github.event.pull_request.draft != true)"
+        },
+        {
+          "path": ["jobs", "static-sites", "name"],
+          "kind": "value",
+          "expected": "Playwright (${{ matrix.service }})"
+        },
+        {
+          "path": ["jobs", "static-sites", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "scope"]
+        },
+        {
+          "path": ["jobs", "static-sites", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "static-sites", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "static-sites", "strategy"],
+          "kind": "value",
+          "expected": {
+            "fail-fast": false,
+            "matrix": {
+              "service": "${{ fromJSON(needs.scope.outputs.static_services) }}"
+            }
+          }
+        },
+        {
+          "path": ["jobs", "static-sites", "timeout-minutes"],
+          "kind": "value",
+          "expected": 20
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/setup-turbo"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "start-turbo-cache": "false",
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "turbo-cache": "${{ github.event_name != 'repository_dispatch' }}",
+            "cache-scope": "build",
+            "cache-writer": "static-${{ matrix.service }}"
+          }
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 2],
+          "kind": "keys",
+          "expected": ["id", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 2, "id"],
+          "kind": "value",
+          "expected": "playwright-version"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 2, "working-directory"],
+          "kind": "value",
+          "expected": "services/${{ matrix.service }}"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 3],
+          "kind": "keys",
+          "expected": ["env", "id", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 3, "env"],
+          "kind": "value",
+          "expected": {
+            "SEGMENT_DOWNLOAD_TIMEOUT_MINS": "2"
+          }
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 3, "id"],
+          "kind": "value",
+          "expected": "playwright-cache"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 3, "uses"],
+          "kind": "value",
+          "expected": "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 3, "with"],
+          "kind": "value",
+          "expected": {
+            "path": "~/.cache/ms-playwright",
+            "key": "playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}"
+          }
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 4],
+          "kind": "keys",
+          "expected": ["name", "run", "timeout-minutes", "working-directory"]
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 4, "timeout-minutes"],
+          "kind": "value",
+          "expected": 12
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 4, "working-directory"],
+          "kind": "value",
+          "expected": "services/${{ matrix.service }}"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 5],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 5, "if"],
+          "kind": "value",
+          "expected": "steps.playwright-cache.outputs.cache-hit != 'true'"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 5, "uses"],
+          "kind": "value",
+          "expected": "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 5, "with"],
+          "kind": "value",
+          "expected": {
+            "path": "~/.cache/ms-playwright",
+            "key": "${{ steps.playwright-cache.outputs.cache-primary-key }}"
+          }
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 6],
+          "kind": "keys",
+          "expected": ["env", "id", "name", "run"]
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 6, "env"],
+          "kind": "value",
+          "expected": {
+            "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+            "CANDIDATE_RUN": "${{ github.event_name == 'repository_dispatch' }}"
+          }
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 6, "id"],
+          "kind": "value",
+          "expected": "site-build"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 7],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 7, "env"],
+          "kind": "value",
+          "expected": {
+            "E2E_USE_BUILD": "1"
+          }
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 8],
+          "kind": "keys",
+          "expected": ["env", "if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 8, "env"],
+          "kind": "value",
+          "expected": {
+            "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+            "CANDIDATE_RUN": "${{ github.event_name == 'repository_dispatch' }}"
+          }
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 8, "if"],
+          "kind": "value",
+          "expected": "!cancelled() && matrix.service == 'web' && steps.site-build.outcome == 'success'"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 9],
+          "kind": "keys",
+          "expected": ["id", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 9, "id"],
+          "kind": "value",
+          "expected": "diagnostics"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 9, "working-directory"],
+          "kind": "value",
+          "expected": "services/${{ matrix.service }}"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 10],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 10, "if"],
+          "kind": "value",
+          "expected": "failure() || steps.diagnostics.outputs.found == 'true'"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 10, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "static-sites", "steps", 10, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "playwright-report-${{ matrix.service }}-attempt-${{ github.run_attempt }}",
+            "path": "services/${{ matrix.service }}/playwright-report/\nservices/${{ matrix.service }}/test-results/\n",
+            "retention-days": 14,
+            "if-no-files-found": "ignore"
+          }
+        },
+        {
+          "path": ["jobs", "static-sites", "steps"],
+          "kind": "length",
+          "expected": 11
+        }
+      ],
+      "candidateSkipped": ["PR scope", "CI ready (E2E)"],
+      "normal": {
+        "success": [
+          "E2E scope",
+          "Build platform (E2E preview bundle)",
+          "Playwright (platform 1/4)",
+          "Playwright (platform 2/4)",
+          "Playwright (platform 3/4)",
+          "Playwright (platform 4/4)",
+          "Playwright (web)",
+          "Playwright (docs)"
+        ],
+        "skipped": [
+          "Candidate source",
+          "Candidate gate",
+          "PR scope",
+          "CI ready (E2E)"
+        ]
+      }
+    },
+    "cli.yml": {
+      "events": ["push"],
+      "assertions": [
+        {
+          "path": [],
+          "kind": "keys",
+          "expected": [
+            "concurrency",
+            "jobs",
+            "name",
+            "on",
+            "permissions",
+            "run-name"
+          ]
+        },
+        {
+          "path": ["concurrency"],
+          "kind": "value",
+          "expected": {
+            "group": "${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}",
+            "cancel-in-progress": "${{ github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch' }}"
+          }
+        },
+        {
+          "path": ["on"],
+          "kind": "value",
+          "expected": {
+            "merge_group": {
+              "types": ["checks_requested"]
+            },
+            "repository_dispatch": {
+              "types": ["release-candidate"]
+            },
+            "workflow_dispatch": {
+              "inputs": {
+                "release_tag": {
+                  "description": "Release tag to attach binary to (e.g., v1.0.0)",
+                  "required": true,
+                  "type": "string"
+                }
+              }
+            },
+            "push": {
+              "branches": ["main"],
+              "paths": [
+                ".gitattributes",
+                ".github/release-candidate-contract.json",
+                "tools/cli/**",
+                "services/platform/backend/core/**",
+                "services/platform/backend/auth/membership.ts",
+                "services/platform/backend/auth/oidc.ts",
+                "services/platform/backend/db/sql.ts",
+                "services/platform/backend/db/ssl.ts",
+                "services/platform/backend/domains/audit_logs/**",
+                "services/platform/backend/domains/sandbox/retirement-schedule.ts",
+                "services/platform/backend/domains/two_factor/service.ts",
+                "services/platform/backend/jobs/enqueue.ts",
+                "services/platform/backend/jobs/tasks.ts",
+                "services/platform/backend/lib/org-config.ts",
+                "services/platform/lib/**",
+                "configs/platform/**",
+                "packages/shared/**",
+                "bun.lock",
+                "package.json",
+                "bunfig.toml",
+                "patches/**",
+                "tsconfig*.json",
+                "scripts/install-cli.*",
+                ".github/workflows/cli.yml",
+                ".github/actions/setup-cli/**"
+              ]
+            },
+            "pull_request": {
+              "types": ["opened", "synchronize", "reopened", "ready_for_review"]
+            }
+          }
+        },
+        {
+          "path": ["permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["run-name"],
+          "kind": "value",
+          "expected": "${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}"
+        },
+        {
+          "path": ["jobs"],
+          "kind": "keys",
+          "expected": [
+            "build",
+            "candidate-gate",
+            "candidate-source",
+            "ci-ready",
+            "pr-scope",
+            "prepare",
+            "release"
+          ]
+        },
+        {
+          "path": ["jobs", "build"],
+          "kind": "keys",
+          "expected": [
+            "defaults",
+            "if",
+            "name",
+            "needs",
+            "runs-on",
+            "steps",
+            "strategy",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "build", "defaults"],
+          "kind": "value",
+          "expected": {
+            "run": {
+              "shell": "bash"
+            }
+          }
+        },
+        {
+          "path": ["jobs", "build", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && needs.prepare.result == 'success' && (github.event_name != 'pull_request' || (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))"
+        },
+        {
+          "path": ["jobs", "build", "name"],
+          "kind": "value",
+          "expected": "Build (${{ matrix.platform }})"
+        },
+        {
+          "path": ["jobs", "build", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "prepare", "pr-scope"]
+        },
+        {
+          "path": ["jobs", "build", "runs-on"],
+          "kind": "value",
+          "expected": "${{ matrix.os }}"
+        },
+        {
+          "path": ["jobs", "build", "strategy"],
+          "kind": "value",
+          "expected": {
+            "fail-fast": false,
+            "matrix": {
+              "include": [
+                {
+                  "os": "ubuntu-latest",
+                  "platform": "linux",
+                  "build_script": "build:linux",
+                  "binary": "tale",
+                  "artifact": "tale_linux"
+                },
+                {
+                  "os": "ubuntu-latest",
+                  "platform": "linux-arm64",
+                  "build_script": "build:linux-arm64",
+                  "binary": "tale",
+                  "artifact": "tale_linux_arm64",
+                  "cross": true
+                },
+                {
+                  "os": "macos-latest",
+                  "platform": "macos",
+                  "build_script": "build:mac",
+                  "binary": "tale",
+                  "artifact": "tale_macos"
+                },
+                {
+                  "os": "macos-latest",
+                  "platform": "macos-x64",
+                  "build_script": "build:mac-x64",
+                  "binary": "tale",
+                  "artifact": "tale_macos_x64",
+                  "cross": true
+                },
+                {
+                  "os": "windows-latest",
+                  "platform": "windows",
+                  "build_script": "build:windows:compile",
+                  "binary": "tale.exe",
+                  "artifact": "tale_windows.exe"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": ["jobs", "build", "timeout-minutes"],
+          "kind": "value",
+          "expected": 15
+        },
+        {
+          "path": ["jobs", "build", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "build", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha || needs.prepare.outputs.source_sha || github.sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6"
+        },
+        {
+          "path": ["jobs", "build", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "bun-version": "1.4.2"
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 2],
+          "kind": "keys",
+          "expected": ["env", "if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 2, "env"],
+          "kind": "value",
+          "expected": {
+            "CROSS": "${{ matrix.cross }}"
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 2, "if"],
+          "kind": "value",
+          "expected": "matrix.cross || runner.os == 'Windows'"
+        },
+        {
+          "path": ["jobs", "build", "steps", 3],
+          "kind": "keys",
+          "expected": ["id", "if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 3, "id"],
+          "kind": "value",
+          "expected": "bun-cache"
+        },
+        {
+          "path": ["jobs", "build", "steps", 3, "if"],
+          "kind": "value",
+          "expected": "matrix.cross || runner.os != 'Windows'"
+        },
+        {
+          "path": ["jobs", "build", "steps", 3, "uses"],
+          "kind": "value",
+          "expected": "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae"
+        },
+        {
+          "path": ["jobs", "build", "steps", 3, "with"],
+          "kind": "value",
+          "expected": {
+            "path": "${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
+            "key": "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**', 'bunfig.toml') }}",
+            "restore-keys": "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-\n"
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 4],
+          "kind": "keys",
+          "expected": ["env", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 4, "env"],
+          "kind": "value",
+          "expected": {
+            "CROSS": "${{ matrix.cross }}"
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 4, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli"
+        },
+        {
+          "path": ["jobs", "build", "steps", 5],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 5, "if"],
+          "kind": "value",
+          "expected": "(matrix.cross || runner.os != 'Windows') && steps.bun-cache.outputs.cache-hit != 'true'"
+        },
+        {
+          "path": ["jobs", "build", "steps", 5, "uses"],
+          "kind": "value",
+          "expected": "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae"
+        },
+        {
+          "path": ["jobs", "build", "steps", 5, "with"],
+          "kind": "value",
+          "expected": {
+            "path": "${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
+            "key": "${{ steps.bun-cache.outputs.cache-primary-key }}"
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 6],
+          "kind": "keys",
+          "expected": ["if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 6, "if"],
+          "kind": "value",
+          "expected": "runner.os == 'Windows' && !matrix.cross"
+        },
+        {
+          "path": ["jobs", "build", "steps", 6, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli"
+        },
+        {
+          "path": ["jobs", "build", "steps", 7],
+          "kind": "keys",
+          "expected": ["name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 7, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli"
+        },
+        {
+          "path": ["jobs", "build", "steps", 8],
+          "kind": "keys",
+          "expected": ["env", "if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 8, "env"],
+          "kind": "value",
+          "expected": {
+            "TALE_BINARY": ""
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 8, "if"],
+          "kind": "value",
+          "expected": "${{ !matrix.cross }}"
+        },
+        {
+          "path": ["jobs", "build", "steps", 8, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli"
+        },
+        {
+          "path": ["jobs", "build", "steps", 9],
+          "kind": "keys",
+          "expected": ["if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 9, "if"],
+          "kind": "value",
+          "expected": "matrix.platform == 'linux'"
+        },
+        {
+          "path": ["jobs", "build", "steps", 9, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli"
+        },
+        {
+          "path": ["jobs", "build", "steps", 10],
+          "kind": "keys",
+          "expected": ["name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 10, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli"
+        },
+        {
+          "path": ["jobs", "build", "steps", 11],
+          "kind": "keys",
+          "expected": ["env", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 11, "env"],
+          "kind": "value",
+          "expected": {
+            "PLATFORM": "${{ matrix.platform }}",
+            "BUILD_SCRIPT": "${{ matrix.build_script }}"
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 11, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli"
+        },
+        {
+          "path": ["jobs", "build", "steps", 12],
+          "kind": "keys",
+          "expected": ["name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 12, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli/dist"
+        },
+        {
+          "path": ["jobs", "build", "steps", 13],
+          "kind": "keys",
+          "expected": ["if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 13, "if"],
+          "kind": "value",
+          "expected": "startsWith(matrix.platform, 'macos')"
+        },
+        {
+          "path": ["jobs", "build", "steps", 13, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli/dist"
+        },
+        {
+          "path": ["jobs", "build", "steps", 14],
+          "kind": "keys",
+          "expected": ["if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 14, "if"],
+          "kind": "value",
+          "expected": "${{ !matrix.cross }}"
+        },
+        {
+          "path": ["jobs", "build", "steps", 14, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli/dist"
+        },
+        {
+          "path": ["jobs", "build", "steps", 15],
+          "kind": "keys",
+          "expected": ["if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 15, "if"],
+          "kind": "value",
+          "expected": "startsWith(matrix.platform, 'macos')"
+        },
+        {
+          "path": ["jobs", "build", "steps", 15, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli/dist"
+        },
+        {
+          "path": ["jobs", "build", "steps", 16],
+          "kind": "keys",
+          "expected": ["env", "if", "name", "run", "working-directory"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 16, "env"],
+          "kind": "value",
+          "expected": {
+            "TALE_BINARY": "dist/${{ matrix.artifact }}"
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps", 16, "if"],
+          "kind": "value",
+          "expected": "${{ !matrix.cross }}"
+        },
+        {
+          "path": ["jobs", "build", "steps", 16, "working-directory"],
+          "kind": "value",
+          "expected": "tools/cli"
+        },
+        {
+          "path": ["jobs", "build", "steps", 17],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 17, "if"],
+          "kind": "value",
+          "expected": "github.event_name != 'pull_request'"
+        },
+        {
+          "path": ["jobs", "build", "steps", 17, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "build", "steps", 17, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "${{ matrix.artifact }}",
+            "path": "tools/cli/dist/${{ matrix.artifact }}",
+            "compression-level": 1,
+            "retention-days": 30,
+            "if-no-files-found": "error"
+          }
+        },
+        {
+          "path": ["jobs", "build", "steps"],
+          "kind": "length",
+          "expected": 18
+        },
+        {
+          "path": ["jobs", "candidate-gate"],
+          "kind": "keys",
+          "expected": ["if", "name", "needs", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "if"],
+          "kind": "value",
+          "expected": "always() && github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "name"],
+          "kind": "value",
+          "expected": "Candidate gate"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "prepare", "build"]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "permissions"],
+          "kind": "value",
+          "expected": {}
+        },
+        {
+          "path": ["jobs", "candidate-gate", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-receipt.yml"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}",
+            "workflow": ".github/workflows/cli.yml",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source"],
+          "kind": "keys",
+          "expected": ["if", "name", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-source", "if"],
+          "kind": "value",
+          "expected": "github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-source", "name"],
+          "kind": "value",
+          "expected": "Candidate source"
+        },
+        {
+          "path": ["jobs", "candidate-source", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-source.yml"
+        },
+        {
+          "path": ["jobs", "candidate-source", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate": "${{ github.event_name == 'repository_dispatch' }}",
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "ci-ready", "if"],
+          "kind": "value",
+          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+        },
+        {
+          "path": ["jobs", "ci-ready", "name"],
+          "kind": "value",
+          "expected": "CI ready (CLI)"
+        },
+        {
+          "path": ["jobs", "ci-ready", "needs"],
+          "kind": "value",
+          "expected": [
+            "pr-scope",
+            "candidate-source",
+            "prepare",
+            "build",
+            "release",
+            "candidate-gate"
+          ]
+        },
+        {
+          "path": ["jobs", "ci-ready", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "ci-ready", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/ci-ready"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "workflow": "cli",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps"],
+          "kind": "length",
+          "expected": 2
+        },
+        {
+          "path": ["jobs", "pr-scope"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "outputs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "pr-scope", "if"],
+          "kind": "value",
+          "expected": "github.event_name == 'pull_request'"
+        },
+        {
+          "path": ["jobs", "pr-scope", "name"],
+          "kind": "value",
+          "expected": "PR scope"
+        },
+        {
+          "path": ["jobs", "pr-scope", "outputs"],
+          "kind": "value",
+          "expected": {
+            "run": "${{ steps.scope.outputs.run }}",
+            "full": "${{ steps.scope.outputs.full }}"
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read",
+            "pull-requests": "read"
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "pr-scope", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-scope/action.yml\n/.github/ci-scope.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1],
+          "kind": "keys",
+          "expected": ["id", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1, "id"],
+          "kind": "value",
+          "expected": "scope"
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/ci-scope"
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "filter": "cli"
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps"],
+          "kind": "length",
+          "expected": 2
+        },
+        {
+          "path": ["jobs", "prepare"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "outputs",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "prepare", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event_name != 'pull_request' || (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))"
+        },
+        {
+          "path": ["jobs", "prepare", "name"],
+          "kind": "value",
+          "expected": "Prepare"
+        },
+        {
+          "path": ["jobs", "prepare", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "pr-scope"]
+        },
+        {
+          "path": ["jobs", "prepare", "outputs"],
+          "kind": "value",
+          "expected": {
+            "version": "${{ steps.version.outputs.version }}",
+            "source_sha": "${{ steps.version.outputs.source_sha }}"
+          }
+        },
+        {
+          "path": ["jobs", "prepare", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "prepare", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "prepare", "steps", 0],
+          "kind": "keys",
+          "expected": ["env", "id", "name", "run"]
+        },
+        {
+          "path": ["jobs", "prepare", "steps", 0, "env"],
+          "kind": "value",
+          "expected": {
+            "EVENT_NAME": "${{ github.event_name }}",
+            "RELEASE_TAG": "${{ github.event.inputs.release_tag }}",
+            "GH_TOKEN": "${{ github.token }}",
+            "REPOSITORY": "${{ github.repository }}"
+          }
+        },
+        {
+          "path": ["jobs", "prepare", "steps", 0, "id"],
+          "kind": "value",
+          "expected": "version"
+        },
+        {
+          "path": ["jobs", "prepare", "steps"],
+          "kind": "length",
+          "expected": 1
+        },
+        {
+          "path": ["jobs", "release"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "release", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && needs.prepare.result == 'success' && needs.build.result == 'success' && (github.event_name == 'workflow_dispatch')"
+        },
+        {
+          "path": ["jobs", "release", "name"],
+          "kind": "value",
+          "expected": "Attach to release"
+        },
+        {
+          "path": ["jobs", "release", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "prepare", "build"]
+        },
+        {
+          "path": ["jobs", "release", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "write"
+          }
+        },
+        {
+          "path": ["jobs", "release", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "release", "timeout-minutes"],
+          "kind": "value",
+          "expected": 10
+        },
+        {
+          "path": ["jobs", "release", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "release", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+        },
+        {
+          "path": ["jobs", "release", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "path": "artifacts",
+            "pattern": "{tale_linux,tale_linux_arm64,tale_macos,tale_macos_x64,tale_windows.exe}"
+          }
+        },
+        {
+          "path": ["jobs", "release", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "release", "steps", 2],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "release", "steps", 2, "env"],
+          "kind": "value",
+          "expected": {
+            "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+            "RELEASE_TAG": "${{ github.event.inputs.release_tag }}",
+            "REPO": "${{ github.repository }}",
+            "EXPECTED_SOURCE_SHA": "${{ needs.prepare.outputs.source_sha }}"
+          }
+        },
+        {
+          "path": ["jobs", "release", "steps", 3],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "release", "steps", 4],
+          "kind": "keys",
+          "expected": ["env", "name", "run"]
+        },
+        {
+          "path": ["jobs", "release", "steps", 4, "env"],
+          "kind": "value",
+          "expected": {
+            "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+            "RELEASE_TAG": "${{ github.event.inputs.release_tag }}",
+            "REPO": "${{ github.repository }}"
+          }
+        },
+        {
+          "path": ["jobs", "release", "steps"],
+          "kind": "length",
+          "expected": 5
+        }
+      ],
+      "candidateSkipped": ["PR scope", "CI ready (CLI)", "Attach to release"],
+      "normal": {
+        "success": [
+          "Prepare",
+          "Build (linux)",
+          "Build (linux-arm64)",
+          "Build (macos)",
+          "Build (macos-x64)",
+          "Build (windows)"
+        ],
+        "skipped": [
+          "Candidate source",
+          "Candidate gate",
+          "PR scope",
+          "CI ready (CLI)",
+          "Attach to release"
+        ]
+      },
+      "publication": {
+        "success": [
+          "Prepare",
+          "Build (linux)",
+          "Build (linux-arm64)",
+          "Build (macos)",
+          "Build (macos-x64)",
+          "Build (windows)",
+          "Attach to release"
+        ],
+        "skipped": [
+          "Candidate source",
+          "Candidate gate",
+          "PR scope",
+          "CI ready (CLI)"
+        ]
+      }
+    },
+    "security.yml": {
+      "events": ["push", "schedule", "workflow_dispatch"],
+      "assertions": [
+        {
+          "path": [],
+          "kind": "keys",
+          "expected": ["concurrency", "jobs", "name", "on", "run-name"]
+        },
+        {
+          "path": ["concurrency"],
+          "kind": "value",
+          "expected": {
+            "group": "${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}",
+            "cancel-in-progress": "${{ github.event_name != 'repository_dispatch' }}"
+          }
+        },
+        {
+          "path": ["on"],
+          "kind": "value",
+          "expected": {
+            "merge_group": {
+              "types": ["checks_requested"]
+            },
+            "repository_dispatch": {
+              "types": ["release-candidate"]
+            },
+            "pull_request": {
+              "types": [
+                "opened",
+                "synchronize",
+                "reopened",
+                "ready_for_review"
+              ],
+              "branches": ["main"]
+            },
+            "push": {
+              "branches": ["main"],
+              "paths": [
+                "bun.lock",
+                "package.json",
+                "services/*/package.json",
+                "services/sandbox-runtime/document-node/**",
+                "services/sandbox-runtime/document-python-requirements.txt",
+                "services/*/Dockerfile",
+                "services/*/Dockerfile.dockerignore",
+                ".trivyignore.yaml",
+                ".github/workflows/security.yml"
+              ]
+            },
+            "schedule": [
+              {
+                "cron": "0 3 * * 1"
+              }
+            ],
+            "workflow_dispatch": null
+          }
+        },
+        {
+          "path": ["run-name"],
+          "kind": "value",
+          "expected": "${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}"
+        },
+        {
+          "path": ["jobs"],
+          "kind": "keys",
+          "expected": [
+            "bun-audit",
+            "candidate-gate",
+            "candidate-source",
+            "ci-ready",
+            "pr-scope",
+            "trivy-fs"
+          ]
+        },
+        {
+          "path": ["jobs", "bun-audit"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "bun-audit", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true) && (github.event_name != 'pull_request' || (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))"
+        },
+        {
+          "path": ["jobs", "bun-audit", "name"],
+          "kind": "value",
+          "expected": "Bun audit"
+        },
+        {
+          "path": ["jobs", "bun-audit", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "pr-scope"]
+        },
+        {
+          "path": ["jobs", "bun-audit", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "bun-audit", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "bun-audit", "timeout-minutes"],
+          "kind": "value",
+          "expected": 20
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6"
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "bun-version": "1.4.2"
+          }
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 2],
+          "kind": "keys",
+          "expected": ["name", "run"]
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 3],
+          "kind": "keys",
+          "expected": ["if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 3, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 4],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 4, "if"],
+          "kind": "value",
+          "expected": "!cancelled() && hashFiles('bun-audit*.txt') != ''"
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 4, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps", 4, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "bun-audit-attempt-${{ github.run_attempt }}",
+            "path": "bun-audit*.txt",
+            "retention-days": 14,
+            "if-no-files-found": "error"
+          }
+        },
+        {
+          "path": ["jobs", "bun-audit", "steps"],
+          "kind": "length",
+          "expected": 5
+        },
+        {
+          "path": ["jobs", "candidate-gate"],
+          "kind": "keys",
+          "expected": ["if", "name", "needs", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "if"],
+          "kind": "value",
+          "expected": "always() && github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "name"],
+          "kind": "value",
+          "expected": "Candidate gate"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "bun-audit", "trivy-fs"]
+        },
+        {
+          "path": ["jobs", "candidate-gate", "permissions"],
+          "kind": "value",
+          "expected": {}
+        },
+        {
+          "path": ["jobs", "candidate-gate", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-receipt.yml"
+        },
+        {
+          "path": ["jobs", "candidate-gate", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}",
+            "workflow": ".github/workflows/security.yml",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source"],
+          "kind": "keys",
+          "expected": ["if", "name", "permissions", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "candidate-source", "if"],
+          "kind": "value",
+          "expected": "github.event_name == 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "candidate-source", "name"],
+          "kind": "value",
+          "expected": "Candidate source"
+        },
+        {
+          "path": ["jobs", "candidate-source", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "candidate-source", "uses"],
+          "kind": "value",
+          "expected": "./.github/workflows/release-candidate-source.yml"
+        },
+        {
+          "path": ["jobs", "candidate-source", "with"],
+          "kind": "value",
+          "expected": {
+            "candidate": "${{ github.event_name == 'repository_dispatch' }}",
+            "candidate_sha": "${{ github.event.client_payload.candidate_sha }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "ci-ready", "if"],
+          "kind": "value",
+          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+        },
+        {
+          "path": ["jobs", "ci-ready", "name"],
+          "kind": "value",
+          "expected": "CI ready (Security)"
+        },
+        {
+          "path": ["jobs", "ci-ready", "needs"],
+          "kind": "value",
+          "expected": [
+            "pr-scope",
+            "candidate-source",
+            "bun-audit",
+            "trivy-fs",
+            "candidate-gate"
+          ]
+        },
+        {
+          "path": ["jobs", "ci-ready", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "ci-ready", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/ci-ready"
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "workflow": "security",
+            "jobs": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "path": ["jobs", "ci-ready", "steps"],
+          "kind": "length",
+          "expected": 2
+        },
+        {
+          "path": ["jobs", "pr-scope"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "outputs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "pr-scope", "if"],
+          "kind": "value",
+          "expected": "github.event_name == 'pull_request'"
+        },
+        {
+          "path": ["jobs", "pr-scope", "name"],
+          "kind": "value",
+          "expected": "PR scope"
+        },
+        {
+          "path": ["jobs", "pr-scope", "outputs"],
+          "kind": "value",
+          "expected": {
+            "run": "${{ steps.scope.outputs.run }}",
+            "full": "${{ steps.scope.outputs.full }}"
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read",
+            "pull-requests": "read"
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "pr-scope", "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 0],
+          "kind": "keys",
+          "expected": ["name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-scope/action.yml\n/.github/ci-scope.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1],
+          "kind": "keys",
+          "expected": ["id", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1, "id"],
+          "kind": "value",
+          "expected": "scope"
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "./.github/actions/ci-scope"
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "filter": "security"
+          }
+        },
+        {
+          "path": ["jobs", "pr-scope", "steps"],
+          "kind": "length",
+          "expected": 2
+        },
+        {
+          "path": ["jobs", "trivy-fs"],
+          "kind": "keys",
+          "expected": [
+            "if",
+            "name",
+            "needs",
+            "permissions",
+            "runs-on",
+            "steps",
+            "timeout-minutes"
+          ]
+        },
+        {
+          "path": ["jobs", "trivy-fs", "if"],
+          "kind": "value",
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true) && (github.event_name != 'pull_request' || (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "name"],
+          "kind": "value",
+          "expected": "Trivy filesystem scan"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "needs"],
+          "kind": "value",
+          "expected": ["candidate-source", "pr-scope"]
+        },
+        {
+          "path": ["jobs", "trivy-fs", "permissions"],
+          "kind": "value",
+          "expected": {
+            "contents": "read",
+            "security-events": "write"
+          }
+        },
+        {
+          "path": ["jobs", "trivy-fs", "runs-on"],
+          "kind": "value",
+          "expected": "ubuntu-latest"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "timeout-minutes"],
+          "kind": "value",
+          "expected": 10
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 0],
+          "kind": "keys",
+          "expected": ["id", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 0, "id"],
+          "kind": "value",
+          "expected": "source"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 0, "uses"],
+          "kind": "value",
+          "expected": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 0, "with"],
+          "kind": "value",
+          "expected": {
+            "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 1],
+          "kind": "keys",
+          "expected": ["id", "if", "name", "timeout-minutes", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 1, "id"],
+          "kind": "value",
+          "expected": "report"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 1, "if"],
+          "kind": "value",
+          "expected": "github.event_name != 'repository_dispatch'"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 1, "timeout-minutes"],
+          "kind": "value",
+          "expected": 3
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 1, "uses"],
+          "kind": "value",
+          "expected": "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 1, "with"],
+          "kind": "value",
+          "expected": {
+            "scan-type": "fs",
+            "scan-ref": ".",
+            "format": "sarif",
+            "output": "trivy-fs.sarif",
+            "severity": "HIGH,CRITICAL",
+            "exit-code": "0",
+            "scanners": "vuln,secret,misconfig",
+            "ignore-unfixed": true,
+            "trivyignores": ".trivyignore.yaml",
+            "skip-files": "tools/plop/templates/**/Dockerfile.hbs"
+          }
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 2],
+          "kind": "keys",
+          "expected": ["if", "name", "timeout-minutes", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 2, "if"],
+          "kind": "value",
+          "expected": "!cancelled() && steps.source.outcome == 'success'"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 2, "timeout-minutes"],
+          "kind": "value",
+          "expected": 5
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 2, "uses"],
+          "kind": "value",
+          "expected": "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 2, "with"],
+          "kind": "value",
+          "expected": {
+            "skip-setup-trivy": "${{ steps.report.outcome == 'success' }}",
+            "cache": "${{ steps.report.outcome != 'success' }}",
+            "scan-type": "fs",
+            "scan-ref": ".",
+            "format": "table",
+            "severity": "HIGH,CRITICAL",
+            "exit-code": "1",
+            "scanners": "vuln",
+            "ignore-unfixed": true,
+            "trivyignores": ".trivyignore.yaml",
+            "skip-files": "tools/plop/templates/**/Dockerfile.hbs"
+          }
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 3],
+          "kind": "keys",
+          "expected": [
+            "continue-on-error",
+            "if",
+            "name",
+            "timeout-minutes",
+            "uses",
+            "with"
+          ]
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 3, "continue-on-error"],
+          "kind": "value",
+          "expected": true
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 3, "if"],
+          "kind": "value",
+          "expected": "!cancelled() && github.event_name != 'repository_dispatch' && hashFiles('trivy-fs.sarif') != ''"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 3, "timeout-minutes"],
+          "kind": "value",
+          "expected": 1
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 3, "uses"],
+          "kind": "value",
+          "expected": "github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 3, "with"],
+          "kind": "value",
+          "expected": {
+            "sarif_file": "trivy-fs.sarif",
+            "category": "trivy-fs"
+          }
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 4],
+          "kind": "keys",
+          "expected": ["if", "name", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 4, "if"],
+          "kind": "value",
+          "expected": "!cancelled() && github.event_name != 'repository_dispatch' && hashFiles('trivy-fs.sarif') != ''"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 4, "uses"],
+          "kind": "value",
+          "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 4, "with"],
+          "kind": "value",
+          "expected": {
+            "name": "trivy-fs-attempt-${{ github.run_attempt }}",
+            "path": "trivy-fs.sarif",
+            "retention-days": 14,
+            "if-no-files-found": "error"
+          }
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 5],
+          "kind": "keys",
+          "expected": ["if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 5, "if"],
+          "kind": "value",
+          "expected": "always()"
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps"],
+          "kind": "length",
+          "expected": 6
+        }
+      ],
+      "candidateSkipped": ["PR scope", "CI ready (Security)"],
+      "normal": {
+        "success": ["Bun audit", "Trivy filesystem scan"],
+        "skipped": [
+          "Candidate source",
+          "Candidate gate",
+          "PR scope",
+          "CI ready (Security)"
+        ]
+      }
+    }
+  }
+}

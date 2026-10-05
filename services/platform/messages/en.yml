@@ -20,6 +20,9 @@ analytics:
   automations:
     title: Automation metrics
     description: Run counts, success rates, and average duration across your automations.
+    errors:
+      loadFailed: Couldn't load automation metrics.
+      refreshFailed: Couldn't refresh automation metrics. The figures shown may be out of date.
     cappedNotice: Showing the most recent 5,000 runs in this window. Older
       runs in this period are not included in these totals.
     cards:
@@ -620,6 +623,8 @@ automations:
       organization.
   detail:
     loading: Loading the automation…
+    loadFailed:
+      title: Couldn't load the automation
     # A deleted automation keeps its run history until retention removes
     # it; the Runs pages still open under this banner.
     deleted:
@@ -4163,6 +4168,7 @@ governance:
         userPickerLabel: Subject
         userPickerPlaceholder: Search by name or email
         userPickerEmpty: No matching members.
+        userPickerFailed: Members could not be loaded.
         reasonCodeLabel: Lawful ground
         reasonCodeDescription: GDPR Art. 17(1)(a)–(f) plus the operational
           contract-termination ground.
@@ -5333,6 +5339,7 @@ projects:
   title: Projects
   entityLabel: projects
   entityLabelOne: project
+  loadFailed: "Couldn't load this project."
   switcher:
     title: Switch project
     searchPlaceholder: Search projects
@@ -5945,6 +5952,8 @@ settings:
     title: Organization name
     detailsTitle: Organization details
     detailsDescription: Basic information about your organization.
+    loadFailed: Organization details could not be loaded.
+    notFound: Organization not found.
     nameDescription: The display name for your organization.
     nameRequired: Organization name is required
     localeDescription: Primary language for your organization.
@@ -8206,7 +8215,6 @@ twoFactor:
       revokeFailed: Couldn't remove the passkey. Try again.
       listFailed: Couldn't load your passkeys.
       refreshFailed: Couldn't refresh your passkeys. The list shown may be out of date.
-      wrongPassword: Wrong password. Repeated failed attempts temporarily lock your account.
       confirmFailed: Couldn't confirm your password. Try again.
   setup:
     title: Set up two-factor authentication
@@ -8225,6 +8233,7 @@ twoFactor:
   confirmPassword:
     label: Password
     submit: Confirm
+    wrongPassword: Wrong password. Repeated failed attempts temporarily lock your account.
   verify:
     title: Verify your identity
     description: Enter the 6-digit code from your authenticator app.

@@ -1,5 +1,9 @@
 import { isLapsedAuthClientAnswer } from '@/app/lib/auth/auth-client-error';
 import {
+  readPasswordRefusal,
+  type PasswordRefusal,
+} from '@/app/lib/auth/password-refusal';
+import {
   holdSessionLapseRedirects,
   reportSessionLapsed,
 } from '@/app/lib/auth/session-lapse';
@@ -37,15 +41,8 @@ export function isSessionFresh(
 
 export type ReauthenticationResult =
   | { ok: true }
-  | { ok: false; reason: 'wrong-password' | 'no-password' | 'failed' }
-  | { ok: false; reason: 'locked'; retryAfterSec: number | undefined };
-
-function retryAfterSeconds(value: unknown): number | undefined {
-  const seconds = typeof value === 'string' ? Number(value) : value;
-  return typeof seconds === 'number' && Number.isFinite(seconds)
-    ? seconds
-    : undefined;
-}
+  | { ok: false; reason: 'no-password' | 'failed' }
+  | ({ ok: false } & PasswordRefusal);
 
 /**
  * Confirm the signed-in person's password (`POST /api/auth/reauthenticate`).
@@ -63,16 +60,8 @@ export async function reauthenticate(
       { code?: string; retryAfter?: unknown }
     >(REAUTHENTICATE_PATH, { method: 'POST', body: { password } });
     if (!error) return { ok: true };
-    if (error.status === 429) {
-      return {
-        ok: false,
-        reason: 'locked',
-        retryAfterSec: retryAfterSeconds(error.retryAfter),
-      };
-    }
-    if (error.code === 'INVALID_PASSWORD') {
-      return { ok: false, reason: 'wrong-password' };
-    }
+    const refusal = readPasswordRefusal(error);
+    if (refusal !== null) return { ok: false, ...refusal };
     if (error.code === PASSWORD_NOT_SET_CODE) {
       return { ok: false, reason: 'no-password' };
     }

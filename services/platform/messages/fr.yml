@@ -27,6 +27,9 @@ analytics:
     filterBy: Filtrer par {name}
   automations:
     title: Métriques des automatisations
+    errors:
+      loadFailed: Impossible de charger les métriques des automatisations.
+      refreshFailed: Impossible d'actualiser les métriques des automatisations. Les chiffres affichés peuvent être obsolètes.
     description: Nombre d'exécutions, taux de réussite et durée moyenne sur l'ensemble de tes automatisations.
     cappedNotice: Affiche les 5 000 dernières exécutions de la période. Les plus
       anciennes ne comptent pas dans ces totaux.
@@ -657,6 +660,8 @@ automations:
       organisation.
   detail:
     loading: Chargement de l’automatisation…
+    loadFailed:
+      title: Impossible de charger l’automatisation
     # Une automatisation supprimée garde son historique d’exécutions jusqu’à
     # ce que la rétention l’efface ; les pages Exécutions s’ouvrent sous ce
     # bandeau.
@@ -4383,6 +4388,7 @@ governance:
         userPickerLabel: Personne concernée
         userPickerPlaceholder: Recherche par nom ou email
         userPickerEmpty: Aucun membre correspondant.
+        userPickerFailed: Impossible de charger les membres.
         reasonCodeLabel: Fondement légal
         reasonCodeDescription: RGPD art. 17(1)(a)–(f) plus le motif opérationnel de fin de contrat.
         reasonLabel: Motif détaillé
@@ -5798,6 +5804,8 @@ settings:
       unlimited: Aucune limite de stockage ne s'applique à toi.
   organization:
     title: Nom de l'organisation
+    loadFailed: Les informations de l'organisation n'ont pas pu être chargées.
+    notFound: Organisation introuvable.
     detailsTitle: Détails de l'organisation
     detailsDescription: Informations de base sur ton organisation.
     nameDescription: Le nom d'affichage de ton organisation.
@@ -8171,7 +8179,6 @@ twoFactor:
       revokeFailed: Impossible de supprimer le passkey. Réessaie.
       listFailed: Impossible de charger tes passkeys.
       refreshFailed: Impossible d'actualiser tes passkeys. La liste affichée n'est peut-être plus à jour.
-      wrongPassword: Mot de passe incorrect. Après plusieurs échecs, ton compte est temporairement verrouillé.
       confirmFailed: Impossible de confirmer ton mot de passe. Réessaie.
   setup:
     title: Configurer l'authentification à double facteur
@@ -8193,6 +8200,7 @@ twoFactor:
   confirmPassword:
     label: Mot de passe
     submit: Confirmer
+    wrongPassword: Mot de passe incorrect. Après plusieurs échecs, ton compte est temporairement verrouillé.
   verify:
     title: Vérifier ton identité
     description: Saisis le code à 6 chiffres de ton application d'authentification.
@@ -8428,6 +8436,7 @@ projects:
   title: Projets
   entityLabel: projets
   entityLabelOne: projet
+  loadFailed: Impossible de charger ce projet.
   switcher:
     title: Changer de projet
     searchPlaceholder: Rechercher des projets

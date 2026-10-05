@@ -38,6 +38,8 @@ security:
   - .trivyignore.yaml
   - .github/workflows/security.yml
 cli:
+  - '.gitattributes'
+  - '.github/release-candidate-contract.json'
   - 'tools/cli/**'
   - 'services/platform/backend/core/**'
   - 'services/platform/backend/auth/membership.ts'
@@ -82,6 +84,8 @@ e2e:
   - "tsconfig*.json"
 
 build:
+  - ".github/release-candidate-contract.json"
+  - "tools/cli/scripts/release-candidate*"
   - "services/**"
   - "packages/**"
   - "configs/platform/**"
@@ -105,6 +109,8 @@ build:
   - "bun.lock"
 
 guard:
+  - .github/release-candidate-contract.json
+  - tools/cli/scripts/release-candidate*
   - .github/ci-scope.yml
   - .github/actions/ci-scope/**
   - .github/actions/ci-ready/**
@@ -216,6 +222,8 @@ build_sandbox-runtime:
   - "configs/platform/custom/skills/visual-aspect-analyzer/**"
 
 build_ci_tests:
+  - ".github/release-candidate-contract.json"
+  - "tools/cli/scripts/release-candidate*"
   - "services/platform/tests/integration/static-site-test.ts"
   - "services/platform/tests/integration/lib/**"
   - "compose.test.yml"

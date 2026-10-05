@@ -8,8 +8,8 @@
  * so checking it directly is both more robust and more honest.
  */
 
-/** One string field of a structured error's payload, or undefined. */
-function stringField(err: unknown, field: string): string | undefined {
+/** One field of a structured error's payload, or undefined. */
+function dataField(err: unknown, field: string): unknown {
   if (err === null || typeof err !== 'object' || !('data' in err)) {
     return undefined;
   }
@@ -17,7 +17,12 @@ function stringField(err: unknown, field: string): string | undefined {
   if (data === null || typeof data !== 'object' || !(field in data)) {
     return undefined;
   }
-  const value: unknown = Reflect.get(data, field);
+  return Reflect.get(data, field);
+}
+
+/** One string field of a structured error's payload, or undefined. */
+function stringField(err: unknown, field: string): string | undefined {
+  const value = dataField(err, field);
   return typeof value === 'string' ? value : undefined;
 }
 
@@ -34,6 +39,18 @@ export function backendErrorField(
   field: string,
 ): string | undefined {
   return stringField(err, field);
+}
+
+/** A number the refusal carried beside its code — the door's `data`, such
+ *  as the seconds a locked account waits (`retryAfter`) — or undefined. */
+export function backendErrorNumber(
+  err: unknown,
+  field: string,
+): number | undefined {
+  const value = dataField(err, field);
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 /** The structured `message`, falling back for an unstructured throw. */

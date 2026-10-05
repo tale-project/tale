@@ -38,7 +38,7 @@ const PHRASES = {
   },
 } as const;
 
-describe('the task docs state the caps the domain holds', () => {
+describe('the task docs state the caps the domain holds [TASK-R10]', () => {
   for (const [locale, phrases] of Object.entries(PHRASES)) {
     it(`docs/${locale}/platform/projects/tasks.md`, () => {
       const page = readFileSync(

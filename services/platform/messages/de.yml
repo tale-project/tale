@@ -27,6 +27,9 @@ analytics:
   automations:
     title: Automatisierungs-Metriken
     description: Laufzahlen, Erfolgsquoten und Durchschnittsdauer über alle deine Automatisierungen.
+    errors:
+      loadFailed: Die Automatisierungs-Metriken konnten nicht geladen werden.
+      refreshFailed: Die Automatisierungs-Metriken konnten nicht aktualisiert werden. Die angezeigten Zahlen sind möglicherweise veraltet.
     cappedNotice: Zeigt die letzten 5.000 Läufe in diesem Zeitraum. Ältere Läufe
       fließen nicht in diese Zahlen ein.
     cards:
@@ -650,6 +653,8 @@ automations:
       Organisation.
   detail:
     loading: Automatisierung wird geladen …
+    loadFailed:
+      title: Automatisierung konnte nicht geladen werden
     # Eine gelöschte Automatisierung behält ihre Laufhistorie, bis die
     # Aufbewahrung sie entfernt; die Läufe-Seiten öffnen unter diesem Banner.
     deleted:
@@ -4317,6 +4322,7 @@ governance:
         userPickerLabel: Person
         userPickerPlaceholder: Nach Name oder E-Mail suchen
         userPickerEmpty: Keine passenden Mitglieder.
+        userPickerFailed: Mitglieder konnten nicht geladen werden.
         reasonCodeLabel: Rechtsgrund
         reasonCodeDescription: DSGVO Art. 17(1)(a)–(f) plus operativer Vertragsbeendigungs-Grund.
         reasonLabel: Begründung
@@ -5724,6 +5730,8 @@ settings:
       unlimited: Für dich gilt kein Speicherlimit.
   organization:
     title: Organisationsname
+    loadFailed: Die Organisationsdetails konnten nicht geladen werden.
+    notFound: Organisation nicht gefunden.
     detailsTitle: Organisationsdetails
     detailsDescription: Grundlegende Informationen zu deiner Organisation.
     nameDescription: Der Anzeigename deiner Organisation.
@@ -8070,7 +8078,6 @@ twoFactor:
       revokeFailed: Passkey konnte nicht entfernt werden. Versuch es nochmal.
       listFailed: Deine Passkeys konnten nicht geladen werden.
       refreshFailed: Deine Passkeys konnten nicht aktualisiert werden. Die angezeigte Liste ist womöglich veraltet.
-      wrongPassword: Falsches Passwort. Nach wiederholten Fehlversuchen wird dein Konto vorübergehend gesperrt.
       confirmFailed: Dein Passwort konnte nicht bestätigt werden. Versuch es nochmal.
   setup:
     title: Zwei-Faktor-Authentifizierung einrichten
@@ -8093,6 +8100,7 @@ twoFactor:
   confirmPassword:
     label: Passwort
     submit: Bestätigen
+    wrongPassword: Falsches Passwort. Nach wiederholten Fehlversuchen wird dein Konto vorübergehend gesperrt.
   verify:
     title: Identität bestätigen
     description: Gib den 6-stelligen Code aus deiner Authenticator-App ein.
@@ -8328,6 +8336,7 @@ projects:
   title: Projekte
   entityLabel: Projekte
   entityLabelOne: Projekt
+  loadFailed: Dieses Projekt konnte nicht geladen werden.
   switcher:
     title: Projekt wechseln
     searchPlaceholder: Projekte suchen

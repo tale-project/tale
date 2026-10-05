@@ -50,6 +50,11 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-scope/action.yml
+            /.github/ci-scope.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
       - name: Decide applicability
         id: scope
         uses: ./.github/actions/ci-scope
@@ -89,8 +94,8 @@ jobs:
       (github.event_name != 'pull_request' ||
       (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
     runs-on: ubuntu-latest
-    # Budget for a degraded advisory registry: the report step is capped at 4
-    # minutes, the gate below retries hung or 5xx lookups up to three times.
+    # Each registry lookup is capped at 4 minutes; a degraded registry retains
+    # the existing three bounded attempts.
     timeout-minutes: 20
     permissions:
       contents: read
@@ -116,15 +121,10 @@ jobs:
           # production findings (verified against the fast-uri/mysql2 lock).
           bun-version: '1.4.2'
 
-      - name: Run bun audit (report)
-        # Full advisory list for visibility; does not fail the build itself.
-        # Bounded so a hung registry request cannot eat the gate's time.
-        continue-on-error: true
-        timeout-minutes: 4
-        run: bun audit --prod 2>&1 | tee bun-audit.txt
-
       - name: Gate on high/critical advisories
-        # The blocking gate: fail on HIGH or CRITICAL production advisories.
+        # JSON retains every advisory severity; Bun's native threshold judges
+        # the same registry response. One lookup supplies report and gate.
+        # Fail on HIGH or CRITICAL production advisories.
         # pipefail so tee does not mask a non-zero exit. The advisory lookup is
         # one POST to registry.npmjs.org's bulk endpoint, which on 2026-09-04
         # alternated between 503s and minute-long hangs; a registry outage must
@@ -136,7 +136,7 @@ jobs:
           set +e -o pipefail
           for attempt in 1 2 3; do
             attempt_log="bun-audit-gate-attempt-${attempt}.txt"
-            timeout 240 bun audit --prod --audit-level=high 2>&1 | tee "$attempt_log"
+            timeout 240 bun audit --prod --audit-level=high --json 2>&1 | tee "$attempt_log"
             statuses=("${PIPESTATUS[@]}")
             status=${statuses[0]}
             if [ "${statuses[1]}" -ne 0 ]; then
@@ -215,6 +215,7 @@ jobs:
           persist-credentials: false
 
       - name: Run Trivy filesystem scan
+        id: report
         # Candidates do not upload SARIF against moving main. The standalone
         # blocking vulnerability gate below still installs Trivy and scans.
         if: github.event_name != 'repository_dispatch'
@@ -248,6 +249,10 @@ jobs:
         timeout-minutes: 5
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          # A successful report already provisioned this exact action's engine
+          # and database cache. Failed or skipped reports keep full provisioning.
+          skip-setup-trivy: ${{ steps.report.outcome == 'success' }}
+          cache: ${{ steps.report.outcome != 'success' }}
           scan-type: 'fs'
           scan-ref: '.'
           format: 'table'
@@ -310,6 +315,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
       - name: Evaluate native workflow
         uses: ./.github/actions/ci-ready
         with:

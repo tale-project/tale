@@ -79,15 +79,18 @@ export async function checkStaleSessionReauthentication(
     headers: { cookie: staleCookie },
   });
   const trail = (
-    await sql<{ action: string; reauthentication: boolean | null }[]>`
-      SELECT action,
-             (metadata->>'reauthentication')::boolean AS reauthentication
+    await sql<{ action: string; passwordCheck: string | null }[]>`
+      SELECT action, metadata->>'passwordCheck' AS "passwordCheck"
       FROM app.audit_logs
       WHERE org_id = ${ctx.orgId} AND resource_id = ${userId}
         AND action IN ('login_attempt', 'login_success')
       ORDER BY ts ASC
     `
-  ).map((row) => `${row.action}${row.reauthentication ? '+reauth' : ''}`);
+  ).map((row) =>
+    row.passwordCheck === null
+      ? row.action
+      : `${row.action}+${row.passwordCheck}`,
+  );
 
   // A locked account is refused before its password is checked.
   const now = Date.now();
@@ -116,7 +119,8 @@ export async function checkStaleSessionReauthentication(
       failuresAfterRight === null &&
       fresh.status === 200 &&
       oldCookie.status === 401 &&
-      trail.join(',') === 'login_attempt+reauth,login_success+reauth' &&
+      trail.join(',') ===
+        'login_attempt+reauthenticate,login_success+reauthenticate' &&
       locked.status === 429,
     `stale=${stale.status}/${staleCode} (want 403/SESSION_NOT_FRESH), wrong=${wrong.status}/${wrongCode} failures=${failuresAfterWrong}, confirmed=${confirmed.status} sessions=${sessions.length} age=${sessions[0]?.ageSeconds}s counter=${failuresAfterRight}, fresh=${fresh.status} (want 200), oldCookie=${oldCookie.status} (want 401), trail=${trail.join(',')}, locked=${locked.status} (want 429)`,
   );
