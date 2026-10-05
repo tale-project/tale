@@ -183,6 +183,27 @@ describe('ContactsTable bulk delete', () => {
 
     expect(await menuLabelsOf(user, 'Typed')).not.toContain('Delete');
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Delete selected' }),
+    ).not.toBeInTheDocument();
+    expect(mockDelete).not.toHaveBeenCalled();
+  });
+
+  it('removes the bulk confirmation after permission loss even for an unloaded selection', async () => {
+    mockContacts = [makeContact('Typed', 'manual_import')];
+    const { user, rerender } = render(<ContactsTable organizationId="org-1" />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select row' }));
+    await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    mockContacts = [makeContact('Other', 'manual_import')];
+    mockAbility = defineAbilityFor('member');
+    rerender(<ContactsTable organizationId="org-1" />);
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Delete selected' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mockDelete).not.toHaveBeenCalled();
   });
 
   describe('accessibility', () => {
