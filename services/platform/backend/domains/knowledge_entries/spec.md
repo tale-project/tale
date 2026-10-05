@@ -23,11 +23,10 @@ refused, and nothing is saved.
 
 ### KENTRY-R2 · An organization has one current entry per topic
 
-Two topics are the same when they differ only in upper and lower case or in spacing. Two
-people who create the same topic at the same moment end up with one entry.
+Two topics are the same when they differ only in upper and lower case or in spacing.
 
-- **Example**: An entry `Support hours` exists. Noah adds `support  hours` → he is pointed to
-  the existing entry instead of getting a second one.
+- **Example**: An entry `Support hours` exists. Noah saves a fact under `support  hours` → it
+  reaches that same entry, and no second entry is created.
 
 ## Editing an entry
 
@@ -87,8 +86,8 @@ Each entry is backed by a document. When that document is no longer active, a sa
 answered as not found (`KNOWLEDGE_ENTRY_NOT_FOUND`), and the entry's versions are retired with
 the document.
 
-- **Example**: An admin empties the trash that held an entry's document → the entry is gone
-  from the list, and a save from an open form is refused.
+- **Example**: The document behind an entry was deleted while Noah had the entry's form open.
+  He saves → refused as not found.
 
 ## Not yet
 
