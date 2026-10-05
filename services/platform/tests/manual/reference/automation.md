@@ -173,9 +173,10 @@ its focus through the retry and a repeated failure, and a read that answers
 hands the focus to the Matters section. A failed refresh keeps the listed
 matters under its own notice. Successful empty, populated and loading reads are
 the controls in
-`app/features/settings/governance/legal-hold/matters-section.read-failure.test.tsx`
-(#3837, #3838). The real disconnected-backend interaction and browser layout
-remain manual.
+`app/features/settings/governance/legal-hold/matters-section.read-failure.test.tsx`;
+`app/features/settings/governance/legal-hold/matters-section.read-recovery.test.tsx`
+runs the real read lane against a synthetic 503 transport (#3837, #3838). The
+real disconnected-backend interaction and browser layout remain manual.
 
 Harness turn metrics distinguish a failed read from a period with no turns. A
 failed first read shows an EN/DE/FR alert with Try again instead of zero or
