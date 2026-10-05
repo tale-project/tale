@@ -86,7 +86,7 @@ describe('useCompactAge', () => {
   });
 
   const wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(LocaleProvider, { defaultLocale: 'en' }, children);
+    createElement(LocaleProvider, { defaultLocale: 'en', children });
 
   // A Home list renders hundreds of rows: a row woken every minute to read
   // the same "2d" again was hundreds of renders a minute for nothing.
