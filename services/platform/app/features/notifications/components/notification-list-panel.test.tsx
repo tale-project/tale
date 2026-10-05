@@ -547,4 +547,270 @@ describe('NotificationListPanel', () => {
       expect(screen.getByText("You're all caught up")).toBeInTheDocument();
     });
   });
+
+  // Pagination walks each stream's read and unread rows together while the
+  // Unread tab filters only what is loaded, so an older unread row can wait on
+  // a page not loaded yet. The counts prove it is there: the panel must never
+  // claim "You're all caught up" over it (#3610).
+  describe.each(['org', 'personal'] as const)(
+    'unread rows past the loaded pages (#3610): %s',
+    (stream) => {
+      const OLDER_UNREAD = 'You have older unread notifications';
+      const CAUGHT_UP = "You're all caught up";
+
+      function row(id: string, read: boolean, createdAt: number) {
+        return { _id: id, createdAt, read, titleKey: 'title', bodyKey: 'body' };
+      }
+
+      /** The 25 newest rows of a 26-row stream, all read. */
+      function readFirstPage(): MockNotification[] {
+        return Array.from({ length: 25 }, (_, index) =>
+          row(`${stream}-read-${index}`, true, 100_000 - index),
+        );
+      }
+
+      function seed(
+        rows: MockNotification[],
+        status: (typeof streamState)['org'],
+        unreadCount: number,
+      ) {
+        if (stream === 'org') {
+          streamState.orgResults = rows;
+          streamState.org = status;
+          streamState.orgUnread = unreadCount;
+        } else {
+          streamState.myResults = rows;
+          streamState.my = status;
+          streamState.myUnread = unreadCount;
+        }
+      }
+
+      const markOne = () => (stream === 'org' ? markRead : markMyRead);
+      const markAll = () => (stream === 'org' ? markAllRead : markAllMyRead);
+      const loadMoreSpy = () => (stream === 'org' ? orgLoadMore : myLoadMore);
+      const rerenderPanel = (
+        rerender: ReturnType<typeof renderPanel>['rerender'],
+      ) => rerender(<NotificationListPanel organizationId="org-1" />);
+
+      it('points at the older unread row instead of claiming all caught up, and Load more reveals it', async () => {
+        seed(readFirstPage(), 'CanLoadMore', 1);
+        const { user, rerender } = renderPanel();
+
+        expect(
+          screen.getByRole('tab', { name: 'Unread (1)' }),
+        ).toBeInTheDocument();
+        expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+        expect(screen.getByText(OLDER_UNREAD)).toBeInTheDocument();
+        expect(screen.getByText('Load more to see them.')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Load more' }));
+        expect(loadMoreSpy()).toHaveBeenCalledTimes(1);
+
+        seed(readFirstPage(), 'LoadingMore', 1);
+        rerenderPanel(rerender);
+        expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+        expect(screen.getByText(OLDER_UNREAD)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Loading…' })).toBeDisabled();
+
+        seed(
+          [...readFirstPage(), row(`${stream}-older-unread`, false, 1_000)],
+          'Exhausted',
+          1,
+        );
+        rerenderPanel(rerender);
+        expect(
+          screen.getByRole('button', { name: 'Mark as read' }),
+        ).toBeEnabled();
+        expect(screen.queryByText(OLDER_UNREAD)).not.toBeInTheDocument();
+        expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+      });
+
+      it('counts only the unread rows the loaded pages do not hold', () => {
+        seed(
+          [row(`${stream}-unread`, false, 100_001), ...readFirstPage()],
+          'CanLoadMore',
+          1,
+        );
+        renderPanel();
+
+        expect(
+          screen.getByRole('button', { name: 'Mark as read' }),
+        ).toBeEnabled();
+        expect(screen.queryByText(OLDER_UNREAD)).not.toBeInTheDocument();
+      });
+
+      it('keeps pointing at the older row after reading the loaded one, whichever re-read lands first', async () => {
+        const loaded = row(`${stream}-unread`, false, 100_001);
+        seed([loaded, ...readFirstPage()], 'CanLoadMore', 2);
+        const { user, rerender } = renderPanel();
+
+        await user.click(screen.getByRole('button', { name: 'Mark as read' }));
+        expect(markOne().mutateAsync).toHaveBeenCalledTimes(1);
+        expect(screen.getByText(OLDER_UNREAD)).toBeInTheDocument();
+
+        // The list re-reads first: the row is read, the count still says 2.
+        seed([{ ...loaded, read: true }, ...readFirstPage()], 'CanLoadMore', 2);
+        rerenderPanel(rerender);
+        expect(screen.getByText(OLDER_UNREAD)).toBeInTheDocument();
+
+        seed([{ ...loaded, read: true }, ...readFirstPage()], 'CanLoadMore', 1);
+        rerenderPanel(rerender);
+        expect(screen.getByText(OLDER_UNREAD)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled();
+      });
+
+      it('stays caught up after reading the last unread row while the count catches up', async () => {
+        const loaded = row(`${stream}-unread`, false, 100_001);
+        seed([loaded, ...readFirstPage()], 'CanLoadMore', 1);
+        const { user, rerender } = renderPanel();
+
+        await user.click(screen.getByRole('button', { name: 'Mark as read' }));
+        expect(screen.getByText(CAUGHT_UP)).toBeInTheDocument();
+
+        // The list re-reads before the count: one unread still counted, none
+        // loaded — the read itself, not an older row.
+        seed([{ ...loaded, read: true }, ...readFirstPage()], 'CanLoadMore', 1);
+        rerenderPanel(rerender);
+        expect(screen.getByText(CAUGHT_UP)).toBeInTheDocument();
+        expect(screen.queryByText(OLDER_UNREAD)).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('button', { name: 'Load more' }),
+        ).not.toBeInTheDocument();
+
+        seed([{ ...loaded, read: true }, ...readFirstPage()], 'CanLoadMore', 0);
+        rerenderPanel(rerender);
+        expect(screen.getByText(CAUGHT_UP)).toBeInTheDocument();
+        expect(
+          screen.queryByRole('button', { name: 'Load more' }),
+        ).not.toBeInTheDocument();
+      });
+
+      it('reads as caught up at once after Mark all as read, the unloaded pages included', async () => {
+        const loaded = [
+          row(`${stream}-unread-a`, false, 100_002),
+          row(`${stream}-unread-b`, false, 100_001),
+        ];
+        const loadedRead = [
+          row(`${stream}-unread-a`, true, 100_002),
+          row(`${stream}-unread-b`, true, 100_001),
+        ];
+        seed([...loaded, ...readFirstPage()], 'CanLoadMore', 5);
+        let settle: () => void = () => {};
+        markAll().mutateAsync.mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              settle = resolve;
+            }),
+        );
+        const { user, rerender } = renderPanel();
+
+        await user.click(
+          screen.getByRole('button', { name: 'Mark all as read' }),
+        );
+        expect(screen.getByText(CAUGHT_UP)).toBeInTheDocument();
+        expect(screen.queryByText(OLDER_UNREAD)).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('button', { name: 'Load more' }),
+        ).not.toBeInTheDocument();
+
+        await act(async () => {
+          settle();
+        });
+        // The list re-reads first; the count still says 5.
+        seed([...loadedRead, ...readFirstPage()], 'CanLoadMore', 5);
+        rerenderPanel(rerender);
+        expect(screen.getByText(CAUGHT_UP)).toBeInTheDocument();
+        expect(screen.queryByText(OLDER_UNREAD)).not.toBeInTheDocument();
+
+        seed([...loadedRead, ...readFirstPage()], 'CanLoadMore', 0);
+        rerenderPanel(rerender);
+        expect(screen.getByText(CAUGHT_UP)).toBeInTheDocument();
+        expect(
+          screen.queryByRole('button', { name: 'Load more' }),
+        ).not.toBeInTheDocument();
+      });
+
+      it('drops the figure a failed read held', async () => {
+        const newer = row(`${stream}-unread-newer`, false, 100_001);
+        const older = row(`${stream}-unread-older`, false, 1_000);
+        seed([newer, ...readFirstPage()], 'CanLoadMore', 2);
+        let fail: (error: Error) => void = () => {};
+        markOne().mutateAsync.mockImplementationOnce(
+          () =>
+            new Promise<void>((_resolve, reject) => {
+              fail = reject;
+            }),
+        );
+        const { user, rerender } = renderPanel();
+
+        await user.click(screen.getByRole('button', { name: 'Mark as read' }));
+        await act(async () => {
+          fail(new Error('Connection lost'));
+        });
+        // Load more brings the older row; read pages remain past it.
+        seed([{ ...newer }, ...readFirstPage(), older], 'CanLoadMore', 2);
+        rerenderPanel(rerender);
+        const rowReads = screen.getAllByRole('button', {
+          name: 'Mark as read',
+        });
+        expect(rowReads).toHaveLength(2);
+        await user.click(rowReads[1]);
+        await user.click(screen.getByRole('button', { name: 'Mark as read' }));
+
+        expect(screen.getByText(CAUGHT_UP)).toBeInTheDocument();
+        expect(screen.queryByText(OLDER_UNREAD)).not.toBeInTheDocument();
+      });
+
+      it('judges a later count afresh once the count has moved', async () => {
+        seed(readFirstPage(), 'CanLoadMore', 1);
+        const { user, rerender } = renderPanel();
+
+        await user.click(
+          screen.getByRole('button', { name: 'Mark all as read' }),
+        );
+        seed(readFirstPage(), 'CanLoadMore', 0);
+        rerenderPanel(rerender);
+        expect(screen.getByText(CAUGHT_UP)).toBeInTheDocument();
+
+        seed(readFirstPage(), 'CanLoadMore', 1);
+        rerenderPanel(rerender);
+        expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+        expect(screen.getByText(OLDER_UNREAD)).toBeInTheDocument();
+      });
+
+      it('never points at older rows when no page is left to hold them', () => {
+        seed(readFirstPage(), 'Exhausted', 1);
+        renderPanel();
+
+        expect(screen.queryByText(OLDER_UNREAD)).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('button', { name: 'Load more' }),
+        ).not.toBeInTheDocument();
+      });
+
+      it('points at the older row again when Mark all as read fails', async () => {
+        seed(readFirstPage(), 'CanLoadMore', 1);
+        let fail: (error: Error) => void = () => {};
+        markAll().mutateAsync.mockImplementationOnce(
+          () =>
+            new Promise<void>((_resolve, reject) => {
+              fail = reject;
+            }),
+        );
+        const { user } = renderPanel();
+
+        await user.click(
+          screen.getByRole('button', { name: 'Mark all as read' }),
+        );
+        expect(screen.getByText(CAUGHT_UP)).toBeInTheDocument();
+
+        await act(async () => {
+          fail(new Error('Connection lost'));
+        });
+        expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+        expect(screen.getByText(OLDER_UNREAD)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled();
+      });
+    },
+  );
 });
