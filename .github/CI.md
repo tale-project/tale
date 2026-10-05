@@ -79,7 +79,10 @@ baseline behavior do not count.
   tests within a file remain serial. Linux and Windows source tests and compiled smoke
   discovery remain serial. Two workers made Windows fixtures exceed their unchanged
   30-second limits; Linux two-worker runs also failed to finish promptly. Serial suites
-  retain all assertions and the same limits.
+  retain all assertions and the same limits. The native command fixture checks complete
+  discovery, serial case order and real synchronous/asynchronous subprocess completion
+  under each host's selected command. The macOS lane also checks file isolation and its
+  worker bound.
   Binary artifacts use fast compression; all five targets still build, native binaries
   retain smoke tests, and both macOS targets retain signature checks. Command suites
   run source cases before compilation, then select only the explicit `TALE_BINARY`
