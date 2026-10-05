@@ -102,6 +102,7 @@ function fakeTx(
     insertedId?: string;
     archived?: boolean;
     instructions?: string;
+    updatedAt?: number;
   } = {},
 ): {
   tx: TransactionSql;
@@ -113,7 +114,11 @@ function fakeTx(
     statements.push({ text, values });
     if (text.includes('FROM app.project_agents WHERE id = ?')) {
       return Promise.resolve([
-        { ...AGENT, instructions: options.instructions ?? AGENT.instructions },
+        {
+          ...AGENT,
+          instructions: options.instructions ?? AGENT.instructions,
+          updatedAt: options.updatedAt ?? AGENT.updatedAt,
+        },
       ]);
     }
     if (
@@ -164,6 +169,7 @@ const updates = (statements: Statement[]) =>
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 /**
@@ -301,6 +307,36 @@ describe('updateProjectAgent — the optimistic precondition', () => {
         .split('?').length - 1;
     expect(statement.values[instructionIndex]).toBeNull();
   });
+
+  it.each([20, 19, 200])(
+    'advances the revision at wall time %i and refuses the earlier reader',
+    async (now) => {
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      const first = fakeTx();
+      await updateProjectAgent(first.tx, auth, {
+        ...config,
+        name: 'First replacement',
+        expectedUpdatedAt: AGENT.updatedAt,
+      });
+      const revision = updates(first.statements)[0]!.values.at(-2);
+      expect(revision).toBeGreaterThan(AGENT.updatedAt);
+      expect(revision).toBeGreaterThanOrEqual(now);
+      const second = fakeTx(['REVIEW_TOKEN'], {
+        updatedAt: revision as number,
+      });
+      vi.clearAllMocks();
+      await expect(
+        updateProjectAgent(second.tx, auth, {
+          ...config,
+          name: 'Stale replacement',
+          expectedUpdatedAt: AGENT.updatedAt,
+        }),
+      ).rejects.toMatchObject({ code: 'PROJECT_AGENT_STALE', status: 409 });
+      expect(updates(second.statements)).toEqual([]);
+      expect(createAuditLog).not.toHaveBeenCalled();
+      expect(outbox.emitHintInTx).not.toHaveBeenCalled();
+    },
+  );
 
   it('refuses a stale expectedUpdatedAt with 409 and the current stamp, writing nothing', async () => {
     const { tx, statements } = fakeTx();
