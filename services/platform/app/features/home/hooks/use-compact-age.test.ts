@@ -1,9 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { LocaleProvider } from '@tale/ui/i18n/locale-provider';
+import { act, renderHook } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { formatCompactAge } from './use-compact-age';
+import {
+  formatCompactAge,
+  msUntilCompactAgeChanges,
+  useCompactAge,
+} from './use-compact-age';
 
 const NOW = new Date(2026, 8, 23, 12, 0, 0).getTime();
 const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
 
 describe('formatCompactAge', () => {
   it('reads as a short age within the week', () => {
@@ -36,5 +45,75 @@ describe('formatCompactAge', () => {
 
   it('never reads a future timestamp as negative', () => {
     expect(formatCompactAge(NOW + 5 * MINUTE, NOW, 'en')).toBe('now');
+  });
+});
+
+describe('msUntilCompactAgeChanges', () => {
+  it('waits for the next boundary of the unit the age is counted in', () => {
+    expect(msUntilCompactAgeChanges(NOW - 20_000, NOW)).toBe(40_000);
+    expect(msUntilCompactAgeChanges(NOW - 5 * MINUTE - 10_000, NOW)).toBe(
+      50_000,
+    );
+    expect(msUntilCompactAgeChanges(NOW - 3 * HOUR - 10 * MINUTE, NOW)).toBe(
+      50 * MINUTE,
+    );
+    expect(msUntilCompactAgeChanges(NOW - 2 * DAY - HOUR, NOW)).toBe(23 * HOUR);
+  });
+
+  it('waits for New Year once the age shows a date', () => {
+    expect(msUntilCompactAgeChanges(NOW - 10 * DAY, NOW)).toBe(
+      new Date(2027, 0, 1).getTime() - NOW,
+    );
+  });
+
+  it('lands where the label reads differently', () => {
+    for (const age of [20_000, 5 * MINUTE, 59 * MINUTE, 3 * HOUR, 6 * DAY]) {
+      const timestamp = NOW - age;
+      const wait = msUntilCompactAgeChanges(timestamp, NOW);
+      expect(formatCompactAge(timestamp, NOW + wait - 1, 'en')).toBe(
+        formatCompactAge(timestamp, NOW, 'en'),
+      );
+      expect(formatCompactAge(timestamp, NOW + wait, 'en')).not.toBe(
+        formatCompactAge(timestamp, NOW, 'en'),
+      );
+    }
+  });
+});
+
+describe('useCompactAge', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    createElement(LocaleProvider, { defaultLocale: 'en' }, children);
+
+  // A Home list renders hundreds of rows: a row woken every minute to read
+  // the same "2d" again was hundreds of renders a minute for nothing.
+  it('re-renders when the label changes, not every minute', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    localStorage.setItem('user-locale', 'en');
+    let renders = 0;
+    const { result } = renderHook(
+      () => {
+        renders += 1;
+        return useCompactAge(NOW - 2 * DAY - 23 * HOUR);
+      },
+      { wrapper },
+    );
+    expect(result.current).toBe('2d');
+    const settled = renders;
+
+    act(() => {
+      vi.advanceTimersByTime(30 * MINUTE);
+    });
+    expect(renders).toBe(settled);
+
+    act(() => {
+      vi.advanceTimersByTime(31 * MINUTE);
+    });
+    expect(result.current).toBe('3d');
+    expect(renders).toBe(settled + 1);
   });
 });
