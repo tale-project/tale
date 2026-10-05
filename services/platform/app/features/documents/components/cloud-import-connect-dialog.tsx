@@ -1,15 +1,17 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { Dialog } from '@tale/ui/dialog/dialog';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
-import type { RefObject } from 'react';
+import { useCallback, useRef, type RefObject } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import type { CloudImportInterruption } from '../lib/cloud-import-outcome';
@@ -57,6 +59,21 @@ export function CloudImportConnectDialog({
     'cloud_import/queries:getOauthAppStatus',
     organizationId ? { organizationId, provider } : 'skip',
   );
+  const { refetch: refetchAppStatus } = appStatus;
+  // A check that failed is not an app that is missing (#3864): the dialog
+  // names the failure and runs the check again, and Connect waits until the
+  // answer is in — before it, consenting could still end on that error page.
+  const appRead = readStateOf(appStatus);
+  const appKnown = appStatus.data !== undefined;
+  const retryAppStatus = useCallback(() => {
+    void refetchAppStatus();
+  }, [refetchAppStatus]);
+  // A check that works on retry takes the alert away; a focused Try again
+  // hands its focus to the words that replace it, not to the page.
+  const guidanceRef = useRef<HTMLDivElement>(null);
+  const focusGuidance = useCallback(() => {
+    guidanceRef.current?.focus();
+  }, []);
 
   const interrupted = interruption !== undefined;
   const title =
@@ -77,7 +94,7 @@ export function CloudImportConnectDialog({
   // Reconnecting a grant that ended, in the sync dialog's words and button.
   const reauthError = interrupted ? 'RefreshTokenError' : undefined;
 
-  const appMissing = appStatus.data !== undefined && !appStatus.data.configured;
+  const appMissing = appStatus.data?.configured === false;
   const isAdmin = ability.can('write', 'orgSettings');
 
   return (
@@ -100,19 +117,39 @@ export function CloudImportConnectDialog({
       size="md"
     >
       <Stack gap={4} className="pt-1">
-        <Text as="div" variant="muted">
-          {appMissing
-            ? isAdmin
-              ? t('cloudImport.appNotConfiguredAdmin')
-              : t('cloudImport.appNotConfigured')
-            : guidance}
-        </Text>
-        {!appMissing && (
+        {appRead.unavailable ? (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node, and
+            // the focus on it, through a retry that fails again.
+            failureKey={appRead.failureCount}
+            onFocusLost={focusGuidance}
+            message={t('cloudImport.appStatusLoadFailed', {
+              provider: PROVIDER_LABEL[provider],
+            })}
+            onRetry={retryAppStatus}
+            isRetrying={appRead.retrying}
+          />
+        ) : (
+          <Text
+            as="div"
+            variant="muted"
+            ref={guidanceRef}
+            tabIndex={-1}
+            className="outline-none"
+          >
+            {appMissing
+              ? isAdmin
+                ? t('cloudImport.appNotConfiguredAdmin')
+                : t('cloudImport.appNotConfigured')
+              : guidance}
+          </Text>
+        )}
+        {!appRead.unavailable && !appMissing && (
           <div>
             {provider === 'onedrive' ? (
-              <MicrosoftReauthButton error={reauthError} />
+              <MicrosoftReauthButton error={reauthError} disabled={!appKnown} />
             ) : (
-              <GoogleReauthButton error={reauthError} />
+              <GoogleReauthButton error={reauthError} disabled={!appKnown} />
             )}
           </div>
         )}

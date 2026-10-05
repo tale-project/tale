@@ -65,6 +65,19 @@ optimistic dismissals and the All-filter recovery control remain covered by
 `app/features/notifications/components/notification-list-panel.test.tsx`.
 The real disconnected-backend/browser interaction remains a manual check.
 
+The Documents cloud-import connect dialog tells a failed OAuth-app status read
+apart from a missing app: an EN/DE/FR alert names the failed check with Try
+again in place of the not-connected words, and neither Connect nor the
+connector-settings path shows until the check answers. Connect stays disabled
+while the first check runs. Try again stays busy and keeps its focus during the
+retry, and keeps it again when the retry fails too; a retry that works hands
+focus to the dialog's words and shows Connect, or the not-configured path. Both
+providers, the interrupted-import dialog and the configured and not-configured
+answers are owned by
+`app/features/documents/components/cloud-import-connect-dialog.app-status.test.tsx`
+(#3864). The real disconnected-backend interaction and browser layout remain
+manual.
+
 Pending retention reads distinguish successful null from failure. EN/DE/FR read
 errors expose a destructive alert and Try again; retry keeps the first-read
 failure visible and its focused button inert while fetching. A failed refresh

@@ -2501,6 +2501,9 @@ documents:
       Der Import von diesem Anbieter braucht zuerst eine OAuth-App. Richte
       sie unter Einstellungen > Connectors > OAuth-Apps ein und verbinde
       danach.
+    appStatusLoadFailed:
+      Es konnte nicht geprüft werden, ob der Import von {provider}
+      eingerichtet ist. Du kannst dich verbinden, sobald die Prüfung klappt.
     openConnectorSettings: Connector-Einstellungen öffnen
     importedPartial: '{imported} von {total} Dateien importiert'
     syncedPartial: '{imported} von {total} Dateien synchronisiert'

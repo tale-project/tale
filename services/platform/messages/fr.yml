@@ -2518,6 +2518,9 @@ documents:
       L'import depuis ce fournisseur demande d'abord une app OAuth.
       Configure-la dans Paramètres > Connectors > Apps OAuth, puis reviens te
       connecter.
+    appStatusLoadFailed:
+      Impossible de vérifier si l’import depuis {provider} est configuré. Tu
+      pourras te connecter dès que la vérification aboutira.
     openConnectorSettings: Ouvrir les paramètres des connectors
     importedPartial: '{imported} sur {total} fichiers importés'
     syncedPartial: '{imported} sur {total} fichiers synchronisés'
