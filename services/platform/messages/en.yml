@@ -5333,6 +5333,7 @@ projects:
   title: Projects
   entityLabel: projects
   entityLabelOne: project
+  loadFailed: "Couldn't load this project."
   switcher:
     title: Switch project
     searchPlaceholder: Search projects

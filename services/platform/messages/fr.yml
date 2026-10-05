@@ -8428,6 +8428,7 @@ projects:
   title: Projets
   entityLabel: projets
   entityLabelOne: projet
+  loadFailed: Impossible de charger ce projet.
   switcher:
     title: Changer de projet
     searchPlaceholder: Rechercher des projets

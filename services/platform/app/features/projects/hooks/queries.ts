@@ -165,14 +165,34 @@ export function useProjects(
   };
 }
 
+/**
+ * The project, with how its read stands (`readStateOf`). The read answers
+ * `null` for a project that is gone or out of reach; a read that failed is
+ * not that, and says so — never a project that seems deleted, never a blank
+ * tab (#3885).
+ */
 export function useProject(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
+  const query = useBackendQuery(
     'projects/queries:getProject',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
-  return { project: data ?? null, isLoading };
+  const { refetch } = query;
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+  return {
+    project: query.data ?? null,
+    isLoading: query.isLoading,
+    ...readStateOf(query),
+    retry,
+  };
 }
+
+export type ProjectRead = Pick<
+  ReturnType<typeof useProject>,
+  'retrying' | 'failureCount' | 'retry'
+>;
 
 /**
  * A project list read's rows, with how the read stands (`readStateOf`): a
