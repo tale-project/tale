@@ -133,7 +133,7 @@ beforeEach(() => {
 });
 
 describe('addTaskComment on an archived project', () => {
-  it('refuses with 403 PROJECT_ARCHIVED after the reads, writing nothing', async () => {
+  it('refuses with 403 PROJECT_ARCHIVED after the reads, writing nothing [TASK-R7]', async () => {
     loadProjectOrThrow.mockResolvedValue({
       ...project,
       archivedAt: 1_700_000_000_000,
@@ -157,7 +157,7 @@ describe('the discussion of an archived task', () => {
     });
   });
 
-  it("refuses a person's comment with TASK_ARCHIVED, writing nothing", async () => {
+  it("refuses a person's comment with TASK_ARCHIVED, writing nothing [TASK-R5]", async () => {
     const { tx, statements } = fakeTx();
     await expect(
       addTaskComment(tx, auth, { taskId: 'task-1', body: 'hello' }),
@@ -200,7 +200,7 @@ describe('the discussion of an archived task', () => {
     expect(deleteMessage).not.toHaveBeenCalled();
   });
 
-  it('still takes the report of a run working the task: the gate is a person’s', async () => {
+  it('still takes the report of a run working the task: the gate is a person’s [TASK-R6]', async () => {
     // A live run is not cancelled by the archive, and its settle posts its
     // report beside the status park, which ignores the archive as well.
     const { tx } = fakeTx();
