@@ -70,10 +70,11 @@ function withFixture(proof: (fixture: string) => void) {
     writeFileSync(join(fixture, 'input.txt'), 'current output');
     writeFileSync(
       join(fixture, 'build.mjs'),
-      `import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+      `import { existsSync, mkdirSync, readFileSync, writeFileSync, writeSync } from 'node:fs';
 if (existsSync('fail.txt')) {
   writeFileSync('rejection', 'source validation failed');
-  throw new Error('source validation failed');
+  writeSync(2, 'source validation failed\\n');
+  process.exit(1);
 }
 mkdirSync('dist', { recursive: true });
 writeFileSync('dist/result.txt', readFileSync('input.txt'));
@@ -312,8 +313,8 @@ describe('native CI Turbo cache eviction', () => {
         );
         expect(bad.stdout).toContain('cache miss, executing');
         expect(bad.stdout).toContain('0 cached, 1 total');
-        // CI console adapters can omit the failed task's buffered error body.
-        // Its actual per-task log still records the same validation failure.
+        // Emit one synchronous diagnostic instead of Bun's multi-chunk error
+        // rendering, so the native per-task log retains the complete marker.
         expect(
           readFileSync(join(fixture, '.turbo/turbo-build.log'), 'utf8'),
         ).toContain('source validation failed');

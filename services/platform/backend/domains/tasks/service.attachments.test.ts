@@ -1,6 +1,7 @@
 import type { TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TASK_ATTACHMENTS_MAX } from '../../core/tasks/helpers.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
@@ -217,6 +218,23 @@ describe('createTask — attachments', () => {
         attachments: [theirs],
       }),
     ).rejects.toMatchObject({ code: 'TASK_ATTACHMENT_NOT_OWNED', status: 403 });
+    expect(
+      statements.some((statement) => statement.text.startsWith('INSERT')),
+    ).toBe(false);
+  });
+
+  it('refuses a list over the cap of 50 before anything is written [TASK-R11]', async () => {
+    const { tx, statements } = fakeTx(taskRow());
+    await expect(
+      createTask(tx, auth, {
+        projectId: 'p-1',
+        title: 'Too many files',
+        attachments: Array.from(
+          { length: TASK_ATTACHMENTS_MAX + 1 },
+          (_, index) => ({ ...brief, fileId: `s3:org-1/file-${index}.pdf` }),
+        ),
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_ATTACHMENTS_INVALID' });
     expect(
       statements.some((statement) => statement.text.startsWith('INSERT')),
     ).toBe(false);

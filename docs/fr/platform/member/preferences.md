@@ -13,7 +13,7 @@ Ton nom est visible par les collègues et ne doit pas dépasser 100 caractères.
 
 ## Protéger la connexion
 
-La section **Mot de passe** propose **Changer le mot de passe**, ou **Définir le mot de passe** si ton compte n’en possède pas encore. Respecte les exigences affichées dans le dialogue. Elles proviennent de la politique de mot de passe de ton organisation. Si tu appartiens à plusieurs organisations, ton mot de passe doit respecter les exigences de chacune d’elles. Changer le mot de passe ferme tes sessions : garde le nouveau à portée de main avant de confirmer.
+La section **Mot de passe** propose **Changer le mot de passe**, ou **Définir le mot de passe** si ton compte n’en possède pas encore. Respecte les exigences affichées dans le dialogue. Elles proviennent de la politique de mot de passe de ton organisation. Si tu appartiens à plusieurs organisations, ton mot de passe doit respecter les exigences de chacune d’elles. Changer le mot de passe ferme tes sessions : garde le nouveau à portée de main avant de confirmer. Un mot de passe actuel erroné compte pour le verrouillage temporaire, comme un échec de connexion.
 
 Configure une application sous **Authentification à deux facteurs** ou ajoute une passkey dans la section correspondante. Conserve les codes de secours dans un endroit accessible sans connexion à Tale. [Authentification à deux facteurs](/fr/platform/admin/two-factor-authentication) couvre la configuration, la récupération et les exigences de l’organisation.
 

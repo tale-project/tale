@@ -92,6 +92,10 @@ import {
   recordPasswordAttempt,
   refuseThrottledPasswordAttempt,
 } from './password-attempts.ts';
+import {
+  confirmationOutcome,
+  passwordConfirmationOf,
+} from './password-confirmations.ts';
 import { reauthenticate } from './reauthenticate.ts';
 import {
   openSignUpEnabled,
@@ -99,6 +103,7 @@ import {
   SIGN_UP_EMAIL_PATH,
   signUpAllowed,
 } from './sign-up-gate.ts';
+import { totpIssuer } from './totp-issuer.ts';
 
 /**
  * Better Auth on Postgres — the 0.5 replacement for the Convex Better Auth
@@ -120,6 +125,8 @@ export interface AuthConfig {
   secret: string;
   /** Public origin auth cookies/callbacks bind to, e.g. https://localhost. */
   baseUrl: string;
+  /** Deployment environment shown on newly generated authenticator entries. */
+  totpEnvironment?: string;
   /**
    * The other public origins this deployment is served from
    * (`ADDITIONAL_SITE_URLS`, already normalized). Better Auth's origin check
@@ -289,6 +296,24 @@ function bodyEmail(body: unknown): string | null {
   return normalized || null;
 }
 
+/**
+ * The client address and agent of a request: over HTTP, or a server-side
+ * call that passes the browser's headers on — the app's own password door
+ * calls `auth.api.changePassword` that way.
+ */
+function requestOrigin(
+  mw: { request?: Request | undefined; headers?: Headers | undefined },
+  trusted: string[],
+): { ip?: string; userAgent?: string } {
+  const headers = mw.request?.headers ?? mw.headers;
+  if (headers === undefined) return {};
+  const userAgent = headers.get('user-agent');
+  return {
+    ip: getClientIp(headers, trusted),
+    ...(userAgent !== null ? { userAgent } : {}),
+  };
+}
+
 export type SignInOutcome = 'success' | 'failure' | 'not-attempted';
 
 /**
@@ -433,6 +458,7 @@ const logBetterAuth: NonNullable<Logger['log']> = (level, message, ...args) => {
 
 export function createAuth(config: AuthConfig) {
   const siteUrl = config.baseUrl;
+  const authenticatorIssuer = totpIssuer('Tale', config.totpEnvironment);
   /** The OIDC issuer — the auth mount. */
   const oidcIssuer = `${siteUrl.replace(/\/$/, '')}/api/auth`;
 
@@ -934,6 +960,22 @@ export function createAuth(config: AuthConfig) {
           }
           return;
         }
+        // A signed-in person confirming their password before an account
+        // change is a password guess like a sign-in: a locked account or a
+        // flooding address is refused before the check
+        // (password-confirmations.ts).
+        if (passwordConfirmationOf(mw.path, mw.body) !== null) {
+          const session = await getSessionFromCtx(mw);
+          // Without a session the endpoint answers 401 itself.
+          if (session) {
+            const { ip } = requestOrigin(mw, await loadTrustedProxies());
+            await refuseThrottledPasswordAttempt(sql, {
+              email: normalizeAuthEmail(session.user.email),
+              ip: ip ?? 'unknown',
+            });
+          }
+          return;
+        }
         if (mw.path !== SIGN_IN_EMAIL_PATH) {
           return;
         }
@@ -991,6 +1033,32 @@ export function createAuth(config: AuthConfig) {
                   enrollRequired: true,
                 });
               }
+            }
+          }
+        }
+
+        // Password confirmations: a wrong password counts toward the sign-in
+        // lock, a right one clears it (the change audits itself). Non-fatal
+        // like the lifecycle audit below — a confirmed change has already
+        // happened, and a booking that throws here would answer it with an
+        // error; a failed write is LOUD instead.
+        const confirmation = passwordConfirmationOf(mw.path, mw.body);
+        if (confirmation !== null) {
+          const confirmer = sessionPayloadUser(mw.context.session);
+          const outcome = confirmationOutcome(mw.context.returned);
+          if (confirmer?.email !== undefined && outcome !== 'not-attempted') {
+            try {
+              await recordPasswordAttempt(sql, {
+                email: normalizeAuthEmail(confirmer.email),
+                outcome,
+                check: confirmation,
+                ...requestOrigin(mw, trusted),
+              });
+            } catch (error) {
+              console.error(
+                `[password-confirmation] failed to book the ${confirmation} attempt`,
+                error instanceof Error ? error.message : error,
+              );
             }
           }
         }
@@ -1443,8 +1511,8 @@ export function createAuth(config: AuthConfig) {
       // TOTP two-factor. The verify-endpoint lockout + org enforcement hooks
       // land with the two_factor domain port.
       twoFactor({
-        issuer: 'Tale',
-        totpOptions: { digits: 6, period: 30 },
+        issuer: authenticatorIssuer,
+        totpOptions: { issuer: authenticatorIssuer, digits: 6, period: 30 },
         backupCodeOptions: { amount: 10, length: 10 },
         skipVerificationOnEnable: false,
       }),

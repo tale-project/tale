@@ -16,6 +16,8 @@ const CLI_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const LOCALES = ['en', 'de', 'fr'];
 /** Outside files read by the CI, cache, candidate and performance suites. */
 const CHECKED_CI_FILES = [
+  '.gitattributes',
+  '.github/release-candidate-contract.json',
   'services/platform/tests/integration/container-image-test.ts',
   'services/platform/tests/integration/lib/docker.ts',
   'services/platform/tests/integration/lib/exec.ts',
@@ -361,6 +363,8 @@ test('cached CLI checks hash every imported module and generated source tree', (
   expect(graph.unresolved).toEqual([]);
   expect(graph.files.size).toBeGreaterThan(400);
   for (const file of [
+    '.github/release-candidate-contract.json',
+    'tools/cli/scripts/release-candidate-contract.ts',
     'services/platform/backend/auth/oidc.ts',
     'services/platform/backend/domains/two_factor/service.ts',
     'services/platform/backend/core/automations/pack_zip.ts',

@@ -7,7 +7,7 @@ import { Select } from '@tale/ui/select';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useState } from 'react';
 
-import { useLockoutMessage } from '@/app/features/auth/hooks/use-lockout-message';
+import { usePasswordRefusalMessage } from '@/app/features/auth/hooks/use-password-refusal-message';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
@@ -71,7 +71,7 @@ export function PasskeyRegisterDialog({
   const { t } = useT('twoFactor');
   const { t: tAuth } = useT('auth');
   const queryClient = useReactQueryClient();
-  const lockoutMessage = useLockoutMessage();
+  const refusalMessage = usePasswordRefusalMessage();
   const { signOut } = useAuth();
 
   const [name, setName] = useState('');
@@ -140,10 +140,8 @@ export function PasskeyRegisterDialog({
         );
         return;
       }
-      if (result.reason === 'wrong-password') {
-        setError(t('passkeys.errors.wrongPassword'));
-      } else if (result.reason === 'locked') {
-        setError(lockoutMessage(result.retryAfterSec));
+      if (result.reason === 'wrong-password' || result.reason === 'locked') {
+        setError(refusalMessage(result));
       } else if (result.reason === 'no-password') {
         setPasswordless(true);
       } else {

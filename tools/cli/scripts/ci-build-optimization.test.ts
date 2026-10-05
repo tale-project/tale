@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
+  copyFile,
+  link,
   mkdir,
   mkdtemp,
   readFile,
@@ -8,8 +10,9 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, win32 } from 'node:path';
 
+import { create as createGlob } from '@actions/glob';
 import picomatch from 'picomatch';
 import { parse } from 'yaml';
 
@@ -36,7 +39,7 @@ type Workflow = {
         'max-parallel'?: number;
         matrix?: {
           service?: string[] | string;
-          include?: { os: string; cross?: boolean }[];
+          include?: { os: string; platform?: string; cross?: boolean }[];
         };
       };
       steps: Step[];
@@ -53,6 +56,61 @@ afterEach(async () => {
   for (const directory of directories.splice(0))
     await rm(directory, { recursive: true, force: true });
 });
+
+test.each([
+  'db',
+  'proxy',
+  'platform',
+  'sandbox',
+  'web',
+  'docs',
+  'ui-docs',
+  'ai-gateway',
+])(
+  '%s version metadata does not invalidate runtime filesystem work',
+  async (service) => {
+    const dockerfile = await readFile(
+      join(repository, `services/${service}/Dockerfile`),
+      'utf8',
+    );
+    const stages = dockerfile
+      .split(/^(?=FROM\s)/m)
+      .filter((stage) => /^FROM\s/.test(stage));
+    const versioned = stages.filter((stage) =>
+      /^ARG VERSION(?:=|\s*$)/m.test(stage),
+    );
+    expect(versioned.length).toBeGreaterThan(0);
+    for (const stage of versioned) {
+      const version = stage.search(/^ARG VERSION(?:=|\s*$)/m);
+      const filesystem = [...stage.matchAll(/^(?:RUN|COPY|ADD)\s/gm)];
+      expect(filesystem.length).toBeGreaterThan(0);
+      for (const instruction of filesystem) {
+        expect(
+          instruction.index,
+          `${service}: ${stage.split('\n')[0]}`,
+        ).toBeLessThan(version);
+      }
+      // ARG values implicitly enter every later RUN environment, even if the
+      // command never expands VERSION. Keep the declaration, not just LABEL,
+      // below all file operations. The shipped metadata still reads that ARG.
+      expect(stage.slice(0, version)).not.toContain('${VERSION}');
+      const metadata = stage
+        .slice(version)
+        .split(/\r?\n/)
+        .filter((line) => !/^\s*#/.test(line))
+        .join('\n')
+        .replace(/\\\r?\n\s*/g, ' ');
+      expect(metadata).toMatch(
+        /^ENV\s+[^\n]*\bTALE_VERSION=\$\{VERSION\}(?:\s|$)/m,
+      );
+      if (/^LABEL\s/m.test(metadata)) {
+        expect(metadata).toContain(
+          'org.opencontainers.image.version="${VERSION}"',
+        );
+      }
+    }
+  },
+);
 
 async function workflow(name = 'build'): Promise<Workflow> {
   return parse(
@@ -330,13 +388,19 @@ test.each(['web', 'docs', 'ui-docs', 'ai-gateway'])(
       files: '${{ runner.temp }}/site-build.json',
       targets: service,
       load: true,
+      provenance: false,
     });
-    expect(build.with?.set).toContain(`*.cache-from=type=gha,scope=${service}`);
-    expect(build.with?.set).toContain(
-      `*.cache-to=type=gha,scope=${service},mode=max`,
+    expect(build.uses).toBe(
+      'docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f',
     );
-    expect(build.with?.set).toContain(
-      'ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}',
+    const writer =
+      "github.event_name == 'push' && github.ref == 'refs/heads/main'";
+    expect(step(file, 'build', 'Build and push').with?.['cache-to']).toContain(
+      writer,
+    );
+    expect(build.with?.set).toBe(
+      `*.cache-from=type=gha,scope=${service}\n` +
+        `\${{ ${writer} && format('*.cache-to=type=gha,scope=${service},mode=max,ghtoken={0},repository={1}', secrets.GITHUB_TOKEN, github.repository) || '' }}\n`,
     );
     expect(build.with?.set).not.toContain(
       `*.cache-from=type=gha,scope=${service},ghtoken=`,
@@ -465,20 +529,26 @@ test('CLI source tests still cover every host OS while every target builds', asy
   });
 });
 
-test('cross CLI builds isolate filtered dependencies while native suites keep the shared cache', async () => {
+test('cross CLI builds isolate filtered dependencies and Windows keeps its store beside the checkout', async () => {
   const file = await workflow('cli');
   const configure = step(file, 'build', 'Configure Bun install cache');
   const cache = step(file, 'build', 'Restore Bun install cache');
+  const save = step(file, 'build', 'Save installed Bun downloads');
   const install = step(file, 'build', 'Install dependencies');
-  expect(configure.if).toBe('matrix.cross');
+  expect(configure.if).toBe("matrix.cross || runner.os == 'Windows'");
+  expect(configure.env?.CROSS).toBe('${{ matrix.cross }}');
   expect(configure.run).toContain(
-    'BUN_INSTALL_CACHE_DIR=${RUNNER_TEMP}/bun-cli-cache',
+    "printf 'BUN_INSTALL_CACHE_DIR=%s/bun-cli-cache\\n'",
+  );
+  expect(configure.run).toContain(
+    'require("node:path").win32.resolve(process.env.GITHUB_WORKSPACE, "..", ".tale-bun-install-cache")',
   );
   expect(cache.with?.path).toBe(
-    "${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
+    "${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
   );
+  expect(save.with?.path).toBe(cache.with?.path);
   expect(cache.with?.key).toBe(
-    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', '**/package.json', 'patches/**', 'bunfig.toml') }}",
+    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**', 'bunfig.toml') }}",
   );
   expect(String(cache.with?.['restore-keys']).trim()).toBe(
     "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-",
@@ -488,6 +558,516 @@ test('cross CLI builds isolate filtered dependencies while native suites keep th
   expect(names.indexOf(configure.name)).toBeLessThan(names.indexOf(cache.name));
   expect(names.indexOf(install.name)).toBeLessThan(
     names.indexOf('Generate embedded files'),
+  );
+});
+
+test.skipIf(process.platform === 'win32')(
+  'CLI cache configuration preserves cross stores and places Windows outside its checkout on the same volume',
+  async () => {
+    const configure = step(
+      await workflow('cli'),
+      'build',
+      'Configure Bun install cache',
+    );
+    const directory = await mkdtemp(join(tmpdir(), 'tale-cli-cache-ci-'));
+    directories.push(directory);
+    const environment = join(directory, 'environment');
+    for (const workspace of [
+      'D:/a/repo with spaces/tale',
+      'D:\\a\\repo with spaces\\tale',
+    ]) {
+      for (const cross of ['true', 'false', '']) {
+        await writeFile(environment, '');
+        const result = await execute(configure.run!, {
+          CROSS: cross,
+          GITHUB_ENV: environment,
+          GITHUB_WORKSPACE: workspace,
+          RUNNER_TEMP: 'E:/runner temp',
+        });
+        expect(result.code, result.stdout + result.stderr).toBe(0);
+        const configured = outputs(await readFile(environment, 'utf8'));
+        expect(Object.keys(configured)).toEqual(['BUN_INSTALL_CACHE_DIR']);
+        expect(configured.BUN_INSTALL_CACHE_DIR).toBe(
+          cross === 'true'
+            ? 'E:/runner temp/bun-cli-cache'
+            : 'D:\\a\\repo with spaces\\.tale-bun-install-cache',
+        );
+        if (cross !== 'true') {
+          const checkout = win32.resolve(workspace);
+          const cache = win32.resolve(configured.BUN_INSTALL_CACHE_DIR!);
+          expect(configured.BUN_INSTALL_CACHE_DIR).toBe(cache);
+          expect(win32.parse(cache).root).toBe(win32.parse(checkout).root);
+          expect(win32.relative(checkout, cache)).toBe(
+            '..\\.tale-bun-install-cache',
+          );
+          // macOS/Linux do not have a Windows drive filesystem. Preserve the
+          // drive and segments using portable separators for the real cache
+          // glob validator; the native win32 assertions above prove location.
+          const portable = (path: string) => path.replaceAll('\\', '/');
+          await expect(
+            createGlob(portable(`${workspace}/../.tale-bun-install-cache`)),
+          ).rejects.toThrow("Relative pathing '.' and '..' is not allowed");
+          const accepted = await createGlob(portable(cache));
+          expect(accepted.getSearchPaths()).toHaveLength(1);
+        }
+      }
+    }
+  },
+);
+
+test('the pinned cache glob consumer rejects the old sibling path and matches a normalized populated store', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tale-cli-cache-consumer-'));
+  directories.push(directory);
+  const checkout = join(directory, 'checkout with spaces');
+  const cache = resolve(checkout, '..', '.tale-bun-install-cache');
+  await mkdir(checkout);
+  await mkdir(cache);
+  const packageFile = join(cache, 'package.json');
+  await writeFile(packageFile, '{"name":"synthetic-cached-package"}');
+
+  // This executes @actions/glob 0.5.1, the exact consumer in cache v5.0.5.
+  // Resolving only while comparing paths would miss the hosted save failure.
+  await expect(
+    createGlob(`${checkout}/../.tale-bun-install-cache`),
+  ).rejects.toThrow("Relative pathing '.' and '..' is not allowed");
+  const accepted = await createGlob(cache);
+  expect(await accepted.glob()).toContain(packageFile);
+});
+
+test('all five CLI rows configure their cache and execute the actual frozen install', async () => {
+  const file = await workflow('cli');
+  const configure = step(file, 'build', 'Configure Bun install cache');
+  const install = step(file, 'build', 'Install dependencies');
+  const matrix = file.jobs.build?.strategy?.matrix?.include ?? [];
+  const cases: Record<
+    string,
+    { runnerOS: string; cross: boolean; cacheName?: string }
+  > = {
+    linux: { runnerOS: 'Linux', cross: false },
+    'linux-arm64': {
+      runnerOS: 'Linux',
+      cross: true,
+      cacheName: 'bun-cli-cache',
+    },
+    macos: { runnerOS: 'macOS', cross: false },
+    'macos-x64': {
+      runnerOS: 'macOS',
+      cross: true,
+      cacheName: 'bun-cli-cache',
+    },
+    windows: {
+      runnerOS: 'Windows',
+      cross: false,
+      cacheName: '.tale-bun-install-cache',
+    },
+  };
+  expect(matrix.map((entry) => entry.platform).toSorted()).toEqual(
+    Object.keys(cases).toSorted(),
+  );
+  for (const entry of matrix) {
+    const expected = cases[entry.platform ?? ''];
+    if (!expected) throw new Error(`Unknown CLI row ${entry.platform}`);
+    expect(entry.cross ?? false).toBe(expected.cross);
+    const directory = await mkdtemp(join(tmpdir(), 'tale-cli-cache-ci-'));
+    directories.push(directory);
+    const runnerTemp = join(directory, 'runner temp with spaces');
+    const workspace = join(directory, 'checkout with spaces');
+    const envFile = join(directory, 'github-env');
+    await writeFile(envFile, '');
+    const environment = {
+      CROSS: entry.cross ? 'true' : '',
+      RUNNER_OS: expected.runnerOS,
+      RUNNER_TEMP: runnerTemp,
+      GITHUB_WORKSPACE: workspace,
+      GITHUB_ENV: envFile,
+    };
+    // The literal workflow condition above holds this runner-level selection.
+    // Run its actual configuration body only when that step is selected.
+    const configured = await execute(
+      `if [ "$CROSS" = true ] || [ "$RUNNER_OS" = Windows ]; then
+${configure.run}
+fi`,
+      environment,
+      directory,
+    );
+    expect(configured.code, configured.stdout + configured.stderr).toBe(0);
+    const cacheEnvironment = outputs(await readFile(envFile, 'utf8'));
+    const cacheDirectory =
+      expected.runnerOS === 'Windows'
+        ? win32.resolve(workspace, '..', '.tale-bun-install-cache')
+        : expected.cacheName
+          ? `${runnerTemp}/${expected.cacheName}`
+          : '';
+    expect(cacheEnvironment).toEqual(
+      cacheDirectory ? { BUN_INSTALL_CACHE_DIR: cacheDirectory } : {},
+    );
+    // Mock only Bun's process boundary. The workflow's install branches and
+    // environment propagation execute unchanged, without installing packages.
+    const installed = await execute(
+      `bun() {
+  printf 'cache=%s\\n' "\${BUN_INSTALL_CACHE_DIR:-}"
+  printf 'argument=%s\\n' "$@"
+}
+${install.run}`,
+      { ...environment, ...cacheEnvironment },
+      directory,
+    );
+    expect(installed.code, installed.stdout + installed.stderr).toBe(0);
+    expect(installed.stdout.trimEnd().split('\n')).toEqual([
+      `cache=${cacheDirectory}`,
+      'argument=install',
+      'argument=--frozen-lockfile',
+      ...(expected.cross ? ['argument=--filter', 'argument=@tale/cli'] : []),
+    ]);
+  }
+});
+
+describe('Windows cache locality diagnostics', () => {
+  test('the trusted inline observation follows cache save on native Windows only', async () => {
+    const file = await workflow('cli');
+    const probe = step(file, 'build', 'Observe Windows Bun cache locality');
+    const names = file.jobs.build!.steps.map((entry) => entry.name);
+    expect(probe.if).toBe("runner.os == 'Windows' && !matrix.cross");
+    expect(probe.run).toContain('bun_cache_path="$(bun pm cache)"');
+    expect(probe.run).toContain(
+      'BUN_INSTALL_CACHE_OBSERVED="$bun_cache_path" bun -e',
+    );
+    expect(probe.run).not.toContain('bun run');
+    expect(names.indexOf('Save installed Bun downloads')).toBeLessThan(
+      names.indexOf(probe.name),
+    );
+    expect(names.indexOf(probe.name)).toBeLessThan(
+      names.indexOf('Generate embedded files'),
+    );
+  });
+
+  async function observe(
+    mode:
+      | 'linked'
+      | 'copied'
+      | 'alias'
+      | 'missing-file'
+      | 'missing-package'
+      | 'missing-cache'
+      | 'cli-local'
+      | 'wrong-version'
+      | 'wrong-name'
+      | 'directory'
+      | 'multiple',
+    adapters?: { stat?: string; volume?: string },
+    cacheExit = 0,
+    emptyCache = false,
+  ) {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-bun-locality-'));
+    directories.push(directory);
+    const cache = join(directory, 'cache with spaces');
+    const workspace = join(directory, 'workspace with spaces');
+    const cli = join(workspace, 'tools/cli');
+    const installedRoot = join(
+      mode === 'cli-local' ? cli : workspace,
+      'node_modules/typescript',
+    );
+    const cachedRoot = join(cache, 'typescript@metadata-discovered-suffix');
+    await mkdir(cli, { recursive: true });
+    await writeFile(join(cli, 'package.json'), '{}');
+    await mkdir(join(cachedRoot, 'lib'), { recursive: true });
+    await writeFile(
+      join(cachedRoot, 'package.json'),
+      JSON.stringify({
+        name: mode === 'wrong-name' ? 'different-package' : 'typescript',
+        version: mode === 'wrong-version' ? '0.0.1' : '6.0.2',
+      }),
+    );
+    const installedFile = join(installedRoot, 'lib/typescript.js');
+    const cachedFile = join(cachedRoot, 'lib/typescript.js');
+    if (mode !== 'missing-package') {
+      await mkdir(join(installedRoot, 'lib'), { recursive: true });
+      await writeFile(
+        join(installedRoot, 'package.json'),
+        JSON.stringify({ name: 'typescript', version: '6.0.2' }),
+      );
+      await writeFile(installedFile, 'package contents must never be printed');
+      if (mode === 'linked') await link(installedFile, cachedFile);
+      else if (mode === 'alias') await symlink(installedFile, cachedFile);
+      else if (mode === 'directory') await mkdir(cachedFile);
+      else if (mode !== 'missing-file')
+        await copyFile(installedFile, cachedFile);
+      if (mode === 'multiple') {
+        const secondRoot = join(cache, 'typescript@another-layout-suffix');
+        await mkdir(join(secondRoot, 'lib'), { recursive: true });
+        await copyFile(
+          join(installedRoot, 'package.json'),
+          join(secondRoot, 'package.json'),
+        );
+        await link(installedFile, join(secondRoot, 'lib/typescript.js'));
+      }
+    }
+    if (mode === 'missing-cache')
+      await rm(cache, { recursive: true, force: true });
+    const preload = join(directory, 'stat-adapter.ts');
+    const queryCalls = join(directory, 'volume-query-calls');
+    await writeFile(queryCalls, '');
+    await writeFile(
+      preload,
+      [
+        adapters?.volume ??
+          volumeAdapter('{ status: 0, stdout: "NTFS", stderr: "" }'),
+        adapters?.stat,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
+    const file = await workflow('cli');
+    const probe = step(file, 'build', 'Observe Windows Bun cache locality');
+    // Mock only cache/volume commands and optional fs identity edge cases.
+    // The workflow body and actual installed/cache file layout run as-is.
+    const result = await execute(
+      `bun() {
+  if [ "$#" -eq 2 ] && [ "$1" = pm ] && [ "$2" = cache ]; then
+    [ "$PROBE_CACHE_EXIT" -eq 0 ] || return "$PROBE_CACHE_EXIT"
+    printf '%s\\n' "$PROBE_CACHE"
+  elif [ -n "$PROBE_PRELOAD" ]; then
+    "$PROBE_BUN" --preload "$PROBE_PRELOAD" "$@"
+  else
+    "$PROBE_BUN" "$@"
+  fi
+}
+${probe.run}`,
+      {
+        PROBE_BUN: process.execPath,
+        PROBE_CACHE: emptyCache ? '' : cache,
+        PROBE_CACHE_EXIT: String(cacheExit),
+        PROBE_PRELOAD: preload,
+        PROBE_QUERY_CALLS: queryCalls,
+        BUN_INSTALL_CACHE_DIR: cache,
+        GITHUB_WORKSPACE: workspace,
+        RUNNER_TEMP: directory,
+      },
+      cli,
+    );
+    expect(result.stdout).not.toContain('package contents');
+    return {
+      ...result,
+      cache,
+      queryCalls: (await readFile(queryCalls, 'utf8'))
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line)),
+    };
+  }
+
+  test.each([
+    ['linked', 'hardlinked', 1],
+    ['copied', 'not-linked-to-sampled-cache-file', 1],
+    ['missing-file', 'unknown', 1],
+    ['missing-package', 'unknown', 0],
+    ['missing-cache', 'unknown', 0],
+    ['cli-local', 'not-linked-to-sampled-cache-file', 1],
+    ['wrong-version', 'unknown', 0],
+    ['wrong-name', 'unknown', 0],
+    ['directory', 'unknown', 1],
+    ['multiple', 'hardlinked', 2],
+  ] as const)(
+    'actual inline probe reports %s as %s',
+    async (mode, status, count) => {
+      const result = await observe(mode);
+      expect(result.code, result.stdout + result.stderr).toBe(0);
+      const report = JSON.parse(result.stdout);
+      expect(report.status).toBe(status);
+      expect(report.candidateCount).toBe(count);
+      expect(report.selectedCache).toBe(result.cache);
+      expect(report.observedCache).toBe(result.cache);
+      expect(report.paths.workspace.directory).toBe(true);
+      expect(report.paths.workspace.dev).toMatch(/^\d+$/);
+      expect(report.paths.workspace.ino).toMatch(/^\d+$/);
+      if (mode === 'linked' || mode === 'multiple') {
+        const match = report.candidates.find(
+          (entry: { status: string }) => entry.status === 'hardlinked',
+        );
+        expect(match.cached.path).not.toBe(report.installed.path);
+        expect(match.cached.dev).toBe(report.installed.dev);
+        expect(match.cached.ino).toBe(report.installed.ino);
+        expect(BigInt(match.cached.nlink)).toBeGreaterThanOrEqual(2n);
+        expect(BigInt(report.installed.nlink)).toBeGreaterThanOrEqual(2n);
+      }
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    'a symlink alias of one real file is unknown rather than a second hardlink',
+    async () => {
+      const result = await observe('alias');
+      expect(result.code, result.stdout + result.stderr).toBe(0);
+      const report = JSON.parse(result.stdout);
+      expect(report.status).toBe('unknown');
+      expect(report.candidates[0].cached.path).toBe(report.installed.path);
+    },
+  );
+
+  test('the actual cache-directory command failure propagates before observation', async () => {
+    const result = await observe('linked', undefined, 37);
+    expect(result.code).toBe(37);
+    expect(result.stdout).toBe('');
+  });
+
+  test('empty successful cache-directory output fails instead of claiming unknown', async () => {
+    const result = await observe('linked', undefined, 0, true);
+    expect(result.code).not.toBe(0);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('bun pm cache returned an empty path');
+  });
+
+  const statAdapter = (expression: string) => `
+import { mock } from 'bun:test';
+import * as fs from 'node:fs';
+const nativeStat = fs.statSync;
+mock.module('node:fs', () => ({ ...fs, statSync(path, options) {
+  const info = nativeStat(path, options);
+  if (!String(path).endsWith('typescript.js')) return info;
+  ${expression}
+} }));
+`;
+
+  test.each([
+    ['zero', 'return Object.assign(info, { dev: 0n });', 'unknown'],
+    ['zero file ID', 'return Object.assign(info, { ino: 0n });', 'unknown'],
+    [
+      'matching identity with one link',
+      'return Object.assign(info, { dev: 9007199254740993n, ino: 9007199254740995n, nlink: 1n });',
+      'unknown',
+    ],
+    [
+      'equal IDs above Number precision',
+      'return Object.assign(info, { dev: 9007199254740993n, ino: 9007199254740995n, nlink: 2n });',
+      'hardlinked',
+    ],
+    [
+      'different IDs above Number precision',
+      'return Object.assign(info, { dev: 9007199254740993n, ino: String(path).includes("node_modules") ? 9007199254740992n : 9007199254740993n, nlink: 2n });',
+      'not-linked-to-sampled-cache-file',
+    ],
+  ])(
+    'the inline BigInt observation preserves %s',
+    async (_label, expression, status) => {
+      const result = await observe('copied', { stat: statAdapter(expression) });
+      expect(result.code, result.stdout + result.stderr).toBe(0);
+      const report = JSON.parse(result.stdout);
+      expect(report.status).toBe(status);
+      if (status !== 'unknown')
+        expect(report.installed.dev).toBe('9007199254740993');
+    },
+  );
+
+  test('filesystem permission errors propagate instead of becoming unknown', async () => {
+    const result = await observe('copied', {
+      stat: statAdapter(
+        'throw Object.assign(new Error("fixture denied stat"), { code: "EACCES" });',
+      ),
+    });
+    expect(result.code).not.toBe(0);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('fixture denied stat');
+  });
+
+  const volumeAdapter = (result: string, body = '') => `
+import { mock as volumeMock } from 'bun:test';
+import { writeFileSync } from 'node:fs';
+import * as childProcess from 'node:child_process';
+import 'node:path';
+Object.defineProperty(process, 'platform', { value: 'win32' });
+volumeMock.module('node:child_process', () => ({ ...childProcess, spawnSync(command, args, options) {
+  writeFileSync(process.env.PROBE_QUERY_CALLS, JSON.stringify({ command, args, path: options.env.TALE_BUN_PROBE_FILE }) + '\\n', { flag: 'a' });
+  ${body}
+  return ${result};
+} }));
+`;
+
+  test.each([
+    ['NTFS', 'hardlinked'],
+    ['ReFS', 'unknown'],
+    ['', 'unknown'],
+  ])(
+    'Windows requires confirmed NTFS for hardlink evidence (%s)',
+    async (fileSystem, status) => {
+      const result = await observe('linked', {
+        volume: volumeAdapter(
+          `{ status: 0, stdout: ${JSON.stringify(`${fileSystem}\r\n`)}, stderr: '' }`,
+        ),
+      });
+      expect(result.code, result.stdout + result.stderr).toBe(0);
+      const report = JSON.parse(result.stdout);
+      expect(report.status).toBe(status);
+      expect(report.installed.fileSystem).toBe(fileSystem || null);
+      expect(report.candidates[0].cached.fileSystem).toBe(fileSystem || null);
+      expect(result.queryCalls.map((call) => call.path).toSorted()).toEqual(
+        [report.installed.path, report.candidates[0].cached.path].toSorted(),
+      );
+      for (const call of result.queryCalls) {
+        expect(call.command).toBe('powershell.exe');
+        expect(call.args.slice(0, 4)).toEqual([
+          '-NoLogo',
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+        ]);
+        expect(call.args[4]).toBe(
+          '$ErrorActionPreference = "Stop"; $volumes = @(Get-Volume -FilePath $env:TALE_BUN_PROBE_FILE -ErrorAction Stop); if ($volumes.Count -eq 1) { [string]$volumes[0].FileSystem }',
+        );
+        expect(call.args[4]).not.toContain(call.path);
+      }
+    },
+  );
+
+  test('every resolved candidate requires its own NTFS volume confirmation', async () => {
+    const result = await observe('linked', {
+      volume: volumeAdapter(
+        '{ status: 0, stdout: options.env.TALE_BUN_PROBE_FILE.includes("node_modules") ? "NTFS" : "ReFS", stderr: "" }',
+      ),
+    });
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    const report = JSON.parse(result.stdout);
+    expect(report.installed.fileSystem).toBe('NTFS');
+    expect(report.candidates[0].cached.fileSystem).toBe('ReFS');
+    expect(report.status).toBe('unknown');
+  });
+
+  test.skipIf(process.platform === 'win32')(
+    'the Windows query resolves aliases and memoizes the physical sample path',
+    async () => {
+      const result = await observe('alias', {
+        volume: volumeAdapter('{ status: 0, stdout: "NTFS", stderr: "" }'),
+      });
+      expect(result.code, result.stdout + result.stderr).toBe(0);
+      const report = JSON.parse(result.stdout);
+      expect(report.status).toBe('unknown');
+      expect(report.installed.path).toBe(report.candidates[0].cached.path);
+      expect(result.queryCalls.map((call) => call.path)).toEqual([
+        report.installed.path,
+      ]);
+    },
+  );
+
+  test.each([
+    [
+      'permission failure',
+      '{ status: 1, stdout: "", stderr: "fixture denied volume" }',
+      'fixture denied volume',
+    ],
+    [
+      'missing executable',
+      '{ error: Object.assign(new Error("fixture missing PowerShell"), { code: "ENOENT" }) }',
+      'fixture missing PowerShell',
+    ],
+  ])(
+    'volume query %s propagates outside optional layout reads',
+    async (_label, query, message) => {
+      const result = await observe('linked', { volume: volumeAdapter(query) });
+      expect(result.code).not.toBe(0);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toContain(message);
+      expect(result.queryCalls).toHaveLength(1);
+    },
   );
 });
 

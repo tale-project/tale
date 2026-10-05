@@ -328,3 +328,36 @@ After expiry, the next holder takes the lease over only after reconciling the re
    failed, follow the rule above; no tag moves.
 
 Never start a second release while a Release run is in flight.
+
+
+## Source contract shared with Ops
+
+`.github/release-candidate-contract.json` is the source of the evaluator's required
+workflow/job map. The existing workflow guard checks its exact receipt dependencies
+and every matrix/reusable job. The same file declares candidate, ordinary main and
+CLI publication result sets and the source admission assertions consumed by Ops.
+No fetched executable evaluator is used by Ops.
+
+After changing an admission condition, needs edge, matrix, conditional step/input,
+execution defaults, runner/container/service selectors, permissions, timeouts,
+or the source/receipt helpers, refresh the descriptor with:
+
+```sh
+bun tools/cli/scripts/release-candidate-contract.ts --write
+```
+
+Review the descriptor diff and run the existing release-candidate workflow and gate
+tests. The refresh retains the required job map; it cannot remove a mandatory check
+on its own. Exact workflow/job/step key sets bind field presence and absence,
+including unknown future selectors. Every field value is bound except workflow
+and step display names and run bodies; job names remain required evidence.
+Reviewed-main run bodies still require code review, and this contract does not
+prove their semantic equivalence. Body/comment or display-name edits that preserve
+this admission shape need no Ops digest update.
+Admission changes require review of the complete canonical descriptor digest in Ops
+before a release uses them. A failed source-contract check is a compatibility task,
+never permission to weaken mandatory work or accept an unknown receipt shape.
+
+Ops policy v1 remains the historical v0.5.72 lane. Its descriptor-only v2 must be
+activated with a minimum source containing this descriptor, after both repositories'
+normal gates are green. This data extraction does not activate policy or deploy.

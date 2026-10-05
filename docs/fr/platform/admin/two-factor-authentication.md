@@ -15,10 +15,16 @@ Protège ton compte avec une application d’authentification ou un passkey. Cha
 
 Un passkey satisfait la règle de double facteur de Tale, même sans application d’authentification configurée. Les comptes qui utilisent uniquement le SSO ne voient pas la configuration de cette application, car elle exige un mot de passe Tale. L’exemption SSO de ton organisation détermine si tu as besoin d’un passkey Tale.
 
+<Frame caption="Paramètres > Compte affiche ton mot de passe, l’authentification à double facteur et tes passkeys. C’est ici que tu configures ton application d’authentification ou que tu enregistres un autre passkey.">
+
+![La page des paramètres du compte avec les sections Mot de passe, Authentification à double facteur et Passkeys ; la section Passkeys liste un passkey nommé « Work laptop ».](/images/platform/settings-account-security.webp)
+
+</Frame>
+
 ## Configurer une application d’authentification
 
 1. Ouvre **Paramètres > Compte**, repère **Authentification à double facteur** et choisis **Activer le double facteur**.
-2. Saisis ton mot de passe Tale actuel et choisis **Confirmer**.
+2. Saisis ton mot de passe Tale actuel et choisis **Confirmer**. Un mot de passe erroné compte pour le verrouillage temporaire, comme un échec de connexion.
 3. Scanne le code QR avec ton application d’authentification. Si tu ne peux pas le scanner, saisis manuellement le secret de configuration affiché dans l’application.
 4. Saisis son code à six chiffres actuel dans **Code de vérification**, puis choisis **Vérifier et activer**.
 5. Télécharge ou copie les codes de secours avant de choisir **Terminé**. Tale ne les affichera plus.

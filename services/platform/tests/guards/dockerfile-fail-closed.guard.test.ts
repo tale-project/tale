@@ -54,11 +54,11 @@ interface Instruction {
  * inside a continuation are dropped. `stage` is the `AS` name of the
  * enclosing FROM, or '' for an unnamed one.
  */
-function instructions(file: string): Instruction[] {
+function parseInstructions(source: string): Instruction[] {
   const result: Instruction[] = [];
   let stage = '';
   let pending = '';
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
+  for (const line of source.split('\n')) {
     if (/^\s*(#|$)/.test(line)) continue;
     pending += line.replace(/\\\s*$/, '');
     if (/\\\s*$/.test(line)) continue;
@@ -69,6 +69,95 @@ function instructions(file: string): Instruction[] {
     result.push({ stage, keyword, args });
   }
   return result;
+}
+
+function instructions(file: string): Instruction[] {
+  return parseInstructions(readFileSync(file, 'utf8'));
+}
+
+/** Context and stage inputs reachable through FROM, COPY/ADD and RUN mounts. */
+function contextInputs(
+  source: string,
+  stage: string,
+  visited = new Set<string>(),
+): Set<string> {
+  const parsed = parseInstructions(source);
+  const stages = parsed.filter((instruction) => instruction.keyword === 'FROM');
+  const namedStages = new Map(
+    stages.map((instruction) => [
+      instruction.stage.toLowerCase(),
+      instruction.stage,
+    ]),
+  );
+  const inputs = new Set<string>();
+  function resolve(reference: string): string | undefined {
+    return /^\d+$/.test(reference)
+      ? stages[Number(reference)]?.stage
+      : namedStages.get(reference.toLowerCase());
+  }
+  function visit(reference: string): void {
+    const name = resolve(reference);
+    if (name === undefined || visited.has(name)) return;
+    visited.add(name);
+    for (const instruction of parsed.filter((item) => item.stage === name)) {
+      const words = instruction.args.trim().split(/\s+/);
+      if (instruction.keyword === 'FROM') {
+        visit(words.find((word) => !word.startsWith('--')) ?? '');
+      } else if (['COPY', 'ADD'].includes(instruction.keyword)) {
+        const from = words.find((word) => word.startsWith('--from='));
+        if (from !== undefined) {
+          const parent = resolve(from.slice('--from='.length));
+          // An external image or an empty reference cannot prove the local graph.
+          expect(parent).toBeDefined();
+          visit(parent ?? '');
+        } else {
+          for (const input of words
+            .filter((word) => !word.startsWith('--'))
+            .slice(0, -1)) {
+            inputs.add(input);
+          }
+        }
+      } else if (instruction.keyword === 'RUN') {
+        for (const mount of instruction.args.matchAll(
+          /(?:^|\s)--mount=(\S+)/g,
+        )) {
+          const options = mount[1] ?? '';
+          const type = /(?:^|,)type=([^,]+)/.exec(options)?.[1] ?? 'bind';
+          const from = /(?:^|,)from=([^,]*)/.exec(options)?.[1];
+          expect(['bind', 'cache', 'tmpfs', 'secret', 'ssh']).toContain(type);
+          if (type === 'bind' || from !== undefined) {
+            // Bind is the default mount type and omitted from reads the context.
+            expect(from).toBeTruthy();
+            const parent = resolve(from ?? '');
+            expect(parent).toBeDefined();
+            visit(parent ?? '');
+          }
+        }
+      }
+    }
+  }
+  visit(stage);
+  return inputs;
+}
+
+const isDependencyInput = (input: string) =>
+  input === 'package.json' ||
+  input.endsWith('/package.json') ||
+  ['bun.lock', 'bunfig.toml', 'patches/'].includes(input);
+
+function assertPrunerClosure(source: string): void {
+  const dependencies = new Set<string>();
+  const production = contextInputs(source, 'pruner', dependencies);
+  const development = contextInputs(source, 'workspace-deps');
+  expect(dependencies.has('pruner')).toBe(true);
+  expect(dependencies.has('workspace-deps')).toBe(true);
+  expect(dependencies.has('builder')).toBe(false);
+  expect(dependencies.has('dev')).toBe(false);
+  expect(production.has('bun.lock')).toBe(true);
+  expect(production.has('patches/')).toBe(true);
+  expect(production.size).toBeGreaterThanOrEqual(10);
+  expect([...production].sort()).toEqual([...development].sort());
+  expect([...production].every(isDependencyInput)).toBe(true);
 }
 
 /**
@@ -209,6 +298,52 @@ describe('platform pruner: the production install fails closed', () => {
 });
 
 describe('platform pruner manifests', () => {
+  it('keeps production dependencies independent of every source and build stage', () => {
+    const source = readFileSync(PLATFORM_DOCKERFILE, 'utf8');
+    assertPrunerClosure(source);
+    const production = contextInputs(source, 'pruner');
+    const development = contextInputs(source, 'workspace-deps');
+    expect(production.has('bun.lock')).toBe(true);
+    expect(production.has('patches/')).toBe(true);
+    expect(production.size).toBeGreaterThanOrEqual(10);
+    expect([...production].every(isDependencyInput)).toBe(true);
+    expect([...production].sort()).toEqual([...development].sort());
+
+    // Lock the prior regression: inheriting builder makes source-only edits
+    // reinstall dependencies, even when the manifests themselves are unchanged.
+    const regressed = source.replace(
+      /FROM \S+ AS pruner/,
+      'FROM builder AS pruner',
+    );
+    const changed = contextInputs(regressed, 'pruner');
+    expect(changed.has('services/platform/app')).toBe(true);
+    expect([...changed].sort()).not.toEqual([...development].sort());
+
+    // Only the installed dependency tree comes from this manifest-only stage.
+    const copies = instructions(PLATFORM_DOCKERFILE).filter(
+      (instruction) =>
+        instruction.stage === 'runner' &&
+        instruction.keyword === 'COPY' &&
+        instruction.args.includes('--from=pruner'),
+    );
+    expect(copies.map((instruction) => instruction.args)).toEqual([
+      '--from=pruner --chown=app:app /app/node_modules ./node_modules',
+    ]);
+  });
+
+  it('detects application source shared by both dependency input graphs', () => {
+    const source = readFileSync(PLATFORM_DOCKERFILE, 'utf8').replace(
+      /(FROM \S+ AS workspace-deps)/,
+      '$1\nCOPY services/platform/app /app/unexpected-source/',
+    );
+    const production = contextInputs(source, 'pruner');
+    const development = contextInputs(source, 'workspace-deps');
+    // Graph equality alone misses a source copied into their shared parent.
+    expect([...production].sort()).toEqual([...development].sort());
+    expect(production.has('services/platform/app')).toBe(true);
+    expect([...production].every(isDependencyInput)).toBe(false);
+  });
+
   /**
    * Install-root-relative paths of the files a stage's COPYs (with exactly
    * the given `--from`, '' for the build context) place under `root`, each
@@ -219,9 +354,10 @@ describe('platform pruner manifests', () => {
     from: string,
     sourceRoot: string,
     root: string,
+    config = readFileSync(PLATFORM_DOCKERFILE, 'utf8'),
   ): Set<string> {
     const placed = new Set<string>();
-    for (const instruction of instructions(PLATFORM_DOCKERFILE)) {
+    for (const instruction of parseInstructions(config)) {
       if (instruction.stage !== stage || instruction.keyword !== 'COPY') {
         continue;
       }
@@ -261,6 +397,250 @@ describe('platform pruner manifests', () => {
     // A manifest stage 1 installed from but the pruner lacks changes the
     // workspace graph, and --production refuses the lockfile stage 1 wrote.
     expect([...pruner].sort()).toEqual([...stage1].sort());
+  });
+
+  it.each(['tools/opengrep/package.json', 'patches/'])(
+    'detects a pruner missing %s',
+    (missing) => {
+      const source = readFileSync(PLATFORM_DOCKERFILE, 'utf8');
+      const incomplete = source
+        .split('\n')
+        .filter(
+          (line) =>
+            !line.startsWith(`COPY --from=workspace-deps /app/${missing}`),
+        )
+        .join('\n');
+      expect(incomplete).not.toBe(source);
+      const stage1 = manifests('workspace-deps', '', '', './', incomplete);
+      const pruner = manifests(
+        'pruner',
+        '--from=workspace-deps',
+        '/app/',
+        '/tmp/workspace/',
+        incomplete,
+      );
+      expect([...pruner].sort()).not.toEqual([...stage1].sort());
+      expect(pruner.has(missing)).toBe(false);
+    },
+  );
+
+  it('detects a manifest copied to the wrong workspace path', () => {
+    const source = readFileSync(PLATFORM_DOCKERFILE, 'utf8').replace(
+      '/app/tools/opengrep/package.json /tmp/workspace/tools/opengrep/',
+      '/app/tools/opengrep/package.json /tmp/workspace/tools/other/',
+    );
+    expect(() =>
+      manifests(
+        'pruner',
+        '--from=workspace-deps',
+        '/app/',
+        '/tmp/workspace/',
+        source,
+      ),
+    ).toThrow();
+  });
+});
+
+describe('platform production dependency branch', () => {
+  const source = readFileSync(PLATFORM_DOCKERFILE, 'utf8');
+  const all = parseInstructions(source);
+
+  it.each([
+    source.replace('FROM bun-base AS pruner', 'FROM builder AS pruner'),
+    source.replace(
+      'FROM bun-base AS pruner',
+      'FROM builder AS source-alias\nFROM source-alias AS pruner',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'COPY --from=builder /app/services/platform/app /app/leaked\nWORKDIR /tmp/workspace',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'RUN --mount=type=bind,from=builder,target=/tmp/source true\nWORKDIR /tmp/workspace',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'COPY services/platform/app /app/leaked\nWORKDIR /tmp/workspace',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'ADD services/platform/app /app/leaked\nWORKDIR /tmp/workspace',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'RUN --mount=type=bind,target=/tmp/source true\nWORKDIR /tmp/workspace',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'RUN --mount=source=services/platform/app,target=/tmp/source true\nWORKDIR /tmp/workspace',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'RUN --mount=target=/tmp/source true\nWORKDIR /tmp/workspace',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'RUN --mount=type=bind,from=,target=/tmp/source true\nWORKDIR /tmp/workspace',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'COPY --from=4 /app/services/platform/app /app/leaked\nWORKDIR /tmp/workspace',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'RUN --mount=type=cache,from=builder,target=/tmp/source true\nWORKDIR /tmp/workspace',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'RUN --mount=type="bind",target=/tmp/source true\nWORKDIR /tmp/workspace',
+    ),
+    source.replace(
+      'WORKDIR /tmp/workspace',
+      'RUN --mount=type=bind,from=external-source,target=/tmp/source true\nWORKDIR /tmp/workspace',
+    ),
+  ])(
+    'rejects source ancestry or source reads in the dependency branch (%#)',
+    (mutated) => {
+      expect(() => assertPrunerClosure(mutated)).toThrow();
+    },
+  );
+
+  it('preserves the builder bare toolchain and production install environment', () => {
+    for (const stage of ['builder', 'pruner']) {
+      expect(
+        all.find(
+          (instruction) =>
+            instruction.stage === stage && instruction.keyword === 'FROM',
+        )?.args,
+      ).toBe(`bun-base AS ${stage}`);
+    }
+    expect(
+      all
+        .filter((instruction) => instruction.stage === 'bun-base')
+        .map((instruction) => `${instruction.keyword} ${instruction.args}`),
+    ).toEqual([
+      'FROM debian:bookworm-slim AS bun-base',
+      'COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun',
+      'RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx',
+      'WORKDIR /app',
+    ]);
+    for (const stage of ['builder', 'pruner']) {
+      expect(
+        all
+          .filter(
+            (instruction) =>
+              instruction.stage === stage && instruction.keyword === 'ENV',
+          )
+          .map((instruction) => instruction.args),
+      ).toEqual(['NODE_ENV=production']);
+    }
+  });
+
+  function assertRunnerClosure(dockerfile: string): void {
+    const parsed = parseInstructions(dockerfile);
+    expect(
+      parsed
+        .filter(
+          (instruction) =>
+            instruction.stage === 'runner' && instruction.keyword === 'WORKDIR',
+        )
+        .map((instruction) => instruction.args),
+    ).toEqual(['/app']);
+    // Runtime workspace symlinks need the full package sources in the builder.
+    for (const name of ['shared', 'ui']) {
+      expect(
+        parsed.some(
+          (instruction) =>
+            instruction.stage === 'builder' &&
+            instruction.keyword === 'COPY' &&
+            instruction.args === `packages/${name} ./packages/${name}`,
+        ),
+      ).toBe(true);
+    }
+    const expected = [
+      ['dist', './dist'],
+      ['dist-seo', './dist-seo'],
+      ['server.ts', './'],
+      ['telemetry.ts', './'],
+      ['sla-targets.ts', './'],
+      ['status-probe.ts', './'],
+      ['lib', './lib'],
+      ['backend', './backend'],
+      ['messages', './messages'],
+      ['package.json', './'],
+      ['docker-entrypoint.sh', './'],
+      ['env.sh', './'],
+    ].map(
+      ([file, destination]) =>
+        `builder app:app /app/services/platform/${file} ${destination}`,
+    );
+    expected.push(
+      'builder app:app /app/packages ./packages',
+      'pruner app:app /app/node_modules ./node_modules',
+      'bun-bin - /usr/local/bin/bun /usr/local/bin/bun',
+      'node-bin - /usr/local/bin/node /usr/local/bin/node',
+      'context app:app services/db/migrations/knowledge-db ./db/migrations/knowledge-db',
+      'context app:app configs/platform/system/ /app/system/',
+      'context app:app configs/platform/custom/ /app/builtin/',
+    );
+    const actual = parsed
+      .filter(
+        (instruction) =>
+          instruction.stage === 'runner' &&
+          ['COPY', 'ADD'].includes(instruction.keyword),
+      )
+      .flatMap((instruction) => {
+        const words = instruction.args.split(/\s+/);
+        const from = words
+          .find((word) => word.startsWith('--from='))
+          ?.slice('--from='.length);
+        const owner = words
+          .find((word) => word.startsWith('--chown='))
+          ?.slice('--chown='.length);
+        const paths = words.filter((word) => !word.startsWith('--'));
+        const destination = paths.at(-1);
+        return paths
+          .slice(0, -1)
+          .map(
+            (file) =>
+              `${from ?? 'context'} ${owner ?? '-'} ${file} ${destination}`,
+          );
+      });
+    expect(actual.sort()).toEqual(expected.sort());
+  }
+
+  it('ships complete builder sources and packages with only pruned production dependencies', () => {
+    assertRunnerClosure(source);
+  });
+
+  it.each([
+    source.replace(
+      'FROM debian:bookworm-slim AS runner',
+      'FROM debian:bookworm-slim AS runner\nWORKDIR /tmp/runtime',
+    ),
+    source.replace(
+      '--from=builder --chown=app:app /app/packages',
+      '--from=pruner --chown=app:app /app/packages',
+    ),
+    source.replace(
+      '--from=pruner --chown=app:app /app/node_modules',
+      '--from=builder --chown=app:app /app/node_modules',
+    ),
+    source.replace(
+      '--from=builder --chown=app:app /app/services/platform/lib',
+      '--from=builder /app/services/platform/lib',
+    ),
+    source.replace(
+      'COPY packages/shared ./packages/shared',
+      'COPY packages/shared/package.json ./packages/shared/',
+    ),
+    source.replace(
+      'RUN chmod +x ./docker-entrypoint.sh',
+      'COPY services/platform/lib ./lib\nRUN chmod +x ./docker-entrypoint.sh',
+    ),
+  ])('rejects incomplete or unowned runtime copies (%#)', (mutated) => {
+    expect(() => assertRunnerClosure(mutated)).toThrow();
   });
 });
 

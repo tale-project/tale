@@ -32,8 +32,8 @@ import {
  *
  * The password counts like a sign-in attempt: the per-account lockout and the
  * per-IP flood guard apply first, a wrong one bumps the shared failure
- * counter, and both outcomes write the sign-in audit rows, stamped as a
- * re-authentication. On success the session is ROTATED, not re-dated: a new
+ * counter, and both outcomes write the sign-in audit rows, stamped
+ * `passwordCheck: 'reauthenticate'`. On success the session is ROTATED, not re-dated: a new
  * session carries the old one's organization and proxy fields, its cookie
  * replaces the old one and the old token is deleted, so a copy of the old
  * cookie does not become fresh with it.
@@ -85,7 +85,7 @@ export function reauthenticate(deps: {
             email,
             ...(ip !== undefined ? { ip } : {}),
             ...(userAgent !== undefined ? { userAgent } : {}),
-            reauthentication: true,
+            check: 'reauthenticate' as const,
           };
           if (!valid) {
             await recordPasswordAttempt(deps.sql, {

@@ -51,7 +51,7 @@ afterEach(() => {
   vi.mocked(recordActivity).mockClear();
 });
 
-describe('automated start budget after a broker cooldown', () => {
+describe('automated start budget after a broker cooldown [TASK-R12]', () => {
   it('does not count a cooldown after its own 429 as another automated start', async () => {
     await expect(
       admit([

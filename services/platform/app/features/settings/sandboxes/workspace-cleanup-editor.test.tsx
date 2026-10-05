@@ -134,7 +134,9 @@ describe('WorkspaceCleanupEditor', () => {
       const { user } = render(<EditorView />);
       await user.clear(daysInput());
       if (value) await user.type(daysInput(), value);
-      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
+      );
       await user.tab();
       expect(await screen.findByText(INVALID_DAYS)).toBeInTheDocument();
       expect(daysInput()).toHaveAttribute('aria-invalid', 'true');

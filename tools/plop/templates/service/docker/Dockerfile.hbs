@@ -3,13 +3,7 @@ ARG VERSION=dev
 
 FROM debian:bookworm-slim
 
-ARG VERSION=dev
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="tale-{{kebabCase name}}" \
-      org.opencontainers.image.description="{{description}}"
-
-ENV TALE_VERSION=${VERSION} \
-    DO_NOT_TRACK=1
+ENV DO_NOT_TRACK=1
 
 WORKDIR /app
 
@@ -17,5 +11,12 @@ WORKDIR /app
 COPY services/{{kebabCase name}}/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/{{kebabCase name}}/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh
+
+# Keep VERSION metadata after filesystem layers so version-only builds reuse them.
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-{{kebabCase name}}" \
+      org.opencontainers.image.description="{{description}}"
+ENV TALE_VERSION=${VERSION}
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

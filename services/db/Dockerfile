@@ -45,15 +45,6 @@ RUN set -eux; \
 FROM scratch AS runtime
 COPY --from=cleanup / /
 
-# Re-declare VERSION arg (ARGs don't persist after FROM)
-ARG VERSION=dev
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="tale-db" \
-      org.opencontainers.image.description="Tale DB — ParadeDB (pg_search BM25 + pgvector) on PostgreSQL 16" \
-      org.opencontainers.image.source="https://github.com/tale-project/tale" \
-      org.opencontainers.image.vendor="Tale" \
-      org.opencontainers.image.licenses="MIT"
-
 # Create required directories
 RUN mkdir -p /etc/postgresql/conf.d \
              /var/lib/postgresql/backup
@@ -102,6 +93,16 @@ COPY services/db/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
     && chown -R postgres:postgres /etc/postgresql \
                                    /var/lib/postgresql/backup
+
+# Keep release metadata after filesystem changes so a VERSION-only build reuses
+# the prepared database layers. ARGs must be re-declared after FROM.
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-db" \
+      org.opencontainers.image.description="Tale DB — ParadeDB (pg_search BM25 + pgvector) on PostgreSQL 16" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
 
 # Re-declare upstream PostgreSQL environment variables (lost in FROM scratch)
 ENV LANG=en_US.utf8 \
