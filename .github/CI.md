@@ -106,6 +106,9 @@ baseline behavior do not count.
   authority for compiler arguments and bundle validation; malformed scripts fail closed.
   Do not regenerate after CI changes the tracked manifest or bypass dirty-source
   rejection.
+  Native command fixtures write their workflow and metadata before the initial Git commit,
+  rather than creating and replacing an unused minimal revision. Ordinary fixture defaults,
+  executable-file tracking and every later release/catalogue commit remain covered.
 
 ## Cache boundaries
 
