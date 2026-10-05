@@ -238,6 +238,34 @@ export const TASK_COLUMNS = `
   updated_at_ms::float8 AS "updatedAt", archived_at_ms::float8 AS "archivedAt"
 `;
 
+/** The long columns a board row leaves out: no card or row shows them, and
+ * a task's own read still carries them. */
+const BOARD_OMITTED_COLUMNS = new Set([
+  'description',
+  'attachments',
+  'outputs',
+  'external_issue AS "externalIssue"',
+]);
+
+/**
+ * The columns a board row carries: {@link TASK_COLUMNS} without the long
+ * ones no card or list row shows — the description (up to 20,000
+ * characters), the attachment and output lists and the external issue
+ * snapshot. A 2,000-task board read all of them, 3.35 MB that every task
+ * change made each open board fetch again (#4062). The board's search
+ * still matches the description in its WHERE clause.
+ */
+export const BOARD_TASK_COLUMNS = TASK_COLUMNS.split(',')
+  .map((column) => column.trim())
+  .filter((column) => !BOARD_OMITTED_COLUMNS.has(column))
+  .join(', ');
+
+/** A task row as a board reads it ({@link BOARD_TASK_COLUMNS}). */
+export type BoardTaskRow = Omit<
+  TaskRow,
+  'description' | 'attachments' | 'outputs' | 'externalIssue'
+>;
+
 // ---------------------------------------------------------------------------
 // Guards
 // ---------------------------------------------------------------------------
@@ -3351,6 +3379,10 @@ export interface DecoratedTaskRow extends TaskRow {
   projectKey?: string;
 }
 
+/** A board row decorated for the wire, as {@link DecoratedTaskRow}. */
+export type DecoratedBoardTaskRow = BoardTaskRow &
+  Pick<DecoratedTaskRow, 'labels' | 'folderExists' | 'hasFiles' | 'projectKey'>;
+
 export interface TaskListFilters {
   includeArchived?: boolean;
   status?: string;
@@ -3369,7 +3401,7 @@ export interface TaskListFilters {
  * 0.4 rule — the catalog stores names, the palette is deterministic). */
 async function resolveLabelMap(
   sql: Sql,
-  tasks: readonly TaskRow[],
+  tasks: readonly Pick<TaskRow, 'labelIds'>[],
 ): Promise<Map<string, ResolvedTaskLabel>> {
   const ids = [...new Set(tasks.flatMap((task) => task.labelIds))];
   if (ids.length === 0) return new Map();
@@ -3395,7 +3427,7 @@ async function collectFolderFacts(
   sql: Sql,
   organizationId: string,
   projectId: string,
-  tasks: readonly TaskRow[],
+  tasks: readonly Pick<TaskRow, 'externalId'>[],
 ): Promise<{ existingFolders: Set<string>; foldersWithFiles: Set<string> }> {
   const folderIds = [
     ...new Set(
@@ -3439,11 +3471,11 @@ async function collectFolderFacts(
   };
 }
 
-function decorateTaskRow(
-  task: TaskRow,
+function decorateTaskRow<Row extends BoardTaskRow>(
+  task: Row,
   labelMap: ReadonlyMap<string, ResolvedTaskLabel>,
   facts: { existingFolders: Set<string>; foldersWithFiles: Set<string> },
-): DecoratedTaskRow {
+): Row & Pick<DecoratedTaskRow, 'labels' | 'folderExists' | 'hasFiles'> {
   return Object.assign(task, {
     labels: task.labelIds
       .map((id) => labelMap.get(id))
@@ -3455,12 +3487,14 @@ function decorateTaskRow(
   });
 }
 
-async function decorateProjectPage(
+async function decorateProjectPage<Row extends BoardTaskRow>(
   sql: Sql,
   organizationId: string,
   projectId: string,
-  tasks: TaskRow[],
-): Promise<DecoratedTaskRow[]> {
+  tasks: Row[],
+): Promise<
+  (Row & Pick<DecoratedTaskRow, 'labels' | 'folderExists' | 'hasFiles'>)[]
+> {
   const labelMap = await resolveLabelMap(sql, tasks);
   const facts = await collectFolderFacts(sql, organizationId, projectId, tasks);
   return tasks.map((task) => decorateTaskRow(task, labelMap, facts));
@@ -3514,15 +3548,15 @@ export async function listTasksByProject(
   filters: TaskListFilters = {},
 ): Promise<
   {
-    tasks: DecoratedTaskRow[];
+    tasks: DecoratedBoardTaskRow[];
     truncated: boolean;
   } & TaskAccess
 > {
   const project = await loadProjectOrThrow(sql, projectId);
   assertTaskReadable(project, auth);
   const access = boardTaskAccess(project, auth);
-  const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
+  const rows = await sql<BoardTaskRow[]>`
+    SELECT ${sql.unsafe(BOARD_TASK_COLUMNS)} FROM app.tasks t
     WHERE project_id = ${projectId}
       AND ${boardFilterClause(sql, filters)}
     ORDER BY status ASC, rank ASC
@@ -3654,7 +3688,7 @@ export async function listTasksForAccessibleProjects(
   filters: TaskListFilters = {},
 ): Promise<
   {
-    tasks: DecoratedTaskRow[];
+    tasks: DecoratedBoardTaskRow[];
     truncated: boolean;
   } & TaskAccess
 > {
@@ -3669,8 +3703,8 @@ export async function listTasksForAccessibleProjects(
   const projectKeys = new Map(
     projects.map((project) => [project.id, project.key]),
   );
-  const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
+  const rows = await sql<BoardTaskRow[]>`
+    SELECT ${sql.unsafe(BOARD_TASK_COLUMNS)} FROM app.tasks t
     WHERE org_id = ${auth.organizationId}
       AND project_id = ANY(${[...projectKeys.keys()]})
       AND ${boardFilterClause(sql, filters)}
@@ -3687,7 +3721,7 @@ export async function listTasksForAccessibleProjects(
 
   // Folder facts are per-project — group the page, stamp, then merge.
   const labelMap = await resolveLabelMap(sql, page);
-  const byProject = new Map<string, TaskRow[]>();
+  const byProject = new Map<string, BoardTaskRow[]>();
   for (const task of page) {
     const group = byProject.get(task.projectId);
     if (group) group.push(task);

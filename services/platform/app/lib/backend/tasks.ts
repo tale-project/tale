@@ -48,9 +48,11 @@ interface TaskWire {
   organizationId: string;
   projectId: string;
   title: string;
-  description: string | null;
-  attachments: unknown;
-  outputs: unknown;
+  /** Absent on a board row: the board leaves out the long columns no card
+   * shows (the description, attachments, outputs and external issue). */
+  description?: string | null;
+  attachments?: unknown;
+  outputs?: unknown;
   number: number | null;
   status: string;
   priority: string | null;
@@ -108,7 +110,7 @@ function taskView(row: TaskWire): TaskItem {
     organizationId: row.organizationId,
     projectId: row.projectId,
     title: row.title,
-    ...(row.description !== null ? { description: row.description } : {}),
+    ...(row.description != null ? { description: row.description } : {}),
     ...(row.attachments !== null && row.attachments !== undefined
       ? { attachments: row.attachments }
       : {}),

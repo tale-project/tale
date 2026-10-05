@@ -27,9 +27,11 @@ vi.mock('../projects/service.ts', async (importOriginal) => ({
 }));
 
 import {
+  BOARD_TASK_COLUMNS,
   listTasksByProject,
   listTasksForAccessibleProjects,
   searchTasks,
+  TASK_COLUMNS,
   taskSearchPatterns,
 } from './service.ts';
 
@@ -194,6 +196,51 @@ describe('the board search narrows the board read itself', () => {
     expect(board.text).toContain(COMMENT_LEG);
     expect(board.text).toMatch(/LIKE ALL\(\?\).*ORDER BY .*LIMIT \?$/);
     expect(board.values).toContainEqual(['%needle%']);
+  });
+});
+
+/** The columns a board statement selects (its `sql.unsafe` list). */
+function selectedColumns(statement: { values: unknown[] }): string[] {
+  const list = statement.values.find(
+    (value): value is string =>
+      typeof value === 'string' && value.includes('"organizationId"'),
+  );
+  if (list === undefined) throw new Error('no column list in the statement');
+  return list.split(',').map((column) => column.trim());
+}
+
+const LONG_COLUMNS = [
+  'description',
+  'attachments',
+  'outputs',
+  'external_issue AS "externalIssue"',
+];
+
+describe('a board row carries only what a card shows (#4062)', () => {
+  it('leaves the long columns out of BOARD_TASK_COLUMNS, and keeps every other task column', () => {
+    const all = TASK_COLUMNS.split(',').map((column) => column.trim());
+    const board = BOARD_TASK_COLUMNS.split(',').map((column) => column.trim());
+    expect(board).toEqual(
+      all.filter((column) => !LONG_COLUMNS.includes(column)),
+    );
+    expect(all.length - board.length).toBe(LONG_COLUMNS.length);
+  });
+
+  it('reads a project board and the all-projects board without them', async () => {
+    const board = recordingSql();
+    await listTasksByProject(board.sql, auth, 'proj-1', { query: 'needle' });
+    const across = recordingSql();
+    await listTasksForAccessibleProjects(across.sql, auth, {});
+    for (const statements of [board.statements, across.statements]) {
+      const columns = selectedColumns(boardStatement(statements));
+      for (const long of LONG_COLUMNS) expect(columns).not.toContain(long);
+      expect(columns).toContain('title');
+      expect(columns).toContain('comment_count AS "commentCount"');
+    }
+    // The search still matches the description, in the WHERE clause.
+    expect(boardStatement(board.statements).text).toContain(
+      "coalesce(t.description, '')",
+    );
   });
 });
 
