@@ -1,11 +1,18 @@
+// oxlint-disable react-hooks/rules-of-hooks
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 import { GuardrailsOverview } from './guardrails-overview';
 
-const { toastSpy, refetchSpy } = vi.hoisted(() => ({
+const { toastSpy, refetchSpy, readSpy } = vi.hoisted(() => ({
   toastSpy: vi.fn(),
+  readSpy: vi.fn<() => Promise<unknown[]>>(),
   refetchSpy: vi.fn(),
 }));
 
@@ -25,6 +32,7 @@ vi.mock('@tale/ui/use-format-date', () => ({
 // `eventsFailed` fails it.
 const { state } = vi.hoisted(() => ({
   state: {
+    realQuery: false,
     isLoading: false,
     policy: { key: 'pii_config', config: { enabled: false } } as
       | Record<string, unknown>
@@ -47,20 +55,32 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: (_name: string, args: Record<string, unknown>) => ({
-    data:
-      state.isLoading ||
-      state.eventsLoading ||
-      (state.eventsFailed && !state.staleEvents)
-        ? undefined
-        : 'filterName' in args || 'kind' in args
-          ? state.filteredEvents
-          : state.events,
-    isLoading: state.isLoading || state.eventsLoading,
-    isError: state.eventsFailed,
-    isFetching: state.eventsFetching,
-    refetch: refetchSpy,
-  }),
+  useBackendQuery: (_name: string, args: Record<string, unknown>) => {
+    // The mock switches between the legacy fixture and the real observer.
+    // oxlint-disable-next-line react-hooks/rules-of-hooks
+    if (state.realQuery) {
+      // oxlint-disable-next-line react-hooks/rules-of-hooks
+      return useQuery({
+        queryKey: ['recent-events', args],
+        queryFn: readSpy,
+        retry: false,
+      });
+    }
+    return {
+      data:
+        state.isLoading ||
+        state.eventsLoading ||
+        (state.eventsFailed && !state.staleEvents)
+          ? undefined
+          : 'filterName' in args || 'kind' in args
+            ? state.filteredEvents
+            : state.events,
+      isLoading: state.isLoading || state.eventsLoading,
+      isError: state.eventsFailed,
+      isFetching: state.eventsFetching,
+      refetch: refetchSpy,
+    };
+  },
 }));
 
 const EVENT = {
@@ -92,6 +112,8 @@ function setLoading() {
 }
 
 beforeEach(() => {
+  state.realQuery = false;
+  readSpy.mockReset();
   state.filteredEvents = [];
   state.eventsLoading = false;
   state.eventsFailed = false;
@@ -183,33 +205,51 @@ describe('GuardrailsOverview', () => {
     });
 
     it.each(['empty', 'recorded'] as const)(
-      'retains the error during retry and recovers to %s events',
+      'keeps the cold retry control mounted through real pending and recovers to %s',
       async (recovery) => {
         setLoaded();
-        state.eventsFailed = true;
-        const { user, rerender } = render(
-          <GuardrailsOverview organizationId="org-1" />,
+        state.realQuery = true;
+        readSpy.mockRejectedValueOnce(new Error('read unavailable'));
+        const client = new QueryClient();
+        const { user, container } = render(
+          <QueryClientProvider client={client}>
+            <GuardrailsOverview organizationId="org-1" />
+          </QueryClientProvider>,
         );
-        await user.click(screen.getByRole('button', { name: 'Retry' }));
-        state.eventsFetching = true;
-        rerender(<GuardrailsOverview organizationId="org-1" />);
-        expect(screen.getByRole('alert')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled();
+        await screen.findByRole('alert');
+        const retry = screen.getByRole('button', { name: 'Retry' });
+        const alert = screen.getByRole('alert');
+        let rejectRetry: (error: Error) => void = () => {};
+        readSpy.mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectRetry = reject;
+            }),
+        );
+        retry.focus();
+        await user.keyboard('{Enter}');
+        await waitFor(() => expect(retry).toBeDisabled());
+        expect(
+          client.getQueryState([
+            'recent-events',
+            { organizationId: 'org-1', limit: 50 },
+          ]),
+        ).toMatchObject({ status: 'pending', fetchStatus: 'fetching' });
+        expect(screen.getByRole('alert')).toBe(alert);
+        expect(screen.getByRole('button', { name: 'Retry' })).toBe(retry);
+        expect(retry).toHaveFocus();
+        expect(container.querySelectorAll('tbody tr')).toHaveLength(0);
         expect(screen.queryByText(/no events yet/i)).not.toBeInTheDocument();
-        await user.click(screen.getByRole('button', { name: 'Retry' }));
-        expect(refetchSpy).toHaveBeenCalledTimes(1);
-
-        state.eventsFetching = false;
-        rerender(<GuardrailsOverview organizationId="org-1" />);
-        expect(screen.getByRole('alert')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
-        await user.click(screen.getByRole('button', { name: 'Retry' }));
-        expect(refetchSpy).toHaveBeenCalledTimes(2);
-
-        state.eventsFailed = false;
-        state.events = recovery === 'recorded' ? [EVENT] : [];
-        rerender(<GuardrailsOverview organizationId="org-1" />);
-        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        await user.click(retry);
+        expect(readSpy).toHaveBeenCalledTimes(2);
+        await act(async () => rejectRetry(new Error('still unavailable')));
+        await waitFor(() => expect(retry).toBeEnabled());
+        expect(screen.getByRole('alert')).toBe(alert);
+        readSpy.mockResolvedValueOnce(recovery === 'recorded' ? [EVENT] : []);
+        await user.click(retry);
+        await waitFor(() =>
+          expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
+        );
         expect(
           screen.queryByRole('button', { name: 'Retry' }),
         ).not.toBeInTheDocument();
@@ -221,22 +261,48 @@ describe('GuardrailsOverview', () => {
           expect(
             screen.getByRole('row', { name: /view event/i }),
           ).toBeInTheDocument();
-          expect(screen.queryByText(/no events yet/i)).not.toBeInTheDocument();
         }
+        client.clear();
       },
     );
 
-    it('shows a failed refresh instead of stale rows', () => {
+    it('keeps cached events beside a real failed background refresh and its retry', async () => {
       setLoaded();
-      state.events = [EVENT];
-      state.eventsFailed = true;
-      state.staleEvents = true;
-      render(<GuardrailsOverview organizationId="org-1" />);
+      state.realQuery = true;
+      readSpy.mockResolvedValueOnce([EVENT]);
+      const client = new QueryClient();
+      const { user } = render(
+        <QueryClientProvider client={client}>
+          <GuardrailsOverview organizationId="org-1" />
+        </QueryClientProvider>,
+      );
+      const row = await screen.findByRole('row', { name: /view event/i });
+      readSpy.mockRejectedValueOnce(new Error('refresh unavailable'));
+      await act(async () => {
+        await client.refetchQueries({ queryKey: ['recent-events'] });
+      });
+      await screen.findByRole('alert');
+      expect(screen.getByRole('row', { name: /view event/i })).toBe(row);
+      let resolveRetry: (events: unknown[]) => void = () => {};
+      readSpy.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRetry = resolve;
+          }),
+      );
+      const retry = screen.getByRole('button', { name: 'Retry' });
+      await user.click(retry);
+      await waitFor(() => expect(retry).toBeDisabled());
       expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByRole('row', { name: /view event/i })).toBe(row);
+      expect(screen.queryByText(/no events yet/i)).not.toBeInTheDocument();
+      await act(async () => resolveRetry([]));
+      await screen.findByRole('heading', { name: /no events yet/i });
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(
         screen.queryByRole('row', { name: /view event/i }),
       ).not.toBeInTheDocument();
-      expect(screen.queryByText(/no events yet/i)).not.toBeInTheDocument();
+      client.clear();
     });
   });
 

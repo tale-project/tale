@@ -140,9 +140,11 @@ layout and screen-reader announcements remain manual.
 Guardrails recent events distinguish a failed read from a successful empty list.
 An accessible error and Retry preserve the policy status cards and filters;
 retry stays disabled while fetching, repeated failure keeps the error, and
-recovery shows the empty state or recorded events. Failed refreshes hide stale
-rows. `app/features/settings/governance/components/guardrails-overview.test.tsx`
-owns these controls. Real-browser layout and screen-reader announcements
+recovery shows the empty state or recorded events. The error and Retry stay
+mounted through a cold retry’s pending state. Failed refreshes keep the last
+successful rows visible beside the error and Retry. Real TanStack query lifecycles
+in `app/features/settings/governance/components/guardrails-overview.test.tsx`
+own these controls. Real-browser layout and screen-reader announcements
 remain manual.
 
 Legal matter editing preserves retained 2500- and 4000-character descriptions
