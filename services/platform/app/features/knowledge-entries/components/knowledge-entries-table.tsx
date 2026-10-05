@@ -46,13 +46,17 @@ export function KnowledgeEntriesTable({
     record: viewedRecord,
     open: openRecord,
     close: closeRecord,
-  } = useViewedRecord(paginatedResult.results, paginatedResult.status);
+  } = useViewedRecord(
+    paginatedResult.results,
+    paginatedResult.status,
+    (entry) => entry.documentId ?? entry._id,
+  );
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { mutateAsync: deleteEntry } = useDeleteKnowledgeEntry();
 
   const handleRowClick = useCallback(
     (row: Row<KnowledgeEntryItem>) => {
-      openRecord(row.original._id);
+      openRecord(row.original.documentId ?? row.original._id);
     },
     [openRecord],
   );

@@ -3,10 +3,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
+import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
 import { toast } from '@tale/ui/use-toast';
-import { type RefObject, useMemo } from 'react';
+import { type RefObject, useMemo, useRef } from 'react';
 import * as z from 'zod';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
@@ -44,6 +45,9 @@ export function KnowledgeEntryEditDialog({
 }: KnowledgeEntryEditDialogProps) {
   const { t } = useT('knowledgeEntries');
   const { mutateAsync: updateEntry, isPending } = useUpdateKnowledgeEntry();
+  const initialVersionId = useRef(entry._id);
+  const hasNewerVersion =
+    entry._id !== initialVersionId.current && entry.documentId != null;
 
   const formSchema = useMemo(
     () =>
@@ -112,10 +116,16 @@ export function KnowledgeEntryEditDialog({
       submittingText={t('saving')}
       isSubmitting={isPending}
       isDirty={isDirty}
+      confirmDiscardOnDirty
       onSubmit={handleSubmit(onSubmit)}
       size="entity"
       restoreFocusRef={restoreFocusRef}
     >
+      {hasNewerVersion && isDirty ? (
+        <Text role="alert" variant="muted">
+          {t('editDialog.newerVersion')}
+        </Text>
+      ) : null}
       <Input
         id="topic"
         type="text"

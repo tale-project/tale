@@ -4680,6 +4680,8 @@ knowledgeEntries:
   addEntry: Ajouter une entrée de connaissances
   addDescription: Choisis un sujet, puis rédige la connaissance pour qu'elle soit compréhensible seule.
   editEntry: Modifier l'entrée de connaissances
+  editDialog:
+    newerVersion: Une nouvelle version a été publiée pendant ta modification. Ton brouillon est toujours là ; enregistre-le pour remplacer cette version, ou annule pour le supprimer.
   adding: Ajout en cours...
   saving: Enregistrement...
   topic: Sujet
