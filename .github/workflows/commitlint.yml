@@ -57,8 +57,9 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
       - name: Run commitlint
         # PR: lint the branch range. Push: lint the pushed range; a forced or

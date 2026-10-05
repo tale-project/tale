@@ -19687,8 +19687,8 @@ async function checkTurnReattach(
       AND (id = ANY(${fenceJobIds.filter((id) => id !== null)})
         OR data ->> 'execId' = ${deadWorker.execId})
   `;
-  // The fence's turns are this check's alone: the backfill check below
-  // reads every op of the lane's sessions.
+  // The fence's turns are this check's alone; release their sessions
+  // before the independent fairness and backfill probes below.
   const fenceSessions = [fencedQueued, fencedRunning, deadWorker].map(
     (turn) => turn.sessionId,
   );
@@ -19767,6 +19767,19 @@ async function checkTurnReattach(
   await sql`UPDATE app.sandbox_sessions SET status = 'destroyed', destroyed_at_ms = ${Date.now()}
     WHERE session_id = ANY(${fairSessions})`;
 
+  // A fairness worker can finish writing an op after the cleanup above.
+  // Keep one such neighboring op so the backfill snapshot must name its
+  // own five fixtures rather than every session with the lane's prefix.
+  const neighbor = fairRuns[25];
+  if (!neighbor) throw new Error('Missing recovery fairness fixture');
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, started_at_ms
+    ) VALUES (${orgId}, ${neighbor.sessionId}, ${neighbor.execId},
+              'task-agent', 'failed', ${now})
+    ON CONFLICT DO NOTHING
+  `;
+
   // Migration 0127 names the ops written before the column existed. A
   // task-agent op takes the harness of ITS RUN — here `codex`, under a
   // session stamped `claude-code`; an op that already records one keeps it.
@@ -19821,10 +19834,18 @@ async function checkTurnReattach(
     ),
     'utf8',
   );
+  const harnessFixtures = [
+    [live.execId, 'pi'],
+    [noOp.execId, 'pi'],
+    [abandoned.execId, 'codex'],
+    ['reattach-exec-wf-bare', null],
+    ['reattach-exec-wf-stamped', null],
+  ] as const;
+  const harnessExecIds = harnessFixtures.map(([execId]) => execId);
   const opHarnesses = async () => {
     const rows = await sql<{ execId: string; harness: string | null }[]>`
       SELECT exec_id AS "execId", harness FROM app.sandbox_session_ops
-      WHERE org_id = ${orgId} AND session_id LIKE 'reattach-session-%'
+      WHERE org_id = ${orgId} AND exec_id = ANY(${harnessExecIds})
       ORDER BY exec_id
     `;
     return JSON.stringify(rows.map((row) => [row.execId, row.harness]));
@@ -19833,13 +19854,7 @@ async function checkTurnReattach(
   const backfilledHarnesses = await opHarnesses();
   await sql.unsafe(harnessBackfill);
   const backfilledHarnessesAgain = await opHarnesses();
-  const wantHarnesses = JSON.stringify([
-    [live.execId, 'pi'],
-    [noOp.execId, 'pi'],
-    [abandoned.execId, 'codex'],
-    ['reattach-exec-wf-bare', null],
-    ['reattach-exec-wf-stamped', null],
-  ]);
+  const wantHarnesses = JSON.stringify(harnessFixtures);
   record(
     'harness turns: migration 0127 names an op by its run, keeps a recorded harness, and is idempotent',
     backfilledHarnesses === wantHarnesses &&
@@ -20293,6 +20308,41 @@ async function checkSteerFallbackRecovery(
 async function checkWorkflowTurnReattach(
   sql: Sql,
   ctx: { orgId: string; userId: string },
+  boss: PgBoss,
+): Promise<void> {
+  const queue = 'automation.agent_drive';
+  const handler = createTaskList({ sql })[queue];
+  if (handler === undefined)
+    throw new Error('Missing automation drive handler');
+  // This lane proves recovery's queued work and op lease, without a real
+  // sandbox. A notify-driven consumer can otherwise settle the fake turn
+  // before the assertion reads it (missing SANDBOX_TOKEN fails immediately).
+  // Stop only this queue, using the worker-drain integration's offWork fence;
+  // every other real worker stays available throughout the lane.
+  await boss.offWork(queue, { wait: true });
+  try {
+    await checkWorkflowTurnReattachRows(sql, ctx);
+  } finally {
+    try {
+      // Never unleash an external drive for a fixture, even if a probe threw.
+      await sql`
+        DELETE FROM pgboss.job
+        WHERE name = 'automation.agent_drive'
+          AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
+      `;
+    } finally {
+      await startWorker({
+        boss,
+        concurrency: 4,
+        taskList: { [queue]: handler },
+      });
+    }
+  }
+}
+
+async function checkWorkflowTurnReattachRows(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
 ): Promise<void> {
   const { orgId, userId } = ctx;
   const now = Date.now();
@@ -20468,7 +20518,7 @@ async function checkWorkflowTurnReattach(
       // The harness of the NODE's turn (the run cursor), not the one the
       // run's session was opened with.
       createdOp[0]?.harness === 'codex',
-    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want harness codex)`,
+    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.status ?? '-'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want watchdog/running/workflow-agent/codex)`,
   );
 
   // Failed probes rotate independently of run liveness. Two replicas must
@@ -20534,11 +20584,6 @@ async function checkWorkflowTurnReattach(
     WHERE session_id = ANY(${fairSessions})`;
 
   // Leave nothing for later sweeps or metrics folds to trip over.
-  await sql`
-    DELETE FROM pgboss.job
-    WHERE name = 'automation.agent_drive'
-      AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
-  `;
   await sql`
     UPDATE app.automation_runs SET status = 'cancelled',
                                    finished_at_ms = ${Date.now()}
@@ -56189,6 +56234,69 @@ async function checkWatchdogs(
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
   );
 
+  // Historical stopped rows can outnumber compute-holding rows by orders of
+  // magnitude. Their independent quota must leave active health checks room,
+  // while both least-recently-visited walks advance on the next tick.
+  const prior = await sql<{ oldest: number }[]>`
+    SELECT coalesce(min(created_at_ms), ${now})::float8 AS oldest
+    FROM app.sandbox_sessions
+  `;
+  const quotaAncient = (prior[0]?.oldest ?? now) - 1_000;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    )
+    SELECT ${orgId}, 'wd-quota-cold-' || n, 'stopped', 'project',
+      'wd-quota-cold-' || n, 'itest:wd', ${quotaAncient}::bigint + n,
+      ${now + 24 * 3_600_000}::bigint
+    FROM generate_series(1, 30) n
+    UNION ALL
+    SELECT ${orgId}, 'wd-quota-active-' || n, 'active', 'project',
+      'wd-quota-active-' || n, 'itest:wd', ${quotaAncient + 100}::bigint + n,
+      ${now + 24 * 3_600_000}::bigint
+    FROM generate_series(1, 21) n
+  `;
+  const quotaProbed: string[] = [];
+  const quotaSpawner = {
+    ...scriptedSpawner,
+    observe: (sessionId: string) => {
+      quotaProbed.push(sessionId);
+      return Promise.resolve(
+        sessionId.startsWith('wd-quota-cold-') ? null : { pinned: false },
+      );
+    },
+  };
+  await sandboxWatchdogs.runSandboxWatchdog(sql, { spawner: quotaSpawner });
+  const quotaFirst = [...quotaProbed];
+  quotaProbed.length = 0;
+  await sandboxWatchdogs.runSandboxWatchdog(sql, { spawner: quotaSpawner });
+  const quotaCold = new Set(
+    [...quotaFirst, ...quotaProbed].filter((id) =>
+      id.startsWith('wd-quota-cold-'),
+    ),
+  );
+  const quotaActive = new Set(
+    [...quotaFirst, ...quotaProbed].filter((id) =>
+      id.startsWith('wd-quota-active-'),
+    ),
+  );
+  const retainedCold = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND session_id LIKE 'wd-quota-cold-%'
+      AND status = 'stopped' AND destroyed_at_ms IS NULL
+  `;
+  record(
+    'sandbox watchdog reserves active health capacity and independently rotates historical pin probes without retiring absent workspaces',
+    quotaFirst.filter((id) => id.startsWith('wd-quota-active-')).length ===
+      20 &&
+      quotaFirst.filter((id) => id.startsWith('wd-quota-cold-')).length === 5 &&
+      quotaActive.size === 21 &&
+      quotaCold.size === 10 &&
+      retainedCold[0]?.count === 30,
+    `first active=${quotaFirst.filter((id) => id.startsWith('wd-quota-active-')).length}/20 cold=${quotaFirst.filter((id) => id.startsWith('wd-quota-cold-')).length}/5; rotated active=${quotaActive.size}/21 cold=${quotaCold.size}/10; retained=${retainedCold[0]?.count}/30`,
+  );
+
   // Lane 3d: the render sessions of cut-off scan links. A link destroys its
   // render session when its batch ends; one cut off mid-batch (a restart, a
   // deploy, a crash) left the row compute-holding and the container running,
@@ -60046,7 +60154,7 @@ async function main(): Promise<void> {
       ],
       [
         'checkWorkflowTurnReattach',
-        () => checkWorkflowTurnReattach(sql, authCtx),
+        () => checkWorkflowTurnReattach(sql, authCtx, boss),
       ],
       [
         'checkConversationReplyMailbox',

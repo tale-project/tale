@@ -51,6 +51,7 @@ vi.mock('../hooks/mutations', () => ({
 const { state } = vi.hoisted(() => ({
   state: {
     isLoading: false,
+    isError: false,
     config: { enabled: true } as Record<string, unknown> | undefined,
   },
 }));
@@ -59,15 +60,19 @@ vi.mock('../hooks/queries', () => ({
   useGovernancePolicy: () => ({
     data: state.isLoading ? undefined : { config: state.config },
     isLoading: state.isLoading,
+    isError: state.isError,
+    refetch: vi.fn(),
   }),
 }));
 
 function setLoaded() {
   state.isLoading = false;
+  state.isError = false;
   state.config = { enabled: true };
 }
 function setLoading() {
   state.isLoading = true;
+  state.isError = false;
   state.config = undefined;
 }
 
@@ -79,6 +84,17 @@ beforeEach(() => {
 });
 
 describe('PersonalizationPolicyEditor', () => {
+  it('shows a read error and blocks the retained toggle after a failed read', () => {
+    state.isLoading = false;
+    state.isError = true;
+    state.config = undefined;
+    render(<PersonalizationPolicyEditor organizationId="org-1" />);
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+    expect(mutation.mutateAsync).not.toHaveBeenCalled();
+  });
+
   describe('loaded state', () => {
     it('renders the real switches (in the a11y tree)', () => {
       setLoaded();

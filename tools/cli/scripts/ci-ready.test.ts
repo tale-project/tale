@@ -4,6 +4,7 @@ import {
   BUILD_SERVICES,
   BUILD_FILTERS,
   buildScope,
+  e2eScope,
   CI_JOBS,
   COMPOSE_SERVICES,
   evaluateReadiness,
@@ -42,9 +43,15 @@ function fixture(workflow: keyof typeof CI_JOBS, event = 'pull_request') {
       services: JSON.stringify(BUILD_SERVICES),
       scannable_services: JSON.stringify(COMPOSE_SERVICES),
       ci_tests: 'true',
+      stack: 'true',
       storybook: 'true',
     };
   }
+  if (workflow === 'e2e')
+    needs.scope!.outputs = {
+      platform: 'true',
+      static_services: '["web","docs"]',
+    };
   return {
     workflow,
     event,
@@ -143,6 +150,54 @@ describe('native CI readiness', () => {
     },
   );
 
+  test('E2E requires exactly the applicable platform and static service proofs', () => {
+    for (const platform of [false, true]) {
+      for (const services of [[], ['web'], ['docs'], ['web', 'docs']]) {
+        const input = fixture('e2e');
+        input.needs.scope!.outputs = {
+          platform: String(platform),
+          static_services: JSON.stringify(services),
+        };
+        input.needs.build!.result = platform ? 'success' : 'skipped';
+        input.needs.e2e!.result = platform ? 'success' : 'skipped';
+        input.needs['static-sites']!.result = services.length
+          ? 'success'
+          : 'skipped';
+        expect(evaluateReadiness(input).passed).toBe(
+          platform || services.length > 0,
+        );
+        if (!platform && services.length === 0) continue;
+        for (const id of ['scope', 'build', 'e2e', 'static-sites']) {
+          const original = input.needs[id]!.result;
+          input.needs[id]!.result =
+            original === 'success' ? 'skipped' : 'success';
+          expect(evaluateReadiness(input).passed, id).toBe(false);
+          input.needs[id]!.result = original;
+        }
+        input.needs['pr-scope']!.outputs.full = 'true';
+        expect(evaluateReadiness(input).passed).toBe(
+          platform && services.length === 2,
+        );
+      }
+    }
+  });
+
+  test('E2E refuses malformed service outputs and missing full coverage', () => {
+    for (const [key, values] of [
+      ['platform', ['', 'False', '0']],
+      ['static_services', ['', '{}', 'null', '["unknown"]', '["web","web"]']],
+    ] as const) {
+      for (const value of values) {
+        const input = fixture('e2e');
+        input.needs.scope!.outputs[key] = value;
+        expect(evaluateReadiness(input).passed, `${key}/${value}`).toBe(false);
+      }
+    }
+    const input = fixture('e2e', 'merge_group');
+    input.needs.scope!.outputs.static_services = '["web"]';
+    expect(evaluateReadiness(input).passed).toBe(false);
+  });
+
   test('backend integration skips require a successful explicit PR decision', () => {
     const input = fixture('checks');
     input.needs['integration-scope']!.outputs.run = 'false';
@@ -166,20 +221,56 @@ describe('native CI readiness', () => {
       input.needs[`${id}-fork`]!.result = 'success';
     }
     input.needs['vulnerability-scan']!.result = 'skipped';
+    input.needs.build!.result = 'skipped';
     expect(evaluateReadiness(input).passed).toBe(true);
     input.needs['image-validate-fork']!.result = 'failure';
     expect(evaluateReadiness(input).passed).toBe(false);
   });
 
-  test('Build distinguishes outer applicability from its per-service matrix', () => {
+  test.each(['web', 'docs', 'ui-docs', 'ai-gateway'])(
+    'Build requires the %s container proof while allowing the unneeded platform stack to skip',
+    (service) => {
+      const input = fixture('build');
+      input.needs.changes!.outputs = {
+        services: JSON.stringify([service]),
+        scannable_services: '[]',
+        ci_tests: 'false',
+        stack: 'false',
+        storybook: 'false',
+      };
+      for (const id of [
+        'build',
+        'smoke-test',
+        'image-validate',
+        'web-test',
+        'docs-test',
+        'ui-docs-test',
+        'ai-gateway-test',
+        'vulnerability-scan',
+        'storybook',
+      ])
+        input.needs[id]!.result = 'skipped';
+      input.needs[`${service}-test`]!.result = 'success';
+      expect(evaluateReadiness(input).passed).toBe(true);
+      input.needs[`${service}-test`]!.result = 'skipped';
+      expect(evaluateReadiness(input).passed).toBe(false);
+      input.needs[`${service}-test`]!.result = 'success';
+      input.needs['pr-scope']!.outputs.full = 'true';
+      expect(evaluateReadiness(input).passed).toBe(false);
+    },
+  );
+
+  test('Build requires the stack for CI and compose changes and rejects contradictory scope', () => {
     const input = fixture('build');
     input.needs.changes!.outputs = {
-      services: '["web"]',
+      services: '[]',
       scannable_services: '[]',
-      ci_tests: 'false',
+      ci_tests: 'true',
+      stack: 'true',
       storybook: 'false',
     };
     for (const id of [
+      'web-test',
       'docs-test',
       'ui-docs-test',
       'ai-gateway-test',
@@ -188,12 +279,18 @@ describe('native CI readiness', () => {
     ])
       input.needs[id]!.result = 'skipped';
     expect(evaluateReadiness(input).passed).toBe(true);
-    // The existing compose predicate still owes all fixed image legs for web.
-    input.needs.build!.result = 'skipped';
-    expect(evaluateReadiness(input).passed).toBe(false);
-    input.needs.build!.result = 'success';
-    input.needs['pr-scope']!.outputs.full = 'true';
-    expect(evaluateReadiness(input).passed).toBe(false);
+    for (const id of ['build', 'smoke-test', 'image-validate']) {
+      input.needs[id]!.result = 'skipped';
+      expect(evaluateReadiness(input).passed, id).toBe(false);
+      input.needs[id]!.result = 'success';
+    }
+    const contradictory = fixture('build');
+    contradictory.needs.changes!.outputs.ci_tests = 'false';
+    expect(evaluateReadiness(contradictory).passed).toBe(true);
+    contradictory.needs.changes!.outputs.stack = 'false';
+    for (const id of ['build', 'smoke-test', 'image-validate'])
+      contradictory.needs[id]!.result = 'skipped';
+    expect(evaluateReadiness(contradictory).passed).toBe(false);
   });
 
   test('Build allows only its existing image-scan advisory failure without claiming scanner success', () => {
@@ -215,6 +312,7 @@ describe('native CI readiness', () => {
       'services',
       'scannable_services',
       'ci_tests',
+      'stack',
       'storybook',
     ]) {
       for (const value of ['', 'null', '{}', '["unknown"]']) {
@@ -326,6 +424,22 @@ describe('complete frozen PR scope', () => {
     expect(() => validateScope({ ...scope(), guard: '' })).toThrow();
   });
 
+  test('the immutable E2E decision validates every service before conservative widening', () => {
+    const filters = { platform: 'false', web: 'true', docs: 'false' };
+    expect(e2eScope(filters, false)).toEqual(filters);
+    expect(e2eScope(filters, true)).toEqual({
+      platform: 'true',
+      web: 'true',
+      docs: 'true',
+    });
+    for (const malformed of [
+      { ...filters, web: '' },
+      { platform: 'true' },
+      { ...filters, other: 'true' },
+    ])
+      expect(() => e2eScope(malformed, true)).toThrow();
+  });
+
   test('the immutable Build decision contains only validated service and pseudo-filter IDs', () => {
     const filters = Object.fromEntries(
       BUILD_FILTERS.map((name) => [
@@ -339,8 +453,12 @@ describe('complete frozen PR scope', () => {
       storybook: 'false',
     });
     expect(JSON.parse(buildScope(filters, true).changes)).toEqual(
-      BUILD_FILTERS,
+      BUILD_FILTERS.filter((name) => name !== 'image_inputs'),
     );
+    expect(buildScope({ ...filters, image_inputs: 'true' }, false)).toEqual(
+      buildScope(filters, true),
+    );
+    expect(() => buildScope({ ...filters, image_inputs: '' }, false)).toThrow();
     expect(() => buildScope({ ...filters, platform: '' }, false)).toThrow();
     expect(() => buildScope({ ...filters, guard: 'true' }, false)).toThrow();
     delete filters.platform;

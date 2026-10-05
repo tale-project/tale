@@ -20,6 +20,15 @@ outputs:
   storybook:
     description: Validated Build storybook from the same frozen PR discovery
     value: ${{ steps.decide.outputs.storybook }}
+  platform:
+    description: Validated E2E platform applicability
+    value: ${{ steps.decide.outputs.platform }}
+  web:
+    description: Validated E2E web applicability
+    value: ${{ steps.decide.outputs.web }}
+  docs:
+    description: Validated E2E docs applicability
+    value: ${{ steps.decide.outputs.docs }}
 runs:
   using: composite
   steps:
@@ -59,6 +68,10 @@ runs:
         SCOPE_FILES: ${{ steps.filter.outputs.all_files }}
         SCOPE_ADDED: ${{ steps.filter.outputs.added }}
         SCOPE_DELETED: ${{ steps.filter.outputs.deleted }}
+        E2E_platform: ${{ steps.filter.outputs.e2e_platform }}
+        E2E_web: ${{ steps.filter.outputs.e2e_web }}
+        E2E_docs: ${{ steps.filter.outputs.e2e_docs }}
+        BUILD_image_inputs: ${{ steps.filter.outputs.build_image_inputs }}
         BUILD_platform: ${{ steps.filter.outputs.build_platform }}
         BUILD_db: ${{ steps.filter.outputs.build_db }}
         BUILD_proxy: ${{ steps.filter.outputs.build_proxy }}
@@ -75,7 +88,7 @@ runs:
         BUILD_ci_tests: ${{ steps.filter.outputs.build_ci_tests }}
       with:
         script: |
-          const { BUILD_FILTERS, buildScope, requiresFullScope, scopeBoolean, validateScope } = await import(require('node:url').pathToFileURL(`${process.env.GITHUB_WORKSPACE}/tools/cli/scripts/ci-ready.ts`).href);
+          const { BUILD_FILTERS, E2E_SERVICES, buildScope, e2eScope, requiresFullScope, scopeBoolean, validateScope } = await import(require('node:url').pathToFileURL(`${process.env.GITHUB_WORKSPACE}/tools/cli/scripts/ci-ready.ts`).href);
           if (!['integration', 'build', 'e2e', 'cli', 'security'].includes(process.env.SCOPE_FILTER)) throw new Error('Unknown scope filter');
           let decision = { run: true, full: true };
           const full = scopeBoolean(process.env.SCOPE_FULL);
@@ -87,6 +100,10 @@ runs:
           if (process.env.SCOPE_FILTER === 'build') {
             const filters = Object.fromEntries(BUILD_FILTERS.map(name => [name, full ? 'true' : process.env['BUILD_' + name.replaceAll('-', '_')]]));
             for (const [name, value] of Object.entries(buildScope(filters, decision.full))) core.setOutput(name, value);
+          }
+          if (process.env.SCOPE_FILTER === 'e2e') {
+            const filters = Object.fromEntries(E2E_SERVICES.map(name => [name, full ? 'true' : process.env['E2E_' + name]]));
+            for (const [name, value] of Object.entries(e2eScope(filters, decision.full))) core.setOutput(name, value);
           }
           core.setOutput('run', String(decision.run));
           core.setOutput('full', String(decision.full));

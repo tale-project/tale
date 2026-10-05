@@ -124,14 +124,19 @@ describe('seven complete native merge gates', () => {
     const build = await workflow('build');
     expect(build.jobs.build!.strategy?.matrix.service).toEqual(IMAGE_SERVICES);
     expect(COMPOSE_SERVICES).toEqual(IMAGE_SERVICES);
+    const checks = await workflow('checks');
+    expect(checks.jobs['test-ui-shards']!.strategy?.matrix.shard).toEqual([
+      1, 2, 3, 4,
+    ]);
+    expect(checks.jobs['test-ui']!.needs).toContain('test-ui-shards');
     const e2e = await workflow('e2e');
     expect(e2e.jobs.e2e!.strategy?.matrix.shard).toEqual(
-      Array.from({ length: 16 }, (_, i) => i + 1),
+      Array.from({ length: 4 }, (_, i) => i + 1),
     );
-    expect(e2e.jobs['static-sites']!.strategy?.matrix.service).toEqual([
-      'web',
-      'docs',
-    ]);
+    expect(e2e.jobs['static-sites']!.strategy?.matrix.service).toBe(
+      '${{ fromJSON(needs.scope.outputs.static_services) }}',
+    );
+    expect(e2e.jobs.scope!.name).toBe('E2E scope');
     const cli = await workflow('cli');
     expect(
       (cli.jobs.build!.strategy!.matrix.include as { platform: string }[]).map(
@@ -152,6 +157,26 @@ describe('seven complete native merge gates', () => {
     );
   });
 
+  test('E2E exports the frozen discovery into the existing native scope producer', async () => {
+    const file = await workflow('e2e');
+    const scope = file.jobs.scope!;
+    expect(
+      scope.steps?.some((step) => step.uses?.startsWith('dorny/paths-filter')),
+    ).toBe(false);
+    const decide = scope.steps?.find((step) => step.id === 'decide')!;
+    expect(decide.env).toEqual({
+      EVENT_NAME: '${{ github.event_name }}',
+      PLATFORM: '${{ needs.pr-scope.outputs.platform }}',
+      WEB: '${{ needs.pr-scope.outputs.web }}',
+      DOCS: '${{ needs.pr-scope.outputs.docs }}',
+    });
+    for (const id of ['build', 'static-sites']) {
+      expect([file.jobs[id]!.needs].flat()).toContain('scope');
+      expect(file.jobs[id]!.if).toContain("needs.scope.result == 'success'");
+    }
+    expect([file.jobs.e2e!.needs].flat()).toContain('build');
+  });
+
   test('scope lifts the existing PR path policy without changing push filters', async () => {
     const filters = (await yaml('.github/ci-scope.yml')) as Record<
       string,
@@ -165,15 +190,21 @@ describe('seven complete native merge gates', () => {
       'services/platform/**',
       'services/web/**',
       'services/docs/**',
-      'packages/ui/**',
-      'packages/marketing-ui/**',
-      'packages/e2e/**',
+      'packages/**',
+      'configs/platform/**',
+      'services/sandbox-runtime/daemon/**',
+      'tools/cli/**',
+      'scripts/**',
+      'compose*.yml',
+      'docs/**',
+      'patches/**',
       '.github/workflows/e2e.yml',
       '.github/actions/setup-turbo/**',
       'package.json',
       'bun.lock',
+      'bunfig.toml',
       'turbo.json',
-      'tsconfig.base.json',
+      'tsconfig*.json',
     ]);
     expect(filters.all).toEqual(['**']);
     expect(filters.guard).toContain('.github/ci-scope.yml');
@@ -194,7 +225,7 @@ describe('seven complete native merge gates', () => {
         build: ['changes'],
         cli: ['prepare', 'build'],
         security: ['bun-audit', 'trivy-fs'],
-        e2e: ['build', 'e2e', 'static-sites'],
+        e2e: ['scope'],
       }[stem]!;
       for (const id of roots) {
         expect([file.jobs[id]!.needs].flat()).toContain('pr-scope');
@@ -272,6 +303,83 @@ async function execute(
 }
 
 describe('actual scope action boundaries', () => {
+  test('E2E service decisions use the same frozen identity and refuse incomplete discovery', async () => {
+    const decide = (await actions('ci-scope'))[2]!;
+    const env = {
+      SCOPE_FILTER: 'e2e',
+      SCOPE_FULL: 'false',
+      SCOPE_BEFORE: JSON.stringify(pr()),
+      SCOPE_TOUCHED: 'true',
+      SCOPE_GUARD: 'false',
+      SCOPE_COUNT: '2',
+      SCOPE_FILES: '["services/web/a.ts","README.md"]',
+      SCOPE_ADDED: 'false',
+      SCOPE_DELETED: 'false',
+      E2E_platform: 'false',
+      E2E_web: 'true',
+      E2E_docs: 'false',
+    };
+    expect(
+      (await execute(decide, { pull_request: pr() }, 'pull_request', env, pr()))
+        .outputs,
+    ).toEqual({
+      platform: 'false',
+      web: 'true',
+      docs: 'false',
+      run: 'true',
+      full: 'false',
+    });
+    expect(
+      (
+        await execute(decide, { pull_request: pr() }, 'pull_request', env, {
+          ...pr(),
+          head: { sha: A },
+        })
+      ).outputs,
+    ).toEqual({
+      platform: 'true',
+      web: 'true',
+      docs: 'true',
+      run: 'true',
+      full: 'true',
+    });
+    await expect(
+      execute(
+        decide,
+        { pull_request: pr() },
+        'pull_request',
+        { ...env, E2E_docs: '' },
+        pr(),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      execute(
+        decide,
+        { pull_request: pr() },
+        'pull_request',
+        { ...env, SCOPE_COUNT: '1' },
+        pr(),
+      ),
+    ).rejects.toThrow();
+    expect(
+      (
+        await execute(
+          decide,
+          {},
+          'merge_group',
+          { SCOPE_FILTER: 'e2e', SCOPE_FULL: 'true' },
+          null,
+        )
+      ).outputs,
+    ).toEqual({
+      platform: 'true',
+      web: 'true',
+      docs: 'true',
+      run: 'true',
+      full: 'true',
+    });
+  });
+
   test('Build exports one validated immutable service decision and widens source movement', async () => {
     const decide = (await actions('ci-scope'))[2]!;
     const env = {
@@ -305,6 +413,24 @@ describe('actual scope action boundaries', () => {
       run: 'true',
       full: 'false',
     });
+    expect(result.calls).toBe(1);
+    const shared = await execute(
+      decide,
+      { pull_request: pr() },
+      'pull_request',
+      { ...env, BUILD_image_inputs: 'true' },
+      pr(),
+    );
+    expect(shared.calls).toBe(1);
+    expect(shared.outputs).toEqual({
+      changes: JSON.stringify(
+        BUILD_FILTERS.filter((name) => name !== 'image_inputs'),
+      ),
+      ci_tests: 'true',
+      storybook: 'true',
+      run: 'true',
+      full: 'false',
+    });
     const moved = await execute(
       decide,
       { pull_request: pr() },
@@ -312,7 +438,9 @@ describe('actual scope action boundaries', () => {
       env,
       { ...pr(), head: { sha: A } },
     );
-    expect(JSON.parse(moved.outputs.changes!)).toEqual(BUILD_FILTERS);
+    expect(JSON.parse(moved.outputs.changes!)).toEqual(
+      BUILD_FILTERS.filter((name) => name !== 'image_inputs'),
+    );
     expect(moved.outputs.full).toBe('true');
     await expect(
       execute(

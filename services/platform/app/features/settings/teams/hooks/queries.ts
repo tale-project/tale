@@ -69,7 +69,7 @@ export function useTeams() {
 
 export function useOrgTeams() {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
+  const { data, isLoading, isError, isFetching, refetch } = useBackendQuery(
     'members/queries:listOrgTeams',
     organizationId ? { organizationId } : 'skip',
   );
@@ -77,6 +77,9 @@ export function useOrgTeams() {
   return {
     teams: data ?? undefined,
     isLoading,
+    isError,
+    isFetching,
+    refetch,
   };
 }
 

@@ -25,6 +25,14 @@ let staged: Array<{ path: string; contentBase64: string }>;
 let skipStage: boolean;
 
 const sandboxFetch = vi.fn(async (url: string, init?: RequestInit) => {
+  if (init?.method === 'GET') {
+    expect(url).toContain(
+      `/v1/sessions/${encodeURIComponent(SESSION)}/files?path=`,
+    );
+    return Response.json({
+      entries: [{ name: 'SKILL.md', type: 'file', size: 1, mtimeMs: 0 }],
+    });
+  }
   expect(url).toBe(
     `http://skill-review.invalid/v1/sessions/${encodeURIComponent(SESSION)}/files/stage`,
   );
@@ -150,6 +158,7 @@ describe('equipped skill staging with real bundles', () => {
     // skill to upload first without making prompt order depend on that timing.
     const reportUploaded = Promise.withResolvers<void>();
     vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (init?.method === 'GET') return sandboxFetch(url, init);
       if (typeof init?.body !== 'string')
         throw new Error('Expected a serialized staging request');
       const body = JSON.parse(init.body) as {
@@ -229,7 +238,7 @@ describe('equipped skill staging with real bundles', () => {
       { kind: 'project', teamIds: ['red'] },
     );
     expect(prompt).toContain('Red team report.');
-    expect(sandboxFetch).toHaveBeenCalledTimes(3); // hash probe, missing bytes, prune
+    expect(sandboxFetch).toHaveBeenCalledTimes(4); // root probe, hash probe, missing bytes, prune
   });
 
   it.each<SkillViewer>([orgViewer, { kind: 'project', teamIds: ['blue'] }])(

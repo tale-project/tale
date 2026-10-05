@@ -22,8 +22,8 @@ import { tmpdir } from 'node:os';
 import { PassThrough } from 'node:stream';
 
 import { EnvStore } from './env-store.ts';
-import { ExecJournal, JournalBudget } from './exec-journal.ts';
 import { ExecManager, isStdinWritable } from './exec-manager.ts';
+import { ExecReplay, ReplayBudget } from './exec-replay.ts';
 import { pendingProcReads } from './process-reaper.ts';
 import type { RunnerdExecEvent, RunnerdExecRequest } from './protocol.ts';
 
@@ -122,6 +122,147 @@ describe('ExecManager', () => {
     expect(decode(events, 'stdout')).toBe('hi\n');
     const last = events[events.length - 1];
     expect(last).toMatchObject({ t: 'exit', exitCode: 0, cancelled: false });
+  });
+
+  test('forced UTF-8 pipe splits decode correctly in live frames and replay', async () => {
+    using mgr = new ExecManager(new EnvStore(), () => {});
+    const live = collect();
+    await mgr.run(
+      {
+        ...base,
+        execId: 'utf8-frames',
+        cwd: ROOT,
+        stdinMode: 'hold',
+        // Each ASCII marker and unfinished character is one write. The child
+        // waits for the consumer's acknowledgement before writing its suffix,
+        // so the OS cannot combine the two sides into one pipe data event.
+        command: [
+          '/bin/sh',
+          '-c',
+          String.raw`
+          printf 'a\342'; read -r ack; printf '\202\254'
+          printf 'b\360\237'; read -r ack; printf '\230\200'
+          printf 'c\302'; read -r ack; printf '\242'
+          printf 'x\360\237\230' >&2; read -r ack; printf '\200' >&2
+          printf 'y\342\202' >&2; read -r ack; printf '\254' >&2
+        `,
+        ],
+      },
+      (event) => {
+        live.emit(event);
+        if (event.t !== 'stdout' && event.t !== 'stderr') return;
+        const bytes = Buffer.from(event.b64, 'base64');
+        if (/[abcxy]/.test(bytes.toString())) {
+          expect(
+            mgr.writeStdin('utf8-frames', {
+              b64: Buffer.from('{}\n').toString('base64'),
+            }),
+          ).toEqual({ ok: true });
+        }
+      },
+    );
+    expect(live.events.at(-1)).toMatchObject({ t: 'exit', exitCode: 0 });
+    expect(decode(live.events, 'stdout')).toBe('a€b😀c¢');
+    expect(decode(live.events, 'stderr')).toBe('x😀y€');
+    const replay = collect();
+    await mgr.attach('utf8-frames', replay.emit);
+    expect(replay.events.filter((event) => event.seq !== undefined)).toEqual(
+      live.events,
+    );
+    const first = live.events.find((event) => event.t === 'stdout');
+    const resumed = collect();
+    await mgr.attach('utf8-frames', resumed.emit, first?.seq);
+    expect(decode(resumed.events, 'stdout')).toBe('€b😀c¢');
+    for (const event of replay.events) {
+      if (event.t === 'stdout' || event.t === 'stderr') {
+        new TextDecoder('utf-8', { fatal: true }).decode(
+          Buffer.from(event.b64, 'base64'),
+        );
+      }
+    }
+  });
+
+  test('bounded large UTF-8 frames resume exactly from a persisted checkpoint', async () => {
+    using manager = new ExecManager(new EnvStore(), () => {});
+    const text = 'a'.repeat(49151) + '😀€¢'.repeat(20000);
+    const live = collect();
+    await manager.run(
+      {
+        ...base,
+        execId: 'utf8-large-checkpoint',
+        cwd: ROOT,
+        command: ['cat'],
+        stdinBase64: Buffer.from(text).toString('base64'),
+      },
+      live.emit,
+    );
+    expect(live.events.at(-1)).toMatchObject({ t: 'exit', exitCode: 0 });
+    let prefix = '';
+    let first: Extract<RunnerdExecEvent, { t: 'stdout' }> | undefined;
+    for (const event of live.events) {
+      if (event.t !== 'stdout') continue;
+      expect(event.b64.length).toBeLessThanOrEqual(65536);
+      const decoded = new TextDecoder('utf-8', { fatal: true }).decode(
+        Buffer.from(event.b64, 'base64'),
+      );
+      if (first === undefined) {
+        first = event;
+        prefix = decoded;
+      }
+    }
+    if (first?.seq === undefined) throw new Error('missing output');
+    await manager.saveCheckpoint('utf8-large-checkpoint', {
+      seq: first.seq,
+      state: { text: prefix },
+    });
+    const checkpoint = await manager.checkpoint('utf8-large-checkpoint');
+    expect(checkpoint).toEqual({ seq: first.seq, state: { text: prefix } });
+    const suffix = collect();
+    await manager.attach('utf8-large-checkpoint', suffix.emit, first.seq);
+    expect(prefix + decode(suffix.events, 'stdout')).toBe(text);
+    expect(
+      Buffer.concat(
+        live.events.flatMap((event) =>
+          event.t === 'stdout' ? [Buffer.from(event.b64, 'base64')] : [],
+        ),
+      ),
+    ).toEqual(Buffer.from(text));
+  });
+
+  test('UTF-8 framing preserves raw incomplete EOF and capped bytes', async () => {
+    using mgr = new ExecManager(new EnvStore(), () => {});
+    for (const cap of [0, 2]) {
+      const output = collect();
+      await mgr.run(
+        {
+          ...base,
+          execId: `utf8-raw-${cap}`,
+          cwd: ROOT,
+          command: [
+            '/bin/sh',
+            '-c',
+            String.raw`printf '\342\202\254'; printf '\360\237\230' >&2`,
+          ],
+          stdoutMaxBytes: cap,
+        },
+        output.emit,
+      );
+      const raw = (stream: 'stdout' | 'stderr') =>
+        Buffer.concat(
+          output.events.flatMap((event) =>
+            event.t === stream ? [Buffer.from(event.b64, 'base64')] : [],
+          ),
+        );
+      expect(raw('stdout')).toEqual(
+        Buffer.from(cap ? [0xe2, 0x82] : [0xe2, 0x82, 0xac]),
+      );
+      expect(raw('stderr')).toEqual(Buffer.from([0xf0, 0x9f, 0x98]));
+      expect(output.events.at(-1)).toMatchObject({
+        t: 'exit',
+        exitCode: 0,
+        truncated: { stdout: cap > 0, stderr: false },
+      });
+    }
   });
 
   test('flushes all output before the terminal exit event (ordering contract)', async () => {
@@ -318,17 +459,31 @@ describe('ExecManager', () => {
   test('what an exec left running ends with it, and its exit is not held back', async () => {
     using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
+    let outputAt = 0;
+    let exitAt = 0;
     // The background sleep inherits stdout: before, it outlived the exec and
-    // held the pipe, so the exit waited out the drain grace.
+    // held the pipe, so the exit waited out the drain grace. Start measuring
+    // once the command prints its PID, excluding host shell initialization
+    // and process startup from this output-drain regression.
     await mgr.run(
-      { ...base, execId: 'ebg', shell: 'sleep 30 & echo $!', cwd: ROOT },
-      emit,
+      {
+        ...base,
+        execId: 'ebg',
+        command: ['/bin/sh', '-c', 'sleep 30 & echo $!'],
+        cwd: ROOT,
+      },
+      (event) => {
+        if (event.t === 'stdout') outputAt = Date.now();
+        if (event.t === 'exit') exitAt = Date.now();
+        emit(event);
+      },
     );
     const pid = Number(decode(events, 'stdout').trim());
     expect(pid).toBeGreaterThan(1);
     const last = events[events.length - 1];
     expect(last?.t).toBe('exit');
-    if (last?.t === 'exit') expect(last.durationMs).toBeLessThan(1_500);
+    expect(outputAt).toBeGreaterThan(0);
+    expect(exitAt - outputAt).toBeLessThan(1_500);
     const deadline = Date.now() + 3_000;
     while (isAlive(pid) && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 20));
@@ -873,10 +1028,9 @@ describe('ExecManager', () => {
     using mgr = new ExecManager(new EnvStore(), () => {});
     const long = collect();
     const longDone = mgr.run(
-      // This test needs an active peer, not its deadline; login-shell startup
-      // and the output-drain grace can consume the default five-second budget.
       {
         ...base,
+        // This companion must outlive the drain/assertions, even under load.
         timeoutMs: 30_000,
         execId: 'ewlong',
         shell: 'sleep 30',
@@ -1015,10 +1169,9 @@ describe('ExecManager', () => {
       const longDone = mgr.run(
         {
           ...base,
-          execId: 'prune-long',
-          // Keep the session alive throughout all 256 spawns even on a busy
-          // host; the ordinary five-second exec deadline tests another path.
+          // Starting 256 children can exceed the usual five-second deadline.
           timeoutMs: 30_000,
+          execId: 'prune-long',
           shell: 'sleep 30',
           cwd: ROOT,
         },
@@ -1047,6 +1200,7 @@ describe('ExecManager', () => {
       }
       expect(sent).toContainEqual([99991, 'SIGTERM']);
     } finally {
+      await mgr.terminateAll();
       rmSync(procRoot, { recursive: true, force: true });
     }
   }, 30_000);
@@ -1204,7 +1358,31 @@ describe('ExecManager', () => {
     }
   });
 
-  test('attach replays the journal of a just-finished exec', async () => {
+  test('a consumer can attach from the start callback without missing or duplicating its sequence', async () => {
+    using mgr = new ExecManager(new EnvStore(), () => {});
+    const replay = collect();
+    const attached: { stream: Promise<void> | null } = { stream: null };
+    await mgr.run(
+      {
+        ...base,
+        execId: 'reentrant-attach',
+        command: ['/bin/sh', '-c', 'printf reentrant'],
+      },
+      (event) => {
+        if (event.t === 'start')
+          attached.stream = mgr.attach('reentrant-attach', replay.emit);
+      },
+    );
+    await attached.stream;
+    expect(replay.events[0]?.t).toBe('replay-start');
+    expect(replay.events.at(-1)?.t).toBe('exit');
+    const sequenced = replay.events.filter((event) => event.seq !== undefined);
+    expect(sequenced.map((event) => event.seq)).toEqual(
+      sequenced.map((_event, index) => index + 1),
+    );
+  });
+
+  test('attach replays the history of a just-finished exec', async () => {
     using mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
     await mgr.run(
@@ -1314,9 +1492,18 @@ describe('ExecManager', () => {
     const pending = controllers.map((controller) =>
       mgr.attach(
         'reader-limit',
-        () => new Promise<void>(() => {}),
+        () => {},
         0,
         controller.signal,
+        // The transport owns socket drain and wakes it on disconnect.
+        () =>
+          new Promise<void>((resolve) => {
+            if (controller.signal.aborted) resolve();
+            else
+              controller.signal.addEventListener('abort', () => resolve(), {
+                once: true,
+              });
+          }),
       ),
     );
     const refused = collect();
@@ -1332,7 +1519,7 @@ describe('ExecManager', () => {
         message: 'attachment limit reached',
       });
       expect(refused.events).toEqual([]);
-      controllers[0]!.abort();
+      controllers[0]?.abort();
       await pending[0];
       expect(mgr.hasAttachCapacity).toBe(true);
       const accepted = collect();
@@ -1389,20 +1576,19 @@ describe('ExecManager', () => {
     );
   });
 
-  test('a stalled journal writer pauses child output before queued buffers can grow', async () => {
+  test('a stalled replay writer pauses child output before queued buffers can grow', async () => {
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
-    // Called below with the original JournalBudget receiver.
+    // Called below with the original ReplayBudget receiver and spool owner.
     // oxlint-disable-next-line typescript-eslint/unbound-method
-    const reserve = JournalBudget.prototype.reserve;
-    const stalled = spyOn(
-      JournalBudget.prototype,
-      'reserve',
-    ).mockImplementation(async function (this: JournalBudget, bytes: number) {
-      entered.resolve();
-      await release.promise;
-      return reserve.call(this, bytes);
-    });
+    const reserve = ReplayBudget.prototype.reserve;
+    const stalled = spyOn(ReplayBudget.prototype, 'reserve').mockImplementation(
+      async function (this: ReplayBudget, bytes: number, owner: ExecReplay) {
+        entered.resolve();
+        await release.promise;
+        return reserve.call(this, bytes, owner);
+      },
+    );
     using mgr = new ExecManager(new EnvStore(), () => {});
     let received = 0;
     const done = mgr.run(
@@ -1450,7 +1636,7 @@ describe('ExecManager', () => {
       () => {},
       () => {},
       {},
-      { journalMaxBytes: 1024 },
+      { replayMaxBytes: 1024 },
     );
     const original = collect();
     await mgr.run(
@@ -1490,7 +1676,7 @@ describe('ExecManager', () => {
       () => {},
       () => {},
       {},
-      { journalBudgetBytes: 10_000 },
+      { replayBudgetBytes: 10_000 },
     );
     for (const execId of ['budget-old', 'budget-new'])
       await mgr.run(
@@ -1520,63 +1706,63 @@ describe('ExecManager', () => {
 
   test('eviction closes a stalled replay descriptor before reusing its disk budget', async () => {
     const maxBytes = 40_000;
-    const budget = new JournalBudget(maxBytes);
-    const journals: ExecJournal[] = [];
+    const budget = new ReplayBudget(maxBytes);
+    const spools: ExecReplay[] = [];
     const handles: unknown[] = [];
-    const replays: Promise<void>[] = [];
-    const failures: string[] = [];
+    const replays: Promise<unknown>[] = [];
     const release = Promise.withResolvers<void>();
     let finished = 0;
     try {
       for (let index = 0; index < 8; index += 1) {
-        const journal = new ExecJournal(
+        const spool = new ExecReplay(
+          { segmentBytes: maxBytes, maxBytes },
           budget,
-          () => {},
-          (code) => failures.push(code),
-          maxBytes,
         );
-        journals.push(journal);
-        journal.append(
+        spools.push(spool);
+        await spool.append(
           `${JSON.stringify({ t: 'stdout', seq: 1, b64: 'x'.repeat(30_000) })}\n`,
+          1,
         );
-        await journal.drain();
-        journal.finish();
-        // Inspect the actual descriptors, not the budget's own counter: the
-        // regression released accounting while an unlinked file remained open.
-        const handle: unknown = await Reflect.get(journal, 'ready');
-        handles.push(handle);
+        await spool.finish();
         const entered = Promise.withResolvers<void>();
         replays.push(
-          journal
-            .replay(async (event) => {
-              if (event.t === 'stdout') {
+          spool
+            .replay(
+              0,
+              1,
+              async () => {
                 entered.resolve();
                 await release.promise;
-              }
-            }, 0)
+              },
+              () => {
+                throw new Error('unexpected gap');
+              },
+            )
             .then(() => {
               finished += 1;
               return undefined;
             }),
         );
         await entered.promise;
+        // Inspect real open descriptors, not just the budget counter: unlink
+        // alone does not release physical storage while a reader holds an fd.
+        const leases: unknown = Reflect.get(spool, 'readHandles');
+        if (!(leases instanceof Set)) throw new Error('missing replay leases');
+        for (const handle of leases) handles.push(handle);
         let physicalBytes = 0;
         for (const file of handles) {
           if (typeof file !== 'object' || file === null)
-            throw new Error('missing journal handle');
+            throw new Error('missing replay handle');
           const fd: unknown = Reflect.get(file, 'fd');
-          if (typeof fd !== 'number')
-            throw new Error('missing journal descriptor');
+          if (typeof fd !== 'number') throw new Error('missing descriptor');
           if (fd >= 0) physicalBytes += fstatSync(fd).size;
         }
         expect(physicalBytes).toBeLessThanOrEqual(maxBytes);
       }
-      // Eviction, not an eventual socket timeout, released the old readers.
       expect(finished).toBe(7);
-      expect(failures).toEqual([]);
     } finally {
       release.resolve();
-      await Promise.all(journals.map((journal) => journal.dispose()));
+      await Promise.all(spools.map((spool) => spool.dispose()));
       await Promise.all(replays);
     }
   });
@@ -1587,7 +1773,7 @@ describe('ExecManager', () => {
       () => {},
       () => {},
       {},
-      { journalDirectory: ROOT + '/missing-parent' },
+      { replayDirectory: ROOT + '/missing-parent' },
     );
     const original = collect();
     await mgr.run(

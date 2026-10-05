@@ -15,7 +15,7 @@ export PYTHONUTF8=1
 export PYTHONIOENCODING=utf-8
 
 # Keep in lockstep with the version Renovate is told to leave alone, and with
-# the CI cache key in .github/workflows/security.yml.
+# the CI cache key in .github/workflows/sast.yml.
 OPENGREP_VERSION="v1.22.0"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -124,16 +124,12 @@ if [ "${#exclude_args[@]}" -gt 0 ]; then
   scan_args+=("${exclude_args[@]}")
 fi
 
-# SARIF for the GitHub Security tab (CI sets OPENGREP_SARIF_OUTPUT) is a
-# separate, NON-blocking pass: with --sarif-output the engine also counts
-# nosemgrep-suppressed findings toward --error's exit code (observed on
-# v1.22.0 and v1.25.0), so a shared scan would fail the gate on findings that
-# are suppressed by design. The SARIF itself marks them with `suppressions`,
-# which the Security tab renders correctly. Report first, so the tab is fed
-# even when the blocking gate fails below.
+# Write SARIF from the same scan that enforces the blocking gate. The pinned
+# engine preserves in-source suppressions in SARIF, ignores them for --error,
+# and retains readable text diagnostics. Real-engine regressions cover both
+# reporting and plain scans in the SAST job.
 if [ -n "${OPENGREP_SARIF_OUTPUT:-}" ]; then
-  "${bin}" scan "${scan_args[@]}" "--sarif-output=${OPENGREP_SARIF_OUTPUT}" \
-    "${targets[@]}" >/dev/null 2>&1 || true
+  scan_args+=("--sarif-output=${OPENGREP_SARIF_OUTPUT}")
 fi
 
 # The blocking gate: any unsuppressed finding exits non-zero.

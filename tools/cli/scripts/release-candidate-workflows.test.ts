@@ -40,7 +40,7 @@ type Job = {
     matrix: {
       include?: Record<string, string>[];
       shard?: number[];
-      service?: string[];
+      service?: string[] | string;
     };
   };
 };
@@ -111,6 +111,9 @@ const admission = (file: Workflow, stem: string, event: string): Admission => ({
           ci_tests: 'true',
           storybook: 'true',
           run: 'true',
+          stack: 'true',
+          platform: 'true',
+          static_services: '["web","docs"]',
           sha: candidateEvent(stem, event) ? C : '',
           candidate_sha: candidateEvent(stem, event) ? C : '',
           source_sha:
@@ -130,7 +133,10 @@ const admission = (file: Workflow, stem: string, event: string): Admission => ({
  * for missing results/outputs and exercise the default skipped-ancestor rule.
  * Reject unsupported syntax instead of silently guessing its semantics. */
 function expressionValue(source: string, state: Admission): unknown {
-  const expression = source.replace(/^\$\{\{\s*|\s*\}\}$/g, '').trim();
+  const expression = source
+    .replace(/^\$\{\{\s*|\s*\}\}$/g, '')
+    .replace(/\bfromJSON\b/g, 'fromJson')
+    .trim();
   const remaining = expression
     .replace(/'(?:[^']|'')*'/g, 'STRING')
     .replace(
@@ -204,7 +210,7 @@ describe('ordinary CI source admission', () => {
   test('new PR scope must explicitly admit each formerly workflow-filtered root', async () => {
     const roots = {
       build: ['changes'],
-      e2e: ['build', 'e2e', 'static-sites'],
+      e2e: ['scope'],
       cli: ['prepare', 'build'],
       security: ['bun-audit', 'trivy-fs'],
     };
@@ -231,6 +237,50 @@ describe('ordinary CI source admission', () => {
         }
       }
     }
+  });
+
+  test('E2E consumers inherit the native scope and platform build admission', async () => {
+    const file = await workflow('e2e');
+    expect(file.jobs.scope!.needs).toEqual(['candidate-source', 'pr-scope']);
+    expect(file.jobs.build!.needs).toEqual(['candidate-source', 'scope']);
+    expect(file.jobs['static-sites']!.needs).toEqual([
+      'candidate-source',
+      'scope',
+    ]);
+    expect(file.jobs.e2e!.needs).toEqual(['candidate-source', 'build']);
+    for (const event of [
+      'pull_request',
+      'merge_group',
+      'repository_dispatch',
+    ]) {
+      for (const result of ['failure', 'cancelled', 'skipped', ''] as const) {
+        const state = admission(file, 'e2e', event);
+        state.needs.scope!.result = result;
+        state.needs.scope!.outputs = {};
+        for (const id of ['build', 'static-sites'])
+          expect(
+            admitted(file.jobs[id]!, state, true),
+            `${event}/${id}/${result}`,
+          ).toBe(false);
+        // An unadmitted platform build is skipped; shards consume its result,
+        // not a second PR-discovery decision or an artificial successful scope.
+        state.needs.build!.result = 'skipped';
+        expect(admitted(file.jobs.e2e!, state, true)).toBe(false);
+        const build = admission(file, 'e2e', event);
+        build.needs.build!.result = result;
+        expect(
+          admitted(file.jobs.e2e!, build, true),
+          `${event}/build/${result}`,
+        ).toBe(false);
+      }
+    }
+    const unaffected = admission(file, 'e2e', 'pull_request');
+    unaffected.needs.scope!.outputs = {
+      platform: 'false',
+      static_services: '[]',
+    };
+    expect(admitted(file.jobs.build!, unaffected, true)).toBe(false);
+    expect(admitted(file.jobs['static-sites']!, unaffected, true)).toBe(false);
   });
 
   test('the limited evaluator keeps default skip propagation and rejects unsupported syntax', async () => {
@@ -273,7 +323,7 @@ describe('ordinary CI source admission', () => {
     },
   );
 
-  test('all 33 ordinary job definitions survive an intentionally skipped ancestor', async () => {
+  test('all ordinary job definitions survive an intentionally skipped ancestor', async () => {
     let count = 0;
     for (const stem of callers) {
       const file = await workflow(stem);
@@ -311,12 +361,12 @@ describe('ordinary CI source admission', () => {
           ).toBe(expected);
           state.cancelled = true;
           expect(admitted(job, state, true), `${stem}/${id} cancelled`).toBe(
-            false,
+            stem === 'checks' && id === 'test-ui',
           );
         }
       }
     }
-    expect(count).toBe(33);
+    expect(count).toBe(35);
   });
 
   test('direct source disposition and every other required predecessor fail closed', async () => {
@@ -364,6 +414,9 @@ describe('ordinary CI source admission', () => {
                   : dependency === 'pr-scope'
                     ? event !== 'pull_request' || result === 'success'
                     : dependency === 'integration-scope' ||
+                      (stem === 'checks' &&
+                        id === 'test-ui' &&
+                        dependency === 'test-ui-shards') ||
                       result === 'success';
               expect(
                 admitted(job, state, true),
@@ -404,7 +457,12 @@ describe('ordinary CI source admission', () => {
           stem === 'cli'
             ? id !== 'release'
             : stem === 'checks'
-              ? !['test-ui', 'test-browser', 'backend-integration'].includes(id)
+              ? ![
+                  'test-ui',
+                  'test-ui-shards',
+                  'test-browser',
+                  'backend-integration',
+                ].includes(id)
               : stem === 'build' &&
                 ['changes', 'vulnerability-scan'].includes(id);
         expect(admitted(job, state, true), `${stem}/${id} draft`).toBe(
@@ -416,6 +474,7 @@ describe('ordinary CI source admission', () => {
     const state = admission(build, 'build', 'pull_request');
     for (const fork of [false, true]) {
       state.github.event.pull_request.head.repo.fork = fork;
+      expect(admitted(build.jobs.build!, state, true)).toBe(!fork);
       for (const id of ['smoke-test', 'image-validate']) {
         expect(admitted(build.jobs[id]!, state, true)).toBe(!fork);
         expect(admitted(build.jobs[`${id}-fork`]!, state, true)).toBe(fork);
@@ -430,6 +489,7 @@ describe('ordinary CI source admission', () => {
       scannable_services: '[]',
       ci_tests: 'false',
       storybook: 'false',
+      stack: 'false',
     };
     for (const [id, job] of Object.entries(build.jobs)) {
       if (
@@ -596,10 +656,17 @@ describe('one candidate event reuses the complete existing validation', () => {
             names.push(`${job.name} / ${nested.name}`);
         } else if (job.strategy) {
           const matrix = job.strategy.matrix;
+          const services =
+            typeof matrix.service === 'string'
+              ? (expressionValue(
+                  matrix.service,
+                  admission(file, stem, 'repository_dispatch'),
+                ) as string[])
+              : matrix.service;
           const entries =
             matrix.include ??
             matrix.shard?.map((shard) => ({ shard })) ??
-            matrix.service!.map((service) => ({ service }));
+            services!.map((service) => ({ service }));
           for (const entry of entries)
             names.push(
               job.name!.replace(
@@ -671,6 +738,15 @@ describe('one candidate event reuses the complete existing validation', () => {
         (step) => step.name === 'Run Opengrep',
       )?.run,
     ).toContain('bash tools/opengrep/run.sh');
+    const sast = await workflow('sast');
+    const report = sast.jobs.sast!.steps!.find(
+      (step) => step.name === 'Run Opengrep',
+    )!.env!.OPENGREP_SARIF_OUTPUT!;
+    for (const event of ['push', 'pull_request', 'repository_dispatch']) {
+      expect(expressionValue(report, admission(sast, 'sast', event))).toBe(
+        event === 'repository_dispatch' ? '' : 'opengrep.sarif',
+      );
+    }
   });
 });
 

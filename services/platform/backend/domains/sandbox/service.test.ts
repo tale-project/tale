@@ -13,6 +13,7 @@ import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import {
   pinSession,
+  syncSessionPin,
   reconcileSession,
   recreatePinnedSession,
   teardownSession,
@@ -449,9 +450,15 @@ describe('pinSession serializes with the other lifecycle transitions', () => {
         'session-a',
         pinned,
       );
-      expect(data).toHaveLength(1);
+      expect(data).toHaveLength(2);
       expect(data[0]?.text).toMatch(
         /^UPDATE app\.sandbox_sessions SET pinned =/,
+      );
+      expect(addJobInTx).toHaveBeenCalledWith(
+        expect.anything(),
+        'sandbox.sync_pin',
+        { organizationId: 'org-a', sessionId: 'session-a', rowId: 'row-a' },
+        { singletonKey: JSON.stringify(['org-a', 'session-a', 'row-a']) },
       );
       expect(root).toEqual([]);
       expectLockedOnce(locks, end, 'wait');
@@ -569,7 +576,7 @@ describe('reconcileSession keeps a pinned session pinned', () => {
         observe: vi.fn(async () => ({ pinned, pinSynchronized: false })),
       });
       await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
-        pinned ? 'repinned' : 'live',
+        pinned ? 'repinned' : 'unpinned',
       );
       expect(vi.mocked(spawner.setPinned).mock.calls[0]?.slice(0, 2)).toEqual([
         'session-a',
@@ -589,7 +596,9 @@ describe('reconcileSession keeps a pinned session pinned', () => {
         return true;
       }),
     });
-    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('live');
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+      'unpinned',
+    );
     expect(runtimePin).toBe(false);
     expect(stored?.pinned).toBe(false);
     expect(locks).toHaveLength(1);
@@ -665,34 +674,40 @@ describe('reconcileSession keeps a pinned session pinned', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('recreates a gone pinned session under its id in the queued job, waiting for the lock, then re-pins it', async () => {
-    const { sql, locks, data, stored, end } = fakeSql(PINNED_SESSION);
-    const { spawner, calls } = fakeSpawner(false);
+  it.each(['agent', 'agent-light'] as const)(
+    'recreates a gone pinned %s session under its id in the queued job, waiting for the lock, then re-pins it',
+    async (profile) => {
+      const { sql, locks, data, stored, end } = fakeSql({
+        ...PINNED_SESSION,
+        profile,
+      });
+      const { spawner, calls } = fakeSpawner(false);
 
-    await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
-      'recreated',
-    );
+      await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
+        'recreated',
+      );
 
-    // The create path the agent hosts use, under the SAME id and
-    // organization: the spawner resolves the workspace by id, so this create
-    // re-attaches the preserved one. The pin follows it, since a create
-    // always starts unpinned spawner-side.
-    expect(spawner.create).toHaveBeenCalledExactlyOnceWith({
-      sessionId: 'session-a',
-      organizationId: 'org-a',
-      profile: 'agent',
-      placement: 'device',
-      workload: 'project',
-    });
-    expect(calls).toEqual([
-      'isAlive session-a',
-      'create session-a',
-      'setPinned session-a true',
-    ]);
-    expect(addJobInTx).not.toHaveBeenCalled();
-    expectLockedOnce(locks, end, 'wait');
-    expectRowUntouched(data, stored);
-  });
+      // The create path the agent hosts use, under the SAME id and
+      // organization: the spawner resolves the workspace by id, so this create
+      // re-attaches the preserved one. The pin follows it, since a create
+      // always starts unpinned spawner-side.
+      expect(spawner.create).toHaveBeenCalledExactlyOnceWith({
+        sessionId: 'session-a',
+        organizationId: 'org-a',
+        profile,
+        placement: 'device',
+        workload: 'project',
+      });
+      expect(calls).toEqual([
+        'isAlive session-a',
+        'create session-a',
+        'setPinned session-a true',
+      ]);
+      expect(addJobInTx).not.toHaveBeenCalled();
+      expectLockedOnce(locks, end, 'wait');
+      expectRowUntouched(data, stored);
+    },
+  );
 
   it('heals a gone pinned render sandbox instead of recreating it', async () => {
     const { sql, stored } = fakeSql({
@@ -1057,6 +1072,7 @@ describe('every lifecycle transition takes the session lock first', () => {
       'lock:lock',
       'connect',
       'data:UPDATE',
+      'data:SELECT',
       'setPinned session-a true',
     ]);
   });
@@ -1089,5 +1105,229 @@ describe('every lifecycle transition takes the session lock first', () => {
       true,
     );
     expect(order.slice(6)).toContain('data:UPDATE');
+  });
+});
+
+describe('durable desired pin delivery', () => {
+  it.each(['false', 'throw'] as const)(
+    'recovers a failed Unpin (%s), even after ordinary reconciliation skipped it',
+    async (failure) => {
+      const { sql, stored } = fakeSql({ ...OWNED_SESSION, pinned: true });
+      if (failure === 'false')
+        vi.mocked(sessionSetPinned).mockResolvedValueOnce(false);
+      else
+        vi.mocked(sessionSetPinned).mockRejectedValueOnce(
+          new Error('device offline'),
+        );
+      await expect(pinSession(sql, { ...ARGS, pinned: false })).rejects.toThrow(
+        failure === 'false' ? 'did not confirm pin=false' : 'device offline',
+      );
+      expect(stored?.pinned).toBe(false);
+      expect(addJobInTx).toHaveBeenCalledOnce();
+      const { spawner } = fakeSpawner(true);
+      await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('live');
+      expect(spawner.setPinned).not.toHaveBeenCalled();
+      await syncSessionPin(sql, { ...ARGS, rowId: 'row-a' }, spawner);
+      expect(spawner.setPinned).toHaveBeenCalledExactlyOnceWith(
+        'session-a',
+        false,
+      );
+      expect(addJobInTx).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('applies the latest desired value instead of replaying an earlier toggle', async () => {
+    const { sql } = fakeSql({ ...OWNED_SESSION, pinned: true });
+    const { spawner } = fakeSpawner(true);
+    await syncSessionPin(sql, { ...ARGS, rowId: 'row-a' }, spawner);
+    expect(spawner.setPinned).toHaveBeenCalledExactlyOnceWith(
+      'session-a',
+      true,
+    );
+  });
+
+  it.each(['false', 'throw'] as const)(
+    'keeps durable work after a sync failure (%s)',
+    async (failure) => {
+      const { sql } = fakeSql(OWNED_SESSION);
+      const { spawner } = fakeSpawner(true, {
+        setPinned: vi.fn(async () => {
+          if (failure === 'throw') throw new Error('device offline');
+          return false;
+        }),
+      });
+      const before = Date.now();
+      await syncSessionPin(sql, { ...ARGS, rowId: 'row-a' }, spawner);
+      expect(addJobInTx).toHaveBeenCalledWith(
+        sql,
+        'sandbox.sync_pin',
+        { ...ARGS, rowId: 'row-a' },
+        {
+          singletonKey: JSON.stringify(['org-a', 'session-a', 'row-a']),
+          startAfter: expect.any(Date),
+        },
+      );
+      const options = vi.mocked(addJobInTx).mock.calls.at(-1)?.[3];
+      expect(options?.startAfter?.getTime()).toBeGreaterThanOrEqual(
+        before + 60_000,
+      );
+    },
+  );
+
+  it('propagates a failed retry enqueue so the queue retries the attempt', async () => {
+    const { sql } = fakeSql(OWNED_SESSION);
+    const { spawner } = fakeSpawner(true, {
+      setPinned: vi.fn(async () => false),
+    });
+    vi.mocked(addJobInTx).mockRejectedValueOnce(
+      new Error('database unavailable'),
+    );
+    await expect(
+      syncSessionPin(sql, { ...ARGS, rowId: 'row-a' }, spawner),
+    ).rejects.toThrow('database unavailable');
+  });
+
+  it('never patches another incarnation or a destroyed row', async () => {
+    for (const row of [
+      { ...OWNED_SESSION, id: 'replacement' },
+      { ...OWNED_SESSION, status: 'destroyed' },
+    ]) {
+      const { sql } = fakeSql(row);
+      const { spawner } = fakeSpawner(true);
+      await syncSessionPin(sql, { ...ARGS, rowId: 'row-a' }, spawner);
+      expect(spawner.setPinned).not.toHaveBeenCalled();
+    }
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('still delivers a failed Unpin after the database allocation expired', async () => {
+    const { sql } = fakeSql({ ...OWNED_SESSION, status: 'expired' });
+    const { spawner } = fakeSpawner(true);
+    await syncSessionPin(sql, { ...ARGS, rowId: 'row-a' }, spawner);
+    expect(spawner.setPinned).toHaveBeenCalledExactlyOnceWith(
+      'session-a',
+      false,
+    );
+  });
+
+  it('finishes a refused patch when compute is definitively gone', async () => {
+    const { sql } = fakeSql(OWNED_SESSION);
+    const { spawner } = fakeSpawner(false, {
+      setPinned: vi.fn(async () => false),
+    });
+    await syncSessionPin(sql, { ...ARGS, rowId: 'row-a' }, spawner);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('does not patch remotely when the atomic delivery enqueue fails', async () => {
+    const { sql } = fakeSql(OWNED_SESSION);
+    vi.mocked(addJobInTx).mockRejectedValueOnce(new Error('cannot enqueue'));
+    await expect(pinSession(sql, { ...ARGS, pinned: true })).rejects.toThrow(
+      'cannot enqueue',
+    );
+    expect(sessionSetPinned).not.toHaveBeenCalled();
+  });
+});
+
+describe('historical runtime pin drift', () => {
+  it.each(['stopped', 'expired'])(
+    'finishes an unpublished Unpin on a %s workspace through the production observation shape',
+    async (status) => {
+      const { sql, stored } = fakeSql({ ...OWNED_SESSION, status });
+      const observe = vi.fn(async () => ({
+        pinned: false,
+        pinSynchronized: false,
+      }));
+      const { spawner } = fakeSpawner(true, { observe });
+      await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+        'unpinned',
+      );
+      expect(observe).toHaveBeenCalledTimes(2);
+      expect(spawner.isAlive).not.toHaveBeenCalled();
+      expect(spawner.setPinned).toHaveBeenCalledExactlyOnceWith(
+        'session-a',
+        false,
+      );
+      expect(addJobInTx).toHaveBeenCalledOnce();
+      expect(stored?.status).toBe(status);
+      expect(spawner.create).not.toHaveBeenCalled();
+      expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['active', 'stopped', 'expired'])(
+    'repairs a stale pin on the current %s incarnation and persists retry work',
+    async (status) => {
+      const { sql, stored } = fakeSql({ ...OWNED_SESSION, status });
+      const observe = vi.fn(async () => ({ pinned: true }));
+      const { spawner } = fakeSpawner(true, { observe });
+      await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+        'unpinned',
+      );
+      expect(observe).toHaveBeenCalledTimes(2); // unlocked look, then locked revalidation
+      expect(spawner.isAlive).not.toHaveBeenCalled();
+      expect(spawner.setPinned).toHaveBeenCalledExactlyOnceWith(
+        'session-a',
+        false,
+      );
+      expect(addJobInTx).toHaveBeenCalledWith(
+        expect.anything(),
+        'sandbox.sync_pin',
+        { ...ARGS, rowId: 'row-a' },
+        expect.anything(),
+      );
+      expect(stored?.status).toBe(status);
+      expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+      expect(spawner.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['stopped', 'expired'])(
+    'preserves a %s workspace when runtime is absent or carries no pin metadata',
+    async (status) => {
+      for (const runtime of [
+        { alive: false },
+        { alive: true },
+        { alive: true, pinned: false },
+      ]) {
+        const { sql, stored } = fakeSql({ ...OWNED_SESSION, status });
+        const { spawner } = fakeSpawner(runtime.alive, {
+          observe: vi.fn(async () => (runtime.alive ? runtime : null)),
+        });
+        await reconcileSession(sql, ARGS, spawner);
+        expect(stored?.status).toBe(status);
+        expect(spawner.setPinned).not.toHaveBeenCalled();
+        expect(spawner.create).not.toHaveBeenCalled();
+      }
+      expect(addJobInTx).not.toHaveBeenCalled();
+      expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+    },
+  );
+
+  it('leaves a refused historical unpin durably queued', async () => {
+    const { sql } = fakeSql(OWNED_SESSION);
+    const { spawner } = fakeSpawner(true, {
+      observe: vi.fn(async () => ({ pinned: true })),
+      setPinned: vi.fn(async () => false),
+    });
+    await expect(reconcileSession(sql, ARGS, spawner)).rejects.toThrow(
+      'did not remove the pin',
+    );
+    expect(addJobInTx).toHaveBeenCalledOnce();
+  });
+
+  it('rechecks desired pin after acquiring the lifecycle lock', async () => {
+    const { sql, stored } = fakeSql(OWNED_SESSION);
+    let reads = 0;
+    const { spawner } = fakeSpawner(true, {
+      observe: vi.fn(async () => {
+        reads += 1;
+        if (reads === 2 && stored !== null) stored.pinned = true;
+        return { pinned: true };
+      }),
+    });
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('live');
+    expect(spawner.setPinned).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
   });
 });

@@ -156,6 +156,9 @@ analytics:
     emptyVoiceModels:
       title: Aucune utilisation vocale
       description: Aucune synthèse TTS n'a été enregistrée pour la période sélectionnée.
+    errors:
+      loadFailed: Impossible de charger les métriques d'utilisation.
+      refreshFailed: Impossible d'actualiser les métriques d'utilisation. Les chiffres affichés ne sont peut-être plus à jour.
   feedback:
     title: Métriques des retours
     description:
@@ -245,6 +248,8 @@ analytics:
       emptyTitle: Aucun retour sur cette période
       emptyDescription: Ajuste la période ou les filtres pour en voir davantage.
       noComment: (aucun commentaire)
+      loadingComment: Chargement du commentaire complet…
+      commentLoadFailed: Impossible de charger le commentaire complet.
       helpfulAria: Utile
       notHelpfulAria: Pas utile
       types:
@@ -2785,6 +2790,9 @@ emptyStates:
     description: Génère une clé pour connecter des outils et scripts externes.
     descriptionNoCreate: Créer une clé demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
 governance:
+  policyReadFailed: "Impossible de charger la politique enregistrée. La modification sera disponible après un chargement réussi."
+  policyReadRetry: Réessayer
+  policyReadRetrying: Rechargement de la politique en cours
   title: Gouvernance
   toastSavedTitle: Modifications enregistrées
   toastSaveFailedTitle: Échec de l'enregistrement des modifications
@@ -3943,6 +3951,8 @@ governance:
     emptyTitle: La corbeille est vide
     entityLabelOne: enregistrement
     entityLabel: enregistrements
+    refreshFailed: Impossible de charger les derniers enregistrements. La liste est peut-être incomplète ou obsolète.
+    loadFailed: Impossible de charger les enregistrements de la corbeille.
   legalHold:
     targetTypes:
       thread: Thread
@@ -5477,6 +5487,7 @@ skills:
       bundle.
     refused: Ton organisation réserve le partage avec tout le monde, et tu n'as
       pas le droit de publier. Partage plutôt ce skill avec tes équipes.
+    exists: Un skill portant ce nom existe déjà. Aucune modification n’a été effectuée.
   addMenu:
     label: Ajouter un skill
   createMenu:
@@ -6261,6 +6272,9 @@ settings:
       save: Enregistrer les origines
       saved: Paramètres d’intégration enregistrés
       saveFailed: Impossible d’enregistrer les paramètres d’intégration
+      unavailable: Indisponible
+      readFailed: Impossible de charger les paramètres d’intégration. Réessaie.
+      retry: Réessayer
       sameSiteNote:
         Un cadre ne reçoit la session connectée que si la page englobante est
         sur le même site que Tale, par exemple un sous-domaine de l’hôte ou Tale servi
@@ -6628,6 +6642,7 @@ settings:
     yourApiKey: Ta clé API
     keyRevoked: Clé API révoquée
     keyRevokeFailed: Échec de la révocation de la clé API
+    keyCreateFailed: Échec de la création de la clé API
     revokeKey: Révoquer la clé
     revokeKeyTitle: Révoquer la clé API
     revokeConfirmation: Es-tu sûr de vouloir révoquer la clé API « {keyName} » ?
@@ -7461,6 +7476,8 @@ projectSecrets:
     PROJECT_FORBIDDEN: Tu n'as pas accès aux secrets de ce projet. Seuls les
       administrateurs du projet peuvent les consulter ou les gérer.
     PROJECT_NOT_FOUND: Ce projet n'existe plus.
+    loadFailed: "Impossible de charger les secrets de ce projet."
+    refreshFailed: "Impossible d'actualiser les secrets de ce projet. L'affichage n'est peut-être plus à jour."
 tasks:
   sourceIssue:
     heading: 'Issue {provider}'
@@ -8799,6 +8816,7 @@ projects:
   sharing:
     effectiveAudience: Audience effective
     noTeamsHint: Aucune équipe pour l'instant.
+    teamsLoadError: Impossible de charger les équipes.
     noTeamsCreateLink: Créer une équipe
 webdav:
   description: Monte les documents Tale comme lecteur réseau dans Finder, File

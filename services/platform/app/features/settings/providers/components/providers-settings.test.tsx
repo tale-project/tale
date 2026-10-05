@@ -1248,5 +1248,49 @@ describe('ProvidersSettings', () => {
         'The provider changed since it was loaded. Reopen the dialog and try again.',
       );
     });
+
+    it('shows back in manual entry the model ids Save sends after discovery removed one', async () => {
+      fixtures.catalogs = [
+        anthropicProvider,
+        { ...customVendor, catalogSource: 'none', models: [] },
+      ];
+      fixtures.credentials = [
+        { ...customCredential, modelAllowlist: ['alpha', 'beta'] },
+      ];
+      updateCredential.mockResolvedValue(null);
+      const { user } = renderPage();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Qwen CN' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      const ids = () =>
+        dialog.getByRole('textbox', { name: /^Model allowlist/ });
+      expect(ids()).toHaveValue('alpha, beta');
+
+      await user.click(
+        dialog.getByRole('radio', { name: /Discover from the endpoint/ }),
+      );
+      await user.click(dialog.getByRole('button', { name: 'Remove alpha' }));
+      await user.click(dialog.getByRole('radio', { name: /Enter model IDs/ }));
+      // The field says what the Save below sends, not what it opened with.
+      expect(ids()).toHaveValue('beta');
+
+      await user.click(dialog.getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(updateCredential).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelAllowlist: ['beta'],
+            customProvider: expect.objectContaining({ catalogSource: 'none' }),
+          }),
+        ),
+      );
+    });
   });
 });

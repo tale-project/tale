@@ -9,6 +9,7 @@ export const CI_JOBS = {
     'build',
     'test',
     'test-ui',
+    'test-ui-shards',
     'performance',
     'knip',
     'test-browser',
@@ -36,6 +37,7 @@ export const CI_JOBS = {
   e2e: [
     'candidate-source',
     'pr-scope',
+    'scope',
     'build',
     'e2e',
     'static-sites',
@@ -102,6 +104,7 @@ export const BUILD_FILTERS = [
   ...BUILD_SERVICES,
   'ci_tests',
   'storybook',
+  'image_inputs',
 ] as const;
 
 /** Export only recognized native service/pseudo-filter IDs from one discovery. */
@@ -110,13 +113,31 @@ export function buildScope(filters: unknown, full: boolean) {
   if (!sameSet(Object.keys(values), BUILD_FILTERS))
     throw new Error('Incomplete Build filters');
   const selected = BUILD_FILTERS.filter((name) => scopeBoolean(values[name]));
-  const changes = full ? [...BUILD_FILTERS] : selected;
+  const changes =
+    full || selected.includes('image_inputs')
+      ? BUILD_FILTERS.filter((name) => name !== 'image_inputs')
+      : selected;
   return {
     changes: JSON.stringify(changes),
     ci_tests: String(changes.includes('ci_tests')),
     storybook: String(changes.includes('storybook')),
   };
 }
+export const E2E_SERVICES = ['platform', 'web', 'docs'] as const;
+
+/** Preserve the service policy from the same validated frozen PR discovery. */
+export function e2eScope(filters: unknown, full: boolean) {
+  const values = object(filters, 'E2E filters');
+  if (!sameSet(Object.keys(values), E2E_SERVICES))
+    throw new Error('Incomplete E2E filters');
+  return Object.fromEntries(
+    E2E_SERVICES.map((name) => {
+      const selected = scopeBoolean(values[name]);
+      return [name, String(full || selected)];
+    }),
+  );
+}
+
 type Workflow = keyof typeof CI_JOBS;
 type ObjectValue = Record<string, unknown>;
 
@@ -333,6 +354,26 @@ export function evaluateReadiness(input: {
         throw new Error('Merge group must run backend integration');
       requireResult('backend-integration', run ? 'success' : 'skipped');
     }
+    if (workflow === 'e2e' && applicable) {
+      requireResult('scope', 'success', 'validated E2E service scope');
+      const discovered = outputs.get('scope')!;
+      const platform = scopeBoolean(discovered.platform);
+      const services = strings(
+        discovered.static_services,
+        ['web', 'docs'],
+        'static_services',
+      );
+      if (full && (!platform || !sameSet(services, ['web', 'docs'])))
+        throw new Error('Full E2E scope lost service coverage');
+      if (!platform && services.length === 0)
+        throw new Error('Applicable E2E scope must select a service');
+      requireResult('build', platform ? 'success' : 'skipped');
+      requireResult('e2e', platform ? 'success' : 'skipped');
+      requireResult(
+        'static-sites',
+        services.length > 0 ? 'success' : 'skipped',
+      );
+    }
     if (workflow === 'build' && applicable) {
       requireResult('changes', 'success', 'validated service scope');
       const discovered = outputs.get('changes')!;
@@ -351,8 +392,12 @@ export function evaluateReadiness(input: {
       );
       if (!sameSet(scans, expectedScans))
         throw new Error('Image scan scope differs from discovered services');
-      const compose = services.length > 0 || ci;
-      requireResult('build', compose ? 'success' : 'skipped');
+      const compose = scopeBoolean(discovered.stack);
+      if (compose !== (ci || expectedScans.length > 0))
+        throw new Error(
+          'Platform stack scope differs from discovered services',
+        );
+      requireResult('build', compose && !fork ? 'success' : 'skipped');
       for (const job of ['smoke-test', 'image-validate']) {
         requireResult(job, compose && !fork ? 'success' : 'skipped');
         requireResult(`${job}-fork`, compose && fork ? 'success' : 'skipped');

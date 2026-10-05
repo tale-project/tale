@@ -13,9 +13,15 @@ import {
   type V1Secret,
 } from '@kubernetes/client-node';
 
+import {
+  operationSignal,
+  outsideOperationBudget,
+  withOperationBudget,
+} from '../../operation-budget.ts';
 import { waitForRunnerd } from '../../session/runnerd-client.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import { deriveRunnerdToken } from '../../session/session-naming.ts';
+import { isAgentSessionProfile } from '../../session/session-profile.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { ID_ALPHABET_RE } from '../../wire.ts';
 import {
@@ -63,6 +69,12 @@ function conflictError(sessionId: string, cause: unknown): Error {
  * orphan rather than a peer replica's create in flight. */
 const ORPHAN_SECRET_SLACK_MS = 60_000;
 
+interface CreateOwnership {
+  podUid?: string;
+  secretUid?: string;
+  podConflict?: boolean;
+}
+
 export class KubernetesSessionBackend implements SessionBackend {
   readonly kind = 'kubernetes' as const;
   private readonly client: K8sClient;
@@ -81,13 +93,52 @@ export class KubernetesSessionBackend implements SessionBackend {
   }
 
   async createSession(spec: SessionSpec): Promise<CreateSessionResult> {
+    const ownership: CreateOwnership = {};
+    return withOperationBudget(
+      this.cfg.session.createHealthTimeoutMs,
+      async (signal) => {
+        try {
+          const created = await this.createSessionWithinBudget(spec, ownership);
+          signal.throwIfAborted();
+          return created;
+        } catch (error) {
+          // A cancelled create cannot spend its expired operation budget on
+          // cleanup. Retain only acknowledged API identities across this
+          // boundary; matching timestamps never establish attempt ownership.
+          await outsideOperationBudget(() =>
+            withOperationBudget(30_000, () =>
+              this.cleanupFailedCreate(
+                spec.sessionId,
+                ownership.podUid,
+                ownership.secretUid,
+                ownership.podConflict,
+              ),
+            ),
+          ).catch((cleanupError: unknown) => {
+            console.warn(
+              '[sandbox.session] failed pod create cleanup deferred:',
+              cleanupError,
+            );
+          });
+          throw error;
+        }
+      },
+      spec.signal,
+    );
+  }
+
+  private async createSessionWithinBudget(
+    spec: SessionSpec,
+    ownership: CreateOwnership,
+  ): Promise<CreateSessionResult> {
+    const deadline = Date.now() + this.cfg.session.createHealthTimeoutMs;
     // A pre-existing workspace PVC means this is a RESUME of a stopped session.
     // A failed create here must NOT delete that PVC (it holds the user's
     // preserved data). Failed creates always retain deterministic PVCs: a
     // peer may have mounted even a newly created claim.
     // Only agent sessions keep a workspace volume; a crawler render's
     // workspace lives and dies with its Pod (k8s-session-pod-spec.ts).
-    const durable = spec.profile === 'agent';
+    const durable = isAgentSessionProfile(spec.profile);
     const preexisting =
       durable && (await this.workspacePvcExists(spec.sessionId));
     // On a resume (preexisting PVC) a Pod that died out-of-band can still hold
@@ -118,8 +169,6 @@ export class KubernetesSessionBackend implements SessionBackend {
           : {}),
       },
     };
-    let ownedSecretUid: string | undefined;
-    let ownedPodUid: string | undefined;
     const createSecret = () =>
       withRetry('create-session-secret', () =>
         this.client.core.createNamespacedSecret(
@@ -129,7 +178,7 @@ export class KubernetesSessionBackend implements SessionBackend {
       );
     try {
       try {
-        ownedSecretUid = (await createSecret()).metadata?.uid;
+        ownership.secretUid = (await createSecret()).metadata?.uid;
       } catch (err) {
         if (httpStatusCode(err) !== 409) throw err;
         // A first attempt that timed out client-side can still have been
@@ -140,7 +189,7 @@ export class KubernetesSessionBackend implements SessionBackend {
           // node drain or PodGC) would 409 every create of this session for
           // good: remove that orphan and try once more.
           if (!(await this.removeOrphanSecret(spec.sessionId))) throw err;
-          ownedSecretUid = (await createSecret()).metadata?.uid;
+          ownership.secretUid = (await createSecret()).metadata?.uid;
         }
       }
     } catch (err) {
@@ -155,16 +204,10 @@ export class KubernetesSessionBackend implements SessionBackend {
       if (httpStatusCode(err) === 409) throw conflictError(spec.sessionId, err);
       // An ambiguous response does not establish ownership. Preserve every
       // object without an acknowledged UID, and every workspace PVC.
-      await this.cleanupFailedCreate(
-        spec.sessionId,
-        ownedPodUid,
-        ownedSecretUid,
-      );
       throw err;
     }
     // The Pod carries this creator's deadline, so a replacement spawner with
     // a shorter configured timeout never reaps a healthy peer's startup.
-    const deadline = Date.now() + this.cfg.session.createHealthTimeoutMs;
     try {
       const createdPod = await withRetry('create-session-pod', () =>
         this.client.core.createNamespacedPod(
@@ -182,7 +225,7 @@ export class KubernetesSessionBackend implements SessionBackend {
           apiTimeout(),
         ),
       );
-      ownedPodUid = createdPod.metadata?.uid;
+      ownership.podUid = createdPod.metadata?.uid;
     } catch (err) {
       if (httpStatusCode(err) === 409) {
         // A first attempt that timed out client-side can still have been
@@ -193,15 +236,10 @@ export class KubernetesSessionBackend implements SessionBackend {
           // from a stop/destroy in flight). Leave the Pod and the PVC alone —
           // only the Secret THIS call created is ours, and leaving it behind
           // would 409 every future create of this session forever.
-          await this.deleteOwnSecret(spec.sessionId, ownedSecretUid);
+          ownership.podConflict = true;
           throw conflictError(spec.sessionId, err);
         }
       } else {
-        await this.cleanupFailedCreate(
-          spec.sessionId,
-          ownedPodUid,
-          ownedSecretUid,
-        );
         throw err;
       }
     }
@@ -210,21 +248,12 @@ export class KubernetesSessionBackend implements SessionBackend {
     // waitForEndpoint and waitForRunnerd share ONE budget: the time spent
     // waiting for the Pod IP is deducted from what runnerd readiness gets, so
     // a slow scheduler can't double-spend createHealthTimeoutMs.
-    try {
-      const endpoint = await this.waitForEndpoint(spec.sessionId, deadline);
-      const remainingMs = Math.max(0, deadline - Date.now());
-      await waitForRunnerd(
-        { baseUrl: endpoint, token: this.tokenFor(spec.sessionId) },
-        remainingMs,
-      );
-    } catch (err) {
-      await this.cleanupFailedCreate(
-        spec.sessionId,
-        ownedPodUid,
-        ownedSecretUid,
-      );
-      throw err;
-    }
+    const endpoint = await this.waitForEndpoint(spec.sessionId, deadline);
+    const remainingMs = Math.max(0, deadline - Date.now());
+    await waitForRunnerd(
+      { baseUrl: endpoint, token: this.tokenFor(spec.sessionId) },
+      remainingMs,
+    );
     return { resumed: preexisting };
   }
 
@@ -377,9 +406,14 @@ export class KubernetesSessionBackend implements SessionBackend {
     sessionId: string,
     podUid: string | undefined,
     secretUid: string | undefined,
+    podConflict = false,
   ): Promise<void> {
     if (podUid === undefined && secretUid === undefined) return;
     try {
+      if (podConflict) {
+        await this.deleteOwnSecret(sessionId, secretUid);
+        return;
+      }
       let pod: V1Pod | undefined;
       try {
         pod = await this.readPod(sessionId);
@@ -441,6 +475,7 @@ export class KubernetesSessionBackend implements SessionBackend {
     deadlineMs: number,
   ): Promise<string> {
     for (;;) {
+      operationSignal()?.throwIfAborted();
       const ip = (await this.readPod(sessionId))?.status?.podIP;
       if (ip) return `http://${ip}:${RUNNERD_PORT}`;
       if (Date.now() > deadlineMs) {
@@ -991,7 +1026,9 @@ export class KubernetesSessionBackend implements SessionBackend {
       out.push({
         sessionId,
         organizationId: org,
-        profile: ann['tale.dev/profile'] === 'agent' ? 'agent' : 'default',
+        profile: isAgentSessionProfile(ann['tale.dev/profile'])
+          ? ann['tale.dev/profile']
+          : 'default',
         ...(ann['tale.dev/docker'] === undefined
           ? {}
           : { docker: ann['tale.dev/docker'] === 'true' }),

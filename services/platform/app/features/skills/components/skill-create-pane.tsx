@@ -99,6 +99,7 @@ export function SkillCreatePane({
         visibility: sharing.visibility,
         ...(sharing.visibility === 'team' ? { teams: [...sharing.teams] } : {}),
         labels: [],
+        createOnly: true,
       });
       toast({ title: t('createDialog.created'), variant: 'success' });
       onCreated(trimmedSlug);

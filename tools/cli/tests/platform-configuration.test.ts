@@ -10,20 +10,13 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 import { valueHash } from '../src/lib/config/releases/identity';
 import { record } from '../src/lib/config/releases/model';
+import { commandTargets } from './fixtures/command-targets';
 
-const source = fileURLToPath(new URL('../src/index.ts', import.meta.url));
-const binary = process.env.TALE_BINARY
-  ? resolve(process.env.TALE_BINARY)
-  : undefined;
-const modes: [string, string[]][] = [
-  ['source', [process.execPath, source]],
-  ...(binary ? [['compiled', [binary]] as [string, string[]]] : []),
-];
+const modes = commandTargets(process.env.TALE_BINARY);
 const directories: string[] = [];
 afterEach(() => {
   for (const directory of directories.splice(0))

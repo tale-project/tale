@@ -19,6 +19,7 @@ interface TeamMemberChecklistProps {
   selectedMemberIds: Set<string>;
   onToggleMember: (userId: string) => void;
   enforceMinimumOne?: boolean;
+  disabled?: boolean;
 }
 
 export function TeamMemberChecklist({
@@ -26,6 +27,7 @@ export function TeamMemberChecklist({
   selectedMemberIds,
   onToggleMember,
   enforceMinimumOne = false,
+  disabled = false,
 }: TeamMemberChecklistProps) {
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -54,8 +56,14 @@ export function TeamMemberChecklist({
             : undefined;
         // Block unchecking the only remaining member — keeping a team memberless
         // is rejected server-side.
-        const disabled = isLastMember && selectedMemberIds.has(member.userId);
-        return { value: member.userId, label, description, disabled };
+        const optionDisabled =
+          isLastMember && selectedMemberIds.has(member.userId);
+        return {
+          value: member.userId,
+          label,
+          description,
+          disabled: optionDisabled,
+        };
       }),
     [orgMembers, tSettings, isLastMember, selectedMemberIds],
   );
@@ -111,6 +119,7 @@ export function TeamMemberChecklist({
         emptyText={tCommon('search.noResults')}
         aria-label={tSettings('teams.manageMembers')}
         modal
+        disabled={disabled}
       />
       {isLastMember && (
         <p className="text-muted-foreground text-xs">

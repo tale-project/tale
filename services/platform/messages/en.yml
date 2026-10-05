@@ -144,6 +144,9 @@ analytics:
     emptyVoiceModels:
       title: No voice usage yet
       description: No TTS synthesis has been recorded for the selected period.
+    errors:
+      loadFailed: Couldn't load usage metrics.
+      refreshFailed: Couldn't refresh usage metrics. The figures shown may be out of date.
   feedback:
     title: Feedback metrics
     description: User-submitted thumbs up/down and arena verdicts on assistant responses.
@@ -232,6 +235,8 @@ analytics:
       emptyTitle: No feedback in this window
       emptyDescription: Adjust the period or filters to see more.
       noComment: (no comment)
+      loadingComment: Loading full comment…
+      commentLoadFailed: Couldn't load the full comment.
       helpfulAria: Helpful
       notHelpfulAria: Not helpful
       types:
@@ -2660,6 +2665,9 @@ emptyStates:
     description: Generate a key to connect external tools and scripts.
     descriptionNoCreate: Creating a key takes the Owner, Admin or Developer role, or a competence an Admin grants for one.
 governance:
+  policyReadFailed: "Couldn't load the saved policy. Editing is unavailable until the policy can be read."
+  policyReadRetry: Retry
+  policyReadRetrying: Retrying policy read
   title: Governance
   toastSavedTitle: Changes saved
   toastSaveFailedTitle: Couldn't save changes
@@ -3740,6 +3748,8 @@ governance:
     emptyTitle: Trash is empty
     entityLabelOne: record
     entityLabel: records
+    refreshFailed: Couldn't load the latest records. What's listed may be incomplete or out of date.
+    loadFailed: Couldn't load the records in Trash.
   legalHold:
     targetTypes:
       thread: Thread
@@ -5231,6 +5241,7 @@ skills:
       ask an admin to upload this bundle.
     refused: Your organization reserves sharing with everyone, and you aren't
       allowed to publish. Share the skill with your teams instead.
+    exists: A skill with this name already exists. Nothing was changed.
   addMenu:
     label: Add skill
   createMenu:
@@ -5697,6 +5708,7 @@ projects:
     effectiveAudience: Effective audience
     noTeamsHint: No teams yet.
     noTeamsCreateLink: Create a team
+    teamsLoadError: Couldn't load teams.
 settings:
   menu:
     groups:
@@ -6366,6 +6378,9 @@ settings:
       save: Save origins
       saved: Embedding settings saved
       saveFailed: Couldn't save the embedding settings
+      unavailable: Unavailable
+      readFailed: Couldn't load embedding settings. Try again.
+      retry: Try again
       sameSiteNote:
         A frame receives the signed-in session only when the surrounding page
         is on the same site as Tale, for example a subdomain of the host or Tale served
@@ -6700,6 +6715,7 @@ settings:
     yourApiKey: Your API key
     keyRevoked: API key revoked
     keyRevokeFailed: Couldn't revoke API key
+    keyCreateFailed: Couldn't create API key
     revokeKey: Revoke key
     revokeKeyTitle: Revoke API key
     revokeConfirmation: 'Revoke "{keyName}"? Any applications using this key will immediately lose access. This can''t be undone.'
@@ -7506,6 +7522,8 @@ projectSecrets:
       You don't have access to this project's secrets. Only project
       administrators can view or manage them.
     PROJECT_NOT_FOUND: This project no longer exists.
+    loadFailed: "Couldn't load this project's secrets."
+    refreshFailed: "Couldn't refresh this project's secrets. What's shown may be out of date."
 tasks:
   sourceIssue:
     heading: '{provider} issue'

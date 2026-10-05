@@ -33,6 +33,33 @@ function optionFor(name: string): HTMLElement {
 const LAST_MEMBER_HINT = /A team must keep at least one member/i;
 
 describe('TeamMemberChecklist', () => {
+  it('blocks opening and toggling members while disabled, including an already open list', async () => {
+    setMembers(MEMBERS);
+    const onToggleMember = vi.fn();
+    const props = {
+      organizationId: 'org-1',
+      selectedMemberIds: new Set(['user-1']),
+      onToggleMember,
+    };
+    const { user, rerender } = render(
+      <TeamMemberChecklist {...props} disabled />,
+    );
+    expect(screen.getByRole('combobox')).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    await openDropdown(user);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    rerender(<TeamMemberChecklist {...props} />);
+    await openDropdown(user);
+    rerender(<TeamMemberChecklist {...props} disabled />);
+    await user.click(optionFor('Bob'));
+    expect(onToggleMember).not.toHaveBeenCalled();
+    rerender(<TeamMemberChecklist {...props} />);
+    await user.click(optionFor('Bob'));
+    expect(onToggleMember).toHaveBeenCalledWith('user-2');
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       setMembers(MEMBERS);
