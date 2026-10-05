@@ -32,9 +32,11 @@ import { assertTaskReadable } from './service.ts';
  *   that came first). A task that reached Done without ever being in
  *   progress has a lead time and no cycle time.
  * - end-of-day flow (status counts, WIP, overdue, stale) — the task table
- *   replayed backwards through the window's status changes from its
+ *   replayed backwards through the window's status and archive changes from its
  *   current state: exact for every day the scan covers, where the 0.3 cron
- *   could only snapshot its own day.
+ *   could only snapshot its own day. Archive/restore rows are state toggles,
+ *   so tied timestamps need no order; without a scanned transition, the
+ *   task's archive timestamp remains the fallback.
  * - agent runs started / failed, spend — `project_agent_runs` by start day;
  *   the spend is the run's sandbox op row (`spent_cents`), the same figure
  *   the external-turn metrics count.
@@ -296,23 +298,26 @@ export function foldProjectTaskMetrics(
     if (day !== undefined) day.escalations += 1;
   }
 
-  // ---- end-of-day flow: replay the status changes backwards ---------------
+  // ---- end-of-day flow: replay status and archive changes backwards --------
   // Newest first: walking the days from today back, every change stamped at
   // or after a day's end is undone (the task returns to its `from` status)
   // before that day is counted.
   const changes = sources.activity
-    .filter((row) => row.action === 'status.changed')
+    .filter((row) =>
+      ['status.changed', 'archived', 'restored'].includes(row.action),
+    )
     .sort((a, b) => b.createdAt - a.createdAt);
   const changesByTask = new Map<string, MetricsActivityRow[]>();
   for (let i = changes.length - 1; i >= 0; i--) {
     const change = changes[i];
-    if (change === undefined) continue;
+    if (change === undefined || change.action !== 'status.changed') continue;
     const own = changesByTask.get(change.taskId);
     if (own === undefined) changesByTask.set(change.taskId, [change]);
     else own.push(change);
   }
   const state = new Map<string, string>();
   for (const task of sources.tasks) state.set(task.id, task.status);
+  const archiveState = new Map<string, boolean>();
   const undone = new Map<string, number>();
   let cursor = 0;
   const keysNewestFirst = [...currentKeys, ...previousKeys].sort((a, b) =>
@@ -326,12 +331,22 @@ export function foldProjectTaskMetrics(
       const change = changes[cursor];
       if (change === undefined || change.createdAt < end) break;
       cursor += 1;
+      if (change.action === 'archived' || change.action === 'restored') {
+        const archived =
+          archiveState.get(change.taskId) ??
+          tasks.get(change.taskId)?.archivedAt != null;
+        archiveState.set(change.taskId, !archived);
+        continue;
+      }
       if (change.fromValue !== null) state.set(change.taskId, change.fromValue);
       undone.set(change.taskId, (undone.get(change.taskId) ?? 0) + 1);
     }
     for (const task of sources.tasks) {
       if (task.createdAt >= end) continue;
-      if (task.archivedAt !== null && task.archivedAt < end) continue;
+      const archived =
+        archiveState.get(task.id) ??
+        (task.archivedAt !== null && task.archivedAt < end);
+      if (archived) continue;
       const status = state.get(task.id);
       if (!isOpenStatus(status)) continue;
       day.statusCountsEod[status] += 1;
@@ -406,7 +421,7 @@ async function loadProjectMetricsSources(
       FROM app.task_activity
       WHERE org_id = ${organizationId} AND project_id = ${projectId}
         AND created_at_ms >= ${scanStart}
-        AND action IN ('created', 'status.changed', 'review.responded')
+        AND action IN ('created', 'status.changed', 'review.responded', 'archived', 'restored')
       ORDER BY created_at_ms DESC
       LIMIT ${pageSize}
     `,
