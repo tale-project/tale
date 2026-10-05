@@ -6,7 +6,10 @@ import { useFileEvents } from '@/app/hooks/use-file-events';
 import { libraryWriteAdapters } from '@/app/lib/backend/library';
 import { projectCapabilityCatalogKey } from '@/app/lib/backend/query-keys';
 import { settingsWriteAdapters } from '@/app/lib/backend/settings';
-import { useBackendHints } from '@/app/lib/backend/use-backend-hints';
+import {
+  HINT_BATCH_MS,
+  useBackendHints,
+} from '@/app/lib/backend/use-backend-hints';
 import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { useProjectCapabilityCatalog } from '../hooks/queries';
@@ -227,10 +230,77 @@ describe('project capability catalog invalidation', () => {
           .find((s) => s.url === '/events/file')
           ?.emit('message', { type, orgSlug: 'synthetic' }),
       );
+      await invalidated();
       await reopen(view);
       expect(reads.get('p-other')).toBe(2);
     },
   );
+  it('coalesces distinct skill and connector events across tasks into one catalog refetch', async () => {
+    const view = await warmPicker();
+    teamVisible = true;
+    const source = FixtureEventSource.sources.find(
+      (s) => s.url === '/events/file',
+    );
+    expect(source).toBeDefined();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    vi.useFakeTimers();
+    try {
+      for (let i = 0; i < 100; i += 1) {
+        act(() =>
+          source?.emit('message', {
+            type: i % 2 === 0 ? 'skills' : 'connectors',
+            orgSlug: 'synthetic',
+            slug: `skill-${i}`,
+          }),
+        );
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
+      }
+      expect(reads.get('p-other')).toBe(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+      });
+      expect(reads.get('p-other')).toBe(2);
+      expect(
+        invalidate.mock.calls.filter(
+          ([filters]) =>
+            JSON.stringify(filters?.queryKey) ===
+            JSON.stringify(projectCapabilityCatalogKey('org-1')),
+        ),
+      ).toHaveLength(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+      });
+      expect(reads.get('p-other')).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+    await reopen(view);
+  });
+  it('cancels queued catalog invalidations on unmount', async () => {
+    const view = await warmPicker();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    vi.useFakeTimers();
+    try {
+      act(() =>
+        FixtureEventSource.sources
+          .find((s) => s.url === '/events/file')
+          ?.emit('message', { type: 'skills', orgSlug: 'synthetic' }),
+      );
+      view.unmount();
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+      expect(
+        invalidate.mock.calls.filter(
+          ([filters]) =>
+            JSON.stringify(filters?.queryKey) ===
+            JSON.stringify(projectCapabilityCatalogKey('org-1')),
+        ),
+      ).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('ignores catalog file events for an unrelated org', async () => {
     await warmPicker();
     act(() =>

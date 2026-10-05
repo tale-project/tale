@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { projectCapabilityCatalogKey } from '@/app/lib/backend/query-keys';
+import { HINT_BATCH_MS } from '@/app/lib/backend/use-backend-hints';
 import { getEnv } from '@/lib/env';
 
 import { configKeys } from './config-query-keys';
@@ -39,6 +40,20 @@ export function useFileEvents() {
     if (!enabled) return undefined;
 
     const es = new EventSource('/events/file');
+    // Distinct skill slugs arrive as separate events during imports/git pulls.
+    // Refresh each org's catalogs once per window, as the hint stream does.
+    const pendingOrgIds = new Set<string>();
+    let catalogTimer: ReturnType<typeof setTimeout> | undefined;
+    const flushCatalogs = (): void => {
+      catalogTimer = undefined;
+      const orgIds = [...pendingOrgIds];
+      pendingOrgIds.clear();
+      for (const id of orgIds) {
+        void queryClient.invalidateQueries({
+          queryKey: projectCapabilityCatalogKey(id),
+        });
+      }
+    };
 
     es.addEventListener('error', () => {
       es.close();
@@ -66,10 +81,9 @@ export function useFileEvents() {
             ? [orgId]
             : []
           : [...slugToIdRef.current.values()];
-        for (const id of orgIds) {
-          void queryClient.invalidateQueries({
-            queryKey: projectCapabilityCatalogKey(id),
-          });
+        for (const id of orgIds) pendingOrgIds.add(id);
+        if (pendingOrgIds.size > 0) {
+          catalogTimer ??= setTimeout(flushCatalogs, HINT_BATCH_MS);
         }
       }
 
@@ -93,6 +107,10 @@ export function useFileEvents() {
       });
     });
 
-    return () => es.close();
+    return () => {
+      es.close();
+      if (catalogTimer !== undefined) clearTimeout(catalogTimer);
+      pendingOrgIds.clear();
+    };
   }, [queryClient, enabled]);
 }
