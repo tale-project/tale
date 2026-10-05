@@ -514,7 +514,7 @@ function useStablePlacements<T>(
 ): ReadonlyMap<string, HomeRowPlacement> {
   const { measureElement } = virtualizer;
   const previous = useRef<ReadonlyMap<string, HomeRowPlacement>>(new Map());
-  return useMemo(() => {
+  const placements = useMemo(() => {
     const map = new Map<string, HomeRowPlacement>();
     rowIndexes.forEach((index, position) => {
       const entry = entries[index];
@@ -537,7 +537,10 @@ function useStablePlacements<T>(
             },
       );
     });
-    previous.current = map;
     return map;
   }, [entries, rowIndexes, measureElement, onFocusWithin]);
+  useLayoutEffect(() => {
+    previous.current = placements;
+  }, [placements]);
+  return placements;
 }
