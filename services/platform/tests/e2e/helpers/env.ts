@@ -20,6 +20,17 @@ export const E2E_CONTACT_SUPPORT_URL =
   'https://support.example.com/help?source=tale';
 
 /**
+ * The client and environment the E2E stack names authenticator entries after
+ * (`TOTP_CLIENT_NAME` and `TOTP_ENVIRONMENT` in `playwright.config.ts`'s
+ * webServer env, and in the mode-A block of `tests/manual/setup.md` for a
+ * reused stack): a synthetic client on a test environment, whose entries read
+ * `Example plus Tale Platform E2E` and whose backup codes download as
+ * `exampleplus-tale-platform-e2e-backup-codes.txt`.
+ */
+export const E2E_TOTP_CLIENT_NAME = 'Example plus';
+export const E2E_TOTP_ENVIRONMENT = 'e2e';
+
+/**
  * A 0.5 entity id in a URL path. App rows use `gen_random_uuid()` stored as
  * text (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`); Better Auth / leftover
  * Convex ids stay unhyphenated. The old `[A-Za-z0-9]{16,}` pattern dies on

@@ -1242,6 +1242,63 @@ describe('SPA shell TALE_CONTACT_SUPPORT_URL', () => {
 });
 
 /**
+ * A downloaded set of backup codes is named like the authenticator entry it
+ * backs up, so the web tier hands the page the two settings the backend names
+ * entries after, normalized as the backend reads them, and leaves out a value
+ * the backend would refuse.
+ */
+describe('SPA shell authenticator settings', () => {
+  const indexHtml =
+    "<!doctype html><html><head></head><body><script>window.__ENV__ = '__ENV_PLACEHOLDER__';</script></body></html>";
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  async function pageEnvWith(
+    clientName: string | undefined,
+    environment: string | undefined,
+  ) {
+    vi.stubEnv('SITE_URL', 'https://tale.example.com');
+    vi.stubEnv('TOTP_CLIENT_NAME', clientName);
+    vi.stubEnv('TOTP_ENVIRONMENT', environment);
+    const app = createApp(undefined, { indexHtml });
+    const res = await app.fetch(new Request('http://platform:3000/'));
+    expect(res.status).toBe(200);
+    const injected = /window\.__ENV__ = (\{[^<]*\});/.exec(await res.text());
+    return JSON.parse(injected?.[1] ?? '{}') as Record<string, unknown>;
+  }
+
+  test('hands the page the client name and environment, normalized', async () => {
+    const env = await pageEnvWith(' Example \t plus ', ' te ');
+    expect(env).toMatchObject({
+      TOTP_CLIENT_NAME: 'Example plus',
+      TOTP_ENVIRONMENT: 'TE',
+    });
+  });
+
+  test('leaves both out when unset', async () => {
+    const env = await pageEnvWith(undefined, undefined);
+    expect(env).not.toHaveProperty('TOTP_CLIENT_NAME');
+    expect(env).not.toHaveProperty('TOTP_ENVIRONMENT');
+  });
+
+  test('leaves out a value the backend would refuse, with a warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const env = await pageEnvWith('Example: Admin', '<TE>');
+    expect(env).not.toHaveProperty('TOTP_CLIENT_NAME');
+    expect(env).not.toHaveProperty('TOTP_ENVIRONMENT');
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('Ignoring TOTP_CLIENT_NAME'),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('Ignoring TOTP_ENVIRONMENT'),
+    );
+  });
+});
+
+/**
  * The page's inline `__ENV__` script carries values the web tier does not
  * choose: an operator's URL, the request's Accept-Language. Each must reach
  * the page as written, and none may end the script early. The test reads the

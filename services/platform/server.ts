@@ -15,6 +15,10 @@ import { NONCE, secureHeaders } from 'hono/secure-headers';
 
 import { headContentLength } from './backend/lib/http-hygiene';
 import {
+  parseAuthenticatorEnv,
+  type AuthenticatorEnv,
+} from './lib/authenticator-env';
+import {
   buildCanvasPreviewCsp,
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
@@ -208,7 +212,7 @@ function escapeHtmlAttr(value: string) {
     .replaceAll('>', '&gt;');
 }
 
-interface EnvConfig {
+interface EnvConfig extends AuthenticatorEnv {
   /**
    * The canonical public origin. Per REQUEST this is replaced by the origin
    * the browser is actually on when that is one of the configured site
@@ -411,6 +415,10 @@ function getEnvConfig(): EnvConfig {
     // The deployment's own support page for the error displays. Validated as
     // an absolute http(s) URL; `undefined` (omitted from __ENV__) otherwise.
     TALE_CONTACT_SUPPORT_URL: parseContactSupportUrl(),
+    // The client and environment authenticator entries name, so a downloaded
+    // set of backup codes carries the same words. Each is omitted when unset
+    // or invalid.
+    ...parseAuthenticatorEnv(),
     // Whitespace-separated origin list, e.g.
     // `CANVAS_PREVIEW_CSP_EXTRA_ORIGINS="https://cdn.jsdelivr.net https://unpkg.com"`.
     // Validated and appended to the canvas-preview CSP — see the policy

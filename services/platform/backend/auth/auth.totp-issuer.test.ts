@@ -16,25 +16,41 @@ const BASE = {
   sql: null as unknown as Sql,
 };
 
-describe('authenticator environment names', () => {
+describe('authenticator names', () => {
   it.each(['', ' ', '<TE>', 'te:issuer', 'te/pr', 'a'.repeat(33)])(
-    'refuses the invalid environment %s before creating auth',
+    'refuses the invalid environment %j before creating auth',
     (totpEnvironment) => {
       expect(() => createAuth({ ...BASE, totpEnvironment })).toThrow(
         /TOTP_ENVIRONMENT/,
       );
     },
   );
+  it.each(['', ' ', 'Example: Admin', 'Example/Partner', 'a'.repeat(41)])(
+    'refuses the invalid client name %j before creating auth',
+    (totpClientName) => {
+      expect(() => createAuth({ ...BASE, totpClientName })).toThrow(
+        /TOTP_CLIENT_NAME/,
+      );
+    },
+  );
   it.each([
-    [undefined, 'Tale'],
-    ['pr', 'Tale'],
-    [' PR ', 'Tale'],
-    ['te', 'Tale <TE>'],
-    ['preview-42', 'Tale <PREVIEW-42>'],
+    [undefined, undefined, 'Tale Platform'],
+    [undefined, 'pr', 'Tale Platform'],
+    [undefined, ' PR ', 'Tale Platform'],
+    [undefined, 'te', 'Tale Platform TE'],
+    ['Tale', 'te', 'Tale Platform TE'],
+    ['Example plus', undefined, 'Example plus Tale Platform'],
+    ['Example plus', 'pr', 'Example plus Tale Platform'],
+    ['Example plus', 'te', 'Example plus Tale Platform TE'],
+    [' Example  plus ', 'preview-42', 'Example plus Tale Platform PREVIEW-42'],
   ])(
-    'uses %s in enrollment and existing-secret URIs',
-    async (environment, issuer) => {
-      const configured = createAuth({ ...BASE, totpEnvironment: environment });
+    'names client %j in environment %j %j in enrollment and existing-secret URIs',
+    async (totpClientName, totpEnvironment, issuer) => {
+      const configured = createAuth({
+        ...BASE,
+        totpClientName,
+        totpEnvironment,
+      });
       // Exercise the configured two-factor plugin with its real URI generator.
       // In-memory credentials keep unrelated SQL hooks out of this proof.
       const auth = betterAuth({

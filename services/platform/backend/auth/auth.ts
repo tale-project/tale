@@ -18,6 +18,7 @@ import { jwt, organization, twoFactor } from 'better-auth/plugins';
 import pg from 'pg';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { authenticatorName } from '../../lib/shared/authenticator-name.ts';
 import {
   assertValidOrgSlug,
   classifyOrgSlugUpdate,
@@ -103,7 +104,6 @@ import {
   SIGN_UP_EMAIL_PATH,
   signUpAllowed,
 } from './sign-up-gate.ts';
-import { totpIssuer } from './totp-issuer.ts';
 
 /**
  * Better Auth on Postgres — the 0.5 replacement for the Convex Better Auth
@@ -125,7 +125,12 @@ export interface AuthConfig {
   secret: string;
   /** Public origin auth cookies/callbacks bind to, e.g. https://localhost. */
   baseUrl: string;
-  /** Deployment environment shown on newly generated authenticator entries. */
+  /**
+   * The client and the environment newly generated authenticator entries
+   * name (`TOTP_CLIENT_NAME`, `TOTP_ENVIRONMENT`), as in
+   * `Acme Tale Platform TE`; `lib/shared/authenticator-name.ts` has the rule.
+   */
+  totpClientName?: string;
   totpEnvironment?: string;
   /**
    * The other public origins this deployment is served from
@@ -458,7 +463,10 @@ const logBetterAuth: NonNullable<Logger['log']> = (level, message, ...args) => {
 
 export function createAuth(config: AuthConfig) {
   const siteUrl = config.baseUrl;
-  const authenticatorIssuer = totpIssuer('Tale', config.totpEnvironment);
+  const authenticatorIssuer = authenticatorName({
+    clientName: config.totpClientName,
+    environment: config.totpEnvironment,
+  }).issuer;
   /** The OIDC issuer — the auth mount. */
   const oidcIssuer = `${siteUrl.replace(/\/$/, '')}/api/auth`;
 
