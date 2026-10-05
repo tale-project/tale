@@ -12,6 +12,7 @@ import {
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { logSuccess } from '../audit_logs/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
+import { retargetPendingTaskReviewsForUser } from '../tasks/reviews.ts';
 
 /**
  * Members domain — org-membership management with the 0.4 guard semantics.
@@ -326,6 +327,10 @@ export async function removeMember(
     member.organizationId,
     member.userId,
   );
+  await retargetPendingTaskReviewsForUser(tx, {
+    organizationId: member.organizationId,
+    userId: member.userId,
+  });
 
   await logSuccess(tx, {
     auditCtx: {
@@ -442,6 +447,12 @@ export async function updateMemberRole(
   }
 
   await tx`UPDATE "member" SET "role" = ${newRole} WHERE "id" = ${args.memberId}`;
+  if (newRole === 'member' || newRole === 'disabled') {
+    await retargetPendingTaskReviewsForUser(tx, {
+      organizationId: member.organizationId,
+      userId: member.userId,
+    });
+  }
 
   const targetEmail = await userEmail(tx, member.userId);
   await logSuccess(tx, {

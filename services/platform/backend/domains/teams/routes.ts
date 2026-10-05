@@ -13,6 +13,7 @@ import { requireSession } from '../../auth/session.ts';
 import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { retargetPendingTaskReviewsForUser } from '../tasks/reviews.ts';
 import {
   auditTeamDeleted,
   auditTeamMemberAdded,
@@ -373,6 +374,11 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         return { removed: false, lastMember: true, teamId: row.teamId };
       }
       await tx`DELETE FROM "teamMember" WHERE "id" = ${row.id}`;
+      await retargetPendingTaskReviewsForUser(tx, {
+        organizationId: orgId,
+        userId: row.userId,
+        teamIds: [row.teamId],
+      });
       const target = await tx<{ email: string | null }[]>`
         SELECT "email" FROM "user" WHERE "id" = ${row.userId} LIMIT 1
       `;
