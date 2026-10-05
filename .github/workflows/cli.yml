@@ -240,7 +240,9 @@ jobs:
             # Windows' home and checkout can live on different volumes. Bun
             # hardlinks packages only within one volume; keep this native store
             # beside the checkout, outside its clean-source identity boundary.
-            printf 'BUN_INSTALL_CACHE_DIR=%s/../.tale-bun-install-cache\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+            # Cache glob inputs reject literal '.' and '..' path segments.
+            cache_path=$(bun -e 'process.stdout.write(require("node:path").win32.resolve(process.env.GITHUB_WORKSPACE, "..", ".tale-bun-install-cache"))')
+            printf 'BUN_INSTALL_CACHE_DIR=%s\n' "$cache_path" >> "$GITHUB_ENV"
           fi
 
       - name: Restore Bun install cache

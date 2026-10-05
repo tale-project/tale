@@ -450,6 +450,13 @@ enables Bun's [documented Windows hardlinks](https://bun.sh/docs/pm/global-cache
 it does not establish a reduction in cache extraction time. The path change starts a
 new cache version, so the first hosted run measures a cold store.
 
+Resolve the Windows sibling with Bun's `node:path.win32.resolve` before passing it
+to the cache action. Its glob consumer rejects `.` and `..` path segments even when
+the install accepts them. At `d934290d8`, all five CLI targets passed, but the Windows
+save warned and retained no archive; its 75.80-second install was cold. The regression
+uses the cache action's pinned `@actions/glob` 0.5.1 to reject that original path and
+accept a resolved, populated store. A passing install alone does not prove cache reuse.
+
 Run workflow and source-identity regressions with:
 
 ```bash
