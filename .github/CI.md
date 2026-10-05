@@ -375,6 +375,15 @@ logs localize an unfinished fixture but do not establish the subprocess or worke
 cause. Full serial CLI tests in Checks passed freshly in 117.6s and 136.7s, so Linux
 also retains the serial command while macOS retains two workers.
 
+In [Build run 37265214548](https://github.com/tale-project/tale/actions/runs/37265214548),
+new gateway size coverage compared a 100 MiB limit calibrated from packed layers with
+Docker inspection's 255 MiB result. The exact gateway images from this run and
+Build run 37260011687 contain the same seven layer descriptors, totaling 86.45 MiB
+packed; the image did not grow. The gateway limit is now 300 MiB, about 18% above
+its observed inspection size, using the existing metric. Other image budgets stay
+unchanged. Executable fixtures accept 255 and 300 MiB and reject 301 MiB while
+retaining gateway user, health, secret and required-image checks.
+
 Run workflow and source-identity regressions with:
 
 ```bash
