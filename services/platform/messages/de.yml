@@ -5044,6 +5044,7 @@ personalization:
       placeholder: z. B. Antworte knapp. Verwende standardmäßig TypeScript bei Code-Themen.
   errors:
     saveFailed: Speichern fehlgeschlagen. Versuch es nochmal.
+    loadFailed: Deine Einstellungen konnten nicht geladen werden. Benutzerdefinierte Anweisungen sind erst verfügbar, wenn die Einstellungen geladen sind.
     tooLong: Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.
   toasts:
     preferencesUpdated: Einstellungen aktualisiert.

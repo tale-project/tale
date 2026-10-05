@@ -6,6 +6,14 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Personalization distinguishes a failed preferences read from a successful null
+response. Localized errors offer Try again without a switch, editor or save path
+until preferences load. Pending retries preserve the alert and keyboard focus;
+recovery restores the saved instructions and hands focus to the section. Both
+organization defaults and successful saves remain covered by
+`app/features/settings/personalization/components/preferences-settings.test.tsx`.
+Live backend recovery and screen-reader announcements remain manual.
+
 Legal matter editing preserves retained 2500- and 4000-character descriptions
 when only the name changes. Creation accepts trimmed fields at the API limits
 (300-character name, 200-character case number, 4000-character description).
