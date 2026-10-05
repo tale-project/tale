@@ -360,6 +360,61 @@ async function execute(
   return { outputs, calls };
 }
 
+// Use native Node as well as Bun's VM: the pinned github-script runtime must
+// resolve the sparse TypeScript module without a package manifest or install.
+function executeNative(
+  step: Step,
+  workspace: string,
+  env: Record<string, string>,
+  answer: unknown = pr(),
+) {
+  const script = `
+const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
+Object.assign(process.env, input.env, { GITHUB_WORKSPACE: process.cwd() });
+const outputs = {}, failures = [];
+let calls = 0;
+const summary = {};
+for (const name of ['addHeading', 'addRaw', 'addTable', 'addList']) summary[name] = () => summary;
+summary.write = async () => {};
+const core = { summary, info: () => {}, setOutput: (name, value) => { outputs[name] = value; }, setFailed: message => failures.push(message) };
+const github = { rest: { pulls: { get: async () => { calls++; return { data: input.answer }; } } } };
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+new AsyncFunction('core', 'github', 'context', 'require', input.script)(core, github, input.context, require)
+  .then(() => process.stdout.write(JSON.stringify({ outputs, failures, calls })))
+  .catch(error => { console.error(error); process.exitCode = 1; });
+`;
+  const result = spawnSync('node', ['--input-type=commonjs', '-e', script], {
+    cwd: workspace,
+    encoding: 'utf8',
+    timeout: 10_000,
+    input: JSON.stringify({
+      script: step.with?.script,
+      env,
+      answer,
+      context: {
+        eventName: 'pull_request',
+        sha: B,
+        runId: 1,
+        repo: { owner: 'test', repo: 'test' },
+        payload: {
+          pull_request: {
+            ...pr(),
+            draft: false,
+            head: { sha: B, repo: { fork: false } },
+          },
+        },
+      },
+    }),
+  });
+  expect(result.error).toBeUndefined();
+  expect(result.status, result.stderr).toBe(0);
+  return JSON.parse(result.stdout) as {
+    outputs: Record<string, string>;
+    failures: string[];
+    calls: number;
+  };
+}
+
 async function sparseFixture(
   checkoutStep: Step,
   files: string[],
@@ -478,6 +533,7 @@ describe('real non-cone scope and readiness checkouts', () => {
       );
       expect(before.calls).toBe(1);
       expect(before.outputs.full).toBe('false');
+      expect(executeNative(steps[0]!, workspace, {})).toMatchObject(before);
       expect(JSON.parse(before.outputs.identity!)).toEqual({
         base: { sha: A },
         head: { sha: B },
@@ -485,33 +541,35 @@ describe('real non-cone scope and readiness checkouts', () => {
       });
       for (const filter of ['integration', 'build', 'e2e', 'cli', 'security']) {
         expect(filters[filter].length).toBeGreaterThan(0);
+        const env = {
+          SCOPE_FILTER: filter,
+          SCOPE_FULL: before.outputs.full!,
+          SCOPE_BEFORE: before.outputs.identity!,
+          SCOPE_TOUCHED: 'true',
+          SCOPE_GUARD: 'false',
+          SCOPE_COUNT: '2',
+          SCOPE_FILES: '["services/web/a.ts","README.md"]',
+          SCOPE_ADDED: 'false',
+          SCOPE_DELETED: 'false',
+          ...Object.fromEntries(
+            BUILD_FILTERS.map((name) => [
+              `BUILD_${name.replaceAll('-', '_')}`,
+              'false',
+            ]),
+          ),
+          E2E_platform: 'false',
+          E2E_web: 'true',
+          E2E_docs: 'false',
+        };
         const result = await execute(
           steps[2]!,
           { pull_request: pr() },
           'pull_request',
-          {
-            SCOPE_FILTER: filter,
-            SCOPE_FULL: before.outputs.full!,
-            SCOPE_BEFORE: before.outputs.identity!,
-            SCOPE_TOUCHED: 'true',
-            SCOPE_GUARD: 'false',
-            SCOPE_COUNT: '2',
-            SCOPE_FILES: '["services/web/a.ts","README.md"]',
-            SCOPE_ADDED: 'false',
-            SCOPE_DELETED: 'false',
-            ...Object.fromEntries(
-              BUILD_FILTERS.map((name) => [
-                `BUILD_${name.replaceAll('-', '_')}`,
-                'false',
-              ]),
-            ),
-            E2E_platform: 'false',
-            E2E_web: 'true',
-            E2E_docs: 'false',
-          },
+          env,
           pr(),
           workspace,
         );
+        expect(executeNative(steps[2]!, workspace, env)).toMatchObject(result);
         expect(result.calls).toBe(1);
         expect(result.outputs).toMatchObject({ run: 'true', full: 'false' });
         if (filter === 'build')
@@ -587,6 +645,19 @@ describe('real non-cone scope and readiness checkouts', () => {
       expect(headings).toEqual(['CI readiness: passed']);
       expect(raw).toEqual([`Run 1, attempt 2, source ${B}\n`]);
       expect(failures).toEqual([]);
+      const native = (nativeNeeds: unknown) =>
+        executeNative(step, workspace, {
+          CI_WORKFLOW: 'sast',
+          CI_NEEDS: JSON.stringify(nativeNeeds),
+          GITHUB_RUN_ATTEMPT: '2',
+        });
+      expect(native(needs)).toEqual({ outputs: {}, failures: [], calls: 0 });
+      expect(
+        native({ ...needs, sast: { result: 'failure' } }).failures,
+      ).toEqual(['sast: expected success, got failure']);
+      expect(native({ sast: needs.sast }).failures).toEqual([
+        'Native needs must cover every classified job exactly',
+      ]);
       await run({ ...needs, sast: { result: 'failure' } });
       expect(failures).toEqual(['sast: expected success, got failure']);
       await run({
