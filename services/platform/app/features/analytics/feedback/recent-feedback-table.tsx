@@ -252,7 +252,7 @@ export function RecentFeedbackTable({
           description={failureDetail(error)}
         >
           {retry ? (
-            <Button variant="outline" onClick={retry} disabled={isRetrying}>
+            <Button variant="secondary" onClick={retry} disabled={isRetrying}>
               {tAnalytics('feedback.recent.retry')}
             </Button>
           ) : null}
