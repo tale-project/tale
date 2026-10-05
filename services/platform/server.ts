@@ -28,6 +28,12 @@ import { createOrgFrameAncestorsProvider } from './lib/org-frame-ancestors';
 import { createOrgObjectStorageOriginsProvider } from './lib/org-storage-origins';
 import { injectBootShell, shouldServeBootShell } from './lib/shared/boot-shell';
 import { isValidOrgSlug } from './lib/shared/constants/org-slug';
+import {
+  publishStaticAssets,
+  maintainStaticAssets,
+  retainedAssetName,
+  STATIC_ASSETS_DIR,
+} from './lib/static-assets';
 import { inlineScriptJson, replaceLiteral } from './lib/utils/inline-script';
 import { slaRulesResponse } from './sla-targets';
 import {
@@ -256,10 +262,9 @@ const distSeoDir = join(moduleDir, 'dist-seo');
 // extends a hash past its usual 8 chars to break collisions between same-named
 // chunks (e.g. several `queries-*.js`). Fail-safe: an unmatched hashed file
 // merely loses the optimization (revalidates), never serves stale bytes.
-const IMMUTABLE_ASSET =
-  /^\/assets\/.+-[A-Za-z0-9_-]{8,}\.(?:js|css)(?:\.map)?$/;
 export function cacheControlForStaticPath(pathname: string): string {
-  return IMMUTABLE_ASSET.test(pathname)
+  return retainedAssetName(pathname) !== undefined &&
+    /\.(?:js|css)(?:\.map)?$/.test(pathname)
     ? 'public, max-age=31536000, immutable'
     : 'no-cache';
 }
@@ -596,6 +601,9 @@ function isLoopbackSite(env: EnvConfig): boolean {
 }
 
 export interface CreateAppOptions {
+  /** Built files and retained artifacts; injectable for release handover tests. */
+  distDirectory?: string;
+  retainedAssetsDirectory?: string;
   /**
    * Test seam for the org BYO object-storage origins fed into the CSP.
    * Production uses the TTL-cached `TALE_CONFIG_DIR` scan.
@@ -840,6 +848,7 @@ export function createApp(
   }
 
   app.get('/api/health', (c) => {
+    c.header('Cache-Control', 'no-store');
     if (existsSync(SHUTDOWN_MARKER)) {
       return c.json({ status: 'shutting_down' }, 503);
     }
@@ -1107,10 +1116,18 @@ export function createApp(
     }
 
     if (pathname !== '/') {
-      const filePath = resolve(distDir, pathname.slice(1));
-      if (filePath.startsWith(distDir)) {
+      const staticDist = opts.distDirectory ?? distDir;
+      const filePath = resolve(staticDist, pathname.slice(1));
+      if (filePath.startsWith(staticDist + sep)) {
         const file = Bun.file(filePath);
         if (await file.exists()) {
+          if (pathname === '/offline.html') {
+            const html = (await file.text()).replace(
+              'src="/pwa-recovery.js"',
+              () => `src="${env.BASE_PATH}/pwa-recovery.js"`,
+            );
+            return c.html(html, 200, { 'Cache-Control': 'no-cache' });
+          }
           // Bun infers Content-Type from the file extension; we only add the
           // caching directive (immutable for content-hashed chunks).
           return new Response(file, {
@@ -1120,9 +1137,31 @@ export function createApp(
       }
     }
 
+    const retained = retainedAssetName(pathname);
+    if (retained) {
+      const file = Bun.file(
+        join(opts.retainedAssetsDirectory ?? STATIC_ASSETS_DIR, retained),
+      );
+      if (await file.exists())
+        return new Response(file, {
+          headers: { 'Cache-Control': cacheControlForStaticPath(pathname) },
+        });
+    }
+    // A missing module is an asset miss, never an HTML 200 that a browser
+    // might cache under an immutable bundle name.
+    if (
+      pathname.startsWith('/assets/') ||
+      pathname === '/sw.js' ||
+      pathname === '/pwa-recovery.js'
+    ) {
+      return c.text('Not found', 404, { 'Cache-Control': 'no-store' });
+    }
+
     let template = opts.indexHtml ?? indexHtmlTemplate;
     if (template === null || (DEV_HOT_RELOAD && opts.indexHtml === undefined)) {
-      const indexFile = Bun.file(join(distDir, 'index.html'));
+      const indexFile = Bun.file(
+        join(opts.distDirectory ?? distDir, 'index.html'),
+      );
       if (!(await indexFile.exists())) {
         console.error(`Missing dist/index.html in ${distDir}`);
         return c.text('Internal Server Error', 500);
@@ -1135,7 +1174,7 @@ export function createApp(
     }
 
     const acceptLanguage = c.req.header('accept-language') ?? '';
-    const basePath = getBasePath();
+    const basePath = env.BASE_PATH;
     // Per-request nonce produced by `secureHeaders` middleware. Injected
     // into every <script> tag so the strict CSP `script-src` (which uses
     // a nonce token instead of `'unsafe-inline'`) accepts the inline
@@ -1224,6 +1263,12 @@ export function createApp(
 }
 
 if (import.meta.main) {
+  // Named volumes exist before the process starts. Publishing must finish
+  // before /api/health can succeed on a newly joining blue/green replica.
+  if (existsSync(STATIC_ASSETS_DIR)) {
+    await publishStaticAssets(join(distDir, 'assets'));
+    maintainStaticAssets(join(distDir, 'assets'));
+  }
   initTelemetry();
   const app = createApp();
   Bun.serve({

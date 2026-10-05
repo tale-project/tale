@@ -50,7 +50,7 @@ pwa:
   updateNow: Recharger
   updateLater: Plus tard
   dismiss: Ignorer
-  offlineReady: La doc est prête en mode hors ligne.
+  offlineReady: La page hors ligne est prête.
 home:
   docsLabel: Doc
   heroTitle: De ta première question au travail accompli.

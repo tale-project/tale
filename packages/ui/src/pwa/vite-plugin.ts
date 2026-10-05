@@ -5,10 +5,16 @@
 // Required peer dep on the consumer side: `vite-plugin-pwa`. Listed as
 // an optional peer here so build-only consumers don't pull it in.
 
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
 import type { Plugin } from 'vite';
 import { VitePWA, type VitePWAOptions } from 'vite-plugin-pwa';
+
+import { installOfflineRecovery } from './offline-recovery';
+
+// This callback is serialized into the worker, whose global is not Window.
+declare const self: { registration: ServiceWorkerRegistration };
 
 export interface PwaIconSpec {
   src: string;
@@ -22,7 +28,7 @@ export interface PwaPluginOptions {
   name: string;
   shortName: string;
   description: string;
-  /** App scope and start URL. Defaults to `/`. */
+  /** App scope and start URL, relative to the manifest. Defaults to `./`. */
   startUrl?: string;
   scope?: string;
   /** Manifest theme colors. */
@@ -43,7 +49,7 @@ export interface PwaPluginOptions {
   extraRuntimeCaching?: VitePWAOptions['workbox']['runtimeCaching'];
   /**
    * Path to the offline shell HTML inside the build output. Defaults
-   * to `/offline.html` — services must ship that file in `public/`.
+   * to `offline.html`, relative to the worker — services ship it in `public/`.
    */
   offlineFallback?: string;
   /**
@@ -57,18 +63,18 @@ export interface PwaPluginOptions {
  * Build a `vite-plugin-pwa` plugin instance with Tale defaults:
  *  - prompt-on-update strategy (the app shows an in-product reload toast)
  *  - generate the service worker via workbox
- *  - precache only the offline shell + icons (apps are online-first;
- *    we don't precache JS/CSS bundles)
+ *  - precache the offline shell, its recovery script, build identity and icons
+ *    (apps are online-first; we don't precache application JS/CSS bundles)
  *  - cache static assets at runtime (images, fonts) with sensible TTLs
- *  - serve `/offline.html` only when navigation truly fails
+ *  - serve the offline shell on failed, timed-out or HTTP 5xx navigations
  */
 export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
   const {
     name,
     shortName,
     description,
-    startUrl = '/',
-    scope = '/',
+    startUrl = './',
+    scope = './',
     themeColor,
     backgroundColor,
     icons,
@@ -80,14 +86,14 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
       'assets/apple-touch-icon-180x180.png',
     ],
     extraRuntimeCaching = [],
-    offlineFallback = '/offline.html',
+    offlineFallback = 'offline.html',
     projectDir,
   } = options;
 
-  // The precache is exactly `includeAssets` + the manifest icons + the web
-  // manifest, every entry hashed by vite-plugin-pwa from the file in
-  // `public/` (`additionalManifestEntries`, content-MD5 revision). No
-  // workbox glob runs over `dist/` on top of that: the same files sit
+  // Public assets come from `includeAssets` + manifest icons + the web
+  // manifest, hashed by vite-plugin-pwa (`additionalManifestEntries`). The
+  // glob includes only our generated recovery script and build identity:
+  // globbing public files too would find the same files
   // un-hashed under `dist/assets/`, and a glob hit there rides
   // vite-plugin-pwa's `dontCacheBustURLsMatching: /^assets\//` with
   // `revision: null` — the same URL twice with two revisions, which
@@ -97,14 +103,55 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
   // announced "ready to work offline" (2026-09-26 evaluation, G-05/G-01).
   // `scripts/check-sw-manifest.ts` in the platform build pins the built
   // manifest to unique, revisioned entries.
-  const globPatterns: string[] = [];
+  const globPatterns = ['pwa-recovery.js', 'pwa-build.json'];
 
-  return VitePWA({
+  const buildIdentity: Plugin = {
+    name: 'tale-pwa-build-identity',
+    apply: 'build',
+    configResolved(config) {
+      // Preserve the document's runtime <base> in relocatable builds.
+      // Otherwise vite-plugin-pwa turns './' into '/' and pins sw.js to
+      // the origin root, bypassing deployments under BASE_PATH.
+      if (config.base === './' || config.base === '')
+        pwaConfig.buildBase = './';
+    },
+    generateBundle(_output, bundle) {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'pwa-recovery.js',
+        source: `(${installOfflineRecovery.toString()})();`,
+      });
+      // A code-only release must change sw.js even though application bundles
+      // are online-only. Deterministic output, without a wall-clock nonce.
+      const hash = createHash('sha256');
+      for (const bundleName of Object.keys(bundle).sort()) {
+        const entry = bundle[bundleName];
+        if (!entry) continue;
+        hash.update(bundleName).update('\0');
+        hash.update(entry.type === 'chunk' ? entry.code : entry.source);
+      }
+      this.emitFile({
+        type: 'asset',
+        fileName: 'pwa-build.json',
+        source: JSON.stringify({
+          revision: hash.digest('hex'),
+          assets: Object.keys(bundle)
+            .filter((bundleName) => bundleName.startsWith('assets/'))
+            .sort(),
+        }),
+      });
+    },
+  };
+
+  const pwaConfig: Partial<VitePWAOptions> = {
+    scope,
     registerType: 'prompt',
     injectRegister: null,
     strategies: 'generateSW',
     workbox: {
       globPatterns,
+      clientsClaim: true,
+      inlineWorkboxRuntime: true,
       // `offline.html` is precached via `includeAssets` (default list above)
       // with a content-based revision injected by vite-plugin-pwa, so
       // Workbox automatically refreshes the cache when the shell changes.
@@ -114,23 +161,69 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
       // makes the dev SW behave like prod. The empty allowlist stops the
       // navigation route this option would otherwise register from ever
       // matching; navigations are handled by the runtimeCaching entry
-      // below (`precacheFallback`), which only serves the shell on real
-      // network failure.
+      // below (`precacheFallback`), which also handles proxy HTTP failures.
       navigateFallback: offlineFallback,
       navigateFallbackAllowlist: [],
       runtimeCaching: [
         {
           // Navigations always hit the network so the live app shell renders.
-          // Only when the request fails (true offline / cold launch with no
-          // connection) do we serve the precached offline shell.
-          urlPattern: ({ request, url }) =>
-            request.mode === 'navigate' &&
-            !url.pathname.startsWith('/ws_api/') &&
-            !url.pathname.startsWith('/http_api/') &&
-            !url.pathname.startsWith('/api/') &&
-            url.pathname !== '/status',
+          // Failed, timed-out and HTTP 5xx navigations use the cached shell.
+          urlPattern: ({ request, url }) => {
+            const workerScope = new URL(self.registration.scope);
+            const path = '/' + url.pathname.slice(workerScope.pathname.length);
+            return (
+              request.mode === 'navigate' &&
+              url.origin === workerScope.origin &&
+              url.pathname.startsWith(workerScope.pathname) &&
+              !/^\/(?:api|ws_api|http_api|events|dav|scim|sandbox|metrics|\.well-known)(?:\/|$)/.test(
+                path,
+              ) &&
+              !/^\/status(?:\.json)?\/?$/.test(path)
+            );
+          },
           handler: 'NetworkOnly',
           options: {
+            plugins: [
+              {
+                // generateSW rejects networkTimeoutSeconds on NetworkOnly,
+                // despite the runtime supporting it. Abort the actual request
+                // instead, with per-request state shared by these callbacks.
+                requestWillFetch: async ({ request, state }) => {
+                  const controller = new AbortController();
+                  if (state)
+                    state.navigationTimeout = setTimeout(
+                      () => controller.abort(),
+                      8_000,
+                    );
+                  return new Request(request, {
+                    signal: controller.signal,
+                    cache: 'no-store',
+                  });
+                },
+                fetchDidFail: async ({ state }) => {
+                  if (typeof state?.navigationTimeout === 'number')
+                    clearTimeout(state.navigationTimeout);
+                },
+                fetchDidSucceed: async ({ response, state }) => {
+                  // FRP and Cloudflare answer HTTP errors instead of rejecting
+                  // fetch. Turn failed navigations into the same cached shell.
+                  if (response.status >= 500) {
+                    void response.body?.cancel();
+                    throw new Error('Navigation unavailable');
+                  }
+                  // A proxy can send headers then stall the HTML body too.
+                  // Keep the deadline until the complete document arrives.
+                  try {
+                    await response.clone().arrayBuffer();
+                    // Preserve redirect/URL metadata on the network response.
+                    return response;
+                  } finally {
+                    if (typeof state?.navigationTimeout === 'number')
+                      clearTimeout(state.navigationTimeout);
+                  }
+                },
+              },
+            ],
             precacheFallback: { fallbackURL: offlineFallback },
           },
         },
@@ -139,6 +232,7 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
           handler: 'CacheFirst',
           options: {
             cacheName: 'tale-assets',
+            cacheableResponse: { statuses: [200] },
             expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
           },
         },
@@ -147,6 +241,7 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
           handler: 'CacheFirst',
           options: {
             cacheName: 'tale-fonts',
+            cacheableResponse: { statuses: [200] },
             expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
           },
         },
@@ -174,5 +269,6 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
       navigateFallbackAllowlist: [],
       resolveTempFolder: () => resolve(projectDir, 'dist-pwa'),
     },
-  });
+  };
+  return [buildIdentity, ...VitePWA(pwaConfig)];
 }

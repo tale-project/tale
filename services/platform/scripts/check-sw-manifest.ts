@@ -16,37 +16,74 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import ts from 'typescript';
+
 interface PrecacheEntry {
   url: string;
   revision: string | null;
 }
 
-/** The `precacheAndRoute([...])` entries of a generated (minified) sw.js. */
+/** The manifest passed to Workbox, including a bundled/minified runtime. */
 export function parsePrecacheManifest(source: string): PrecacheEntry[] {
-  const start = source.indexOf('precacheAndRoute([');
-  if (start === -1) {
-    throw new Error('no precacheAndRoute([...]) call in the service worker');
-  }
-  const open = source.indexOf('[', start);
-  const close = source.indexOf(']', open);
-  if (close === -1) throw new Error('unterminated precache manifest');
-  const list = source.slice(open + 1, close);
-  const entries: PrecacheEntry[] = [];
-  for (const match of list.matchAll(/\{([^{}]*)\}/g)) {
-    const body = match[1] ?? '';
-    const url = /(?:^|,)\s*"?url"?\s*:\s*"([^"]*)"/.exec(body)?.[1];
-    const revision = /(?:^|,)\s*"?revision"?\s*:\s*(null|"[^"]*")/.exec(
-      body,
-    )?.[1];
-    if (url === undefined || revision === undefined) {
-      throw new Error(`unreadable precache entry: {${body}}`);
+  const file = ts.createSourceFile(
+    'sw.js',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS,
+  );
+  const manifests: PrecacheEntry[][] = [];
+  const property = (object: ts.ObjectLiteralExpression, key: string) =>
+    object.properties.find(
+      (member): member is ts.PropertyAssignment =>
+        ts.isPropertyAssignment(member) &&
+        (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) &&
+        member.name.text === key,
+    )?.initializer;
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      for (const argument of node.arguments) {
+        if (
+          !ts.isArrayLiteralExpression(argument) ||
+          !argument.elements.some(
+            (entry) =>
+              ts.isObjectLiteralExpression(entry) &&
+              property(entry, 'url') !== undefined &&
+              property(entry, 'revision') !== undefined,
+          )
+        )
+          continue;
+        manifests.push(
+          argument.elements.map((entry) => {
+            if (!ts.isObjectLiteralExpression(entry))
+              throw new Error('unreadable precache entry');
+            const url = property(entry, 'url');
+            const revision = property(entry, 'revision');
+            if (
+              !url ||
+              !ts.isStringLiteral(url) ||
+              !revision ||
+              (!ts.isStringLiteral(revision) &&
+                revision.kind !== ts.SyntaxKind.NullKeyword)
+            ) {
+              throw new Error('unreadable precache entry');
+            }
+            return {
+              url: url.text,
+              revision: ts.isStringLiteral(revision) ? revision.text : null,
+            };
+          }),
+        );
+      }
     }
-    entries.push({
-      url,
-      revision: revision === 'null' ? null : revision.slice(1, -1),
-    });
-  }
-  return entries;
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  if (manifests.length !== 1 || !manifests[0])
+    throw new Error(
+      'expected one precacheAndRoute manifest in the service worker',
+    );
+  return manifests[0];
 }
 
 /** Every finding that makes the manifest unusable; empty when it is sound. */
@@ -66,8 +103,13 @@ export function findManifestDefects(entries: PrecacheEntry[]): string[] {
       defects.push(`${entry.url} has no revision`);
     }
   }
-  if (!entries.some((entry) => entry.url === 'offline.html')) {
-    defects.push('offline.html is not precached');
+  for (const required of [
+    'offline.html',
+    'pwa-recovery.js',
+    'pwa-build.json',
+  ]) {
+    if (!entries.some((entry) => entry.url === required))
+      defects.push(`${required} is not precached`);
   }
   return defects;
 }

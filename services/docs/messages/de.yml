@@ -48,7 +48,7 @@ pwa:
   updateNow: Neu laden
   updateLater: Später
   dismiss: Schließen
-  offlineReady: Doku ist offline lesbar.
+  offlineReady: Die Offline-Seite ist bereit.
 home:
   docsLabel: Doku
   heroTitle: Von der ersten Frage zur fertigen Arbeit.

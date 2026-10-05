@@ -110,14 +110,14 @@ this guide focuses on **behaviour**, not link rot.
 - [ ] `NAV-F11` · **Offline shell** — Built server: load a page once (service
   worker installs), then set the browser offline (devtools → Network) and
   navigate to an unvisited docs URL → The offline shell
-  (`public/offline.html`) renders — title **You are offline** — instead of a
+  (`public/offline.html`) renders — title **You're offline** — instead of a
   browser error page; going back online and reloading restores the real page.
 - [ ] `NAV-F12` · **SW update banner** — With a tab open on an older build,
   serve a new build and trigger the waiting worker (devtools → Application →
   Service workers → Update) → The fixed bottom-right banner renders **Update
   available** (`pwa.updateAvailableTitle`) + `pwa.updateAvailableDescription`;
   **Reload** (`pwa.updateNow`) activates the new worker and reloads;
-  **Dismiss** (`pwa.dismiss`) hides it; the offline-ready toast
+  **Dismiss** (`pwa.dismiss`) hides it; the offline-screen-ready toast
   (`pwa.offlineReady`) is one-shot and removes itself after ~4 s
   (`sw-update-banner.tsx`)
 - [ ] `NAV-F13` · **Header strip pinned** — ≥ 768 px, scroll a long page down →

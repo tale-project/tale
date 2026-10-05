@@ -35,6 +35,7 @@ use CLI-generated files.
 | `/api/auth` | Sessions and authentication. |
 | `/api/app` | The application’s authenticated operations. |
 | `/api/v1` | Public REST API and inbound MCP endpoint. |
+| `/api/health/ready` | Public API/database readiness; HTTP 200 with `{ok:true, service:'backend'}`. |
 | `/events`, `/dav`, `/scim` | Change hints, WebDAV and SCIM. |
 | `/status`, `/status.json` | Public availability summary. |
 | `/docs`, `/openapi.json` | Interactive API reference and its raw schema. |
@@ -44,6 +45,20 @@ The production web shim also serves `/api/health` for its liveness probe. Local
 Vite routes are not an exact copy of that shim; do not assume every production
 health route exists on the development server. The
 [backend README](backend/README.md) describes backend routes and process roles.
+
+The browser uses `/api/health/ready` through the public proxy to verify API and
+database availability. It refreshes failed reads after recovery and never
+automatically replays writes. The service worker caches the connection screen
+and its recovery script, with bounded probes and retries through HTTP proxy
+failures; it does not cache application data.
+
+Every production web replica mounts the same deployment-owned `static-assets`
+volume at `/app/static-assets`. Before listening, it atomically publishes the
+immutable files listed in `dist/pwa-build.json`. Serving local files first and
+retained artifacts second keeps either blue-green colour compatible with the
+other colour's HTML and older tabs. Running replicas refresh their artifacts
+hourly; inactive artifacts expire seven days after their last refresh. Keep the
+mount when maintaining your own Compose configuration.
 
 The prose guides live on the separate docs origin. The interactive reference
 links to the published developer guides and the same-origin OpenAPI document.

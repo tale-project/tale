@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,7 @@ import * as vm from 'node:vm';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { wrapCanvasPreviewHtml } from './lib/canvas-preview-shell';
+import { publishStaticAssets } from './lib/static-assets';
 import {
   cacheControlForStaticPath,
   createApp,
@@ -23,6 +24,120 @@ const baseEnv = {
   TALE_VERSION: undefined,
   CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: [] as readonly string[],
 };
+
+describe('blue-green browser assets', () => {
+  test('either colour serves both release bundles before and after handover', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-asset-handover-'));
+    try {
+      const blue = join(directory, 'blue');
+      const green = join(directory, 'green');
+      const shared = join(directory, 'shared');
+      await mkdir(join(blue, 'assets'), { recursive: true });
+      await mkdir(join(green, 'assets'), { recursive: true });
+      const names = ['index-AAAAAAA1.js', 'index-BBBBBBB2.js'];
+      await writeFile(join(blue, 'assets', names[0]!), 'old JavaScript');
+      await writeFile(join(green, 'assets', names[1]!), 'new JavaScript');
+      await writeFile(
+        join(blue, 'pwa-build.json'),
+        JSON.stringify({ assets: [`assets/${names[0]}`] }),
+      );
+      await writeFile(
+        join(green, 'pwa-build.json'),
+        JSON.stringify({ assets: [`assets/${names[1]}`] }),
+      );
+      await Promise.all([
+        publishStaticAssets(join(blue, 'assets'), shared),
+        publishStaticAssets(join(green, 'assets'), shared),
+      ]);
+      // Node hosts this unit project. Keep the fixture's file body and
+      // existence real; browser validation covers native Bun MIME inference.
+      vi.stubGlobal('Bun', {
+        file: (path: string) =>
+          Object.assign(
+            new Blob([existsSync(path) ? readFileSync(path) : '']),
+            { exists: async () => existsSync(path) },
+          ),
+      });
+      const options = {
+        indexHtml: '<!doctype html>app',
+        retainedAssetsDirectory: shared,
+      };
+      const oldApp = createApp(baseEnv, { ...options, distDirectory: blue });
+      const newApp = createApp(baseEnv, { ...options, distDirectory: green });
+      for (const app of [oldApp, newApp]) {
+        for (const [index, name] of names.entries()) {
+          const response = await app.fetch(
+            new Request(`http://localhost/assets/${name}`),
+          );
+          expect(response.status).toBe(200);
+          expect(response.headers.get('cache-control')).toContain('immutable');
+          expect(await response.text()).toBe(
+            index === 0 ? 'old JavaScript' : 'new JavaScript',
+          );
+        }
+      }
+      await rm(blue, { recursive: true });
+      const response = await newApp.fetch(
+        new Request(`http://localhost/assets/${names[0]}`),
+      );
+      expect(await response.text()).toBe('old JavaScript');
+      for (const pathname of [
+        '/assets/missing-DDDDDDD4.js',
+        '/sw.js',
+        '/pwa-recovery.js',
+      ]) {
+        const missing = await newApp.fetch(
+          new Request(`http://localhost${pathname}`),
+        );
+        expect(missing.status).toBe(404);
+        expect(missing.headers.get('cache-control')).toBe('no-store');
+        expect(await missing.text()).not.toContain('<!doctype');
+      }
+    } finally {
+      vi.unstubAllGlobals();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('the offline recovery script runs under the strict CSP at a base path', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-offline-csp-'));
+    try {
+      await writeFile(
+        join(directory, 'offline.html'),
+        '<!doctype html><script src="/pwa-recovery.js"></script>',
+      );
+      vi.stubGlobal('Bun', {
+        file: (path: string) =>
+          Object.assign(
+            new Blob([existsSync(path) ? readFileSync(path) : '']),
+            { exists: async () => existsSync(path) },
+          ),
+      });
+      const app = createApp(
+        { ...baseEnv, BASE_PATH: '/tale' },
+        { distDirectory: directory },
+      );
+      // The edge strips BASE_PATH before forwarding to this server.
+      const response = await app.fetch(
+        new Request('http://localhost/offline.html'),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('src="/tale/pwa-recovery.js"');
+      expect(response.headers.get('content-security-policy')).toMatch(
+        /script-src [^;]*'self'/,
+      );
+      expect(
+        response.headers
+          .get('content-security-policy')
+          ?.split(';')
+          .find((part) => part.trim().startsWith('script-src')),
+      ).not.toContain("'unsafe-inline'");
+    } finally {
+      vi.unstubAllGlobals();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('cacheControlForStaticPath', () => {
   const IMMUTABLE = 'public, max-age=31536000, immutable';

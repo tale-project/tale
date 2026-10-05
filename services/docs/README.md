@@ -60,6 +60,13 @@ supports light and dark themes. This workspace feeds the frame its content:
 | `app/pages/not-found-page.tsx` | Rank the closest pages for `DocsNotFound`. |
 | `app/components/docs/` | Keep the docs-only pieces: image and video source rebasing and the offline update banner. |
 
+The shared PWA caches a connection screen and an external recovery script, so
+the strict CSP accepts recovery even when the origin is down. Navigations that
+fail, time out or return a proxy 5xx use this screen and retry automatically.
+Document HTML and application bundles remain online-first. A deterministic
+`pwa-build.json` changes the worker on code-only releases; long-lived tabs check
+for updates every minute and when they regain focus or connectivity.
+
 Change the shared parts in [`packages/ui/src/components/docs/`](../../packages/ui/src/components/docs/)
 and check both sites. Read the [design contract](../../design/docs/README.md) and verify keyboard
 access, the single article `h1`, hidden duplicate navigation, both themes, and narrow-width

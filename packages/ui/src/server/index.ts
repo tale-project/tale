@@ -375,6 +375,20 @@ export function startReactServer(opts: ReactServerOptions) {
     if (resolved === distDir || resolved.startsWith(distPrefix)) {
       const candidate = await existingFile(resolved, rel);
       if (candidate) {
+        if (rel === 'offline.html') {
+          return new Response(
+            (await candidate.text()).replace(
+              'src="/pwa-recovery.js"',
+              () => `src="${redirectPrefix}/pwa-recovery.js"`,
+            ),
+            {
+              headers: {
+                'content-type': 'text/html; charset=utf-8',
+                'cache-control': 'no-cache',
+              },
+            },
+          );
+        }
         const ct = contentTypeFor(pathname);
         const headers: Record<string, string> = {
           ...(ct ? { 'content-type': ct } : {}),
