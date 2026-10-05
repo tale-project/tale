@@ -175,6 +175,12 @@ restores that detail locally, and `--force` re-runs the task. A task whose resul
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
 
+The stable **Unit** check aggregates two platform unit shards and a separate job for
+every other workspace's unit tests. Both platform shards retain the live YouTube service
+and the PII project's isolation policy. The aggregate needs no dependency installation
+and rejects failed, cancelled, skipped or missing results. Candidate receipts require
+every individual unit job as well as the aggregate.
+
 The stable **UI** check aggregates four platform UI shards and fails unless all four
 succeed. It does not install dependencies. Shard 1 also runs every other workspace's
 `test:ui` once; the platform shards retain the suite's bounded worker pool. **E2E** uses
@@ -186,9 +192,18 @@ successful build's original ID. Unit and UI workers reuse a job-local Node bytec
 cache without relaxing isolation. Static-site browser and web prerender suites also reuse
 one complete Turbo build, including client, SSR, SEO, frontmatter and translated search
 outputs. Native cache archives share a build scope but retain distinct workflow/job/matrix
-writers. Chromium caches use the installed Playwright version,
-runner OS and architecture; jobs install its headless shell and always provision native
-dependencies. See [the CI scheduling guide](../.github/CI.md).
+writers. Hosted jobs use Turbo's native 512 MiB startup eviction target. Eviction
+is best-effort; short runs or new outputs can leave a larger saved archive.
+Local shared caches keep their existing policy. Chromium caches use the installed Playwright version,
+runner OS and architecture. E2E and cold Browser jobs install its headless shell and
+native dependencies; a Browser task whose complete executable prerequisite graph has
+verified local hits can skip provisioning while still running its normal Turbo command.
+The probe and verdict disable archive eviction to keep those hits available. See [the CI scheduling guide](../.github/CI.md).
+
+Web E2E's SEO step runs the workspace script directly against its browser-tested build:
+release fetching rewrites a tracked snapshot, so another Turbo prerequisite invocation
+would rebuild different bytes. Historical candidates keep forced, uncached static builds
+because their browser configs can predate preview reuse and overwrite prerendered HTML.
 
 E2E pull requests first compute a fail-closed platform, web and docs service scope;
 candidates, nightly and manual runs select every service. Candidate receipts require
@@ -246,6 +261,12 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   follows runtime imports and re-exports and requires every visited module and source-text read
   to remain hashed, including recursive workspace dependencies. Keep that proof green before
   narrowing a component input list.
+- [`services/sandbox-runtime/daemon/turbo.json`](../services/sandbox-runtime/daemon/turbo.json)
+  gives daemon tests, type-aware lint and typecheck the sandbox client closure reached by
+  `src/exec-completion.test.ts`: `session/runnerd-client.ts`, `session/runnerd-protocol.ts`
+  and `operation-budget.ts` under `services/sandbox/src`. The dependency fixture in
+  `tools/cli/scripts/turbo-dependencies.test.ts` proves each edit invalidates those checks
+  while unrelated sandbox source and the daemon's production build retain their hashes.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
@@ -283,13 +304,21 @@ a workspace that adds substantive setup must attach it to its checks. The depend
 holds workspace setup scripts to this contract.
 
 CLI generation and builds record the checkout's Git revision and clean state; they are
-uncached because those values are not source-file hashes. CLI transit inputs cover its
+uncached because those values are not source-file hashes. CI generates that identity before
+changing the tracked package version and then compiles the same module on every target.
+The Windows CI entry `build:windows:compile` shares the compiler and bundle check with
+`build:windows`; only the public local entry regenerates identity. An older candidate/tag
+checkout may lack that helper: after generation and version injection, CI derives it only
+from the selected source's known `bun run generate && bun build --compile …` script,
+preserving its compiler arguments and bundle check. Unrecognized or invalid entries fail.
+Dirty local source must still record `clean: false`. CLI transit inputs cover its
 generator's embedded trees and the platform modules reached by relative imports;
 module-closure and generator-tree guards require those actual outside inputs to be hashed.
-CLI lint/test run generation directly and do not repeat the setup alias. Nested catalog
-`.turbo/` logs are excluded. The real
-Turbo fixture in `tools/cli/scripts/ci-cache-optimization.test.ts` checks log creation and
-rewrites leave hashes unchanged while real catalog sources invalidate them.
+CLI lint/test run generation directly and do not repeat the setup alias. External catalog
+inputs exclude nested `.turbo/` logs and `*.tsbuildinfo` incremental outputs; CLI embedding
+already omits both. The real Turbo fixture in
+`tools/cli/scripts/ci-cache-optimization.test.ts` proves creating and rewriting either
+artifact preserves consumer hashes while real catalog sources and toolchain inputs invalidate them.
 Do not cache these artifacts without including and
 verifying their complete source identity.
 
@@ -297,7 +326,11 @@ verifying their complete source identity.
 architecture, Bun version, manifests, lockfile and patches, and saves after a successful
 install so a later workload failure does not lose the downloaded packages.
 Browser checks and Playwright share an exact installed-version/OS/architecture
-headless-shell cache; native dependencies are still installed on every runner.
+headless-shell cache. Successful browser provisioning is saved before later suites can
+fail. Native dependencies are installed for every E2E runner and cold Browser run;
+fully cached Browser prerequisites use the guarded exception above.
+Shared setup pins Node from the production image and hashes actual Bun/Node/OS/architecture/
+distribution identity. Keep unknown or forced Browser plans on the cold path.
 The [CI guide](../.github/CI.md) documents task cache boundaries and the four-way
 UI and platform Playwright matrices, including their required release evidence.
 

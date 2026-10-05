@@ -50,7 +50,11 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
-          fetch-depth: 0
+          # A candidate lints one commit; PR/push ranges retain full history.
+          fetch-depth: ${{ github.event_name == 'repository_dispatch' && 1 || 0 }}
+          # Ranges need commit messages, never historical file contents.
+          filter: blob:none
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo

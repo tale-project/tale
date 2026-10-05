@@ -10,6 +10,7 @@ import {
   type SessionBackend,
   type WorkspaceDeletion,
 } from '../backend/types.ts';
+import { reportSandboxError } from '../error-reporting.ts';
 import {
   belowDiskFloor,
   type HostDiskSource,
@@ -2086,6 +2087,7 @@ export class SessionRoutes {
         `[sandbox.session] teardown of ${organizationId} failed:`,
         error,
       );
+      reportSandboxError(error, 'organization-teardown');
       return jsonResponse({ error: 'teardown_failed' }, 502);
     }
   }
@@ -2535,6 +2537,7 @@ export class SessionRoutes {
       // Restore the registry entry so the session isn't lost, and surface the
       // failure so the caller retries.
       console.error('[sandbox.session] destroy backend failed:', err);
+      reportSandboxError(err, 'session-destroy');
       if (entry !== undefined) this.registry.set(entry);
       return jsonResponse(
         { destroyed: false, busy: false, error: 'backend destroy failed' },

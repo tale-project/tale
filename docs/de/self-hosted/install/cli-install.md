@@ -195,6 +195,10 @@ Im Beispiel macht `runtime.containerPrefix` die Umgebung in der Containerliste e
 }
 ```
 
+#### Die Umgebung für Fehlerberichte wählen
+
+Verwaltete Laufzeiten setzen `SENTRY_ENVIRONMENT` standardmäßig auf den bestehenden Deployment-`name`. Für eine kanonische Bezeichnung wie `example-pr` deklarierst du `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }` und setzt die Variable am Ziel. Die Bezeichnung beginnt mit einem Kleinbuchstaben oder einer Ziffer und enthält 1–64 Kleinbuchstaben, Ziffern oder Bindestriche. Browser, Backend und Sandbox verwenden sie, ohne `name`, `composeProject`, `stateDirectory` oder gespeicherte Zugangsdaten zu ändern.
+
 #### Containernamen wählen
 
 Setze `runtime.containerPrefix`, wenn in der Containerliste Namen wie `north-desk-prod-db` und `north-desk-prod-backend-api` erscheinen sollen. Das Präfix beginnt mit einem Kleinbuchstaben und besteht aus Kleinbuchstaben, Ziffern und einzelnen Bindestrichen. Es darf höchstens 40 Zeichen lang sein. Leerzeichen, Unterstriche, doppelte Bindestriche und ein Bindestrich am Ende sind nicht erlaubt.

@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.v2.json",
+  "globalEnv": ["TALE_CI_RUNTIME"],
   "globalPassThroughEnv": [
     "DO_NOT_TRACK",
     "TURBO_TELEMETRY_DISABLED",

@@ -751,6 +751,34 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         });
         continue;
       }
+      if (entry.name === 'Checkout SBOM hash guard') {
+        expect(id).toBe('vulnerability-scan');
+        const once =
+          'matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]';
+        expect(entry.if).toBe(once);
+        expect(entry.uses).toBe(
+          'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd',
+        );
+        expect(entry.with).toEqual({
+          ref: '${{ github.workflow_sha }}',
+          path: '.ci-workflow',
+          'persist-credentials': false,
+          'sparse-checkout': 'tools/cli/scripts/check-sbom-hashes.ts',
+          'sparse-checkout-cone-mode': false,
+        });
+        expect(
+          job.steps.filter((item) => item.name === entry.name),
+        ).toHaveLength(1);
+        const runner = step(job, 'Verify SBOM package hashes');
+        expect(runner.if).toBe(once);
+        expect(runner.run).toBe(
+          'bun .ci-workflow/tools/cli/scripts/check-sbom-hashes.ts',
+        );
+        expect(job.steps.indexOf(entry)).toBeLessThan(
+          job.steps.indexOf(runner),
+        );
+        continue;
+      }
       if (id === 'changes') {
         expect(entry.with?.ref).toBe(
           '${{ needs.candidate-source.outputs.candidate_sha }}',
@@ -1372,10 +1400,21 @@ const GH_STAND_IN = `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_COMMAND_LOG"
 if [ "$2" = -X ]; then
   replies=$TEST_DELETE_REPLIES
-  call=$(grep -c '^api -X DELETE ' "$TEST_COMMAND_LOG")
-else
+  version_id=\${4##*/}
+  call=$(jq -r --argjson id "$version_id" 'map(select(.metadata.container.tags | length > 0 and all(.[]; test("^pr-7-sha-[a-f0-9]{40}$")))) | map(.id) | index($id) + 1' "$TEST_VERSIONS")
+elif printf '%s\\n' "$*" | grep -q ' --paginate '; then
   replies=$TEST_LIST_REPLIES
   call=$(grep -c ' --paginate ' "$TEST_COMMAND_LOG")
+else
+  # Recheck ownership immediately before deletion through the real jq filter.
+  endpoint=$2
+  version_id=\${endpoint##*/}
+  while [ $# -gt 1 ]; do
+    [ "$1" = --jq ] && filter=$2
+    shift
+  done
+  jq --argjson id "$version_id" '.[] | select(.id == $id)' "$TEST_VERSIONS" | jq -r "$filter"
+  exit $?
 fi
 reply=$(printf '%s\\n' $replies | sed -n "\${call}p")
 case "$reply" in
@@ -1500,10 +1539,10 @@ test.skipIf(process.platform === 'win32')(
       ],
     );
     expect(result.code, result.stdout + result.stderr).toBe(0);
-    expect(result.deletions).toEqual(['1', '5']);
+    expect(result.deletions.sort()).toEqual(['1', '5']);
     // A version gone before its delete (a duplicate run, say) is no failure.
     expect(result.summary).toContain(
-      '- Deleted: 1\n- Already gone (404): 1\n- Failures: 0',
+      '- Deleted: 1\n- Already gone (404): 1\n- Shared versions preserved: 0\n- Failures: 0',
     );
   },
 );
@@ -1526,19 +1565,19 @@ describe('standalone container CI efficiency', () => {
     'only reclaims preinstalled SDKs with %s',
     async (_, available, reclaim) => {
       const jobs = (await workflow()).jobs;
-      const script = jobs['web-test']?.steps.find(
+      const diskStep = jobs['web-test']?.steps.find(
         (step) => step.name === 'Reclaim disk space if needed',
-      )?.run;
+      );
       for (const service of SERVICES) {
-        expect(
-          jobs[`${service}-test`]?.steps.find(
-            (step) => step.name === 'Reclaim disk space if needed',
-          )?.run,
-        ).toBe(script);
+        const step = jobs[`${service}-test`]?.steps.find(
+          (entry) => entry.name === 'Reclaim disk space if needed',
+        );
+        expect(step?.env).toEqual({ MIN_FREE_GIB: '20' });
+        expect(step?.run).toBe(diskStep?.run);
       }
       const result = await execute(
-        script,
-        { TEST_AVAILABLE: available },
+        diskStep?.run,
+        { ...diskStep?.env, TEST_AVAILABLE: available },
         {
           df: '#!/bin/sh\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted on\\nsynthetic 10000000 1000000 %s 10%% /\\n" "$TEST_AVAILABLE"\n',
           sudo: '#!/bin/sh\nprintf "%s\\n" "$*" >> "$PROOF_DIR/reclaim-calls"\n',
@@ -1549,23 +1588,36 @@ describe('standalone container CI efficiency', () => {
       expect(await calls.exists()).toBe(reclaim);
       if (reclaim) {
         expect(await calls.text()).toBe(
-          'rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL\ndocker image prune -af\n',
+          [
+            'rm -rf -- /usr/share/dotnet',
+            'rm -rf -- /usr/local/lib/android',
+            'rm -rf -- /opt/ghc',
+            'rm -rf -- /opt/hostedtoolcache/CodeQL',
+            'docker image prune -af',
+            '',
+          ].join('\n'),
         );
       }
     },
   );
 
-  test
-    .skipIf(process.platform === 'win32')
-    .each([
-      '#!/bin/sh\nexit 27\n',
-      '#!/bin/sh\nprintf "unreadable free space\\n"\n',
-    ])('fails when free disk space cannot be measured', async (df) => {
-    const script = (await workflow()).jobs['web-test']?.steps.find(
-      (step) => step.name === 'Reclaim disk space if needed',
-    )?.run;
-    expect((await execute(script, {}, { df })).code).not.toBe(0);
-  });
+  test.skipIf(process.platform === 'win32').each([
+    ['#!/bin/sh\nexit 27\n', 27],
+    ['#!/bin/sh\nprintf "unreadable free space\\n"\n', 1],
+  ] as const)(
+    'fails when free disk space cannot be measured',
+    async (df, code) => {
+      const diskStep = (await workflow()).jobs['web-test']?.steps.find(
+        (step) => step.name === 'Reclaim disk space if needed',
+      );
+      const result = await execute(diskStep?.run, diskStep?.env ?? {}, {
+        df,
+        sudo: '#!/bin/sh\nexit 99\n',
+      });
+      expect(result.code, result.stdout + result.stderr).toBe(code);
+      expect(result.stderr).not.toContain('MIN_FREE_GIB');
+    },
+  );
 });
 
 test.skipIf(process.platform === 'win32')(

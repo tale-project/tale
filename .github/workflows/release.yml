@@ -128,12 +128,44 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Reclaim disk space
         if: matrix.service.name == 'platform' || matrix.service.name == 'sandbox-runtime'
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        env:
+          MIN_FREE_GIB: '40'
+        run: &reclaim-release-disk |
+          set -euo pipefail
+          case "$MIN_FREE_GIB" in
+            20|28|40) ;;
+            *) echo '::error::Invalid CI disk target'; exit 1 ;;
+          esac
+          MIN_FREE_KB=$((MIN_FREE_GIB * 1024 * 1024))
+          measure_space() {
+            df -h /
+            AVAILABLE_KB=$(df -Pk / | awk 'NR == 2 { print $4 }')
+            if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
+              echo '::error::Could not measure free disk space'; exit 1
+            fi
+            echo "Available: ${AVAILABLE_KB} KiB; cleanup target: ${MIN_FREE_GIB} GiB"
+          }
+          measure_space
+          if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          # Stop once the next build/pull has headroom. Deleting all installed
+          # toolchains took 50–119s even when the image build was cached.
+          for DIRECTORY in /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; do
+            sudo rm -rf -- "$DIRECTORY"
+            measure_space
+            if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          done
           sudo docker image prune -af
+          measure_space
+          # Preserve the old cold-build fallback after exhausting its cleanup.
+          # The target controls when to stop deleting; it is not a runner quota.
+          if [ "$AVAILABLE_KB" -lt "$MIN_FREE_KB" ]; then
+            echo '::warning::Full CI disk cleanup completed below the headroom target'
+          fi
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -203,24 +235,35 @@ jobs:
           [[ "$DOCUMENT_IMAGE" =~ @sha256:[a-f0-9]{64}$ ]] || exit 1
           [[ "$DOCUMENT_PLATFORM" == linux/amd64 || "$DOCUMENT_PLATFORM" == linux/arm64 ]] || exit 1
           docker pull --platform "$DOCUMENT_PLATFORM" "$DOCUMENT_IMAGE"
-          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$DOCUMENT_IMAGE")" = "$DOCUMENT_REVISION"
-          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$DOCUMENT_IMAGE")" = "$DOCUMENT_VERSION"
-          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.source" }}' "$DOCUMENT_IMAGE")" = "$DOCUMENT_SOURCE"
-          for DOCUMENT_UID in 65534 10001; do
-            export DOCUMENT_UID
-            bun -e '
-              import { checkDocumentTools } from "./services/platform/tests/integration/lib/document-tools.ts";
-              const image = process.env.DOCUMENT_IMAGE;
-              const platform = process.env.DOCUMENT_PLATFORM;
-              const uid = Number(process.env.DOCUMENT_UID);
-              if (!image || (platform !== "linux/amd64" && platform !== "linux/arm64") || (uid !== 65534 && uid !== 10001)) {
-                throw new Error("Invalid native document check inputs");
+          LABELS=$(docker image inspect --format '{{json .Config.Labels}}' "$DOCUMENT_IMAGE")
+          jq -e --arg revision "$DOCUMENT_REVISION" --arg version "$DOCUMENT_VERSION" --arg source "$DOCUMENT_SOURCE" \
+            '."org.opencontainers.image.revision" == $revision and ."org.opencontainers.image.version" == $version and ."org.opencontainers.image.source" == $source' <<< "$LABELS" > /dev/null
+          # Both checks use anonymous, offline read-only containers with their
+          # own tmpfs. Await both even when the first UID fails.
+          # JavaScript owns the template interpolation.
+          # shellcheck disable=SC2016
+          bun -e '
+            import { checkDocumentTools } from "./services/platform/tests/integration/lib/document-tools.ts";
+            const image = process.env.DOCUMENT_IMAGE;
+            const platform = process.env.DOCUMENT_PLATFORM;
+            if (!image || (platform !== "linux/amd64" && platform !== "linux/arm64")) {
+              throw new Error("Invalid native document check inputs");
+            }
+            const uids = [65534, 10001];
+            const checks = await Promise.allSettled(uids.map(uid => checkDocumentTools(image, uid, platform)));
+            let failed = false;
+            for (const [index, check] of checks.entries()) {
+              console.log(`Document tools as uid ${uids[index]}`);
+              if (check.status === "rejected") {
+                console.error(check.reason);
+                failed = true;
+              } else {
+                console.log(check.value.combined.trim());
+                failed ||= check.value.exitCode !== 0;
               }
-              const result = await checkDocumentTools(image, uid, platform);
-              if (result.exitCode !== 0) throw new Error(result.combined);
-              console.log(result.stdout.trim());
-            '
-          done
+            }
+            if (failed) process.exitCode = 1;
+          '
 
   # ---------------------------------------------------------------------------
   # Gate: validate built images with the same tests CI runs on PRs.
@@ -237,11 +280,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
-      - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+      - name: Reclaim disk space if needed
+        env:
+          MIN_FREE_GIB: ${{ needs.prepare.outputs.sites_only == 'true' && '20' || '40' }}
+        run: *reclaim-release-disk
 
       - name: Login to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
@@ -264,54 +309,74 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
 
-      - name: Run image validation
+      # Image probes use disposable offline containers; the smoke test owns
+      # the tale-test Compose project. Reuse the same accepted image set.
+      - name: Run stack validation
         if: needs.prepare.outputs.sites_only != 'true'
-        run: |
-          export PULL_POLICY=never
-          export SKIP_BUILD=true
-          bun services/platform/tests/integration/container-image-test.ts
-
-      - name: Run smoke tests
-        if: needs.prepare.outputs.sites_only != 'true'
-        run: |
-          export PULL_POLICY=never
-          export SKIP_BUILD=true
-          bun services/platform/tests/integration/container-smoke-test.ts
         env:
+          PULL_POLICY: never
+          SKIP_BUILD: 'true'
           SMOKE_TEST_TIMEOUT: 300
-
-      - name: Run web container test
         run: |
-          export PULL_POLICY=never
-          export SKIP_BUILD=true
-          bun services/platform/tests/integration/container-web-test.ts
+          set -euo pipefail
+          LOG_DIR=$(mktemp -d "${RUNNER_TEMP}/release-validation.XXXXXX")
+          bun services/platform/tests/integration/container-image-test.ts > "${LOG_DIR}/images.log" 2>&1 &
+          IMAGES_PID=$!
+          bun services/platform/tests/integration/container-smoke-test.ts > "${LOG_DIR}/smoke.log" 2>&1 &
+          SMOKE_PID=$!
+          FAILED=0
+          if ! wait "$IMAGES_PID"; then FAILED=1; fi
+          if ! wait "$SMOKE_PID"; then FAILED=1; fi
+          for SUITE in images smoke; do
+            echo "::group::Release ${SUITE} validation"
+            cat "${LOG_DIR}/${SUITE}.log"
+            echo '::endgroup::'
+          done
+          exit "$FAILED"
 
-      - name: Run docs container test
+      # These projects have unique container names, volumes and ports13001–13004.
+      - name: Run standalone container tests
+        env:
+          PULL_POLICY: never
+          SKIP_BUILD: 'true'
+          SITES_ONLY: ${{ needs.prepare.outputs.sites_only }}
         run: |
-          export PULL_POLICY=never
-          export SKIP_BUILD=true
-          bun services/platform/tests/integration/container-docs-test.ts
+          set -euo pipefail
+          LOG_DIR=$(mktemp -d "${RUNNER_TEMP}/release-validation.XXXXXX")
+          SERVICES=(web docs ui-docs)
+          if [ "$SITES_ONLY" != true ]; then SERVICES+=(ai-gateway); fi
+          PIDS=()
+          for SERVICE in "${SERVICES[@]}"; do
+            bun run "services/platform/tests/integration/container-${SERVICE}-test.ts" > "${LOG_DIR}/${SERVICE}.log" 2>&1 &
+            PIDS+=("$!")
+          done
+          FAILED=0
+          for PID in "${PIDS[@]}"; do
+            if ! wait "$PID"; then FAILED=1; fi
+          done
+          for SERVICE in "${SERVICES[@]}"; do
+            echo "::group::Release ${SERVICE} container validation"
+            cat "${LOG_DIR}/${SERVICE}.log"
+            echo '::endgroup::'
+          done
+          exit "$FAILED"
 
-      - name: Run ui-docs container test
-        run: |
-          export PULL_POLICY=never
-          export SKIP_BUILD=true
-          bun services/platform/tests/integration/container-ui-docs-test.ts
-
-      - name: Run ai-gateway container test
-        if: needs.prepare.outputs.sites_only != 'true'
-        run: |
-          export PULL_POLICY=never
-          export SKIP_BUILD=true
-          bun services/platform/tests/integration/container-ai-gateway-test.ts
+      - name: Upload release validation logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-validation-logs-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-validation.*/*.log
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Summary
         if: always()
         run: |
           echo "## Container Test Gate" >> "$GITHUB_STEP_SUMMARY"
-          echo "Release images validated for ${{ needs.prepare.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release image validation status: ${{ job.status }} (${{ needs.prepare.outputs.version }})" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
   # Create multi-arch manifests (:version and :latest) per service.
@@ -381,24 +446,43 @@ jobs:
           # The contract-changes section compares this tag with the previous
           # one (`git describe`), so the whole tag history is needed.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
 
       - name: Verify manifests are pullable
+        env:
+          VERSION: ${{ needs.prepare.outputs.version_number }}
+          REGISTRY_PATH: ${{ env.REGISTRY }}/${{ github.repository }}
+          SERVICE_NAMES: ${{ needs.prepare.outputs.service_names }}
         run: |
-          VERSION="${{ needs.prepare.outputs.version_number }}"
-          REGISTRY="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in platform db proxy web docs ui-docs ai-gateway sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
-            IMAGE="${REGISTRY}/tale-${svc}:${VERSION}"
-            echo "Verifying manifest: ${IMAGE}"
-            docker manifest inspect "${IMAGE}" > /dev/null 2>&1 || {
-              echo "::error::Manifest not found: ${IMAGE}"
-              exit 1
-            }
+          set -euo pipefail
+          SERVICE_TEXT=$(jq -er 'if type == "array" and length > 0 and all(.[]; type == "string" and test("^[a-z0-9]+(-[a-z0-9]+)*$")) then join(" ") else error("Invalid services") end' <<< "$SERVICE_NAMES")
+          read -r -a SERVICES <<< "$SERVICE_TEXT"
+          PIDS=()
+          for ((WORKER = 0; WORKER < 3 && WORKER < ${#SERVICES[@]}; WORKER++)); do
+            (
+              FAILED=0
+              for ((INDEX = WORKER; INDEX < ${#SERVICES[@]}; INDEX += 3)); do
+                IMAGE="${REGISTRY_PATH}/tale-${SERVICES[$INDEX]}:${VERSION}"
+                echo "Verifying manifest: ${IMAGE}"
+                if ! docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+                  echo "::error::Manifest not found: ${IMAGE}"
+                  FAILED=1
+                fi
+              done
+              exit "$FAILED"
+            ) &
+            PIDS+=("$!")
           done
+          FAILED=0
+          for PID in "${PIDS[@]}"; do
+            if ! wait "$PID"; then FAILED=1; fi
+          done
+          [ "$FAILED" -eq 0 ] || exit 1
           echo "All service manifests verified"
 
       # The "API contract changes" section the API reference promises for

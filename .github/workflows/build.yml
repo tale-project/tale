@@ -29,6 +29,7 @@ on:
       - 'docs/**'
       - '.github/workflows/build.yml'
       - '.github/scripts/pull-ci-images.sh'
+      - 'tools/cli/scripts/check-sbom-hashes.ts'
       - '.github/actions/setup-turbo/**'
       - 'compose*.yml'
       - 'services/platform/tests/integration/container-*'
@@ -53,6 +54,7 @@ on:
       - 'docs/**'
       - '.github/workflows/build.yml'
       - '.github/scripts/pull-ci-images.sh'
+      - 'tools/cli/scripts/check-sbom-hashes.ts'
       - '.github/actions/setup-turbo/**'
       - 'compose*.yml'
       - 'services/platform/tests/integration/container-*'
@@ -159,10 +161,14 @@ jobs:
               - 'tsconfig*.json'
               - '.dockerignore'
               - '.github/workflows/build.yml'
+              - 'tools/cli/scripts/check-sbom-hashes.ts'
               - '.github/actions/setup-turbo/**'
               - 'turbo.json'
             platform:
-              - 'services/platform/**'
+              # These four standalone probes are excluded from Docker contexts
+              # and run in their own jobs. One positive extglob retains every
+              # other platform path under paths-filter's default OR semantics.
+              - &platform_sources 'services/platform/!(tests/integration/container-web-test.ts|tests/integration/container-docs-test.ts|tests/integration/container-ui-docs-test.ts|tests/integration/container-ai-gateway-test.ts)'
               - 'services/db/migrations/knowledge-db/**'
               - 'packages/ui/**'
               - 'packages/shared/**'
@@ -226,7 +232,6 @@ jobs:
               - 'configs/platform/system/harnesses/gemini/harness.yml'
               - 'configs/platform/custom/skills/visual-aspect-analyzer/**'
             ci_tests:
-              - 'services/platform/tests/integration/container-*'
               - 'services/platform/tests/integration/static-site-test.ts'
               - 'services/platform/tests/integration/lib/**'
               - 'compose.test.yml'
@@ -236,7 +241,7 @@ jobs:
               - '.github/workflows/build.yml'
               - '.github/scripts/pull-ci-images.sh'
               - 'services/db/**'
-              - 'services/platform/**'
+              - *platform_sources
               - 'services/proxy/**'
               - 'services/sandbox-llm-gateway/**'
               - 'services/sandbox/**'
@@ -379,9 +384,41 @@ jobs:
 
       - name: Reclaim disk space
         if: matrix.service == 'platform' || matrix.service == 'sandbox-runtime'
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        # The pulled stack occupies roughly 12–13GB locally. Builders also
+        # retain dependency snapshots and compressed exports; keep 40GiB.
+        env:
+          MIN_FREE_GIB: '40'
+        run: &reclaim-ci-disk |
+          set -euo pipefail
+          case "$MIN_FREE_GIB" in
+            20|28|40) ;;
+            *) echo '::error::Invalid CI disk target'; exit 1 ;;
+          esac
+          MIN_FREE_KB=$((MIN_FREE_GIB * 1024 * 1024))
+          measure_space() {
+            df -h /
+            AVAILABLE_KB=$(df -Pk / | awk 'NR == 2 { print $4 }')
+            if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
+              echo '::error::Could not measure free disk space'; exit 1
+            fi
+            echo "Available: ${AVAILABLE_KB} KiB; cleanup target: ${MIN_FREE_GIB} GiB"
+          }
+          measure_space
+          if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          # Stop once the next build/pull has headroom. Deleting all installed
+          # toolchains took 50–119s even when the image build was cached.
+          for DIRECTORY in /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; do
+            sudo rm -rf -- "$DIRECTORY"
+            measure_space
+            if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          done
           sudo docker image prune -af
+          measure_space
+          # Preserve the old cold-build fallback after exhausting its cleanup.
+          # The target controls when to stop deleting; it is not a runner quota.
+          if [ "$AVAILABLE_KB" -lt "$MIN_FREE_KB" ]; then
+            echo '::warning::Full CI disk cleanup completed below the headroom target'
+          fi
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -550,9 +587,9 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '28'
+        run: *reclaim-ci-disk
 
       - name: Log Docker environment
         run: |
@@ -594,7 +631,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
 
       - name: Run smoke tests
         run: bun services/platform/tests/integration/container-smoke-test.ts
@@ -602,6 +639,12 @@ jobs:
           SMOKE_TEST_TIMEOUT: 300
           SKIP_BUILD: 'true'
           PULL_POLICY: never
+
+      - name: Log disk after image checks
+        if: always()
+        run: &log-pulled-disk |
+          echo 'Disk after pull-only image checks:'
+          df -Pk /
 
       - name: Dump container logs on failure
         if: failure()
@@ -654,9 +697,9 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '40'
+        run: *reclaim-ci-disk
 
       - name: Log Docker environment
         run: |
@@ -668,7 +711,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
 
       - name: Run smoke tests (local build)
         run: bun services/platform/tests/integration/container-smoke-test.ts
@@ -728,24 +771,14 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space if needed
-        run: &reclaim-static-disk |
-          set -euo pipefail
-          AVAILABLE_KB=$(df -Pk . | awk 'NR == 2 { print $4 }')
-          if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
-            echo '::error::Could not measure free disk space'; exit 1
-          fi
-          # Keep 20 GiB for a cold standalone build. Skip expensive toolchain
-          # removal only when the runner already has that headroom.
-          echo "Available disk before static build: ${AVAILABLE_KB} KiB"
-          if [ "$AVAILABLE_KB" -lt 20971520 ]; then
-            sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-            sudo docker image prune -af
-          fi
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -809,12 +842,14 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space if needed
-        run: *reclaim-static-disk
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -878,12 +913,14 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space if needed
-        run: *reclaim-static-disk
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -950,12 +987,14 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space if needed
-        run: *reclaim-static-disk
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -1037,9 +1076,9 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '28'
+        run: *reclaim-ci-disk
 
       - name: Login to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -1073,17 +1112,43 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           turbo-cache: 'false'
 
-      - name: Run image validation
-        run: bun services/platform/tests/integration/container-image-test.ts
+      # Both suites reuse the accepted images and own isolated containers.
+      # Overlap metadata/document checks with runtime conformance without
+      # another image download; retain both verdicts and their complete logs.
+      - name: Run image validation and sandbox runtime behavior
+        run: |
+          set -euo pipefail
+          LOG_DIR=$(mktemp -d "${RUNNER_TEMP}/image-validation.XXXXXX")
+          PULL_POLICY=never bun services/platform/tests/integration/container-image-test.ts > "${LOG_DIR}/images.log" 2>&1 &
+          IMAGES_PID=$!
+          IMAGE=tale-sandbox-runtime:latest bun services/platform/tests/integration/container-sandbox-runtime-test.ts > "${LOG_DIR}/runtime.log" 2>&1 &
+          RUNTIME_PID=$!
+          FAILED=0
+          if ! wait "$IMAGES_PID"; then FAILED=1; fi
+          if ! wait "$RUNTIME_PID"; then FAILED=1; fi
+          echo '::group::Container image validation'
+          cat "${LOG_DIR}/images.log"
+          echo '::endgroup::'
+          echo '::group::Sandbox runtime conformance'
+          cat "${LOG_DIR}/runtime.log"
+          echo '::endgroup::'
+          exit "$FAILED"
         env:
           SKIP_BUILD: 'true'
-          PULL_POLICY: never
 
-      - name: Validate sandbox runtime behavior
-        run: bun services/platform/tests/integration/container-sandbox-runtime-test.ts
-        env:
-          SKIP_BUILD: 'true'
-          IMAGE: tale-sandbox-runtime:latest
+      - name: Upload image validation logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: image-validation-logs-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/image-validation.*/*.log
+          retention-days: 7
+          # Pull/setup failure can prevent the probes from creating their logs.
+          if-no-files-found: ignore
+
+      - name: Log disk after image checks
+        if: always()
+        run: *log-pulled-disk
 
       - name: Summary
         if: always()
@@ -1111,9 +1176,9 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '40'
+        run: *reclaim-ci-disk
 
       # The fork lane runs the same workspace-dependent conformance helpers.
       - name: Setup toolchain
@@ -1189,11 +1254,25 @@ jobs:
       - name: Run Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: 'v0.70.0'
           image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
-          format: 'sarif'
-          output: '${{ matrix.service }}-trivy.sarif'
-          severity: 'HIGH,CRITICAL'
+          format: 'json'
+          output: '${{ matrix.service }}-trivy.json'
+          list-all-pkgs: 'true'
+          scanners: 'vuln,secret'
+          # The SARIF action previously retained every severity, regardless of
+          # its nominal HIGH,CRITICAL input. Preserve that reporting policy.
+          severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
           trivyignores: '.trivyignore.yaml'
+
+      - name: Generate SARIF
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          trivy convert --format sarif \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+            --ignorefile .trivyignore.yaml \
+            --output "${SERVICE}-trivy.sarif" "${SERVICE}-trivy.json"
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
@@ -1202,15 +1281,42 @@ jobs:
           sarif_file: '${{ matrix.service }}-trivy.sarif'
           category: 'trivy-${{ matrix.service }}'
 
-      # Software Bill of Materials for supply-chain transparency. Reuses the
-      # already-pulled image; Trivy is already a dependency, so no new tool.
+      # Only direct SBOM analysis computes installed-package metadata hashes.
+      # JSON analysis-cache entries lack them; memory avoids reusing those entries.
       - name: Generate SBOM (CycloneDX)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_CACHE_BACKEND: memory
         with:
+          version: 'v0.70.0'
+          skip-setup-trivy: 'true'
+          cache: 'false'
           scan-type: 'image'
           image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
           format: 'cyclonedx'
           output: '${{ matrix.service }}-sbom.cdx.json'
+
+      - name: Checkout SBOM hash guard
+        if: matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # The selected source can predate this helper. Run exact workflow H's
+          # guard without replacing its source checkout or image receipts.
+          ref: ${{ github.workflow_sha }}
+          path: .ci-workflow
+          persist-credentials: false
+          sparse-checkout: tools/cli/scripts/check-sbom-hashes.ts
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Bun for SBOM hash guard
+        if: matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+
+      - name: Verify SBOM package hashes
+        if: matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]
+        run: bun .ci-workflow/tools/cli/scripts/check-sbom-hashes.ts
 
       - name: Upload SBOM
         if: always() && hashFiles(format('{0}-sbom.cdx.json', matrix.service)) != ''

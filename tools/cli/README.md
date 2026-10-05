@@ -127,6 +127,14 @@ bundle commands require POSIX custody checks and are unavailable on Windows.
 Retain the bundle, source pins and receipts together. Serialize competing
 deployments externally: a local lock does not coordinate separate hosts.
 
+Managed runtime error reporting defaults `SENTRY_ENVIRONMENT` to the deployment's
+retained `name`. To use a canonical reporting label, declare
+`"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }`
+and supply that variable at the destination, for example `example-pr`. The label
+must start with a lowercase letter or digit and contain 1–64 lowercase letters,
+digits or hyphens. Browser, backend and sandbox events use it; deployment identity,
+Compose ownership, state paths and stored credentials keep their existing values.
+
 The managed proxy blocks public account and organization creation. It also serves
 `GET /api/app/organizations/capabilities` with `canCreate: false`, so the app hides
 organization creation and directs users to the operator. Existing deployments need
