@@ -283,9 +283,12 @@ export function HomeWindowedList<T>({
     enabled: entries.length > 0,
     useCachedMeasurements: measurementsPaused,
     useAnimationFrameWithResizeObserver: true,
-    measureElement: (element, entry) =>
-      entry?.borderBoxSize[0]?.blockSize ??
-      element.getBoundingClientRect().height,
+    measureElement: (element, entry) => {
+      const blockSize = entry?.borderBoxSize[0]?.blockSize;
+      if (blockSize !== undefined) return blockSize;
+      const rectHeight = element.getBoundingClientRect().height;
+      return rectHeight > 0 ? rectHeight : element.offsetHeight;
+    },
   });
 
   const placements = useStablePlacements(
