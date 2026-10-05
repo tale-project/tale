@@ -155,6 +155,7 @@
         "@sentry/bun": "10.54.0",
         "@tanstack/react-router": "1.168.10",
         "@tanstack/react-table": "8.21.3",
+        "@tanstack/react-virtual": "3.14.13",
         "@types/react-file-icon": "1.0.5",
         "@xyflow/react": "12.10.2",
         "class-variance-authority": "0.7.1",

@@ -33,6 +33,21 @@ branding, permissions, backend queries, and other business behavior belong in th
 service’s wrappers. Use the shared tokens, control sizes, and interaction patterns instead of
 copying a service component into a second location.
 
+For long lists, `@tale/ui/use-virtual-list` exports TanStack Virtual's React hook as
+`useVirtualList`. Keep the complete ordered data source, supply stable entity keys,
+render `getVirtualItems()`, measure each `data-index` row with `measureElement`, and
+reserve the scrollable height with `getTotalSize()`. Preserve native list semantics
+and each row's position in the full list. Use `scrollToIndex` for keyboard navigation
+to unmounted rows and `rangeExtractor` to keep focused or dragged rows mounted.
+Enable `useAnimationFrameWithResizeObserver` when measured rows change height.
+
+`DropdownMenu` accepts an item array or a callback returning its groups, including
+submenu items. Pass a callback for expensive menus: it runs when that menu opens,
+using the current props. `@tale/ui/use-viewport-visibility` can defer expensive
+decoration until content approaches the viewport; retain the readable content so
+copying, browser find, and assistive technology still work. Shared Markdown uses
+this hook to defer syntax highlighting while keeping the original code visible.
+
 ## Use it in an application
 
 Frontend workspaces depend on `"@tale/ui": "workspace:*"`. Import the modules you need:
