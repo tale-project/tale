@@ -20,6 +20,9 @@ analytics:
   automations:
     title: Automation metrics
     description: Run counts, success rates, and average duration across your automations.
+    errors:
+      loadFailed: Couldn't load automation metrics.
+      refreshFailed: Couldn't refresh automation metrics. The figures shown may be out of date.
     cappedNotice: Showing the most recent 5,000 runs in this window. Older
       runs in this period are not included in these totals.
     cards:
