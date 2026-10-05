@@ -1342,11 +1342,17 @@
       "id": "CI-113"
     },
     {
-      "title": "Overlap isolated CLI source test files on macOS",
+      "title": "Retain CLI source reliability after native parallel trials",
       "before": "Source test files ran serially despite substantial subprocess/I/O waits.",
-      "after": "Bun runs at most2 isolated file workers on macOS; Linux and Windows retain measured serial execution and original30s per-test budgets.",
-      "paths": [".github/workflows/cli.yml"],
-      "proof": "ci-cli-parallel real two-file barrier proves isolation/overlap; incoming Windows observation rejects slower failing parallel path.; Subsequent native Linux hosted hang observation returned Linux to serial; current cli-ci/cli-workflow guards preserve full source coverage.",
+      "after": "Native parallel trials were withdrawn: Linux, macOS and Windows run the complete plain serial source command with the original 30-second per-test budgets and 15-minute job cap.",
+      "paths": [
+        ".github/workflows/cli.yml",
+        "tools/cli/scripts/ci-cli-parallel.test.ts",
+        "tools/cli/scripts/cli-ci.test.ts",
+        "tools/cli/scripts/cli-workflow.test.ts",
+        ".github/CI.md"
+      ],
+      "proof": "Historical ci-cli-parallel two-file barrier proved isolation/overlap; Windows rejected the slower failing parallel path, and subsequent native Linux hosted completion failures returned Linux to serial. macOS parallel mode was withdrawn after exact candidate CLI run 37271160243 reached its 15-minute deadline without a source summary, while the same-source push completed in 171.91 seconds. The logs do not establish a specific Bun worker or Git child cause. The existing actual-command fixture now verifies complete file discovery, serial case order, synchronous/asynchronous subprocess completion and one PID without worker IDs; cli-ci/cli-workflow guards retain full native source/build/signature/smoke coverage.",
       "commits": [
         "c2af6aedc56d3fd41acc50a4ab5ca73ce027b0a3",
         "f7983f21e70b2942ba63a8fc021d1ffd72a23951"

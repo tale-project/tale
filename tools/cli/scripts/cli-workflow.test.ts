@@ -329,9 +329,7 @@ describe('CLI builds retain native execution coverage without duplicate host sui
     const source = job.steps.find((entry) => entry.name === 'Run unit tests')!;
     const compile = job.steps.find((entry) => entry.name === 'Build binary')!;
     const smoke = job.steps.find((entry) => entry.name === 'Run smoke tests')!;
-    expect(source.run).toBe(
-      "${{ matrix.platform == 'macos' && 'bun run test --parallel=2' || 'bun run test' }}",
-    );
+    expect(source.run).toBe('bun run test');
     expect(source.env?.TALE_BINARY).toBe('');
     expect(smoke.run).toBe('bun run test tests/');
     expect(smoke.env?.TALE_BINARY).toBe('dist/${{ matrix.artifact }}');

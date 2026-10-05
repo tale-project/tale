@@ -269,10 +269,10 @@ jobs:
         # spawn git several times per build, and Windows runners stall on
         # git for seconds at a time — bun test's 5 s default killed passing
         # tests mid-commit.
-        # Two isolated file workers overlap I/O on macOS. Windows fixtures
-        # exceeded their 30 s budgets and Linux workers failed to finish
-        # promptly; keep both complete suites serial with the same timeout.
-        run: ${{ matrix.platform == 'macos' && 'bun run test --parallel=2' || 'bun run test' }}
+        # Native two-worker runs did not reliably finish within the existing
+        # budgets. Keep every host's complete source suite serial, retaining
+        # the same per-test limits and job deadline.
+        run: bun run test
 
       - name: Run type check
         if: matrix.platform == 'linux'

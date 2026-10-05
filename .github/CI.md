@@ -74,15 +74,14 @@ baseline behavior do not count.
   still generate and build their binaries; repeating the same source suite on the same
   host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
   and keep its download cache in a separate namespace. Native source tests retain
-  the full workspace install because they import platform auth modules. macOS runs at
-  most two source test files in parallel, isolating each file's modules and globals;
-  tests within a file remain serial. Linux and Windows source tests and compiled smoke
-  discovery remain serial. Two workers made Windows fixtures exceed their unchanged
-  30-second limits; Linux two-worker runs also failed to finish promptly. Serial suites
-  retain all assertions and the same limits. The native command fixture checks complete
-  discovery, serial case order and real synchronous/asynchronous subprocess completion
-  under each host's selected command. The macOS lane also checks file isolation and its
-  worker bound.
+  the full workspace install because they import platform auth modules. Source tests
+  and compiled smoke discovery run serially on all three hosts. Two workers made
+  Windows fixtures exceed their unchanged 30-second limits; Linux two-worker runs
+  failed to finish promptly, and a macOS candidate reached the unchanged 15-minute
+  job cap without a source summary. Serial suites retain all assertions and the same
+  limits. The native command fixture checks complete discovery, serial case order,
+  real synchronous/asynchronous subprocess completion and one process without
+  worker IDs under every host's selected command.
   Binary artifacts use fast compression; all five targets still build, native binaries
   retain smoke tests, and both macOS targets retain signature checks. Command suites
   run source cases before compilation, then select only the explicit `TALE_BINARY`
@@ -385,7 +384,17 @@ with three unchanged PowerShell checksum case receipts missing and no failure or
 timeout summary. The next run also remained unfinished beyond five minutes. These
 logs localize an unfinished fixture but do not establish the subprocess or worker
 cause. Full serial CLI tests in Checks passed freshly in 117.6s and 136.7s, so Linux
-also retains the serial command while macOS retains two workers.
+returned to the serial command. macOS initially retained two workers after its
+successful hosted runs.
+
+At `1dcc2e523`, [candidate CLI run 37271160243](https://github.com/tale-project/tale/actions/runs/37271160243)
+reached the native macOS job's unchanged 15-minute cap without a source-test summary;
+compilation and smoke were skipped. The [same-source push run](https://github.com/tale-project/tale/actions/runs/37271033868)
+completed 2,290 source cases (2,270 passed, 20 skipped, zero failures) in 171.91
+seconds and passed its signed compiled smoke suite.
+The candidate's silence does not identify the specific worker or subprocess cause.
+macOS therefore also uses the complete plain serial command, preserving every
+assertion, the 30-second case budget and the 15-minute job deadline.
 
 In [Build run 37265214548](https://github.com/tale-project/tale/actions/runs/37265214548),
 new gateway size coverage compared a 100 MiB limit calibrated from packed layers with
