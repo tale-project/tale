@@ -259,7 +259,8 @@ for (const reporting of [false, true]) {
   test(`fatal invalid configuration remains nonzero (${mode})`, async () => {
     const result = await scan('ordinaryValue();\n', reporting, true);
     expect(result.exit).toBe(7);
-    expect(result.stderr).toContain('Invalid YAML');
+    // The engine routes text diagnostics to stdout in GitHub Actions.
+    expect(`${result.stdout}\n${result.stderr}`).toContain('Invalid YAML');
   }, 20_000);
 }
 
@@ -270,7 +271,7 @@ test.each(['ordinaryValue();\n', 'errorProbe(1);\n'])(
   async (source) => {
     const result = await scan(source, true, false, true);
     expect(result.exit).toBe(2);
-    expect(result.stderr).toContain('Is a directory');
+    expect(`${result.stdout}\n${result.stderr}`).toContain('Is a directory');
   },
   20_000,
 );
