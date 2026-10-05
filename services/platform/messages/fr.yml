@@ -66,6 +66,9 @@ analytics:
   externalTurns:
     title: Tours de harness
     description: Fiabilité des tours de harness exécutés dans le bac à sable.
+    errors:
+      loadFailed: Impossible de charger les métriques des tours de harness.
+      refreshFailed: Impossible d'actualiser les métriques des tours de harness. Les chiffres affichés peuvent être obsolètes.
     cappedNotice: Affichage des 5 000 tours les plus récents de cette période.
       Les tours plus anciens ne sont pas inclus dans ces totaux.
     cards:

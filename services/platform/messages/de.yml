@@ -65,6 +65,9 @@ analytics:
   externalTurns:
     title: Harness-Runden
     description: Zuverlässigkeit der Harness-Runden in der Sandbox.
+    errors:
+      loadFailed: Die Metriken der Harness-Runden konnten nicht geladen werden.
+      refreshFailed: Die Metriken der Harness-Runden konnten nicht aktualisiert werden. Die angezeigten Zahlen sind möglicherweise veraltet.
     cappedNotice: Es werden die letzten 5.000 Runden in diesem Zeitraum
       angezeigt. Ältere Runden fließen nicht in diese Summen ein.
     cards:

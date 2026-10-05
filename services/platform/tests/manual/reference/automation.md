@@ -86,6 +86,18 @@ healthy response. `app/features/settings/governance/components/retention-pending
 owns these jsdom cases and the healthy/null/loading controls; the real
 disconnected-backend interaction and browser layout remain manual.
 
+Harness turn metrics distinguish a failed read from a period with no turns. A
+failed first read shows an EN/DE/FR alert with Try again instead of zero or
+em-dash SLO cards and the empty By harness line, keeps the heading and period
+filter, and retries the same organization and 7-, 30- or 90-day period. Try
+again stays named, busy and focused through another failure; recovery hands
+focus to the metrics region; a failed refresh keeps the cached figures and
+rows. The first read stays a skeleton with the empty-period line masked, and a
+successful empty period keeps its zero figures and empty-period line.
+`app/features/analytics/external-turns/external-turns-metrics-page.read-failure.test.tsx`
+runs the real read lane against a synthetic backend (#3868); real-browser
+layout and screen-reader announcements remain manual.
+
 Task agent Details distinguishes a failed sandbox-op read from loading and a
 successful no-log response. EN/DE/FR errors offer Try again without starting a
 new run; retry restores a stranded focus after another failure, preserves a
