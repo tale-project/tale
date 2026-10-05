@@ -10,7 +10,7 @@ import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ChevronRight } from 'lucide-react';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, type ReactNode, useCallback, useMemo, useState } from 'react';
 
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
@@ -35,6 +35,14 @@ import {
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskTitleButton } from './task-title-button';
+import {
+  useOffsetInScrollport,
+  WINDOWED_LANE_MIN_CARDS,
+  WindowedTaskRows,
+} from './windowed-task-rows';
+
+/** A top-level row's height before it is measured (subtasks folded). */
+const ROW_HEIGHT_ESTIMATE = 37;
 
 /**
  * Linear-style single-column list grouped by status. Each status is a
@@ -96,6 +104,11 @@ export const TasksList = memo(function TasksList({
     },
     [setCollapsedStatuses],
   );
+  // State, not a ref: a long section's window sits below the scrollport, so
+  // its layout effect runs before this ref is attached.
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
+    null,
+  );
 
   return (
     <DndContext
@@ -108,16 +121,19 @@ export const TasksList = memo(function TasksList({
       autoScroll={dnd.autoScroll}
       accessibility={dnd.accessibility}
     >
-      <div className="h-full min-h-0 overflow-auto overscroll-contain">
+      <div
+        ref={setScrollElement}
+        className="h-full min-h-0 overflow-auto overscroll-contain"
+      >
         {BOARD_TASK_STATUSES.map((status) => {
-          const rows = dnd.columns[status]
-            .map((id) => dnd.byId.get(id))
-            .filter((t): t is TaskRow => t != null);
           return (
             <ListSwimlane
               key={status}
               status={status}
-              rows={rows}
+              taskIds={dnd.columns[status]}
+              tasksById={dnd.byId}
+              activeId={dnd.activeId}
+              scrollElement={scrollElement}
               childrenByParent={childrenByParent}
               expanded={expanded}
               onToggleExpanded={toggleExpanded}
@@ -146,9 +162,12 @@ export const TasksList = memo(function TasksList({
   );
 });
 
-function ListSwimlane({
+const ListSwimlane = memo(function ListSwimlane({
   status,
-  rows,
+  taskIds,
+  tasksById,
+  activeId,
+  scrollElement,
   childrenByParent,
   expanded,
   onToggleExpanded,
@@ -159,7 +178,13 @@ function ListSwimlane({
   canWorkTask,
 }: {
   status: TaskStatus;
-  rows: TaskRow[];
+  /** The section's top-level task ids in order (the drag's working copy). */
+  taskIds: readonly string[];
+  tasksById: ReadonlyMap<string, TaskRow>;
+  /** The row being dragged: a windowed section keeps it mounted. */
+  activeId: string | null;
+  /** The list's scrollport, which every section shares. */
+  scrollElement: HTMLElement | null;
   childrenByParent: Map<string, TaskRow[]>;
   expanded: ReadonlySet<string>;
   onToggleExpanded: (id: string) => void;
@@ -174,6 +199,56 @@ function ListSwimlane({
     id: status,
     data: { type: 'column', status },
   });
+  const rows = useMemo(
+    () =>
+      taskIds
+        .map((id) => tasksById.get(id))
+        .filter((row): row is TaskRow => row != null),
+    [taskIds, tasksById],
+  );
+  const ids = useMemo(() => rows.map((row) => row._id), [rows]);
+  const [rowsElement, setRowsElement] = useState<HTMLDivElement | null>(null);
+  const setRowsRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setRowsElement(node);
+      setNodeRef(node);
+    },
+    [setNodeRef],
+  );
+  const windowed = rows.length > WINDOWED_LANE_MIN_CARDS;
+  const scrollMargin = useOffsetInScrollport(
+    windowed ? rowsElement : null,
+    scrollElement,
+  );
+
+  const renderRow = (task: TaskRow): ReactNode => {
+    const children = childrenByParent.get(task._id);
+    const isExpanded = expanded.has(task._id);
+    return (
+      <div key={task._id}>
+        <TaskListRow
+          task={task}
+          subtasks={children}
+          isExpanded={isExpanded}
+          onToggleExpanded={onToggleExpanded}
+          onOpen={onOpenTask}
+          projectKey={projectKey}
+          canWorkTask={canWorkTask}
+        />
+        {isExpanded &&
+          children?.map((child) => (
+            <TaskListRow
+              key={child._id}
+              task={child}
+              nested
+              onOpen={onOpenTask}
+              projectKey={projectKey}
+              canWorkTask={canWorkTask}
+            />
+          ))}
+      </div>
+    );
+  };
 
   return (
     <section>
@@ -200,39 +275,20 @@ function ListSwimlane({
         </button>
       </Row>
       {!isCollapsed && (
-        <div ref={setNodeRef} className={cn(isOver && 'bg-accent/30')}>
-          <SortableContext
-            items={rows.map((r) => r._id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {rows.map((task) => {
-              const children = childrenByParent.get(task._id);
-              const isExpanded = expanded.has(task._id);
-              return (
-                <div key={task._id}>
-                  <TaskListRow
-                    task={task}
-                    subtasks={children}
-                    isExpanded={isExpanded}
-                    onToggleExpanded={onToggleExpanded}
-                    onOpen={onOpenTask}
-                    projectKey={projectKey}
-                    canWorkTask={canWorkTask}
-                  />
-                  {isExpanded &&
-                    children?.map((child) => (
-                      <TaskListRow
-                        key={child._id}
-                        task={child}
-                        nested
-                        onOpen={onOpenTask}
-                        projectKey={projectKey}
-                        canWorkTask={canWorkTask}
-                      />
-                    ))}
-                </div>
-              );
-            })}
+        <div ref={setRowsRef} className={cn(isOver && 'bg-accent/30')}>
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+            {windowed ? (
+              <WindowedTaskRows
+                tasks={rows}
+                scrollElement={scrollElement}
+                scrollMargin={scrollMargin}
+                estimateSize={ROW_HEIGHT_ESTIMATE}
+                activeId={activeId}
+                renderTask={renderRow}
+              />
+            ) : (
+              rows.map(renderRow)
+            )}
           </SortableContext>
           {rows.length === 0 && (
             <div className="text-muted-foreground px-3 py-2 pl-9 text-xs">
@@ -243,9 +299,13 @@ function ListSwimlane({
       )}
     </section>
   );
-}
+});
 
-function TaskListRow({
+/**
+ * Memoized: a section re-renders on every drag move and every board read,
+ * and a row whose own props held still has nothing new to draw.
+ */
+const TaskListRow = memo(function TaskListRow({
   task,
   subtasks,
   isExpanded,
@@ -429,4 +489,4 @@ function TaskListRow({
       </span>
     </div>
   );
-}
+});

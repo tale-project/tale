@@ -68,15 +68,16 @@ here the first time a round re-files it.
   (`-H 'Idempotency-Key;'`), which sends an empty value. Observed in the
   2026-09-14 round-h API evaluation (h1).
 
-- **A long board lane keeps only the cards near its view in the page.** A
-  status lane holding more than 40 tasks mounts the cards in and near its
-  scrollport and the ones a scroll reaches (`board-column.tsx`,
-  `WINDOWED_LANE_MIN_CARDS`); a 2,000-task board that mounted every card
-  blocked the tab for 16–26 s (#4062). The browser's find in page and a
-  screen reader's browse mode therefore reach a long lane's cards only once
-  they are near the view; **Search tasks** finds any task, the lane header
-  counts all of them, and **Tab** and a keyboard drag still reach every card
-  in order (`TASK-P5`). Report a lane of 40 or fewer tasks missing a card.
+- **A long board lane or list section keeps only the tasks near its view in
+  the page.** A status lane (or, in **List**, a status section) holding more
+  than 40 tasks mounts the tasks in and near its scrollport and the ones a
+  scroll reaches (`windowed-task-rows.tsx`, `WINDOWED_LANE_MIN_CARDS`); a
+  2,000-task board that mounted every card blocked the tab for 16–26 s
+  (#4062). The browser's find in page and a screen reader's browse mode
+  therefore reach a long lane's tasks only once they are near the view;
+  **Search tasks** finds any task, the header counts all of them, and **Tab**
+  and a keyboard drag still reach every task in order (`TASK-P5`). Report a
+  lane or section of 40 or fewer tasks missing one.
 
 ## Known benign console output
 

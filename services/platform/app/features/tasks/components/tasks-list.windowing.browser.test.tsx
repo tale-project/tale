@@ -4,8 +4,8 @@ import { page, userEvent } from 'vitest/browser';
 
 import { cleanup, render, screen } from '@/tests/utils/render';
 
-import { KanbanBoard } from './kanban-board';
 import type { TaskRow } from './task-card';
+import { TasksList } from './tasks-list';
 import { WINDOWED_LANE_MIN_CARDS } from './windowed-task-rows';
 
 import '@/app/globals.css';
@@ -57,15 +57,19 @@ vi.mock('../hooks/use-task-subject-contract', () => ({
   useTaskContractAutomations: () => [],
 }));
 
-function makeTask(index: number): TaskRow {
+function makeTask(
+  index: number,
+  status: TaskRow['status'] = 'todo',
+  title = `List task ${index}`,
+): TaskRow {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- component fixture: unused backend fields are omitted
   return {
-    _id: `task-${index}`,
+    _id: `${status}-${index}`,
     _creationTime: 0,
     organizationId: 'org-test',
     projectId: 'project-1',
-    title: `Lane task ${index}`,
-    status: 'todo',
+    title,
+    status,
     rank: `a${String(index).padStart(4, '0')}`,
     number: index + 1,
     projectKey: 'TAL',
@@ -76,25 +80,26 @@ function makeTask(index: number): TaskRow {
   } as TaskRow;
 }
 
-const LONG_LANE = 300;
-const longLane = Array.from({ length: LONG_LANE }, (_, index) =>
-  makeTask(index),
+const LONG = 300;
+const todo = Array.from({ length: LONG }, (_, index) => makeTask(index));
+const done = Array.from({ length: LONG }, (_, index) =>
+  makeTask(index, 'done', `Done task ${index}`),
 );
 
-function laneTitles(): string[] {
+function titles(pattern: RegExp): string[] {
   return screen
-    .queryAllByRole('button', { name: /^Lane task \d+$/ })
+    .queryAllByRole('button', { name: pattern })
     .map((button) => button.textContent ?? '');
 }
 
-function laneScroller(): HTMLElement {
-  const scroller = screen
-    .getByRole('button', { name: 'Lane task 0' })
-    .closest('.overflow-y-auto');
-  if (!(scroller instanceof HTMLElement)) {
-    throw new Error('The lane has no scrollport');
+function scroller(): HTMLElement {
+  const element = screen
+    .getByRole('button', { name: 'List task 0' })
+    .closest('.overflow-auto');
+  if (!(element instanceof HTMLElement)) {
+    throw new Error('The list has no scrollport');
   }
-  return scroller;
+  return element;
 }
 
 const nextFrame = () =>
@@ -103,84 +108,84 @@ const nextFrame = () =>
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  localStorage.removeItem('tale.platform.tasks.all.collapsedStatuses');
 });
 
-describe('a long board lane (real Chromium)', () => {
-  it('mounts only the cards near its scrollport and still counts every task', async () => {
+describe('a long list section (real Chromium)', () => {
+  it('mounts only the rows near the view and still counts every task', async () => {
     await page.viewport(1280, 900);
     render(
       <div className="h-[600px] w-full">
-        <KanbanBoard tasks={longLane} canWorkTask={() => true} />
+        <TasksList tasks={todo} canWorkTask={() => true} />
       </div>,
     );
+    expect(titles(/^List task \d+$/).length).toBeGreaterThan(5);
+    expect(titles(/^List task \d+$/).length).toBeLessThan(45);
     expect(
-      screen.getByRole('button', { name: 'Lane task 0' }),
+      screen.getByRole('button', { name: `To do ${LONG}` }),
     ).toBeInTheDocument();
-    expect(laneTitles().length).toBeGreaterThan(3);
-    expect(laneTitles().length).toBeLessThan(30);
     expect(
-      screen.queryByRole('button', { name: `Lane task ${LONG_LANE - 1}` }),
+      screen.queryByRole('button', { name: `List task ${LONG - 1}` }),
     ).not.toBeInTheDocument();
-    // The header still counts the whole lane.
-    const header = laneScroller()
-      .closest('section')
-      ?.querySelector('span.tabular-nums');
-    expect(header?.textContent).toBe(String(LONG_LANE));
   });
 
-  it('mounts the cards a scroll reaches and lets go of the ones it left', async () => {
+  it('places a long section below another one where the scroll reaches it', async () => {
     await page.viewport(1280, 900);
     render(
       <div className="h-[600px] w-full">
-        <KanbanBoard tasks={longLane} canWorkTask={() => true} />
+        <TasksList tasks={[...todo, ...done]} canWorkTask={() => true} />
       </div>,
     );
-    const scroller = laneScroller();
-    scroller.scrollTop = scroller.scrollHeight;
-    await expect
-      .element(
-        page.getByRole('button', {
-          name: `Lane task ${LONG_LANE - 1}`,
-          exact: true,
-        }),
-      )
-      .toBeInTheDocument();
-    await expect.poll(() => laneTitles().includes('Lane task 0')).toBe(false);
-    expect(laneTitles().length).toBeLessThan(30);
+    const list = scroller();
+    list.scrollTop = list.scrollHeight;
+    const last = page.getByRole('button', {
+      name: `Done task ${LONG - 1}`,
+      exact: true,
+    });
+    await expect.element(last).toBeInTheDocument();
+    await nextFrame();
+    // Mounted is not enough: the row must sit inside the visible list,
+    // where the Done section's own offset in the shared scrollport puts it.
+    const view = list.getBoundingClientRect();
+    const row = last.element().getBoundingClientRect();
+    expect(row.top).toBeGreaterThanOrEqual(view.top);
+    expect(row.bottom).toBeLessThanOrEqual(view.bottom + 1);
+    // The To do section, scrolled out of view, keeps only its last few rows.
+    expect(titles(/^List task \d+$/).length).toBeLessThan(15);
   });
 
-  it('walks every card in order with Tab, past the first window', async () => {
+  it('walks every row in order with Tab, past the first window', async () => {
     await page.viewport(1280, 900);
     render(
       <div className="h-[600px] w-full">
-        {/* Read-only cards: the title is each card's one tab stop. */}
-        <KanbanBoard tasks={longLane} />
+        {/* Read-only rows: the title is each row's one tab stop. */}
+        <TasksList tasks={todo} />
       </div>,
     );
-    screen.getByRole('button', { name: 'Lane task 0' }).focus();
-    const steps = 45;
+    screen.getByRole('button', { name: 'List task 0' }).focus();
+    const steps = 60;
     for (let step = 0; step < steps; step += 1) {
       await userEvent.keyboard('{Tab}');
       await nextFrame();
     }
-    expect(document.activeElement?.textContent).toBe(`Lane task ${steps}`);
+    expect(document.activeElement?.textContent).toBe(`List task ${steps}`);
   });
 
-  it('keeps the focused card mounted and focused while the lane scrolls away', async () => {
+  it('keeps the focused row mounted and focused while the list scrolls away', async () => {
     await page.viewport(1280, 900);
     render(
       <div className="h-[600px] w-full">
-        <KanbanBoard tasks={longLane} canWorkTask={() => true} />
+        <TasksList tasks={todo} canWorkTask={() => true} />
       </div>,
     );
-    const first = screen.getByRole('button', { name: 'Lane task 0' });
+    const first = screen.getByRole('button', { name: 'List task 0' });
     first.focus();
-    const scroller = laneScroller();
-    scroller.scrollTop = scroller.scrollHeight;
+    const list = scroller();
+    list.scrollTop = list.scrollHeight;
     await expect
       .element(
         page.getByRole('button', {
-          name: `Lane task ${LONG_LANE - 1}`,
+          name: `List task ${LONG - 1}`,
           exact: true,
         }),
       )
@@ -189,14 +194,14 @@ describe('a long board lane (real Chromium)', () => {
     expect(document.activeElement).toBe(first);
   });
 
-  it('moves a card down a long lane from the keyboard and writes its new neighbours', async () => {
+  it('moves a row down a long section from the keyboard and writes its new neighbours', async () => {
     await page.viewport(1280, 900);
     render(
       <div className="h-[600px] w-full">
-        <KanbanBoard tasks={longLane} canWorkTask={() => true} />
+        <TasksList tasks={todo} canWorkTask={() => true} />
       </div>,
     );
-    screen.getByRole('button', { name: 'Lane task 0' }).focus();
+    screen.getByRole('button', { name: 'List task 0' }).focus();
     await userEvent.keyboard(' ');
     await nextFrame();
     await userEvent.keyboard('{ArrowDown}');
@@ -206,23 +211,23 @@ describe('a long board lane (real Chromium)', () => {
     await userEvent.keyboard(' ');
     await expect.poll(() => mutations.move.mock.calls.length).toBe(1);
     expect(mutations.move).toHaveBeenCalledWith({
-      taskId: 'task-0',
+      taskId: 'todo-0',
       status: 'todo',
-      beforeTaskId: 'task-2',
-      afterTaskId: 'task-3',
+      beforeTaskId: 'todo-2',
+      afterTaskId: 'todo-3',
     });
   });
 
-  it(`mounts every card of a lane of ${WINDOWED_LANE_MIN_CARDS}`, async () => {
+  it(`mounts every row of a section of ${WINDOWED_LANE_MIN_CARDS}`, async () => {
     await page.viewport(1280, 900);
     render(
       <div className="h-[600px] w-full">
-        <KanbanBoard
-          tasks={longLane.slice(0, WINDOWED_LANE_MIN_CARDS)}
+        <TasksList
+          tasks={todo.slice(0, WINDOWED_LANE_MIN_CARDS)}
           canWorkTask={() => true}
         />
       </div>,
     );
-    expect(laneTitles()).toHaveLength(WINDOWED_LANE_MIN_CARDS);
+    expect(titles(/^List task \d+$/)).toHaveLength(WINDOWED_LANE_MIN_CARDS);
   });
 });

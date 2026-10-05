@@ -1315,7 +1315,9 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   no blank slot; **Tab** from a card reaches the next card of the same lane
   past the first screen; a focused card keeps its focus while you scroll its
   lane away; **Space**, **↓**, **Space** on a card in a long lane drops it one
-  place down and the order holds after a reload.
+  place down and the order holds after a reload. Switch to **List** and repeat
+  → the same holds for a status section of more than 40 tasks, and a long
+  section below another long one shows its rows where the scroll reaches them.
 
 ## Independent agent reviews
 
