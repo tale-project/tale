@@ -899,6 +899,9 @@ automations:
       title: Journal de l'agent
       starting: "L'agent démarre dans le bac à sable…"
       empty: "L'agent n'a produit aucun journal pour cette exécution."
+      readFailed: Impossible de charger le journal de l'agent.
+      readFailedDescription: Le journal est temporairement indisponible. Réessaie pour le recharger.
+      retry: Réessayer
       servedBy: 'Ce tour a tourné sur {model}.'
       visionModel: 'Les images de cette exécution ont été lues par {model}.'
     approval:

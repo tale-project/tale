@@ -851,6 +851,9 @@ automations:
       title: Agent log
       starting: The agent is starting up in the sandbox…
       empty: The agent produced no log for this run.
+      readFailed: Could not load the agent log.
+      readFailedDescription: The transcript is temporarily unavailable. Try again to reload it.
+      retry: Try again
       servedBy: 'This turn ran on {model}.'
       visionModel: 'Images in this run were read by {model}.'
     approval:
