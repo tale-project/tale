@@ -1240,22 +1240,25 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
         docker() {
           case "$1 $2" in
             'pull --platform')
-              test "$3" = "$DOCUMENT_PLATFORM"
-              test "$4" = "$DOCUMENT_IMAGE"
+              test "$#" -eq 4 || return 90
+              test "$3" = "$DOCUMENT_PLATFORM" || return 90
+              test "$4" = "$DOCUMENT_IMAGE" || return 90
               printf 'PULL %s %s\n' "$3" "$4"
               return "$PULL_EXIT"
               ;;
             'image inspect')
-              test "$5" = "$DOCUMENT_IMAGE"
-              test "$4" = '{{json .Config.Labels}}'
+              test "$#" -eq 5 || return 90
+              test "$3" = '--format' || return 90
+              test "$5" = "$DOCUMENT_IMAGE" || return 90
+              test "$4" = '{{json .Config.Labels}}' || return 90
               printf '%s\n' "$TEST_DOCUMENT_LABELS"
               ;;
             *) return 91 ;;
           esac
         }
         bun() {
-          test "$#" -eq 2
-          test "$1" = '-e'
+          test "$#" -eq 2 || return 90
+          test "$1" = '-e' || return 90
           "$TEST_BUN_EXECUTABLE" "$@"
         }
       ` +
