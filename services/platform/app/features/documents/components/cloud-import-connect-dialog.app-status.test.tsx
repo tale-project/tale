@@ -163,12 +163,12 @@ describe.each(PROVIDERS)(
       backend.on(statusOf(provider), answer.reply);
       await user.click(retry);
 
-      await waitFor(() =>
-        expect(backend.count(statusOf(provider))).toBe(attempts + 1),
-      );
+      await waitFor(() => {
+        expect(backend.count(statusOf(provider))).toBe(attempts + 1);
+        expect(retry).toHaveAttribute('aria-busy', 'true');
+      });
       // In flight: the failure stands, Try again is busy but keeps its focus.
       expect(screen.getByRole('alert')).toHaveTextContent(failure(label));
-      expect(retry).toHaveAttribute('aria-busy', 'true');
       expect(retry).toHaveAttribute('aria-disabled', 'true');
       expect(retry).toHaveFocus();
       expect(connect(ns)).toBeNull();
@@ -195,8 +195,11 @@ describe.each(PROVIDERS)(
 
       await user.click(retry);
 
-      await waitFor(() => expect(retry).not.toHaveAttribute('aria-busy'));
-      expect(backend.count(statusOf(provider))).toBeGreaterThan(attempts);
+      // The retry runs the policy's attempts again and settles in error.
+      await waitFor(() => {
+        expect(backend.count(statusOf(provider))).toBe(attempts * 2);
+        expect(retry).not.toHaveAttribute('aria-busy');
+      });
       expect(screen.getByRole('alert')).toHaveTextContent(failure(label));
       expect(retry).toBeInTheDocument();
       expect(retry).toHaveFocus();
