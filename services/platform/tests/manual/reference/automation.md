@@ -45,6 +45,14 @@ cached transcript after a failed refresh. These component cases are owned by
 `app/features/tasks/components/task-agent-run-entry.test.tsx` (#3830, #3831).
 Real-browser focus trapping, speech and narrow-screen layout remain manual.
 
+Project Agents distinguishes a failed directory read from a successful empty
+list. EN/DE/FR alerts offer Try again without New agent or empty-state creation
+copy; the alert remains through retry and repeated failure, recovery restores
+rows or the successful empty state, and a failed refresh retains cached rows.
+These cases are owned by
+`app/features/projects/components/project-agents-tab.read-failure.test.tsx`
+(#3882). Real-browser speech and narrow-screen layout remain manual.
+
 Task agent latest-run read failures keep an EN/DE/FR alert and Try again in
 the assignment lane, including for read-only viewers. Retrying only refetches
 the read, restores stranded focus after another failure, and recovers Start
