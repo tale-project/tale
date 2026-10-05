@@ -1,8 +1,13 @@
-import type { UseQueryResult } from '@tanstack/react-query';
+import { QueryClientContext, type UseQueryResult } from '@tanstack/react-query';
+import { useContext, useEffect } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import {
+  prefetchAdaptedPaginatedQuery,
+  prefetchAdaptedQuery,
+} from '@/app/lib/backend/prefetch';
 import { taskBoardScope } from '@/app/lib/backend/tasks';
 import type { TaskOwnership } from '@/backend/core/tasks/access';
 import { backendErrorCode } from '@/lib/utils/backend-error';
@@ -262,6 +267,43 @@ export function useTaskDiscussion(taskId: string | undefined) {
     isLoadingEarlier: status === 'LoadingMore',
     loadEarlier: () => loadMore(TASK_DISCUSSION_PAGE_SIZE),
   };
+}
+
+/**
+ * Start a task's own reads together with the task. Its discussion,
+ * dependencies, reviewer and watch state are read by sections that mount only
+ * once the task has arrived and rendered, so they used to wait a whole round
+ * trip and a render behind it. They need nothing but the task's id, and land
+ * in the cache under the keys those sections read.
+ */
+export function usePrefetchTaskReads(taskId: string) {
+  // A head start, never a requirement: with no cache in scope there is
+  // nothing to warm, and the sections read for themselves.
+  const queryClient = useContext(QueryClientContext);
+  const organizationId = useOrganizationId();
+  useEffect(() => {
+    if (queryClient === undefined || !organizationId) return;
+    const args = { taskId, organizationId };
+    prefetchAdaptedPaginatedQuery(
+      queryClient,
+      'tasks/queries:listTaskDiscussion',
+      args,
+      TASK_DISCUSSION_PAGE_SIZE,
+    );
+    prefetchAdaptedQuery(
+      queryClient,
+      'tasks/queries:listTaskDependencies',
+      args,
+    );
+    prefetchAdaptedQuery(queryClient, 'tasks/queries:getTaskReviewer', args);
+    prefetchAdaptedQuery(
+      queryClient,
+      'collab/subscriptions:isSubscribedToTask',
+      {
+        taskId,
+      },
+    );
+  }, [queryClient, organizationId, taskId]);
 }
 
 export function useTaskActivity(taskId: string | undefined) {

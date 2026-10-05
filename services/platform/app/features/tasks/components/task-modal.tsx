@@ -74,7 +74,7 @@ import {
   useUpdateTask,
   useUpdateTaskStatus,
 } from '../hooks/mutations';
-import { useSubtasks, useTask } from '../hooks/queries';
+import { usePrefetchTaskReads, useSubtasks, useTask } from '../hooks/queries';
 import {
   ActorDirectoryProvider,
   useActorDirectory,
@@ -1291,6 +1291,7 @@ export function EditTaskBody({
     notFound,
     error: readError,
   } = useTask(taskId);
+  usePrefetchTaskReads(taskId);
   // Editors work every task; any other reader of the project works the
   // tasks they created or are assigned to, and the subtasks under them —
   // the server's own rule.
