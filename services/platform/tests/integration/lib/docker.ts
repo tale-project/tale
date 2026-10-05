@@ -171,6 +171,46 @@ export async function imageSizeMb(ref: string): Promise<number> {
   return Number.isFinite(n) ? Math.floor(n / 1024 / 1024) : 0;
 }
 
+/** Sum exact unpacked layer sizes, including bytes hidden by later layers.
+ * Docker history's --human=false emits integer bytes on both the classic
+ * image store and the containerd store, whose inspect.Size can instead be
+ * the compressed OCI content size. Refuse rounded or incomplete output. */
+export function parseImageHistorySizeBytes(output: string): number {
+  const rows = output.trim().split(/\r?\n/);
+  let total = 0;
+  for (const row of rows) {
+    if (!/^(?:0|[1-9]\d*)$/.test(row)) {
+      throw new Error('Invalid unpacked image layer size');
+    }
+    const bytes = Number(row);
+    if (!Number.isSafeInteger(bytes) || !Number.isSafeInteger(total + bytes)) {
+      throw new Error('Unpacked image layer size exceeds safe integer range');
+    }
+    total += bytes;
+  }
+  return total;
+}
+
+/** Unpacked bytes retained by every image layer, independent of Docker's
+ * packed-content metadata representation. Failed reads never become zero. */
+export async function imageUnpackedSizeBytes(ref: string): Promise<number> {
+  const result = await capture([
+    'docker',
+    'image',
+    'history',
+    '--no-trunc',
+    '--human=false',
+    '--format={{.Size}}',
+    ref,
+  ]);
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `Could not read unpacked image size for ${ref}: ${result.stderr.trim()}`,
+    );
+  }
+  return parseImageHistorySizeBytes(result.stdout);
+}
+
 /**
  * Health status of a container, mirroring the bash `{{if .State.Health}}…`
  * probe. Returns one of `healthy` / `unhealthy` / `no_healthcheck` /

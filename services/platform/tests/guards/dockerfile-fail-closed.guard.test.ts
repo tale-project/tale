@@ -701,8 +701,82 @@ describe('platform runner: system packages fail closed', () => {
   });
 });
 
+describe('sandbox-runtime: independently cached toolchains', () => {
+  const source = instructions(SANDBOX_RUNTIME_DOCKERFILE);
+  const pins = [
+    ['claude-build', 'CLAUDE_CODE_VERSION'],
+    ['opencode-build', 'OPENCODE_VERSION'],
+    ['cursor-build', 'CURSOR_AGENT_VERSION'],
+    ['hermes-build', 'HERMES_AGENT_VERSION'],
+    ['gemini-build', 'GEMINI_CLI_VERSION'],
+    ['codex-build', 'CODEX_VERSION'],
+    ['pi-build', 'PI_CODING_AGENT_VERSION'],
+    ['openclaw-build', 'OPENCLAW_VERSION'],
+    ['qwen-build', 'QWEN_CODE_VERSION'],
+    ['playwright-build', 'PLAYWRIGHT_MCP_VERSION'],
+    ['gh-build', 'GH_VERSION'],
+    ['vision-build', 'PILLOW_VERSION'],
+  ];
+
+  it('keeps version pins out of the shared OS and document layers', () => {
+    const base = source.filter((item) => item.stage === 'tooling-base');
+    expect(base.some((item) => item.keyword === 'FROM')).toBe(true);
+    expect(
+      base.filter((item) => item.keyword === 'ARG').map((item) => item.args),
+    ).toEqual(['TARGETARCH']);
+    for (const tool of ['libreoffice-writer', 'texlive-xetex', 'docker-ce']) {
+      expect(
+        base.some((item) => item.keyword === 'RUN' && item.args.includes(tool)),
+      ).toBe(true);
+    }
+    expect(
+      source.find((item) => item.stage === 'runtime' && item.keyword === 'FROM')
+        ?.args,
+    ).toBe('tooling-base AS runtime');
+  });
+
+  it.each(pins)('isolates %s from every other version pin', (stage, pin) => {
+    expect(
+      source
+        .filter(
+          (item) => item.keyword === 'ARG' && item.args.startsWith(`${pin}=`),
+        )
+        .map((item) => item.stage),
+    ).toEqual([stage]);
+    expect(
+      source.find((item) => item.stage === stage && item.keyword === 'FROM')
+        ?.args,
+    ).toBe(`tooling-base AS ${stage}`);
+    const copies = source.filter(
+      (item) =>
+        item.stage === 'runtime' &&
+        item.keyword === 'COPY' &&
+        item.args.includes(`--from=${stage} `),
+    );
+    expect(copies.length).toBeGreaterThan(0);
+    expect(copies.every((item) => item.args.startsWith('--link '))).toBe(true);
+  });
+
+  it('exports the complete private Hermes prefix, including wheel data files', () => {
+    expect(
+      source
+        .filter(
+          (item) =>
+            item.stage === 'runtime' &&
+            item.keyword === 'COPY' &&
+            item.args.includes('--from=hermes-build '),
+        )
+        .map((item) => item.args),
+    ).toEqual(['--link --from=hermes-build /opt/tale-hermes/ /usr/local/']);
+  });
+});
+
 describe('sandbox-runtime: the container engine install fails closed', () => {
-  const command = runCommand(SANDBOX_RUNTIME_DOCKERFILE, '', 'docker-ce');
+  const command = runCommand(
+    SANDBOX_RUNTIME_DOCKERFILE,
+    'tooling-base',
+    'docker-ce',
+  );
   const commands = ['install', 'curl', 'chmod', 'dpkg', 'apt-get', 'rm'];
   const STRIP =
     'rm -f /etc/systemd/system/multi-user.target.wants/docker.service';
