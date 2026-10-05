@@ -36,8 +36,8 @@ import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskTitleButton } from './task-title-button';
 import {
+  useLaneWindowed,
   useOffsetInScrollport,
-  WINDOWED_LANE_MIN_CARDS,
   WindowedTaskRows,
 } from './windowed-task-rows';
 
@@ -215,7 +215,7 @@ const ListSwimlane = memo(function ListSwimlane({
     },
     [setNodeRef],
   );
-  const windowed = rows.length > WINDOWED_LANE_MIN_CARDS;
+  const windowed = useLaneWindowed(rows.length);
   const scrollMargin = useOffsetInScrollport(
     windowed ? rowsElement : null,
     scrollElement,

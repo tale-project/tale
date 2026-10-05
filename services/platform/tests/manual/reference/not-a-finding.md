@@ -71,13 +71,16 @@ here the first time a round re-files it.
 - **A long board lane or list section keeps only the tasks near its view in
   the page.** A status lane (or, in **List**, a status section) holding more
   than 40 tasks mounts the tasks in and near its scrollport and the ones a
-  scroll reaches (`windowed-task-rows.tsx`, `WINDOWED_LANE_MIN_CARDS`); a
-  2,000-task board that mounted every card blocked the tab for 16–26 s
-  (#4062). The browser's find in page and a screen reader's browse mode
-  therefore reach a long lane's tasks only once they are near the view;
-  **Search tasks** finds any task, the header counts all of them, and **Tab**
-  and a keyboard drag still reach every task in order (`TASK-P5`). Report a
-  lane or section of 40 or fewer tasks missing one.
+  scroll reaches, and stays so until it falls below 30 tasks
+  (`windowed-task-rows.tsx`, `WINDOWED_LANE_MIN_CARDS`,
+  `UNWINDOWED_LANE_MAX_CARDS`); a 2,000-task board that mounted every card
+  blocked the tab for 16–26 s (#4062). The browser's find in page and a
+  screen reader's browse mode therefore reach a long lane's tasks only once
+  they are near the view, and **Tab** from a task the lane has scrolled away
+  from goes on to the tasks in view; **Search tasks** finds any task, the
+  header counts all of them, **Tab** walks the tasks in order from the view,
+  and a keyboard drag reaches every slot (`TASK-P5`). Report a lane or
+  section of fewer than 30 tasks missing one.
 
 ## Known benign console output
 

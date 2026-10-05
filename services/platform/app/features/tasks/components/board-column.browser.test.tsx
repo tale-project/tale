@@ -6,7 +6,10 @@ import { cleanup, render, screen } from '@/tests/utils/render';
 
 import { KanbanBoard } from './kanban-board';
 import type { TaskRow } from './task-card';
-import { WINDOWED_LANE_MIN_CARDS } from './windowed-task-rows';
+import {
+  UNWINDOWED_LANE_MAX_CARDS,
+  WINDOWED_LANE_MIN_CARDS,
+} from './windowed-task-rows';
 
 import '@/app/globals.css';
 
@@ -229,5 +232,71 @@ describe('a long board lane (real Chromium)', () => {
       </div>,
     );
     expect(laneTitles()).toHaveLength(WINDOWED_LANE_MIN_CARDS);
+  });
+
+  it('keeps the focus in a card its lane scrolled away from while Tab moves through its controls', async () => {
+    await page.viewport(1280, 900);
+    render(
+      <div className="h-[600px] w-full">
+        <KanbanBoard tasks={longLane} canWorkTask={() => true} />
+      </div>,
+    );
+    const title = screen.getByRole('button', { name: 'Lane task 0' });
+    title.focus();
+    const scroller = laneScroller();
+    scroller.scrollTop = scroller.scrollHeight;
+    await expect
+      .element(
+        page.getByRole('button', {
+          name: `Lane task ${LONG_LANE - 1}`,
+          exact: true,
+        }),
+      )
+      .toBeInTheDocument();
+    // Card 0 is out of the window, mounted only for its focus: Tab moves
+    // that focus to its own priority picker, and the card must stay.
+    await userEvent.keyboard('{Tab}');
+    await nextFrame();
+    const card = title.closest('[data-index]');
+    expect(card?.isConnected).toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(card?.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Priority');
+  });
+
+  it(`keeps its cards mounted when a windowed lane falls back to ${WINDOWED_LANE_MIN_CARDS}, and mounts them all below ${UNWINDOWED_LANE_MAX_CARDS}`, async () => {
+    await page.viewport(1280, 900);
+    const view = render(
+      <div className="h-[600px] w-full">
+        <KanbanBoard
+          tasks={longLane.slice(0, WINDOWED_LANE_MIN_CARDS + 1)}
+          canWorkTask={() => true}
+        />
+      </div>,
+    );
+    const first = screen.getByRole('button', { name: 'Lane task 0' });
+    expect(laneTitles().length).toBeLessThan(WINDOWED_LANE_MIN_CARDS);
+
+    view.rerender(
+      <div className="h-[600px] w-full">
+        <KanbanBoard
+          tasks={longLane.slice(0, WINDOWED_LANE_MIN_CARDS)}
+          canWorkTask={() => true}
+        />
+      </div>,
+    );
+    // Still windowed: the same card nodes, nothing remounted.
+    expect(first.isConnected).toBe(true);
+    expect(laneTitles().length).toBeLessThan(WINDOWED_LANE_MIN_CARDS);
+
+    view.rerender(
+      <div className="h-[600px] w-full">
+        <KanbanBoard
+          tasks={longLane.slice(0, UNWINDOWED_LANE_MAX_CARDS - 1)}
+          canWorkTask={() => true}
+        />
+      </div>,
+    );
+    expect(laneTitles()).toHaveLength(UNWINDOWED_LANE_MAX_CARDS - 1);
   });
 });

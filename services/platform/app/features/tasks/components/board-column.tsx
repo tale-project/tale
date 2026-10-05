@@ -13,10 +13,7 @@ import { useT } from '@/lib/i18n/client';
 import type { TaskStatus } from '../lib/display';
 import { readOnlyBoard, TaskCard, type TaskRow } from './task-card';
 import { TaskStatusBadge } from './task-status-badge';
-import {
-  WINDOWED_LANE_MIN_CARDS,
-  WindowedTaskRows,
-} from './windowed-task-rows';
+import { useLaneWindowed, WindowedTaskRows } from './windowed-task-rows';
 
 /** A card's height before it is measured: the board's typical card. */
 const CARD_HEIGHT_ESTIMATE = 128;
@@ -76,6 +73,7 @@ export const BoardColumn = memo(function BoardColumn({
     [taskIds, tasksById],
   );
   const ids = useMemo(() => tasks.map((task) => task._id), [tasks]);
+  const windowed = useLaneWindowed(tasks.length);
 
   const renderCard = (task: TaskRow) => (
     <TaskCard
@@ -120,7 +118,7 @@ export const BoardColumn = memo(function BoardColumn({
         )}
       >
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-          {tasks.length > WINDOWED_LANE_MIN_CARDS ? (
+          {windowed ? (
             <WindowedTaskRows
               tasks={tasks}
               scrollElement={laneElement}

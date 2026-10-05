@@ -6,8 +6,10 @@ import {
 import {
   type ReactNode,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -22,6 +24,24 @@ import type { TaskRow } from './task-card';
  * search and clear (#4062).
  */
 export const WINDOWED_LANE_MIN_CARDS = 40;
+
+/**
+ * A windowed lane mounts every task again only below this. The gap to
+ * {@link WINDOWED_LANE_MIN_CARDS} keeps a lane that hovers around 40 tasks
+ * from switching on each move: a switch remounts every task in the lane,
+ * and with them a picker that was open in one, or the focus.
+ */
+export const UNWINDOWED_LANE_MAX_CARDS = 30;
+
+/** Whether a lane of `count` tasks is windowed, with the hysteresis above. */
+export function useLaneWindowed(count: number): boolean {
+  const [windowed, setWindowed] = useState(count > WINDOWED_LANE_MIN_CARDS);
+  const next = windowed
+    ? count >= UNWINDOWED_LANE_MAX_CARDS
+    : count > WINDOWED_LANE_MIN_CARDS;
+  if (next !== windowed) setWindowed(next);
+  return next;
+}
 
 /** Tasks mounted past each edge of the scrollport, so a quick scroll or a
  * Tab to the next task never lands on a slot that is still empty. */
@@ -61,6 +81,12 @@ export function WindowedTaskRows({
   renderTask: (task: TaskRow) => ReactNode;
 }) {
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  // A blur only lets a task go once no focus follows it into the same task:
+  // the next control of a task (or its portaled picker) takes the focus
+  // right after the blur, and React renders between the two, so letting go
+  // at once could unmount the task under the focus that is moving into it.
+  const release = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(release.current), []);
   const pinned = useMemo(() => {
     const indexes: number[] = [];
     for (const id of [activeId, focusedId]) {
@@ -110,10 +136,22 @@ export function WindowedTaskRows({
             }}
             // React hands focus moves inside a task's portaled picker to
             // this task as well, so an open picker pins its task too.
-            onFocus={() => setFocusedId(task._id)}
-            onBlur={() =>
-              setFocusedId((current) => (current === task._id ? null : current))
-            }
+            onFocus={() => {
+              clearTimeout(release.current);
+              setFocusedId(task._id);
+            }}
+            onBlur={(event) => {
+              const next = event.relatedTarget;
+              if (next instanceof Node && event.currentTarget.contains(next)) {
+                return;
+              }
+              clearTimeout(release.current);
+              release.current = setTimeout(() => {
+                setFocusedId((current) =>
+                  current === task._id ? null : current,
+                );
+              }, 0);
+            }}
           >
             {renderTask(task)}
           </div>
