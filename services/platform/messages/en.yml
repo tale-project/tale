@@ -2410,6 +2410,9 @@ documents:
     appNotConfiguredAdmin:
       Importing from this provider needs an OAuth app first. Configure one
       under Settings > Connectors > OAuth apps, then come back to connect.
+    appStatusLoadFailed:
+      Couldn't check whether importing from {provider} is set up. You can
+      connect once the check works.
     openConnectorSettings: Open connector settings
     importedPartial: 'Imported {imported} of {total} files'
     syncedPartial: 'Synced {imported} of {total} files'
