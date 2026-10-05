@@ -1,15 +1,12 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useCallback } from 'react';
 
+import { ChatHealthMetricsPage } from '@/app/features/analytics/chat-health/chat-health-metrics-page';
 import {
   chatHealthMetricsSearchSchema,
   periodToDays,
   type ChatHealthPeriod,
 } from '@/app/features/analytics/chat-health/chat-health-period';
-import {
-  LazyChatHealthMetricsPage,
-  loadChatHealthMetricsPage,
-} from '@/app/features/analytics/lazy-metrics-pages';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureOrgSettingsQuery } from '@/app/lib/loader-preload';
 
@@ -24,7 +21,6 @@ export const Route = createFileRoute(
   // Bounded aggregates; never fail the transition on a transient/auth error —
   // the page's error/empty branches still render correctly.
   loader: ({ context, params, deps }) => {
-    void loadChatHealthMetricsPage();
     const args = {
       organizationId: params.id,
       periodDays: periodToDays(deps.period),
@@ -73,7 +69,7 @@ function ChatHealthRoute() {
 
   return (
     <SettingsPage fullWidth>
-      <LazyChatHealthMetricsPage
+      <ChatHealthMetricsPage
         organizationId={organizationId}
         period={period}
         onChangePeriod={onChangePeriod}
