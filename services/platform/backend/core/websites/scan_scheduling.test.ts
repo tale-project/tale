@@ -41,7 +41,7 @@ function site(overrides: Partial<ScanSchedulingSite>): ScanSchedulingSite {
   };
 }
 
-describe('interval scheduling', () => {
+describe('interval scheduling [WEB-R5]', () => {
   it('a never-scanned site is due immediately', () => {
     expect(isDueForScan(site({}), NOW)).toBe(true);
   });
@@ -59,7 +59,7 @@ describe('interval scheduling', () => {
   });
 });
 
-describe('failure backoff (the TALE-PROJECT-106 regression)', () => {
+describe('failure backoff (the TALE-PROJECT-106 regression) [WEB-R6]', () => {
   it('a failed attempt is NOT re-queued on the next tick', () => {
     // Before the fix a failing site's clock never advanced, so the very
     // next five-minute tick re-queued it, forever (~10 uncaught errors a
@@ -180,7 +180,7 @@ describe('stuck-scanning takeover', () => {
  * and then began again from its first page. The scheduler now resumes it;
  * these are the judgments it makes.
  */
-describe('resuming an interrupted scan', () => {
+describe('resuming an interrupted scan [WEB-R7]', () => {
   const failed = (
     job: Partial<{ endedAt: number; ranOutItsExpiry: boolean }> = {},
   ) => ({ endedAt: NOW - MINUTE, ranOutItsExpiry: false, ...job });

@@ -111,7 +111,7 @@ beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
 });
 
-describe('scanWebsiteNow', () => {
+describe('scanWebsiteNow [WEB-R8]', () => {
   it('queues a scan of a failed site and clears its failure bookkeeping, in one transaction', async () => {
     const { sql, queries } = fakeSql([row()]);
 
