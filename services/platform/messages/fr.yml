@@ -6533,6 +6533,8 @@ settings:
       subscriptionVia: Abonnement · {provider}
       subscriptionInert: Abonnement · {provider} — inutilisable, ce harness ne tourne qu'avec des identifiants gérés
       listFailed: Impossible de charger l’état des agents.
+      healthLoadFailed: Impossible de vérifier quels harnesses sont en échec. Aucun n’est donc signalé en échec récemment.
+      healthRefreshFailed: Impossible d’actualiser l’état d’échec des harnesses. L’affichage n’est peut-être plus à jour.
     apiFormat:
       openai: API compatible OpenAI
       anthropic: API Anthropic Messages

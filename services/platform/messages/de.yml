@@ -6436,6 +6436,8 @@ settings:
       subscriptionVia: Abo · {provider}
       subscriptionInert: Abo · {provider} — nicht nutzbar, dieses Harness läuft nur mit verwalteten Zugangsdaten
       listFailed: Konnte den Agenten-Status nicht laden.
+      healthLoadFailed: Konnte nicht prüfen, welche Laufzeiten fehlschlagen. Daher ist keine als zuletzt fehlerhaft markiert.
+      healthRefreshFailed: Konnte nicht aktualisieren, welche Laufzeiten fehlschlagen. Die Anzeige ist womöglich veraltet.
     apiFormat:
       openai: OpenAI-kompatible API
       anthropic: Anthropic-Messages-API
