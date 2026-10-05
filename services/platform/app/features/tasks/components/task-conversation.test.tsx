@@ -141,6 +141,51 @@ describe('TaskConversation', () => {
     );
   });
 
+  // A long task opened with hundreds of comments sliding in at once; only a
+  // comment that arrives while the page is open announces itself that way.
+  it('slides in only the comments that arrive after it opened', () => {
+    data.comments = [
+      {
+        messageId: 'm1',
+        authorType: 'user',
+        authorId: 'u1',
+        body: 'Already here',
+        createdAt: NOON - 3000,
+      },
+    ];
+    data.activity = [];
+    const { rerender } = renderConversation();
+    expect(screen.getByText('Already here').closest('li')).not.toHaveClass(
+      'animate-in',
+    );
+
+    data.comments = [
+      {
+        messageId: 'm2',
+        authorType: 'user',
+        authorId: 'u1',
+        body: 'Just posted',
+        createdAt: NOON - 1000,
+      },
+      ...data.comments,
+    ];
+    rerender(
+      <TaskConversation
+        taskId="task-1"
+        organizationId="org-1"
+        projectId="project-1"
+        canComment
+        currentUserId="u1"
+      />,
+    );
+    expect(screen.getByText('Just posted').closest('li')).toHaveClass(
+      'animate-in',
+    );
+    expect(screen.getByText('Already here').closest('li')).not.toHaveClass(
+      'animate-in',
+    );
+  });
+
   it('does not repeat a comment as a "comment added" event', () => {
     data.comments = [
       {

@@ -18,7 +18,7 @@
 import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 
 import { ConversationDateHeader } from '@/app/features/conversations/components/conversation-message-layout';
 import { useT } from '@/lib/i18n/client';
@@ -111,6 +111,16 @@ export function TaskConversation({
     return [...comments, ...events].sort((a, b) => a.at - b.at);
   }, [newestFirst, timeline, hasEarlier]);
 
+  // The comments the conversation opened with appear as they are; only one
+  // that arrives after it slides in. Animating every comment of a long task
+  // on open ran hundreds of animations at once, restyling each on every frame.
+  const openedWith = useRef<ReadonlySet<string> | null>(null);
+  if (openedWith.current === null && entries.length > 0) {
+    openedWith.current = new Set(entries.map((entry) => entry.key));
+  }
+  const arrived = (key: string) =>
+    openedWith.current !== null && !openedWith.current.has(key);
+
   // Day bands: each day's entries under one date pill.
   const days = useMemo(() => {
     const bands: { day: string; at: number; entries: ConversationEntry[] }[] =
@@ -156,7 +166,11 @@ export function TaskConversation({
                   entry.kind === 'comment' ? (
                     <li
                       key={entry.key}
-                      className="animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none"
+                      className={
+                        arrived(entry.key)
+                          ? 'animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none'
+                          : undefined
+                      }
                     >
                       <TaskCommentView
                         comment={entry.comment}
