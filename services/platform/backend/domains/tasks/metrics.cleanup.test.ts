@@ -21,11 +21,15 @@ describe('project metrics fixture cleanup', () => {
     async (outcome) => {
       const projects = new Set<string>();
       const insertedProjects: string[] = [];
+      const auditMutations: string[] = [];
       const tag = async (
         strings: TemplateStringsArray,
         ...values: unknown[]
       ) => {
         const query = strings.join('?');
+        if (query.includes('app.audit_logs')) {
+          auditMutations.push(query);
+        }
         if (query.includes('INSERT INTO app.projects')) {
           const projectId = String(values[0]);
           projects.add(projectId);
@@ -77,6 +81,7 @@ describe('project metrics fixture cleanup', () => {
       expect(insertedProjects).toHaveLength(expectedProjects);
       expect(new Set(insertedProjects).size).toBe(expectedProjects);
       expect(projects.size).toBe(0);
+      expect(auditMutations).toEqual([]);
     },
   );
 });

@@ -427,7 +427,6 @@ async function checkProjectTaskArchiveHistory(
       `capped days=${[...capped.daily, ...capped.previousDaily].filter((day) => day.capped).length} (want 14)`,
     );
   } finally {
-    await sql`DELETE FROM app.audit_logs WHERE org_id = ${orgId} AND resource_id = ${taskId}`;
     await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
   }
 }
