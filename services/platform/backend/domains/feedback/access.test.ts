@@ -60,7 +60,7 @@ beforeEach(() => {
   loadProjectSharedThread.mockResolvedValue(null);
 });
 
-describe('submitMessageFeedback — the message must be within reach', () => {
+describe('submitMessageFeedback — the message must be within reach [FDBK-R1]', () => {
   it('refuses a message that is not in the caller organization and thread, before any write', async () => {
     const { tx, statements } = fakeTx([]);
     await expect(submitMessageFeedback(tx, SCOPE, VOTE)).rejects.toBeInstanceOf(
@@ -104,7 +104,7 @@ describe('submitMessageFeedback — the message must be within reach', () => {
   });
 });
 
-describe('submitMessageFeedback — the vote is attributed by the message, not the client', () => {
+describe('submitMessageFeedback — the vote is attributed by the message, not the client [FDBK-R2]', () => {
   it('records the model, provider and assistant the message carries', async () => {
     loadOwnedThread.mockResolvedValue({ id: 't-1' });
     const { tx, statements, values } = fakeTx([
