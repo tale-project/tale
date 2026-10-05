@@ -78,6 +78,15 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   run source cases before compilation, then select only the explicit `TALE_BINARY`
   artifact in the smoke lane. A missing selected artifact fails instead of falling
   back to source; every command suite remains part of smoke discovery.
+  All targets compile the identity generated from the clean checkout before CI injects
+  the release version. Windows uses `build:windows:compile` for that step; the public
+  `build:windows` command still regenerates identity for local builds. When a trusted
+  workflow checks out an older candidate/tag without the helper, it derives the helper
+  after generation and version injection by removing only the known generate prefix
+  from that source's `bun build --compile …` script. The selected source remains the
+  authority for compiler arguments and bundle validation; malformed scripts fail closed.
+  Do not regenerate after CI changes the tracked manifest or bypass dirty-source
+  rejection.
 
 ## Cache boundaries
 

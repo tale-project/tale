@@ -162,7 +162,9 @@ jobs:
             cross: true
           - os: windows-latest
             platform: windows
-            build_script: build:windows
+            # "Generate embedded files" captures the clean checkout before version
+            # injection changes package.json. Compile those exact sources.
+            build_script: build:windows:compile
             binary: tale.exe
             artifact: tale_windows.exe
 
@@ -250,7 +252,38 @@ jobs:
 
       - name: Build binary
         working-directory: tools/cli
-        run: bun run ${{ matrix.build_script }}
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          BUILD_SCRIPT: ${{ matrix.build_script }}
+        run: |
+          if [ "$PLATFORM" = windows ]; then
+            # The trusted workflow may build an older candidate/tag checkout.
+            # Reuse that source's compiler/checker without generating again.
+            bun -e '
+              const file = "package.json";
+              const manifest = await Bun.file(file).json();
+              const scripts = manifest.scripts;
+              const helper = "build:windows:compile";
+              if (!scripts || typeof scripts !== "object" || Array.isArray(scripts))
+                throw new Error("Selected source has no Windows build scripts.");
+              if (Object.hasOwn(scripts, helper)) {
+                if (typeof scripts[helper] !== "string" || !scripts[helper].trim())
+                  throw new Error("Selected source has an invalid Windows compile helper.");
+              } else {
+                const legacy = scripts["build:windows"];
+                const prefix = "bun run generate && ";
+                const compile = "bun build --compile ";
+                if (typeof legacy !== "string" || !legacy.startsWith(prefix))
+                  throw new Error("Selected source has no supported Windows compile entry.");
+                const command = legacy.slice(prefix.length);
+                if (!command.startsWith(compile) || !command.slice(compile.length).trim())
+                  throw new Error("Selected source has no supported Windows compile entry.");
+                scripts[helper] = command;
+                await Bun.write(file, JSON.stringify(manifest, null, 2) + "\n");
+              }
+            '
+          fi
+          bun run "$BUILD_SCRIPT"
 
       - name: Rename binary
         working-directory: tools/cli/dist

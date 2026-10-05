@@ -296,7 +296,14 @@ a workspace that adds substantive setup must attach it to its checks. The depend
 holds workspace setup scripts to this contract.
 
 CLI generation and builds record the checkout's Git revision and clean state; they are
-uncached because those values are not source-file hashes. CLI transit inputs cover its
+uncached because those values are not source-file hashes. CI generates that identity before
+changing the tracked package version and then compiles the same module on every target.
+The Windows CI entry `build:windows:compile` shares the compiler and bundle check with
+`build:windows`; only the public local entry regenerates identity. An older candidate/tag
+checkout may lack that helper: after generation and version injection, CI derives it only
+from the selected source's known `bun run generate && bun build --compile …` script,
+preserving its compiler arguments and bundle check. Unrecognized or invalid entries fail.
+Dirty local source must still record `clean: false`. CLI transit inputs cover its
 generator's embedded trees and the platform modules reached by relative imports;
 module-closure and generator-tree guards require those actual outside inputs to be hashed.
 CLI lint/test run generation directly and do not repeat the setup alias. Nested catalog
