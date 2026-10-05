@@ -24,6 +24,7 @@ import { getFileUrl, statOrgBlob } from '../files/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
 import {
   mailRefsOf,
+  retireConversationAttachments,
   queueMessageRefRelease,
   queueSpamVerdictCorpusJobs,
 } from './message-corpus.ts';
@@ -1410,6 +1411,7 @@ export async function deleteConversation(
     }
     await assertNotHeld(tx, organizationId, 'conversation', conversationId);
     const refs = await mailRefsOf(tx, organizationId, [conversationId]);
+    await retireConversationAttachments(tx, organizationId, [conversationId]);
     await tx`DELETE FROM app.conversations WHERE id = ${conversationId}`;
     await queueMessageRefRelease(tx, organizationId, refs);
   });

@@ -88,6 +88,7 @@ import {
 } from './domains/files/held-blob-cleanups.integration.ts';
 import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
+import { checkBlobRetirementSchema } from './domains/files/retirement.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
@@ -60042,6 +60043,10 @@ async function main(): Promise<void> {
               signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
             record,
           ),
+      ],
+      [
+        'checkBlobRetirementSchema',
+        () => checkBlobRetirementSchema(sql, record),
       ],
       [
         'checkNotificationProjectBackfill',

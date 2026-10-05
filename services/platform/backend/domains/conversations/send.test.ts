@@ -17,7 +17,7 @@
  */
 
 import type { Sql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   runConnectorAction,
@@ -26,13 +26,15 @@ const {
   emitHintInTx,
   queueApiReply,
   assertOwnedAttachments,
+  ownsUploadedBlob,
 } = vi.hoisted(() => ({
   runConnectorAction: vi.fn(),
   createAuditLog: vi.fn(async () => undefined),
-  addJobInTx: vi.fn(async () => 'job-1'),
+  addJobInTx: vi.fn(async (..._args: unknown[]) => 'job-1'),
   emitHintInTx: vi.fn(async () => undefined),
   queueApiReply: vi.fn(async () => 'm-api'),
   assertOwnedAttachments: vi.fn(async () => undefined),
+  ownsUploadedBlob: vi.fn(),
 }));
 
 vi.mock('../connectors/service.ts', () => ({ runConnectorAction }));
@@ -44,6 +46,10 @@ vi.mock('../events/emit.ts', () => ({
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
 vi.mock('./attachment-ownership.ts', () => ({ assertOwnedAttachments }));
+vi.mock('../files/upload-intents.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../files/upload-intents.ts')>()),
+  ownsUploadedBlob,
+}));
 vi.mock('./api-sync.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./api-sync.ts')>()),
   queueApiReply,
@@ -55,6 +61,7 @@ import {
   replyToConversation,
   resolveSentExternalMessageId,
   retrySendMessage,
+  recoverStuckConversationSends,
   runSendMessageJob,
   undoSendMessage,
 } from './send.ts';
@@ -99,46 +106,832 @@ type Begin = { status: 'open' | 'committed' | 'rolled_back' };
  * A `sql` double that records statements and answers by statement shape:
  * `answer` maps a text fragment to the rows that statement returns (or the
  * error it rejects with); the first matching fragment wins, and anything
- * unmatched answers no rows. `begin` runs the callback on the same tag and
+ * unmatched answers no rows. `begin` runs the callback on a distinct tag and
  * records whether the transaction committed or rolled back.
  */
-function fakeSql(answer: Record<string, unknown[] | Error>) {
+function fakeSql(
+  answer: Record<
+    string,
+    unknown[] | Error | ((statement: Statement) => unknown[] | Error)
+  >,
+) {
   const statements: Statement[] = [];
   const begins: Begin[] = [];
-  let current: number | null = null;
-  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+  const transactions: unknown[] = [];
+  const record = (
+    begin: number | null,
+    strings: TemplateStringsArray,
+    ...values: unknown[]
+  ) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
-    statements.push({ text, values, begin: current });
+    const statement = { text, values, begin };
+    statements.push(statement);
     const hit = Object.entries(answer).find(([needle]) =>
       text.includes(needle),
     );
-    if (hit?.[1] instanceof Error) return Promise.reject(hit[1]);
-    return Promise.resolve(hit ? hit[1] : []);
+    const rows =
+      typeof hit?.[1] === 'function' ? hit[1](statement) : (hit?.[1] ?? []);
+    if (rows instanceof Error) return Promise.reject(rows);
+    return Promise.resolve(rows);
   };
-  const sql = Object.assign(tag, {
+  const helpers = {
     unsafe: (text: string) => text,
     json: (value: unknown) => value,
-    begin: async (cb: (tx: unknown) => unknown) => {
-      const index = begins.push({ status: 'open' }) - 1;
-      current = index;
-      try {
-        const result = await cb(sql);
-        begins[index] = { status: 'committed' };
-        return result;
-      } catch (error) {
-        begins[index] = { status: 'rolled_back' };
-        throw error;
-      } finally {
-        current = null;
-      }
+  };
+  const sql = Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) =>
+      record(null, strings, ...values),
+    helpers,
+    {
+      begin: async (cb: (tx: unknown) => unknown) => {
+        const index = begins.push({ status: 'open' }) - 1;
+        const tx = Object.assign(
+          (strings: TemplateStringsArray, ...values: unknown[]) =>
+            record(index, strings, ...values),
+          helpers,
+        );
+        transactions.push(tx);
+        try {
+          const result = await cb(tx);
+          begins[index] = { status: 'committed' };
+          return result;
+        } catch (error) {
+          begins[index] = { status: 'rolled_back' };
+          throw error;
+        }
+      },
     },
-  });
+  );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
-  return { sql: sql as unknown as Sql, statements, begins };
+  return { sql: sql as unknown as Sql, statements, begins, transactions };
 }
 
 const CLAIM = "metadata->>'sendClaimedAt' IS NULL";
 const SETTLE = "delivery_state = 'sent'";
+function isObservedDelivery(statement: Statement): boolean {
+  return (
+    statement.text.startsWith('UPDATE app.conversation_messages') &&
+    statement.values.some(
+      (value) =>
+        typeof value === 'object' &&
+        value !== null &&
+        'sendDeliveredAt' in value,
+    )
+  );
+}
+
+describe('mail holder closure — durable retirement in the winning transaction', () => {
+  const NOW = 2_000_000;
+  const LOAD = 'FROM app.conversation_messages WHERE id = ? LIMIT 1';
+  const actor = { userId: 'u1' };
+  const storedAttachment = {
+    id: 's3:blobs/acme/invoice',
+    storageId: 's3:blobs/acme/invoice',
+    filename: 'invoice.pdf',
+    contentType: 'application/pdf',
+    size: 8,
+  };
+  const metadata = {
+    ...QUEUED_ROW.metadata,
+    attachments: [storedAttachment, storedAttachment],
+  };
+  const staleMetadata = {
+    attachments: [{ ...storedAttachment, storageId: 's3:blobs/acme/stale' }],
+  };
+  const rowWithFiles = { ...QUEUED_ROW, metadata };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    ownsUploadedBlob.mockReset().mockResolvedValue(false);
+    runConnectorAction.mockResolvedValue({
+      status: 'ok',
+      output: { messageId: '<smtp-1@door.test>' },
+    });
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  function expectRetirement(
+    statements: Statement[],
+    transactions: unknown[],
+    mutation: Statement | undefined,
+    dueAt: number,
+    custodians: string[] = ['u1'],
+  ) {
+    expect(mutation).toBeDefined();
+    expect(mutation?.begin).not.toBeNull();
+    const ledgers = statements.filter((statement) =>
+      statement.text.startsWith('INSERT INTO app.blob_reclaims'),
+    );
+    expect(ledgers).toHaveLength(1);
+    expect(ledgers[0]).toMatchObject({
+      begin: mutation?.begin,
+      values: [
+        'o1',
+        dueAt,
+        NOW,
+        custodians,
+        custodians.length === 0,
+        [storedAttachment.storageId],
+      ],
+    });
+    expect(statements.indexOf(ledgers[0]!)).toBeGreaterThan(
+      statements.indexOf(mutation!),
+    );
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(addJobInTx.mock.calls[0]?.[0]).toBe(transactions[mutation!.begin!]);
+    expect(addJobInTx.mock.calls[0]?.slice(1)).toEqual([
+      'files.retire_blobs',
+      { organizationId: 'o1' },
+      { startAfter: new Date(dueAt), singletonKey: 'o1' },
+    ]);
+  }
+
+  function expectNoRetirement(statements: Statement[]) {
+    expect(
+      statements.some(
+        (statement) =>
+          statement.text.includes('app.blob_reclaims') ||
+          statement.text.includes('app.blob_composer_handoffs'),
+      ),
+    ).toBe(false);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  }
+
+  it('retires only the sent CAS winner RETURNING refs, not stale claim metadata or job input', async () => {
+    const { sql, statements, begins, transactions } = fakeSql({
+      [CLAIM]: [{ ...QUEUED_ROW, metadata: staleMetadata }],
+      [SETTLE]: [{ id: 'm1', metadata, owner: 'u1' }],
+    });
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+    const settled = statements.find((statement) =>
+      statement.text.includes(SETTLE),
+    );
+    expect(settled?.text).toContain(
+      'RETURNING id, metadata, attachment_owner_user_id AS owner',
+    );
+    expect(settled?.text).toContain(
+      "WHERE id = ? AND org_id = ? AND delivery_state IN ('queued', 'failed') AND metadata->>'sendClaimedAt' = ?",
+    );
+    expect(settled?.values).toEqual([
+      NOW,
+      NOW,
+      'smtp-1@door.test',
+      'm1',
+      'o1',
+      String(NOW),
+    ]);
+    expectRetirement(statements, transactions, settled, NOW);
+    const observed = statements.find(isObservedDelivery);
+    expect(observed).toMatchObject({
+      begin: null,
+      values: [
+        { sendDeliveredAt: NOW, sendDeliveredExternalId: 'smtp-1@door.test' },
+        'm1',
+        'o1',
+        String(NOW),
+      ],
+    });
+    expect(observed?.text).toContain(
+      "WHERE id = ? AND org_id = ? AND delivery_state IN ('queued', 'failed') AND metadata->>'sendClaimedAt' = ?",
+    );
+    expect(statements.indexOf(observed!)).toBeLessThan(
+      statements.indexOf(settled!),
+    );
+    expect(begins).toEqual([{ status: 'committed' }]);
+  });
+
+  it('rolls back the conflicting settle and queues exactly once with the successful fallback CAS', async () => {
+    const { sql, statements, begins, transactions } = fakeSql({
+      [CLAIM]: [{ ...QUEUED_ROW, metadata: staleMetadata }],
+      [SETTLE]: (statement) =>
+        statement.values.includes('smtp-1@door.test')
+          ? Object.assign(new Error('duplicate Message-ID'), { code: '23505' })
+          : [{ id: 'm1', metadata, owner: 'u1' }],
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+    const settles = statements.filter((statement) =>
+      statement.text.includes(SETTLE),
+    );
+    expect(settles).toHaveLength(2);
+    expect(settles[1]?.values).toEqual([
+      NOW,
+      NOW,
+      'external_message_id',
+      'm1',
+      'o1',
+      String(NOW),
+    ]);
+    expectRetirement(statements, transactions, settles[1], NOW);
+    expect(begins).toEqual([
+      { status: 'rolled_back' },
+      { status: 'committed' },
+    ]);
+    expect(
+      statements.some((statement) =>
+        statement.text.includes("delivery_state = 'failed'"),
+      ),
+    ).toBe(false);
+  });
+
+  it('does not reclaim after a sent CAS loses, even though the claim held attachment refs', async () => {
+    const { sql, statements, begins } = fakeSql({
+      [CLAIM]: [rowWithFiles],
+      [SETTLE]: [],
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+    expectNoRetirement(statements);
+    expect(begins).toEqual([{ status: 'committed' }]);
+  });
+
+  it('does not reclaim when the conflict fallback CAS also loses', async () => {
+    const { sql, statements, begins } = fakeSql({
+      [CLAIM]: [rowWithFiles],
+      [SETTLE]: (statement) =>
+        statement.values.includes('smtp-1@door.test')
+          ? Object.assign(new Error('duplicate Message-ID'), { code: '23505' })
+          : [],
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+    expect(
+      statements.filter((statement) => statement.text.includes(SETTLE)),
+    ).toHaveLength(2);
+    expectNoRetirement(statements);
+    expect(begins).toEqual([
+      { status: 'rolled_back' },
+      { status: 'committed' },
+    ]);
+  });
+
+  it('does not reclaim on connector failure because the failed mail remains a holder', async () => {
+    const { sql, statements } = fakeSql({ [CLAIM]: [rowWithFiles] });
+    runConnectorAction.mockResolvedValue({
+      status: 'error',
+      message: 'send refused',
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+    expect(
+      statements.some((statement) =>
+        statement.text.includes("delivery_state = 'failed'"),
+      ),
+    ).toBe(true);
+    expectNoRetirement(statements);
+  });
+
+  it('a hint failure after successful settlement cannot resurrect the sent row as a failed holder', async () => {
+    const { sql, statements, transactions } = fakeSql({
+      [CLAIM]: [rowWithFiles],
+      [SETTLE]: [{ id: 'm1', metadata, owner: 'u1' }],
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    emitHintInTx.mockRejectedValueOnce(new Error('outbox unavailable'));
+    await expect(runSendMessageJob(sql, JOB_PAYLOAD)).resolves.toBeUndefined();
+    expect(
+      statements.filter((statement) => statement.text.includes(SETTLE)),
+    ).toHaveLength(1);
+    expect(
+      statements.some((statement) =>
+        statement.text.includes("delivery_state = 'failed'"),
+      ),
+    ).toBe(false);
+    expectRetirement(
+      statements,
+      transactions,
+      statements.find((statement) => statement.text.includes(SETTLE)),
+      NOW,
+    );
+    expect(emitHintInTx).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('notification deferred'),
+    );
+  });
+
+  it('a real transport failure is guarded by organization, queued state, and the exact send claim', async () => {
+    const { sql, statements } = fakeSql({
+      [CLAIM]: [rowWithFiles],
+      "delivery_state = 'failed'": [{ id: 'm1' }],
+    });
+    runConnectorAction.mockRejectedValueOnce(new Error('transport refused'));
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+    const failed = statements.find((statement) =>
+      statement.text.includes("delivery_state = 'failed'"),
+    );
+    expect(failed?.text).toContain(
+      "WHERE id = ? AND org_id = ? AND delivery_state = 'queued' AND metadata->>'sendClaimedAt' = ?",
+    );
+    expect(failed?.values).toEqual([
+      NOW,
+      expect.objectContaining({ error: 'transport refused' }),
+      'm1',
+      'o1',
+      String(NOW),
+    ]);
+    expectNoRetirement(statements);
+    expect(emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('a stale transport failure that loses its CAS neither rewrites the new state nor emits a hint', async () => {
+    const { sql, statements } = fakeSql({
+      [CLAIM]: [rowWithFiles],
+      "delivery_state = 'failed'": [],
+    });
+    runConnectorAction.mockRejectedValueOnce(
+      new Error('late transport failure'),
+    );
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+    const failed = statements.filter((statement) =>
+      statement.text.includes("delivery_state = 'failed'"),
+    );
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.text).toContain(
+      "WHERE id = ? AND org_id = ? AND delivery_state = 'queued' AND metadata->>'sendClaimedAt' = ?",
+    );
+    expect(emitHintInTx).not.toHaveBeenCalled();
+    expectNoRetirement(statements);
+  });
+
+  it.each(['ledger insert', 'job enqueue'])(
+    'a %s failure during settlement preserves the observed delivery rather than failing a sent mail',
+    async (failure) => {
+      const unavailable = new Error(`${failure} unavailable`);
+      const { sql, statements, begins } = fakeSql({
+        [CLAIM]: [rowWithFiles],
+        [SETTLE]: [{ id: 'm1', metadata, owner: 'u1' }],
+        ...(failure === 'ledger insert'
+          ? { 'INSERT INTO app.blob_reclaims': unavailable }
+          : {}),
+      });
+      if (failure === 'job enqueue')
+        addJobInTx.mockRejectedValueOnce(unavailable);
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      await expect(runSendMessageJob(sql, JOB_PAYLOAD)).rejects.toThrow(
+        `${failure} unavailable`,
+      );
+      const observed = statements.find(isObservedDelivery);
+      const settled = statements.find((statement) =>
+        statement.text.includes(SETTLE),
+      );
+      expect(observed).toMatchObject({
+        begin: null,
+        values: [
+          { sendDeliveredAt: NOW, sendDeliveredExternalId: 'smtp-1@door.test' },
+          'm1',
+          'o1',
+          String(NOW),
+        ],
+      });
+      expect(statements.indexOf(observed!)).toBeLessThan(
+        statements.indexOf(settled!),
+      );
+      expect(begins).toEqual([{ status: 'rolled_back' }]);
+      expect(
+        statements.some((statement) =>
+          statement.text.includes("delivery_state = 'failed'"),
+        ),
+      ).toBe(false);
+      expect(runConnectorAction).toHaveBeenCalledTimes(1);
+      expect(emitHintInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it('a database settlement failure after transport success leaves the autocommit receipt for recovery', async () => {
+    const { sql, statements, begins } = fakeSql({
+      [CLAIM]: [rowWithFiles],
+      [SETTLE]: new Error('settlement unavailable'),
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await expect(runSendMessageJob(sql, JOB_PAYLOAD)).rejects.toThrow(
+      'settlement unavailable',
+    );
+    expect(statements.find(isObservedDelivery)).toMatchObject({ begin: null });
+    expect(begins).toEqual([{ status: 'rolled_back' }]);
+    expect(
+      statements.some((statement) =>
+        statement.text.includes("delivery_state = 'failed'"),
+      ),
+    ).toBe(false);
+    expectNoRetirement(statements);
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('recovery settles a bounded observed-delivery scan before failing unstamped stale sends without resending', async () => {
+    const { sql, statements, transactions, begins } = fakeSql({
+      "AND metadata->>'sendDeliveredAt' IS NOT NULL": [
+        {
+          id: 'm1',
+          organizationId: 'o1',
+          conversationId: 'c1',
+          metadata: {
+            sendDeliveredAt: NOW - 100,
+            sendDeliveredExternalId: 'smtp-1@door.test',
+            sendClaimedAt: NOW - 200,
+          },
+        },
+      ],
+      [SETTLE]: [{ id: 'm1', metadata, owner: 'u1' }],
+      "delivery_state = 'failed'": [],
+    });
+    await expect(
+      recoverStuckConversationSends(sql, { staleMs: 1000 }),
+    ).resolves.toEqual({ failed: 0 });
+    expect(statements[0]?.text).toContain(
+      "delivery_state IN ('queued', 'failed')",
+    );
+    expect(statements[0]?.text).toContain(
+      "channel IS DISTINCT FROM 'api' AND metadata->>'sendDeliveredAt' IS NOT NULL",
+    );
+    expect(statements[0]?.text).toContain(
+      'ORDER BY coalesce(status_changed_at_ms, created_at_ms), id LIMIT 25',
+    );
+    const settled = statements.find((statement) =>
+      statement.text.includes(SETTLE),
+    );
+    expect(settled?.values).toEqual([
+      NOW,
+      NOW,
+      'smtp-1@door.test',
+      'm1',
+      'o1',
+      String(NOW - 200),
+    ]);
+    expectRetirement(statements, transactions, settled, NOW);
+    const failureScan = statements.find((statement) =>
+      statement.text.includes("delivery_state = 'failed'"),
+    );
+    expect(failureScan?.text).toContain(
+      "AND metadata->>'sendDeliveredAt' IS NULL",
+    );
+    expect(statements.indexOf(failureScan!)).toBeGreaterThan(
+      statements.indexOf(settled!),
+    );
+    expect(runConnectorAction).not.toHaveBeenCalled();
+    expect(begins).toEqual([{ status: 'committed' }]);
+  });
+
+  it('recovery rotates an observed row after settlement enqueue failure and excludes it from the failed scan', async () => {
+    const { sql, statements, begins } = fakeSql({
+      "AND metadata->>'sendDeliveredAt' IS NOT NULL": [
+        {
+          id: 'm1',
+          organizationId: 'o1',
+          conversationId: 'c1',
+          metadata: {
+            sendDeliveredAt: NOW - 100,
+            sendDeliveredExternalId: 'smtp-1@door.test',
+            sendClaimedAt: NOW - 200,
+          },
+        },
+      ],
+      [SETTLE]: [{ id: 'm1', metadata, owner: 'u1' }],
+      "delivery_state = 'failed'": [],
+    });
+    addJobInTx.mockRejectedValueOnce(new Error('queue unavailable'));
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await expect(recoverStuckConversationSends(sql)).resolves.toEqual({
+      failed: 0,
+    });
+    expect(begins).toEqual([{ status: 'rolled_back' }]);
+    const rotation = statements.find((statement) =>
+      statement.text.startsWith(
+        'UPDATE app.conversation_messages SET status_changed_at_ms',
+      ),
+    );
+    expect(rotation).toMatchObject({
+      begin: null,
+      values: [NOW, 'm1', 'o1', String(NOW - 200)],
+    });
+    expect(rotation?.text).toContain(
+      "delivery_state IN ('queued', 'failed') AND metadata->>'sendClaimedAt' = ?",
+    );
+    expect(
+      statements.find((statement) =>
+        statement.text.includes("delivery_state = 'failed'"),
+      )?.text,
+    ).toContain("AND metadata->>'sendDeliveredAt' IS NULL");
+    expect(emitHintInTx).not.toHaveBeenCalled();
+    expect(runConnectorAction).not.toHaveBeenCalled();
+  });
+
+  it('hands an undone send back to the composer for a bounded fifteen minutes in the delete transaction', async () => {
+    const { sql, statements, begins, transactions } = fakeSql({
+      [LOAD]: [rowWithFiles],
+      'DELETE FROM app.conversation_messages': [
+        { id: 'm1', metadata, owner: 'u1' },
+      ],
+    });
+    const draft = await undoSendMessage(sql, {
+      organizationId: 'o1',
+      messageId: 'm1',
+      actor,
+    });
+    expect(draft.attachments).toEqual([
+      {
+        storageId: storedAttachment.storageId,
+        fileName: 'invoice.pdf',
+        contentType: 'application/pdf',
+        size: 8,
+      },
+      {
+        storageId: storedAttachment.storageId,
+        fileName: 'invoice.pdf',
+        contentType: 'application/pdf',
+        size: 8,
+      },
+    ]);
+    const deletion = statements.find((statement) =>
+      statement.text.startsWith('DELETE FROM app.conversation_messages'),
+    );
+    const handoffs = statements.filter((statement) =>
+      statement.text.startsWith('INSERT INTO app.blob_composer_handoffs'),
+    );
+    const expiry = NOW + 15 * 60_000;
+    expect(handoffs).toHaveLength(1);
+    expect(handoffs[0]).toMatchObject({
+      begin: deletion?.begin,
+      values: ['o1', 'u1', expiry, [storedAttachment.storageId]],
+    });
+    expect(statements.indexOf(handoffs[0]!)).toBeGreaterThan(
+      statements.indexOf(deletion!),
+    );
+    const ledgers = statements.filter((statement) =>
+      statement.text.startsWith('INSERT INTO app.blob_reclaims'),
+    );
+    expect(ledgers).toEqual([
+      expect.objectContaining({
+        begin: deletion?.begin,
+        values: [
+          'o1',
+          expiry,
+          NOW,
+          ['u1'],
+          false,
+          [storedAttachment.storageId],
+        ],
+      }),
+      expect.objectContaining({
+        begin: deletion?.begin,
+        values: ['o1', NOW, NOW, ['u1'], false, [storedAttachment.storageId]],
+      }),
+    ]);
+    expect(addJobInTx.mock.calls).toEqual([
+      [
+        transactions[0],
+        'files.retire_blobs',
+        { organizationId: 'o1' },
+        { startAfter: new Date(expiry), singletonKey: 'o1' },
+      ],
+      [
+        transactions[0],
+        'files.retire_blobs',
+        { organizationId: 'o1' },
+        { startAfter: new Date(NOW), singletonKey: 'o1' },
+      ],
+    ]);
+    expect(ownsUploadedBlob).not.toHaveBeenCalled();
+    expect(begins).toEqual([{ status: 'committed' }]);
+  });
+
+  it('retires a discarded failed mail immediately without a composer handoff', async () => {
+    const { sql, statements, begins, transactions } = fakeSql({
+      [LOAD]: [
+        { ...rowWithFiles, deliveryState: 'failed', metadata: staleMetadata },
+      ],
+      'DELETE FROM app.conversation_messages': [
+        { id: 'm1', metadata, owner: 'u1' },
+      ],
+    });
+    await discardOutboundMessage(sql, {
+      organizationId: 'o1',
+      messageId: 'm1',
+      actor,
+    });
+    const deletion = statements.find((statement) =>
+      statement.text.startsWith('DELETE FROM app.conversation_messages'),
+    );
+    expect(deletion?.text).toContain(
+      "AND direction = 'outbound' AND delivery_state = 'failed'",
+    );
+    expectRetirement(statements, transactions, deletion, NOW);
+    expect(
+      statements.some((statement) =>
+        statement.text.includes('app.blob_composer_handoffs'),
+      ),
+    ).toBe(false);
+    expect(begins).toEqual([{ status: 'committed' }]);
+  });
+
+  it('an admin undo keeps the CAS-returned refs with their trusted owner, never granting them to the actor', async () => {
+    const { sql, statements, transactions } = fakeSql({
+      [LOAD]: [
+        {
+          ...rowWithFiles,
+          metadata: { ...staleMetadata, sourceMarkdown: 'Draft text' },
+        },
+      ],
+      'DELETE FROM app.conversation_messages': [
+        {
+          id: 'm1',
+          metadata: { ...metadata, attachmentOwnerUserId: 'u1' },
+          owner: 'u2',
+        },
+      ],
+    });
+    await expect(
+      undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
+    ).resolves.toEqual({ sourceMarkdown: 'Draft text', attachments: [] });
+    expect(ownsUploadedBlob).not.toHaveBeenCalled();
+    const handoffs = statements.filter((statement) =>
+      statement.text.startsWith('INSERT INTO app.blob_composer_handoffs'),
+    );
+    expect(handoffs).toEqual([
+      expect.objectContaining({
+        begin: 0,
+        values: ['o1', 'u2', NOW + 15 * 60_000, [storedAttachment.storageId]],
+      }),
+    ]);
+    const ledgers = statements.filter((statement) =>
+      statement.text.startsWith('INSERT INTO app.blob_reclaims'),
+    );
+    expect(ledgers).toEqual([
+      expect.objectContaining({
+        begin: 0,
+        values: [
+          'o1',
+          NOW + 15 * 60_000,
+          NOW,
+          ['u2'],
+          false,
+          [storedAttachment.storageId],
+        ],
+      }),
+      expect.objectContaining({
+        begin: 0,
+        values: ['o1', NOW, NOW, ['u2'], false, [storedAttachment.storageId]],
+      }),
+    ]);
+    expect(addJobInTx.mock.calls).toEqual([
+      [
+        transactions[0],
+        'files.retire_blobs',
+        { organizationId: 'o1' },
+        { startAfter: new Date(NOW + 15 * 60_000), singletonKey: 'o1' },
+      ],
+      [
+        transactions[0],
+        'files.retire_blobs',
+        { organizationId: 'o1' },
+        { startAfter: new Date(NOW), singletonKey: 'o1' },
+      ],
+    ]);
+  });
+
+  it('a legacy NULL owner requires actor-owned proof and still retires every CAS-listed ref', async () => {
+    const foreign = { ...storedAttachment, storageId: 's3:blobs/acme/foreign' };
+    const legacyMetadata = {
+      ...metadata,
+      attachments: [storedAttachment, foreign],
+    };
+    const { sql, statements, transactions } = fakeSql({
+      [LOAD]: [{ ...rowWithFiles, metadata: legacyMetadata }],
+      'DELETE FROM app.conversation_messages': [
+        { id: 'm1', metadata: legacyMetadata, owner: null },
+      ],
+    });
+    ownsUploadedBlob.mockImplementation(
+      async (_tx, scope) => scope.storageRef === storedAttachment.storageId,
+    );
+    const draft = await undoSendMessage(sql, {
+      organizationId: 'o1',
+      messageId: 'm1',
+      actor,
+    });
+    expect(draft.attachments).toEqual([
+      {
+        storageId: storedAttachment.storageId,
+        fileName: 'invoice.pdf',
+        contentType: 'application/pdf',
+        size: 8,
+      },
+    ]);
+    expect(ownsUploadedBlob.mock.calls).toEqual([
+      [
+        transactions[0],
+        { organizationId: 'o1', userId: 'u1', storageRef: foreign.storageId },
+        { stamp: false },
+      ],
+      [
+        transactions[0],
+        {
+          organizationId: 'o1',
+          userId: 'u1',
+          storageRef: storedAttachment.storageId,
+        },
+        { stamp: false },
+      ],
+    ]);
+    expect(
+      statements.filter((statement) =>
+        statement.text.startsWith('INSERT INTO app.blob_composer_handoffs'),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        begin: 0,
+        values: ['o1', 'u1', NOW + 15 * 60_000, [storedAttachment.storageId]],
+      }),
+    ]);
+    expect(
+      statements.filter((statement) =>
+        statement.text.startsWith('INSERT INTO app.blob_reclaims'),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        begin: 0,
+        values: [
+          'o1',
+          NOW + 15 * 60_000,
+          NOW,
+          ['u1'],
+          false,
+          [storedAttachment.storageId],
+        ],
+      }),
+      expect.objectContaining({
+        begin: 0,
+        values: [
+          'o1',
+          NOW,
+          NOW,
+          [],
+          true,
+          [foreign.storageId, storedAttachment.storageId],
+        ],
+      }),
+    ]);
+    expect(addJobInTx).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not hand off an unproven legacy attachment but queues its returned ref with unknown custody', async () => {
+    const { sql, statements, transactions } = fakeSql({
+      [LOAD]: [{ ...rowWithFiles, metadata: staleMetadata }],
+      'DELETE FROM app.conversation_messages': [
+        { id: 'm1', metadata, owner: null },
+      ],
+    });
+    await expect(
+      undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
+    ).resolves.toEqual({ sourceMarkdown: null, attachments: [] });
+    expect(ownsUploadedBlob).toHaveBeenCalledExactlyOnceWith(
+      transactions[0],
+      {
+        organizationId: 'o1',
+        userId: 'u1',
+        storageRef: storedAttachment.storageId,
+      },
+      { stamp: false },
+    );
+    expect(
+      statements.some((statement) =>
+        statement.text.startsWith('INSERT INTO app.blob_composer_handoffs'),
+      ),
+    ).toBe(false);
+    expectRetirement(
+      statements,
+      transactions,
+      statements.find((statement) =>
+        statement.text.startsWith('DELETE FROM app.conversation_messages'),
+      ),
+      NOW,
+      [],
+    );
+  });
+
+  it.each([
+    ['undo', 'queued', undoSendMessage, 'undo_window_closed'],
+    ['discard', 'failed', discardOutboundMessage, 'discard_not_available'],
+  ] as const)(
+    'does not reclaim or hand off when the %s DELETE CAS loses',
+    async (_name, deliveryState, run, code) => {
+      const { sql, statements, begins } = fakeSql({
+        [LOAD]: [{ ...rowWithFiles, deliveryState }],
+        'DELETE FROM app.conversation_messages': [],
+      });
+      await expect(
+        run(sql, { organizationId: 'o1', messageId: 'm1', actor }),
+      ).rejects.toMatchObject({ code, status: 409 });
+      expectNoRetirement(statements);
+      expect(begins).toEqual([{ status: 'rolled_back' }]);
+      expect(createAuditLog).not.toHaveBeenCalled();
+      expect(emitHintInTx).not.toHaveBeenCalled();
+    },
+  );
+});
 
 describe('runSendMessageJob — the claim', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -213,17 +1006,20 @@ describe('runSendMessageJob — the claim', () => {
     // refused; the settle must still record the send, not fail it.
     const { sql, statements } = fakeSql({
       [CLAIM]: [QUEUED_ROW],
-      'external_message_id = ?': Object.assign(new Error('duplicate key'), {
-        code: '23505',
-      }),
+      'external_message_id = ?': (statement) =>
+        statement.values.includes('smtp-1@door.test')
+          ? Object.assign(new Error('duplicate key'), { code: '23505' })
+          : [{ id: 'm1' }],
       [SETTLE]: [{ id: 'm1' }],
     });
     await runSendMessageJob(sql, JOB_PAYLOAD);
     const settles = statements.filter((s) => s.text.includes(SETTLE));
     expect(settles).toHaveLength(2);
     expect(settles[0]?.text).toContain('external_message_id = ?');
-    expect(settles[1]?.text).not.toContain('external_message_id');
-    expect(statements.some((s) => s.text.includes("'failed'"))).toBe(false);
+    expect(settles[1]?.text).toContain('external_message_id = ?');
+    expect(
+      statements.some((s) => s.text.includes("delivery_state = 'failed'")),
+    ).toBe(false);
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('landed that Message-ID first'),
     );
@@ -301,6 +1097,8 @@ describe('composeEmailConversation — one transaction', () => {
     );
     expect(conversationInsert?.begin).toBe(0);
     expect(messageInsert?.begin).toBe(0);
+    expect(messageInsert?.text).toContain('attachment_owner_user_id');
+    expect(messageInsert?.values.at(-1)).toBe('u1');
     expect(addJobInTx).toHaveBeenCalledTimes(1);
   });
 
@@ -392,6 +1190,7 @@ describe('retrySendMessage — the mailbox', () => {
   const answers = (row: ConversationMessageRow) => ({
     'FROM app.conversation_messages WHERE id': [row],
     'SELECT metadata FROM app.conversations': [{ metadata: null }],
+    "AND metadata->>'sendDeliveredAt' IS NULL RETURNING id": [{ id: 'm1' }],
   });
 
   it('retries through the mailbox the failed attempt used', async () => {
@@ -414,6 +1213,34 @@ describe('retrySendMessage — the mailbox', () => {
     });
     const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
     expect(payload).not.toHaveProperty('credentialId');
+  });
+
+  it('refuses to resend a failed row with durable observed delivery awaiting settlement', async () => {
+    const { sql, statements, begins } = fakeSql(
+      answers({
+        ...FAILED_ROW,
+        metadata: {
+          ...FAILED_ROW.metadata,
+          sendDeliveredAt: 1500,
+          sendDeliveredExternalId: 'smtp-1@door.test',
+        },
+      }),
+    );
+    await expect(
+      retrySendMessage(sql, {
+        organizationId: 'o1',
+        messageId: 'm1',
+        actor: { userId: 'u1' },
+      }),
+    ).rejects.toMatchObject({
+      code: 'DELIVERY_RETRY_UNAVAILABLE',
+      status: 409,
+    });
+    expect(
+      statements.some((statement) => statement.text.startsWith('UPDATE')),
+    ).toBe(false);
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(begins).toEqual([{ status: 'rolled_back' }]);
   });
 });
 
@@ -497,7 +1324,10 @@ describe('undoSendMessage — after the claim', () => {
         attachments: [INVOICE],
       },
     };
-    const { sql } = fakeSql({ [LOAD]: [row], [UNDO_DELETE]: [{ id: 'm1' }] });
+    const { sql } = fakeSql({
+      [LOAD]: [row],
+      [UNDO_DELETE]: [{ id: 'm1', metadata: row.metadata, owner: 'u1' }],
+    });
     await expect(
       undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
     ).resolves.toEqual({
@@ -512,7 +1342,10 @@ describe('undoSendMessage — after the claim', () => {
       content: '',
       metadata: { ...QUEUED_ROW.metadata, attachments: [INVOICE] },
     };
-    const { sql } = fakeSql({ [LOAD]: [row], [UNDO_DELETE]: [{ id: 'm1' }] });
+    const { sql } = fakeSql({
+      [LOAD]: [row],
+      [UNDO_DELETE]: [{ id: 'm1', metadata: row.metadata, owner: 'u1' }],
+    });
     await expect(
       undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
     ).resolves.toEqual({ sourceMarkdown: null, attachments: [HANDED_BACK] });
@@ -528,7 +1361,10 @@ describe('undoSendMessage — after the claim', () => {
         attachments: [{ ...INVOICE, id: 'ext-7' }],
       },
     };
-    const { sql } = fakeSql({ [LOAD]: [row], [UNDO_DELETE]: [{ id: 'm1' }] });
+    const { sql } = fakeSql({
+      [LOAD]: [row],
+      [UNDO_DELETE]: [{ id: 'm1', metadata: row.metadata, owner: 'u1' }],
+    });
     await expect(
       undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
     ).resolves.toEqual({

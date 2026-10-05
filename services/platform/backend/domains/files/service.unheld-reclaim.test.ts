@@ -57,6 +57,28 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+it('strict retirement observes storage failure instead of confirming reclamation', async () => {
+  const fake = fakeSql(['s3:blobs/acme/loose']);
+  vi.mocked(deleteOrgObject).mockRejectedValueOnce(
+    new Error('store unavailable'),
+  );
+  await expect(
+    deleteUnheldOrgBlobRefs(fake.sql, 'org_1', ['s3:blobs/acme/loose'], {
+      strict: true,
+    }),
+  ).rejects.toThrow('store unavailable');
+});
+
+it('strict retirement refuses another tenants namespace without deletion', async () => {
+  const fake = fakeSql(['s3:blobs/other/loose']);
+  await expect(
+    deleteUnheldOrgBlobRefs(fake.sql, 'org_1', ['s3:blobs/other/loose'], {
+      strict: true,
+    }),
+  ).rejects.toThrow();
+  expect(deleteOrgObject).not.toHaveBeenCalled();
+});
+
 it('deletes only the bytes nothing holds, asking the shared rule once for every ref', async () => {
   const fake = fakeSql(['s3:blobs/acme/loose']);
 

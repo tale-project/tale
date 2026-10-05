@@ -9,6 +9,11 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { searchConversationsForChat } from '../conversations/search-chat.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import {
+  assertDocumentVisible,
+  DocumentError,
+  listDocumentsForBlob,
+} from '../documents/service.ts';
+import {
   emailedAttachmentConversations,
   listMailAttachments,
 } from '../file_metadata/mail-attachments.ts';
@@ -17,6 +22,7 @@ import {
   viewerForUser,
   type FileBindingFields,
 } from '../files/access.ts';
+import { replayableChatParts } from '../files/chat-replay.ts';
 import {
   checkModelAccessForUser,
   resolveModelGovernanceForUser,
@@ -493,7 +499,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
           createdAt: number;
         }[]
       >`
-        SELECT m.id, m.role, m.parts, m."order" AS sequence,
+        SELECT m.id, m.role, ${replayableChatParts(sql, args.organizationId, sql`m`)} AS parts, m."order" AS sequence,
                m.model, m.provider_slug AS "providerSlug", m.usage,
                m.blocked_reason AS "blockedReason", m.error,
                m.created_at_ms::float8 AS "createdAt"
@@ -567,6 +573,48 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         }
       }
       return args.storageIds.filter((id) => readable.has(id));
+    },
+
+    'file_metadata/internal_queries:resolveReadableStorageBindings': async (
+      raw,
+    ) => {
+      const args = raw as {
+        organizationId: string;
+        userId: string;
+        storageIds: string[];
+      };
+      if (args.storageIds.length === 0) return {};
+      const viewer = await viewerForUser(sql, args.organizationId, args.userId);
+      if (viewer === null) return {};
+      const rows = await sql<FileBindingFields[]>`
+        SELECT org_id AS "organizationId", storage_ref AS "storageRef",
+               uploaded_by AS "uploadedBy", document_id AS "documentId",
+               thread_id AS "threadId", conversation_id AS "conversationId"
+        FROM app.file_metadata
+        WHERE org_id = ${args.organizationId}
+          AND storage_ref = ANY(${args.storageIds})
+          AND (lifecycle_status IS NULL OR lifecycle_status <> 'trashed')
+      `;
+      const bindings: Record<string, { documentId?: string }> = {};
+      for (const row of rows) {
+        if (row.documentId === null || bindings[row.storageRef] !== undefined)
+          continue;
+        const documents = await listDocumentsForBlob(
+          sql,
+          args.organizationId,
+          row,
+        );
+        for (const document of documents) {
+          try {
+            await assertDocumentVisible(sql, viewer, document);
+            bindings[row.storageRef] = { documentId: document.id };
+            break;
+          } catch (error) {
+            if (!(error instanceof DocumentError)) throw error;
+          }
+        }
+      }
+      return bindings;
     },
 
     'file_metadata/internal_queries:getByStorageId': async (raw) => {

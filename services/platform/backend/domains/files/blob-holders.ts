@@ -1,6 +1,7 @@
 import type { Fragment, Sql, TransactionSql } from 'postgres';
 
 import { taskHoldsBlobRef } from '../tasks/blob-holders.ts';
+import { chatUploadOwned } from './chat-ownership.ts';
 
 /**
  * May the BYTES of a blob ref go? Not while some row of the organization
@@ -47,6 +48,10 @@ export function blobRefHeld(
     WHERE held_doc.org_id = ${organizationId}
       AND (held_doc.file_ref = ${ref}
            OR held_doc.history_files @> ARRAY[${ref}::text])
+  ) OR EXISTS (
+    SELECT 1 FROM app.blob_composer_handoffs handoff
+    WHERE handoff.org_id = ${organizationId} AND handoff.storage_ref = ${ref}
+      AND handoff.expires_at_ms > ${Date.now()}
   ) OR ${listedBlobRefHeld(sql, organizationId, ref)})`;
 }
 
@@ -84,8 +89,9 @@ export function blobRefHeld(
  *   | chat, user rows                       | 400k messages   | seq scan     | 516–612 ms   |
  *   | chat, with a partial index (not here) | 400k messages   | bitmap scan  | 30–85 ms     |
  *
- * The lanes asking pay this once per ref on a file delete or a reclaim,
- * next to the data loss it prevents. Should a profile show either arm, a
+ * Each evaluation pays this cost per ref: a file delete or reclaim, or a
+ * bounded expired-intent batch on the mint path. Repeated sweeps can ask
+ * again for a held ref or a failed delete. Should a profile show either arm, a
  * partial index on `app.messages (org_id) WHERE role = 'user' AND parts @>
  * '[{"type":"attachment"}]'` (and a GIN index for the task arm) is the
  * measured next step.
@@ -106,6 +112,18 @@ export function listedBlobRefHeld(
     SELECT 1 FROM app.messages held_chat
     WHERE held_chat.org_id = ${organizationId}
       AND held_chat.role = 'user'
+      AND (
+        held_chat.attachment_ownership->${ref}::text @> '{"owned":true}'::jsonb
+        OR (
+          NOT (coalesce(held_chat.attachment_ownership, '{}'::jsonb) ? ${ref}::text)
+          AND EXISTS (
+            SELECT 1 FROM app.file_metadata file JOIN app.thread_metadata thread
+              ON thread.org_id = file.org_id AND thread.thread_id = held_chat.thread_id
+            WHERE file.org_id = ${organizationId} AND file.storage_ref = ${ref}
+              AND ${chatUploadOwned(sql, sql`file`, sql`thread`)}
+          )
+        )
+      )
       AND held_chat.parts @> jsonb_build_array(jsonb_build_object(
         'type', 'attachment', 'fileId', ${ref}::text
       ))

@@ -30,6 +30,7 @@ describe('recoverStuckConversationSends', () => {
     const queries: string[] = [];
     const sql = capturingSql(
       [
+        [],
         // the UPDATE ... RETURNING flips the queued row to failed
         [{ id: 'msg_1', conversationId: 'conv_1', orgId: 'org_1' }],
         // emitHintInTx's outbox insert
@@ -42,21 +43,23 @@ describe('recoverStuckConversationSends', () => {
 
     expect(result).toEqual({ failed: 1 });
     // Honest terminal state, keyed off outbound queued rows.
-    expect(queries[0]).toContain("delivery_state = 'failed'");
-    expect(queries[0]).toContain("delivery_state = 'queued'");
-    expect(queries[0]).toContain("direction = 'outbound'");
+    expect(queries[0]).toContain("metadata->>'sendDeliveredAt' IS NOT NULL");
+    expect(queries[0]).toContain('LIMIT 25');
+    expect(queries[1]).toContain("delivery_state = 'failed'");
+    expect(queries[1]).toContain("delivery_state = 'queued'");
+    expect(queries[1]).toContain("metadata->>'sendDeliveredAt' IS NULL");
+    expect(queries[1]).toContain("direction = 'outbound'");
     // A realtime hint lights up the retry surface in the open inbox.
-    expect(queries[1]).toContain('app_realtime.outbox');
+    expect(queries[2]).toContain('app_realtime.outbox');
   });
 
   it('reports zero and emits nothing when no send is stranded', async () => {
     const queries: string[] = [];
-    const sql = capturingSql([[]], queries);
+    const sql = capturingSql([[], []], queries);
 
     const result = await recoverStuckConversationSends(sql);
 
     expect(result).toEqual({ failed: 0 });
-    // Only the sweep query ran — no per-row hint.
-    expect(queries).toHaveLength(1);
+    expect(queries).toHaveLength(2);
   });
 });

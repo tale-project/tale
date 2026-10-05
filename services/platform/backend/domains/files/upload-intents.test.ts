@@ -17,8 +17,10 @@ import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { deleteOrgObject } from '../../lib/object-store.ts';
+import { blobRefHeld } from './blob-holders.ts';
 import {
   claimRejectedUpload,
+  firstForeignUpload,
   releaseReclaimedIntent,
   ownsUploadedBlob,
   recordUploadIntent,
@@ -60,6 +62,7 @@ function fakeLedger(script: {
   claimed?: { id: string }[];
   stamped?: { id: string }[];
   uploaderRow?: boolean;
+  handoff?: boolean;
   /** Fail the sweep's first statement (the consumed-row DELETE). */
   sweepFails?: boolean;
 }): { sql: Sql; statements: Statement[] } {
@@ -89,7 +92,7 @@ function fakeLedger(script: {
       );
     }
     let rows: unknown[] = [];
-    if (text.startsWith('SELECT i.id, i.s3_ref')) {
+    if (text.includes('SELECT i.id, i.s3_ref')) {
       rows = script.abandoned ?? [];
     } else if (
       text.startsWith('UPDATE app.upload_intents i SET expires_at_ms = 0')
@@ -97,6 +100,11 @@ function fakeLedger(script: {
       rows = script.claimed ?? [];
     } else if (text.startsWith('UPDATE app.upload_intents SET bound_at_ms')) {
       rows = script.stamped ?? [];
+    } else if (
+      text.includes('FROM app.blob_composer_handoffs') ||
+      text.startsWith('UPDATE app.blob_composer_handoffs')
+    ) {
+      rows = script.handoff ? [{ storage_ref: 's3:blobs/acme/aaa' }] : [];
     } else if (text.startsWith('SELECT EXISTS')) {
       rows = [{ owned: script.uploaderRow === true }];
     }
@@ -115,15 +123,54 @@ function fakeLedger(script: {
  * (what Postgres would receive) matter to the assertions. */
 function sqlStatements(statements: Statement[]): Statement[] {
   return statements.filter((s) =>
-    /^(SELECT|INSERT|UPDATE|DELETE)/.test(s.text),
+    /^(SELECT|INSERT|UPDATE|DELETE|WITH)/.test(s.text),
   );
 }
 
 const scope = { organizationId: 'org_1', userId: 'user_1' };
 
+describe('firstForeignUpload', () => {
+  it('keeps early refusal read-only and returns the sorted foreign ref', async () => {
+    const fake = fakeLedger({ uploaderRow: false });
+    expect(
+      await firstForeignUpload(
+        fake.sql,
+        scope,
+        ['s3:blobs/acme/b', 's3:blobs/acme/a', 's3:blobs/acme/b'],
+        { stamp: false },
+      ),
+    ).toBe('s3:blobs/acme/a');
+    expect(
+      sqlStatements(fake.statements).some((statement) =>
+        statement.text.startsWith('UPDATE'),
+      ),
+    ).toBe(false);
+  });
+  it('locks deduplicated refs in the same order for reversed sends', async () => {
+    const forward = fakeLedger({ stamped: [{ id: 'intent' }] });
+    const reversed = fakeLedger({ stamped: [{ id: 'intent' }] });
+    for (const [fake, refs] of [
+      [forward, ['s3:blobs/acme/a', 's3:blobs/acme/b']],
+      [reversed, ['s3:blobs/acme/b', 's3:blobs/acme/a', 's3:blobs/acme/b']],
+    ] as const) {
+      expect(await firstForeignUpload(fake.sql, scope, refs)).toBeNull();
+    }
+    const locks = (fake: ReturnType<typeof fakeLedger>) =>
+      sqlStatements(fake.statements)
+        .filter((statement) =>
+          statement.text.startsWith('UPDATE app.upload_intents'),
+        )
+        .map((statement) => statement.values[1]);
+    expect(locks(forward)).toEqual(['s3:blobs/acme/a', 's3:blobs/acme/b']);
+    expect(locks(reversed)).toEqual(locks(forward));
+  });
+});
+
 /** `blobRefHeld` over the ledger row's ref, as the statements inline it. */
-const HELD_BY_A_ROW =
-  "(EXISTS ( SELECT 1 FROM app.file_metadata held_file WHERE held_file.org_id = ? AND held_file.storage_ref = i.s3_ref ) OR EXISTS ( SELECT 1 FROM app.documents held_doc WHERE held_doc.org_id = ? AND (held_doc.file_ref = i.s3_ref OR held_doc.history_files @> ARRAY[i.s3_ref::text]) ) OR (EXISTS ( SELECT 1 FROM app.tasks held WHERE held.org_id = ? AND (coalesce(held.attachments, '[]'::jsonb) || coalesce(held.outputs, '[]'::jsonb)) @> jsonb_build_array(jsonb_build_object('fileId', i.s3_ref::text)) ) OR EXISTS ( SELECT 1 FROM app.conversation_messages held_mail WHERE held_mail.org_id = ? AND held_mail.direction = 'outbound' AND held_mail.delivery_state IN ('queued', 'failed') AND held_mail.metadata->'attachments' @> jsonb_build_array(jsonb_build_object('storageId', i.s3_ref::text)) ) OR EXISTS ( SELECT 1 FROM app.messages held_chat WHERE held_chat.org_id = ? AND held_chat.role = 'user' AND held_chat.parts @> jsonb_build_array(jsonb_build_object( 'type', 'attachment', 'fileId', i.s3_ref::text )) )))";
+const holderSql = fakeLedger({}).sql;
+const sharedHolder = blobRefHeld(holderSql, 'org_1', holderSql`i.s3_ref`);
+if (!isFragment(sharedHolder)) throw new Error('Expected rendered holder SQL');
+const HELD_BY_A_ROW = sharedHolder.text;
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -131,6 +178,47 @@ afterEach(() => {
 });
 
 describe('ownsUploadedBlob', () => {
+  it.each([true, false])(
+    'proves a live composer handoff with stamp=%s before the file fallback',
+    async (stamp) => {
+      const fake = fakeLedger({ handoff: true });
+      expect(
+        await ownsUploadedBlob(
+          fake.sql,
+          { ...scope, storageRef: 's3:blobs/acme/aaa' },
+          { stamp },
+        ),
+      ).toBe(true);
+      const issued = sqlStatements(fake.statements);
+      const handoff = issued[1];
+      expect(handoff?.text).toContain(
+        'WHERE org_id = ? AND user_id = ? AND storage_ref = ? AND expires_at_ms > ?',
+      );
+      expect(handoff?.values).toEqual([
+        'org_1',
+        'user_1',
+        's3:blobs/acme/aaa',
+        expect.any(Number),
+      ]);
+      if (stamp) {
+        expect(handoff?.text).toContain(
+          'UPDATE app.blob_composer_handoffs SET expires_at_ms = expires_at_ms',
+        );
+        expect(handoff?.text).toContain('RETURNING storage_ref');
+      } else {
+        expect(handoff?.text).toContain(
+          'SELECT storage_ref FROM app.blob_composer_handoffs',
+        );
+        expect(
+          issued.some((statement) => statement.text.startsWith('UPDATE')),
+        ).toBe(false);
+      }
+      expect(
+        issued.some((statement) => statement.text.startsWith('SELECT EXISTS')),
+      ).toBe(false);
+    },
+  );
+
   it('asks without writing when told not to stamp (#4111)', async () => {
     const fake = fakeLedger({ stamped: [{ id: 'i-1' }] });
 
@@ -184,6 +272,10 @@ describe('ownsUploadedBlob', () => {
     );
     expect(proof?.text).toContain('FROM app.file_metadata');
     expect(proof?.text).toContain('uploaded_by = ?');
+    expect(proof?.text).toContain(
+      'WHERE org_id = ? AND storage_ref = ? AND uploaded_by = ?',
+    );
+    expect(proof?.values).toEqual(['org_1', 's3:blobs/acme/aaa', 'user_1']);
   });
 
   it('proves nothing through a staged bundle’s intent, which its own lane consumes and deletes (#4110)', async () => {
@@ -213,6 +305,21 @@ describe('ownsUploadedBlob', () => {
 });
 
 describe('sweepUploadIntents', () => {
+  it('materializes a bounded backlog before either expensive holder scan', async () => {
+    const fake = fakeLedger({});
+    await sweepUploadIntents(fake.sql, { organizationId: 'org_1' });
+    const issued = sqlStatements(fake.statements);
+    for (const statement of issued.slice(1, 3)) {
+      expect(statement.text).toMatch(/^WITH candidates AS MATERIALIZED/);
+      expect(statement.text).toContain(
+        'ORDER BY expires_at_ms, id LIMIT ? FOR UPDATE SKIP LOCKED )',
+      );
+      expect(statement.text.indexOf('LIMIT ?')).toBeLessThan(
+        statement.text.indexOf('FROM app.messages held_chat'),
+      );
+      expect(statement.values).toContain(25);
+    }
+  });
   it('reclaims the blob of an abandoned intent and drops its row, leaving vouched-for and file-backed refs alone', async () => {
     const fake = fakeLedger({
       abandoned: [{ id: 'i-abandoned', s3Ref: 's3:blobs/acme/aaa' }],
@@ -236,21 +343,23 @@ describe('sweepUploadIntents', () => {
     // Vouched-for rows, and rows whose ref a file row, a document or a task
     // holds (files/blob-holders.ts), drop WITHOUT touching their blob.
     const heldDrop = issued[1];
-    expect(heldDrop?.text).toContain('DELETE FROM app.upload_intents i');
-    expect(heldDrop?.text).toContain('i.expires_at_ms < ?');
+    expect(heldDrop?.text).toContain(
+      'DELETE FROM app.upload_intents target USING candidates i',
+    );
+    expect(heldDrop?.text).toContain('expires_at_ms < ?');
     expect(heldDrop?.text).toContain(
       `AND (i.bound_at_ms IS NOT NULL OR ${HELD_BY_A_ROW})`,
     );
     // Only a ref nobody holds is a reclaim candidate.
     const candidates = issued[2];
     expect(candidates?.text).toContain(
-      'SELECT i.id, i.s3_ref AS "s3Ref" FROM app.upload_intents i',
+      'SELECT i.id, i.s3_ref AS "s3Ref" FROM candidates i',
     );
-    expect(candidates?.text).toContain('i.consumed_at_ms IS NULL');
+    expect(candidates?.text).toContain('consumed_at_ms IS NULL');
     expect(candidates?.text).toContain(
-      `AND NOT (i.bound_at_ms IS NOT NULL OR ${HELD_BY_A_ROW}) ORDER BY`,
+      `WHERE NOT (i.bound_at_ms IS NOT NULL OR ${HELD_BY_A_ROW}) ORDER BY`,
     );
-    expect(candidates?.text).toContain('ORDER BY i.expires_at_ms LIMIT ?');
+    expect(candidates?.text).toContain('ORDER BY expires_at_ms, id LIMIT ?');
     // The row goes only after its bytes did.
     const rowDrop = fake.statements.find(
       (s) => s.text === 'DELETE FROM app.upload_intents WHERE id = ?',
@@ -283,6 +392,16 @@ describe('sweepUploadIntents', () => {
       ),
       '503 slow down',
     );
+    const retry = sqlStatements(fake.statements).find((statement) =>
+      statement.text.startsWith('UPDATE app.upload_intents SET expires_at_ms'),
+    );
+    expect(retry?.text).toContain(
+      'AND consumed_at_ms IS NULL AND expires_at_ms < ?',
+    );
+    expect(retry?.values.slice(1, 3)).toEqual(['i-stuck', 'org_1']);
+    const retryAt = Number(retry?.values[0]);
+    expect(retryAt).toBeLessThan(Date.now());
+    expect(retryAt - Number(retry?.values[3])).toBe(60_000);
   });
 
   it('drops a row naming a ref outside the org namespace without a store call', async () => {
