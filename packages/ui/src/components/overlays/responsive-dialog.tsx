@@ -17,6 +17,7 @@ import { Drawer as DrawerPrimitive } from 'vaul';
 import { useIsMobile } from '../../hooks/use-is-mobile';
 import { useRestoreFocus } from '../../hooks/use-restore-focus';
 import { cn } from '../../lib/cn';
+import { PagePointerPin } from './page-pointer-pin';
 
 /**
  * Whether the dialog is open right now, for `ResponsiveDialogContent`. Radix
@@ -190,6 +191,7 @@ export const ResponsiveDialogContent = forwardRef<
               className,
             )}
           >
+            <PagePointerPin />
             <div
               aria-hidden="true"
               className="bg-muted mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full"
@@ -229,6 +231,7 @@ export const ResponsiveDialogContent = forwardRef<
             className,
           )}
         >
+          <PagePointerPin />
           {children}
           {!hideClose && (
             <DialogPrimitive.Close

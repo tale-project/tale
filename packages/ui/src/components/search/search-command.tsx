@@ -12,6 +12,7 @@ import {
 
 import { useRestoreFocus } from '../../hooks/use-restore-focus';
 import { cn } from '../../lib/cn';
+import { PagePointerPin } from '../overlays/page-pointer-pin';
 import { FALLBACK_GROUP, humanizeGroupKey } from './group-by';
 import { SearchCommandInput } from './search-command-input';
 import { SearchEmpty } from './search-empty';
@@ -249,6 +250,7 @@ export function SearchCommand({
                   '-translate-x-1/2 flex-col overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-xl',
                 )}
               >
+                <PagePointerPin />
                 <Dialog.Title className="sr-only">{labels.title}</Dialog.Title>
                 <Dialog.Description className="sr-only">
                   {labels.emptyHint}

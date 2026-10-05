@@ -9,6 +9,8 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { ChevronLeft, X } from 'lucide-react';
 import * as React from 'react';
 
+import { PagePointerPin } from '../overlays/page-pointer-pin';
+
 // Tracks dialog nesting so a child Dialog opened from inside another
 // Dialog doesn't stack a second 80%-black overlay on top of the parent's.
 // Two `bg-black/80` overlays composite to ~96% black — the screen reads
@@ -302,6 +304,7 @@ export function Dialog({
               preventCloseAutoFocus ? (e) => e.preventDefault() : restoreFocus
             }
           >
+            <PagePointerPin />
             {/* Close sits in the header row when headerActions exist, so it
                 shares one axis with the rest of the chrome instead of floating
                 `absolute` while actions sit in flow (a gap + a height mismatch).
