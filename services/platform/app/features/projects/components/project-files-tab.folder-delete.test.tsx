@@ -131,7 +131,8 @@ function renderTab() {
       foldersFixture = folders;
       rendered.rerender(tab());
     },
-    /** Another project on the same Files route: the tab stays mounted. */
+    /** Another project in the same mounted tab: the tab's own contract (the
+     * Files route keys the tab by project, #3918). */
     showProject: (id: string, folders: FolderFixture[]) => {
       projectId = id;
       foldersFixture = folders;
