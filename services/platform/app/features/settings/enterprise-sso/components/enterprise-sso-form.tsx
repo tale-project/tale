@@ -595,6 +595,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     register,
     watch,
     setValue,
+    getFieldState,
     trigger,
     formState: { errors },
   } = editor.form;
@@ -616,17 +617,20 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
       .mutateAsync({ organizationId })
       .then((value) => {
         if (value) {
-          // Seed (survives resets) + push to the live field (covers the case
-          // where the form is already dirty, so a reset wouldn't re-apply it).
+          // Keep the stored seed for Discard, but preserve a newer edit.
+          // Read the current field state when the request settles, rather
+          // than the state captured when initial loading started.
           setRevealedClientId(value);
-          setValue('clientId', value, { shouldDirty: false });
+          if (!getFieldState('clientId').isDirty) {
+            setValue('clientId', value, { shouldDirty: false });
+          }
         }
       })
       .catch((err) => {
         // Non-fatal: the admin can retype the client id. Surface, don't swallow.
         console.warn('[sso] reveal clientId failed', err);
       });
-  }, [config, organizationId, revealClientId, setValue]);
+  }, [config, organizationId, revealClientId, setValue, getFieldState]);
 
   // Narrow the UI protocol to the OIDC/OAuth2 provider ids (SAML never reaches
   // the OIDC code paths, but TS can't infer that from the `isOidcLike` const).
