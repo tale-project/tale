@@ -142,8 +142,14 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlReport> {
     (options.aliases ?? []).map((alias) => new URL(alias).origin),
   );
   const maxUrls = options.maxUrls ?? 5000;
+  const concurrency = options.concurrency ?? 8;
+  for (const [name, value] of Object.entries({ concurrency, maxUrls })) {
+    if (!Number.isSafeInteger(value) || value < 1)
+      throw new RangeError(`${name} must be a positive safe integer`);
+  }
   const references = new Map<string, Reference[]>();
   const answers = new Map<string, Answer>();
+  const discovered = new Set<string>();
   const queue: string[] = [];
   let truncated = false;
 
@@ -164,65 +170,78 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlReport> {
       return;
     }
     if (url.origin !== origin && !aliases.has(url.origin)) return;
-    const fragment = url.hash ? decodeURIComponent(url.hash.slice(1)) : '';
+    let fragment = url.hash.slice(1);
+    try {
+      fragment = decodeURIComponent(fragment);
+    } catch {
+      // A literal percent is legal in an HTML id and URL fragment.
+    }
     const path = `${url.pathname}${url.search}`;
     const list = references.get(path) ?? [];
     list.push({ from, source, fragment });
     references.set(path, list);
-    if (answers.has(path) || queue.includes(path)) return;
-    if (answers.size + queue.length >= maxUrls) {
+    if (discovered.has(path)) return;
+    if (discovered.size >= maxUrls) {
       truncated = true;
       return;
     }
+    discovered.add(path);
     queue.push(path);
   };
 
   const fetchOne = async (path: string) => {
-    const response = await fetch(`${origin}${path}`, {
-      redirect: 'manual',
-      headers: { 'accept-language': 'en', 'user-agent': 'tale-link-crawl/1' },
-      signal: AbortSignal.timeout(20_000),
-    }).catch((error: unknown) => {
+    try {
+      const response = await fetch(`${origin}${path}`, {
+        redirect: 'manual',
+        headers: { 'accept-language': 'en', 'user-agent': 'tale-link-crawl/1' },
+        signal: AbortSignal.timeout(20_000),
+      });
+      const type = response.headers.get('content-type') ?? '';
+      const answer: Answer = { status: response.status };
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (location) {
+          answer.location = location;
+          consider(location, `${origin}${path}`, path, 'seed');
+        }
+        await response.body?.cancel();
+      } else if (response.status === 200 && type.includes('text/html')) {
+        const { links, ids } = readHtml(await response.text());
+        answer.ids = ids;
+        for (const link of links)
+          consider(link, `${origin}${path}`, path, 'html');
+      } else if (response.status === 200 && TEXT_TYPES.test(type)) {
+        for (const link of readText(await response.text())) {
+          consider(link, `${origin}${path}`, path, 'text');
+        }
+      } else {
+        await response.body?.cancel();
+      }
+      answers.set(path, answer);
+    } catch (error) {
       console.warn(`[crawl] ${path} failed:`, error);
-      return null;
-    });
-    if (!response) {
       answers.set(path, { status: 0 });
-      return;
     }
-    const type = response.headers.get('content-type') ?? '';
-    const answer: Answer = { status: response.status };
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location');
-      if (location) {
-        answer.location = location;
-        consider(location, `${origin}${path}`, path, 'seed');
-      }
-      await response.body?.cancel();
-    } else if (response.status === 200 && type.includes('text/html')) {
-      const { links, ids } = readHtml(await response.text());
-      answer.ids = ids;
-      for (const link of links)
-        consider(link, `${origin}${path}`, path, 'html');
-    } else if (response.status === 200 && TEXT_TYPES.test(type)) {
-      for (const link of readText(await response.text())) {
-        consider(link, `${origin}${path}`, path, 'text');
-      }
-    } else {
-      await response.body?.cancel();
-    }
-    answers.set(path, answer);
   };
 
   for (const seed of options.seeds) consider(seed, origin, 'seed', 'seed');
-  const workers = Array.from({ length: options.concurrency ?? 8 }, async () => {
-    for (;;) {
-      const next = queue.shift();
-      if (next === undefined) return;
-      await fetchOne(next);
+  // Keep refilling available slots as the frontier grows. Permanent workers
+  // would exit while seeds are in flight, and whole batches wait for their
+  // slowest response before starting already-discovered descendants.
+  const active = new Set<Promise<void>>();
+  let nextIndex = 0;
+  while (nextIndex < queue.length || active.size > 0) {
+    while (nextIndex < queue.length && active.size < concurrency) {
+      const path = queue[nextIndex];
+      nextIndex += 1;
+      if (path === undefined) break;
+      const request: Promise<void> = fetchOne(path).finally(() =>
+        active.delete(request),
+      );
+      active.add(request);
     }
-  });
-  await Promise.all(workers);
+    if (active.size > 0) await Promise.race(active);
+  }
 
   const findings: CrawlFinding[] = [];
   let pages = 0;
@@ -300,16 +319,30 @@ export function startSiteServer({
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
+    let settled = false;
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.kill('SIGKILL');
+      reject(error);
+    };
     const timer = setTimeout(() => {
-      child.kill();
-      reject(
+      fail(
         new Error(`${entry} did not start within ${timeoutMs} ms:\n${output}`),
       );
     }, timeoutMs);
     const onData = (chunk: Buffer) => {
-      output += chunk.toString();
+      if (settled) return;
+      output = (output + chunk.toString()).slice(-65_536);
       const match = /listening on :(\d+)/.exec(output);
       if (!match) return;
+      const port = Number(match[1]);
+      if (port < 1 || port > 65_535) {
+        fail(new Error(`${entry} reported an invalid listening port: ${port}`));
+        return;
+      }
+      settled = true;
       clearTimeout(timer);
       resolve({
         origin: `http://127.0.0.1:${match[1]}`,
@@ -318,9 +351,9 @@ export function startSiteServer({
     };
     child.stdout?.on('data', onData);
     child.stderr?.on('data', onData);
+    child.on('error', fail);
     child.on('exit', (code) => {
-      clearTimeout(timer);
-      reject(new Error(`${entry} exited with ${code}:\n${output}`));
+      fail(new Error(`${entry} exited with ${code}:\n${output}`));
     });
   });
 }
