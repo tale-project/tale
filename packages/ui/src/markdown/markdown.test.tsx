@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { Markdown } from './markdown';
@@ -38,8 +38,10 @@ describe('Markdown — KaTeX math', () => {
   });
 });
 
+// The streaming renderer loads KaTeX the first time a reply may hold math
+// (`streaming/lazy-katex.ts`), so its math lands once that load resolves.
 describe('IncrementalMarkdown — KaTeX math through the sanitize chain', () => {
-  it('renders inline and block math once fully revealed', () => {
+  it('renders inline and block math once fully revealed', async () => {
     const content = 'Mass–energy: $E = mc^2$.\n\n$$\na^2 + b^2 = c^2\n$$';
     const { container } = render(
       <IncrementalMarkdown content={content} revealPosition={content.length} />,
@@ -47,10 +49,37 @@ describe('IncrementalMarkdown — KaTeX math through the sanitize chain', () => 
 
     // Two rendered expressions survive rehype-sanitize (`language-math`
     // matches the default `code` schema, so rehype-katex still fires).
-    expect(container.querySelectorAll('.katex').length).toBeGreaterThanOrEqual(
-      2,
+    await waitFor(() =>
+      expect(
+        container.querySelectorAll('.katex').length,
+      ).toBeGreaterThanOrEqual(2),
     );
     expect(container.querySelector('.katex-display')).not.toBeNull();
+    expect(container.textContent).not.toContain('$');
+  });
+
+  it('renders math a reply reaches mid-stream once KaTeX has loaded', async () => {
+    const opening = 'The answer follows.\n\n';
+    const { container, rerender } = render(
+      <IncrementalMarkdown
+        content={opening}
+        revealPosition={opening.length}
+        aria-busy
+      />,
+    );
+    expect(container.querySelector('.katex')).toBeNull();
+
+    const content = `${opening}It is $x^2$ here.`;
+    rerender(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length}
+        aria-busy
+      />,
+    );
+    await waitFor(() =>
+      expect(container.querySelector('.katex')).not.toBeNull(),
+    );
     expect(container.textContent).not.toContain('$');
   });
 });
