@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
+
+import { commandTargets } from '../tests/fixtures/command-targets';
 
 type Platform = {
   os: string;
@@ -56,6 +61,15 @@ describe('CLI builds retain native execution coverage without duplicate host sui
     expect(
       job.steps.find((entry) => entry.name === 'Build binary')?.if,
     ).toBeUndefined();
+    const source = job.steps.find((entry) => entry.name === 'Run unit tests')!;
+    const compile = job.steps.find((entry) => entry.name === 'Build binary')!;
+    const smoke = job.steps.find((entry) => entry.name === 'Run smoke tests')!;
+    expect(source.run).toBe('bun run test');
+    expect(source.env?.TALE_BINARY).toBeUndefined();
+    expect(smoke.run).toBe('bun run test tests/');
+    expect(smoke.env?.TALE_BINARY).toBe('dist/${{ matrix.artifact }}');
+    expect(job.steps.indexOf(source)).toBeLessThan(job.steps.indexOf(compile));
+    expect(job.steps.indexOf(compile)).toBeLessThan(job.steps.indexOf(smoke));
   });
 
   test('one install step selects native or cross dependencies before generation', async () => {
@@ -72,5 +86,65 @@ describe('CLI builds retain native execution coverage without duplicate host sui
     expect(job.steps.indexOf(install!)).toBeLessThan(
       job.steps.findIndex((entry) => entry.name === 'Generate embedded files'),
     );
+  });
+});
+
+describe('CLI command test targets', () => {
+  test.each([undefined, ''])(
+    'an absent binary selects source commands only (%p)',
+    (binary) => {
+      expect(commandTargets(binary)).toEqual([
+        [
+          'source',
+          [
+            process.execPath,
+            fileURLToPath(new URL('../src/index.ts', import.meta.url)),
+          ],
+        ],
+      ]);
+    },
+  );
+
+  test('an explicit executable runs alone from a different command fixture directory', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-command-target '));
+    try {
+      const targets = commandTargets(relative(process.cwd(), process.execPath));
+      expect(targets).toHaveLength(1);
+      const [mode, executable] = targets[0]!;
+      expect(mode).toBe('compiled');
+      // The real Bun executable stands in for a selected artifact. Accidentally
+      // selecting the CLI source instead would interpret -e as a CLI flag.
+      const run = Bun.spawnSync(
+        [...executable, '-e', 'process.stdout.write("selected artifact")'],
+        { cwd: directory, stdout: 'pipe', stderr: 'pipe' },
+      );
+      expect(run.exitCode, run.stderr.toString()).toBe(0);
+      expect(run.stdout.toString()).toBe('selected artifact');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('a missing selected binary fails instead of quietly testing source', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-command-missing '));
+    try {
+      const targets = commandTargets(join(directory, 'missing-cli'));
+      expect(targets).toHaveLength(1);
+      const [mode, executable] = targets[0]!;
+      expect(mode).toBe('compiled');
+      let exitCode: number | undefined;
+      try {
+        exitCode = Bun.spawnSync([...executable, '--version'], {
+          cwd: directory,
+          stdout: 'pipe',
+          stderr: 'pipe',
+        }).exitCode;
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+      }
+      expect(exitCode).not.toBe(0);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });
