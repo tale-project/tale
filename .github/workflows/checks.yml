@@ -2,7 +2,7 @@ name: Checks
 
 # The tale-project standard check gate (see tale-project/example-project):
 # six jobs with stable names — format, lint, typecheck, build, test, test-ui —
-# each one `setup-turbo` + a single root script, identical across repositories.
+# each one `setup-turbo` + a single root script, except the test aggregates.
 # Repo-specific extra jobs append below the marked banner and never replace or
 # rename the standard six.
 
@@ -24,13 +24,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
-env:
-  TURBO_API: 'http://127.0.0.1:9080'
-  TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  TURBO_TEAM: 'tale'
-
 jobs:
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
     name: Candidate source
     uses: ./.github/workflows/release-candidate-source.yml
     permissions:
@@ -40,6 +38,12 @@ jobs:
       candidate_sha: ${{ github.event.client_payload.candidate_sha }}
 
   format:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Format
     runs-on: ubuntu-latest
@@ -52,6 +56,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
           # lint:links compares a change with HEAD^1 (a pull request's merge
           # commit has the base branch as its first parent), so a page it
           # retires without a redirect, or a ledger line it drops, is caught.
@@ -60,11 +65,17 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
       # uv backs `uvx ruff@<ver>` in format:check (Python formatting).
       - name: Setup uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          # The only Python formatter is uvx ruff, pinned in this manifest.
+          # Avoid recursively scanning node_modules for unrelated requirements.
+          cache-dependency-glob: package.json
 
       - name: Run format check
         run: bun run format:check
@@ -82,6 +93,12 @@ jobs:
         run: bun run lint:links
 
   lint:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Lint
     runs-on: ubuntu-latest
@@ -94,16 +111,34 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run lint
-        run: bunx turbo run lint
+        run: bunx turbo run lint --output-logs=errors-only --summarize
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-lint-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   typecheck:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Type check
     runs-on: ubuntu-latest
@@ -126,14 +161,16 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # The budget the compiler runs under: the Node `bunx tsc` resolves (the
-      # runner image's, not pinned here) and V8's heap limit under this job's
+      # The budget the compiler runs under: the production Node selected by
+      # setup-turbo and V8's heap limit under this job's
       # NODE_OPTIONS.
       - name: Report the compiler's heap budget
         run: |
@@ -153,12 +190,28 @@ jobs:
         run: |
           set -euo pipefail
           if [ -x /usr/bin/time ]; then
-            /usr/bin/time --format 'Type check peak RSS: %M KiB, %e s' bunx turbo run typecheck -- --extendedDiagnostics
+            /usr/bin/time --format 'Type check peak RSS: %M KiB, %e s' bunx turbo run typecheck --summarize -- --extendedDiagnostics
           else
-            bunx turbo run typecheck -- --extendedDiagnostics
+            bunx turbo run typecheck --summarize -- --extendedDiagnostics
           fi
 
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-typecheck-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
   build:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Build
     runs-on: ubuntu-latest
@@ -171,14 +224,17 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-scope: build
 
       - name: Run build
-        run: bunx turbo run build
+        run: bunx turbo run build --output-logs=errors-only --summarize
         env:
           # @tale/web's fetch-releases calls api.github.com; unauthenticated
           # shared-runner IPs get rate-limited (403), so hand it the workflow
@@ -190,19 +246,67 @@ jobs:
       # every address their pages, llms.txt, sitemap and Markdown exports
       # carry — the links the docs frame builds, which no source check sees.
       - name: Crawl the built docs sites
-        run: bunx turbo run test:prerender --filter=@tale/docs --filter=@tale/ui-docs
+        run: bunx turbo run test:prerender --filter=@tale/docs --filter=@tale/ui-docs --output-logs=errors-only --summarize
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   test:
-    needs: candidate-source
+    needs: [candidate-source, test-platform-shards, test-workspaces]
     name: Unit
+    if: >-
+      always() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions: {}
+
+    steps:
+      - name: Require every Unit lane
+        env:
+          PLATFORM_RESULT: ${{ needs.test-platform-shards.result }}
+          WORKSPACES_RESULT: ${{ needs.test-workspaces.result }}
+        run: |
+          set -euo pipefail
+          if [ "$PLATFORM_RESULT" != success ] || [ "$WORKSPACES_RESULT" != success ]; then
+            echo "::error::Unit lanes ended platform=${PLATFORM_RESULT}, workspaces=${WORKSPACES_RESULT}; every lane must pass."
+            exit 1
+          fi
+
+  # Split the platform's full server + PII suite without increasing worker
+  # pools or changing isolation. Other workspaces have their own runner so
+  # their cold suites cannot queue behind a platform shard.
+  test-platform-shards:
+    needs: candidate-source
+    name: Unit (platform ${{ matrix.shard }}/2)
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
 
     # bgutil PO-token provider — the zero-config anti-bot layer baked into the
     # platform image. Runs as a service container so the live YouTube-ingestion
-    # step (last) can fetch GVS tokens at 127.0.0.1:4416, exactly like the
+    # suite can fetch GVS tokens at 127.0.0.1:4416, exactly like the
     # `bgutil-provider` compose sidecar in production.
     services:
       bgutil:
@@ -215,11 +319,14 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-scope: test-platform-${{ matrix.shard }}
 
       # yt-dlp + deno + ffmpeg + the bgutil plugin are self-provisioned by the
       # live YouTube ingestion test via `ensureVideoToolchain()` in a
@@ -227,23 +334,45 @@ jobs:
       # because GitHub runners are datacenter IPs — the environment where
       # YouTube's bot wall appears — so a green run proves the shipped anti-bot
       # stack actually gets past it.
-      - name: Run tests
+      - name: Run platform Unit tests
         # YOUTUBE_LIVE_TEST enables the live ingest test within the normal
         # suite; it + VIDEO_INGEST_POT_PROVIDER_URL are declared on the `test`
         # task in turbo.json so turbo keys its cache on them.
         env:
           YOUTUBE_LIVE_TEST: '1'
           VIDEO_INGEST_POT_PROVIDER_URL: http://127.0.0.1:4416
-        # Each workspace runner has its own worker pool. Bound their overlap so
-        # full-corpus checks retain CPU time on the shared hosted runner.
-        run: bunx turbo run test --concurrency=2
+          # Reuse Node's parsed dependency bytecode across isolated workers.
+          # This caches no test results and leaves every file's isolation intact.
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
+        run: bunx turbo run test --filter=@tale/platform --output-logs=errors-only --summarize -- --shard=${{ matrix.shard }}/2
 
-  test-ui:
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-test-platform-shards-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .turbo/runs/*.json
+            packages/*/.turbo/turbo-test.log
+            services/*/.turbo/turbo-test.log
+            services/sandbox-runtime/daemon/.turbo/turbo-test.log
+            tools/*/.turbo/turbo-test.log
+            configs/platform/custom/skills/*/.turbo/turbo-test.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  test-workspaces:
     needs: candidate-source
-    name: UI
-    if: github.event.pull_request.draft != true
+    name: Unit (workspaces)
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -252,23 +381,143 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-scope: test-workspaces
 
-      - name: Run UI tests
-        run: bunx turbo run test:ui
+      # Every other workspace still runs exactly once, including future ones.
+      # Bound overlapping worker pools on the shared hosted runner.
+      - name: Run other workspace Unit tests
+        run: bunx turbo run test --filter='!@tale/platform' --concurrency=2 --output-logs=errors-only --summarize
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-test-workspaces-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .turbo/runs/*.json
+            packages/*/.turbo/turbo-test.log
+            services/*/.turbo/turbo-test.log
+            services/sandbox-runtime/daemon/.turbo/turbo-test.log
+            tools/*/.turbo/turbo-test.log
+            configs/platform/custom/skills/*/.turbo/turbo-test.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  test-ui:
+    needs: [candidate-source, test-ui-shards]
+    name: UI
+    if: >-
+      always() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions: {}
+
+    steps:
+      # Stay red if a slice fails, is cancelled or never starts. An implicit
+      # success() would skip this required check after an upstream failure.
+      - name: Require every UI shard
+        env:
+          SHARDS_RESULT: ${{ needs.test-ui-shards.result }}
+        run: |
+          set -euo pipefail
+          if [ "$SHARDS_RESULT" != success ]; then
+            echo "::error::UI shards ended ${SHARDS_RESULT}; every shard must pass."
+            exit 1
+          fi
 
   # ===========================================================================
   # Repo-specific jobs — tale's additions beyond the standard six.
   # ===========================================================================
 
+  # 584 platform UI files took 645s on a hosted runner. Shard the unchanged
+  # suite instead of raising its memory-sensitive jsdom worker count. Turbo
+  # hashes the --shard argument, so each verdict has its own cache entry.
+  test-ui-shards:
+    needs: candidate-source
+    name: UI (platform ${{ matrix.shard }}/4)
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-scope: test-ui-${{ matrix.shard }}
+
+      - name: Run UI tests
+        run: bunx turbo run test:ui --filter=@tale/platform --output-logs=errors-only --summarize -- --shard=${{ matrix.shard }}/4
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
+
+      # Future UI workspaces still run once; only platform is partitioned.
+      - name: Run other workspace UI tests
+        if: matrix.shard == 1
+        run: bunx turbo run test:ui --filter='!@tale/platform' --output-logs=errors-only --summarize
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-test-ui-shards-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .turbo/runs/*.json
+            packages/*/.turbo/turbo-test$colon$ui.log
+            services/*/.turbo/turbo-test$colon$ui.log
+            services/sandbox-runtime/daemon/.turbo/turbo-test$colon$ui.log
+            tools/*/.turbo/turbo-test$colon$ui.log
+            configs/platform/custom/skills/*/.turbo/turbo-test$colon$ui.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Always measure: timing samples must never be replayed from Turbo's cache.
   # Failures mean workload correctness/setup failed, not that a latency budget
   # was exceeded. The report records representative coverage and remaining gaps.
   performance:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Performance
     runs-on: ubuntu-latest
@@ -284,13 +533,18 @@ jobs:
           persist-credentials: false
 
       - name: Setup toolchain
+        id: toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
+      # A trusted workflow can select an older candidate whose composite
+      # predates the shared Node pin. Keep that source's production runtime.
       - name: Resolve the platform's Node
         id: node
+        if: steps.toolchain.outputs.node-version == ''
         run: |
           set -euo pipefail
           version=$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-.* AS node-bin$/\1/p' services/platform/Dockerfile)
@@ -299,7 +553,8 @@ jobs:
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-      - name: Setup Node
+      - name: Setup legacy candidate Node
+        if: steps.toolchain.outputs.node-version == ''
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ steps.node.outputs.version }}
@@ -321,6 +576,12 @@ jobs:
           if-no-files-found: warn
 
   knip:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Knip
     runs-on: ubuntu-latest
@@ -333,12 +594,14 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
       - name: Run knip
         run: bun run knip:check
@@ -351,7 +614,13 @@ jobs:
   test-browser:
     needs: candidate-source
     name: Browser
-    if: github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -362,21 +631,50 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Inspect cached browser prerequisites
+        id: browser-cache
+        if: github.event_name != 'repository_dispatch' && hashFiles('scripts/ci-task-cache.ts') != ''
+        # The admission plan and actual verdict must see the same archives.
+        # Native startup eviction is asynchronous and can remove a planned hit.
+        env:
+          TURBO_CACHE_MAX_SIZE: '0'
+          TURBO_CACHE_MAX_AGE: '0'
+        run: bun scripts/ci-task-cache.ts test:browser >> "$GITHUB_OUTPUT"
+
+      # Browser revisions follow Playwright, not unrelated dependency updates.
+      # Cache only the headless payload these channel-free CI projects execute.
+      - name: Resolve Playwright version
+        if: steps.browser-cache.outputs.provision != 'false'
+        id: playwright-version
+        working-directory: services/platform
+        run: |
+          set -euo pipefail
+          version="$(bun -e 'console.log(require("@playwright/test/package.json").version)')"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::Cannot resolve the installed Playwright version'; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Cache Playwright browsers
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        if: steps.browser-cache.outputs.provision != 'false'
+        id: playwright-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
+          key: playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright Chromium
+        if: steps.browser-cache.outputs.provision != 'false'
         working-directory: services/platform
         # Preserve the runner's mirror failover. Bound APT itself: killing
         # bunx with a shell timeout can leave its root child holding the lock.
@@ -390,10 +688,38 @@ jobs:
           Acquire::Retries "1";
           APT
           sudo apt-config shell IPv4 Acquire::ForceIPv4 HTTPTimeout Acquire::http::Timeout HTTPSTimeout Acquire::https::Timeout Retries Acquire::Retries
-          bunx playwright install --with-deps chromium
+          bunx playwright install --with-deps --only-shell chromium
+
+      # Browser downloads are useful even when the component suite fails.
+      # Publish only after Playwright has successfully installed the payload.
+      - name: Save Playwright browsers
+        if: steps.browser-cache.outputs.provision != 'false' && steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
 
       - name: Run browser-mode component tests
-        run: bunx turbo run test:browser
+        env:
+          TURBO_CACHE_MAX_SIZE: '0'
+          TURBO_CACHE_MAX_AGE: '0'
+        run: bunx turbo run test:browser --output-logs=errors-only --summarize
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-test-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .turbo/runs/*.json
+            packages/*/.turbo/turbo-test$colon$browser.log
+            services/*/.turbo/turbo-test$colon$browser.log
+            services/sandbox-runtime/daemon/.turbo/turbo-test$colon$browser.log
+            tools/*/.turbo/turbo-test$colon$browser.log
+            configs/platform/custom/skills/*/.turbo/turbo-test$colon$browser.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Which runs owe the real-Postgres proof below. A pull request owes it when
   # it touches what the suite runs: the backend and the libraries it imports,
@@ -405,6 +731,12 @@ jobs:
   # slipped past this list (a newer push to main cancels an older one's run,
   # and its tree carries every earlier commit).
   integration-scope:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Integration scope
     runs-on: ubuntu-latest
@@ -439,6 +771,15 @@ jobs:
               - 'tools/cli/src/lib/compose/types.ts'
               - 'package.json'
               - 'bun.lock'
+              - 'bunfig.toml'
+              - 'tsconfig.base.json'
+              - 'tsconfig.convex.json'
+              - 'tsconfig.dom.json'
+              - 'tsconfig.node.json'
+              - 'tsconfig.strict.json'
+              - 'tsconfig.vite.json'
+              - 'services/platform/tsconfig.json'
+              - 'patches/**'
               - '.github/workflows/checks.yml'
               - '.github/actions/setup-turbo/**'
 
@@ -478,9 +819,12 @@ jobs:
     needs: [candidate-source, integration-scope]
     name: Backend integration
     if: >-
-      !cancelled() && github.event.pull_request.draft != true &&
-      (needs.integration-scope.result != 'success' ||
-      needs.integration-scope.outputs.run == 'true')
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true && (needs.integration-scope.result != 'success' || needs.integration-scope.outputs.run == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -523,15 +867,18 @@ jobs:
           } > "$PROOF_DIR/source.txt"
 
       - name: Setup toolchain
+        id: toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
       # The platform image's own Node (its `FROM node:<version>` stage), not
       # whatever the runner image ships.
       - name: Resolve the platform's Node
         id: node
+        if: steps.toolchain.outputs.node-version == ''
         run: |
           set -euo pipefail
           version=$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-.* AS node-bin$/\1/p' services/platform/Dockerfile)
@@ -539,13 +886,23 @@ jobs:
             echo '::error::services/platform/Dockerfile names no node-bin stage version'; exit 1
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "node-version=$version" >> "$PROOF_DIR/source.txt"
 
-      - name: Setup Node
+      - name: Setup legacy candidate Node
+        if: steps.toolchain.outputs.node-version == ''
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ steps.node.outputs.version }}
           package-manager-cache: false
+
+      - name: Record integration Node version
+        env:
+          NODE_VERSION: ${{ steps.toolchain.outputs.node-version || steps.node.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$NODE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$(node --version)" != "v$NODE_VERSION" ]; then
+            echo '::error::Integration Node differs from the selected production runtime'; exit 1
+          fi
+          echo "node-version=$NODE_VERSION" >> "$PROOF_DIR/source.txt"
 
       # The transcription and video-link lanes run the real ffmpeg/ffprobe the
       # platform image bakes in. Same APT bounds as the Playwright installs.
@@ -565,6 +922,10 @@ jobs:
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          # The hosted runner is discarded after this job; deleting its
+          # builder adds teardown time without changing the integration proof.
+          cleanup: false
 
       # Build's own layer cache (scope `db`) is read, never written: this job
       # tests the image, the Build workflow publishes it.
@@ -619,10 +980,10 @@ jobs:
           docker exec tale-itest-db psql -v ON_ERROR_STOP=1 -U tale -d tale_knowledge -Atc \
             "SELECT string_agg(extname || ' ' || extversion, ', ' ORDER BY extname) FROM pg_extension"
           for _ in $(seq 1 60); do
-            if curl -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready; then break; fi
+            if curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready; then break; fi
             sleep 1
           done
-          curl -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready || { echo '::error::the object store never became ready'; exit 1; }
+          curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready || { echo '::error::the object store never became ready'; exit 1; }
 
       - name: Verify and record integration services
         env:
@@ -712,7 +1073,10 @@ jobs:
       - typecheck
       - build
       - test
+      - test-platform-shards
+      - test-workspaces
       - test-ui
+      - test-ui-shards
       - performance
       - knip
       - test-browser

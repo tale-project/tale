@@ -27,12 +27,12 @@ import { SkillCreatePane } from './skill-create-pane';
 const RESERVED_FOR_ADMINS =
   'Your organization reserves sharing with everyone for owners and admins, and members an admin allowed.';
 
-function mountPane() {
+function mountPane(existingSlugs: readonly string[] = []) {
   const onCreated = vi.fn();
   const view = render(
     <SkillCreatePane
       organizationId="org_1"
-      existingSlugs={[]}
+      existingSlugs={existingSlugs}
       onCreated={onCreated}
       onCancel={vi.fn()}
     />,
@@ -46,7 +46,7 @@ async function fillIdentity(user: ReturnType<typeof mountPane>['user']) {
 }
 
 beforeEach(() => {
-  saveSkill.mockClear();
+  saveSkill.mockReset().mockResolvedValue(undefined);
   useOrgTeams.mockReturnValue({
     teams: [{ id: 'team-red', name: 'Red' }],
     isLoading: false,
@@ -54,6 +54,40 @@ beforeEach(() => {
 });
 
 describe('SkillCreatePane', () => {
+  it('disables Create when the name is already in the snapshot', async () => {
+    useSkillPublishing.mockReturnValue({ mode: 'everyone', allowed: true });
+    const { user, onCreated } = mountPane(['house-voice']);
+    await fillIdentity(user);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'A skill with this name already exists.',
+    );
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+    expect(saveSkill).not.toHaveBeenCalled();
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  it('does not announce creation when a stale snapshot is refused', async () => {
+    useSkillPublishing.mockReturnValue({ mode: 'everyone', allowed: true });
+    saveSkill.mockRejectedValueOnce(
+      Object.assign(new Error('Skill exists'), { code: 'SKILL_EXISTS' }),
+    );
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      const { user, onCreated } = mountPane();
+      await fillIdentity(user);
+      await user.click(screen.getByRole('button', { name: 'Create' }));
+      expect(saveSkill).toHaveBeenCalledWith(
+        expect.objectContaining({ createOnly: true }),
+      );
+      expect(onCreated).not.toHaveBeenCalled();
+      expect(screen.getByLabelText('Description')).toHaveValue('How we write.');
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it('preselects Organization while the viewer may publish, and creates it org-wide', async () => {
     useSkillPublishing.mockReturnValue({ mode: 'everyone', allowed: true });
     const { user, onCreated } = mountPane();
@@ -63,7 +97,11 @@ describe('SkillCreatePane', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     expect(saveSkill).toHaveBeenCalledWith(
-      expect.objectContaining({ slug: 'house-voice', visibility: 'org' }),
+      expect.objectContaining({
+        slug: 'house-voice',
+        visibility: 'org',
+        createOnly: true,
+      }),
     );
     expect(saveSkill.mock.calls[0]?.[0]).not.toHaveProperty('teams');
     expect(onCreated).toHaveBeenCalledWith('house-voice');

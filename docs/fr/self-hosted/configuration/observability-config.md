@@ -55,16 +55,21 @@ Ne collecte pas `/metrics/sla-rules` comme des métriques. Les règles généré
 
 ## Choisir la destination des erreurs
 
-`SENTRY_DSN` active le suivi facultatif des erreurs. Il peut désigner Sentry ou un service compatible comme GlitchTip ou Bugsink. Le navigateur et le backend utilisent ce DSN ; les événements du backend indiquent le rôle du processus et la version déployée.
+`SENTRY_DSN` active le suivi facultatif des erreurs. Il peut désigner Sentry ou un service compatible comme GlitchTip ou Bugsink. Le navigateur, le backend et la sandbox utilisent ce DSN et le libellé `SENTRY_ENVIRONMENT` ; les événements serveur indiquent le rôle du processus et la version déployée.
 
 ```bash
 SENTRY_DSN=https://your-key@your-sentry-host/project-id
+SENTRY_ENVIRONMENT=example-pr
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
+Les déploiements gérés utilisent leur `name` existant comme libellé par défaut. Pour choisir un autre libellé, déclare `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }` dans la spécification du déploiement et définis cette variable à destination. La valeur commence par une lettre minuscule ou un chiffre et contient de 1 à 64 lettres minuscules, chiffres ou traits d’union. L’identité du déploiement, son état et ses identifiants enregistrés conservent leurs chemins existants.
+
+Les erreurs de sandbox comprennent les échecs HTTP et des tâches de fond. Les annulations attendues du client et les flux SSE fermés après annulation sont exclus. La sandbox envoie uniquement des erreurs ; les paramètres de traces du navigateur et du backend n’activent pas de traces dans la sandbox. Elle utilise le filtre de confidentialité du backend décrit ci-dessous.
+
 `SENTRY_TRACES_SAMPLE_RATE` concerne les traces de performance du navigateur ; leur taux par défaut est de 1.0 en développement. Les traces du backend sont désactivées par défaut. Pour les activer, règle `BACKEND_SENTRY_TRACES_SAMPLE_RATE` entre `0` et `1` (par exemple, `0.05` échantillonne 5 % des opérations) et utilise une destination qui accepte les transactions Sentry. Recrée les services API et worker du backend après la modification. Choisis des taux adaptés à ton budget de supervision ; le taux backend `0` désactive les spans tout en conservant le suivi des erreurs.
 
-Les spans du backend mesurent le traitement des requêtes HTTP et l’exécution des tâches d’arrière-plan. Une tâche comprend des spans enfants pour le contrôle du drainage, son traitement ou son transfert. Les contrôles d’état et les collectes de métriques sont exclus ; les spans HTTP ne mesurent pas la durée de transmission du corps d’une réponse en continu. Leurs noms utilisent des classes de routes et les noms de files enregistrées. Les spans excluent le contenu des requêtes et des tâches, le texte SQL, les identifiants, les URL, le contexte utilisateur et les fils d’activité. Les requêtes sortantes ne portent aucun en-tête de trace.
+Les spans du backend mesurent le traitement des requêtes HTTP et l’exécution des tâches d’arrière-plan. Une tâche comprend des spans enfants pour le contrôle du drainage, son traitement ou son transfert. Les contrôles d’état et les collectes de métriques sont exclus ; les spans HTTP ne mesurent pas la durée de transmission du corps d’une réponse en continu. Leurs noms utilisent des classes de routes et les noms de files enregistrées. Les spans excluent le contenu des requêtes et des tâches, le texte SQL, les identifiants, les URL, le contexte utilisateur et les fils d’activité. Les requêtes sortantes ne portent aucun en-tête de trace. Le travail des agents ajoute des spans enfants pour l’acquisition, la préparation du gateway, le staging, l’exécution, la persistance et la récupération des fichiers. Leurs noms sont fixes et ils ne contiennent ni prompts, ni chemins de fichiers, ni identifiants secrets.
 
 Les événements du backend n’incluent jamais les cookies ni le corps des requêtes. Les en-têtes d’autorisation, de cookie, de clé d’API, de jeton, de secret et de session, les jetons de webhook et de partage dans les URL ainsi que les valeurs d’identification des paramètres de requête, comme les codes OAuth, sont remplacés par `[Filtered]` avant l’envoi. Les cadres de pile et les messages d’erreur sont envoyés tels quels ; choisis la destination selon tes exigences de traitement des données.
 

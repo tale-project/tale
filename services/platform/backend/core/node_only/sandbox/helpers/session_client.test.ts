@@ -8,6 +8,7 @@ import {
   chunkStageFiles,
   drainSessionExecResilient,
   ExecStreamProtocolError,
+  ExecOutputGapError,
   SandboxDeviceOfflineError,
   sandboxDeploymentLimits,
   sandboxDeviceDisconnect,
@@ -151,6 +152,85 @@ describe('drainSessionExecResilient', () => {
   });
 
   test.each([
+    ['exec', 'malformed'],
+    ['attach', 'malformed'],
+    ['exec', 'consumer'],
+    ['attach', 'consumer'],
+  ])(
+    '%s releases a %s failure without awaiting cancellation acknowledgement',
+    async (mode, failure) => {
+      const cancelStarted = Promise.withResolvers<void>();
+      const cancelAcknowledged = Promise.withResolvers<void>();
+      const consumerError = new Error('consumer refused the record');
+      const caller = new AbortController();
+      const cursor = { lastSeq: 0 };
+      const stdout: string[] = [];
+      const methods: (string | undefined)[] = [];
+      let requestSignal: AbortSignal | null | undefined;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            enc.encode(
+              'event: stdout\ndata: {"seq":2,"text":"verified"}\n\n' +
+                (failure === 'malformed'
+                  ? 'event: stdout\ndata: {\n\n'
+                  : 'event: stdout\ndata: {"seq":3,"text":"refused"}\n\n') +
+                'event: stdout\ndata: {"seq":4,"text":"must not arrive"}\n\n',
+            ),
+          );
+        },
+        cancel() {
+          cancelStarted.resolve();
+          return cancelAcknowledged.promise;
+        },
+      });
+      globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+        methods.push(init?.method);
+        requestSignal = init?.signal;
+        return new Response(body);
+      }) as unknown as typeof fetch;
+      let outcome: unknown;
+      const draining = drainSessionExecResilient(
+        's',
+        { execId: 'e', command: ['fixture'] },
+        caller.signal,
+        {
+          onStdout: (text) => {
+            if (text === 'refused') throw consumerError;
+            stdout.push(text);
+          },
+        },
+        { cursor, ...(mode === 'attach' ? { resumeSinceSeq: 0 } : {}) },
+      ).catch((error: unknown) => {
+        outcome = error;
+      });
+      try {
+        await cancelStarted.promise;
+        // Drain the microtasks without releasing the transport's acknowledgement.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        if (failure === 'consumer') {
+          // The resilient boundary preserves the consumer's original failure.
+          expect(outcome).toBe(consumerError);
+        } else {
+          expect(outcome).toBeInstanceOf(ExecStreamProtocolError);
+          expect(outcome).toMatchObject({
+            message: 'Invalid sandbox stdout event',
+          });
+        }
+        expect(body.locked).toBe(false);
+        expect(requestSignal?.aborted).toBe(true);
+        expect(caller.signal.aborted).toBe(false);
+        expect(cursor.lastSeq).toBe(2);
+        expect(stdout).toEqual(['verified']);
+        expect(methods).toEqual([mode === 'attach' ? 'GET' : 'POST']);
+      } finally {
+        cancelAcknowledged.reject(new Error('late cancellation refusal'));
+        await draining;
+      }
+    },
+  );
+
+  test.each([
     ['stdout', ''],
     ['stdout', '{"seq":3,"text":'],
     ['stderr', '{"seq":3}'],
@@ -160,6 +240,11 @@ describe('drainSessionExecResilient', () => {
     ['result', '{}'],
     ['result', '{"status":"completed","exitCode":"0"}'],
     ['error', '{"code":42}'],
+    ['gap', '{'],
+    ['gap', '{}'],
+    ['gap', '{"fromSeq":3,"toSeq":"9"}'],
+    ['gap', '{"fromSeq":9,"toSeq":3}'],
+    ['gap', '{"fromSeq":3,"toSeq":9007199254740992}'],
   ])(
     'refuses a corrupt %s payload before advancing the cursor: %s',
     async (event, data) => {
@@ -557,6 +642,32 @@ describe('drainSessionExecResilient', () => {
     },
   );
 
+  test('keeps invalid raw output fatal when replay completion aborts the drain', async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return sseResponse([
+        'event: replay-complete\ndata: {"throughSeq":0}\n\n',
+        'event: stdout\ndata: {"seq":2,"b64":"aG!!!k="}\n\n',
+        RESULT_OK,
+      ]);
+    }) as unknown as typeof fetch;
+    const cursor = { lastSeq: 0 };
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        controller.signal,
+        { onReplayComplete: () => controller.abort() },
+        { cursor, resumeSinceSeq: 0 },
+      ),
+    ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+    expect(controller.signal.aborted).toBe(true);
+    expect(cursor.lastSeq).toBe(0);
+    expect(calls).toBe(1);
+  });
+
   test('does not announce replay completion from noncanonical base64 output', async () => {
     let requests = 0;
     globalThis.fetch = (async () => {
@@ -682,7 +793,13 @@ describe('drainSessionExecResilient', () => {
     const frame = (event: string, seq: number, bytes: Uint8Array) =>
       `event: ${event}\ndata: ${JSON.stringify({ seq, b64: Buffer.from(bytes).toString('base64'), text: 'legacy replacement' })}\n\n`;
     let calls = 0;
-    globalThis.fetch = (async () => {
+    globalThis.fetch = (async (
+      _url: unknown,
+      init: RequestInit | undefined,
+    ) => {
+      expect(new Headers(init?.headers).get('accept')).toBe(
+        'text/event-stream; tale-output=base64',
+      );
       calls += 1;
       return calls === 1
         ? sseResponse([
@@ -769,6 +886,31 @@ describe('drainSessionExecResilient', () => {
     expect(requests).toBe(1);
   });
 
+  test.each(['OUTPUT_GAP', 'OUTPUT_LIMIT', 'REPLAY_UNAVAILABLE'])(
+    'fails %s terminally without retrying missing or refused history',
+    async (code) => {
+      let requests = 0;
+      globalThis.fetch = (async () => {
+        requests++;
+        return sseResponse([
+          `event: error\ndata: ${JSON.stringify({ code, message: 'history unavailable' })}\n\n`,
+        ]);
+      }) as unknown as typeof fetch;
+      await expect(
+        drainSessionExecResilient(
+          's',
+          { execId: 'e' },
+          new AbortController().signal,
+          {},
+          { resumeSinceSeq: 0 },
+        ),
+      ).rejects.toBeInstanceOf(
+        code === 'OUTPUT_GAP' ? ExecOutputGapError : ExecStreamProtocolError,
+      );
+      expect(requests).toBe(1);
+    },
+  );
+
   test('does not advance past a refused harness record and cancels its reader', async () => {
     let cancelled = false;
     let requests = 0;
@@ -790,6 +932,7 @@ describe('drainSessionExecResilient', () => {
       );
     }) as unknown as typeof fetch;
     const cursor = { lastSeq: 0 };
+    let checkpointSeq: number | undefined;
     await expect(
       drainSessionExecResilient(
         's',
@@ -797,12 +940,14 @@ describe('drainSessionExecResilient', () => {
         new AbortController().signal,
         {
           onStdout: () => {
+            checkpointSeq = cursor.lastSeq;
             throw new Error('protocol record exceeds budget');
           },
         },
         { cursor },
       ),
     ).rejects.toThrow('protocol record exceeds budget');
+    expect(checkpointSeq).toBe(2);
     expect(cursor.lastSeq).toBe(0);
     expect(cancelled).toBe(true);
     expect(requests).toBe(1);

@@ -45,6 +45,11 @@ import {
 } from '../collab/service.ts';
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
+import {
+  managedConfigurationHash,
+  managedDefinitionValue,
+  managedScheduleValue,
+} from './managed-configuration-value';
 import { recordTriggerRunOutcome } from './trigger-failures.ts';
 
 /**
@@ -180,6 +185,9 @@ export interface SaveVersionArgs {
    * saver that passes none (the builder's autosave, an upload, MCP)
    * appends as before. */
   baseVersion?: number;
+  /** Declarative ownership is field/value bounded and checked under the
+   * same native name lock as every version writer. */
+  managed?: { projectId: string; expectedHash: string | null };
 }
 
 /** Serialize every writer of ONE automation name (two tabs, the builder's
@@ -201,6 +209,57 @@ async function lockAutomationName(
   `;
 }
 
+function assertManagedHash(
+  actual: string | null,
+  expected: string | null,
+): void {
+  if (actual !== expected)
+    throw new AutomationError(
+      'AUTOMATION_VERSION_STALE',
+      'Managed configuration changed since planning.',
+      409,
+    );
+}
+
+async function assertManagedProject(
+  tx: TransactionSql,
+  organizationId: string,
+  name: string,
+  projectId: string,
+  bound: boolean,
+): Promise<void> {
+  if (await automationTombstone(tx, organizationId, name))
+    throw new AutomationError(
+      'AUTOMATION_DELETED',
+      'Deleted automation requires explicit recovery before managed adoption.',
+      409,
+    );
+  const projects = await tx<{ id: string }[]>`
+    SELECT id FROM app.projects
+    WHERE id = ${projectId} AND org_id = ${organizationId} AND archived_at_ms IS NULL
+    FOR SHARE
+  `;
+  if (projects.length !== 1)
+    throw new AutomationError(
+      'AUTOMATION_PROJECT_UNKNOWN',
+      'Managed configuration requires the declared active project.',
+      404,
+    );
+  if (bound) {
+    const bindings = await tx<{ projectId: string }[]>`
+      SELECT project_id AS "projectId" FROM app.automation_project_bindings
+      WHERE org_id = ${organizationId} AND automation_name = ${name} AND project_id = ${projectId}
+      FOR SHARE
+    `;
+    if (bindings.length !== 1)
+      throw new AutomationError(
+        'AUTOMATION_PROJECT_UNKNOWN',
+        'Managed configuration cannot adopt an automation outside its declared project.',
+        409,
+      );
+  }
+}
+
 export async function saveVersion(
   sql: Sql,
   args: SaveVersionArgs,
@@ -217,6 +276,44 @@ export async function saveVersion(
     `;
     const latest = heads[0]?.latest ?? null;
     if (latest === null) assertAutomationNameCreatable(name);
+    if (args.managed) {
+      await assertManagedProject(
+        tx,
+        args.organizationId,
+        name,
+        args.managed.projectId,
+        latest !== null,
+      );
+      const current =
+        latest === null
+          ? null
+          : await versionRow(tx, args.organizationId, name, latest);
+      const actual = managedDefinitionValue(
+        args.managed.projectId,
+        name,
+        current,
+      );
+      const desired = managedDefinitionValue(
+        args.managed.projectId,
+        name,
+        args,
+      );
+      assertManagedHash(
+        managedConfigurationHash(actual),
+        args.managed.expectedHash,
+      );
+      if (
+        latest !== null &&
+        managedConfigurationHash(actual) === managedConfigurationHash(desired)
+      )
+        return { name, version: latest };
+      if (args.testsPassed !== true)
+        throw new AutomationError(
+          'AUTOMATION_DEPLOY_REJECTED',
+          'Managed automation definitions require passing native tests.',
+          409,
+        );
+    }
     if (args.create === true && latest !== null) {
       throw new AutomationError(
         'AUTOMATION_NAME_TAKEN',
@@ -473,6 +570,11 @@ export async function deploy(
      * run's word; without a fresh verdict a version saved with failing
      * tests stays refused. */
     testsPassed?: boolean;
+    managed?: {
+      projectId: string;
+      expectedHash: string | null;
+      definitionSha256: string;
+    };
   },
 ): Promise<{ name: string; version: number }> {
   const row = await versionRow(
@@ -499,6 +601,80 @@ export async function deploy(
     );
   }
   await sql.begin(async (tx) => {
+    // Serialize promotion with saves and other promoters. Existing runs keep
+    // their immutable version; only future admissions read this pointer.
+    await lockAutomationName(tx, args.organizationId, args.name);
+    if (args.managed) {
+      await assertManagedProject(
+        tx,
+        args.organizationId,
+        args.name,
+        args.managed.projectId,
+        true,
+      );
+      const latest = await versionRow(
+        tx,
+        args.organizationId,
+        args.name,
+        undefined,
+      );
+      const definition = managedDefinitionValue(
+        args.managed.projectId,
+        args.name,
+        latest,
+      );
+      if (
+        latest?.version !== args.version ||
+        managedConfigurationHash(definition) !== args.managed.definitionSha256
+      )
+        throw new AutomationError(
+          'AUTOMATION_VERSION_STALE',
+          'The managed definition changed before deployment.',
+          409,
+        );
+      const deployed = await deployedVersion(
+        tx,
+        args.organizationId,
+        args.name,
+      );
+      const previous =
+        deployed === undefined
+          ? null
+          : await versionRow(tx, args.organizationId, args.name, deployed);
+      const current =
+        previous === null
+          ? null
+          : {
+              name: args.name,
+              projectId: args.managed.projectId,
+              definitionSha256: managedConfigurationHash(
+                managedDefinitionValue(
+                  args.managed.projectId,
+                  args.name,
+                  previous,
+                ),
+              ),
+            };
+      const desired = {
+        name: args.name,
+        projectId: args.managed.projectId,
+        definitionSha256: args.managed.definitionSha256,
+      };
+      assertManagedHash(
+        managedConfigurationHash(current),
+        args.managed.expectedHash,
+      );
+      if (
+        managedConfigurationHash(current) === managedConfigurationHash(desired)
+      )
+        return;
+      if (args.testsPassed !== true)
+        throw new AutomationError(
+          'AUTOMATION_DEPLOY_REJECTED',
+          'Managed deployment requires passing native tests.',
+          409,
+        );
+    }
     await tx`
       INSERT INTO app.automation_deployments (
         org_id, name, version, deployed_by, deployed_at_ms
@@ -1069,6 +1245,11 @@ export async function setTrigger(
     name: string;
     trigger: TriggerInput;
     actor: string;
+    managed?: {
+      projectId: string;
+      expectedHash: string | null;
+      definitionSha256: string;
+    };
   },
 ): Promise<{ token?: string; revoked?: 'webhook' }> {
   assertTriggerValid(args.trigger);
@@ -1080,6 +1261,35 @@ export async function setTrigger(
   const rotate = args.trigger.rotateToken === true;
   const enabled = args.trigger.enabled ?? true;
   const { rows, revoked } = await sql.begin(async (tx) => {
+    if (args.managed) {
+      await lockAutomationName(tx, args.organizationId, args.name);
+      await assertManagedProject(
+        tx,
+        args.organizationId,
+        args.name,
+        args.managed.projectId,
+        true,
+      );
+      const selected = await deployedVersion(
+        tx,
+        args.organizationId,
+        args.name,
+      );
+      const definition =
+        selected === undefined
+          ? null
+          : await versionRow(tx, args.organizationId, args.name, selected);
+      if (
+        managedConfigurationHash(
+          managedDefinitionValue(args.managed.projectId, args.name, definition),
+        ) !== args.managed.definitionSha256
+      )
+        throw new AutomationError(
+          'AUTOMATION_VERSION_STALE',
+          'The managed schedule requires its declared deployed definition.',
+          409,
+        );
+    }
     // The row this bind replaces, locked for the rest of the transaction:
     // what it held decides whether a webhook URL dies here, and two binds
     // racing on one name settle their order on this lock before the
@@ -1091,14 +1301,54 @@ export async function setTrigger(
         kind: string;
         tokenHash: string | null;
         lastSkipReason: string | null;
+        cron: string | null;
+        timezone: string | null;
+        enabled: boolean;
       }[]
     >`
-      SELECT id, kind, token_hash AS "tokenHash",
+      SELECT id, kind, token_hash AS "tokenHash", cron, timezone, enabled,
              last_skip_reason AS "lastSkipReason"
       FROM app.automation_triggers
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
       FOR UPDATE
     `;
+    if (args.managed) {
+      const before = existing[0] ?? null;
+      if (before && before.kind !== 'schedule')
+        throw new AutomationError(
+          'AUTOMATION_TRIGGER_INVALID',
+          'Managed schedules cannot replace another trigger kind.',
+          409,
+        );
+      const current = managedScheduleValue(
+        args.managed.projectId,
+        args.name,
+        before,
+      );
+      const desired = managedScheduleValue(args.managed.projectId, args.name, {
+        kind: args.trigger.kind,
+        cron: args.trigger.cron ?? null,
+        timezone: args.trigger.timezone ?? null,
+        enabled,
+      });
+      assertManagedHash(
+        managedConfigurationHash(current),
+        args.managed.expectedHash,
+      );
+      if (
+        managedConfigurationHash(current) === managedConfigurationHash(desired)
+      )
+        return { rows: [], revoked: false };
+      if (
+        (before !== null && !before.enabled && enabled) ||
+        before?.lastSkipReason === 'paused_after_failures'
+      )
+        throw new AutomationError(
+          'AUTOMATION_TRIGGER_INVALID',
+          'An operationally paused schedule requires explicit recovery before configuration can change it.',
+          409,
+        );
+    }
     const upserted = await tx<{ tokenHash: string | null }[]>`
       INSERT INTO app.automation_triggers AS t (
         org_id, name, kind, cron, timezone, event, token_hash, enabled,
@@ -1141,7 +1391,7 @@ export async function setTrigger(
           WHEN t.kind = EXCLUDED.kind THEN t.last_skip_reason
           ELSE NULL
         END,
-        consecutive_failures = 0,
+        consecutive_failures = CASE WHEN ${args.managed !== undefined} THEN t.consecutive_failures ELSE 0 END,
         last_failed_at_ms = CASE
           WHEN t.kind = EXCLUDED.kind THEN t.last_failed_at_ms
           ELSE NULL
@@ -1155,9 +1405,16 @@ export async function setTrigger(
           ELSE NULL
         END,
         enabled = EXCLUDED.enabled,
-        updated_at_ms = EXCLUDED.updated_at_ms
+        updated_at_ms = CASE WHEN ${args.managed !== undefined} THEN t.updated_at_ms ELSE EXCLUDED.updated_at_ms END
+      WHERE ${args.managed?.expectedHash !== null}
       RETURNING token_hash AS "tokenHash"
     `;
+    if (args.managed && upserted.length !== 1)
+      throw new AutomationError(
+        'AUTOMATION_VERSION_STALE',
+        'The managed trigger changed during creation.',
+        409,
+      );
     const before = existing[0];
     if (before?.lastSkipReason === 'paused_after_failures') {
       await dismissTriggerPausedNotifications(tx, {
@@ -2595,6 +2852,7 @@ export async function deleteAutomationCascade(
   args: { organizationId: string; name: string; actor: string },
 ): Promise<void> {
   await sql.begin(async (tx) => {
+    await lockAutomationName(tx, args.organizationId, args.name);
     // The active-run guard the core store documents (and this wired path had
     // dropped): deleting mid-run would remove the versions the stepper needs
     // to load, stranding the run non-terminal forever — the liveness sweep

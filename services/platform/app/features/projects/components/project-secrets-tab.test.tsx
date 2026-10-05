@@ -24,12 +24,19 @@ vi.mock('../hooks/queries', () => ({
   useProject: () => ({ project: projectFixture, isLoading: false }),
 }));
 
+// A failed read here has never answered; its generic case runs for real in
+// project-secrets-tab.read-failure.test.tsx.
 vi.mock('../hooks/secrets', () => ({
   useProjectSecrets: () => ({
     secrets: secretsFixture,
     isLoading: false,
     error: secretsErrorFixture,
     isError: secretsErrorFixture !== undefined,
+    unavailable: secretsErrorFixture !== undefined,
+    stale: false,
+    retrying: false,
+    failureCount: secretsErrorFixture !== undefined ? 1 : 0,
+    retry: vi.fn(),
   }),
   useSetProjectSecret: () => ({
     mutateAsync: mockSetMutateAsync,

@@ -27,6 +27,7 @@ const BYO_SECRET = GOLDEN_BYO_ENV.GOLDEN_BYO_KEY;
 beforeEach(() => {
   vi.stubEnv('TALE_SANDBOX_CONTEXT_1M', undefined);
   vi.stubEnv('TALE_SANDBOX_ULTRATHINK', undefined);
+  vi.stubEnv('TALE_SANDBOX_CLAUDE_EFFORT', undefined);
   vi.stubEnv('TALE_SANDBOX_HOUSE_RULES', undefined);
 });
 
@@ -925,4 +926,25 @@ describe('the Playwright MCP server the runtime image prepares for', () => {
     );
     expect(recorded).toEqual(PLAYWRIGHT_MCP_ARG_SETS);
   });
+});
+
+describe('operator reasoning effort', () => {
+  it.each(['low', 'medium', 'high'])(
+    'requests %s effort without forcing maximum reasoning in the prompt',
+    (effort) => {
+      vi.stubEnv('TALE_SANDBOX_CLAUDE_EFFORT', effort);
+      const exec = buildHarnessExec(
+        fact('claude-code'),
+        managedSpec({ model: 'claude-opus-5-5' }),
+      );
+      expect(exec.env.CLAUDE_CODE_EFFORT_LEVEL).toBe(effort);
+      expect(exec.stdin).not.toContain('Ultrathink:');
+      expect(exec.env.CLAUDE_CODE_DISABLE_THINKING).toBeUndefined();
+      const foreign = buildHarnessExec(
+        fact('claude-code'),
+        managedSpec({ model: 'deepseek/deepseek-chat' }),
+      );
+      expect(foreign.env.CLAUDE_CODE_EFFORT_LEVEL).toBeUndefined();
+    },
+  );
 });

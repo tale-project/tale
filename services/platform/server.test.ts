@@ -1260,9 +1260,13 @@ describe('SPA shell inline __ENV__ script', () => {
   async function runPage(opts: {
     supportUrl?: string;
     acceptLanguage?: string;
+    sentryDsn?: string;
+    sentryEnvironment?: string;
   }): Promise<Record<string, unknown>> {
     vi.stubEnv('SITE_URL', 'https://tale.example.com');
     vi.stubEnv('TALE_CONTACT_SUPPORT_URL', opts.supportUrl);
+    vi.stubEnv('SENTRY_DSN', opts.sentryDsn);
+    vi.stubEnv('SENTRY_ENVIRONMENT', opts.sentryEnvironment);
     const app = createApp(undefined, { indexHtml });
     const res = await app.fetch(
       new Request('http://platform:3000/', {
@@ -1278,6 +1282,18 @@ describe('SPA shell inline __ENV__ script', () => {
     vm.runInNewContext(script?.[1] ?? '', { window });
     return window;
   }
+
+  test('hands the browser its deployment DSN and reporting environment', async () => {
+    const dsn = 'https://runtime-public-key@errors.example.com/3';
+    const window = await runPage({
+      sentryDsn: dsn,
+      sentryEnvironment: 'example-pr',
+    });
+    expect(window.__ENV__).toMatchObject({
+      SENTRY_DSN: dsn,
+      SENTRY_ENVIRONMENT: 'example-pr',
+    });
+  });
 
   test.each([
     "https://support.example.com/a$'b",

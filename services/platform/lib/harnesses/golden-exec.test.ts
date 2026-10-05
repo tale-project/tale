@@ -25,6 +25,7 @@ beforeEach(() => {
   // rules) regardless of the host shell.
   vi.stubEnv('TALE_SANDBOX_CONTEXT_1M', undefined);
   vi.stubEnv('TALE_SANDBOX_ULTRATHINK', undefined);
+  vi.stubEnv('TALE_SANDBOX_CLAUDE_EFFORT', undefined);
   vi.stubEnv('TALE_SANDBOX_HOUSE_RULES', undefined);
 });
 

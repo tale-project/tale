@@ -89,6 +89,7 @@ const sentryDsn = getEnv('SENTRY_DSN');
 if (sentryDsn) {
   Sentry.init({
     dsn: sentryDsn,
+    environment: getEnv('SENTRY_ENVIRONMENT'),
     release: getEnv('TALE_VERSION'),
     integrations: [
       Sentry.tanstackRouterBrowserTracingIntegration(router),

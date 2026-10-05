@@ -127,11 +127,47 @@ bundle commands require POSIX custody checks and are unavailable on Windows.
 Retain the bundle, source pins and receipts together. Serialize competing
 deployments externally: a local lock does not coordinate separate hosts.
 
+Managed runtime error reporting defaults `SENTRY_ENVIRONMENT` to the deployment's
+retained `name`. To use a canonical reporting label, declare
+`"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }`
+and supply that variable at the destination, for example `example-pr`. The label
+must start with a lowercase letter or digit and contain 1–64 lowercase letters,
+digits or hyphens. Browser, backend and sandbox events use it; deployment identity,
+Compose ownership, state paths and stored credentials keep their existing values.
+
 The managed proxy blocks public account and organization creation. It also serves
 `GET /api/app/organizations/capabilities` with `canCreate: false`, so the app hides
 organization creation and directs users to the operator. Existing deployments need
 a newly prepared and applied runtime bundle to gain this capability response;
 updating the platform image alone does not change their retained proxy policy.
+
+### Apply instruction and workflow changes without a rollout
+
+After a full deployment using a CLI and platform revision that support managed
+instruction and automation resources, prepare a new reviewed bundle and apply it
+with `tale deploy --bundle "$TALE_DEPLOY_BUNDLE" --configuration-only --yes --json`.
+Add `--dry-run` first to verify the runtime prerequisites without applying changes.
+
+This mode requires a completed deployment receipt that records its exact runtime
+and identity basis, the same healthy running containers and images, and no pending
+runtime rollout. Only native `configuration` may change; changing identity, runtime,
+pack sources or other deployment inputs requires a full deployment. An older receipt
+without this capability proof must first complete one normal deployment with the
+updated CLI. A refusal never falls back to a full deployment automatically.
+
+The CLI reuses its existing deployment lock, private native provisioning session,
+configuration plan, journal and readback. It changes only managed instruction and
+automation resources; every declared branding, governance, provider, embedding or
+instance setting must already be unchanged. A retained pending plan that changed
+one of those resources must finish through the full lane, including when its write
+landed before the reply was lost. Existing operator and organization IDs are checked;
+this mode does not bootstrap accounts or reconcile clients or SSO.
+
+The apply takes no snapshot, pauses no containers and performs no Compose rollout
+or restart. It preserves `deployment-ready.json` and writes a separate
+`configuration-ready.json` only after native readback and a second runtime identity
+check. A failed apply retains the native journal for exact-plan recovery. Its receipt
+proves the configuration phase, not a new full runtime deployment.
 
 ### Name managed containers
 
@@ -255,7 +291,9 @@ it. See the [organization-creators guide](../../docs/en/self-hosted/install/cli-
 
 `config validate`, `plan`, `apply` and `read` use the same native configuration
 engine as managed deployments. Supported declarations include branding, governance,
-providers, environment credential metadata, embeddings and deployment settings.
+providers, environment credential metadata, embeddings, deployment settings, project
+and agent instructions, standing-task descriptions and native automation definitions,
+deployments and schedules.
 
 Review the saved plan before applying it with `--plan`, `--receipt` and `--yes`.
 The plan binds the destination, declaration and prior native state. Concurrent
@@ -279,6 +317,76 @@ Secret values come from environment references. The CLI does not install model
 servers or migrate existing embedding vectors. Read the
 [configuration examples](../../docs/en/self-hosted/install/cli-install.md#configure-the-platform)
 for restart requirements, embedding preconditions and exact schemas.
+
+### Adopt instructions and recurring workflows
+
+Native resource kinds `project-instructions`, `agent-instructions` and
+`task-instructions` name existing `projectId`, `agentId` or `taskId` values explicitly.
+They change only `instructions` or the task's `description`. They do not provision a
+new fleet, replace agent equipment, select models, grant secrets, assign tasks or
+change task status. Project and task text retain whitespace; agent instructions use
+the native writer's trimming rule. Each text field is limited to 20,000 UTF-16 code
+units. The native route checks the previous field hash atomically and retains its
+audit and permission rules.
+
+An `automation-definition` resource declares `projectId`, the exact native `name`
+(including folder slashes), `document`, `settings`, `presentation` and `taskContract`.
+The three metadata fields are required: copy their observed native values, or use
+`null` to clear them intentionally. Missing metadata is not evidence that it is empty.
+Native authoring validates the document and requires passing attached tests before
+saving an immutable version. An existing automation must already belong to its
+declared project; a new definition binds to that existing project.
+
+Declare an `automation-deployment` for the same name and project, with
+`definitionSha256` equal to SHA-256 of the complete expanded definition configuration,
+serialized as compact JSON with object keys sorted recursively. Arrays retain their
+order. The CLI refuses a different digest. A schedule also requires both phases in
+the same declaration. Its `automation-schedule` configuration has `projectId`,
+`name`, `cron`, `timezone` and `enabled`. Application saves definitions, promotes their
+exact tested versions, then reconciles schedules. Existing runs retain their version.
+
+Equal resources are no-ops. Interrupted phases reconcile native readback before
+retrying, so a lost response does not mint another version or trigger. Schedule edits
+retain the existing trigger ID, firing cursors and failure accounting. Configuration
+refuses to re-enable an existing disabled schedule or modify a schedule paused after
+failures: investigate and recover it through the native trigger controls first, then
+plan again. Automation deletion also requires explicit native recovery; a source
+apply cannot resurrect a tombstoned name.
+
+### Capture configuration from owned source files
+
+A deployment specification may use
+`"configurationSource": "autonomous-cycle/configuration.json"` instead of inline
+`configuration`. The referenced JSON contains the same `schemaVersion: 1` and
+`resources` envelope. Keep all existing resources in that one declaration.
+
+Instruction values may be `{ "file": "roles/reviewer.md" }`; task descriptions use
+that reference in `description`. A definition's `document` may be
+`{ "file": "workflows/review.yml" }`. These paths resolve relative to the declaration
+file. For example:
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "project-instructions",
+      "config": {
+        "projectId": "existing-project-id",
+        "instructions": { "file": "policy.md" }
+      }
+    }
+  ]
+}
+```
+
+Preparation captures expanded text and parsed YAML inside the immutable bundle;
+application never follows source paths. References must be owned regular files with
+relative paths, no traversal or symlinks: `.md` for instructions, `.yml` or `.yaml` for
+workflows. Duplicate YAML keys, invalid UTF-8, files larger than 512 KiB, more than
+128 referenced files, or a total above 8 MiB are refused. There is no templating,
+environment interpolation or remote fetch. Calculate definition digests from the
+expanded configuration, not the file-reference objects or YAML bytes.
 
 ## Release a configuration pack
 

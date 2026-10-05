@@ -92,6 +92,8 @@ function roleEnvironment(
       '${DATABASE_URL:-postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${APP_DB_NAME:-tale_app}}',
     TALE_CONFIG_DIR: '/app/data',
     SANDBOX_URL: '${SANDBOX_URL:-http://sandbox:8003}',
+    SANDBOX_AGENT_PROFILE: '${SANDBOX_AGENT_PROFILE:-agent}',
+    TALE_SANDBOX_CLAUDE_EFFORT: '${TALE_SANDBOX_CLAUDE_EFFORT:-}',
     SANDBOX_HTTP_API_BASE_URL: `http://backend-api:${BACKEND_API_PORT}`,
     // Where the backend reaches the blob store. Defaults to the bundled
     // one at its internal address — presigned URLs are signed here and

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { readMarketingContent } from '../../../lib/content/server';
+import { gotoClientPage } from '../helpers/client-page';
 
 const content = readMarketingContent();
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
@@ -8,7 +9,7 @@ test.use({ contextOptions: { reducedMotion: 'reduce' } });
 for (const locale of ['en', 'de', 'fr'] as const) {
   test(`${locale} homepage introduces relevant use cases`, async ({ page }) => {
     const prefix = locale === 'en' ? '' : `/${locale}`;
-    await page.goto(prefix || '/');
+    await gotoClientPage(page, prefix || '/');
     for (const slug of [
       'marketing-campaigns',
       'software-development',
@@ -43,7 +44,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
       );
       expect(pages).toHaveLength(4);
       for (const contentDocument of pages) {
-        await page.goto(contentDocument.url);
+        await gotoClientPage(page, contentDocument.url);
         await expect(page.getByRole('heading', { level: 1 })).toHaveText(
           contentDocument.frontmatter.title.replace(/ \| Tale$/, ''),
         );
@@ -142,7 +143,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
 }
 
 test('a comparison links to its relevant use case', async ({ page }) => {
-  await page.goto('/compare/tale-vs-dust');
+  await gotoClientPage(page, '/compare/tale-vs-dust');
   const next = page
     .locator('main a[href="/use-cases/marketing-campaigns"]')
     .first();
@@ -157,7 +158,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
       page,
     }) => {
       const prefix = locale === 'en' ? '' : `/${locale}`;
-      await page.goto(`${prefix}/${category}/not-a-published-guide`);
+      await gotoClientPage(page, `${prefix}/${category}/not-a-published-guide`);
       await expect(page.locator('meta[name=robots]')).toHaveAttribute(
         'content',
         'noindex,nofollow',

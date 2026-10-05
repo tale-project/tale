@@ -18,7 +18,7 @@ export interface SandboxContract {
   };
   'sandbox/session_queries_public:getAgentNodeSandboxOp': {
     kind: 'query';
-    args: { organizationId: string; runId: string };
+    args: { organizationId: string; runId: string; nodeId?: string };
     returns: null | {
       lastEventAt?: number;
       finishedAt?: number;

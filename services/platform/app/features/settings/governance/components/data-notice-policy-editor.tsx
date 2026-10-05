@@ -24,6 +24,7 @@ import { isRecord } from '@/lib/utils/type-utils';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface DataNoticePolicyEditorProps {
   organizationId: string;
@@ -77,7 +78,7 @@ function buildConfig(
 // `LocaleTabs` — save through the settings header's Save/Discard cluster
 // (registered via the editor group); the toggle saves instantly.
 // =============================================================================
-export function DataNoticePolicyEditor({
+function DataNoticePolicyEditorContent({
   organizationId,
 }: DataNoticePolicyEditorProps) {
   const { t } = useT('governance');
@@ -270,3 +271,8 @@ export function DataNoticePolicyEditor({
     </Skeletonize>
   );
 }
+
+export const DataNoticePolicyEditor = withGovernancePolicyReadBoundary(
+  DataNoticePolicyEditorContent,
+  'data_classification_notice',
+);

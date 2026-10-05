@@ -23,9 +23,14 @@ function useInvalidateSkills() {
 /** The skill doors' refusal of a write shared with the whole organization
  * that the caller may not publish (the `skill_sharing` policy). */
 const SKILL_PUBLISH_FORBIDDEN = 'SKILL_PUBLISH_FORBIDDEN';
+const SKILL_EXISTS = 'SKILL_EXISTS';
 
 /** Whether a failed skill write was refused for its organization-wide
  * audience. */
+function isSkillExistsRefusal(error: unknown): boolean {
+  return backendErrorCode(error) === SKILL_EXISTS;
+}
+
 export function isSkillPublishRefusal(error: unknown): boolean {
   return backendErrorCode(error) === SKILL_PUBLISH_FORBIDDEN;
 }
@@ -46,7 +51,11 @@ function usePublishRefusalFeedback() {
     errorToast: {
       title: tToast('error.generic.title'),
       description: (error: Error) =>
-        isSkillPublishRefusal(error) ? t('publishing.refused') : undefined,
+        isSkillPublishRefusal(error)
+          ? t('publishing.refused')
+          : isSkillExistsRefusal(error)
+            ? t('publishing.exists')
+            : undefined,
     },
     onError: (error: Error) => {
       if (isSkillPublishRefusal(error)) void invalidate();

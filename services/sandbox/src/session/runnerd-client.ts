@@ -5,7 +5,9 @@
 // layer forwards to the platform. No kubectl exec anywhere — this is ordinary
 // fetch, which is what keeps the K8s backend exec-free.
 
+import { operationSignal } from '../operation-budget.ts';
 import {
+  RUNNERD_CHECKPOINT_MAX_BYTES,
   isRunnerdExecEvent,
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
@@ -38,6 +40,60 @@ const RUNNERD_HEALTH_TIMEOUT_MS = 5_000;
  * residual means a malfunctioning/compromised daemon streaming without
  * newlines — abort rather than grow the buffer until the spawner OOMs. */
 const MAX_NDJSON_BUFFER_BYTES = 1_048_576;
+
+/** Checkpoints are opaque, bounded platform state. Preserve protocol status
+ * codes so an older runtime can be distinguished from an unavailable one. */
+export async function runnerdExecCheckpoint(
+  opts: RunnerdClientOptions,
+  execId: string,
+  method: 'GET' | 'PUT',
+  body: string,
+  signal: AbortSignal,
+): Promise<Response> {
+  if (method === 'PUT') {
+    if (Buffer.byteLength(body) > RUNNERD_CHECKPOINT_MAX_BYTES)
+      return Response.json({ error: 'checkpoint_too_large' }, { status: 413 });
+    let value: unknown;
+    try {
+      value = JSON.parse(body);
+    } catch {
+      return Response.json({ error: 'bad_checkpoint' }, { status: 400 });
+    }
+    if (
+      value === null ||
+      typeof value !== 'object' ||
+      Array.isArray(value) ||
+      !('seq' in value) ||
+      typeof value.seq !== 'number' ||
+      !Number.isSafeInteger(value.seq) ||
+      value.seq < 0 ||
+      !('state' in value)
+    )
+      return Response.json({ error: 'bad_checkpoint' }, { status: 400 });
+  }
+  const response = await fetch(
+    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/checkpoint`,
+    {
+      method,
+      headers: {
+        ...authHeaders(opts.token),
+        'content-type': 'application/json',
+      },
+      ...(method === 'PUT' ? { body } : {}),
+      signal: AbortSignal.any([
+        signal,
+        AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+      ]),
+    },
+  );
+  return new Response(response.body, {
+    status: response.status,
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+    },
+  });
+}
 
 /** Corrupt execution history cannot be repaired by skipping a line or retrying
  * the same replay. The SSE boundary forwards this as a fatal replay error. */
@@ -113,14 +169,18 @@ export async function waitForRunnerd(
   pollIntervalMs = 500,
 ): Promise<void> {
   const deadline = performance.now() + deadlineMs;
-  const signal = AbortSignal.timeout(Math.max(0, Math.ceil(deadlineMs)));
+  const timeout = AbortSignal.timeout(Math.max(0, Math.ceil(deadlineMs)));
+  const operation = operationSignal();
+  const signal = operation ? AbortSignal.any([operation, timeout]) : timeout;
   for (;;) {
+    operationSignal()?.throwIfAborted();
     try {
       const health = await runnerdHealth(opts, signal);
       if (health.dockerReady !== false && !signal.aborted) return;
     } catch {
       // A failed health probe may recover while the overall budget remains.
     }
+    operation?.throwIfAborted();
     const remaining = deadline - performance.now();
     if (remaining <= 0 || signal.aborted)
       throw new Error(`runnerd did not become ready within ${deadlineMs}ms`);
@@ -139,7 +199,7 @@ export async function waitForRunnerd(
 export async function runnerdExec(
   opts: RunnerdClientOptions,
   req: RunnerdExecRequest,
-  onEvent: (event: RunnerdExecEvent) => void,
+  onEvent: (event: RunnerdExecEvent) => void | Promise<void>,
   signal?: AbortSignal,
 ): Promise<void> {
   const consumer = new AbortController();
@@ -166,20 +226,38 @@ export async function runnerdExec(
   }
 }
 
+/** Lost history cannot be retried into a trustworthy result. */
+export class RunnerdOutputGapError extends Error {
+  constructor(
+    message: string,
+    readonly code = 'OUTPUT_GAP',
+  ) {
+    super(message);
+  }
+}
+
 /** Read an NDJSON body, invoking `onEvent` per parsed line in order (trailing
  * partial buffered until the next chunk; final unterminated line flushed at
  * EOF). Shared by runnerdExec + runnerdAttach. */
 async function pumpNdjson(
   body: ReadableStream<Uint8Array>,
-  onEvent: (event: RunnerdExecEvent) => void,
+  onEvent: (event: RunnerdExecEvent) => void | Promise<void>,
+  sinceSeq = 0,
 ): Promise<void> {
+  let cursor = sinceSeq;
   const reader = body.getReader();
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let buf = '';
   let bufferedBytes = 0;
-  const emitLine = (line: string): void => {
+  let completed = false;
+  let replayGap = false;
+  const emitLine = async (line: string): Promise<void> => {
     const trimmed = line.trim();
     if (!trimmed) return;
+    if (replayGap)
+      throw new RunnerdOutputGapError(
+        'Exec output continued after a replay gap',
+      );
     let event: unknown;
     try {
       event = JSON.parse(trimmed);
@@ -188,8 +266,29 @@ async function pumpNdjson(
     }
     if (!isRunnerdExecEvent(event))
       throw new RunnerdProtocolError('invalid execution event');
+    if (
+      event.t === 'fail' &&
+      ['OUTPUT_GAP', 'OUTPUT_LIMIT', 'REPLAY_UNAVAILABLE'].includes(event.code)
+    ) {
+      throw new RunnerdOutputGapError(event.message, event.code);
+    }
+    if (
+      event.seq === undefined &&
+      !['fail', 'gap', 'replay-start', 'replay-complete'].includes(event.t)
+    ) {
+      throw new RunnerdOutputGapError('Exec output is missing its sequence');
+    }
+    if (event.seq !== undefined) {
+      if (event.seq !== cursor + 1) {
+        throw new RunnerdOutputGapError(
+          'Exec output sequence has a gap; refusing incomplete replay',
+        );
+      }
+      cursor = event.seq;
+    }
     // Consumer errors belong to the caller; never hide them as parse noise.
-    onEvent(event);
+    await onEvent(event);
+    replayGap = event.t === 'gap';
   };
   const append = (part: string) => {
     bufferedBytes += Buffer.byteLength(part);
@@ -199,7 +298,7 @@ async function pumpNdjson(
       );
     buf += part;
   };
-  const decode = (value?: Uint8Array, stream = false) => {
+  const decode = async (value?: Uint8Array, stream = false) => {
     let chunk: string;
     try {
       chunk = decoder.decode(value, { stream });
@@ -214,7 +313,7 @@ async function pumpNdjson(
         return;
       }
       append(chunk.slice(from, nl));
-      emitLine(buf);
+      await emitLine(buf);
       buf = '';
       bufferedBytes = 0;
       from = nl + 1;
@@ -223,16 +322,24 @@ async function pumpNdjson(
   try {
     for (;;) {
       const { value, done } = await reader.read();
-      if (done) break;
-      decode(value, true);
+      if (done) {
+        completed = true;
+        break;
+      }
+      await decode(value, true);
     }
-    decode();
-    emitLine(buf);
+    await decode();
+    await emitLine(buf);
   } finally {
-    // Includes malformed records and downstream callback failures: neither
-    // may leave an unread runnerd response, subscription or socket behind.
-    await reader.cancel().catch(() => {});
-    reader.releaseLock();
+    // Start detaching before a reconnect can add another subscriber, but do
+    // not wait for the upstream acknowledgement: it may never settle. The
+    // caller's finally must remain free to abort its owned fetch controller.
+    // The detached exec itself keeps running.
+    try {
+      if (!completed) void reader.cancel().catch(() => undefined);
+    } finally {
+      reader.releaseLock();
+    }
   }
 }
 
@@ -326,7 +433,7 @@ export class RunnerdAttachBusyError extends Error {
 export async function runnerdAttach(
   opts: RunnerdClientOptions,
   execId: string,
-  onEvent: (event: RunnerdExecEvent) => void,
+  onEvent: (event: RunnerdExecEvent) => void | Promise<void>,
   signal?: AbortSignal,
   sinceSeq = 0,
 ): Promise<boolean> {
@@ -354,7 +461,7 @@ export async function runnerdAttach(
         throw new RunnerdAttachBusyError();
     }
     if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
-    await pumpNdjson(res.body, onEvent);
+    await pumpNdjson(res.body, onEvent, sinceSeq);
     return true;
   } finally {
     consumer.abort();
@@ -372,10 +479,12 @@ export async function runnerdEnvPatch(
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
     body: JSON.stringify(patch),
-    signal: AbortSignal.any([
-      AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
-      ...(signal ? [signal] : []),
-    ]),
+    signal: operationSignal(
+      AbortSignal.any([
+        AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+        ...(signal ? [signal] : []),
+      ]),
+    ),
   });
   if (!res.ok) throw new Error(`runnerd /env ${res.status}`);
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -404,6 +513,8 @@ export async function runnerdStageFiles(
     path: string;
     url?: string;
     contentBase64?: string;
+    sha256?: string;
+    cacheKey?: string;
     sourceId?: string;
   }>,
   reconcile: { replaceRoots?: string[]; keepPaths?: string[] } = {},

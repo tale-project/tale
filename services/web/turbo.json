@@ -1,0 +1,14 @@
+{
+  "$schema": "https://turbo.build/schema.v2.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "outputs": [
+        "$TURBO_EXTENDS$",
+        "dist-ssr/**",
+        "dist-seo/**",
+        "app/generated/releases-manifest.ts"
+      ]
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProductDoc } from '@/app/lib/backend/contract/docs';
+import { engagementPaginatedAdapters } from '@/app/lib/backend/engagement';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, within } from '@/tests/utils/render';
 
@@ -201,6 +202,151 @@ describe('ProductsTable', () => {
         });
       },
     );
+  });
+
+  // #3617: the backend answers `null` for a price or stock nobody set, and
+  // the cells read it as a value: `$0.00` and a blank stock. The rows here go
+  // through the real listing adapter, as a reload reads them.
+  describe('unset price and stock', () => {
+    const wireRow = {
+      organizationId: 'test-org-id',
+      description: null,
+      imageUrl: null,
+      category: null,
+      tags: [],
+      status: 'draft',
+      translations: null,
+      externalId: null,
+      metadata: null,
+      createdAt: 1770000000000,
+      updatedAt: 1770003600000,
+    };
+
+    async function readBack(
+      items: Record<string, unknown>[],
+    ): Promise<Product[]> {
+      window.__ENV__ = { BASE_PATH: '' };
+      const fetchSpy = vi
+        .spyOn(window, 'fetch')
+        .mockResolvedValue(
+          new Response(JSON.stringify({ items, nextCursor: null })),
+        );
+      const page = await engagementPaginatedAdapters[
+        'products/queries:listProductsPaginated'
+      ]?.({}, { organizationId: 'test-org-id' })
+        ?.fetchPage(null, 20)
+        .finally(() => {
+          fetchSpy.mockRestore();
+          delete window.__ENV__;
+        });
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the adapter's page holds the listing's product rows
+      return (page?.page ?? []) as Product[];
+    }
+
+    function cellUnder(row: HTMLElement, header: string): string {
+      const column = screen
+        .getAllByRole('columnheader')
+        .findIndex((cell) => cell.textContent === header);
+      const cell = within(row).getAllByRole('cell')[column];
+      return plainSpaces(cell?.textContent ?? null);
+    }
+
+    it('shows the dash for a price and stock nobody set, and zero for a saved zero', async () => {
+      const readBackRows = await readBack([
+        {
+          ...wireRow,
+          id: 'product-unset',
+          name: 'Unpriced gadget',
+          stock: null,
+          price: null,
+          currency: null,
+        },
+        {
+          ...wireRow,
+          id: 'product-zero',
+          name: 'Free gadget',
+          stock: 0,
+          price: 0,
+          currency: 'CHF',
+        },
+      ]);
+      const {
+        price: _price,
+        stock: _stock,
+        ...absent
+      } = makeProduct('Absent gadget');
+      mockProducts = [...readBackRows, absent];
+      render(<ProductsTable organizationId="test-org-id" />);
+
+      const shown = Object.fromEntries(
+        ['Unpriced gadget', 'Free gadget', 'Absent gadget'].map((name) => {
+          const row = productRow(name);
+          if (!(row instanceof HTMLElement)) return [name, null];
+          return [
+            name,
+            { price: cellUnder(row, 'Price'), stock: cellUnder(row, 'Stock') },
+          ];
+        }),
+      );
+      expect(shown).toEqual({
+        'Unpriced gadget': { price: '-', stock: '-' },
+        'Free gadget': { price: 'CHF 0.00', stock: '0' },
+        'Absent gadget': { price: '-', stock: '-' },
+      });
+    });
+
+    it('leaves an unset price and stock out of the product details', async () => {
+      mockProducts = await readBack([
+        {
+          ...wireRow,
+          id: 'product-unset',
+          name: 'Unpriced gadget',
+          stock: null,
+          price: null,
+          currency: null,
+        },
+      ]);
+      const { user } = render(<ProductsTable organizationId="test-org-id" />);
+
+      const row = productRow('Unpriced gadget');
+      expect(row).toBeInstanceOf(HTMLElement);
+      if (!(row instanceof HTMLElement)) return;
+      await user.click(within(row).getByText('Unpriced gadget'));
+
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Product details',
+      });
+      expect(within(dialog).queryByText('Price')).not.toBeInTheDocument();
+      expect(within(dialog).queryByText('Stock')).not.toBeInTheDocument();
+      expect(within(dialog).queryByText(/0\.00/)).not.toBeInTheDocument();
+    });
+
+    it('shows a saved zero price and stock in the product details', async () => {
+      mockProducts = await readBack([
+        {
+          ...wireRow,
+          id: 'product-zero',
+          name: 'Free gadget',
+          stock: 0,
+          price: 0,
+          currency: 'CHF',
+        },
+      ]);
+      const { user } = render(<ProductsTable organizationId="test-org-id" />);
+
+      const row = productRow('Free gadget');
+      expect(row).toBeInstanceOf(HTMLElement);
+      if (!(row instanceof HTMLElement)) return;
+      await user.click(within(row).getByText('Free gadget'));
+
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Product details',
+      });
+      expect(plainSpaces(within(dialog).getByText(/0\.00/).textContent)).toBe(
+        'CHF 0.00',
+      );
+      expect(within(dialog).getByText('0 units')).toBeInTheDocument();
+    });
   });
 
   // Products used to render a client paginator of its own (#1108). Every other

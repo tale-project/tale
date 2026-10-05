@@ -26,8 +26,9 @@ import {
   retainBuildkitd,
   sweepIdleBuildkitd,
 } from './buildkitd.ts';
-import { withDockerDeadline } from './docker-deadline.ts';
+import { withOperationBudget } from './operation-budget.ts';
 import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
+import { dockerCliLoad } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 
 // Runs the actual orchestration against an isolated fake Docker CLI. Persistent
@@ -1204,7 +1205,14 @@ describe('organization build-cache lifecycle', () => {
         throw new Error('fake stop did not reach its gate');
       await Bun.sleep(5);
     }
+    // A cancelled queued ensure must not free the queue behind an older stop.
+    expect(
+      await rejection(withOperationBudget(20, () => ensureBuildkitd(cfg, org))),
+    ).toContain('deadline');
+    const runningBefore = dockerCliLoad().running;
     const ensure = ensureBuildkitd(cfg, org);
+    await Bun.sleep(30);
+    expect(dockerCliLoad().running).toBe(runningBefore);
     await writeFile(join(root, 'release-stop'), '1');
 
     expect((await sweep).stopped).toBe(1);
@@ -1230,7 +1238,9 @@ describe('organization build-cache lifecycle', () => {
       await Bun.sleep(5);
     }
     const error = await rejection(
-      withDockerDeadline(30, () => ensureBuildkitd(cfg, org)),
+      withOperationBudget(100, () =>
+        ensureBuildkitd({ ...cfg, buildkitdProvisionTimeoutMs: 30 }, org),
+      ),
     );
     expect(error).toContain('deadline');
     await writeFile(join(root, 'release-stop'), '1');
@@ -1241,6 +1251,41 @@ describe('organization build-cache lifecycle', () => {
       Object.values((await state()).containers).every((c) => !c.running),
     ).toBe(true);
   });
+
+  test('an omitted cache budget expires queued setup after five seconds', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    initial.stopGate = true;
+    await save(initial);
+    const now = Date.now();
+    await sweepIdleBuildkitd(cfg, now);
+    const sweep = sweepIdleBuildkitd(cfg, now + 1000);
+    const deadline = Date.now() + 2000;
+    while (!(await Bun.file(join(root, 'stopping')).exists())) {
+      if (Date.now() > deadline) throw new Error('stop gate timed out');
+      await Bun.sleep(5);
+    }
+    expect(cfg.buildkitdProvisionTimeoutMs).toBeUndefined();
+    const pending = rejection(ensureBuildkitd(cfg, org));
+    let error: string | null;
+    try {
+      error = await Promise.race([
+        pending,
+        Bun.sleep(6000).then(
+          () => 'setup still waiting after its default budget',
+        ),
+      ]);
+    } finally {
+      await writeFile(join(root, 'release-stop'), '1');
+      await sweep;
+      await pending;
+    }
+    expect(error).toContain('deadline');
+    expect((await calls()).filter((args) => args[0] === 'run')).toEqual([]);
+    expect(
+      Object.values((await state()).containers).every((c) => !c.running),
+    ).toBe(true);
+  }, 15_000);
 
   test('a cancelled joiner leaves a shared ensure available to its first caller', async () => {
     const org = nextOrg();
@@ -1257,7 +1302,7 @@ describe('organization build-cache lifecycle', () => {
     }
     const first = ensureBuildkitd(cfg, org);
     const joined = rejection(
-      withDockerDeadline(30, () => ensureBuildkitd(cfg, org)),
+      withOperationBudget(30, () => ensureBuildkitd(cfg, org)),
     );
     try {
       // The first caller owns the shared work; the joiner owns only its wait.

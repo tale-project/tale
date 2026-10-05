@@ -23,6 +23,13 @@ const ENGINE_ROOT = path.join(
 );
 
 const PURE_DIRS = ['core', 'api'];
+const PURE_SHARED_HELPERS = [
+  path.resolve(
+    ENGINE_ROOT,
+    '../../../../packages/shared/src/automation-name.ts',
+  ),
+  path.resolve(ENGINE_ROOT, '../shared/utils/stable-stringify.ts'),
+];
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -42,9 +49,11 @@ function importsOf(file: string): string[] {
 }
 
 describe('engine purity', () => {
-  const files = PURE_DIRS.flatMap((d) =>
-    sourceFiles(path.join(ENGINE_ROOT, d)),
-  );
+  // Extracting a helper must not hide it from the host-dependency guards.
+  const files = [
+    ...PURE_DIRS.flatMap((d) => sourceFiles(path.join(ENGINE_ROOT, d))),
+    ...PURE_SHARED_HELPERS,
+  ];
 
   it('covers a non-trivial module set', () => {
     expect(files.length).toBeGreaterThan(8);
@@ -67,13 +76,14 @@ describe('engine purity', () => {
   });
 
   it('pure layers reach outside the engine only for sanctioned pure helpers', () => {
-    // ajv (schema validation), the shared safe YAML loader, and the shared
-    // type-guard helpers are all runtime-neutral; everything else outside
-    // the engine tree is a layering violation.
-    const allowedPackages = new Set(['ajv']);
+    // ajv (schema validation), the shared safe YAML loader, type guards,
+    // name grammar and stable serializer are runtime-neutral; everything
+    // else outside the engine tree is a layering violation.
+    const allowedPackages = new Set(['ajv', '@tale/shared/automation-name']);
     const allowedModules = [
       path.join('lib', 'shared', 'config', 'yaml'),
       path.join('lib', 'utils', 'type-utils'),
+      path.join('lib', 'shared', 'utils', 'stable-stringify'),
     ];
     const offenders: string[] = [];
     for (const f of files) {

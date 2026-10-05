@@ -28,6 +28,8 @@ const setDefaultCredential = vi.hoisted(() => vi.fn());
 const goToAuthorization = vi.hoisted(() => vi.fn());
 const toastSpy = vi.hoisted(() => vi.fn());
 
+const urlState = vi.hoisted(() => ({ connector: null as string | null }));
+const setUrlState = vi.hoisted(() => vi.fn());
 const fixtures = vi.hoisted(() => ({
   connectors: [] as unknown[],
   credentials: [] as unknown[],
@@ -115,10 +117,13 @@ vi.mock('@/app/hooks/use-url-state', () => {
   const React = require('react') as typeof import('react');
   return {
     useUrlState: () => {
-      const [open, setOpen] = React.useState<string | null>(null);
+      const [open, setOpen] = React.useState<string | null>(urlState.connector);
       return {
         state: { connector: open },
-        setState: (_key: string, value: string | null) => setOpen(value),
+        setState: (key: string, value: string | null) => {
+          setUrlState(key, value);
+          setOpen(value);
+        },
         setStates: () => {},
         clearState: () => {},
         clearAll: () => {},
@@ -285,6 +290,7 @@ async function rename(
 describe('ConnectorsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    urlState.connector = null;
     abilityState.canRead = true;
     fixtures.connectors = [githubConnector, slackConnector];
     fixtures.credentials = [...defaultCredentials];
@@ -325,6 +331,50 @@ describe('ConnectorsSettings', () => {
   });
 
   describe('narrowing', () => {
+    it.each(['slack', 'github', 'retired-connector'])(
+      'keeps a single-vendor %s deep link clearable',
+      async (connector) => {
+        urlState.connector = connector;
+        const { user, container } = render(
+          <ConnectorsSettings organizationId="org-1" />,
+        );
+        const filter = await screen.findByRole('button', { name: /Filter/ });
+        expect(filter).toBeEnabled();
+        expect(screen.getByPlaceholderText('Search credentials')).toBeEnabled();
+        if (connector !== 'github') {
+          expect(
+            screen.getByRole('heading', { name: 'No results found' }),
+          ).toBeInTheDocument();
+          expect(
+            screen.queryByRole('heading', {
+              name: 'No connectors connected yet',
+            }),
+          ).not.toBeInTheDocument();
+        }
+        await checkAccessibility(container);
+        await user.click(filter);
+        await user.click(screen.getByRole('button', { name: /^Connector/ }));
+        expect(
+          screen.getByRole('checkbox', {
+            name:
+              connector === 'slack'
+                ? 'Slack'
+                : connector === 'github'
+                  ? 'GitHub'
+                  : connector,
+          }),
+        ).toBeChecked();
+        await user.click(
+          within(screen.getByRole('dialog', { name: 'Filters' })).getByRole(
+            'button',
+            { name: 'Clear all' },
+          ),
+        );
+        expect(setUrlState).toHaveBeenCalledWith('connector', null);
+        expect(screen.getByText('Platform bot')).toBeInTheDocument();
+      },
+    );
+
     it('finds a credential by the connector it authenticates', async () => {
       fixtures.credentials = [
         ...defaultCredentials,

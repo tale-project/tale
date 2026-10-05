@@ -2,10 +2,58 @@
   "$schema": "https://turbo.build/schema.v2.json",
   "extends": ["//"],
   "tasks": {
+    "transit": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/ci-task-cache.ts",
+        "$TURBO_ROOT$/services/platform/backend/core/**",
+        "$TURBO_ROOT$/services/platform/lib/**",
+        "$TURBO_ROOT$/configs/platform/custom/**",
+        "$TURBO_ROOT$/configs/platform/system/connectors/**",
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo",
+        "$TURBO_ROOT$/services/platform/backend/auth/membership.ts",
+        "$TURBO_ROOT$/services/platform/backend/auth/oidc.ts",
+        "$TURBO_ROOT$/services/platform/backend/db/sql.ts",
+        "$TURBO_ROOT$/services/platform/backend/db/ssl.ts",
+        "$TURBO_ROOT$/services/platform/backend/domains/audit_logs/hash-input.ts",
+        "$TURBO_ROOT$/services/platform/backend/domains/audit_logs/service.ts",
+        "$TURBO_ROOT$/services/platform/backend/domains/audit_logs/types.ts",
+        "$TURBO_ROOT$/services/platform/backend/domains/audit_logs/user-scoped.ts",
+        "$TURBO_ROOT$/services/platform/backend/domains/sandbox/retirement-schedule.ts",
+        "$TURBO_ROOT$/services/platform/backend/domains/two_factor/service.ts",
+        "$TURBO_ROOT$/services/platform/backend/jobs/enqueue.ts",
+        "$TURBO_ROOT$/services/platform/backend/jobs/tasks.ts",
+        "$TURBO_ROOT$/services/platform/backend/lib/org-config.ts"
+      ]
+    },
+    "build": {
+      "cache": false
+    },
+    "typecheck": {
+      "dependsOn": ["$TURBO_EXTENDS$", "generate", "transit"]
+    },
     "test": {
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/turbo.json",
+        "$TURBO_ROOT$/packages/*/turbo.json",
+        "$TURBO_ROOT$/services/*/turbo.json",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/turbo.json",
+        "$TURBO_ROOT$/tools/*/turbo.json",
+        "$TURBO_ROOT$/configs/platform/custom/skills/*/turbo.json",
+        "$TURBO_ROOT$/services/web/playwright.config.ts",
+        "$TURBO_ROOT$/services/docs/playwright.config.ts",
+        "$TURBO_ROOT$/services/platform/vitest.ui.config.ts",
+        "$TURBO_ROOT$/services/platform/postcss.config.mjs",
+        "$TURBO_ROOT$/packages/ui/src/vite/yaml.ts",
+        "$TURBO_ROOT$/services/*/Dockerfile",
+        "$TURBO_ROOT$/.dockerignore",
+        "$TURBO_ROOT$/.github/actions/setup-turbo/action.yml",
+        "$TURBO_ROOT$/services/platform/backend/core/lib/config_store/value_hash.ts",
+        "$TURBO_ROOT$/services/platform/lib/shared/utils/stable-stringify.ts",
         "$TURBO_ROOT$/scripts/publish-package.ts",
         "$TURBO_ROOT$/LICENSE",
         "$TURBO_ROOT$/packages/ui/package.json",
@@ -16,6 +64,21 @@
         "$TURBO_ROOT$/docs/*/self-hosted/install/cli-install.md",
         "$TURBO_ROOT$/scripts/install-cli.sh",
         "$TURBO_ROOT$/scripts/install-cli.ps1",
+        "$TURBO_ROOT$/services/platform/tests/integration/container-image-test.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/lib/docker.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/lib/exec.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/lib/log.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/static-site-test.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/lib/document-tools.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/fixtures/document-tools/workbook.xls",
+        "$TURBO_ROOT$/services/platform/tests/integration/fixtures/document-tools/workbook.xlsx",
+        "$TURBO_ROOT$/services/sandbox-runtime/document-python-requirements.txt",
+        "$TURBO_ROOT$/services/sandbox-runtime/document-node/package.json",
+        "$TURBO_ROOT$/services/sandbox-runtime/document-node/package-lock.json",
+        "$TURBO_ROOT$/services/platform/tests/integration/container-web-test.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/container-docs-test.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/container-ui-docs-test.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/container-ai-gateway-test.ts",
         "$TURBO_ROOT$/.github/workflows/build.yml",
         "$TURBO_ROOT$/.github/workflows/checks.yml",
         "$TURBO_ROOT$/.github/workflows/cleanup-pr-images.yml",
@@ -35,8 +98,59 @@
         "$TURBO_ROOT$/services/platform/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/platform/env.sh",
         "$TURBO_ROOT$/services/db/Dockerfile",
-        "$TURBO_ROOT$/services/sandbox-egress/Dockerfile"
+        "$TURBO_ROOT$/services/sandbox-egress/Dockerfile",
+        "$TURBO_ROOT$/services/platform/turbo.json",
+        "$TURBO_ROOT$/packages/*/package.json",
+        "$TURBO_ROOT$/services/*/package.json",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/package.json",
+        "$TURBO_ROOT$/tools/*/package.json",
+        "$TURBO_ROOT$/configs/platform/custom/skills/*/package.json",
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/compose.web.yml",
+        "$TURBO_ROOT$/compose.docs.yml",
+        "$TURBO_ROOT$/compose.ui-docs.yml",
+        "$TURBO_ROOT$/compose.ai-gateway.yml",
+        "$TURBO_ROOT$/services/platform/playwright.config.ts",
+        "$TURBO_ROOT$/packages/e2e/src/config.ts",
+        "$TURBO_ROOT$/services/platform/vitest.config.ts",
+        "$TURBO_ROOT$/packages/ui/vitest.config.ts",
+        "$TURBO_ROOT$/services/platform/backend/core/**",
+        "$TURBO_ROOT$/services/platform/lib/**",
+        "$TURBO_ROOT$/configs/platform/**",
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo",
+        "$TURBO_ROOT$/.github/scripts/pull-ci-images.sh",
+        "$TURBO_ROOT$/.github/workflows/scorecard.yml"
+      ],
+      "dependsOn": ["generate", "transit"]
+    },
+    "generate": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/platform/backend/core/**",
+        "$TURBO_ROOT$/services/platform/lib/**",
+        "$TURBO_ROOT$/configs/platform/**",
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo"
       ]
+    },
+    "setup": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/platform/backend/core/**",
+        "$TURBO_ROOT$/services/platform/lib/**",
+        "$TURBO_ROOT$/configs/platform/**",
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo"
+      ]
+    },
+    "lint": {
+      "dependsOn": ["generate", "transit"]
+    },
+    "lint:fix": {
+      "dependsOn": ["generate", "transit"]
     }
   }
 }

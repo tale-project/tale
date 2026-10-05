@@ -21,6 +21,7 @@ import * as z from 'zod';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useT } from '@/lib/i18n/client';
+import { USER_NAME_MAX_LENGTH } from '@/lib/shared/constants/user-name';
 import {
   memberRoleSchema,
   type MemberRole,
@@ -74,30 +75,48 @@ export function EditMemberDialog({
 
   const policy = usePasswordPolicy(member?.organizationId);
 
-  const editMemberSchema = useMemo(
-    () =>
-      z.object({
-        displayName: z
-          .string()
-          .min(1, tCommon('validation.required', { field: t('form.name') })),
-        role: memberRoleSchema,
-        email: z.string().email(tCommon('validation.email')),
-        updatePassword: z.boolean().optional(),
-        password: createOptionalPasswordSchema(
-          {
-            minLength: tAuth('validation.passwordMinLength', {
-              n: policy.minLength,
-            }),
-            lowercase: tAuth('validation.passwordLowercase'),
-            uppercase: tAuth('validation.passwordUppercase'),
-            number: tAuth('validation.passwordNumber'),
-            specialChar: tAuth('validation.passwordSpecial'),
-          },
-          policy,
-        ),
-      }),
-    [t, tCommon, tAuth, policy],
-  );
+  const editMemberSchema = useMemo(() => {
+    const originalDisplayName = member?.displayName?.trim() ?? '';
+    const displayName = z.string().superRefine((value, ctx) => {
+      const trimmedValue = value.trim();
+      if (trimmedValue === originalDisplayName) return;
+      if (trimmedValue.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: tCommon('validation.required', { field: t('form.name') }),
+        });
+        return;
+      }
+      if (trimmedValue.length > USER_NAME_MAX_LENGTH) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: tCommon('validation.maxLength', {
+            field: t('form.name'),
+            max: USER_NAME_MAX_LENGTH,
+          }),
+        });
+      }
+    });
+
+    return z.object({
+      displayName,
+      role: memberRoleSchema,
+      email: z.string().email(tCommon('validation.email')),
+      updatePassword: z.boolean().optional(),
+      password: createOptionalPasswordSchema(
+        {
+          minLength: tAuth('validation.passwordMinLength', {
+            n: policy.minLength,
+          }),
+          lowercase: tAuth('validation.passwordLowercase'),
+          uppercase: tAuth('validation.passwordUppercase'),
+          number: tAuth('validation.passwordNumber'),
+          specialChar: tAuth('validation.passwordSpecial'),
+        },
+        policy,
+      ),
+    });
+  }, [member?.displayName, t, tCommon, tAuth, policy]);
 
   const form = useForm<EditMemberFormData>({
     resolver: zodResolver(editMemberSchema),
@@ -116,44 +135,48 @@ export function EditMemberDialog({
   const { mutateAsync: resetMemberTwoFactor } = useResetMemberTwoFactor();
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   const handleUpdateMember = async (
     memberId: string,
     data: EditMemberFormData,
     original: { role?: string; displayName?: string },
-  ) => {
+  ): Promise<boolean> => {
     try {
-      const promises: Promise<unknown>[] = [];
+      const updates: Array<() => Promise<unknown>> = [];
 
       const roleChanged =
         data.role.toLowerCase() !== original.role?.toLowerCase();
       if (roleChanged) {
-        promises.push(updateMemberRole({ memberId, role: data.role }));
+        updates.push(() => updateMemberRole({ memberId, role: data.role }));
       }
 
-      const displayNameChanged = data.displayName !== original.displayName;
+      const displayName = data.displayName.trim();
+      const displayNameChanged =
+        displayName !== (original.displayName ?? '').trim();
       if (displayNameChanged) {
-        promises.push(
-          updateMemberDisplayName({ memberId, displayName: data.displayName }),
-        );
+        updates.push(() => updateMemberDisplayName({ memberId, displayName }));
       }
 
-      if (data.updatePassword && data.password) {
-        promises.push(
-          setMemberPassword({ memberId, newPassword: data.password }),
-        );
+      const newPassword = data.password;
+      if (data.updatePassword && newPassword) {
+        updates.push(() => setMemberPassword({ memberId, newPassword }));
       }
 
-      if (promises.length > 0) {
-        await Promise.all(promises);
+      if (updates.length > 0) {
+        for (const update of updates) {
+          await update();
+        }
 
         toast({
           title: t('organization.memberUpdated'),
           variant: 'success',
         });
       }
+      return true;
     } catch (error) {
       console.error(error);
+      return false;
     }
   };
 
@@ -166,16 +189,22 @@ export function EditMemberDialog({
 
   const onSubmit = async (data: EditMemberFormData) => {
     if (!member) return;
-    await handleUpdateMember(member._id, data, {
+    setSaveError(false);
+    const updated = await handleUpdateMember(member._id, data, {
       role: member.role,
       displayName: member.displayName,
     });
-    onOpenChange(false);
+    if (updated) {
+      onOpenChange(false);
+    } else {
+      setSaveError(true);
+    }
   };
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       reset();
+      setSaveError(false);
     }
     onOpenChange(isOpen);
   };
@@ -190,12 +219,20 @@ export function EditMemberDialog({
       isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
+      {saveError && (
+        <Alert
+          variant="destructive"
+          description={t('organization.memberUpdateFailed')}
+        />
+      )}
+
       {/* Name Field */}
       <Input
         id="displayName"
         label={t('form.name')}
         placeholder={t('form.namePlaceholder')}
         {...register('displayName')}
+        errorMessage={formState.errors.displayName?.message}
         className="w-full"
         required
       />

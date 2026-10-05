@@ -9,13 +9,15 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
-const cli = resolve(import.meta.dir, '../src/index.ts');
+import { commandTargets } from './fixtures/command-targets';
+
+const [label, executable] = commandTargets(process.env.TALE_BINARY)[0]!;
 
 // A synthetic Docker executable proves the public command stays read-only,
 // reports failures through one JSON envelope, and works before init.
-describe.skipIf(process.platform === 'win32')('doctor command', () => {
+describe.skipIf(process.platform === 'win32')(`${label} doctor command`, () => {
   let directory: string;
   let bin: string;
   let project: string;
@@ -50,7 +52,7 @@ esac
   });
 
   async function run(args: string[], extraEnv: Record<string, string> = {}) {
-    const proc = Bun.spawn([process.execPath, cli, ...args], {
+    const proc = Bun.spawn([...executable, ...args], {
       cwd: project,
       env: {
         ...process.env,

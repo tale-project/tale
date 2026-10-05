@@ -663,19 +663,33 @@ describe('complete candidate event and receipt provenance', () => {
     expect((await judge(scenario)).report.state).toBe('blocked');
   });
 
-  test.each([
-    'missing',
-    'skipped',
-    'failure',
-    'cancelled',
-    'duplicate',
-    'unexpected',
-  ])('a green E2E verdict cannot hide a %s shard', async (mode) => {
+  test.each(
+    [
+      ['checks', 'UI (platform 4/4)'],
+      ['checks', 'Unit (platform 1/2)'],
+      ['checks', 'Unit (platform 2/2)'],
+      ['checks', 'Unit (workspaces)'],
+      ['e2e', 'Playwright (platform 4/4)'],
+    ].flatMap(([stem, name]) =>
+      [
+        'missing',
+        'skipped',
+        'failure',
+        'cancelled',
+        'duplicate',
+        'unexpected',
+      ].map((mode) => [stem, name, mode] as const),
+    ),
+  )('a green %s verdict cannot hide %s when %s', async (stem, name, mode) => {
     const scenario = dispatchedSources();
     const entry = scenario.candidateRuns.find((candidate) =>
-      candidate.path.endsWith('/e2e.yml'),
+      candidate.path.endsWith(`/${stem}.yml`),
     )!;
-    const name = 'Playwright (platform 16/16)';
+    expect(entry.conclusion).toBe('success');
+    if (stem === 'checks')
+      expect(
+        scenario.jobs[entry.id]!.find((job) => job.name === 'Unit')?.conclusion,
+      ).toBe('success');
     if (mode === 'missing')
       scenario.jobs[entry.id] = scenario.jobs[entry.id]!.filter(
         (job) => job.name !== name,
@@ -692,6 +706,24 @@ describe('complete candidate event and receipt provenance', () => {
         mode;
     expect((await judge(scenario)).report.state).toBe('blocked');
   });
+
+  test.each(
+    ['test', 'test-platform-shards', 'test-workspaces'].flatMap((job) =>
+      ['missing', 'failure', 'cancelled', 'skipped'].map(
+        (result) => [job, result] as const,
+      ),
+    ),
+  )(
+    'a green Checks run cannot certify Unit receipt job %s when %s',
+    async (job, result) => {
+      const scenario = dispatchedSources();
+      await replaceReceipt(scenario, 'checks', (receipt) => {
+        if (result === 'missing') delete receipt.jobs[job];
+        else receipt.jobs[job] = result;
+      });
+      expect((await judge(scenario)).report.state).toBe('blocked');
+    },
+  );
 
   test.each([
     'old-artifact',
@@ -1268,6 +1300,131 @@ describe('the unfiltered run list the listings are held to', () => {
       ]);
     },
   );
+
+  /** Page two of a 200-run walk, with the given creation times written over
+   * its first runs in listed (descending id) order. */
+  const skewedPageTwo = (scenario: Scenario, createdAt: string[]) => {
+    const rows = allRuns(scenario);
+    const second = rows
+      .slice(100, 200)
+      // A copy: direct reads keep the true record.
+      .map((entry, index) =>
+        index < createdAt.length
+          ? Object.assign({}, entry, { created_at: createdAt[index]! })
+          : entry,
+      );
+    scenario.runPageOverrides = {
+      [`${WALK_PATH}&page=2`]: {
+        total_count: rows.length,
+        workflow_runs: second,
+      },
+    };
+    return second;
+  };
+
+  test("a lower id created a second after the run listed before it is GitHub's fan-out, not a refusal", async () => {
+    // One pull_request event fanned out checks.yml (37214784596, 15:54:47Z)
+    // and cli.yml (37214784590, 15:54:48Z): the lower id is a second later.
+    const scenario = passing();
+    scenario.otherRuns = elsewhere(200);
+    skewedPageTwo(scenario, ['2026-09-29T23:00:00Z', '2026-09-29T23:00:01Z']);
+    const { report } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+  });
+
+  test.each([
+    [
+      'one run a minute and a second late',
+      ['2026-09-29T23:00:00Z', '2026-09-29T23:01:01Z'],
+    ],
+    [
+      'steps that each stay inside a minute but add up to more',
+      ['2026-09-29T23:00:00Z', '2026-09-29T23:00:40Z', '2026-09-29T23:01:20Z'],
+    ],
+  ])(
+    'a creation time out of order by %s still refuses every listing',
+    async (_kind, createdAt) => {
+      const scenario = passing();
+      scenario.otherRuns = elsewhere(200);
+      const second = skewedPageTwo(scenario, createdAt);
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.receipt).toBeNull();
+      expect(report.reasons).toEqual([
+        `incomplete workflow run evidence from repos/${REPOSITORY}/${WALK_PATH}: page 2 lists run ${second[createdAt.length - 1]!.id} with creation time out of order`,
+      ]);
+    },
+  );
+
+  test('the walk reads a minute past the canonical merge, so a run created just after it but listed later is still compared', async () => {
+    const scenario = passing();
+    // Half a minute before the merge cutoff: a run listed after these may
+    // still carry a creation time after it, so they cannot end the walk.
+    scenario.otherRuns = [
+      ...Array.from({ length: 100 }, (_unused, index) =>
+        run('.github/workflows/checks.yml', 'success', {
+          id: 250 - index,
+          event: 'pull_request',
+          head_branch: 'fix/elsewhere',
+          head_sha: ELSEWHERE,
+          created_at: '2026-09-29T14:59:30Z',
+        }),
+      ),
+      ...Array.from({ length: 150 }, (_unused, index) =>
+        run('.github/workflows/checks.yml', 'success', {
+          id: 150 - index,
+          event: 'pull_request',
+          head_branch: 'fix/elsewhere',
+          head_sha: ELSEWHERE,
+          created_at: '2026-09-20T12:00:00Z',
+        }),
+      ),
+    ];
+    expect(allRuns(scenario)[99]!.created_at).toBe('2026-09-29T14:59:30Z');
+    const { report, calls } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(walkCalls(calls)).toHaveLength(2);
+  });
+
+  test('an omitted qualifying candidate on page two blocks instead of issuing a receipt', async () => {
+    // Reserve lower IDs independently of which other tests ran first.
+    nextRun += 300;
+    const scenario = passing();
+    const hidden = candidateRun('failure', {
+      id: 150,
+      html_url: `https://github.com/${REPOSITORY}/actions/runs/150`,
+      created_at: '2026-09-29T15:00:01Z',
+      run_started_at: '2026-09-29T22:00:00Z',
+      run_attempt: 2,
+    });
+    scenario.candidateRuns.push(hidden);
+    scenario.listingOmits = [hidden.id];
+    scenario.otherRuns = Array.from({ length: 250 }, (_unused, index) =>
+      run('.github/workflows/checks.yml', 'success', {
+        id: 250 - index,
+        html_url: `https://github.com/${REPOSITORY}/actions/runs/${250 - index}`,
+        event: 'pull_request',
+        head_branch: 'fix/elsewhere',
+        head_sha: ELSEWHERE,
+        created_at:
+          index < 100 ? '2026-09-29T14:59:30Z' : '2026-09-20T12:00:00Z',
+      }),
+    ).filter((entry) => entry.id !== hidden.id);
+    const rows = allRuns(scenario);
+    expect(rows[99]!.created_at).toBe('2026-09-29T14:59:30Z');
+    expect(rows.slice(100, 200)).toContain(hidden);
+    // Its own creation time qualifies; its 31-second inversion fits the
+    // accepted model. Only the extended walk exposes the filtered omission.
+    const { report, calls } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+    expect(report.reasons).toEqual([
+      `the run listings disagree: repos/${REPOSITORY}/${runListPath('candidate')} omits ${hidden.html_url}; read again`,
+    ]);
+    expect(walkCalls(calls)).toHaveLength(2);
+  });
 
   test('a walk that cannot reach the candidate commit within 3,000 runs refuses every listing', async () => {
     const scenario = passing();

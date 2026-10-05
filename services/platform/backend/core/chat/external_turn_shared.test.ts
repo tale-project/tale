@@ -17,25 +17,71 @@
  * called tools, only reasoned, or only reported output tokens is not.
  */
 
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  ExecReplay,
+  ReplayBudget,
+} from '../../../../sandbox-runtime/daemon/src/exec-replay';
 import { readFixture } from '../../../lib/harnesses/test-helpers';
 
 const transport = vi.hoisted(() => ({
+  replayComplete: true,
   stdout: '' as string,
   stderr: '' as string,
+  replayTail: '' as string,
   cancelled: [] as string[],
   exitAfterStdout: false,
   exitCode: 0,
   errorCode: undefined as string | undefined,
   protocolFailure: false,
-  replayComplete: true,
+  checkpoint: null as { seq: number; state: unknown } | null,
+  gapCheckpoint: null as { seq: number; state: unknown } | null,
+  gapAfterStdout: false,
+  checkpointAfterGap: 'none' as 'none' | 'missing' | 'failed' | 'newer',
+  checkpointRecovery: 'missing' as 'missing' | 'failed' | 'newer',
+  recoveryCheckpoint: null as { seq: number; state: unknown } | null,
+  gapToSeq: 5,
+  stdoutDelayMs: 0,
+  Gap: class ExecReplayGapError extends Error {
+    readonly toSeq: number;
+    constructor(message: string, toSeq: number) {
+      super(message);
+      this.toSeq = toSeq;
+    }
+  },
+  resumedAt: [] as number[],
 }));
 
 vi.mock('../node_only/sandbox/helpers/session_client', () => ({
   SessionNotFoundError: class SessionNotFoundError extends Error {},
+  ExecReplayGapError: transport.Gap,
   ExecStreamProtocolError: class ExecStreamProtocolError extends Error {},
   sessionStageFiles: async () => ({ staged: [], skipped: [] }),
+  sessionGetExecCheckpoint: async () => {
+    if (transport.checkpointAfterGap !== 'none') {
+      await new Promise((resolve) => setTimeout(resolve, 1600));
+      if (transport.checkpointAfterGap === 'failed')
+        throw new Error('checkpoint read failed');
+      return transport.checkpointAfterGap === 'newer'
+        ? transport.recoveryCheckpoint
+        : null;
+    }
+    return transport.checkpoint;
+  },
+  sessionPutExecCheckpoint: async (
+    _sessionId: string,
+    _execId: string,
+    checkpoint: { seq: number; state: unknown },
+  ) => {
+    // Match the real client: an oversized exact answer leaves replay unacknowledged.
+    if (Buffer.byteLength(JSON.stringify(checkpoint)) <= 1024 * 1024)
+      transport.checkpoint = JSON.parse(JSON.stringify(checkpoint));
+  },
   sessionCancelExec: async (_sessionId: string, execId: string) => {
     transport.cancelled.push(execId);
     return true;
@@ -47,11 +93,38 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
     callbacks: {
       onStdout?: (chunk: string) => void;
       onStderr?: (chunk: string) => void;
+      onReplayStarted?: () => void;
       onReplayComplete?: () => void;
     },
+    opts: { cursor: { lastSeq: number }; resumeSinceSeq?: number },
   ) => {
+    if (signal.aborted) throw signal.reason;
+    callbacks.onReplayStarted?.();
+    if (opts.resumeSinceSeq !== undefined)
+      transport.resumedAt.push(opts.resumeSinceSeq);
+    if (transport.gapCheckpoint !== null) {
+      transport.checkpoint = transport.gapCheckpoint;
+      transport.gapCheckpoint = null;
+      throw new transport.Gap(
+        'checkpoint advanced before attach',
+        transport.gapToSeq,
+      );
+    }
+    if (transport.stdoutDelayMs > 0)
+      await new Promise((resolve) =>
+        setTimeout(resolve, transport.stdoutDelayMs),
+      );
+    if (transport.stdout !== '') opts.cursor.lastSeq++;
     callbacks.onStdout?.(transport.stdout);
+    if (transport.replayTail !== '') {
+      await new Promise((resolve) => setTimeout(resolve, 1600));
+      callbacks.onStdout?.(transport.replayTail);
+    }
     if (transport.replayComplete) callbacks.onReplayComplete?.();
+    if (transport.gapAfterStdout) {
+      transport.checkpointAfterGap = transport.checkpointRecovery;
+      throw new transport.Gap('unresolved replay gap', transport.gapToSeq);
+    }
     if (transport.stderr !== '') callbacks.onStderr?.(transport.stderr);
     if (transport.protocolFailure) {
       const { ExecStreamProtocolError } =
@@ -130,20 +203,271 @@ const CLAUDE_TASK_SETTLED = {
 
 describe('drainHarnessWindow end-of-turn rules', () => {
   beforeEach(() => {
+    transport.replayComplete = true;
     transport.stdout = '';
     transport.stderr = '';
+    transport.replayTail = '';
     transport.cancelled = [];
     transport.exitAfterStdout = false;
+    transport.checkpoint = null;
+    transport.gapCheckpoint = null;
+    transport.gapAfterStdout = false;
+    transport.checkpointAfterGap = 'none';
+    transport.recoveryCheckpoint = null;
+    transport.gapToSeq = 5;
+    transport.stdoutDelayMs = 0;
+    transport.resumedAt = [];
     transport.exitCode = 0;
     transport.errorCode = undefined;
     transport.protocolFailure = false;
-    transport.replayComplete = true;
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  it('keeps the background ledger when a later window no longer replays its start', async () => {
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      CLAUDE_TASK_STARTED,
+      CLAUDE_RESULT,
+    ]);
+    const args = {
+      sessionId: 'sandbox',
+      execId: 'checkpoint-bg',
+      harness: 'claude-code',
+      windowMs: 10,
+    };
+    expect((await drainHarnessWindow(args)).kind).toBe('running');
+    expect(transport.checkpoint?.seq).toBe(1);
+    transport.stdout = ndjson([CLAUDE_RESULT]);
+    expect((await drainHarnessWindow(args)).kind).toBe('running');
+    expect(transport.cancelled).toEqual([]);
+    expect(transport.resumedAt).toEqual([0, 1]);
+    transport.stdout = ndjson([CLAUDE_TASK_SETTLED]);
+    const terminal = await drainHarnessWindow({ ...args, windowMs: 2000 });
+    expect(terminal.kind).toBe('terminal');
+    expect(transport.cancelled).toEqual(['checkpoint-bg']);
+  });
+
+  it.each(['missing', 'failed'] as const)(
+    'does not turn an unresolved replay gap into success when checkpoint recovery %s crosses the end grace',
+    async (recovery) => {
+      transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+      transport.gapAfterStdout = true;
+      transport.checkpointRecovery = recovery;
+      await expect(
+        drainHarnessWindow({
+          sessionId: 'sandbox',
+          execId: 'gap-grace',
+          harness: 'claude-code',
+          windowMs: 5000,
+        }),
+      ).rejects.toBeInstanceOf(transport.Gap);
+      expect(transport.cancelled).toEqual([]);
+    },
+  );
+
+  it('rejects a newer checkpoint that does not cover the whole missing range even after end grace', async () => {
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      CLAUDE_TASK_STARTED,
+      CLAUDE_RESULT,
+    ]);
+    const args = {
+      sessionId: 'sandbox',
+      execId: 'incomplete-checkpoint',
+      harness: 'claude-code',
+      windowMs: 10,
+    };
+    expect((await drainHarnessWindow(args)).kind).toBe('running');
+    if (transport.checkpoint === null) throw new Error('checkpoint missing');
+    transport.recoveryCheckpoint = {
+      seq: 20,
+      state: {
+        ...(transport.checkpoint.state as Record<string, unknown>),
+        pendingTasks: [],
+      },
+    };
+    transport.stdout = ndjson([CLAUDE_TASK_SETTLED]);
+    transport.gapAfterStdout = true;
+    transport.gapToSeq = 100;
+    transport.checkpointRecovery = 'newer';
+    await expect(
+      drainHarnessWindow({ ...args, windowMs: 5000 }),
+    ).rejects.toBeInstanceOf(transport.Gap);
+    expect(transport.cancelled).toEqual([]);
+    expect(transport.resumedAt).toEqual([0, 1]);
+  });
+
+  it('surfaces parser rejection even when the window deadline has already elapsed', async () => {
+    transport.stdout = 'x'.repeat(8 * 1024 * 1024 + 1);
+    transport.stdoutDelayMs = 20;
+    await expect(
+      drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'oversized',
+        harness: 'claude-code',
+        windowMs: 10,
+      }),
+    ).rejects.toThrow('Harness JSONL record exceeded 8 MiB');
+    expect(transport.checkpoint).toBeNull();
+    expect(transport.cancelled).toEqual([]);
+  });
+
+  it('adopts a newer atomic checkpoint when another reader prunes before attach', async () => {
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      CLAUDE_TASK_STARTED,
+      CLAUDE_RESULT,
+    ]);
+    const args = {
+      sessionId: 'sandbox',
+      execId: 'checkpoint-race',
+      harness: 'claude-code',
+      windowMs: 10,
+    };
+    expect((await drainHarnessWindow(args)).kind).toBe('running');
+    if (transport.checkpoint === null) throw new Error('checkpoint missing');
+    transport.gapCheckpoint = { ...transport.checkpoint, seq: 5 };
+    transport.stdout = ndjson([CLAUDE_RESULT]);
+    expect((await drainHarnessWindow(args)).kind).toBe('running');
+    expect(transport.resumedAt).toEqual([0, 1, 5]);
+    expect(transport.cancelled).toEqual([]);
+    expect(transport.checkpoint.seq).toBe(6);
+  });
+
+  it.each([true, false])(
+    'keeps long final answers intact and refuses only an unavailable exact fallback (final report: %s)',
+    async (hasFinalReport) => {
+      const finalText = JSON.stringify({
+        report: 'x'.repeat(70_000),
+        done: true,
+      });
+      transport.stdout = ndjson([
+        CLAUDE_INIT,
+        {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: finalText }] },
+        },
+        { ...CLAUDE_RESULT, result: hasFinalReport ? finalText : '' },
+      ]);
+      transport.exitAfterStdout = true;
+      const result = await drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'long-answer',
+        harness: 'claude-code',
+      });
+      expect(result.kind).toBe('terminal');
+      if (result.kind !== 'terminal') throw new Error('expected terminal');
+      expect(result.text.length).toBeLessThanOrEqual(65_536);
+      expect(result.textTruncated).toBe(true);
+      if (hasFinalReport) {
+        expect(result.ended?.finalText).toBe(finalText);
+        expect(JSON.parse(result.ended?.finalText ?? '').done).toBe(true);
+        expect(classifyHarnessEnd(result).errored).toBe(false);
+      } else {
+        expect(result.answerText).toBe(finalText);
+        expect(classifyHarnessEnd(result).errored).toBe(false);
+        expect(
+          classifyHarnessEnd({ ...result, answerText: undefined }),
+        ).toMatchObject({
+          errored: true,
+          reason: expect.stringContaining('complete final answer'),
+        });
+      }
+    },
+  );
+
+  it('restores an unfinished JSONL line and usage across a worker handoff', async () => {
+    const stream = readFixture('pi', 'shell-turn');
+    const split = stream.indexOf('tool_execution_start') + 7;
+    transport.stdout = stream.slice(0, split);
+    const args = {
+      sessionId: 'sandbox',
+      execId: 'checkpoint-pi',
+      harness: 'pi',
+      windowMs: 10,
+    };
+    expect((await drainHarnessWindow(args)).kind).toBe('running');
+    transport.stdout = stream.slice(split);
+    transport.exitAfterStdout = true;
+    const result = await drainHarnessWindow(args);
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal') {
+      expect(result.ended?.usageTotals).toEqual({
+        inputTokens: 57,
+        outputTokens: 22,
+      });
+      expect(result.agentSessionId).toBe(
+        '0197f3c5-3f22-77e7-886f-2760868904b9',
+      );
+    }
+    expect(transport.resumedAt).toEqual([0, 1]);
+  });
+
+  it('returns the complete final report beyond the display text cap', async () => {
+    const report = 'first-line\n' + 'x'.repeat(80_000) + '\nlast-line';
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      { ...CLAUDE_RESULT, result: report },
+    ]);
+    transport.exitAfterStdout = true;
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'large-report',
+      harness: 'claude-code',
+    });
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal') {
+      expect(result.ended?.finalText).toBe(report);
+      expect(classifyHarnessEnd(result).errored).toBe(false);
+    }
+  });
+
+  it('keeps the exact streamed narrative as settlement fallback while progress stays bounded', async () => {
+    const report = 'first-line\n' + 'x'.repeat(80_000) + '\nlast-line';
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      {
+        type: 'stream_event',
+        event: { delta: { type: 'text_delta', text: report } },
+      },
+      { type: 'result', subtype: 'success', session_id: 'claude-1' },
+    ]);
+    transport.exitAfterStdout = true;
+    const onText = vi.fn();
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'narrative-only',
+      harness: 'claude-code',
+      onText,
+    });
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal') {
+      expect(result.answerText).toBe(report);
+      expect(result.text.length).toBeLessThanOrEqual(32_000);
+      expect(result.ended?.finalText).toBeUndefined();
+      expect(classifyHarnessEnd(result).errored).toBe(false);
+    }
+    expect(onText).toHaveBeenCalledOnce();
+    expect(onText.mock.calls[0]?.[0].length).toBeLessThanOrEqual(32_000);
+  });
+
+  it('does not finish on a historical terminal marker before replay catches up', async () => {
+    transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+    transport.replayTail = ndjson([CLAUDE_TASK_STARTED]);
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'replaying',
+      harness: 'claude-code',
+      windowMs: 1750,
+    });
+    expect(result.kind).toBe('running');
+    expect(transport.cancelled).toEqual([]);
   });
 
   it('carries the harness’s stderr tail on a window that exited without a turn', async () => {
     // A CLI that refuses to start writes its reason to stderr and exits:
     // no event, no JSON — the tail is the only lead the crash leaves.
+    transport.replayComplete = true;
     transport.stdout = '';
     transport.stderr =
       '\u001b[31mError finding codex home\u001b[0m: CODEX_HOME points to "/agent/.runtime/home/.codex", but that path does not exist\n';
@@ -207,7 +531,36 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     expect(onTimeline).not.toHaveBeenCalled();
   });
 
-  it.each(['REPLAY_GAP', 'REPLAY_UNAVAILABLE', 'OUTPUT_LIMIT'])(
+  it('reaps a corrupt replay after checkpoint restoration even when the window expires', async () => {
+    const args = {
+      sessionId: 'sandbox',
+      execId: 'checkpoint-corrupt-replay',
+      harness: 'claude-code',
+      windowMs: 10,
+    };
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      CLAUDE_TASK_STARTED,
+      CLAUDE_RESULT,
+    ]);
+    expect((await drainHarnessWindow(args)).kind).toBe('running');
+    expect(transport.checkpoint?.seq).toBe(1);
+    transport.stdout = ndjson([CLAUDE_TASK_SETTLED]);
+    transport.stdoutDelayMs = 20;
+    transport.replayComplete = false;
+    transport.protocolFailure = true;
+    const onText = vi.fn();
+    const onTimeline = vi.fn();
+    await expect(
+      drainHarnessWindow({ ...args, onText, onTimeline }),
+    ).rejects.toThrow('Replay history is unavailable');
+    expect(transport.resumedAt).toEqual([0, 1]);
+    expect(transport.cancelled).toEqual([args.execId]);
+    expect(onText).not.toHaveBeenCalled();
+    expect(onTimeline).not.toHaveBeenCalled();
+  });
+
+  it.each(['OUTPUT_GAP', 'REPLAY_GAP', 'REPLAY_UNAVAILABLE', 'OUTPUT_LIMIT'])(
     'reaps an exec after %s prevents rebuilding its full ledger',
     async (errorCode) => {
       transport.stdout = `${readFixture('claude-code', 'issue-to-pr')}\n`;
@@ -311,6 +664,37 @@ describe('drainHarnessWindow end-of-turn rules', () => {
       expect(transport.cancelled).toEqual([]);
     },
   );
+
+  it('restores a long exact fallback when the terminal window only contains an empty result', async () => {
+    const report = `BEGIN ${'report '.repeat(20_000)} END`;
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: report }] },
+      },
+    ]);
+    const args = {
+      sessionId: 's',
+      execId: 'fallback-checkpoint',
+      harness: 'claude-code',
+      windowMs: 30,
+    };
+    expect((await drainHarnessWindow(args)).kind).toBe('running');
+    expect(transport.checkpoint?.seq).toBe(1);
+    transport.stdout = ndjson([{ ...CLAUDE_RESULT, result: '' }]);
+    transport.exitAfterStdout = true;
+    const result = await drainHarnessWindow(args);
+    expect(result.kind).toBe('terminal');
+    if (result.kind !== 'terminal') throw new Error('expected terminal');
+    expect(transport.resumedAt).toEqual([0, 1]);
+    expect(result.answerText).toBe(report);
+    expect(result.textTruncated).toBe(true);
+    expect(classifyHarnessEnd(result)).toEqual({
+      errored: false,
+      emptyAnswer: false,
+    });
+  });
 
   it('keeps the exact terminal fallback when a successful result omits its final text', async () => {
     const report = `BEGIN ${'report '.repeat(20_000)} END`;
@@ -486,6 +870,87 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     expect(transport.cancelled).toEqual([]);
   });
 
+  it('preserves Claude background control through real disk replay after the RAM ring overflowed', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'claude-replay-'));
+    const replay = new ExecReplay(undefined, new ReplayBudget(), directory);
+    let seq = 0;
+    const replayIntoTransport = async (since = 0) => {
+      await replay.replay(
+        since,
+        seq,
+        async (line) => {
+          const event = JSON.parse(line) as { t: string; b64: string };
+          if (event.t === 'stdout')
+            transport.stdout += Buffer.from(event.b64, 'base64').toString(
+              'utf8',
+            );
+        },
+        () => {
+          throw new Error('Unexpected replay gap');
+        },
+      );
+    };
+    try {
+      const filler = {
+        type: 'stream_event',
+        event: { delta: { type: 'text_delta', text: 'x'.repeat(8192) } },
+      };
+      const bytes = Buffer.from(
+        ndjson([
+          CLAUDE_INIT,
+          CLAUDE_TASK_STARTED,
+          ...Array.from({ length: 128 }, () => filler),
+          CLAUDE_RESULT,
+        ]),
+      );
+      expect(bytes.byteLength).toBeGreaterThan(1024 * 1024);
+      for (let offset = 0; offset < bytes.byteLength; offset += 16 * 1024) {
+        await replay.append(
+          `${JSON.stringify({
+            t: 'stdout',
+            seq: ++seq,
+            b64: bytes.subarray(offset, offset + 16 * 1024).toString('base64'),
+          })}\n`,
+          seq,
+        );
+      }
+      await replayIntoTransport();
+      const running = await drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'replay-background',
+        harness: 'claude-code',
+        windowMs: 1750,
+      });
+      expect(running.kind).toBe('running');
+      expect(transport.cancelled).toEqual([]);
+
+      // This exact answer exceeds the checkpoint cap. The full spool must
+      // remain available until a later replay reconstructs the settled ledger.
+      expect(transport.checkpoint).toBeNull();
+      await replay.append(
+        `${JSON.stringify({
+          t: 'stdout',
+          seq: ++seq,
+          b64: Buffer.from(ndjson([CLAUDE_TASK_SETTLED])).toString('base64'),
+        })}\n`,
+        seq,
+      );
+      transport.stdout = '';
+      await replayIntoTransport();
+      const terminal = await drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'replay-background',
+        harness: 'claude-code',
+        windowMs: 10000,
+      });
+      expect(terminal.kind).toBe('terminal');
+      expect(transport.cancelled).toEqual(['replay-background']);
+    } finally {
+      await replay.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('ends a claude turn once its background task settles', async () => {
     transport.stdout = ndjson([
       CLAUDE_INIT,
@@ -579,6 +1044,7 @@ describe('harnessOutputTail', () => {
 
 describe('classifyHarnessEnd', () => {
   beforeEach(() => {
+    transport.replayComplete = true;
     transport.stdout = '';
     transport.cancelled = [];
     transport.exitAfterStdout = false;
@@ -943,7 +1409,7 @@ describe('spend refusal (402) classification', () => {
 });
 
 describe('incomplete replay refusal', () => {
-  it.each(['REPLAY_GAP', 'REPLAY_UNAVAILABLE', 'OUTPUT_LIMIT'])(
+  it.each(['OUTPUT_GAP', 'REPLAY_GAP', 'REPLAY_UNAVAILABLE', 'OUTPUT_LIMIT'])(
     'never accepts an earlier successful result after %s',
     (errorCode) => {
       const result = classifyHarnessEnd({

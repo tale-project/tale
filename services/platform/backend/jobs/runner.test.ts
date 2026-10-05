@@ -101,6 +101,65 @@ const job = {
 } as unknown as Job;
 
 describe('startWorker shouldDefer', () => {
+  it('persists a successful handler result without deriving it from the job payload', async () => {
+    const { boss, handlers } = fakeBoss();
+    await startWorker({
+      boss,
+      taskList: {
+        scan: async () => ({ output: { triggerScanCompleted: true } }),
+      },
+    });
+    expect(await handlers.get('scan')?.([job])).toEqual([
+      {
+        id: job.id,
+        status: 'completed',
+        output: { triggerScanCompleted: true },
+      },
+    ]);
+  });
+
+  it('does not certify a handler result after its attempt is aborted', async () => {
+    const { boss, handlers } = fakeBoss();
+    const controller = new AbortController();
+    await startWorker({
+      boss,
+      taskList: {
+        scan: async () => {
+          controller.abort();
+          return { output: { triggerScanCompleted: true } };
+        },
+      },
+    });
+    expect(
+      await handlers.get('scan')?.([{ ...job, signal: controller.signal }]),
+    ).toEqual([{ id: job.id, status: 'completed' }]);
+  });
+
+  it('does not turn a failed scan or drain handover into a successful scan marker', async () => {
+    const { boss, handlers, calls, complete } = fakeBoss();
+    const handler = vi.fn(async () => {
+      throw new Error('scan failed');
+    });
+    let draining = false;
+    await startWorker({
+      boss,
+      taskList: { scan: handler },
+      shouldDefer: async () => draining,
+      sql: fakeSql(calls),
+    });
+    expect(await handlers.get('scan')?.([job])).toEqual([
+      { id: job.id, status: 'failed', output: { message: 'scan failed' } },
+    ]);
+    draining = true;
+    expect(await handlers.get('scan')?.([job])).toEqual([
+      { id: job.id, status: 'completed' },
+    ]);
+    expect(handler).toHaveBeenCalledOnce();
+    expect(complete).toHaveBeenCalledWith('scan', job.id, null, {
+      db: expect.anything(),
+    });
+  });
+
   it('preserves the drain callback receiver through its timing span', async () => {
     const { boss, handlers, calls } = fakeBoss();
     const handler = vi.fn();

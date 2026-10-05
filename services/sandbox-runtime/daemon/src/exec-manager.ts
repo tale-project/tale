@@ -20,28 +20,35 @@ import { accessSync, constants as fsConstants, realpathSync } from 'node:fs';
 import { Readable, type Writable } from 'node:stream';
 
 import type { EnvStore } from './env-store.ts';
-import { ExecJournal, JournalBudget } from './exec-journal.ts';
+import {
+  ExecReplay,
+  isReplayCursor,
+  ReplayBudget,
+  ReplayError,
+  REPLAY_WRITE_WATERMARK,
+} from './exec-replay.ts';
 import {
   EXEC_TAG_ENV,
   groupMembers,
   processesLeft,
   signalExecProcesses,
-  signalGroup,
   type GroupMember,
   type ReaperDeps,
   type ReapTarget,
 } from './process-reaper.ts';
 import {
   ID_ALPHABET_RE,
-  RUNNERD_RING_BUFFER_BYTES,
+  isRunnerdExecEvent,
   RUNNERD_MAX_REQUEST_BODY_BYTES,
   RUNNERD_STDIN_MAX_BYTES,
   WORKSPACE_ROOT,
+  type RunnerdExecCheckpoint,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
   type RunnerdStdinWriteRequest,
   type RunnerdStdinWriteResponse,
 } from './protocol.ts';
+import { Utf8FrameBoundary } from './utf8-frame-boundary.ts';
 
 const SIGKILL_GRACE_MS = 5_000;
 /** After the child's 'exit' fires, how long to wait for stdio 'close' (all
@@ -49,7 +56,7 @@ const SIGKILL_GRACE_MS = 5_000;
  * where a backgrounded grandchild inherited the stdout/stderr pipe and 'close'
  * would otherwise never fire until the whole timeoutMs SIGKILLs the group. */
 const EXIT_DRAIN_GRACE_MS = 2_000;
-/** How many exited execs keep their ring for replay-after-disconnect. */
+/** How many exited execs keep their replay history after disconnect. */
 const RECENT_EXEC_LIMIT = 16;
 /** Past this many waiting leftovers, the ones whose processes are all gone
  * are dropped — a session that always has a live exec never empties them. */
@@ -60,7 +67,7 @@ const LEFTOVER_PRUNE_AT = 256;
  * ends. */
 const HOLD_MAX_MS = 10 * 60_000;
 
-type ExecSubscriber = (event: RunnerdExecEvent) => void | Promise<void>;
+type ExecSubscriber = (event: RunnerdExecEvent) => void;
 const discardEvent: ExecSubscriber = () => {};
 
 /** A reaping target, with whether its leader is still running: while it is,
@@ -105,7 +112,6 @@ export function resolveExecShim(
 }
 
 interface LiveExec {
-  journal: ExecJournal;
   startedAtMs: number;
   /** This exec's place in the order the session's execs started. */
   ordinal: number;
@@ -119,7 +125,11 @@ interface LiveExec {
   /** Only these small liveness flags outlive the exec while a delayed reap
    * or a deferred descendant waits. Never capture the full record there:
    * it owns replay data and callbacks into the child and HTTP consumer. */
-  processState: { leaderExited: boolean; rootExited: boolean };
+  processState: {
+    leaderExited: boolean;
+    rootExited: boolean;
+    rootCompleted: boolean;
+  };
   /** The exec's subreaper shim, when it runs under one: every process it
    * started is the shim's descendant. */
   rootPid: number | undefined;
@@ -134,13 +144,16 @@ interface LiveExec {
   /** What the exit (or a hand-over) left waiting, while it still waits; a
    * cancel or the deadline ends it at once. */
   deferred: Leftover | null;
-  /** Last RING_BUFFER_BYTES of emitted NDJSON lines, for diagnostics only. */
-  ring: string[];
-  ringBytes: number;
+  replay: ExecReplay;
   exitCode: number | null;
   /** Set by cancel() so the terminal exit event reports cancelled:true. */
   cancelRequested: boolean;
-  /** Monotonic per-exec event counter (assigned in ringEmit). Lets a
+  /** Concurrent attach() consumers fanned the live event stream. */
+  subscribers: Set<ExecSubscriber>;
+  /** Removable completion waiters: detached consumers must not leave promise
+   * reactions retained until a potentially multi-hour exec finishes. */
+  completions: Set<() => void>;
+  /** Monotonic per-exec event counter (assigned in publishEvent). Lets a
    * reconnecting consumer request `/attach?sinceSeq=` and skip replayed lines. */
   seq: number;
   /** SLIDING deadline: the kill timer is re-armed on every attach() — the ONLY
@@ -150,6 +163,7 @@ interface LiveExec {
    * the window. */
   timeoutMs: number;
   timer: ReturnType<typeof setTimeout> | null;
+  finishing: boolean;
   /** Set by the deadline timer so the terminal exit event reports timedOut. */
   timedOut: boolean;
   /** Held-open stdin pipe (stdinMode:'hold'), written via writeStdin(). Null
@@ -158,20 +172,19 @@ interface LiveExec {
   stdin: Writable | null;
 }
 
-/** A retained (exited) exec: its journal for /attach replay plus the exit
+/** A retained (exited) exec: its disk history for /attach replay plus the exit
  * code, kept so GET /execs/:id can report `exited(code)` after the live record
  * is gone — distinct from an evicted/never-existed exec (404 → 'gone'). */
 interface RetainedExec {
-  journal: ExecJournal;
-  ring: string[];
+  replay: ExecReplay;
+  seq: number;
   exitCode: number | null;
 }
 
 export class ExecManager {
   private readonly live = new Map<string, LiveExec>();
-  private readonly journalBudget: JournalBudget;
   // Exited execs retained briefly so a reconnecting /attach can replay the
-  // full journal + terminal event, and so GET /execs/:id can still report the
+  // full protocol + terminal event, and so GET /execs/:id can still report the
   // real exit code (insertion-ordered; oldest evicted past cap).
   private readonly recent = new Map<string, RetainedExec>();
   // Execs that exited while another exec of the session ran: what they left
@@ -184,6 +197,7 @@ export class ExecManager {
   private started = 0;
   private disposed = false;
   private attachments = 0;
+  private readonly replayBudget: ReplayBudget;
 
   constructor(
     private readonly envStore: EnvStore,
@@ -194,15 +208,15 @@ export class ExecManager {
     private readonly reaper: ReaperDeps = {},
     private readonly options: {
       holdMaxMs?: number;
-      journalMaxBytes?: number;
-      journalBudgetBytes?: number;
-      journalDirectory?: string;
+      replayMaxBytes?: number;
+      replayBudgetBytes?: number;
+      replayDirectory?: string;
       /** The subreaper shim to run execs under; unset, {@link
        * resolveExecShim}'s, and null for none. */
       execShim?: string | null;
     } = {},
   ) {
-    this.journalBudget = new JournalBudget(options.journalBudgetBytes);
+    this.replayBudget = new ReplayBudget(options.replayBudgetBytes);
     this.execShim =
       options.execShim === undefined ? resolveExecShim() : options.execShim;
   }
@@ -225,7 +239,7 @@ export class ExecManager {
   }
 
   /**
-   * Attach a consumer to an exec: replay its disk journal, then (if still
+   * Attach a consumer to an exec: replay its disk history, then (if still
    * live) follow new events until it exits. Returns a promise that resolves
    * when the stream is complete, or null if the exec is unknown (neither live
    * nor recently retained). Used by GET /execs/:id/attach for reconnect.
@@ -238,25 +252,139 @@ export class ExecManager {
      * when the exec ends — a platform that re-attaches every window would
      * otherwise leave one subscriber (and one open operation) per window. */
     signal?: AbortSignal,
+    ready?: () => Promise<void>,
   ): Promise<void> | null {
-    const liveRec = this.live.get(execId);
-    const record = liveRec ?? this.recent.get(execId);
-    if (record === undefined) return null;
+    const rec = this.live.get(execId) ?? this.recent.get(execId);
+    if (!rec) return null;
     if (signal?.aborted) return Promise.resolve();
-    if (this.attachments >= 8) {
-      return Promise.reject(new Error('attachment limit reached'));
+    if (!isReplayCursor(sinceSeq, rec.seq)) {
+      emit({
+        t: 'fail',
+        code: 'REPLAY_UNAVAILABLE',
+        message: 'Invalid execution replay cursor.',
+      });
+      return Promise.resolve();
     }
+    if (!this.hasAttachCapacity)
+      return Promise.reject(new Error('attachment limit reached'));
     this.attachments += 1;
-    if (liveRec) this.armDeadline(liveRec);
-    return record.journal.replay(emit, sinceSeq, signal).finally(() => {
+    const live = this.live.get(execId);
+    if (live) this.armDeadline(live);
+    return this.replayAndFollow(
+      execId,
+      rec,
+      emit,
+      sinceSeq,
+      signal,
+      ready,
+    ).finally(() => {
       this.attachments -= 1;
     });
+  }
+
+  private async replayAndFollow(
+    execId: string,
+    rec: LiveExec | RetainedExec,
+    emit: ExecSubscriber,
+    cursor: number,
+    signal?: AbortSignal,
+    ready?: () => Promise<void>,
+  ): Promise<void> {
+    let missing = false;
+    const throughSeq = rec.seq;
+    let caughtUp = false;
+    emit({ t: 'replay-start' });
+    const complete = () => {
+      if (caughtUp || signal?.aborted) return;
+      caughtUp = true;
+      emit({ t: 'replay-complete', throughSeq });
+    };
+    try {
+      // Pace the capability barrier before opening replay leases. A reader
+      // that stalls immediately must release its transport on disconnect too.
+      await ready?.();
+      rec.replay.assertAvailable();
+      for (;;) {
+        if (signal?.aborted) return;
+        const until = rec.seq;
+        cursor = await rec.replay.replay(
+          cursor,
+          until,
+          async (line) => {
+            const seq = replaySequence(line);
+            // Historical terminal events must be interpreted only after the
+            // replay barrier, even when they were the initial watermark.
+            emitReplayLine(line, (event) => {
+              if (event.t === 'exit' && (seq ?? 0) >= throughSeq) complete();
+              emit(event);
+            });
+            if ((seq ?? 0) >= throughSeq) complete();
+            await ready?.();
+          },
+          (fromSeq, toSeq) => {
+            missing = true;
+            emit({ t: 'gap', fromSeq, toSeq });
+          },
+          signal,
+        );
+        if (missing || signal?.aborted) return;
+        rec.replay.assertAvailable();
+        if (cursor >= throughSeq) complete();
+        // No await between the catch-up check and subscription: output cannot
+        // slip between disk replay and live delivery on this event loop.
+        if (cursor < rec.seq) continue;
+        const live = this.live.get(execId);
+        if (live !== rec) return;
+        const follow: ExecSubscriber = (event) => {
+          if (event.seq !== undefined && event.seq <= cursor) return;
+          emit(event);
+        };
+        live.subscribers.add(follow);
+        await new Promise<void>((resolve) => {
+          const finish = () => {
+            live.subscribers.delete(follow);
+            live.completions.delete(finish);
+            signal?.removeEventListener('abort', finish);
+            resolve();
+          };
+          live.completions.add(finish);
+          signal?.addEventListener('abort', finish, { once: true });
+        });
+        return;
+      }
+    } catch (error) {
+      if (signal?.aborted) return;
+      const failure =
+        error instanceof ReplayError
+          ? error
+          : new ReplayError('REPLAY_UNAVAILABLE');
+      emit({ t: 'fail', code: failure.code, message: failure.message });
+    }
+  }
+
+  checkpoint(
+    execId: string,
+  ): Promise<RunnerdExecCheckpoint | null> | undefined {
+    return (
+      this.live.get(execId) ?? this.recent.get(execId)
+    )?.replay.getCheckpoint();
+  }
+
+  async saveCheckpoint(
+    execId: string,
+    value: RunnerdExecCheckpoint,
+  ): Promise<'ok' | 'not_found' | 'stale' | 'ahead'> {
+    const rec = this.live.get(execId) ?? this.recent.get(execId);
+    if (!rec) return 'not_found';
+    if (value.seq > rec.seq) return 'ahead';
+    return (await rec.replay.saveCheckpoint(value)) ? 'ok' : 'stale';
   }
 
   /** (Re)arm the sliding deadline. Called at exec start and on every attach.
    * An actively-attached exec is perpetually extended; an orphaned one (no
    * attach for `timeoutMs`) is SIGTERM→SIGKILLed — the sole orphan reaper. */
   private armDeadline(rec: LiveExec): void {
+    if (rec.finishing) return;
     if (rec.timer) clearTimeout(rec.timer);
     rec.timer = setTimeout(() => {
       rec.timedOut = true;
@@ -266,22 +394,27 @@ export class ExecManager {
 
   private retainRecent(
     execId: string,
-    ring: string[],
-    journal: ExecJournal,
+    rec: LiveExec,
     exitCode: number | null,
   ): void {
-    journal.finish();
     if (this.disposed) {
-      void journal.dispose();
+      void rec.replay.dispose().catch(logReplayError);
       return;
     }
-    void this.recent.get(execId)?.journal.dispose();
-    this.recent.set(execId, { ring, journal, exitCode });
+    const previous = this.recent.get(execId);
+    if (previous) void previous.replay.dispose().catch(logReplayError);
+    void rec.replay.finish().catch(logReplayError);
+    this.recent.set(execId, {
+      replay: rec.replay,
+      seq: rec.seq,
+      exitCode,
+    });
     while (this.recent.size > RECENT_EXEC_LIMIT) {
       const oldest = this.recent.keys().next().value;
       if (oldest === undefined) break;
-      void this.recent.get(oldest)?.journal.dispose();
+      const evicted = this.recent.get(oldest);
       this.recent.delete(oldest);
+      if (evicted) void evicted.replay.dispose().catch(logReplayError);
     }
   }
 
@@ -306,8 +439,8 @@ export class ExecManager {
 
   /**
    * Run one exec, invoking `emit` for each NDJSON event. Resolves when the
-   * child has exited (or failed pre-spawn). The caller writes each emitted
-   * event to the HTTP response stream AND the ring buffer.
+   * child has exited (or failed pre-spawn). The manager persists the protocol;
+   * the caller writes each emitted event to the HTTP response stream.
    */
   async run(
     req: RunnerdExecRequest,
@@ -371,6 +504,7 @@ export class ExecManager {
     this.onActivity();
     this.beforeSpawn();
     const startedAtMs = Date.now();
+    const startedAtMonotonicMs = performance.now();
     // Under the subreaper shim, the command runs as its child in a process
     // group of its own and everything it starts stays the shim's descendant;
     // the shim says on its status pipe (fd 3) when the command started,
@@ -402,48 +536,36 @@ export class ExecManager {
     let stdoutTruncLogged = false;
     let stderrTruncLogged = false;
     let settled = false;
-    let journalFailed = false;
-    const journal = new ExecJournal(
-      this.journalBudget,
-      () => {
-        child.stdout.resume();
-        child.stderr.resume();
-      },
-      (code) => {
-        journalFailed = true;
-        ringEmit({
-          t: 'fail',
-          code,
-          message:
-            code === 'OUTPUT_LIMIT'
-              ? 'Execution output exceeded its replay storage limit.'
-              : 'Execution output could not be preserved.',
-        });
-        record.terminate();
-        child.stdout.resume();
-        child.stderr.resume();
-      },
-      this.options.journalMaxBytes,
-      this.options.journalDirectory,
-    );
     this.started += 1;
     const record: LiveExec = {
-      journal,
       startedAtMs,
       ordinal: this.started,
       // Under the shim the group is the command's, named on the status pipe.
       groupId: shim !== null ? undefined : child.pid,
       rootPid: shim !== null ? child.pid : undefined,
-      processState: { leaderExited: false, rootExited: false },
+      processState: {
+        leaderExited: false,
+        rootExited: false,
+        rootCompleted: false,
+      },
       groupPending: shim !== null,
       awaitingGroup: [],
       exitCode: null,
-      ring: [],
-      ringBytes: 0,
+      replay: new ExecReplay(
+        {
+          segmentBytes: 1024 * 1024,
+          maxBytes: this.options.replayMaxBytes ?? 64 * 1024 * 1024,
+        },
+        this.replayBudget,
+        this.options.replayDirectory,
+      ),
       cancelRequested: false,
+      subscribers: new Set(),
+      completions: new Set(),
       seq: 0,
       timeoutMs: req.timeoutMs,
       timer: null,
+      finishing: false,
       timedOut: false,
       stdin: null,
       terminated: false,
@@ -467,34 +589,81 @@ export class ExecManager {
     if (consumerSignal?.aborted) detach();
     else consumerSignal?.addEventListener('abort', detach, { once: true });
 
-    const ringEmit = (event: RunnerdExecEvent, persist = true) => {
+    let replayBytes = 0;
+    let replayFailure: ReplayError | undefined;
+    const failReplay = (error: unknown) => {
+      if (replayFailure) return;
+      replayFailure =
+        error instanceof ReplayError
+          ? error
+          : new ReplayError('REPLAY_UNAVAILABLE');
+      publishEvent(
+        { t: 'fail', code: replayFailure.code, message: replayFailure.message },
+        false,
+      );
+      record.terminate();
+      child.stdout.resume();
+      child.stderr.resume();
+    };
+    const publishEvent = (event: RunnerdExecEvent, persist = true) => {
       // Stamp a monotonic seq so a reconnecting /attach?sinceSeq= can replay
       // only events it hasn't seen — idempotent reconnect.
       record.seq += 1;
       const stamped: RunnerdExecEvent = { ...event, seq: record.seq };
-      const line = `${JSON.stringify(stamped)}\n`;
-      if (!journalFailed && persist) {
-        const writable = journal.append(line);
-        if (journalFailed) return;
-        if (!writable) {
+      if (persist && !replayFailure) {
+        const line = `${JSON.stringify(stamped)}\n`;
+        // Coalesce small records while allowing at most the write watermark
+        // plus an already-delivered pipe chunk to wait on disk.
+        const bytes = Buffer.byteLength(line);
+        replayBytes += bytes;
+        if (replayBytes >= REPLAY_WRITE_WATERMARK) {
           child.stdout.pause();
           child.stderr.pause();
         }
+        void record.replay
+          .append(line, record.seq)
+          .catch(failReplay)
+          .finally(() => {
+            replayBytes -= bytes;
+            if (replayBytes < REPLAY_WRITE_WATERMARK) {
+              child.stdout.resume();
+              child.stderr.resume();
+            }
+          });
       }
+      // Publish replay state before notifying a consumer: an immediate attach
+      // or checkpoint from its callback must already see this sequence.
       emit(stamped);
-      record.ring.push(line);
-      record.ringBytes += Buffer.byteLength(line, 'utf8');
-      while (
-        record.ringBytes > RUNNERD_RING_BUFFER_BYTES &&
-        record.ring.length > 1
-      ) {
-        const dropped = record.ring.shift();
-        if (dropped === undefined) break;
-        record.ringBytes -= Buffer.byteLength(dropped, 'utf8');
+      // Fan out to any concurrent /attach consumers.
+      for (const sub of record.subscribers) {
+        try {
+          sub(stamped);
+        } catch (err) {
+          console.warn('[runnerd] attach subscriber threw:', err);
+        }
       }
     };
 
-    ringEmit({ t: 'start', execId, startedAtMs });
+    const outputFrames = {
+      stdout: new Utf8FrameBoundary(),
+      stderr: new Utf8FrameBoundary(),
+    };
+    const flushOutput = (stream: 'stdout' | 'stderr') => {
+      const bytes = outputFrames[stream].flush();
+      if (bytes.length > 0)
+        publishEvent({ t: stream, b64: bytes.toString('base64') });
+    };
+    const emitOutput = (
+      stream: 'stdout' | 'stderr',
+      chunk: Buffer,
+      atLimit = false,
+    ) => {
+      for (const bytes of outputFrames[stream].pushFrames(chunk))
+        publishEvent({ t: stream, b64: bytes.toString('base64') });
+      if (atLimit) flushOutput(stream);
+    };
+
+    publishEvent({ t: 'start', execId, startedAtMs });
 
     if (req.stdinMode === 'hold') {
       // Held-open stdin: the initial payload is written but NOT ended; later
@@ -543,11 +712,10 @@ export class ExecManager {
       // Drop data that arrives after the terminal event (only reachable when a
       // grace-forced finish raced a leaked-fd writer — see the 'exit'/'close'
       // handling below). Keeps the start..stdout..exit order the platform
-      // adapters depend on and never mutates the already-retained ring.
-      if (settled) return;
-      // stdoutMaxBytes <= 0 disables truncation. The ring and consumer queues
-      // bound memory; the journal's storage budget fails explicitly instead
-      // of silently cutting off a long-lived command's output.
+      // adapters depend on and never mutates already-persisted output.
+      if (settled || replayFailure) return;
+      // stdoutMaxBytes <= 0 disables truncation. Replay storage limits fail
+      // explicitly; pending writes and consumer queues bound memory.
       if (stdoutMaxBytes > 0) {
         const remaining = stdoutMaxBytes - stdoutBytes;
         if (remaining <= 0) {
@@ -565,18 +733,15 @@ export class ExecManager {
           // mark truncated so the rest is dropped at the next 'data'.
           stdoutBytes += remaining;
           stdoutTrunc = true;
-          ringEmit({
-            t: 'stdout',
-            b64: chunk.subarray(0, remaining).toString('base64'),
-          });
+          emitOutput('stdout', chunk.subarray(0, remaining), true);
           return;
         }
       }
       stdoutBytes += chunk.byteLength;
-      ringEmit({ t: 'stdout', b64: chunk.toString('base64') });
+      emitOutput('stdout', chunk, stdoutBytes === stdoutMaxBytes);
     });
     child.stderr.on('data', (chunk: Buffer) => {
-      if (settled) return;
+      if (settled || replayFailure) return;
       if (stderrMaxBytes > 0) {
         const remaining = stderrMaxBytes - stderrBytes;
         if (remaining <= 0) {
@@ -592,15 +757,18 @@ export class ExecManager {
         if (chunk.byteLength > remaining) {
           stderrBytes += remaining;
           stderrTrunc = true;
-          ringEmit({
-            t: 'stderr',
-            b64: chunk.subarray(0, remaining).toString('base64'),
-          });
+          emitOutput('stderr', chunk.subarray(0, remaining), true);
           return;
         }
       }
       stderrBytes += chunk.byteLength;
-      ringEmit({ t: 'stderr', b64: chunk.toString('base64') });
+      emitOutput('stderr', chunk, stderrBytes === stderrMaxBytes);
+    });
+    child.stdout.on('end', () => {
+      if (!settled) flushOutput('stdout');
+    });
+    child.stderr.on('end', () => {
+      if (!settled) flushOutput('stderr');
     });
     // The output pipes can emit 'error' (e.g. a rare pipe EIO). Without a
     // listener Node throws it as an unhandled stream error and crashes the whole
@@ -635,6 +803,11 @@ export class ExecManager {
       const finish = async (code: number) => {
         if (settled) return;
         settled = true;
+        record.finishing = true;
+        // EOF normally flushes these. A forced drain finish must preserve the
+        // final raw suffix too, even if the inherited pipes never close.
+        flushOutput('stdout');
+        flushOutput('stderr');
         if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
         if (!closed && record.deferred === null) {
@@ -651,32 +824,26 @@ export class ExecManager {
         const terminal: RunnerdExecEvent = {
           t: 'exit',
           exitCode: code,
-          // The canonical execution wall-clock (protocol.ts `exit.durationMs`):
-          // startedAtMs was taken immediately before spawn(), and finish() runs
-          // only once stdio is drained — nothing outside the process
-          // (scheduling, staging, harvest) can leak into the measurement.
-          durationMs: Date.now() - startedAtMs,
+          durationMs: performance.now() - startedAtMonotonicMs,
           truncated: { stdout: stdoutTrunc, stderr: stderrTrunc },
           timedOut: record.timedOut,
           cancelled: record.cancelRequested,
         };
-        // A success must not outrun a failed disk open/write. Preserve the
-        // terminal record before publishing it or making status exited.
-        journal.append(
-          `${JSON.stringify({ ...terminal, seq: record.seq + 1 })}\n`,
-        );
-        await journal.drain();
-        record.exitCode = journalFailed ? -1 : code;
-        ringEmit(
-          journalFailed ? { ...terminal, exitCode: -1 } : terminal,
-          false,
-        );
+        // A success cannot outrun a failed spool open/write. Wait for every
+        // prior record and the terminal record before publishing exit status.
+        if (!replayFailure)
+          await record.replay
+            .append(
+              `${JSON.stringify({ ...terminal, seq: record.seq + 1 })}\n`,
+              record.seq + 1,
+            )
+            .catch(failReplay);
+        await record.replay.finish().catch(failReplay);
+        record.exitCode = replayFailure ? -1 : code;
+        publishEvent({ ...terminal, exitCode: record.exitCode }, false);
         this.dropLive(execId);
-        this.retainRecent(execId, record.ring, journal, record.exitCode);
-        // Deferred descendants may keep these pipe callbacks alive after the
-        // recent diagnostic history is evicted. Transfer its sole ownership.
-        record.ring = [];
-        record.ringBytes = 0;
+        this.retainRecent(execId, record, record.exitCode);
+        for (const complete of record.completions) complete();
         detach();
         resolve();
       };
@@ -685,20 +852,22 @@ export class ExecManager {
       const spawnFailed = (message: string) => {
         if (settled) return;
         settled = true;
+        record.finishing = true;
+        flushOutput('stdout');
+        flushOutput('stderr');
         couldNotRun = true;
         record.stdin = null;
         child.stdin.destroy();
         if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
-        ringEmit({
+        publishEvent({
           t: 'fail',
           code: 'BAD_REQUEST',
           message: `spawn failed: ${message}`,
         });
         this.dropLive(execId);
-        this.retainRecent(execId, record.ring, journal, null);
-        record.ring = [];
-        record.ringBytes = 0;
+        this.retainRecent(execId, record, null);
+        for (const complete of record.completions) complete();
         detach();
         resolve();
       };
@@ -781,6 +950,8 @@ export class ExecManager {
         } | null = null;
         const shimOver = () => {
           if (!statusEnded || shimExit === null) return;
+          record.processState.rootCompleted =
+            shimExit.signal === null && record.rootPid !== undefined;
           this.groupSettled(record);
           commandExit(shimExit.code, shimExit.signal);
         };
@@ -879,12 +1050,25 @@ export class ExecManager {
    * Ending those too would leave the restarted turn, which goes on where
    * this one stopped, with the servers it started gone. */
   private handOver(execId: string, rec: LiveExec): void {
+    if (rec.handedOver) return;
     const waiting = rec.deferred;
     if (waiting !== null) {
       // Its leader already exited: what it left waits on, for the
       // successor as well.
       rec.handedOver = true;
       this.holdForSuccessor(waiting);
+      const round = (signal: NodeJS.Signals) =>
+        signalExecProcesses(
+          [{ ...waiting, groupOnly: true }],
+          signal,
+          this.reaper,
+        ).catch((error: unknown) => {
+          console.warn('[runnerd] rotation group round failed:', error);
+        });
+      void round('SIGTERM');
+      setTimeout(() => {
+        void round('SIGKILL');
+      }, SIGKILL_GRACE_MS).unref();
       return;
     }
     if (rec.terminated) return;
@@ -903,11 +1087,40 @@ export class ExecManager {
     this.withGroup(rec, () => {
       const group = rec.groupId;
       held.groupId = group;
-      signalGroup(group, 'SIGTERM', this.reaper);
-      setTimeout(() => {
-        if (!rec.processState.leaderExited)
-          signalGroup(group, 'SIGKILL', this.reaper);
-      }, SIGKILL_GRACE_MS).unref();
+      held.members = this.recordGroup(execId, group).then((members) =>
+        rec.processState.leaderExited ? [] : members,
+      );
+      void held.members.then(() => {
+        void signalExecProcesses(
+          [
+            {
+              ...held,
+              groupOnly: true,
+              groupKnown: !rec.processState.leaderExited,
+            },
+          ],
+          'SIGTERM',
+          this.reaper,
+        ).catch((error: unknown) => {
+          console.warn('[runnerd] rotation group SIGTERM failed:', error);
+        });
+        setTimeout(() => {
+          void signalExecProcesses(
+            [
+              {
+                ...held,
+                groupOnly: true,
+                groupKnown: !rec.processState.leaderExited,
+              },
+            ],
+            'SIGKILL',
+            this.reaper,
+          ).catch((error: unknown) => {
+            console.warn('[runnerd] rotation group SIGKILL failed:', error);
+          });
+        }, SIGKILL_GRACE_MS).unref();
+        return undefined;
+      });
     });
   }
 
@@ -974,10 +1187,16 @@ export class ExecManager {
   }
 
   /** The exec's subreaper shim as a reaping root, while it runs. */
-  private rootOf(rec: LiveExec): Pick<ReapTarget, 'rootPid' | 'rootAlive'> {
+  private rootOf(
+    rec: LiveExec,
+  ): Pick<ReapTarget, 'rootPid' | 'rootAlive' | 'rootComplete'> {
     if (rec.rootPid === undefined) return {};
     const { processState } = rec;
-    return { rootPid: rec.rootPid, rootAlive: () => !processState.rootExited };
+    return {
+      rootPid: rec.rootPid,
+      rootAlive: () => !processState.rootExited,
+      rootComplete: () => processState.rootCompleted,
+    };
   }
 
   /** The daemon is going down: every live exec, and what exited execs left
@@ -992,12 +1211,12 @@ export class ExecManager {
     await this.reap(targets);
   }
 
-  /** End the manager's ownership. Live execs are reaped and release their
-   * journals when they settle; retained transcripts close immediately. */
+  /** Release retained storage and stop all live work when the daemon closes. */
   [Symbol.dispose](): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const record of this.recent.values()) void record.journal.dispose();
+    for (const record of this.recent.values())
+      void record.replay.dispose().catch(logReplayError);
     this.recent.clear();
     void this.terminateAll().catch((error: unknown) => {
       console.warn('[runnerd] disposing exec manager failed:', error);
@@ -1015,7 +1234,7 @@ export class ExecManager {
   private dropLive(execId: string): void {
     const rec = this.live.get(execId);
     this.live.delete(execId);
-    if (rec !== undefined) this.liftHolds(rec.ordinal);
+    if (rec !== undefined && !rec.handedOver) this.liftHolds(rec.ordinal);
     if (this.live.size === 0) void this.reap(this.takeUnheldLeftovers());
   }
 
@@ -1093,13 +1312,22 @@ export class ExecManager {
     const term = round(
       'SIGTERM',
       targets.map(
-        ({ execId, groupId, groupKnown, members, rootPid, rootAlive }) => ({
+        ({
           execId,
           groupId,
           groupKnown,
           members,
           rootPid,
           rootAlive,
+          rootComplete,
+        }) => ({
+          execId,
+          groupId,
+          groupKnown,
+          members,
+          rootPid,
+          rootAlive,
+          rootComplete,
         }),
       ),
     );
@@ -1108,7 +1336,15 @@ export class ExecManager {
         'SIGKILL',
         targets.map(
           (
-            { execId, groupId, leaderRunning, members, rootPid, rootAlive },
+            {
+              execId,
+              groupId,
+              leaderRunning,
+              members,
+              rootPid,
+              rootAlive,
+              rootComplete,
+            },
             index,
           ) => ({
             execId,
@@ -1120,6 +1356,7 @@ export class ExecManager {
             ]),
             rootPid,
             rootAlive,
+            rootComplete,
           }),
         ),
       );
@@ -1223,6 +1460,32 @@ function isSingleNdjsonLine(buf: Buffer): boolean {
   return true;
 }
 
+function isObject(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+/** Parse a retained replay line (NDJSON) back to an event for attach replay,
+ * skipping anything the reconnecting consumer already saw (seq <= sinceSeq). */
+function emitReplayLine(
+  line: string,
+  emit: ExecSubscriber,
+  sinceSeq = 0,
+): void {
+  const trimmed = line.trim();
+  if (!trimmed) return;
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (!isRunnerdExecEvent(parsed)) {
+      console.warn('[runnerd] replay line is not a RunnerdExecEvent:', trimmed);
+      return;
+    }
+    if ((parsed.seq ?? 0) <= sinceSeq) return;
+    emit(parsed);
+  } catch (err) {
+    console.warn('[runnerd] bad line during attach replay:', err);
+  }
+}
+
 let noSubreaperWarned = false;
 
 /** Said once per daemon: the kernel refused the shim the subreaper. */
@@ -1241,3 +1504,17 @@ const SIGNAL_NUMBERS: Record<string, number> = {
   SIGKILL: 9,
   SIGTERM: 15,
 };
+
+function logReplayError(error: unknown): void {
+  console.warn(
+    '[runnerd] exec replay storage failed:',
+    error instanceof Error ? error.message : String(error),
+  );
+}
+
+function replaySequence(line: string): number | undefined {
+  const parsed: unknown = JSON.parse(line || 'null');
+  return isObject(parsed) && typeof parsed.seq === 'number'
+    ? parsed.seq
+    : undefined;
+}

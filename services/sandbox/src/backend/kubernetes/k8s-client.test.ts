@@ -29,6 +29,7 @@ import {
   RequestContext,
 } from '@kubernetes/client-node';
 
+import { withOperationBudget } from '../../operation-budget.ts';
 import {
   apiTimeout,
   httpStatusCode,
@@ -50,6 +51,26 @@ async function rejectionOf(p: Promise<unknown>): Promise<Error> {
 }
 
 describe('apiTimeout', () => {
+  test('a lifecycle cancellation aborts the API hop before its own timeout', async () => {
+    const controller = new AbortController();
+    const error = await rejectionOf(
+      withOperationBudget(
+        5_000,
+        async () => {
+          const opts = apiTimeout(60_000);
+          const ctx = new RequestContext(
+            'https://example.invalid/x',
+            HttpMethod.GET,
+          );
+          await opts.middleware?.[0]?.pre(ctx).toPromise();
+          controller.abort(new Error('caller cancelled'));
+          expect(ctx.getSignal()?.aborted).toBe(true);
+        },
+        controller.signal,
+      ),
+    );
+    expect(error.message).toBe('caller cancelled');
+  });
   test('middleware arms an AbortSignal on the request context', async () => {
     const opts = apiTimeout(5_000);
     const mw = opts.middleware?.[0];
@@ -204,6 +225,8 @@ describe('kubeconfig TLS knobs are inert under Bun (end-to-end)', () => {
     certPath = join(tmp, 'cert.pem');
     const keyPath = join(tmp, 'key.pem');
     const gen = spawnSync(
+      // Ephemeral localhost fixture key, confined to mkdtemp's private directory and removed after the suite.
+      // nosemgrep: tools.opengrep.rules.trailofbits.generic.openssl-insecure-flags.openssl-insecure-flags
       'openssl',
       [
         'req',
@@ -263,15 +286,15 @@ describe('kubeconfig TLS knobs are inert under Bun (end-to-end)', () => {
     return kc.makeApiClient(CoreV1Api);
   }
 
-  // Sanity: the server is reachable when TLS verification is actually bypassed
-  // at the transport level (top-level rejectUnauthorized on node:https, which
-  // Bun DOES honor). Proves the rejections below are about the TLS knobs being
+  // Sanity: the server is reachable when its generated certificate is trusted
+  // at the transport level (top-level ca on node:https, which Bun DOES honor).
+  // Proves the rejections below are about the TLS knobs being
   // dropped on the library's node-fetch path, not an unreachable server.
-  test('the self-signed server is reachable when TLS verification is truly off', async () => {
+  test('the self-signed server is reachable when its certificate is explicitly trusted', async () => {
     if (!ready) return;
     const ok = await new Promise<boolean>((resolve) => {
       const req = httpsRequest(
-        { host: 'localhost', port, path: '/', rejectUnauthorized: false },
+        { host: 'localhost', port, path: '/', ca: readFileSync(certPath) },
         (res) => {
           res.on('data', () => {});
           res.on('end', () => resolve(res.statusCode === 200));

@@ -862,10 +862,11 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           status: string;
           createdAt: number;
           pinned: boolean;
+          profile: unknown;
         }[]
       >`
         SELECT session_id AS "sessionId", org_id AS "organizationId", status,
-               created_at_ms::float8 AS "createdAt", pinned
+               created_at_ms::float8 AS "createdAt", pinned, profile
         FROM app.sandbox_sessions
         WHERE owner_type = ${args.ownerType} AND owner_id = ${args.ownerId}
           AND (${args.sessionId ?? null}::text IS NULL

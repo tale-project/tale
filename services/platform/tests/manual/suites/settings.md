@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 118 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 119 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -373,7 +373,21 @@ run.
   with their own toasts (they do not pass through the Save cluster); the
   uploaded logo appears in the preview and survives reload; the reset confirm
   (`settings.branding.resetConfirmTitle`) warns removed images can't be
-  restored — cancel.
+  restored — cancel. Then remove the logo, light favicon and dark favicon
+  individually with their named remove controls, using the keyboard for one
+  removal → Each deletion persists immediately and survives reopening the
+  page; Save/Discard stay disabled unless an accent edit is pending. Focus
+  returns to the corresponding upload control after success. With a deletion
+  delayed, its upload/remove controls prevent competing writes. With a
+  deletion refused, one error toast appears and the image remains available
+  for retry; Discard of a pending accent edit never restores a deleted image.
+  With an accent Save response delayed, remove each image in turn; repeat with
+  a committed DELETE response delayed and Save pressed before it returns →
+  Writes settle in order and reopening never restores the deleted reference;
+  the accent draft is preserved and remains retryable after a refusal. Repeat
+  with a replacement upload and a logo-derived favicon while Save is pending;
+  Save never overwrites those persisted image references. Reset also waits for
+  earlier image/colour writes and leaves the confirmed cleared state saved.
 - [ ] `SET-F30` · **Sandboxes page** — `/dashboard/{org}/settings/sandboxes` →
   A fresh org shows **No workspaces yet** (`sandboxes.empty.title`); with a
   live sandbox session (env-gated) the table renders columns
@@ -870,7 +884,13 @@ run.
   `/dashboard/{org}/settings/providers/openrouter` → Redirects to the
   providers index with `?provider=openrouter` — the vendor filter
   (`settings.providers.vendorFilterLabel`) arrives pre-applied to that vendor;
-  clearing the filter clears the URL param.
+  clearing the filter clears the URL param. Repeat with only one other provider
+  holding credentials, and after deleting the selected provider's last
+  credential → The shared no-results state appears (never the first-provider
+  invitation); search and Filter stay enabled, the selected provider stays
+  visible in the facet, and clearing it restores the remaining rows. A link
+  matching the only provider also keeps its filter clearable. Check EN/DE/FR
+  and keyboard access to the facet and clear action.
 - [ ] `SET-B4` · **Role gating — member** — Sign in as a **member** role
   account → The rail shows only the Personal section plus **Skills**; direct
   URLs are refused with the full access-denied message —
@@ -933,6 +953,16 @@ run.
   The name truncates with an ellipsis and never pushes the **Synced** badge
   (`settings.teams.syncedBadge`) or the member count out of place; hovering the
   name shows it in full; the name column is wider than the member-count column.
+- [ ] `SET-B32` · **Your teams when the read fails** — As a member of a team,
+  block `*/api/app/teams/mine*` in DevTools (Network → request blocking) and
+  reload `/dashboard/{org}/settings/account#teams` → once the read's retries
+  give up (a few seconds; a blocked request reads as a lost connection, so the
+  offline notice may cover the page meanwhile) **Your teams**
+  (`settings.account.teams.title`) shows `settings.account.teams.loadFailed`
+  with **Try again** (`common.actions.tryAgain`), never
+  `settings.account.teams.none`. Unblock, Tab to **Try again** and press
+  Enter → the team badges appear without a reload, and the focus is on the
+  section, not lost to the page.
 - [ ] `SET-B18` · **A used or expired connect command** — Run SET-F56's
   command again on another machine (or any copied command after an hour) →
   `tale sandbox connect` fails saying the command expired or was already used,
@@ -1067,6 +1097,18 @@ run.
   nothing runs in the workspace; start the service again (`docker start
   tale-sandbox`) → the row leaves, then the runs start on their own in a
   fresh workspace, whose file list holds nothing the old one did.
+
+- [ ] `SET-B31` · **Concurrent device commands stay separate** — Two admins
+  open **Add device** (`sandboxes.devices.add`) in the same organization;
+  leave A's command unused and connect a machine with B's command → A still
+  reads **Waiting for the device to connect…**
+  (`sandboxes.devices.addDialog.waiting`), while only B reads **{name} is
+  connected.** (`sandboxes.devices.addDialog.connected`). Existing online
+  devices and newly enrolled offline devices do not finish either flow.
+  Run A's command and wait for its own device to connect → A names only its
+  own device. Repeat with two commands from the same admin. If command
+  generation fails, **Try again** (`sandboxes.devices.addDialog.retry`)
+  remains available inside the dialog.
 
 ## Accessibility (WCAG 2.1 AA)
 

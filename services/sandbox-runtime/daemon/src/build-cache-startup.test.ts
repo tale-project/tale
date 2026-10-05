@@ -57,6 +57,9 @@ const entrypoint = readFileSync(
 );
 const helpers = entrypoint
   .slice(0, entrypoint.indexOf('# K8s transparent-egress native sidecar.'))
+  .replaceAll('/usr/bin/setpriv', join(bin, 'setpriv'))
+  .replaceAll('/usr/bin/docker', join(bin, 'docker'))
+  .replaceAll('/opt/node/bin/node', Bun.which('node') ?? 'node')
   .replaceAll('/proc/sys/net/ipv6', ipv6)
   .replaceAll('/var/log/buildx-create.log', join(root, 'buildx-create.log'));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -133,6 +136,31 @@ describe('shared build cache startup', () => {
     }
     expect(result.stdout).toContain('GUARDED');
   });
+  test('keeps the outer guard first without growing duplicates across engine starts', () => {
+    const state = join(root, 'forward-rules');
+    const guard =
+      '-A FORWARD -i eth+ -m conntrack ! --ctstate RELATED,ESTABLISHED -j DROP';
+    writeFileSync(state, `-A FORWARD -j DOCKER-USER\n${guard}\n${guard}\n`);
+    const { result } = run(`
+firewall() {
+  case "$1" in
+    -S) cat '${state}' ;;
+    -I) { printf '%s\\n' '${guard}'; cat '${state}'; } > '${state}.next'; mv '${state}.next' '${state}' ;;
+    -D) sed "\${3}d" '${state}' > '${state}.next'; mv '${state}.next' '${state}' ;;
+    *) exit 1 ;;
+  esac
+}
+_ensure_outer_forward_guard firewall
+_ensure_outer_forward_guard firewall
+cat '${state}'
+`);
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim().split('\n')).toEqual([
+      guard,
+      '-A FORWARD -j DOCKER-USER',
+    ]);
+  });
+
   test('refuses startup if either network guard fails, even with the dev firewall opt-out', () => {
     for (const family of ['iptables', 'ip6tables']) {
       const { result } = run(protect, {

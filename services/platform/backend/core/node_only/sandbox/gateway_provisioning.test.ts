@@ -186,7 +186,9 @@ describe('provisionSessionGatewayKey', () => {
       expect.objectContaining({ reuseRecent: false }),
     );
     expect(applyGatewayConfig).toHaveBeenCalledTimes(1);
-    expect(applyGatewayConfig).toHaveBeenCalledWith({ reuseRecent: false });
+    expect(applyGatewayConfig).toHaveBeenCalledWith({
+      reuseRecent: false,
+    });
     expect(mintVirtualKey).toHaveBeenCalledWith(
       {
         budgetCents: 500,
@@ -727,7 +729,9 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
       [expect.objectContaining({ name: 'openrouter', apiKey: 'sk-live' })],
       expect.objectContaining({ reuseRecent: true }),
     );
-    expect(applyGatewayConfig).toHaveBeenCalledWith({ reuseRecent: true });
+    expect(applyGatewayConfig).toHaveBeenCalledWith({
+      reuseRecent: true,
+    });
     expect(mintVirtualKey).toHaveBeenCalledWith(
       {
         budgetCents: 4,

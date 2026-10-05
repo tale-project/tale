@@ -32,6 +32,8 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
     >();
   return {
     ...actual,
+    sessionGetExecCheckpoint: async () => null,
+    sessionPutExecCheckpoint: async () => undefined,
     drainSessionExecResilient: async (
       _sessionId: string,
       _body: unknown,

@@ -28,7 +28,12 @@ import {
   retainBuildkitd,
   sweepIdleBuildkitd,
 } from '../../buildkitd.ts';
-import { withDockerDeadline } from '../../docker-deadline.ts';
+import {
+  operationSignal,
+  outsideOperationBudget,
+  withOperationBudget,
+  waitWithinOperation,
+} from '../../operation-budget.ts';
 import {
   attachBuildkitNetwork,
   readBuildkitNetworkPlan,
@@ -49,7 +54,10 @@ import {
   sessionInstanceFilter,
   sessionWorkspaceDirName,
 } from '../../session/session-naming.ts';
-import { sessionDindEnabled } from '../../session/session-profile.ts';
+import {
+  isAgentSessionProfile,
+  sessionDindEnabled,
+} from '../../session/session-profile.ts';
 import {
   listSessionWorkspaceDirs,
   listWorkspaceDirs,
@@ -273,15 +281,34 @@ export class DockerSessionBackend implements SessionBackend {
   }
 
   async createSession(spec: SessionSpec): Promise<CreateSessionResult> {
+    const createAttemptId = randomUUID();
     const release =
       sessionDindEnabled(this.cfg, spec.profile, spec.docker) &&
       this.cfg.dockerBuildCache
         ? retainBuildkitd(spec.organizationId)
         : undefined;
     try {
-      return await withDockerDeadline(
+      return await withOperationBudget(
         this.cfg.session.createHealthTimeoutMs,
-        (signal) => this.createSessionUnlocked(spec, signal),
+        async (signal) => {
+          try {
+            const created = await this.createSessionUnlocked(
+              spec,
+              signal,
+              createAttemptId,
+            );
+            signal.throwIfAborted();
+            return created;
+          } catch (error) {
+            if (signal.aborted) {
+              // The daemon may have accepted a run whose reply was cancelled.
+              // Only this random attempt label authorizes cleanup; data remains.
+              await this.cleanupCreateAttempt(spec.sessionId, createAttemptId);
+            }
+            throw error;
+          }
+        },
+        spec.signal,
       );
     } finally {
       release?.();
@@ -291,9 +318,9 @@ export class DockerSessionBackend implements SessionBackend {
   private async createSessionUnlocked(
     spec: SessionSpec,
     signal: AbortSignal,
+    createAttemptId: string,
   ): Promise<CreateSessionResult> {
     const containerName = sessionContainerName(spec.sessionId);
-    const createAttemptId = randomUUID();
     // A new session starts UNPINNED whatever a prior incarnation under this
     // deterministic id recorded: the platform row is the truth and re-pushes
     // its pin; a stale marker would exempt a container the platform believes
@@ -310,10 +337,9 @@ export class DockerSessionBackend implements SessionBackend {
     // numerics (config.ts userEnv); the default profile is the fixed nobody
     // (65534). Both are real integers >= 1, so the chown can never silently
     // land on root.
-    const { uid, gid } =
-      spec.profile === 'agent'
-        ? this.cfg.session.agentProfile
-        : { uid: 65534, gid: 65534 };
+    const { uid, gid } = isAgentSessionProfile(spec.profile)
+      ? this.cfg.session.agentProfile
+      : { uid: 65534, gid: 65534 };
 
     // A pre-existing workspace dir means this is a RESUME of a stopped session
     // (idle reaper removed the container but kept the data). A failed create
@@ -370,22 +396,21 @@ export class DockerSessionBackend implements SessionBackend {
     let buildkitNetworkPlan: BuildkitNetworkPlan | undefined;
     if (dind && this.cfg.dockerBuildCache) {
       try {
-        await withDockerDeadline(
+        const ready = await withOperationBudget(
           Math.min(
-            this.cfg.buildkitdProvisionTimeoutMs ?? 15_000,
+            this.cfg.buildkitdProvisionTimeoutMs ?? 5_000,
             this.cfg.session.createHealthTimeoutMs / 4,
           ),
-          async (cacheSignal) => {
-            const endpoint = await ensureBuildkitd(
-              this.cfg,
-              spec.organizationId,
-            );
-            const planned = await readBuildkitNetworkPlan(spec.organizationId);
-            cacheSignal.throwIfAborted();
-            buildkitNetworkPlan = planned;
-            buildkitdEndpoint = endpoint;
-          },
+          () =>
+            waitWithinOperation(
+              (async () => ({
+                endpoint: await ensureBuildkitd(this.cfg, spec.organizationId),
+                plan: await readBuildkitNetworkPlan(spec.organizationId),
+              }))(),
+            ),
         );
+        buildkitNetworkPlan = ready.plan;
+        buildkitdEndpoint = ready.endpoint;
       } catch (err) {
         console.warn(
           `[sandbox.session] shared buildkitd unavailable for ${spec.sessionId}; ` +
@@ -422,7 +447,10 @@ export class DockerSessionBackend implements SessionBackend {
     // K8s backend, which routes it through a Secret rather than a visible arg.
     const launch = async () => {
       try {
-        return await runDocker(argv, { timeoutMs: 30_000 });
+        operationSignal()?.throwIfAborted();
+        return await runDocker(argv, {
+          timeoutMs: 30_000,
+        });
       } catch (error) {
         // A transport rejection does not prove the daemon refused the run.
         // Remove only this attempt if it launched before the reply was lost.
@@ -531,15 +559,13 @@ export class DockerSessionBackend implements SessionBackend {
     createAttemptId: string,
   ): Promise<void> {
     try {
-      await withDockerDeadline(
-        10_000,
-        async () => {
+      await outsideOperationBudget(() =>
+        withOperationBudget(10_000, async () => {
           await this.removeContainer(sessionId, undefined, createAttemptId);
           // Even an empty directory may already be mounted by a peer after
           // an absence check. Preserve workspaces/owner markers for retry or
           // explicit destroy, and inner-Docker volumes for normal orphan GC.
-        },
-        { independent: true },
+        }),
       );
     } catch (error) {
       console.warn(
@@ -549,10 +575,22 @@ export class DockerSessionBackend implements SessionBackend {
     }
   }
 
-  async resolveEndpoint(sessionId: string): Promise<string> {
+  async resolveEndpoint(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<string> {
+    if (
+      expectedCreatedAtMs !== undefined &&
+      !(await this.sessionExists(sessionId, expectedCreatedAtMs))
+    ) {
+      throw new SessionIncarnationChangedError(
+        sessionId,
+        'container gone or changed before endpoint resolution',
+      );
+    }
     // Docker DNS: the spawner shares tale-sandbox-net with the session
-    // container, so the container name resolves directly. No backend lookup
-    // needed (unlike K8s, where the Pod IP must be read).
+    // container, so the container name resolves directly. Only adoption's
+    // expected incarnation needs a lookup; an owned create already verified it.
     return `http://${sessionContainerName(sessionId)}:${RUNNERD_PORT}`;
   }
 
@@ -615,13 +653,39 @@ export class DockerSessionBackend implements SessionBackend {
     );
   }
 
-  async sessionExists(sessionId: string): Promise<boolean> {
+  async sessionExists(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<boolean> {
     const containerName = sessionContainerName(sessionId);
     const inspect = await runDocker(
-      ['inspect', '--format', '{{.State.Running}}', containerName],
+      [
+        'inspect',
+        '--format',
+        expectedCreatedAtMs === undefined
+          ? '{{.State.Running}}'
+          : '{{.State.Running}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}',
+        containerName,
+      ],
       { timeoutMs: 5_000, priority: true },
     );
-    if (inspect.exitCode === 0) return inspect.stdout.trim() === 'true';
+    if (inspect.exitCode === 0) {
+      const [running, created] = inspect.stdout
+        .replace(/\r?\n$/, '')
+        .split('\t');
+      if (running !== 'true') return false;
+      if (expectedCreatedAtMs === undefined) return true;
+      const stamp = Number(created);
+      if (
+        created === undefined ||
+        created.trim() === '' ||
+        !Number.isFinite(stamp)
+      )
+        throw new Error(
+          `session ${sessionId} container creation stamp is unreadable`,
+        );
+      return stamp === expectedCreatedAtMs;
+    }
     // Only a definitive "the object is gone" answer may return false; any
     // other inspect failure (daemon hiccup, timeout) is "unknown" and must
     // throw per the interface contract.
@@ -1108,7 +1172,7 @@ export class DockerSessionBackend implements SessionBackend {
       out.push({
         sessionId,
         organizationId: org ?? '',
-        profile: profile === 'agent' ? 'agent' : 'default',
+        profile: isAgentSessionProfile(profile) ? profile : 'default',
         ...(docker === 'true' || docker === 'false'
           ? { docker: docker === 'true' }
           : {}),

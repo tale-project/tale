@@ -111,6 +111,17 @@ bun run --filter @tale/web test:prerender
 bun run --filter @tale/web test:e2e
 ```
 
+`test:e2e` builds its local preview by default. To reuse a complete build, build
+first and set the optional Playwright setting `E2E_USE_BUILD=1`:
+
+```bash
+bunx turbo run build --filter=@tale/web
+E2E_USE_BUILD=1 bun run --filter @tale/web test:e2e
+```
+
+CI sets this flag after its build. Leave it unset or use `0` for the normal local
+E2E build.
+
 Use the [manual test guide](tests/manual/readme.md) for layout, keyboard, responsive, and degraded
 mode checks. A successful build does not verify that production contact forms can deliver a message.
 

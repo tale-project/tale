@@ -13,6 +13,11 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   PORT: z.coerce.number().int().min(1).max(65535).default(3005),
   ROLE: z.enum(['api', 'worker', 'all']).default('all'),
+  SANDBOX_AGENT_PROFILE: z.enum(['agent', 'agent-light']).default('agent'),
+  TALE_SANDBOX_CLAUDE_EFFORT: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.enum(['low', 'medium', 'high', 'max']).optional(),
+  ),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(5),
   /**
    * Agent turn starts a worker runs at once, per lane (task and automation);
