@@ -247,6 +247,36 @@ describe('registerWebsite', () => {
     expect(vi.mocked(addJobInTx)).not.toHaveBeenCalled();
   });
 
+  it('locks the canonical alias pair before checking for duplicates', async () => {
+    const { sql, queries } = transactingSql((text) =>
+      coveringLookup(text) ? [stored({ kind: 'site' })] : [],
+    );
+
+    await expect(
+      registerWebsite(sql, {
+        organizationId: 'org-1',
+        domain: 'www.docs.example',
+        scanInterval: '1d',
+      }),
+    ).rejects.toMatchObject({
+      code: 'WEBSITE_DUPLICATE_DOMAIN',
+      status: 409,
+    });
+
+    const lockIndex = queries.findIndex((query) =>
+      query.text.includes('pg_advisory_xact_lock'),
+    );
+    const lookupIndex = queries.findIndex((query) =>
+      coveringLookup(query.text),
+    );
+    expect(lockIndex).toBeGreaterThanOrEqual(0);
+    expect(lockIndex).toBeLessThan(lookupIndex);
+    expect(queries[lockIndex]?.values).toEqual([
+      'website-registration:org-1:docs.example',
+      0,
+    ]);
+  });
+
   it('validates the list against the domain before looking anything up', async () => {
     const { sql, queries } = transactingSql(() => []);
     await expect(
