@@ -32,8 +32,14 @@ vi.mock('@tanstack/react-router', () => ({
 // The tenant-header row and the example request read the organization's slug
 // through `useOrganization`; the shared render mounts no QueryClient, so the
 // hook answers as a settled query.
+const organizationQuery = {
+  data: { slug: 'northlight' } as { slug?: string } | undefined,
+  isError: false,
+  refetch: vi.fn(),
+};
+
 vi.mock('@/app/features/organization/hooks/queries', () => ({
-  useOrganization: () => ({ data: { slug: 'northlight' } }),
+  useOrganization: () => organizationQuery,
 }));
 
 const GROUP_HEADINGS: Record<McpToolGroup, string> = {
@@ -60,6 +66,39 @@ describe('McpEndpointSection', () => {
     expect(
       screen.getByText(/-H 'X-Organization-Slug: northlight'/),
     ).toBeInTheDocument();
+  });
+
+  it('surfaces organization read failures and retries without a runnable example', async () => {
+    organizationQuery.data = undefined;
+    organizationQuery.isError = true;
+    organizationQuery.refetch.mockResolvedValue({});
+
+    const { user } = render(<McpEndpointSection organizationId="org-1" />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The organization details could not be loaded',
+    );
+    expect(
+      screen.queryByText(/X-Organization-Slug: <org-slug>/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Try it')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(organizationQuery.refetch).toHaveBeenCalledOnce();
+
+    organizationQuery.data = { slug: 'northlight' };
+    organizationQuery.isError = false;
+  });
+
+  it('does not invent a runnable example for a healthy organization without a slug', () => {
+    organizationQuery.data = {};
+    organizationQuery.isError = false;
+
+    render(<McpEndpointSection organizationId="org-1" />);
+
+    expect(screen.queryByText(/X-Organization-Slug:/)).not.toBeInTheDocument();
+
+    organizationQuery.data = { slug: 'northlight' };
   });
 
   it('renders the tool inventory in the three documented groups', async () => {

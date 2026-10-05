@@ -5556,6 +5556,8 @@ settings:
       Automatisierungen zu erstellen, auszuführen und zu verwalten — und um an
       die Capabilities und das Wissen dieser Organisation zu kommen.
     copyEndpoint: MCP-Endpunkt-URL kopieren
+    organizationReadFailed: Die Organisationsdaten konnten nicht geladen werden; die Beispielanfrage ist nicht verfügbar.
+    organizationReadRetry: Erneut versuchen
     authHelp: 'Authentifiziere dich mit einem REST-API-Schlüssel als
       Bearer-Token. Ein Schlüssel gehört der Person, die ihn erstellt hat, und
       gilt in jeder Organisation, der sie angehört; diese Organisation nennt der
