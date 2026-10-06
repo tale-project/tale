@@ -142,8 +142,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   `services/platform/tests/guards/domain-specs.guard.test.ts`, parses every spec and the test
   titles of the workspace, and fails on a shape it does not know, a rule with no example, a
   rule no running test names, and a title that names a rule no spec states. Change what a rule
-  says the code does, and its card and its test move in the same change. This is a trial on
-  `tasks` (2026-10): the other domains have no spec, and none is owed yet.
+  says the code does, and its card and its test move in the same change. Every domain under
+  `backend/domains/` has a spec (2026-10). A spec covers part of its domain and says which
+  parts it leaves out; a rule the code keeps and no test holds is listed under its Not yet,
+  not as a rule.
 - **Pencil**: `design/docs/comments.md` is strictly designer↔developer UI communication. Put
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
@@ -523,7 +525,7 @@ default means deleting the override and fixing what surfaces:
   `Run`/`RunSummary` (present only when true) in `toRunDetail`/`toRunSummary`; no migration.
 - **The crawler's clocks and knobs are not on the wire** — `Website` carries no
   `scanStartedAt` (the chain argument is never persisted), and the ceilings
-  the docs now state (10,000 URLs, 200 five-minute links, 25 MB / 30 s per page, five strikes)
+  the docs now state (10,000 URLs, 200 five-minute links, 100 MiB / 30 s per page, five strikes)
   are constants with no page cap, path filter, wall-clock cap or stop verb of the caller's
   (2026-09, round g). Paying it down means a `scan_started_at` column on the corpus website row
   (set in `claimScan`) surfaced as `Website.scanStartedAt`, and optional `maxPages` /
