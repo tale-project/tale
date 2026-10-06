@@ -1209,12 +1209,6 @@ legalHold:
     createMatter: Fall anlegen
     editMatter: Bearbeiten
     closeMatter: Fall schließen
-  badges:
-    held: Unter Legal Hold
-    releasePending: Freigabe ausstehend
-    releaseApproved: Freigabe genehmigt
-    releaseEffective: Wirksam beim nächsten Cleanup
-    blockedByHold: Durch Legal Hold blockiert
   dialogs:
     placeHold:
       title: Legal Hold setzen

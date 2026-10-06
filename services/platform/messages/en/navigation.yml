@@ -28,6 +28,10 @@ myTeams:
   count: '{count, plural, one {# team} other {# teams}}'
 orgSwitcher:
   label: Organization
+  createOrganization: Create organization
+  switching: Switching…
+  switchingTo: Switching to {name}…
+  switchingLabel: Switching organization
 aria:
   primaryNavigation: Primary navigation
   unreadConversations: '{count, plural, one {# unread conversation} other {# unread conversations}}'

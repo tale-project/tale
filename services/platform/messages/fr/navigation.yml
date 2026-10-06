@@ -28,6 +28,10 @@ myTeams:
   count: '{count, plural, one {# équipe} other {# équipes}}'
 orgSwitcher:
   label: Organisation
+  createOrganization: Créer une organisation
+  switching: Changement en cours…
+  switchingTo: Passage à {name}…
+  switchingLabel: Changement d'organisation
 aria:
   primaryNavigation: Navigation principale
   unreadConversations: '{count, plural, one {# conversation non lue} other {# conversations non lues}}'

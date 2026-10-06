@@ -1165,12 +1165,6 @@ legalHold:
     createMatter: Create matter
     editMatter: Edit
     closeMatter: Close matter
-  badges:
-    held: On legal hold
-    releasePending: Release pending
-    releaseApproved: Release approved
-    releaseEffective: Effective on next cleanup
-    blockedByHold: Blocked by legal hold
   dialogs:
     placeHold:
       title: Place legal hold

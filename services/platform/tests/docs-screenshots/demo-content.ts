@@ -295,7 +295,7 @@ export const DEMO_CHAT_PROMPTS: readonly string[] = [
 interface DemoMember {
   readonly name: string;
   readonly email: string;
-  /** `settings.roles.*` key. */
+  /** `roles.*` key. */
   readonly role: string;
 }
 

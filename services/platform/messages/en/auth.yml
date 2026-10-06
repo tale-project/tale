@@ -184,3 +184,8 @@ sso:
     tryAgain: Try again
     completeMfa: Complete multi-factor sign-in
     contactAdminMessage: Contact your administrator to resolve this.
+  protocol:
+    entra: Microsoft Entra ID
+    oidc: Generic OIDC
+    oauth2: OAuth2
+    saml: SAML 2.0

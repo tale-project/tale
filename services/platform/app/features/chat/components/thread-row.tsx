@@ -312,7 +312,7 @@ export function ThreadRowMenu({
 }) {
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
-  const { t: tGovernance } = useT('governance');
+  const { t: tLegalHold } = useT('legalHold');
   const navigate = useNavigate();
   const { organizationId, projects, orgHeld, heldThreadIds } =
     useThreadListFrame();
@@ -356,7 +356,7 @@ export function ThreadRowMenu({
         [
           {
             type: 'label',
-            content: tGovernance('legalHold.badges.blockedByHold'),
+            content: tLegalHold('blockedByHold'),
           },
         ],
       ]

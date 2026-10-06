@@ -1250,12 +1250,6 @@ legalHold:
     createMatter: Créer un dossier
     editMatter: Modifier
     closeMatter: Fermer le dossier
-  badges:
-    held: Sous conservation légale
-    releasePending: Libération en attente
-    releaseApproved: Libération approuvée
-    releaseEffective: Effective au prochain nettoyage
-    blockedByHold: Bloqué par conservation légale
   dialogs:
     placeHold:
       title: Placer une conservation légale

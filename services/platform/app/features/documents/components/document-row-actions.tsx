@@ -91,7 +91,7 @@ export function DocumentRowActions({
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
-  const { t: tGovernance } = useT('governance');
+  const { t: tLegalHold } = useT('legalHold');
   const ability = useAbility();
   const canWrite = ability.can('write', 'knowledgeWrite');
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -309,7 +309,7 @@ export function DocumentRowActions({
       {
         key: 'delete',
         label: isHeld
-          ? tGovernance('legalHold.badges.blockedByHold')
+          ? tLegalHold('blockedByHold')
           : isRecordProtected
             ? tDocuments('record.blockedByRecord')
             : deleteLabel,
@@ -323,7 +323,7 @@ export function DocumentRowActions({
     [
       tDocuments,
       tCommon,
-      tGovernance,
+      tLegalHold,
       documentId,
       onView,
       deleteLabel,

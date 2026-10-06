@@ -196,7 +196,7 @@ run.
   The members table renders under the description
   (`settings.organization.membersDescription`) with the current owner row;
   search (`settings.organization.searchMember`) narrows it; roles render from
-  `settings.roles.*` (Owner/Admin/Developer/Editor/Member)
+  `roles.*` (Owner/Admin/Developer/Editor/Member)
 - [ ] `SET-F15` · **Add member (new account)** — Same page → **Add member**
   (`settings.organization.addMember`) → fill **Name** / **Email** /
   **Password** (`settings.form.name` / `settings.form.email` /
@@ -470,7 +470,7 @@ run.
 - [ ] `SET-F35` · **Enterprise SSO configure** —
   `/dashboard/{org}/settings/enterprise-sso` → pick a **Protocol**
   (`settings.enterpriseSso.protocolLabel`; options
-  `settings.enterpriseSso.protocol.*`) → fill issuer/client fields
+  `auth.sso.protocol.*`) → fill issuer/client fields
   (`settings.enterpriseSso.issuerLabel` / `…clientIdLabel` /
   `…clientSecretLabel`) → **Test connection** (`settings.enterpriseSso.test`)
   → header **Save**; in **SCIM provisioning**
@@ -586,7 +586,7 @@ run.
   `/dashboard/{org}/settings/account` (its `#role` anchor) as an editor, then
   as an owner → The **Your role** section (`settings.account.role.title`, its
   description `settings.account.role.description`) sits above **Your teams**
-  and shows the role as a translated badge (`settings.roles.editor`, never the
+  and shows the role as a translated badge (`roles.editor`, never the
   raw `editor`); only the owner sees **Manage members**
   (`settings.account.role.manageLink`) to `/dashboard/{org}/settings/members`;
   hovering the name in the profile menu reads the name and the same translated

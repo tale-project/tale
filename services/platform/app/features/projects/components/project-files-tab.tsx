@@ -160,7 +160,7 @@ function ProjectFileRecordMenu({
 }) {
   const { t: tCommon } = useT('common');
   const { t: tDocuments } = useT('documents');
-  const { t: tGovernance } = useT('governance');
+  const { t: tLegalHold } = useT('legalHold');
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { mutateAsync: deleteDocument, isPending: isDeleting } =
@@ -223,7 +223,7 @@ function ProjectFileRecordMenu({
     {
       key: 'delete',
       label: isHeld
-        ? tGovernance('legalHold.badges.blockedByHold')
+        ? tLegalHold('blockedByHold')
         : isRecordProtected
           ? tDocuments('record.blockedByRecord')
           : tCommon('actions.delete'),

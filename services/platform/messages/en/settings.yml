@@ -235,7 +235,6 @@ organization:
   defaultLocale: Default language (for agents)
   searchMember: Search member
   addMember: Add member
-  createOrganization: Create organization
   organizationName: Organization name
   companyNameCharacterError:
     Use letters, digits, spaces, hyphens, and underscores
@@ -243,9 +242,6 @@ organization:
   nameReserved: This name is reserved by the platform.
   enterCompanyName: Enter your company name
   organizationCreated: Organization created
-  switching: Switching…
-  switchingTo: Switching to {name}…
-  switchingLabel: Switching organization
   deleteDialogTitle: Delete organization
   deleteDialogDescription: Delete "{name}"? This removes all agents, automations, providers, and connectors. Members will lose access. This can't be undone.
   dangerZoneTitle: Danger zone
@@ -499,11 +495,6 @@ enterpriseSso:
   copy: Copy
   protocolLabel: Protocol
   protocolHelp: Choose how users sign in. OIDC endpoints are discovered automatically.
-  protocol:
-    entra: Microsoft Entra ID
-    oidc: Generic OIDC
-    oauth2: OAuth2
-    saml: SAML 2.0
   displayNameLabel: Display name
   signInSection: Sign-in
   issuerLabel: Issuer URL
@@ -993,13 +984,6 @@ form:
   passwordPlaceholder: Enter password
   role: Role
   forgotPassword: Users who forget their password should contact an admin.
-roles:
-  owner: Owner
-  admin: Admin
-  developer: Developer
-  editor: Editor
-  member: Member
-  disabled: Disabled
 apiKeys:
   entityLabel: keys
   entityLabelOne: key

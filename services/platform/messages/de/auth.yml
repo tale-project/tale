@@ -201,3 +201,8 @@ sso:
     tryAgain: Erneut versuchen
     completeMfa: Multi-Faktor-Anmeldung abschließen
     contactAdminMessage: Wende dich an deine Administration, um das zu beheben.
+  protocol:
+    entra: Microsoft Entra ID
+    oidc: Generisches OIDC
+    oauth2: OAuth2
+    saml: SAML 2.0

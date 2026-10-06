@@ -246,7 +246,6 @@ organization:
   defaultLocale: Langue par défaut (pour les agents)
   searchMember: Rechercher un membre
   addMember: Ajouter un membre
-  createOrganization: Créer une organisation
   organizationName: Nom de l'organisation
   companyNameCharacterError:
     Utilise uniquement des lettres, chiffres, espaces,
@@ -254,9 +253,6 @@ organization:
   nameReserved: Ce nom est réservé par la plateforme.
   enterCompanyName: Entre le nom de ton entreprise
   organizationCreated: Organisation créée avec succès !
-  switching: Changement en cours…
-  switchingTo: Passage à {name}…
-  switchingLabel: Changement d'organisation
   deleteDialogTitle: Supprimer l'organisation
   deleteDialogDescription: Supprimer « {name} » ? Cela supprime ses agents,
     automatisations, fournisseurs et connectors. Les membres perdront l'accès.
@@ -536,11 +532,6 @@ enterpriseSso:
   protocolHelp:
     Choisissez le mode de connexion des utilisateurs. Les points de
     terminaison OIDC sont détectés automatiquement.
-  protocol:
-    entra: Microsoft Entra ID
-    oidc: OIDC générique
-    oauth2: OAuth2
-    saml: SAML 2.0
   displayNameLabel: Nom affiché
   signInSection: Connexion
   issuerLabel: URL de l'émetteur
@@ -1074,13 +1065,6 @@ form:
   role: Rôle
   forgotPassword: Les utilisateurs qui oublient leur mot de passe doivent
     contacter un administrateur.
-roles:
-  owner: Propriétaire
-  admin: Admin
-  developer: Développeur
-  editor: Éditeur
-  member: Membre
-  disabled: Désactivé
 apiKeys:
   entityLabel: clés
   entityLabelOne: clé

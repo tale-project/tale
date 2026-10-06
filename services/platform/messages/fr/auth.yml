@@ -206,3 +206,8 @@ sso:
     tryAgain: Réessayer
     completeMfa: Terminer la connexion multifacteur
     contactAdminMessage: Contacte ton administration pour résoudre ce problème.
+  protocol:
+    entra: Microsoft Entra ID
+    oidc: OIDC générique
+    oauth2: OAuth2
+    saml: SAML 2.0

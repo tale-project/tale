@@ -113,7 +113,7 @@ export const SCENES: readonly SceneChoreography[] = [
         dialog.getByRole('combobox', { name: rt.t('settings.form.role') }),
       );
       const editorOption = page.getByRole('option', {
-        name: rt.t('settings.roles.editor'),
+        name: rt.t('roles.editor'),
         exact: true,
       });
       await editorOption.waitFor({ state: 'visible', timeout: 15_000 });
@@ -122,7 +122,7 @@ export const SCENES: readonly SceneChoreography[] = [
       await cue(11.4);
       await cursor.hover(
         page.getByRole('option', {
-          name: rt.t('settings.roles.admin'),
+          name: rt.t('roles.admin'),
           exact: true,
         }),
       );
