@@ -327,6 +327,20 @@ export function TaskAgentRunEntry({
             </>
           )}
         </button>
+        {canKick &&
+        !live &&
+        !previousAssignee &&
+        (run.status === 'failed' || run.status === 'cancelled') ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('agentRun.retry')}
+            disabled={busy}
+            onClick={() => void start()}
+          >
+            <RotateCcw aria-hidden className="size-4" />
+          </Button>
+        ) : null}
       </Row>
       {/* A run the platform re-kicked by itself says so — otherwise a user
           who watched the run fail sees it silently "running" again and
@@ -357,31 +371,15 @@ export function TaskAgentRunEntry({
             {t('agentRun.cancel')}
           </Button>
         ) : null}
-        {canKick &&
-        !live &&
-        (previousAssignee ||
-          run.status === 'failed' ||
-          run.status === 'cancelled') ? (
-          previousAssignee ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              onClick={() => void start()}
-            >
-              {t('agentRun.start')}
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t('agentRun.retry')}
-              disabled={busy}
-              onClick={() => void start()}
-            >
-              <RotateCcw aria-hidden className="size-4" />
-            </Button>
-          )
+        {canKick && !live && previousAssignee ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => void start()}
+          >
+            {t('agentRun.start')}
+          </Button>
         ) : null}
       </Row>
       <TaskAgentRunDetailsDialog

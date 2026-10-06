@@ -737,10 +737,13 @@ describe('TaskAgentRunEntry details', () => {
     expect(
       screen.queryByRole('button', { name: 'Details' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
-    await user.click(
-      screen.getByRole('button', { name: statusButtonName('failed') }),
-    );
+    const failedStatus = screen.getByRole('button', {
+      name: statusButtonName('failed'),
+    });
+    const retry = screen.getByRole('button', { name: 'Retry' });
+    expect(retry).toBeEnabled();
+    expect(failedStatus.parentElement).toContainElement(retry);
+    await user.click(failedStatus);
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('agentRun.failure.budget');
