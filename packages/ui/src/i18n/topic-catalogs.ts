@@ -2,7 +2,8 @@
  * Catalogs kept one file per topic and locale (`messages/<locale>/<topic>.yml`,
  * a topic being one top-level namespace), read through `import.meta.glob`.
  * The glob has to stay at the call site (Vite requires a literal pattern);
- * these turn its result into bundles: `{ locale: { topic: messages } }`.
+ * these turn its result into bundles (`{ locale: { topic: messages } }`) or
+ * into per-topic loaders.
  */
 
 type Messages = Record<string, unknown>;
@@ -32,6 +33,27 @@ export function catalogsByLocale(
     const file = topicFileOf(path);
     if (file === undefined) continue;
     (out[file.locale] ??= {})[file.topic] = messages ?? {};
+  }
+  return out;
+}
+
+/**
+ * Each topic file's loader, by locale and topic, from a lazy glob of topic
+ * files (`import.meta.glob(patterns, { import: 'default' })` over
+ * `messages/<locale>/<topic>.yml`): what `initServiceI18n` takes as
+ * `topics.lazy`.
+ */
+export function topicLoaders(
+  modules: Record<string, () => Promise<Messages | null | undefined>>,
+): Record<string, Record<string, () => Promise<Messages | null | undefined>>> {
+  const out: Record<
+    string,
+    Record<string, () => Promise<Messages | null | undefined>>
+  > = {};
+  for (const [path, load] of Object.entries(modules)) {
+    const file = topicFileOf(path);
+    if (file === undefined) continue;
+    (out[file.locale] ??= {})[file.topic] = load;
   }
   return out;
 }

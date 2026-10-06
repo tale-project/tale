@@ -83,8 +83,15 @@ web and docs omit it and mount `LocaleSync` with the route’s locale.
 
 A service with large catalogs can ship English alone and fetch German and French when a session
 first needs them: list them in `lazyBundles` (`de: () => import('…/de.yml').then((m) => m.default)`)
-instead of `bundles`. `LocaleSync` loads a language before switching to it. To start in the
-person’s language from the first frame, load and switch to `detectPreferredLocale()` before
+instead of `bundles`. Or load every language per topic, as the platform does: keep the catalog one
+file per topic and locale, register the `messageTopics` plugin (`@tale/ui/vite/message-topics`)
+in the Vite and Vitest configurations, and pass the other locales' topic files as `topics`
+(`topicLoaders` from `@tale/ui/i18n/topic-catalogs` over a lazy glob). Each module that names a
+topic — `useT('tasks')`, `{ ns: 'tasks' }`, an `entityNamespace: 'tasks'` property, a
+`'tasks:key'` literal — then carries its English, and each chunk loaded on demand waits for its
+topics in the session’s language; a namespace computed at runtime is invisible to the plugin, so
+name it literally where it is read. `LocaleSync` loads a language before switching to it. To start
+in the person’s language from the first frame, load and switch to `detectPreferredLocale()` before
 rendering, as the platform does (`services/platform/lib/i18n/i18n.ts`). A screen that reads
 languages other than the session’s (`i18n.getFixedT(locale)`) waits for them with
 `useLocalesLoaded` from `@tale/ui/i18n/load-locale`. `theme` enables the shared
@@ -123,7 +130,8 @@ hide a shared correction. Check the rendered label as well as key and ICU parity
 [translation skill](https://github.com/tale-project/tale/blob/main/.agents/skills/write-translations/SKILL.md).
 A service may keep its catalog one file per topic and locale (`messages/<locale>/<topic>.yml`, a
 topic being one top-level namespace), as the platform does: `@tale/ui/i18n/topic-catalogs` turns
-an `import.meta.glob` of those files into bundles, and the i18n test framework reads either layout.
+an `import.meta.glob` of those files into bundles or per-topic loaders, and the i18n test
+framework reads either layout.
 
 Both documentation sites — [docs.tale.dev](https://github.com/tale-project/tale/blob/main/services/docs/README.md) and
 [ui.tale.dev](https://github.com/tale-project/tale/blob/main/services/ui-docs/README.md) — render the `docs/*` frame: the rail, the
