@@ -71,7 +71,7 @@ describe('the lockout audit rows of a password check', () => {
     ]);
   });
 
-  it('stamps a wrong password with where it was typed, beside the failure count', async () => {
+  it('stamps a wrong password with where it was typed, beside the failure count [LOGIN-R4]', async () => {
     await recordFailure(accountTx().tx, {
       email: 'ada@example.test',
       passwordCheck: 'two_factor_disable',

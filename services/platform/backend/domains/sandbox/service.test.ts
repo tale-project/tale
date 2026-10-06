@@ -247,7 +247,7 @@ describe('teardownSession ownership and confirmed deletion', () => {
   });
 
   it.each([true, false])(
-    'settles an owned session after confirmed deletion or absence (%s), on the dedicated connection',
+    'settles an owned session after confirmed deletion or absence (%s), on the dedicated connection [SBX-R11]',
     async (destroyed) => {
       const { sql, dataSql, root, locks, data, stored, end } =
         fakeSql(OWNED_SESSION);
@@ -288,7 +288,7 @@ describe('teardownSession ownership and confirmed deletion', () => {
     },
   );
 
-  it('leaves a pinned session retryable and unpinned on both sides when the spawner cannot confirm deletion', async () => {
+  it('leaves a pinned session retryable and unpinned on both sides when the spawner cannot confirm deletion [SBX-R11]', async () => {
     const { sql, locks, data, stored, end } = fakeSql({
       ...OWNED_SESSION,
       pinned: true,
@@ -465,7 +465,7 @@ describe('pinSession serializes with the other lifecycle transitions', () => {
     },
   );
 
-  it('answers not found for another organization’s session without asking the spawner', async () => {
+  it('answers not found for another organization’s session without asking the spawner [SBX-R3]', async () => {
     const { sql, stored } = fakeSql({
       ...OWNED_SESSION,
       organizationId: 'org-b',
@@ -640,7 +640,7 @@ describe('reconcileSession keeps a pinned session pinned', () => {
     expectRowUntouched(data, stored);
   });
 
-  it('queues the recreate of a gone pinned session instead of creating it or settling the row', async () => {
+  it('queues the recreate of a gone pinned session instead of creating it or settling the row [SBX-R10]', async () => {
     const { sql, dataSql, locks, data, stored, end } = fakeSql(PINNED_SESSION);
     const { spawner, calls } = fakeSpawner(false);
 
@@ -675,7 +675,7 @@ describe('reconcileSession keeps a pinned session pinned', () => {
   });
 
   it.each(['agent', 'agent-light'] as const)(
-    'recreates a gone pinned %s session under its id in the queued job, waiting for the lock, then re-pins it',
+    'recreates a gone pinned %s session under its id in the queued job, waiting for the lock, then re-pins it [SBX-R10]',
     async (profile) => {
       const { sql, locks, data, stored, end } = fakeSql({
         ...PINNED_SESSION,
@@ -709,7 +709,7 @@ describe('reconcileSession keeps a pinned session pinned', () => {
     },
   );
 
-  it('heals a gone pinned render sandbox instead of recreating it', async () => {
+  it('heals a gone pinned render sandbox instead of recreating it [SBX-R10]', async () => {
     const { sql, stored } = fakeSql({
       ...PINNED_SESSION,
       profile: 'default',

@@ -69,7 +69,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('createContact — the external id', () => {
+describe('createContact — the external id [CONTACT-R4]', () => {
   it('locks the (org, external id) key and refuses a live twin with 409', async () => {
     const { sql, statements } = recordingSql((text) =>
       text.includes('external_id = ?') ? [{ id: 'c-other' }] : [],
@@ -116,7 +116,7 @@ describe('createContact — the external id', () => {
 });
 
 describe('updateContact — the external id and the source', () => {
-  it('writes both, and refuses an external id another live contact holds', async () => {
+  it('writes both, and refuses an external id another live contact holds [CONTACT-R4]', async () => {
     const { sql, statements } = recordingSql((text) => {
       if (text.includes('FROM app.contacts WHERE id = ?')) return [existing];
       if (text.includes('external_id = ?')) return [{ id: 'c-other' }];
@@ -156,7 +156,7 @@ describe('updateContact — the external id and the source', () => {
     expect(update?.values).toContain('manual_import');
   });
 
-  it('refuses an email another live contact holds with 409', async () => {
+  it('refuses an email another live contact holds with 409 [CONTACT-R3]', async () => {
     const { sql, statements } = recordingSql((text) => {
       if (text.includes('FROM app.contacts WHERE id = ?')) return [existing];
       if (text.includes('email = ?')) return [{ id: 'c-other' }];

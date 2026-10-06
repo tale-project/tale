@@ -138,7 +138,7 @@ describe('POST /app-passwords', () => {
     return undefined;
   };
 
-  it('mints the password and audits it in one transaction, recording the prefix only', async () => {
+  it('mints the password and audits it in one transaction, recording the prefix only [WEBDAV-R2]', async () => {
     const { sql, statements } = fakeSql(answers);
     const res = await mount(sql).request('/app-passwords', {
       method: 'POST',
@@ -180,21 +180,24 @@ describe('POST /app-passwords', () => {
     [JSON.stringify({ label: '' }), 'label: Too small'],
     [JSON.stringify({ label: 'x'.repeat(65) }), 'label: Too big'],
     ['not json', 'body: '],
-  ])('names what is wrong with the body %s', async (body, reason) => {
-    const { sql, statements } = fakeSql(answers);
-    const res = await mount(sql).request('/app-passwords', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body,
-    });
-    expect(res.status).toBe(400);
-    const refusal = (await res.json()) as { error: string; message: string };
-    expect(refusal.error).toBe('invalid body');
-    expect(refusal.message.startsWith(reason)).toBe(true);
-    expect(writes(statements)).toEqual([]);
-  });
+  ])(
+    'names what is wrong with the body %s [WEBDAV-R2]',
+    async (body, reason) => {
+      const { sql, statements } = fakeSql(answers);
+      const res = await mount(sql).request('/app-passwords', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body,
+      });
+      expect(res.status).toBe(400);
+      const refusal = (await res.json()) as { error: string; message: string };
+      expect(refusal.error).toBe('invalid body');
+      expect(refusal.message.startsWith(reason)).toBe(true);
+      expect(writes(statements)).toEqual([]);
+    },
+  );
 
-  it('is a developer door', async () => {
+  it('is a developer door [WEBDAV-R1]', async () => {
     caller.role = 'member';
     const { sql, statements } = fakeSql(answers);
     const res = await mount(sql).request('/app-passwords', {
@@ -214,7 +217,7 @@ describe('POST /app-passwords/:id/revoke', () => {
       ? [{ id: 'ap-1', revokedAt, label: 'MacBook', prefix: 'abcd' }]
       : undefined;
 
-  it('stamps the row, releases its locks and audits the revocation together', async () => {
+  it('stamps the row, releases its locks and audits the revocation together [WEBDAV-R4]', async () => {
     const { sql, statements } = fakeSql(row(null));
     const res = await mount(sql).request('/app-passwords/ap-1/revoke', {
       method: 'POST',
@@ -241,7 +244,7 @@ describe('POST /app-passwords/:id/revoke', () => {
     );
   });
 
-  it('answers an already revoked password without a second row', async () => {
+  it('answers an already revoked password without a second row [WEBDAV-R4]', async () => {
     const { sql, statements } = fakeSql(row(1));
     const res = await mount(sql).request('/app-passwords/ap-1/revoke', {
       method: 'POST',
@@ -251,7 +254,7 @@ describe('POST /app-passwords/:id/revoke', () => {
     expect(createAuditLog).not.toHaveBeenCalled();
   });
 
-  it('answers 404 for a password that is not the caller’s in this organization', async () => {
+  it('answers 404 for a password that is not the caller’s in this organization [WEBDAV-R3]', async () => {
     const { sql } = fakeSql(() => undefined);
     const res = await mount(sql).request('/app-passwords/ap-9/revoke', {
       method: 'POST',

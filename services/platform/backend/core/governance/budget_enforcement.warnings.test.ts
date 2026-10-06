@@ -15,7 +15,7 @@ import {
  * `orgWarningThresholdPercent` / `apiKeyWarningThresholdPercent` and nothing
  * read them — the org budget went from silent straight to hard-blocked.
  */
-describe('org and API-key budget warnings', () => {
+describe('org and API-key budget warnings [GOV-R6]', () => {
   const rules: BudgetRule[] = [
     {
       scope: 'org',
@@ -117,7 +117,7 @@ describe('org and API-key budget warnings', () => {
     ).toEqual([]);
   });
 
-  it('measures each bucket against its own caps, never another bucket’s', () => {
+  it('measures each bucket against its own caps, never another bucket’s [GOV-R3]', () => {
     // Org usage far past the USER token cap must not raise an org warning:
     // the org bucket has its own 1M-token cap.
     expect(

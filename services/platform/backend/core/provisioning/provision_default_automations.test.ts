@@ -77,7 +77,7 @@ describe('loadSeedablePacks', () => {
     expect(packs).toEqual([]);
   });
 
-  it('reports an unreadable catalog as null, not as an empty batch', () => {
+  it('reports an unreadable catalog as null, not as an empty batch [PROVN-R4]', () => {
     const root = mkdtempSync(path.join(tmpdir(), 'tale-packs-'));
     try {
       const packDir = path.join(root, 'automations', 'broken', 'pack');

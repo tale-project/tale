@@ -231,7 +231,7 @@ describe('website domain and field validation', () => {
   // registration is never released. Every CHANGED `domain` — parseable or
   // not — is refused before the row is touched.
   it.each(['renamed.example', 'https://renamed.example/x', '::', 'a b'])(
-    'PATCH /websites/{id} refuses domain %j as immutable with 400',
+    'PATCH /websites/{id} refuses domain %j as immutable with 400 [WEB-R4]',
     async (domain) => {
       const { sql, queries } = fakeSql();
       const res = await send(sql, '/websites/w-1', 'PATCH', {
@@ -251,7 +251,7 @@ describe('website domain and field validation', () => {
   // A PUT-style client echoes the resource it read, `domain` included:
   // the stored value is not a rename and passes.
   it.each(['docs.example', ' DOCS.EXAMPLE '])(
-    'PATCH /websites/{id} accepts domain %j as the stored value echoed',
+    'PATCH /websites/{id} accepts domain %j as the stored value echoed [WEB-R4]',
     async (domain) => {
       const { sql, queries } = fakeSql();
       const res = await send(sql, '/websites/w-1', 'PATCH', {
@@ -361,7 +361,7 @@ describe('website create', () => {
    * the "your list was extended" 200 with the site's id — the row stayed
    * `kind: site`, the URLs went nowhere, and a full re-scan was queued on
    * every retry. It is the documented 409, before any patch or job. */
-  it('refuses a URL list onto a whole-site registration with 409 naming the row, writing nothing', async () => {
+  it('refuses a URL list onto a whole-site registration with 409 naming the row, writing nothing [WEB-R2]', async () => {
     vi.mocked(addJobInTx).mockClear();
     const { sql, queries } = fakeSql({ existingByDomain: true });
     const res = await send(sql, '/websites', 'POST', {
@@ -400,7 +400,7 @@ describe('website create', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('refuses the www/apex sibling of a registered domain with 409 naming the stored spelling', async () => {
+  it('refuses the www/apex sibling of a registered domain with 409 naming the stored spelling [WEB-R2]', async () => {
     vi.mocked(addJobInTx).mockClear();
     const { sql, queries } = fakeSql({ existingByDomain: true });
     const res = await send(sql, '/websites', 'POST', {
@@ -948,7 +948,7 @@ describe('website create — resolved-address policy', () => {
     setSafeFetchResolverForTests(null);
   });
 
-  it('refuses a domain that resolves to a private or metadata address with the crawl-policy code', async () => {
+  it('refuses a domain that resolves to a private or metadata address with the crawl-policy code [WEB-R3]', async () => {
     setSafeFetchResolverForTests(() =>
       Promise.resolve([{ address: '127.0.0.1', family: 4 }]),
     );
@@ -967,7 +967,7 @@ describe('website create — resolved-address policy', () => {
     ).toBe(false);
   });
 
-  it('registers a domain DNS cannot answer yet — the scan reports that on its own', async () => {
+  it('registers a domain DNS cannot answer yet — the scan reports that on its own [WEB-R3]', async () => {
     setSafeFetchResolverForTests(() => Promise.reject(new Error('ENOTFOUND')));
     const { sql } = fakeSql();
     const res = await send(sql, '/websites', 'POST', {

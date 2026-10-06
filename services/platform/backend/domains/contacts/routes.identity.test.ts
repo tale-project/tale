@@ -69,7 +69,7 @@ beforeEach(() => {
   statements.length = 0;
 });
 
-describe('app contact creation identity boundary', () => {
+describe('app contact creation identity boundary [CONTACT-R2]', () => {
   it.each([
     {},
     { name: null, email: null, externalId: null },

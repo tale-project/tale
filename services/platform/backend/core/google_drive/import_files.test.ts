@@ -56,7 +56,7 @@ const baseArgs = {
   userId: 'user-1',
 };
 
-describe('google_drive importFiles keeps the sync binding', () => {
+describe('google_drive importFiles keeps the sync binding [GDRIVE-R5]', () => {
   it('keeps a sync-owned document bound when a one-time import re-imports it changed', async () => {
     const deps = makeDeps({
       findDocumentByExternalId: vi.fn().mockResolvedValue({
@@ -152,7 +152,7 @@ describe('google_drive importFiles keeps the sync binding', () => {
  * item types and in-flight uploads) used to be re-downloaded on every scan.
  * The source's size + modified stamp now stands in for the hash.
  */
-describe('importFiles hash-less change detection', () => {
+describe('importFiles hash-less change detection [GDRIVE-R3]', () => {
   const stamped = {
     _id: 'doc-1' as Id<'documents'>,
     metadata: {
@@ -260,7 +260,7 @@ describe('importFiles hash-less change detection', () => {
  * every file was adopted never got a folder row at all, so nothing offered
  * "Stop syncing" (2026-09-14).
  */
-describe('importFiles files an adopted document under its selected folder', () => {
+describe('importFiles files an adopted document under its selected folder [GDRIVE-R5]', () => {
   const atRoot = {
     _id: 'doc-1' as Id<'documents'>,
     contentHash: 'h1',
@@ -380,7 +380,7 @@ describe('importFiles files an adopted document under its selected folder', () =
  * path to mirror and went to the hub root whatever folder the person had
  * open. `destinationFolderId` is that folder.
  */
-describe('google_drive importFiles placement', () => {
+describe('google_drive importFiles placement [GDRIVE-R4]', () => {
   const rootFile: ImportItem[] = [
     { id: 'file-r', name: 'r.docx', size: 10, relativePath: 'r.docx' },
   ];
@@ -489,7 +489,7 @@ function metadataRefusing(
  * answers the grant's own sentence.
  */
 describe('google_drive importFiles when the grant ends part-way', () => {
-  it('stops at the file the grant ended at, keeping the files before it', async () => {
+  it('stops at the file the grant ended at, keeping the files before it [GDRIVE-R6]', async () => {
     const deps = makeDeps({ resolveToken: grantEndingAfter(2) });
 
     const result = await importFiles(
@@ -513,7 +513,7 @@ describe('google_drive importFiles when the grant ends part-way', () => {
     expect(deps.downloadToStorage).toHaveBeenCalledTimes(2);
   });
 
-  it('refreshes the grant when Drive refuses the token, and carries on', async () => {
+  it('refreshes the grant when Drive refuses the token, and carries on [GDRIVE-R6]', async () => {
     const getFileMetadata = metadataRefusing(new Set(['file-1']));
     const deps = makeDeps({
       getFileMetadata,
@@ -538,7 +538,7 @@ describe('google_drive importFiles when the grant ends part-way', () => {
     ]);
   });
 
-  it('stops when Drive refuses the token and the grant cannot be refreshed', async () => {
+  it('stops when Drive refuses the token and the grant cannot be refreshed [GDRIVE-R6]', async () => {
     const deps = makeDeps({
       getFileMetadata: metadataRefusing(new Set(['file-2'])),
       resolveToken: vi.fn(
@@ -603,7 +603,7 @@ describe('google_drive importFiles when the grant ends part-way', () => {
   // each document records (`external_item_id`) finds the files the first
   // run brought in, and an unchanged one is skipped — never downloaded or
   // created twice.
-  it('skips the files already imported when the same selection runs again', async () => {
+  it('skips the files already imported when the same selection runs again [GDRIVE-R3]', async () => {
     const stored = new Map<string, string>();
     const findDocumentByExternalId = vi.fn(
       async ({ externalItemId }: { externalItemId: string }) =>

@@ -61,7 +61,7 @@ const SETTLED_MARKER =
 
 const normalize = (text: string): string => text.replace(/\s+/g, ' ');
 
-describe('sync-config deactivation settles a running marker', () => {
+describe('sync-config deactivation settles a running marker [ODRIVE-R6]', () => {
   it('cancel stamps an in-flight run cancelled alongside status inactive', async () => {
     const { sql, statements } = recordingSql();
     await cancelSyncConfigRow(

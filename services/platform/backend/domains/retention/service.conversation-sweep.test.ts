@@ -142,7 +142,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('sweepOrgPhase2 — the conversation window releases indexed email bodies', () => {
+describe('sweepOrgPhase2 — the conversation window releases indexed email bodies [RETAIN-R8]', () => {
   function recordEnqueues(events: string[]): void {
     addJobInTx.mockImplementation(async (_tx: unknown, name: string) => {
       events.push(`enqueue ${name}`);

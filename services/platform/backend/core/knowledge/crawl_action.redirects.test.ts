@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import type { Sql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EMPTY_ROBOTS_POLICY } from '../../../lib/knowledge/crawl-parse';
 import { safeFetchBinary } from '../../../lib/net/safe-fetch';
@@ -128,7 +128,7 @@ describe('fetchAndStorePage — a redirect inside the site', () => {
     expect(admit?.text).toContain('u.last_crawled_at < $3::timestamptz');
   });
 
-  it('does not track a target robots.txt disallows', async () => {
+  it('does not track a target robots.txt disallows [KNOW-R14]', async () => {
     answers('https://www.example.com/private/login');
     const { sql, statements } = corpus();
 
@@ -182,4 +182,88 @@ describe('fetchAndStorePage — a redirect inside the site', () => {
       expect(admitted(statements)).toEqual([]);
     },
   );
+});
+
+/**
+ * What the crawler will not request at all. Both refusals are decided from
+ * the page's own address before anything is dialed, so a row an earlier
+ * release admitted, or a rule the site added since, cannot launder a fetch.
+ */
+describe('fetchAndStorePage — a page the crawler does not request', () => {
+  const PRIVATE_RULE = { ...EMPTY_ROBOTS_POLICY, disallow: ['/private/'] };
+
+  /** The kind of every failure recorded on a page row. */
+  const failureKinds = (statements: { text: string; params: unknown[] }[]) =>
+    statements
+      .filter((statement) => statement.text.includes('last_error_kind = $4'))
+      .map((statement) => statement.params[3]);
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('never requests a page robots.txt disallows, and takes it out of the index [KNOW-R14]', async () => {
+    const { sql, statements } = corpus();
+    const url = 'https://www.example.com/private/report';
+
+    await expect(
+      fetchAndStorePage(sql, DOMAIN, page(url), PRIVATE_RULE),
+    ).resolves.toBe('unchanged');
+
+    expect(safeFetchBinary).not.toHaveBeenCalled();
+    expect(retired(statements)).toEqual([url]);
+  });
+
+  it('still requests a disallowed address the source lists by name [KNOW-R14]', async () => {
+    const url = 'https://www.example.com/private/report';
+    answers(url);
+    const { sql, statements } = corpus();
+
+    await expect(
+      fetchAndStorePage(sql, DOMAIN, page(url, true), PRIVATE_RULE),
+    ).resolves.toBe('render');
+
+    expect(safeFetchBinary).toHaveBeenCalledTimes(1);
+    expect(retired(statements)).toEqual([]);
+  });
+
+  it.each([
+    ['a private network address', '10.0.0.5'],
+    ['this machine', 'localhost'],
+    ['a name that only resolves inside a company network', 'intranet.corp'],
+  ])(
+    'never requests a page on %s, and records why [KNOW-R15]',
+    async (_case, host) => {
+      const { sql, statements } = corpus();
+
+      await expect(
+        fetchAndStorePage(
+          sql,
+          host,
+          page(`https://${host}/wiki`),
+          EMPTY_ROBOTS_POLICY,
+        ),
+      ).resolves.toBe('failed');
+
+      expect(safeFetchBinary).not.toHaveBeenCalled();
+      expect(failureKinds(statements)).toEqual(['private_ip']);
+    },
+  );
+
+  it('requests it once the operator has allowed private networks for the crawler [KNOW-R15]', async () => {
+    vi.stubEnv('TALE_ALLOW_PRIVATE_CRAWL_HOSTS', '1');
+    const url = 'https://intranet.corp/wiki';
+    answers(url);
+    const { sql, statements } = corpus();
+
+    await expect(
+      fetchAndStorePage(sql, 'intranet.corp', page(url), EMPTY_ROBOTS_POLICY),
+    ).resolves.toBe('render');
+
+    expect(safeFetchBinary).toHaveBeenCalledWith(
+      url,
+      expect.objectContaining({ allowPrivateAddresses: true }),
+    );
+    expect(failureKinds(statements)).toEqual([]);
+  });
 });

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { isSourceUnchanged, sourceFingerprint } from './source_fingerprint';
 
-describe('sourceFingerprint', () => {
+describe('sourceFingerprint [CIMP-R7]', () => {
   it('keys on size + modified stamp, and only with both', () => {
     expect(sourceFingerprint({ size: 10, modifiedAt: 1700000000000 })).toBe(
       '10:1700000000000',
@@ -17,7 +17,7 @@ describe('sourceFingerprint', () => {
   });
 });
 
-describe('isSourceUnchanged', () => {
+describe('isSourceUnchanged [CIMP-R7]', () => {
   it('compares by hash when the vendor sent one', () => {
     expect(
       isSourceUnchanged({

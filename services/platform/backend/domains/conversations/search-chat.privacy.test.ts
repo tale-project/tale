@@ -518,7 +518,7 @@ async function subjectsFor(userId: string, term = 'refund') {
 
 beforeEach(seedWorld);
 
-describe('searchConversationsForChat — assignment privacy', () => {
+describe('searchConversationsForChat — assignment privacy [CONV-R2]', () => {
   // THE test. An unassigned conversation is admin-triage state, and a member
   // who is on no team and owns nothing must come back empty — not with the
   // inbox.
@@ -619,7 +619,7 @@ describe('searchConversationsForChat — assignment privacy', () => {
   });
 });
 
-describe('searchConversationsForChat — cross-organization isolation', () => {
+describe('searchConversationsForChat — cross-organization isolation [CONV-R2]', () => {
   it('does not reach into another organization', async () => {
     world.members.push({
       organizationId: OTHER_ORG,
@@ -761,7 +761,7 @@ describe('searchConversationsForChat — the contact leg', () => {
     ]);
   });
 
-  it('still applies assignment scope to a contact-name match', async () => {
+  it('still applies assignment scope to a contact-name match [CONV-R2]', async () => {
     const contactId = addContact('Wilhelmina Baker');
     // Unassigned: findable by contact name for an admin, invisible to a plain
     // member. The contact match must not become a second way in.
@@ -852,7 +852,7 @@ describe('searchConversationsForChat — the assignment is returned', () => {
     expect(pool).not.toHaveProperty('assigneeTeamId');
   });
 
-  it('returns only the answer fields — never the contact the row is with', async () => {
+  it('returns only the answer fields — never the contact the row is with [CONV-R2]', async () => {
     const contactId = addContact('Wilhelmina Baker');
     addConversation({
       subject: 'Refund with a contact',
@@ -888,7 +888,7 @@ describe('searchConversationsForChat — explicit list mode', () => {
 
   // Turning the words off must not turn the privacy off: the listing passes
   // exactly the same assignment predicate as the search.
-  it('shows a plain member nothing, listed or searched', async () => {
+  it('shows a plain member nothing, listed or searched [CONV-R2]', async () => {
     expect((await listFor(PLAIN_MEMBER)).conversations).toEqual([]);
   });
 
@@ -908,7 +908,7 @@ describe('searchConversationsForChat — explicit list mode', () => {
     expect(result.truncated).toBe(false);
   });
 
-  it('reports truncation when the walk itself reaches the scan cap', async () => {
+  it('reports truncation when the walk itself reaches the scan cap [CONV-R2]', async () => {
     // 300 is the cap. With the three seeds, 297 unassigned rows the plain
     // member may not read make exactly 300: the walk reads them all and is
     // complete, even though it finds nothing.
@@ -932,7 +932,7 @@ describe('searchConversationsForChat — explicit list mode', () => {
     expect(admin.truncated).toBe(false);
   });
 
-  it('never answers a row past the scan cap, even the only readable one', async () => {
+  it('never answers a row past the scan cap, even the only readable one [CONV-R2]', async () => {
     // 297 newer unassigned rows and the three seeds fill the cap; the one row
     // the plain member owns is the 301st newest, so the walk never reaches it.
     for (let index = 0; index < 297; index += 1) {
@@ -1002,7 +1002,7 @@ describe('searchConversationsForChat — the message-body leg', () => {
     ]);
   });
 
-  it('still refuses a body match the caller may not read', async () => {
+  it('still refuses a body match the caller may not read [CONV-R2]', async () => {
     // The body walk sees every message in the organization, so this is the
     // case that matters: matching is not reading.
     seedWithBody('The chassis serial is XJ-4417.', {
@@ -1015,7 +1015,7 @@ describe('searchConversationsForChat — the message-body leg', () => {
     expect(await subjectsFor(TEAM_MEMBER, 'XJ-4417')).toEqual([]);
   });
 
-  it('refuses an unassigned body match to everyone but an admin', async () => {
+  it('refuses an unassigned body match to everyone but an admin [CONV-R2]', async () => {
     seedWithBody('The chassis serial is XJ-4417.');
     expect(await subjectsFor(ASSIGNEE, 'XJ-4417')).toEqual([]);
     expect(await subjectsFor(TEAM_MEMBER, 'XJ-4417')).toEqual([]);
@@ -1045,7 +1045,7 @@ describe('searchConversationsForChat — the message-body leg', () => {
     expect(await subjectsFor(ASSIGNEE, 'div')).toEqual([]);
   });
 
-  it('reports truncation from the body walk, not just the conversation walk', async () => {
+  it('reports truncation from the body walk, not just the conversation walk [CONV-R2]', async () => {
     // A caller told "no matches" must be able to tell that from "no matches
     // in what I looked at". Exactly 400 messages against a 400 cap: all read,
     // so the answer is complete.
@@ -1067,7 +1067,7 @@ describe('searchConversationsForChat — the message-body leg', () => {
     expect(pastCap.truncated).toBe(true);
   });
 
-  it('reads only the newest messages: a match past the cap is invisible', async () => {
+  it('reads only the newest messages: a match past the cap is invisible [CONV-R2]', async () => {
     const id = seedWithBody('The chassis serial is XJ-4417.', {
       assigneeUserId: ASSIGNEE,
     });

@@ -107,7 +107,7 @@ afterEach(async () => {
 });
 
 describe('the tenant chokepoint', () => {
-  it('routes an organization with its own database away from the shared one', async () => {
+  it('routes an organization with its own database away from the shared one [KNOW-R2]', async () => {
     writeConnection('acme', {
       host: 'acme-db.example.com',
       port: 5432,
@@ -125,7 +125,7 @@ describe('the tenant chokepoint', () => {
     expect(urlOf(sql)).not.toBe(DEFAULT_URL);
   });
 
-  it('never lets one organization reach another organization corpus', async () => {
+  it('never lets one organization reach another organization corpus [KNOW-R2]', async () => {
     writeConnection('acme', {
       host: 'acme-db.example.com',
       port: 5432,
@@ -151,7 +151,7 @@ describe('the tenant chokepoint', () => {
     expect(urlOf(globex)).not.toContain('acme');
   });
 
-  it('gives an organization without its own database the deployment default', async () => {
+  it('gives an organization without its own database the deployment default [KNOW-R2]', async () => {
     const sql = await getKnowledgePoolForOrg('startup');
     expect(urlOf(sql)).toBe(DEFAULT_URL);
   });
@@ -207,7 +207,7 @@ describe('shutdown', () => {
 });
 
 describe('a misconfigured own database fails closed', () => {
-  it('refuses rather than falling back to the shared database', async () => {
+  it('refuses rather than falling back to the shared database [KNOW-R2]', async () => {
     writeConnection('acme', { host: 'acme-db.example.com' });
 
     await expect(getKnowledgePoolForOrg('acme')).rejects.toThrow(

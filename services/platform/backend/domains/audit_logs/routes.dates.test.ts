@@ -105,7 +105,7 @@ beforeEach(() => {
 
 const FIELDS = ['startDate', 'endDate'] as const;
 
-describe('the audit log date filters hold to the epoch bound', () => {
+describe('the audit log date filters hold to the epoch bound [AUDIT-R5]', () => {
   describe.each(FIELDS)('%s', (field) => {
     it.each(['9000000000000000', String(EPOCH_MS_MAX + 1), '1.5', '0'])(
       'the list refuses %s with a 400',

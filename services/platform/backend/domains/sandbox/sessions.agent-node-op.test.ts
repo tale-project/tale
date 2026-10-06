@@ -168,7 +168,7 @@ describe('agent-node sandbox operation selection', () => {
     ).toMatchObject({ execId: 'review-exec' });
   });
 
-  it('does not query operations for a missing or foreign-organization run', async () => {
+  it('does not query operations for a missing or foreign-organization run [SBX-R4]', async () => {
     const { sql } = database(null);
     expect(
       await getAgentNodeSandboxOp(sql, {

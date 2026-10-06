@@ -147,7 +147,7 @@ afterEach(() => {
 });
 
 describe('scanScheduledTriggers', () => {
-  it('walks every page by keyset, claims each due occurrence once, and summarises the undeployed', async () => {
+  it('walks every page by keyset, claims each due occurrence once, and summarises the undeployed [AUTO-R5]', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const now = Date.now();
     const fake = fakeScan({
@@ -279,7 +279,7 @@ describe('scanScheduledTriggers', () => {
     expect(stamp?.values[0]).toBe(claim?.values[0]);
   });
 
-  it('keeps the claim and records start_refused when the deployed version refuses the input', async () => {
+  it('keeps the claim and records start_refused when the deployed version refuses the input [AUTO-R6]', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const now = Date.now();
     const fake = fakeScan({

@@ -48,7 +48,7 @@ describe('sandboxCapacityRefusal', () => {
     expect(organization && queuedWakeAfterMs(organization)).toBeUndefined();
   });
 
-  it("reads the organization's spent session budget in every shape it arrives in", () => {
+  it("reads the organization's spent session budget in every shape it arrives in [SBX-R8]", () => {
     const shapes = [
       new AppError({ code: 'QUOTA_EXCEEDED', message: 'At most 2 sessions' }),
       Object.assign(new Error('At most 2 workflow sandbox sessions'), {
@@ -65,7 +65,7 @@ describe('sandboxCapacityRefusal', () => {
     }
   });
 
-  it('reads a pending Destroy as no want of room, in every shape it arrives in', () => {
+  it('reads a pending Destroy as no want of room, in every shape it arrives in [SBX-R9]', () => {
     // The admission verbs refuse a session an administrator's Destroy is
     // removing with a `QUOTA_EXCEEDED` of their own: read as a spent budget,
     // an automation step waited up to two hours, then started over in the

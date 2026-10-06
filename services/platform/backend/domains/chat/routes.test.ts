@@ -160,7 +160,7 @@ describe('the edit / regenerate forks measure the budget before forking', () => 
       body: JSON.stringify(body),
     });
 
-  it('answers 429 BUDGET_EXCEEDED on branch-edit without forking', async () => {
+  it('answers 429 BUDGET_EXCEEDED on branch-edit without forking [CHAT-R6]', async () => {
     assertChatTurnBudget.mockRejectedValueOnce(budgetExceeded());
     const res = await post('/threads/t1/branch-edit', {
       editedMessageId: 'm1',
@@ -180,7 +180,7 @@ describe('the edit / regenerate forks measure the budget before forking', () => 
     expect(emitHintInTx).not.toHaveBeenCalled();
   });
 
-  it('answers 429 BUDGET_EXCEEDED on branch-regenerate without forking', async () => {
+  it('answers 429 BUDGET_EXCEEDED on branch-regenerate without forking [CHAT-R6]', async () => {
     assertChatTurnBudget.mockRejectedValueOnce(budgetExceeded());
     const res = await post('/threads/t1/branch-regenerate', {
       assistantMessageId: 'm2',
@@ -193,7 +193,7 @@ describe('the edit / regenerate forks measure the budget before forking', () => 
     expect(emitHintInTx).not.toHaveBeenCalled();
   });
 
-  it('forks when every cap has room, answering the sibling AND its fork point', async () => {
+  it('forks when every cap has room, answering the sibling AND its fork point [CHAT-R10]', async () => {
     // The door passes the domain's fork point through: forked from `t1`,
     // the sibling may hang off t1's own parent (another version of the
     // same turn), and the client keys its selection on THAT id.
@@ -385,7 +385,7 @@ describe('POST /threads/:threadId/arena/turn admits the pair', () => {
     appendMessageRow.mockResolvedValue({ id: 'err_row', sequence: 3 });
   });
 
-  it('measures room for two requests and refuses the whole pair on a reached cap', async () => {
+  it('measures room for two requests and refuses the whole pair on a reached cap [CHAT-R6]', async () => {
     assertChatTurnBudget.mockRejectedValueOnce(budgetExceeded());
     const res = await turn();
     expect(res.status).toBe(200);
@@ -606,7 +606,7 @@ describe('POST /threads/:threadId/messages with a model the turn cannot resolve'
     isBackendDraining.mockResolvedValue(false);
   });
 
-  it('answers the resolution refusal as a refusal, with nothing persisted', async () => {
+  it('answers the resolution refusal as a refusal, with nothing persisted [CHAT-R7]', async () => {
     const reason =
       'No model "retired-model" is available in this organization (the catalog for "remote-gateway" was unreachable). Try again shortly, or pick a model the organization has configured.';
     runChatTurn.mockRejectedValue(
@@ -674,7 +674,7 @@ describe('POST /threads/bulk', () => {
 });
 
 describe('POST /threads/:threadId/trash', () => {
-  it('cancels the parked sends of a thread it trashed', async () => {
+  it('cancels the parked sends of a thread it trashed [CHAT-R13]', async () => {
     trashThread.mockResolvedValue(true);
 
     const res = await makeApp().request('/threads/t1/trash?orgId=o1', {
@@ -707,7 +707,7 @@ describe('POST /threads/:threadId/trash', () => {
  * view with the rows of the leaf the owner's screen shows — never the
  * root's own rows once an edit or retry replaced them.
  */
-describe('GET /threads/:threadId/messages for a project reader', () => {
+describe('GET /threads/:threadId/messages for a project reader [CHAT-R2]', () => {
   interface Statement {
     text: string;
     values: unknown[];

@@ -202,7 +202,7 @@ describe('MCP and engine actor project scope', () => {
     expect(beginRunInTx).not.toHaveBeenCalled();
   });
 
-  it('does not implicitly enter a bound project when the MCP caller omits it', async () => {
+  it('does not implicitly enter a bound project when the MCP caller omits it [AUTO-R7]', async () => {
     await store().startRun?.('billing/dunning', {}, 'live', 1);
     expect(beginRun).toHaveBeenCalledWith(
       expect.anything(),
@@ -220,7 +220,7 @@ describe('MCP and engine actor project scope', () => {
     ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN' });
   });
 
-  it('leaves archived project history readable and refuses writes', async () => {
+  it('leaves archived project history readable and refuses writes [AUTO-R8]', async () => {
     const engine = store({ project: { archivedAt: 1 } });
     await expect(engine.getRun?.('run-1')).resolves.toMatchObject({
       runId: 'run-1',

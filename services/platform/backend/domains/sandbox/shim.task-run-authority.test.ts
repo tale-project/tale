@@ -105,7 +105,7 @@ const run = (overrides: Partial<Run> = {}): Run => ({
   ...overrides,
 });
 
-describe('a task turn’s tool authority follows the run’s starter', () => {
+describe('a task turn’s tool authority follows the run’s starter [SBX-R7]', () => {
   it('a run a project editor started acts with the agent’s project scope', async () => {
     const sql = fakeSql({ run: run(), roles: { 'u-editor': 'editor' } });
     expect(

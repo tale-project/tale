@@ -33,7 +33,7 @@ function fakeSql(): { sql: Sql; queries: Captured[] } {
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the service only tags queries on it
 const asTx = (sql: Sql): TransactionSql => sql as unknown as TransactionSql;
 
-describe('login attempt keys are canonical', () => {
+describe('login attempt keys are canonical [LOGIN-R3]', () => {
   it('getLockState reads the trimmed, lowercased key', async () => {
     const { sql, queries } = fakeSql();
     await getLockState(sql, '  User@Example.com ');

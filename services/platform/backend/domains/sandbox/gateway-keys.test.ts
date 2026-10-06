@@ -81,7 +81,7 @@ beforeEach(() => {
 });
 
 describe('revokeSessionGatewayKeys', () => {
-  it('reads and books a turn key’s spend BEFORE deleting it', async () => {
+  it('reads and books a turn key’s spend BEFORE deleting it [SBX-R15]', async () => {
     const { sql, statements } = fakeSql([
       { match: CLAIM, rows: [{ keyId: 'k1' }] },
       { match: OP_FOR_KEY, rows: [turn('exec-1')] },
@@ -187,7 +187,7 @@ describe('revokeSessionGatewayKeys', () => {
     error.mockRestore();
   });
 
-  it('keeps the key when its spend cannot be read, and retries later', async () => {
+  it('keeps the key when its spend cannot be read, and retries later [SBX-R15]', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     gateway.readVirtualKeySpend.mockResolvedValueOnce({
       status: 'unavailable',

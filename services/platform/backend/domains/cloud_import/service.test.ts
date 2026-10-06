@@ -96,7 +96,7 @@ afterEach(() => {
 });
 
 describe('resolveCloudAccessToken — refresh failures', () => {
-  it('marks needs-reauth on a dead grant', async () => {
+  it('marks needs-reauth on a dead grant [CIMP-R1]', async () => {
     vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({
       ok: false,
       kind: 'dead_grant',
@@ -114,7 +114,7 @@ describe('resolveCloudAccessToken — refresh failures', () => {
     expect(needsReauthWrites(statements)).toBe(1);
   });
 
-  it('leaves the grant active and reports a retryable error on a vendor outage', async () => {
+  it('leaves the grant active and reports a retryable error on a vendor outage [CIMP-R2]', async () => {
     vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({
       ok: false,
       kind: 'unavailable',
@@ -168,7 +168,7 @@ describe('resolveCloudAccessToken — refresh failures', () => {
 
   // A Disconnect that lands while the refresh is in flight revokes the row:
   // the fresh token must not bring the grant back.
-  it('drops a refreshed token whose grant was revoked meanwhile', async () => {
+  it('drops a refreshed token whose grant was revoked meanwhile [CIMP-R3]', async () => {
     vi.mocked(refreshGoogleAccessToken).mockResolvedValue({
       ok: true,
       tokens: { accessToken: 'at-new', expiresAt: Date.now() + 3_600_000 },
@@ -220,7 +220,7 @@ describe('resolveCloudAccessToken — forced refresh', () => {
     );
   });
 
-  it('answers "reconnect" and marks the grant when that refresh finds it dead', async () => {
+  it('answers "reconnect" and marks the grant when that refresh finds it dead [CIMP-R1]', async () => {
     vi.mocked(refreshGoogleAccessToken).mockResolvedValue({
       ok: false,
       kind: 'dead_grant',
@@ -243,7 +243,7 @@ describe('resolveCloudAccessToken — forced refresh', () => {
   });
 });
 
-describe('resolveCloudAccessToken — unreadable envelope', () => {
+describe('resolveCloudAccessToken — unreadable envelope [CIMP-R4]', () => {
   it('names a rotated ENCRYPTION_SECRET_HEX, logs the cause, and flags the row', async () => {
     const sealed = sealedGrant(Date.now() + 3_600_000);
     vi.stubEnv('ENCRYPTION_SECRET_HEX', 'a-different-key');

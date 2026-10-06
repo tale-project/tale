@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MASK_PLACEHOLDER, maskSecret } from './masking';
 
-describe('maskSecret', () => {
+describe('maskSecret [PCRED-R2]', () => {
   it('excerpts first4…last2 of a normal-length secret', () => {
     expect(maskSecret('sk-or-v1-abcdef123456')).toBe('sk-o…56');
   });

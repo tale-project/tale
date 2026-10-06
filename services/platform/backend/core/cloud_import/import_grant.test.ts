@@ -57,7 +57,7 @@ describe('ImportGrant', () => {
     expect(grant.ended).toBeUndefined();
   });
 
-  it('reads the grant again before each file and uses what it answers', async () => {
+  it('reads the grant again before each file and uses what it answers [CIMP-R5]', async () => {
     const resolve = vi.fn(async () => live('tok-2'));
     const grant = new ImportGrant('tok-1', resolve);
 
@@ -66,7 +66,7 @@ describe('ImportGrant', () => {
     expect(resolve).toHaveBeenCalledWith({ forceRefresh: false });
   });
 
-  it('ends when the grant answers "reconnect", with its own sentence', async () => {
+  it('ends when the grant answers "reconnect", with its own sentence [CIMP-R6]', async () => {
     const grant = new ImportGrant(
       'tok-1',
       vi.fn(async () => reconnect),
@@ -77,7 +77,7 @@ describe('ImportGrant', () => {
     expect(await grant.beforeFile()).toBe(false);
   });
 
-  it('keeps going on the token it has when a refresh is unavailable', async () => {
+  it('keeps going on the token it has when a refresh is unavailable [CIMP-R5]', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const grant = new ImportGrant(
       'tok-1',
@@ -97,7 +97,7 @@ describe('ImportGrant', () => {
 
   // Access removed at Google ends the access token at once, while the stored
   // expiry still counts it live: only a refresh can tell.
-  it('refreshes once when the provider refuses the token, and runs the file again', async () => {
+  it('refreshes once when the provider refuses the token, and runs the file again [CIMP-R5]', async () => {
     const { grant, resolve } = refreshingGrant();
     const calls = providerCalls(new Set(['tok-1']));
 
@@ -110,7 +110,7 @@ describe('ImportGrant', () => {
     expect(resolve).toHaveBeenLastCalledWith({ forceRefresh: true });
   });
 
-  it('ends when the refresh after a refusal answers "reconnect"', async () => {
+  it('ends when the refresh after a refusal answers "reconnect" [CIMP-R6]', async () => {
     const grant = new ImportGrant(
       'tok-1',
       vi.fn(async ({ forceRefresh }: { forceRefresh: boolean }) =>

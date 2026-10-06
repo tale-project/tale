@@ -29,7 +29,7 @@ function codeOf(run: () => void): { code: string; status: number } | null {
   }
 }
 
-describe('assertDocumentsWriteRole (the org-role write matrix)', () => {
+describe('assertDocumentsWriteRole (the org-role write matrix) [DOC-R1]', () => {
   it.each(['owner', 'admin', 'developer', 'editor'])(
     'admits the %s role',
     (role) => {
@@ -72,7 +72,7 @@ describe('assertDocumentsWriteRole (the org-role write matrix)', () => {
   });
 });
 
-describe('assertGenericDocumentContentWritableJson (content freeze)', () => {
+describe('assertGenericDocumentContentWritableJson (content freeze) [DOC-R5]', () => {
   it('admits an uncontrolled document', () => {
     expect(
       codeOf(() => assertGenericDocumentContentWritableJson(null)),
@@ -98,7 +98,7 @@ describe('assertGenericDocumentContentWritableJson (content freeze)', () => {
   });
 });
 
-describe('assertRecordTrashableJson (delete protection incl. history)', () => {
+describe('assertRecordTrashableJson (delete protection incl. history) [DOC-R6]', () => {
   it('admits an uncontrolled document', () => {
     expect(codeOf(() => assertRecordTrashableJson(null))).toBeNull();
   });

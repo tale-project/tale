@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { contactCreateSchema, contactPhoneSchema } from './input-schema.ts';
 
-describe('contactPhoneSchema', () => {
+describe('contactPhoneSchema [CONTACT-R5]', () => {
   it.each(['+1-555-0100', '+49 30 123456', '(020) 7946 0958', '0044123456789'])(
     'accepts %s',
     (phone) => {
@@ -15,7 +15,7 @@ describe('contactPhoneSchema', () => {
   });
 });
 
-describe('contactCreateSchema phone', () => {
+describe('contactCreateSchema phone [CONTACT-R5]', () => {
   it('accepts a create with a well-formed phone', () => {
     expect(
       contactCreateSchema.parse({

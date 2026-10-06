@@ -124,7 +124,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('POST /import when the grant ends part-way', () => {
+describe('POST /import when the grant ends part-way [GDRIVE-R6]', () => {
   it('stops at the file the grant ended at and answers its sentence', async () => {
     // The door's own read, then one per file: live for two files.
     const answers: GraphTokenResult[] = [
