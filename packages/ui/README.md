@@ -121,6 +121,9 @@ Shared labels belong in `src/i18n/messages/{en,de,fr}.yml`, with sparse Swiss Ge
 in `de-CH.yml`. The host merges package catalogs beneath its own keys, so a service override can
 hide a shared correction. Check the rendered label as well as key and ICU parity, following the
 [translation skill](https://github.com/tale-project/tale/blob/main/.agents/skills/write-translations/SKILL.md).
+A service may keep its catalog one file per topic and locale (`messages/<locale>/<topic>.yml`, a
+topic being one top-level namespace), as the platform does: `@tale/ui/i18n/topic-catalogs` turns
+an `import.meta.glob` of those files into bundles, and the i18n test framework reads either layout.
 
 Both documentation sites — [docs.tale.dev](https://github.com/tale-project/tale/blob/main/services/docs/README.md) and
 [ui.tale.dev](https://github.com/tale-project/tale/blob/main/services/ui-docs/README.md) — render the `docs/*` frame: the rail, the
