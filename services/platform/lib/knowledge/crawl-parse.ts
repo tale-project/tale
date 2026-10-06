@@ -265,147 +265,6 @@ export function isSitemapIndex(xml: string): boolean {
   return /<sitemapindex[\s>]/i.test(xml);
 }
 
-/** One page a sitemap lists: its address and, when its entry states one
- * that can be read, the latest instant its `<lastmod>` can mean
- * ({@link sitemapLastmodInstant}). */
-export interface SitemapEntry {
-  readonly loc: string;
-  readonly lastmod: Date | null;
-}
-
-const HOUR_MS = 60 * 60 * 1000;
-/** How far behind UTC a clock can run: the last time zone on Earth ends its
- * day twelve hours after UTC does. */
-const FURTHEST_WEST_MS = 12 * HOUR_MS;
-
-const LASTMOD_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-const LASTMOD_DATETIME =
-  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,]\d{1,9})?)?(Z|[+-]\d{2}(?::?\d{2})?)?$/i;
-const LASTMOD_ZONE = /^([+-])(\d{2}):?(\d{2})?$/;
-
-/** The UTC epoch of these calendar fields, or null when they name no real
- * moment — a thirteenth month, the 30th of February, 25 o'clock. */
-function utcEpoch(
-  year: number,
-  month: number,
-  day: number,
-  hour: number,
-  minute: number,
-  second: number,
-): number | null {
-  const epoch = Date.UTC(year, month - 1, day, hour, minute, second);
-  const read = new Date(epoch);
-  return read.getUTCFullYear() === year &&
-    read.getUTCMonth() === month - 1 &&
-    read.getUTCDate() === day &&
-    read.getUTCHours() === hour &&
-    read.getUTCMinutes() === minute &&
-    read.getUTCSeconds() === second
-    ? epoch
-    : null;
-}
-
-/**
- * The latest instant a sitemap `<lastmod>` can mean, or null for a value
- * that says too little to act on. A scan leaves a page alone only when it
- * read the page AFTER this instant, so every doubt is resolved toward the
- * later reading and an unreadable value toward "request the page":
- *
- *  - a date and a time with a zone (`2026-10-06T14:30:00+02:00`, `…Z`) is
- *    that instant;
- *  - a date and a time without a zone is read in the zone furthest behind
- *    UTC — the site's own clock is not known;
- *  - a date alone (`2026-10-06`, what most sitemaps carry) covers its whole
- *    day: the page can change at any hour of it and keep the same value, so
- *    it means the end of that day in the zone furthest behind UTC;
- *  - a month or a year alone, and anything that is not a W3C date, is null.
- *
- * Read with patterns of its own rather than `Date.parse`, which takes a
- * date alone as UTC midnight and a time without a zone as the server's
- * local time: the first would skip a page edited later that day, the second
- * would make the answer depend on where the backend runs.
- */
-export function sitemapLastmodInstant(value: string): Date | null {
-  const text = value.trim();
-  const date = LASTMOD_DATE.exec(text);
-  if (date) {
-    const start = utcEpoch(
-      Number(date[1]),
-      Number(date[2]),
-      Number(date[3]),
-      0,
-      0,
-      0,
-    );
-    return start === null
-      ? null
-      : new Date(start + 24 * HOUR_MS + FURTHEST_WEST_MS);
-  }
-  const stamp = LASTMOD_DATETIME.exec(text);
-  if (!stamp) return null;
-  const local = utcEpoch(
-    Number(stamp[1]),
-    Number(stamp[2]),
-    Number(stamp[3]),
-    Number(stamp[4]),
-    Number(stamp[5]),
-    Number(stamp[6] ?? '0'),
-  );
-  if (local === null) return null;
-  const zone = stamp[7];
-  if (zone === undefined) return new Date(local + FURTHEST_WEST_MS);
-  if (zone.toUpperCase() === 'Z') return new Date(local);
-  const offset = LASTMOD_ZONE.exec(zone);
-  if (!offset) return null;
-  const hours = Number(offset[2]);
-  const minutes = Number(offset[3] ?? '0');
-  if (hours > 14 || minutes > 59) return null;
-  const ahead = (hours * 60 + minutes) * 60 * 1000;
-  return new Date(offset[1] === '-' ? local + ahead : local - ahead);
-}
-
-/** What one `<url>` block says about its page's last change. */
-function entryLastmod(block: string): Date | null {
-  const match = /<lastmod[^<>]*>([\s\S]*?)<\/lastmod>/i.exec(
-    upToLast(block, /<\/lastmod>/gi),
-  );
-  if (!match) return null;
-  const raw = (match[1] ?? '').trim();
-  const cdata = /^<!\[CDATA\[([\s\S]*)\]\]>$/.exec(raw);
-  return sitemapLastmodInstant(cdata ? (cdata[1] ?? '') : raw);
-}
-
-/**
- * The pages a sitemap lists, each with what its entry says about the page's
- * last change. The addresses are exactly the ones {@link parseSitemapLocs}
- * reads, in document order: one inside a `<url>` block takes that block's
- * `<lastmod>`, and one outside any block — a document that is not quite a
- * sitemap — has none, so its page is requested as before.
- *
- * The blocks are matched up to the last `</url>` only, and each block's
- * date up to its last `</lastmod>` (`markup-scan.ts`).
- */
-export function parseSitemapEntries(xml: string): SitemapEntry[] {
-  const entries: SitemapEntry[] = [];
-  const undated = (text: string): void => {
-    for (const loc of parseSitemapLocs(text)) {
-      entries.push({ loc, lastmod: null });
-    }
-  };
-  let cursor = 0;
-  for (const block of upToLast(xml, /<\/url>/gi).matchAll(
-    /<url(?=[\s>])[^<>]*>([\s\S]*?)<\/url>/gi,
-  )) {
-    undated(xml.slice(cursor, block.index));
-    const body = block[1] ?? '';
-    const lastmod = entryLastmod(body);
-    for (const loc of parseSitemapLocs(body)) entries.push({ loc, lastmod });
-    cursor = block.index + block[0].length;
-  }
-  undated(xml.slice(cursor));
-  return entries;
-}
-
 /** `href` targets of a page's anchors, entity-decoded — attribute values
  * are entity-encoded by spec, so `?a=1&amp;b=2` in the markup means
  * `?a=1&b=2` to the browser and must mean the same to the crawler. */
@@ -670,6 +529,63 @@ export function siteHosts(domain: string): Set<string> {
   if (host.startsWith('www.')) hosts.add(host.slice(4));
   else hosts.add(`www.${host}`);
   return hosts;
+}
+
+const wordsOf = (text: string): string[] =>
+  text.split(/\s+/).filter((word) => word !== '');
+
+/**
+ * How much of the text a browser shows for a page its plain HTML already
+ * carries: the share of the rendered text's words found in the text read
+ * out of the unrendered HTML, each word counted as often as it occurs. `1`
+ * for a page whose rendered text is empty — nothing it shows is missing.
+ */
+export function plainTextCoverage(
+  plainText: string,
+  renderedText: string,
+): number {
+  const rendered = wordsOf(renderedText);
+  if (rendered.length === 0) return 1;
+  const carried = new Map<string, number>();
+  for (const word of wordsOf(plainText)) {
+    carried.set(word, (carried.get(word) ?? 0) + 1);
+  }
+  let found = 0;
+  for (const word of rendered) {
+    const left = carried.get(word) ?? 0;
+    if (left === 0) continue;
+    carried.set(word, left - 1);
+    found += 1;
+  }
+  return found / rendered.length;
+}
+
+/** The share of a rendered page's words its plain HTML has to carry for the
+ * page to count as server-rendered. Measured, 2026-10-06: server-rendered
+ * pages sit between 0.87 and 1.00 (the rest is what their scripts add — a
+ * consent banner, a counter, a hydrated widget), a page built by its
+ * JavaScript at 0.01. Nine in ten keeps the first kind and can never admit
+ * the second; a page in between is rendered, which is only slower. */
+export const PLAIN_TEXT_COVERAGE_FLOOR = 0.9;
+
+/**
+ * Whether a page's plain HTML carries what a browser shows for it — the
+ * page is server-rendered, so one plain request can tell a later scan
+ * whether it changed: the same text read out of the plain HTML is the same
+ * page. False for a page built by its JavaScript, whose plain HTML is a
+ * shell that reads the same whatever the page shows; such a page has to be
+ * rendered to be judged.
+ *
+ * Decided per page from the two texts of one visit, never from the site,
+ * its framework or its markup.
+ */
+export function plainTextCarriesRendered(
+  plainText: string,
+  renderedText: string,
+): boolean {
+  return (
+    plainTextCoverage(plainText, renderedText) >= PLAIN_TEXT_COVERAGE_FLOOR
+  );
 }
 
 /** Split page text into the paragraphs the boilerplate ledger hashes. Short

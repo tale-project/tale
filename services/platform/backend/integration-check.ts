@@ -34,12 +34,14 @@ import path from 'node:path';
 
 import { serve } from '@hono/node-server';
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { computeContentHash } from '@tale/shared/utils/hashing';
 import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 import * as XLSX from 'xlsx';
 import { z } from 'zod';
 
 import { robotsPolicyFromStored } from '../lib/knowledge/crawl-parse.ts';
+import { htmlToText } from '../lib/knowledge/html-to-text.ts';
 import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
@@ -33831,35 +33833,37 @@ async function checkWebsitesCrawl(
   // page, no robots.txt and no sitemap, so the scan that restores the
   // registration finishes on the homepage.
   const HEAL_DOMAIN = 'itest-heal.example';
-  // A site whose sitemap dates its pages — the lastmod lanes (2026-10-06).
-  // Its own fixture, with a count of the requests each path answered, so a
-  // lane can tell a page a scan left alone from one it read again. Six
-  // sitemap URLs: under the link-walk threshold, so discovery also reads
-  // the homepage for links on every scan — the lanes judge the other pages.
-  const LASTMOD_DOMAIN = 'itest-lastmod.example';
-  const OLD_LASTMOD = '2024-03-01';
-  const lastmodDates = new Map<string, string | null>([
-    ['/', OLD_LASTMOD],
-    ['/old.txt', OLD_LASTMOD],
-    ['/zoned.txt', '2024-03-01T10:00:00+01:00'],
-    ['/undated.txt', null],
-    ['/stale.txt', OLD_LASTMOD],
-    ['/moved.txt', OLD_LASTMOD],
+  // A site for the change-check lanes (2026-10-06). Its fake server answers
+  // a conditional request the way a real one does — 304 when the validator
+  // it is asked about still stands — and counts what it sent for each page:
+  // the page, or a 304 in its place. `/page.html` is the page of a server
+  // that gives no modification time: no validator, and a new token in every
+  // response, around text that does not change.
+  const CHECK_DOMAIN = 'itest-check.example';
+  const checkPage = (word: string, version: string): string =>
+    `Change-check fixture ${word} page ${version}. Enough words about the ${word} subsystem to survive the chunking thresholds of the pipeline.`;
+  const checkSite = new Map<
+    string,
+    { body: string; etag?: string; lastModified?: string }
+  >([
+    ['/', { body: checkPage('home', 'v1') }],
+    ['/tagged.txt', { body: checkPage('tagged', 'v1'), etag: '"t1"' }],
+    [
+      '/dated.txt',
+      {
+        body: checkPage('dated', 'v1'),
+        lastModified: 'Fri, 10 Jul 2026 09:11:16 GMT',
+      },
+    ],
+    ['/plain.txt', { body: checkPage('plain', 'v1') }],
   ]);
-  const lastmodBodies = new Map<string, string>(
-    [...lastmodDates.keys()].map((route) => [
-      route,
-      `Lastmod fixture page ${route} v1. Enough words about the sitemap dates of this page to survive the chunking thresholds of the pipeline.`,
-    ]),
-  );
-  const lastmodHits = new Map<string, number>();
-  const lastmodSitemap = (): string =>
-    `<?xml version="1.0"?><urlset>${[...lastmodDates]
-      .map(
-        ([route, date]) =>
-          `<url><loc>https://${LASTMOD_DOMAIN}${route}</loc>${date === null ? '' : `<lastmod>${date}</lastmod>`}</url>`,
-      )
-      .join('')}</urlset>`;
+  const checkSitemapRoutes = [...checkSite.keys()];
+  const checkSent = new Map<string, { bodies: number; notModified: number }>();
+  let checkToken = 0;
+  const checkHtml = (): string => {
+    checkToken += 1;
+    return `<html><head><meta name="csrf-token" content="token-${checkToken}"><title>Check fixture</title></head><body><main><p>${checkPage('html', 'v1')}</p></main><script>window.nonce = "${checkToken}"</script></body></html>`;
+  };
   const FAKE_HOSTS = new Set([
     DOMAIN,
     `www.${DOMAIN}`,
@@ -33931,22 +33935,62 @@ async function checkWebsitesCrawl(
       });
     }
     if (
-      url.hostname === LASTMOD_DOMAIN ||
-      url.hostname === `www.${LASTMOD_DOMAIN}`
+      url.hostname === CHECK_DOMAIN ||
+      url.hostname === `www.${CHECK_DOMAIN}`
     ) {
-      lastmodHits.set(url.pathname, (lastmodHits.get(url.pathname) ?? 0) + 1);
-      const body =
-        url.pathname === '/robots.txt'
-          ? `User-agent: *\nSitemap: https://${LASTMOD_DOMAIN}/sitemap.xml\n`
-          : url.pathname === '/sitemap.xml'
-            ? lastmodSitemap()
-            : lastmodBodies.get(url.pathname);
-      if (body === undefined) return new Response('gone', { status: 404 });
-      return new Response(body, {
+      const answer = (body: string, type: string): Response =>
+        new Response(body, {
+          headers: {
+            'content-type': type,
+            'content-length': String(body.length),
+          },
+        });
+      if (url.pathname === '/robots.txt') {
+        return answer(
+          `User-agent: *\nSitemap: https://${CHECK_DOMAIN}/sitemap.xml\n`,
+          'text/plain',
+        );
+      }
+      if (url.pathname === '/sitemap.xml') {
+        return answer(
+          `<?xml version="1.0"?><urlset>${checkSitemapRoutes
+            .map(
+              (route) =>
+                `<url><loc>https://${CHECK_DOMAIN}${route}</loc></url>`,
+            )
+            .join('')}</urlset>`,
+          'application/xml',
+        );
+      }
+      const sent = checkSent.get(url.pathname) ?? { bodies: 0, notModified: 0 };
+      checkSent.set(url.pathname, sent);
+      if (url.pathname === '/page.html') {
+        sent.bodies += 1;
+        return answer(checkHtml(), 'text/html; charset=utf-8');
+      }
+      const page = checkSite.get(url.pathname);
+      if (!page) return new Response('gone', { status: 404 });
+      const validators = {
+        ...(page.etag === undefined ? {} : { etag: page.etag }),
+        ...(page.lastModified === undefined
+          ? {}
+          : { 'last-modified': page.lastModified }),
+      };
+      const asked = new Headers(init?.headers);
+      if (
+        (page.etag !== undefined && asked.get('if-none-match') === page.etag) ||
+        (page.lastModified !== undefined &&
+          asked.get('if-modified-since') === page.lastModified)
+      ) {
+        sent.notModified += 1;
+        return new Response(null, { status: 304, headers: validators });
+      }
+      sent.bodies += 1;
+      return new Response(page.body, {
         headers: {
-          'content-type':
-            url.pathname === '/sitemap.xml' ? 'application/xml' : 'text/plain',
-          'content-length': String(body.length),
+          'content-type': 'text/plain',
+          'content-length': String(page.body.length),
+          ...validators,
         },
       });
     }
@@ -35238,149 +35282,180 @@ async function checkWebsitesCrawl(
       await v1(`/websites/${robotsId}`, { method: 'DELETE' });
     }
 
-    // 4h. A rescan leaves alone the pages the site's sitemap says have not
-    //     changed (2026-10-06). The crawler read `<loc>` out of a sitemap
-    //     and nothing else, so every scan requested every page again — a
-    //     site that dated all its pages answered thousands of requests a
-    //     scan for pages unchanged in months. A page is now requested when
-    //     its entry carries no date, when the date moved past the last
-    //     read, when the sitemap no longer states it, when the last read is
-    //     older than a week, and on a scan a person started.
-    const lastmodCreated = z.looseObject({ id: z.string() }).safeParse(
+    // 4h. A scan asks for each page once, and a page that did not change is
+    //     neither downloaded nor rendered again (2026-10-06). The crawler's
+    //     one way to learn whether a page had changed was to do everything
+    //     again: fetch it, render it with every asset a render loads, and
+    //     compare content hashes afterwards — some 8,000 requests a scan on
+    //     a 700-page site whose pages had not changed in months. The request
+    //     now carries the validators of the last visit, a 304 ends it, and
+    //     for a server that gives no modification time the text of the
+    //     plain HTML is compared. "Scan now" asks the same way.
+    const checkCreated = z.looseObject({ id: z.string() }).safeParse(
       await (
         await v1('/websites', {
-          body: { domain: LASTMOD_DOMAIN, scanInterval: '6h' },
+          body: { domain: CHECK_DOMAIN, scanInterval: '6h' },
         })
       ).json(),
     );
-    const lastmodId = lastmodCreated.success ? lastmodCreated.data.id : '';
+    const checkId = checkCreated.success ? checkCreated.data.id : '';
     await drainCrawlJobs();
-    const lastmodUrl = (route: string) => `https://${LASTMOD_DOMAIN}${route}`;
-    const lastmodPages = [
-      '/old.txt',
-      '/zoned.txt',
-      '/undated.txt',
-      '/stale.txt',
-      '/moved.txt',
+    const checkUrl = (route: string) => `https://${CHECK_DOMAIN}${route}`;
+    const checkRoutes = [
+      '/tagged.txt',
+      '/dated.txt',
+      '/plain.txt',
+      '/page.html',
     ];
-    /** How often each page was requested since `before`, as `route:n`. */
-    const requestedSince = (before: Map<string, number>): string =>
-      lastmodPages
-        .map(
-          (route) =>
-            `${route}:${(lastmodHits.get(route) ?? 0) - (before.get(route) ?? 0)}`,
-        )
+    const checkSnapshot = () =>
+      new Map([...checkSent].map(([route, sent]) => [route, { ...sent }]));
+    /** What the site sent for each page since `before`, as
+     * `route:bodies/304s`. */
+    const sentSince = (before: ReturnType<typeof checkSnapshot>): string =>
+      checkRoutes
+        .map((route) => {
+          const now = checkSent.get(route) ?? { bodies: 0, notModified: 0 };
+          const then = before.get(route) ?? { bodies: 0, notModified: 0 };
+          return `${route}:${now.bodies - then.bodies}/${now.notModified - then.notModified}`;
+        })
         .join(' ');
-    const lastmodRescan = async (): Promise<string> => {
-      const before = new Map(lastmodHits);
+    /** Every page reads as last visited two days ago, so a fresh stamp is
+     * this scan's. */
+    const checkRescan = async (): Promise<string> => {
+      await pool`
+        UPDATE public_web.website_urls
+           SET last_crawled_at = now() - interval '2 days'
+         WHERE domain = ${CHECK_DOMAIN}
+      `;
+      const before = checkSnapshot();
       await websites.runWebsitesScan(sql, {
-        domain: LASTMOD_DOMAIN,
+        domain: CHECK_DOMAIN,
         orgSlug,
         organizationId: orgId,
       });
       await drainCrawlJobs();
-      return requestedSince(before);
+      return sentSince(before);
     };
-    /** The date each page's row carries, as `route:instant`. */
-    const lastmodStored = async (): Promise<string> =>
+    const checkRow = async (route: string) =>
       (
-        await pool<{ url: string; lastmod: string | null }[]>`
-          SELECT url,
-                 to_char(sitemap_lastmod AT TIME ZONE 'UTC',
-                         'YYYY-MM-DD"T"HH24:MI"Z"') AS lastmod
-          FROM public_web.website_urls
-          WHERE domain = ${LASTMOD_DOMAIN} AND url <> ${lastmodUrl('/')}
-          ORDER BY url
+        await pool<
+          {
+            status: string;
+            etag: string | null;
+            lastModified: string | null;
+            probeHash: string | null;
+            visited: boolean;
+            chunks: string;
+            text: string | null;
+          }[]
+        >`
+          SELECT u.status, u.etag, u.last_modified AS "lastModified",
+                 u.probe_hash AS "probeHash",
+                 u.last_crawled_at > now() - interval '1 hour' AS visited,
+                 (SELECT count(*)::text FROM public_web.chunks c
+                   WHERE c.domain = u.domain AND c.url = u.url) AS chunks,
+                 (SELECT string_agg(c.chunk_content, ' ') FROM public_web.chunks c
+                   WHERE c.domain = u.domain AND c.url = u.url) AS text
+          FROM public_web.website_urls u
+          WHERE u.domain = ${CHECK_DOMAIN} AND u.url = ${checkUrl(route)}
         `
-      )
-        .map(
-          (row) =>
-            `${row.url.replace(`https://${LASTMOD_DOMAIN}`, '')}:${row.lastmod ?? 'none'}`,
-        )
-        .join(' ');
-    const lastmodFirst = await pool<{ active: string }[]>`
-      SELECT count(*) FILTER (WHERE status = 'active')::text AS active
-      FROM public_web.website_urls WHERE domain = ${LASTMOD_DOMAIN}
-    `;
+      )[0];
 
-    // The first rescan: every dated page was read after its date, so none
-    // is requested; the page without a date is.
-    const lastmodSecond = await lastmodRescan();
-    const lastmodDatesStored = await lastmodStored();
+    // The first scan stored every page and kept what each response gave to
+    // check it by. The rescan: the two pages the server vouches for are
+    // not sent again; the one without a validator is.
+    const taggedFirst = await checkRow('/tagged.txt');
+    const datedFirst = await checkRow('/dated.txt');
+    const checkSecond = await checkRescan();
+    const taggedSecond = await checkRow('/tagged.txt');
+    const datedSecond = await checkRow('/dated.txt');
     record(
-      'websites lastmod: a rescan requests no page its sitemap dates as unchanged, and the page without a date',
-      lastmodCreated.success &&
-        lastmodFirst[0]?.active === '6' &&
-        lastmodSecond ===
-          '/old.txt:0 /zoned.txt:0 /undated.txt:1 /stale.txt:0 /moved.txt:0' &&
-        // A date alone covers its whole day in any time zone; a time with a
-        // zone is that instant.
-        lastmodDatesStored ===
-          '/moved.txt:2024-03-02T12:00Z /old.txt:2024-03-02T12:00Z /stale.txt:2024-03-02T12:00Z /undated.txt:none /zoned.txt:2024-03-01T09:00Z',
-      `created=${lastmodCreated.success} firstScanActive=${lastmodFirst[0]?.active ?? '?'}/6, rescan requested [${lastmodSecond}] (want old 0, zoned 0, undated 1, stale 0, moved 0), stored [${lastmodDatesStored}]`,
+      'websites change check: a page the server vouches for is not downloaded again, and is stamped as visited',
+      checkCreated.success &&
+        taggedFirst?.etag === '"t1"' &&
+        datedFirst?.lastModified === 'Fri, 10 Jul 2026 09:11:16 GMT' &&
+        checkSecond ===
+          '/tagged.txt:0/1 /dated.txt:0/1 /plain.txt:1/0 /page.html:0/0' &&
+        (taggedSecond?.visited ?? false) &&
+        (datedSecond?.visited ?? false) &&
+        taggedSecond?.status === 'active' &&
+        taggedSecond.chunks === taggedFirst.chunks &&
+        Number(taggedSecond.chunks) >= 1,
+      `created=${checkCreated.success} first scan kept etag=${taggedFirst?.etag ?? 'none'}/"t1" lastModified=${datedFirst?.lastModified ?? 'none'}, rescan sent bodies/304s [${checkSecond}] (want tagged 0/1, dated 0/1, plain 1/0), stamped tagged=${taggedSecond?.visited ?? '?'} dated=${datedSecond?.visited ?? '?'}, chunks ${taggedFirst?.chunks ?? '?'}→${taggedSecond?.chunks ?? '?'}`,
     );
 
-    // A date that moved, a date the sitemap dropped, and a read older than
-    // a week: each is requested again, and the changed page is re-indexed.
-    lastmodDates.set('/moved.txt', new Date().toISOString());
-    lastmodBodies.set(
-      '/moved.txt',
-      'Lastmod fixture page /moved.txt v2. Rewritten words about the sitemap dates of this page so its content hash flips and its chunks are cut again.',
+    // A page that changed is sent and indexed again. And an HTML page of a
+    // server without validators — a new token in every response, the same
+    // text — is found unchanged by that text: the scan ends without a
+    // render session, which this harness could not open.
+    checkSite.set('/tagged.txt', {
+      body: checkPage('tagged', 'v2'),
+      etag: '"t2"',
+    });
+    const htmlText = htmlToText(checkHtml());
+    const htmlHash = computeContentHash(htmlText);
+    await pool`
+      INSERT INTO public_web.website_urls
+        (domain, url, status, discovered_at, listed, last_crawled_at,
+         word_count, content, content_hash, probe_hash)
+      VALUES (${CHECK_DOMAIN}, ${checkUrl('/page.html')}, 'active', NOW(), FALSE,
+              NOW() - INTERVAL '2 days', 20, ${htmlText}, ${htmlHash}, ${htmlHash})
+      ON CONFLICT (domain, url) DO NOTHING
+    `;
+    await pool`
+      INSERT INTO public_web.chunks
+        (domain, url, title, content_hash, chunk_index, chunk_content)
+      VALUES (${CHECK_DOMAIN}, ${checkUrl('/page.html')}, 'Check fixture', ${htmlHash}, 0, ${htmlText})
+      ON CONFLICT DO NOTHING
+    `;
+    checkSitemapRoutes.push('/page.html');
+    const checkThird = await checkRescan();
+    const taggedThird = await checkRow('/tagged.txt');
+    const htmlThird = await checkRow('/page.html');
+    const checkCorpus = await pool<{ status: string; error: string | null }[]>`
+      SELECT status, error FROM public_web.websites WHERE domain = ${CHECK_DOMAIN}
+    `;
+    record(
+      'websites change check: a changed page is downloaded and indexed again, and an HTML page whose text reads the same ends the scan without a browser',
+      checkThird ===
+        '/tagged.txt:1/0 /dated.txt:0/1 /plain.txt:1/0 /page.html:1/0' &&
+        taggedThird?.etag === '"t2"' &&
+        (taggedThird.text ?? '').includes('v2') &&
+        !(taggedThird.text ?? '').includes('v1') &&
+        htmlThird?.status === 'active' &&
+        htmlThird.visited &&
+        htmlThird.probeHash === htmlHash &&
+        htmlThird.chunks === '1' &&
+        checkCorpus[0]?.status === 'completed' &&
+        checkCorpus[0].error === null,
+      `rescan sent bodies/304s [${checkThird}] (want tagged 1/0, dated 0/1, plain 1/0, html 1/0), tagged etag=${taggedThird?.etag ?? 'none'}/"t2" reindexed=${(taggedThird?.text ?? '').includes('v2')}, html=${htmlThird?.status ?? 'MISSING'}/active stamped=${htmlThird?.visited ?? '?'} hashKept=${htmlThird?.probeHash === htmlHash} chunks=${htmlThird?.chunks ?? '?'}/1, scan=${checkCorpus[0]?.status ?? '?'}/completed error=${checkCorpus[0]?.error ?? 'null'}`,
     );
-    lastmodDates.set('/zoned.txt', null);
+
+    // "Scan now" is the same scan, started by a person: it asks each page
+    // the same way and is answered the same way.
     await pool`
       UPDATE public_web.website_urls
-         SET last_crawled_at = now() - interval '8 days'
-       WHERE domain = ${LASTMOD_DOMAIN} AND url = ${lastmodUrl('/stale.txt')}
+         SET last_crawled_at = now() - interval '2 days'
+       WHERE domain = ${CHECK_DOMAIN}
     `;
-    const lastmodThird = await lastmodRescan();
-    const movedChunks = await pool<{ content: string }[]>`
-      SELECT chunk_content AS content FROM public_web.chunks
-      WHERE domain = ${LASTMOD_DOMAIN} AND url = ${lastmodUrl('/moved.txt')}
-    `;
-    const staleRead = await pool<{ recent: boolean }[]>`
-      SELECT last_crawled_at > now() - interval '1 hour' AS recent
-      FROM public_web.website_urls
-      WHERE domain = ${LASTMOD_DOMAIN} AND url = ${lastmodUrl('/stale.txt')}
-    `;
-    record(
-      'websites lastmod: a moved date, a date the sitemap dropped and a read older than a week are requested again',
-      lastmodThird ===
-        '/old.txt:0 /zoned.txt:1 /undated.txt:1 /stale.txt:1 /moved.txt:1' &&
-        movedChunks.length >= 1 &&
-        movedChunks.every((chunk) => chunk.content.includes('v2')) &&
-        (staleRead[0]?.recent ?? false),
-      `rescan requested [${lastmodThird}] (want old 0, zoned 1, undated 1, stale 1, moved 1), movedChunks=${movedChunks.length} allV2=${movedChunks.every((chunk) => chunk.content.includes('v2'))}, staleReadNow=${staleRead[0]?.recent ?? '?'}`,
-    );
-
-    // "Scan now" is a person saying the site changed: every page is
-    // requested, and the scan records no date. The scheduled scan after it
-    // honours the dates again — and requests the page whose date moved
-    // within the hour once more, as a cache in front of the site may still
-    // have served its earlier text.
-    const beforeScanNow = new Map(lastmodHits);
+    const beforeScanNow = checkSnapshot();
     const scanNow = z
       .looseObject({ queued: z.boolean() })
-      .safeParse(await (await post(`/${lastmodId}/scan`, {})).json());
+      .safeParse(await (await post(`/${checkId}/scan`, {})).json());
     await drainCrawlJobs();
-    const lastmodFull = requestedSince(beforeScanNow);
-    const lastmodAfterFull = await lastmodStored();
-    const lastmodFifth = await lastmodRescan();
-    const lastmodAfterFifth = await lastmodStored();
+    const checkScanNow = sentSince(beforeScanNow);
+    const htmlScanNow = await checkRow('/page.html');
     record(
-      'websites lastmod: Scan now requests every page, and the next scheduled scan honours the dates again',
+      'websites change check: Scan now asks each page the same way as a scheduled scan',
       scanNow.success &&
         scanNow.data.queued &&
-        lastmodFull ===
-          '/old.txt:1 /zoned.txt:1 /undated.txt:1 /stale.txt:1 /moved.txt:1' &&
-        !lastmodAfterFull.includes('Z') &&
-        lastmodFifth ===
-          '/old.txt:0 /zoned.txt:1 /undated.txt:1 /stale.txt:0 /moved.txt:1' &&
-        lastmodAfterFifth.includes('/old.txt:2024-03-02T12:00Z'),
-      `scanNow queued=${scanNow.success ? scanNow.data.queued : 'BAD SHAPE'} requested [${lastmodFull}] (want every page 1) stored [${lastmodAfterFull}] (want none), next scan requested [${lastmodFifth}] (want old 0, zoned 1, undated 1, stale 0, moved 1) stored [${lastmodAfterFifth}]`,
+        checkScanNow ===
+          '/tagged.txt:0/1 /dated.txt:0/1 /plain.txt:1/0 /page.html:1/0' &&
+        (htmlScanNow?.visited ?? false),
+      `scanNow queued=${scanNow.success ? scanNow.data.queued : 'BAD SHAPE'} sent bodies/304s [${checkScanNow}] (want tagged 0/1, dated 0/1, plain 1/0, html 1/0) htmlStamped=${htmlScanNow?.visited ?? '?'}`,
     );
-    if (lastmodId !== '') {
-      await v1(`/websites/${lastmodId}`, { method: 'DELETE' });
+    if (checkId !== '') {
+      await v1(`/websites/${checkId}`, { method: 'DELETE' });
     }
 
     // 4f. Round g, g4-5: a site whose every page failed is not "a successful

@@ -269,23 +269,22 @@ networks for the crawler.
   networks, and the operator then turns that off → the next scan requests none of its pages
   and shows each as failed, with a private address as the reason.
 
-### KNOW-R16 · The crawler does not request again a page its sitemap says is unchanged
+### KNOW-R16 · The crawler opens a page in the browser again only when it changed
 
-A site's sitemap can state when each page last changed. A scheduled scan leaves a page alone
-when the crawler read it after that date, and requests every other page: one without a date,
-one whose date moved, one whose last read failed. A date without a time counts for its whole
-day. A page is requested again once its last read is more than seven days old, whatever its
-date says, because a sitemap can keep a date while the page changes. **Scan now** requests
-every page.
+A scan asks for each page once. The page is left as it is when the site's server answers
+that it has not changed, or, for a server that gives no modification time, when the text of
+the page reads as it did at the last visit. Only a page that changed is opened in the
+browser and indexed again. A page whose content only its own JavaScript draws is the
+exception: it is opened on every scan. **Scan now** asks the same way as a scheduled scan.
 
-- **Example**: The sitemap of `docs.example` dates `/pricing` 1 March, and the crawler last
-  read the page on 5 March → the scan on 6 March does not request it.
-- **Example**: The site changes `/pricing` and its sitemap dates the page 7 March → the next
-  scan requests it.
-- **Example**: `/blog` lists every new article and keeps its date of 1 January → it is
-  requested again a week after its last read.
-- **Example**: Noah selects **Scan now** → every page of `docs.example` is requested,
-  `/pricing` included.
+- **Example**: `docs.example` answers `304 Not Modified` for `/pricing` → the page is not
+  downloaded, and no browser is opened for it.
+- **Example**: `/blog` is built on every request, with a new token in each response around
+  the same text → the scan reads it once and leaves it as it is.
+- **Example**: The site adds an article to `/blog` → the next scan finds other text, opens
+  the page in the browser and indexes it again.
+- **Example**: Noah selects **Scan now** → every page is asked once, and only the changed
+  ones are opened in the browser.
 
 ## Not yet
 
@@ -314,7 +313,7 @@ every page.
   `core/knowledge/crawl_limits.ts`, `lib/knowledge/crawl-parse.ts`). Of the limits, only the
   size limit for one document has a test, and that test holds the setting, not the refusal.
   The contract debt ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records that
-  the crawler's clocks and limits are not on the API, and that a page is fetched several times
+  the crawler's clocks and limits are not on the API, and that a changed page is fetched twice
   a scan.
 - **`KNOW-R15` covers a page's own address.** A public name that leads to a private address,
   a redirect into a private network, and the cloud provider addresses that the operator's

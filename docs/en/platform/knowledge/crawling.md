@@ -42,7 +42,7 @@ For a whole website, the crawler uses the homepage and published sitemaps, inclu
 
 Scans are incremental. Unchanged content is skipped, changed content is indexed again, new pages are added, and removed pages leave the index — and so do pages `robots.txt` has come to disallow. A page that redirects to another address of the same site is indexed once, under the address it lands on. The row's page counts follow the scan as pages land, after discovery and after every stored batch, so the table moves while a scan runs. A URL list follows the same refresh schedule with its fixed selection. There is no separate publish step after successful indexing.
 
-A scan does not request every page each time. When a page's sitemap entry carries a `<lastmod>` date and the crawler read the page after that date, the page is left alone until the date moves. A date without a time counts for its whole day, so a page changed today is read again on each scan until the following day. A dated page is still read again once its last read is more than seven days old, because a sitemap can keep a date while the page changes, as a page that lists the latest articles does. A page whose entry has no readable date, or that no sitemap lists, is requested on every scan. A site that publishes accurate `<lastmod>` dates in its sitemap is therefore asked for few pages on a repeat scan.
+A scan asks for each page once. It sends along what the site's server said about the page at the last visit, and a server that answers `304 Not Modified` is not asked for the page again. Many servers build their pages on request and give no modification time; for those the crawler compares the text of the page it receives. Either way, a page that did not change is not opened in the browser, so none of its images, scripts and stylesheets are loaded. A page whose content is drawn by its own JavaScript is the exception: only a browser can read it, so it is rendered on every scan.
 
 The crawler visits as an anonymous reader. Content that depends on a private session is not made accessible by adding its URL. It identifies itself on every request as `TaleBot/<version> (+https://docs.tale.dev/platform/knowledge/crawling)`, so a `robots.txt` group can address it by name — `User-agent: TaleBot` — to allow, throttle or refuse it alone.
 
@@ -64,7 +64,7 @@ There is no configurable page cap, include/exclude path filter, or stop-scan but
 
 ## Check what was indexed
 
-The table shows **Status**, the **Indexed** page count, **Scanned**, and **Interval**. Open the source row to inspect its page list, word and chunk counts, and last-crawled times. A page a scan left alone on its sitemap date keeps the time of its last read. Expand a page to read its stored text chunks. A failed fetch shows its reason and number of consecutive failures. A page the crawler skipped on purpose — the source asked not to be indexed, the content type has no readable text, or a redirect left the site — reads **Skipped** with its reason and does not count as failed.
+The table shows **Status**, the **Indexed** page count, **Scanned**, and **Interval**. Open the source row to inspect its page list, word and chunk counts, and last-crawled times. Expand a page to read its stored text chunks. A failed fetch shows its reason and number of consecutive failures. A page the crawler skipped on purpose — the source asked not to be indexed, the content type has no readable text, or a redirect left the site — reads **Skipped** with its reason and does not count as failed.
 
 | Status | Meaning |
 | --- | --- |
@@ -75,7 +75,7 @@ The table shows **Status**, the **Indexed** page count, **Scanned**, and **Inter
 
 A scan that was under way when Tale restarted, was updated or stopped without warning continues on its own within a few minutes, with the pages it had not reached yet. Pages that need the browser can follow up to a quarter of an hour later. The source reads **Scanning** throughout.
 
-To scan outside the interval, open the source's row menu or its details and choose **Scan now**. It requests every page again, whatever the sitemap dates say. Use it after the site changed, or after a failed scan, which otherwise retries on its own within two hours. The action is offered while the source is neither scanning nor being deleted.
+To scan outside the interval, open the source's row menu or its details and choose **Scan now**. Use it after the site changed, or after a failed scan, which otherwise retries on its own within two hours. The action is offered while the source is neither scanning nor being deleted.
 
 The page view also offers search over indexed content. Try a distinctive phrase from a page before relying on it in chat, then ask a specific question and inspect the citation.
 
@@ -96,6 +96,6 @@ First check the address, source type, and latest scan time. Then open the source
 | **Error** with "The embedding model couldn't process the pages." | The embedding provider refused or failed the request: a rejected credential, an exhausted balance, a rate limit that held through every retry, or an outage. The source's details say which, with the provider's own reply beneath. An administrator repairs the model under **Settings > Data residency** or its credential under **Settings > AI providers**; saving either one scans the affected sources again. After an outage on the provider's side, choose **Scan now** once it is back. |
 | **Error** with "Scanning didn't run." | The crawler's browser could not start, so no page was rendered; its report is under **Technical details** in the source's details. The address is not the cause: ask your operator to check the sandbox service, then choose **Scan now**. |
 
-A successful later fetch clears the previous error. A failed refresh can leave an earlier indexed copy available: **Active** and an indexed count do not prove every page is up to date. Compare the stored chunks and last-crawled information with the original before relying on a recent change. When a page changed and its sitemap date did not, the scheduled scans catch up within seven days; **Scan now** reads it at once.
+A successful later fetch clears the previous error. A failed refresh can leave an earlier indexed copy available: **Active** and an indexed count do not prove every page is up to date. Compare the stored chunks and last-crawled information with the original before relying on a recent change.
 
 If the source shows **Paused**, repeated failures to reach the knowledge database stopped scans. Ask an administrator to repair the connection under **Settings > Data residency**, then use **Resume scanning**.

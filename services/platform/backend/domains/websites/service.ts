@@ -1303,9 +1303,7 @@ export async function websitesAfterEmbeddingChange(
   for (const website of rows) {
     if (scanPausedAt(website.metadata ?? undefined) !== null) continue;
     if (website.status !== 'error' && !vectorless.has(website.domain)) continue;
-    if ((await scanWebsiteNow(sql, website, { full: false })).queued) {
-      queued += 1;
-    }
+    if ((await scanWebsiteNow(sql, website)).queued) queued += 1;
   }
   return { queued };
 }
@@ -1349,15 +1347,8 @@ export async function deregisterAndDeleteWebsite(
  * Put a site back on the crawl now: the row reads `scanning`, its failure
  * bookkeeping is cleared and a scan is queued — in one transaction, so a row
  * never reads `scanning` without the job that will scan it.
- *
- * A `full` scan requests every page; any other leaves alone the pages the
- * site's sitemap says have not changed, as a scheduled scan does.
  */
-async function queueScan(
-  sql: Sql,
-  website: WebsiteRow,
-  options: { full: boolean },
-): Promise<void> {
+async function queueScan(sql: Sql, website: WebsiteRow): Promise<void> {
   const orgSlug = await requireSlug(sql, website.organizationId);
   await sql.begin(async (tx) => {
     await patchWebsite(tx, {
@@ -1378,19 +1369,16 @@ async function queueScan(
       domain: website.domain,
       orgSlug,
       organizationId: website.organizationId,
-      ...(options.full ? { full: true } : {}),
     });
   });
 }
 
-/** Resume paused scans and kick a verification scan now (the 0.4 twin). The
- * scan answers whether scanning works again, not a change of the site, so
- * it is an ordinary one. */
+/** Resume paused scans and kick a verification scan now (the 0.4 twin). */
 export async function resumeScanning(
   sql: Sql,
   website: WebsiteRow,
 ): Promise<void> {
-  await queueScan(sql, website, { full: false });
+  await queueScan(sql, website);
 }
 
 /**
@@ -1400,24 +1388,15 @@ export async function resumeScanning(
  * already scanning, or being deleted, is left as it is — the corpus claim
  * would turn a second scan away anyway — and the answer says nothing was
  * queued.
- *
- * On a person's word the scan is a `full` one and requests every page:
- * "Scan now" is how someone says the site changed, and under the scheduled
- * scan's rule it would read nothing of a site whose sitemap dates are
- * behind its pages. A scan the platform starts for its own reasons — an
- * embedding model was saved — passes `full: false`: nothing says the site
- * changed, and what it is for (embedding stored text, retrying a failed
- * scan) needs no page requested again.
  */
 export async function scanWebsiteNow(
   sql: Sql,
   website: WebsiteRow,
-  options: { full: boolean } = { full: true },
 ): Promise<{ queued: boolean }> {
   if (website.status === 'scanning' || website.status === 'deleting') {
     return { queued: false };
   }
-  await queueScan(sql, website, options);
+  await queueScan(sql, website);
   return { queued: true };
 }
 
@@ -1685,7 +1664,6 @@ export async function runWebsitesScan(
     continuation?: number;
     scanStartedAt?: string;
     takeover?: string;
-    full?: boolean;
   },
   job?: { signal?: AbortSignal; jobId?: string },
 ): Promise<void> {

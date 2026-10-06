@@ -38,12 +38,7 @@ import {
 } from '../../core/knowledge/crawl.ts';
 import { scanWebsiteImpl } from '../../core/knowledge/crawl_action.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import {
-  resumeScanning,
-  runWebsitesScan,
-  scanWebsiteNow,
-  type WebsiteRow,
-} from './service.ts';
+import { runWebsitesScan, scanWebsiteNow, type WebsiteRow } from './service.ts';
 
 const row = (overrides: Partial<WebsiteRow> = {}): WebsiteRow => ({
   id: 'w-1',
@@ -123,12 +118,7 @@ describe('scanWebsiteNow [WEB-R8]', () => {
     await expect(scanWebsiteNow(sql, row())).resolves.toEqual({ queued: true });
 
     expect(scanJobs()).toEqual([
-      {
-        domain: 'example.com',
-        orgSlug: 'acme',
-        organizationId: 'org-1',
-        full: true,
-      },
+      { domain: 'example.com', orgSlug: 'acme', organizationId: 'org-1' },
     ]);
     const update = queries.find((q) =>
       q.text.startsWith('UPDATE app.websites'),
@@ -153,50 +143,6 @@ describe('scanWebsiteNow [WEB-R8]', () => {
       expect(queries).toEqual([]);
     },
   );
-});
-
-/**
- * A scheduled scan leaves alone the pages a site's sitemap says have not
- * changed. "Scan now" is how a person says the site did change, so its scan
- * asks for every page; a scan the platform starts for its own reasons does
- * not.
- */
-describe('a scan a person starts, and one the platform starts', () => {
-  const ordinary = {
-    domain: 'example.com',
-    orgSlug: 'acme',
-    organizationId: 'org-1',
-  };
-
-  it('Scan now asks for every page [KNOW-R16]', async () => {
-    await scanWebsiteNow(fakeSql([row()]).sql, row());
-
-    expect(scanJobs()).toEqual([{ ...ordinary, full: true }]);
-  });
-
-  it('a scan the platform starts itself stays an ordinary one', async () => {
-    await scanWebsiteNow(fakeSql([row()]).sql, row(), { full: false });
-
-    expect(scanJobs()).toEqual([ordinary]);
-  });
-
-  // Resuming answers whether scanning works again, not a change of the site.
-  it('Resume scanning queues an ordinary scan', async () => {
-    await resumeScanning(fakeSql([row()]).sql, row());
-
-    expect(scanJobs()).toEqual([ordinary]);
-  });
-
-  it('the first link hands the word on to the engine', async () => {
-    vi.mocked(isMemberDomain).mockResolvedValue(true);
-
-    await runWebsitesScan(fakeSql([row()]).sql, { ...ordinary, full: true });
-
-    expect(scanWebsiteImpl).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ ...ordinary, full: true }),
-    );
-  });
 });
 
 describe('runWebsitesScan — a registration that never landed', () => {

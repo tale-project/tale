@@ -176,7 +176,7 @@ describe('fetchAndStorePage — a redirect inside the site', () => {
 
       await expect(
         fetchAndStorePage(sql, DOMAIN, page(from, listed), EMPTY_ROBOTS_POLICY),
-      ).resolves.toBe('render');
+      ).resolves.toMatchObject({ kind: 'render' });
 
       expect(retired(statements)).toEqual([]);
       expect(admitted(statements)).toEqual([]);
@@ -221,7 +221,7 @@ describe('fetchAndStorePage — a page the crawler does not request', () => {
 
     await expect(
       fetchAndStorePage(sql, DOMAIN, page(url, true), PRIVATE_RULE),
-    ).resolves.toBe('render');
+    ).resolves.toMatchObject({ kind: 'render' });
 
     expect(safeFetchBinary).toHaveBeenCalledTimes(1);
     expect(retired(statements)).toEqual([]);
@@ -258,7 +258,7 @@ describe('fetchAndStorePage — a page the crawler does not request', () => {
 
     await expect(
       fetchAndStorePage(sql, 'intranet.corp', page(url), EMPTY_ROBOTS_POLICY),
-    ).resolves.toBe('render');
+    ).resolves.toMatchObject({ kind: 'render' });
 
     expect(safeFetchBinary).toHaveBeenCalledWith(
       url,

@@ -12,10 +12,13 @@
  * in-process; HTML is rendered in batches by a sandboxed browser
  * (`renderUrlsInSandbox`) so JS-rendered sites yield their real content.
  * The in-process probe stays the authority on page lifecycle — status
- * codes, deletes, size caps, SSRF guards — and content-hash comparison is
- * the only change detection for a page that is requested. A page whose
- * sitemap entry says it has not changed since it was last read is not
- * requested at all (`UNCHANGED_BY_SITEMAP_SQL`).
+ * codes, deletes, size caps, SSRF guards — and it is also where a scan
+ * finds out, with that one request, whether a page changed at all: a
+ * server that answers 304 to the validators of the last visit, or plain
+ * HTML that reads the same as it did then, is a page left as it is. Only a
+ * page that did change — or one whose plain HTML does not carry what a
+ * browser shows — is rendered (`PageCheck`). Content-hash comparison then
+ * decides what a stored page means for the index.
  *
  * A scan is a CONTINUATION CHAIN, not one long action: a Convex node action
  * is hard-killed near ten minutes without running its catch, so each link
@@ -52,8 +55,8 @@ import {
   normalizeCandidateUrl,
   paragraphsForHashing,
   parseRobots,
-  parseSitemapEntries,
   parseSitemapLocs,
+  plainTextCarriesRendered,
   publicPageError,
   renderLaneHaltMessage,
   ROBOTS_TXT_MAX_BYTES,
@@ -100,6 +103,7 @@ import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { extractText } from '../lib/knowledge/extraction/router';
 import { sniffDocumentExtension } from '../lib/knowledge/extraction/sniff';
 import {
+  RENDER_MAX_HTML_BYTES,
   RenderCapacityError,
   renderCapacityPollMs,
   renderUrlsInSandbox,
@@ -112,12 +116,7 @@ import {
 } from '../websites/scan_scheduling';
 import { type PageFailureKind, PAGE_SKIP_KINDS_SQL } from '../websites/types';
 import { readOrgEmbeddingConfig } from './connection';
-import {
-  MAX_URLS_PER_DOMAIN,
-  admitUrls,
-  recordSitemapLastmods,
-  reviveListedUrls,
-} from './crawl';
+import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
 import { crawlDocumentMaxBytes } from './crawl_limits';
 import {
   CRAWLER_PRODUCT_TOKEN,
@@ -220,19 +219,6 @@ const MAX_FETCH_FAILURES = 5;
  * still lets a page revived on the site come back on its own. */
 const BENCHED_PAGE_RETRY_INTERVAL = '7 days';
 
-/** How long a page is left alone on its sitemap's word that it has not
- * changed ({@link UNCHANGED_BY_SITEMAP_SQL}) — a Postgres interval. Past it
- * the page is read again whatever its entry says: a listing page changes
- * with every article it lists and keeps its date, and a site can publish
- * dates it never moves. A week bounds how stale such a page gets, at one
- * request a week. */
-const SITEMAP_LASTMOD_MAX_AGE = '7 days';
-/** How long after the change a sitemap records a read of the page still
- * counts as too early — a Postgres interval. A cache in front of the site
- * can go on serving the earlier text for a while after the edit, and a read
- * that met it would otherwise stand as the current one for a week. */
-const SITEMAP_LASTMOD_SETTLE = '1 hour';
-
 /** Pages the vector backfill reads per query (`PageIndexer.embedVectorless`). */
 const EMBED_BATCH_PAGES = 20;
 
@@ -273,13 +259,6 @@ export async function scanWebsiteImpl(
      * takes exactly that claim over instead of waiting out
      * {@link STUCK_SCAN_TAKEOVER}; a claim that moved since is left alone. */
     takeover?: string;
-    /** Set on the first link of a scan a person started with "Scan now":
-     * every page is requested, whatever the site's sitemap says about when
-     * it last changed. Any other scan leaves an unchanged page alone
-     * ({@link UNCHANGED_BY_SITEMAP_SQL}) — a scheduled one, and the one the
-     * scheduler resumes after a restart, which continues as an ordinary
-     * scan whatever it began as. */
-    full?: boolean;
     /** Aborted once the job this link runs in has ended under it — the
      * process is stopping, or the link outlived the job's expiry. */
     signal?: AbortSignal;
@@ -373,7 +352,6 @@ export async function scanWebsiteImpl(
             actionStartedAt + DISCOVERY_BUDGET_MS,
             robots,
             scanStartedAt,
-            { full: args.full === true },
           );
           const retired = await retireDisallowedRows(sql, args.domain, policy);
           if (retired > 0) {
@@ -400,8 +378,12 @@ export async function scanWebsiteImpl(
       const hardWall = actionStartedAt + ACTION_HARD_WALL_MS;
       const deadline = Math.min(linkStartedAt + SCAN_BUDGET_MS, hardWall);
       const indexer = new PageIndexer(ctx, sql, identity);
-      const renderQueue: DuePage[] = [];
+      const renderQueue: { page: DuePage; probe: PageProbe }[] = [];
       let renderBatchCounter = 0;
+      // What this link's requests found, for the scan's log: how many pages
+      // it asked for, how many of them had not changed, how many it had to
+      // open a browser for.
+      const seen = { requested: 0, unchanged: 0, rendered: 0 };
       // Set once the organization's render sessions stayed spent for the
       // rest of this link's window: the link stops fetching (every HTML
       // page it probed would only queue behind the same wait) and hands the
@@ -456,7 +438,7 @@ export async function scanWebsiteImpl(
         }
         const batch = renderQueue.splice(0);
         renderBatchCounter += 1;
-        const results = await renderBatch(batch);
+        const results = await renderBatch(batch.map((entry) => entry.page));
         if (results === null) {
           // The batch's rows are unmarked and stay due; the next link
           // renders them once a session is free.
@@ -470,7 +452,7 @@ export async function scanWebsiteImpl(
         // A navigation the browser lost twice is the row's to show, without
         // a strike; the lane's own fault (`halted`) fails the scan below,
         // once what rendered is stored.
-        for (const page of batch) {
+        for (const { page, probe } of batch) {
           const outcome = results.outcomes.get(page.url) ?? {
             kind: 'not_attempted' as const,
           };
@@ -501,15 +483,25 @@ export async function scanWebsiteImpl(
             });
             continue;
           }
+          const renderedText = htmlToText(outcome.html);
           const stored = await storePageText(
             sql,
             args.domain,
             page,
             htmlTitle(outcome.html),
-            htmlToText(outcome.html),
+            renderedText,
           );
           await indexer.settle(page.url, stored);
-          await markPageCrawled(sql, args.domain, page.url);
+          // Whether the next scan can judge this page by one request is
+          // decided here, from the two texts of this visit: what the plain
+          // HTML said and what the browser showed.
+          await markPageCrawled(
+            sql,
+            args.domain,
+            page.url,
+            checkAfterRender(probe, renderedText),
+          );
+          seen.rendered += 1;
           if (kind === 'site') {
             await admitRenderedLinks(
               sql,
@@ -549,11 +541,22 @@ export async function scanWebsiteImpl(
             policy,
             scanStartedAt,
           );
-          if (outcome === 'render') renderQueue.push(page);
-          else if (outcome !== 'failed') {
-            await indexer.settle(page.url, outcome);
-            await markPageCrawled(sql, args.domain, page.url);
+          seen.requested += 1;
+          if (outcome === 'not_modified') {
+            seen.unchanged += 1;
+          } else if (typeof outcome === 'object') {
+            if (outcome.kind === 'render') {
+              renderQueue.push({ page, probe: outcome.probe });
+            } else {
+              // A document without validators is downloaded to be judged:
+              // the same text is the same document.
+              if (outcome.outcome === 'unchanged') seen.unchanged += 1;
+              await indexer.settle(page.url, outcome.outcome);
+              await markPageCrawled(sql, args.domain, page.url, outcome.check);
+            }
           }
+          // Any other outcome wrote its own row: a retired page, a failed
+          // attempt.
           await sleep(fetchDelayMs(policy));
           if (renderQueue.length >= RENDER_BATCH_SIZE) await flushRenderBatch();
         }
@@ -564,6 +567,11 @@ export async function scanWebsiteImpl(
         // fold into one run), so the page counts move as pages land instead
         // of at the link's end (2026-09-14 evaluation, h5).
         await fanOutRowSync(ctx, sql, args.domain);
+      }
+      if (seen.requested > 0) {
+        console.log(
+          `[crawl] ${args.domain}: ${seen.requested} page(s) requested, ${seen.unchanged} unchanged, ${seen.rendered} rendered`,
+        );
       }
       // What was stored without vectors — by this scan before an admin saved
       // a model, or by an earlier one — is embedded from its stored text
@@ -948,20 +956,13 @@ async function claimScan(
  * as the fallback) under the robots rules the scan read, and record them as
  * `discovered` rows for the fetch loop. `deadline` bounds the fetching: a
  * discovery cut short records what it has — the next scan's discovery pass
- * tops the frontier up.
- *
- * It also records what the sitemaps say about each page's last change, which
- * is what lets the fetch loop leave an unchanged page alone
- * ({@link UNCHANGED_BY_SITEMAP_SQL}). A `full` scan — one a person started
- * with "Scan now" — records none, and so requests every page: that is how
- * someone says the site changed, whatever its sitemap claims. */
+ * tops the frontier up. */
 async function discoverAndRecordUrls(
   sql: Sql,
   domain: string,
   deadline: number,
   robots: RobotsRules,
   scanStartedAt: string,
-  options: { full: boolean },
 ): Promise<void> {
   const hosts = siteHosts(domain);
   const baseUrl = `https://${domain}/`;
@@ -985,19 +986,12 @@ async function discoverAndRecordUrls(
   if (advertised.length > 0) sitemapCandidates = advertised;
 
   const urls = new Set<string>();
-  // What the sitemaps say about the last change of each admitted page — the
-  // latest date when several entries name one page.
-  const lastmods = new Map<string, Date>();
-  const admit = (candidate: string, lastmod: Date | null = null): boolean => {
+  const admit = (candidate: string): boolean => {
     const normalized = normalizeCandidateUrl(candidate, baseUrl, hosts);
     if (!normalized) return false;
     if (isUrlDisallowed(normalized, robots)) return false;
     if (urls.size >= MAX_URLS_PER_DOMAIN) return true;
     urls.add(normalized);
-    const known = lastmods.get(normalized);
-    if (lastmod !== null && (known === undefined || lastmod > known)) {
-      lastmods.set(normalized, lastmod);
-    }
     return urls.size >= MAX_URLS_PER_DOMAIN;
   };
   admit(baseUrl);
@@ -1063,8 +1057,8 @@ async function discoverAndRecordUrls(
       continue;
     }
     let capped = false;
-    for (const entry of parseSitemapEntries(xml)) {
-      capped = admit(entry.loc, entry.lastmod);
+    for (const loc of parseSitemapLocs(xml)) {
+      capped = admit(loc);
       if (capped) break;
     }
     if (capped) break;
@@ -1134,19 +1128,7 @@ async function discoverAndRecordUrls(
     listed: false,
     retiredBefore: scanStartedAt,
   });
-  // After the admission: a page this scan found first has a row to carry
-  // its date only now.
-  await recordSitemapLastmods(sql, domain, options.full ? new Map() : lastmods);
-  const unchanged = options.full
-    ? 0
-    : await countUnchangedBySitemap(sql, domain, scanStartedAt);
-  console.log(
-    `[crawl] ${domain}: ${urls.size} URLs discovered${
-      unchanged > 0
-        ? `, ${unchanged} not requested (unchanged by their sitemap dates)`
-        : ''
-    }`,
-  );
+  console.log(`[crawl] ${domain}: ${urls.size} URLs discovered`);
 }
 
 interface DuePage {
@@ -1155,62 +1137,178 @@ interface DuePage {
   /** An operator-listed URL: the robots rules do not govern it, and a 404
    * keeps its row. */
   readonly listed: boolean;
+  /** What the page's last settled visit left to check it by
+   * ({@link PageCheck}); absent or null when it left nothing. */
+  readonly etag?: string | null;
+  readonly last_modified?: string | null;
+  readonly probe_hash?: string | null;
+  /** False while a chunk of the page is cut from other text than the row
+   * stores — a scan stored the new text and stopped before indexing it. */
+  readonly indexed?: boolean;
 }
 
 /**
- * True for a page a scan leaves alone on its sitemap's word: the entry's
- * `<lastmod>` says the page has not changed since the crawler read it.
- * `$2` is the scan's start. It holds only when every part does:
+ * What one request can check a page by, kept from the response its stored
+ * text came from.
  *
- *  - the row carries the text of a read that succeeded (`active`, a hash, no
- *    error) — so `last_crawled_at` is when that text was read, not when an
- *    attempt failed;
- *  - that read came after the instant the date can mean, and
- *    {@link SITEMAP_LASTMOD_SETTLE} more;
- *  - it is younger than {@link SITEMAP_LASTMOD_MAX_AGE};
- *  - no chunk of the page was cut from other text: a scan that stored the
- *    new text and stopped before indexing it (an embedding model that
- *    failed) leaves the page due until it is indexed.
+ * `etag` and `lastModified` are that response's validators: sent back as
+ * `If-None-Match` / `If-Modified-Since`, they let a server that tracks its
+ * pages answer 304 without sending the page. Many servers that build their
+ * pages on request send neither — the page has no modification time to
+ * give — so `probeHash` is the hash of the text read out of the plain,
+ * unrendered HTML: the same text again is the same page, whatever tokens
+ * and nonces the markup around it carries.
  *
- * It is NULL, not true, for a page without a sitemap date — one no sitemap
- * lists, one found by a link, one of a URL list (a list has no discovery to
- * read a date in) — and for a page never read: every doubt requests the
- * page, as every scan did before (2026-10-06: a site whose sitemap dated
- * all 700 of its pages answered some 8,000 requests a scan, every six
- * hours, for pages unchanged in months). The content hash stays the judge
- * of what a request brings back.
+ * The three describe one response, and only a response whose text is
+ * stored AND indexed: they are written when a page settles
+ * ({@link markPageCrawled}) and cleared when its content is purged. A page
+ * whose plain HTML does not carry what a browser shows keeps none of them
+ * ({@link checkAfterRender}): a 304 on a JavaScript shell, or the same
+ * shell text, proves nothing about the content, which is why the render
+ * lane dropped conditional requests for every page when it arrived. That
+ * page is rendered on every scan; every other page is rendered only when
+ * its one request says it changed.
  */
-const UNCHANGED_BY_SITEMAP_SQL = `(
-        status = 'active' AND content_hash IS NOT NULL AND last_error IS NULL
-        AND last_crawled_at > sitemap_lastmod + interval '${SITEMAP_LASTMOD_SETTLE}'
-        AND last_crawled_at > $2::timestamptz - interval '${SITEMAP_LASTMOD_MAX_AGE}'
-        AND NOT EXISTS (
-          SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.chunks c
-           WHERE c.domain = website_urls.domain AND c.url = website_urls.url
-             AND c.content_hash IS DISTINCT FROM website_urls.content_hash))`;
+interface PageCheck {
+  readonly etag: string | null;
+  readonly lastModified: string | null;
+  readonly probeHash: string | null;
+}
+
+const NO_PAGE_CHECK: PageCheck = {
+  etag: null,
+  lastModified: null,
+  probeHash: null,
+};
+
+/** What a row offers this scan to check its page by: nothing unless it
+ * holds the page's text and that text is indexed — "unchanged" would
+ * otherwise leave a page without text, or with chunks of its earlier text,
+ * exactly as it is. */
+function storedCheck(page: DuePage): PageCheck {
+  if (page.content_hash === null || page.indexed === false) {
+    return NO_PAGE_CHECK;
+  }
+  return {
+    etag: page.etag ?? null,
+    lastModified: page.last_modified ?? null,
+    probeHash: page.probe_hash ?? null,
+  };
+}
+
+/** A validator longer than this is not kept: it travels back in a request
+ * header on every later scan. */
+const VALIDATOR_MAX_CHARS = 512;
+
+function validatorOf(value: string | null): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed === '' || trimmed.length > VALIDATOR_MAX_CHARS
+    ? null
+    : trimmed;
+}
+
+/** The validators a response carries, to check its page by next time. */
+function responseValidators(
+  headers: Headers,
+): Pick<PageCheck, 'etag' | 'lastModified'> {
+  return {
+    etag: validatorOf(headers.get('etag')),
+    lastModified: validatorOf(headers.get('last-modified')),
+  };
+}
+
+/** The conditional headers that ask "has it changed since?" — none when
+ * the row holds no validator. */
+function conditionalHeaders(check: PageCheck): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (check.etag !== null) headers['If-None-Match'] = check.etag;
+  if (check.lastModified !== null) {
+    headers['If-Modified-Since'] = check.lastModified;
+  }
+  return headers;
+}
+
+/** The plain HTML of a probed page, and the text and hash a later scan
+ * compares against. */
+interface PlainHtml {
+  readonly html: string;
+  readonly text: string;
+  readonly hash: string;
+}
+
+/** What the probe of an HTML page hands the render batch: the text of its
+ * plain HTML (null when the page is too large to read twice) and the
+ * validators of the response, for {@link checkAfterRender} to judge once
+ * the browser has shown the page. */
+interface PageProbe {
+  readonly text: string | null;
+  readonly hash: string | null;
+  readonly etag: string | null;
+  readonly lastModified: string | null;
+}
+
+/** Decode a page under the charset its `Content-Type` names — a page in
+ * another encoding read as UTF-8 comes out with every accented word
+ * broken, and would never match what the browser shows. UTF-8 without one. */
+function decodeHtml(bytes: Uint8Array, contentType: string): string {
+  const label = /charset\s*=\s*"?([^";\s]+)/i.exec(contentType)?.[1];
+  if (label !== undefined && label.toLowerCase() !== 'utf-8') {
+    try {
+      return new TextDecoder(label).decode(bytes);
+    } catch (error) {
+      console.warn(
+        `[crawl] unknown charset "${label}", reading the page as UTF-8:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+/** Read the text out of a probed page's plain HTML — null for a page over
+ * the bound a rendered page has, which is rendered without the comparison. */
+async function readPlainHtml(
+  body: Blob,
+  contentType: string,
+): Promise<PlainHtml | null> {
+  if (body.size > RENDER_MAX_HTML_BYTES) return null;
+  const html = decodeHtml(
+    new Uint8Array(await body.arrayBuffer()),
+    contentType,
+  );
+  const text = htmlToText(html);
+  return { html, text, hash: computeContentHash(text) };
+}
+
+/**
+ * What a rendered page leaves to check it by next time: its probe's
+ * validators and plain-text hash when the plain HTML carried what the
+ * browser showed ({@link plainTextCarriesRendered}), nothing when it did
+ * not — that page is rendered again on every scan. Exported for tests only.
+ */
+export function checkAfterRender(
+  probe: PageProbe,
+  renderedText: string,
+): PageCheck {
+  if (
+    probe.text === null ||
+    probe.hash === null ||
+    !plainTextCarriesRendered(probe.text, renderedText)
+  ) {
+    return NO_PAGE_CHECK;
+  }
+  return {
+    etag: probe.etag,
+    lastModified: probe.lastModified,
+    probeHash: probe.hash,
+  };
+}
 
 const DUE_PAGE_PREDICATE = `
       domain = $1 AND status <> 'deleted'
       AND (listed OR fail_count < ${MAX_FETCH_FAILURES}
            OR last_crawled_at < $2::timestamptz - interval '${BENCHED_PAGE_RETRY_INTERVAL}')
-      AND (last_crawled_at IS NULL OR last_crawled_at < $2::timestamptz)
-      AND NOT COALESCE(${UNCHANGED_BY_SITEMAP_SQL}, FALSE)`;
-
-/** How many of the domain's pages this scan leaves alone on their sitemap's
- * word — what the scan's log says beside how many it discovered. */
-async function countUnchangedBySitemap(
-  sql: Sql,
-  domain: string,
-  scanStartedAt: string,
-): Promise<number> {
-  const rows = await sql.unsafe<{ n: string }[]>(
-    `SELECT count(*)::text AS n FROM ${PUBLIC_WEB_SCHEMA}.website_urls
-      WHERE domain = $1 AND status <> 'deleted'
-        AND COALESCE(${UNCHANGED_BY_SITEMAP_SQL}, FALSE)`,
-    [domain, scanStartedAt],
-  );
-  return Number(rows[0]?.n ?? 0);
-}
+      AND (last_crawled_at IS NULL OR last_crawled_at < $2::timestamptz)`;
 
 /** The next URLs this scan has not visited yet (never-crawled first). The
  * batch size matches the render batch, so one claim's HTML pages fill at
@@ -1222,7 +1320,13 @@ async function nextDuePages(
   limit: number,
 ): Promise<DuePage[]> {
   return await sql.unsafe<DuePage[]>(
-    `SELECT url, content_hash, listed
+    `SELECT url, content_hash, listed, etag, last_modified, probe_hash,
+            NOT EXISTS (
+              SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+               WHERE c.domain = website_urls.domain
+                 AND c.url = website_urls.url
+                 AND c.content_hash IS DISTINCT FROM website_urls.content_hash
+            ) AS indexed
        FROM ${PUBLIC_WEB_SCHEMA}.website_urls
       WHERE ${DUE_PAGE_PREDICATE}
       ORDER BY last_crawled_at ASC NULLS FIRST, url ASC
@@ -1244,7 +1348,30 @@ async function countDuePages(
   return Number(rows[0]?.n ?? 0);
 }
 
-type FetchOutcome = StoreOutcome | 'failed' | 'render';
+/**
+ * What a probe made of a page:
+ *
+ *  - `not_modified` — requested and found as it was: the server answered
+ *    304, or the plain HTML reads as it did. The row is stamped; nothing is
+ *    rendered, stored or indexed.
+ *  - `unchanged` — the row was retired (gone, disallowed, an alias) and
+ *    nothing is left to do for it.
+ *  - `failed` — the attempt is on the row, with its reason.
+ *  - `stored` — a document or plain text was stored in-process; the scan
+ *    indexes it and then stamps it with what to check it by next time.
+ *  - `render` — an HTML page that changed, or that only a browser can
+ *    read: it joins the render batch with what its probe found.
+ */
+export type FetchOutcome =
+  | 'not_modified'
+  | 'unchanged'
+  | 'failed'
+  | {
+      readonly kind: 'stored';
+      readonly outcome: StoreOutcome;
+      readonly check: PageCheck;
+    }
+  | { readonly kind: 'render'; readonly probe: PageProbe };
 
 /** Whether a redirect landed on another host or path of the site — not
  * merely on the same address with another query string. */
@@ -1257,14 +1384,22 @@ function isAnotherAddress(from: string, to: string): boolean {
 }
 
 /**
- * Probe one page and dispatch on its content type: binaries and plain text
- * are extracted and stored in-process; HTML reports `render` (body
- * discarded, row left unmarked) so the caller batches it through the
- * sandboxed browser. The probe is the sole authority on page LIFECYCLE —
- * status codes, deletes, size caps, and the SSRF guard for every byte
- * download. Change detection is the stored content hash alone: a 304 on an
- * SPA shell proves nothing about rendered content, so no conditional
- * validators are sent. Exported for tests only.
+ * Probe one page — the one request a scan makes for it — and say what is
+ * left to do ({@link FetchOutcome}).
+ *
+ * The request carries the validators of the page's last settled visit, when
+ * the row holds any ({@link storedCheck}); a 304 answer is a page left as
+ * it is. Otherwise the response is dispatched on its content type:
+ * binaries and plain text are extracted and stored in-process; an HTML
+ * page whose plain text reads as it did at that visit is left as it is
+ * too, and any other HTML page reports `render`, row unmarked, so the
+ * caller batches it through the sandboxed browser.
+ *
+ * The probe is the sole authority on page LIFECYCLE — status codes,
+ * deletes, size caps, and the SSRF guard for every byte download — and a
+ * page found unchanged passes the same gates first: a redirect that makes
+ * it an alias, an `X-Robots-Tag` or a robots meta tag that withdraws it.
+ * Exported for tests only.
  */
 export async function fetchAndStorePage(
   sql: Sql,
@@ -1284,6 +1419,8 @@ export async function fetchAndStorePage(
     return 'unchanged';
   }
 
+  const check = storedCheck(page);
+  const conditional = conditionalHeaders(check);
   let response;
   try {
     assertCrawlableUrl(page.url);
@@ -1293,7 +1430,7 @@ export async function fetchAndStorePage(
       allowedHosts: [...hosts],
       allowPrivateAddresses: privateCrawlHostsAllowed(),
       httpsOnly: true,
-      headers: crawlerRequestHeaders(),
+      headers: { ...crawlerRequestHeaders(), ...conditional },
     });
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error);
@@ -1343,7 +1480,11 @@ export async function fetchAndStorePage(
     await retirePage(sql, domain, page.url);
     return 'unchanged';
   }
-  if (response.status < 200 || response.status >= 300) {
+  // 304 answers the validators this request carried: the page is what the
+  // row stores. Without them it is an error like any other status.
+  const notModified =
+    response.status === 304 && Object.keys(conditional).length > 0;
+  if (!notModified && (response.status < 200 || response.status >= 300)) {
     await recordPageFailure(sql, domain, page.url, {
       kind: 'http_error',
       message: `The page answered HTTP ${response.status}${
@@ -1391,6 +1532,12 @@ export async function fetchAndStorePage(
     });
     return 'failed';
   }
+  if (notModified) {
+    // The server vouches for the page as the row stores it: no body came,
+    // and none is asked for. The validators the row holds stay.
+    await markPageUnchanged(sql, domain, page.url);
+    return 'not_modified';
+  }
   const contentType = response.headers.get('content-type') ?? '';
   let dispatch = classifyContentType(
     contentType,
@@ -1411,10 +1558,48 @@ export async function fetchAndStorePage(
     return 'failed';
   }
   if (dispatch.kind === 'html') {
-    // Content comes from the rendered DOM, not this probe body — the page
-    // joins the render batch and its row stays unmarked until the batch
-    // settles it.
-    return 'render';
+    const plain = await readPlainHtml(response.body, contentType);
+    const validators = responseValidators(response.headers);
+    if (
+      plain !== null &&
+      check.probeHash !== null &&
+      plain.hash === check.probeHash
+    ) {
+      // The plain HTML reads as it did when the page was last stored, and
+      // at that visit it carried what the browser showed: the page has not
+      // changed, and no browser is opened to learn that. Its links were
+      // admitted when it was last rendered, and text that reads the same
+      // links to the same pages. Its own wish can have changed without a
+      // word of its text moving, so the robots tag is still read — off
+      // this body, the only one there is.
+      const noindex = robotsMetaNoindexDirective(plain.html);
+      if (noindex !== null) {
+        await purgePageContent(sql, domain, page.url);
+        await recordPageFailure(sql, domain, page.url, {
+          kind: 'robots_noindex',
+          message: `The origin asked not to index this page (<meta name="robots" content="${noindex}">)`,
+        });
+        return 'failed';
+      }
+      await markPageUnchanged(sql, domain, page.url, {
+        ...validators,
+        probeHash: plain.hash,
+      });
+      return 'not_modified';
+    }
+    // The page changed, was never stored, or is one only a browser can
+    // read: content comes from the rendered DOM, so it joins the render
+    // batch and its row stays unmarked until the batch settles it. What
+    // this request found travels with it, to be judged against what the
+    // browser shows.
+    return {
+      kind: 'render',
+      probe: {
+        text: plain?.text ?? null,
+        hash: plain?.hash ?? null,
+        ...validators,
+      },
+    };
   }
   const bytes = new Uint8Array(await response.body.arrayBuffer());
   if (dispatch.kind === 'sniff') {
@@ -1470,7 +1655,13 @@ export async function fetchAndStorePage(
     }
     title = name;
   }
-  return await storePageText(sql, domain, page, title, text);
+  // A document's bytes are its content, so its validators always hold: a
+  // 304 next time spares the download and the extraction.
+  return {
+    kind: 'stored',
+    outcome: await storePageText(sql, domain, page, title, text),
+    check: { ...responseValidators(response.headers), probeHash: null },
+  };
 }
 
 /**
@@ -1552,16 +1743,54 @@ export async function storePageText(
   return 'changed';
 }
 
-/** Stamp a page as visited by this scan, once it is stored and indexed. */
+/** Stamp a page as visited by this scan, once it is stored and indexed, and
+ * record what the next scan checks it by ({@link PageCheck}) — in the same
+ * write, so the check never describes text the index does not hold yet. */
 async function markPageCrawled(
   sql: Sql,
   domain: string,
   url: string,
+  check: PageCheck,
 ): Promise<void> {
   await sql.unsafe(
-    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls SET last_crawled_at = NOW()
+    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
+        SET last_crawled_at = NOW(),
+            etag = $3, last_modified = $4, probe_hash = $5
       WHERE domain = $1 AND url = $2`,
-    [domain, url],
+    [domain, url, check.etag, check.lastModified, check.probeHash],
+  );
+}
+
+/**
+ * Stamp a page this scan requested and found as the row stores it. The
+ * request reached the page, so a failure an earlier scan recorded is over:
+ * its count and its reason are cleared, as a store clears them. `check`
+ * replaces what the row is checked by — the validators of a response whose
+ * text read the same; a 304 brings none and the row keeps its own.
+ */
+async function markPageUnchanged(
+  sql: Sql,
+  domain: string,
+  url: string,
+  check?: PageCheck,
+): Promise<void> {
+  const cleared = `last_crawled_at = NOW(), fail_count = 0,
+            last_error = NULL, last_error_kind = NULL, last_error_at = NULL`;
+  if (check === undefined) {
+    await sql.unsafe(
+      `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
+          SET ${cleared}
+        WHERE domain = $1 AND url = $2`,
+      [domain, url],
+    );
+    return;
+  }
+  await sql.unsafe(
+    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
+        SET ${cleared},
+            etag = $3, last_modified = $4, probe_hash = $5
+      WHERE domain = $1 AND url = $2`,
+    [domain, url, check.etag, check.lastModified, check.probeHash],
   );
 }
 
@@ -1588,6 +1817,7 @@ async function purgePageContentIn(
   await tx.unsafe(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
         SET content = NULL, content_hash = NULL, word_count = 0,
+            etag = NULL, last_modified = NULL, probe_hash = NULL,
             status = CASE WHEN status = 'deleted' THEN status ELSE 'discovered' END
       WHERE domain = $1 AND url = $2`,
     [domain, url],
