@@ -36,8 +36,8 @@ describe('TaskActorName', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('renders a preview trigger for agent actors', () => {
-    render(
+  it('renders a preview trigger and its details for agent actors', async () => {
+    const { user } = render(
       <TaskActorName
         name="Writer"
         preview={{
@@ -50,7 +50,10 @@ describe('TaskActorName', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Writer' })).toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: 'Writer' });
+    expect(trigger).toBeInTheDocument();
+    await user.hover(trigger);
+    expect(await screen.findByText('Drafts copy.')).toBeInTheDocument();
   });
 });
 

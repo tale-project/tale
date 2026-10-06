@@ -218,6 +218,7 @@ export function TaskTimelineEntry({
     if (field?.kind === 'repeat') return repeatNever;
     return field?.emptyKey ? t(field.emptyKey) : undefined;
   };
+  const historicalAgentIds = new Set(runs.map((run) => run.agentSlug));
   const formatActivityValue = (
     value: string | undefined,
   ): string | undefined => {
@@ -234,7 +235,10 @@ export function TaskTimelineEntry({
         return key ? t(key) : value;
       }
       case 'person':
-        return resolveAssigneeId(value);
+        return historicalAgentIds.has(value) &&
+          resolveAssigneeId(value) === value
+          ? t('timeline.deletedAgent')
+          : resolveAssigneeId(value);
       case 'reviewer': {
         // Legacy rows stored a bare user id; new rows preserve actor kind.
         let parsed: unknown;

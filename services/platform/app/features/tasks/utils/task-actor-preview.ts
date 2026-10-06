@@ -12,6 +12,8 @@ export interface TaskActivityContext {
 export interface TaskActorPreviewLabels {
   /** Plain timeline label when the workflow cannot be resolved. */
   unresolvedWorkflow: string;
+  /** Plain timeline label when an agent was deleted after it ran. */
+  deletedAgent: string;
 }
 
 function humanizeWorkflowSlug(slug: string): string {
@@ -134,7 +136,7 @@ export function buildTaskActorPreview(args: {
   const agent = args.agents.get(args.actorId);
   return {
     kind: 'agent',
-    name: agent?.name ?? args.actorId,
+    name: agent?.name ?? args.labels.deletedAgent,
     description: agent?.description,
     viewTo: '/dashboard/$id',
     viewParams: { id: args.organizationId },
@@ -158,7 +160,7 @@ export function buildAgentRunPreview(args: {
 
   return {
     kind: 'agent',
-    name: agent?.name ?? args.agentSlug,
+    name: agent?.name ?? args.labels.deletedAgent,
     description: agent?.description ?? wf?.description,
     // Agents management page removed → org home; the run's execution is no
     // longer deep-linkable from an agent view.
