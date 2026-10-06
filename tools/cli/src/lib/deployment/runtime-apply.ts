@@ -341,6 +341,7 @@ function assertContainerCustody(
   containers: RuntimeContainer[],
   compose: ComposeDocument,
   options: ApplyRuntimeOptions,
+  projectVolumes?: ReadonlySet<string>,
 ): void {
   const seen = new Set<string>();
   for (const container of containers) {
@@ -390,20 +391,39 @@ function assertContainerCustody(
         readonly: mode === 'ro',
       };
     });
-    requireRuntime(
-      container.Mounts.length === expected.length,
-      'Existing runtime mounts differ from the managed topology.',
-    );
-    for (const mount of expected) {
+    const matched = new Set<number>();
+    for (const actual of container.Mounts) {
+      const index = expected.findIndex(
+        (mount, candidate) =>
+          !matched.has(candidate) &&
+          actual.Destination === mount.target &&
+          actual.Type === (mount.named ? 'volume' : 'bind') &&
+          (mount.named ? actual.Name : actual.Source) === mount.source &&
+          actual.RW === !mount.readonly,
+      );
       requireRuntime(
-        container.Mounts.some(
-          (actual) =>
-            actual.Destination === mount.target &&
-            actual.Type === (mount.named ? 'volume' : 'bind') &&
-            (mount.named ? actual.Name : actual.Source) === mount.source &&
-            actual.RW === !mount.readonly,
-        ),
+        index >= 0,
         'Existing runtime data-volume or host-mount identity differs.',
+      );
+      matched.add(index);
+    }
+    const missing = expected.filter((_, index) => !matched.has(index));
+    if (missing.length > 0) {
+      // A release may add a new named volume to a retained 0.5 runtime. The
+      // volume has no data yet, and Compose will recreate only the affected
+      // service during the normal `up`; every existing mount remains checked
+      // above. A missing bind mount, or a named volume that already exists,
+      // still means the retained container has drifted and is refused.
+      const additive =
+        projectVolumes !== undefined &&
+        missing.every(
+          (mount) =>
+            mount.named &&
+            !projectVolumes.has(`${options.composeProject}_${mount.source}`),
+        );
+      requireRuntime(
+        additive,
+        'Existing runtime mounts differ from the managed topology.',
       );
     }
   }
@@ -713,12 +733,6 @@ export async function applyRuntime(
     );
   if (receipt?.phase === 'pending') pendingBytes(options, receipt);
   const networkExists = await inspectSandboxNetwork(dependencies);
-  let containers = await runtimeContainers(
-    options.composeProject,
-    dependencies,
-  );
-  assertContainerCustody(containers, compose, options);
-  await assertFixedContainerNames(containers, compose, dependencies);
   const volumeResult = await runtimeCommand(
     ['volume', 'ls', '--format', '{{json .}}'],
     dependencies,
@@ -726,6 +740,20 @@ export async function applyRuntime(
   const projectVolumes = volumeInventory(volumeResult.stdout).filter((name) =>
     name.startsWith(`${options.composeProject}_`),
   );
+  const projectVolumeSet = new Set(projectVolumes);
+  let containers = await runtimeContainers(
+    options.composeProject,
+    dependencies,
+  );
+  assertContainerCustody(
+    containers,
+    compose,
+    options,
+    receipt?.phase === 'ready' && receipt.bundleSha256 === identity
+      ? undefined
+      : projectVolumeSet,
+  );
+  await assertFixedContainerNames(containers, compose, dependencies);
   requireRuntime(
     projectVolumes.every(
       (name) =>
