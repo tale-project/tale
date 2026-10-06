@@ -418,6 +418,37 @@ describe('AutomationDetailShell — a deleted automation', () => {
     );
   });
 
+  // Deleted from the list, an automation stays remembered as the rail's
+  // place; reopening it there must land on the list, not on its banner.
+  it('drops the stale memory and redirects to the list on a restored arrival', () => {
+    fixtures.pathname = '/dashboard/org-1/automations/billing__dunning/editor';
+    fixtures.state = { navRestore: true };
+    window.localStorage.setItem(
+      'tale.platform.automations.org-1.lastPath',
+      JSON.stringify(fixtures.pathname),
+    );
+    renderShell();
+
+    expect(mockNavigate).toHaveBeenCalledExactlyOnceWith({
+      to: '/dashboard/$id/automations',
+      params: { id: 'org-1' },
+      replace: true,
+    });
+    expect(
+      window.localStorage.getItem('tale.platform.automations.org-1.lastPath'),
+    ).toBeNull();
+  });
+
+  it('keeps explaining the deletion to a deliberate arrival', () => {
+    // A shared link or a run link opens the deleted automation on purpose.
+    fixtures.pathname =
+      '/dashboard/org-1/automations/billing__dunning/runs/run-1';
+    renderShell();
+
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toBeVisible();
+  });
+
   it('keeps plain not-found for a name that was never saved', () => {
     fixtures.error = { data: { code: 'automation not found' } };
     fixtures.pathname =

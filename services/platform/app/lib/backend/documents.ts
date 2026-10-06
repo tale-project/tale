@@ -257,7 +257,20 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{ breadcrumb: FolderWire[] }>(
           `/folders/${encodeURIComponent(folderId)}/breadcrumb`,
           { orgId },
-        ).then((body) => body.breadcrumb.map(folderView)),
+        ).then(
+          (body) => body.breadcrumb.map(folderView),
+          (error: unknown) => {
+            // 0.4 answers no trail for a folder that is gone or out of reach
+            // — what the documents page reads as "leave it for the root".
+            if (
+              error instanceof BackendApiError &&
+              (error.status === 404 || error.status === 403)
+            ) {
+              return [];
+            }
+            throw error;
+          },
+        ),
     };
   },
   'file_metadata/queries:getByStorageIds': (args, ctx) => {
