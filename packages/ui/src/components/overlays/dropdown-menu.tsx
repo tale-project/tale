@@ -454,8 +454,14 @@ export function DropdownMenu({
           collisionPadding={collisionPadding ?? 16}
           onClick={(e) => e.stopPropagation()}
           onPointerDownOutside={keepTriggerPointerDown}
+          style={{
+            maxHeight:
+              'min(80vh, var(--radix-dropdown-menu-content-available-height, 80vh))',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+          }}
           className={cn(
-            'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--radix-dropdown-menu-content-available-height) max-w-(--radix-dropdown-menu-content-available-width) min-w-[max(10rem,var(--radix-dropdown-menu-trigger-width))] origin-[var(--radix-dropdown-menu-content-transform-origin)] overflow-x-hidden overflow-y-auto rounded-lg border p-1 shadow-md duration-[var(--duration-short)] motion-reduce:animate-none',
+            'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-[min(80vh,var(--radix-dropdown-menu-content-available-height,80vh))] max-w-(--radix-dropdown-menu-content-available-width) min-w-[max(10rem,var(--radix-dropdown-menu-trigger-width))] origin-[var(--radix-dropdown-menu-content-transform-origin)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border p-1 shadow-md duration-[var(--duration-short)] motion-reduce:animate-none',
             contentClassName,
           )}
         >

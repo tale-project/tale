@@ -37,6 +37,15 @@ function items(onPick: () => void): DropdownMenuGroup[] {
   return [[{ type: 'item', label: 'Pick', onClick: onPick }]];
 }
 
+function longItems(): DropdownMenuGroup[] {
+  return [
+    Array.from({ length: 40 }, (_, index) => ({
+      type: 'item' as const,
+      label: `Item ${index + 1}`,
+    })),
+  ];
+}
+
 function ControlledMenu({ onPick }: { onPick: () => void }) {
   const [open, setOpen] = useState(false);
   return (
@@ -127,5 +136,35 @@ describe('DropdownMenu trigger during the exit animation', () => {
       );
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('DropdownMenu long content', () => {
+  it('keeps long menus scrollable inside the viewport', async () => {
+    render(
+      <DropdownMenu
+        trigger={<button type="button">Long menu</button>}
+        items={longItems()}
+      />,
+    );
+
+    await page.getByRole('button', { name: 'Long menu' }).click();
+
+    const menu = document.querySelector<HTMLElement>('[role="menu"]');
+    expect(menu).not.toBeNull();
+    if (menu === null) throw new Error('Dropdown menu did not open');
+    await waitFor(() => {
+      expect(menu).toBeVisible();
+    });
+    const metrics = {
+      clientHeight: menu.clientHeight,
+      scrollHeight: menu.scrollHeight,
+      overflowY: getComputedStyle(menu).overflowY,
+      bottom: menu.getBoundingClientRect().bottom,
+    };
+
+    expect(metrics.overflowY).toBe('auto');
+    expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
+    expect(metrics.bottom).toBeLessThanOrEqual(window.innerHeight);
   });
 });
