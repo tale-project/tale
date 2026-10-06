@@ -352,7 +352,7 @@ describe('task modal log window', () => {
           screen.getByRole('button', { name: 'detail.showEarlierComments' }),
         );
         expect(field).not.toHaveFocus();
-        expect(row).not.toContainElement(document.activeElement);
+        expect(row.contains(document.activeElement)).toBe(false);
       }
       await scrollTo(
         scroller,
@@ -374,7 +374,7 @@ describe('task modal log window', () => {
         }
       });
       if (focus === 'focused') expect(field).toHaveFocus();
-      else expect(row).not.toContainElement(document.activeElement);
+      else expect(row.contains(document.activeElement)).toBe(false);
       state.comments = comments;
       view.rerender(<Harness mode="comments" canComment />);
       await waitFor(() => {
@@ -403,7 +403,7 @@ describe('task modal log window', () => {
         expect(document.activeElement).not.toBe(document.body);
       } else {
         expect(field).not.toHaveFocus();
-        expect(row).not.toContainElement(document.activeElement);
+        expect(row.contains(document.activeElement)).toBe(false);
       }
     },
   );
