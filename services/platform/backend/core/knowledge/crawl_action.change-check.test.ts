@@ -408,6 +408,15 @@ describe('checkAfterRender', () => {
     });
   });
 
+  it('does not save a fast-path check when a small rendered widget is missing', () => {
+    const rendered = `${plain} widget update`;
+    expect(checkAfterRender(found, rendered)).toEqual({
+      etag: null,
+      lastModified: null,
+      probeHash: null,
+    });
+  });
+
   it.each([
     [
       'the browser showed a page its plain HTML does not carry',

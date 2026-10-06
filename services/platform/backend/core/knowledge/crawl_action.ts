@@ -56,7 +56,7 @@ import {
   paragraphsForHashing,
   parseRobots,
   parseSitemapLocs,
-  plainTextCarriesRendered,
+  plainTextCoverage,
   publicPageError,
   renderLaneHaltMessage,
   ROBOTS_TXT_MAX_BYTES,
@@ -1290,10 +1290,15 @@ export function checkAfterRender(
   probe: PageProbe,
   renderedText: string,
 ): PageCheck {
+  // The fast path compares only the unrendered response on later scans. A
+  // coverage threshold is useful for deciding whether a page needs a render,
+  // but it is not strong enough for change detection: a script can change a
+  // small widget while leaving the plain text hash untouched. Only complete
+  // coverage makes the plain response a sound substitute for the render.
   if (
     probe.text === null ||
     probe.hash === null ||
-    !plainTextCarriesRendered(probe.text, renderedText)
+    plainTextCoverage(probe.text, renderedText) < 1
   ) {
     return NO_PAGE_CHECK;
   }
