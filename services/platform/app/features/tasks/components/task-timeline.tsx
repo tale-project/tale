@@ -9,7 +9,7 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useRecurrenceFormat } from '@tale/ui/use-recurrence-format';
 import { Bot } from 'lucide-react';
-import { useMemo } from 'react';
+import { Fragment, useCallback, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
@@ -20,6 +20,7 @@ import {
   withTaskActorDirectory,
 } from '../hooks/task-actor-directory-context';
 import { useFirstFrameSlice } from '../hooks/use-first-frame-slice';
+import { TaskLogRow, useTaskLogWindow } from '../hooks/use-task-log-window';
 import {
   TASK_ACTIVITY_FIELD,
   TASK_ACTIVITY_LABEL_KEY,
@@ -49,8 +50,7 @@ function formatCents(cents: number): string {
 
 type TimelineItem = ReturnType<typeof mergeTaskTimeline>[number];
 
-/** How many history lines the opening frame renders; the rest follow in an
- *  interruptible background pass right after (see `TaskTimeline`). */
+/** How many history lines the opening frame renders before its background pass. */
 const FIRST_FRAME_LINES = 20;
 
 /** How much of a changed text a timeline line quotes. A description change
@@ -363,6 +363,17 @@ function TaskTimelineContent({
   // The newest lines mount with the task, the older ones right after — a
   // long history sits below the comments, out of the opening screen.
   const shownTimeline = useFirstFrameSlice(timeline, FIRST_FRAME_LINES, taskId);
+  const getItemKey = useCallback(
+    (index: number) => timelineItemKey(shownTimeline[index]),
+    [shownTimeline],
+  );
+  const estimateSize = useCallback(() => 40, []);
+  const window = useTaskLogWindow({
+    count: shownTimeline.length,
+    getItemKey,
+    estimateSize,
+    gap: 12,
+  });
 
   if (timeline.length === 0) return null;
 
@@ -381,17 +392,50 @@ function TaskTimelineContent({
             </Text>
           )}
         </div>
-        <Stack as="ul" gap={3}>
-          {shownTimeline.map((item) => (
-            <li key={timelineItemKey(item)}>
-              <TaskTimelineEntry
-                item={item}
-                runs={runs}
-                organizationId={organizationId}
-                projectId={projectId}
-              />
-            </li>
+        <Stack as="ul" ref={window.listRef} gap={0}>
+          {window.items.map((row) => (
+            <Fragment key={row.key}>
+              {row.paddingBefore > 0 && (
+                <li
+                  aria-hidden
+                  role="presentation"
+                  style={{ height: row.paddingBefore, flexShrink: 0 }}
+                />
+              )}
+              <li
+                data-index={row.index}
+                ref={window.measureElement}
+                onFocusCapture={window.onFocusCapture}
+                onBlurCapture={window.onBlurCapture}
+                aria-posinset={window.virtualized ? row.index + 1 : undefined}
+                aria-setsize={window.virtualized ? timeline.length : undefined}
+                style={
+                  window.virtualized
+                    ? undefined
+                    : {
+                        contentVisibility: 'auto',
+                        containIntrinsicSize: 'auto 40px',
+                      }
+                }
+              >
+                <TaskLogRow rowKey={row.key} setRowActive={window.setRowActive}>
+                  <TaskTimelineEntry
+                    item={shownTimeline[row.index]}
+                    runs={runs}
+                    organizationId={organizationId}
+                    projectId={projectId}
+                  />
+                </TaskLogRow>
+              </li>
+            </Fragment>
           ))}
+          {window.paddingAfter > 0 && (
+            <li
+              aria-hidden
+              role="presentation"
+              style={{ height: window.paddingAfter, flexShrink: 0 }}
+            />
+          )}
         </Stack>
       </Stack>
     </section>

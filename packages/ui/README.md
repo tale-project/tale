@@ -21,6 +21,7 @@ and stories live together under `src/components/<family>/`.
 | Editing and diagrams | `editor`, `wizard/*`, `catalog/*`, `filters/*`, `flow/*` |
 | Documentation sites | `docs/docs-layout`, `docs/docs-header`, `docs/docs-article`, `docs/docs-not-found`, `docs/page-actions`, `search/static-index/*` |
 | Shared infrastructure | `i18n/*`, `markdown/*`, `seo/*`, `server`, `monitoring/*`, `theme`, `testing/*` |
+| Large custom collections | `use-virtual-list`; [windowing and focus guidance](https://ui.tale.dev/docs/patterns/list-page#bound-a-custom-collections-rendering) |
 
 Browse interactive stories from a Tale source checkout:
 

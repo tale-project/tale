@@ -259,6 +259,13 @@ describe('the Home Inbox bulk verbs over more rows than one request takes', () =
   }
 
   beforeEach(() => {
+    // jsdom has no layout. Supply the scrollport and row sizes the real
+    // virtualizer reads; the full selection still includes unmounted rows.
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(
+      function (this: HTMLElement) {
+        return this.classList.contains('overflow-y-auto') ? 600 : 48;
+      },
+    );
     door.open = Array.from({ length: COUNT }, (_, i) =>
       projected(`c${i}`, `Order ${i}`),
     );

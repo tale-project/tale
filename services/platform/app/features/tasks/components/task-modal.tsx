@@ -75,12 +75,11 @@ import {
   useUpdateTaskStatus,
 } from '../hooks/mutations';
 import { usePrefetchTaskReads, useSubtasks, useTask } from '../hooks/queries';
-import {
-  ActorDirectoryProvider,
-  useActorDirectory,
-} from '../hooks/use-actor-directory';
+import { ActorDirectoryProvider } from '../hooks/task-actor-directory';
+import { useActorDirectory } from '../hooks/use-actor-directory';
 import { useDescriptionCap } from '../hooks/use-description-cap';
 import { useTaskAccess } from '../hooks/use-task-access';
+import { TaskLogViewport } from '../hooks/use-task-log-window';
 import {
   plannedTransitionKind,
   useTaskStatusChoreography,
@@ -305,6 +304,7 @@ function ModalLayout({
   panel: ReactNode;
   footer?: ReactNode;
 }) {
+  const mainScrollRef = useRef<HTMLDivElement>(null);
   return (
     <Stack className="min-h-0 flex-1">
       <div className="shrink-0">{header}</div>
@@ -318,10 +318,11 @@ function ModalLayout({
           clipped at the column edge. */}
       <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row md:gap-0">
         <Stack
+          ref={mainScrollRef}
           gap={5}
           className="min-w-0 flex-1 md:-ml-2 md:min-h-0 md:overflow-y-auto md:py-0.5 md:pr-6 md:pl-2"
         >
-          {main}
+          <TaskLogViewport scrollRef={mainScrollRef}>{main}</TaskLogViewport>
         </Stack>
         <Stack
           as="aside"
@@ -2310,8 +2311,6 @@ export function EditTaskBody({
   );
 
   return (
-    // One actor directory for the whole task: its comments, timeline lines
-    // and markdown bodies name people from it instead of each reading its own.
     <ActorDirectoryProvider
       organizationId={task.organizationId}
       projectId={task.projectId}

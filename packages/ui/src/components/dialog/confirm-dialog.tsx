@@ -72,6 +72,8 @@ export interface ConfirmDialogProps {
    * close (e.g. a dropdown menu item).
    */
   restoreFocusRef?: React.RefObject<HTMLElement | null>;
+  /** Called after the dialog's close focus restoration handler completes. */
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 /**
@@ -95,6 +97,7 @@ export function ConfirmDialog({
   requireConfirmPhrase,
   requireConfirmPhraseLabel,
   restoreFocusRef,
+  onCloseAutoFocus,
 }: ConfirmDialogProps) {
   const { t: tCommon } = useT('common');
   const [phraseInput, setPhraseInput] = React.useState('');
@@ -153,6 +156,7 @@ export function ConfirmDialog({
       footer={footer}
       className={className}
       restoreFocusRef={restoreFocusRef}
+      onCloseAutoFocus={onCloseAutoFocus}
     >
       {children}
       {requireConfirmPhrase !== undefined && (

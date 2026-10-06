@@ -349,6 +349,25 @@ export const markdownComponents = {
  * for the plugin + component-map decision so consumers (chat canvas, workspace
  * viewer, operator file preview) can't drift apart.
  */
+const MarkdownContentBody = memo(function MarkdownContentBody({
+  content,
+  disallowedElements,
+}: {
+  content: string;
+  disallowedElements?: readonly string[];
+}) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={markdownComponents}
+      disallowedElements={disallowedElements}
+      unwrapDisallowed
+    >
+      {content}
+    </ReactMarkdown>
+  );
+});
+
 export const MarkdownContent = memo(function MarkdownContent({
   content,
   className,
@@ -364,14 +383,10 @@ export const MarkdownContent = memo(function MarkdownContent({
 }) {
   return (
     <div className={cn('text-sm', markdownWrapperStyles, className)}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={markdownComponents}
+      <MarkdownContentBody
+        content={content}
         disallowedElements={disallowedElements}
-        unwrapDisallowed
-      >
-        {content}
-      </ReactMarkdown>
+      />
     </div>
   );
 });

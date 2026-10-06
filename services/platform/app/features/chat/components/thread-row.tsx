@@ -40,7 +40,7 @@ import {
   Swords,
   Trash2,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useRelativeNow } from '@/app/hooks/use-relative-now';
 import { useT } from '@/lib/i18n/client';
@@ -304,11 +304,14 @@ export function ThreadRowMenu({
   variant,
   active,
   onStartRename,
+  onInteractionChange,
 }: {
   thread: ChatThreadSummary;
   variant: 'default' | 'archived';
   active: boolean;
   onStartRename: () => void;
+  /** A windowed list retains a row while its portal owns focus. */
+  onInteractionChange?: (active: boolean) => void;
 }) {
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
@@ -320,6 +323,11 @@ export function ThreadRowMenu({
   // Row-only actions (mark read) live outside the shared menu handlers.
   const actions = useThreadActions(organizationId);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    onInteractionChange?.(menuOpen || deleteOpen);
+  }, [menuOpen, deleteOpen, onInteractionChange]);
+  useEffect(() => () => onInteractionChange?.(false), [onInteractionChange]);
   // The server enforces every hold on the mutation; this only explains the
   // disabled destructive items up front.
   const held = orgHeld || heldThreadIds.has(thread.id);
@@ -443,6 +451,7 @@ export function ThreadRowMenu({
     <>
       <DropdownMenu
         align="end"
+        onOpenChange={setMenuOpen}
         trigger={
           <Button
             variant="ghost"

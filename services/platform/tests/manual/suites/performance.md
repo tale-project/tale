@@ -247,11 +247,12 @@ single warm sample.
   **Home** on a row of each, then drag a chat from the far end onto a
   project. → The panel holds only the rows near each list's view (under 100
   `[data-thread-id]` elements), and every row is reached by scrolling and by
-  the arrow keys, with no blank gap and no jump. A screen reader reads a row
-  as one item of its whole list; the open chat and the open project keep
-  their highlight wherever their list scrolls; the drag files the chat. A
-  list of 60 or fewer keeps every row in the page, so **Ctrl+F** finds any
-  of them.
+  the arrow keys, with no blank gap and no jump. A screen reader reads
+  consistent item positions and totals for the whole list, including its day
+  headings and any draft row; the open chat and the open project keep their
+  highlight wherever their list scrolls; the drag files the chat. A stream
+  of 60 work rows or fewer, or a PROJECTS list of 60 projects or fewer,
+  keeps every row in the page, so **Ctrl+F** finds any of them.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -216,13 +216,19 @@ export async function checkTaskBoardSearch(
     : [];
   const searched = await board({ includeArchived: 'false', statuses, q: term });
   const searchedIds = searched ? idsOf(searched.rows) : new Set<string>();
+  const acrossSummary = await board({ statuses, q: term }, '/api/app/tasks');
   const detail = z
-    .object({ task: z.object({ description: z.string().nullable() }) })
+    .object({
+      task: z.object({ description: z.string().nullable() }).loose(),
+    })
     .safeParse(await get(`/api/app/tasks/${described.id}?orgId=${orgId}`));
   record(
-    'board rows omit large bodies while the selected task retains its description',
+    'board search omits long content in both scopes while task detail retains the description',
     searched !== null &&
-      searched.rows.every(
+      acrossSummary !== null &&
+      sameSet(searchedIds, expected) &&
+      sameSet(idsOf(acrossSummary.rows), expected) &&
+      [...searched.rows, ...acrossSummary.rows].every(
         (row) =>
           !Object.hasOwn(row, 'description') &&
           !Object.hasOwn(row, 'attachments') &&
@@ -231,7 +237,7 @@ export async function checkTaskBoardSearch(
       ) &&
       detail.success &&
       detail.data.task.description === described.description,
-    `board=${searched?.rows.length ?? 'ERR'} summary-only=${searched?.rows.every((row) => !Object.hasOwn(row, 'description')) ?? false} detail=${detail.success && detail.data.task.description === described.description}`,
+    `project=${searched?.rows.length ?? 'ERR'}, across=${acrossSummary?.rows.length ?? 'ERR'}, detailContent=${detail.success && detail.data.task.description === described.description}`,
   );
   const urgentOnly =
     searched?.rows.filter((row) => row.priority === 'p0') ?? [];

@@ -11,9 +11,19 @@
  */
 
 import { cn } from '@tale/ui/cn';
+import { useVirtualList } from '@tale/ui/use-virtual-list';
 import { Check, Search } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
+import { rowFocusIndex } from '@/app/features/home/lib/row-navigation';
 import { useT } from '@/lib/i18n/client';
 
 export interface PickerSearchOption {
@@ -52,6 +62,8 @@ export function PickerSearchList({
 }) {
   const { t } = useT('chat');
   const [query, setQuery] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -60,6 +72,35 @@ export function PickerSearchList({
       (option.search ?? option.key).toLowerCase().includes(needle),
     );
   }, [options, query]);
+  const getScrollElement = useCallback(() => scrollRef.current, []);
+  const getItemKey = useCallback(
+    (index: number) => filtered[index].key,
+    [filtered],
+  );
+  const enabledIndices = useMemo(
+    () => filtered.flatMap((option, index) => (option.disabled ? [] : [index])),
+    [filtered],
+  );
+  const focusIndex =
+    focusKey === null
+      ? -1
+      : filtered.findIndex((option) => option.key === focusKey);
+  const virtual = useVirtualList({
+    count: filtered.length,
+    getScrollElement,
+    getItemKey,
+    estimateSize: () => 32,
+    pinnedIndices: focusIndex === -1 ? [] : [focusIndex],
+  });
+  useLayoutEffect(() => {
+    if (focusKey === null) return;
+    const target = scrollRef.current?.querySelector<HTMLButtonElement>(
+      `[data-picker-key="${CSS.escape(focusKey)}"]`,
+    );
+    if (!target) return;
+    target.focus();
+    setFocusKey(null);
+  }, [focusKey, virtual.items]);
 
   if (options.length === 0) {
     return (
@@ -80,7 +121,10 @@ export function PickerSearchList({
           <input
             type="text"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              if (scrollRef.current) scrollRef.current.scrollTop = 0;
+            }}
             // The menu owns arrow keys and typeahead; inside the field the
             // keystrokes belong to the field. Escape still bubbles so the
             // menu can close.
@@ -96,45 +140,93 @@ export function PickerSearchList({
       )}
       {/* Four rows tall, then it scrolls — a long catalog must never
           push the menu past the viewport. */}
-      <div className="max-h-[8.5rem] overflow-y-auto">
+      <div
+        ref={scrollRef}
+        role="group"
+        className="max-h-[8.5rem] overflow-y-auto"
+        onKeyDown={(event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLButtonElement)) return;
+          const index = Number(target.dataset.index);
+          if (!Number.isInteger(index)) return;
+          const next = rowFocusIndex(
+            event,
+            enabledIndices.indexOf(index),
+            enabledIndices.length,
+          );
+          const nextIndex = next === null ? undefined : enabledIndices[next];
+          const option =
+            nextIndex === undefined ? undefined : filtered[nextIndex];
+          if (!option || nextIndex === undefined) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const row = scrollRef.current?.querySelector<HTMLButtonElement>(
+            `[data-picker-key="${CSS.escape(option.key)}"]`,
+          );
+          if (row) row.focus();
+          else {
+            setFocusKey(option.key);
+            virtual.scrollToIndex(nextIndex, { align: 'auto' });
+          }
+        }}
+      >
         {filtered.length === 0 ? (
           <p className="text-muted-foreground px-2 py-1.5 text-xs">
             {t('picker.searchEmpty')}
           </p>
         ) : (
-          filtered.map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              // Single-select rows are radio items: the chosen state must be
-              // programmatic (aria-checked), not just the visual check glyph.
-              role={multiSelect ? 'menuitemcheckbox' : 'menuitemradio'}
-              aria-checked={option.selected === true}
-              {...(option.ariaLabel !== undefined
-                ? { 'aria-label': option.ariaLabel }
-                : {})}
-              disabled={option.disabled}
-              // The submenu's dismiss layer reacts to pointerdown, which
-              // would tear the row out from under the click — keep the press
-              // local and act on the click.
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                option.onSelect();
-                // Multi-select assembles, so the menu stays open; a single
-                // pick is terminal and closes it, like any menu item.
-                if (!multiSelect) onPicked?.();
-              }}
-              className={cn(
-                'hover:bg-accent focus:bg-accent flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
-              )}
-            >
-              <span className="min-w-0 flex-1 truncate">{option.label}</span>
-              {option.selected === true && (
-                <Check aria-hidden className="text-primary size-3.5" />
-              )}
-            </button>
-          ))
+          virtual.items.map((row) => {
+            const option = filtered[row.index];
+            return (
+              <Fragment key={option.key}>
+                {row.paddingBefore > 0 && (
+                  <div aria-hidden style={{ height: row.paddingBefore }} />
+                )}
+                <button
+                  ref={virtual.measureElement}
+                  onFocusCapture={virtual.onFocusCapture}
+                  onBlurCapture={virtual.onBlurCapture}
+                  data-index={row.index}
+                  data-picker-key={option.key}
+                  type="button"
+                  // Single-select rows are radio items: the chosen state must be
+                  // programmatic (aria-checked), not just the visual check glyph.
+                  role={multiSelect ? 'menuitemcheckbox' : 'menuitemradio'}
+                  aria-checked={option.selected === true}
+                  aria-posinset={row.index + 1}
+                  aria-setsize={filtered.length}
+                  {...(option.ariaLabel !== undefined
+                    ? { 'aria-label': option.ariaLabel }
+                    : {})}
+                  disabled={option.disabled}
+                  // The submenu's dismiss layer reacts to pointerdown, which
+                  // would tear the row out from under the click — keep the press
+                  // local and act on the click.
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    option.onSelect();
+                    // Multi-select assembles, so the menu stays open; a single
+                    // pick is terminal and closes it, like any menu item.
+                    if (!multiSelect) onPicked?.();
+                  }}
+                  className={cn(
+                    'hover:bg-accent focus:bg-accent flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
+                  )}
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {option.label}
+                  </span>
+                  {option.selected === true && (
+                    <Check aria-hidden className="text-primary size-3.5" />
+                  )}
+                </button>
+              </Fragment>
+            );
+          })
+        )}
+        {virtual.paddingAfter > 0 && (
+          <div aria-hidden style={{ height: virtual.paddingAfter }} />
         )}
       </div>
     </div>

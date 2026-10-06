@@ -512,13 +512,19 @@ describe('HomeNavigator', () => {
         ['task', 'k1', 'Review the launch checklist'],
       ] as const
     ).flatMap(([kind, id, title]) =>
-      ['<Button />', '<tag>', 'ordinary unsent note', '', '   '].map(
-        (text) => [kind, id, title, text] as const,
-      ),
+      (
+        [
+          ['component', '<Button />'],
+          ['tag', '<tag>'],
+          ['plain text', 'ordinary unsent note'],
+          ['empty', ''],
+          ['whitespace', '   '],
+        ] as const
+      ).map(([label, text]) => ({ kind, id, title, label, text })),
     ),
   )(
-    'keeps literal %s drafts discoverable after leaving, reopening and remounting (%s, %s, %j)',
-    (kind, id, title, text) => {
+    'keeps literal $kind $label drafts discoverable after leaving, reopening and remounting',
+    ({ kind, id, title, text }) => {
       const pathname =
         '/dashboard/org-1/' + (kind === 'chat' ? 'chat' : 'tasks') + '/' + id;
       const key = homeDraftKey({ kind, id }, 'u1', 'org-1');
@@ -589,6 +595,28 @@ describe('HomeNavigator', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<HomeNavigator organizationId="org-1" />);
+    const list = stream();
+    const headings = within(list).getAllByRole('heading', { level: 3 });
+    expect(headings).toHaveLength(2);
+    for (const heading of headings) {
+      const wrapper = heading.closest('li');
+      expect(wrapper).toHaveRole('listitem');
+    }
+    const items = within(list).getAllByRole('listitem');
+    expect(items).toHaveLength(5);
+    const rows = items.filter((item) =>
+      item.querySelector('[data-indicator-key]'),
+    );
+    expect(rows).toHaveLength(3);
+    rows.forEach((item, index) => {
+      expect(item).toHaveAttribute('aria-posinset', String(index + 1));
+      expect(item).toHaveAttribute('aria-setsize', '3');
+    });
+    const firstRow = within(list)
+      .getByRole('link', { name: /Quarterly report/ })
+      .closest('li');
+    expect(firstRow).toHaveAttribute('aria-posinset', '1');
+    expect(firstRow).toHaveAttribute('aria-setsize', '3');
     await checkAccessibility(container);
   });
 });

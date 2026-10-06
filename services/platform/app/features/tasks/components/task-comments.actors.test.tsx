@@ -44,7 +44,10 @@ vi.mock('@/app/features/automations/hooks/use-can-use-automations', () => ({
   useCanUseAutomations: () => false,
 }));
 
-vi.mock('../hooks/use-task-subject-contract', () => ({
+vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../hooks/use-task-subject-contract')
+  >()),
   useTaskContractAutomations: () => [],
 }));
 

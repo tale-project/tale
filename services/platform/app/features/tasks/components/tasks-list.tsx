@@ -43,7 +43,7 @@ import {
 } from './windowed-task-rows';
 
 /** A top-level row's height before it is measured (subtasks folded). */
-const ROW_HEIGHT_ESTIMATE = 37;
+const ROW_HEIGHT_ESTIMATE = 41;
 
 /**
  * Linear-style single-column list grouped by status. Each status is a

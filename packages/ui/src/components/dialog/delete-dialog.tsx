@@ -48,6 +48,8 @@ export interface DeleteDialogProps {
    * close (e.g. a dropdown menu item).
    */
   restoreFocusRef?: React.RefObject<HTMLElement | null>;
+  /** Called after the dialog's close focus restoration handler completes. */
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 /**
@@ -71,6 +73,7 @@ export function DeleteDialog({
   onDelete,
   className,
   restoreFocusRef,
+  onCloseAutoFocus,
 }: DeleteDialogProps) {
   const { t: tCommon } = useT('common');
 
@@ -91,6 +94,7 @@ export function DeleteDialog({
       variant="destructive"
       className={className}
       restoreFocusRef={restoreFocusRef}
+      onCloseAutoFocus={onCloseAutoFocus}
     >
       {hasContent && (
         <Stack gap={4}>

@@ -111,3 +111,4 @@ judges **behaviour**, not link rot.
   activate Back to top** → the round button fades in at the bottom right after
   about 600 px, returns to the top (instantly when the OS asks for reduced
   motion), and fades out again; while hidden it is not reachable with Tab.
+- [ ] `DOCS-18` · **Open `/docs/patterns/list-page`, use Scroll to last item in the large-list example, then select Item 5000 with the keyboard** → the last item is reachable, **Selected Item 5000** appears, its focus remains visible, and the example and its Code panel fit desktop and phone widths in both themes.

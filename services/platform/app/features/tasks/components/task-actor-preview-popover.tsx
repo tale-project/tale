@@ -11,6 +11,7 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { useCanUseAutomations } from '@/app/features/automations/hooks/use-can-use-automations';
 import { useT } from '@/lib/i18n/client';
 
+import { useTaskLogRowActivity } from '../hooks/use-task-log-window';
 import type { TaskActorPreview } from '../utils/task-actor-preview';
 
 const HOVER_OPEN_MS = 300;
@@ -33,6 +34,7 @@ function TaskActorPreviewPopover({
 }: TaskActorPreviewPopoverProps) {
   const { t } = useT('tasks');
   const [open, setOpen] = useState(false);
+  useTaskLogRowActivity(open);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
