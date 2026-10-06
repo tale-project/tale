@@ -263,7 +263,16 @@ describe('dashboard lazy chunk failures', () => {
       await screen.findByRole('button', { name: 'Try again' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Something went wrong' }),
+      // DialogErrorBoundary uses ErrorDisplayCompact, whose catalog title
+      // includes the retry sentence (common.errors.somethingWentWrong).
+      screen.getByRole('heading', {
+        name: 'Something went wrong. Try again.',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Something went wrong while loading this page. Try again or go to another section.',
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole('main')).toContainElement(
       screen.getByRole('heading', { name: 'Page' }),
