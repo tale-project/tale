@@ -25,12 +25,11 @@ import { DEFAULT_UI_DOCS_SITE_URL } from '../site-url';
 
 export const UI_DOCS_SITE_TITLE = 'Tale UI: React component library';
 // Config-loading tools execute this module before Vite's YAML plugin is active.
-// build.test.ts holds these defaults and index.html to the English catalog.
+// build.test.ts holds the title to the English catalog and these defaults to index.html.
 export const UI_DOCS_SITE_DESCRIPTION =
-  'Build apps and websites with MIT-licensed React components from Tale. Try the controls, explore the guides, and compose your own interface.';
+  "Use Tale's MIT-licensed components for forms, tables, navigation, and product pages. Explore live examples, shared themes, and composition guides.";
 
-/** Site-relative URL for a slug. The home page is the only route outside
- *  `/docs`, and it carries no markdown body. */
+/** Site-relative URL for a guide slug. */
 function pathFor(slug: string): string {
   return `/docs/${slug}`;
 }
@@ -92,25 +91,12 @@ export async function buildUiDocsSeo(): Promise<BuiltUiDocsSeo> {
     sectionMap.set(heading, list);
   }
 
-  const sections: ArtifactSection[] = [
-    {
-      heading: 'Home',
-      // The React landing page is indexable, but has no Markdown twin.
-      // Include it in the sitemap without advertising an absent index.md.
-      hideFromIndex: true,
-      routes: [
-        {
-          url: '/',
-          title: UI_DOCS_SITE_TITLE,
-          description: UI_DOCS_SITE_DESCRIPTION,
-        },
-      ],
-    },
-    ...[...sectionMap.entries()].map(([heading, routes]) => ({
+  const sections: ArtifactSection[] = [...sectionMap.entries()].map(
+    ([heading, routes]) => ({
       heading,
       routes,
-    })),
-  ];
+    }),
+  );
   if (noindexRoutes.length > 0) {
     sections.push({
       heading: 'Unlisted',

@@ -18,9 +18,9 @@ bun install --frozen-lockfile
 bun run --filter @tale/ui-docs dev
 ```
 
-Open `http://localhost:3003`. The homepage uses `@tale/marketing-ui`; `/docs/*` uses
-`@tale/ui` for application-style navigation, controls, and examples. `/docs` redirects
-to the introduction. The service runs without platform accounts or a database.
+Open `http://localhost:3003`. The root renders the first guide in `content/nav.json`
+directly, with the same application-style documentation frame as `/docs/*` and the
+product docs. `/docs` redirects to that guide. The service runs without platform accounts or a database.
 
 `dev` generates content metadata and search before starting Vite. Markdown edits
 refresh in the browser; restart the server to refresh the search index after edits.
@@ -35,7 +35,7 @@ server you opened.
 | Change a working example | `app/demos/<family>/<name>.tsx` |
 | Change preview or Code behavior | `app/components/demo/` |
 | Change the documentation frame | [`packages/ui/src/components/docs/`](../../packages/ui/src/components/docs/), shared with the [product docs](../docs/README.md); this site feeds it in `app/components/docs/ui-docs-layout.tsx` |
-| Change the public homepage | `app/pages/home-page.tsx`, `app/components/home/` |
+| Change the entry guide | First page in `content/nav.json`; `app/routes/index.tsx` renders it |
 | Change search or page actions | `docs-search-dialog.tsx` and `page-actions.tsx` in the shared docs family; the index engine in [`packages/ui/src/components/search/static-index/`](../../packages/ui/src/components/search/static-index/) |
 | Change site copy | `messages/{en,de,fr}.yml` |
 | Change artifact generation or serving | `scripts/`, `lib/seo/`, `server.ts` |
@@ -48,17 +48,12 @@ to the shared server: no locale negotiation, no `tale_locale` cookie, and a stal
 locale-prefixed URL 301s back onto the English tree. Adding a translated tree means
 routes, prerendered artifacts and flipping that option back to `'path'`.
 
-The homepage component studio uses real controls with local state. Edit its workspace name,
-toggle the digest, switch between application and marketing previews, or reset the sample.
-Nothing is sent to a backend. Its initial application panel renders completely before
-JavaScript loads. Nested application-layout examples in the guides remain labelled, inert
-illustrations; other guide demos are interactive. A single root `Toaster` serves the site.
-
-The homepage shows the distinction between `@tale/ui` and `@tale/marketing-ui`, links to the
-five guide sections with counts derived from navigation, and offers source installation
-commands for each package. The marketing command includes its `@tale/ui` dependency;
-the installation guide covers the remaining Vite, stylesheet, and AppShell setup. The
-header theme switcher uses 32px choices for fine pointers and 44px choices for touch input.
+`app/routes/__root.tsx` mounts the shared frame once for the entry guide, deep
+pages and the 404. Page components provide the header and article. Interactive
+examples run inside the guides, with one root `Toaster`. The copyright and licence
+footnote comes from `@tale/ui/use-site-copyright`, shared with the product docs and
+marketing site. Both docs sites use `renderRedirectHtml` for static folder and
+retired-page redirects, preserving the template assets and theme script.
 
 ## Build and inspect production output
 
@@ -146,8 +141,8 @@ behavior, the pageview path a route reports, and the 404. They also cover every
 link a guide renders, the published-address ledger, and the server's redirects for
 `/docs`, section folders and guessed addresses. `test:prerender` serves the built
 site with its own server and crawls every address its pages and artifacts carry. The shared frame’s own tests live with it in `packages/ui`
-(`bun run --filter @tale/ui test` and `test:browser`). Browser tests cover the homepage,
-docs, the header strip’s line with the rail, Code panel, search, theme, redirects, and
+(`bun run --filter @tale/ui test` and `test:browser`). Browser tests cover the entry guide,
+deep pages, the header strip’s line with the rail, Code panel, search, theme, redirects, and
 404. The [manual layer](tests/manual/readme.md) adds
 visual judgment, focus, responsive navigation, and production artifact review.
 Read the page and use its examples at phone and desktop widths in both themes;

@@ -3,9 +3,8 @@ import { createI18n } from '@tale/e2e/i18n';
 import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
 
 /**
- * Design-system docs smoke. The site speaks two design languages, so the
- * suite crosses the seam: the marketing front page, then the shared docs
- * frame under `/docs` with its rail, its live examples and its search palette.
+ * Design-system docs smoke: the shared documentation frame at the root and
+ * under `/docs`, with its rail, live examples and search palette.
  *
  * Labels resolve from `messages/en.yml` (en-US pinned by the shared config)
  * over the `@tale/ui` catalog, which owns the docs frame's copy. The search
@@ -31,67 +30,58 @@ const BUTTON_PAGE = '/docs/components/button';
  *  the page is free to gain examples. */
 const BUTTON_PAGE_DEMOS = 6;
 
-test.describe('front page', () => {
-  test('renders the hero and its call to action, with no console errors', async ({
+test.describe('documentation entry', () => {
+  test('renders the first guide, its rail and search with no console errors', async ({
     page,
   }) => {
     const errors = collectConsoleErrors(page);
     await page.goto('/');
     await expectPageRenders(page);
 
-    await expect(
-      page.getByRole('heading', { level: 1, name: t('home.heroTitle') }),
-    ).toBeVisible();
-    const cta = page.getByRole('link', { name: t('home.heroPrimary') }).first();
-    await expect(cta).toBeVisible();
-    await expect(cta).toHaveAttribute(
-      'href',
-      '/docs/getting-started/installation',
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Introduction',
     );
+    await expect(
+      page.getByRole('navigation', { name: t('nav.sidebarAriaLabel') }),
+    ).toHaveCount(1);
+    await expect(page.locator('a[aria-current="page"]')).toHaveCount(1);
+    await expect(page.locator('a[aria-current="page"]')).toHaveAttribute(
+      'href',
+      '/docs/getting-started/introduction',
+    );
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      'href',
+      'https://ui.tale.dev/docs/getting-started/introduction',
+    );
+    await expect(page.locator('footer')).toContainText(
+      t('siteFooter.copyright').replace(
+        '{year}',
+        String(new Date().getFullYear()),
+      ),
+    );
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
 
     expect(errors).toEqual([]);
-  });
-
-  test('the component studio supports edits, keyboard tabs, and reset', async ({
-    page,
-  }) => {
-    await page.goto('/');
-    const studio = page.getByRole('region', { name: t('home.showcaseTitle') });
-    const name = studio.getByRole('textbox', {
-      name: t('home.showcaseNameLabel'),
-    });
-    await name.fill('Design team');
-    await studio
-      .getByRole('switch', { name: t('home.showcaseDigestLabel') })
-      .click();
-    await expect(
-      studio.getByRole('heading', { name: 'Design team' }),
-    ).toBeVisible();
-    await expect(studio.getByText(t('home.showcaseDigestOff'))).toBeVisible();
-    await studio
-      .getByRole('tab', { name: t('home.showcaseAppTab'), exact: true })
-      .focus();
-    await page.keyboard.press('ArrowRight');
-    await expect(
-      studio.getByRole('tab', {
-        name: t('home.showcaseMarketingTab'),
-        exact: true,
-      }),
-    ).toBeFocused();
-    await expect(
-      studio.getByRole('link', { name: t('home.showcaseSiteAction') }),
-    ).toBeVisible();
-    await page.keyboard.press('ArrowLeft');
-    await expect(name).toHaveValue('Design team');
-    await studio.getByRole('button', { name: t('home.showcaseReset') }).click();
-    await expect(name).toHaveValue(t('home.showcaseNameValue'));
-    await expect(
-      studio.getByRole('switch', { name: t('home.showcaseDigestLabel') }),
-    ).toBeChecked();
   });
 });
 
 test.describe('documentation page', () => {
+  test('only the first guide row claims the current page at its deep URL', async ({
+    page,
+  }) => {
+    await page.goto('/docs/getting-started/introduction');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Introduction',
+    );
+    await expect(page.locator('a[aria-current="page"]')).toHaveCount(1);
+    await expect(page.locator('a[aria-current="page"]')).toHaveAttribute(
+      'href',
+      '/docs/getting-started/introduction',
+    );
+  });
+
   test('renders the rail, the title and a live example', async ({ page }) => {
     const errors = collectConsoleErrors(page);
     await page.goto(BUTTON_PAGE);

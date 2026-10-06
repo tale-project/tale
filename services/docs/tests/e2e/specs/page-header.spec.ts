@@ -72,7 +72,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
         );
         await expect(
           trail.getByRole('link', { name: t('docs.home') }),
-        ).toHaveAttribute('href', locale === 'en' ? '/' : `/${locale}`);
+        ).toHaveAttribute('href', `${prefix}/get-started/quickstart`);
       }
     });
 

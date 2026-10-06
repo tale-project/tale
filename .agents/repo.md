@@ -10,9 +10,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 - `services/` — deployable units: `platform` (the flagship app: Vite + React 19 + TanStack Router +
   the Postgres backend), `web` (marketing site), `docs` (docs site at docs.tale.dev), `ui-docs`
-  (the design-system docs site at [ui.tale.dev](https://ui.tale.dev), port 3003: a
-  marketing-language front page on `@tale/marketing-ui`, app-language `/docs/*` pages with live
-  `<Demo>` examples), plus `db`, `proxy`, and the `sandbox*` family. `docs` and `ui-docs` render
+  (the design-system docs site at [ui.tale.dev](https://ui.tale.dev), port 3003:
+  app-language documentation at `/` and `/docs/*` with live `<Demo>` examples), plus `db`,
+  `proxy`, and the `sandbox*` family. `docs` and `ui-docs` render
   one documentation frame, `@tale/ui/docs/*` (rail, header strip, article, outline, footer, 404,
   search); a site feeds it content and never forks a piece of it.
 - `packages/` — `ui` (the design system: every reusable platform component, hook and UI util —

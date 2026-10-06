@@ -6,25 +6,20 @@ The fast "is this build even drivable" pass over ui.tale.dev. Green ⇒ go on to
 the suites that matter for what changed; red ⇒ stop and fix, because everything
 after this reads on top of it.
 
-The site speaks two design languages on purpose: the front page (`/`) is the
-marketing language (`@tale/marketing-ui`), every page under `/docs` is the app
-language (`@tale/ui`). The boxes here only prove the shell of each; the suites
-that follow judge them.
+The root and `/docs/*` pages share the app-language documentation frame
+(`@tale/ui`). The boxes here prove its shell; the following suites judge it.
 
 ## Preconditions
 
 The dev server up per [`../setup.md`](../setup.md), devtools open, a 1440×900
 viewport, the theme at **System** with the OS in light mode.
 
-> **Agent note**: wait on the route's own heading, never on a timeout — the
-> front page's `h1` is **React components. One shared language.** (`home.heroTitle`), a docs page's
-> `h1` is its frontmatter `title` (Button, Input, …).
+> **Agent note**: wait on the route's heading. The root guide's `h1` is
+> **Introduction**; other guides use their frontmatter `title` (Button, Input, …).
 
 ## Boxes
 
-- [ ] `SMOKE-1` · **Open `/` with the console open** → the display heading and
-  the two calls to action (**Start building**, **Browse components**) render on the
-  marketing paper; no console message at `warn` or `error` level.
+- [ ] `SMOKE-1` · **Open `/` with the console open** → Introduction renders in the shared docs frame with its selected rail row, header and article; no console message at `warn` or `error` level.
 - [ ] `SMOKE-2` · **Open `/docs/components/button`** → the app chrome renders:
   the rail with the Button row highlighted, the header strip with the trail
   **Docs / Components / Button**, the article, the **On this page** outline; no

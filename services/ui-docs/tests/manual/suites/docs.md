@@ -97,7 +97,7 @@ judges **behaviour**, not link rot.
   home** button that opens the introduction; the document title starts with
   **Page not found**.
 - [ ] `DOCS-15` · **Read the footer at the end of the Button page** → the
-  copyright and licence lines sit on the left; **llms.txt** and
+  shared copyright and licence footnote sits on the left; **llms.txt** and
   **llms-full.txt** open the machine-readable indexes; **Switch theme** offers
   Light, Dark and System; the GitHub button opens the repository in a new tab;
   there is no language switcher, because the pages are English only; the

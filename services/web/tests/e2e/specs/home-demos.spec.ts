@@ -32,7 +32,7 @@ for (const { path, namespace } of [
   test(`French sandbox reserves its final height on ${path} at 320px`, async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 320, height: 900 });
+    await page.setViewportSize({ width: 320, height: 150 });
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await gotoClientPage(page, `/fr${path}`);
     await page.evaluate(() => document.fonts.ready);
@@ -41,14 +41,19 @@ for (const { path, namespace } of [
       exact: true,
     });
     const reply = tFrench(`${namespace}.demos.sandbox.reply`);
-    // Wait for the browser's unplayed scene, rather than measuring the
-    // complete prerendered HTML before the client mounts.
-    await expect(demo).not.toContainText(reply);
+    const replyPart = demo.locator('[data-sandbox-part="reply"]');
+    const livePart = demo.locator('[data-sandbox-part="live"]');
+    // All parts reserve their final geometry while the unplayed scene is
+    // transparent. Judge playback by paint, rather than DOM membership.
+    await expect(replyPart).toHaveCSS('opacity', '0');
     const before = await demo.boundingBox();
     expect(before).not.toBeNull();
+    await page.setViewportSize({ width: 320, height: 900 });
     await demo.scrollIntoViewIfNeeded();
-    await expect(demo).toContainText(reply, { timeout: 10_000 });
-    await expect(demo).toContainText(
+    await expect(replyPart).toHaveCSS('opacity', '1', { timeout: 10_000 });
+    await expect(replyPart).toContainText(reply);
+    await expect(livePart).toHaveCSS('opacity', '1');
+    await expect(livePart).toContainText(
       tFrench(`${namespace}.demos.sandbox.previewDetail3`),
     );
     expect((await demo.boundingBox())?.height).toBe(before?.height);

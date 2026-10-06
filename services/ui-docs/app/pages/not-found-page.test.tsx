@@ -2,6 +2,7 @@ import { TooltipProvider } from '@tale/ui/tooltip';
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { UiDocsLayout } from '@/app/components/docs/ui-docs-layout';
 import { checkAccessibility } from '@/tests/utils/a11y';
 
 vi.mock('@tanstack/react-router', async () => {
@@ -16,7 +17,9 @@ function renderPage() {
   // the app gets it from `AppShell`.
   return render(
     <TooltipProvider>
-      <NotFoundPage />
+      <UiDocsLayout activeHref="/docs/components/buton">
+        <NotFoundPage />
+      </UiDocsLayout>
     </TooltipProvider>,
   );
 }

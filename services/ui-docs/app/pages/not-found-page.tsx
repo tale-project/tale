@@ -3,7 +3,6 @@ import { suggestPages } from '@tale/ui/docs/suggest-pages';
 import { useRouterState } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
-import { UiDocsLayout } from '@/app/components/docs/ui-docs-layout';
 import { firstNavSlug } from '@/lib/content/nav';
 import { navPage } from '@/lib/content/nav-sections';
 import { docPath } from '@/lib/content/paths';
@@ -50,11 +49,9 @@ export function NotFoundPage() {
   });
 
   return (
-    <UiDocsLayout activeHref={pathname}>
-      <DocsNotFound
-        home={{ href: docPath(firstNavSlug()), label: t('home') }}
-        suggestions={suggestions}
-      />
-    </UiDocsLayout>
+    <DocsNotFound
+      home={{ href: docPath(firstNavSlug()), label: t('home') }}
+      suggestions={suggestions}
+    />
   );
 }

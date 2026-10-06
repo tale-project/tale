@@ -21,7 +21,6 @@ startBrowserAnalytics(
   () => {
     const match = router.state.matches.at(-1);
     if (match?.status !== 'success' || match.globalNotFound) return undefined;
-    if (match.routeId === '/') return '/';
     return match.loaderData?.analyticsPath;
   },
 );

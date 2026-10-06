@@ -141,6 +141,7 @@ legal:
     data-processing-agreement: DPA
     technical-organizational-measures: MTO
 footer:
+  taleUi: Tale UI
   resources: Ressources
   legal: Mentions légales
   pricing: Tarifs
@@ -156,7 +157,6 @@ footer:
   githubAriaLabel: GitHub
   llmsTxtLabel: llms.txt
   llmsFullTxtLabel: llms-full.txt
-  copyright: © {year} Tale par Ruler GmbH. Sous licence MIT.
   platform: Plateforme
   company: Entreprise
   changelog: Changelog

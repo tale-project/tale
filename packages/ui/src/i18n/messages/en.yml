@@ -348,3 +348,6 @@ recurrence:
     friday: Fr
     saturday: Sa
     sunday: Su
+
+siteFooter:
+  copyright: © {year} Tale by Ruler GmbH. MIT licensed.
