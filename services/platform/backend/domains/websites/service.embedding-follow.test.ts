@@ -122,6 +122,11 @@ describe('websitesAfterEmbeddingChange', () => {
       expect.objectContaining({ domain: 'docs.example' }),
       expect.objectContaining({ domain: 'failed.example' }),
     ]);
+    // Nothing says these sites changed: the scans embed stored text and
+    // retry what failed, and ask for no unchanged page again.
+    expect(scanJobs()).not.toContainEqual(
+      expect.objectContaining({ full: true }),
+    );
     // The organization-wide hint the readiness notice re-reads on.
     expect(hints(queries)).toContainEqual(['org-1', null, 'website', null]);
   });

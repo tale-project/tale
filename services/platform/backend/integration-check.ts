@@ -33831,6 +33831,35 @@ async function checkWebsitesCrawl(
   // page, no robots.txt and no sitemap, so the scan that restores the
   // registration finishes on the homepage.
   const HEAL_DOMAIN = 'itest-heal.example';
+  // A site whose sitemap dates its pages — the lastmod lanes (2026-10-06).
+  // Its own fixture, with a count of the requests each path answered, so a
+  // lane can tell a page a scan left alone from one it read again. Six
+  // sitemap URLs: under the link-walk threshold, so discovery also reads
+  // the homepage for links on every scan — the lanes judge the other pages.
+  const LASTMOD_DOMAIN = 'itest-lastmod.example';
+  const OLD_LASTMOD = '2024-03-01';
+  const lastmodDates = new Map<string, string | null>([
+    ['/', OLD_LASTMOD],
+    ['/old.txt', OLD_LASTMOD],
+    ['/zoned.txt', '2024-03-01T10:00:00+01:00'],
+    ['/undated.txt', null],
+    ['/stale.txt', OLD_LASTMOD],
+    ['/moved.txt', OLD_LASTMOD],
+  ]);
+  const lastmodBodies = new Map<string, string>(
+    [...lastmodDates.keys()].map((route) => [
+      route,
+      `Lastmod fixture page ${route} v1. Enough words about the sitemap dates of this page to survive the chunking thresholds of the pipeline.`,
+    ]),
+  );
+  const lastmodHits = new Map<string, number>();
+  const lastmodSitemap = (): string =>
+    `<?xml version="1.0"?><urlset>${[...lastmodDates]
+      .map(
+        ([route, date]) =>
+          `<url><loc>https://${LASTMOD_DOMAIN}${route}</loc>${date === null ? '' : `<lastmod>${date}</lastmod>`}</url>`,
+      )
+      .join('')}</urlset>`;
   const FAKE_HOSTS = new Set([
     DOMAIN,
     `www.${DOMAIN}`,
@@ -33898,6 +33927,26 @@ async function checkWebsitesCrawl(
         headers: {
           'content-type': page.type,
           'content-length': String(page.body.length),
+        },
+      });
+    }
+    if (
+      url.hostname === LASTMOD_DOMAIN ||
+      url.hostname === `www.${LASTMOD_DOMAIN}`
+    ) {
+      lastmodHits.set(url.pathname, (lastmodHits.get(url.pathname) ?? 0) + 1);
+      const body =
+        url.pathname === '/robots.txt'
+          ? `User-agent: *\nSitemap: https://${LASTMOD_DOMAIN}/sitemap.xml\n`
+          : url.pathname === '/sitemap.xml'
+            ? lastmodSitemap()
+            : lastmodBodies.get(url.pathname);
+      if (body === undefined) return new Response('gone', { status: 404 });
+      return new Response(body, {
+        headers: {
+          'content-type':
+            url.pathname === '/sitemap.xml' ? 'application/xml' : 'text/plain',
+          'content-length': String(body.length),
         },
       });
     }
@@ -35187,6 +35236,151 @@ async function checkWebsitesCrawl(
     );
     if (robotsId !== '') {
       await v1(`/websites/${robotsId}`, { method: 'DELETE' });
+    }
+
+    // 4h. A rescan leaves alone the pages the site's sitemap says have not
+    //     changed (2026-10-06). The crawler read `<loc>` out of a sitemap
+    //     and nothing else, so every scan requested every page again — a
+    //     site that dated all its pages answered thousands of requests a
+    //     scan for pages unchanged in months. A page is now requested when
+    //     its entry carries no date, when the date moved past the last
+    //     read, when the sitemap no longer states it, when the last read is
+    //     older than a week, and on a scan a person started.
+    const lastmodCreated = z.looseObject({ id: z.string() }).safeParse(
+      await (
+        await v1('/websites', {
+          body: { domain: LASTMOD_DOMAIN, scanInterval: '6h' },
+        })
+      ).json(),
+    );
+    const lastmodId = lastmodCreated.success ? lastmodCreated.data.id : '';
+    await drainCrawlJobs();
+    const lastmodUrl = (route: string) => `https://${LASTMOD_DOMAIN}${route}`;
+    const lastmodPages = [
+      '/old.txt',
+      '/zoned.txt',
+      '/undated.txt',
+      '/stale.txt',
+      '/moved.txt',
+    ];
+    /** How often each page was requested since `before`, as `route:n`. */
+    const requestedSince = (before: Map<string, number>): string =>
+      lastmodPages
+        .map(
+          (route) =>
+            `${route}:${(lastmodHits.get(route) ?? 0) - (before.get(route) ?? 0)}`,
+        )
+        .join(' ');
+    const lastmodRescan = async (): Promise<string> => {
+      const before = new Map(lastmodHits);
+      await websites.runWebsitesScan(sql, {
+        domain: LASTMOD_DOMAIN,
+        orgSlug,
+        organizationId: orgId,
+      });
+      await drainCrawlJobs();
+      return requestedSince(before);
+    };
+    /** The date each page's row carries, as `route:instant`. */
+    const lastmodStored = async (): Promise<string> =>
+      (
+        await pool<{ url: string; lastmod: string | null }[]>`
+          SELECT url,
+                 to_char(sitemap_lastmod AT TIME ZONE 'UTC',
+                         'YYYY-MM-DD"T"HH24:MI"Z"') AS lastmod
+          FROM public_web.website_urls
+          WHERE domain = ${LASTMOD_DOMAIN} AND url <> ${lastmodUrl('/')}
+          ORDER BY url
+        `
+      )
+        .map(
+          (row) =>
+            `${row.url.replace(`https://${LASTMOD_DOMAIN}`, '')}:${row.lastmod ?? 'none'}`,
+        )
+        .join(' ');
+    const lastmodFirst = await pool<{ active: string }[]>`
+      SELECT count(*) FILTER (WHERE status = 'active')::text AS active
+      FROM public_web.website_urls WHERE domain = ${LASTMOD_DOMAIN}
+    `;
+
+    // The first rescan: every dated page was read after its date, so none
+    // is requested; the page without a date is.
+    const lastmodSecond = await lastmodRescan();
+    const lastmodDatesStored = await lastmodStored();
+    record(
+      'websites lastmod: a rescan requests no page its sitemap dates as unchanged, and the page without a date',
+      lastmodCreated.success &&
+        lastmodFirst[0]?.active === '6' &&
+        lastmodSecond ===
+          '/old.txt:0 /zoned.txt:0 /undated.txt:1 /stale.txt:0 /moved.txt:0' &&
+        // A date alone covers its whole day in any time zone; a time with a
+        // zone is that instant.
+        lastmodDatesStored ===
+          '/moved.txt:2024-03-02T12:00Z /old.txt:2024-03-02T12:00Z /stale.txt:2024-03-02T12:00Z /undated.txt:none /zoned.txt:2024-03-01T09:00Z',
+      `created=${lastmodCreated.success} firstScanActive=${lastmodFirst[0]?.active ?? '?'}/6, rescan requested [${lastmodSecond}] (want old 0, zoned 0, undated 1, stale 0, moved 0), stored [${lastmodDatesStored}]`,
+    );
+
+    // A date that moved, a date the sitemap dropped, and a read older than
+    // a week: each is requested again, and the changed page is re-indexed.
+    lastmodDates.set('/moved.txt', new Date().toISOString());
+    lastmodBodies.set(
+      '/moved.txt',
+      'Lastmod fixture page /moved.txt v2. Rewritten words about the sitemap dates of this page so its content hash flips and its chunks are cut again.',
+    );
+    lastmodDates.set('/zoned.txt', null);
+    await pool`
+      UPDATE public_web.website_urls
+         SET last_crawled_at = now() - interval '8 days'
+       WHERE domain = ${LASTMOD_DOMAIN} AND url = ${lastmodUrl('/stale.txt')}
+    `;
+    const lastmodThird = await lastmodRescan();
+    const movedChunks = await pool<{ content: string }[]>`
+      SELECT chunk_content AS content FROM public_web.chunks
+      WHERE domain = ${LASTMOD_DOMAIN} AND url = ${lastmodUrl('/moved.txt')}
+    `;
+    const staleRead = await pool<{ recent: boolean }[]>`
+      SELECT last_crawled_at > now() - interval '1 hour' AS recent
+      FROM public_web.website_urls
+      WHERE domain = ${LASTMOD_DOMAIN} AND url = ${lastmodUrl('/stale.txt')}
+    `;
+    record(
+      'websites lastmod: a moved date, a date the sitemap dropped and a read older than a week are requested again',
+      lastmodThird ===
+        '/old.txt:0 /zoned.txt:1 /undated.txt:1 /stale.txt:1 /moved.txt:1' &&
+        movedChunks.length >= 1 &&
+        movedChunks.every((chunk) => chunk.content.includes('v2')) &&
+        (staleRead[0]?.recent ?? false),
+      `rescan requested [${lastmodThird}] (want old 0, zoned 1, undated 1, stale 1, moved 1), movedChunks=${movedChunks.length} allV2=${movedChunks.every((chunk) => chunk.content.includes('v2'))}, staleReadNow=${staleRead[0]?.recent ?? '?'}`,
+    );
+
+    // "Scan now" is a person saying the site changed: every page is
+    // requested, and the scan records no date. The scheduled scan after it
+    // honours the dates again — and requests the page whose date moved
+    // within the hour once more, as a cache in front of the site may still
+    // have served its earlier text.
+    const beforeScanNow = new Map(lastmodHits);
+    const scanNow = z
+      .looseObject({ queued: z.boolean() })
+      .safeParse(await (await post(`/${lastmodId}/scan`, {})).json());
+    await drainCrawlJobs();
+    const lastmodFull = requestedSince(beforeScanNow);
+    const lastmodAfterFull = await lastmodStored();
+    const lastmodFifth = await lastmodRescan();
+    const lastmodAfterFifth = await lastmodStored();
+    record(
+      'websites lastmod: Scan now requests every page, and the next scheduled scan honours the dates again',
+      scanNow.success &&
+        scanNow.data.queued &&
+        lastmodFull ===
+          '/old.txt:1 /zoned.txt:1 /undated.txt:1 /stale.txt:1 /moved.txt:1' &&
+        !lastmodAfterFull.includes('Z') &&
+        lastmodFifth ===
+          '/old.txt:0 /zoned.txt:1 /undated.txt:1 /stale.txt:0 /moved.txt:1' &&
+        lastmodAfterFifth.includes('/old.txt:2024-03-02T12:00Z'),
+      `scanNow queued=${scanNow.success ? scanNow.data.queued : 'BAD SHAPE'} requested [${lastmodFull}] (want every page 1) stored [${lastmodAfterFull}] (want none), next scan requested [${lastmodFifth}] (want old 0, zoned 1, undated 1, stale 0, moved 1) stored [${lastmodAfterFifth}]`,
+    );
+    if (lastmodId !== '') {
+      await v1(`/websites/${lastmodId}`, { method: 'DELETE' });
     }
 
     // 4f. Round g, g4-5: a site whose every page failed is not "a successful

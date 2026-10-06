@@ -8,6 +8,7 @@ import {
   admitUrls,
   admitUrlsStatement,
   deregisterDomain,
+  recordSitemapLastmods,
   registerDomain,
   registerUrlList,
   reviveListedUrls,
@@ -269,5 +270,82 @@ describe('reviveListedUrls', () => {
       "WHERE domain = $1 AND listed AND status = 'deleted'",
     );
     expect(call?.params).toEqual(['example.test']);
+  });
+});
+
+/**
+ * A page's sitemap date is what a rescan leaves it alone by, so each
+ * discovery replaces the record: a date the sitemap no longer states must
+ * not keep its page skipped, and a scan that records none requests every
+ * page.
+ */
+describe('recordSitemapLastmods', () => {
+  const DOMAIN = 'docs.example';
+
+  it('forgets the dates this scan did not read and writes the ones that moved, in one transaction', async () => {
+    const { sql, sent, begins } = recorder();
+
+    await recordSitemapLastmods(
+      sql,
+      DOMAIN,
+      new Map([
+        ['https://docs.example/a', new Date('2026-10-07T12:00:00.000Z')],
+        ['https://docs.example/b', new Date('2026-01-03T12:00:00.000Z')],
+      ]),
+    );
+
+    expect(begins()).toBe(1);
+    expect(sent.every((statement) => statement.inTx)).toBe(true);
+    expect(sent).toHaveLength(2);
+    const [forget, write] = sent;
+    expect(forget?.text).toContain('SET sitemap_lastmod = NULL');
+    expect(forget?.text).toContain('sitemap_lastmod IS NOT NULL');
+    expect(forget?.text).toContain('NOT (url = ANY($2::text[]))');
+    expect(forget?.params).toEqual([
+      DOMAIN,
+      ['https://docs.example/a', 'https://docs.example/b'],
+    ]);
+    expect(write?.text).toContain(
+      'SET sitemap_lastmod = v.lastmod::timestamptz',
+    );
+    // A date that has not moved is not written again.
+    expect(write?.text).toContain(
+      'u.sitemap_lastmod IS DISTINCT FROM v.lastmod::timestamptz',
+    );
+    expect(write?.params).toEqual([
+      DOMAIN,
+      ['https://docs.example/a', 'https://docs.example/b'],
+      ['2026-10-07T12:00:00.000Z', '2026-01-03T12:00:00.000Z'],
+    ]);
+  });
+
+  it('forgets every date and writes none when the scan read none', async () => {
+    const { sql, sent } = recorder();
+
+    await recordSitemapLastmods(sql, DOMAIN, new Map());
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.text).toContain('SET sitemap_lastmod = NULL');
+    expect(sent[0]?.params).toEqual([DOMAIN, []]);
+  });
+
+  it('writes a large sitemap in batches', async () => {
+    const { sql, sent } = recorder();
+    const lastmods = new Map(
+      Array.from({ length: URL_INSERT_BATCH + 1 }, (_, index) => [
+        `https://docs.example/${index}`,
+        new Date('2026-01-03T12:00:00.000Z'),
+      ]),
+    );
+
+    await recordSitemapLastmods(sql, DOMAIN, lastmods);
+
+    const writes = sent.filter((statement) =>
+      statement.text.includes('FROM unnest('),
+    );
+    expect(writes.map((statement) => statement.params[1])).toEqual([
+      expect.objectContaining({ length: URL_INSERT_BATCH }),
+      expect.objectContaining({ length: 1 }),
+    ]);
   });
 });

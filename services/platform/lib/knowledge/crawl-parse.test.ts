@@ -26,9 +26,11 @@ import {
   normalizeListedUrl,
   paragraphsForHashing,
   parseRobots,
+  parseSitemapEntries,
   parseSitemapLocs,
   robotsHeaderForbidsIndexing,
   siteHosts,
+  sitemapLastmodInstant,
   stripBoilerplate,
   robotsSitemapsFromStored,
 } from './crawl-parse';
@@ -250,6 +252,134 @@ describe('sitemap parsing', () => {
   it('tells a sitemap index apart from a urlset', () => {
     expect(isSitemapIndex('<sitemapindex><sitemap>…')).toBe(true);
     expect(isSitemapIndex('<urlset><url>…')).toBe(false);
+  });
+});
+
+/**
+ * What a sitemap says about a page's last change decides whether a rescan
+ * requests the page at all, so the value is read toward its LATEST meaning:
+ * a scan that read the page before that instant cannot know it has the
+ * current text. The crawler read `<loc>` alone and requested every page on
+ * every scan, however long its sitemap said it had not changed.
+ */
+describe('sitemapLastmodInstant', () => {
+  const instant = (value: string): string | null =>
+    sitemapLastmodInstant(value)?.toISOString() ?? null;
+
+  it('reads a time with a zone as that instant', () => {
+    expect(instant('2026-10-06T14:30:00Z')).toBe('2026-10-06T14:30:00.000Z');
+    expect(instant('2026-10-06T14:30:00+02:00')).toBe(
+      '2026-10-06T12:30:00.000Z',
+    );
+    expect(instant('2026-10-06T14:30:00-0700')).toBe(
+      '2026-10-06T21:30:00.000Z',
+    );
+    expect(instant('2026-10-06T14:30+02:00')).toBe('2026-10-06T12:30:00.000Z');
+    expect(instant(' 2026-10-06T14:30:00.123456+00:00 ')).toBe(
+      '2026-10-06T14:30:00.000Z',
+    );
+  });
+
+  // A date alone keeps its value through every edit of that day: the page
+  // is unchanged only once the day is over everywhere.
+  it('reads a date alone as the end of that day in the last time zone', () => {
+    expect(instant('2026-10-06')).toBe('2026-10-07T12:00:00.000Z');
+    expect(instant('2024-02-29')).toBe('2024-03-01T12:00:00.000Z');
+    expect(instant('2026-12-31')).toBe('2027-01-01T12:00:00.000Z');
+  });
+
+  it('reads a time without a zone in the zone furthest behind UTC', () => {
+    expect(instant('2026-10-06T14:30:00')).toBe('2026-10-07T02:30:00.000Z');
+    expect(instant('2026-10-06 14:30:00')).toBe('2026-10-07T02:30:00.000Z');
+  });
+
+  it.each([
+    ['a year alone', '2026'],
+    ['a month alone', '2026-10'],
+    ['a month that does not exist', '2026-13-01'],
+    ['a day that does not exist', '2026-02-30'],
+    ['an hour that does not exist', '2026-10-06T25:00:00Z'],
+    ['a zone that does not exist', '2026-10-06T14:30:00+19:00'],
+    ['another date format', '06.10.2026'],
+    ['an HTTP date', 'Tue, 06 Oct 2026 14:30:00 GMT'],
+    ['words', 'yesterday'],
+    ['nothing', ''],
+  ])('reads nothing out of %s', (_case, value) => {
+    expect(sitemapLastmodInstant(value)).toBeNull();
+  });
+});
+
+describe('parseSitemapEntries', () => {
+  const read = (xml: string) =>
+    parseSitemapEntries(xml).map((entry) => [
+      entry.loc,
+      entry.lastmod?.toISOString() ?? null,
+    ]);
+
+  it("gives each page its own entry's date", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+      <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+        <url>
+          <loc>https://a.example</loc>
+          <lastmod>2026-07-27</lastmod>
+          <changefreq>monthly</changefreq>
+          <xhtml:link rel="alternate" hreflang="en" href="https://a.example/en" />
+        </url>
+        <url>
+          <lastmod>2026-10-06T08:00:00+02:00</lastmod>
+          <loc>https://a.example/en</loc>
+        </url>
+        <url><loc>https://a.example/undated</loc></url>
+        <url><loc><![CDATA[https://a.example/cdata]]></loc><lastmod><![CDATA[2026-01-02]]></lastmod></url>
+      </urlset>`;
+    expect(read(xml)).toEqual([
+      ['https://a.example', '2026-07-28T12:00:00.000Z'],
+      ['https://a.example/en', '2026-10-06T06:00:00.000Z'],
+      ['https://a.example/undated', null],
+      ['https://a.example/cdata', '2026-01-03T12:00:00.000Z'],
+    ]);
+  });
+
+  it('leaves a page without a date when its entry carries one it cannot read', () => {
+    expect(
+      read(
+        '<urlset><url><loc>https://a.example/x</loc><lastmod>last week</lastmod></url></urlset>',
+      ),
+    ).toEqual([['https://a.example/x', null]]);
+  });
+
+  // An image extension lists the image under its own tag, with its own
+  // address: neither is the page's.
+  it('reads the page address, not an image listed in its entry', () => {
+    expect(
+      read(
+        '<urlset><url><loc>https://a.example/x</loc><image:image><image:loc>https://a.example/x.png</image:loc></image:image><lastmod>2026-01-02</lastmod></url></urlset>',
+      ),
+    ).toEqual([['https://a.example/x', '2026-01-03T12:00:00.000Z']]);
+  });
+
+  it.each([
+    [
+      'a sitemap index',
+      '<sitemapindex><sitemap><loc>https://a.example/pages.xml</loc><lastmod>2026-01-02</lastmod></sitemap></sitemapindex>',
+    ],
+    [
+      'addresses outside any entry',
+      '<loc>https://a.example/pages.xml</loc><lastmod>2026-01-02</lastmod>',
+    ],
+  ])('lists every address of %s, without a date', (_case, xml) => {
+    expect(read(xml)).toEqual([['https://a.example/pages.xml', null]]);
+  });
+
+  it('lists the same addresses, in the same order, as the plain reader', () => {
+    const xml = `<loc>https://a.example/before</loc>
+      <urlset><url><loc>https://a.example/1</loc><lastmod>2026-01-02</lastmod></url>
+      <loc>https://a.example/between</loc>
+      <url><loc>https://a.example/2?a=1&amp;b=2</loc></url></urlset>
+      <loc>https://a.example/after</loc>`;
+    expect(parseSitemapEntries(xml).map((entry) => entry.loc)).toEqual(
+      parseSitemapLocs(xml),
+    );
   });
 });
 
@@ -920,6 +1050,32 @@ describe('scanning markup that never closes its tags', () => {
     [
       'CDATA openers inside one sitemap entry',
       () => parseSitemapLocs(`<loc>${'<![CDATA['.repeat(RUN)}</loc>`),
+    ],
+    [
+      'sitemap blocks with no end',
+      () => parseSitemapEntries('<url>'.repeat(RUN)),
+    ],
+    [
+      'sitemap blocks whose only end is the last one',
+      () => parseSitemapEntries(`${'<url '.repeat(RUN)}</url>`),
+    ],
+    [
+      'sitemap dates with no end inside one block',
+      () => parseSitemapEntries(`<url>${'<lastmod>'.repeat(RUN)}</url>`),
+    ],
+    [
+      'sitemap dates whose only end is the last one',
+      () =>
+        parseSitemapEntries(`<url>${'<lastmod '.repeat(RUN)}</lastmod></url>`),
+    ],
+    [
+      'a sitemap of many small blocks',
+      () =>
+        parseSitemapEntries(
+          '<url><loc>https://a.example/x</loc><lastmod>2026-01-02</lastmod></url>'.repeat(
+            RUN,
+          ),
+        ),
     ],
     ['anchors with no target', () => extractLinks(`${'<a '.repeat(RUN)}>`)],
     [

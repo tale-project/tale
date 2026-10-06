@@ -145,6 +145,53 @@ export async function reviveListedUrls(
   return rows.length;
 }
 
+/**
+ * Record what this scan's sitemaps say about each page's last change, and
+ * forget what an earlier scan's said — the two in one transaction, so the
+ * frontier never reads half of either.
+ *
+ * `lastmods` REPLACES the domain's record: a page it does not name loses the
+ * date an earlier discovery wrote. That is what keeps a stale statement from
+ * skipping a page for ever — the sitemap dropped the entry or its date, the
+ * sitemap could not be fetched this time, discovery ran out of its budget
+ * before reaching it — and what an empty map means: a scan a person started
+ * records none, so it requests every page. A date that has not moved is not
+ * written again; on an ordinary rescan nearly every row is left untouched.
+ */
+export async function recordSitemapLastmods(
+  sql: Sql,
+  domain: string,
+  lastmods: ReadonlyMap<string, Date>,
+): Promise<void> {
+  const entries = [...lastmods];
+  await sql.begin(async (tx) => {
+    await tx.unsafe(
+      `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
+          SET sitemap_lastmod = NULL
+        WHERE domain = $1 AND sitemap_lastmod IS NOT NULL
+          AND NOT (url = ANY($2::text[]))`,
+      [domain, entries.map(([url]) => url)],
+    );
+    for (let start = 0; start < entries.length; start += URL_INSERT_BATCH) {
+      const batch = entries.slice(start, start + URL_INSERT_BATCH);
+      // The instants travel as text and are cast by the server, as a scan's
+      // start does in the admission statement.
+      await tx.unsafe(
+        `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls AS u
+            SET sitemap_lastmod = v.lastmod::timestamptz
+           FROM unnest($2::text[], $3::text[]) AS v(url, lastmod)
+          WHERE u.domain = $1 AND u.url = v.url
+            AND u.sitemap_lastmod IS DISTINCT FROM v.lastmod::timestamptz`,
+        [
+          domain,
+          batch.map(([url]) => url),
+          batch.map(([, lastmod]) => lastmod.toISOString()),
+        ],
+      );
+    }
+  });
+}
+
 /** Corpus → websites-row status vocabulary. The corpus distinguishes
  * `completed` (a finished scan) from `active`; the websites row treats both
  * as a healthy scanned site. A corpus row is born `idle` (the column

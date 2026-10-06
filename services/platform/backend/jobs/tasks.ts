@@ -331,7 +331,10 @@ export interface TaskPayloads {
   /** One continuation link of a domain scan — the reused engine body
    * self-chains through this queue; the corpus-side claim is the fence.
    * `takeover` is set by the scheduler alone, on the first link of a scan
-   * it resumes: the heartbeat of the claim whose scan stopped. */
+   * it resumes: the heartbeat of the claim whose scan stopped. `full` is
+   * set on the first link of a scan a person started: it requests every
+   * page, where a scheduled scan leaves alone the pages the site's sitemap
+   * says have not changed. */
   'websites.scan': {
     domain: string;
     orgSlug: string;
@@ -339,6 +342,7 @@ export interface TaskPayloads {
     continuation?: number;
     scanStartedAt?: string;
     takeover?: string;
+    full?: boolean;
   };
   /** Register a website (or URL list) in the corpus + kick its first scan
    * (the 0.4 `registerAndSync`, fire-and-forget behind the create). */

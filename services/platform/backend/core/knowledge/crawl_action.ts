@@ -13,7 +13,9 @@
  * (`renderUrlsInSandbox`) so JS-rendered sites yield their real content.
  * The in-process probe stays the authority on page lifecycle — status
  * codes, deletes, size caps, SSRF guards — and content-hash comparison is
- * the only change detection.
+ * the only change detection for a page that is requested. A page whose
+ * sitemap entry says it has not changed since it was last read is not
+ * requested at all (`UNCHANGED_BY_SITEMAP_SQL`).
  *
  * A scan is a CONTINUATION CHAIN, not one long action: a Convex node action
  * is hard-killed near ten minutes without running its catch, so each link
@@ -50,6 +52,7 @@ import {
   normalizeCandidateUrl,
   paragraphsForHashing,
   parseRobots,
+  parseSitemapEntries,
   parseSitemapLocs,
   publicPageError,
   renderLaneHaltMessage,
@@ -109,7 +112,12 @@ import {
 } from '../websites/scan_scheduling';
 import { type PageFailureKind, PAGE_SKIP_KINDS_SQL } from '../websites/types';
 import { readOrgEmbeddingConfig } from './connection';
-import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
+import {
+  MAX_URLS_PER_DOMAIN,
+  admitUrls,
+  recordSitemapLastmods,
+  reviveListedUrls,
+} from './crawl';
 import { crawlDocumentMaxBytes } from './crawl_limits';
 import {
   CRAWLER_PRODUCT_TOKEN,
@@ -212,6 +220,19 @@ const MAX_FETCH_FAILURES = 5;
  * still lets a page revived on the site come back on its own. */
 const BENCHED_PAGE_RETRY_INTERVAL = '7 days';
 
+/** How long a page is left alone on its sitemap's word that it has not
+ * changed ({@link UNCHANGED_BY_SITEMAP_SQL}) — a Postgres interval. Past it
+ * the page is read again whatever its entry says: a listing page changes
+ * with every article it lists and keeps its date, and a site can publish
+ * dates it never moves. A week bounds how stale such a page gets, at one
+ * request a week. */
+const SITEMAP_LASTMOD_MAX_AGE = '7 days';
+/** How long after the change a sitemap records a read of the page still
+ * counts as too early — a Postgres interval. A cache in front of the site
+ * can go on serving the earlier text for a while after the edit, and a read
+ * that met it would otherwise stand as the current one for a week. */
+const SITEMAP_LASTMOD_SETTLE = '1 hour';
+
 /** Pages the vector backfill reads per query (`PageIndexer.embedVectorless`). */
 const EMBED_BATCH_PAGES = 20;
 
@@ -252,6 +273,13 @@ export async function scanWebsiteImpl(
      * takes exactly that claim over instead of waiting out
      * {@link STUCK_SCAN_TAKEOVER}; a claim that moved since is left alone. */
     takeover?: string;
+    /** Set on the first link of a scan a person started with "Scan now":
+     * every page is requested, whatever the site's sitemap says about when
+     * it last changed. Any other scan leaves an unchanged page alone
+     * ({@link UNCHANGED_BY_SITEMAP_SQL}) — a scheduled one, and the one the
+     * scheduler resumes after a restart, which continues as an ordinary
+     * scan whatever it began as. */
+    full?: boolean;
     /** Aborted once the job this link runs in has ended under it — the
      * process is stopping, or the link outlived the job's expiry. */
     signal?: AbortSignal;
@@ -345,6 +373,7 @@ export async function scanWebsiteImpl(
             actionStartedAt + DISCOVERY_BUDGET_MS,
             robots,
             scanStartedAt,
+            { full: args.full === true },
           );
           const retired = await retireDisallowedRows(sql, args.domain, policy);
           if (retired > 0) {
@@ -919,13 +948,20 @@ async function claimScan(
  * as the fallback) under the robots rules the scan read, and record them as
  * `discovered` rows for the fetch loop. `deadline` bounds the fetching: a
  * discovery cut short records what it has — the next scan's discovery pass
- * tops the frontier up. */
+ * tops the frontier up.
+ *
+ * It also records what the sitemaps say about each page's last change, which
+ * is what lets the fetch loop leave an unchanged page alone
+ * ({@link UNCHANGED_BY_SITEMAP_SQL}). A `full` scan — one a person started
+ * with "Scan now" — records none, and so requests every page: that is how
+ * someone says the site changed, whatever its sitemap claims. */
 async function discoverAndRecordUrls(
   sql: Sql,
   domain: string,
   deadline: number,
   robots: RobotsRules,
   scanStartedAt: string,
+  options: { full: boolean },
 ): Promise<void> {
   const hosts = siteHosts(domain);
   const baseUrl = `https://${domain}/`;
@@ -949,12 +985,19 @@ async function discoverAndRecordUrls(
   if (advertised.length > 0) sitemapCandidates = advertised;
 
   const urls = new Set<string>();
-  const admit = (candidate: string): boolean => {
+  // What the sitemaps say about the last change of each admitted page — the
+  // latest date when several entries name one page.
+  const lastmods = new Map<string, Date>();
+  const admit = (candidate: string, lastmod: Date | null = null): boolean => {
     const normalized = normalizeCandidateUrl(candidate, baseUrl, hosts);
     if (!normalized) return false;
     if (isUrlDisallowed(normalized, robots)) return false;
     if (urls.size >= MAX_URLS_PER_DOMAIN) return true;
     urls.add(normalized);
+    const known = lastmods.get(normalized);
+    if (lastmod !== null && (known === undefined || lastmod > known)) {
+      lastmods.set(normalized, lastmod);
+    }
     return urls.size >= MAX_URLS_PER_DOMAIN;
   };
   admit(baseUrl);
@@ -1020,8 +1063,8 @@ async function discoverAndRecordUrls(
       continue;
     }
     let capped = false;
-    for (const loc of parseSitemapLocs(xml)) {
-      capped = admit(loc);
+    for (const entry of parseSitemapEntries(xml)) {
+      capped = admit(entry.loc, entry.lastmod);
       if (capped) break;
     }
     if (capped) break;
@@ -1091,7 +1134,19 @@ async function discoverAndRecordUrls(
     listed: false,
     retiredBefore: scanStartedAt,
   });
-  console.log(`[crawl] ${domain}: ${urls.size} URLs discovered`);
+  // After the admission: a page this scan found first has a row to carry
+  // its date only now.
+  await recordSitemapLastmods(sql, domain, options.full ? new Map() : lastmods);
+  const unchanged = options.full
+    ? 0
+    : await countUnchangedBySitemap(sql, domain, scanStartedAt);
+  console.log(
+    `[crawl] ${domain}: ${urls.size} URLs discovered${
+      unchanged > 0
+        ? `, ${unchanged} not requested (unchanged by their sitemap dates)`
+        : ''
+    }`,
+  );
 }
 
 interface DuePage {
@@ -1102,11 +1157,60 @@ interface DuePage {
   readonly listed: boolean;
 }
 
+/**
+ * True for a page a scan leaves alone on its sitemap's word: the entry's
+ * `<lastmod>` says the page has not changed since the crawler read it.
+ * `$2` is the scan's start. It holds only when every part does:
+ *
+ *  - the row carries the text of a read that succeeded (`active`, a hash, no
+ *    error) — so `last_crawled_at` is when that text was read, not when an
+ *    attempt failed;
+ *  - that read came after the instant the date can mean, and
+ *    {@link SITEMAP_LASTMOD_SETTLE} more;
+ *  - it is younger than {@link SITEMAP_LASTMOD_MAX_AGE};
+ *  - no chunk of the page was cut from other text: a scan that stored the
+ *    new text and stopped before indexing it (an embedding model that
+ *    failed) leaves the page due until it is indexed.
+ *
+ * It is NULL, not true, for a page without a sitemap date — one no sitemap
+ * lists, one found by a link, one of a URL list (a list has no discovery to
+ * read a date in) — and for a page never read: every doubt requests the
+ * page, as every scan did before (2026-10-06: a site whose sitemap dated
+ * all 700 of its pages answered some 8,000 requests a scan, every six
+ * hours, for pages unchanged in months). The content hash stays the judge
+ * of what a request brings back.
+ */
+const UNCHANGED_BY_SITEMAP_SQL = `(
+        status = 'active' AND content_hash IS NOT NULL AND last_error IS NULL
+        AND last_crawled_at > sitemap_lastmod + interval '${SITEMAP_LASTMOD_SETTLE}'
+        AND last_crawled_at > $2::timestamptz - interval '${SITEMAP_LASTMOD_MAX_AGE}'
+        AND NOT EXISTS (
+          SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+           WHERE c.domain = website_urls.domain AND c.url = website_urls.url
+             AND c.content_hash IS DISTINCT FROM website_urls.content_hash))`;
+
 const DUE_PAGE_PREDICATE = `
       domain = $1 AND status <> 'deleted'
       AND (listed OR fail_count < ${MAX_FETCH_FAILURES}
            OR last_crawled_at < $2::timestamptz - interval '${BENCHED_PAGE_RETRY_INTERVAL}')
-      AND (last_crawled_at IS NULL OR last_crawled_at < $2::timestamptz)`;
+      AND (last_crawled_at IS NULL OR last_crawled_at < $2::timestamptz)
+      AND NOT COALESCE(${UNCHANGED_BY_SITEMAP_SQL}, FALSE)`;
+
+/** How many of the domain's pages this scan leaves alone on their sitemap's
+ * word — what the scan's log says beside how many it discovered. */
+async function countUnchangedBySitemap(
+  sql: Sql,
+  domain: string,
+  scanStartedAt: string,
+): Promise<number> {
+  const rows = await sql.unsafe<{ n: string }[]>(
+    `SELECT count(*)::text AS n FROM ${PUBLIC_WEB_SCHEMA}.website_urls
+      WHERE domain = $1 AND status <> 'deleted'
+        AND COALESCE(${UNCHANGED_BY_SITEMAP_SQL}, FALSE)`,
+    [domain, scanStartedAt],
+  );
+  return Number(rows[0]?.n ?? 0);
+}
 
 /** The next URLs this scan has not visited yet (never-crawled first). The
  * batch size matches the render batch, so one claim's HTML pages fill at

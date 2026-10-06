@@ -269,6 +269,24 @@ networks for the crawler.
   networks, and the operator then turns that off → the next scan requests none of its pages
   and shows each as failed, with a private address as the reason.
 
+### KNOW-R16 · The crawler does not request again a page its sitemap says is unchanged
+
+A site's sitemap can state when each page last changed. A scheduled scan leaves a page alone
+when the crawler read it after that date, and requests every other page: one without a date,
+one whose date moved, one whose last read failed. A date without a time counts for its whole
+day. A page is requested again once its last read is more than seven days old, whatever its
+date says, because a sitemap can keep a date while the page changes. **Scan now** requests
+every page.
+
+- **Example**: The sitemap of `docs.example` dates `/pricing` 1 March, and the crawler last
+  read the page on 5 March → the scan on 6 March does not request it.
+- **Example**: The site changes `/pricing` and its sitemap dates the page 7 March → the next
+  scan requests it.
+- **Example**: `/blog` lists every new article and keeps its date of 1 January → it is
+  requested again a week after its last read.
+- **Example**: Noah selects **Scan now** → every page of `docs.example` is requested,
+  `/pricing` included.
+
 ## Not yet
 
 - **The knowledge settings**: who can change the embedding model and the knowledge database,

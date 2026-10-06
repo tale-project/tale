@@ -1183,6 +1183,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           continuation: z.number().int().min(0).optional(),
           scanStartedAt: z.string().optional(),
           takeover: z.string().min(1).optional(),
+          full: z.boolean().optional(),
         })
         .parse(payload);
       await runWebsitesScan(deps.sql, input, context);
