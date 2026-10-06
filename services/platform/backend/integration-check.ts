@@ -34,12 +34,14 @@ import path from 'node:path';
 
 import { serve } from '@hono/node-server';
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { computeContentHash } from '@tale/shared/utils/hashing';
 import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 import * as XLSX from 'xlsx';
 import { z } from 'zod';
 
 import { robotsPolicyFromStored } from '../lib/knowledge/crawl-parse.ts';
+import { htmlToText } from '../lib/knowledge/html-to-text.ts';
 import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
@@ -33831,6 +33833,37 @@ async function checkWebsitesCrawl(
   // page, no robots.txt and no sitemap, so the scan that restores the
   // registration finishes on the homepage.
   const HEAL_DOMAIN = 'itest-heal.example';
+  // A site for the change-check lanes (2026-10-06). Its fake server answers
+  // a conditional request the way a real one does — 304 when the validator
+  // it is asked about still stands — and counts what it sent for each page:
+  // the page, or a 304 in its place. `/page.html` is the page of a server
+  // that gives no modification time: no validator, and a new token in every
+  // response, around text that does not change.
+  const CHECK_DOMAIN = 'itest-check.example';
+  const checkPage = (word: string, version: string): string =>
+    `Change-check fixture ${word} page ${version}. Enough words about the ${word} subsystem to survive the chunking thresholds of the pipeline.`;
+  const checkSite = new Map<
+    string,
+    { body: string; etag?: string; lastModified?: string }
+  >([
+    ['/', { body: checkPage('home', 'v1') }],
+    ['/tagged.txt', { body: checkPage('tagged', 'v1'), etag: '"t1"' }],
+    [
+      '/dated.txt',
+      {
+        body: checkPage('dated', 'v1'),
+        lastModified: 'Fri, 10 Jul 2026 09:11:16 GMT',
+      },
+    ],
+    ['/plain.txt', { body: checkPage('plain', 'v1') }],
+  ]);
+  const checkSitemapRoutes = [...checkSite.keys()];
+  const checkSent = new Map<string, { bodies: number; notModified: number }>();
+  let checkToken = 0;
+  const checkHtml = (): string => {
+    checkToken += 1;
+    return `<html><head><meta name="csrf-token" content="token-${checkToken}"><title>Check fixture</title></head><body><main><p>${checkPage('html', 'v1')}</p></main><script>window.nonce = "${checkToken}"</script></body></html>`;
+  };
   const FAKE_HOSTS = new Set([
     DOMAIN,
     `www.${DOMAIN}`,
@@ -33898,6 +33931,66 @@ async function checkWebsitesCrawl(
         headers: {
           'content-type': page.type,
           'content-length': String(page.body.length),
+        },
+      });
+    }
+    if (
+      url.hostname === CHECK_DOMAIN ||
+      url.hostname === `www.${CHECK_DOMAIN}`
+    ) {
+      const answer = (body: string, type: string): Response =>
+        new Response(body, {
+          headers: {
+            'content-type': type,
+            'content-length': String(body.length),
+          },
+        });
+      if (url.pathname === '/robots.txt') {
+        return answer(
+          `User-agent: *\nSitemap: https://${CHECK_DOMAIN}/sitemap.xml\n`,
+          'text/plain',
+        );
+      }
+      if (url.pathname === '/sitemap.xml') {
+        return answer(
+          `<?xml version="1.0"?><urlset>${checkSitemapRoutes
+            .map(
+              (route) =>
+                `<url><loc>https://${CHECK_DOMAIN}${route}</loc></url>`,
+            )
+            .join('')}</urlset>`,
+          'application/xml',
+        );
+      }
+      const sent = checkSent.get(url.pathname) ?? { bodies: 0, notModified: 0 };
+      checkSent.set(url.pathname, sent);
+      if (url.pathname === '/page.html') {
+        sent.bodies += 1;
+        return answer(checkHtml(), 'text/html; charset=utf-8');
+      }
+      const page = checkSite.get(url.pathname);
+      if (!page) return new Response('gone', { status: 404 });
+      const validators = {
+        ...(page.etag === undefined ? {} : { etag: page.etag }),
+        ...(page.lastModified === undefined
+          ? {}
+          : { 'last-modified': page.lastModified }),
+      };
+      const asked = new Headers(init?.headers);
+      if (
+        (page.etag !== undefined && asked.get('if-none-match') === page.etag) ||
+        (page.lastModified !== undefined &&
+          asked.get('if-modified-since') === page.lastModified)
+      ) {
+        sent.notModified += 1;
+        return new Response(null, { status: 304, headers: validators });
+      }
+      sent.bodies += 1;
+      return new Response(page.body, {
+        headers: {
+          'content-type': 'text/plain',
+          'content-length': String(page.body.length),
+          ...validators,
         },
       });
     }
@@ -35187,6 +35280,182 @@ async function checkWebsitesCrawl(
     );
     if (robotsId !== '') {
       await v1(`/websites/${robotsId}`, { method: 'DELETE' });
+    }
+
+    // 4h. A scan asks for each page once, and a page that did not change is
+    //     neither downloaded nor rendered again (2026-10-06). The crawler's
+    //     one way to learn whether a page had changed was to do everything
+    //     again: fetch it, render it with every asset a render loads, and
+    //     compare content hashes afterwards — some 8,000 requests a scan on
+    //     a 700-page site whose pages had not changed in months. The request
+    //     now carries the validators of the last visit, a 304 ends it, and
+    //     for a server that gives no modification time the text of the
+    //     plain HTML is compared. "Scan now" asks the same way.
+    const checkCreated = z.looseObject({ id: z.string() }).safeParse(
+      await (
+        await v1('/websites', {
+          body: { domain: CHECK_DOMAIN, scanInterval: '6h' },
+        })
+      ).json(),
+    );
+    const checkId = checkCreated.success ? checkCreated.data.id : '';
+    await drainCrawlJobs();
+    const checkUrl = (route: string) => `https://${CHECK_DOMAIN}${route}`;
+    const checkRoutes = [
+      '/tagged.txt',
+      '/dated.txt',
+      '/plain.txt',
+      '/page.html',
+    ];
+    const checkSnapshot = () =>
+      new Map([...checkSent].map(([route, sent]) => [route, { ...sent }]));
+    /** What the site sent for each page since `before`, as
+     * `route:bodies/304s`. */
+    const sentSince = (before: ReturnType<typeof checkSnapshot>): string =>
+      checkRoutes
+        .map((route) => {
+          const now = checkSent.get(route) ?? { bodies: 0, notModified: 0 };
+          const then = before.get(route) ?? { bodies: 0, notModified: 0 };
+          return `${route}:${now.bodies - then.bodies}/${now.notModified - then.notModified}`;
+        })
+        .join(' ');
+    /** Every page reads as last visited two days ago, so a fresh stamp is
+     * this scan's. */
+    const checkRescan = async (): Promise<string> => {
+      await pool`
+        UPDATE public_web.website_urls
+           SET last_crawled_at = now() - interval '2 days'
+         WHERE domain = ${CHECK_DOMAIN}
+      `;
+      const before = checkSnapshot();
+      await websites.runWebsitesScan(sql, {
+        domain: CHECK_DOMAIN,
+        orgSlug,
+        organizationId: orgId,
+      });
+      await drainCrawlJobs();
+      return sentSince(before);
+    };
+    const checkRow = async (route: string) =>
+      (
+        await pool<
+          {
+            status: string;
+            etag: string | null;
+            lastModified: string | null;
+            probeHash: string | null;
+            visited: boolean;
+            chunks: string;
+            text: string | null;
+          }[]
+        >`
+          SELECT u.status, u.etag, u.last_modified AS "lastModified",
+                 u.probe_hash AS "probeHash",
+                 u.last_crawled_at > now() - interval '1 hour' AS visited,
+                 (SELECT count(*)::text FROM public_web.chunks c
+                   WHERE c.domain = u.domain AND c.url = u.url) AS chunks,
+                 (SELECT string_agg(c.chunk_content, ' ') FROM public_web.chunks c
+                   WHERE c.domain = u.domain AND c.url = u.url) AS text
+          FROM public_web.website_urls u
+          WHERE u.domain = ${CHECK_DOMAIN} AND u.url = ${checkUrl(route)}
+        `
+      )[0];
+
+    // The first scan stored every page and kept what each response gave to
+    // check it by. The rescan: the two pages the server vouches for are
+    // not sent again; the one without a validator is.
+    const taggedFirst = await checkRow('/tagged.txt');
+    const datedFirst = await checkRow('/dated.txt');
+    const checkSecond = await checkRescan();
+    const taggedSecond = await checkRow('/tagged.txt');
+    const datedSecond = await checkRow('/dated.txt');
+    record(
+      'websites change check: a page the server vouches for is not downloaded again, and is stamped as visited',
+      checkCreated.success &&
+        taggedFirst?.etag === '"t1"' &&
+        datedFirst?.lastModified === 'Fri, 10 Jul 2026 09:11:16 GMT' &&
+        checkSecond ===
+          '/tagged.txt:0/1 /dated.txt:0/1 /plain.txt:1/0 /page.html:0/0' &&
+        (taggedSecond?.visited ?? false) &&
+        (datedSecond?.visited ?? false) &&
+        taggedSecond?.status === 'active' &&
+        taggedSecond.chunks === taggedFirst.chunks &&
+        Number(taggedSecond.chunks) >= 1,
+      `created=${checkCreated.success} first scan kept etag=${taggedFirst?.etag ?? 'none'}/"t1" lastModified=${datedFirst?.lastModified ?? 'none'}, rescan sent bodies/304s [${checkSecond}] (want tagged 0/1, dated 0/1, plain 1/0), stamped tagged=${taggedSecond?.visited ?? '?'} dated=${datedSecond?.visited ?? '?'}, chunks ${taggedFirst?.chunks ?? '?'}→${taggedSecond?.chunks ?? '?'}`,
+    );
+
+    // A page that changed is sent and indexed again. And an HTML page of a
+    // server without validators — a new token in every response, the same
+    // text — is found unchanged by that text: the scan ends without a
+    // render session, which this harness could not open.
+    checkSite.set('/tagged.txt', {
+      body: checkPage('tagged', 'v2'),
+      etag: '"t2"',
+    });
+    const htmlText = htmlToText(checkHtml());
+    const htmlHash = computeContentHash(htmlText);
+    await pool`
+      INSERT INTO public_web.website_urls
+        (domain, url, status, discovered_at, listed, last_crawled_at,
+         word_count, content, content_hash, probe_hash)
+      VALUES (${CHECK_DOMAIN}, ${checkUrl('/page.html')}, 'active', NOW(), FALSE,
+              NOW() - INTERVAL '2 days', 20, ${htmlText}, ${htmlHash}, ${htmlHash})
+      ON CONFLICT (domain, url) DO NOTHING
+    `;
+    await pool`
+      INSERT INTO public_web.chunks
+        (domain, url, title, content_hash, chunk_index, chunk_content)
+      VALUES (${CHECK_DOMAIN}, ${checkUrl('/page.html')}, 'Check fixture', ${htmlHash}, 0, ${htmlText})
+      ON CONFLICT DO NOTHING
+    `;
+    checkSitemapRoutes.push('/page.html');
+    const checkThird = await checkRescan();
+    const taggedThird = await checkRow('/tagged.txt');
+    const htmlThird = await checkRow('/page.html');
+    const checkCorpus = await pool<{ status: string; error: string | null }[]>`
+      SELECT status, error FROM public_web.websites WHERE domain = ${CHECK_DOMAIN}
+    `;
+    record(
+      'websites change check: a changed page is downloaded and indexed again, and an HTML page whose text reads the same ends the scan without a browser',
+      checkThird ===
+        '/tagged.txt:1/0 /dated.txt:0/1 /plain.txt:1/0 /page.html:1/0' &&
+        taggedThird?.etag === '"t2"' &&
+        (taggedThird.text ?? '').includes('v2') &&
+        !(taggedThird.text ?? '').includes('v1') &&
+        htmlThird?.status === 'active' &&
+        htmlThird.visited &&
+        htmlThird.probeHash === htmlHash &&
+        htmlThird.chunks === '1' &&
+        checkCorpus[0]?.status === 'completed' &&
+        checkCorpus[0].error === null,
+      `rescan sent bodies/304s [${checkThird}] (want tagged 1/0, dated 0/1, plain 1/0, html 1/0), tagged etag=${taggedThird?.etag ?? 'none'}/"t2" reindexed=${(taggedThird?.text ?? '').includes('v2')}, html=${htmlThird?.status ?? 'MISSING'}/active stamped=${htmlThird?.visited ?? '?'} hashKept=${htmlThird?.probeHash === htmlHash} chunks=${htmlThird?.chunks ?? '?'}/1, scan=${checkCorpus[0]?.status ?? '?'}/completed error=${checkCorpus[0]?.error ?? 'null'}`,
+    );
+
+    // "Scan now" is the same scan, started by a person: it asks each page
+    // the same way and is answered the same way.
+    await pool`
+      UPDATE public_web.website_urls
+         SET last_crawled_at = now() - interval '2 days'
+       WHERE domain = ${CHECK_DOMAIN}
+    `;
+    const beforeScanNow = checkSnapshot();
+    const scanNow = z
+      .looseObject({ queued: z.boolean() })
+      .safeParse(await (await post(`/${checkId}/scan`, {})).json());
+    await drainCrawlJobs();
+    const checkScanNow = sentSince(beforeScanNow);
+    const htmlScanNow = await checkRow('/page.html');
+    record(
+      'websites change check: Scan now asks each page the same way as a scheduled scan',
+      scanNow.success &&
+        scanNow.data.queued &&
+        checkScanNow ===
+          '/tagged.txt:0/1 /dated.txt:0/1 /plain.txt:1/0 /page.html:1/0' &&
+        (htmlScanNow?.visited ?? false),
+      `scanNow queued=${scanNow.success ? scanNow.data.queued : 'BAD SHAPE'} sent bodies/304s [${checkScanNow}] (want tagged 0/1, dated 0/1, plain 1/0, html 1/0) htmlStamped=${htmlScanNow?.visited ?? '?'}`,
+    );
+    if (checkId !== '') {
+      await v1(`/websites/${checkId}`, { method: 'DELETE' });
     }
 
     // 4f. Round g, g4-5: a site whose every page failed is not "a successful

@@ -103,6 +103,6 @@ can call it. Without either, the websites page says that chat cannot search the 
 - **Websites over the REST API**: the limits of its lists and searches, and the shape of its
   answers (`rest/v1-websites.ts`). Its tests hold `WEB-R2` to `WEB-R4`.
 - **The length of the waiting time in `WEB-R6` and the number of pickups in `WEB-R7`.**
-- **The crawler's clocks and limits are not on the API**, and a page is fetched several times
+- **The crawler's clocks and limits are not on the API**, and a changed page is fetched twice
   a scan; the contract debt ledger in [`.agents/repo.md`](../../../../../.agents/repo.md)
   records both.
