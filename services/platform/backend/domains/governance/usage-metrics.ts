@@ -10,7 +10,7 @@ import {
 
 /**
  * The usage metrics page's read — the 0.4 fold REUSED over one bounded SQL
- * page of `app.usage_ledger` (same scan window, same 20k cap, same buckets).
+ * page of `app.usage_ledger` (daily scan window, same 20k cap, display buckets).
  */
 const MAX_SCAN = 20_000;
 
@@ -34,7 +34,7 @@ export async function getOrgUsageMetricsPg(
            character_count::float8 AS "characterCount"
     FROM app.usage_ledger
     WHERE org_id = ${organizationId}
-      AND granularity = ${args.granularity}
+      AND granularity = ${'daily'}
       AND period_key >= ${scanStart}
     ORDER BY period_key DESC
     LIMIT ${MAX_SCAN + 1}
