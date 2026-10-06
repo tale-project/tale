@@ -150,7 +150,7 @@
     "nodemailer": "10.0.9",
     "p-timeout": "7.0.1",
     "postcss": "8.5.23",
-    "prosemirror-view": "1.42.3",
+    "prosemirror-view": "1.42.6",
     "qs": "6.16.0",
     "react-is": "19.2.5",
     "seroval": "1.6.8",
