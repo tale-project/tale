@@ -243,6 +243,30 @@ export interface StagedTaskInputs {
   dir: string;
   attachments: string[];
   outputs: string[];
+  /** Number of older task outputs retained on the task but omitted from this
+   * turn's mirror. Long-lived coordinator tasks can accumulate one receipt
+   * per pass, so staging the complete history would eventually make every
+   * new run depend on hundreds of blob fetches. */
+  omittedOutputs?: number;
+}
+
+/** Keep standing-session starts bounded when a long-lived task has accumulated
+ * one receipt or deliverable per run. The task's output list remains intact;
+ * only the newest entries are mirrored into this turn's read-only inputs. */
+export const MAX_STAGED_TASK_OUTPUTS = 64;
+
+export function selectTaskOutputsForStaging<T>(
+  outputs: ReadonlyArray<T>,
+  maxOutputs = MAX_STAGED_TASK_OUTPUTS,
+): { selected: T[]; omitted: number } {
+  if (maxOutputs <= 0) return { selected: [], omitted: outputs.length };
+  if (outputs.length <= maxOutputs) {
+    return { selected: [...outputs], omitted: 0 };
+  }
+  return {
+    selected: outputs.slice(-maxOutputs),
+    omitted: outputs.length - maxOutputs,
+  };
 }
 
 /** One planned input, keyed by the path the daemon's skip report names:
@@ -328,12 +352,25 @@ async function stageTaskInputs(
   },
 ): Promise<StagedTaskInputs> {
   const dir = taskInputsDir(args.taskId);
-  const staged: StagedTaskInputs = { dir, attachments: [], outputs: [] };
+  const outputSelection = selectTaskOutputsForStaging(args.outputs);
+  const staged: StagedTaskInputs = {
+    dir,
+    attachments: [],
+    outputs: [],
+    ...(outputSelection.omitted > 0
+      ? { omittedOutputs: outputSelection.omitted }
+      : {}),
+  };
+  if (outputSelection.omitted > 0) {
+    console.warn(
+      `[task-agent] omitted ${outputSelection.omitted} older deliverables from task ${args.taskId} input staging; keeping the newest ${outputSelection.selected.length} to bound start latency`,
+    );
+  }
   const toStage: SessionStageFile[] = [];
   const planned = new Map<string, PlannedTaskInput>();
   for (const [kind, files] of [
     ['attachments', args.attachments],
-    ['outputs', args.outputs],
+    ['outputs', outputSelection.selected],
   ] as const) {
     const taken = new Set<string>();
     for (const file of files) {
@@ -480,6 +517,11 @@ export function buildTaskPrompt(
           `- ${inputs.dir}/attachments/ — files the user attached to the task: ${inputs.attachments.join(', ')}`,
         ]
       : []),
+    ...(inputs !== undefined && (inputs.omittedOutputs ?? 0) > 0
+      ? [
+          `- ${inputs.dir}/outputs/ contains the newest ${inputs.outputs.length} deliverables; ${inputs.omittedOutputs} older retained deliverables were left on the task and omitted from this turn to keep input staging bounded.`,
+        ]
+      : []),
     ...(inputs !== undefined && inputs.outputs.length > 0
       ? [
           `- ${inputs.dir}/outputs/ — the task's current deliverables, produced by earlier runs: ${inputs.outputs.join(', ')}`,
@@ -592,6 +634,11 @@ function buildResumeKickPrompt(args: {
     ...(inputs !== undefined && inputs.attachments.length > 0
       ? [
           `- ${inputs.dir}/attachments/ — files the user attached to the task: ${inputs.attachments.join(', ')}`,
+        ]
+      : []),
+    ...(inputs !== undefined && (inputs.omittedOutputs ?? 0) > 0
+      ? [
+          `- ${inputs.dir}/outputs/ contains the newest ${inputs.outputs.length} deliverables; ${inputs.omittedOutputs} older retained deliverables were left on the task and omitted from this turn to keep input staging bounded.`,
         ]
       : []),
     ...(inputs !== undefined && inputs.outputs.length > 0
