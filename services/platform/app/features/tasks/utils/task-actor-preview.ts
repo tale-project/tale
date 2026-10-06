@@ -1,3 +1,5 @@
+import type { ProjectAgentDetails } from '../../projects/lib/agent-details';
+
 /** Sentinel `actorId` for workflow-engine task writes. */
 export const WORKFLOW_ACTOR_ID = 'workflow';
 
@@ -54,6 +56,7 @@ export interface TaskActorPreview {
   kind: 'agent' | 'workflow';
   name: string;
   description?: string;
+  agent?: ProjectAgentDetails;
   viewTo: TaskActorPreviewRoute;
   viewParams: { id: string; agentId?: string; automationSlug?: string };
   viewSearch?: { execution?: string };
@@ -62,6 +65,7 @@ export interface TaskActorPreview {
 export interface TaskActorCatalogEntry {
   name: string;
   description?: string;
+  agent?: ProjectAgentDetails;
 }
 
 export interface TaskWorkflowCatalogEntry {
@@ -138,6 +142,7 @@ export function buildTaskActorPreview(args: {
     kind: 'agent',
     name: agent?.name ?? args.labels.deletedAgent,
     description: agent?.description,
+    agent: agent?.agent,
     viewTo: '/dashboard/$id',
     viewParams: { id: args.organizationId },
   };
@@ -162,6 +167,7 @@ export function buildAgentRunPreview(args: {
     kind: 'agent',
     name: agent?.name ?? args.labels.deletedAgent,
     description: agent?.description ?? wf?.description,
+    agent: agent?.agent,
     // Agents management page removed → org home; the run's execution is no
     // longer deep-linkable from an agent view.
     viewTo: '/dashboard/$id',

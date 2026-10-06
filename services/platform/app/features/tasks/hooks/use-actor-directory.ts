@@ -6,6 +6,7 @@ import {
   useStandardAgent,
 } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { projectAgentDetails } from '@/app/features/projects/lib/agent-details';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -23,6 +24,7 @@ import {
   isWorkflowSentinel,
   type TaskActivityContext,
   type TaskActorPreview,
+  type TaskActorCatalogEntry,
 } from '../utils/task-actor-preview';
 import { useTaskContractAutomations } from './use-task-subject-contract';
 
@@ -51,7 +53,7 @@ export interface AssignableActor {
 // Shared frozen instances keep hook results referentially stable across
 // renders when a context has no project (and thus no agents) to draw from.
 const EMPTY_AGENT_LIST: AssignableActor[] = [];
-const EMPTY_CATALOG = new Map<string, { name: string; description?: string }>();
+const EMPTY_CATALOG = new Map<string, TaskActorCatalogEntry>();
 
 /**
  * Resolves task actors (comment authors, activity actors, assignees) — which
@@ -135,11 +137,12 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
   );
   const agentCatalog = useMemo(() => {
     if (projectAgents.length === 0) return EMPTY_CATALOG;
-    const map = new Map<string, { name: string; description?: string }>();
+    const map = new Map<string, TaskActorCatalogEntry>();
     for (const row of projectAgents) {
       const instructions = row.instructions?.trim();
       map.set(row._id, {
         name: row.name,
+        agent: projectAgentDetails(row),
         ...(instructions !== undefined && instructions.length > 0
           ? { description: instructions }
           : {}),

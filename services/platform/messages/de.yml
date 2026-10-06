@@ -7860,6 +7860,7 @@ tasks:
     systemActor: System
     unresolvedWorkflow: Automatisierung
     deletedAgent: Gelöschter Agent
+    viewMore: Mehr anzeigen
     viewAgent: Agent anzeigen
     viewWorkflow: Automatisierung anzeigen
   dueDate:
@@ -8541,6 +8542,18 @@ projects:
     emptyReaderTitle: Noch keine Agenten in diesem Projekt
     emptyReaderBody: Agenten erledigen Aufgaben in deinem Namen. Bitte einen Redakteur oder Admin, diesem Projekt einen hinzuzufügen.
     equippedCount: '{count} ausgerüstet'
+    rowView: Agentdetails ansehen
+    detailsTitle: Agentdetails
+    providerLabel: Anbieter
+    providerUnpinned: Nicht festgelegt
+    detailsUnavailable: Nicht angegeben
+    detailsSkills: Skills
+    detailsConnectors: Konnektoren
+    detailsTools: Plattformwerkzeuge
+    detailsNone: Keine
+    detailsMoreCount: '+{count} weitere'
+    detailsProviderCurrently: Der Anbieter wird für künftige Durchläufe ermittelt und kann sich ändern.
+    detailsStandardSnapshot: Gespeicherte Konfiguration. Der Standardagent ermittelt sein Modell, seine Skills und seine Anweisungen bei jedem Start neu.
     rowEdit: Agent bearbeiten
     rowDelete: Agent löschen
     dialogCreateTitle: Neuer Agent

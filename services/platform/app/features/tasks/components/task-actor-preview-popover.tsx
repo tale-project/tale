@@ -6,9 +6,19 @@ import { Stack } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { useCanUseAutomations } from '@/app/features/automations/hooks/use-can-use-automations';
+import {
+  ProjectAgentDetailsContent,
+  ProjectAgentDetailsDialog,
+} from '@/app/features/projects/components/project-agent-details';
 import { useT } from '@/lib/i18n/client';
 
 import type { TaskActorPreview } from '../utils/task-actor-preview';
@@ -33,6 +43,9 @@ function TaskActorPreviewPopover({
 }: TaskActorPreviewPopoverProps) {
   const { t } = useT('tasks');
   const [open, setOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const skipNextFocus = useRef(false);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -51,10 +64,11 @@ function TaskActorPreviewPopover({
   }, []);
 
   const scheduleOpen = useCallback(() => {
+    if (detailsOpen) return;
     clearCloseTimer();
     clearOpenTimer();
     openTimer.current = setTimeout(() => setOpen(true), HOVER_OPEN_MS);
-  }, [clearCloseTimer, clearOpenTimer]);
+  }, [clearCloseTimer, clearOpenTimer, detailsOpen]);
 
   const scheduleClose = useCallback(() => {
     clearOpenTimer();
@@ -62,68 +76,107 @@ function TaskActorPreviewPopover({
     closeTimer.current = setTimeout(() => setOpen(false), HOVER_CLOSE_MS);
   }, [clearCloseTimer, clearOpenTimer]);
 
-  const viewLabel =
-    preview.kind === 'workflow'
-      ? t('timeline.viewWorkflow')
-      : t('timeline.viewAgent');
+  useEffect(
+    () => () => {
+      clearOpenTimer();
+      clearCloseTimer();
+    },
+    [clearOpenTimer, clearCloseTimer],
+  );
   // A workflow's page is an automation page, closed to anyone who may not
   // use Automations; they keep the name and the description.
   const canUseAutomations = useCanUseAutomations();
-  const showView = preview.kind !== 'workflow' || canUseAutomations;
+  const showView = preview.kind === 'workflow' && canUseAutomations;
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      align="start"
-      side="top"
-      sideOffset={6}
-      contentClassName="w-72 max-w-none p-0"
-      onOpenAutoFocus={(event) => event.preventDefault()}
-      trigger={
-        <button
-          type="button"
-          className={cn(
-            'text-foreground hover:text-primary focus-visible:ring-ring rounded-sm font-medium underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:outline-none',
-            className,
-          )}
-          onMouseEnter={scheduleOpen}
-          onMouseLeave={scheduleClose}
-          onFocus={scheduleOpen}
-          onBlur={scheduleClose}
-        >
-          {children}
-        </button>
-      }
-    >
-      <div
-        className="space-y-3 p-4"
-        onMouseEnter={clearCloseTimer}
-        onMouseLeave={scheduleClose}
+    <>
+      <Popover
+        open={open}
+        onOpenChange={setOpen}
+        align="start"
+        side="top"
+        sideOffset={6}
+        contentClassName="w-80 max-w-[calc(100vw-2rem)] p-0"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        trigger={
+          <button
+            ref={triggerRef}
+            type="button"
+            className={cn(
+              'text-foreground hover:text-primary focus-visible:ring-ring rounded-sm font-medium underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:outline-none',
+              className,
+            )}
+            onMouseEnter={scheduleOpen}
+            onMouseLeave={scheduleClose}
+            onFocus={() => {
+              if (skipNextFocus.current) {
+                skipNextFocus.current = false;
+                return;
+              }
+              scheduleOpen();
+            }}
+            onBlur={scheduleClose}
+          >
+            {children}
+          </button>
+        }
       >
-        <Stack gap={1}>
-          <Text as="p" variant="label" className="text-sm">
-            {preview.name}
-          </Text>
-          {preview.description ? (
-            <Text as="p" variant="muted" className="line-clamp-3 text-xs">
-              {preview.description}
+        <div
+          className="space-y-3 p-4"
+          onMouseEnter={clearCloseTimer}
+          onMouseLeave={scheduleClose}
+        >
+          <Stack gap={1}>
+            <Text as="p" variant="label" className="text-sm">
+              {preview.name}
             </Text>
+            {preview.description && !preview.agent ? (
+              <Text as="p" variant="muted" className="line-clamp-3 text-xs">
+                {preview.description}
+              </Text>
+            ) : null}
+          </Stack>
+          {preview.kind === 'agent' && preview.agent ? (
+            <>
+              <ProjectAgentDetailsContent agent={preview.agent} compact />
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  clearOpenTimer();
+                  clearCloseTimer();
+                  skipNextFocus.current = true;
+                  setOpen(false);
+                  setDetailsOpen(true);
+                }}
+              >
+                {t('timeline.viewMore')}
+              </Button>
+            </>
           ) : null}
-        </Stack>
-        {showView ? (
-          <Button asChild variant="secondary" size="sm" className="w-full">
-            <Link
-              to={preview.viewTo}
-              params={preview.viewParams}
-              search={preview.viewSearch}
-            >
-              {viewLabel}
-            </Link>
-          </Button>
-        ) : null}
-      </div>
-    </Popover>
+          {showView ? (
+            <Button asChild variant="secondary" size="sm" className="w-full">
+              <Link
+                to={preview.viewTo}
+                params={preview.viewParams}
+                search={preview.viewSearch}
+              >
+                {t('timeline.viewWorkflow')}
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      </Popover>
+      {preview.kind === 'agent' && preview.agent ? (
+        <ProjectAgentDetailsDialog
+          agent={preview.agent}
+          open={detailsOpen}
+          onOpenChange={setDetailsOpen}
+          restoreFocusRef={triggerRef}
+        />
+      ) : null}
+    </>
   );
 }
 

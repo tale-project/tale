@@ -7962,6 +7962,7 @@ tasks:
     systemActor: Système
     unresolvedWorkflow: Automatisation
     deletedAgent: Agent supprimé
+    viewMore: Voir plus
     viewAgent: Voir l'agent
     viewWorkflow: Voir l'automatisation
   dueDate:
@@ -8639,6 +8640,18 @@ projects:
     emptyReaderTitle: Aucun agent dans ce projet pour l’instant
     emptyReaderBody: Les agents exécutent des tâches en ton nom. Demande à un éditeur ou à un admin d’en ajouter un à ce projet.
     equippedCount: '{count, plural, one {# équipé} other {# équipés}}'
+    rowView: Voir les détails de l’agent
+    detailsTitle: Détails de l’agent
+    providerLabel: Fournisseur
+    providerUnpinned: Non fixé
+    detailsUnavailable: Non renseigné
+    detailsSkills: Compétences
+    detailsConnectors: Connecteurs
+    detailsTools: Outils de la plateforme
+    detailsNone: Aucun
+    detailsMoreCount: '+{count} autres'
+    detailsProviderCurrently: Le fournisseur est déterminé pour les prochaines exécutions et peut changer.
+    detailsStandardSnapshot: Configuration enregistrée. L’agent standard détermine à nouveau son modèle, ses compétences et ses instructions au démarrage de chaque exécution.
     rowEdit: Modifier l'agent
     rowDelete: Supprimer l'agent
     dialogCreateTitle: Nouvel agent
