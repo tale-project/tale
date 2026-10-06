@@ -231,7 +231,7 @@ describe('dashboard lazy chunk failures', () => {
     await waitFor(() => {
       expect(chunkAttempts.project).toHaveBeenCalled();
       expect(
-        screen.queryByRole('button', { name: 'Try Again' }),
+        screen.queryByRole('button', { name: 'Try again' }),
       ).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'New project' })).toBe(opener);
       expect(screen.getByRole('main')).toContainElement(
@@ -260,7 +260,7 @@ describe('dashboard lazy chunk failures', () => {
     await renderShell();
     expect(chunkAttempts.preview).toHaveBeenCalled();
     expect(
-      await screen.findByRole('button', { name: 'Try Again' }),
+      await screen.findByRole('button', { name: 'Try again' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { name: 'Something went wrong' }),
