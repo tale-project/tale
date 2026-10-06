@@ -211,7 +211,7 @@ describe('trustedHeadersSessionMint — signing the app in on its own request', 
     expect(resolveTrustedHeaderKey).not.toHaveBeenCalled();
   });
 
-  it('never mints on a POST — the proxy headers are not a CSRF token', async () => {
+  it('never mints on a POST — the proxy headers are not a CSRF token [SSO-R14]', async () => {
     const { app, queries } = makeApp();
 
     const res = await app.request('http://localhost/api/app/anything', {
@@ -223,7 +223,7 @@ describe('trustedHeadersSessionMint — signing the app in on its own request', 
     expect(minted(queries)).toBe(false);
   });
 
-  it('never mints for a cross-site fetch', async () => {
+  it('never mints for a cross-site fetch [SSO-R14]', async () => {
     const { app, queries } = makeApp();
 
     const res = await app.request('http://localhost/api/app/users/me', {
@@ -234,7 +234,7 @@ describe('trustedHeadersSessionMint — signing the app in on its own request', 
     expect(minted(queries)).toBe(false);
   });
 
-  it('steps aside when a session cookie is already there — stale or not, that is the sign-in page’s case', async () => {
+  it('steps aside when a session cookie is already there — stale or not, that is the sign-in page’s case [SSO-R14]', async () => {
     const { app, queries } = makeApp();
 
     const res = await app.request('http://localhost/api/app/users/me', {

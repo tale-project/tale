@@ -4,7 +4,8 @@ import path from 'node:path';
 import { isExternalTarget } from '@tale/ui/docs/redirects';
 import { describe, expect, it } from 'vitest';
 
-import { flattenNav } from '@/lib/content/nav';
+import { firstNavSlug, flattenNav } from '@/lib/content/nav';
+import { docPath } from '@/lib/content/paths';
 import { slugRoute } from '@/lib/content/paths';
 import {
   buildRedirectPathMap,
@@ -191,6 +192,18 @@ describe('redirects', () => {
  */
 describe('derived redirects', () => {
   const paths = buildRedirectPathMap();
+
+  it.each(BASE_LOCALES)(
+    'serves the root and redirects its retired Markdown twin in %s',
+    (locale) => {
+      const target = docPath(locale, firstNavSlug());
+      expect(resolveRedirect(docPath(locale, 'index'), paths)).toBeNull();
+      expect(resolveRedirect(`${docPath(locale, 'index')}/`, paths)).toBeNull();
+      const markdown = locale === 'en' ? '/index.md' : `/${locale}.md`;
+      expect(resolveRedirect(markdown, paths)).toBe(`${target}.md`);
+      expect(resolveRedirect(target, paths)).toBeNull();
+    },
+  );
 
   /** Site-relative URL for a route in a locale (English at the root). */
   const urlFor = (locale: string, route: string) =>

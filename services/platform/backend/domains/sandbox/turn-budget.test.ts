@@ -69,7 +69,7 @@ beforeEach(() => {
 });
 
 describe('reserveTurnBudget', () => {
-  it('evaluates the allowance for the starter with the in-flight reservations and records it', async () => {
+  it('evaluates the allowance for the starter with the in-flight reservations and records it [SBX-R16]', async () => {
     gate.resolveTurnAllowance.mockResolvedValue({
       allowed: true,
       budgetCents: 300,
@@ -139,7 +139,7 @@ describe('reserveTurnBudget', () => {
     );
   });
 
-  it('records nothing when the cap refuses', async () => {
+  it('records nothing when the cap refuses [SBX-R16]', async () => {
     gate.resolveTurnAllowance.mockResolvedValue({
       allowed: false,
       reason: 'Cost limit reached for this monthly period ($100.00 / $100.00)',
@@ -364,7 +364,7 @@ describe('reserveTurnBudget', () => {
     },
   );
 
-  it('evaluates a trigger-started run as nobody: org caps only, booked under the automation sentinel', async () => {
+  it('evaluates a trigger-started run as nobody: org caps only, booked under the automation sentinel [SBX-R14]', async () => {
     gate.resolveTurnAllowance.mockResolvedValue({
       allowed: true,
       budgetCents: 500,

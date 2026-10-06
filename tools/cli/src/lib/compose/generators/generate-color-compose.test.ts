@@ -144,7 +144,12 @@ describe('generateColorCompose ↔ the shared config store', () => {
       });
       expect(compose.services.platform?.volumes).toEqual([
         'config-data:/app/data:ro',
+        'static-assets:/app/static-assets',
       ]);
+      expect(compose.volumes['static-assets']).toEqual({
+        external: true,
+        name: 'tale_static-assets',
+      });
       expect(compose.services['backend-api']?.volumes).toEqual([
         'config-data:/app/data',
       ]);

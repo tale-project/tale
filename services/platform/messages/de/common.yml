@@ -1,0 +1,117 @@
+import:
+  rowErrorsTitle: '{count, plural, one {# Zeile wurde nicht importiert} other {# Zeilen wurden nicht importiert}}'
+  rowError: 'Zeile {row}: {message}'
+  moreRows: '… und {count} weitere'
+  tooManyRows: Diese Datei enthält {count} Zeilen zum Importieren, Tale importiert aber höchstens {max} auf einmal. Teile sie in kleinere Dateien auf und importiere jede einzeln.
+  unpairedQuotes: 'Die Anführungszeichen in dieser Zeile passen nicht zusammen. Setze jede Zelle in ein Paar Anführungszeichen und schreibe ein Anführungszeichen darin doppelt ("").'
+  fields:
+    name: Name
+    price: Preis
+    stock: Bestand
+    currency: Währung
+    status: Status
+    email: E-Mail
+  reasons:
+    blank: '{field} darf nicht leer sein'
+    notNumber: '{field} muss eine Zahl sein'
+    negative: '{field} muss 0 oder mehr sein'
+    tooLarge: '{field} ist zu groß'
+    notInteger: '{field} muss eine ganze Zahl sein'
+    notCurrency: '{field} muss ein dreistelliger ISO-4217-Währungscode sein'
+    notOneOf: '{field} muss einer dieser Werte sein: {options}'
+or: oder
+units:
+  stock: '{count, plural, one {# Einheit} other {# Einheiten}}'
+actions:
+  saving: Speichern...
+  edit: Bearbeiten
+  adding: Füge hinzu...
+  create: Erstellen
+  close: Schließen
+  back: Zurück
+  next: Weiter
+  skip: Überspringen
+  completeStepToContinue: Schließe diesen Schritt ab, um fortzufahren
+  loading: Lädt...
+  done: Fertig
+  view: Anzeigen
+  viewSource: Quelle anzeigen
+  showInfo: Info anzeigen
+  import: Importieren
+  importing: Wird importiert...
+upload:
+  clickToUpload: Hochladen
+  supportedFormats: .xlsx, .xls oder .csv
+labels:
+  phone: Telefon
+  source: Quelle
+  locale: Sprache
+  address: Adresse
+  tags: Tags
+  notes: Notizen
+  created: Erstellt
+  notAvailable: k. A.
+status:
+  active: Aktiv
+  inactive: Inaktiv
+  pending: Ausstehend
+  running: Wird ausgeführt
+  completed: Abgeschlossen
+  failed: Fehlgeschlagen
+  waitingForInput: Wartet auf Eingabe
+  pausedDebug: Pausiert (Debug)
+  draft: Entwurf
+  enabled: Aktiviert
+  disabled: Deaktiviert
+  archived: Archiviert
+stepProgress: 'Schritt {current} von {total}: {label}'
+validation:
+  required: '{field} ist erforderlich'
+  maxLength: '{field} darf höchstens {max} Zeichen lang sein'
+  email: Gib eine gültige E-Mail-Adresse ein
+  emailLocalPart: Verwende höchstens {max} Zeichen vor dem @
+  phone: Gib eine Telefonnummer nur mit Ziffern und + ( ) - ein
+  uploadFile: Lade eine Datei hoch
+  unsupportedFileType: Nicht unterstützter Dateityp
+aria:
+  dismiss: Verwerfen
+  zoomIn: Vergrößern
+  zoomOut: Verkleinern
+  pageNumber: Seitenzahl
+  removeNamed: '{name} entfernen'
+  unread: Ungelesen
+  completed: Abgeschlossen
+  backTo: Zurück zu {page}
+  breadcrumb: Brotkrumennavigation
+  knowledgeNavigation: Wissen-Navigation
+  skipToContent: Zum Hauptinhalt springen
+  mainNavigation: Hauptnavigation
+  projectsNavigation: Projektnavigation
+  automationsNavigation: Automatisierungsnavigation
+  sortAscending: aufsteigend sortiert
+  sortDescending: absteigend sortiert
+  sortAvailable: sortierbar
+mentions:
+  unresolvedTitle: Erwähnung nicht erkannt
+  unresolvedDescription:
+    '{tokens} passt zu niemandem in deiner Organisation — es
+    wurde keine Benachrichtigung gesendet.'
+errors:
+  generic: Etwas ist schiefgelaufen — versuch es erneut, oder lade die Seite neu, wenn das Problem bleibt.
+  failedToCopy: Kopieren in die Zwischenablage fehlgeschlagen
+  sessionEnded: Deine Sitzung ist beendet. Melde dich erneut an.
+  connectionLost: Tale ist nicht erreichbar. Prüfe deine Verbindung und versuch es erneut.
+notFound:
+  title: Seite nicht gefunden
+  description: Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.
+  backToDashboard: Zurück zu Start
+moveUp: Nach oben
+moveDown: Nach unten
+drag: Zum Sortieren ziehen
+sessionIdle:
+  warningTitle: Du wirst bald abgemeldet
+  warningDescription: Deine Sitzung endet nach einer Phase der Inaktivität.
+    Interagiere mit der Seite oder nutze die Schaltfläche, um
+    weiterzuarbeiten.
+  staySignedIn: Angemeldet bleiben
+  signedOutNotice: Du wurdest abgemeldet, weil deine Sitzung zu lange inaktiv war.

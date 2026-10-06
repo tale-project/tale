@@ -39,6 +39,7 @@ export function CountdownBadge({
   reachedLabel,
 }: CountdownBadgeProps) {
   const { t } = useT('governance');
+  const { t: tLegalHold } = useT('legalHold');
   const [remaining, setRemaining] = useState(() => effectiveAt - Date.now());
 
   useEffect(() => {
@@ -56,7 +57,7 @@ export function CountdownBadge({
   if (remaining <= 0) {
     return (
       <Badge variant="green" aria-live="polite">
-        {reachedLabel ?? t('legalHold.badges.releaseEffective')}
+        {reachedLabel ?? tLegalHold('releaseEffective')}
       </Badge>
     );
   }

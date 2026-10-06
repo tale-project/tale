@@ -6,16 +6,25 @@ import {
 import { cn } from '@tale/ui/cn';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { memo, useCallback, useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
 import type { TaskStatus } from '../lib/display';
 import { readOnlyBoard, TaskCard, type TaskRow } from './task-card';
 import { TaskStatusBadge } from './task-status-badge';
+import { useLaneWindowed, WindowedTaskRows } from './windowed-task-rows';
 
-export function BoardColumn({
+/** A card's height before it is measured: the board's typical card. */
+const CARD_HEIGHT_ESTIMATE = 128;
+/** The lane's `gap-2`, which cards placed by the window no longer get. */
+const CARD_GAP = 8;
+
+export const BoardColumn = memo(function BoardColumn({
   status,
-  tasks,
+  taskIds,
+  tasksById,
+  activeId = null,
   childrenByParent,
   onOpenTask,
   projectKey,
@@ -23,7 +32,11 @@ export function BoardColumn({
   dropHint = null,
 }: {
   status: TaskStatus;
-  tasks: TaskRow[];
+  /** The lane's task ids in board order (the drag's working copy). */
+  taskIds: readonly string[];
+  tasksById: ReadonlyMap<string, TaskRow>;
+  /** The card being dragged: a windowed lane keeps it mounted. */
+  activeId?: string | null;
   childrenByParent?: Map<string, TaskRow[]>;
   onOpenTask?: (task: TaskRow) => void;
   projectKey?: string | null;
@@ -41,6 +54,37 @@ export function BoardColumn({
     id: status,
     data: { type: 'column', status },
   });
+  // State, not a ref: the window's virtualizer sits below the lane, so its
+  // layout effect runs before the lane's ref is attached, and only a render
+  // after that attachment hands it the scrollport.
+  const [laneElement, setLaneElement] = useState<HTMLDivElement | null>(null);
+  const setLaneRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setLaneElement(node);
+      setNodeRef(node);
+    },
+    [setNodeRef],
+  );
+  const tasks = useMemo(
+    () =>
+      taskIds
+        .map((id) => tasksById.get(id))
+        .filter((row): row is TaskRow => row != null),
+    [taskIds, tasksById],
+  );
+  const ids = useMemo(() => tasks.map((task) => task._id), [tasks]);
+  const windowed = useLaneWindowed(tasks.length);
+
+  const renderCard = (task: TaskRow) => (
+    <TaskCard
+      key={task._id}
+      task={task}
+      subtasks={childrenByParent?.get(task._id)}
+      onOpen={onOpenTask}
+      projectKey={projectKey}
+      canWorkTask={canWorkTask}
+    />
+  );
 
   return (
     <Stack
@@ -67,26 +111,22 @@ export function BoardColumn({
         </Text>
       )}
       <div
-        ref={setNodeRef}
+        ref={setLaneRef}
         className={cn(
           'flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-2 pt-0.5 pb-2',
           isOver && 'bg-accent/40 ring-border rounded-lg ring-1 ring-inset',
         )}
       >
-        <SortableContext
-          items={tasks.map((task) => task._id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {tasks.map((task) => (
-            <TaskCard
-              key={task._id}
-              task={task}
-              subtasks={childrenByParent?.get(task._id)}
-              onOpen={onOpenTask}
-              projectKey={projectKey}
-              canWorkTask={canWorkTask}
-            />
-          ))}
+        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+          <WindowedTaskRows
+            tasks={tasks}
+            windowed={windowed}
+            scrollElement={laneElement}
+            estimateSize={CARD_HEIGHT_ESTIMATE}
+            gap={CARD_GAP}
+            activeId={activeId}
+            renderTask={renderCard}
+          />
         </SortableContext>
         {tasks.length === 0 && (
           <Row
@@ -100,4 +140,4 @@ export function BoardColumn({
       </div>
     </Stack>
   );
-}
+});

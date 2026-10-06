@@ -27,6 +27,29 @@ import {
 
 export type TaskColumns = Record<TaskStatus, string[]>;
 
+/** One object for every render, so `DndContext` never sees a new option. */
+const AUTO_SCROLL = { acceleration: 5, threshold: { x: 0.15, y: 0.2 } };
+
+// The sensors' options are module constants: `useSensor` memoizes on their
+// identity, and a new object each render handed `DndContext` new sensors,
+// which re-rendered every card and row subscribed to it on every render.
+const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: 5 } };
+const KEYBOARD_SENSOR_OPTIONS = {
+  coordinateGetter: sortableKeyboardCoordinates,
+  // An expanded parent can be thousands of pixels from its next sortable
+  // peer. Complete the scroll before a following key or drop uses its target.
+  scrollBehavior: 'auto' as const,
+  // Space picks up / drops a card and arrow keys move it; Escape cancels.
+  // Enter is deliberately NOT a drag key so the card/row keydown handler can
+  // use it to OPEN the task — without this, dnd-kit's default (Space+Enter
+  // start a drag) would collide with opening.
+  keyboardCodes: {
+    start: ['Space'],
+    cancel: ['Escape'],
+    end: ['Space'],
+  },
+};
+
 export interface TaskBoardDndOptions extends TaskStatusChoreographyOptions {
   /** The board's project key: drag announcements name a task `KEY-12` when
    * its row carries no key of its own. */
@@ -106,6 +129,9 @@ export interface TaskBoardDnd {
   columns: TaskColumns;
   byId: Map<string, TaskRow>;
   activeId: string | null;
+  /** Keep the source mounted until dnd-kit restores keyboard focus after a
+   * drop or cancel, including when a lane change remounted its title. */
+  pinnedTaskId: string | null;
   activeTask: TaskRow | null;
   sensors: ReturnType<typeof useSensors>;
   collisionDetection: CollisionDetection;
@@ -156,21 +182,23 @@ export function useTaskBoardDnd(
     options,
   );
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [pinnedTaskId, setPinnedTaskId] = useState<string | null>(null);
+  const [pendingChoreographies, setPendingChoreographies] = useState(0);
+  useEffect(() => {
+    if (activeId !== null || pinnedTaskId === null || pendingChoreographies > 0)
+      return undefined;
+    // dnd-kit's focus restoration runs on the next animation frame. Retain
+    // the newly registered source until the following frame; its focus pin
+    // then takes over in the windowed list.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => setPinnedTaskId(null));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeId, pinnedTaskId, pendingChoreographies]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-      // Space picks up / drops a card and arrow keys move it; Escape cancels.
-      // Enter is deliberately NOT a drag key so the card/row keydown handler can
-      // use it to OPEN the task — without this, dnd-kit's default (Space+Enter
-      // start a drag) would collide with opening.
-      keyboardCodes: {
-        start: ['Space'],
-        cancel: ['Escape'],
-        end: ['Space'],
-      },
-    }),
+    useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
+    useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS),
   );
 
   const byId = useMemo(() => {
@@ -202,6 +230,7 @@ export function useTaskBoardDnd(
   const onDragStart = useCallback((event: DragStartEvent) => {
     draggingRef.current = true;
     setActiveId(String(event.active.id));
+    setPinnedTaskId(String(event.active.id));
   }, []);
 
   const onDragOver = useCallback(
@@ -298,10 +327,13 @@ export function useTaskBoardDnd(
       // 'handled' → the stop already landed it at this placement, or the
       // workflow drives the status (keep the optimistic placement);
       // 'blocked' → snap the card back where it came from.
-      void choreograph(row, container, placement).then((outcome) => {
-        if (outcome === 'move') move();
-        else if (outcome === 'blocked') setColumns(columnsFromProps);
-      });
+      setPendingChoreographies((count) => count + 1);
+      void choreograph(row, container, placement)
+        .then((outcome) => {
+          if (outcome === 'move') move();
+          else if (outcome === 'blocked') setColumns(columnsFromProps);
+        })
+        .finally(() => setPendingChoreographies((count) => count - 1));
     },
     [byId, choreograph, columnsFromProps, moveTask, setColumns],
   );
@@ -397,6 +429,7 @@ export function useTaskBoardDnd(
     columns,
     byId,
     activeId,
+    pinnedTaskId,
     activeTask,
     sensors,
     collisionDetection,
@@ -404,7 +437,7 @@ export function useTaskBoardDnd(
     onDragOver,
     onDragEnd,
     onDragCancel,
-    autoScroll: { acceleration: 5, threshold: { x: 0.15, y: 0.2 } },
+    autoScroll: AUTO_SCROLL,
     accessibility,
   };
 }

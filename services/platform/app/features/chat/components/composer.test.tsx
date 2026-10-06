@@ -575,7 +575,7 @@ describe('Composer dictation', () => {
 describe('Composer accessibility', () => {
   it('passes an axe audit', async () => {
     const { container } = renderComposer();
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 
   it('passes an axe audit with the model list open (Auto row included)', async () => {

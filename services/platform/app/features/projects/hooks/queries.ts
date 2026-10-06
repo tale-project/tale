@@ -62,11 +62,22 @@ export type ProjectAgentRow = ItemOf<'projects/queries:listProjectAgents'>;
  * someone handed it work (`managed`). */
 export function useProjectAgents(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
+  const query = useBackendQuery(
     'projects/queries:listProjectAgents',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
-  return { agents: data ?? [], isLoading };
+  const { data, isLoading, error, refetch } = query;
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+  return {
+    agents: data ?? [],
+    hasAnswer: data !== undefined,
+    isLoading,
+    error,
+    ...readStateOf(query),
+    retry,
+  };
 }
 
 export type StandardAgentAvailability =

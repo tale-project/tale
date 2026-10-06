@@ -5,7 +5,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -68,7 +67,6 @@ const ReportServerNowContext = createContext<(serverNow?: number) => void>(
 );
 
 export function ClockOffsetProvider({ children }: { children: ReactNode }) {
-  const [offsetMs, setOffsetMs] = useState(0);
   const hasSampleRef = useRef(false);
   const offsetRef = useRef(0);
 
@@ -84,19 +82,24 @@ export function ClockOffsetProvider({ children }: { children: ReactNode }) {
     ) {
       hasSampleRef.current = true;
       offsetRef.current = candidate;
-      setOffsetMs(candidate);
     }
   }, []);
 
-  const clock = useMemo<ClockOffset>(
-    () => ({
-      offsetMs,
-      toClientEpoch: (serverMs: number) => serverMs - offsetMs,
-      serverEpochNow: () => Date.now() + offsetMs,
-      clientEpochNow: () => Date.now(),
-    }),
-    [offsetMs],
-  );
+  // ONE value for the provider's whole life: the conversions read the held
+  // offset when they run, so learning or re-syncing it re-renders no reader.
+  // Every assistant row of the transcript reads the clock, and a new value
+  // per sample re-rendered each one, toolbar included, the moment the first
+  // turn's live text reported the server clock (#4121). Readers pick a
+  // re-sync up at their next tick or render — the thinking timer latches its
+  // start per row anyway.
+  const [clock] = useState<ClockOffset>(() => ({
+    get offsetMs() {
+      return offsetRef.current;
+    },
+    toClientEpoch: (serverMs: number) => serverMs - offsetRef.current,
+    serverEpochNow: () => Date.now() + offsetRef.current,
+    clientEpochNow: () => Date.now(),
+  }));
 
   return (
     <ReportServerNowContext.Provider value={report}>

@@ -23,7 +23,7 @@ function capturingSql(
 }
 
 describe('recoverStuckBackfills', () => {
-  it('flips stalled running backfills to a failed terminal state', async () => {
+  it('flips stalled running backfills to a failed terminal state [OBJ-R6]', async () => {
     const queries: string[] = [];
     const sql = capturingSql([[{ id: 'run_1' }, { id: 'run_2' }]], queries);
 

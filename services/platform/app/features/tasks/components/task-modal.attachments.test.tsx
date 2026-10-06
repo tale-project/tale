@@ -61,15 +61,21 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useNavigate: () => vi.fn(),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
     resolveActor: () => ({ name: 'Teammate' }),
   }),
   useAssignableActors: () => ({
+    subjectEntries: [],
     assignableMembers: [],
     assignableAgents: [],
     agents: [],
+    members: [],
+    automations: [],
+    resolveActor: () => ({ name: 'Teammate' }),
   }),
 }));
 vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({

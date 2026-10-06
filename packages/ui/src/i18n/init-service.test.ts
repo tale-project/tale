@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { mergeBundles } from './init-service';
+import { initServiceI18n, mergeBundles } from './init-service';
+import { isLocaleLoaded, loadLocale } from './load-locale';
 
 describe('mergeBundles', () => {
   it('keeps sibling keys when a later bundle redeclares one nested key', () => {
@@ -39,5 +40,33 @@ describe('mergeBundles', () => {
     expect(
       mergeBundles({ a: { key: 'leaf' } }, { a: { key: { nested: 'tree' } } }),
     ).toEqual({ a: { key: { nested: 'tree' } } });
+  });
+});
+
+describe('initServiceI18n with lazyBundles', () => {
+  it('fetches a language on first use, merged as the static ones are', async () => {
+    const i18n = initServiceI18n({
+      bundles: { en: { app: { title: 'Home' } } },
+      lazyBundles: { de: async () => ({ app: { title: 'Startseite' } }) },
+      regional: {},
+      global: { app: { brand: 'Tale' } },
+      packages: [
+        {
+          bundles: {
+            en: { common: { save: 'Save' } },
+            de: { common: { save: 'Speichern' } },
+          },
+        },
+      ],
+    });
+
+    expect(isLocaleLoaded(i18n, 'de')).toBe(false);
+    expect(i18n.getFixedT('de')('app:title')).toBe('Home');
+
+    await loadLocale(i18n, 'de');
+    const t = i18n.getFixedT('de');
+    expect(t('app:title')).toBe('Startseite');
+    expect(t('common:save')).toBe('Speichern');
+    expect(t('app:brand')).toBe('Tale');
   });
 });

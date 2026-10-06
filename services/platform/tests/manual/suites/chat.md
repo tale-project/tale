@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 102 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 103 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -378,6 +378,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   period (`chat.deletePermanentMessage`); after confirming the chat leaves the
   Home panel; opening its old URL shows **This chat is not available.**
   (`chat.notFound`)
+- [ ] `CHAT-F61` · **Deleting the open chat starts a fresh one** — Open a
+  chat, then its header ⋯ → **Delete** (`common.actions.delete`) → **Delete
+  chat** (`chat.deleteChat`) → The URL settles on
+  `/dashboard/{org}/chat?new=true` with an empty composer — never **This chat
+  is not available.** (`chat.notFound`) and never another chat — and Back does
+  not reopen the deleted chat. The same from the open chat's own row in the
+  Home panel. Deleting a different chat from its row keeps the open one on
+  screen.
 - [ ] `CHAT-F30` · **Search chats** — Open the palette from the rail's
   **Search** tile (`navigation.sidebar.search`) or with ⌘K and switch its scope
   to **Chats** (`dialogs.search.scopeChats`) → it retitles to **Search chats**

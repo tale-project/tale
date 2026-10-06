@@ -1,0 +1,57 @@
+title: Contacts
+entityLabelOne: contact
+searchPlaceholder: Search contacts
+filter:
+  source:
+    manual: Manual
+    upload: Upload
+    api: API
+    conversation: Conversation
+    webhook: Webhook
+    custom: Custom
+importForm:
+  manualEntry: Manual entry
+  upload: Upload
+  formatHint: 'Format: email, name (optional), locale (optional). One contact per line.'
+  localeHint: Locale can be any valid BCP 47 tag (e.g. en, en-US, de-DE, zh-Hans).
+  expectedColumns: 'Expected columns: email, name, locale'
+addButton: Add contact
+editContact: Edit contact
+editDescription: Update contact information.
+deleteContact: Delete contact
+importMenu:
+  fromDevice: From your device
+  manualEntry: Manual entry
+create:
+  title: Add contact
+  description: Enter the contact's email address, name, phone number, and locale.
+  success: Contact created
+  error: Couldn't create contact
+  duplicateEmail: A contact with this email already exists
+thisContact: this contact
+updateSuccess: Contact updated
+updateError: Couldn't update contact
+name: Name
+namePlaceholder: Enter contact name
+email: Email
+emailPlaceholder: Enter email address
+locale: Locale
+localePlaceholder: e.g., en-US
+phone: Phone
+phonePlaceholder: '+1 555 0100'
+import:
+  provideData: No data provided
+  noValidData: No valid contact data found
+  success: Imported
+  successDescription: Imported {success} contacts{failed, select, 0 {} other {, {failed} failed}}
+  noneImported: No contacts were imported
+  error: Import error
+  uploadContacts: Upload contacts
+  import: Import
+  errorCodes:
+    duplicate_email: A contact with this email already exists
+    duplicate_external_id: A contact with this external ID already exists
+    unknown: Couldn't finish that import. Try again.
+deleteConfirmation: Delete {name}?
+deleteError: Couldn't delete contact
+deleteWarning: This can't be undone.

@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  QueryClient,
+  QueryClientProvider,
+  QueryObserver,
+} from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isBackendReachable, reportBackendReachable } from './connection-state';
 import { backendKey } from './query-keys';
 import { settingsReadAdapters } from './settings';
-import { useBackendHints } from './use-backend-hints';
+import { HINT_BATCH_MS, useBackendHints } from './use-backend-hints';
 
 /** A controllable EventSource double: tests dispatch named SSE events. */
 class FakeEventSource {
@@ -76,12 +80,20 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  queryClient.clear();
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   delete window.__ENV__;
   reportBackendReachable();
 });
+
+/** Hints gather for a short window before their reads refresh. */
+function flushHints(): void {
+  act(() => {
+    vi.advanceTimersByTime(HINT_BATCH_MS);
+  });
+}
 
 /** The browser abandoned the handshake (non-200) and will not retry. */
 function abandon(source: FakeEventSource | undefined): void {
@@ -94,7 +106,233 @@ function abandon(source: FakeEventSource | undefined): void {
 }
 
 describe('useBackendHints', () => {
-  it('refreshes project-dependent lists when another session changes a project', () => {
+  it('refreshes each active read once for a burst of task hints', async () => {
+    vi.useFakeTimers();
+    const read = vi.fn(async () => ({ version: 1 }));
+    const observer = new QueryObserver(queryClient, {
+      queryKey: backendKey('org1', 'task', 'by-project', 'p1'),
+      queryFn: read,
+      initialData: { version: 0 },
+      staleTime: Infinity,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+    renderHook(() => useBackendHints('org1'), { wrapper });
+
+    act(() => {
+      for (let i = 0; i < 100; i += 1) {
+        FakeEventSource.instances[0]?.emit(
+          'hint',
+          JSON.stringify({ entity: 'task', entityId: `t${i}` }),
+        );
+      }
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(observer.getCurrentResult().data).toEqual({ version: 1 });
+    unsubscribe();
+  });
+
+  it('finishes an active refresh and then refreshes once for hints that arrived during it', async () => {
+    vi.useFakeTimers();
+    const finishes: Array<() => void> = [];
+    const aborted = vi.fn();
+    const read = vi.fn(({ signal }: { signal: AbortSignal }) => {
+      signal.addEventListener('abort', aborted);
+      const version = finishes.length + 1;
+      return new Promise<{ version: number }>((resolve) => {
+        finishes.push(() => resolve({ version }));
+      });
+    });
+    const observer = new QueryObserver(queryClient, {
+      queryKey: backendKey('org1', 'task', 'by-project', 'p1'),
+      queryFn: read,
+      initialData: { version: 0 },
+      staleTime: Infinity,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() => {
+      FakeEventSource.instances[0]?.emit(
+        'hint',
+        JSON.stringify({ entity: 'task', entityId: 't1' }),
+      );
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      for (let i = 0; i < 25; i += 1) {
+        FakeEventSource.instances[0]?.emit(
+          'hint',
+          JSON.stringify({ entity: 'task', entityId: 't1' }),
+        );
+      }
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(aborted).not.toHaveBeenCalled();
+
+    await act(async () => finishes[0]?.());
+    expect(observer.getCurrentResult().data).toEqual({ version: 1 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
+    expect(read).toHaveBeenCalledTimes(2);
+    await act(async () => finishes[1]?.());
+    expect(observer.getCurrentResult().data).toEqual({ version: 2 });
+    expect(aborted).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it('does not lose a hint that overlaps a read already in flight', async () => {
+    vi.useFakeTimers();
+    const finishes: Array<() => void> = [];
+    const read = vi.fn(() => {
+      const version = finishes.length + 1;
+      return new Promise<{ version: number }>((resolve) => {
+        finishes.push(() => resolve({ version }));
+      });
+    });
+    const observer = new QueryObserver(queryClient, {
+      queryKey: backendKey('org1', 'task', 'detail', 't1'),
+      queryFn: read,
+      initialData: { version: 0 },
+      staleTime: Infinity,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    void observer.refetch();
+    expect(read).toHaveBeenCalledTimes(1);
+    act(() => {
+      FakeEventSource.instances[0]?.emit(
+        'hint',
+        JSON.stringify({ entity: 'task', entityId: 't1' }),
+      );
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    await act(async () => finishes[0]?.());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
+    expect(read).toHaveBeenCalledTimes(2);
+    await act(async () => finishes[1]?.());
+    expect(observer.getCurrentResult().data).toEqual({ version: 2 });
+    unsubscribe();
+  });
+
+  it('refreshes another entity while a task refresh is still pending', async () => {
+    vi.useFakeTimers();
+    let finishTask = (): void => {};
+    const taskRead = vi.fn(
+      () =>
+        new Promise<{ version: number }>((resolve) => {
+          finishTask = () => resolve({ version: 1 });
+        }),
+    );
+    const documentRead = vi.fn(async () => ({ version: 1 }));
+    const observers = [
+      new QueryObserver(queryClient, {
+        queryKey: backendKey('org1', 'task', 'detail', 't1'),
+        queryFn: taskRead,
+        initialData: { version: 0 },
+        staleTime: Infinity,
+      }),
+      new QueryObserver(queryClient, {
+        queryKey: backendKey('org1', 'document', 'detail', 'd1'),
+        queryFn: documentRead,
+        initialData: { version: 0 },
+        staleTime: Infinity,
+      }),
+    ];
+    const unsubscribes = observers.map((observer) =>
+      observer.subscribe(() => {}),
+    );
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    for (const entity of ['task', 'document', 'document']) {
+      act(() => {
+        FakeEventSource.instances[0]?.emit(
+          'hint',
+          JSON.stringify({ entity, entityId: 'changed' }),
+        );
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+      });
+    }
+    expect(taskRead).toHaveBeenCalledTimes(1);
+    expect(documentRead).toHaveBeenCalledTimes(2);
+    await act(async () => finishTask());
+    for (const unsubscribe of unsubscribes) unsubscribe();
+  });
+
+  it('coalesces project and task hints without crossing organizations', async () => {
+    vi.useFakeTimers();
+    const own = ['project', 'task', 'chat_thread'].map((entity) =>
+      backendKey('org1', entity, 'list'),
+    );
+    const other = backendKey('org2', 'task', 'list');
+    const unrelated = backendKey('org1', 'conversation', 'list');
+    for (const key of [...own, other, unrelated])
+      queryClient.setQueryData(key, []);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() => {
+      for (let i = 0; i < 25; i += 1) {
+        for (const entity of ['project', 'task']) {
+          FakeEventSource.instances[0]?.emit(
+            'hint',
+            JSON.stringify({ entity, entityId: `row${i}` }),
+          );
+        }
+      }
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
+    expect(invalidate).toHaveBeenCalledTimes(3);
+    for (const key of own)
+      expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+    for (const key of [other, unrelated])
+      expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+  });
+
+  it.each(['unmount', 'forbidden', 'organization switch'])(
+    'drops queued hints on %s',
+    async (stop) => {
+      vi.useFakeTimers();
+      const key = backendKey('org1', 'task', 'list');
+      queryClient.setQueryData(key, []);
+      const { unmount, rerender } = renderHook(
+        ({ orgId }) => useBackendHints(orgId),
+        { wrapper, initialProps: { orgId: 'org1' } },
+      );
+      act(() => {
+        FakeEventSource.instances[0]?.emit(
+          'hint',
+          JSON.stringify({ entity: 'task', entityId: 't1' }),
+        );
+      });
+      if (stop === 'unmount') unmount();
+      else if (stop === 'organization switch') rerender({ orgId: 'org2' });
+      else act(() => FakeEventSource.instances[0]?.emit('forbidden', ''));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+    },
+  );
+
+  it('refreshes project-dependent lists when another session changes a project', async () => {
+    vi.useFakeTimers();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     renderHook(() => useBackendHints('org1'), { wrapper });
     act(() =>
@@ -103,17 +341,20 @@ describe('useBackendHints', () => {
         JSON.stringify({ entity: 'project', entityId: 'p1' }),
       ),
     );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
     expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
       [
         ['backend', 'org1', 'project'],
         ['backend', 'org1', 'task'],
         ['backend', 'org1', 'chat_thread'],
-        ['backend', 'org1', 'task', 'reviewer'],
       ],
     );
   });
 
-  it('refreshes knowledge-entry indexing when its backing document changes', () => {
+  it('refreshes knowledge-entry indexing when its backing document changes', async () => {
+    vi.useFakeTimers();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     renderHook(() => useBackendHints('org1'), { wrapper });
     act(() => {
@@ -121,6 +362,9 @@ describe('useBackendHints', () => {
         'hint',
         JSON.stringify({ entity: 'document', entityId: null }),
       );
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
     });
     expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
       [
@@ -130,7 +374,8 @@ describe('useBackendHints', () => {
     );
   });
 
-  it('refreshes the organization’s key listing when a governance policy changes', () => {
+  it('refreshes the organization’s key listing when a governance policy changes', async () => {
+    vi.useFakeTimers();
     // The listing describes the keys the saved budget rules name. A budgets
     // save — from this tab, another session, or a configuration import or
     // rollback through the same door — reaches every open session as a
@@ -156,12 +401,16 @@ describe('useBackendHints', () => {
         JSON.stringify({ entity: 'governance_policy', entityId: 'budgets' }),
       );
     });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
     expect(queryClient.getQueryState(own)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(otherOrg)?.isInvalidated).toBe(false);
     expect(queryClient.getQueryState(ownKeyAccess)?.isInvalidated).toBe(false);
   });
 
-  it('subscribes the org stream and invalidates the entity prefix on a hint', () => {
+  it('subscribes the org stream and invalidates the entity prefix on a hint', async () => {
+    vi.useFakeTimers();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     renderHook(() => useBackendHints('org1'), { wrapper });
 
@@ -172,9 +421,41 @@ describe('useBackendHints', () => {
     act(() => {
       source?.emit('hint', JSON.stringify({ entity: 'task', entityId: 't1' }));
     });
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ['backend', 'org1', 'task'],
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
     });
+    expect(invalidate).toHaveBeenCalledWith(
+      { queryKey: ['backend', 'org1', 'task'] },
+      { cancelRefetch: false },
+    );
+  });
+
+  it('refreshes an entity once for a burst of its hints', () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    const source = FakeEventSource.instances[0];
+
+    act(() => {
+      for (const id of ['t1', 't2', 't3', 't4', 't5']) {
+        source?.emit('hint', JSON.stringify({ entity: 'task', entityId: id }));
+      }
+      source?.emit(
+        'hint',
+        JSON.stringify({ entity: 'project', entityId: 'p1' }),
+      );
+    });
+    // Nothing restarts while the window gathers.
+    expect(invalidate).not.toHaveBeenCalled();
+
+    flushHints();
+    expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
+      [
+        ['backend', 'org1', 'task'],
+        ['backend', 'org1', 'project'],
+        ['backend', 'org1', 'chat_thread'],
+      ],
+    );
   });
 
   it('refetches the whole org scope when the server cannot replay the gap (resync)', () => {
@@ -235,14 +516,16 @@ describe('useBackendHints', () => {
     expect(isBackendReachable()).toBe(true);
     const fetchMock = vi
       .spyOn(window, 'fetch')
-      .mockResolvedValue(new Response('ok', { status: 200 }));
+      .mockImplementation(async () =>
+        Response.json({ ok: true, service: 'backend' }),
+      );
     renderHook(() => useBackendHints('org1'), { wrapper });
     await act(async () => {
       FakeEventSource.instances[0]?.emit('error', '');
     });
     // The error is not the verdict — the probe it triggers is.
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/health',
+      '/api/health/ready',
       expect.objectContaining({ cache: 'no-store' }),
     );
     expect(isBackendReachable()).toBe(true);

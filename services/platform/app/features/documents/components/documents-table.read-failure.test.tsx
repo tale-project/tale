@@ -375,3 +375,185 @@ describe(
     });
   },
 );
+
+// At the hub's root the documents read lists only unfiled documents, so a
+// library whose documents all sit in folders reaches them through the folder
+// list alone. A folder list that never answered read as "No documents yet" —
+// no failure named, no retry — while the approximate count said otherwise
+// (#3880). The folder read runs for real here, with its retry policy.
+describe(
+  'DocumentsTable when its folder list fails at the hub root',
+  { timeout: 30_000 },
+  () => {
+    beforeEach(() => {
+      backend.on(/^GET \/api\/app\/documents\/approx-count/, () =>
+        Response.json({ count: 1 }),
+      );
+    });
+
+    const emptyTitle = () => screen.queryByText(t('emptyState.title'));
+
+    it('names the folders that never answered with a retry, never an empty library', async () => {
+      backend.on(DOCUMENTS, documentsPage([]));
+      backend.on(FOLDERS, () => serviceUnavailable());
+      renderTable();
+
+      const alert = await notice();
+      expect(alert).toHaveTextContent(t('foldersLoadFailed'));
+      expect(
+        within(alert).getByRole('button', { name: tryAgain() }),
+      ).toBeInTheDocument();
+      expect(backend.count(FOLDERS)).toBe(4);
+      expect(emptyTitle()).not.toBeInTheDocument();
+    });
+
+    it('keeps the empty state, with no notice, for a library that is empty', async () => {
+      backend.on(DOCUMENTS, documentsPage([]));
+      backend.on(FOLDERS, () => Response.json({ folders: [] }));
+      renderTable();
+
+      expect(
+        await screen.findByText(t('emptyState.title')),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('keeps the notice and a busy Try again through a retry, never the empty state, and lists the folders once one works', async () => {
+      backend.on(DOCUMENTS, documentsPage([]));
+      backend.on(FOLDERS, () => serviceUnavailable());
+      const { user } = renderTable();
+      const alert = await notice();
+      const retry = within(alert).getByRole('button', { name: tryAgain() });
+      const documentReads = backend.count(DOCUMENTS);
+
+      // The retry's first attempt is held in flight.
+      let release: (reply: Response) => void = () => {};
+      backend.on(
+        FOLDERS,
+        () =>
+          new Promise<Response>((resolve) => {
+            release = resolve;
+          }),
+      );
+      retry.focus();
+      await user.keyboard('{Enter}');
+      expect(region()).toHaveFocus();
+      await waitFor(() => expect(retry).toHaveAttribute('aria-busy', 'true'));
+      expect(backend.count(FOLDERS)).toBe(5);
+      expect(screen.getByRole('alert')).toBe(alert);
+      expect(emptyTitle()).not.toBeInTheDocument();
+
+      // It fails too: the same notice stays, ready again.
+      backend.on(FOLDERS, () => serviceUnavailable());
+      release(serviceUnavailable());
+      await waitFor(() => expect(backend.count(FOLDERS)).toBe(8));
+      await waitFor(() => expect(retry).not.toHaveAttribute('aria-busy'));
+      expect(screen.getByRole('alert')).toBe(alert);
+      expect(emptyTitle()).not.toBeInTheDocument();
+      expect(region()).toHaveFocus();
+
+      backend.on(FOLDERS, () =>
+        Response.json({ folders: [folder('f-1', 'Contracts')] }),
+      );
+      await user.click(retry);
+      expect(await screen.findByText('Contracts')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(emptyTitle()).not.toBeInTheDocument();
+      expect(screen.getByText(footer('showingAll', 1))).toBeInTheDocument();
+      // Only the folders were read again; the documents had answered.
+      expect(backend.count(DOCUMENTS)).toBe(documentReads);
+    });
+
+    it('keeps a focused Try again through a background refresh that fails again, and hands focus to the list once it heals', async () => {
+      backend.on(DOCUMENTS, documentsPage([]));
+      backend.on(FOLDERS, () => serviceUnavailable());
+      renderTable();
+      const alert = await notice();
+      const retry = within(alert).getByRole('button', { name: tryAgain() });
+      retry.focus();
+
+      const before = backend.count(FOLDERS);
+      void client.refetchQueries({ type: 'active' });
+      await waitFor(() => expect(backend.count(FOLDERS)).toBe(before + 4));
+      await waitFor(() => expect(retry).not.toHaveAttribute('aria-busy'));
+      expect(screen.getByRole('alert')).toBe(alert);
+      expect(retry).toHaveFocus();
+      expect(emptyTitle()).not.toBeInTheDocument();
+
+      backend.on(FOLDERS, () =>
+        Response.json({ folders: [folder('f-1', 'Contracts')] }),
+      );
+      void client.refetchQueries({ type: 'active' });
+      expect(await screen.findByText('Contracts')).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
+      );
+      await waitFor(() => expect(region()).toHaveFocus());
+    });
+
+    it('keeps the documents and names the missing folders, never counting the documents as all', async () => {
+      backend.on(DOCUMENTS, documentsPage(DOCUMENT_ROWS));
+      backend.on(FOLDERS, () => serviceUnavailable());
+      renderTable();
+
+      const alert = await notice();
+      expect(alert).toHaveTextContent(t('foldersLoadFailed'));
+      expect(screen.getByText('Contract terms.pdf')).toBeInTheDocument();
+      expect(
+        screen.getByText(footer('showingLoadedFailed', 2)),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(footer('showingAll', 2)),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows the table error state when both reads fail, and its Try again reads the folders again too', async () => {
+      backend.on(DOCUMENTS, () => serviceUnavailable());
+      backend.on(FOLDERS, () => serviceUnavailable());
+      const { user } = renderTable();
+
+      const retry = await screen.findByRole(
+        'button',
+        { name: t('errors.tryAgain', 'common') },
+        { timeout: 5000 },
+      );
+      await waitFor(() => expect(backend.count(FOLDERS)).toBe(4));
+      expect(
+        screen.queryByText(t('foldersLoadFailed')),
+      ).not.toBeInTheDocument();
+      expect(emptyTitle()).not.toBeInTheDocument();
+
+      backend.on(DOCUMENTS, documentsPage([]));
+      backend.on(FOLDERS, () =>
+        Response.json({ folders: [folder('f-1', 'Contracts')] }),
+      );
+      await user.click(retry);
+      expect(await screen.findByText('Contracts')).toBeInTheDocument();
+      expect(backend.count(FOLDERS)).toBe(5);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    describe.each(SHIPPED_LOCALES)('in %s', (locale) => {
+      it('names the folders that never answered in the reader language', async () => {
+        saveLocale(locale);
+        await i18n.changeLanguage(locale);
+        backend.on(DOCUMENTS, documentsPage([]));
+        backend.on(FOLDERS, () => serviceUnavailable());
+        renderTable();
+
+        const alert = await notice();
+        expect(alert).toHaveTextContent(t('foldersLoadFailed'));
+        expect(t('foldersLoadFailed')).not.toBe('foldersLoadFailed');
+        if (locale !== 'en') {
+          expect(t('foldersLoadFailed')).not.toBe(
+            i18n.t('foldersLoadFailed', { ns: 'documents', lng: 'en' }),
+          );
+        }
+        expect(
+          within(alert).getByRole('button', { name: tryAgain() }),
+        ).toBeInTheDocument();
+        expect(emptyTitle()).not.toBeInTheDocument();
+      });
+    });
+  },
+);

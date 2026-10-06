@@ -5,12 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { startOfCalendarDate, type TaskRepeat } from '@/lib/shared/task-repeat';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
+import { taskSubjectEntries } from '../hooks/use-task-subject-contract';
 import type { TaskDoc } from '../lib/display';
 import { TaskModal } from './task-modal';
 
 const state = vi.hoisted(() => ({
   tasks: {} as Record<string, Record<string, unknown>>,
-  automations: [] as Record<string, unknown>[],
+  automations: [] as Parameters<typeof taskSubjectEntries>[0],
   canEdit: true,
   mutateAsync: vi.fn(async (): Promise<unknown> => null),
 }));
@@ -98,12 +99,15 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useNavigate: () => vi.fn(),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
     resolveActor: () => ({ name: 'Test owner' }),
   }),
   useAssignableActors: () => ({
+    subjectEntries: taskSubjectEntries(state.automations, 'en'),
     assignableMembers: [],
     assignableAgents: [],
     agents: [],

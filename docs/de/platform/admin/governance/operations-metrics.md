@@ -29,6 +29,8 @@ Eine Harness-Runde ist ein Arbeitsschritt, den ein Harness wie Claude Code oder 
 
 Die Karten zeigen **Runden gesamt**, die **Erfolgsquote**, die **Timeout-Quote**, die **Dauer p95**, innerhalb derer 95 % der Runden fertig wurden, und unter **Von Nutzer gestoppt** die Runden, die jemand angehalten hat. **Nach Harness** führt Runden, Erfolgsquote und Timeouts für jeden Harness auf. Steigt die Timeout-Quote, siehst du dort, von welchem Harness sie kommt. [Eine Agent-Laufzeit wählen](/de/platform/agents/harnesses) erklärt, wie jeder Harness arbeitet, und [Sandbox-Kapazität verwalten](/de/platform/admin/sandboxes), wo ihre Kapazität festgelegt wird.
 
+Lassen sich die Zahlen nicht laden, sagt die Seite das und bietet **Erneut versuchen** an, statt null Runden oder eine leere Tabelle **Nach Harness** zu zeigen; der gewählte Zeitraum bleibt. Schlägt eine Aktualisierung fehl, bleiben die bereits angezeigten Zahlen stehen, mit dem Hinweis, dass sie womöglich veraltet sind.
+
 ## Automatisierungsläufe verfolgen
 
 **Automatisierungen** zählt die Live-Läufe der Automatisierungen deiner Organisation. Testläufe erscheinen im Tab **Läufe** der jeweiligen Automatisierung, aber nicht hier. Wähle 7, 30 oder 90 Tage; die Seite öffnet mit 30 Tagen. Jede Karte vergleicht ihren Wert mit dem gleich langen Zeitraum davor.

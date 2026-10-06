@@ -80,7 +80,7 @@ describe('listFiles', () => {
     expect(urls[0]).toContain('%27folder-1%27+in+parents');
   });
 
-  it('stops a folder listing at the bound and says so', async () => {
+  it('stops a folder listing at the bound and says so [GDRIVE-R7]', async () => {
     const urls = stubDrive(
       Array.from({ length: DRIVE_LIST_MAX_ITEMS + 150 }, (_, i) => file(i)),
       1000,
@@ -93,7 +93,7 @@ describe('listFiles', () => {
     expect(urls).toHaveLength(DRIVE_LIST_MAX_ITEMS / 1000);
   });
 
-  it('bounds a search tighter than a folder browse', async () => {
+  it('bounds a search tighter than a folder browse [GDRIVE-R7]', async () => {
     const urls = stubDrive(
       Array.from({ length: 2000 }, (_, i) => file(i)),
       100,
@@ -107,7 +107,7 @@ describe('listFiles', () => {
     expect(urls[0]).toContain('report');
   });
 
-  it('a listing that lands exactly on the bound is whole', async () => {
+  it('a listing that lands exactly on the bound is whole [GDRIVE-R7]', async () => {
     stubDrive(
       Array.from({ length: DRIVE_SEARCH_MAX_ITEMS }, (_, i) => file(i)),
       100,

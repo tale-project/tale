@@ -275,7 +275,7 @@ metrics:
     last90Days: Last 90 days
     allTime: All time
 pwa:
-  offlineReady: Tale is ready to work offline.
+  offlineReady: Tale's offline screen is ready.
   updateAvailableDescription: A new version of Tale is ready.
   updateAvailableTitle: Update available
   updateNow: Update now
@@ -348,3 +348,6 @@ recurrence:
     friday: Fr
     saturday: Sa
     sunday: Su
+
+siteFooter:
+  copyright: © {year} Tale by Ruler GmbH. MIT licensed.

@@ -155,6 +155,11 @@ await assertContains(
 await assertOk('claude on PATH', 10001, 'command -v claude');
 await assertOk('opencode on PATH', 10001, 'command -v opencode');
 await assertOk('hermes on PATH', 10001, 'command -v hermes');
+await assertOk(
+  'Hermes wheel locales and optional MCP manifests are retained',
+  10001,
+  'test -r /usr/local/locales/en.yaml && test -r /usr/local/locales/de.yaml && test -r /usr/local/optional-mcps/linear/manifest.yaml',
+);
 await assertOk('codex on PATH', 10001, 'command -v codex');
 await assertOk(
   'tale-hermes-run wrapper present',
@@ -196,11 +201,20 @@ await assertOk(
   10001,
   'test -x /usr/local/bin/tale-playwright-mcp',
 );
-// The baked browser must match the revision the MCP's BUNDLED playwright resolves.
+// The baked shell comes from the MCP's bundled registry, without also retaining
+// full Chromium. Ordinary headless launches below still use its native default.
 await assertOk(
-  "chromium matches the MCP's bundled playwright revision",
+  "only the Chromium headless shell matches the MCP's bundled revision",
   10001,
-  'node -e \'const p=require("/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core"); require("fs").accessSync(p.chromium.executablePath())\'',
+  `node <<'NODEEOF'
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const { registry } = require('/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core/lib/server/registry/index');
+const { executablePath } = require('/opt/tale/playwright-mcp/browser.json');
+assert.equal(executablePath, registry.findExecutable('chromium-headless-shell').executablePath('javascript'));
+fs.accessSync(executablePath, fs.constants.X_OK);
+assert.equal(fs.readdirSync('/opt/ms-playwright').some((name) => /^chromium-\\d+$/.test(name)), false);
+NODEEOF`,
 );
 // Chromium must render and capture pages without a display server in either
 // profile. The source image retains browser libraries/fonts while retiring the
@@ -734,11 +748,11 @@ console.log('--- playwright MCP navigate under session constraints ---');
 // Drive the REAL MCP surface — the tale-playwright-mcp shim with the exact
 // argv the agent adapters pass — under the session container contract
 // (read-only rootfs, exec tmpfs /tmp, agent uid, sized /dev/shm).
-{
+for (const eager of [false, true]) {
   const nodeScript = `const { spawn } = require('child_process');
 const srv = spawn(
   'tale-playwright-mcp',
-  ['--headless', '--browser', 'chromium', '--isolated', '--no-sandbox'],
+  JSON.parse(require('fs').readFileSync('/opt/tale/playwright-mcp/args.json', 'utf8'))[0],
   { stdio: ['pipe', 'pipe', 'inherit'] },
 );
 const send = (o) => srv.stdin.write(JSON.stringify(o) + '\\n');
@@ -753,11 +767,19 @@ srv.stdout.on('data', (d) => {
     let msg; try { msg = JSON.parse(line); } catch { continue; }
     if (msg.id === 1) {
       send({ jsonrpc: '2.0', method: 'notifications/initialized' });
-      send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'browser_navigate', arguments: { url: 'about:blank' } } });
+      send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'browser_install', arguments: {} } });
     }
     if (msg.id === 2) {
-      clearTimeout(deadline);
+      if (msg.error || (msg.result && msg.result.isError)) { console.error('MCP_INSTALL_BEFORE_FAILED ' + line); process.exit(1); }
+      send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'browser_navigate', arguments: { url: 'about:blank' } } });
+    }
+    if (msg.id === 3) {
       if (msg.error || (msg.result && msg.result.isError)) { console.error('MCP_NAVIGATE_FAILED ' + line); process.exit(1); }
+      send({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'browser_install', arguments: {} } });
+    }
+    if (msg.id === 4) {
+      clearTimeout(deadline);
+      if (msg.error || (msg.result && msg.result.isError)) { console.error('MCP_INSTALL_AFTER_FAILED ' + line); process.exit(1); }
       console.log('MCP_NAVIGATE_OK');
       srv.kill();
       process.exit(0);
@@ -775,6 +797,8 @@ send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '
       '--user',
       '10001',
       '--read-only',
+      '--network',
+      'none',
       '--tmpfs',
       '/tmp:exec,nosuid,nodev,size=256m',
       '--tmpfs',
@@ -784,6 +808,8 @@ send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '
       'HOME=/workspace/.home',
       '--env',
       'TMPDIR=/workspace/.tmp',
+      '--env',
+      `TALE_PLAYWRIGHT_MCP_EAGER=${eager ? '1' : '0'}`,
       '--entrypoint',
       'sh',
       IMAGE,
@@ -793,7 +819,9 @@ send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '
     { stdin: nodeScript },
   );
   if (combined.includes('MCP_NAVIGATE_OK')) {
-    pass('playwright MCP navigates at uid 10001 on read-only rootfs');
+    pass(
+      `playwright MCP installs defensively before and after navigation offline at uid 10001 on read-only rootfs (eager=${eager})`,
+    );
   } else {
     fail(`playwright MCP navigate failed (got: ${combined.slice(0, 300)})`);
   }

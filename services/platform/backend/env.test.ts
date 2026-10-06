@@ -8,6 +8,16 @@ const KEY_HEX = 'ab'.repeat(32);
 const BASE = { DATABASE_URL: 'postgres://x', ENCRYPTION_SECRET_HEX: KEY_HEX };
 
 describe('loadEnv', () => {
+  it('validates and normalizes the authenticator client name', () => {
+    expect(loadEnv(BASE).TOTP_CLIENT_NAME).toBeUndefined();
+    expect(
+      loadEnv({ ...BASE, TOTP_CLIENT_NAME: ' Example \t plus ' })
+        .TOTP_CLIENT_NAME,
+    ).toBe('Example plus');
+    for (const value of ['', ' ', 'Example: Admin', 'a'.repeat(41)]) {
+      expect(() => loadEnv({ ...BASE, TOTP_CLIENT_NAME: value })).toThrow();
+    }
+  });
   it('validates and normalizes the authenticator environment', () => {
     expect(loadEnv(BASE).TOTP_ENVIRONMENT).toBeUndefined();
     expect(

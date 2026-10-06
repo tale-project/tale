@@ -13,6 +13,28 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 `internal-dockerd` is reserved for the root supervisor's engine child. Any
 other argument exits 65 (there is no per-call language lane).
 
+## Repository SSH access
+
+The maintained runtime installs OpenSSH (`ssh`, `ssh-agent`, `ssh-add`) and
+`netcat-openbsd`. Repository-scoped keys are explicitly granted project secrets;
+load them from the turn environment into `ssh-agent` through stdin, never a key
+file. Member-started turns keep the existing secret-withholding policy.
+Credentialed turns receive the real workspace owner's Git author name and email
+even when no GitHub connector is equipped; SSH authentication grants no connector
+permission.
+
+Internal sandbox sessions already carry `HTTP_PROXY`. Route SSH with
+`nc -X connect -x <proxy-host>:<proxy-port> %h %p` as OpenSSH's `ProxyCommand`,
+using a proxy-authorized repository endpoint (GitHub's SSH endpoint is
+`ssh.github.com:443`). Parse the existing proxy URL, require an unauthenticated
+`http` proxy, and quote every argument with `shlex.join`; keep strict host-key
+verification against the provider's independently verified public pin. This
+passes the repository hostname to the existing egress service instead of
+requiring external DNS in the isolated session. The runnable configuration is in
+[SSH repository access](https://docs.tale.dev/self-hosted/configuration/environment-reference#ssh-repository-access).
+The container image conformance suite tests stdin key loading and an offline
+CONNECT tunnel as both supported non-root runtime users.
+
 When DinD is enabled, the session starts with the standard Docker socket and
 no inner engine. Its first Docker client starts the engine automatically;
 concurrent clients share that startup. After five minutes without clients,
@@ -270,11 +292,28 @@ during startup. An image update does not add models to the platform catalog;
 deploy the matching platform release before selecting newly supported models.
 
 BuildKit keeps native-addon headers and the built-in skill's Bun package cache
-outside runtime layers. The October harness refresh grows the amd64 image to
-about 6.0 GB; its image-validation budget is 6,600 MB (roughly 10% headroom).
-The complete upstream runtimes and diagnostics ship in the image, which is
-shared by concurrent sessions. This increases image pull and base-image disk
-cost; it does not duplicate the base image for every worker.
+outside runtime layers. OS tools, Office, TeX and the document libraries form
+a shared base without harness version arguments. Each harness installs in its
+own stage and exports an independent artifact layer, so refreshing one harness
+reuses the base and the other harnesses instead of storing new copies of them.
+The image remains shared by concurrent sessions.
+
+Headless Chromium is the only baked browser. Playwright scripts use their usual
+`chromium.launch({ headless: true })`; the MCP launcher selects that same pinned
+executable and answers `browser_install` without downloading another browser
+when the baked browser is present. Explicit browser, executable and configuration
+overrides keep the real server's installation behavior. Office, PDF, CJK fonts,
+XeTeX, all managed harnesses and Docker tooling remain available offline.
+
+The runtime's image-validation budget measures the sum of unpacked image layers,
+including files superseded in later layers. It does not use packed OCI content
+size, which Docker's containerd store can report through `image inspect .Size`.
+Inspect that disk requirement directly:
+
+```bash
+docker image history --no-trunc --human=false --format '{{.Size}}' tale-sandbox-runtime \
+  | awk '{ bytes += $1 } END { printf "%.0f bytes (%.1f MiB)\n", bytes, bytes / 1048576 }'
+```
 
 Run the wrapper regression tests and the real image conformance suite before
 shipping a refresh:

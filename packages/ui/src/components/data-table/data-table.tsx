@@ -26,6 +26,7 @@ import {
 import { Text } from '@tale/ui/text';
 import { useInfiniteScroll } from '@tale/ui/use-infinite-scroll';
 import { useIsShortViewport } from '@tale/ui/use-is-short-viewport';
+import { useVirtualList } from '@tale/ui/use-virtual-list';
 import {
   flexRender,
   getCoreRowModel,
@@ -174,7 +175,8 @@ export interface DataTableProps<TData, TValue = unknown> {
      * A request failed while rows are on screen, and more may exist. Nothing
      * loads until the host's retry: no skeleton stands in for rows no
      * request is fetching, scrolling asks for nothing, and the footer says
-     * the rest could not be loaded.
+     * the rest could not be loaded. With no rows, the list is not empty
+     * either: the empty state stays away.
      */
     loadFailed?: boolean;
     /** Enable automatic loading on scroll (default: true) */
@@ -405,6 +407,8 @@ export function DataTable<TData, TValue = unknown>({
 
   // Ref to the scroll container for sticky layout (needed for IntersectionObserver root)
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
+  const [rowsScrollMargin, setRowsScrollMargin] = useState(40);
   // Non-sticky layout: horizontal scrollport that must chain vertical wheel to
   // the page scroller (see chainVerticalWheelToScrollParent).
   const horizontalScrollRef = useRef<HTMLDivElement>(null);
@@ -565,8 +569,10 @@ export function DataTable<TData, TValue = unknown>({
         return 'skeleton';
       // Has filters
       if (hasActiveFilters) return 'filtered-empty';
-      // Has empty state
-      if (emptyState) return 'empty';
+      // Has empty state — unless a failed read left the list short: what it
+      // could not load may be there (a documents level whose folders never
+      // answered), and the host's notice says what is missing.
+      if (emptyState && !infiniteScroll?.loadFailed) return 'empty';
       // Has neither data, filters nor empty state
       return 'idle-empty';
     }
@@ -610,6 +616,38 @@ export function DataTable<TData, TValue = unknown>({
       : tableBodyState === 'skeleton'
         ? Math.min(approxRowCount ?? 0, MAX_SKELETON_ROWS)
         : 0;
+
+  const rows = table.getRowModel().rows;
+  const headerGroups = table.getHeaderGroups();
+  const getScrollElement = useCallback(() => scrollContainerRef.current, []);
+  const getVirtualRowKey = useCallback(
+    (index: number) => rows[index].id,
+    [rows],
+  );
+  const rowWindow = useVirtualList({
+    count: tableBodyState === 'data' ? rows.length : 0,
+    getScrollElement,
+    getItemKey: getVirtualRowKey,
+    estimateSize: () => 48,
+    // Expanded details are a second <tr> and page-scrolling tables have no
+    // local viewport. Retain their complete DOM and native page behavior.
+    threshold: rowsScrollInFrame && !enableExpanding ? 100 : Infinity,
+    scrollMargin: rowsScrollMargin,
+  });
+  useEffect(() => {
+    const header = tableHeaderRef.current;
+    if (!rowWindow.virtualized || !header) return undefined;
+    const updateMargin = () => {
+      const height = header.getBoundingClientRect().height;
+      setRowsScrollMargin((previous) =>
+        previous === height ? previous : height,
+      );
+    };
+    updateMargin();
+    const observer = new ResizeObserver(updateMargin);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [rowWindow.virtualized, rowWindow.scrollElement]);
 
   // If error prop provided, show error display instead of table
   if (error) {
@@ -682,8 +720,6 @@ export function DataTable<TData, TValue = unknown>({
   ) : null;
 
   const colSpan = columns.length + (enableExpanding ? 1 : 0);
-
-  const rows = table.getRowModel().rows;
 
   const isUtilityCol = (id: string, isAction?: boolean) =>
     id === 'select' || id === 'actions' || !!isAction;
@@ -823,6 +859,9 @@ export function DataTable<TData, TValue = unknown>({
         // border wraps the full table width and scrolls with the content
         // instead of being pinned to the visible viewport.
         stickyLayout
+        aria-rowcount={
+          rowWindow.virtualized ? rows.length + headerGroups.length : undefined
+        }
         // `table-fixed w-full`: columns share the available width by their
         // declared `size` (used as ratios) instead of `auto` layout growing
         // each column to fit its widest non-wrapping cell — which let long
@@ -849,12 +888,15 @@ export function DataTable<TData, TValue = unknown>({
             a lone "Quarter folder" header reads as a broken table; the empty
             copy (+ optional create CTA) is the whole surface. */}
         {tableBodyState !== 'empty' && tableBodyState !== 'idle-empty' ? (
-          <TableHeader sticky={stickyLayout}>
-            {table.getHeaderGroups().map((headerGroup) => (
+          <TableHeader ref={tableHeaderRef} sticky={stickyLayout}>
+            {headerGroups.map((headerGroup, index) => (
               // No `bg-muted` here — `TableHeader` paints the fill on the header
               // cells so the wrapper's rounded corners aren't squared off by a
               // full-width row background.
-              <TableRow key={headerGroup.id}>
+              <TableRow
+                key={headerGroup.id}
+                aria-rowindex={rowWindow.virtualized ? index + 1 : undefined}
+              >
                 {/* The expander column carries no visible label, which leaves
                     a `<th>` with no discernible text in EVERY expandable
                     table (axe `empty-table-header`). Name it for assistive
@@ -1026,124 +1068,149 @@ export function DataTable<TData, TValue = unknown>({
               </TableCell>
             </TableRow>
           ) : tableBodyState === 'idle-empty' ? null : (
-            rows.map((row, index) => {
-              const isExpanded = row.getIsExpanded();
-              const rowClassNameValue =
-                typeof rowClassName === 'function'
-                  ? rowClassName(row)
-                  : rowClassName;
-              const isNewRow = animatingRows.has(row.id);
-              // A row is click-navigable only when `onRowClick` is set and the
-              // optional `isRowClickable` guard admits it — so tables can leave
-              // dead rows (e.g. a metrics row with no destination) inert.
-              const rowClickable =
-                !!onRowClick && (isRowClickable?.(row) ?? true);
+            <>
+              {rowWindow.items.map((item) => {
+                const { index } = item;
+                const row = rows[index];
+                const isExpanded = row.getIsExpanded();
+                const rowClassNameValue =
+                  typeof rowClassName === 'function'
+                    ? rowClassName(row)
+                    : rowClassName;
+                const isNewRow = animatingRows.has(row.id);
+                // A row is click-navigable only when `onRowClick` is set and the
+                // optional `isRowClickable` guard admits it — so tables can leave
+                // dead rows (e.g. a metrics row with no destination) inert.
+                const rowClickable =
+                  !!onRowClick && (isRowClickable?.(row) ?? true);
 
-              return (
-                <Fragment key={row.id}>
-                  <TableRow
-                    className={cn(
-                      'group',
-                      // Consistent baseline row height across every table — text-
-                      // only rows (e.g. projects) would otherwise sit shorter than
-                      // rows with an avatar/icon. `h-12` is a *minimum* for table
-                      // rows, so multi-line cells still grow past it.
-                      'h-12',
-                      index === rows.length - 1 ? 'border-b-0' : '',
-                      clickableRows || rowClickable ? 'cursor-pointer' : '',
-                      isNewRow && 'animate-row-enter',
-                      rowClassNameValue,
+                return (
+                  <Fragment key={row.id}>
+                    {item.paddingBefore > 0 && (
+                      <TableRowSpacer
+                        height={item.paddingBefore}
+                        colSpan={visibleLeafColumns.length}
+                      />
                     )}
-                    data-state={row.getIsSelected() ? 'selected' : undefined}
-                    aria-selected={row.getIsSelected() || undefined}
-                    onMouseEnter={() => onRowMouseEnter?.(row)}
-                    onClick={() => {
-                      // When both expand and onRowClick are armed, the chevron
-                      // owns expand (see cell below) and the row body opens the
-                      // detail/navigate path — never both from one click.
-                      // Expand-only tables still toggle from the row body.
-                      if (rowClickable) {
-                        onRowClick?.(row);
-                      } else if (enableExpanding) {
-                        row.toggleExpanded();
+                    <TableRow
+                      ref={rowWindow.measureElement}
+                      data-index={index}
+                      onFocusCapture={rowWindow.onFocusCapture}
+                      onBlurCapture={rowWindow.onBlurCapture}
+                      aria-rowindex={
+                        rowWindow.virtualized
+                          ? index + headerGroups.length + 1
+                          : undefined
                       }
-                    }}
-                  >
-                    {enableExpanding && (
-                      <TableCell className="w-[3rem] p-0">
-                        <button
-                          type="button"
-                          aria-expanded={isExpanded}
-                          aria-label={
-                            isExpanded
-                              ? t('aria.collapseRow')
-                              : t('aria.expandRow')
-                          }
-                          className="hover:bg-muted/50 flex h-12 w-12 items-center justify-center rounded-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            row.toggleExpanded();
-                          }}
-                        >
-                          <ChevronRight
-                            className={cn(
-                              'text-muted-foreground size-4 transition-transform duration-200',
-                              isExpanded && 'rotate-90',
-                            )}
-                            aria-hidden
-                          />
-                        </button>
-                      </TableCell>
-                    )}
-                    {row.getVisibleCells().map((cell) => {
-                      // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
-                      const meta = cell.column.columnDef.meta as
-                        | ColumnMeta
-                        | undefined;
-                      const id = cell.column.id;
-                      const size = cell.column.getSize();
-                      const utility = isUtilityCol(id, meta?.isAction);
-                      const content = flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      );
-                      return (
-                        <TableCell
-                          key={cell.id}
-                          className={cn(
-                            utility && 'p-0',
-                            meta?.align === 'right' && 'text-right',
-                            meta?.align === 'center' && 'text-center',
-                            meta?.className,
-                          )}
-                          style={cellWidthStyle(id, size, meta?.isAction)}
-                        >
-                          {utility
-                            ? utilityCellBox(id, size, content)
-                            : content}
+                      className={cn(
+                        'group',
+                        // Consistent baseline row height across every table — text-
+                        // only rows (e.g. projects) would otherwise sit shorter than
+                        // rows with an avatar/icon. `h-12` is a *minimum* for table
+                        // rows, so multi-line cells still grow past it.
+                        'h-12',
+                        index === rows.length - 1 ? 'border-b-0' : '',
+                        clickableRows || rowClickable ? 'cursor-pointer' : '',
+                        isNewRow && 'animate-row-enter',
+                        rowClassNameValue,
+                      )}
+                      data-state={row.getIsSelected() ? 'selected' : undefined}
+                      aria-selected={row.getIsSelected() || undefined}
+                      onMouseEnter={() => onRowMouseEnter?.(row)}
+                      onClick={() => {
+                        // When both expand and onRowClick are armed, the chevron
+                        // owns expand (see cell below) and the row body opens the
+                        // detail/navigate path — never both from one click.
+                        // Expand-only tables still toggle from the row body.
+                        if (rowClickable) {
+                          onRowClick?.(row);
+                        } else if (enableExpanding) {
+                          row.toggleExpanded();
+                        }
+                      }}
+                    >
+                      {enableExpanding && (
+                        <TableCell className="w-[3rem] p-0">
+                          <button
+                            type="button"
+                            aria-expanded={isExpanded}
+                            aria-label={
+                              isExpanded
+                                ? t('aria.collapseRow')
+                                : t('aria.expandRow')
+                            }
+                            className="hover:bg-muted/50 flex h-12 w-12 items-center justify-center rounded-sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              row.toggleExpanded();
+                            }}
+                          >
+                            <ChevronRight
+                              className={cn(
+                                'text-muted-foreground size-4 transition-transform duration-200',
+                                isExpanded && 'rotate-90',
+                              )}
+                              aria-hidden
+                            />
+                          </button>
                         </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                  {enableExpanding && isExpanded && renderExpandedRow && (
-                    <TableRow className="border-0" data-no-hover>
-                      <TableCell colSpan={columns.length + 1} className="p-0">
-                        <div className="animate-in fade-in-0 slide-in-from-top-1 grid duration-150">
-                          {/* min-w-0: a grid item's min-width:auto would let
+                      )}
+                      {row.getVisibleCells().map((cell) => {
+                        // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
+                        const meta = cell.column.columnDef.meta as
+                          | ColumnMeta
+                          | undefined;
+                        const id = cell.column.id;
+                        const size = cell.column.getSize();
+                        const utility = isUtilityCol(id, meta?.isAction);
+                        const content = flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        );
+                        return (
+                          <TableCell
+                            key={cell.id}
+                            className={cn(
+                              utility && 'p-0',
+                              meta?.align === 'right' && 'text-right',
+                              meta?.align === 'center' && 'text-center',
+                              meta?.className,
+                            )}
+                            style={cellWidthStyle(id, size, meta?.isAction)}
+                          >
+                            {utility
+                              ? utilityCellBox(id, size, content)
+                              : content}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                    {enableExpanding && isExpanded && renderExpandedRow && (
+                      <TableRow className="border-0" data-no-hover>
+                        <TableCell colSpan={columns.length + 1} className="p-0">
+                          <div className="animate-in fade-in-0 slide-in-from-top-1 grid duration-150">
+                            {/* min-w-0: a grid item's min-width:auto would let
                               unbreakable content (mono transcripts, long ids)
                               inflate the panel past the cell, where the card's
                               overflow-hidden clips it. Constrain and scroll
                               locally instead. */}
-                          <div className="bg-muted/20 min-w-0 overflow-x-auto px-4 pb-2">
-                            {renderExpandedRow(row)}
+                            <div className="bg-muted/20 min-w-0 overflow-x-auto px-4 pb-2">
+                              {renderExpandedRow(row)}
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </Fragment>
-              );
-            })
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })}
+              {rowWindow.paddingAfter > 0 && (
+                <TableRowSpacer
+                  height={rowWindow.paddingAfter}
+                  colSpan={visibleLeafColumns.length}
+                />
+              )}
+            </>
           )}
         </TableBody>
       </Table>
@@ -1375,5 +1442,19 @@ export function DataTable<TData, TValue = unknown>({
         {footer && <div className="shrink-0 pt-4 empty:hidden">{footer}</div>}
       </div>
     </ErrorBoundaryBase>
+  );
+}
+
+function TableRowSpacer({
+  height,
+  colSpan,
+}: {
+  height: number;
+  colSpan: number;
+}) {
+  return (
+    <TableRow aria-hidden data-no-hover className="border-0" style={{ height }}>
+      <TableCell colSpan={colSpan} className="p-0" style={{ height }} />
+    </TableRow>
   );
 }

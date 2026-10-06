@@ -19,7 +19,11 @@ vi.mock('../hooks/queries', () => ({
     project: { _id: 'project-1', name: 'Website', canEdit: state.canEdit },
     isLoading: false,
   }),
-  useProjectAgents: () => ({ agents: state.agents, isLoading: false }),
+  useProjectAgents: () => ({
+    agents: state.agents,
+    hasAnswer: true,
+    isLoading: false,
+  }),
   useProjectHarnesses: () => ({ data: undefined }),
   useProjectCapabilityCatalog: () => ({ data: undefined }),
   useStandardAgent: () => ({

@@ -6,18 +6,14 @@ import { useT } from '@/lib/i18n/client';
 import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
 
 /**
- * The localized name of a member role (`settings.roles.*`). A missing role
+ * The localized name of a member role (`roles.*`). A missing role
  * reads as Disabled — a member row without a role grants nothing.
  */
 export function useRoleLabel(): (role: string | null | undefined) => string {
-  const { t } = useT('settings');
+  const { t } = useT('roles');
   return useCallback(
     (role) =>
-      t(
-        (role ? `roles.${role.toLowerCase()}` : 'roles.disabled') as Parameters<
-          typeof t
-        >[0],
-      ),
+      t((role ? role.toLowerCase() : 'disabled') as Parameters<typeof t>[0]),
     [t],
   );
 }

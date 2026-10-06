@@ -1,0 +1,1773 @@
+menu:
+  groups:
+    you: Du
+    organization: Organisation
+    advanced: Erweitert
+  railSections:
+    personal: Persönlich
+    organization: Organisation
+    advanced: Erweitert
+  account:
+    description: Profil, Anmeldung und Sicherheit.
+  personalization:
+    description: Feste Anweisungen, die der Chat-Assistent für dich befolgt.
+  notifications:
+    description: Wähle, welche Ereignisse dir eine Benachrichtigung schicken.
+  usage:
+    description: Wie viel du von den Limits verbraucht hast, die für dich gelten.
+  organization:
+    description: Name des Arbeitsbereichs und Identifikatoren.
+  members:
+    description: Personen, die Zugriff auf diese Organisation haben.
+  teams:
+    description: Teams und ihre Mitglieder.
+  branding:
+    description: Logo, Farben und der Name, den deine Nutzer sehen.
+  connectors:
+    description: Verbinde externe Apps mit deinem Workspace.
+  providers:
+    description: Eigene API-Schlüssel für OpenAI, Anthropic und andere mitbringen.
+  apiKeys:
+    description: Programmatische Zugriffstoken für die Tale-API.
+  api:
+    description: Programmatischer Zugriff – REST-Schlüssel und WebDAV.
+  governance:
+    description: Richtlinien, Sicherheit, Audit-Logs und Datenaufbewahrung.
+  metrics:
+    description:
+      Organisationsweite KPIs für Nutzung, Feedback, Automatisierungen
+      und Projekte.
+  sandboxes:
+    description: Always-on Remote-Sandboxes verwalten.
+  skills:
+    description: Wiederverwendbare Anleitungspakete für Projekt-Agenten und Agent-Knoten in Automatisierungen.
+  enterpriseSso:
+    description: Single Sign-on und Verzeichnissynchronisation für deine Belegschaft.
+  dataResidency:
+    description: Wo die Wissensdatenbank und die hochgeladenen Dateien dieser
+      Organisation liegen und welches Embedding-Modell sie verarbeitet.
+mcpEndpoint:
+  title: MCP-Endpunkt
+  description: Verbinde einen MCP-Client mit diesem Deployment, um
+    Automatisierungen zu erstellen, auszuführen und zu verwalten — und um an
+    die Capabilities und das Wissen dieser Organisation zu kommen.
+  copyEndpoint: MCP-Endpunkt-URL kopieren
+  organizationReadFailed: Die Organisationsdaten konnten nicht geladen werden; die Beispielanfrage ist nicht verfügbar.
+  organizationReadRetry: Erneut versuchen
+  authHelp: 'Authentifiziere dich mit einem REST-API-Schlüssel als
+    Bearer-Token. Ein Schlüssel gehört der Person, die ihn erstellt hat, und
+    gilt in jeder Organisation, der sie angehört; diese Organisation nennt der
+    Header X-Organization-Slug. Schlüssel erstellst und verwaltest du unter'
+  authLink: REST-API-Schlüssel.
+  orgSlug:
+    title: Organisations-Slug
+    description: Gehört der Schlüsselinhaber mehreren Organisationen an,
+      muss jede Anfrage diese hier benennen — schick den Wert als
+      X-Organization-Slug mit. Ein Schlüssel mit nur einer Organisation
+      kann ihn weglassen.
+    copy: Organisations-Slug kopieren
+  tools:
+    authoring:
+      title: Autorieren
+      description: Am Automatisierungsdokument arbeiten — entwerfen,
+        validieren, testen, speichern, live schalten. get_docs erklärt die
+        Grammatik.
+    management:
+      title: Lauf- & Trigger-Verwaltung
+      description: Betreiben, was live ist — Läufe starten und abfragen,
+        Versionen durchsehen, Trigger setzen und lösen.
+    capability:
+      title: Capabilities & Wissen
+      description: Die eigene Oberfläche der Organisation — durchsuchen, was
+        sie kann, eine Capability aufrufen, Wissen abrufen.
+  exampleTitle: Ausprobieren
+  exampleHelp: Listet die Tools — setze deinen API-Schlüssel ein;
+    X-Organization-Slug ist schon eingetragen.
+  copyExample: Beispiel-Anfrage kopieren
+modelEndpoints:
+  title: Modell-Endpunkte
+  description: Nutze die Modelle der Organisation mit einem persönlichen
+    API-Schlüssel aus deinen eigenen Werkzeugen — opencode, Claude Code,
+    den OpenAI- und Anthropic-SDKs.
+  loadFailed: Der Status der Modell-Endpunkte konnte nicht geladen werden.
+  governanceNote: Jeder Aufruf zählt gegen deine Budgets und durchläuft die
+    Eingabe-Guardrails der Organisation; die Antworten der Modelle werden
+    nicht gefiltert.
+  disabled:
+    title: Die Modell-Endpunkte sind für deine Organisation nicht aktiviert
+    description: Ein Admin aktiviert sie unter Einstellungen → Richtlinien →
+      Modelle → Modellzugriff.
+    openPolicy: Modellzugriff öffnen
+  forbidden:
+    title: Deine Rolle kann die Modell-Endpunkte nicht aufrufen
+    description: Inhaber, Admins und Entwickler können das. Bitte einen
+      Admin, dir die Kompetenz „Modelle über die API aufrufen“ zuzuweisen.
+  openaiUrl:
+    label: OpenAI-kompatible Basis-URL
+    description: Für die OpenAI-SDKs, opencode und andere OpenAI-kompatible
+      Clients, die /chat/completions anhängen.
+    copy: OpenAI-kompatible Basis-URL kopieren
+  anthropicUrl:
+    label: Anthropic-kompatible Basis-URL
+    description: Für Claude Code (ANTHROPIC_BASE_URL) und die
+      Anthropic-SDKs, die /v1/messages anhängen.
+    copy: Anthropic-kompatible Basis-URL kopieren
+  apiKey:
+    label: API-Schlüssel
+    description: Schick einen persönlichen API-Schlüssel als Bearer-Token im
+      Header Authorization. Schlüssel erstellst du unter
+    link: REST-API-Schlüssel.
+  orgSlug:
+    label: Organisations-Slug
+    description: Schick ihn als Header X-Organization-Slug mit, wenn dein
+      Schlüssel zu mehr als einer Organisation gehört.
+    copy: Organisations-Slug kopieren
+  models:
+    label: Modelle, die du aufrufen kannst
+    description: Verwende diese IDs als Modellnamen an beiden Endpunkten.
+      Dein Modellzugriff bestimmt die Liste.
+    empty: Dir steht noch kein Modell zur Verfügung. Ein Admin verbindet
+      Anbieter und legt den Modellzugriff fest.
+    copy: Modell-ID {id} kopieren
+  opencode:
+    title: opencode
+    description: Trag den Anbieter in opencode.json ein. Der Schlüssel kommt
+      aus der Umgebungsvariable TALE_API_KEY.
+    copy: opencode-Konfiguration kopieren
+  claudeCode:
+    title: Claude Code
+    description: Setze diese Variablen, bevor du claude startest. Lass
+      ANTHROPIC_API_KEY ungesetzt — Tale lehnt den Header ab, den es sendet.
+    copy: Claude-Code-Variablen kopieren
+  openaiSdk:
+    title: OpenAI-SDK (Python)
+    description: Richte den Client auf Tale aus. Streaming, Tools und Bilder
+      funktionieren wie bei OpenAI.
+    copy: OpenAI-SDK-Beispiel kopieren
+account:
+  profile:
+    title: Profil
+    description: Dein Name und deine E-Mail — sichtbar für deine Teamkollegen.
+    nameDescription: Der Name, der deinen Teamkollegen angezeigt wird.
+    emailDescription: Wird zur Anmeldung und für Benachrichtigungen verwendet.
+    name: Name
+    namePlaceholder: Gib deinen Namen ein
+    email: E-Mail
+    nameRequired: Name ist erforderlich
+  role:
+    title: Deine Rolle
+    description: Deine Rolle bestimmt, was du in dieser Organisation tun
+      kannst. Admins vergeben sie unter Einstellungen › Mitglieder. Mit Single
+      Sign-On kann auch dein Identity-Provider sie festlegen.
+    manageLink: Mitglieder verwalten
+  teams:
+    title: Deine Teams
+    description: Teams bestimmen, welche Team-Dokumente, Projekte und
+      Posteingangs-Warteschlangen du siehst. Admins verwalten sie unter
+      Einstellungen › Teams.
+    none: Du bist noch in keinem Team. Du siehst alles, was mit der ganzen
+      Organisation geteilt ist.
+    manageLink: Teams verwalten
+    loadFailed: Deine Teams konnten nicht geladen werden.
+    refreshFailed: Deine Teams konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
+  security:
+    title: Passwort
+    description: Melde dich mit deiner E-Mail-Adresse und einem Passwort an.
+  chats:
+    title: Deine Chats
+    description: Archiviere deine Chats in dieser Organisation oder verschiebe sie in den Papierkorb.
+    archiveAll: Alle Chats archivieren
+    deleteAll: Alle Chats löschen
+    archiveConfirm: 'Alle deine nicht archivierten Chats in dieser Organisation archivieren, einschließlich Projekt-Chats. Du kannst sie später wiederherstellen. Chats unter rechtlicher Aufbewahrung bleiben unverändert.'
+    deleteConfirm: 'Alle deine Chats in dieser Organisation in den Papierkorb verschieben, einschließlich archivierter Chats und Projekt-Chats. Innerhalb der Aufbewahrungsfrist kannst du sie wiederherstellen. Chats unter rechtlicher Aufbewahrung oder mit einer laufenden Antwort bleiben unverändert.'
+    result: '{changed} Chats aktualisiert; {failed} konnten nicht geändert werden.'
+    failed: 'Deine Chats konnten nicht aktualisiert werden. Versuch es erneut.'
+usage:
+  limits:
+    title: Nutzungslimits
+    description: Deine Organisation kann Token, Kosten und Anfragen deiner
+      KI-Nutzung begrenzen.
+  personal:
+    title: Deine Limits
+    description: Die Chats, die du sendest, die Sprachausgaben, die du
+      anforderst, und die Agenten-Läufe, die du startest, zählen zu diesen
+      Limits, egal auf welchem Weg du sie gestartet hast. Sobald ein Limit
+      erreicht ist, kannst du erst nach dem Zurücksetzen wieder etwas davon
+      starten.
+  shared:
+    title: Geteilte Limits
+    description: Ein geteiltes Limit zählt die Nutzung aller, für die es gilt.
+      Es kann deshalb vor deinen eigenen Limits erreicht sein.
+  empty:
+    title: Für dich gelten keine Nutzungslimits
+    description: Deine Organisation hat kein Token-, Kosten- oder Anfragelimit
+      festgelegt, das für dich gilt.
+  loadFailed:
+    Deine Nutzungslimits konnten nicht geladen werden. Lade die Seite
+    neu, um es erneut zu versuchen.
+  manageLimits: Limits verwalten
+  metric:
+    tokens: '{period, select, daily {Token pro Tag} weekly {Token pro Woche} other {Token pro Monat}}'
+    costCents: '{period, select, daily {Kosten pro Tag} weekly {Kosten pro Woche} other {Kosten pro Monat}}'
+    requests: '{period, select, daily {Anfragen pro Tag} weekly {Anfragen pro Woche} other {Anfragen pro Monat}}'
+  resets: Wird am {date} zurückgesetzt
+  teamScope: 'Team {team} · wird am {date} zurückgesetzt'
+  anyTeamScope: Eines deiner Teams · wird am {date} zurückgesetzt
+  organizationScope: Gesamte Organisation · wird am {date} zurückgesetzt
+  usedOfLimit: '{used} von {limit}'
+  meterLabel: '{metric}: {used} von {limit}'
+  reached: Limit erreicht
+  storage:
+    title: Speicherplatz
+    description:
+      Dateien, die du in diese Organisation hochgeladen hast. Ist das
+      Limit erreicht, werden neue Dokument-Uploads abgelehnt.
+    label: Hochgeladene Dateien
+    unlimited: Für dich gilt kein Speicherlimit.
+organization:
+  title: Organisationsname
+  loadFailed: Die Organisationsdetails konnten nicht geladen werden.
+  notFound: Organisation nicht gefunden.
+  detailsTitle: Organisationsdetails
+  detailsDescription: Grundlegende Informationen zu deiner Organisation.
+  nameDescription: Der Anzeigename deiner Organisation.
+  nameRequired: Organisationsname ist erforderlich
+  localeDescription: Die Hauptsprache deiner Organisation.
+  organizationId: Organisations-ID
+  organizationIdDescription: Die eindeutige Kennung deiner Organisation.
+  copyOrganizationId: Organisations-ID kopieren
+  membersDescription: Personen, die Zugriff auf diese Organisation haben.
+  membersEntityLabel: Mitglieder
+  memberEntityLabel: Mitglied
+  defaultLocale: Standardsprache (für Agenten)
+  searchMember: Mitglied suchen
+  addMember: Mitglied hinzufügen
+  organizationName: Organisationsname
+  companyNameCharacterError: Verwende nur Buchstaben, Ziffern, Leerzeichen,
+    Bindestriche und Unterstriche und beginne mit einem Buchstaben oder einer
+    Ziffer.
+  nameReserved: Dieser Name ist von der Plattform reserviert.
+  enterCompanyName: Gib deinen Firmennamen ein
+  organizationCreated: Organisation erstellt!
+  deleteDialogTitle: Organisation löschen
+  deleteDialogDescription:
+    „{name}“ löschen? Damit werden Agents, Automatisierungen,
+    Anbieter und Connectors entfernt. Mitglieder verlieren den Zugriff.
+    Dies kann nicht rückgängig gemacht werden.
+  dangerZoneTitle: Gefahrenzone
+  dangerZoneDescription: Unwiderrufliche Aktionen, die die gesamte Organisation betreffen.
+  deleteSectionHelp:
+    Diese Organisation und alle ihre Inhalte dauerhaft löschen.
+    Dies kann nicht rückgängig gemacht werden.
+  deleteConfirmAction: Organisation löschen
+  deleteLoading: Lösche…
+  deleteSuccess: Organisation gelöscht
+  deleteFailed: Organisation konnte nicht gelöscht werden
+  deleteBlockedByLegalHold: Ein aktiver Legal Hold bewahrt die Daten dieser Organisation. Gib alle Holds unter Richtlinien > Legal Hold frei und versuch es dann erneut.
+  deleteTypeNameLabel: Tippe den Namen der Organisation zur Bestätigung
+  deleteConfirmNameMismatch: Die Bestätigung stimmt nicht mit dem Namen der Organisation überein. Lade die Seite neu und versuch es erneut.
+  editMember: Mitglied bearbeiten
+  removeMember: Mitglied entfernen
+  memberUpdated: Mitglied aktualisiert
+  memberUpdateFailed: Das Mitglied konnte nicht gespeichert werden. Versuch es nochmal.
+  memberRemoved: Mitglied entfernt
+  twoFactorResetSuccess:
+    Zwei-Faktor zurückgesetzt — das Mitglied muss sich bei
+    der nächsten Anmeldung neu einrichten
+  emailCannotChange: E-Mail kann nicht geändert werden
+  cannotChangeOwnRole: Du kannst deine eigene Rolle nicht ändern
+  updatePassword: Passwort aktualisieren
+  enterNewPassword: Neues Passwort eingeben
+  userMustUpdatePassword: Benutzer muss das Passwort bei der Anmeldung ändern
+  adminWarning: Deine Organisation sollte aus Sicherheitsgründen mindestens 2 Admins haben. Diese Änderung wird blockiert, wenn weniger als 2 Admins übrig bleiben.
+  adminSecurityWarning: Deine Organisation muss aus Sicherheitsgründen mindestens 2 Admins haben. Du kannst den letzten Admin nicht entfernen.
+  transferOwnership: Inhaberschaft übertragen
+  transferOwnershipConfirmation: Inhaberschaft an {name} übertragen? Du wirst zum Admin herabgestuft.
+  ownershipTransferred: Inhaberschaft übertragen
+teams:
+  title: Teams
+  entityLabel: Teams
+  entityLabelOne: Team
+  createTeam: Team erstellen
+  searchTeam: Teams suchen
+  columns:
+    name: Name
+    members: Mitglieder
+    created: Hinzugefügt
+  editTeam: Team bearbeiten
+  deleteTeam: Team löschen
+  deleteConfirmation: 'Team „{name}" löschen? Alle Mitglieder werden entfernt. Das lässt sich nicht rückgängig machen.'
+  teamDeleted: Team gelöscht
+  teamDeleteFailed: Team konnte nicht gelöscht werden
+  teamCreated: Team erstellt
+  teamCreatedDescription: '{name} mit {count} {count, plural, one {Mitglied} other {Mitgliedern}} erstellt.'
+  teamCreatedMembersRefused: Team erstellt, aber nicht alle Mitglieder wurden hinzugefügt
+  teamCreateFailed: Team konnte nicht erstellt werden
+  teamUpdated: Team aktualisiert
+  teamUpdateFailed: Team konnte nicht aktualisiert werden
+  teamNameRequired: Teamname ist erforderlich
+  manageMembers: Mitglieder
+  noMembersToAdd: Alle Organisationsmitglieder sind bereits in diesem Team
+  noTeamMembers: Noch keine Mitglieder in diesem Team
+  sectionDescription: Teams verwalten und Mitglieder in Gruppen organisieren.
+  memberCount: '{count} {count, plural, one {Mitglied} other {Mitglieder}}'
+  teamName: Teamname
+  teamNamePlaceholder: Teamname eingeben...
+  saveChanges: Änderungen speichern
+  loadingMembers: Lädt...
+  unknownMember: Unbekannt
+  memberChecklistHint:
+    Ein Mitglied kann mehreren Teams angehören. Wenn niemand
+    ausgewählt wird, wirst du automatisch hinzugefügt.
+  lastMemberHint: Ein Team muss mindestens ein Mitglied behalten. Lösche
+    stattdessen das Team, um das letzte Mitglied zu entfernen.
+  teamNameTooLong: Der Teamname darf höchstens 80 Zeichen lang sein
+  teamNameTaken: Ein Team mit diesem Namen existiert bereits
+  membershipChangesFailed: '{count, plural, one {# Mitgliedschaftsänderung wurde} other {# Mitgliedschaftsänderungen wurden}} abgelehnt. Die Liste wurde aktualisiert.'
+  syncedBadge: Synchronisiert
+  syncedNotice: Dieses Team wird von deinem Identity Provider bereitgestellt,
+    der Name und Mitglieder verwaltet. Ändere sie dort – eine lokale Änderung
+    würde beim nächsten Abgleich zurückgesetzt.
+  deleteImpact:
+    summary: 'Dieses Team hat {members, plural, one {# Mitglied} other {# Mitglieder}}. Es gehört zur Reichweite von {projects, plural, one {# Projekt} other {# Projekten}}, {folders, plural, one {# Ordner} other {# Ordnern}} und {documents, plural, one {# Dokument} other {# Dokumenten}}, und {conversations, plural, one {# Unterhaltung liegt} other {# Unterhaltungen liegen}} in seiner Warteschlange.'
+    becomeOrgWide: '{count, plural, one {# Element hat kein weiteres Team und wird} other {# Elemente haben kein weiteres Team und werden}} für alle in der Organisation sichtbar.'
+  description: Teams innerhalb deiner Organisation erstellen und verwalten für
+    granulare Zugriffskontrolle
+credentials:
+  default: Standard
+  makeDefault: Zum Standard machen
+  enable: Aktivieren
+  disable: Deaktivieren
+  edit: Zugangsdaten bearbeiten
+  delete: Löschen
+  actionsLabel: Aktionen für {name}
+  deleteTitle: Zugangsdaten löschen
+  deleteBody: >-
+    "{name}" löschen? Automationen und Chat-Aktionen, die sie verwenden,
+    verlieren sofort den Zugriff.
+  deleteDefaultWarning: >-
+    Das sind die Standard-Zugangsdaten. Nach dem Löschen gibt es keinen
+    Standard mehr, bis du einen neuen wählst.
+  deletedToast: Zugangsdaten gelöscht
+  updateFailed: 'Konnte die Zugangsdaten nicht aktualisieren: {error}'
+  deleteFailed: 'Konnte die Zugangsdaten nicht löschen: {error}'
+  noDefault: >-
+    Keine Standard-Zugangsdaten für {vendors} — ein Aufruf ohne eigene Angabe
+    kann nicht automatisch wählen. Mache einen Eintrag zum Standard.
+  addCredential: Zugangsdaten hinzufügen
+  addTitle: Zugangsdaten hinzufügen
+  addDescription: Neue Zugangsdaten für {vendor}.
+  create: Hinzufügen
+  createdToast: Zugangsdaten hinzugefügt
+  editTitle: Zugangsdaten bearbeiten
+  savedToast: Zugangsdaten aktualisiert
+  method: Authentifizierungsmethode
+  name: Name
+  namePlaceholder: z. B. Support-Postfach
+  nameHelp: Unter diesem Namen wählt ein Aufruf diesen Eintrag aus.
+  searchPlaceholder: Zugangsdaten durchsuchen
+  listFailed: 'Konnte die Zugangsdaten nicht laden: {error}'
+  entityLabel: Zugangsdaten
+  entityLabelOne: Zugangsdaten
+  columns:
+    name: Name
+    method: Authentifizierung
+    actions: Aktionen
+  catalog:
+    title: Zugangsdaten hinzufügen
+    description:
+      Wähle, wogegen sich diese Zugangsdaten authentifizieren. Konfigurierte
+      Anbieter stehen zuerst — wähle einen erneut, um einen weiteren Schlüssel
+      hinzuzufügen.
+    configured: Konfiguriert
+    noMatches: Nichts passt zu dieser Suche.
+connectors:
+  searchPlaceholder: Connectors durchsuchen
+  sectionDescription:
+    Verwalte die Zugangsdaten für Connector-Aktionen in den Workflows
+    und unterstützten Plattform-Werkzeugen deiner Organisation.
+  vendorColumn: Connector
+  vendorFilterLabel: Connector
+  catalog:
+    emptyBody: >-
+      Dieses Deployment liefert keine Connector-Dateien. Prüfe, ob das
+      Config-Root eingebunden und lesbar ist.
+    listFailed: 'Konnte die Connectors nicht laden: {error}'
+  authMethod:
+    apiKey: API-Schlüssel
+    bearer: Token
+    basic: Benutzername & Passwort
+    oauth2: OAuth
+  card:
+    actionCount: '{count, plural, one {# Aktion} other {# Aktionen}}'
+    connect: Verbinden
+    emptyBodyOauth:
+      Verbinde {connector}, damit konfigurierte Workflows und unterstützte
+      Plattform-Werkzeuge dieses Konto nutzen können.
+    oauthAppMissing:
+      'Für {connector} ist noch keine OAuth-App hinterlegt. Bitte einen
+      Admin deiner Organisation, sie unter Einstellungen > Connectors
+      einzurichten.'
+    oauthAppMissingAdmin:
+      'Für {connector} ist noch keine OAuth-App hinterlegt. Richte sie unten
+      im Abschnitt OAuth-Apps ein und verbinde danach.'
+    oauthAppMissingDeployment:
+      'Für {connector} ist noch keine OAuth-App hinterlegt. Diese App richtet
+      der Bereitstellungsbetreiber ein, nicht die OAuth-Apps dieser
+      Organisation — bitte deinen Betreiber, sie zu konfigurieren.'
+  credential:
+    disabled: Deaktiviert
+    needsReauth: Neu verbinden nötig
+    needsReauthHint:
+      Die gespeicherte Autorisierung ist abgelaufen oder wurde widerrufen.
+      Verbinde neu, um die Freigabe erneut zu erteilen.
+    needsReauthDetail: '{detail} Verbinde neu, um die Freigabe erneut zu erteilen.'
+    reconnect: Neu verbinden
+    deleteDefaultHandsOn: >-
+      Das sind die Standard-Zugangsdaten. Nach dem Löschen wird "{name}" zum
+      Standard für Aufrufe, die keine Zugangsdaten nennen.
+    deleteDefaultLeavesNone: >-
+      Das sind die Standard-Zugangsdaten, und keine anderen aktiven
+      Zugangsdaten können übernehmen: Aufrufe ohne eigene Angabe schlagen
+      fehl, bis du einen Eintrag zum Standard machst.
+    deleteDefaultHandsOnOldest: >-
+      Das sind die Standard-Zugangsdaten. Nach dem Löschen wird der älteste
+      aktive Eintrag dieses Connectors zum Standard, sofern es einen gibt.
+  replace:
+    apiKeyTitle: API-Schlüssel ersetzen
+    tokenTitle: Token ersetzen
+    basicTitle: Benutzername & Passwort ersetzen
+    note:
+      Das gespeicherte Secret wird nie angezeigt. Ein neuer Wert ersetzt es
+      überall dort, wo dieser Eintrag verwendet wird.
+  oauthApps:
+    title: OAuth-Apps
+    description:
+      Die App-Registrierungen beim jeweiligen Anbieter, gegen die Mitglieder
+      dieser Organisation ihre Freigabe erteilen, wenn sie einen
+      OAuth-Connector verbinden. Eine hier hinterlegte App hat Vorrang vor
+      der deployment-weiten aus der Umgebung; ohne eine der beiden lässt
+      sich ein Connector nicht verbinden.
+    onedriveTarget: OneDrive / SharePoint (Wissens-Import)
+    statusOrg: App der Organisation
+    statusEnv: App des Deployments
+    statusNone: Nicht eingerichtet
+    orgClientId: 'Client-ID: {clientId}'
+    configure: Einrichten
+    remove: Entfernen
+    removeTitle: OAuth-App für {connector} entfernen?
+    removeBody:
+      Mitglieder starten über diese App keine neuen Verbindungen mehr; die
+      App aus der Deployment-Umgebung übernimmt, falls vorhanden.
+      Bestehende Verbindungen laufen weiter, bis ihre Tokens ablaufen.
+    removedToast: OAuth-App entfernt
+    savedToast: OAuth-App gespeichert
+    dialogTitle: 'OAuth-App: {connector}'
+    dialogDescription:
+      Füge Client-ID und Client-Secret aus der App-Registrierung beim
+      Anbieter ein. Tale speichert das Secret verschlüsselt und zeigt es
+      nie wieder an.
+    clientIdLabel: Client-ID
+    clientSecretLabel: Client-Secret
+    clientSecretKeep: Leer lassen, um das aktuelle Secret beizubehalten.
+    tenantIdLabel: Verzeichnis-ID (Tenant)
+    tenantIdHint: Nötig für Single-Tenant-Registrierungen bei Microsoft; bei
+      Multi-Tenant-Apps leer lassen.
+    redirectUrisLabel: Zu registrierende Redirect-URIs
+    redirectUrisHint:
+      Trage jede dieser Adressen in der App-Registrierung beim Anbieter
+      ein, bevor du verbindest.
+    reuseSso: Entra-ID-App aus SSO übernehmen
+    reuseSsoTitle: App-Registrierung aus dem Enterprise SSO übernehmen
+    reuseSsoBody:
+      Deine Organisation meldet sich über Microsoft Entra ID an. Das
+      kopiert Client-ID und Client-Secret dieser App-Registrierung in die
+      Microsoft-365-Import-App — tauschst du das SSO-Secret später aus,
+      kopiere es hier erneut.
+    reuseSsoChecklist: Ergänze vor dem Verbinden in dieser App-Registrierung in Entra
+    reuseSsoRedirectItem: Eine "Web"-Redirect-URI
+    reuseSsoScopesItem: Delegierte Microsoft-Graph-Berechtigungen
+    reuseSsoConfirm: Aus SSO kopieren
+    reuseSsoDoneToast: Der Microsoft-365-Import nutzt jetzt die Entra-ID-App aus dem SSO
+  dialog:
+    apiKey: API-Schlüssel
+    token: Token
+    tokenHelp: Wird bei jeder Anfrage als Authorization-Header gesendet.
+    username: Benutzername
+    password: Passwort
+    smtpSeparateToggle: Separaten SMTP-Anbieter verwenden
+    smtpSeparateHint: Ausgeschaltet lassen, um über die Postfach-Anmeldung oben zu senden.
+    smtpUsername: SMTP-Benutzername
+    smtpPassword: SMTP-Passwort
+    smtpHint: SMTP-Benutzername und -Passwort deines Relays (Resend, SendGrid,
+      Amazon SES, …).
+    endpointUrl: Instanz-URL
+    endpointHelpConfluence: Die Adresse deiner Atlassian-Site — dort, wo du Confluence öffnest.
+    endpointHelpShopify:
+      Die myshopify.com-Adresse deines Shops — die Admin-Adresse, nicht die
+      Storefront-Domain.
+    endpointHelpGlitchtip:
+      Die Adresse deiner GlitchTip-Instanz, etwa https://app.glitchtip.com.
+      Eine selbst gehostete Instanz funktioniert, sobald die Bereitstellung
+      ihren Host erlaubt.
+    endpointHelpGeneric: Der https-Ursprung der Instanz, zu der dieser Eintrag gehört.
+enterpriseSso:
+  connected: Die Anmeldung ist aktiviert.
+  copy: Kopieren
+  protocolLabel: Protokoll
+  protocolHelp:
+    Legen Sie fest, wie sich Benutzer anmelden. OIDC-Endpunkte werden
+    automatisch erkannt.
+  displayNameLabel: Anzeigename
+  signInSection: Anmeldung
+  issuerLabel: Issuer-URL
+  authzEndpointLabel: Autorisierungs-Endpunkt
+  tokenEndpointLabel: Token-Endpunkt
+  userinfoEndpointLabel: Userinfo-Endpunkt
+  clientIdLabel: Client-ID
+  clientSecretLabel: Client-Secret
+  clientSecretKeep: Leer lassen, um das aktuelle Secret beizubehalten.
+  scopesLabel: Scopes
+  pkceLabel: PKCE verwenden
+  pkceDescription:
+    Sendet bei jeder Autorisierungsanfrage eine PKCE-Challenge —
+    empfohlen, wenn der IdP sie unterstützt.
+  advanced: Erweitert
+  defaultDisplayName:
+    entra: Microsoft Entra ID
+    oidc: OIDC-SSO
+    oauth2: OAuth2-SSO
+    saml: SAML-SSO
+  metadata:
+    title: IdP-Metadaten importieren
+    help:
+      Dein IdP veröffentlicht Entity-ID, Anmelde-URL und Signaturzertifikat als
+      Föderations-Metadaten-XML. Importiere sie hier, um die Felder unten zu
+      füllen — du kannst jeden Wert vor dem Speichern prüfen und anpassen.
+    urlLabel: Metadaten-URL
+    importUrl: Importieren
+    uploadXml: XML hochladen
+    imported: IdP-Metadaten importiert — prüfe die Felder unten und speichere dann.
+    importFailed: Die IdP-Metadaten ließen sich nicht importieren.
+    errorTooLarge: Das Metadaten-Dokument ist zu groß (max. 1 MB).
+    errorInvalid: Das sieht nicht nach gültigem Föderations-Metadaten-XML aus.
+    errorNotIdp: Die Metadaten beschreiben keinen Identity Provider — hast du
+      versehentlich SP-Metadaten hochgeladen?
+    errorIncomplete:
+      In den Metadaten fehlt die Entity-ID, die Anmelde-URL oder das
+      Signaturzertifikat.
+    errorFetchFailed:
+      Die Metadaten-URL ließ sich nicht abrufen. Prüfe die Adresse
+      oder lade die Datei herunter und lade sie hier hoch.
+  idpEntityIdLabel: IdP-Entity-ID
+  idpSsoUrlLabel: IdP-Anmelde-URL
+  idpCertLabel: IdP-Signaturzertifikat (PEM)
+  idpCertHelp: Das X.509-Zertifikat, mit dem der IdP Assertions signiert.
+  spMetadataLabel: SP-Metadaten-URL
+  acsUrlLabel: ACS-URL (Antwort)
+  spKeypairHelp:
+    Nur nötig, wenn dein IdP Assertions verschlüsselt oder Attribute anders
+    benennt. Füge ein SP-Zertifikat samt privatem Schlüssel ein, um
+    verschlüsselte Assertions zu empfangen — das Zertifikat landet in den
+    SP-Metadaten, der Schlüssel wird als Secret gespeichert und nie wieder
+    angezeigt.
+  spCertLabel: SP-Zertifikat (PEM)
+  spCertHelp: Das X.509-Zertifikat, für das dein IdP Assertions verschlüsselt.
+  spKeyLabel: Privater SP-Schlüssel (PEM)
+  spKeyHelp: Der private Schlüssel zum SP-Zertifikat.
+  spKeyKeep: Ein Schlüssel ist gespeichert. Leer lassen, um ihn zu behalten.
+  wantSignedLabel: Signierte Assertions verlangen
+  wantSignedDescription:
+    Weist eine Assertion ohne gültige Signatur des IdP-Zertifikats oben ab.
+    Lass das eingeschaltet.
+  wantEncryptedLabel: Verschlüsselte Assertions verlangen
+  wantEncryptedDescription:
+    Weist eine Assertion ab, die im Klartext eintrifft. Braucht den
+    privaten SP-Schlüssel und einen IdP, der verschlüsselt.
+  attributeMappingsHelp:
+    Attributnamen in der Assertion. Leer lassen, um die Standardnamen zu
+    verwenden (email, name, groups und ihre Claim-URIs).
+  attrEmailLabel: E-Mail-Attribut
+  attrNameLabel: Namensattribut
+  attrGroupsLabel: Gruppenattribut
+  provisioningSection: Bereitstellung
+  defaultRoleLabel: Standardrolle
+  role:
+    admin: Administrator
+    developer: Entwickler
+    editor: Bearbeiter
+    member: Mitglied
+  autoRoleLabel: Rollen automatisch vom IdP zuweisen
+  autoRoleDescription:
+    Weist Plattformrollen bei der Anmeldung anhand der Gruppen,
+    App-Rollen oder Claims des IdP zu.
+  autoTeamLabel: IdP-Gruppen mit Teams synchronisieren
+  autoTeamDescription: Erstellt und aktualisiert Teams aus den
+    Gruppenmitgliedschaften des IdP bei der Anmeldung.
+  excludeGroupsLabel: Gruppen ausschließen
+  excludeGroupsHelp: Kommagetrennte Gruppennamen, die bei der
+    Team-Synchronisierung übersprungen werden.
+  scim:
+    section: SCIM-Bereitstellung
+    help:
+      Lassen Sie Ihren IdP Benutzer und Gruppen automatisch übertragen (anlegen,
+      aktualisieren, deaktivieren).
+    enabled: Aktiviert
+    disabled: Deaktiviert
+    tokenCreatedHelp: Kopieren Sie dieses Token jetzt – es wird nicht erneut angezeigt.
+    regenerate: Token neu generieren
+    generate: Token generieren
+    disable: Deaktivieren
+    baseUrlLabel: SCIM-Basis-URL
+    tokenFailed: SCIM-Token konnte nicht generiert werden
+  trustedHeaders:
+    section: Vertrauenswürdige Header
+    help:
+      Lass eine Anwendung, die ihre Nutzer bereits anmeldet, sie über ihren
+      Reverse-Proxy in diese Organisation weiterreichen. Bei jeder Übergabe legt
+      der Proxy einen der Schlüssel unten zusammen mit den Identitäts-Headern vor.
+    enabled: Aktiviert
+    disabled: Deaktiviert
+    toggleLabel: Anmeldungen über einen vertrauenswürdigen Proxy annehmen
+    toggleHelp:
+      Ausgeschaltet weist jeden Schlüssel dieser Organisation ab, ohne einen
+      davon zu widerrufen.
+    maxRoleLabel: Höchste Rolle, die ein Proxy zuweisen darf
+    maxRoleHelp:
+      Der Rollen-Header wird auf diese Rolle begrenzt. Inhaber kann über einen
+      Proxy nie zugewiesen werden.
+    endpointLabel: Übergabe-URL
+    endpointHelp:
+      Leite die Anmeldung des Proxys auf diese Adresse. Er sendet den
+      Schlüssel im Schlüssel-Header, dazu die Identitäts-Header.
+    headersLabel: Header-Namen
+    headersHelp:
+      Die Header, die diese Installation liest. Der Betreiber benennt sie über
+      die TRUSTED_*_HEADER-Variablen um.
+    headerKey: Schlüssel
+    headerEmail: E-Mail
+    headerName: Name
+    headerRole: Rolle
+    headerTeams: Teams
+    keysTitle: Schlüssel
+    keysHelp:
+      Ein Schlüssel wird einmal angezeigt, wenn du ihn erstellst. Ein Widerruf
+      beendet die Sitzungen nicht, die er gestartet hat.
+    noKeys: Noch keine Schlüssel. Erstelle einen und gib ihn dem Proxy.
+    createKey: Schlüssel erstellen
+    keyName: Name
+    keyNamePlaceholder: z. B. Portal-Proxy
+    keyCreated: Schlüssel erstellt
+    keyCreatedHelp: Kopiere diesen Schlüssel jetzt – er wird nicht erneut angezeigt.
+    keyCreatedSendAs:
+      Die Beschriftung ist der Header, in dem der Proxy ihn auf der
+      Übergabeanfrage sendet.
+    revoke: Widerrufen
+    revokeTitle: Diesen Schlüssel widerrufen?
+    revokeDescription:
+      Der Proxy mit „{name}“ kann niemanden mehr anmelden. Bereits
+      gestartete Sitzungen bleiben angemeldet.
+    revoked: Schlüssel widerrufen
+    createdAt: Erstellt
+    lastUsed: Zuletzt verwendet
+    neverUsed: Noch nie verwendet
+    limitReached:
+      Diese Organisation hält bereits die Höchstzahl von {max} Schlüsseln.
+      Widerrufe einen, um einen weiteren zu erstellen.
+  embedding:
+    section: Einbettung
+    help:
+      Lass eine andere Webanwendung die Seiten dieser Organisation in einem Frame
+      anzeigen. Tale weist jeden Frame ab, solange die Herkunft der umgebenden Seite
+      hier nicht aufgeführt ist.
+    enabled: Aktiviert
+    disabled: Deaktiviert
+    toggleLabel: Einbettung in einem Frame erlauben
+    toggleHelp:
+      Ausgeschaltet bleibt jede Seite außerhalb von Frames; die Liste unten
+      bleibt erhalten.
+    originsLabel: Erlaubte Herkünfte
+    originsHelp: Eine Herkunft pro Zeile, etwa https://app.example.com. Höchstens {max}.
+    originsPlaceholder: https://app.example.com
+    invalidOrigin:
+      Gib nur https-Herkünfte an, eine pro Zeile. Für localhost ist auch
+      http zulässig.
+    tooMany: Höchstens {max} Herkünfte.
+    save: Herkünfte speichern
+    saved: Einbettungseinstellungen gespeichert
+    saveFailed: Einbettungseinstellungen konnten nicht gespeichert werden
+    unavailable: Nicht verfügbar
+    readFailed: Einbettungseinstellungen konnten nicht geladen werden. Bitte erneut versuchen.
+    retry: Erneut versuchen
+    sameSiteNote:
+      Ein Frame erhält die angemeldete Sitzung nur, wenn die umgebende Seite
+      zur selben Site wie Tale gehört, etwa eine Subdomain des Hosts oder Tale unter
+      der eigenen Domain des Hosts.
+  disable: Anmeldung deaktivieren
+  remove: Entfernen
+  test: Verbindung testen
+  saveFailed: Speichern fehlgeschlagen
+  testOk: Verbindung sieht gut aus
+  testFailed: Verbindungstest fehlgeschlagen
+  testMissingFields: Bitte fülle die erforderlichen Felder aus, bevor du testest.
+  formHint: Lege fest, wie sich Mitglieder bei dieser Organisation anmelden.
+  validation:
+    required: Dieses Feld ist erforderlich.
+    url: Gib eine gültige URL ein (inklusive https://).
+    clientSecretRequired: Ein Client-Secret ist erforderlich.
+    spKeyRequired: Verschlüsselte Assertions verlangen einen privaten SP-Schlüssel.
+  roleMapping:
+    help:
+      Ordne Gruppen, App-Rollen oder Jobtitel aus dem Identity-Provider einer
+      Plattformrolle zu. Die Regeln werden von oben nach unten geprüft, und die
+      erste passende Regel legt die Rolle fest. Stell deshalb die Regeln mit
+      den meisten Rechten nach oben. Wer auf keine Regel passt, erhält die
+      Standardrolle.
+    empty: Noch keine Regeln — alle erhalten die Standardrolle.
+    addRule: Regel hinzufügen
+    removeRule: Entfernen
+    sourceLabel: Quelle
+    source:
+      group: IdP-Gruppe
+      appRole: App-Rolle
+      jobTitle: Jobtitel
+      claim: Claim
+    patternLabel: Passender Wert
+    targetRoleLabel: Weist Rolle zu
+    claimLabel: Claim-Pfad
+    claimHelp: Punktpfad in die Token-Claims, z. B. realm_access.roles.
+  redirectUrlLabel: In Entra zu registrierende Weiterleitungs-URL
+  redirectUrlHelp:
+    Registrieren Sie genau diese URL als "Web"-Weiterleitungs-URI
+    in Ihrer App-Registrierung — sie muss exakt übereinstimmen (Schema,
+    Host, Pfad, kein abschließender Schrägstrich), sonst schlägt die
+    Anmeldung mit AADSTS50011 fehl.
+  additionalDomainsHint:
+    Dieses Deployment antwortet auch auf weiteren Domains. Registrieren
+    Sie diese URL ebenfalls — wer sich dort anmeldet, wird auch dorthin
+    zurückgeführt und nicht auf die kanonische Domain.
+  deploymentWarning:
+    title: Deployment für SSO nicht vollständig konfiguriert
+    callbackMissing:
+      Die Weiterleitungs-URL ist leer, weil SITE_URL auf dem Server
+      nicht gesetzt ist. Die SSO-Anmeldung schlägt fehl, bis dies
+      konfiguriert ist.
+    authSecretMissing:
+      BETTER_AUTH_SECRET ist auf dem Server nicht gesetzt. Die
+      SSO-Anmeldung schlägt mit einem Serverfehler fehl, bis dies
+      konfiguriert ist.
+  guide:
+    title: Einrichtungsleitfaden
+    redirectLabel: Weiterleitungs-/Callback-URL
+    samlIntro: Erstellen Sie in Ihrem IdP eine SAML-App mit der oben im
+      Anmeldebereich angezeigten SP-Metadaten-URL und ACS-URL.
+    entra:
+      intro:
+        Registrieren Sie eine App im Microsoft Entra Admin Center und tragen Sie
+        die Daten unten ein.
+      s1:
+        Melden Sie sich im Microsoft Entra Admin Center (entra.microsoft.com)
+        mindestens als Anwendungsentwickler an.
+      s2:
+        Gehen Sie zu Entra ID › App-Registrierungen › Neue Registrierung; benennen
+        Sie sie und wählen Sie „Einzelner Mandant".
+      s3:
+        Wählen Sie unter Umleitungs-URI die Plattform „Web", fügen Sie die oben
+        angezeigte Weiterleitungs-URL ein und klicken Sie auf Registrieren.
+      s4:
+        Kopieren Sie auf der Übersichtsseite die Anwendungs-(Client-)ID und die
+        Verzeichnis-(Mandanten-)ID. Die Issuer-URL lautet
+        https://login.microsoftonline.com/{tenant-id}/v2.0.
+      s5:
+        Gehen Sie zu Zertifikate & Geheimnisse › Neues Clientgeheimnis und kopieren
+        Sie den Geheimnis-Wert (nicht die Geheimnis-ID).
+      s6: Tragen Sie Client-ID, Clientgeheimnis und Issuer-URL in die Felder oben ein.
+      s7:
+        Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen
+        die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und
+        erteilen Sie die Administratorzustimmung.
+      s8: Der Microsoft-365-Dateiimport hat einen eigenen Zustimmungsablauf im Wissensbereich. Füge Files.Read oder Sites.Read.All nicht zu den SSO-Scopes für die Anmeldung hinzu. Richte den Importzugriff über die OAuth-App-Einstellungen der Konnektoren ein.
+    google:
+      intro:
+        Erstellen Sie einen OAuth-Client in der Google Cloud Console und tragen
+        Sie die Daten unten ein.
+      s1:
+        Öffnen Sie in der Google Cloud Console APIs & Dienste › Anmeldedaten ›
+        Anmeldedaten erstellen › OAuth-Client-ID.
+      s2: Wählen Sie den Anwendungstyp „Webanwendung".
+      s3: Fügen Sie unter Autorisierte Weiterleitungs-URIs die oben angezeigte
+        Weiterleitungs-URL hinzu und speichern Sie.
+      s4: Kopieren Sie die Client-ID und das Clientgeheimnis oben auf der
+        Client-Seite.
+      s5:
+        Tragen Sie sie oben mit der Issuer-URL https://accounts.google.com ein – die
+        Endpunkte werden automatisch erkannt.
+      groupsNote: >-
+        Das Standard-OIDC von Google liefert keine Gruppenmitgliedschaften — die
+        Gruppen-zu-Team-Synchronisierung benötigt das Admin SDK / die Cloud Identity API
+        mit einem Workspace-Administrator. Andere OIDC-Anbieter (Okta, Auth0, Keycloak)
+        funktionieren genauso: Issuer-URL und Client-Anmeldedaten eintragen.
+    oauth2:
+      intro: Für Anbieter ohne OIDC-Discovery konfigurieren Sie die Endpunkte manuell.
+      s1:
+        Registrieren Sie eine Web-/OAuth2-Anwendung bei Ihrem Anbieter und fügen Sie
+        die oben angezeigte Weiterleitungs-URL hinzu.
+      s2: Kopieren Sie Client-ID und Clientgeheimnis.
+      s3:
+        Tragen Sie die URLs für Autorisierungs-, Token- und Userinfo-Endpunkt aus
+        der Dokumentation Ihres Anbieters ein.
+      s4: Falls Ihr Anbieter abweichende Claim-Namen verwendet, ordnen Sie
+        E-Mail/Name/Gruppen unter „Erweitert" zu.
+    saml:
+      intro:
+        Konfigurieren Sie in Ihrem IdP eine SAML-2.0-Anwendung und tragen Sie die
+        Daten unten ein.
+      s1: Erstellen Sie in Ihrem IdP eine neue SAML-2.0-Anwendung.
+      s2: Setzen Sie die ACS-URL (Assertion Consumer Service) und die
+        Entity-ID/Audience auf die oben angezeigten SP-Werte oder laden Sie
+        die SP-Metadaten-URL hoch.
+      s3: Setzen Sie das Name-ID-Format auf E-Mail-Adresse.
+      s4: Kopieren Sie die IdP-Entity-ID, die IdP-Anmelde-URL und das
+        IdP-Signaturzertifikat (PEM) in die Felder oben.
+      s5:
+        Ordnen Sie in Ihrem IdP die Attribute für E-Mail, Name und Gruppe zu;
+        weichen die Namen ab, tragen Sie die passenden Attributnamen unter
+        „Erweitert" ein.
+  disableConfirmTitle: SSO-Anmeldung deaktivieren?
+  disableConfirmDescription:
+    Mitglieder können sich nicht mehr per SSO anmelden,
+    bis es wieder aktiviert wird. Bestehende Sitzungen bleiben angemeldet.
+  removeConfirmTitle: SSO-Verbindung entfernen?
+  removeConfirmDescription: Die Verbindungskonfiguration wird gelöscht – samt
+    Client-Zugangsdaten und Rollenzuordnungen. Die SSO-Anmeldung ist sofort
+    deaktiviert. Das kann nicht rückgängig gemacht werden.
+providers:
+  searchPlaceholder: Anbieter suchen
+  vendorColumn: Anbieter
+  vendorFilterLabel: Anbieter
+  credentialsSection:
+    title: Zugangsdaten
+    description:
+      Die Schlüssel, Umgebungsverweise und Subscription-Broker, mit denen
+      sich diese Organisation bei AI-Anbietern authentifiziert.
+  custom:
+    badge: Eigener
+    pickerTitle: Eigener Anbieter
+    pickerDescription: Dein eigener OpenAI-kompatibler oder Anthropic-Endpunkt — ein selbst betriebener Modellserver oder ein internes Gateway.
+    nameLabel: Anbietername
+    namePlaceholder: z. B. Internes vLLM
+    nameHelp: Benennt den Anbieter und diese Zugangsdaten. Die Kennung wird daraus abgeleitet.
+    apiFormat: API-Format
+    apiFormatOpenaiHelp: Chat Completions — vLLM, Ollama, LiteLLM und die meisten Gateways.
+    apiFormatAnthropicHelp: Messages API — Anthropic-kompatible Endpunkte.
+    baseUrl: Basis-URL
+    baseUrlHelp: >-
+      Die API-Wurzel, an die die Plattform ihre Pfade anhängt. Öffentliche
+      Hosts brauchen https; eine private oder Loopback-Adresse braucht
+      zusätzlich die Freigabe privater Hosts in der Bereitstellung.
+    models: Modelle
+    modelsDiscover: Vom Endpunkt ermitteln
+    modelsDiscoverHelp: Liest /models des Endpunkts mit dem Schlüssel dieser Zugangsdaten.
+    modelsManual: Modell-IDs eingeben
+    modelsManualHelp: Für einen Endpunkt, der seine Modelle nicht auflisten kann.
+    check: Modelle prüfen
+    checkOk: '{name}: {count, plural, =0 {keine Modelle gelistet} one {# Modell gelistet} other {# Modelle gelistet}}'
+    checkFailed: 'Die Modelle von {name} konnten nicht abgerufen werden: {error}'
+    deleteRetires: >-
+      Das sind die einzigen Zugangsdaten des eigenen Anbieters „{provider}“;
+      er wird damit entfernt.
+    errors:
+      nameReserved: Dieser Name gehört zu einem mitgelieferten Anbieter. Wähle einen anderen.
+      endpointNotPermitted: >-
+        Diese Bereitstellung lässt den Endpunkt nicht zu. Ein privater oder
+        Loopback-Host braucht TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 im Backend;
+        Cloud-Metadaten-Hosts werden immer abgelehnt.
+      inUse: Zugangsdaten nutzen diesen Anbieter noch. Lösche sie zuerst.
+      versionConflict: Der Anbieter hat sich seit dem Laden geändert. Öffne den Dialog erneut.
+      invalid: Die Anbieterdefinition wurde abgelehnt. Prüfe Basis-URL und API-Format.
+      notFound: Diesen Anbieter gibt es nicht mehr.
+      catalogUnavailable: Die Modell-Liste des Endpunkts ist nicht erreichbar.
+  catalogs:
+    emptyBody: >-
+      Dieses Deployment liefert keine Anbieter-Dateien. Prüfe, ob das
+      Config-Root eingebunden und lesbar ist.
+    refreshed: Kataloge aktualisiert
+    refresh: Kataloge aktualisieren
+    refreshing: Aktualisierung läuft…
+    resultOk: '{name}: {count, plural, one {# Modell} other {# Modelle}}'
+    resultError: '{name}: {error}'
+    nothingToRefresh:
+      Alle Kataloge werden mit der Plattform ausgeliefert — hier
+      gibt es nichts zu aktualisieren.
+    refreshFailed: Konnte die Kataloge nicht aktualisieren.
+    listFailed: 'Konnte die Anbieter nicht laden: {error}'
+  harnesses:
+    title: Agent-Laufzeiten
+    description: Wie jede Agent-Laufzeit für diese Organisation konfiguriert ist — welche Modelle verfügbar sind und welche Anbieter-Abos daran gebunden sind. Konfiguriere dies über die Anbieter-Zugangsdaten oben.
+    modelPool: '{count, plural, one {# Modell} other {# Modelle}} · Standard: {model}'
+    noDirectCredential:
+      Noch keine direkt nutzbaren Anbieter-Zugangsdaten — füge oben einen
+      API-Schlüssel oder eine Umgebungsvariable hinzu.
+    noCompatibleModel:
+      Eine Laufzeit ohne Modell kann keines der direkt bereitgestellten
+      Modelle ausführen — diese rufen Tools nur über die Responses-API auf,
+      die nur Codex spricht. Erlaube für diese Laufzeiten ein anderes Modell
+      oder führe den Agenten auf Codex aus.
+    noModel: Noch kein Modell
+    degraded: Zuletzt fehlerhaft
+    subscriptionVia: Abo · {provider}
+    subscriptionInert: Abo · {provider} — nicht nutzbar, dieses Harness läuft nur mit verwalteten Zugangsdaten
+    listFailed: Konnte den Agenten-Status nicht laden.
+    healthLoadFailed: Konnte nicht prüfen, welche Laufzeiten fehlschlagen. Daher ist keine als zuletzt fehlerhaft markiert.
+    healthRefreshFailed: Konnte nicht aktualisieren, welche Laufzeiten fehlschlagen. Die Anzeige ist womöglich veraltet.
+  apiFormat:
+    openai: OpenAI-kompatible API
+    anthropic: Anthropic-Messages-API
+  authMethod:
+    apiKey: API-Schlüssel
+    env: Umgebungsvariable
+    subscriptionKey: Abo-Schlüssel
+    subscriptionBroker: Abo-Broker
+  card:
+    facts: '{format} · {host}'
+    factsPerCredential: '{format} · Endpunkt pro Eintrag'
+    modelCount: '{count, plural, one {# Modell} other {# Modelle}}'
+    catalogUnavailable: 'Modellkatalog nicht verfügbar: {error}'
+  credential:
+    disabled: Deaktiviert
+    tasksOnly:
+      Nur für Aufgaben und Automatisierungen — für den Chat brauchst du
+      einen API-Schlüssel oder eine Umgebungsvariable
+    deleteEmbeddingWarning: >-
+      Das Embedding-Modell der Wissenssuche verwendet diese Zugangsdaten:
+      Nach dem Löschen stehen Dokumentindexierung und Suche für die ganze
+      Organisation still. Wähle zuerst unter Einstellungen → Datenresidenz
+      → Embedding-Modell andere Zugangsdaten.
+    inUseByEmbedding: >-
+      Das Embedding-Modell der Wissenssuche verwendet diese Zugangsdaten.
+      Wähle dafür unter Einstellungen → Datenresidenz → Embedding-Modell
+      andere Zugangsdaten und lösche diese danach.
+  replace:
+    apiKeyTitle: API-Schlüssel ersetzen
+    envTitle: Umgebungsvariable ändern
+    subscriptionKeyTitle: Abo-Schlüssel ersetzen
+    brokerTitle: Broker-Konfiguration ersetzen
+    apiKeyLabel: Neuer API-Schlüssel
+    subscriptionKeyLabel: Neuer Abo-Schlüssel
+    brokerNote:
+      Gespeicherte Broker-Werte können nicht angezeigt werden. Gib die
+      Konfiguration vollständig neu ein — lasse das Broker-Secret leer, um das
+      gespeicherte zu behalten.
+  dialog:
+    secret: API-Schlüssel
+    subscriptionSecret: Abo-Schlüssel
+    envName: Umgebungsvariable
+    envNameHelp:
+      Name der Deployment-Variable mit dem Schlüssel — das Präfix ist
+      fest. Die Variable selbst stellt dein Ops-Team bereit.
+    endpointUrl: Endpoint-URL
+    endpointUrlHelp:
+      Dieser Anbieter hat keinen festen Endpunkt — jeder Eintrag
+      trägt seine eigene Ressourcen-URL (https).
+    allowlist: Erlaubte Modelle
+    allowlistHelp: Optional. Wenn gesetzt, dürfen diese Zugangsdaten nur die
+      ausgewählten Modelle verwenden.
+    allowlistPlaceholder: Alle Katalogmodelle
+    allowlistSearch: Modelle suchen
+    allowlistEmpty: Keine Modelle gefunden.
+    allowlistFreeTextHelp: Modell-IDs, durch Kommas getrennt. Dieser Anbieter
+      liefert keinen Katalog mit — bei Azure sind das die Deployment-Namen
+      deiner Ressource; ohne sie ist kein Modell verfügbar.
+    allowlistFreeTextPlaceholder: gpt-4o, o4-mini
+    removeModel: '{model} entfernen'
+  subscriptionScope:
+    title: Nur für Aufgaben und Automatisierungen
+    description: >-
+      Ein Abo-Token läuft nur in der Agent-Laufzeit, die sein Anbieter
+      unterstützt, etwa Claude Code oder Codex, in einer Sandbox: Die
+      Anbieter erlauben diese Tokens nicht in anderen Anwendungen, und
+      Anthropic weist sie bei jedem Client außer Claude Code ab. Im Chat
+      lassen sich diese Zugangsdaten nicht verwenden. Um mit diesen Modellen
+      zu chatten, füge für den Anbieter Zugangsdaten per API-Schlüssel oder
+      Umgebungsvariable hinzu.
+  broker:
+    explainer:
+      Ein Abo-Broker liefert wechselnde OAuth-Tokens für Claude- oder
+      ChatGPT-Abonnements.
+    invalid: 'Ungültige Broker-Konfiguration: {error}'
+    endpoint: Broker-Endpunkt
+    httpMethod: HTTP-Methode
+    auth: Broker-Authentifizierung
+    authNone: Keine
+    authBearer: Bearer-Token
+    authHeader: Eigener Header
+    headerName: Header-Name
+    authSecret: Broker-Secret
+    authSecretHelp: Wird als Bearer- bzw. Header-Wert an den Broker gesendet.
+      Verschlüsselt gespeichert.
+    secretEnv: Secret aus Umgebungsvariable
+    secretEnvHelp:
+      Optional. Wird verwendet, wenn Broker-Secret leer ist. Setzt du diesen
+      Verweis beim Ersetzen der Konfiguration, wird auf die Umgebungsquelle
+      umgestellt.
+    tokensPath: Pfad zum Token-Array
+    tokenField: Token-Feld
+    targetEnvVar: Ziel-Umgebungsvariable
+    targetEnvVarHelp:
+      Verwende CLAUDE_CODE_OAUTH_TOKEN für Claude Code oder
+      TALE_SUBSCRIPTION_TOKEN für Codex. OpenAI-Broker-Antworten benötigen
+      zusätzlich account_id.
+    selection: Token-Auswahl
+    selectionRandom: Zufällig
+    selectionFirst: Erstes nutzbares
+    selectionRoundRobin: Round-Robin
+    advanced: Erweitert
+    statusField: Status-Feld
+    activeValue: Wert für aktiv
+    expiresField: Ablauf-Feld
+    timeoutMs: Anfrage-Timeout (ms)
+    maxResponseBytes: Maximale Antwortgröße (Bytes)
+    expirySkewMs: Sicherheitsabstand zum Ablauf (ms)
+form:
+  name: Name
+  namePlaceholder: Vollständigen Namen eingeben
+  email: E-Mail
+  emailPlaceholder: E-Mail-Adresse eingeben
+  password: Passwort
+  passwordPlaceholder: Passwort eingeben
+  role: Rolle
+  forgotPassword: Benutzer, die ihr Passwort vergessen, sollten sich an einen Admin wenden.
+apiKeys:
+  entityLabel: Schlüssel
+  entityLabelOne: Schlüssel
+  createKey: API-Schlüssel erstellen
+  createKeySubmit: Schlüssel erstellen
+  keyCreated: API-Schlüssel erstellt
+  keyCreatedDescription: Kopiere deinen API-Schlüssel jetzt. Er wird nicht erneut angezeigt.
+  yourApiKey: Dein API-Schlüssel
+  keyRevoked: API-Schlüssel widerrufen
+  keyRevokeFailed: API-Schlüssel konnte nicht widerrufen werden
+  keyCreateFailed: API-Schlüssel konnte nicht erstellt werden
+  revokeKey: Schlüssel widerrufen
+  revokeKeyTitle: API-Schlüssel widerrufen
+  revokeConfirmation: '„{keyName}" widerrufen? Alle Anwendungen, die diesen Schlüssel verwenden, verlieren sofort den Zugriff. Das lässt sich nicht rückgängig machen.'
+  keyCopied: API-Schlüssel in Zwischenablage kopiert
+  columns:
+    name: Name
+    key: Schlüssel
+    created: Hinzugefügt
+    lastUsed: Zuletzt verwendet
+  form:
+    name: Schlüsselname
+    namePlaceholder: Schlüsselnamen eingeben...
+    nameRequired: Name ist erforderlich
+    scopeHint: Dieser Schlüssel gehört dir, nicht dieser Organisation. Er
+      handelt in deinem Namen in jeder Organisation, der du angehörst; eine
+      REST-Anfrage nennt die Organisation im Header X-Organization-Slug.
+    expiresIn: Ablaufzeit
+    expiresOptions:
+      7days: 7 Tage
+      30days: 30 Tage
+      90days: 90 Tage
+      1year: 1 Jahr
+      never: Nie
+  neverUsed: Nie verwendet
+  description: API-Schlüssel für externe Connectors verwalten
+  title: API-Schlüssel
+apiDocs:
+  openDocs: API-Dokumentation
+  guides: Entwicklerleitfäden
+  openapiDocument: OpenAPI-Dokument (JSON)
+logs:
+  integrity:
+    title: Ketten-Integrität
+    neverChecked: Es wurde noch keine automatische Integritätsprüfung ausgeführt.
+    lastCheck: 'Letzte automatische Prüfung: {date}'
+    alertedAt: Warnung ausgelöst am {date}
+    statusUnchecked: Noch nicht geprüft
+    statusOk: Verifiziert
+    statusAlert: Integritätswarnung aktiv
+    verifyNow: Jetzt prüfen
+    verifyError: Die Prüfung konnte nicht abgeschlossen werden. Versuche es erneut.
+    resultValidTitle: Kette verifiziert
+    resultValidBody:
+      '{count, plural, one {# Eintrag geprüft} other {# Einträge
+      geprüft}} – keine Manipulation festgestellt.'
+    truncatedNote: 'Nur die ersten {count} Einträge wurden geprüft. Bitte den Betreiber deiner Installation, den restlichen Bereich zu prüfen.'
+    unsignedScrubNote: '{count, plural, one {Für # bereinigten Eintrag fehlt ein passender Löschantrag} other {Für # bereinigte Einträge fehlt ein passender Löschantrag}}. Prüfe die Löschvorgänge, bevor du dich auf diesen Verlauf verlässt.'
+    brokenTitle: Ketten-Integrität verletzt
+    brokenBody:
+      Die Hash-Kette stimmt beim unten stehenden Eintrag nicht überein.
+      Sichere diesen Nachweis, bevor du Änderungen vornimmst.
+    brokenAt: Aufgetreten
+    logId: Eintrags-ID
+    expectedHash: Erwarteter Hash
+    actualHash: Gespeicherter Hash
+    openRow: Diesen Eintrag öffnen
+    rowMissing: Audit-Eintrag {logId} ist nicht mehr verfügbar.
+  heading: Protokolle
+  subheading: Systemprotokolle anzeigen und verwalten.
+  auditLogs: Audit-Protokolle
+  activityLogs: Aktivitätsprotokolle
+  errorLogs: Fehlerprotokolle
+  loadError:
+    title: Protokolle konnten nicht geladen werden
+    description:
+      Das Laden der Protokolle hat zu lange gedauert. Das ist meist nur
+      vorübergehend.
+    retry: Erneut versuchen
+  activity:
+    period:
+      label: Zeitraum
+      last7Days: Letzte 7 Tage
+      last30Days: Letzte 30 Tage
+      last90Days: Letzte 90 Tage
+    periodCaption: 'Zeitraum: {period}. Alle Summen unten beziehen sich auf diesen Zeitraum.'
+    cards:
+      total: Aktionen gesamt
+      success: Erfolgreich
+      failure: Fehlgeschlagen
+      denied: Abgelehnt
+    byCategory:
+      title: Aktivität nach Kategorie
+    topActors:
+      title: Aktivste Benutzer
+    empty: Keine Aktivität in diesem Zeitraum.
+  errors:
+    entityLabel: Fehlerprotokolle
+    entityLabelOne: Fehlerprotokoll
+    tableCaption: Fehlerprotokoll-Datentabelle
+    emptyTitle: Keine Fehlerprotokolle
+    emptyDescription: Fehlgeschlagene und abgelehnte Aktionen werden hier angezeigt.
+  blockCounters:
+    tabLabel: Anmeldeblockaden
+    tableCaption: Anmeldeblockaden
+    empty: Keine abgelehnten Anmeldeversuche in den letzten 7 Tagen.
+    emptyTitle: Keine Anmeldeblockaden
+    footerCount: '{count, plural, one {# Ergebnis} other {# Ergebnisse}} angezeigt'
+    columns:
+      timestamp: Zeitstempel
+      user: Benutzer
+      ipAddress: IP-Adresse
+      lockOut: Sperre
+      ipLimit: IP-Limit
+    values:
+      yes: Ja
+      no: Nein
+  audit:
+    entityLabel: Audit-Protokolle
+    entityLabelOne: Audit-Protokoll
+    tableCaption: Audit-Protokoll-Datentabelle
+    emptyTitle: Keine Audit-Protokolle
+    emptyDescription:
+      Audit-Protokolle werden hier angezeigt, sobald Aktionen in
+      deiner Organisation durchgeführt werden.
+    detailTitle: Audit-Protokoll-Details
+    columns:
+      timestamp: Zeitstempel
+      action: Aktion
+      actor: Benutzer
+      actorId: Benutzer-ID
+      actorType: Akteurtyp
+      actorRole: Rolle
+      resource: Ressource
+      resourceId: Ressourcen-ID
+      target: Ziel
+      category: Kategorie
+      status: Status
+      error: Fehler
+      changedFields: Geänderte Felder
+      previousState: Vorheriger Zustand
+      newState: Neuer Zustand
+      metadata: Metadaten
+    categories:
+      auth: Authentifizierung
+      member: Mitglied
+      data: Daten
+      connector: Connector
+      workflow: Automatisierung
+      security: Sicherheit
+      admin: Admin
+      ai: KI
+      skill: Skill
+      agent: Agent
+    export:
+      label: Exportieren
+      triggerLabel: Audit-Protokolle exportieren
+      csv: CSV
+      json: JSON
+      inProgress: Exportieren...
+      complete: Export abgeschlossen
+      error: Export fehlgeschlagen
+    aiMetadata:
+      title: KI-Nutzungsdetails
+      model: Modell
+      provider: Anbieter
+      inputTokens: Eingabe-Token
+      outputTokens: Ausgabe-Token
+      totalTokens: Token gesamt
+      cost: Geschätzte Kosten
+      duration: Dauer
+      agent: Agent
+      tools: Verwendete Tools
+    categoryLabels:
+      auth: Authentifizierung
+      member: Mitglied
+      data: Daten
+      connector: Connector
+      workflow: Automatisierung
+      security: Sicherheit
+      admin: Admin
+      ai: KI
+      skill: Skill
+      agent: Agent
+    statusLabels:
+      success: Erfolgreich
+      failure: Fehlgeschlagen
+      denied: Abgelehnt
+    actorTypeLabels:
+      user: Benutzer
+      system: System
+      api: API
+      workflow: Automatisierung
+    actionLabels:
+      skill.created: Skill erstellt
+      skill.updated: Skill aktualisiert
+      skill.sharing_changed: Freigabe eines Skills geändert
+      skill.deleted: Skill gelöscht
+      skill.publish_denied: Veröffentlichen eines Skills abgelehnt
+      team.created: Team erstellt
+      team.updated: Team aktualisiert
+      team.deleted: Team gelöscht
+      team.member_added: Teammitglied hinzugefügt
+      team.member_removed: Teammitglied entfernt
+      api_key.created: API-Schlüssel erstellt
+      api_key.updated: API-Schlüssel aktualisiert
+      api_key.revoked: API-Schlüssel widerrufen
+      webdav_app_password.created: WebDAV-App-Passwort erstellt
+      webdav_app_password.revoked: WebDAV-App-Passwort widerrufen
+      connector_credential.created: Connector-Zugangsdaten erstellt
+      connector_credential.updated: Connector-Zugangsdaten aktualisiert
+      connector_credential.deleted: Connector-Zugangsdaten gelöscht
+      document.created: Dokument erstellt
+      document.updated: Dokument aktualisiert
+      document.trashed: Dokument in den Papierkorb verschoben
+      document.deleted: Dokument gelöscht
+      folder.deleted: Ordner gelöscht
+      branding.updated: Branding aktualisiert
+      branding.image_uploaded: Branding-Bild hochgeladen
+      branding.image_deleted: Branding-Bild entfernt
+      joined_organization: Organisation beigetreten
+      signed_in_to_organization: An Organisation angemeldet
+      add_member: Mitglied hinzugefügt
+      remove_member: Mitglied entfernt
+      transfer_ownership: Eigentümerrolle übertragen
+      update_member_name: Mitgliedsname aktualisiert
+      update_member_role: Mitgliedsrolle aktualisiert
+      organization_deleted: Organisation gelöscht
+      create_conversation: Konversation erstellt
+      close_conversation: Konversation geschlossen
+      reopen_conversation: Konversation wieder geöffnet
+      update_conversation: Konversation aktualisiert
+      update_conversation_message: Konversationsnachricht aktualisiert
+      update_conversations: Konversationen aktualisiert
+      add_message_to_conversation: Nachricht zur Konversation hinzugefügt
+      mark_conversation_as_read: Konversation als gelesen markiert
+      mark_conversation_as_spam: Konversation als Spam markiert
+      send_message_via_connector: Nachricht über Connector gesendet
+      bulk_archive_conversations: Konversationen gesammelt archiviert
+      bulk_close_conversations: Konversationen gesammelt geschlossen
+      bulk_reopen_conversations: Konversationen gesammelt wieder geöffnet
+      bulk_spam_conversations: Gesammelt als Spam markiert
+      bulk_unarchive_conversations: Konversationen gesammelt dearchiviert
+      chat_thread.archived: Chat archiviert
+      chat_thread.unarchived: Chat dearchiviert
+      chat_thread.trashed: Chat in den Papierkorb verschoben
+      chat_thread.cascade_deleted: Chat per Kaskadenlöschung entfernt
+      chat_thread.cascade_depth_exceeded: Kaskadentiefe überschritten
+      chat_thread.cascade_skipped_hold: Kaskade übersprungen (Legal Hold)
+      gdpr_erasure_requested: GDPR-Löschung angefragt
+      gdpr_erasure_executed: GDPR-Löschung durchgeführt
+      gdpr_erasure_denied: GDPR-Löschung abgelehnt
+      gdpr_erasure_cancelled: GDPR-Löschung abgebrochen
+      gdpr_erasure_extended: GDPR-Löschung verlängert
+      gdpr_erasure_retried: GDPR-Löschung erneut versucht
+      gdpr_erasure_blocked_by_hold: GDPR-Löschung durch Legal Hold blockiert
+      gdpr_erasure_cascade_attempts_exhausted: GDPR-Kaskadenversuche aufgebraucht
+      gdpr_erasure_late_finalize_dropped: GDPR-Spätfinalisierung verworfen
+      gdpr_erasure_watchdog_failed: GDPR-Watchdog fehlgeschlagen
+      legal_hold_placed: Legal Hold gesetzt
+      legal_hold_place_denied: Legal Hold setzen abgelehnt
+      legal_hold_bulk_placed: Legal Hold gesammelt gesetzt
+      legal_hold_release_requested: Legal-Hold-Freigabe beantragt
+      legal_hold_release_effected: Legal-Hold-Freigabe vollzogen
+      legal_hold_release_rejected: Legal-Hold-Freigabe abgelehnt
+      legal_hold.effect_releases_failed: Legal-Hold-Freigaben fehlgeschlagen
+      legal_matter_created: Legal Matter angelegt
+      legal_matter_updated: Legal Matter aktualisiert
+      legal_matter_closed: Legal Matter geschlossen
+      knowledge_index_repaired: Suchindex der Wissensdatenbank repariert
+      knowledge_index_rebuild_scheduled: Neuaufbau des Suchindex geplant
+      knowledge_index_repair_failed: Reparatur des Suchindex fehlgeschlagen
+      dsar_governance_policy_tightened: DSAR-Richtlinie verschärft
+      dsar_governance_policy_loosen_proposed: DSAR-Lockerung vorgeschlagen
+      dsar_governance_policy_loosen_applied: DSAR-Lockerung angewendet
+      dsar_governance_policy_loosen_cancelled: DSAR-Lockerung abgebrochen
+      policy.retention_shortening_pending: Aufbewahrungsverkürzung ausstehend
+      policy.retention_shortening_applied: Aufbewahrungsverkürzung angewendet
+      policy.retention_shortening_cancelled: Aufbewahrungsverkürzung abgebrochen
+      policy.retention_bounds_proposal_rejected: Vorschlag zu Aufbewahrungsgrenzen abgelehnt
+      retention.run_started: Aufbewahrungs-Run gestartet
+      retention.run_abandoned: Aufbewahrungs-Run abgebrochen
+      retention.global_category_failed: Globale Aufbewahrungskategorie fehlgeschlagen
+      chat_history.retention_deleted: Chatverlauf per Aufbewahrung gelöscht
+      chat_history.retention_expired: Chatverlauf-Aufbewahrung abgelaufen
+      document.retention_deleted: Dokument per Aufbewahrung gelöscht
+      customer.retention_deleted: Kontakt per Aufbewahrung gelöscht
+      contact.retention_deleted: Kontakt per Aufbewahrung gelöscht
+      vendor.retention_deleted: Lieferant per Aufbewahrung gelöscht
+      prompt_template.retention_deleted: Prompt-Vorlage per Aufbewahrung gelöscht
+      usage_ledger.retention_deleted: Nutzungsledger per Aufbewahrung gelöscht
+      external_conversation.retention_deleted: Externe Konversation per Aufbewahrung gelöscht
+      workflow_execution.retention_deleted: Automatisierungslauf per Aufbewahrung gelöscht
+      workflow_trigger_log.retention_deleted: Automatisierungs-Trigger-Log per Aufbewahrung gelöscht
+      audit_log.retention_deleted: Audit-Log per Aufbewahrung gelöscht
+      automation_run.retention_deleted: Automatisierungslauf per Aufbewahrung gelöscht
+      agent_run.retention_deleted: Agentenlauf per Aufbewahrung gelöscht
+      message_feedback.retention_deleted: Nachrichten-Feedback per Aufbewahrung gelöscht
+      notification.retention_deleted: Benachrichtigung per Aufbewahrung gelöscht
+      file_metadata.retention_deleted: Datei per Aufbewahrung gelöscht
+      sandbox_ledger.retention_deleted: Sandbox-Protokoll per Aufbewahrung gelöscht
+      sandbox_workspace.deleted: Sandbox-Arbeitsbereich gelöscht
+      chat_filter_event.retention_deleted: Chat-Filter-Ereignis per Aufbewahrung gelöscht
+      policy_acknowledged: Richtlinie bestätigt
+      login_attempt: Anmeldeversuch
+      login_lockout: Anmeldesperre
+      login_success: Anmeldung erfolgreich
+      model_access.denied: Modellzugriff abgelehnt
+      ai.completion: KI-Antwort
+      ai.budget_blocked: KI-Budget gesperrt
+      automation.trigger.paused: Zeitplan einer Automatisierung pausiert
+      create_connector: Connector erstellt
+      delete_connector: Connector gelöscht
+      update_credential: Zugangsdaten aktualisiert
+      delete_credential: Zugangsdaten gelöscht
+      provider_deleted: Anbieter gelöscht
+      force_overwrite_provider_secret: Anbieter-Secret zwangsweise überschrieben
+      sso_provider_deleted: SSO-Anbieter gelöscht
+      member_password.set: Mitgliedspasswort gesetzt
+      user_password.changed: Benutzerpasswort geändert
+      video_link.ingest: Video-Link aufgenommen
+      video_link.cancel: Video-Link abgebrochen
+      video_link.retry: Video-Link erneut versucht
+      tts.synthesize_denied: Sprachausgabe abgelehnt
+      tts.capability_probe_denied: Sprachausgabe-Test abgelehnt
+      remove_recommended_product: Empfohlenes Produkt entfernt
+      2fa_enrolled: Zwei-Faktor-Authentifizierung eingerichtet
+      2fa_disabled: Zwei-Faktor-Authentifizierung deaktiviert
+      2fa_reset_by_admin: Zwei-Faktor-Authentifizierung von Admin zurückgesetzt
+      passkey_added: Passkey registriert
+      passkey_removed: Passkey entfernt
+      passkey_revoked_by_admin: Passkey von Admin entfernt
+      passkey_sign_in: Passkey-Anmeldung
+      project.created: Projekt erstellt
+      project.updated: Projekt aktualisiert
+      project.sharing.changed: Projektfreigabe geändert
+      project.instructions.changed: Projektanweisungen geändert
+      project.knowledge_mode.changed: Wissensmodus des Projekts geändert
+      project.agents.changed: Projektagenten geändert
+      project.models.changed: Projektmodelle geändert
+      project.connectors.changed: Projekt-Connectors geändert
+      project.file.attached: Datei an Projekt angehängt
+      project.file.detached: Datei vom Projekt entfernt
+      project.thread.shared: Chat mit Projekt geteilt
+      project.thread.unshared: Chat aus Projekt entfernt
+      project.thread.moved: Chat zwischen Projekten verschoben
+      project.archived: Projekt archiviert
+      project.restored: Projekt wiederhergestellt
+      project.deleted: Projekt gelöscht
+      policy.created: Richtlinie erstellt
+      policy.updated: Richtlinie aktualisiert
+      policy.retention_bounds_proposal_applied: Vorschlag zu Aufbewahrungsgrenzen angewendet
+      policy.retention_bounds_initial_applied: Aufbewahrungsgrenzen erstmalig angewendet
+      retention.run_completed: Aufbewahrungs-Run abgeschlossen
+      retention.run_failed: Aufbewahrungs-Run fehlgeschlagen
+      legal_hold_release_approved: Legal-Hold-Freigabe genehmigt
+      legal_hold_release_approved_self: Legal-Hold-Freigabe selbst genehmigt
+      ai.completion_failed: KI-Antwort fehlgeschlagen
+      pii.blocked_in_chat: PII im Chat blockiert
+      chat_filter.blocked_in_chat: Chat-Filter hat Nachricht blockiert
+      moderation_provider.blocked_in_chat: Moderationsanbieter hat Nachricht blockiert
+      chat_thread.restored_by_user: Chat vom Benutzer wiederhergestellt
+      chat_thread.restored_by_admin: Chat vom Admin wiederhergestellt
+      chat_thread.retention_override_restore: Chat wiederhergestellt (Aufbewahrungs-Override)
+      chat_thread.retention_expired: Chat per Aufbewahrung abgelaufen
+      document.retention_expired: Dokument per Aufbewahrung abgelaufen
+      document.retention_override_restore: Dokument wiederhergestellt (Aufbewahrungs-Override)
+      document.restored_by_admin: Dokument vom Admin wiederhergestellt
+      file_metadata.retention_expired: Datei per Aufbewahrung abgelaufen
+      file_metadata.retention_override_restore: Datei wiederhergestellt (Aufbewahrungs-Override)
+      file_metadata.restored_by_admin: Datei vom Admin wiederhergestellt
+      prompt_template.created: Prompt-Vorlage erstellt
+      prompt_template.saved: Prompt-Vorlage gespeichert
+      prompt_template.deleted: Prompt-Vorlage gelöscht
+      prompt_template.restored_from_version: Prompt-Vorlage aus Version wiederhergestellt
+      prompt_template.history_truncated: Verlauf der Prompt-Vorlage gekürzt
+      prompt_template.retention_expired: Prompt-Vorlage per Aufbewahrung abgelaufen
+      prompt_template.retention_override_restore: Prompt-Vorlage wiederhergestellt (Aufbewahrungs-Override)
+      prompt_template.restored_by_admin: Prompt-Vorlage vom Admin wiederhergestellt
+      prompt_category.created: Prompt-Kategorie erstellt
+      prompt_category.renamed: Prompt-Kategorie umbenannt
+      prompt_category.deleted: Prompt-Kategorie gelöscht
+      message_feedback.retention_expired: Nachrichten-Feedback per Aufbewahrung abgelaufen
+      message_feedback.retention_override_restore: Nachrichten-Feedback wiederhergestellt (Aufbewahrungs-Override)
+      message_feedback.restored_by_admin: Nachrichten-Feedback vom Admin wiederhergestellt
+      customer.retention_expired: Kontakt per Aufbewahrung abgelaufen
+      customer.retention_override_restore: Kontakt wiederhergestellt (Aufbewahrungs-Override)
+      customer.restored_by_admin: Kontakt vom Admin wiederhergestellt
+      contact.retention_expired: Kontakt per Aufbewahrung abgelaufen
+      contact.retention_override_restore: Kontakt wiederhergestellt (Aufbewahrungs-Override)
+      contact.restored_by_admin: Kontakt vom Admin wiederhergestellt
+      vendor.retention_expired: Lieferant per Aufbewahrung abgelaufen
+      vendor.retention_override_restore: Lieferant wiederhergestellt (Aufbewahrungs-Override)
+      vendor.restored_by_admin: Lieferant vom Admin wiederhergestellt
+      external_conversation.retention_expired: Externe Konversation per Aufbewahrung abgelaufen
+      external_conversation.retention_override_restore: Externe Konversation wiederhergestellt (Aufbewahrungs-Override)
+      external_conversation.restored_by_admin: Externe Konversation vom Admin wiederhergestellt
+      workflow_execution.retention_expired: Automatisierungslauf per Aufbewahrung abgelaufen
+      workflow_execution.retention_override_restore: Automatisierungslauf wiederhergestellt (Aufbewahrungs-Override)
+      workflow_execution.restored_by_admin: Automatisierungslauf vom Admin wiederhergestellt
+      usage_ledger.retention_expired: Nutzungsledger per Aufbewahrung abgelaufen
+      usage_ledger.retention_override_restore: Nutzungsledger wiederhergestellt (Aufbewahrungs-Override)
+      usage_ledger.restored_by_admin: Nutzungsledger vom Admin wiederhergestellt
+      audit_log.retention_expired: Audit-Log per Aufbewahrung abgelaufen
+      audit_log.retention_override_restore: Audit-Log wiederhergestellt (Aufbewahrungs-Override)
+      audit_log.restored_by_admin: Audit-Log vom Admin wiederhergestellt
+      chat_filter_event.retention_expired: Chat-Filter-Ereignis per Aufbewahrung abgelaufen
+      chat_filter_event.retention_override_restore: Chat-Filter-Ereignis wiederhergestellt (Aufbewahrungs-Override)
+      chat_filter_event.restored_by_admin: Chat-Filter-Ereignis vom Admin wiederhergestellt
+      memory_audit.retention_expired: Speicher-Audit per Aufbewahrung abgelaufen
+      memory_audit.retention_override_restore: Speicher-Audit wiederhergestellt (Aufbewahrungs-Override)
+      memory_audit.restored_by_admin: Speicher-Audit vom Admin wiederhergestellt
+    resourceTypeLabels:
+      conversation: Konversation
+      conversationMessage: Konversationsnachricht
+      document: Dokument
+      folder: Ordner
+      agent: Agent
+      workflow: Automatisierung
+      workflow_run: Automatisierungslauf
+      automation_trigger: Automatisierungs-Trigger
+      workflow_creation: Erstellung der Automatisierung
+      workflow_update: Automatisierungs-Update
+      customer: Kontakt
+      contact: Kontakt
+      vendor: Lieferant
+      product: Produkt
+      organization: Organisation
+      approval: Genehmigung
+      mcp_tool_call: MCP-Tool-Aufruf
+      audit_log_archive: Audit-Log-Archiv
+      chat_message: Chat-Nachricht
+      chat_thread: Chat
+      member: Mitglied
+      team: Team
+      project: Projekt
+      connector: Connector
+      connector_operation: Connector-Vorgang
+      connector_credential: Connector-Zugangsdaten
+      api_key: API-Schlüssel
+      webdav_app_password: WebDAV-App-Passwort
+      sso_provider: SSO-Anbieter
+      video_link: Video-Link
+      location_request: Standortanfrage
+      document_write: Dokumentschreibvorgang
+      twoFactorAuth: Zwei-Faktor-Authentifizierung
+      user: Benutzer
+      thread: Chat
+      file: Datei
+      prompt_template: Prompt-Vorlage
+      prompt_category: Prompt-Kategorie
+      message_feedback: Nachrichten-Feedback
+      external_conversation: Externe Konversation
+      workflow_execution: Automatisierungslauf
+      wf_execution: Automatisierungslauf
+      wf_trigger_log: Automatisierungs-Trigger-Log
+      workflow_llm_step: Automatisierungs-LLM-Schritt
+      usage_ledger: Nutzungsledger
+      audit_log: Audit-Log
+      chat_filter_event: Chat-Filter-Ereignis
+      memory_audit: Speicher-Audit
+      governance_policy: Governance-Richtlinie
+      legal_matter: Legal Matter
+      legal_hold: Legal Hold
+      legal_hold_batch: Legal-Hold-Batch
+      retention_run: Aufbewahrungs-Run
+      retentionRun: Aufbewahrungs-Run
+      cron_run: Cron-Lauf
+      agent_completion: Agenten-Antwort
+      openai_compat_request: OpenAI-kompatible Anfrage
+      provider: Anbieter
+      video_link_job: Video-Link-Job
+      sandbox_workspace: Sandbox-Arbeitsbereich
+branding:
+  logo: Logo
+  logoDescription: Lade dein Organisationslogo hoch (am besten SVG; Rastergrafiken mit mindestens 64×64 Pixeln)
+  favicon: Favicon
+  faviconDescription: Wird aus deinem Logo erzeugt, wenn leer. 64 x 64 Pixel.
+  light: Hell
+  dark: Dunkel
+  accentColor: Akzentfarbe
+  uploadLogo: Logo hochladen
+  uploadFavicon: Favicon hochladen
+  preview: Branding-Vorschau
+  pickColorAria: '{label} auswählen'
+  hexValueAria: Hex-Wert für {label}
+  removeImageAria: '{label} entfernen'
+  imageFallback: Bild
+  resetConfirmTitle: Branding zurücksetzen?
+  resetConfirmDescription:
+    Logo und Favicons werden gelöscht, die Akzentfarbe wird
+    entfernt. Gelöschte Bilder lassen sich nicht wiederherstellen.
+  resetDone: Branding zurückgesetzt
+dataResidency:
+  readOnly:
+    title: Nur Lesezugriff
+  externalPostgres: Externes Postgres
+  field:
+    host: Host
+    port: Port
+    database: Datenbank
+    user: Benutzer
+    sslMode: SSL-Modus
+    password: Passwort
+  password:
+    storedNoPreviewHint:
+      Ein Wert ist gespeichert — leer lassen, um ihn zu behalten,
+      oder einen neuen eingeben, um ihn zu ersetzen.
+    writeOnlyHint: Nur Schreiben; leer lassen, um den gespeicherten Wert zu behalten
+  testConnection: Verbindung testen
+  result:
+    ok: OK
+    failed: Fehlgeschlagen
+  knowledge:
+    paradeDbNote:
+      Die externe Wissensdatenbank muss ParadeDB (pgvector + pg_search)
+      verwenden, damit die volle Hybrid-Suche funktioniert; reines pgvector
+      fällt auf reine Vektor-Suche zurück.
+  storage:
+    externalS3: Externes S3
+    region: Region
+    endpoint: Endpunkt (MinIO/R2; leer für AWS)
+    endpointShort: Endpunkt
+    forcePathStyle: Path-Style erzwingen (MinIO/R2)
+    accessKeyId: Access Key ID
+    writeOnly: Nur Schreiben
+    secretAccessKey: Secret Access Key
+  orgKnowledge:
+    title: Wissensdatenbank
+    description:
+      Die Postgres-Datenbank mit dem Wissenskorpus dieser Organisation für
+      Suche und Abruf.
+    statusDefault: Deployment-Standard
+    readOnlyBody:
+      Zum Ändern des Speicherorts des Wissenskorpus dieser Organisation sind
+      Admin-Berechtigungen erforderlich.
+    note:
+      Ohne Verbindung liegt das Wissen dieser Organisation in der eingebauten
+      Datenbank des Deployments, pro Organisation isoliert. Mit Verbindung
+      liegt der Korpus in der oben angegebenen Datenbank — eine leere
+      Datenbank wird automatisch vorbereitet, zuvor indexierte Einträge
+      ziehen aber nicht mit um.
+    cleared:
+      Verbindung entfernt — die Wissenssuche dieser Organisation verwendet
+      wieder die eingebaute Datenbank des Deployments.
+    clearConfirm:
+      title: Wissensdatenbank-Verbindung entfernen?
+      description:
+        Die Wissenssuche dieser Organisation läuft wieder über die eingebaute
+        Datenbank des Deployments. Einträge, die bereits in deiner Datenbank
+        liegen, bleiben dort — Tale kann sie aber erst wieder lesen, wenn die
+        Verbindung erneut eingerichtet ist.
+      confirm: Verbindung entfernen
+    errors:
+      readFailed: 'Die gespeicherte Verbindung konnte nicht geladen werden: {error}'
+      hostRequired: Gib den Datenbank-Host ein.
+      hostInvalid: Nur Buchstaben, Ziffern, Punkte, Bindestriche, Doppelpunkte und Klammern.
+      portInvalid: Gib einen Port zwischen 1 und 65535 ein.
+      databaseRequired: Gib den Datenbanknamen ein.
+      userRequired: Gib den Datenbankbenutzer ein.
+  orgEmbedding:
+    title: Embedding-Modell
+    description:
+      Das Modell, das Dokumente und Suchanfragen dieser Organisation für die
+      Wissenssuche in Vektoren umwandelt — erforderlich, bevor die
+      Wissenssuche laufen kann, auf jeder Datenbank.
+    statusConfigured: Eingerichtet
+    statusNotConfigured: Nicht eingerichtet
+    statusCredentialMissing: Zugangsdaten fehlen
+    credentialMissingWarning: >-
+      Die Zugangsdaten, die dieses Embedding-Modell verwendet, existieren
+      nicht mehr; Dokumentindexierung und Wissenssuche stehen still. Lege
+      unter Einstellungen → KI-Anbieter Zugangsdaten an oder stelle sie
+      wieder her, oder wähle hier andere und speichere.
+    notConfiguredWarning:
+      Die Wissenssuche ist nicht verfügbar, bis ein Embedding-Modell
+      eingerichtet ist.
+    banner:
+      title: Wissenssuche ist aus
+      body: Diese Organisation hat einen KI-Anbieter, aber kein
+        Embedding-Modell — Dokumente lassen sich nicht indexieren, und
+        weder Dokumente noch Websites lassen sich durchsuchen.
+      link: Embedding-Modell wählen
+    recommendationBody:
+      Dein {provider}-Zugang kann {model} bedienen ({dimensions}-dimensionale
+      Vektoren).
+    recommendationApply: Dieses Modell verwenden
+    readOnlyBody: Zum Ändern des Embedding-Modells dieser Organisation sind
+      Admin-Berechtigungen erforderlich.
+    noCredentials:
+      Es sind noch keine KI-Anbieter-Zugangsdaten gespeichert — lege welche
+      unter Einstellungen → KI-Anbieter an, um hier einen Anbieter zu wählen.
+    provider: Anbieter
+    providerPlaceholder: Anbieter wählen
+    credential: Zugangsdaten
+    credentialDefault: Anbieter-Standard
+    credentialHint:
+      Welche gespeicherten Zugangsdaten die Embedding-Aufrufe autorisieren;
+      der Standard sind die Standard-Zugangsdaten des Anbieters.
+    model: Modell
+    modelHint: Das Modell-Tag exakt so, wie der Anbieter es schreibt.
+    modelCatalogHint: Embedding-Modelle aus dem Katalog des Anbieters.
+    modelCatalogCustomHint:
+      Embedding-Modelle aus der Modellliste dieses Anbieters; wähle „Anderes
+      Modell“, um ein Tag einzugeben, das dort nicht steht.
+    modelUncuratedHint:
+      Tale kennt keine Vektorbreite für {provider}. Gib das Modell-Tag (oder
+      den Namen deines Deployments) und die Vektorbreite ein, die dieses
+      Modell erzeugt.
+    modelUnsupportedHint:
+      '{provider} bietet kein Embedding-Modell an. Wähle einen Anbieter, der
+      eines bedient.'
+    modelUnsupported: Bietet keine Embeddings
+    modelCatalogUnavailableHint:
+      Der Katalog von {provider} konnte nicht geladen werden. Aktualisiere
+      die Kataloge unter Einstellungen → KI-Anbieter und versuche es erneut.
+    modelUnavailable: Katalog nicht verfügbar
+    modelUncheckedHint:
+      Tale konnte nicht prüfen, ob {provider} Embeddings bietet, daher lässt
+      sich noch kein Modell wählen. Nutze oben „Erneut versuchen“.
+    modelUnchecked: Prüfung fehlgeschlagen
+    supportReadFailed:
+      Tale konnte nicht prüfen, welche Anbieter Embeddings bieten. Bis die
+      Prüfung antwortet, lässt sich kein Modell wählen.
+    supportReadRetry: Erneut versuchen
+    modelPlaceholder: Modell wählen
+    modelCustom: Anderes Modell…
+    modelTag: Modell-Tag
+    dimensions: Vektorbreite
+    dimensionsHint:
+      'Angegeben, nie geraten: die exakte Dimensionszahl, die dieses Modell
+      erzeugt. Eine spätere Änderung macht bereits geschriebene Vektoren der
+      alten Breite unbrauchbar.'
+    baseUrl: Basis-URL
+    baseUrlHint: OpenAI-kompatibler Endpunkt; leer lassen für den des Anbieters.
+    sharedDbNote:
+      Auf der gemeinsamen Datenbank des Deployments teilen sich alle
+      Organisationen eine Vektorbreite — sie wird beim ersten geschriebenen
+      Vektor festgelegt. Gib dieser Organisation eine eigene Wissensdatenbank,
+      um frei zu wählen.
+    removed:
+      Embedding-Modell entfernt — die Wissenssuche ist nicht verfügbar, bis
+      ein neues eingerichtet ist.
+    removeConfirm:
+      title: Embedding-Modell entfernen?
+      description:
+        Die Wissenssuche dieser Organisation funktioniert erst wieder, wenn
+        ein neues Embedding-Modell eingerichtet ist. Bereits geschriebene
+        Vektoren bleiben im Korpus.
+      confirm: Modell entfernen
+    errors:
+      readFailed: 'Die gespeicherte Embedding-Konfiguration konnte nicht geladen werden: {error}'
+      invalid: Die Embedding-Einstellungen sind ungültig. Prüfe die Felder und versuch es erneut.
+      providerRequired: Wähle einen Anbieter.
+      modelRequired: Gib das Modell-Tag ein.
+      dimensionsInvalid: Gib eine ganze Zahl zwischen 1 und 16000 ein.
+      baseUrlInvalid: Gib eine http(s)-URL ein oder lass das Feld leer.
+      credentialNotFound: Die gewählten Zugangsdaten existieren nicht mehr — wähle andere.
+      credentialMismatch: Die gewählten Zugangsdaten gehören zu einem anderen Anbieter.
+      credentialDisabled: Die gewählten Zugangsdaten sind deaktiviert — aktiviere sie wieder oder wähle andere.
+      providerUnsupported: Dieser Anbieter bietet kein Embedding-Modell an — wähle einen Anbieter, der eines bedient.
+  orgStorage:
+    title: Objektspeicher
+    description: Der S3-kompatible Bucket mit den hochgeladenen Dateien dieser
+      Organisation — Dokumente, Anhänge, Audio und generierte Medien.
+    statusDefault: Deployment-Standard
+    readOnlyBody:
+      Zum Ändern des Speicherorts der Dateien dieser Organisation sind
+      Admin-Berechtigungen erforderlich.
+    bucket: Bucket
+    prefix: Key-Präfix
+    prefixHint: Optionaler Namensraum im Bucket; leer legt Objekte direkt im Bucket ab.
+    credentialsHint:
+      Nur Schreiben — gespeicherte Schlüssel werden nie angezeigt.
+      Gib beide Schlüssel ein oder lass beide leer, um die gespeicherten
+      Schlüssel zu testen.
+    verified: Bucket geprüft (Hochladen, Lesen, Löschen)
+    corsNote: Uploads und Downloads laufen direkt zwischen Browser und deinem
+      Bucket. Der Bucket muss deshalb Cross-Origin-Anfragen (CORS) von
+      {origin} akzeptieren — erlaube diesen Origin mit den Methoden GET, PUT
+      und HEAD sowie allen Request-Headern. Der Verbindungstest läuft auf dem
+      Server und kann das nicht prüfen.
+    note:
+      Ohne Verbindung liegen die Dateien dieser Organisation im eingebauten
+      Speicher des Deployments, pro Organisation isoliert. Mit Verbindung
+      landen neue Uploads im oben angegebenen Bucket; zuvor gespeicherte
+      Dateien bleiben lesbar, wo sie sind.
+    cleared: Verbindung entfernt — neue Uploads landen wieder im eingebauten
+      Speicher des Deployments. Dateien in deinem Bucket bleiben dort, sind
+      für Tale aber erst wieder verfügbar, wenn du die Verbindung erneut
+      einrichtest.
+    clearConfirm:
+      title: Objektspeicher-Verbindung entfernen?
+      description:
+        Neue Uploads dieser Organisation landen wieder im eingebauten
+        Speicher des Deployments. Dateien, die bereits in deinem Bucket
+        liegen, bleiben dort — Tale kann sie aber erst wieder lesen, wenn die
+        Verbindung erneut eingerichtet ist.
+      confirm: Verbindung entfernen
+    backfill:
+      start: Bestehende Dateien verschieben
+      description:
+        Kopiert Dateien, die vor dem Wechsel im eingebauten Speicher des
+        Deployments lagen, in deinen Bucket, damit alles an einem Ort liegt.
+        Läuft im Hintergrund; Uploads funktionieren währenddessen weiter.
+      confirm:
+        title: Bestehende Dateien in deinen Bucket verschieben?
+        description:
+          Dateien dieser Organisation aus dem eingebauten Speicher des
+          Deployments werden in deinen Bucket kopiert und von dort
+          ausgeliefert. Das läuft im Hintergrund und kann bei großen
+          Dateibeständen eine Weile dauern.
+        confirm: Dateien verschieben
+      status:
+        running: 'Verschiebt Dateien… {migrated} verschoben, {failed} fehlgeschlagen.'
+        completed: 'Fertig — {migrated} Dateien verschoben, {failed} fehlgeschlagen.'
+        completedDry: 'Probelauf — {candidates} Dateien würden verschoben.'
+        failed: 'Das Verschieben ist mit einem Fehler abgebrochen: {error}'
+      errors:
+        alreadyRunning: Ein Verschieben läuft bereits — warte, bis es fertig ist.
+        notConfigured: Speichere die Bucket-Verbindung, bevor du bestehende Dateien verschiebst.
+    errors:
+      forbidden: Du darfst die Datenresidenz dieser Organisation nicht verwalten.
+      invalidConnection:
+        Die Verbindungsdaten sind ungültig. Prüfe die Felder und
+        versuch es erneut.
+      credentialsPair: Gib Access Key ID und Secret Access Key zusammen ein.
+      credentialsRequired:
+        Gib Access Key ID und Secret Access Key ein — beim ersten
+        Einrichten des Objektspeichers sind sie erforderlich.
+      readFailed: 'Die gespeicherte Verbindung konnte nicht geladen werden: {error}'
+      regionRequired: Gib die Region des Buckets ein.
+      endpointInvalid: Gib eine http(s)-URL ein oder lass das Feld leer für AWS.
+      bucketRequired: Gib den Bucket-Namen ein.

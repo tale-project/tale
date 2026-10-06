@@ -5,7 +5,6 @@
     {
       "label": "start",
       "pages": [
-        "index",
         "get-started/quickstart",
         "get-started/members",
         "get-started/editors",

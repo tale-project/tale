@@ -1,5 +1,4 @@
 import { cleanup, screen } from '@testing-library/react';
-import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 
@@ -9,18 +8,10 @@ import { DocsHeader } from './docs-header';
 
 import '../../globals.css';
 
-vi.mock('@tanstack/react-router', () => ({
-  Link: React.forwardRef(
-    (
-      props: { to: string; children: React.ReactNode; className?: string },
-      ref: React.Ref<HTMLAnchorElement>,
-    ) => (
-      <a ref={ref} href={props.to} className={props.className}>
-        {props.children}
-      </a>
-    ),
-  ),
-}));
+vi.mock('@tanstack/react-router', async () => {
+  const { createRouterStub } = await import('@/tests/utils/router-stub');
+  return createRouterStub();
+});
 
 afterEach(() => {
   cleanup();

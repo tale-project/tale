@@ -74,10 +74,12 @@ import {
   useUpdateTask,
   useUpdateTaskStatus,
 } from '../hooks/mutations';
-import { useSubtasks, useTask } from '../hooks/queries';
+import { usePrefetchTaskReads, useSubtasks, useTask } from '../hooks/queries';
+import { ActorDirectoryProvider } from '../hooks/task-actor-directory';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import { useDescriptionCap } from '../hooks/use-description-cap';
 import { useTaskAccess } from '../hooks/use-task-access';
+import { TaskLogViewport } from '../hooks/use-task-log-window';
 import {
   plannedTransitionKind,
   useTaskStatusChoreography,
@@ -132,6 +134,7 @@ import { TaskDeleteDialog } from './task-delete-dialog';
 import { TaskDependencies } from './task-dependencies';
 import { TaskDetailFallback } from './task-detail-fallback';
 import { TaskExternalIssueCard } from './task-external-issue-card';
+import { TaskExternalStatusCard } from './task-external-status-card';
 import { SubtaskProgress } from './task-indicators';
 import { TaskInputFilesCard } from './task-input-files';
 import { TaskOutcomeFilesCard } from './task-outcome-files';
@@ -301,6 +304,7 @@ function ModalLayout({
   panel: ReactNode;
   footer?: ReactNode;
 }) {
+  const mainScrollRef = useRef<HTMLDivElement>(null);
   return (
     <Stack className="min-h-0 flex-1">
       <div className="shrink-0">{header}</div>
@@ -314,10 +318,11 @@ function ModalLayout({
           clipped at the column edge. */}
       <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row md:gap-0">
         <Stack
+          ref={mainScrollRef}
           gap={5}
           className="min-w-0 flex-1 md:-ml-2 md:min-h-0 md:overflow-y-auto md:py-0.5 md:pr-6 md:pl-2"
         >
-          {main}
+          <TaskLogViewport scrollRef={mainScrollRef}>{main}</TaskLogViewport>
         </Stack>
         <Stack
           as="aside"
@@ -1288,6 +1293,7 @@ export function EditTaskBody({
     notFound,
     error: readError,
   } = useTask(taskId);
+  usePrefetchTaskReads(taskId);
   // Editors work every task; any other reader of the project works the
   // tasks they created or are assigned to, and the subtasks under them —
   // the server's own rule.
@@ -1318,11 +1324,11 @@ export function EditTaskBody({
   // beside it goes through and leaves.
   const repeatControlId = useId();
   const { data: me } = useCurrentMemberContext(task?.organizationId);
-  const {
-    resolveActor,
-    agents: projectAgents,
-    agentsLoading,
-  } = useActorDirectory(task?.organizationId ?? '', task?.projectId);
+  const actorDirectory = useActorDirectory(
+    task?.organizationId ?? '',
+    task?.projectId,
+  );
+  const { resolveActor, agents: projectAgents, agentsLoading } = actorDirectory;
   // The assigned agent still exists in the project — Start/Retry are for a
   // run that can happen. While the list loads, assume it does (no flicker).
   const assigneeLive =
@@ -1382,13 +1388,11 @@ export function EditTaskBody({
       ? null
       : resolveSettingsFolder(ownedBy.settings, ownedBy.contract);
   const assignTask = useAssignTask();
-  const createTask = useCreateTask();
   const { uploadingFiles, uploadFiles, clearAttachments } = useFileUpload({
     organizationId: task?.organizationId ?? '',
     allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
   });
 
-  const [subtaskTitle, setSubtaskTitle] = useState('');
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const pasteCounterRef = useRef(1);
@@ -1590,23 +1594,6 @@ export function EditTaskBody({
   const author = resolveActor(task.createdByType, task.createdBy);
   const { done: subtasksDone, total: subtasksTotal } =
     subtaskProgress(subtasks);
-
-  const addSubtask = async () => {
-    const subTitle = subtaskTitle.trim();
-    if (!subTitle || createTask.isPending) return;
-    try {
-      await createTask.mutateAsync({
-        organizationId: task.organizationId,
-        projectId: task.projectId,
-        title: subTitle,
-        status: 'todo',
-        parentTaskId: task._id,
-      });
-      setSubtaskTitle('');
-    } catch (error) {
-      onMutationError(error);
-    }
-  };
 
   const enqueueAttachmentChange = (change: () => Promise<void>) => {
     const pending = attachmentQueueRef.current.then(change);
@@ -1870,6 +1857,12 @@ export function EditTaskBody({
         externalUrl={task.externalUrl}
         externalIssue={task.externalIssue}
       />
+      <TaskExternalStatusCard
+        organizationId={task.organizationId}
+        taskId={task._id}
+        externalSystem={task.externalSystem}
+        canWork={canWork && project?.archivedAt == null}
+      />
       {ownedBy === null && descriptionSection}
 
       {ownedBy !== null && (
@@ -2007,36 +2000,12 @@ export function EditTaskBody({
           </ul>
         )}
         {canMutate && (
-          <Row gap={2}>
-            {/* A one-line field, like the button beside it: a subtask is a
-                title, and the one-row textarea it used to be stood a few
-                pixels taller than the button and showed a resize grip. */}
-            <Input
-              id="new-subtask"
-              value={subtaskTitle}
-              onChange={(e) => setSubtaskTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  if (!createTask.isPending) void addSubtask();
-                }
-              }}
-              placeholder={t('detail.addSubtask')}
-              aria-label={t('detail.addSubtask')}
-              wrapperClassName="min-w-0 flex-1"
-            />
-            <Button
-              icon={Plus}
-              variant="secondary"
-              disabled={
-                subtaskTitle.trim().length === 0 || createTask.isPending
-              }
-              isLoading={createTask.isPending}
-              onClick={() => void addSubtask()}
-            >
-              {t('actions.add')}
-            </Button>
-          </Row>
+          <SubtaskComposer
+            organizationId={task.organizationId}
+            projectId={task.projectId}
+            parentTaskId={task._id}
+            onError={onMutationError}
+          />
         )}
       </Stack>
     </>
@@ -2345,7 +2314,11 @@ export function EditTaskBody({
   );
 
   return (
-    <>
+    <ActorDirectoryProvider
+      organizationId={task.organizationId}
+      projectId={task.projectId}
+      directory={actorDirectory}
+    >
       {/* display:contents — a paste-event catcher, never a layout box. */}
       <div className="contents" onPaste={onPasteImages}>
         {surface === 'dialog' ? (
@@ -2490,7 +2463,76 @@ export function EditTaskBody({
         />
       )}
       {cancelConfirmDialog}
-    </>
+    </ActorDirectoryProvider>
+  );
+}
+
+/**
+ * The subtask field under a task's subtasks: its own draft, so typing a title
+ * re-renders this row and not the task around it (the comments, the
+ * timeline, the description).
+ */
+function SubtaskComposer({
+  organizationId,
+  projectId,
+  parentTaskId,
+  onError,
+}: {
+  organizationId: string;
+  projectId: string;
+  parentTaskId: string;
+  onError: (error: unknown) => void;
+}) {
+  const { t } = useT('tasks');
+  const createTask = useCreateTask();
+  const [subtaskTitle, setSubtaskTitle] = useState('');
+
+  const addSubtask = async () => {
+    const subTitle = subtaskTitle.trim();
+    if (!subTitle || createTask.isPending) return;
+    try {
+      await createTask.mutateAsync({
+        organizationId,
+        projectId,
+        title: subTitle,
+        status: 'todo',
+        parentTaskId,
+      });
+      setSubtaskTitle('');
+    } catch (error) {
+      onError(error);
+    }
+  };
+
+  return (
+    <Row gap={2}>
+      {/* A one-line field, like the button beside it: a subtask is a
+          title, and the one-row textarea it used to be stood a few
+          pixels taller than the button and showed a resize grip. */}
+      <Input
+        id="new-subtask"
+        value={subtaskTitle}
+        onChange={(e) => setSubtaskTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            if (!createTask.isPending) void addSubtask();
+          }
+        }}
+        placeholder={t('detail.addSubtask')}
+        aria-label={t('detail.addSubtask')}
+        wrapperClassName="min-w-0 flex-1"
+      />
+      <Button
+        icon={Plus}
+        variant="secondary"
+        disabled={subtaskTitle.trim().length === 0 || createTask.isPending}
+        isLoading={createTask.isPending}
+        onClick={() => void addSubtask()}
+      >
+        {t('actions.add')}
+      </Button>
+    </Row>
   );
 }
 

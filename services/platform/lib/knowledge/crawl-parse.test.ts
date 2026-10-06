@@ -47,7 +47,7 @@ const policy = (
 ): RobotsPolicy => ({ allow, disallow, crawlDelayMs: 0 });
 
 describe('parseRobots', () => {
-  it('binds the * group when no group names the crawler, and collects sitemaps', () => {
+  it('binds the * group when no group names the crawler, and collects sitemaps [KNOW-R14]', () => {
     const rules = parseRobots(
       [
         'User-agent: GPTBot',
@@ -76,7 +76,7 @@ describe('parseRobots', () => {
    * crawler was crawled under the `*` rules instead (2026-09-18 evaluation,
    * J6-4). The token matches case-insensitively (RFC 9309 §2.2.1).
    */
-  it('binds the group that names the crawler instead of the * group, case-insensitively', () => {
+  it('binds the group that names the crawler instead of the * group, case-insensitively [KNOW-R14]', () => {
     const rules = parseRobots(
       [
         'User-agent: *',
@@ -173,7 +173,7 @@ describe('isDisallowed', () => {
 
   /** RFC 9309 §2.2.2: the most specific rule wins, an `Allow` of equal
    * length wins the tie — `Allow` used to be ignored altogether. */
-  it('lets the longest matching rule decide, Allow winning a tie', () => {
+  it('lets the longest matching rule decide, Allow winning a tie [KNOW-R14]', () => {
     const rules = policy(
       ['/', '/docs/private/'],
       ['/docs/', '/docs/private/x'],
@@ -579,7 +579,7 @@ describe('discoverableLinks', () => {
     <a href="/private/report">Report</a>
   `;
 
-  it('drops a link a plain or wildcard rule covers and keeps the rest, de-duplicated', () => {
+  it('drops a link a plain or wildcard rule covers and keeps the rest, de-duplicated [KNOW-R14]', () => {
     expect(
       discoverableLinks(
         html,

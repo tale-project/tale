@@ -154,7 +154,7 @@ describe('registerWebsite', () => {
     vi.mocked(addJobInTx).mockClear();
   });
 
-  it('extends a list registration of the same host: patch, job, merged', async () => {
+  it('extends a list registration of the same host: patch, job, merged [WEB-R2]', async () => {
     // The covering lookup, the patch's own by-id load, and its RETURNING.
     const { sql, queries } = transactingSql((text) =>
       coveringLookup(text) ||
@@ -221,7 +221,7 @@ describe('registerWebsite', () => {
     },
   );
 
-  it('refuses the www/apex sibling of a stored domain, naming the stored spelling — a list included', async () => {
+  it('refuses the www/apex sibling of a stored domain, naming the stored spelling — a list included [WEB-R2]', async () => {
     const { sql, queries } = transactingSql((text) =>
       coveringLookup(text) ? [stored({ kind: 'list' })] : [],
     );
@@ -247,7 +247,7 @@ describe('registerWebsite', () => {
     expect(vi.mocked(addJobInTx)).not.toHaveBeenCalled();
   });
 
-  it('validates the list against the domain before looking anything up', async () => {
+  it('validates the list against the domain before looking anything up [WEB-R4]', async () => {
     const { sql, queries } = transactingSql(() => []);
     await expect(
       registerWebsite(sql, {

@@ -980,10 +980,8 @@ describe('ProvidersSettings', () => {
       const submit = dialog.getByRole('button', { name: 'Add credential' });
       // The base URL is as mandatory as the key.
       expect(submit).toBeDisabled();
-      await user.type(
-        dialog.getByRole('textbox', { name: /^Base URL/ }),
-        'https://maas.example.test/v1',
-      );
+      await user.click(dialog.getByRole('textbox', { name: /^Base URL/ }));
+      await user.paste('https://maas.example.test/v1');
       await user.click(
         dialog.getByRole('radio', { name: /Anthropic Messages API/ }),
       );
@@ -1017,10 +1015,8 @@ describe('ProvidersSettings', () => {
         dialog.getByLabelText(/^API key/, { selector: 'input' }),
         'sk-local',
       );
-      await user.type(
-        dialog.getByRole('textbox', { name: /^Base URL/ }),
-        'https://models.example.test/v1',
-      );
+      await user.click(dialog.getByRole('textbox', { name: /^Base URL/ }));
+      await user.paste('https://models.example.test/v1');
       await user.click(dialog.getByRole('radio', { name: /Enter model IDs/ }));
       const submit = dialog.getByRole('button', { name: 'Add credential' });
       expect(submit).toBeDisabled();

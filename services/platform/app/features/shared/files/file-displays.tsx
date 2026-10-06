@@ -20,7 +20,10 @@ import {
 } from 'lucide-react';
 import { memo, useState } from 'react';
 
-import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
+import {
+  DocumentPreviewDialog,
+  warmDocumentPreviewDialog,
+} from '@/app/features/documents/components/document-preview-dialog-lazy';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
@@ -242,6 +245,8 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
+            onPointerEnter={warmDocumentPreviewDialog}
+            onFocus={warmDocumentPreviewDialog}
             className="focus-visible:ring-ring flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-md border-none bg-transparent p-0 text-left focus-visible:ring-2 focus-visible:outline-none"
           >
             {chipBody}

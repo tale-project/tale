@@ -19,6 +19,8 @@ import {
   type RefObject,
 } from 'react';
 
+import { PagePointerPin } from './page-pointer-pin';
+
 // Safe-area padding is layered into the design `p-6` via per-edge calc() so
 // the panel's content clears the iOS notch / home indicator / rounded corners
 // in standalone PWAs. `env(safe-area-inset-*)` resolves to 0 on browsers
@@ -236,6 +238,7 @@ export function Sheet({
           // primitive's handling in `dialog.tsx`.
           {...(description ? {} : { 'aria-describedby': undefined })}
         >
+          <PagePointerPin />
           <DialogPrimitive.Title className="sr-only">
             {title}
           </DialogPrimitive.Title>

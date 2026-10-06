@@ -98,15 +98,21 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useNavigate: () => vi.fn(),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
     resolveActor: () => ({ name: 'Test owner' }),
   }),
   useAssignableActors: () => ({
+    subjectEntries: [],
     assignableMembers: [],
     assignableAgents: [],
     agents: [],
+    members: [],
+    automations: [],
+    resolveActor: () => ({ name: 'Test owner' }),
   }),
 }));
 vi.mock('@/app/features/shared/files/use-file-upload', () => ({

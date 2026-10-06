@@ -10,9 +10,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 - `services/` — deployable units: `platform` (the flagship app: Vite + React 19 + TanStack Router +
   the Postgres backend), `web` (marketing site), `docs` (docs site at docs.tale.dev), `ui-docs`
-  (the design-system docs site at [ui.tale.dev](https://ui.tale.dev), port 3003: a
-  marketing-language front page on `@tale/marketing-ui`, app-language `/docs/*` pages with live
-  `<Demo>` examples), plus `db`, `proxy`, and the `sandbox*` family. `docs` and `ui-docs` render
+  (the design-system docs site at [ui.tale.dev](https://ui.tale.dev), port 3003:
+  app-language documentation at `/` and `/docs/*` with live `<Demo>` examples), plus `db`,
+  `proxy`, and the `sandbox*` family. `docs` and `ui-docs` render
   one documentation frame, `@tale/ui/docs/*` (rail, header strip, article, outline, footer, 404,
   search); a site feeds it content and never forks a piece of it.
 - `packages/` — `ui` (the design system: every reusable platform component, hook and UI util —
@@ -83,7 +83,14 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   [`write-translations`](skills/write-translations/SKILL.md) skill. A key present in one catalog
   and missing in another full catalog is a defect, not a follow-up. Shared controls own their keys
   in `packages/ui`; marketing frames own theirs in `packages/marketing-ui`. Service catalogs
-  override package keys per leaf. The product docs ship EN/DE/FR; `services/ui-docs/content` is
+  override package keys per leaf. The platform keeps one file per topic and locale
+  (`services/platform/messages/<locale>/<topic>.yml`, a topic being one top-level namespace), and
+  every locale has the same topic files — `de-CH` only the ones it overrides; the i18n parity
+  tests enforce both. Every locale also loads per topic: English ships with the modules that name
+  a topic (the `messageTopics` plugin in `services/platform/vite.config.ts`), and the other
+  locales are fetched as the session's pages need them. So name a namespace literally where it is
+  read (`useT('tasks')`, `{ ns: 'tasks' }`); `lib/i18n/topic-references.test.ts` refuses a
+  computed one. The product docs ship EN/DE/FR; `services/ui-docs/content` is
   an English-only guide with complete EN/DE/FR chrome catalogs.
 - **A failure shows its words, never its payload** — a toast or an Alert reads what a call threw
   through `failureDetail` (`services/platform/app/lib/backend/adapters.ts`: a refusal's own words,
@@ -142,8 +149,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   `services/platform/tests/guards/domain-specs.guard.test.ts`, parses every spec and the test
   titles of the workspace, and fails on a shape it does not know, a rule with no example, a
   rule no running test names, and a title that names a rule no spec states. Change what a rule
-  says the code does, and its card and its test move in the same change. This is a trial on
-  `tasks` (2026-10): the other domains have no spec, and none is owed yet.
+  says the code does, and its card and its test move in the same change. Every domain under
+  `backend/domains/` has a spec (2026-10). A spec covers part of its domain and says which
+  parts it leaves out; a rule the code keeps and no test holds is listed under its Not yet,
+  not as a rule.
 - **Pencil**: `design/docs/comments.md` is strictly designer↔developer UI communication. Put
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
@@ -523,7 +532,7 @@ default means deleting the override and fixing what surfaces:
   `Run`/`RunSummary` (present only when true) in `toRunDetail`/`toRunSummary`; no migration.
 - **The crawler's clocks and knobs are not on the wire** — `Website` carries no
   `scanStartedAt` (the chain argument is never persisted), and the ceilings
-  the docs now state (10,000 URLs, 200 five-minute links, 25 MB / 30 s per page, five strikes)
+  the docs now state (10,000 URLs, 200 five-minute links, 100 MiB / 30 s per page, five strikes)
   are constants with no page cap, path filter, wall-clock cap or stop verb of the caller's
   (2026-09, round g). Paying it down means a `scan_started_at` column on the corpus website row
   (set in `claimScan`) surfaced as `Website.scanStartedAt`, and optional `maxPages` /

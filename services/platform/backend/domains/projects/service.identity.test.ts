@@ -117,7 +117,7 @@ describe('updateProjectExternalItemId', () => {
     expect(vi.mocked(createAuditLog)).not.toHaveBeenCalled();
   });
 
-  it('refuses another project’s key with 409 and the key beside it, writing nothing', async () => {
+  it('refuses another project’s key with 409 and the key beside it, writing nothing [PROJ-R5]', async () => {
     const { tx, statements } = fakeTx({ takenBy: 'project-9' });
     await expect(
       updateProjectExternalItemId(tx, auth, {
@@ -158,7 +158,7 @@ describe('updateProjectExternalItemId', () => {
     ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN', status: 403 });
   });
 
-  it('refuses every settings write on an archived project with PROJECT_ARCHIVED, writing nothing', async () => {
+  it('refuses every settings write on an archived project with PROJECT_ARCHIVED, writing nothing [PROJ-R7]', async () => {
     // Archived = read-only: the same code the REST door answers, now from
     // the service itself so the app door agrees (restore first).
     const { tx, statements } = fakeTx({ archived: true });

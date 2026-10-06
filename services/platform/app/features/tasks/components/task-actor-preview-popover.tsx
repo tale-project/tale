@@ -21,6 +21,7 @@ import {
 } from '@/app/features/projects/components/project-agent-details';
 import { useT } from '@/lib/i18n/client';
 
+import { useTaskLogRowActivity } from '../hooks/use-task-log-window';
 import type { TaskActorPreview } from '../utils/task-actor-preview';
 
 const HOVER_OPEN_MS = 300;
@@ -46,6 +47,7 @@ function TaskActorPreviewPopover({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const skipNextFocus = useRef(false);
+  useTaskLogRowActivity(open || detailsOpen);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

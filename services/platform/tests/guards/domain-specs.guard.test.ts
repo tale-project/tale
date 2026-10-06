@@ -669,11 +669,17 @@ describe('the spec grammar', () => {
   });
 
   it('reads the turbo inputs as path patterns', () => {
-    expect(tree.outsideInput('docs/en/platform/projects/tasks.md')).toBe(
+    // One page listed by name, in every locale.
+    expect(tree.outsideInput('docs/de/platform/projects/tasks.md')).toBe(
       'hashed',
     );
-    expect(tree.outsideInput('docs/en/platform/projects/overview.md')).not.toBe(
+    // Every English page, at any depth: the pages a spec links as its Docs.
+    expect(tree.outsideInput('docs/en/platform/models.md')).toBe('hashed');
+    expect(tree.outsideInput('docs/en/platform/projects/overview.md')).toBe(
       'hashed',
+    );
+    expect(tree.outsideInput('docs/de/platform/projects/overview.md')).toBe(
+      'unhashed',
     );
   });
 });

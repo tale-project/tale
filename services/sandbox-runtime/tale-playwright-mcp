@@ -19,6 +19,14 @@ client asks for a protocol version the manifest has no answer for, the real
 server starts at once, as it always did; TALE_PLAYWRIGHT_MCP_EAGER=1 always
 starts it at once.
 
+Managed headless Chromium uses the bundled registry's official headless
+shell, recorded by the image installer in browser.json. The server's Chromium
+channel otherwise selects the full browser. Its browser_install tool also
+always installs that full channel, even with an explicit executable. For this
+verified image default, a defensive install request is answered with the
+already-installed shell; explicit browser/configuration choices remain the
+real server's responsibility.
+
 It also bridges the container's egress env to Chromium flags: Chromium ignores
 HTTPS_PROXY/NO_PROXY, and the sandbox network is internal-only, so without an
 explicit --proxy-server the browser can only reach in-container addresses.
@@ -88,11 +96,69 @@ def server_env():
 
 def server_argv(args, env):
     argv = [REAL_SERVER, *args]
+    browser = managed_browser(args, env)
+    if browser is not None:
+        argv += ['--executable-path', browser['executablePath']]
     if env.get('HTTPS_PROXY'):
         argv += ['--proxy-server', env['HTTPS_PROXY']]
     if env.get('NO_PROXY'):
         argv += ['--proxy-bypass', env['NO_PROXY']]
     return argv
+
+
+def managed_browser(args, env):
+    """The image shell, only for the managed headless Chromium arguments.
+
+    User-selected executables, browsers, remote connections and config files
+    must retain their own launch/install behavior. Image metadata is kept away
+    from the writable browser cache, and tied to the installed MCP server.
+    """
+    def option(name):
+        found = None
+        for index, arg in enumerate(args):
+            if arg == name:
+                found = args[index + 1] if index + 1 < len(args) else None
+            if arg.startswith(name + '='):
+                found = arg[len(name) + 1:]
+        return found
+
+    explicit_options = (
+        '--executable-path', '--config', '--cdp-endpoint', '--endpoint',
+        '--extension', '--device', '--connect-tool', '--vscode', '--port',
+    )
+    if '--headless' not in args or option('--browser') != 'chromium':
+        return None
+    if any(arg == name or arg.startswith(name + '=') for arg in args for name in explicit_options):
+        return None
+    explicit_env = (
+        'PLAYWRIGHT_MCP_EXECUTABLE_PATH', 'PLAYWRIGHT_MCP_CONFIG',
+        'PLAYWRIGHT_MCP_BROWSER', 'PLAYWRIGHT_MCP_HEADLESS',
+        'PLAYWRIGHT_MCP_CDP_ENDPOINT', 'PLAYWRIGHT_MCP_ENDPOINT',
+        'PLAYWRIGHT_MCP_EXTENSION', 'PLAYWRIGHT_MCP_DEVICE',
+        'PLAYWRIGHT_MCP_PORT',
+    )
+    if any(env.get(name) for name in explicit_env):
+        return None
+    try:
+        with open(os.path.join(MANIFEST_DIR, 'browser.json'), encoding='utf-8') as handle:
+            browser = json.load(handle)
+        if not isinstance(browser, dict):
+            return None
+        server = server_file(installed_server(env))
+        if server is None or browser.get('server') != server:
+            return None
+        with open(os.path.join(os.path.dirname(server), 'package.json'), encoding='utf-8') as handle:
+            version = json.load(handle).get('version')
+        if browser.get('serverVersion') != version:
+            return None
+        if env.get('PLAYWRIGHT_BROWSERS_PATH') and env['PLAYWRIGHT_BROWSERS_PATH'] != browser.get('browsersPath'):
+            return None
+        executable = browser.get('executablePath')
+        if not isinstance(executable, str) or not os.access(executable, os.X_OK):
+            return None
+        return browser
+    except (OSError, ValueError, TypeError):
+        return None
 
 
 def installed_server(env):
@@ -230,10 +296,11 @@ def write_manifests(arg_sets_file):
 
 
 class LazyServer:
-    def __init__(self, argv, env, manifest):
+    def __init__(self, argv, env, manifest, browser=None):
         self.argv = argv
         self.env = env
         self.manifest = manifest
+        self.browser = browser
         self.server = None
         self.pump = None
         self.out = sys.stdout.buffer
@@ -269,6 +336,8 @@ class LazyServer:
 
     def answered(self, msg, line):
         """Answer `msg` without the server; False when it needs the server."""
+        if self.manifest is None:
+            return False
         method = msg.get('method')
         has_id = 'id' in msg
         if method == 'initialize' and has_id and self.version is None:
@@ -365,10 +434,29 @@ class LazyServer:
 
     def run(self):
         for line in sys.stdin.buffer:
+            msg = message(line)
+            if msg is not None and msg.get('method') == 'notifications/initialized':
+                self.client_initialized = True
+            # The pinned MCP installs the full chromium channel regardless of
+            # its executable-path option. This shell is already installed;
+            # do not mutate or redownload the read-only image on its behalf.
+            params = msg.get('params') if msg is not None else None
+            if (
+                self.browser is not None and self.client_initialized and msg is not None
+                and msg.get('method') == 'tools/call' and 'id' in msg
+                and isinstance(params, dict) and params.get('name') == 'browser_install'
+                and isinstance(params.get('arguments', {}), dict)
+                and os.access(self.browser['executablePath'], os.X_OK)
+            ):
+                self.reply(msg['id'], {'content': [{
+                    'type': 'text',
+                    'text': 'Managed Chromium headless shell is already installed at '
+                            + self.browser['executablePath'] + '.',
+                }]})
+                continue
             if self.server is not None:
                 self.send(line)
                 continue
-            msg = message(line)
             if msg is None or not self.answered(msg, line):
                 self.start()
                 self.send(line)
@@ -397,6 +485,7 @@ def main():
         return
     env = server_env()
     argv = server_argv(args, env)
+    browser = managed_browser(args, env)
     manifest = None
     if env.get('TALE_PLAYWRIGHT_MCP_EAGER') != '1' and not configured_in_env(env):
         manifest = load_manifest(args)
@@ -406,9 +495,11 @@ def main():
     server = installed_server(env)
     if manifest is not None and (server is None or server_file(server) != manifest.get('server')):
         manifest = None
-    if manifest is None:
+    if manifest is None and browser is None:
         os.execvpe(REAL_SERVER, argv, env)
-    lazy = LazyServer([server, *argv[1:]], env, manifest)
+    lazy = LazyServer([server, *argv[1:]], env, manifest, browser)
+    if manifest is None:
+        lazy.start()
     signal.signal(signal.SIGTERM, lazy.stop)
     signal.signal(signal.SIGINT, lazy.stop)
     signal.signal(signal.SIGHUP, lazy.stop)

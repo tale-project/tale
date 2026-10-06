@@ -70,7 +70,7 @@ const ARGS = {
   prospectiveCostCentsPerMChars: undefined,
 };
 
-describe('reserveChunk — per-(message, index) serialization', () => {
+describe('reserveChunk — per-(message, index) serialization [TTS-R3]', () => {
   it('takes the advisory lock before the FOR UPDATE read on a fresh chunk, then inserts', async () => {
     const { sql, statements } = recordingSql((text) =>
       text.includes('INSERT INTO app.tts_audio_chunks')

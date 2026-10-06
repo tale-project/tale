@@ -6,6 +6,70 @@ import { render, act, screen } from '@/tests/utils/render';
 import { DropdownMenu } from './dropdown-menu';
 
 describe('DropdownMenu', () => {
+  it('builds lazy choices only when opened and keeps them current', async () => {
+    const onSelect = vi.fn();
+    const items = vi.fn(() => [
+      [{ type: 'item' as const, label: 'First project', onClick: onSelect }],
+    ]);
+    const { user, rerender } = render(
+      <DropdownMenu trigger={<button>Projects</button>} items={items} />,
+    );
+    expect(items).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Projects' }));
+    expect(items).toHaveBeenCalled();
+    expect(
+      screen.getByRole('menuitem', { name: 'First project' }),
+    ).toBeInTheDocument();
+
+    const updatedItems = vi.fn(() => [
+      [{ type: 'item' as const, label: 'Updated project', onClick: onSelect }],
+    ]);
+    rerender(
+      <DropdownMenu trigger={<button>Projects</button>} items={updatedItems} />,
+    );
+    await user.click(screen.getByRole('menuitem', { name: 'Updated project' }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not build a lazy submenu until its trigger opens', async () => {
+    const submenu = vi.fn(() => [
+      [{ type: 'item' as const, label: 'Destination' }],
+    ]);
+    const { user } = render(
+      <DropdownMenu
+        open
+        trigger={<button>Actions</button>}
+        items={[[{ type: 'sub', label: 'Move', items: submenu }]]}
+      />,
+    );
+    expect(submenu).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('menuitem', { name: 'Move' }));
+    expect(
+      await screen.findByRole('menuitem', { name: 'Destination' }),
+    ).toBeInTheDocument();
+    expect(submenu).toHaveBeenCalled();
+  });
+
+  describe('items', () => {
+    // A closed menu sits in every row of a long list (a chat row's "Move to
+    // project" submenu lists every project), so it must build nothing.
+    it('calls an items function only while the menu shows', async () => {
+      const items = vi.fn(() => [
+        [{ type: 'item' as const, label: 'Pin', onClick: vi.fn() }],
+      ]);
+      const { user } = render(
+        <DropdownMenu trigger={<button>Open Menu</button>} items={items} />,
+      );
+      expect(items).not.toHaveBeenCalled();
+      expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Open Menu' }));
+      expect(screen.getByRole('menuitem', { name: 'Pin' })).toBeInTheDocument();
+      expect(items).toHaveBeenCalled();
+    });
+  });
+
   describe('keepOpen items (in-place drill-down)', () => {
     it('activate via keyboard and keep the menu open', async () => {
       // Drill-down menus (e.g. chat "Move to project") swap the panel's

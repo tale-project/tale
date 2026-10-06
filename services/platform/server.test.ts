@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,7 @@ import * as vm from 'node:vm';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { wrapCanvasPreviewHtml } from './lib/canvas-preview-shell';
+import { publishStaticAssets } from './lib/static-assets';
 import {
   cacheControlForStaticPath,
   createApp,
@@ -23,6 +24,129 @@ const baseEnv = {
   TALE_VERSION: undefined,
   CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: [] as readonly string[],
 };
+
+describe('blue-green browser assets', () => {
+  test('either colour serves both release bundles before and after handover', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-asset-handover-'));
+    try {
+      const blue = join(directory, 'blue');
+      const green = join(directory, 'green');
+      const shared = join(directory, 'shared');
+      await mkdir(join(blue, 'assets'), { recursive: true });
+      await mkdir(join(green, 'assets'), { recursive: true });
+      const names = ['index-AAAAAAA1.js', 'index-BBBBBBB2.js'];
+      await writeFile(join(blue, 'assets', names[0]!), 'old JavaScript');
+      await writeFile(join(green, 'assets', names[1]!), 'new JavaScript');
+      await writeFile(
+        join(blue, 'pwa-build.json'),
+        JSON.stringify({ assets: [`assets/${names[0]}`] }),
+      );
+      await writeFile(
+        join(green, 'pwa-build.json'),
+        JSON.stringify({ assets: [`assets/${names[1]}`] }),
+      );
+      await Promise.all([
+        publishStaticAssets(join(blue, 'assets'), shared),
+        publishStaticAssets(join(green, 'assets'), shared),
+      ]);
+      // Node hosts this unit project. Keep the fixture's file body and
+      // existence real; browser validation covers native Bun MIME inference.
+      vi.stubGlobal('Bun', {
+        file: (path: string) =>
+          Object.assign(
+            new Blob([existsSync(path) ? readFileSync(path) : '']),
+            { exists: async () => existsSync(path) },
+          ),
+      });
+      const options = {
+        indexHtml: '<!doctype html>app',
+        retainedAssetsDirectory: shared,
+      };
+      const oldApp = createApp(baseEnv, { ...options, distDirectory: blue });
+      const newApp = createApp(baseEnv, { ...options, distDirectory: green });
+      for (const app of [oldApp, newApp]) {
+        for (const [index, name] of names.entries()) {
+          const response = await app.fetch(
+            new Request(`http://localhost/assets/${name}`),
+          );
+          expect(response.status).toBe(200);
+          expect(response.headers.get('cache-control')).toContain('immutable');
+          expect(await response.text()).toBe(
+            index === 0 ? 'old JavaScript' : 'new JavaScript',
+          );
+        }
+      }
+      await rm(blue, { recursive: true });
+      const response = await newApp.fetch(
+        new Request(`http://localhost/assets/${names[0]}`),
+      );
+      expect(await response.text()).toBe('old JavaScript');
+      for (const pathname of [
+        '/assets/missing-DDDDDDD4.js',
+        '/sw.js',
+        '/pwa-recovery.js',
+      ]) {
+        const missing = await newApp.fetch(
+          new Request(`http://localhost${pathname}`),
+        );
+        expect(missing.status).toBe(404);
+        expect(missing.headers.get('cache-control')).toBe('no-store');
+        expect(await missing.text()).not.toContain('<!doctype');
+      }
+    } finally {
+      vi.unstubAllGlobals();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('the offline recovery script runs under the strict CSP at a base path', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-offline-csp-'));
+    try {
+      await writeFile(
+        join(directory, 'offline.html'),
+        '<!doctype html><script src="/pwa-recovery.js"></script>',
+      );
+      vi.stubGlobal('Bun', {
+        file: (path: string) =>
+          Object.assign(
+            new Blob([existsSync(path) ? readFileSync(path) : '']),
+            { exists: async () => existsSync(path) },
+          ),
+      });
+      const app = createApp(
+        { ...baseEnv, BASE_PATH: '/tale' },
+        { distDirectory: directory },
+      );
+      // The edge strips BASE_PATH before forwarding to this server.
+      const response = await app.fetch(
+        new Request('http://localhost/offline.html'),
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('X-Tale-PWA-Offline')).toBe('1');
+      expect(await response.text()).toContain('src="/tale/pwa-recovery.js"');
+      expect(response.headers.get('content-security-policy')).toMatch(
+        /script-src [^;]*'self'/,
+      );
+      expect(
+        response.headers
+          .get('content-security-policy')
+          ?.split(';')
+          .find((part) => part.trim().startsWith('script-src')),
+      ).not.toContain("'unsafe-inline'");
+      const precache = await app.fetch(
+        new Request('http://localhost/offline.html?__tale_offline=1'),
+      );
+      expect(precache.status).toBe(200);
+      expect(precache.headers.get('X-Tale-PWA-Offline')).toBe('1');
+      expect(await precache.text()).toBe(
+        '<!doctype html><script src="/pwa-recovery.js"></script>',
+      );
+    } finally {
+      vi.unstubAllGlobals();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('cacheControlForStaticPath', () => {
   const IMMUTABLE = 'public, max-age=31536000, immutable';
@@ -1238,6 +1362,63 @@ describe('SPA shell TALE_CONTACT_SUPPORT_URL', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const env = await pageEnvWith('javascript:alert(1)');
     expect(env).not.toHaveProperty('TALE_CONTACT_SUPPORT_URL');
+  });
+});
+
+/**
+ * A downloaded set of backup codes is named like the authenticator entry it
+ * backs up, so the web tier hands the page the two settings the backend names
+ * entries after, normalized as the backend reads them, and leaves out a value
+ * the backend would refuse.
+ */
+describe('SPA shell authenticator settings', () => {
+  const indexHtml =
+    "<!doctype html><html><head></head><body><script>window.__ENV__ = '__ENV_PLACEHOLDER__';</script></body></html>";
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  async function pageEnvWith(
+    clientName: string | undefined,
+    environment: string | undefined,
+  ) {
+    vi.stubEnv('SITE_URL', 'https://tale.example.com');
+    vi.stubEnv('TOTP_CLIENT_NAME', clientName);
+    vi.stubEnv('TOTP_ENVIRONMENT', environment);
+    const app = createApp(undefined, { indexHtml });
+    const res = await app.fetch(new Request('http://platform:3000/'));
+    expect(res.status).toBe(200);
+    const injected = /window\.__ENV__ = (\{[^<]*\});/.exec(await res.text());
+    return JSON.parse(injected?.[1] ?? '{}') as Record<string, unknown>;
+  }
+
+  test('hands the page the client name and environment, normalized', async () => {
+    const env = await pageEnvWith(' Example \t plus ', ' te ');
+    expect(env).toMatchObject({
+      TOTP_CLIENT_NAME: 'Example plus',
+      TOTP_ENVIRONMENT: 'TE',
+    });
+  });
+
+  test('leaves both out when unset', async () => {
+    const env = await pageEnvWith(undefined, undefined);
+    expect(env).not.toHaveProperty('TOTP_CLIENT_NAME');
+    expect(env).not.toHaveProperty('TOTP_ENVIRONMENT');
+  });
+
+  test('leaves out a value the backend would refuse, with a warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const env = await pageEnvWith('Example: Admin', '<TE>');
+    expect(env).not.toHaveProperty('TOTP_CLIENT_NAME');
+    expect(env).not.toHaveProperty('TOTP_ENVIRONMENT');
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('Ignoring TOTP_CLIENT_NAME'),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('Ignoring TOTP_ENVIRONMENT'),
+    );
   });
 });
 

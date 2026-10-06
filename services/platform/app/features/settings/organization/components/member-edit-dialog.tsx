@@ -70,6 +70,7 @@ export function EditMemberDialog({
   currentUserMemberId,
 }: EditMemberDialogProps) {
   const { t } = useT('settings');
+  const { t: tRoles } = useT('roles');
   const { t: tCommon } = useT('common');
   const { t: tAuth } = useT('auth');
 
@@ -264,11 +265,11 @@ export function EditMemberDialog({
               disabled={isEditingSelf}
               label={t('form.role')}
               options={[
-                { value: 'admin', label: t('roles.admin') },
-                { value: 'developer', label: t('roles.developer') },
-                { value: 'editor', label: t('roles.editor') },
-                { value: 'member', label: t('roles.member') },
-                { value: 'disabled', label: t('roles.disabled') },
+                { value: 'admin', label: tRoles('admin') },
+                { value: 'developer', label: tRoles('developer') },
+                { value: 'editor', label: tRoles('editor') },
+                { value: 'member', label: tRoles('member') },
+                { value: 'disabled', label: tRoles('disabled') },
               ]}
             />
           )}

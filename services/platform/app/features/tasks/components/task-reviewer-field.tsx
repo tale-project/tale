@@ -19,7 +19,11 @@ import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useSetTaskReviewer } from '../hooks/mutations';
-import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  useActorDirectory,
+  useProvidedActorDirectory,
+  type ActorDirectory,
+} from '../hooks/use-actor-directory';
 import type { TaskDoc } from '../lib/display';
 import {
   reviewerBlockedMessage,
@@ -27,12 +31,7 @@ import {
 } from '../lib/reviewer-refusal';
 import { ReviewerPicker } from './reviewer-picker';
 
-/** The task-specific read keeps the pending review identity and its configured
- * successor together. A stale picker cannot redirect another result. */
-export function TaskReviewerField({
-  task,
-  canEdit,
-}: {
+interface TaskReviewerFieldProps {
   task: Pick<
     TaskDoc,
     | '_id'
@@ -44,6 +43,37 @@ export function TaskReviewerField({
     | 'reviewerAgentId'
   >;
   canEdit: boolean;
+}
+
+/** The task-specific read keeps the pending review identity and its configured
+ * successor together. A stale picker cannot redirect another result. Names
+ * come from the directory the task provides, or one read here outside it. */
+export function TaskReviewerField(props: TaskReviewerFieldProps) {
+  const provided = useProvidedActorDirectory(
+    props.task.organizationId,
+    props.task.projectId,
+  );
+  return provided ? (
+    <TaskReviewerFieldBody {...props} directory={provided} />
+  ) : (
+    <TaskReviewerFieldOwnDirectory {...props} />
+  );
+}
+
+function TaskReviewerFieldOwnDirectory(props: TaskReviewerFieldProps) {
+  const directory = useActorDirectory(
+    props.task.organizationId,
+    props.task.projectId,
+  );
+  return <TaskReviewerFieldBody {...props} directory={directory} />;
+}
+
+function TaskReviewerFieldBody({
+  task,
+  canEdit,
+  directory: { resolveActor },
+}: TaskReviewerFieldProps & {
+  directory: Pick<ActorDirectory, 'resolveActor'>;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -56,10 +86,6 @@ export function TaskReviewerField({
     taskId: string;
     expected: SetTaskReviewerInput['expected'];
   } | null>(null);
-  const { resolveActor } = useActorDirectory(
-    task.organizationId,
-    task.projectId,
-  );
   const { agents, isLoading: agentsLoading } = useProjectAgents(
     asProjectId(task.projectId),
   );

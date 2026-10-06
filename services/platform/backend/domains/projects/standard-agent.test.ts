@@ -559,7 +559,7 @@ describe('ensureStandardAgent — the door a Member hands a project work through
     expect(insertManagedProjectAgent).not.toHaveBeenCalled();
   });
 
-  it('creates nothing while the organization switched it off', async () => {
+  it('creates nothing while the organization switched it off [PROJ-R11]', async () => {
     readGovernancePolicyForOrg.mockResolvedValue({ enabled: false });
 
     await expect(
@@ -568,7 +568,7 @@ describe('ensureStandardAgent — the door a Member hands a project work through
     expect(insertManagedProjectAgent).not.toHaveBeenCalled();
   });
 
-  it('refuses an archived project', async () => {
+  it('refuses an archived project [PROJ-R11]', async () => {
     loadProjectOrThrow.mockResolvedValue({
       id: 'project-1',
       organizationId: 'org-1',

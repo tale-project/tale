@@ -3,7 +3,7 @@
  * machinery (`@tale/ui/docs/redirects`, shared with docs.tale.dev). Three
  * kinds of address answer a 301 to a real guide before static serving:
  *
- *  - `/docs` itself — the navigation's first guide is the front door (the
+ *  - `/docs` — the navigation's first guide is the front door (the
  *    client route does the same after hydration, but a crawler, a link
  *    checker or an agent reading the raw answer only sees the server's);
  *  - a section folder with no guide of its own (`/docs/components`) — the

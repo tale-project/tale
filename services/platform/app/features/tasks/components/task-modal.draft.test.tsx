@@ -51,12 +51,15 @@ vi.mock('../hooks/mutations', async (importOriginal) => ({
   useCreateTask: () => ({ mutateAsync: mutations.createTask }),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
     resolveActor: () => ({ name: 'Teammate' }),
   }),
   useAssignableActors: () => ({
+    subjectEntries: [],
     assignableMembers: [],
     assignableAgents: [{ type: 'agent', id: 'agent-1', name: 'Analyst' }],
     agents: [],

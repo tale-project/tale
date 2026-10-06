@@ -3,6 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { parseImageHistorySizeBytes } from '../../../services/platform/tests/integration/lib/docker';
+
 const repository = resolve(import.meta.dir, '../../..');
 const library = join(
   repository,
@@ -18,7 +20,7 @@ async function fixture() {
   temporary.push(directory);
   await writeFile(
     join(directory, 'docker'),
-    '#!/bin/sh\nprintf "%s\\n" "$*" >> "$PROOF_DIR/calls"\nprintf "%s\\n" "$METADATA"\nexit "$DOCKER_EXIT"\n',
+    '#!/bin/sh\nprintf "%s\\n" "$*" >> "$PROOF_DIR/calls"\nif [ "$2" = history ]; then printf "%s\\n" "$HISTORY"; else printf "%s\\n" "$METADATA"; fi\nexit "$DOCKER_EXIT"\n',
     { mode: 0o755 },
   );
   return directory;
@@ -48,6 +50,7 @@ async function execute(
   return { exit, stdout, stderr };
 }
 const inspect = `import {imageMetadata} from ${JSON.stringify(library)}; console.log(JSON.stringify(await imageMetadata("test-image:latest")));`;
+const unpacked = `import {imageUnpackedSizeBytes} from ${JSON.stringify(library)}; console.log(await imageUnpackedSizeBytes("test-image:latest"));`;
 const metadata = {
   Config: {
     Labels: {
@@ -59,6 +62,57 @@ const metadata = {
   },
   Size: 5 * 1024 * 1024,
 };
+
+test('unpacked image size sums every retained layer and zero-byte metadata layer', () => {
+  expect(parseImageHistorySizeBytes('0\n2048\n0\n3072\n')).toBe(5120);
+  expect(parseImageHistorySizeBytes('1\r\n2\r\n')).toBe(3);
+  expect(parseImageHistorySizeBytes('0\n')).toBe(0);
+});
+
+test.each([
+  '',
+  '1\n\n2',
+  '1.2MB',
+  '-1',
+  '1.5',
+  '1e6',
+  'NaN',
+  '9007199254740992',
+  '9007199254740991\n1',
+])(
+  'unpacked image size refuses missing, rounded or unsafe byte data: %j',
+  (output) => {
+    expect(() => parseImageHistorySizeBytes(output)).toThrow();
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'unpacked image reader requests exact byte sizes instead of compressed metadata',
+  async () => {
+    const directory = await fixture();
+    const result = await execute(unpacked, directory, {
+      HISTORY: '0\n2048\n3072',
+    });
+    expect(result.exit, result.stderr).toBe(0);
+    expect(result.stdout.trim()).toBe('5120');
+    expect((await readFile(join(directory, 'calls'), 'utf8')).trim()).toBe(
+      'image history --no-trunc --human=false --format={{.Size}} test-image:latest',
+    );
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'failed unpacked image history cannot pass a budget with zero bytes',
+  async () => {
+    const directory = await fixture();
+    const result = await execute(unpacked, directory, {
+      HISTORY: '0',
+      DOCKER_EXIT: '7',
+    });
+    expect(result.exit).not.toBe(0);
+    expect(result.stderr).toContain('Could not read unpacked image size');
+  },
+);
 
 test.skipIf(process.platform === 'win32')(
   'one image-specific inspection supplies labels, user, exact env, health and size',
@@ -149,6 +203,7 @@ async function imageHarness(
   gateway = '',
   metadataFailure = '',
   gatewaySize = 255,
+  runtimeHistory: { stdout?: string; exitCode?: number } = {},
 ) {
   await writeFile(
     join(directory, 'docker'),
@@ -172,6 +227,9 @@ elif args[:2] == ['image', 'inspect']:
         if gateway:
             with open(os.environ['PROOF_DIR'] + '/gateway-size', 'w') as stream: stream.write(str(size))
         print(json.dumps(dict(Config=dict(Labels={'org.opencontainers.image.source':'source'}, User=case if case in ('root', 'root:app', '0:10001') else '10001', Env=json.loads(os.environ['SECRET']) if os.environ['SECRET'].startswith('[') else [os.environ['SECRET']] if os.environ['SECRET'] else [], Healthcheck=dict(Test=['NONE'] if case == 'health' else ['CMD', 'true'])), Size=size)))
+elif args[:2] == ['image', 'history']:
+    print(os.environ['RUNTIME_HISTORY'])
+    sys.exit(int(os.environ['HISTORY_EXIT']))
 elif args[0] == 'run':
     if args[-2:] == ['-c', 'ls /app/system/providers | head -1; ls /app/builtin | head -1; stat -c %U /app/data']:
         print('provider\\nbuiltin\\napp')
@@ -199,8 +257,47 @@ else:
     GATEWAY_CASE: gateway,
     METADATA_FAILURE: metadataFailure,
     GATEWAY_SIZE: String(gatewaySize * 1024 * 1024),
+    RUNTIME_HISTORY: runtimeHistory.stdout ?? '0\n1048576\n0',
+    HISTORY_EXIT: String(runtimeHistory.exitCode ?? 0),
   });
 }
+
+test.skipIf(process.platform === 'win32').each([
+  ['exact budget', `${6000 * 1024 * 1024}`, 0, '6000 MB ≤ 6000 MB budget'],
+  [
+    'one byte over budget',
+    `${6000 * 1024 * 1024}\n1`,
+    1,
+    '6001 MB exceeds 6000 MB budget',
+  ],
+  ['rounded bytes', '5.2GB', 1, 'Invalid unpacked image layer size'],
+  ['missing history', '', 1, 'Invalid unpacked image layer size'],
+] as const)(
+  'runtime disk gate judges retained unpacked layers with tiny packed metadata: %s',
+  async (_label, history, expectedExit, diagnostic) => {
+    const directory = await fixture();
+    const result = await imageHarness(directory, '', '', '', '', 255, {
+      stdout: history,
+    });
+    expect(result.exit, result.stdout + result.stderr).toBe(expectedExit);
+    expect(result.stdout + result.stderr).toContain(diagnostic);
+    if (expectedExit !== 0)
+      expect(result.stdout).not.toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'runtime disk gate fails closed when history lookup fails despite valid metadata',
+  async () => {
+    const directory = await fixture();
+    const result = await imageHarness(directory, '', '', '', '', 255, {
+      exitCode: 7,
+    });
+    expect(result.exit).toBe(1);
+    expect(result.stderr).toContain('Could not read unpacked image size');
+    expect(result.stdout).not.toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);
 
 test.skipIf(process.platform === 'win32')(
   'the actual image harness resolves Compose once and inspects each image once',
@@ -220,9 +317,20 @@ test.skipIf(process.platform === 'win32')(
       calls.filter(
         (args) =>
           args[0] === 'image' &&
+          args[1] === 'inspect' &&
           args.some((arg) => arg.startsWith('--format=')),
       ),
     ).toHaveLength(8);
+    expect(calls.filter((args) => args[1] === 'history')).toEqual([
+      [
+        'image',
+        'history',
+        '--no-trunc',
+        '--human=false',
+        '--format={{.Size}}',
+        'tale-sandbox-runtime:latest',
+      ],
+    ]);
     for (const image of [
       'platform',
       'db',
@@ -289,8 +397,12 @@ test.skipIf(process.platform === 'win32').each([255, 300])(
     expect(result.stdout).toContain(
       `sandbox-llm-gateway: ${size} MB ≤ 300 MB budget`,
     );
-    expect(result.stdout).toContain('Tests: 45');
-    expect(result.stdout).toContain('Passed: 45');
+    expect(result.stdout).toContain('Tests: 47');
+    expect(result.stdout).toContain('Passed: 47');
+    for (const uid of [65534, 10001])
+      expect(result.stdout).toContain(
+        `sandbox-runtime: SSH agent and HTTP CONNECT work as uid ${uid}`,
+      );
     expect(result.stdout).toContain('Failed: 0');
     expect(result.stdout).toContain('ALL IMAGE VALIDATION TESTS PASSED');
   },
@@ -318,8 +430,8 @@ test.skipIf(process.platform === 'win32').each([
     expect(result.stdout).toContain(
       `sandbox-llm-gateway: ${sizeMb} MB ≤ 300 MB budget`,
     );
-    expect(result.stdout).toContain('Tests: 45');
-    expect(result.stdout).toContain('Passed: 45');
+    expect(result.stdout).toContain('Tests: 47');
+    expect(result.stdout).toContain('Passed: 47');
     expect(result.stdout).toContain('Failed: 0');
     expect(result.stdout).toContain('ALL IMAGE VALIDATION TESTS PASSED');
   },

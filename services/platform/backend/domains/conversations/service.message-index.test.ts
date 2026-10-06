@@ -171,14 +171,14 @@ describe('addMessageToConversation — indexing an inbound email body', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('queues nothing for mail landing on a conversation marked spam', async () => {
+  it('queues nothing for mail landing on a conversation marked spam [CONV-R13]', async () => {
     const { tx } = txDouble({ conversation: { status: 'spam' } });
     await addMessageToConversation(tx, inbound);
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 });
 
-describe('deleteConversation — releasing the indexed bodies', () => {
+describe('deleteConversation — releasing the indexed bodies [CONV-R13]', () => {
   it('queues the release of its inbound emails in the delete’s own transaction', async () => {
     const { tx, statements, events } = txDouble({
       indexedMessageIds: ['msg_1', 'msg_2'],
@@ -236,7 +236,7 @@ describe('deleteConversation — releasing the indexed bodies', () => {
   });
 });
 
-describe('a spam verdict — the bulk verb', () => {
+describe('a spam verdict — the bulk verb [CONV-R13]', () => {
   const actor = { userId: 'user_admin' };
 
   it('queues the release of the conversations it marks spam', async () => {

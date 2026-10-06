@@ -77,7 +77,7 @@ beforeEach(() => {
   retireTeamScopes.mockResolvedValue(RETIREMENT);
 });
 
-describe('syncTeamsFromGroupNames — audit rows', () => {
+describe('syncTeamsFromGroupNames — audit rows [SSO-R9]', () => {
   it('records the team it creates and the membership it grants, as the sync', async () => {
     const { sql, statements } = fakeSql((s) => {
       if (s.text.startsWith('INSERT INTO "team" (')) return [{ id: 'team-1' }];

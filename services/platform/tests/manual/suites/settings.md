@@ -196,7 +196,7 @@ run.
   The members table renders under the description
   (`settings.organization.membersDescription`) with the current owner row;
   search (`settings.organization.searchMember`) narrows it; roles render from
-  `settings.roles.*` (Owner/Admin/Developer/Editor/Member)
+  `roles.*` (Owner/Admin/Developer/Editor/Member)
 - [ ] `SET-F15` · **Add member (new account)** — Same page → **Add member**
   (`settings.organization.addMember`) → fill **Name** / **Email** /
   **Password** (`settings.form.name` / `settings.form.email` /
@@ -470,7 +470,7 @@ run.
 - [ ] `SET-F35` · **Enterprise SSO configure** —
   `/dashboard/{org}/settings/enterprise-sso` → pick a **Protocol**
   (`settings.enterpriseSso.protocolLabel`; options
-  `settings.enterpriseSso.protocol.*`) → fill issuer/client fields
+  `auth.sso.protocol.*`) → fill issuer/client fields
   (`settings.enterpriseSso.issuerLabel` / `…clientIdLabel` /
   `…clientSecretLabel`) → **Test connection** (`settings.enterpriseSso.test`)
   → header **Save**; in **SCIM provisioning**
@@ -586,7 +586,7 @@ run.
   `/dashboard/{org}/settings/account` (its `#role` anchor) as an editor, then
   as an owner → The **Your role** section (`settings.account.role.title`, its
   description `settings.account.role.description`) sits above **Your teams**
-  and shows the role as a translated badge (`settings.roles.editor`, never the
+  and shows the role as a translated badge (`roles.editor`, never the
   raw `editor`); only the owner sees **Manage members**
   (`settings.account.role.manageLink`) to `/dashboard/{org}/settings/members`;
   hovering the name in the profile menu reads the name and the same translated
@@ -863,6 +863,19 @@ run.
   `settings.providers.credential.tasksOnly` under its name. In `en`, `de`,
   `de-CH` (which spells *ausser*) and `fr`, both texts wrap without clipping
   at desktop and narrow widths.
+- [ ] `SET-F75` · **Paste a Claude OAuth token, then replace it** —
+  `/dashboard/{org}/settings/providers` → **Add credential** → Anthropic →
+  **Authentication method** **Subscription key**
+  (`settings.providers.authMethod.subscriptionKey`) → paste a Claude OAuth
+  token and save → the row appears with **Subscription key** and the tasks-only
+  note. Open the row menu, choose the replacement action
+  (`settings.providers.replace.subscriptionKeyTitle`), paste a second token and
+  save → the dialog closes with the saved toast and neither token is shown
+  again. Run a task on a Claude Code project agent whose model this credential
+  serves → the run starts and its session carries the newest token in
+  `CLAUDE_CODE_OAUTH_TOKEN` with `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY`
+  empty. Chat lists no model that only this credential serves
+  ([CHAT-F59](chat.md)).
 
 ## Boundary & error tests
 
@@ -963,6 +976,19 @@ run.
   `settings.account.teams.none`. Unblock, Tab to **Try again** and press
   Enter → the team badges appear without a reload, and the focus is on the
   section, not lost to the page.
+- [ ] `SET-B33` · **Agent runtimes when the health read fails** — With a
+  credential that gives a runtime its models (`SET-F21`), block
+  `*/api/app/sandbox/harness-health*` in DevTools (Network → request
+  blocking) and reload `/dashboard/{org}/settings/providers` → once the
+  read's retries give up (a few seconds; a blocked request reads as a lost
+  connection, so the offline notice may cover the page meanwhile) the
+  **Agent runtimes** rows (`settings.providers.harnesses.title`) stay, and
+  above them `settings.providers.harnesses.healthLoadFailed` shows with
+  **Try again** (`common.actions.tryAgain`), never the rows alone as if no
+  runtime were failing. Unblock, Tab to **Try again** and press Enter → the
+  notice leaves without a reload, a runtime that is failing shows
+  `settings.providers.harnesses.degraded` again, and the focus is on the
+  runtime list, not lost to the page.
 - [ ] `SET-B18` · **A used or expired connect command** — Run SET-F56's
   command again on another machine (or any copied command after an hour) →
   `tale sandbox connect` fails saying the command expired or was already used,

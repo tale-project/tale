@@ -1,0 +1,203 @@
+title: Sandboxes
+sessionsTitle: Espaces de travail
+description: >-
+  Les agents de projet réutilisent leur espace entre les tâches. Les étapes
+  d'un workflow partagent le même espace. L'espace d'un agent de projet est
+  conservé jusqu'au retrait de son agent, de son projet ou du membre concerné,
+  ou jusqu'à ce que le nettoyage des espaces de travail le supprime faute
+  d'utilisation. L'état d'exécution et l'allocation
+  du quota sont distincts : un conteneur peut rester actif après la libération
+  de son allocation.
+limits:
+  title: Limites de l'organisation
+  description:
+    Fixe le nombre de sessions que chaque type de travail peut utiliser à la fois.
+    Les sessions occupent le quota au démarrage et pendant le travail.
+    Le total se recalcule automatiquement et ne doit pas dépasser la capacité
+    du déploiement.
+  usage: 'Allouées : {used} / {limit}'
+  usageUnavailable: Allocation indisponible
+  invalidSessions: Saisis un nombre entier entre 1 et 500.
+  total: Total des sessions de ton organisation
+  totalValue: '{total} / {maxSessions}'
+  totalHint: Somme des trois limites / capacité du déploiement. Les autres organisations partagent cette capacité.
+  totalHintWithDevices: Somme des trois limites / capacité du déploiement plus les {deviceSessions} sandboxes de tes appareils. Les autres organisations partagent la capacité du déploiement.
+  totalExceedsDeployment: Le total de {total} sessions dépasse la capacité du déploiement de {maxSessions}. Réduis au moins une limite pour enregistrer.
+  totalExceedsCapacity: 'Le total de {total} sessions dépasse la capacité de {maxSessions} : {deploymentSessions} dans le déploiement et {deviceSessions} sur tes appareils. Réduis au moins une limite pour enregistrer.'
+  capacityUnavailable: La capacité du déploiement est indisponible. Tu peux abaisser les limites ; actualise les données de l'infrastructure avant d'en augmenter une.
+  capacityLoading: Vérification de la capacité du déploiement…
+  saveFailed: Impossible d'enregistrer les limites des sandboxes
+quota:
+  budgets:
+    project: Sessions d'agent de projet
+    workflow: Sessions de workflow
+    render: Sessions de rendu
+  budgetHints:
+    project: Les agents de projet réutilisent une sandbox entre leurs tâches.
+    workflow: Les étapes agent et script partagent une sandbox par exécution de workflow.
+    render: Des sandboxes temporaires rendent les pages pendant l'exploration des sites.
+cleanup:
+  title: Nettoyage des espaces de travail
+  description:
+    Les agents de projet gardent leurs fichiers dans des espaces de travail
+    entre deux exécutions. Un espace de travail est supprimé immédiatement quand
+    son agent, son projet ou le membre concerné est retiré. Les espaces de
+    travail sous conservation légale ne sont pas supprimés.
+  deleteUnused: Supprimer les espaces de travail inutilisés
+  deleteUnusedHint: Supprime un espace de travail après le nombre de jours sans utilisation indiqué ci-dessous. Les espaces de travail épinglés sont conservés.
+  unusedDays: Jours sans utilisation
+  unusedDaysHint: Les jours se comptent à partir de la dernière fois que l'agent a travaillé dans l'espace de travail. Quand tu actives la suppression ou que tu raccourcis la période, aucun espace de travail n'est supprimé avant que ce nombre de jours ne se soit entièrement écoulé.
+  invalidDays: Saisis un nombre entier entre 1 et 3650.
+  loadFailed: Impossible de charger les paramètres de nettoyage des espaces de travail. Recharge la page pour réessayer.
+  saveFailed: Impossible d'enregistrer les paramètres de nettoyage des espaces de travail
+capacity:
+  title: Capacité de l'infrastructure
+  description: >-
+    Environnements réellement actifs et ressources mesurées sur l'hôte.
+    Ces chiffres peuvent différer des allocations : un environnement peut
+    rester actif après la fin d'une tâche.
+  refresh: Actualiser
+  hostSessions: Sandboxes du déploiement
+  namespaceSessions: Sandboxes du déploiement (namespace)
+  organizationSessions: Sandboxes de ton organisation
+  slots: '{used} / {limit}'
+  sessionStates: '{running} actives · {starting} au démarrage'
+  sessionSlotsHint: Actuellement actives ou au démarrage / capacité du déploiement, partagée par toutes les organisations.
+  organizationSessionsHint: Actuellement actives ou au démarrage, y compris les sandboxes inactives conservées pour être réutilisées.
+  cpu: Utilisation du CPU de l'hôte
+  cpuUsage: '{used} / {total} cœurs'
+  cpuHint: Mesure sur l'ensemble des processus de l'hôte.
+  memory: Mémoire de l'hôte utilisée
+  memoryUsage: '{used} / {total} Gio'
+  memoryHint: Mémoire utilisée et totale de l'hôte, y compris les autres services.
+  unknownValue: Indisponible
+  operatorLimits:
+    Toutes les organisations partagent la capacité fixée par l'opérateur.
+    Une place libre ne garantit pas assez de CPU ou de mémoire pour une nouvelle sandbox.
+  observedAt: 'Relevé : {time}'
+  scopes:
+    host: Ensemble de l'hôte
+    namespace: Namespace Kubernetes ; mesures des ressources de l'hôte indisponibles
+  notConfigured: Ce déploiement n'a pas d'infrastructure de sandbox configurée.
+  unreachable: Impossible d'actualiser les données de l'infrastructure. L'état d'exécution et les ressources utilisées sont inconnus.
+columns:
+  owner: Espace de travail
+  agent: Agent
+  status: Statut
+  task: Tâches en cours
+  spend: Coût
+  created: Créée
+status:
+  runtime:
+    running: Active
+    starting: Au démarrage
+    stopped: Arrêtée
+    unknown: Inconnue
+  quotaInUse: Quota alloué
+  quotaReleased: Quota libéré
+  pausedBudget: En pause (budget)
+  pinned: Épinglée
+  deletesOn: Suppression prévue le {date}, sauf nouvelle utilisation
+  destroying: Suppression…
+  destroyFailed: Non supprimée
+task:
+  none: Aucune tâche active
+  project: '{count, plural, one {Tâche de projet} other {# tâches de projet}}'
+  workflow: '{count, plural, one {Exécution de workflow} other {# exécutions de workflow}}'
+  active: '{count, plural, one {Exécution active} other {# exécutions actives}}'
+actions:
+  stop: Arrêter la tâche
+  pin: Épingler
+  unpin: Détacher
+  destroy: Supprimer
+destroyConfirm:
+  title: Supprimer la sandbox ?
+  description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Une fois la sandbox supprimée, le prochain lancement de l'agent en crée une nouvelle.
+  confirm: Supprimer
+toast:
+  stopped: Tâche arrêtée
+  pinned: Sandbox épinglée
+  unpinned: Sandbox détachée
+  destroying: Suppression de la sandbox en cours
+  destroyingDescription: Elle disparaît de la liste dès que son espace de travail est supprimé.
+  error: Échec de l'action
+empty:
+  title: Aucun espace de travail pour le moment
+  description:
+    L'espace de travail d'un agent de projet apparaît après sa première tâche. Il
+    est conservé jusqu'au retrait de son agent, de son projet ou du membre
+    concerné, ou jusqu'à ce que le nettoyage des espaces de travail le supprime
+    faute d'utilisation. L'espace d'une exécution de workflow est récupéré à la
+    fin de l'exécution. Les chiffres de capacité ci-dessus incluent les sessions
+    temporaires d'exploration.
+accessDenied: Tu as besoin d'un accès développeur ou admin pour gérer les sandboxes.
+deletedAgent: Agent supprimé
+devices:
+  title: Appareils
+  description:
+    Exécute les sandboxes de ton organisation sur tes propres machines. Les
+    nouveaux espaces de travail des agents et des automatisations démarrent sur
+    un appareil connecté qui a de la place, sinon sur le serveur. Un espace de
+    travail reste sur la machine où il a démarré.
+  add: Ajouter un appareil
+  columns:
+    name: Appareil
+    status: Statut
+    sandboxes: Sandboxes
+    machine: Machine
+    version: Version
+    lastSeen: Dernier contact
+  status:
+    online: En ligne
+    updating: Mise à jour en cours
+    outdated: Mise à jour requise
+    update_failed: Échec de la mise à jour
+    offline: Hors ligne
+  platform: '{os} · {arch}'
+  sandboxCount: '{used} / {limit}'
+  lastSeenNow: Maintenant
+  machine: '{cpus, plural, one {# processeur} other {# processeurs}} · {memory} Gio'
+  updatingTo: 'Mise à jour vers {version}'
+  updateFailedHint: La mise à jour vers {version} a échoué. L'appareil réessaie de lui-même.
+  outdatedHint: Utilise une autre version que Tale ({version}). Exécute tale sandbox update sur la machine.
+  empty:
+    title: Aucun appareil pour l'instant
+    description: Ajoute une machine Linux ou macOS avec Docker pour y exécuter les sandboxes de ton organisation.
+  hub:
+    notConfigured: Le service de sandbox de ce déploiement n'accepte pas d'appareils. Demande à ton opérateur d'activer le hub d'appareils.
+    unavailable: Impossible de joindre le service de sandbox. L'état des appareils n'est peut-être pas à jour.
+  actions:
+    remove: Retirer
+  removeConfirm:
+    title: 'Retirer {name} ?'
+    description:
+      L'appareil cesse immédiatement d'exécuter des sandboxes pour ton
+      organisation. Ses espaces de travail restent sur la machine mais ne sont
+      plus accessibles depuis Tale.
+    confirm: Retirer l'appareil
+  toast:
+    removed: Appareil retiré
+    error: Impossible de retirer l'appareil
+  addDialog:
+    title: Ajouter un appareil
+    description:
+      Exécute cette commande dans un terminal sur la machine à ajouter. Elle
+      installe la CLI Tale et connecte la machine à ton organisation.
+    commandLabel: Installer et connecter
+    copyCommand: Copier la commande
+    copied: Copié
+    requirements:
+      Il faut Docker sous Linux ou macOS et un accès HTTPS sortant vers ce site.
+      L'appareil continue de fonctionner après un redémarrage et se met à jour
+      tout seul quand Tale est mis à jour.
+    expires: La commande ne fonctionne qu'une fois, dans l'heure.
+    cliInstalled: La CLI Tale est déjà installée ? Exécute plutôt ceci
+    generating: Création de la commande de connexion…
+    generateFailed: Impossible de créer la commande de connexion.
+    retry: Réessayer
+    waiting: En attente de la connexion de l'appareil…
+    connected: '{name} est connecté.'
+runsOn:
+  server: Sur le serveur
+  device: 'Sur {name}'
+  deviceOffline: 'Sur {name} (hors ligne)'

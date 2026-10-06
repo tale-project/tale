@@ -182,9 +182,15 @@ function buildRecord<K extends string, V>(
  *   ]}
  * />
  *
- * <ViewDialog open={dialogs.isOpen.view} onOpenChange={dialogs.setOpen.view} />
- * <EditDialog open={dialogs.isOpen.edit} onOpenChange={dialogs.setOpen.edit} />
- * <DeleteDialog open={dialogs.isOpen.delete} onOpenChange={dialogs.setOpen.delete} />
+ * {dialogs.mounted.view && (
+ *   <ViewDialog open={dialogs.isOpen.view} onOpenChange={dialogs.setOpen.view} />
+ * )}
+ * {dialogs.mounted.edit && (
+ *   <EditDialog open={dialogs.isOpen.edit} onOpenChange={dialogs.setOpen.edit} />
+ * )}
+ * {dialogs.mounted.delete && (
+ *   <DeleteDialog open={dialogs.isOpen.delete} onOpenChange={dialogs.setOpen.delete} />
+ * )}
  * ```
  */
 export function useEntityRowDialogs<T extends string>(dialogKeys: T[]) {
@@ -194,24 +200,26 @@ export function useEntityRowDialogs<T extends string>(dialogKeys: T[]) {
   const [openStates, setOpenStates] = useState<Record<T, boolean>>(() =>
     buildRecord(keysRef.current, () => false),
   );
-
-  const open = useMemo(
-    () =>
-      buildRecord(
-        keysRef.current,
-        (key) => () => setOpenStates((prev) => ({ ...prev, [key]: true })),
-      ),
-    [],
+  const [mountedStates, setMountedStates] = useState<Record<T, boolean>>(() =>
+    buildRecord(keysRef.current, () => false),
   );
 
   const setOpen = useMemo(
     () =>
-      buildRecord(
-        keysRef.current,
-        (key) => (isOpen: boolean) =>
-          setOpenStates((prev) => ({ ...prev, [key]: isOpen })),
-      ),
+      buildRecord(keysRef.current, (key) => (isOpen: boolean) => {
+        setOpenStates((prev) => ({ ...prev, [key]: isOpen }));
+        if (isOpen) {
+          setMountedStates((prev) =>
+            prev[key] ? prev : { ...prev, [key]: true },
+          );
+        }
+      }),
     [],
+  );
+
+  const open = useMemo(
+    () => buildRecord(keysRef.current, (key) => () => setOpen[key](true)),
+    [setOpen],
   );
 
   const closeAll = useCallback(() => {
@@ -220,6 +228,15 @@ export function useEntityRowDialogs<T extends string>(dialogKeys: T[]) {
 
   return {
     isOpen: openStates,
+    /**
+     * The dialogs opened at least once. Mount a row's dialog from its first
+     * open (`{dialogs.mounted.edit && <EditDialog … />}`): a long list then
+     * mounts none of the dialogs its rows carry — each with its form, its
+     * mutations and its translations — until one is asked for. A dialog
+     * stays mounted once it closes, so its exit animation plays and a second
+     * open is instant.
+     */
+    mounted: mountedStates,
     open,
     setOpen,
     closeAll,

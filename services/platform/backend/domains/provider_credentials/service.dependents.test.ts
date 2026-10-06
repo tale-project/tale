@@ -178,7 +178,7 @@ describe('credentialDependents', () => {
   });
 });
 
-describe('deleteCredential', () => {
+describe('deleteCredential [PCRED-R5]', () => {
   it('refuses with 409 CREDENTIAL_IN_USE naming the dependent, nothing deleted', async () => {
     readOrgEmbeddingConfig.mockResolvedValue({
       providerSlug: 'openai',
@@ -211,7 +211,7 @@ describe('deleteCredential', () => {
   });
 });
 
-describe('updateCredential — the embedding credential cannot be disabled or un-defaulted', () => {
+describe('updateCredential — the embedding credential cannot be disabled or un-defaulted [PCRED-R5]', () => {
   const embeddingOnDefault = {
     providerSlug: 'openai',
     model: 'm',

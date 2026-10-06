@@ -16,6 +16,7 @@ import { BrandingProvider } from '@/app/components/branding/branding-provider';
 import { OnlineGate } from '@/app/components/connectivity/online-gate';
 import { BackupCodesDialogProvider } from '@/app/features/settings/account/components/backup-codes-dialog-provider';
 import { useSessionUser } from '@/app/hooks/use-session-user';
+import { useAvailabilityRecovery } from '@/app/lib/backend/use-availability-recovery';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import { installStaleBundleRecovery } from '@/app/lib/stale-bundle-recovery';
 import { getEnv } from '@/lib/env';
@@ -46,6 +47,7 @@ startBrowserAnalytics(
  * tracing is enabled.
  * Adapted reads authenticate independently through their session cookie. */
 function ColdLoadProbe() {
+  useAvailabilityRecovery();
   const { isLoading } = useSessionUser();
   useEffect(() => {
     if (!isLoading) markColdLoad('session-resolved');

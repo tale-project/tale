@@ -11,11 +11,11 @@
 entries:
   - 'metadata'
 
-  # `roles.${role.toLowerCase()}` in member-table.tsx — the `owner` role is
+  # `role.toLowerCase()` under `roles` in role-badge.tsx — the `owner` role is
   # never referenced as a string literal because it can't be assigned through
   # the UI (only inherited from the org creator), so the regex scanner can't
   # see it.
-  - 'settings.roles.owner'
+  - 'roles.owner'
 
   # Notifications written by Convex mutations carry `titleKey` / `bodyKey`
   # strings stored on the row; the client looks them up under the

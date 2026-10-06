@@ -19,7 +19,7 @@ import {
  * settled on reject, schedule on approve) runs in the integration check.
  */
 
-describe('assertRoleMayDecideKind', () => {
+describe('assertRoleMayDecideKind [APV-R9]', () => {
   it('refuses a plain member deciding an erasure approval', () => {
     expect(() => assertRoleMayDecideKind('erasure', 'member')).toThrowError(
       ApprovalError,
@@ -84,7 +84,7 @@ function fakeSql(
   return sql as unknown as Sql;
 }
 
-describe('decideApproval — kinds with a dedicated settle path are refused', () => {
+describe('decideApproval — kinds with a dedicated settle path are refused [APV-R10]', () => {
   /**
    * A task review is decided on the task — moving the card is the decision —
    * so the generic door must refuse it without writing anything: a row
@@ -213,7 +213,7 @@ const approve = {
  * already recorded (audit row, hint and all), the retry met
  * ALREADY_RESOLVED, and the gate admitted the operation anyway (#3706).
  */
-describe('decideApproval — the resume poke after the commit', () => {
+describe('decideApproval — the resume poke after the commit [APV-R11]', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });

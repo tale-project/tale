@@ -53,6 +53,8 @@ const resolveActor = (type: string, id: string) => ({
   isAgent: type === 'agent',
 });
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({ resolveActor }),
   useAssignableActors: () => ({
     scopeReady: true,
@@ -115,15 +117,17 @@ describe('TaskReviewerField', () => {
       const pending = Promise.withResolvers<null>();
       mocks.mutate.mockReturnValueOnce(pending.promise);
       const { user } = render(<TaskReviewerField task={task} canEdit />);
-      const trigger = screen.getByRole('button', { name: 'Reviewer' });
+      const closed = screen.getByRole('button', { name: 'Reviewer' });
       await user.tab();
-      expect(trigger).toHaveFocus();
+      expect(closed).toHaveFocus();
       await user.keyboard('{Enter}');
       await user.type(screen.getByRole('combobox'), 'Review agent');
       await user.keyboard('{ArrowDown}{Enter}');
       await waitFor(() => expect(mocks.mutate).toHaveBeenCalledTimes(1));
 
-      expect(screen.getByRole('button', { name: 'Reviewer' })).toBe(trigger);
+      // Its first use mounted the list in place of the closed trigger; from
+      // there on the list's trigger is the one focus target, through the save.
+      const trigger = screen.getByRole('button', { name: 'Reviewer' });
       expect(trigger).toHaveAttribute('aria-disabled', 'true');
       expect(trigger).toHaveAttribute('aria-busy', 'true');
       expect(trigger).not.toBeDisabled();

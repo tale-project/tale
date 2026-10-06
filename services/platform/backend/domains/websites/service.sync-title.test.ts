@@ -134,7 +134,7 @@ describe('syncSingleWebsite — the scan heartbeat', () => {
   });
 });
 
-describe('syncSingleWebsite — discovered title and description', () => {
+describe('syncSingleWebsite — discovered title and description [WEB-R9]', () => {
   it('fills a row that has none', async () => {
     const { sql, queries } = fakeSql(row(null));
     await syncSingleWebsite(sql, {

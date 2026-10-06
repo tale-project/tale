@@ -76,7 +76,7 @@ const siblingLookup = (text: string) =>
   text.includes('lower(name) = ?');
 
 describe('getOrCreateProjectFolder', () => {
-  it('refuses a folder write on an archived project before any lookup', async () => {
+  it('refuses a folder write on an archived project before any lookup [FOLDER-R5]', async () => {
     // Archived = read-only for the whole project, folders included — the
     // code the project's own writes answer, so the UI says "restore first".
     const archived = fakeTx(() => [], { archived: true });
@@ -92,7 +92,7 @@ describe('getOrCreateProjectFolder', () => {
     );
   });
 
-  it('answers a sibling that differs only in case, with its stored spelling', async () => {
+  it('answers a sibling that differs only in case, with its stored spelling [FOLDER-R7]', async () => {
     const { tx, statements } = fakeTx((text) =>
       siblingLookup(text) ? [{ id: 'f-1', name: 'inbox' }] : [],
     );
@@ -121,7 +121,7 @@ describe('getOrCreateProjectFolder', () => {
     );
   });
 
-  it('re-reads the winner when the insert loses the race, as found', async () => {
+  it('re-reads the winner when the insert loses the race, as found [FOLDER-R8]', async () => {
     const { tx } = fakeTx((text, _values, nth) => {
       // The first lookup sees nothing; the insert answers no row (the
       // index refused it); the re-read finds the concurrent winner.
@@ -170,7 +170,7 @@ describe('renameFolder', () => {
     createdAt: 1,
   };
 
-  it('answers a taken sibling name as a 409, the seen one and the raced one alike', async () => {
+  it('answers a taken sibling name as a 409, the seen one and the raced one alike [FOLDER-R7]', async () => {
     const seen = fakeTx((text) => {
       if (text.includes('FROM app.folders WHERE id = ?')) return [folder];
       if (text.startsWith('SELECT id FROM app.folders')) return [{ id: 'f-9' }];

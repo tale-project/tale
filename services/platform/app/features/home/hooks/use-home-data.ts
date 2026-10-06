@@ -38,6 +38,7 @@ const OPEN_TASK_STATUSES: TaskStatus[] = [
 const INBOX_PAGE_SIZE = 30;
 
 const NO_PROJECTS: readonly ChatProjectSummary[] = [];
+const NO_THREADS: readonly ChatThreadSummary[] = [];
 
 export interface HomeData {
   readonly items: readonly HomeItem[];
@@ -84,6 +85,37 @@ function isInboxStatus(value: unknown): value is InboxStatus {
     value === 'spam' ||
     value === 'archived'
   );
+}
+
+/**
+ * One stream item per thread summary. A refetch of the chat list keeps the
+ * summary of every thread that did not change (react-query shares the
+ * structure of an equal answer), so its item — and with it its row's memo —
+ * survives a send, a hint or a turn in another chat, and only the threads
+ * that moved re-render.
+ */
+const chatItemByThread = new WeakMap<ChatThreadSummary, HomeChatItem>();
+
+function toHomeChatItem(thread: ChatThreadSummary): HomeChatItem {
+  const known = chatItemByThread.get(thread);
+  if (known !== undefined) return known;
+  const item: HomeChatItem = {
+    kind: 'chat',
+    id: thread.id,
+    title: thread.title ?? '',
+    activityAt: thread.lastReplyAt ?? thread.updatedAt ?? thread.createdAt,
+    unread:
+      !thread.generating &&
+      thread.lastReplyAt !== undefined &&
+      thread.lastReplyAt > (thread.lastReadAt ?? 0),
+    projectId: thread.projectId,
+    pinnedAt: thread.pinnedAt,
+    generating: thread.generating,
+    shared: thread.isShared === true || thread.sharedWithProject === true,
+    archived: thread.archived ?? false,
+  };
+  chatItemByThread.set(thread, item);
+  return item;
 }
 
 type ConversationListRow = ReturnType<
@@ -172,7 +204,7 @@ export function useHomeData(
     enabled: myUserId !== undefined,
   });
 
-  const { hasInbox, isLoading: inboxGateLoading } =
+  const { showInbox: hasInbox, isLoading: inboxGateLoading } =
     useInboxAvailability(organizationId);
   const conversations = useListConversationsPaginated({
     organizationId,
@@ -183,6 +215,12 @@ export function useHomeData(
 
   const projects =
     projectsQuery.status === 'ready' ? projectsQuery.data : NO_PROJECTS;
+  const activeThreadRows =
+    threads.status === 'ready' ? threads.data : NO_THREADS;
+  const archivedThreadRows =
+    includeArchived && archivedThreads.status === 'ready'
+      ? (archivedThreads.data.rows ?? NO_THREADS)
+      : NO_THREADS;
 
   const projectKeys = useMemo(() => {
     const keys = new Map<string, string>();
@@ -194,37 +232,17 @@ export function useHomeData(
 
   const chatItems = useMemo((): HomeChatItem[] => {
     const list: ChatThreadSummary[] = [];
-    if (threads.status === 'ready') {
-      list.push(...threads.data);
-    }
-    if (
-      includeArchived &&
-      archivedThreads.status === 'ready' &&
-      archivedThreads.data.rows
-    ) {
+    list.push(...activeThreadRows);
+    if (archivedThreadRows.length > 0) {
       const existingIds = new Set(list.map((t) => t.id));
-      for (const thread of archivedThreads.data.rows) {
+      for (const thread of archivedThreadRows) {
         if (!existingIds.has(thread.id)) {
           list.push(thread);
         }
       }
     }
-    return list.map((thread) => ({
-      kind: 'chat',
-      id: thread.id,
-      title: thread.title ?? '',
-      activityAt: thread.lastReplyAt ?? thread.updatedAt ?? thread.createdAt,
-      unread:
-        !thread.generating &&
-        thread.lastReplyAt !== undefined &&
-        thread.lastReplyAt > (thread.lastReadAt ?? 0),
-      projectId: thread.projectId,
-      pinnedAt: thread.pinnedAt,
-      generating: thread.generating,
-      shared: thread.isShared === true || thread.sharedWithProject === true,
-      archived: thread.archived ?? false,
-    }));
-  }, [threads, archivedThreads, includeArchived]);
+    return list.map(toHomeChatItem);
+  }, [activeThreadRows, archivedThreadRows]);
 
   const taskItems = useMemo((): HomeTaskItem[] => {
     const seen = new Set<string>();
@@ -331,20 +349,12 @@ export function useHomeData(
 
   const threadsById = useMemo(() => {
     const map = new Map<string, ChatThreadSummary>();
-    if (threads.status === 'ready') {
-      for (const thread of threads.data) map.set(thread.id, thread);
-    }
-    if (
-      includeArchived &&
-      archivedThreads.status === 'ready' &&
-      archivedThreads.data.rows
-    ) {
-      for (const thread of archivedThreads.data.rows) {
-        if (!map.has(thread.id)) map.set(thread.id, thread);
-      }
+    for (const thread of activeThreadRows) map.set(thread.id, thread);
+    for (const thread of archivedThreadRows) {
+      if (!map.has(thread.id)) map.set(thread.id, thread);
     }
     return map;
-  }, [threads, archivedThreads, includeArchived]);
+  }, [activeThreadRows, archivedThreadRows]);
 
   return {
     items,

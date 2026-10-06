@@ -52,7 +52,7 @@ describe('emitEvent', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  it('dispatches inside a savepoint on the producing transaction', async () => {
+  it('dispatches inside a savepoint on the producing transaction [EVENT-R1]', async () => {
     dispatch.mockResolvedValue({ started: ['run-1'], refused: false });
     const fake = fakeTx();
 
@@ -75,7 +75,7 @@ describe('emitEvent', () => {
     expect(fake.rolledBack).toBe(0);
   });
 
-  it('rolls a failed dispatch back to the savepoint and keeps the producer alive', async () => {
+  it('rolls a failed dispatch back to the savepoint and keeps the producer alive [EVENT-R2]', async () => {
     dispatch.mockRejectedValue(
       Object.assign(
         new Error('duplicate key value violates unique constraint'),

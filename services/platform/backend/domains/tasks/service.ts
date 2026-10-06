@@ -238,6 +238,34 @@ export const TASK_COLUMNS = `
   updated_at_ms::float8 AS "updatedAt", archived_at_ms::float8 AS "archivedAt"
 `;
 
+/** The long columns a board row leaves out: no card or row shows them, and
+ * a task's own read still carries them. */
+const BOARD_OMITTED_COLUMNS = new Set([
+  'description',
+  'attachments',
+  'outputs',
+  'external_issue AS "externalIssue"',
+]);
+
+/**
+ * The columns a board row carries: {@link TASK_COLUMNS} without the long
+ * ones no card or list row shows — the description (up to 20,000
+ * characters), the attachment and output lists and the external issue
+ * snapshot. A 2,000-task board read all of them, 3.35 MB that every task
+ * change made each open board fetch again. The board's search
+ * still matches the description in its WHERE clause.
+ */
+export const BOARD_TASK_COLUMNS = TASK_COLUMNS.split(',')
+  .map((column) => column.trim())
+  .filter((column) => !BOARD_OMITTED_COLUMNS.has(column))
+  .join(', ');
+
+/** A task row as a board reads it ({@link BOARD_TASK_COLUMNS}). */
+export type BoardTaskRow = Omit<
+  TaskRow,
+  'description' | 'attachments' | 'outputs' | 'externalIssue'
+>;
+
 // ---------------------------------------------------------------------------
 // Guards
 // ---------------------------------------------------------------------------
@@ -837,16 +865,18 @@ export async function recordActivity(
     action: string;
     fromValue?: string;
     toValue?: string;
+    context?: Record<string, unknown>;
   },
 ): Promise<void> {
   await tx`
     INSERT INTO app.task_activity (
       org_id, task_id, project_id, actor_type, actor_id, action,
-      from_value, to_value, created_at_ms
+      from_value, to_value, context, created_at_ms
     ) VALUES (
       ${args.task.organizationId}, ${args.task.id}, ${args.task.projectId},
       ${args.actorType}, ${args.actorId}, ${args.action},
-      ${args.fromValue ?? null}, ${args.toValue ?? null}, ${Date.now()}
+      ${args.fromValue ?? null}, ${args.toValue ?? null},
+      ${args.context === undefined ? null : tx.json(toJson(args.context))}, ${Date.now()}
     )
   `;
   // Every task change writes its activity line, so this is the ONE spot that
@@ -1025,6 +1055,11 @@ async function settleTaskStatusChange(
      * in its own words (the review decision's resolved bell) — a second
      * "status changed" row would be noise. */
     bell?: boolean;
+    /** Source-owned lifecycle can archive and move atomically, and the source
+     * owns recurrence. Other status writers keep their existing choreography. */
+    toArchivedAt?: number | null;
+    repeat?: boolean;
+    context?: Record<string, unknown>;
   },
 ): Promise<TaskRepeatCopy | null> {
   const { task, toStatus } = args;
@@ -1040,7 +1075,11 @@ async function settleTaskStatusChange(
     tx,
     task.projectId,
     taskCountBucket(task),
-    taskCountBucket({ status: toStatus, archivedAt: task.archivedAt }),
+    taskCountBucket({
+      status: toStatus,
+      archivedAt:
+        args.toArchivedAt === undefined ? task.archivedAt : args.toArchivedAt,
+    }),
   );
   await recordActivity(tx, {
     task,
@@ -1049,6 +1088,7 @@ async function settleTaskStatusChange(
     action: 'status.changed',
     fromValue: task.status,
     toValue: toStatus,
+    ...(args.context !== undefined ? { context: args.context } : {}),
   });
   if (args.audit !== undefined) {
     await createAuditLog(
@@ -1089,6 +1129,7 @@ async function settleTaskStatusChange(
       actorId: args.actorId,
     });
   }
+  if (args.repeat === false) return null;
   return await createNextRepeatCopy(tx, {
     task,
     toStatus,
@@ -2245,6 +2286,90 @@ export async function updateTaskStatus(
   return nextTask;
 }
 
+/** An accepted custom-source business result is evidence, never a native Tale
+ * approval. The external-status door owns authorization, binding and CAS; this
+ * seam keeps board counts, rank, run cancellation, history and bells coherent.
+ * It never starts an agent, requests a second review or continues a local series. */
+export async function applyExternalTaskStatusProjection(
+  tx: TransactionSql,
+  args: {
+    task: TaskRow;
+    actorId: string;
+    status: TaskStatus;
+    archived: boolean;
+    context: Record<string, unknown>;
+  },
+): Promise<void> {
+  const { task, status } = args;
+  const statusChanges = task.status !== status;
+  const archiveChanges = (task.archivedAt !== null) !== args.archived;
+  if (
+    statusChanges &&
+    TERMINAL_STATUSES.has(status) &&
+    (await hasOpenChildren(tx, task.id))
+  ) {
+    throw new TaskError('TASK_HAS_OPEN_SUBTASKS', 'Open subtasks remain');
+  }
+  if (statusChanges) {
+    await closePendingTaskReviewOnStatusLeave(tx, {
+      task,
+      toStatus: status,
+      actor: { kind: 'system', actorId: args.actorId },
+    });
+    await cancelLiveAgentRunOnLeave(tx, task, status);
+  }
+  const now = Date.now();
+  const archivedAt = args.archived ? (task.archivedAt ?? now) : null;
+  if (statusChanges || archiveChanges) {
+    const rank = statusChanges
+      ? await computeEndRank(tx, task.projectId, status)
+      : task.rank;
+    await tx`
+      UPDATE app.tasks SET status = ${status}, rank = ${rank},
+        completed_at_ms = ${TERMINAL_STATUSES.has(status) ? (task.completedAt ?? now) : null},
+        archived_at_ms = ${archivedAt}, updated_at_ms = ${now},
+        status_changed_at_ms = ${statusChanges ? now : task.statusChangedAt}
+      WHERE id = ${task.id} AND org_id = ${task.organizationId}
+    `;
+    if (statusChanges) {
+      await settleTaskStatusChange(tx, {
+        task,
+        toStatus: status,
+        actorType: 'agent',
+        actorId: args.actorId,
+        toArchivedAt: archivedAt,
+        repeat: false,
+        context: args.context,
+        bell: !args.archived,
+      });
+    } else {
+      await applyTaskCountTransition(
+        tx,
+        task.projectId,
+        taskCountBucket(task),
+        taskCountBucket({ status, archivedAt }),
+      );
+    }
+    if (archiveChanges) {
+      await recordActivity(tx, {
+        task,
+        actorType: 'agent',
+        actorId: args.actorId,
+        action: args.archived ? 'archived' : 'restored',
+        context: args.context,
+      });
+    }
+  }
+  await recordActivity(tx, {
+    task,
+    actorType: 'agent',
+    actorId: args.actorId,
+    action: 'external_status.projected',
+    toValue: status,
+    context: args.context,
+  });
+}
+
 /**
  * The agent kick every human door that lands a card at `in_progress` shares
  * (the status picker, the drag, and a card CREATED straight into the column):
@@ -3351,6 +3476,10 @@ export interface DecoratedTaskRow extends TaskRow {
   projectKey?: string;
 }
 
+/** A board row decorated for the wire, as {@link DecoratedTaskRow}. */
+export type DecoratedBoardTaskRow = BoardTaskRow &
+  Pick<DecoratedTaskRow, 'labels' | 'folderExists' | 'hasFiles' | 'projectKey'>;
+
 export interface TaskListFilters {
   includeArchived?: boolean;
   status?: string;
@@ -3365,11 +3494,27 @@ export interface TaskListFilters {
   query?: string;
 }
 
+export interface TaskBoardReadOptions extends TaskListFilters {
+  /** Boards omit long bodies by default; false keeps the full compatibility
+   * read. Task details always use the full projection. */
+  summary?: boolean;
+}
+
+interface TaskFolderFacts {
+  existingFolders: Set<string>;
+  foldersWithFiles: Set<string>;
+}
+
+const NO_FOLDER_FACTS: TaskFolderFacts = {
+  existingFolders: new Set(),
+  foldersWithFiles: new Set(),
+};
+
 /** Batch-resolve the page's label ids to catalog DTOs (color derived, the
  * 0.4 rule — the catalog stores names, the palette is deterministic). */
 async function resolveLabelMap(
   sql: Sql,
-  tasks: readonly TaskRow[],
+  tasks: readonly Pick<TaskRow, 'labelIds'>[],
 ): Promise<Map<string, ResolvedTaskLabel>> {
   const ids = [...new Set(tasks.flatMap((task) => task.labelIds))];
   if (ids.length === 0) return new Map();
@@ -3394,33 +3539,44 @@ async function resolveLabelMap(
 async function collectFolderFacts(
   sql: Sql,
   organizationId: string,
-  projectId: string,
-  tasks: readonly TaskRow[],
-): Promise<{ existingFolders: Set<string>; foldersWithFiles: Set<string> }> {
-  const folderIds = [
-    ...new Set(
-      tasks
-        .map((task) => task.externalId)
-        .filter((id): id is string => id !== null),
-    ),
-  ];
-  if (folderIds.length === 0) {
-    return { existingFolders: new Set(), foldersWithFiles: new Set() };
+  tasksByProject: ReadonlyMap<
+    string,
+    readonly Pick<BoardTaskRow, 'externalId'>[]
+  >,
+): Promise<Map<string, TaskFolderFacts>> {
+  const folderIds: string[] = [];
+  const projectIds: string[] = [];
+  for (const [projectId, tasks] of tasksByProject) {
+    const roots = new Set(tasks.map((task) => task.externalId));
+    for (const root of roots) {
+      if (root === null) continue;
+      folderIds.push(root);
+      projectIds.push(projectId);
+    }
   }
-  const rows = await sql<{ rootId: string; hasFiles: boolean }[]>`
+  if (folderIds.length === 0) {
+    return new Map();
+  }
+  const rows = await sql<
+    { rootId: string; projectId: string; hasFiles: boolean }[]
+  >`
     WITH RECURSIVE tree AS (
-      SELECT f.id AS root_id, f.id, 0 AS depth
+      SELECT f.id AS root_id, f.project_id, f.id, 0 AS depth
       FROM app.folders f
-      WHERE f.id = ANY(${folderIds})
-        AND f.org_id = ${organizationId}
-        AND f.project_id = ${projectId}
+      JOIN unnest(${folderIds}::text[], ${projectIds}::text[])
+        AS roots(id, project_id)
+        ON f.id = roots.id AND f.project_id = roots.project_id
+      WHERE f.org_id = ${organizationId}
       UNION ALL
-      SELECT t.root_id, f.id, t.depth + 1
+      SELECT t.root_id, t.project_id, f.id, t.depth + 1
       FROM app.folders f
       JOIN tree t ON f.parent_id = t.id
       WHERE t.depth < 16
+        AND f.org_id = ${organizationId}
+        AND f.project_id = t.project_id
     )
     SELECT root_id AS "rootId",
+           project_id AS "projectId",
            bool_or(EXISTS (
              SELECT 1 FROM app.documents d
              WHERE d.folder_id = tree.id
@@ -3429,21 +3585,26 @@ async function collectFolderFacts(
                AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
            )) AS "hasFiles"
     FROM tree
-    GROUP BY root_id
+    GROUP BY root_id, project_id
   `;
-  return {
-    existingFolders: new Set(rows.map((row) => row.rootId)),
-    foldersWithFiles: new Set(
-      rows.filter((row) => row.hasFiles).map((row) => row.rootId),
-    ),
-  };
+  const facts = new Map<string, TaskFolderFacts>();
+  for (const row of rows) {
+    let project = facts.get(row.projectId);
+    if (project === undefined) {
+      project = { existingFolders: new Set(), foldersWithFiles: new Set() };
+      facts.set(row.projectId, project);
+    }
+    project.existingFolders.add(row.rootId);
+    if (row.hasFiles) project.foldersWithFiles.add(row.rootId);
+  }
+  return facts;
 }
 
-function decorateTaskRow(
-  task: TaskRow,
+function decorateTaskRow<Row extends BoardTaskRow>(
+  task: Row,
   labelMap: ReadonlyMap<string, ResolvedTaskLabel>,
   facts: { existingFolders: Set<string>; foldersWithFiles: Set<string> },
-): DecoratedTaskRow {
+): Row & Pick<DecoratedTaskRow, 'labels' | 'folderExists' | 'hasFiles'> {
   return Object.assign(task, {
     labels: task.labelIds
       .map((id) => labelMap.get(id))
@@ -3455,15 +3616,23 @@ function decorateTaskRow(
   });
 }
 
-async function decorateProjectPage(
+async function decorateProjectPage<Row extends BoardTaskRow>(
   sql: Sql,
   organizationId: string,
   projectId: string,
-  tasks: TaskRow[],
-): Promise<DecoratedTaskRow[]> {
+  tasks: Row[],
+): Promise<
+  (Row & Pick<DecoratedTaskRow, 'labels' | 'folderExists' | 'hasFiles'>)[]
+> {
   const labelMap = await resolveLabelMap(sql, tasks);
-  const facts = await collectFolderFacts(sql, organizationId, projectId, tasks);
-  return tasks.map((task) => decorateTaskRow(task, labelMap, facts));
+  const facts = await collectFolderFacts(
+    sql,
+    organizationId,
+    new Map([[projectId, tasks]]),
+  );
+  return tasks.map((task) =>
+    decorateTaskRow(task, labelMap, facts.get(projectId) ?? NO_FOLDER_FACTS),
+  );
 }
 
 /**
@@ -3511,18 +3680,18 @@ export async function listTasksByProject(
   sql: Sql,
   auth: ProjectAuthContext,
   projectId: string,
-  filters: TaskListFilters = {},
+  filters: TaskBoardReadOptions = {},
 ): Promise<
   {
-    tasks: DecoratedTaskRow[];
+    tasks: DecoratedBoardTaskRow[];
     truncated: boolean;
   } & TaskAccess
 > {
   const project = await loadProjectOrThrow(sql, projectId);
   assertTaskReadable(project, auth);
   const access = boardTaskAccess(project, auth);
-  const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
+  const rows = await sql<BoardTaskRow[]>`
+    SELECT ${sql.unsafe(filters.summary === false ? TASK_COLUMNS : BOARD_TASK_COLUMNS)} FROM app.tasks t
     WHERE project_id = ${projectId}
       AND ${boardFilterClause(sql, filters)}
     ORDER BY status ASC, rank ASC
@@ -3651,14 +3820,14 @@ export async function listTasksForAgent(
 export async function listTasksForAccessibleProjects(
   sql: Sql,
   auth: ProjectAuthContext,
-  filters: TaskListFilters = {},
+  filters: TaskBoardReadOptions = {},
 ): Promise<
   {
-    tasks: DecoratedTaskRow[];
+    tasks: DecoratedBoardTaskRow[];
     truncated: boolean;
   } & TaskAccess
 > {
-  const projects = await listProjects(sql, auth);
+  const projects = await listProjects(sql, auth, { summary: true });
   const access: TaskAccess = {
     canEdit: EDITOR_ROLES.has(auth.role),
     canCreate: auth.role !== 'disabled',
@@ -3669,8 +3838,8 @@ export async function listTasksForAccessibleProjects(
   const projectKeys = new Map(
     projects.map((project) => [project.id, project.key]),
   );
-  const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
+  const rows = await sql<BoardTaskRow[]>`
+    SELECT ${sql.unsafe(filters.summary === false ? TASK_COLUMNS : BOARD_TASK_COLUMNS)} FROM app.tasks t
     WHERE org_id = ${auth.organizationId}
       AND project_id = ANY(${[...projectKeys.keys()]})
       AND ${boardFilterClause(sql, filters)}
@@ -3687,30 +3856,21 @@ export async function listTasksForAccessibleProjects(
 
   // Folder facts are per-project — group the page, stamp, then merge.
   const labelMap = await resolveLabelMap(sql, page);
-  const byProject = new Map<string, TaskRow[]>();
+  const byProject = new Map<string, BoardTaskRow[]>();
   for (const task of page) {
     const group = byProject.get(task.projectId);
     if (group) group.push(task);
     else byProject.set(task.projectId, [task]);
   }
-  const merged = {
-    existingFolders: new Set<string>(),
-    foldersWithFiles: new Set<string>(),
-  };
-  for (const [projectId, projectRows] of byProject) {
-    const facts = await collectFolderFacts(
-      sql,
-      auth.organizationId,
-      projectId,
-      projectRows,
-    );
-    for (const id of facts.existingFolders) merged.existingFolders.add(id);
-    for (const id of facts.foldersWithFiles) merged.foldersWithFiles.add(id);
-  }
+  const facts = await collectFolderFacts(sql, auth.organizationId, byProject);
   return {
     tasks: page.map((task) => {
       const key = projectKeys.get(task.projectId) ?? null;
-      const decorated = decorateTaskRow(task, labelMap, merged);
+      const decorated = decorateTaskRow(
+        task,
+        labelMap,
+        facts.get(task.projectId) ?? NO_FOLDER_FACTS,
+      );
       return key !== null
         ? Object.assign(decorated, { projectKey: key })
         : decorated;
@@ -3791,6 +3951,14 @@ export interface TaskActivityRow {
   createdAt: number;
 }
 
+/**
+ * How much of a changed description the activity read carries. The row keeps
+ * both whole descriptions (up to 20,000 characters each) and the timeline
+ * quotes a line's length of them, so a task edited a few dozen times answered
+ * megabytes of text nobody reads, on every open and every refresh.
+ */
+const ACTIVITY_DESCRIPTION_QUOTE_MAX = 1000;
+
 export async function listTaskActivity(
   sql: Sql,
   auth: ProjectAuthContext,
@@ -3800,7 +3968,7 @@ export async function listTaskActivity(
   const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
-  return sql<TaskActivityRow[]>`
+  const rows = await sql<TaskActivityRow[]>`
     SELECT id::text AS id, org_id AS "organizationId",
            task_id AS "taskId", project_id AS "projectId",
            actor_type AS "actorType", actor_id AS "actorId",
@@ -3811,6 +3979,25 @@ export async function listTaskActivity(
     ORDER BY created_at_ms DESC, id DESC
     LIMIT ${Math.min(limit, 500)}
   `;
+  // The rows are this read's own, fresh from the query: quoted in place.
+  for (const row of rows) {
+    if (row.action === 'description.changed') {
+      row.fromValue = quoteDescription(row.fromValue);
+      row.toValue = quoteDescription(row.toValue);
+    }
+  }
+  return rows;
+}
+
+/** The head of a description, never cut inside a character. */
+function quoteDescription(value: string | null): string | null {
+  if (value === null || value.length <= ACTIVITY_DESCRIPTION_QUOTE_MAX) {
+    return value;
+  }
+  const end = ACTIVITY_DESCRIPTION_QUOTE_MAX;
+  // A high surrogate at the cut opens a pair the cut would split.
+  const code = value.charCodeAt(end - 1);
+  return value.slice(0, code >= 0xd800 && code <= 0xdbff ? end - 1 : end);
 }
 
 // ---------------------------------------------------------------------------
@@ -4720,7 +4907,7 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
   sql: Sql,
   auth: ProjectAuthContext,
 ): Promise<TaskOpsIndicators> {
-  const projects = await listProjects(sql, auth);
+  const projects = await listProjects(sql, auth, { summary: true });
   if (projects.length === 0) {
     return { runningTaskIds: [], askingTaskIds: [], pendingReviews: [] };
   }

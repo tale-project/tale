@@ -9,6 +9,8 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { ChevronLeft, X } from 'lucide-react';
 import * as React from 'react';
 
+import { PagePointerPin } from '../overlays/page-pointer-pin';
+
 // Tracks dialog nesting so a child Dialog opened from inside another
 // Dialog doesn't stack a second 80%-black overlay on top of the parent's.
 // Two `bg-black/80` overlays composite to ~96% black — the screen reads
@@ -189,6 +191,8 @@ export interface DialogProps {
    * close (e.g. a dropdown menu item). Passed to `useRestoreFocus`.
    */
   restoreFocusRef?: React.RefObject<HTMLElement | null>;
+  /** Called after the dialog's close focus restoration handler completes. */
+  onCloseAutoFocus?: (event: Event) => void;
   /**
    * Where focus lands when the overlay opens. `default` is the body's first
    * form field (a form opens ready to type; on a touch screen, where that
@@ -246,6 +250,7 @@ export function Dialog({
   trigger,
   preventCloseAutoFocus = false,
   restoreFocusRef,
+  onCloseAutoFocus,
   openAutoFocus = 'default',
 }: DialogProps) {
   const parentDepth = React.useContext(DialogDepthContext);
@@ -298,10 +303,13 @@ export function Dialog({
                 contentRef.current?.focus({ preventScroll: true });
               }
             }}
-            onCloseAutoFocus={
-              preventCloseAutoFocus ? (e) => e.preventDefault() : restoreFocus
-            }
+            onCloseAutoFocus={(event) => {
+              if (preventCloseAutoFocus) event.preventDefault();
+              else restoreFocus(event);
+              onCloseAutoFocus?.(event);
+            }}
           >
+            <PagePointerPin />
             {/* Close sits in the header row when headerActions exist, so it
                 shares one axis with the rest of the chrome instead of floating
                 `absolute` while actions sit in flow (a gap + a height mismatch).

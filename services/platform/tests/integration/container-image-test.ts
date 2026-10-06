@@ -18,12 +18,14 @@ import {
   composeArgs,
   imageExists,
   imageMetadata,
+  imageUnpackedSizeBytes,
   nonRootImageUser,
   type ImageMetadata,
 } from './lib/docker';
 import { checkDocumentTools } from './lib/document-tools';
 import { capture, projectRoot, stream } from './lib/exec';
 import { BOLD, GREEN, header, NC, RED, Results, YELLOW } from './lib/log';
+import { checkSshTools } from './lib/ssh-tools';
 
 const PROJECT_ROOT = projectRoot();
 const compose = new Compose(
@@ -50,28 +52,12 @@ const SIZE_BUDGETS: Record<string, number> = {
   // Debian-slim + the verbatim BuildKit static binaries + redsocks/iptables —
   // a lean, deterministic image (~335 MB amd64), ~13% headroom.
   'sandbox-buildkitd': 380,
-  // Carries a heavy toolchain by design, on top of the playwright/chromium base
-  // and native docker/compose-in-session (runtime tiers, #1881):
-  //   - document conversion: libreoffice + poppler + pandoc (~570 MB)
-  //   - LaTeX/XeTeX for pandoc publication-grade PDF: texlive-xetex +
-  //     latex-recommended + fonts-recommended + lang-chinese + lmodern (~660 MB)
-  //   - the baked external-agent CLIs (single-runtime-image doctrine): the
-  //     2026-07-07 wave — Codex (~290 MB, single-platform Rust binary),
-  //     OpenClaw (~170 MB), Pi (~80 MB) — landed on top of claude-code,
-  //     opencode, cursor, gemini and hermes, pushing amd64 from ~4.3 GB to
-  //     ~4.9 GB (their per-PR Build runs were concurrency-cancelled, so the
-  //     over-budget check never surfaced before merge).
-  //   - the builtin document skills' libraries, so they work without registry
-  //     egress: the Python lock adds ~290 MB (pandas, numpy, onnxruntime for
-  //     markitdown's file-type model, reportlab, pdfplumber/pypdfium2) and the
-  //     Node lock ~130 MB (react-icons alone ~85 MB, docx, pptxgenjs, sharp),
-  //     taking amd64 from ~4.87 GB to an estimated ~5.3 GB.
-  //   - the October refresh of all nine harnesses: upstream bundles grew
-  //     (OpenClaw ~730 MB, Codex ~380 MB, Pi ~160 MB). CI measured 6166 MB
-  //     before keeping ~120 MB of Bun/node-gyp build caches out of layers.
-  // ~10% headroom over the refreshed ~6.0 GB amd64 image. Runtime binaries
-  // and diagnostics stay intact; the image is shared by concurrent sessions.
-  'sandbox-runtime': 6600,
+  // Runtime disk budget uses exact unpacked layer bytes from Docker history.
+  // inspect.Size can count compressed OCI content on containerd and would
+  // accept a ~5.8 GB runtime as ~1.9 GB. Retained bytes in lower layers count
+  // even when a later layer deletes them. Includes every managed harness,
+  // Chromium, document libraries, Office/PDF tools, XeTeX and inner Docker.
+  'sandbox-runtime': 6000,
 };
 
 const SERVICES = [
@@ -223,6 +209,16 @@ async function main(): Promise<number> {
   const runtimeImage = images.get('sandbox-runtime');
   if (runtimeImage) {
     for (const uid of [65534, 10001] as const) {
+      const ssh = await checkSshTools(runtimeImage, uid);
+      if (ssh.exitCode === 0) {
+        r.pass(
+          `sandbox-runtime: SSH agent and HTTP CONNECT work as uid ${uid}`,
+        );
+      } else {
+        r.fail(
+          `sandbox-runtime: SSH tools failed as uid ${uid}: ${ssh.combined.slice(-1200)}`,
+        );
+      }
       const result = await checkDocumentTools(runtimeImage, uid);
       if (result.exitCode === 0) {
         r.pass(
@@ -351,7 +347,10 @@ async function main(): Promise<number> {
   for (const svc of SERVICES) {
     const img = images.get(svc);
     if (!img) continue;
-    const sizeMb = metadata.get(svc)!.sizeMb;
+    const sizeMb =
+      svc === 'sandbox-runtime'
+        ? Math.ceil((await imageUnpackedSizeBytes(img)) / 1024 / 1024)
+        : metadata.get(svc)!.sizeMb;
     const budget = SIZE_BUDGETS[svc] ?? 0;
     if (sizeMb <= budget) {
       console.log(

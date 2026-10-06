@@ -1,9 +1,10 @@
-import { createFileRoute, notFound } from '@tanstack/react-router';
+import { createFileRoute, notFound, redirect } from '@tanstack/react-router';
 
 import { DocsPage } from '@/app/pages/docs-page';
-import { HomePage } from '@/app/pages/home-page';
 import { NotFoundPage } from '@/app/pages/not-found-page';
 import { ensureDocBody, getDocPage } from '@/lib/content/loader';
+import { firstNavSlug } from '@/lib/content/nav';
+import { docPath } from '@/lib/content/paths';
 import { isUrlPrefixedLocale, type SupportedLocale } from '@/lib/i18n/locales';
 
 interface Resolved {
@@ -14,8 +15,7 @@ interface Resolved {
 /**
  * Read the active locale and the on-disk slug out of the splat. The first
  * URL segment may be a URL-prefixed locale (`de`, `fr`); everything after
- * that is the slug. `'index'` substitutes for an empty slug so the loader
- * can resolve the locale's landing page.
+ * that is the slug. An empty slug names the locale's documentation entry.
  */
 function resolve(splat: string): Resolved {
   const parts = splat.split('/').filter(Boolean);
@@ -24,7 +24,7 @@ function resolve(splat: string): Resolved {
     locale = parts[0];
     parts.shift();
   }
-  const slug = parts.length === 0 ? 'index' : parts.join('/');
+  const slug = parts.length === 0 ? firstNavSlug() : parts.join('/');
   return { locale, slug };
 }
 
@@ -42,7 +42,6 @@ function SplatRoute() {
   const params = Route.useParams() as { _splat?: string };
   const splat = params._splat ?? '';
   const { locale, slug } = resolve(splat);
-  if (slug === 'index') return <HomePage locale={locale} />;
   return <DocsPage locale={locale} slug={slug} />;
 }
 
@@ -57,6 +56,9 @@ export const Route = createFileRoute('/$')({
     const splat = params._splat ?? '';
     if (isSpecialEndpoint(splat)) return;
     const { locale, slug } = resolve(splat);
+    if (slug === 'index') {
+      throw redirect({ to: docPath(locale, firstNavSlug()), replace: true });
+    }
     if (!getDocPage(locale, slug)) throw notFound();
   },
   // Fetch only this page's body before it renders (one lazy chunk on the
@@ -66,7 +68,7 @@ export const Route = createFileRoute('/$')({
     const splat = params._splat ?? '';
     if (isSpecialEndpoint(splat)) return undefined;
     const { locale, slug } = resolve(splat);
-    if (slug !== 'index') await ensureDocBody(locale, slug);
+    await ensureDocBody(locale, slug);
     const page = getDocPage(locale, slug);
     if (page) {
       const path = page.slug.replace(/(?:^|\/)index$/, '');

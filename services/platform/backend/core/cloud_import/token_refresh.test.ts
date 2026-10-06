@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 describe('classifyRefreshFailure', () => {
-  it('reads invalid_grant on a 400 as a dead grant', () => {
+  it('reads invalid_grant on a 400 as a dead grant [CIMP-R1]', () => {
     const result = classifyRefreshFailure(
       400,
       JSON.stringify({
@@ -42,7 +42,7 @@ describe('classifyRefreshFailure', () => {
     expect(result.detail).toContain('AADSTS70008');
   });
 
-  it('reads a consent/interaction demand as a dead grant', () => {
+  it('reads a consent/interaction demand as a dead grant [CIMP-R1]', () => {
     expect(
       classifyRefreshFailure(400, JSON.stringify({ error: 'consent_required' }))
         .kind,
@@ -55,7 +55,7 @@ describe('classifyRefreshFailure', () => {
     ).toBe('dead_grant');
   });
 
-  it('reads a throttle or an outage as unavailable', () => {
+  it('reads a throttle or an outage as unavailable [CIMP-R2]', () => {
     expect(classifyRefreshFailure(429, '').kind).toBe('unavailable');
     expect(
       classifyRefreshFailure(503, JSON.stringify({ error: 'server_error' })),
@@ -65,7 +65,7 @@ describe('classifyRefreshFailure', () => {
     ).toMatchObject({ kind: 'unavailable', status: 502 });
   });
 
-  it('reads a client misconfiguration as unavailable — reconnecting cannot fix it', () => {
+  it('reads a client misconfiguration as unavailable — reconnecting cannot fix it [CIMP-R2]', () => {
     const result = classifyRefreshFailure(
       401,
       JSON.stringify({ error: 'invalid_client' }),
@@ -74,7 +74,7 @@ describe('classifyRefreshFailure', () => {
     expect(result.detail).toContain('invalid_client');
   });
 
-  it('never treats invalid_grant on a 5xx as a verdict on the grant', () => {
+  it('never treats invalid_grant on a 5xx as a verdict on the grant [CIMP-R2]', () => {
     expect(
       classifyRefreshFailure(500, JSON.stringify({ error: 'invalid_grant' }))
         .kind,

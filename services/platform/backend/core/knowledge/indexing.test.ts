@@ -189,7 +189,7 @@ const ARGS = {
 };
 
 describe('a credential never reaches the corpus', () => {
-  it('refuses the upload before chunking or embedding anything', async () => {
+  it('refuses the upload before chunking or embedding anything [KNOW-R8]', async () => {
     const db = fakeDb();
     const embedder = stubEmbedder();
     const result = await indexDocument({
@@ -240,7 +240,7 @@ describe('a credential never reaches the corpus', () => {
     expect(statement).toContain("status = 'failed'");
   });
 
-  it('indexes a file that only talks about credentials', async () => {
+  it('indexes a file that only talks about credentials [KNOW-R8]', async () => {
     const db = fakeDb();
     const embedder = stubEmbedder();
     const result = await indexDocument({
@@ -355,7 +355,7 @@ describe('unchanged content is not re-embedded', () => {
     expect(lookup).toContain('AND conversation_id IS NULL');
   });
 
-  it('looks for a duplicate only inside the same organization', async () => {
+  it('looks for a duplicate only inside the same organization [KNOW-R1]', async () => {
     // Reusing another organization's embeddings would copy its content and
     // reveal that it holds the same file.
     const db = fakeDb({ duplicateId: 'doc-original' });
@@ -721,7 +721,7 @@ describe('the PII policy covers the chunk header and the stored name', () => {
     return db.params[at] ?? [];
   }
 
-  it('masks the address in the header, the chunks and the stored name', async () => {
+  it('masks the address in the header, the chunks and the stored name [KNOW-R9]', async () => {
     const db = fakeDb();
     const embedder = stubEmbedder();
     const result = await indexDocument({
@@ -746,7 +746,7 @@ describe('the PII policy covers the chunk header and the stored name', () => {
     expect(filename).not.toContain('bob@example.test');
   });
 
-  it('refuses under block when only the header carries the identifier', async () => {
+  it('refuses under block when only the header carries the identifier [KNOW-R9]', async () => {
     const db = fakeDb();
     const embedder = stubEmbedder();
     const result = await indexDocument({

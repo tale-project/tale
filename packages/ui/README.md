@@ -21,6 +21,7 @@ and stories live together under `src/components/<family>/`.
 | Editing and diagrams | `editor`, `wizard/*`, `catalog/*`, `filters/*`, `flow/*` |
 | Documentation sites | `docs/docs-layout`, `docs/docs-header`, `docs/docs-article`, `docs/docs-not-found`, `docs/page-actions`, `search/static-index/*` |
 | Shared infrastructure | `i18n/*`, `markdown/*`, `seo/*`, `server`, `monitoring/*`, `theme`, `testing/*` |
+| Large custom collections | `use-virtual-list`; [windowing and focus guidance](https://ui.tale.dev/docs/patterns/list-page#bound-a-custom-collections-rendering) |
 
 Browse interactive stories from a Tale source checkout:
 
@@ -32,6 +33,23 @@ Reusable components take state and events through props or a small context. Orga
 branding, permissions, backend queries, and other business behavior belong in the consuming
 service’s wrappers. Use the shared tokens, control sizes, and interaction patterns instead of
 copying a service component into a second location.
+
+For long lists, `@tale/ui/use-virtual-list` exports TanStack Virtual's React hook as
+`useVirtualList`. Keep the complete ordered data source, supply stable entity keys,
+render `getVirtualItems()`, measure each `data-index` row with `measureElement`, and
+reserve the scrollable height with `getTotalSize()`. Preserve native list semantics
+and each row's position in the full list. Use `scrollToIndex` for keyboard navigation
+to unmounted rows and `rangeExtractor` to keep focused or dragged rows mounted.
+Enable `useAnimationFrameWithResizeObserver` when measured rows change height.
+An omitted `initialOffset` adopts the scrollport's current position; an explicit
+number or function restores the requested starting position instead.
+
+`DropdownMenu` accepts an item array or a callback returning its groups, including
+submenu items. Pass a callback for expensive menus: it runs when that menu opens,
+using the current props. `@tale/ui/use-viewport-visibility` can defer expensive
+decoration until content approaches the viewport; retain the readable content so
+copying, browser find, and assistive technology still work. Shared Markdown uses
+this hook to defer syntax highlighting while keeping the original code visible.
 
 ## Use it in an application
 
@@ -62,7 +80,22 @@ const i18n = initServiceI18n({ bundles, regional, global, packages: [uiMessages]
 ```
 
 Use `locale={{ mode: 'client' }}` for a saved browser preference. URL-driven services such as
-web and docs omit it and mount `LocaleSync` with the route’s locale. `theme` enables the shared
+web and docs omit it and mount `LocaleSync` with the route’s locale.
+
+A service with large catalogs can ship English alone and fetch German and French when a session
+first needs them: list them in `lazyBundles` (`de: () => import('…/de.yml').then((m) => m.default)`)
+instead of `bundles`. Or load every language per topic, as the platform does: keep the catalog one
+file per topic and locale, register the `messageTopics` plugin (`@tale/ui/vite/message-topics`)
+in the Vite and Vitest configurations, and pass the other locales' topic files as `topics`
+(`topicLoaders` from `@tale/ui/i18n/topic-catalogs` over a lazy glob). Each module that names a
+topic — `useT('tasks')`, `{ ns: 'tasks' }`, an `entityNamespace: 'tasks'` property, a
+`'tasks:key'` literal — then carries its English, and each chunk loaded on demand waits for its
+topics in the session’s language; a namespace computed at runtime is invisible to the plugin, so
+name it literally where it is read. `LocaleSync` loads a language before switching to it. To start
+in the person’s language from the first frame, load and switch to `detectPreferredLocale()` before
+rendering, as the platform does (`services/platform/lib/i18n/i18n.ts`). A screen that reads
+languages other than the session’s (`i18n.getFixedT(locale)`) waits for them with
+`useLocalesLoaded` from `@tale/ui/i18n/load-locale`. `theme` enables the shared
 provider with its system preference default. Routing, authentication, and query providers
 remain the host’s responsibility.
 
@@ -96,6 +129,10 @@ Shared labels belong in `src/i18n/messages/{en,de,fr}.yml`, with sparse Swiss Ge
 in `de-CH.yml`. The host merges package catalogs beneath its own keys, so a service override can
 hide a shared correction. Check the rendered label as well as key and ICU parity, following the
 [translation skill](https://github.com/tale-project/tale/blob/main/.agents/skills/write-translations/SKILL.md).
+A service may keep its catalog one file per topic and locale (`messages/<locale>/<topic>.yml`, a
+topic being one top-level namespace), as the platform does: `@tale/ui/i18n/topic-catalogs` turns
+an `import.meta.glob` of those files into bundles or per-topic loaders, and the i18n test
+framework reads either layout.
 
 Both documentation sites — [docs.tale.dev](https://github.com/tale-project/tale/blob/main/services/docs/README.md) and
 [ui.tale.dev](https://github.com/tale-project/tale/blob/main/services/ui-docs/README.md) — render the `docs/*` frame: the rail, the

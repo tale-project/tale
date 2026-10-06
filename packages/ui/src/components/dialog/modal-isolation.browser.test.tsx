@@ -355,4 +355,91 @@ describe('modal pointer isolation', () => {
       container.remove();
     }
   });
+
+  // The page's own root sits under the body: every element of it inherited
+  // the modal's `pointer-events: none`, so a modal restyled the whole page on
+  // open and on close (#3974). The overlay already takes every pointer event
+  // the page would get, so the root keeps its own `auto` while one is open.
+  it.each([
+    { label: 'Dialog', responsive: false },
+    { label: 'ResponsiveDialog', responsive: true },
+  ])(
+    'keeps the page root out of $label isolation without activating it',
+    async ({ responsive }) => {
+      await page.viewport(1280, 800);
+      const root = document.createElement('div');
+      root.id = 'root';
+      document.body.append(root);
+      let backgroundEvents = 0;
+      const pinnedAtFirstStylePass: string[] = [];
+      function FirstStylePass() {
+        useLayoutEffect(() => {
+          pinnedAtFirstStylePass.push(root.style.pointerEvents);
+        }, []);
+        return null;
+      }
+      function Page() {
+        const [open, setOpen] = useState(false);
+        return (
+          <>
+            <button
+              type="button"
+              style={{
+                position: 'fixed',
+                top: 0,
+                right: 0,
+                width: 40,
+                height: 40,
+              }}
+              onPointerDown={() => backgroundEvents++}
+              onClick={() => backgroundEvents++}
+            >
+              Background action
+            </button>
+            <button type="button" onClick={() => setOpen(true)}>
+              Open task
+            </button>
+            <Modal responsive={responsive} open={open} onOpenChange={setOpen}>
+              <FirstStylePass />
+              <button type="button" onClick={() => setOpen(false)}>
+                Dismiss task
+              </button>
+            </Modal>
+          </>
+        );
+      }
+      try {
+        render(<Page />, { container: root });
+        const background = screen.getByRole('button', {
+          name: 'Background action',
+        });
+        await page.getByRole('button', { name: 'Open task' }).click();
+        const dialog = screen.getByRole('dialog', { name: 'Task details' });
+
+        expect(pinnedAtFirstStylePass).toEqual(['auto']);
+        expect(getComputedStyle(document.body).pointerEvents).toBe('none');
+        // The page keeps its styles: nothing under the root was restyled.
+        expect(getComputedStyle(background).pointerEvents).toBe('auto');
+
+        // …and still gets no pointer: the backdrop covers it.
+        const backdrop = document.elementFromPoint(1280 - 8, 8);
+        expect(backdrop).not.toBe(background);
+        if (!backdrop) throw new Error('Expected the modal backdrop');
+        await page.elementLocator(backdrop).click({
+          position: { x: 1280 - 8, y: 8 },
+        });
+        await waitFor(() => {
+          expect(dialog).not.toBeInTheDocument();
+          expect(document.body.style.pointerEvents).toBe('');
+          expect(root.style.pointerEvents).toBe('');
+        });
+        expect(backgroundEvents).toBe(0);
+        await page.getByRole('button', { name: 'Background action' }).click();
+        expect(backgroundEvents).toBe(2);
+      } finally {
+        cleanup();
+        root.remove();
+      }
+    },
+  );
 });

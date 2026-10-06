@@ -38,6 +38,7 @@
     "./schemas/automation-settings": "./src/schemas/automation-settings.ts",
     "./schemas/task-contract": "./src/schemas/task-contract.ts",
     "./schemas/task-external-issue": "./src/schemas/task-external-issue.ts",
+    "./schemas/task-external-status": "./src/schemas/task-external-status.ts",
     "./schemas/task-review": "./src/schemas/task-review.ts",
     "./monitoring/privacy": "./src/monitoring/privacy.ts"
   },

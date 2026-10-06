@@ -7,11 +7,17 @@ import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
 import { GitBranch } from 'lucide-react';
+import { memo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
 import { useAssignTask, useUpdateTask } from '../hooks/mutations';
-import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  ActorDirectoryProvider,
+  type ActorDirectory,
+  useActorDirectory,
+  useProvidedActorDirectory,
+} from '../hooks/use-actor-directory';
 import type { TaskDoc } from '../lib/display';
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
@@ -45,14 +51,7 @@ export type TaskRow = TaskDoc & {
   projectKey?: string;
 };
 
-export function TaskCard({
-  task,
-  subtasks,
-  onOpen,
-  dragging,
-  projectKey,
-  canWorkTask = readOnlyBoard,
-}: {
+interface TaskCardProps {
   task: TaskRow;
   /** This task's subtasks, when known — drives the progress ring. */
   subtasks?: TaskRow[];
@@ -63,7 +62,53 @@ export function TaskCard({
   /** Whether the viewer may work the task (`useTaskAccess`) — gates drag
    * and the inline pickers. Absent, the card is read-only. */
   canWorkTask?: (task: TaskRow) => boolean;
-}) {
+}
+
+type CardDirectory = Pick<ActorDirectory, 'resolveActor' | 'currentUserId'>;
+
+/**
+ * Memoized: a lane re-renders on every drag move and every board read, and a
+ * card whose own props held still has nothing new to draw. A card names its
+ * reviewer from the directory the board provides; one outside a provider
+ * reads its own.
+ */
+export const TaskCard = memo(function TaskCard(props: TaskCardProps) {
+  const provided = useProvidedActorDirectory(
+    props.task.organizationId,
+    props.task.projectId,
+  );
+  return provided ? (
+    <TaskCardView {...props} directory={provided} />
+  ) : (
+    <TaskCardOwnDirectory {...props} />
+  );
+});
+
+function TaskCardOwnDirectory(props: TaskCardProps) {
+  const directory = useActorDirectory(
+    props.task.organizationId,
+    props.task.projectId,
+  );
+  return (
+    <ActorDirectoryProvider
+      organizationId={props.task.organizationId}
+      projectId={props.task.projectId}
+      directory={directory}
+    >
+      <TaskCardView {...props} directory={directory} />
+    </ActorDirectoryProvider>
+  );
+}
+
+function TaskCardView({
+  task,
+  subtasks,
+  onOpen,
+  dragging,
+  projectKey,
+  canWorkTask = readOnlyBoard,
+  directory,
+}: TaskCardProps & { directory: CardDirectory }) {
   const { t } = useT('tasks');
   const stateLabels = useTaskCardStateLabels();
   const resolvedProjectKey = task.projectKey ?? projectKey;
@@ -83,10 +128,7 @@ export function TaskCard({
   const blocked = isBlocked(task._id);
   const { done, total } = subtaskProgress(subtasks);
   // Name the reviewer the review-gate chip waits on ("You" for the viewer).
-  const { resolveActor, currentUserId } = useActorDirectory(
-    task.organizationId,
-    task.projectId,
-  );
+  const { resolveActor, currentUserId } = directory;
   const reviewer = reviewRecipient(task._id);
   const reviewerIsMe =
     reviewer?.kind === 'user' && reviewer.userId === currentUserId;

@@ -5,10 +5,14 @@ import { parseSessionIdleTimeoutMinutes } from '@tale/shared/utils/session-idle'
 import { resolveSiteOrigins } from '@tale/shared/utils/site-urls';
 import { type Plugin } from 'vite';
 
+import {
+  parseAuthenticatorEnv,
+  type AuthenticatorEnv,
+} from '../lib/authenticator-env';
 import { parseContactSupportUrl } from '../lib/contact-support-url';
 import { inlineScriptJson, replaceLiteral } from '../lib/utils/inline-script';
 
-interface EnvConfig {
+interface EnvConfig extends AuthenticatorEnv {
   SITE_URL: string;
   /** Every origin the deployment answers on — mirrors `server.ts`, so the
    * SPA's env has the same shape in dev as in production. */
@@ -41,6 +45,7 @@ function getEnvConfig(): EnvConfig {
     TALE_VERSION: process.env.TALE_VERSION,
     SESSION_IDLE_TIMEOUT_MINUTES: parseSessionIdleTimeoutMinutes() ?? undefined,
     TALE_CONTACT_SUPPORT_URL: parseContactSupportUrl(),
+    ...parseAuthenticatorEnv(),
   };
 }
 

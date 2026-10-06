@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 58 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 59 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -131,7 +131,7 @@ compute codes from the enrollment secret.
   `/dashboard/{org}/settings/organization` → **Add member**
   (`settings.organization.addMember`) opens the **Add member** dialog
   (`dialogs.addMember.title`); fill name/email/role=**Member**
-  (`settings.roles.member`)/password → submit → **New member created and added
+  (`roles.member`)/password → submit → **New member created and added
   to organization** toast (`toast.success.newMemberCreated`); signing in as
   that member, the **Add member** button is NOT visible (admin-gated)
 - [ ] `AUTH-F15` · **SSO error surfaced** — Signed out, open
@@ -153,8 +153,8 @@ compute codes from the enrollment secret.
 - [ ] `AUTH-F17` · **Org-switch interstitial** — With ≥2 orgs: user-button
   dropdown → pick the other organization → The switch stages through
   `/dashboard/switching?to={targetOrgId}` showing a centered spinner labelled
-  **Switching organization…** (`settings.organization.switchingLabel` /
-  `settings.organization.switchingTo`), then lands on the target org's
+  **Switching organization…** (`navigation.orgSwitcher.switchingLabel` /
+  `navigation.orgSwitcher.switchingTo`), then lands on the target org's
   dashboard — the URL's org id changes and the org name in the user button
   matches the target. No flash of the old org's content after landing.
 
@@ -277,7 +277,23 @@ compute codes from the enrollment secret.
   again** (`auth.accountUnavailable.signInAgain`), which ends the session and
   opens `/log-in?redirectTo=…`.
 
-- [ ] `AUTH-F31` · **Recognize the authenticator environment** — On a test deployment (`TOTP_ENVIRONMENT=te`), scan a new enrollment from Account and from the required enrollment screen → the authenticator offers `Tale <TE>` with your e-mail, and its code completes verification. Production (`pr`) offers `Tale`. A previously saved entry keeps its name and still signs in; rename it in the authenticator app if needed.
+- [ ] `AUTH-F31` · **Recognize the deployment in the authenticator** — On a
+  client's test deployment (`TOTP_CLIENT_NAME='Example plus'`,
+  `TOTP_ENVIRONMENT=te`), scan a new enrollment from Account and from the
+  required enrollment screen → the authenticator offers
+  `Example plus Tale Platform TE` with your e-mail, and its code completes
+  verification. With `TOTP_ENVIRONMENT=pr` it offers
+  `Example plus Tale Platform`, and with neither set `Tale Platform`. A
+  previously saved entry keeps its name and still signs in; rename it in the
+  authenticator app if needed.
+- [ ] `AUTH-F32` · **Backup codes name their deployment** — On the same
+  deployment, **Download** (`twoFactor.backupCodes.downloadButton`) the codes
+  at the end of the required enrollment, and again after **Regenerate backup
+  codes** (`twoFactor.enrollment.regenerateButton`) in Account → both files
+  are `exampleplus-tale-platform-te-backup-codes.txt` and hold the ten codes,
+  one per line. With `TOTP_ENVIRONMENT=pr` the file is
+  `exampleplus-tale-platform-backup-codes.txt`, and with neither set
+  `tale-platform-backup-codes.txt`.
 
 ## Boundary & error tests
 

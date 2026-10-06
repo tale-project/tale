@@ -173,7 +173,7 @@ afterEach(() => {
 });
 
 describe('materializing an entry', () => {
-  it('locks the tenant-scoped normalized topic before the transactional create lookup', async () => {
+  it('locks the tenant-scoped normalized topic before the transactional create lookup [KENTRY-R2]', async () => {
     const { sql, statements } = fakeSql({});
     await createKnowledgeEntry(sql, {
       ...WRITER,
@@ -224,7 +224,7 @@ describe('materializing an entry', () => {
     ]);
   });
 
-  it('marks the first version queued before its indexing job is enqueued', async () => {
+  it('marks the first version queued before its indexing job is enqueued [KENTRY-R3]', async () => {
     const { sql, statements } = fakeSql({});
 
     const written = await createKnowledgeEntry(sql, {
@@ -261,7 +261,7 @@ describe('materializing an entry', () => {
     expect(queuedAt).toBeLessThan(enqueuedAt);
   });
 
-  it('re-marks a rotated version queued and releases the outgoing ref', async () => {
+  it('re-marks a rotated version queued and releases the outgoing ref [KENTRY-R3]', async () => {
     const { sql, statements } = fakeSql({
       current: {
         id: 'entry-old',
@@ -326,7 +326,7 @@ describe('a write that repeats the active row', () => {
     content: 'Open 9-6',
   };
 
-  it('answers the active row and writes nothing — no blob, no row, no re-index', async () => {
+  it('answers the active row and writes nothing — no blob, no row, no re-index [KENTRY-R4]', async () => {
     const { sql, statements } = fakeSql({ current: active });
     const written = await updateKnowledgeEntry(sql, {
       ...WRITER,
@@ -343,7 +343,7 @@ describe('a write that repeats the active row', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('treats surrounding whitespace as no difference', async () => {
+  it('treats surrounding whitespace as no difference [KENTRY-R4]', async () => {
     const { sql, statements } = fakeSql({ current: active });
     const written = await updateKnowledgeEntry(sql, {
       ...WRITER,
@@ -356,7 +356,7 @@ describe('a write that repeats the active row', () => {
     expect(statements.some((s) => s.text.includes('INSERT INTO'))).toBe(false);
   });
 
-  it('writes a version for a case-only topic change', async () => {
+  it('writes a version for a case-only topic change [KENTRY-R3]', async () => {
     const { sql, statements } = fakeSql({ current: active });
     const written = await updateKnowledgeEntry(sql, {
       ...WRITER,
@@ -373,7 +373,7 @@ describe('a write that repeats the active row', () => {
     ).toBe(true);
   });
 
-  it('writes a version for a content change', async () => {
+  it('writes a version for a content change [KENTRY-R3]', async () => {
     const { sql, statements } = fakeSql({ current: active });
     const written = await updateKnowledgeEntry(sql, {
       ...WRITER,
@@ -393,7 +393,7 @@ describe('a write that repeats the active row', () => {
   // The direct successor may itself be superseded, so naming it sent a
   // client down the chain one 409 at a time (2026-09-19 evaluation, K5-2):
   // the refusal names the topic's ACTIVE row and carries it as data.
-  it('names the topic’s active row on a superseded write, beside the direct successor', async () => {
+  it('names the topic’s active row on a superseded write, beside the direct successor [KENTRY-R5]', async () => {
     const { sql } = fakeSql({
       current: { ...active, status: 'superseded', supersededBy: 'entry-mid' },
       activeId: 'entry-head',
@@ -413,7 +413,7 @@ describe('a write that repeats the active row', () => {
     });
   });
 
-  it('still refuses an identical write onto a superseded row with the documented 409', async () => {
+  it('still refuses an identical write onto a superseded row with the documented 409 [KENTRY-R5]', async () => {
     const { sql } = fakeSql({
       current: { ...active, status: 'superseded', supersededBy: 'entry-new' },
     });
@@ -460,7 +460,7 @@ describe('a write that repeats the active row', () => {
 });
 
 describe('storing the entry blob', () => {
-  it('gives up on a hung object store with a coded 503, not a hung request', async () => {
+  it('gives up on a hung object store with a coded 503, not a hung request [KENTRY-R6]', async () => {
     // The budget is a real `AbortSignal.timeout`, which fake timers do not
     // drive; the test owns the signal and fires it the way the runtime does
     // (a `TimeoutError` reason), and checks the budget the path asked for.
@@ -530,7 +530,7 @@ describe('storing the entry blob', () => {
  * the 404 a missing row answers. The lookup used to fold `status =
  * 'active'` into its predicate, so the two were indistinguishable.
  */
-describe('a superseded entry', () => {
+describe('a superseded entry [KENTRY-R5]', () => {
   it('refuses a new version with 409 naming its successor, and writes nothing', async () => {
     const { sql, statements } = fakeSql({
       current: {
@@ -566,7 +566,7 @@ describe('a superseded entry', () => {
   });
 });
 
-describe('an entry whose backing document is gone', () => {
+describe('an entry whose backing document is gone [KENTRY-R9]', () => {
   it('refuses a new version as not found once the document is not active', async () => {
     // The read joins the document's lifecycle; a trashed document yields no
     // row. Without the gate the edit rotated the blob and enqueued indexing

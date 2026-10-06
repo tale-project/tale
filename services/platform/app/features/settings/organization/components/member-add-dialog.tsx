@@ -55,6 +55,7 @@ export function AddMemberDialog({
 }: AddMemberDialogProps) {
   const { t: tDialogs } = useT('dialogs');
   const { t: tSettings } = useT('settings');
+  const { t: tRoles } = useT('roles');
   const { t: tCommon } = useT('common');
   const { t: tAuth } = useT('auth');
   const { t: tToast } = useT('toast');
@@ -274,11 +275,11 @@ export function AddMemberDialog({
           }}
           label={tSettings('form.role')}
           options={[
-            { value: 'admin', label: tSettings('roles.admin') },
-            { value: 'developer', label: tSettings('roles.developer') },
-            { value: 'editor', label: tSettings('roles.editor') },
-            { value: 'member', label: tSettings('roles.member') },
-            { value: 'disabled', label: tSettings('roles.disabled') },
+            { value: 'admin', label: tRoles('admin') },
+            { value: 'developer', label: tRoles('developer') },
+            { value: 'editor', label: tRoles('editor') },
+            { value: 'member', label: tRoles('member') },
+            { value: 'disabled', label: tRoles('disabled') },
           ]}
         />
 

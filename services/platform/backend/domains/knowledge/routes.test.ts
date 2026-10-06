@@ -158,7 +158,7 @@ const verifyCaConnection = {
 };
 
 describe('reviewed embedding HTTP updates', () => {
-  it('preserves the native requeue effect and passes the preimage to the writer', async () => {
+  it('preserves the native requeue effect and passes the preimage to the writer [KNOW-R10]', async () => {
     writeKnowledgeEmbedding.mockResolvedValue(undefined);
     requeueEmbeddingBlockedDocuments.mockResolvedValue({ requeued: 3 });
     const config = {

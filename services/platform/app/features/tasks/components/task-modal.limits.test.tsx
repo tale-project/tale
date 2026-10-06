@@ -79,15 +79,21 @@ vi.mock('../hooks/mutations', async (importOriginal) => ({
   useUpdateTask: () => ({ mutateAsync: mutations.updateTask }),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
     resolveActor: () => ({ name: 'Test owner' }),
   }),
   useAssignableActors: () => ({
+    subjectEntries: [],
     assignableMembers: [],
     assignableAgents: [],
     agents: [],
+    members: [],
+    automations: [],
+    resolveActor: () => ({ name: 'Test owner' }),
   }),
 }));
 vi.mock('@/app/features/shared/files/use-file-upload', () => ({

@@ -3,12 +3,13 @@
 import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
 import { useTheme } from '@tale/ui/theme';
+import { useViewportVisibility } from '@tale/ui/use-viewport-visibility';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { memo, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { highlightCode } from '@/lib/utils/shiki';
+import { highlightCode, peekHighlightedCode } from '@/lib/utils/shiki';
 
 /**
  * Extract the inner HTML from Shiki's codeToHtml output.
@@ -53,18 +54,55 @@ export const HighlightedCode = memo(function HighlightedCode({
   lang: string;
   code: string;
 }) {
-  const [html, setHtml] = useState('');
-  const highlightedForRef = useRef('');
   const { resolvedTheme } = useTheme();
   const shikiTheme = resolvedTheme === 'dark' ? 'min-dark' : 'min-light';
+  const { ref, isVisible } = useViewportVisibility<HTMLElement>();
+  // A previously highlighted snippet is ready in its first frame.
+  const [highlighted, setHighlighted] = useState<{
+    code: string;
+    lang: string;
+    theme: string;
+    html: string;
+  } | null>(() => {
+    const known = peekHighlightedCode(code, lang, shikiTheme);
+    return known === null
+      ? null
+      : {
+          code,
+          lang,
+          theme: shikiTheme,
+          html: extractShikiCodeContent(known.html),
+        };
+  });
 
   useEffect(() => {
+    if (!isVisible) return undefined;
+    if (
+      highlighted?.code === code &&
+      highlighted.lang === lang &&
+      highlighted.theme === shikiTheme
+    )
+      return undefined;
     let cancelled = false;
+    const known = peekHighlightedCode(code, lang, shikiTheme);
+    if (known !== null) {
+      setHighlighted({
+        code,
+        lang,
+        theme: shikiTheme,
+        html: extractShikiCodeContent(known.html),
+      });
+      return undefined;
+    }
     const timeout = setTimeout(() => {
       void highlightCode(code, lang, shikiTheme).then((result) => {
         if (!cancelled && result) {
-          highlightedForRef.current = code;
-          setHtml(extractShikiCodeContent(result.html));
+          setHighlighted({
+            code,
+            lang,
+            theme: shikiTheme,
+            html: extractShikiCodeContent(result.html),
+          });
         }
       });
     }, HIGHLIGHT_DEBOUNCE_MS);
@@ -72,15 +110,19 @@ export const HighlightedCode = memo(function HighlightedCode({
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [code, lang, shikiTheme]);
+  }, [code, lang, shikiTheme, isVisible, highlighted]);
 
-  if (!html || highlightedForRef.current !== code) {
+  if (
+    highlighted?.code !== code ||
+    highlighted.lang !== lang ||
+    highlighted.theme !== shikiTheme
+  ) {
     // Un-highlighted fallback (highlight is debounced while streaming):
     // line-keyed spans so each newly streamed line mounts fresh and fades in
     // via the `.stream-reveal` mount animation. Index keys are stable —
     // streamed code only ever appends lines.
     return (
-      <code>
+      <code ref={ref}>
         {splitCodeLines(code).map((line, i) => (
           // oxlint-disable-next-line react/no-array-index-key -- lines only append during streaming; index identity is stable
           <span key={i} className="stream-seg">
@@ -94,7 +136,7 @@ export const HighlightedCode = memo(function HighlightedCode({
   return (
     // oxlint-disable-next-line react/no-danger -- Shiki output is HTML by design
     // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- `html` is Shiki highlighter output (code text HTML-escaped by Shiki); not untrusted markup
-    <code dangerouslySetInnerHTML={{ __html: html }} />
+    <code ref={ref} dangerouslySetInnerHTML={{ __html: highlighted.html }} />
   );
 });
 

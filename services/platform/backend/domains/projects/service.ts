@@ -192,6 +192,16 @@ const PROJECT_COLUMNS = `
   pinned_at_ms::float8 AS "pinnedAt"
 `;
 
+/** Metadata reads keep the nullable wire slot while skipping retained bodies. */
+const PROJECT_SUMMARY_COLUMNS = PROJECT_COLUMNS.replace(
+  ' instructions,',
+  ' NULL AS instructions,',
+);
+
+interface ProjectReadOptions {
+  summary?: boolean;
+}
+
 /** Project access input — the audience the matrix decides on. The whole row
  * goes in: `teamIds` decides, and a row that carries only the legacy pair (a
  * fixture, or a mid-rollout write of the previous image read raw) still
@@ -2223,11 +2233,11 @@ function visibilityClause(sql: Sql | TransactionSql, auth: ProjectAuthContext) {
 export async function listProjects(
   sql: Sql,
   auth: ProjectAuthContext,
-  options: { includeArchived?: boolean } = {},
+  options: ProjectReadOptions & { includeArchived?: boolean } = {},
 ): Promise<ProjectListRow[]> {
   const includeArchived = options.includeArchived ?? false;
   const rows = await sql<ProjectRow[]>`
-    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND (${includeArchived} OR archived_at_ms IS NULL)
       AND ${visibilityClause(sql, auth)}
@@ -2250,7 +2260,10 @@ export interface ProjectOverviewRow extends ProjectListRow {
 export async function listProjectsOverview(
   sql: Sql,
   auth: ProjectAuthContext,
-  options: { includeArchived?: boolean; asOf?: number } = {},
+  options: ProjectReadOptions & {
+    includeArchived?: boolean;
+    asOf?: number;
+  } = {},
 ): Promise<{ projects: ProjectOverviewRow[]; overdueTruncated: boolean }> {
   const projects = await listProjects(sql, auth, options);
   const asOf = options.asOf ?? Date.now();
@@ -2295,6 +2308,7 @@ export async function searchProjects(
   auth: ProjectAuthContext,
   query: string,
   limit = 20,
+  options: ProjectReadOptions = {},
 ): Promise<ProjectRow[]> {
   const term = `%${query.trim()}%`;
   if (query.trim().length === 0) {
@@ -2304,7 +2318,7 @@ export async function searchProjects(
   // carries `archived_at_ms`, so the caller labels the row from what it gets.
   // Archived rows sort last so they cannot fill the capped page.
   return sql<ProjectRow[]>`
-    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND name ILIKE ${term}
       AND ${visibilityClause(sql, auth)}
@@ -2321,9 +2335,10 @@ export async function listSidebarProjects(
   sql: Sql,
   auth: ProjectAuthContext,
   limit = 50,
+  options: ProjectReadOptions = {},
 ): Promise<ProjectRow[]> {
   return sql<ProjectRow[]>`
-    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND archived_at_ms IS NULL
       AND ${visibilityClause(sql, auth)}

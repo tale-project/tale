@@ -4,8 +4,8 @@ import { render, screen } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import { deriveAccentPalette } from '@/lib/utils/color';
-import enMessages from '@/messages/en.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { enMessages } from '@/tests/utils/messages';
 
 import { BrandingPreview } from './branding-preview';
 

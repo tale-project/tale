@@ -225,7 +225,7 @@ beforeEach(() => vi.clearAllMocks());
 afterEach(() => vi.restoreAllMocks());
 
 describe('explicit project webhook scope', () => {
-  it('uses only the URL project without requiring an API key or session', async () => {
+  it('uses only the URL project without requiring an API key or session [AUTO-R11]', async () => {
     const { deliver, runs } = await webhook();
     const response = await deliver('p-1', {
       body: '{"projectId":"event-data"}',
@@ -273,7 +273,7 @@ describe('explicit project webhook scope', () => {
   );
 
   it.each([[], ['p-2']])(
-    'requires installation in the token target project: %j',
+    'requires installation in the token target project: %j [AUTO-R7]',
     async (...bindings) => {
       const { deliver, ledger } = await webhook({ bindings });
       const response = await deliver('p-1');
@@ -286,7 +286,7 @@ describe('explicit project webhook scope', () => {
     },
   );
 
-  it('refuses archived projects before accepting or replaying deliveries', async () => {
+  it('refuses archived projects before accepting or replaying deliveries [AUTO-R8]', async () => {
     const { deliver, projects } = await webhook();
     expect((await deliver('p-1')).status).toBe(202);
     const project = projects.get('p-1');
@@ -305,7 +305,7 @@ describe('explicit project webhook scope', () => {
     expect(beginRunInTx).toHaveBeenCalledOnce();
   });
 
-  it('keeps header-id retries idempotent within one project and distinct across projects', async () => {
+  it('keeps header-id retries idempotent within one project and distinct across projects [AUTO-R9]', async () => {
     const { deliver, runs } = await webhook();
     const first = await deliver('p-1', { deliveryId: 'same-vendor-id' });
     const second = await deliver('p-2', { deliveryId: 'same-vendor-id' });
@@ -318,7 +318,7 @@ describe('explicit project webhook scope', () => {
     expect(beginRunInTx).toHaveBeenCalledTimes(2);
   });
 
-  it('matches a delivery id by value, whichever header carried it', async () => {
+  it('matches a delivery id by value, whichever header carried it [AUTO-R9]', async () => {
     // A gateway that re-stamps a vendor's id under a canonical header name
     // is the same delivery, not a second one.
     const { deliver } = await webhook();
@@ -346,7 +346,7 @@ describe('explicit project webhook scope', () => {
 });
 
 describe('organization webhook scope and delivery contract', () => {
-  it('allows an unbound organization automation and replays its org run', async () => {
+  it('allows an unbound organization automation and replays its org run [AUTO-R9]', async () => {
     const { deliver, runs } = await webhook({ bindings: [] });
     expect((await deliver()).status).toBe(202);
     expect(runs.get('run-1')?.projectId).toBeNull();
@@ -360,7 +360,7 @@ describe('organization webhook scope and delivery contract', () => {
     );
   });
 
-  it('refuses a bound automation through the flat URL with the 409 the REST door answers', async () => {
+  it('refuses a bound automation through the flat URL with the 409 the REST door answers [AUTO-R7]', async () => {
     const { deliver } = await webhook({ bindings: ['p-1'] });
     const response = await deliver();
     // The same refusal used to be a 409 on the key door and a flat 400
@@ -410,7 +410,7 @@ describe('organization webhook scope and delivery contract', () => {
     expect(beginRunInTx).toHaveBeenCalledOnce();
   });
 
-  it('lets the same delivery id start one run in each installed project', async () => {
+  it('lets the same delivery id start one run in each installed project [AUTO-R9]', async () => {
     // Per-project fan-out is not a scope mismatch (webhooks.md): two
     // different projects each get their own run for one id.
     const { deliver, runs } = await webhook();
@@ -423,7 +423,7 @@ describe('organization webhook scope and delivery contract', () => {
     expect(beginRunInTx).toHaveBeenCalledTimes(2);
   });
 
-  it('preserves token secrecy and body limits', async () => {
+  it('preserves token secrecy and body limits [AUTO-R11]', async () => {
     const { deliver } = await webhook({ bindings: [] });
     expect((await deliver(undefined, { unknownToken: true })).status).toBe(404);
     expect(
@@ -511,7 +511,7 @@ describe('organization webhook scope and delivery contract', () => {
     expect(large.headers.get('cache-control')).toBe('no-store');
   });
 
-  it('does not keep a delivery claim when the automation is not deployed', async () => {
+  it('does not keep a delivery claim when the automation is not deployed [AUTO-R5]', async () => {
     const { deliver, ledger, queries } = await webhook({
       bindings: [],
       undeployed: true,
@@ -543,7 +543,7 @@ describe('organization webhook scope and delivery contract', () => {
     ).toHaveLength(1);
   });
 
-  it('forwards a refused input with its problems and keeps no claim', async () => {
+  it('forwards a refused input with its problems and keeps no claim [AUTO-R6]', async () => {
     const { deliver, ledger } = await webhook({ bindings: [] });
     vi.mocked(beginRunInTx).mockRejectedValueOnce(
       new AutomationError(
@@ -695,7 +695,7 @@ describe('dispatchAutomationEvent stamps', () => {
     );
   });
 
-  it('records not_deployed instead of a fire when nothing is deployed', async () => {
+  it('records not_deployed instead of a fire when nothing is deployed [AUTO-R5]', async () => {
     const { tx, queries } = eventTx();
     vi.mocked(beginRunInTx).mockResolvedValueOnce(null);
     const outcome = await dispatchAutomationEvent(
@@ -855,7 +855,7 @@ describe('dispatchAutomationEvent stamps', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('fires nothing and stamps nothing for an event an automation raised', async () => {
+  it('fires nothing and stamps nothing for an event an automation raised [AUTO-R12]', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { tx, queries } = eventTx();
     const outcome = await dispatchAutomationEvent(

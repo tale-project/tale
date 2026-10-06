@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { highlightCode, resolveLanguage, resolveShikiTheme } from './shiki';
+import {
+  highlightCode,
+  peekHighlightedCode,
+  resolveLanguage,
+  resolveShikiTheme,
+} from './shiki';
 
 describe('resolveShikiTheme', () => {
   it('maps light aliases onto min-light', () => {
@@ -48,5 +53,35 @@ describe('diff highlighting', () => {
     const dark = await highlightCode('-old\n+new\n', 'diff', 'dark');
     expect(dark?.html).toContain('#85E89D');
     expect(dark?.html).toContain('#F97583');
+  });
+});
+
+describe('remembered highlights', () => {
+  // A chat tokenized every code block again each time it opened, and showed
+  // it plain until the highlight arrived.
+  it('answers a snippet highlighted before, the same result, from memory', async () => {
+    const code = 'export const answer = 42; // remembered';
+    expect(peekHighlightedCode(code, 'ts', 'light')).toBeNull();
+
+    const first = await highlightCode(code, 'ts', 'light');
+    expect(first).not.toBeNull();
+    expect(peekHighlightedCode(code, 'typescript', 'github-light')).toBe(first);
+    expect(await highlightCode(code, 'ts', 'light')).toBe(first);
+  });
+
+  it('keeps the language and the theme apart', async () => {
+    const code = 'const theme = "dark"; // remembered per theme';
+    const light = await highlightCode(code, 'ts', 'light');
+    expect(peekHighlightedCode(code, 'ts', 'dark')).toBeNull();
+    expect(peekHighlightedCode(code, 'js', 'light')).toBeNull();
+    const dark = await highlightCode(code, 'ts', 'dark');
+    expect(dark?.html).not.toBe(light?.html);
+    expect(peekHighlightedCode(code, 'ts', 'dark')).toBe(dark);
+  });
+
+  it('remembers nothing for a snippet too large to highlight', async () => {
+    const code = 'x'.repeat(70_000);
+    expect(await highlightCode(code, 'text')).toBeNull();
+    expect(peekHighlightedCode(code, 'text')).toBeNull();
   });
 });

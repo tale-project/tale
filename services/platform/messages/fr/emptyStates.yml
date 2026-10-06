@@ -1,0 +1,31 @@
+providers:
+  title: Connecte ton premier fournisseur AI
+  description: Ajoute une clé API et ton équipe peut commencer à discuter avec ses modèles.
+connectors:
+  title: Aucun connector connecté pour l'instant
+  description: Connecte une boîte mail, un dépôt ou un espace de discussion pour l'utiliser dans les automatisations et le chat.
+contacts:
+  title: Aucun contact pour l'instant
+  description: Ajoute des contacts pour leur envoyer un e-mail depuis la boîte de réception.
+products:
+  title: Aucun produit pour l'instant
+  description: Ajoute des produits pour que les agents répondent avec ton catalogue.
+websites:
+  title: Aucun site web pour l'instant
+  description: Ajoute des sites web que les agents peuvent citer dans leurs réponses.
+knowledgeEntries:
+  title: Aucune entrée de connaissances pour l'instant
+  description: Enregistre des faits depuis le chat ou ajoute des entrées que les agents peuvent réutiliser.
+skills:
+  title: Aucun skill pour l’instant
+  description: Écris un skill une fois, puis équipes-en les agents de projet ou les nœuds agent de tes automatisations.
+members:
+  title: Aucun membre trouvé
+  description: Invite des personnes à collaborer dans ce workspace.
+teams:
+  title: Aucune équipe pour l'instant
+  description: Regroupe des membres en équipes pour contrôler l'accès aux agents et aux skills.
+apiKeys:
+  title: Aucune clé API pour l'instant
+  description: Génère une clé pour connecter des outils et scripts externes.
+  descriptionNoCreate: Créer une clé demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.

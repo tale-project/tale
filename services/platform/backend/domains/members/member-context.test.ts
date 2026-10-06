@@ -31,7 +31,7 @@ function fakeSql(seatRole: string | null): Sql {
 
 const actor = { userId: 'user-1', name: 'Proxy User' };
 
-describe('getCurrentMemberContext — the role the app is told', () => {
+describe('getCurrentMemberContext — the role the app is told [MEMBER-R9]', () => {
   it('reports the seat role when the gate enforces nothing else', async () => {
     const context = await getCurrentMemberContext(
       fakeSql('member'),

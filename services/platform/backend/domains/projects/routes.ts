@@ -126,11 +126,17 @@ export function createProjectRoutes(deps: {
       c.get('sessionBundle').user.email,
     );
 
+  const readOptions = (c: Context<OrgEnv>) =>
+    c.req.query('summary') === 'true' ? { summary: true } : {};
+
   app.get('/', async (c) => {
     const auth = await authCtx(c);
     const includeArchived = c.req.query('includeArchived') === 'true';
     return c.json({
-      projects: await listProjects(deps.sql, auth, { includeArchived }),
+      projects: await listProjects(deps.sql, auth, {
+        includeArchived,
+        ...readOptions(c),
+      }),
     });
   });
 
@@ -237,6 +243,7 @@ export function createProjectRoutes(deps: {
     return c.json(
       await listProjectsOverview(deps.sql, auth, {
         includeArchived,
+        ...readOptions(c),
         ...(Number.isFinite(asOf) && asOf > 0 ? { asOf } : {}),
       }),
     );
@@ -244,13 +251,17 @@ export function createProjectRoutes(deps: {
 
   app.get('/sidebar', async (c) => {
     const auth = await authCtx(c);
-    return c.json({ projects: await listSidebarProjects(deps.sql, auth) });
+    return c.json({
+      projects: await listSidebarProjects(deps.sql, auth, 50, readOptions(c)),
+    });
   });
 
   app.get('/search', async (c) => {
     const auth = await authCtx(c);
     const query = c.req.query('q') ?? '';
-    return c.json({ projects: await searchProjects(deps.sql, auth, query) });
+    return c.json({
+      projects: await searchProjects(deps.sql, auth, query, 20, readOptions(c)),
+    });
   });
 
   app.post('/', async (c) => {

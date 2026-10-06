@@ -34,6 +34,20 @@ describe('FileAttachmentsList', () => {
     expect(onRemove).toHaveBeenCalledWith('f1');
   });
 
+  it('lets no file be removed while the files are being sent', async () => {
+    const onRemove = vi.fn();
+    const { user } = render(
+      <FileAttachmentsList files={[picked]} onRemove={onRemove} disabled />,
+    );
+
+    const remove = screen.getByRole('button', { name: 'Remove invoice.pdf' });
+    expect(remove).toBeDisabled();
+    await user.click(remove);
+
+    expect(onRemove).not.toHaveBeenCalled();
+    expect(screen.getByText('invoice.pdf')).toBeInTheDocument();
+  });
+
   it('names the button with the whole name while the chip shows it cut', () => {
     const long: AttachedFile = {
       id: 'f2',

@@ -2,6 +2,7 @@
 // start.ts can pre-create externally-scoped volumes before `docker compose up`
 // and the compose file can reference them as `external: true`.
 export const DEV_VOLUME_NAMES = [
+  'static-assets',
   'db-data',
   'db-backup',
   // Retired names, kept as unused stubs so teardown (`tale reset --all`,
@@ -29,6 +30,7 @@ export const DEV_VOLUME_NAMES = [
 // Every volume declared as `external: true` in the stateful or color compose
 // must appear here so `ensureVolumes` pre-creates it.
 export const REQUIRED_VOLUMES = [
+  'static-assets',
   // See DEV_VOLUME_NAMES for the retired-stub rationale.
   'platform-data',
   'convex-data',

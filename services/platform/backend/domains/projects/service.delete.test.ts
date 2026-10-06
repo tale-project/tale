@@ -129,7 +129,7 @@ afterEach(() => {
 });
 
 describe('deleteProject (cascade)', () => {
-  it('refuses a project an automation is installed in as a 409 naming the automations, before any write', async () => {
+  it('refuses a project an automation is installed in as a 409 naming the automations, before any write [PROJ-R14]', async () => {
     const { tx, statements } = fakeTx([], [], ['ops/door', 'vat/return']);
     await expect(
       deleteProject(tx, auth, {
@@ -145,7 +145,7 @@ describe('deleteProject (cascade)', () => {
     expect(writes(statements)).toEqual([]);
   });
 
-  it('refuses the whole cascade before any write when a record is protected', async () => {
+  it('refuses the whole cascade before any write when a record is protected [PROJ-R15]', async () => {
     const { tx, statements } = fakeTx([
       { id: 'doc-a', title: 'plain.txt', record: null, createdBy: 'user-1' },
       {
@@ -208,7 +208,7 @@ describe('deleteProject (cascade)', () => {
   });
 
   it.each(['detach', 'cascade'] as const)(
-    'retires every task of the project through the tasks walk before the row goes (%s)',
+    'retires every task of the project through the tasks walk before the row goes (%s) [PROJ-R16]',
     async (mode) => {
       const { tx, statements } = fakeTx([], ['task-1', 'task-2']);
       await deleteProject(tx, auth, {
@@ -265,7 +265,7 @@ describe('deleteProject (cascade)', () => {
     },
   );
 
-  it('leaves a detach alone — nothing is destroyed, so nothing is guarded', async () => {
+  it('leaves a detach alone — nothing is destroyed, so nothing is guarded [PROJ-R15]', async () => {
     const { tx, statements } = fakeTx([
       {
         id: 'doc-b',

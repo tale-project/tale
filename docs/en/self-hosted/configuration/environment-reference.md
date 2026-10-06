@@ -24,7 +24,8 @@ Use the example file alongside this reference and inspect your effective service
 | `HOST`      | `localhost`         | **Required.** Hostname without protocol. Used for Docker networking and outbound email.                                   |
 | `SITE_URL`  | `https://localhost` | **Required.** Full canonical URL including scheme and any non-standard port. Auth callbacks and external links use this.  |
 | `ADDITIONAL_SITE_URLS` | unset      | **Optional.** Other origins the same deployment answers on, comma- or whitespace-separated (e.g. `https://a.example,https://b.example`). Each is a full entry point. See [TLS and domains](/self-hosted/configuration/tls-and-domains#several-domains-at-once). |
-| `TOTP_ENVIRONMENT` | unset | Authenticator environment label for `backend-api` and the `all` role: 1–32 letters, digits, underscores or hyphens, trimmed and uppercased. `pr` or unset keeps `Tale`; `te` names newly generated entries `Tale <TE>`. Invalid labels prevent backend startup. |
+| `TOTP_CLIENT_NAME` | unset | Client that newly generated authenticator entries and backup-code downloads name, read by `platform`, `backend-api` and the `all` role: 1–40 letters, digits, spaces or `&` `'` `.` `+` `-`, trimmed. `Acme` names entries `Acme Tale Platform`; unset, or `Tale`, keeps `Tale Platform`. Invalid names prevent backend startup. |
+| `TOTP_ENVIRONMENT` | unset | Environment that newly generated authenticator entries and backup-code downloads name, read by `platform`, `backend-api` and the `all` role: 1–32 letters, digits, underscores or hyphens, trimmed and uppercased. `pr` or unset adds none; `te` turns `Acme Tale Platform` into `Acme Tale Platform TE`, and the backup codes download as `acme-tale-platform-te-backup-codes.txt`. Invalid labels prevent backend startup. |
 | `BASE_PATH` | unset               | **Optional.** Path prefix for subpath deployments behind a reverse proxy (e.g. `/app`). Leave unset for root deployments. |
 | `DOCS_URL` | `https://docs.<HOST>` | Public origin for the proxy’s separate documentation host. The deployment must also include the docs service. |
 
@@ -32,7 +33,7 @@ Use the example file alongside this reference and inspect your effective service
 
 The prose documentation uses its own origin. On the platform origin, `/docs` opens the interactive API reference and `/openapi.json` serves its schema. `DOCS_URL` changes the proxy’s docs host; it does not install the docs service or rewrite links in existing client bundles. The SEO tooling’s `TALE_DOCS_URL` and the docs service’s build/runtime path prefix `DOCS_BASE_URL` are separate settings.
 
-Changing `TOTP_ENVIRONMENT` affects newly generated QR codes and setup URIs, including when an existing secret is displayed again. It does not rotate secrets or rename entries already saved on a device; rename those in your authenticator app if needed.
+Changing `TOTP_CLIENT_NAME` or `TOTP_ENVIRONMENT` affects newly generated QR codes and setup URIs, including when an existing secret is displayed again, and backup codes downloaded afterwards. It does not rotate secrets or rename entries already saved on a device; rename those in your authenticator app if needed.
 
 ## TLS
 
@@ -370,6 +371,34 @@ The egress proxy allows upstream DNS queries to the validated nameserver IPs in 
 Keep `sandbox`, `sandbox-egress` and `SANDBOX_RUNTIME_IMAGE` on the same release when upgrading. Before attaching an organization’s Docker build network, the spawner verifies the session’s forwarding protection. Compose and generated Docker session containers disable IPv6 with `net.ipv6.conf.all.disable_ipv6=1` and `net.ipv6.conf.default.disable_ipv6=1`; preserve both in custom Docker definitions.
 
 Kubernetes Pods do not receive unsafe sysctls automatically. The egress proxy needs working IPv6 firewall support or IPv6 disabled in its network namespace. If the IPv6 firewall is unavailable, the entrypoint attempts that local disable and verifies the default and every interface. A read-only `/proc/sys` or denied write can prevent it; enabled IPv6 without protection still stops startup. Configure the egress Pod according to the cluster’s permitted networking settings before deployment.
+
+## SSH repository access
+
+The native sandbox includes OpenSSH and `netcat-openbsd`. Grant a replaceable key restricted to the repository as a named agent secret, then load it into `ssh-agent` from stdin in the credentialed turn. Keep its private bytes in the environment; never write a key file or print them. A Member-started turn receives no agent secrets. Git commits use the workspace owner's author name and email even without a GitHub connector grant.
+
+Internal sessions use their existing `HTTP_PROXY` for egress. Direct SSH cannot rely on external DNS from that network. Use the proxy's HTTP CONNECT tunnel and a port it authorizes. GitHub supports SSH at `ssh.github.com:443`; verify the host against [GitHub's published fingerprints](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints), as described in [SSH over port 443](https://docs.github.com/en/authentication/troubleshooting-ssh/using-ssh-over-the-https-port). Keep a public known-hosts file with the independently verified pin and configure the command after the agent has loaded the key:
+
+```python
+import os
+import shlex
+import subprocess
+from urllib.parse import urlsplit
+
+proxy = urlsplit(os.environ["HTTP_PROXY"])
+if proxy.scheme != "http" or not proxy.hostname or not proxy.port or proxy.username or proxy.password:
+    raise ValueError("Expected the existing unauthenticated HTTP egress proxy")
+connect = shlex.join(["nc", "-X", "connect", "-x", f"{proxy.hostname}:{proxy.port}", "%h", "%p"])
+environment = os.environ.copy()
+environment["GIT_SSH_COMMAND"] = shlex.join([
+    "ssh", "-o", f"ProxyCommand={connect}", "-o", "StrictHostKeyChecking=yes",
+    "-o", "UserKnownHostsFile=/tmp/repository-known-hosts",
+    "-o", "GlobalKnownHostsFile=/dev/null", "-o", "BatchMode=yes",
+    "-o", "ConnectTimeout=20",
+])
+subprocess.run(["git", "ls-remote", "--exit-code", "ssh://git@ssh.github.com:443/org/repository.git", "HEAD"], env=environment, check=True, timeout=30)
+```
+
+The known-hosts file contains only the provider's public host key; the repository's private key stays in `ssh-agent`. This uses the existing egress policy and the repository key's own access scope. It needs no broader GitHub connector grant.
 
 ## Sandbox devices
 

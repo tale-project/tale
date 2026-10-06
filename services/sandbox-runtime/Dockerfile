@@ -45,38 +45,16 @@ RUN apt-get update \
 COPY services/sandbox-runtime/daemon/exec-shim/tale-exec-shim.c /build/tale-exec-shim.c
 RUN gcc -O2 -Wall -Wextra -Werror -o /tale-exec-shim /build/tale-exec-shim.c
 
-# --- runtime image ----------------------------------------------------------
-FROM python:3.12-slim-bookworm
-
-# Pinned agent + tool versions (sessions plan — upgrade = bump ARG + rebuild).
-# 2.x required: the claude_code adapter passes --include-partial-messages,
-# which 1.0.x rejects (exit 1 before the agent even starts). 2.1.280 is the
-# first release that knows Claude Opus 5.5 (2.1.257: Claude Fable 5.1).
-ARG CLAUDE_CODE_VERSION=2.1.285
-ARG OPENCODE_VERSION=1.18.34
-ARG CURSOR_AGENT_VERSION=2026.10.01-e373342
-ARG HERMES_AGENT_VERSION=0.19.0
-# Since 0.60.0 the CLI requires root-owned system settings and ancestors.
-# The build stage derives immutable policy files; the non-root wrapper
-# selects one by its settings hash and supplies only per-exec string values
-# through env expansion. The harness YAML keeps
-# `capabilities.resume: false` until a release carries the resume fix
-# (google-gemini/gemini-cli#29365).
-ARG GEMINI_CLI_VERSION=0.62.0
-ARG CODEX_VERSION=0.160.0
-ARG PI_CODING_AGENT_VERSION=1.0.1
-ARG OPENCLAW_VERSION=2026.9.8
-ARG QWEN_CODE_VERSION=0.24.7
-ARG PLAYWRIGHT_MCP_VERSION=0.0.41
-ARG GH_VERSION=2.62.0
-ARG PILLOW_VERSION=12.3.0
+# --- stable shared toolchain ------------------------------------------------
+# Harness pins are declared only in their independent install stages below.
+FROM python:3.12-slim-bookworm AS tooling-base
 ARG TARGETARCH
 
 # Runtime additions — fontconfig + DejaVu so Pillow/matplotlib render text,
 # jq for the hook scripts (tale-steer-hook, tale-plan-gate,
 # tale-vision-read-hook), ca-certificates for HTTPS to pypi/npm via
 # the egress proxy, bash for user `.sh` steps (Debian slim ships only dash),
-# and the coding-agent tooling: git/ripgrep/fd/curl/procps for the session
+# and the coding-agent tooling: git/OpenSSH/netcat/ripgrep/fd/curl/procps for the session
 # role, plus the Playwright system libraries (Chromium needs them to launch
 # headless — installed here because read-only-root + non-root can't add them
 # at runtime).
@@ -87,6 +65,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       jq \
       bash \
       git \
+      openssh-client \
+      netcat-openbsd \
       ripgrep \
       fd-find \
       curl \
@@ -185,14 +165,11 @@ ENV PYTHONUNBUFFERED=1
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 # Playwright browsers in a world-readable global path (the agent user reads
 # them; the baked browsers mean no per-session download — the MCP runs with
-# --isolated so its profile stays in memory). The directory itself is made
-# sticky-writable after install (see below) so the MCP's `browser_install`
-# tool — which an agent may call defensively even though the browser is
-# already present — can create its `__dirlock`/`.links` bookkeeping and
-# fast-exit as a no-op, instead of hanging for minutes retrying the lock and
-# then failing EACCES (which cascades into a redundant `playwright install`
-# download). The browser binaries stay root-owned and read-only. Telemetry
-# off.
+# --isolated so its profile stays in memory). The managed MCP launcher answers
+# defensive `browser_install` calls from the verified shell metadata. Keep the
+# cache directory sticky-writable for ordinary Playwright registry bookkeeping
+# and explicit browser installs, while baked binaries stay root-owned and
+# read-only. Telemetry off.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 # Maximum reasoning effort by DEFAULT for the in-sandbox coding agent (drives
@@ -233,105 +210,6 @@ ENV CLAUDE_CODE_WORKFLOWS=1
 # semantics as CLAUDE_CODE_EFFORT_LEVEL above.
 ENV CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
 
-# --- coding-agent CLIs (pinned) ---------------------------------------------
-# Claude Code + Playwright MCP via npm into /opt/agents (on PATH above).
-# Native-addon build headers stay in BuildKit's cache, never in runtime layers.
-# Share by architecture; node-gyp already separates Node versions within it.
-RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
-    npm install -g --prefix /opt/agents \
-      @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
-      @playwright/mcp@${PLAYWRIGHT_MCP_VERSION} \
-    && npm cache clean --force
-
-# Chromium for Playwright MCP (system deps already apt-installed above) —
-# resolved against the MCP's OWN bundled playwright so the browser revision
-# always matches what the MCP resolves at runtime (npx would fetch the latest
-# registry playwright, whose revision drifts from the bundled one). Download +
-# extract via curl/unzip — see install-playwright-browsers.sh for why the
-# bundled downloader itself is not used. Loud failure on purpose: a missing
-# or non-executable browser is a broken image.
-# PLAYWRIGHT_DOWNLOAD_HOST: optional CDN mirror for the browser download
-# (e.g. https://cdn.npmmirror.com/binaries/playwright); empty = official CDN.
-ARG PLAYWRIGHT_DOWNLOAD_HOST=""
-COPY services/sandbox-runtime/install-playwright-browsers.sh /tmp/install-playwright-browsers.sh
-RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
-      sh /tmp/install-playwright-browsers.sh \
-      /opt/agents/lib/node_modules/@playwright/mcp/node_modules/.bin/playwright chromium \
-    && node -e "const fs=require('fs'); const p=require('/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core'); fs.accessSync(p.chromium.executablePath(), fs.constants.X_OK)" \
-    && chmod 1777 /opt/ms-playwright \
-    && rm /tmp/install-playwright-browsers.sh
-
-# --- visual-aspect-analyzer builtin skill -----------------------------------
-# Bake the visual-aspect-analyzer skill (a Bun/TypeScript visual-regression
-# tool) into the image so a sandbox agent runs it with zero setup: runnerd
-# symlinks every `/opt/agents/skills/*/` into each harness's native user-level
-# skill dir (`daemon/src/baked-skills.ts`; README "Built-in skills"), so every
-# harness discovers it as its own skill and runs it in place. Copied from its
-# `configs/platform/custom/skills/` source workspace — the dockerignore keeps
-# node_modules out (deps install fresh below); guides, src, and tests all ship,
-# so `bun run e2e` works in the sandbox.
-#
-# It does NOT install a second Playwright/Chromium: only its own pngjs runtime
-# dep is installed (--production skips the dev-only playwright/happy-dom/tsc),
-# and `playwright` + `playwright-core` are symlinked to the copies the MCP
-# already installed above (@playwright/mcp bundles full playwright — the version
-# the skill targets). require.resolve locates them so the link survives npm
-# hoisting, and reusing that install means the skill reuses the MCP's
-# already-downloaded Chromium revision (no second ~150 MB browser).
-COPY configs/platform/custom/skills/visual-aspect-analyzer /opt/agents/skills/visual-aspect-analyzer
-RUN --mount=type=cache,id=tale-sandbox-skill-bun-${TARGETARCH},target=/root/.bun/install/cache,sharing=locked \
-    cd /opt/agents/skills/visual-aspect-analyzer \
-    && bun install --production \
-    && MCP=/opt/agents/lib/node_modules/@playwright/mcp \
-    && ln -sfn "$(node -p "require('path').dirname(require.resolve('playwright/package.json',{paths:['$MCP']}))")" node_modules/playwright \
-    && ln -sfn "$(node -p "require('path').dirname(require.resolve('playwright-core/package.json',{paths:['$MCP']}))")" node_modules/playwright-core \
-    && node -e "const fs=require('fs'); const p=require('/opt/agents/skills/visual-aspect-analyzer/node_modules/playwright'); fs.accessSync(p.chromium.executablePath(), fs.constants.X_OK)"
-
-# OpenCode standalone binary (pinned). dpkg arch → release asset arch.
-RUN set -eux; \
-    case "${TARGETARCH:-amd64}" in \
-      amd64) OC_ARCH=x64 ;; \
-      arm64) OC_ARCH=arm64 ;; \
-      *) echo "unsupported arch ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    curl -fsSL -o /tmp/opencode.tar.gz \
-      "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-${OC_ARCH}.tar.gz"; \
-    mkdir -p /opt/agents/bin; \
-    tar -xzf /tmp/opencode.tar.gz -C /opt/agents/bin; \
-    chmod +x /opt/agents/bin/opencode; \
-    rm /tmp/opencode.tar.gz; \
-    /opt/agents/bin/opencode --version
-
-# Cursor Agent CLI (pinned). downloads.cursor.com serves versioned tarballs;
-# do NOT use cursor.com/install (non-reproducible + auto-update).
-RUN set -eux; \
-    case "${TARGETARCH:-amd64}" in \
-      amd64) CUR_ARCH=x64 ;; \
-      arm64) CUR_ARCH=arm64 ;; \
-      *) echo "unsupported arch ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    curl -fsSL -o /tmp/cursor-agent.tar.gz \
-      "https://downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/${CUR_ARCH}/agent-cli-package.tar.gz"; \
-    mkdir -p /opt/agents/bin /opt/agents/cursor; \
-    tar -xzf /tmp/cursor-agent.tar.gz -C /opt/agents/cursor --strip-components=1; \
-    ln -sf ../cursor/cursor-agent /opt/agents/bin/agent; \
-    rm /tmp/cursor-agent.tar.gz; \
-    /opt/agents/bin/agent --version
-
-# gh CLI (pinned) for the issue→PR workflow (GITHUB_TOKEN env auth).
-RUN set -eux; \
-    case "${TARGETARCH:-amd64}" in \
-      amd64) GH_ARCH=amd64 ;; \
-      arm64) GH_ARCH=arm64 ;; \
-      *) echo "unsupported arch ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    curl -fsSL -o /tmp/gh.tar.gz \
-      "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.tar.gz"; \
-    tar -xzf /tmp/gh.tar.gz -C /tmp; \
-    mv "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh" /usr/local/bin/gh; \
-    rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}"; \
-    gh --version
-
 # Generic document libraries, plus the ones the builtin document skills
 # (configs/platform/custom/skills/{docx,pdf,pptx,xlsx}) import, are ready in
 # both session profiles without a first-run download, so a deployment whose
@@ -358,82 +236,6 @@ RUN npm ci --prefix /opt/tale/document-node --ignore-scripts --omit=dev --no-aud
     && npm cache clean --force \
     && NODE_PATH=/opt/tale/document-node/node_modules node -e "for (const m of ['docx', 'pptxgenjs', 'react', 'react-dom/server', 'react-icons/fa', 'sharp']) require(m)"
 ENV NODE_PATH=/opt/tale/document-node/node_modules
-
-# Hermes Agent (pinned PyPI wheel) + Tale NDJSON wrapper for sandbox runs.
-RUN pip install --no-cache-dir "hermes-agent==${HERMES_AGENT_VERSION}" \
-    && hermes --version
-COPY services/sandbox-runtime/tale-hermes-run /usr/local/bin/tale-hermes-run
-RUN chmod +x /usr/local/bin/tale-hermes-run
-
-# Gemini CLI (pinned npm, into /opt/agents like Claude Code) + Tale wrapper
-# that stages per-exec settings/context before the headless run.
-RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
-    npm install -g --prefix /opt/agents "@google/gemini-cli@${GEMINI_CLI_VERSION}" \
-    && npm cache clean --force \
-    && gemini --version
-COPY services/sandbox-runtime/tale-gemini-run /usr/local/bin/tale-gemini-run
-COPY --from=gemini-settings-build /gemini-settings/ /usr/local/share/tale/gemini-settings/
-RUN chmod +x /usr/local/bin/tale-gemini-run
-
-# OpenAI Codex CLI (pinned npm). Driven headlessly by the platform's codex
-# adapter (`codex exec --json`, config via -c overrides) — no wrapper needed;
-# the CLI's native JSONL is the parse contract. Its npm launcher is a Node
-# process that stays the native binary's parent for the whole run; `codex` on
-# PATH execs the binary directly instead (codex-launcher.in), resolved the way
-# that launcher resolves it.
-COPY services/sandbox-runtime/codex-launcher.in /tmp/codex-launcher.in
-RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
-    npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
-    && npm cache clean --force \
-    && codex_root="$(realpath /opt/agents/lib/node_modules/@openai/codex)" \
-    && codex_bin="$(node -e ' \
-         const path = require("path"); \
-         const root = process.argv[1]; \
-         const req = require("module").createRequire(path.join(root, "bin", "codex.js")); \
-         const triple = { x64: "x86_64-unknown-linux-musl", arm64: "aarch64-unknown-linux-musl" }[process.arch]; \
-         const pkg = { x64: "@openai/codex-linux-x64", arm64: "@openai/codex-linux-arm64" }[process.arch]; \
-         let vendor; \
-         try { vendor = path.join(path.dirname(req.resolve(pkg + "/package.json")), "vendor"); } \
-         catch { vendor = path.join(root, "vendor"); } \
-         console.log(path.join(vendor, triple, "bin", "codex"));' "$codex_root")" \
-    && test -x "$codex_bin" \
-    && sed -e "s|@CODEX_ROOT@|$codex_root|" -e "s|@CODEX_BIN@|$codex_bin|" \
-         /tmp/codex-launcher.in > /opt/agents/bin/codex.direct \
-    && chmod 755 /opt/agents/bin/codex.direct \
-    && mv -f /opt/agents/bin/codex.direct /opt/agents/bin/codex \
-    && rm /tmp/codex-launcher.in \
-    && codex --version
-
-# Pi (pinned npm, into /opt/agents like Claude Code) + Tale wrapper that
-# stages the per-exec config dir (models.json/settings/APPEND_SYSTEM.md)
-# before the headless run.
-RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
-    npm install -g --prefix /opt/agents "@earendil-works/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
-    && npm cache clean --force \
-    && pi --version
-COPY services/sandbox-runtime/tale-pi-run /usr/local/bin/tale-pi-run
-RUN chmod +x /usr/local/bin/tale-pi-run
-
-# OpenClaw (pinned npm, into /opt/agents like Claude Code) + Tale wrapper
-# that stages per-exec config/prompt/AGENTS.md and translates the CLI's
-# single --json envelope into Tale NDJSON lifecycle events.
-RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
-    npm install -g --prefix /opt/agents "openclaw@${OPENCLAW_VERSION}" \
-    && npm cache clean --force \
-    && openclaw --version
-COPY services/sandbox-runtime/tale-openclaw-run /usr/local/bin/tale-openclaw-run
-RUN chmod +x /usr/local/bin/tale-openclaw-run
-
-# Qwen Code (pinned npm, into /opt/agents like Claude Code) + Tale wrapper
-# that stages per-exec settings/context before the headless run — the
-# gemini-cli fork with OpenAI-compatible auth; its headless stream is the
-# Claude-style stream-json dialect.
-RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
-    npm install -g --prefix /opt/agents "@qwen-code/qwen-code@${QWEN_CODE_VERSION}" \
-    && npm cache clean --force \
-    && qwen --version
-COPY services/sandbox-runtime/tale-qwen-run /usr/local/bin/tale-qwen-run
-RUN chmod +x /usr/local/bin/tale-qwen-run
 
 # --- docker-in-container tooling (sysbox/kata tiers) ------------------------
 # Native `docker` / `docker compose` INSIDE a session container. Present in
@@ -489,6 +291,265 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 # otherwise.
 RUN echo 'agent:100000:65536' >> /etc/subuid \
     && echo 'agent:100000:65536' >> /etc/subgid
+
+# Session role runs as the `agent` user (uid 10001) — a real passwd entry so
+# git/ssh have a home + name, and non-root so Claude Code's bypassPermissions
+# is allowed. The default profile runs as 65534 (spawner pins --user per
+# profile); this is just the named account the session profile selects.
+# Absolute paths: the ENV PATH override above drops /usr/sbin.
+RUN /usr/sbin/groupadd --gid 10001 agent \
+    && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /agent/.runtime/home \
+       --shell /bin/bash --no-create-home agent \
+    # docker-in-container: the inner dockerd creates /var/run/docker.sock as
+    # root:docker (660), so the agent (uid 10001, runs `docker` after the
+    # entrypoint drops privileges) must be in the `docker` group to reach it.
+    # Inert on non-DinD tiers (no socket exists). The `docker` group is created
+    # by the docker-ce install above.
+    && /usr/sbin/usermod -aG docker agent
+
+# Pin the account redsocks runs as on the SESSION transparent-egress path to a
+# stable uid/gid 10002 — the owner the iptables OUTPUT owner-match RETURN exempts
+# (the loop-breaker for redsocks' own upstream CONNECT — see entrypoint.sh
+# _install_session_output_redirect / TALE_REDSOCKS_UID). The `redsocks` apt
+# package already creates a `redsocks` system user/group at a dynamic uid, so
+# MODIFY it to 10002 when present (else create it). 10002 avoids the agent
+# (10001) and nobody (65534). No shell/home — it only execs redsocks.
+RUN if getent group redsocks >/dev/null; then \
+      /usr/sbin/groupmod --gid 10002 redsocks; \
+    else \
+      /usr/sbin/groupadd --gid 10002 redsocks; \
+    fi \
+    && if getent passwd redsocks >/dev/null; then \
+      /usr/sbin/usermod --uid 10002 --gid 10002 --shell /usr/sbin/nologin redsocks; \
+    else \
+      /usr/sbin/useradd --uid 10002 --gid 10002 --no-create-home \
+        --shell /usr/sbin/nologin redsocks; \
+    fi
+
+# --- independent coding-agent and browser installs -------------------------
+FROM tooling-base AS claude-build
+# 2.x required: the claude_code adapter passes --include-partial-messages,
+# which 1.0.x rejects (exit 1 before the agent even starts). 2.1.280 is the
+# first release that knows Claude Opus 5.5 (2.1.257: Claude Fable 5.1).
+ARG CLAUDE_CODE_VERSION=2.1.285
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+    && npm cache clean --force \
+    && claude --version
+
+FROM tooling-base AS playwright-build
+ARG PLAYWRIGHT_MCP_VERSION=0.0.41
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}" \
+    && npm cache clean --force
+
+# Chromium for Playwright MCP (system deps already apt-installed above) —
+# resolved against the MCP's OWN bundled playwright so the browser revision
+# always matches what the MCP resolves at runtime (npx would fetch the latest
+# registry playwright, whose revision drifts from the bundled one). Download +
+# extract via curl/unzip — see install-playwright-browsers.sh for why the
+# bundled downloader itself is not used. Loud failure on purpose: a missing
+# or non-executable browser is a broken image.
+# PLAYWRIGHT_DOWNLOAD_HOST: optional CDN mirror for the browser download
+# (e.g. https://cdn.npmmirror.com/binaries/playwright); empty = official CDN.
+ARG PLAYWRIGHT_DOWNLOAD_HOST=""
+COPY services/sandbox-runtime/install-playwright-browsers.sh /tmp/install-playwright-browsers.sh
+RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
+      sh /tmp/install-playwright-browsers.sh \
+      /opt/agents/lib/node_modules/@playwright/mcp/node_modules/.bin/playwright \
+      /opt/tale/playwright-mcp/browser.json \
+    && node -e "const fs=require('fs'); const manifest=require('/opt/tale/playwright-mcp/browser.json'); fs.accessSync(manifest.executablePath, fs.constants.X_OK)" \
+    && chmod 1777 /opt/ms-playwright \
+    && rm /tmp/install-playwright-browsers.sh
+
+# --- visual-aspect-analyzer builtin skill -----------------------------------
+# Bake the visual-aspect-analyzer skill (a Bun/TypeScript visual-regression
+# tool) into the image so a sandbox agent runs it with zero setup: runnerd
+# symlinks every `/opt/agents/skills/*/` into each harness's native user-level
+# skill dir (`daemon/src/baked-skills.ts`; README "Built-in skills"), so every
+# harness discovers it as its own skill and runs it in place. Copied from its
+# `configs/platform/custom/skills/` source workspace — the dockerignore keeps
+# node_modules out (deps install fresh below); guides, src, and tests all ship,
+# so `bun run e2e` works in the sandbox.
+#
+# It does NOT install a second Playwright/Chromium: only its own pngjs runtime
+# dep is installed (--production skips the dev-only playwright/happy-dom/tsc),
+# and `playwright` + `playwright-core` are symlinked to the copies the MCP
+# already installed above (@playwright/mcp bundles full playwright — the version
+# the skill targets). require.resolve locates them so the link survives npm
+# hoisting, and reusing that install means the skill reuses the MCP's
+# already-downloaded Chromium revision (no second ~150 MB browser).
+FROM playwright-build AS baked-skills-build
+COPY configs/platform/custom/skills/visual-aspect-analyzer /opt/agents/skills/visual-aspect-analyzer
+RUN --mount=type=cache,id=tale-sandbox-skill-bun-${TARGETARCH},target=/root/.bun/install/cache,sharing=locked \
+    cd /opt/agents/skills/visual-aspect-analyzer \
+    && bun install --production \
+    && MCP=/opt/agents/lib/node_modules/@playwright/mcp \
+    && ln -sfn "$(node -p "require('path').dirname(require.resolve('playwright/package.json',{paths:['$MCP']}))")" node_modules/playwright \
+    && ln -sfn "$(node -p "require('path').dirname(require.resolve('playwright-core/package.json',{paths:['$MCP']}))")" node_modules/playwright-core \
+    && node -e "const fs=require('fs'); const manifest=require('/opt/tale/playwright-mcp/browser.json'); fs.accessSync(manifest.executablePath, fs.constants.X_OK)"
+
+# OpenCode standalone binary (pinned). dpkg arch → release asset arch.
+FROM tooling-base AS opencode-build
+ARG OPENCODE_VERSION=1.18.34
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) OC_ARCH=x64 ;; \
+      arm64) OC_ARCH=arm64 ;; \
+      *) echo "unsupported arch ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/opencode.tar.gz \
+      "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-${OC_ARCH}.tar.gz"; \
+    mkdir -p /opt/agents/bin; \
+    tar -xzf /tmp/opencode.tar.gz -C /opt/agents/bin; \
+    chmod +x /opt/agents/bin/opencode; \
+    rm /tmp/opencode.tar.gz; \
+    /opt/agents/bin/opencode --version
+
+# Cursor Agent CLI (pinned). downloads.cursor.com serves versioned tarballs;
+# do NOT use cursor.com/install (non-reproducible + auto-update).
+FROM tooling-base AS cursor-build
+ARG CURSOR_AGENT_VERSION=2026.10.01-e373342
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) CUR_ARCH=x64 ;; \
+      arm64) CUR_ARCH=arm64 ;; \
+      *) echo "unsupported arch ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/cursor-agent.tar.gz \
+      "https://downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/${CUR_ARCH}/agent-cli-package.tar.gz"; \
+    mkdir -p /opt/agents/bin /opt/agents/cursor; \
+    tar -xzf /tmp/cursor-agent.tar.gz -C /opt/agents/cursor --strip-components=1; \
+    ln -sf ../cursor/cursor-agent /opt/agents/bin/agent; \
+    rm /tmp/cursor-agent.tar.gz; \
+    /opt/agents/bin/agent --version
+
+# gh CLI (pinned) for the issue→PR workflow (GITHUB_TOKEN env auth).
+FROM tooling-base AS gh-build
+ARG GH_VERSION=2.62.0
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) GH_ARCH=amd64 ;; \
+      arm64) GH_ARCH=arm64 ;; \
+      *) echo "unsupported arch ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/gh.tar.gz \
+      "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.tar.gz"; \
+    tar -xzf /tmp/gh.tar.gz -C /tmp; \
+    mv "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh" /usr/local/bin/gh; \
+    rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}"; \
+    gh --version
+
+# Hermes shares the locked document libraries already installed in tooling-base.
+# A private install prefix contains only its additions; the final COPY restores
+# their ordinary /usr/local locations without copying the document bytes again.
+FROM tooling-base AS hermes-build
+ARG HERMES_AGENT_VERSION=0.19.0
+RUN pip install --no-cache-dir --prefix /opt/tale-hermes "hermes-agent==${HERMES_AGENT_VERSION}" \
+    && PYTHONPATH=/opt/tale-hermes/lib/python3.12/site-packages /opt/tale-hermes/bin/hermes --version
+
+FROM tooling-base AS gemini-build
+# Since 0.60.0 the CLI requires root-owned system settings and ancestors.
+# The build stage derives immutable policy files; the non-root wrapper
+# selects one by its settings hash and supplies only per-exec string values
+# through env expansion. The harness YAML keeps
+# `capabilities.resume: false` until a release carries the resume fix
+# (google-gemini/gemini-cli#29365).
+ARG GEMINI_CLI_VERSION=0.62.0
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@google/gemini-cli@${GEMINI_CLI_VERSION}" \
+    && npm cache clean --force \
+    && gemini --version
+
+# OpenAI Codex CLI (pinned npm). Driven headlessly by the platform's codex
+# adapter (`codex exec --json`, config via -c overrides) — no wrapper needed;
+# the CLI's native JSONL is the parse contract. Its npm launcher is a Node
+# process that stays the native binary's parent for the whole run; `codex` on
+# PATH execs the binary directly instead (codex-launcher.in), resolved the way
+# that launcher resolves it.
+FROM tooling-base AS codex-build
+ARG CODEX_VERSION=0.160.0
+COPY services/sandbox-runtime/codex-launcher.in /tmp/codex-launcher.in
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
+    && npm cache clean --force \
+    && codex_root="$(realpath /opt/agents/lib/node_modules/@openai/codex)" \
+    && codex_bin="$(node -e ' \
+         const path = require("path"); \
+         const root = process.argv[1]; \
+         const req = require("module").createRequire(path.join(root, "bin", "codex.js")); \
+         const triple = { x64: "x86_64-unknown-linux-musl", arm64: "aarch64-unknown-linux-musl" }[process.arch]; \
+         const pkg = { x64: "@openai/codex-linux-x64", arm64: "@openai/codex-linux-arm64" }[process.arch]; \
+         let vendor; \
+         try { vendor = path.join(path.dirname(req.resolve(pkg + "/package.json")), "vendor"); } \
+         catch { vendor = path.join(root, "vendor"); } \
+         console.log(path.join(vendor, triple, "bin", "codex"));' "$codex_root")" \
+    && test -x "$codex_bin" \
+    && sed -e "s|@CODEX_ROOT@|$codex_root|" -e "s|@CODEX_BIN@|$codex_bin|" \
+         /tmp/codex-launcher.in > /opt/agents/bin/codex.direct \
+    && chmod 755 /opt/agents/bin/codex.direct \
+    && mv -f /opt/agents/bin/codex.direct /opt/agents/bin/codex \
+    && rm /tmp/codex-launcher.in \
+    && codex --version
+
+FROM tooling-base AS pi-build
+ARG PI_CODING_AGENT_VERSION=1.0.1
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@earendil-works/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
+    && npm cache clean --force \
+    && pi --version
+
+FROM tooling-base AS openclaw-build
+ARG OPENCLAW_VERSION=2026.9.8
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "openclaw@${OPENCLAW_VERSION}" \
+    && npm cache clean --force \
+    && openclaw --version
+
+FROM tooling-base AS qwen-build
+ARG QWEN_CODE_VERSION=0.24.7
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@qwen-code/qwen-code@${QWEN_CODE_VERSION}" \
+    && npm cache clean --force \
+    && qwen --version
+
+# Isolate the vision dependency pin from document tools and every harness.
+FROM tooling-base AS vision-build
+ARG PILLOW_VERSION=12.3.0
+RUN python3 -m venv /opt/tale-vision \
+    && /opt/tale-vision/bin/pip install --no-cache-dir "Pillow==${PILLOW_VERSION}" \
+    && printf '#!/bin/sh\nexec /opt/tale-vision/bin/python -E -s /opt/tale-vision/cli.py "$@"\n' \
+       > /usr/local/bin/tale-vision
+
+# --- runtime assembly -------------------------------------------------------
+# Each immutable tool export has its own layer. --link keeps unchanged exports
+# reusable even when an earlier CLI changes, avoiding multi-GB duplicate layers
+# for ordinary harness upgrades. Version ARGs never enter this stage or the
+# common apt/document-toolchain RUN cache keys.
+FROM tooling-base AS runtime
+COPY --link --from=claude-build /opt/agents/ /opt/agents/
+COPY --link --from=playwright-build /opt/agents/ /opt/agents/
+COPY --link --from=opencode-build /opt/agents/ /opt/agents/
+COPY --link --from=cursor-build /opt/agents/ /opt/agents/
+COPY --link --from=codex-build /opt/agents/ /opt/agents/
+COPY --link --from=gemini-build /opt/agents/ /opt/agents/
+COPY --link --from=pi-build /opt/agents/ /opt/agents/
+COPY --link --from=openclaw-build /opt/agents/ /opt/agents/
+COPY --link --from=qwen-build /opt/agents/ /opt/agents/
+COPY --link --from=playwright-build /opt/ms-playwright/ /opt/ms-playwright/
+COPY --link --from=playwright-build /opt/tale/playwright-mcp/browser.json /opt/tale/playwright-mcp/browser.json
+COPY --link --from=baked-skills-build /opt/agents/skills/ /opt/agents/skills/
+COPY --link --from=gh-build /usr/local/bin/gh /usr/local/bin/gh
+COPY --link --from=hermes-build /opt/tale-hermes/ /usr/local/
+COPY --link --from=vision-build /opt/tale-vision/ /opt/tale-vision/
+COPY --link --from=vision-build /usr/local/bin/tale-vision /usr/local/bin/tale-vision
+
+COPY --chmod=755 services/sandbox-runtime/tale-hermes-run /usr/local/bin/tale-hermes-run
+COPY --chmod=755 services/sandbox-runtime/tale-gemini-run /usr/local/bin/tale-gemini-run
+COPY --from=gemini-settings-build /gemini-settings/ /usr/local/share/tale/gemini-settings/
+COPY --chmod=755 services/sandbox-runtime/tale-pi-run /usr/local/bin/tale-pi-run
+COPY --chmod=755 services/sandbox-runtime/tale-openclaw-run /usr/local/bin/tale-openclaw-run
+COPY --chmod=755 services/sandbox-runtime/tale-qwen-run /usr/local/bin/tale-qwen-run
 
 # runnerd — the session control daemon, bundled to a single file in the
 # daemon-build stage and run by the image's Node 24 (session mode only) — and
@@ -569,10 +630,6 @@ COPY services/sandbox-runtime/tale-vision-read-hook /usr/local/bin/tale-vision-r
 # models included — a script's batch transcription is the lane's job. Pillow lives in a dedicated venv and
 # the shim runs `python -E -s` so the per-session user deps that entrypoint.sh
 # prepends onto PYTHONPATH (/agent/.runtime/deps/python) can never shadow PIL.
-RUN python3 -m venv /opt/tale-vision \
-    && /opt/tale-vision/bin/pip install --no-cache-dir "Pillow==${PILLOW_VERSION}" \
-    && printf '#!/bin/sh\nexec /opt/tale-vision/bin/python -E -s /opt/tale-vision/cli.py "$@"\n' \
-       > /usr/local/bin/tale-vision
 COPY services/sandbox-runtime/tale-vision /opt/tale-vision/cli.py
 
 COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
@@ -583,40 +640,6 @@ RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-creden
       /usr/local/bin/tale-vision \
       /usr/local/bin/tale-steer-hook \
       /usr/local/bin/tale-plan-gate
-
-# Session role runs as the `agent` user (uid 10001) — a real passwd entry so
-# git/ssh have a home + name, and non-root so Claude Code's bypassPermissions
-# is allowed. The default profile runs as 65534 (spawner pins --user per
-# profile); this is just the named account the session profile selects.
-# Absolute paths: the ENV PATH override above drops /usr/sbin.
-RUN /usr/sbin/groupadd --gid 10001 agent \
-    && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /agent/.runtime/home \
-       --shell /bin/bash --no-create-home agent \
-    # docker-in-container: the inner dockerd creates /var/run/docker.sock as
-    # root:docker (660), so the agent (uid 10001, runs `docker` after the
-    # entrypoint drops privileges) must be in the `docker` group to reach it.
-    # Inert on non-DinD tiers (no socket exists). The `docker` group is created
-    # by the docker-ce install above.
-    && /usr/sbin/usermod -aG docker agent
-
-# Pin the account redsocks runs as on the SESSION transparent-egress path to a
-# stable uid/gid 10002 — the owner the iptables OUTPUT owner-match RETURN exempts
-# (the loop-breaker for redsocks' own upstream CONNECT — see entrypoint.sh
-# _install_session_output_redirect / TALE_REDSOCKS_UID). The `redsocks` apt
-# package already creates a `redsocks` system user/group at a dynamic uid, so
-# MODIFY it to 10002 when present (else create it). 10002 avoids the agent
-# (10001) and nobody (65534). No shell/home — it only execs redsocks.
-RUN if getent group redsocks >/dev/null; then \
-      /usr/sbin/groupmod --gid 10002 redsocks; \
-    else \
-      /usr/sbin/groupadd --gid 10002 redsocks; \
-    fi \
-    && if getent passwd redsocks >/dev/null; then \
-      /usr/sbin/usermod --uid 10002 --gid 10002 --shell /usr/sbin/nologin redsocks; \
-    else \
-      /usr/sbin/useradd --uid 10002 --gid 10002 --no-create-home \
-        --shell /usr/sbin/nologin redsocks; \
-    fi
 
 # Default user is nobody; spawner pins --user per profile at the call site
 # (65534 default profile, 10001 agent profile).

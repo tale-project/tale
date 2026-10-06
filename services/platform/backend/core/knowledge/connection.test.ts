@@ -163,7 +163,7 @@ describe('the embedding model', () => {
     expect(await readOrgEmbeddingConfig('startup')).toBeNull();
   });
 
-  it('requires the vector width, and never infers it from the model name', async () => {
+  it('requires the vector width, and never infers it from the model name [KNOW-R11]', async () => {
     // text-embedding-3-small is a model whose width we could have guessed. It
     // is refused anyway: the guess would be right here and silently wrong for
     // the next model, and nothing about the failure would be visible.

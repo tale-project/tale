@@ -21,7 +21,16 @@ import {
   Share2,
   SquarePen,
 } from 'lucide-react';
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FocusEvent,
+  type LiHTMLAttributes,
+  type ReactNode,
+} from 'react';
 
 import { useThreadDraggable } from '@/app/features/chat/components/thread-dnd';
 import { useThreadListFrame } from '@/app/features/chat/components/thread-list-context';
@@ -45,6 +54,7 @@ import type {
   HomeConversationItem,
   HomeTaskItem,
 } from '../lib/home-items';
+import type { HomeRowPlacement } from './home-stream';
 
 // ───────────────────────────── shared frame ─────────────────────────────
 
@@ -72,6 +82,45 @@ function useHomeRowTone(active: boolean): {
     className: 'text-foreground font-medium',
     ...(accentColor ? { style: { color: accentColor } } : {}),
   };
+}
+
+/**
+ * What a windowed stream adds to a row's `li` (see `home-stream.tsx`): the
+ * measuring ref and index, the row's place in the whole stream, and the
+ * focus report that keeps it mounted while focus is inside it — inside its
+ * menu too, whose portaled focus events still bubble to the row.
+ */
+export function usePlacementProps(
+  placement: HomeRowPlacement | undefined,
+  key: string,
+  ownRef?: (node: HTMLLIElement | null) => void,
+): LiHTMLAttributes<HTMLLIElement> & {
+  ref?: (node: HTMLLIElement | null) => void;
+  'data-index'?: number;
+} {
+  const measureRef = placement?.measureRef;
+  const ref = useCallback(
+    (node: HTMLLIElement | null) => {
+      ownRef?.(node);
+      measureRef?.(node);
+    },
+    [ownRef, measureRef],
+  );
+  return useMemo(() => {
+    if (placement === undefined) return ownRef === undefined ? {} : { ref };
+    return {
+      ref,
+      'data-index': placement.index,
+      'aria-posinset': placement.position,
+      'aria-setsize': placement.size,
+      onFocus: () => placement.onFocusWithin(key, true),
+      onBlur: (event: FocusEvent<HTMLLIElement>) => {
+        const next = event.relatedTarget;
+        if (next instanceof Node && event.currentTarget.contains(next)) return;
+        placement.onFocusWithin(key, false);
+      },
+    };
+  }, [placement, key, ownRef, ref]);
 }
 
 /** The two text lines every row shares: title + age, then context + dot. */
@@ -178,13 +227,14 @@ function ProjectMarker({ project }: { project: ChatProjectSummary }) {
  * share, archive, delete — through the row menu an archived chat's row
  * shares, on the same handlers as the chat header's menu.
  */
-export function HomeChatRow({
+export const HomeChatRow = memo(function HomeChatRow({
   item,
   thread,
   project,
   active,
   entering = false,
   draft = false,
+  placement,
 }: {
   item: HomeChatItem;
   thread: ChatThreadSummary;
@@ -194,6 +244,8 @@ export function HomeChatRow({
   entering?: boolean;
   /** A message waits unsent in this chat's composer. */
   draft?: boolean;
+  /** Its place in a windowed stream. */
+  placement?: HomeRowPlacement;
 }) {
   const { t } = useT('home');
   const { t: tChat } = useT('chat');
@@ -208,10 +260,11 @@ export function HomeChatRow({
   const tone = useHomeRowTone(active && !isDragging);
   const age = useCompactAge(item.activityAt, { paused: item.generating });
   const title = item.title.length > 0 ? item.title : t('row.untitledChat');
+  const placed = usePlacementProps(placement, homeItemKey(item), setNodeRef);
 
   return (
     <li
-      ref={setNodeRef}
+      {...placed}
       {...(renaming ? {} : listeners)}
       data-thread-id={thread.id}
       className={cn(
@@ -293,7 +346,7 @@ export function HomeChatRow({
       )}
     </li>
   );
-}
+});
 
 /** The provisional row while a fresh chat is being written. */
 export function HomeDraftChatRow({
@@ -334,12 +387,13 @@ export function HomeDraftChatRow({
 
 // ───────────────────────────── tasks ─────────────────────────────
 
-export function HomeTaskRow({
+export const HomeTaskRow = memo(function HomeTaskRow({
   item,
   organizationId,
   active,
   entering = false,
   draft = false,
+  placement,
 }: {
   item: HomeTaskItem;
   organizationId: string;
@@ -348,14 +402,18 @@ export function HomeTaskRow({
   entering?: boolean;
   /** A comment waits unsent in this task's composer. */
   draft?: boolean;
+  /** Its place in a windowed stream. */
+  placement?: HomeRowPlacement;
 }) {
   const { t } = useT('home');
   const { t: tTasks } = useT('tasks');
   const tone = useHomeRowTone(active);
   const age = useCompactAge(item.activityAt);
+  const placed = usePlacementProps(placement, homeItemKey(item));
 
   return (
     <li
+      {...placed}
       className={cn('group relative rounded-lg', entering && ROW_ENTER_CLASS)}
     >
       <Link
@@ -392,7 +450,7 @@ export function HomeTaskRow({
       </Link>
     </li>
   );
-}
+});
 
 // ───────────────────────────── conversations ─────────────────────────────
 
@@ -405,13 +463,14 @@ export interface HomeRowSelection {
   readonly label: string;
 }
 
-export function HomeConversationRow({
+export const HomeConversationRow = memo(function HomeConversationRow({
   item,
   organizationId,
   active,
   selection,
   entering = false,
   draft = false,
+  placement,
 }: {
   item: HomeConversationItem;
   organizationId: string;
@@ -422,6 +481,8 @@ export function HomeConversationRow({
   entering?: boolean;
   /** A reply waits unsent in this conversation's composer. */
   draft?: boolean;
+  /** Its place in a windowed stream. */
+  placement?: HomeRowPlacement;
 }) {
   const { t: tConversations } = useT('conversations');
   const tone = useHomeRowTone(active);
@@ -429,9 +490,11 @@ export function HomeConversationRow({
   const contact = item.contactLabel ?? tConversations('unknownContact');
   const showCheckbox =
     selection !== undefined && (selection.active || selection.checked);
+  const placed = usePlacementProps(placement, homeItemKey(item));
 
   return (
     <li
+      {...placed}
       className={cn(
         'group relative rounded-lg',
         selection?.checked === true && 'bg-primary/5',
@@ -504,4 +567,4 @@ export function HomeConversationRow({
       )}
     </li>
   );
-}
+});

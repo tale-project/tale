@@ -37,6 +37,9 @@ Use these sources for different questions:
 Find the key’s owner before editing. Reusable app controls keep messages in
 `packages/ui/src/i18n/messages/`; marketing frames use
 `packages/marketing-ui/src/i18n/messages/`; service-specific UI keeps `services/<name>/messages/`.
+The platform keeps one file per topic and locale — `services/platform/messages/<locale>/<topic>.yml`,
+a topic being one top-level namespace (`chat.yml` holds `chat.*`) — and every locale has the same
+files (`de-CH` only the ones it overrides), so a key lives in the same topic file in each locale.
 `initServiceI18n` merges package bundles in order, then service bundles per leaf key, with locale
 fallback and sparse regional overlays. Check overrides that can hide a shared correction. Moving
 a component also moves its owned keys and relevant regional overrides; it does not require a

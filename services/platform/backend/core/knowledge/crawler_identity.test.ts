@@ -13,7 +13,7 @@ import {
  * (2026-09-15 evaluation, i6). The string is the contract the docs quote.
  */
 describe('crawlerUserAgent', () => {
-  it('is the product token, the deployment version and the info URL', () => {
+  it('is the product token, the deployment version and the info URL [KNOW-R14]', () => {
     expect(crawlerUserAgent('0.5.27')).toBe(
       'TaleBot/0.5.27 (+https://docs.tale.dev/platform/knowledge/crawling)',
     );

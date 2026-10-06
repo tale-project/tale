@@ -74,6 +74,28 @@ vi.mock('../hooks/use-home-data', async (importOriginal) => {
   };
 });
 
+const NO_HOLDS = vi.hoisted(() => ({
+  status: 'ready' as const,
+  data: { orgHeld: false, targetIds: [] as string[] },
+}));
+
+// Every row reads its age once per render: the calls say which rows rendered.
+const ageReads = vi.hoisted(() => ({ current: [] as (number | undefined)[] }));
+vi.mock('../hooks/use-compact-age', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../hooks/use-compact-age')>();
+  return {
+    ...original,
+    useCompactAge: (
+      timestamp: number | undefined,
+      options?: { paused?: boolean },
+    ) => {
+      ageReads.current.push(timestamp);
+      return original.useCompactAge(timestamp, options);
+    },
+  };
+});
+
 vi.mock('@/app/features/chat/data/chat-backend', async (importOriginal) => {
   const original =
     await importOriginal<
@@ -81,10 +103,8 @@ vi.mock('@/app/features/chat/data/chat-backend', async (importOriginal) => {
     >();
   return {
     ...original,
-    useThreadHolds: () => ({
-      status: 'ready',
-      data: { orgHeld: false, targetIds: [] },
-    }),
+    // One object, as react-query hands back an unchanged answer.
+    useThreadHolds: () => NO_HOLDS,
     useProjectPin: () => ({ available: true, setPinned: vi.fn() }),
     useThreadProjectMove: () => ({ available: true, move: vi.fn() }),
     useArchivedThreads: () => ({ status: 'ready', data: [] }),
@@ -175,6 +195,7 @@ beforeEach(() => {
 
 afterEach(() => {
   window.localStorage.clear();
+  vi.restoreAllMocks();
 });
 
 function stream() {
@@ -183,7 +204,93 @@ function stream() {
   });
 }
 
+function largeData() {
+  // A zero-height jsdom scrollport is hidden to the virtualizer. Give this
+  // fixture a measured viewport and rows; Chromium owns the actual layout.
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(
+    function (this: HTMLElement) {
+      return this.matches('li[data-index]') ? 48 : 720;
+    },
+  );
+  return data({
+    items: Array.from({ length: 1000 }, (_, index) => ({
+      kind: 'task' as const,
+      id: `scale-${index}`,
+      title: `Scale ${String(index).padStart(4, '0')}`,
+      activityAt: TODAY - index * 1000,
+      unread: false,
+      status: 'todo' as const,
+      awaitingMyReview: false,
+    })),
+    projects: Array.from({ length: 1000 }, (_, index) => ({
+      id: `project-${index}`,
+      name: `Project ${String(index).padStart(4, '0')}`,
+      key: `P${index}`,
+    })),
+  });
+}
+
 describe('HomeNavigator', () => {
+  it.each(['task', 'project'] as const)(
+    'reveals a linked %s without mounting preceding rows',
+    (kind) => {
+      homeData.current = largeData();
+      location.current = {
+        pathname:
+          kind === 'task'
+            ? '/dashboard/org-1/tasks/scale-999'
+            : '/dashboard/org-1/projects/project-999',
+        search: {},
+      };
+      render(<HomeNavigator organizationId="org-1" />);
+      const projects = screen.getByRole('region', { name: 'Projects' });
+      if (kind === 'task') {
+        expect(
+          within(stream()).getAllByRole('link', { hidden: true }).length,
+        ).toBeLessThan(70);
+        expect(
+          within(stream()).getByRole('link', { current: 'page' }),
+        ).toHaveTextContent('Scale 0999');
+      } else {
+        expect(
+          within(projects).getAllByRole('link', {
+            name: /Project \d{4}/,
+            hidden: true,
+          }).length,
+        ).toBeLessThan(70);
+        expect(
+          within(projects).getByRole('link', { current: 'page' }),
+        ).toHaveTextContent('Project 0999');
+      }
+    },
+  );
+
+  it('bounds large streams and project trees, while searching the whole collection', async () => {
+    homeData.current = largeData();
+    render(<HomeNavigator organizationId="org-1" />);
+    const projects = screen.getByRole('region', { name: 'Projects' });
+    expect(
+      within(stream()).getAllByRole('link', { hidden: true }).length,
+    ).toBeLessThan(70);
+    expect(
+      within(projects).getAllByRole('link', {
+        name: /Project \d{4}/,
+        hidden: true,
+      }).length,
+    ).toBeLessThan(70);
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Scale 0999' },
+    });
+    await waitFor(() =>
+      expect(
+        within(stream()).getAllByRole('link', { hidden: true }),
+      ).toHaveLength(1),
+    );
+    expect(
+      within(stream()).getByRole('link', { name: /Scale 0999/ }),
+    ).toBeInTheDocument();
+  });
+
   it('lists chats, tasks and conversations together, newest first, in day bands', () => {
     render(<HomeNavigator organizationId="org-1" />);
 
@@ -222,6 +329,66 @@ describe('HomeNavigator', () => {
     expect(
       within(stream()).getByRole('link', { current: 'page' }),
     ).toHaveAttribute('href', '/dashboard/org-1/chat/t1');
+  });
+
+  // A long list re-rendered every row on every navigation — 600 chats and
+  // 250 projects, three times over on one chat switch.
+  it('re-renders only the rows a navigation closes and opens', () => {
+    const view = render(<HomeNavigator organizationId="org-1" />);
+    ageReads.current = [];
+
+    location.current = { pathname: '/dashboard/org-1/tasks/k1', search: {} };
+    view.rerender(<HomeNavigator organizationId="org-1" />);
+
+    expect(
+      within(stream()).getByRole('link', { current: 'page' }),
+    ).toHaveAttribute('href', '/dashboard/org-1/tasks/k1');
+    // The chat that closed and the task that opened; not the conversation.
+    expect(new Set(ageReads.current)).toEqual(new Set([TODAY, TODAY - 1000]));
+  });
+
+  it('updates a live row without re-rendering unchanged rows in the same places', () => {
+    const initial = data();
+    homeData.current = initial;
+    const view = render(<HomeNavigator organizationId="org-1" />);
+    const task = within(stream()).getByRole('link', {
+      name: /Review the launch checklist/,
+    });
+    const conversation = within(stream()).getByRole('link', {
+      name: /Invoice shows the wrong VAT rate/,
+    });
+    const taskPosition = task.closest('li')?.getAttribute('aria-posinset');
+    const conversationPosition = conversation
+      .closest('li')
+      ?.getAttribute('aria-posinset');
+    expect(taskPosition).toBe('2');
+    expect(conversationPosition).toBe('3');
+    ageReads.current = [];
+
+    homeData.current = {
+      ...initial,
+      items: initial.items.map((item) =>
+        item.kind === 'chat'
+          ? Object.assign({}, item, { title: 'Quarterly report updated live' })
+          : item,
+      ),
+    };
+    view.rerender(<HomeNavigator organizationId="org-1" />);
+
+    expect(
+      within(stream()).getByRole('link', {
+        name: /Quarterly report updated live/,
+        current: 'page',
+      }),
+    ).toBeInTheDocument();
+    expect(task.isConnected).toBe(true);
+    expect(conversation.isConnected).toBe(true);
+    expect(task.closest('li')).toHaveAttribute('aria-posinset', taskPosition);
+    expect(conversation.closest('li')).toHaveAttribute(
+      'aria-posinset',
+      conversationPosition,
+    );
+    expect(new Set(ageReads.current)).toEqual(new Set([TODAY]));
   });
 
   it('narrows the stream to one kind from the switcher, and remembers it', async () => {
@@ -338,50 +505,52 @@ describe('HomeNavigator', () => {
     expect(first).toHaveFocus();
   });
 
-  it.each([
-    ['chat', 't1', 'Quarterly report'],
-    ['task', 'k1', 'Review the launch checklist'],
-  ] as const)(
-    'keeps literal %s drafts discoverable after leaving, reopening and remounting',
-    (kind, id, title) => {
+  it.each(
+    (
+      [
+        ['chat', 't1', 'Quarterly report'],
+        ['task', 'k1', 'Review the launch checklist'],
+      ] as const
+    ).flatMap(([kind, id, title]) =>
+      (
+        [
+          ['component', '<Button />'],
+          ['tag', '<tag>'],
+          ['plain text', 'ordinary unsent note'],
+          ['empty', ''],
+          ['whitespace', '   '],
+        ] as const
+      ).map(([label, text]) => ({ kind, id, title, label, text })),
+    ),
+  )(
+    'keeps literal $kind $label drafts discoverable after leaving, reopening and remounting',
+    ({ kind, id, title, text }) => {
       const pathname =
         '/dashboard/org-1/' + (kind === 'chat' ? 'chat' : 'tasks') + '/' + id;
       const key = homeDraftKey({ kind, id }, 'u1', 'org-1');
-      for (const text of [
-        '<Button />',
-        '<tag>',
-        'ordinary unsent note',
-        '',
-        '   ',
-      ]) {
-        const stored = JSON.stringify(text);
-        window.localStorage.setItem(key, stored);
-        location.current = { pathname, search: {} };
-        const view = render(<HomeNavigator organizationId="org-1" />);
-        const row = () =>
-          within(stream()).getByRole('link', { name: new RegExp(title) });
-        expect(row()).not.toHaveTextContent('Draft');
+      const stored = JSON.stringify(text);
+      window.localStorage.setItem(key, stored);
+      location.current = { pathname, search: {} };
+      const view = render(<HomeNavigator organizationId="org-1" />);
+      const row = () =>
+        within(stream()).getByRole('link', { name: new RegExp(title) });
+      expect(row()).not.toHaveTextContent('Draft');
 
-        location.current = { pathname: '/dashboard/org-1/chat', search: {} };
-        view.rerender(<HomeNavigator organizationId="org-1" />);
-        expect(row().textContent?.includes('Draft')).toBe(
-          text.trim().length > 0,
-        );
+      location.current = { pathname: '/dashboard/org-1/chat', search: {} };
+      view.rerender(<HomeNavigator organizationId="org-1" />);
+      expect(row().textContent?.includes('Draft')).toBe(text.trim().length > 0);
 
-        location.current = { pathname, search: {} };
-        view.rerender(<HomeNavigator organizationId="org-1" />);
-        expect(row()).not.toHaveTextContent('Draft');
-        expect(window.localStorage.getItem(key)).toBe(stored);
-        view.unmount();
+      location.current = { pathname, search: {} };
+      view.rerender(<HomeNavigator organizationId="org-1" />);
+      expect(row()).not.toHaveTextContent('Draft');
+      expect(window.localStorage.getItem(key)).toBe(stored);
+      view.unmount();
 
-        location.current = { pathname: '/dashboard/org-1/chat', search: {} };
-        const reloaded = render(<HomeNavigator organizationId="org-1" />);
-        expect(row().textContent?.includes('Draft')).toBe(
-          text.trim().length > 0,
-        );
-        expect(window.localStorage.getItem(key)).toBe(stored);
-        reloaded.unmount();
-      }
+      location.current = { pathname: '/dashboard/org-1/chat', search: {} };
+      const reloaded = render(<HomeNavigator organizationId="org-1" />);
+      expect(row().textContent?.includes('Draft')).toBe(text.trim().length > 0);
+      expect(window.localStorage.getItem(key)).toBe(stored);
+      reloaded.unmount();
     },
   );
 
@@ -426,6 +595,28 @@ describe('HomeNavigator', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<HomeNavigator organizationId="org-1" />);
+    const list = stream();
+    const headings = within(list).getAllByRole('heading', { level: 3 });
+    expect(headings).toHaveLength(2);
+    for (const heading of headings) {
+      const wrapper = heading.closest('li');
+      expect(wrapper).toHaveRole('listitem');
+    }
+    const items = within(list).getAllByRole('listitem');
+    expect(items).toHaveLength(5);
+    const rows = items.filter((item) =>
+      item.querySelector('[data-indicator-key]'),
+    );
+    expect(rows).toHaveLength(3);
+    rows.forEach((item, index) => {
+      expect(item).toHaveAttribute('aria-posinset', String(index + 1));
+      expect(item).toHaveAttribute('aria-setsize', '3');
+    });
+    const firstRow = within(list)
+      .getByRole('link', { name: /Quarterly report/ })
+      .closest('li');
+    expect(firstRow).toHaveAttribute('aria-posinset', '1');
+    expect(firstRow).toHaveAttribute('aria-setsize', '3');
     await checkAccessibility(container);
   });
 });

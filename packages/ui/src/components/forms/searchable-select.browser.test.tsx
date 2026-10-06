@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 
 import { render, screen } from '@/tests/utils/render';
 
@@ -150,4 +150,84 @@ describe('SearchableSelect viewport containment (real layout)', () => {
       await expect.poll(() => document.activeElement).toBe(trigger);
     });
   }
+});
+
+const options = Array.from({ length: 2000 }, (_, index) => ({
+  value: `project-${index}`,
+  label: `Project ${String(index + 1).padStart(4, '0')}`,
+  description: index % 3 === 0 ? 'A project with a description.' : undefined,
+  disabled: index === 1998,
+}));
+
+function activeOption() {
+  const id = screen.getByRole('combobox').getAttribute('aria-activedescendant');
+  return id === null ? null : document.getElementById(id);
+}
+
+function visibleInside(row: HTMLElement | null, scroller: HTMLElement) {
+  if (row === null) return false;
+  const box = row.getBoundingClientRect();
+  const viewport = scroller.getBoundingClientRect();
+  return (
+    box.height > 0 &&
+    box.top >= viewport.top - 1 &&
+    box.bottom <= viewport.bottom + 1
+  );
+}
+
+it('opens at a far selected project while mounting a bounded option window', async () => {
+  await page.viewport(1280, 800);
+  const onValueChange = vi.fn();
+  render(
+    <SearchableSelect
+      value="project-1999"
+      onValueChange={onValueChange}
+      options={options}
+      aria-label="Project"
+      searchPlaceholder="Search projects"
+    />,
+  );
+  await page.getByRole('button', { name: 'Project 2000' }).click();
+  const list = screen.getByRole('listbox');
+  await expect.poll(() => activeOption()?.textContent).toBe('Project 2000');
+  await expect.poll(() => visibleInside(activeOption(), list)).toBe(true);
+  expect(screen.getAllByRole('option').length).toBeLessThan(50);
+  expect(activeOption()).toHaveAttribute('aria-posinset', '2000');
+  expect(activeOption()).toHaveAttribute('aria-setsize', '2000');
+  await userEvent.keyboard('{Enter}');
+  expect(onValueChange).toHaveBeenCalledWith('project-1999');
+});
+
+it('keeps keyboard highlights mounted across the full list and searches offscreen projects', async () => {
+  const onValueChange = vi.fn();
+  render(
+    <SearchableSelect
+      value={null}
+      onValueChange={onValueChange}
+      options={options}
+      placeholder="Pick project"
+      aria-label="Project"
+      searchPlaceholder="Search projects"
+    />,
+  );
+  await page.getByRole('button', { name: 'Pick project' }).click();
+  const list = screen.getByRole('listbox');
+  await userEvent.keyboard('{End}');
+  await expect.poll(() => activeOption()?.textContent).toBe('Project 2000');
+  await expect.poll(() => visibleInside(activeOption(), list)).toBe(true);
+  await userEvent.keyboard('{ArrowUp}');
+  await expect.poll(() => activeOption()?.textContent).toBe('Project 1998');
+  await userEvent.keyboard('{Home}');
+  await expect
+    .poll(() => activeOption()?.textContent)
+    .toContain('Project 0001');
+  await expect.poll(() => visibleInside(activeOption(), list)).toBe(true);
+  expect(screen.getAllByRole('option').length).toBeLessThan(50);
+  await page.getByRole('combobox').fill('Project 1732');
+  await expect.poll(() => screen.getAllByRole('option').length).toBe(1);
+  await expect
+    .poll(() => activeOption()?.textContent)
+    .toContain('Project 1732');
+  await userEvent.keyboard('{Enter}');
+  expect(onValueChange).toHaveBeenCalledWith('project-1731');
 });

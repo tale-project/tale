@@ -1,0 +1,29 @@
+modeLabel: Modus
+modeTokenize: Tokenisieren
+modeMask: Maskieren
+modeBlock: Blockieren
+modeTokenizeDesc: Personendaten vor dem Senden durch indizierte Token ersetzen
+  und die Originale in der Antwort wiederherstellen.
+modeMaskDesc:
+  Personendaten durch generische Platzhalter ersetzen. Einweg — die
+  Originale lassen sich nicht mehr wiederherstellen.
+modeBlockDesc: Die Nachricht direkt ablehnen, sobald Personendaten erkannt
+  werden. Der Nutzer sieht eine Sperrmeldung statt einer Antwort.
+patternsTitle: Erkennungsmuster
+patternsDescription: Lege fest, welche Arten von personenbezogenen Daten die
+  Erkennung suchen soll.
+customPatternsTitle: Eigene Regex-Regeln
+customPatternsDescription: Ergänze Muster, die die eingebauten nicht abdecken.
+  Jede Regel braucht einen Namen, einen regulären Ausdruck und den Ersatztext
+  für den Maskiermodus.
+customPatternNameLabel: Name
+customPatternNamePlaceholder: z. B. Mitarbeiternummer
+customPatternRegexLabel: Muster
+customPatternRegexPlaceholder: z. B. EMP-\d{6}
+customPatternReplacementLabel: Ersatztext
+customPatternReplacementPlaceholder: z. B. [MITARBEITER_ID]
+customPatternInvalidRegex: Dieser reguläre Ausdruck ist ungültig.
+addCustomPattern: Eigenes Muster hinzufügen
+removeCustomPattern: Entfernen
+saveCustomPattern: Muster speichern
+cancelCustomPattern: Abbrechen

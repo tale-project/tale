@@ -331,6 +331,52 @@ describePosix('managed source-Compose runtime adoption', () => {
     expect(receipt().phase).toBe('ready');
   });
 
+  test('adopts a release that adds a new named volume to an existing runtime', async () => {
+    const run = await create(true);
+    run.fixture.source.volumes['static-assets'] = {};
+    run.fixture.source.services.platform.volumes = [
+      ...(run.fixture.source.services.platform.volumes as string[]),
+      'static-assets:/app/static-assets',
+    ];
+    writeFileSync(
+      join(run.fixture.repoRoot, 'compose.yml'),
+      JSON.stringify(run.fixture.source),
+    );
+    run.fixture.git('add', 'compose.yml');
+    run.fixture.git('commit', '-qm', 'add a managed runtime volume');
+    run.fixture.revision = run.fixture.git('rev-parse', 'HEAD');
+    const nextBundle = join(run.fixture.directory, 'next-bundle');
+    await prepareRuntime(
+      {
+        repoRoot: run.fixture.repoRoot,
+        revision: run.fixture.revision,
+        output: nextBundle,
+        platform: 'linux/amd64',
+      },
+      run.docker.dependencies(),
+    );
+    run.fixture.options.bundleDirectory = nextBundle;
+    run.docker.calls = [];
+
+    expect(await run.apply()).toMatchObject({ existing: true, changed: true });
+    expect(run.docker.volumes).toContain('tale_static-assets');
+    const platform = run.docker.containers.find(
+      (container) =>
+        (container.Config as { Labels: Record<string, string> }).Labels[
+          'com.docker.compose.service'
+        ] === 'platform',
+    );
+    expect(platform?.Mounts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          Name: 'tale_static-assets',
+          Destination: '/app/static-assets',
+          Type: 'volume',
+        }),
+      ]),
+    );
+  });
+
   // What the deployment's recovery-point check reads: whether the store's
   // volume exists, which gateway image the rollout starts, and whether the
   // store has run that image already.

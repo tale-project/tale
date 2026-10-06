@@ -85,7 +85,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('project team scoping — only teams of the caller org', () => {
+describe('project team scoping — only teams of the caller org [PROJ-R4]', () => {
   it('refuses to create a project scoped to a team the org does not have', async () => {
     const { tx, statements } = fakeTx();
     const attempt = createProject(tx, auth, {
@@ -179,7 +179,7 @@ describe('updateProjectSharing — no-op and repeats', () => {
     expect(createAuditLog).not.toHaveBeenCalled();
   });
 
-  it('collapses a repeated team id and writes the collapsed list once', async () => {
+  it('collapses a repeated team id and writes the collapsed list once [PROJ-R4]', async () => {
     const { tx, statements } = fakeTx();
     await updateProjectSharing(tx, auth, {
       projectId: 'project-1',

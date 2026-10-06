@@ -90,7 +90,7 @@ beforeEach(() => {
   deleteDefinition.mockResolvedValue({ deleted: true });
 });
 
-describe('DELETE /provider-credentials/:id — custom provider retirement', () => {
+describe('DELETE /provider-credentials/:id — custom provider retirement [PCRED-R6]', () => {
   it('retires the custom provider with its last credential when asked', async () => {
     const response = await remove('&retireUnusedCustomProvider=1');
     expect(response.status).toBe(200);
@@ -153,7 +153,7 @@ describe('the credential the embedding model depends on', () => {
     );
   });
 
-  it('answers the refused delete as 409 CREDENTIAL_IN_USE with what uses it', async () => {
+  it('answers the refused delete as 409 CREDENTIAL_IN_USE with what uses it [PCRED-R5]', async () => {
     const { CredentialAdminError } = await import('./service');
     deleteCredential.mockRejectedValue(
       new CredentialAdminError('CREDENTIAL_IN_USE', 'in use', 409, {

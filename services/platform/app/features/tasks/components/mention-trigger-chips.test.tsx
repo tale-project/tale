@@ -19,7 +19,11 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
-vi.mock('../hooks/use-actor-directory', () => ({ useActorDirectory }));
+vi.mock('../hooks/use-actor-directory', () => ({
+  useActorDirectory,
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
+}));
 
 vi.mock('../hooks/queries', () => ({
   useMentionTriggerPreview: (_target: unknown, slugs: string[]) => {

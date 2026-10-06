@@ -78,7 +78,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('project secrets on an archived project', () => {
+describe('project secrets on an archived project [PROJ-R7]', () => {
   it('refuses a set with PROJECT_ARCHIVED, writing nothing', async () => {
     const { tx, statements } = fakeTx({ archived: true });
     await expect(
@@ -127,7 +127,7 @@ describe('project secrets on an archived project', () => {
 });
 
 describe('project secrets on an active project', () => {
-  it('writes the row for an administrator', async () => {
+  it('writes the row for an administrator [PROJ-R13]', async () => {
     const { tx, statements } = fakeTx();
     await setProjectSecret(tx, auth, {
       projectId: 'project-1',
@@ -139,7 +139,7 @@ describe('project secrets on an active project', () => {
     expect(inserts[0]?.values).toContain('API_KEY');
   });
 
-  it('still refuses a non-administrator with PROJECT_FORBIDDEN', async () => {
+  it('still refuses a non-administrator with PROJECT_FORBIDDEN [PROJ-R13]', async () => {
     const { tx, statements } = fakeTx();
     await expect(
       setProjectSecret(

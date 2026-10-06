@@ -261,7 +261,9 @@ describe('the notch of an installed app, in the real shell', () => {
     expect(strip).toHaveAttribute('aria-hidden', 'true');
     expect(box(strip).top).toBe(0);
     expect(box(strip).height).toBe(NOTCH);
-    // The alerts stand right under it, in the shell, above its header.
+    // The alerts stand right under it, in the shell, above its header; the
+    // embedding nudge's alert loads on demand.
+    await vi.waitFor(() => expect(alerts()).toHaveLength(3));
     const [notice, grace, embedding, ...others] = alerts();
     expect(others).toEqual([]);
     expect(strip.nextElementSibling).toBe(notice);
@@ -322,7 +324,7 @@ describe('the notch of an installed app, in the real shell', () => {
       await onPhone(NOTCH);
       show();
       renderShell();
-      const nudge = screen.getByRole('status');
+      const nudge = await screen.findByRole('status');
       expect(box(nudge).top).toBe(NOTCH);
       expect(
         screen.getByText(title).getBoundingClientRect().top,
@@ -338,7 +340,7 @@ describe('the notch of an installed app, in the real shell', () => {
       h.pathname = CHAT;
       show();
       renderShell();
-      const nudge = screen.getByRole('status');
+      const nudge = await screen.findByRole('status');
       expect(box(nudge).top).toBe(NOTCH);
       expect(box(mainRegion()).top).toBe(box(nudge).bottom);
     });
@@ -402,6 +404,8 @@ async function lateNudge(notch: number) {
   observer.observe({ type: 'layout-shift' });
   h.embeddingConfigured = false;
   rerender();
+  // The nudge's alert loads on demand: measure once it stands.
+  await screen.findByRole('status');
   await frames();
   shifts.push(...(observer.takeRecords() as LayoutShiftEntry[]));
   observer.disconnect();

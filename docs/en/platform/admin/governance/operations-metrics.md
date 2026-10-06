@@ -29,6 +29,8 @@ A harness turn is one piece of work an agent harness, such as Claude Code or Cod
 
 The cards report **Total turns**, the **Success rate**, the **Timeout rate**, the **p95 duration**, which 95% of the turns finished within, and the turns **Stopped by user**. **By harness** repeats the turns, success rate, and timeouts for each harness, so a rising timeout rate points to the harness it comes from. [Harnesses](/platform/agents/harnesses) explains how each one runs, and [Sandboxes](/platform/admin/sandboxes) where their capacity is set.
 
+If the figures cannot be loaded, the page says so and offers **Try again** instead of showing zero turns or an empty **By harness** table; the period you chose stays. If a refresh fails, the figures already shown stay, with a note that they may be out of date.
+
 ## Follow automation runs
 
 **Automations** counts live runs of your organization's automations; test runs appear on each automation's **Runs** tab but not here. Choose 7, 30, or 90 days; the page opens on 30 days. Each card compares its figure with the period of the same length before it.

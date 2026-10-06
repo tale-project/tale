@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { fireEvent, render, screen } from '@/tests/utils/render';
 
+import { useAssignableActors } from '../hooks/use-actor-directory';
 import type { TaskDoc } from '../lib/display';
 import { KanbanBoard } from './kanban-board';
 
@@ -22,19 +23,21 @@ vi.mock('@/app/hooks/use-backend-action', () => ({
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
     currentUserId: null,
     resolveActor: () => null,
   }),
-  useAssignableActors: () => ({
+  useAssignableActors: vi.fn(() => ({
     assignableMembers: [],
     assignableAgents: [],
     agents: [],
     currentUserId: null,
     resolveActor: () => null,
-  }),
+  })),
 }));
 
 // The contract/choreography hooks reach Convex (provider-backed); the board
@@ -80,6 +83,13 @@ function makeTask(
 }
 
 describe('KanbanBoard backlog lane', () => {
+  it('does not load an actor directory for an empty board without an organization scope', () => {
+    vi.mocked(useAssignableActors).mockClear();
+    render(<KanbanBoard tasks={[]} />);
+    expect(useAssignableActors).not.toHaveBeenCalled();
+    expect(screen.getByText('To do')).toBeInTheDocument();
+  });
+
   it('renders every status lane including backlog and its cards', () => {
     render(
       <KanbanBoard

@@ -124,28 +124,36 @@ export function ProjectRowActions({
     <>
       <EntityRowActions actions={actions} />
 
-      <ProjectRenameDialog
-        open={dialogs.isOpen.rename}
-        onOpenChange={dialogs.setOpen.rename}
-        projectId={projectId}
-        currentName={projectName}
-      />
+      {/* Each dialog mounts from its first open: every row of the list
+          carries all three. */}
+      {dialogs.mounted.rename && (
+        <ProjectRenameDialog
+          open={dialogs.isOpen.rename}
+          onOpenChange={dialogs.setOpen.rename}
+          projectId={projectId}
+          currentName={projectName}
+        />
+      )}
 
-      <ProjectArchiveDialog
-        open={dialogs.isOpen.archive}
-        onOpenChange={dialogs.setOpen.archive}
-        projectId={projectId}
-        isArchived={isArchived}
-        projectName={projectName}
-      />
+      {dialogs.mounted.archive && (
+        <ProjectArchiveDialog
+          open={dialogs.isOpen.archive}
+          onOpenChange={dialogs.setOpen.archive}
+          projectId={projectId}
+          isArchived={isArchived}
+          projectName={projectName}
+        />
+      )}
 
-      <ProjectDeleteDialog
-        open={dialogs.isOpen.delete}
-        onOpenChange={dialogs.setOpen.delete}
-        organizationId={organizationId}
-        projectId={projectId}
-        projectName={projectName}
-      />
+      {dialogs.mounted.delete && (
+        <ProjectDeleteDialog
+          open={dialogs.isOpen.delete}
+          onOpenChange={dialogs.setOpen.delete}
+          organizationId={organizationId}
+          projectId={projectId}
+          projectName={projectName}
+        />
+      )}
     </>
   );
 }

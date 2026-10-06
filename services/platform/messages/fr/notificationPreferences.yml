@@ -1,0 +1,45 @@
+title: Notifications
+description: Choisis les événements qui apparaissent dans ta cloche. Les
+  demandes de review restent toujours actives — ce sont des signaux de
+  sécurité.
+deliveryTitle: Envoi par e-mail
+deliveryDescription:
+  Les alertes actionnables (assignations, mentions, reviews,
+  escalades) peuvent aussi arriver sur ton e-mail de compte quand
+  l'organisation a une boîte connectée.
+saveFailed: Impossible d'enregistrer tes préférences de notification.
+fields:
+  actionableEmail:
+    label: M'envoyer les alertes actionnables par e-mail
+    description:
+      Envoie les notifications de retour sur ton e-mail de compte via la
+      boîte Gmail, Outlook ou SMTP connectée de l'organisation.
+  taskAssigned:
+    label: Tâche qui m'est assignée
+    description: Quand une tâche t'est assignée.
+  taskStatusChanged:
+    label: Changement de statut
+    description: Quand une tâche que tu suis change de statut.
+  taskCommented:
+    label: Nouveau commentaire
+    description: Quand quelqu'un commente une tâche que tu suis.
+  mention:
+    label: Mentions
+    description: Quand quelqu'un te mentionne avec @.
+  taskDeadlines:
+    label: Dates de début et d'échéance
+    description: Quand une tâche dont tu as la charge démarre, arrive à
+      échéance ou est en retard.
+  taskReview:
+    label: Demandes de review
+    description: Quand un travail attend ta review.
+    lockedHint: Toujours actif — c'est un signal de sécurité.
+  escalation:
+    label: Escalades d'agent
+    description: Quand un agent te pose une question, escalade une tâche vers un humain ou ne parvient pas à terminer une tâche.
+  automationAlerts:
+    label: Alertes d'automatisation
+    description: Quand la planification d'une automatisation se met en pause parce que ses exécutions échouent sans cesse.
+  conversationMessages:
+    label: Messages de conversation
+    description: Quand un message d'un contact arrive dans Conversations.

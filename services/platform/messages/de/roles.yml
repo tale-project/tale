@@ -1,0 +1,8 @@
+# The roles a member holds in an organization, by their names everywhere
+# (member tables, the account menu, invitations).
+owner: Inhaber
+admin: Admin
+developer: Entwickler
+editor: Redakteur
+member: Mitglied
+disabled: Deaktiviert

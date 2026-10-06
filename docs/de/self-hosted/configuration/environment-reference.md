@@ -24,7 +24,8 @@ Nutze zusätzlich die kommentierte Beispieldatei und prüfe bei fehlenden Werten
 | `HOST`      | `localhost`         | **Pflicht.** Hostname ohne Protokoll. Wird für Docker-Networking und ausgehende Mails verwendet.                               |
 | `SITE_URL`  | `https://localhost` | **Pflicht.** Vollständige kanonische URL inklusive Schema und Port. Auth-Callbacks und externe Links nutzen das.               |
 | `ADDITIONAL_SITE_URLS` | unset    | **Optional.** Weitere Origins, auf denen dasselbe Deployment antwortet, per Komma oder Leerzeichen getrennt (z. B. `https://a.example,https://b.example`). Jeder ist ein vollwertiger Eingang. Siehe [TLS und Domains](/de/self-hosted/configuration/tls-and-domains#mehrere-domains-gleichzeitig). |
-| `TOTP_ENVIRONMENT` | nicht gesetzt | Umgebungsname für die Authenticator-Einträge von `backend-api` und der Rolle `all`: 1–32 Buchstaben, Ziffern, Unterstriche oder Bindestriche. Leerzeichen am Rand werden entfernt, Buchstaben großgeschrieben. `pr` oder ein fehlender Wert behält `Tale` bei; mit `te` heißen neu erzeugte Einträge `Tale <TE>`. Ein ungültiger Wert verhindert den Backend-Start. |
+| `TOTP_CLIENT_NAME` | nicht gesetzt | Kunde, den neu erzeugte Authenticator-Einträge und heruntergeladene Backup-Codes nennen, gelesen von `platform`, `backend-api` und der Rolle `all`: 1–40 Buchstaben, Ziffern, Leerzeichen oder `&` `'` `.` `+` `-`. Leerzeichen am Rand werden entfernt. Mit `Acme` heißen Einträge `Acme Tale Platform`; ohne Wert oder mit `Tale` bleibt es bei `Tale Platform`. Ein ungültiger Name verhindert den Backend-Start. |
+| `TOTP_ENVIRONMENT` | nicht gesetzt | Umgebung, die neu erzeugte Authenticator-Einträge und heruntergeladene Backup-Codes nennen, gelesen von `platform`, `backend-api` und der Rolle `all`: 1–32 Buchstaben, Ziffern, Unterstriche oder Bindestriche. Leerzeichen am Rand werden entfernt, Buchstaben großgeschrieben. `pr` oder ein fehlender Wert fügt keine Umgebung hinzu; mit `te` wird aus `Acme Tale Platform` der Eintrag `Acme Tale Platform TE`, und die Backup-Codes werden als `acme-tale-platform-te-backup-codes.txt` gespeichert. Ein ungültiger Wert verhindert den Backend-Start. |
 | `BASE_PATH` | unset               | **Optional.** Pfad-Präfix für Subpath-Deployments hinter einem Reverse-Proxy (z. B. `/app`). Bei Root-Deployment unset lassen. |
 | `DOCS_URL` | `https://docs.<HOST>` | Öffentliche Origin des eigenen Dokumentationshosts im Proxy. Der Docs-Dienst muss ebenfalls zur Bereitstellung gehören. |
 
@@ -32,7 +33,7 @@ Nutze zusätzlich die kommentierte Beispieldatei und prüfe bei fehlenden Werten
 
 Die Dokumentation verwendet eine eigene Origin. Auf der Plattform-Origin öffnet `/docs` die interaktive API-Referenz; `/openapi.json` liefert deren Schema. `DOCS_URL` ändert den Docs-Host des Proxys. Die Variable installiert keinen Docs-Dienst und schreibt keine Links in vorhandenen Client-Bundles um. `TALE_DOCS_URL` in den SEO-Buildwerkzeugen und das Build- und Laufzeitpfadpräfix `DOCS_BASE_URL` des Docs-Dienstes sind separate Einstellungen.
 
-Eine Änderung von `TOTP_ENVIRONMENT` gilt für neu erzeugte QR-Codes und Einrichtungs-URIs, auch wenn ein bestehender Schlüssel erneut angezeigt wird. Sie ändert weder den Schlüssel noch den Namen eines bereits auf deinem Gerät gespeicherten Eintrags. Diesen kannst du bei Bedarf in deiner Authenticator-App umbenennen.
+Eine Änderung von `TOTP_CLIENT_NAME` oder `TOTP_ENVIRONMENT` gilt für neu erzeugte QR-Codes und Einrichtungs-URIs, auch wenn ein bestehender Schlüssel erneut angezeigt wird, und für danach heruntergeladene Backup-Codes. Sie ändert weder den Schlüssel noch den Namen eines bereits auf deinem Gerät gespeicherten Eintrags. Diesen kannst du bei Bedarf in deiner Authenticator-App umbenennen.
 
 ## TLS
 
@@ -370,6 +371,34 @@ Der Egress-Proxy erlaubt DNS-Anfragen an die geprüften Nameserver-IP-Adressen a
 Halte `sandbox`, `sandbox-egress` und `SANDBOX_RUNTIME_IMAGE` beim Upgrade auf demselben Release. Bevor der Spawner unter Docker das Build-Netzwerk einer Organisation anschließt, prüft er den Weiterleitungsschutz der Session. Compose und generierte Docker-Session-Container deaktivieren IPv6 mit `net.ipv6.conf.all.disable_ipv6=1` und `net.ipv6.conf.default.disable_ipv6=1`. Übernimm beide Werte in eigene Docker-Definitionen.
 
 Kubernetes-Pods erhalten nicht automatisch unsichere Sysctls. Der Egress-Proxy braucht eine funktionierende IPv6-Firewall oder deaktiviertes IPv6 in seinem Netzwerk-Namespace. Ist die IPv6-Firewall nicht verfügbar, versucht der Entrypoint IPv6 dort zu deaktivieren und prüft danach den Standardwert und jede Schnittstelle. Ein schreibgeschütztes `/proc/sys` oder fehlende Schreibrechte können das verhindern; ohne Schutz für weiterhin aktives IPv6 startet der Proxy nicht. Konfiguriere den Egress-Pod vor dem Deployment mit den Netzwerkeinstellungen, die dein Cluster erlaubt.
+
+## SSH-Zugang zu Repositories {#ssh-repository-access}
+
+Die native Sandbox enthält OpenSSH und `netcat-openbsd`. Gib einen austauschbaren, auf das Repository beschränkten Schlüssel als benanntes Agent-Secret frei und lade ihn im berechtigten Lauf über stdin in `ssh-agent`. Die privaten Bytes bleiben in der Umgebung; schreibe keine Schlüsseldatei und gib sie nie aus. Ein von einem Mitglied gestarteter Lauf erhält keine Agent-Secrets. Git-Commits nutzen den Namen und die E-Mail des Workspace-Eigentümers auch ohne Freigabe eines GitHub-Konnektors.
+
+Interne Sitzungen nutzen ihren bestehenden `HTTP_PROXY` für ausgehende Verbindungen. Direktes SSH kann in diesem Netz nicht auf externe DNS-Auflösung bauen. Nutze den HTTP-CONNECT-Tunnel des Proxys und einen erlaubten Port. GitHub unterstützt SSH über `ssh.github.com:443`; prüfe den Host gegen [GitHubs veröffentlichte Fingerabdrücke](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints), wie unter [SSH über Port 443](https://docs.github.com/en/authentication/troubleshooting-ssh/using-ssh-over-the-https-port) beschrieben. Lege eine öffentliche Known-Hosts-Datei mit dem unabhängig geprüften Schlüssel an und konfiguriere den Befehl, nachdem der Agent den privaten Schlüssel geladen hat:
+
+```python
+import os
+import shlex
+import subprocess
+from urllib.parse import urlsplit
+
+proxy = urlsplit(os.environ["HTTP_PROXY"])
+if proxy.scheme != "http" or not proxy.hostname or not proxy.port or proxy.username or proxy.password:
+    raise ValueError("Expected the existing unauthenticated HTTP egress proxy")
+connect = shlex.join(["nc", "-X", "connect", "-x", f"{proxy.hostname}:{proxy.port}", "%h", "%p"])
+environment = os.environ.copy()
+environment["GIT_SSH_COMMAND"] = shlex.join([
+    "ssh", "-o", f"ProxyCommand={connect}", "-o", "StrictHostKeyChecking=yes",
+    "-o", "UserKnownHostsFile=/tmp/repository-known-hosts",
+    "-o", "GlobalKnownHostsFile=/dev/null", "-o", "BatchMode=yes",
+    "-o", "ConnectTimeout=20",
+])
+subprocess.run(["git", "ls-remote", "--exit-code", "ssh://git@ssh.github.com:443/org/repository.git", "HEAD"], env=environment, check=True, timeout=30)
+```
+
+Die Known-Hosts-Datei enthält nur den öffentlichen Hostschlüssel des Anbieters; der private Repository-Schlüssel bleibt in `ssh-agent`. Die bestehende Egress-Richtlinie und der Zugriffsumfang des Repository-Schlüssels gelten weiterhin. Eine weitergehende GitHub-Konnektorfreigabe ist nicht nötig.
 
 ## Sandbox-Geräte {#sandbox-devices}
 
