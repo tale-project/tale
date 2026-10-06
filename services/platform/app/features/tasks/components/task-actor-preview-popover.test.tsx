@@ -45,6 +45,23 @@ describe('TaskActorName', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it('renders a deleted agent as plain historical text', () => {
+    render(
+      <TaskActorName
+        name="Deleted agent"
+        preview={{
+          kind: 'agent',
+          name: 'Deleted agent',
+          viewTo: '/dashboard/$id',
+          viewParams: { id: 'org_1' },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Deleted agent')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('renders a preview trigger and its details for agent actors', async () => {
     const { user } = render(
       <TaskActorName

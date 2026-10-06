@@ -192,7 +192,9 @@ export function TaskActorName({
   name,
   className,
 }: TaskActorNameProps) {
-  if (!preview) {
+  // A deleted agent keeps a readable historical label, but has no live
+  // configuration to inspect. Do not make that label look interactive.
+  if (!preview || (preview.kind === 'agent' && preview.agent === undefined)) {
     return (
       <span className={cn('text-foreground font-medium', className)}>
         {name}
