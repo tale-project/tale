@@ -19,7 +19,9 @@
  * so platform and web suites can be mixed in one invocation. Checks per suite:
  *
  * 1. i18n keys — every backticked dotted token (`chat.send`, `settings.teams.*`)
- *    must resolve in `services/<service>/messages/en.yml` (+ `global.yml`) or
+ *    must resolve in the service's English catalog — `messages/en.yml`, or
+ *    one file per topic in `messages/en/` (`en/chat.yml` holds `chat.*`) —
+ *    (+ `global.yml`) or
  *    in a package catalog the service merges underneath its own: the
  *    design-system one every service loads (`packages/ui/src/i18n/messages/`
  *    — the row menu's `common.actions.openMenu`, the dialogs'
@@ -39,7 +41,7 @@
  *    `services/<service>/tests/e2e/specs/`.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { parse } from 'yaml';
@@ -84,6 +86,15 @@ function loadMessages(service: string): Set<string> {
       const path = join(dir, file);
       if (!existsSync(path)) continue;
       flattenKeys(parse(readFileSync(path, 'utf8')), '', keys);
+    }
+    // A catalog kept one file per topic: `en/chat.yml` holds `chat.*`.
+    const topics = join(dir, 'en');
+    if (!existsSync(topics) || !statSync(topics).isDirectory()) continue;
+    for (const file of readdirSync(topics)) {
+      if (!file.endsWith('.yml')) continue;
+      const topic = file.slice(0, -'.yml'.length);
+      keys.add(topic);
+      flattenKeys(parse(readFileSync(join(topics, file), 'utf8')), topic, keys);
     }
   }
   return keys;
@@ -208,7 +219,7 @@ function checkGuide(guidePath: string): number {
     const namespace = token.split('.')[0];
     if (!keys.has(namespace)) {
       findings.push(
-        `UNKNOWN-NAMESPACE i18n \`${token}\` (no top-level \`${namespace}\` in en.yml)`,
+        `UNKNOWN-NAMESPACE i18n \`${token}\` (no top-level \`${namespace}\` in the English catalog)`,
       );
       continue;
     }

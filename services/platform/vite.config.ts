@@ -311,7 +311,7 @@ export default defineConfig({
             {
               name: 'messages',
               tags: ['$initial'],
-              test: /[\\/]messages[\\/][^\\/]+\.yml$/,
+              test: /[\\/]messages[\\/](?:[^\\/]+[\\/])?[^\\/]+\.yml$/,
               priority: 1,
             },
             { name: 'app', tags: ['$initial'] },

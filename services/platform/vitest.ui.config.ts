@@ -20,7 +20,7 @@ const uiMaxWorkers = Math.max(2, Math.min(cpuCount - 1, 6));
 
 export default defineConfig({
   // The yaml transform matches the root vitest config — UI components import
-  // the message catalogs (messages/*.yml) through the i18n layer.
+  // the message catalogs (messages/<locale>/*.yml) through the i18n layer.
   plugins: [react(), yamlImports()],
   resolve: {
     tsconfigPaths: true,

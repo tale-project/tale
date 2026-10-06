@@ -1,0 +1,31 @@
+providers:
+  title: Connect your first AI provider
+  description: Add an API key and your team can start chatting with any of its models.
+connectors:
+  title: No connectors connected yet
+  description: Connect a mailbox, repository, or chat workspace to use it in automations and chat.
+contacts:
+  title: No contacts yet
+  description: Add contacts to email them from the inbox.
+products:
+  title: No products yet
+  description: Add products so agents can answer with your catalog.
+websites:
+  title: No websites yet
+  description: Add websites agents can cite in answers.
+knowledgeEntries:
+  title: No knowledge entries yet
+  description: Save facts from chat or add entries agents can reuse.
+skills:
+  title: No skills yet
+  description: Write a skill once, then equip project agents or automation agent nodes with it.
+members:
+  title: No members found
+  description: Invite people to collaborate in this workspace.
+teams:
+  title: No teams yet
+  description: Group members into teams to control which agents and skills they can access.
+apiKeys:
+  title: No API keys yet
+  description: Generate a key to connect external tools and scripts.
+  descriptionNoCreate: Creating a key takes the Owner, Admin or Developer role, or a competence an Admin grants for one.

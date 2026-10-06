@@ -1,0 +1,203 @@
+searchPlaceholder: Search skills
+sectionDescription:
+  Reusable instruction bundles your agents can read. Write one here or
+  upload a bundle, and share it with teams or across the organization.
+deleteSkill: Delete skill
+notFound: Skill not found
+skillDeleted: Skill deleted
+skillDeleteFailed: Couldn't delete skill
+deleteConfirmation:
+  This removes the skill bundle "{slug}" from disk. Every agent currently
+  equipped with it is unequipped.
+listFailed: Couldn't load the skill library. Reload to retry.
+readOnly: You can read this skill but not change it — its owner (or an org
+  admin, for shared skills) manages it.
+entityLabel: skills
+entityLabelOne: skill
+library:
+  labelFilterLabel: Filter by label
+  scopeFilterLabel: Visibility
+  tabs:
+    org: Organization
+    team: Teams
+    personal: Personal
+columns:
+  name: Name
+  description: Description
+  visibility: Visibility
+  labels: Labels
+  createdBy: Created by
+  loadError: Couldn't read SKILL.md
+loadErrorDetail:
+  title:
+    yamlSyntax: Frontmatter couldn't be parsed
+    missingFrontmatter: Frontmatter is missing
+    unclosedFrontmatter: Frontmatter isn't closed
+    frontmatterTooLarge: Frontmatter is too large
+    invalidFrontmatter: Frontmatter is invalid
+    emptyFrontmatter: Frontmatter is empty
+    symlink: SKILL.md is a symlink
+    inaccessible: Couldn't read this skill
+    generic: This skill couldn't be loaded
+form:
+  description: Description
+section:
+  body: Instructions (body)
+viewer:
+  toggleWrap: Toggle line wrap
+  imageNotice: Image preview is not available in the browser. Use the CLI to
+    inspect this asset.
+  binaryNotice: This file type is not previewable in the browser.
+  largeFile: Large file — syntax highlighting disabled for performance.
+  notFound: This file is no longer in the bundle. Pick another file from the tree.
+  loadFailed: Couldn't load this file.
+  refreshFailed: Couldn't refresh this file. You're seeing the version loaded
+    earlier.
+  empty: This file is empty.
+detail:
+  loadFailed: Couldn't load this skill.
+  refreshFailed: Couldn't refresh this skill. You're seeing the version loaded
+    earlier.
+  tree:
+    heading: Bundle
+    empty: Only SKILL.md — bundle assets live under scripts/, references/, or
+      assets/.
+    headingCount: Bundle · {fileCount} files
+upload:
+  dialogTitle: Upload skill
+  uploadDescription: Upload a zip — or pick a folder — with SKILL.md at the
+    root, plus any optional scripts, references, or assets.
+  dropZoneLabel: Upload skill bundle
+  dropOrClick: Drop a .zip here or click to browse
+  dropHere: Drop the bundle here
+  acceptedFormats: Zip containing SKILL.md at the root
+  parsing: Reading bundle…
+  zipRequired: Bundle must be a .zip file.
+  folderDropUnsupported: Folders can't be dropped here — use "Choose folder"
+    below instead.
+  singleFileOnly: Drop a single .zip bundle, not multiple files.
+  chooseFolder: Choose folder
+  bundleFiles: Bundle files
+  fileCount: '{count, plural, one {# file} other {# files}}'
+  frontmatter: Frontmatter
+  license: License
+  recommendedPython: Recommended Python
+  recommendedNode: Recommended Node
+  disableModelInvocation: Requests explicit use of this skill; does not restrict access.
+  unknownKeys:
+    '{count, plural, one {# additional frontmatter key preserved} other
+    {# additional frontmatter keys preserved}}'
+  sharingHeading: Sharing
+  sharingAs:
+    private: Declares retired private sharing — accepted only when it
+      replaces an existing private skill
+    team: Uploads shared with the teams its frontmatter declares
+    org: Uploads shared with the whole organization
+  sharingEditableAfter: you can change sharing after the upload.
+  submit: Upload bundle
+  submitting: Uploading…
+  uploadSuccess: Skill bundle uploaded
+  uploadFailed: Couldn't upload skill bundle
+  replaceTitle: Replace existing skill?
+  replaceDescription: '"{slug}" already exists. Uploading will overwrite it.'
+  replaceConfirm: Replace
+  replaceSuccess: Skill bundle replaced
+  errors:
+    notZip: Bundle must be a .zip file.
+    invalidZip: 'Not a valid zip archive: {detail}'
+    emptyZip: The bundle is empty.
+    tooManyEntries: Bundle has {count} entries (max {max}).
+    unsafePath: 'Bundle entry path is unsafe: {path}'
+    absolutePath: 'Bundle entry uses an absolute path: {path}'
+    missingSkillMd: Bundle is missing SKILL.md at the root.
+    frontmatterRejected: 'SKILL.md frontmatter rejected: {detail}'
+    invalidSlug: Frontmatter name "{slug}" is not a valid skill slug.
+    skillMdTooLarge: SKILL.md exceeds the per-file cap of {max}.
+    assetTooLarge: '"{path}" exceeds the per-file cap of {max}.'
+    totalTooLarge: The unpacked bundle exceeds {max}.
+attribution:
+  createdBy: Created by
+  lastEditedBy: Last edited by
+  builtin: Built-in
+  release: Configuration release
+  releaseBy: Configuration release · {name}
+  formerMember: Former member
+  byMember: By {name}
+  byFormerMember: By a former member
+publishing:
+  reserved:
+    editors: Your organization reserves sharing with everyone for Editors
+      and above, and members an admin allowed.
+    admins: Your organization reserves sharing with everyone for owners and
+      admins, and members an admin allowed.
+  noTeams: You aren't in a team, and your organization reserves sharing
+    with everyone. Ask an admin to add you to a team or to let you publish
+    skills.
+  lockedEdit: While it stays shared with the whole organization, only a
+    member allowed to publish can change it. You can narrow it to your teams
+    (and edit it in the same save) or delete it.
+  uploadRefused: Set visibility to team with your team IDs in SKILL.md, or
+    ask an admin to upload this bundle.
+  refused: Your organization reserves sharing with everyone, and you aren't
+    allowed to publish. Share the skill with your teams instead.
+  exists: A skill with this name already exists. Nothing was changed.
+addMenu:
+  label: Add skill
+createMenu:
+  blank: Blank skill
+  uploadZip: Upload zip
+  uploadFolder: Upload folder
+createDialog:
+  title: Create skill
+  nameLabel: Name
+  namePlaceholder: my-skill
+  nameHelp: Unique id — lowercase letters, numbers, and single hyphens. This
+    becomes the skill’s slug.
+  namePatternError: Use lowercase letters, numbers, and single hyphens (e.g. my-skill).
+  submit: Create
+  creating: Creating...
+  created: Skill created
+  exists: A skill with this name already exists.
+visibility:
+  label: Visibility
+  org: Organization
+  orgHelp: Every member can read it; any project's agents can equip it.
+  team: Teams
+  teamHelp: Only members of the teams you pick see it, and only their
+    projects' agents can equip it.
+  teamsLabel: Shared with teams
+  teamsPlaceholder: Pick at least one team
+  teamsRequired: Pick at least one team, or choose another visibility.
+  noTeamsHint: Your organization has no teams yet — create one under
+    Settings > Teams first.
+  unknownTeam: Unknown team
+  teamBadgeMore: '{team} +{count}'
+  private: Private
+  privateHelp: Retired — only you can see it, and no agent can equip it.
+    Pick a wider sharing to make the skill usable.
+  narrowingTitle: Narrow who sees this skill?
+  narrowingWarning: Someone who can see this skill now will lose access —
+    and every agent that equips it through them stops staging it.
+iconPicker:
+  label: Icon
+  trigger: Change icon
+  searchPlaceholder: Search icons
+  none: No icon
+  refine: '{count, plural, one {# more icon — keep typing to narrow} other
+    {# more icons — keep typing to narrow}}'
+editor:
+  saved: Skill saved
+  saveFailed: Couldn't save skill
+  descriptionHelp:
+    One or two sentences on what the skill covers — this is what tells
+    the model when to read it.
+  labels: Labels
+  labelsPlaceholder: research, pdf, finance
+  labelsHelp: Comma-separated, up to 8 — for browsing, not for the model.
+  labelsTooMany:
+    'A skill takes up to {max} labels. Remove {excess, plural, one {# label}
+    other {# labels}} to save.'
+  labelTooLong:
+    'The label "{label}" is longer than {max} characters. Shorten it to save.'
+  bodyHelp: Markdown the model reads when it loads the skill — playbooks,
+    conventions, reference material. Never executed.

@@ -70,7 +70,7 @@ customer's live account as a manual test.
 > claims otherwise.
 
 > **i18n note**: all in-app copy lives in the platform `conversations.*`
-> namespace (`services/platform/messages/<locale>.yml`); the surface NAME is
+> namespace (`services/platform/messages/<locale>/conversations.yml`); the surface NAME is
 > "Inbox" (`conversations.title` — de "Inbox", fr "Boîte de réception") while
 > the noun in body copy stays "conversations". The former per-automation
 > automations-inbox i18n namespace was deleted with the old backend.

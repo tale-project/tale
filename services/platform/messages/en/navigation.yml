@@ -1,0 +1,41 @@
+home: Home
+knowledge: Knowledge
+automations: Automations
+userSettings: Settings
+notifications: Notifications
+organization: Organization
+teams: Teams
+members: Members
+connectors: Connectors
+providers: AI providers
+skills: Skills
+apiKeys: API keys
+api: API
+apiRest: REST
+apiModels: Models
+branding: Branding
+governance: Governance
+metrics: Metrics
+personalization: Preferences
+account: Account
+usage: Usage
+agents: Agents
+mcp: MCP
+webdav: WebDAV
+myTeams:
+  label: Teams
+  none: No teams
+  count: '{count, plural, one {# team} other {# teams}}'
+orgSwitcher:
+  label: Organization
+aria:
+  primaryNavigation: Primary navigation
+  unreadConversations: '{count, plural, one {# unread conversation} other {# unread conversations}}'
+  unreadNotifications: '{count, plural, one {# unread notification} other {# unread notifications}}'
+dataResidency: Data residency
+sandboxes: Sandboxes
+enterpriseSso: Enterprise SSO
+sidebar:
+  landmark: Dashboard sidebar
+  search: Search
+  searchGlobal: Search everything

@@ -1,0 +1,439 @@
+taskReview:
+  title: "Aufgabenreviews"
+  description: "Wähle, wer abgeschlossene Agentenarbeit in diesem Projekt prüft."
+  defaultReviewer: "Standard-Reviewer"
+  humanDefault: "Person"
+  humanDefaultHint: "Der Aufgabenersteller, dann der Projektersteller, sofern sie das Projekt bearbeiten dürfen."
+  agentHint: "Prüft abgeschlossene Arbeit unabhängig."
+  existingReviews: "Gilt für neue Reviews. Bereits ausstehende Reviews behalten ihren gespeicherten Reviewer."
+  permissionRequired: "Dieser Agent braucht die Berechtigung für Aufgabenreviews, bevor er entscheiden kann."
+  unavailable: "Der gewählte Reviewer-Agent ist nicht verfügbar. Wähle einen anderen Reviewer."
+  stale: "Der Projekt-Reviewer hat sich während deiner Bearbeitung geändert. Verwirf den Entwurf und wähle erneut."
+  search: "Reviewer-Agenten suchen"
+
+title: Projekte
+entityLabel: Projekte
+entityLabelOne: Projekt
+loadFailed: Dieses Projekt konnte nicht geladen werden.
+switcher:
+  title: Projekt wechseln
+  searchPlaceholder: Projekte suchen
+  empty: Keine Projekte gefunden
+  ariaLabel: 'Projekt wechseln, aktuell: {name}'
+  allProjects: Alle Projekte
+navigation:
+  overview: Allgemein
+  files: Wissen
+  threads: Chats
+  agents: Agenten
+list:
+  createButton: Projekt erstellen
+  emptyTitle: Noch keine Projekte
+  emptyDescription: Lege ein Projekt an, um Dateien, Anweisungen und Chats mit
+    deinem Team zu teilen.
+  emptyReaderDescription: Ein Projekt erscheint hier, sobald jemand es mit dir oder einem deiner Teams teilt.
+  searchPlaceholder: Projekte suchen
+  showArchived: Archivierte anzeigen
+  columnName: Name
+  columnTasks: Aufgaben
+  columnOverdue: Überfällig
+  columnAgents: Agenten
+  columnSharing: Freigabe
+  columnActivity: Letzte Aktivität
+  sharingOrgWide: Organisationsweit
+  sharingMoreTeams: '+{count}'
+  filterMyTeams: Meine Teams
+  unknownTeam: Unbekanntes Team
+  taskProgressA11y: '{done} von {total} Aufgaben erledigt'
+  noTasks: Noch keine Aufgaben
+  overdueA11y: '{count, plural, one {# überfällige Aufgabe} other {# überfällige Aufgaben}}'
+  agentsA11y: '{count, plural, one {# Agent} other {# Agenten}}'
+  countTruncated: '{count}+'
+create:
+  title: Projekt erstellen
+  nameLabel: Projektname
+  namePlaceholder: z. B. Acme AG
+  keyLabel: Projektkürzel
+  keyDescription:
+    Kurzes Präfix für Aufgaben-IDs — nur Buchstaben und Ziffern (z.
+    B. wird aus TAL dann TAL-1). Fix — kann nach dem Erstellen des Projekts
+    nicht mehr geändert werden.
+  descriptionLabel: Beschreibung
+  descriptionPlaceholder: Was in dieses Projekt gehört
+  submit: Projekt erstellen
+  submitting: Erstellen…
+  successToast: Projekt erstellt
+  errorToast: Projekt konnte nicht erstellt werden
+  audienceLabel: Wer es sehen kann
+  audienceHelp: Leer lassen, damit alle in der Organisation es sehen, oder
+    die Teams wählen, für die dieses Projekt gedacht ist. Admins sehen es
+    immer.
+overview:
+  newChatCta: Neuer Chat
+  projectSection: Projekt
+  projectSectionDescription: Name, Beschreibung und feste Anweisungen für
+    dieses Projekt.
+  sharingHeading: Freigabe
+identity:
+  label: Icon und Farbe
+  hint: Wird neben dem Projektnamen in Listen und der Chat-Seitenleiste angezeigt.
+  trigger: Icon und Farbe ändern
+  colorLabel: Farbe
+  iconLabel: Icon
+  colors:
+    gray: Grau
+    slate: Schiefer
+    red: Rot
+    orange: Orange
+    amber: Bernstein
+    yellow: Gelb
+    lime: Limette
+    green: Grün
+    emerald: Smaragd
+    teal: Petrol
+    cyan: Cyan
+    sky: Himmelblau
+    blue: Blau
+    indigo: Indigo
+    violet: Violett
+    purple: Purpur
+    fuchsia: Fuchsia
+    pink: Pink
+    rose: Rosé
+  icons:
+    FolderKanban: Kanban-Ordner
+    Folder: Ordner
+    FolderOpen: Geöffneter Ordner
+    FolderTree: Ordnerbaum
+    FolderGit2: Git-Ordner
+    Briefcase: Aktentasche
+    Building2: Gebäude
+    Layers: Ebenen
+    Box: Kiste
+    BookOpen: Aufgeschlagenes Buch
+    GraduationCap: Doktorhut
+    Lightbulb: Glühbirne
+    Rocket: Rakete
+    Target: Zielscheibe
+    Flag: Flagge
+    Compass: Kompass
+    Map: Karte
+    Star: Stern
+    Beaker: Becherglas
+    FlaskConical: Erlenmeyerkolben
+    Microscope: Mikroskop
+    Atom: Atom
+    Cpu: Prozessor
+    Code: Code
+    Heart: Herz
+    Users: Personen
+    MessageSquare: Sprechblase
+    Phone: Telefon
+    Mail: Briefumschlag
+    Globe: Globus
+instructions:
+  label: Anweisungen
+  hint: Jeder Chat in diesem Projekt startet mit diesen Anweisungen.
+  placeholder: Schreibe Kontext, der für jeden Chat in diesem Projekt gilt…
+  charCount: '{count} / {max}'
+  tokenCapWarning: Nähert sich dem Limit von {cap} Zeichen
+  tokenCapError: Überschreitet das Limit von {cap} Zeichen
+files:
+  title: Dateien
+  addButton: Datei hinzufügen
+  emptyTitle: Dateien für dieses Projekt hinzufügen
+  emptyDescription: Lade Dokumente, Spezifikationen oder sonstigen Kontext hoch — jeder Chat in diesem Projekt kann darauf zugreifen.
+  ragStatusQueued: In Warteschlange
+  ragStatusQueuedHint: Wartet darauf, im Chat durchsuchbar zu werden.
+  ragStatusRunning: Wird indexiert…
+  ragStatusRunningHint: Macht diese Datei im Chat durchsuchbar…
+  ragStatusCompleted: Indexiert
+  ragStatusFailed: Fehlgeschlagen
+  ragStatusNotIndexed: Nicht indexiert
+  ragStatusNotIndexedHint: Erst nach dem Indexieren im Chat durchsuchbar.
+  detachAction: Aus Projekt entfernen
+  detachConfirm: Diese Datei aus dem Projekt entfernen? Sie wird nach „Wissen“
+    verschoben und ist dann für alle in der Organisation sichtbar.
+  previewAction: Datei anzeigen
+  detachSuccess: Dokument aus Projekt entfernt
+  detachError: Dokument konnte nicht entfernt werden
+  attachSuccess: Dokument zum Projekt hinzugefügt
+  attachError: Dokument konnte nicht hinzugefügt werden
+  unknownTitle: Unbenanntes Dokument
+  indexingRetry: Indexierung erneut versuchen
+  indexingRetryQueued: Indexierung wird erneut ausgeführt
+  indexingRetryFailed: Indexierung konnte nicht wiederholt werden
+  indexingStart: Jetzt indexieren
+  indexingStartQueued: Indexierung eingereiht
+  indexingStartFailed: Indexierung konnte nicht gestartet werden
+  treeLabel: Projektdateien
+  addToFolder: Datei zu „{folder}“ hinzufügen
+  addFolderButton: Ordner hochladen
+  batchTooLarge: Ein Ordner-Upload ist auf {maxFiles} Dateien / {maxSize} MB begrenzt — teile den Ordner auf und versuch es nochmal.
+  moreSkipped: +{count} weitere Datei(en) wurden übersprungen.
+  attachPartial: '{ok} von {total} Dateien hinzugefügt'
+  skippedList: 'Übersprungen: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+  failedList: 'Nicht hinzugefügt: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+  folderGone: Dieser Ordner existiert nicht mehr.
+  folderDeleted: Ordner gelöscht
+  folderDeleteFailed: Ordner konnte nicht gelöscht werden
+  folderDeleteHeld: Eine Datei in diesem Ordner unterliegt einem Legal Hold —
+    hebe ihn zuerst auf.
+  folderDeleteProtected:
+    Eine kontrollierte Datei in diesem Ordner hat eine freigegebene Version
+    und ist damit ein aufbewahrter Datensatz — verschiebe sie zuerst.
+  folderDeleteAction: Ordner löschen
+  folderDeleteConfirm:
+    „{folder}“ mitsamt Inhalt löschen? Die Dateien werden aus
+    dem Projekt und aus dem Wissensindex entfernt. Das lässt sich nicht
+    rückgängig machen.
+  newSubfolderAction: Neuer Unterordner
+  uploadingIndicator: Wird hochgeladen…
+  historyAction: Versionsverlauf
+  loadFailed: Die Dateien dieses Projekts konnten nicht geladen werden.
+  foldersLoadFailed: Die Ordner dieses Projekts konnten nicht geladen werden. Dateien in Ordnern stehen gesondert da, bis die Ordner geladen sind.
+  treeLoadFailed: Die Dateien und Ordner dieses Projekts konnten nicht geladen werden.
+  refreshFailed: Die Dateien dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
+  unplacedGroup: Dateien in Ordnern
+threads:
+  yourChats: Deine Chats
+  subtitle: Chats, die du in diesem Projekt gestartet hast.
+  sharedWithProject: Mit Projekt geteilt
+  emptyYours: Du hast in diesem Projekt noch keinen Chat gestartet.
+  emptyShared: Noch keine geteilten Chats.
+  shareToggle: Mit Projekt teilen
+  shareToggleDisclosure:
+    Beim Teilen bleiben deine benutzerdefinierten Anweisungen für andere
+    Mitglieder unsichtbar.
+  shareSuccess: Chat mit Projekt geteilt
+  unshareSuccess: Chat aus Projekt ausgeblendet
+  shareError: Freigabe konnte nicht aktualisiert werden
+  loadFailed: Die Chats dieses Projekts konnten nicht geladen werden.
+  refreshFailed: Die Chats dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
+agents:
+  loadFailed: Die Agenten dieses Projekts konnten nicht geladen werden.
+  refreshFailed: Die Agenten dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
+  agentsHeading: Agenten
+  sectionDescription: Agenten für dieses Projekt, jeder mit eigenem Modell, eigenen Skills und eigenen Anweisungen.
+  newAgent: Neuer Agent
+  emptyTitle: Agenten zu diesem Projekt hinzufügen
+  emptyBody: Agenten erledigen Aufgaben in deinem Namen — gib einem ein Modell, Skills und Anweisungen, um loszulegen.
+  sectionDescriptionReader: Die Agenten, die die Aufgaben dieses Projekts bearbeiten, jeder mit eigenem Modell, eigenen Skills und eigenen Anweisungen. Redakteure und Admins fügen sie hinzu und ändern sie.
+  emptyReaderTitle: Noch keine Agenten in diesem Projekt
+  emptyReaderBody: Agenten erledigen Aufgaben in deinem Namen. Bitte einen Redakteur oder Admin, diesem Projekt einen hinzuzufügen.
+  equippedCount: '{count} ausgerüstet'
+  rowEdit: Agent bearbeiten
+  rowDelete: Agent löschen
+  dialogCreateTitle: Neuer Agent
+  dialogEditTitle: Agent bearbeiten
+  nameLabel: Name
+  namePlaceholder: z. B. PR-Reviewer
+  harnessLabel: Agent-Laufzeit
+  harnessPlaceholder: Wähle die Agent-Laufzeit, auf der er läuft
+  modelLabel: Modell
+  modelPlaceholder: Wähle das Modell, das er aufruft
+  modelSearchPlaceholder: Modelle suchen
+  modelSearchEmpty: Keine Modelle gefunden
+  modelProviderSubscription: '{provider} · Abo'
+  modelUnpinnedResolving: 'Als "{model}" ohne festen Anbieter gespeichert —
+    Tale ermittelt gerade, welchen Anbieter ein Lauf nehmen würde …'
+  modelUnpinnedResolved: 'Als "{model}" ohne festen Anbieter gespeichert —
+    Läufe landen aktuell bei {provider}. Wähle einen Eintrag, um ihn
+    festzulegen.'
+  modelUnpinnedUnserved: 'Als "{model}" ohne festen Anbieter gespeichert —
+    und aktuell kann kein Anbieter es bedienen: {reason}'
+  equipmentLabel: Skills, Connectors & Tools
+  equipmentHint: Skills, Connectors und Plattform-Tools, die dieser Agent
+    nutzen kann.
+  equipmentVisibilityHint: Die Skills hier folgen dem Team-Zugriff des
+    Projekts, nicht deiner persönlichen Sichtbarkeit.
+  tool:
+    readBadge: Lesend
+    writeBadge: Schreibt Daten
+    module:
+      tasks: Aufgaben
+      documents: Dokumente
+      knowledge: Wissen
+      contacts: Kontakte
+      products: Produkte
+      websites: Websites
+    task_find: Aufgaben finden
+    task_get: Aufgabe lesen
+    task_create: Aufgaben erstellen
+    task_comment: Aufgaben kommentieren
+    task_update_status: Aufgaben zwischen Spalten verschieben
+    task_update_metadata: Aufgabenpriorität und Agentenzuweisung ändern
+    task_review: "Aufgabenergebnisse anderer Agenten prüfen"
+    task_start_agent: Andere Agenten auf Aufgaben starten
+    task_upsert_by_external_ref: Externes Element mit einer Aufgabe abgleichen
+    document_find: Dokumente finden
+    knowledge_entry_find: Wissenseinträge finden
+    contact_find: Kontakte finden
+    product_find: Produkte finden
+    website_find: Websites auflisten
+    document_create: Dokumente erstellen
+  secrets:
+    label: Secrets
+    hint: Umgebungsvariablen, die der Agent lesen kann — hinterlege nur ein
+      eng begrenztes, rotierbares Token.
+    addButton: Secret hinzufügen
+    saveButton: Secret speichern
+    cancelButton: Abbrechen
+    nameLabel: Name (Umgebungsvariable)
+    nameInvalid: Nur Buchstaben, Ziffern und Unterstriche; nicht mit einer
+      Ziffer beginnen.
+    valueLabel: Wert
+    valuePlaceholder: Token einfügen — es wird verschlüsselt gespeichert und
+      nie wieder angezeigt
+    valueRequired: Gib den Wert des Secrets ein.
+    descriptionLabel: Wofür es ist (optional)
+    descriptionPlaceholder: z. B. GlitchTip-API-Token (nur lesend)
+    saved: Secret gespeichert
+    saveError: Secret konnte nicht gespeichert werden
+    deleted: Secret gelöscht
+    deleteError: Secret konnte nicht gelöscht werden
+    deleteAria: Secret {name} löschen
+    deleteTitle: Secret löschen
+    deleteConfirm: '"{name}" löschen? Jeder Agent und Automatisierungs-Node in der Organisation, der es nutzt, erhält es beim nächsten Lauf nicht mehr.'
+    deleteConfirmButton: Secret löschen
+  instructionsLabel: Anweisungen
+  instructionsPlaceholder:
+    Was dieser Agent verantwortet, wie er arbeiten soll und welche Grenzen er
+    einhalten muss.
+  instructionsHint: Läuft bei jedem Einsatz dieses Agenten als feste Anweisung mit.
+  createSubmit: Agent erstellen
+  createSubmitting: Erstellt…
+  editSubmit: Änderungen speichern
+  editSubmitting: Speichert…
+  createSuccess: Agent erstellt
+  editSuccess: Agent aktualisiert
+  deleteSuccess: Agent gelöscht
+  deleteError: Agent konnte nicht gelöscht werden
+  mutationError: Agent konnte nicht gespeichert werden
+  deleteTitle: Agent löschen
+  deleteBody: '"{name}" löschen? Aufgaben, die auf ihn verwiesen haben, behalten ihre Historie.'
+  standard:
+    name: Standard-Agent
+    badge: Standard
+    managedNote: Von Tale für dieses Projekt eingerichtet. Agent-Laufzeit, Modell und Anweisungen folgen den Einstellungen der Organisation unter Richtlinien.
+    emptyTitle: Der Standard-Agent übernimmt die Aufgaben dieses Projekts
+    emptyBody: "Bis dieses Projekt eigene Agenten hat, können seine Aufgaben an den Standard-Agenten der Organisation gehen. Füge mit \"Neuer Agent\" einen hinzu, um dem Projekt eine eigene Agent-Laufzeit, ein eigenes Modell und eigene Anweisungen zu geben."
+    emptyReaderBody: Bis dieses Projekt eigene Agenten hat, kannst du seine Aufgaben dem Standard-Agenten der Organisation übergeben. Ein Redakteur oder Admin kann eigene Agenten hinzufügen.
+settings:
+  name: Name
+  nameHint: Wird in der Projektliste und in der Seitenleiste von Start angezeigt.
+  description: Beschreibung
+  descriptionHint:
+    Eine kurze Zusammenfassung, damit dein Team weiß, was hierher
+    gehört.
+  audience: Reichweite
+  audienceHelp: Die Teams, die dieses Projekt sehen. Leer bedeutet alle in
+    der Organisation. Admins sehen es immer.
+  archiveButton: Projekt archivieren
+  archiveSuccess: Projekt archiviert
+  archiveError: Projekt konnte nicht archiviert werden
+  restoreButton: Projekt wiederherstellen
+  restoreSuccess: Projekt wiederhergestellt
+  restoreError: Projekt konnte nicht wiederhergestellt werden
+  deleteDialogTitle: Projekt löschen
+  deleteDialogDescription:
+    Dieses Projekt wird gelöscht. Entscheide, was mit den
+    Dateien und Chats passiert.
+  deleteCascadeCheckbox: Angehängte Dateien und projektgeteilte Chats ebenfalls löschen
+  deleteConfirmPhrase: Tippe den Projektnamen zur Bestätigung
+  deleteSubmit: Projekt löschen
+  deleteSuccess: Projekt gelöscht
+  deleteError: Projekt konnte nicht gelöscht werden
+  saveSuccess: Gespeichert
+  saveError: Einstellungen konnten nicht gespeichert werden
+  archiveDescription:
+    Projekt für Mitglieder ausblenden. Dateien und Chats bleiben
+    erhalten; jederzeit wiederherstellbar.
+  restoreDescription: Projekt für Mitglieder wieder sichtbar machen.
+  sharingNarrowingWarning:
+    Diese Änderung schränkt den Zugriff ein. Mitglieder,
+    die den Zugriff verlieren, sehen dieses Projekt nicht mehr.
+dangerZone:
+  title: Gefahrenzone
+  description: Destruktive Aktionen für dieses Projekt.
+  archiveSectionTitle: Archiv
+  archiveHelp: Archivieren blendet das Projekt und seine Chats aus den täglichen Listen aus; du kannst es hier jederzeit wiederherstellen.
+  restoreHelp: Wiederherstellen bringt das Projekt und seine Chats zurück in die täglichen Listen.
+  deleteHelp: Löschen entfernt das Projekt endgültig, einschließlich seiner Dateien und Einstellungen. Das lässt sich nicht rückgängig machen.
+rowActions:
+  duplicate: Duplizieren
+  rename: Umbenennen
+  archive: Archivieren
+  restore: Wiederherstellen
+  delete: Löschen
+  duplicateSuccess: Projekt dupliziert
+  duplicateError: Projekt konnte nicht dupliziert werden
+  renameDialogTitle: Projekt umbenennen
+  renameSubmit: Speichern
+  renameSubmitting: Wird gespeichert…
+readOnlyBanner:
+  title: Du siehst dieses Projekt nur an
+  description: Kontaktiere einen Projekt-Editor, um Änderungen vorzunehmen.
+  archivedTitle: Dieses Projekt ist archiviert
+  archivedDescription: Es ist schreibgeschützt, bis es jemand wiederherstellt.
+    Projekt-Administratoren können es im Abschnitt Archiv unten wiederherstellen.
+archived:
+  badge: Archiviert
+errors:
+  PROJECT_FORBIDDEN: Du hast keinen Zugriff auf dieses Projekt.
+  PROJECT_ARCHIVED: Dieses Projekt ist archiviert. Stelle es wieder her, um Änderungen vorzunehmen.
+  PROJECT_NOT_FOUND: Wir konnten dieses Projekt nicht finden. Es wurde möglicherweise gelöscht.
+  PROJECT_MISMATCH: Dieser Chat liegt in einem anderen Projekt. Wechsle den
+    Kontext, um fortzufahren.
+  PROJECT_AGENT_NOT_ALLOWED:
+    '{agentName} ist in diesem Projekt nicht verfügbar.
+    Wähle einen anderen Agenten.'
+  PROJECT_MODEL_NOT_ALLOWED:
+    '{modelName} ist in diesem Projekt nicht verfügbar.
+    Wähle ein anderes Modell.'
+  PROJECT_NAME_INVALID: Projektname muss 1–80 Zeichen lang sein.
+  PROJECT_KEY_INVALID: 2–6 Buchstaben oder Ziffern, beginnend mit einem Buchstaben (z. B. TAL).
+  PROJECT_KEY_TAKEN: Dieses Kürzel wird bereits von einem anderen Projekt
+    verwendet. Bitte ein anderes wählen.
+  PROJECT_EXTERNAL_ITEM_ID_INVALID: Externe ID muss 1–256 Zeichen lang sein.
+  PROJECT_DUPLICATE_EXTERNAL_ID: Ein anderes Projekt verwendet diese externe ID bereits.
+  PROJECT_DESCRIPTION_INVALID: Beschreibung ist zu lang.
+  PROJECT_INSTRUCTIONS_TOO_LONG: Anweisungen überschreiten das Limit von {cap}
+    Zeichen. Kürze sie vor dem Speichern.
+  PROJECT_AGENT_NAME_INVALID: Der Agentenname muss 1–120 Zeichen lang sein.
+  PROJECT_AGENT_NAME_TAKEN: Ein anderer Agent in diesem Projekt trägt diesen Namen bereits.
+  PROJECT_AGENT_HARNESS_INVALID: Dieses Harness lässt sich nicht für Projekt-Agenten verwenden.
+  PROJECT_AGENT_MODEL_INVALID: Wähle ein Modell für diesen Agenten.
+  PROJECT_AGENT_INSTRUCTIONS_TOO_LONG: Anweisungen überschreiten das Limit von
+    20.000 Zeichen. Kürze sie vor dem Speichern.
+  PROJECT_AGENT_LIMIT: Dieses Projekt hat sein Agenten-Limit erreicht.
+  PROJECT_AGENT_NOT_FOUND: Wir konnten diesen Agenten nicht finden. Er wurde möglicherweise gelöscht.
+  PROJECT_LEGAL_HOLD: Dieses Projekt unterliegt einem Legal Hold und kann nicht gelöscht werden.
+  PROJECT_CONFIRM_PHRASE_MISMATCH: Tippe den Projektnamen exakt, um zu bestätigen.
+  PROJECT_SHARING_INVALID: Freigabeeinstellungen sind ungültig.
+  PROJECT_TEAM_INVALID: Team in deiner Organisation nicht gefunden.
+  TEAM_ACCESS_DENIED: Du kannst ein Projekt nur auf Teams beschränken, in denen du selbst bist.
+  PROJECT_ORG_MISMATCH: Dieses Projekt gehört zu einer anderen Organisation.
+  RATE_LIMITED: Das passiert gerade zu oft. Bitte versuche es in einem Moment erneut.
+  DOCUMENT_SCOPE_CONFLICT:
+    Dieses Dokument liegt bereits in einer Team-Bibliothek.
+    Löse es zuerst heraus.
+  DOCUMENT_NOT_FOUND: Dokument nicht gefunden.
+  RBAC_FORBIDDEN: Bearbeiter- oder Admin-Rolle erforderlich, um diese Änderung vorzunehmen.
+  ROLE_FORBIDDEN: Nur Admins können die Freigabe ändern oder das Projekt löschen.
+  THREAD_FORBIDDEN: Du kannst nur deine eigenen Chats bearbeiten.
+  THREAD_NOT_FOUND: Chat nicht gefunden.
+  THREAD_NOT_IN_PROJECT: Dieser Chat ist in keinem Projekt.
+  ORG_FORBIDDEN: Diese Ressource gehört einer anderen Organisation.
+  THREAD_NO_ORG: Dieser Chat ist noch keiner Organisation zugeordnet.
+  PROJECT_HAS_BOUND_AUTOMATIONS:
+    Entferne dieses Projekt zuerst aus den Automatisierungen, an die es
+    gebunden ist, dann lösche es.
+  PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Entferne dieses Projekt zuerst aus
+    diesen Automatisierungen, dann lösche es: {automations}.'
+  PROJECT_HAS_PROTECTED_RECORDS: Kläre zuerst die kontrollierten Dokumente in diesem Projekt oder verschiebe sie, dann lösche es — sie sind in Prüfung, freigegeben oder bewahren eine freigegebene Version auf.
+sharing:
+  effectiveAudience: Tatsächliche Reichweite
+  noTeamsHint: Noch keine Teams.
+  teamsLoadError: Teams konnten nicht geladen werden.
+  noTeamsCreateLink: Team erstellen

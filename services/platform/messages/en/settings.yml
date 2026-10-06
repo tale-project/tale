@@ -1,0 +1,1727 @@
+menu:
+  groups:
+    you: You
+    organization: Organization
+    advanced: Advanced
+  railSections:
+    personal: Personal
+    organization: Organization
+    advanced: Advanced
+  account:
+    description: Your profile, sign-in, and security.
+  personalization:
+    description: Standing instructions the chat assistant follows for you.
+  notifications:
+    description: Choose which events send you a notification.
+  usage:
+    description: How much you have used of the limits that apply to you.
+  organization:
+    description: Workspace name and identifiers.
+  members:
+    description: People who have access to this organization.
+  teams:
+    description: Teams and their members.
+  branding:
+    description: Logo, colors, and the name shown to your users.
+  connectors:
+    description: Connect external apps to your workspace.
+  providers:
+    description: Bring your own API keys for OpenAI, Anthropic, and others.
+  apiKeys:
+    description: Programmatic access tokens for the Tale API.
+  api:
+    description: Programmatic access — REST keys and WebDAV.
+  governance:
+    description: Policies, security, audit logs, and data retention.
+  metrics:
+    description: Organization-wide metrics for usage, feedback, automations, and projects.
+  sandboxes:
+    description: Manage always-on remote sandboxes.
+  skills:
+    description: Reusable instruction bundles for project agents and automation agent nodes.
+  enterpriseSso:
+    description: Single sign-on and directory sync for your organization.
+  dataResidency:
+    description:
+      Where this organization's knowledge base and uploaded files live, and
+      which model embeds them.
+mcpEndpoint:
+  title: MCP endpoint
+  description: Point any MCP client at this deployment to author, run and
+    manage automations — and to reach this organization's own capabilities and
+    knowledge.
+  copyEndpoint: Copy MCP endpoint URL
+  organizationReadFailed: The organization details could not be loaded, so the example request is unavailable.
+  organizationReadRetry: Try again
+  authHelp:
+    'Authenticate with a REST API key as a bearer token. A key belongs to
+    the person who created it and works in every organization they are a
+    member of; this one is named by the X-Organization-Slug header. Create
+    and manage keys under'
+  authLink: REST API keys.
+  orgSlug:
+    title: Organization slug
+    description: A key whose holder belongs to more than one organization
+      must name this one on every request — send this value as the
+      X-Organization-Slug header. A single-organization key may omit it.
+    copy: Copy organization slug
+  tools:
+    authoring:
+      title: Authoring
+      description: Work on automation documents — draft, validate, test,
+        save and deploy them. get_docs teaches the grammar.
+    management:
+      title: Run & trigger management
+      description: Operate what is deployed — start and poll durable runs,
+        browse versions, bind and unbind triggers.
+    capability:
+      title: Capabilities & knowledge
+      description: This organization's own surface — search what it can do,
+        invoke one capability, retrieve knowledge.
+  exampleTitle: Try it
+  exampleHelp: Lists the tools — put your API key in place; the organization
+    header is already filled in.
+  copyExample: Copy example request
+modelEndpoints:
+  title: Model endpoints
+  description: Use the organization's models from your own tools — opencode,
+    Claude Code, the OpenAI and Anthropic SDKs — with a personal API key.
+  loadFailed: Couldn't load the model endpoints' status.
+  governanceNote: Every call counts against your budgets and passes the
+    organization's input guardrails; the models' answers are not filtered.
+  disabled:
+    title: Model endpoints are not enabled for your organization
+    description: An admin turns them on under Settings → Governance →
+      Models → Model access.
+    openPolicy: Open model access
+  forbidden:
+    title: Your role cannot call the model endpoints
+    description: Owners, admins and developers can. Ask an admin to grant
+      you the Call models over the API competence.
+  openaiUrl:
+    label: OpenAI-compatible base URL
+    description: For the OpenAI SDKs, opencode and other OpenAI-compatible
+      clients, which append /chat/completions.
+    copy: Copy OpenAI-compatible base URL
+  anthropicUrl:
+    label: Anthropic-compatible base URL
+    description: For Claude Code (ANTHROPIC_BASE_URL) and the Anthropic
+      SDKs, which append /v1/messages.
+    copy: Copy Anthropic-compatible base URL
+  apiKey:
+    label: API key
+    description: Send a personal API key as a bearer token in the
+      Authorization header. Create one under
+    link: REST API keys.
+  orgSlug:
+    label: Organization slug
+    description: Send it as the X-Organization-Slug header when your key
+      belongs to more than one organization.
+    copy: Copy organization slug
+  models:
+    label: Models you can call
+    description: Use these ids as the model name on both endpoints. Your
+      model access decides the list.
+    empty: No model is available to you yet. An admin connects providers
+      and decides model access.
+    copy: Copy model id {id}
+  opencode:
+    title: opencode
+    description: Add the provider to opencode.json. The key comes from the
+      TALE_API_KEY environment variable.
+    copy: Copy opencode configuration
+  claudeCode:
+    title: Claude Code
+    description: Set these variables before you start claude. Leave
+      ANTHROPIC_API_KEY unset — Tale refuses the header it sends.
+    copy: Copy Claude Code variables
+  openaiSdk:
+    title: OpenAI SDK (Python)
+    description: Point the client at Tale. Streaming, tools and images work
+      as they do with OpenAI.
+    copy: Copy OpenAI SDK example
+account:
+  profile:
+    title: Profile
+    description: Your name and email — visible to your teammates.
+    nameDescription: The name shown to your teammates.
+    emailDescription: Used to sign in and receive notifications.
+    name: Name
+    namePlaceholder: Enter your name
+    email: Email
+    nameRequired: Name is required
+  role:
+    title: Your role
+    description: Your role decides what you can do in this organization.
+      Admins assign it under Settings › Members. With single sign-on, your
+      identity provider can also set it.
+    manageLink: Manage members
+  teams:
+    title: Your teams
+    description: Teams decide which team documents, projects and inbox
+      queues you can see. Admins manage them under Settings › Teams.
+    none: You are not in any team yet. You see everything shared with the
+      whole organization.
+    manageLink: Manage teams
+    # A read that failed is never "not in any team" (#3847). Try again
+    # is common.actions.tryAgain.
+    loadFailed: "Couldn't load your teams."
+    refreshFailed: "Couldn't refresh your teams. What's shown may be out of date."
+  security:
+    title: Password
+    description: Sign in with your email and a password.
+  chats:
+    title: Your chats
+    description: Archive your chats or move them to Trash in this organization.
+    archiveAll: Archive all chats
+    deleteAll: Delete all chats
+    archiveConfirm: 'Archive all your unarchived chats in this organization, including project chats. You can unarchive them later. Chats under legal hold stay unchanged.'
+    deleteConfirm: 'Move all your chats in this organization to Trash, including archived and project chats. They can be restored during the retention grace period. Chats under legal hold or with a running reply stay unchanged.'
+    result: 'Updated {changed} chats; {failed} could not be changed.'
+    failed: 'Could not update your chats. Try again.'
+usage:
+  limits:
+    title: Usage limits
+    description: Your organization can cap the tokens, cost, and requests of
+      your AI usage.
+  personal:
+    title: Your limits
+    description: The chats you send, the voice output you request, and the
+      agent runs you start count toward these limits, whichever way you
+      started them. When a limit is reached, you can't start more of that
+      work until it resets.
+  shared:
+    title: Shared limits
+    description: A shared limit counts the usage of everyone it covers, so it
+      can be reached before your own limits.
+  empty:
+    title: No usage limits apply to you
+    description: Your organization hasn't set a token, cost, or request limit
+      that covers you.
+  loadFailed: Couldn't load your usage limits. Reload the page to try again.
+  manageLimits: Manage limits
+  metric:
+    tokens: '{period, select, daily {Daily tokens} weekly {Weekly tokens} other {Monthly tokens}}'
+    costCents: '{period, select, daily {Daily cost} weekly {Weekly cost} other {Monthly cost}}'
+    requests: '{period, select, daily {Daily requests} weekly {Weekly requests} other {Monthly requests}}'
+  resets: Resets {date}
+  teamScope: '{team} team · resets {date}'
+  anyTeamScope: One of your teams · resets {date}
+  organizationScope: Entire organization · resets {date}
+  usedOfLimit: '{used} of {limit}'
+  meterLabel: '{metric}: {used} of {limit}'
+  reached: Limit reached
+  storage:
+    title: Storage
+    description: Files you have uploaded to this organization. When the limit
+      is reached, new document uploads are refused.
+    label: Uploaded files
+    unlimited: No storage limit applies to you.
+organization:
+  title: Organization name
+  detailsTitle: Organization details
+  detailsDescription: Basic information about your organization.
+  loadFailed: Organization details could not be loaded.
+  notFound: Organization not found.
+  nameDescription: The display name for your organization.
+  nameRequired: Organization name is required
+  localeDescription: Primary language for your organization.
+  organizationId: Organization ID
+  organizationIdDescription: The unique identifier for your organization.
+  copyOrganizationId: Copy organization ID
+  membersDescription: People who have access to this organization.
+  membersEntityLabel: members
+  memberEntityLabel: member
+  defaultLocale: Default language (for agents)
+  searchMember: Search member
+  addMember: Add member
+  createOrganization: Create organization
+  organizationName: Organization name
+  companyNameCharacterError:
+    Use letters, digits, spaces, hyphens, and underscores
+    only, starting with a letter or digit.
+  nameReserved: This name is reserved by the platform.
+  enterCompanyName: Enter your company name
+  organizationCreated: Organization created
+  switching: Switching…
+  switchingTo: Switching to {name}…
+  switchingLabel: Switching organization
+  deleteDialogTitle: Delete organization
+  deleteDialogDescription: Delete "{name}"? This removes all agents, automations, providers, and connectors. Members will lose access. This can't be undone.
+  dangerZoneTitle: Danger zone
+  dangerZoneDescription: Irreversible actions that affect the entire organization.
+  deleteSectionHelp:
+    Permanently delete this organization and everything in it.
+    This cannot be undone.
+  deleteConfirmAction: Delete organization
+  deleteLoading: Deleting…
+  deleteSuccess: Organization deleted
+  deleteFailed: Couldn't delete organization
+  deleteBlockedByLegalHold: An active legal hold is preserving this organization's data. Release every hold under Governance > Legal hold, then try again.
+  deleteTypeNameLabel: Type the organization name to confirm
+  deleteConfirmNameMismatch: The confirmation doesn't match the organization name. Reload the page and try again.
+  editMember: Edit member
+  removeMember: Remove member
+  memberUpdated: Member updated
+  memberUpdateFailed: Couldn't save the member — try again.
+  memberRemoved: Member removed
+  twoFactorResetSuccess: Two-factor reset — the member must enrol again on next sign-in
+  emailCannotChange: Email cannot be changed
+  cannotChangeOwnRole: You cannot change your own role
+  updatePassword: Update password
+  enterNewPassword: Enter new password
+  userMustUpdatePassword: User must update the password on login
+  adminWarning: Your organization needs at least 2 admins. This change will be blocked if it leaves fewer.
+  adminSecurityWarning: Your organization must have at least 2 admins. You can't remove the last one.
+  transferOwnership: Transfer ownership
+  transferOwnershipConfirmation: Transfer ownership to {name}? You'll be demoted to admin.
+  ownershipTransferred: Ownership transferred
+teams:
+  title: Teams
+  entityLabel: teams
+  entityLabelOne: team
+  createTeam: Create team
+  searchTeam: Search teams
+  columns:
+    name: Name
+    members: Members
+    created: Added
+  editTeam: Edit team
+  deleteTeam: Delete team
+  deleteConfirmation: Delete the {name} team? All members will be removed. This can't be undone.
+  teamDeleted: Team deleted
+  teamDeleteFailed: Couldn't delete team
+  teamCreated: Team created
+  teamCreatedDescription: '{name} created with {count} {count, plural, one {member} other {members}}.'
+  teamCreatedMembersRefused: Team created, but not every member was added
+  teamCreateFailed: Couldn't create team
+  teamUpdated: Team updated
+  teamUpdateFailed: Couldn't update team
+  teamNameRequired: Team name is required
+  manageMembers: Members
+  noMembersToAdd: All organization members are already in this team
+  noTeamMembers: No members in this team yet
+  sectionDescription: Organize members into teams for scoped access to agents and resources.
+  memberCount: '{count} {count, plural, one {member} other {members}}'
+  teamName: Team name
+  teamNamePlaceholder: Enter team name...
+  saveChanges: Save changes
+  loadingMembers: Loading...
+  unknownMember: Unknown
+  memberChecklistHint: A member can be part of multiple teams. If no one is
+    selected, you will be added automatically.
+  lastMemberHint:
+    A team must keep at least one member. Delete the team instead to
+    remove the last member.
+  teamNameTooLong: Team name can be at most 80 characters
+  teamNameTaken: A team with this name already exists
+  membershipChangesFailed: '{count, plural, one {# membership change was} other {# membership changes were}} refused. The list has been refreshed.'
+  syncedBadge: Synced
+  syncedNotice: This team is provisioned by your identity provider, which owns
+    its name and members. Change them there; a local edit would be undone by
+    the next sync.
+  deleteImpact:
+    summary: 'This team has {members, plural, one {# member} other {# members}}. It is on the audience of {projects, plural, one {# project} other {# projects}}, {folders, plural, one {# folder} other {# folders}} and {documents, plural, one {# document} other {# documents}}, and {conversations, plural, one {# conversation is} other {# conversations are}} in its queue.'
+    becomeOrgWide: '{count, plural, one {# item has} other {# items have}} no other team and will become visible to everyone in the organization.'
+  description: Create and manage teams within your organization for granular
+    access control
+credentials:
+  default: Default
+  makeDefault: Make default
+  enable: Enable
+  disable: Disable
+  edit: Edit credential
+  delete: Delete
+  actionsLabel: Actions for {name}
+  deleteTitle: Delete credential
+  deleteBody: >-
+    Delete "{name}"? Automations and chat actions using it lose access
+    immediately.
+  deleteDefaultWarning: >-
+    This is the default credential. Deleting it leaves no default until you
+    pick another one.
+  deletedToast: Credential deleted
+  updateFailed: 'Could not update the credential: {error}'
+  deleteFailed: 'Could not delete the credential: {error}'
+  noDefault: >-
+    No default credential for {vendors} — a call that names none can't pick
+    one automatically. Make one of them the default.
+  addCredential: Add credential
+  addTitle: Add credential
+  addDescription: New credential for {vendor}.
+  create: Add credential
+  createdToast: Credential added
+  editTitle: Edit credential
+  savedToast: Credential updated
+  method: Authentication method
+  name: Name
+  namePlaceholder: e.g. Support inbox
+  nameHelp: The name a call uses to pick this credential.
+  searchPlaceholder: Search credentials
+  listFailed: 'Could not load the credentials: {error}'
+  entityLabel: credentials
+  entityLabelOne: credential
+  columns:
+    name: Name
+    method: Authentication
+    actions: Actions
+  catalog:
+    title: Add credential
+    description:
+      Choose what this credential authenticates against. Configured providers
+      are listed first — select one again to add another key.
+    configured: Configured
+    noMatches: Nothing matches that search.
+connectors:
+  searchPlaceholder: Search connectors
+  sectionDescription:
+    Manage the credentials this organization uses for connector actions
+    in workflows and supported platform tools.
+  vendorColumn: Connector
+  vendorFilterLabel: Connector
+  catalog:
+    emptyBody: >-
+      This deployment ships no connector files. Check that the config root
+      is mounted and readable.
+    listFailed: 'Could not load the connectors: {error}'
+  authMethod:
+    apiKey: API key
+    bearer: Token
+    basic: Username & password
+    oauth2: OAuth
+  card:
+    actionCount: '{count, plural, one {# action} other {# actions}}'
+    connect: Connect
+    emptyBodyOauth:
+      Connect {connector} so configured workflows and supported platform
+      tools can use this account.
+    oauthAppMissing:
+      '{connector} has no OAuth app to connect against yet. Ask an
+      organization admin to configure one under Settings > Connectors.'
+    oauthAppMissingAdmin:
+      '{connector} has no OAuth app to connect against yet. Configure one
+      in the OAuth apps section below, then come back to connect.'
+    oauthAppMissingDeployment:
+      "{connector} has no OAuth app to connect against yet. Its app is set
+      up by the deployment operator, not in this organization's OAuth apps
+      — ask your operator to configure it."
+  credential:
+    disabled: Disabled
+    needsReauth: Reconnect needed
+    needsReauthHint: Authorization expired or revoked. Reconnect to restore access.
+    needsReauthDetail: '{detail} Reconnect to grant consent again.'
+    reconnect: Reconnect
+    deleteDefaultHandsOn: >-
+      This is the default credential. Deleting it makes "{name}" the default
+      for calls that name no credential.
+    deleteDefaultLeavesNone: >-
+      This is the default credential, and no other active credential can
+      take over: calls that name no credential fail until you make one the
+      default.
+    deleteDefaultHandsOnOldest: >-
+      This is the default credential. Deleting it makes the oldest active
+      credential of this connector the default, if there is one.
+  replace:
+    apiKeyTitle: Replace API key
+    tokenTitle: Replace token
+    basicTitle: Replace username & password
+    note: The stored secret is never shown. Entering a new one replaces it
+      everywhere this credential is used.
+  oauthApps:
+    title: OAuth apps
+    description:
+      The vendor app registrations this organization's members consent
+      against when connecting an OAuth connector. An app configured here
+      overrides the deployment-wide one from the environment; a connector
+      with neither can't be connected.
+    onedriveTarget: OneDrive / SharePoint (Knowledge import)
+    statusOrg: Organization app
+    statusEnv: Deployment app
+    statusNone: Not configured
+    orgClientId: 'Client ID: {clientId}'
+    configure: Configure
+    remove: Remove
+    removeTitle: Remove the {connector} OAuth app?
+    removeBody:
+      Members can no longer start new connections against this app. The
+      deployment's environment app, if any, takes over. Existing
+      connections keep working until their tokens expire.
+    removedToast: OAuth app removed
+    savedToast: OAuth app saved
+    dialogTitle: 'OAuth app: {connector}'
+    dialogDescription:
+      Paste the client ID and secret from the vendor app registration.
+      Tale stores the secret encrypted and never shows it again.
+    clientIdLabel: Client ID
+    clientSecretLabel: Client secret
+    clientSecretKeep: Leave blank to keep the current secret.
+    tenantIdLabel: Directory (tenant) ID
+    tenantIdHint:
+      Required for single-tenant Microsoft app registrations; leave blank
+      for multi-tenant ones.
+    redirectUrisLabel: Redirect URIs to register
+    redirectUrisHint: Add each of these to the vendor app registration before connecting.
+    reuseSso: Use Entra ID SSO app
+    reuseSsoTitle: Reuse the Entra ID SSO app registration
+    reuseSsoBody:
+      Your organization signs in with Microsoft Entra ID. This copies that
+      app registration's client ID and secret into the Microsoft 365
+      import app — if you rotate the SSO client secret later, copy it
+      again here.
+    reuseSsoChecklist: Before members can connect, add to this app registration in Entra
+    reuseSsoRedirectItem: A "Web" redirect URI
+    reuseSsoScopesItem: Delegated Microsoft Graph permissions
+    reuseSsoConfirm: Copy from SSO
+    reuseSsoDoneToast: Microsoft 365 import now uses the Entra ID SSO app
+  dialog:
+    apiKey: API key
+    token: Token
+    tokenHelp: Sent as the Authorization header on every request.
+    username: Username
+    password: Password
+    smtpSeparateToggle: Use a separate SMTP provider
+    smtpSeparateHint: Leave off to send through the mailbox login above.
+    smtpUsername: SMTP username
+    smtpPassword: SMTP password
+    smtpHint: Enter your relay's SMTP username and password (Resend, SendGrid,
+      Amazon SES, …).
+    endpointUrl: Instance URL
+    endpointHelpConfluence: Your Atlassian site origin — the address you open Confluence at.
+    endpointHelpShopify:
+      Your store's myshopify.com origin — the admin address, not the
+      storefront domain.
+    endpointHelpGlitchtip:
+      Your GlitchTip instance origin, such as https://app.glitchtip.com. A
+      self-hosted instance works once the deployment allows its host.
+    endpointHelpGeneric: The https origin of the instance this credential belongs to.
+enterpriseSso:
+  connected: Sign-in is enabled.
+  copy: Copy
+  protocolLabel: Protocol
+  protocolHelp: Choose how users sign in. OIDC endpoints are discovered automatically.
+  protocol:
+    entra: Microsoft Entra ID
+    oidc: Generic OIDC
+    oauth2: OAuth2
+    saml: SAML 2.0
+  displayNameLabel: Display name
+  signInSection: Sign-in
+  issuerLabel: Issuer URL
+  authzEndpointLabel: Authorization endpoint
+  tokenEndpointLabel: Token endpoint
+  userinfoEndpointLabel: Userinfo endpoint
+  clientIdLabel: Client ID
+  clientSecretLabel: Client secret
+  clientSecretKeep: Leave blank to keep the current secret.
+  scopesLabel: Scopes
+  pkceLabel: Use PKCE
+  pkceDescription:
+    Sends a proof-key challenge with each authorization request —
+    recommended whenever the IdP supports it.
+  advanced: Advanced
+  defaultDisplayName:
+    entra: Microsoft Entra ID
+    oidc: OIDC SSO
+    oauth2: OAuth2 SSO
+    saml: SAML SSO
+  metadata:
+    title: Import IdP metadata
+    help:
+      Your IdP publishes the entity ID, sign-on URL, and signing certificate as
+      federation metadata XML. Import it here to fill the fields below — you
+      can still review and edit every value before saving.
+    urlLabel: Metadata URL
+    importUrl: Import
+    uploadXml: Upload XML
+    imported: IdP metadata imported — review the fields below, then save.
+    importFailed: Could not import the IdP metadata.
+    errorTooLarge: The metadata document is too large (max 1 MB).
+    errorInvalid: This does not look like valid federation metadata XML.
+    errorNotIdp:
+      The metadata describes no identity provider — did you upload SP
+      metadata by mistake?
+    errorIncomplete:
+      The metadata is missing the entity ID, sign-on URL, or signing
+      certificate.
+    errorFetchFailed: Could not fetch the metadata URL. Check the address, or
+      download the file and upload it instead.
+  idpEntityIdLabel: IdP entity ID
+  idpSsoUrlLabel: IdP sign-on URL
+  idpCertLabel: IdP signing certificate (PEM)
+  idpCertHelp: The X.509 certificate the IdP signs assertions with.
+  spMetadataLabel: SP metadata URL
+  acsUrlLabel: ACS (reply) URL
+  spKeypairHelp:
+    Only needed when your IdP encrypts assertions or names attributes
+    differently. Paste an SP certificate and its private key to receive
+    encrypted assertions — the certificate is published in the SP metadata,
+    the key is stored as a secret and never shown again.
+  spCertLabel: SP certificate (PEM)
+  spCertHelp: The X.509 certificate your IdP encrypts assertions to.
+  spKeyLabel: SP private key (PEM)
+  spKeyHelp: The private key matching the SP certificate.
+  spKeyKeep: A key is stored. Leave blank to keep it.
+  wantSignedLabel: Require signed assertions
+  wantSignedDescription:
+    Refuses an assertion without a valid signature from the IdP certificate
+    above. Keep this on.
+  wantEncryptedLabel: Require encrypted assertions
+  wantEncryptedDescription:
+    Refuses an assertion that arrives in plain text. Needs the SP private
+    key, and the IdP set to encrypt.
+  attributeMappingsHelp:
+    Attribute names in the assertion. Leave blank to use the standard names
+    (email, name, groups and their claim URIs).
+  attrEmailLabel: Email attribute
+  attrNameLabel: Name attribute
+  attrGroupsLabel: Groups attribute
+  provisioningSection: Provisioning
+  defaultRoleLabel: Default role
+  role:
+    admin: Admin
+    developer: Developer
+    editor: Editor
+    member: Member
+  autoRoleLabel: Auto-assign roles from the IdP
+  autoRoleDescription:
+    Assigns platform roles from the IdP's groups, app roles, or
+    claims at sign-in.
+  autoTeamLabel: Sync IdP groups to teams
+  autoTeamDescription: Creates and updates teams from the IdP's group memberships at sign-in.
+  excludeGroupsLabel: Exclude groups
+  excludeGroupsHelp: Comma-separated group names to skip during team sync.
+  scim:
+    section: SCIM provisioning
+    help: Let your IdP push users and groups automatically (create, update,
+      deactivate).
+    enabled: Enabled
+    disabled: Disabled
+    tokenCreatedHelp: Copy this token now — you won't be able to see it again.
+    regenerate: Regenerate token
+    generate: Generate token
+    disable: Disable
+    baseUrlLabel: SCIM base URL
+    tokenFailed: Couldn't generate SCIM token
+  trustedHeaders:
+    section: Trusted headers
+    help:
+      Let an application that already signs its users in hand them into this
+      organization through its reverse proxy. On every hand-off the proxy
+      presents one of the keys below together with the identity headers.
+    enabled: Enabled
+    disabled: Disabled
+    toggleLabel: Accept sign-ins from a trusted proxy
+    toggleHelp: Off refuses every key of this organization without revoking any of them.
+    maxRoleLabel: Highest role a proxy may assert
+    maxRoleHelp:
+      The role header is capped at this role. Owner can never be asserted
+      through a proxy.
+    endpointLabel: Hand-off URL
+    endpointHelp:
+      Point the proxy's sign-in at this address. It sends the key in the key
+      header, plus the identity headers.
+    headersLabel: Header names
+    headersHelp:
+      The headers this deployment reads. The operator renames them with the
+      TRUSTED_*_HEADER variables.
+    headerKey: Key
+    headerEmail: Email
+    headerName: Name
+    headerRole: Role
+    headerTeams: Teams
+    keysTitle: Keys
+    keysHelp:
+      A key is shown once, when you create it. Revoking a key does not end the
+      sessions it started.
+    noKeys: No keys yet. Create one and give it to the proxy.
+    createKey: Create key
+    keyName: Name
+    keyNamePlaceholder: e.g. Portal proxy
+    keyCreated: Key created
+    keyCreatedHelp: Copy this key now — you won't be able to see it again.
+    keyCreatedSendAs: The label is the header the proxy sends it in on the hand-off request.
+    revoke: Revoke
+    revokeTitle: Revoke this key?
+    revokeDescription:
+      The proxy holding “{name}” can no longer sign anyone in. Sessions
+      it already started stay signed in.
+    revoked: Key revoked
+    createdAt: Created
+    lastUsed: Last used
+    neverUsed: Never used
+    limitReached:
+      This organization holds the maximum of {max} keys. Revoke one to create
+      another.
+  embedding:
+    section: Embedding
+    help:
+      Let another web application show this organization's pages inside a frame.
+      Tale refuses every frame unless the surrounding page's origin is listed here.
+    enabled: Enabled
+    disabled: Disabled
+    toggleLabel: Allow embedding in a frame
+    toggleHelp: Off keeps every page out of frames; the list below is kept.
+    originsLabel: Allowed origins
+    originsHelp: One origin per line, such as https://app.example.com. At most {max}.
+    originsPlaceholder: https://app.example.com
+    invalidOrigin:
+      Enter https origins only, one per line. Plain http is accepted for
+      localhost.
+    tooMany: At most {max} origins.
+    save: Save origins
+    saved: Embedding settings saved
+    saveFailed: Couldn't save the embedding settings
+    unavailable: Unavailable
+    readFailed: Couldn't load embedding settings. Try again.
+    retry: Try again
+    sameSiteNote:
+      A frame receives the signed-in session only when the surrounding page
+      is on the same site as Tale, for example a subdomain of the host or Tale served
+      through the host's own domain.
+  disable: Disable sign-in
+  remove: Remove
+  test: Test connection
+  saveFailed: Couldn't save
+  testOk: Connection looks good
+  testFailed: Connection test failed
+  testMissingFields: Fill in the required fields before testing.
+  formHint: Configure how members sign in to this organization.
+  validation:
+    required: This field is required.
+    url: Enter a valid URL (including https://).
+    clientSecretRequired: A client secret is required.
+    spKeyRequired: An SP private key is required to require encrypted assertions.
+  roleMapping:
+    help:
+      Map identity-provider groups, app roles, or job titles to a platform role.
+      Rules are checked from top to bottom and the first match sets the role,
+      so put the most privileged rules first. Users who match no rule get the
+      default role.
+    empty: No rules yet — every user gets the default role.
+    addRule: Add rule
+    removeRule: Remove
+    sourceLabel: Source
+    source:
+      group: IdP group
+      appRole: App role
+      jobTitle: Job title
+      claim: Claim
+    patternLabel: Matches value
+    targetRoleLabel: Assigns role
+    claimLabel: Claim path
+    claimHelp: Dot-path into the token claims, e.g. realm_access.roles.
+  redirectUrlLabel: Redirect URL to register in Entra
+  redirectUrlHelp: Register this exact URL as a "Web" redirect URI in your app
+    registration — it must byte-match (scheme, host, path, no trailing
+    slash) or sign-in fails with AADSTS50011.
+  additionalDomainsHint: This deployment also answers on other domains.
+    Register this URL as well — someone who signs in there is returned
+    there, not to the canonical domain.
+  deploymentWarning:
+    title: Deployment not fully configured for SSO
+    callbackMissing:
+      The redirect URL is empty because SITE_URL is not set on the
+      server. SSO sign-in will fail until it is configured.
+    authSecretMissing:
+      BETTER_AUTH_SECRET is not set on the server. SSO sign-in will
+      fail with a server error until it is configured.
+  guide:
+    title: Setup guide
+    redirectLabel: Redirect / callback URL
+    samlIntro:
+      Create a SAML app in your IdP using the SP metadata URL and ACS URL
+      shown in the sign-in section above.
+    entra:
+      intro:
+        Register an app in the Microsoft Entra admin center, then paste its
+        details below.
+      s1:
+        Sign in to the Microsoft Entra admin center (entra.microsoft.com) as at
+        least an Application Developer.
+      s2:
+        Go to Entra ID › App registrations › New registration; name it and choose
+        "Single tenant".
+      s3:
+        Under Redirect URI, select the "Web" platform and paste the Redirect URL
+        shown above, then Register.
+      s4: On the Overview page, copy the Application (client) ID and Directory
+        (tenant) ID. The Issuer URL is
+        https://login.microsoftonline.com/{tenant-id}/v2.0.
+      s5:
+        Go to Certificates & secrets › New client secret and copy the secret Value
+        (not the Secret ID).
+      s6: Enter the client ID, client secret, and issuer URL in the fields above.
+      s7:
+        For group→team sync, add the Microsoft Graph GroupMember.Read.All permission
+        under API permissions and grant admin consent.
+      s8: Microsoft 365 file import uses a separate consent flow in Knowledge. Do not add Files.Read or Sites.Read.All to SSO scopes for sign-in. Configure import access through the connector OAuth app settings.
+    google:
+      intro:
+        Create an OAuth client in the Google Cloud Console, then paste its
+        details below.
+      s1:
+        In the Google Cloud Console, open APIs & Services › Credentials › Create
+        credentials › OAuth client ID.
+      s2: Choose the application type "Web application".
+      s3: Under Authorized redirect URIs, add the Redirect URL shown above and save.
+      s4: Copy the Client ID and Client secret shown at the top of the client page.
+      s5:
+        Enter them above with the Issuer URL https://accounts.google.com — the
+        endpoints are discovered automatically.
+      groupsNote: Google's standard OIDC doesn't return group memberships — group→team sync needs the Admin SDK / Cloud Identity API with a Workspace admin.
+    oauth2:
+      intro: For providers without OIDC discovery, configure the endpoints manually.
+      s1:
+        Register a web/OAuth2 application with your provider and add the Redirect
+        URL shown above.
+      s2: Copy the client ID and client secret.
+      s3: Enter the authorization, token, and userinfo endpoint URLs from your
+        provider's documentation.
+      s4:
+        If your provider uses non-standard claim names, map email/name/groups under
+        Advanced.
+    saml:
+      intro:
+        Configure a SAML 2.0 application in your IdP, then paste its details
+        below.
+      s1: In your IdP, create a new SAML 2.0 application.
+      s2:
+        Set the ACS (Assertion Consumer Service) URL and the Entity ID / Audience to
+        the SP values shown above, or upload the SP metadata URL.
+      s3: Set the Name ID format to email address.
+      s4:
+        Copy the IdP entity ID, the IdP single sign-on URL, and the IdP signing
+        certificate (PEM) into the fields above.
+      s5:
+        Map the email, name, and group attributes in your IdP; if their names
+        differ, set the matching attribute names under Advanced.
+  disableConfirmTitle: Disable SSO sign-in?
+  disableConfirmDescription:
+    Members can no longer sign in with SSO until it is
+    enabled again. Active sessions stay signed in.
+  removeConfirmTitle: Remove SSO connection?
+  removeConfirmDescription:
+    This deletes the connection configuration, including
+    client credentials and role mappings, and turns SSO sign-in off
+    immediately. This can’t be undone.
+providers:
+  searchPlaceholder: Search provider
+  vendorColumn: Provider
+  vendorFilterLabel: Provider
+  credentialsSection:
+    title: Credentials
+    description:
+      The keys, environment references and subscription brokers this
+      organization authenticates AI providers with.
+  custom:
+    badge: Custom
+    pickerTitle: Custom provider
+    pickerDescription: Your own OpenAI-compatible or Anthropic endpoint — a self-hosted model server or an internal gateway.
+    nameLabel: Provider name
+    namePlaceholder: e.g. Internal vLLM
+    nameHelp: Names the provider and this credential. Its identifier is derived from it.
+    apiFormat: API format
+    apiFormatOpenaiHelp: Chat Completions — vLLM, Ollama, LiteLLM and most gateways.
+    apiFormatAnthropicHelp: Messages API — Anthropic-compatible endpoints.
+    baseUrl: Base URL
+    baseUrlHelp: >-
+      The API root the platform appends its paths to. Public hosts need
+      https; a private or loopback address also needs the deployment's
+      private-host opt-in.
+    models: Models
+    modelsDiscover: Discover from the endpoint
+    modelsDiscoverHelp: Lists the endpoint's /models with this credential's key.
+    modelsManual: Enter model IDs
+    modelsManualHelp: For an endpoint that cannot list its models.
+    check: Check models
+    checkOk: '{name}: {count, plural, =0 {no models listed} one {# model listed} other {# models listed}}'
+    checkFailed: "Couldn't list the models of {name}: {error}"
+    deleteRetires: >-
+      This is the only credential of the custom provider "{provider}",
+      which is removed with it.
+    errors:
+      nameReserved: This name belongs to a provider shipped with the platform. Choose another.
+      endpointNotPermitted: >-
+        This deployment doesn't permit the endpoint. A private or loopback
+        host needs TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 on the backend;
+        cloud-metadata hosts are always refused.
+      inUse: Credentials still use this provider. Delete them first.
+      versionConflict: The provider changed since it was loaded. Reopen the dialog and try again.
+      invalid: The provider definition was refused. Check the base URL and API format.
+      notFound: This provider no longer exists.
+      catalogUnavailable: The endpoint's model listing is unavailable.
+  catalogs:
+    emptyBody: >-
+      This deployment ships no provider files. Check that the config root
+      is mounted and readable.
+    refreshed: Catalogs refreshed
+    refresh: Refresh catalogs
+    refreshing: Refreshing…
+    resultOk: '{name}: {count, plural, one {# model} other {# models}}'
+    resultError: '{name}: {error}'
+    nothingToRefresh: Every catalog ships with the platform — there is nothing to refresh.
+    refreshFailed: Couldn't refresh the catalogs.
+    listFailed: "Couldn't load the providers: {error}"
+  harnesses:
+    title: Agent runtimes
+    description: How each agent runtime is configured for this organization — the models available and any vendor subscriptions bound to it. Configure this through provider credentials above.
+    modelPool: '{count, plural, one {# model} other {# models}} · default {model}'
+    noDirectCredential:
+      No directly usable provider credential yet — add an API key or an
+      environment credential above.
+    noCompatibleModel:
+      A runtime without a model can run none of the directly served models
+      — they take tools only through the Responses API, which only Codex
+      speaks. Allow another model for those runtimes, or run the agent on
+      Codex.
+    noModel: No model yet
+    degraded: Recently failing
+    subscriptionVia: Subscription · {provider}
+    subscriptionInert: Subscription · {provider} — not usable, this harness runs managed credentials only
+    listFailed: Couldn't load the agent status.
+    healthLoadFailed: Couldn't check which runtimes are failing, so none is marked as recently failing.
+    healthRefreshFailed: Couldn't refresh which runtimes are failing. What's shown may be out of date.
+  apiFormat:
+    openai: OpenAI-compatible API
+    anthropic: Anthropic Messages API
+  authMethod:
+    apiKey: API key
+    env: Environment variable
+    subscriptionKey: Subscription key
+    subscriptionBroker: Subscription broker
+  card:
+    facts: '{format} · {host}'
+    factsPerCredential: '{format} · endpoint set per credential'
+    modelCount: '{count, plural, one {# model} other {# models}}'
+    catalogUnavailable: 'Model catalog unavailable: {error}'
+  credential:
+    disabled: Disabled
+    tasksOnly:
+      Tasks and automations only — chat needs an API key or environment
+      variable
+    deleteEmbeddingWarning: >-
+      The knowledge embedding model uses this credential: deleting it stops
+      document indexing and search for the whole organization. Choose
+      another credential under Settings → Data residency → Embedding model
+      first.
+    inUseByEmbedding: >-
+      The knowledge embedding model uses this credential. Choose another
+      credential for it under Settings → Data residency → Embedding model,
+      then delete this one.
+  replace:
+    apiKeyTitle: Replace API key
+    envTitle: Change environment variable
+    subscriptionKeyTitle: Replace subscription key
+    brokerTitle: Replace broker configuration
+    apiKeyLabel: New API key
+    subscriptionKeyLabel: New subscription key
+    brokerNote:
+      Stored broker values can't be shown. Enter the full configuration
+      again — leave the broker secret empty to keep the stored one.
+  dialog:
+    secret: API key
+    subscriptionSecret: Subscription key
+    envName: Environment variable
+    envNameHelp:
+      Name of the deployment variable that holds the key — the prefix is
+      fixed. The variable itself is provided by your operations team.
+    endpointUrl: Endpoint URL
+    endpointUrlHelp:
+      This provider has no fixed endpoint — every credential carries
+      its own resource URL (https).
+    allowlist: Model allowlist
+    allowlistHelp: Optional. When set, this credential may only use the selected models.
+    allowlistPlaceholder: All catalog models
+    allowlistSearch: Search models
+    allowlistEmpty: No models match.
+    allowlistFreeTextHelp:
+      Comma-separated model ids. This provider ships no catalog
+      — on Azure these are your resource's deployment names, and without them
+      no model is available.
+    allowlistFreeTextPlaceholder: gpt-4o, o4-mini
+    removeModel: Remove {model}
+  subscriptionScope:
+    title: Tasks and automations only
+    description: >-
+      A subscription token runs only inside the agent runtime its vendor
+      supports, such as Claude Code or Codex, in a sandbox: vendors do not
+      permit these tokens in other applications, and Anthropic refuses them
+      from any client other than Claude Code. Chat cannot use this
+      credential. To chat with these models, add an API key or
+      environment-variable credential for the provider.
+  broker:
+    explainer:
+      A subscription broker supplies rotating OAuth tokens for Claude or
+      ChatGPT subscriptions.
+    invalid: 'Invalid broker configuration: {error}'
+    endpoint: Broker endpoint
+    httpMethod: HTTP method
+    auth: Broker authentication
+    authNone: None
+    authBearer: Bearer token
+    authHeader: Custom header
+    headerName: Header name
+    authSecret: Broker secret
+    authSecretHelp: Sent to the broker as the bearer or header value. Stored encrypted.
+    secretEnv: Secret from environment variable
+    secretEnvHelp:
+      Optional. Used when Broker secret is empty. Setting this reference
+      while replacing a configuration switches to the environment source.
+    tokensPath: Token array path
+    tokenField: Token field
+    targetEnvVar: Target environment variable
+    targetEnvVarHelp:
+      Use CLAUDE_CODE_OAUTH_TOKEN for Claude Code or TALE_SUBSCRIPTION_TOKEN
+      for Codex. OpenAI broker responses also require account_id.
+    selection: Token selection
+    selectionRandom: Random
+    selectionFirst: First usable
+    selectionRoundRobin: Round-robin
+    advanced: Advanced
+    statusField: Status field
+    activeValue: Active status value
+    expiresField: Expiry field
+    timeoutMs: Request timeout (ms)
+    maxResponseBytes: Max response size (bytes)
+    expirySkewMs: Expiry safety margin (ms)
+form:
+  name: Name
+  namePlaceholder: Enter full name
+  email: Email
+  emailPlaceholder: Enter email address
+  password: Password
+  passwordPlaceholder: Enter password
+  role: Role
+  forgotPassword: Users who forget their password should contact an admin.
+roles:
+  owner: Owner
+  admin: Admin
+  developer: Developer
+  editor: Editor
+  member: Member
+  disabled: Disabled
+apiKeys:
+  entityLabel: keys
+  entityLabelOne: key
+  createKey: Create API key
+  createKeySubmit: Create key
+  keyCreated: API key created
+  keyCreatedDescription: Copy your API key now — it won't be shown again.
+  yourApiKey: Your API key
+  keyRevoked: API key revoked
+  keyRevokeFailed: Couldn't revoke API key
+  keyCreateFailed: Couldn't create API key
+  revokeKey: Revoke key
+  revokeKeyTitle: Revoke API key
+  revokeConfirmation: 'Revoke "{keyName}"? Any applications using this key will immediately lose access. This can''t be undone.'
+  keyCopied: API key copied to clipboard
+  columns:
+    name: Name
+    key: Key
+    created: Added
+    lastUsed: Last used
+  form:
+    name: Key name
+    namePlaceholder: Enter key name...
+    nameRequired: Name is required
+    scopeHint: This key belongs to you, not to this organization. It acts as
+      you in every organization you are a member of; a REST call names the
+      organization with the X-Organization-Slug header.
+    expiresIn: Expiration
+    expiresOptions:
+      7days: 7 days
+      30days: 30 days
+      90days: 90 days
+      1year: 1 year
+      never: Never
+  neverUsed: Never used
+  description: Manage API keys for external connectors
+  title: API keys
+apiDocs:
+  openDocs: API docs
+  guides: Developer guides
+  openapiDocument: OpenAPI document (JSON)
+logs:
+  integrity:
+    title: Chain integrity
+    neverChecked: No automated integrity check has run yet.
+    lastCheck: 'Last automated check: {date}'
+    alertedAt: Alert raised {date}
+    statusUnchecked: Not yet checked
+    statusOk: Verified
+    statusAlert: Integrity alert active
+    verifyNow: Verify now
+    verifyError: Verification couldn't be completed. Try again.
+    resultValidTitle: Chain verified
+    resultValidBody: '{count, plural, one {Checked # entry} other {Checked #
+      entries}} — no tampering detected.'
+    truncatedNote: 'Only the first {count} entries were checked. Ask your deployment operator to verify the remaining range.'
+    unsignedScrubNote: '{count, plural, one {# scrubbed entry has no matching erasure request} other {# scrubbed entries have no matching erasure request}}. Review the erasure records before relying on this history.'
+    brokenTitle: Chain integrity broken
+    brokenBody:
+      The hash chain does not match at the entry below. Preserve this
+      evidence before making changes.
+    brokenAt: Occurred
+    logId: Entry ID
+    expectedHash: Expected hash
+    actualHash: Stored hash
+    openRow: Open this entry
+    rowMissing: Audit entry {logId} is no longer available.
+  heading: Logs
+  subheading: View and manage system logs.
+  auditLogs: Audit logs
+  activityLogs: Activity logs
+  errorLogs: Error logs
+  loadError:
+    title: Couldn't load logs
+    description: The logs took too long to load. This is usually temporary.
+    retry: Retry
+  activity:
+    period:
+      label: Period
+      last7Days: Last 7 days
+      last30Days: Last 30 days
+      last90Days: Last 90 days
+    periodCaption: 'Period: {period}. All totals below cover this period.'
+    cards:
+      total: Total actions
+      success: Success
+      failure: Failure
+      denied: Denied
+    byCategory:
+      title: Activity by category
+    topActors:
+      title: Most active users
+    empty: No activity in this period.
+  errors:
+    entityLabel: error logs
+    entityLabelOne: error log
+    tableCaption: Error logs data table
+    emptyTitle: No error logs
+    emptyDescription: Failed and denied actions will appear here.
+  blockCounters:
+    tabLabel: Sign-in blocks
+    tableCaption: Sign-in block activity
+    empty: No rejected sign-in attempts in the last 7 days.
+    emptyTitle: No sign-in blocks
+    footerCount: Showing {count, plural, one {# result} other {# results}}
+    columns:
+      timestamp: Timestamp
+      user: User
+      ipAddress: IP address
+      lockOut: Lock out
+      ipLimit: IP limit
+    values:
+      yes: Yes
+      no: No
+  audit:
+    entityLabel: audit logs
+    entityLabelOne: audit log
+    tableCaption: Audit logs data table
+    emptyTitle: No audit logs
+    emptyDescription:
+      Audit logs will appear here as actions are performed in your
+      organization.
+    detailTitle: Audit log details
+    columns:
+      timestamp: Timestamp
+      action: Action
+      actor: User
+      actorId: User ID
+      actorType: Actor type
+      actorRole: Role
+      resource: Resource
+      resourceId: Resource ID
+      target: Target
+      category: Category
+      status: Status
+      error: Error
+      changedFields: Changed fields
+      previousState: Previous state
+      newState: New state
+      metadata: Metadata
+    categories:
+      auth: Auth
+      member: Member
+      data: Data
+      connector: Connector
+      workflow: Automation
+      security: Security
+      admin: Admin
+      ai: AI
+      skill: Skill
+      agent: Agent
+    export:
+      label: Export
+      triggerLabel: Export audit logs
+      csv: CSV
+      json: JSON
+      inProgress: Exporting...
+      complete: Export complete
+      error: Export failed
+    aiMetadata:
+      title: AI usage details
+      model: Model
+      provider: Provider
+      inputTokens: Input tokens
+      outputTokens: Output tokens
+      totalTokens: Total tokens
+      cost: Estimated cost
+      duration: Duration
+      agent: Agent
+      tools: Tools used
+    categoryLabels:
+      auth: Auth
+      member: Member
+      data: Data
+      connector: Connector
+      workflow: Automation
+      security: Security
+      admin: Admin
+      ai: AI
+      skill: Skill
+      agent: Agent
+    statusLabels:
+      success: Success
+      failure: Failure
+      denied: Denied
+    actorTypeLabels:
+      user: User
+      system: System
+      api: API
+      workflow: Automation
+    actionLabels:
+      skill.created: Skill created
+      skill.updated: Skill updated
+      skill.sharing_changed: Skill sharing changed
+      skill.deleted: Skill deleted
+      skill.publish_denied: Skill publishing refused
+      team.created: Team created
+      team.updated: Team updated
+      team.deleted: Team deleted
+      team.member_added: Team member added
+      team.member_removed: Team member removed
+      api_key.created: API key created
+      api_key.updated: API key updated
+      api_key.revoked: API key revoked
+      webdav_app_password.created: WebDAV app password created
+      webdav_app_password.revoked: WebDAV app password revoked
+      connector_credential.created: Connector credential created
+      connector_credential.updated: Connector credential updated
+      connector_credential.deleted: Connector credential deleted
+      document.created: Document created
+      document.updated: Document updated
+      document.trashed: Document moved to trash
+      document.deleted: Document deleted
+      folder.deleted: Folder deleted
+      branding.updated: Branding updated
+      branding.image_uploaded: Branding image uploaded
+      branding.image_deleted: Branding image removed
+      joined_organization: Joined organization
+      signed_in_to_organization: Signed in to organization
+      add_member: Added member
+      remove_member: Removed member
+      transfer_ownership: Ownership transferred
+      update_member_name: Member name updated
+      update_member_role: Member role updated
+      organization_deleted: Organization deleted
+      create_conversation: Created conversation
+      close_conversation: Closed conversation
+      reopen_conversation: Reopened conversation
+      update_conversation: Updated conversation
+      update_conversation_message: Updated conversation message
+      update_conversations: Updated conversations
+      add_message_to_conversation: Added message to conversation
+      mark_conversation_as_read: Marked conversation as read
+      mark_conversation_as_spam: Marked conversation as spam
+      send_message_via_connector: Sent message via connector
+      bulk_archive_conversations: Bulk archived conversations
+      bulk_close_conversations: Bulk closed conversations
+      bulk_reopen_conversations: Bulk reopened conversations
+      bulk_spam_conversations: Bulk marked as spam
+      bulk_unarchive_conversations: Bulk unarchived conversations
+      chat_thread.archived: Chat archived
+      chat_thread.unarchived: Chat unarchived
+      chat_thread.trashed: Chat trashed
+      chat_thread.cascade_deleted: Chat cascade-deleted
+      chat_thread.cascade_depth_exceeded: Cascade depth exceeded
+      chat_thread.cascade_skipped_hold: Cascade skipped (legal hold)
+      gdpr_erasure_requested: GDPR erasure requested
+      gdpr_erasure_executed: GDPR erasure executed
+      gdpr_erasure_denied: GDPR erasure denied
+      gdpr_erasure_cancelled: GDPR erasure cancelled
+      gdpr_erasure_extended: GDPR erasure extended
+      gdpr_erasure_retried: GDPR erasure retried
+      gdpr_erasure_blocked_by_hold: GDPR erasure blocked by hold
+      gdpr_erasure_cascade_attempts_exhausted: GDPR cascade attempts exhausted
+      gdpr_erasure_late_finalize_dropped: GDPR late finalize dropped
+      gdpr_erasure_watchdog_failed: GDPR watchdog failed
+      legal_hold_placed: Legal hold placed
+      legal_hold_place_denied: Legal hold place denied
+      legal_hold_bulk_placed: Legal hold bulk placed
+      legal_hold_release_requested: Legal hold release requested
+      legal_hold_release_effected: Legal hold release effected
+      legal_hold_release_rejected: Legal hold release rejected
+      legal_hold.effect_releases_failed: Legal hold releases failed
+      legal_matter_created: Legal matter created
+      legal_matter_updated: Legal matter updated
+      legal_matter_closed: Legal matter closed
+      knowledge_index_repaired: Knowledge search index repaired
+      knowledge_index_rebuild_scheduled: Knowledge search index rebuild scheduled
+      knowledge_index_repair_failed: Knowledge search index repair failed
+      dsar_governance_policy_tightened: DSAR policy tightened
+      dsar_governance_policy_loosen_proposed: DSAR loosening proposed
+      dsar_governance_policy_loosen_applied: DSAR loosening applied
+      dsar_governance_policy_loosen_cancelled: DSAR loosening cancelled
+      policy.retention_shortening_pending: Retention shortening pending
+      policy.retention_shortening_applied: Retention shortening applied
+      policy.retention_shortening_cancelled: Retention shortening cancelled
+      policy.retention_bounds_proposal_rejected: Retention bounds proposal rejected
+      retention.run_started: Retention run started
+      retention.run_abandoned: Retention run abandoned
+      retention.global_category_failed: Retention global category failed
+      chat_history.retention_deleted: Chat history retention deleted
+      chat_history.retention_expired: Chat history retention expired
+      document.retention_deleted: Document retention deleted
+      customer.retention_deleted: Contact retention deleted
+      contact.retention_deleted: Contact retention deleted
+      vendor.retention_deleted: Vendor retention deleted
+      prompt_template.retention_deleted: Prompt template retention deleted
+      usage_ledger.retention_deleted: Usage ledger retention deleted
+      external_conversation.retention_deleted: External conversation retention deleted
+      workflow_execution.retention_deleted: Automation run retention deleted
+      workflow_trigger_log.retention_deleted: Automation trigger log retention deleted
+      audit_log.retention_deleted: Audit log retention deleted
+      automation_run.retention_deleted: Automation run retention deleted
+      agent_run.retention_deleted: Agent run retention deleted
+      message_feedback.retention_deleted: Message feedback retention deleted
+      notification.retention_deleted: Notification retention deleted
+      file_metadata.retention_deleted: File retention deleted
+      sandbox_ledger.retention_deleted: Sandbox ledger retention deleted
+      sandbox_workspace.deleted: Sandbox workspace deleted
+      chat_filter_event.retention_deleted: Chat filter event retention deleted
+      policy_acknowledged: Policy acknowledged
+      login_attempt: Login attempt
+      login_lockout: Login lockout
+      login_success: Login success
+      model_access.denied: Model access denied
+      ai.completion: AI completion
+      ai.budget_blocked: AI budget blocked
+      automation.trigger.paused: Automation schedule paused
+      create_connector: Created connector
+      delete_connector: Deleted connector
+      update_credential: Updated credential
+      delete_credential: Deleted credential
+      provider_deleted: Provider deleted
+      force_overwrite_provider_secret: Force-overwrote provider secret
+      sso_provider_deleted: SSO provider deleted
+      member_password.set: Member password set
+      user_password.changed: User password changed
+      video_link.ingest: Video link ingested
+      video_link.cancel: Video link cancelled
+      video_link.retry: Video link retried
+      tts.synthesize_denied: Text-to-speech denied
+      tts.capability_probe_denied: Text-to-speech probe denied
+      remove_recommended_product: Removed recommended product
+      2fa_enrolled: Two-factor authentication enrolled
+      2fa_disabled: Two-factor authentication disabled
+      2fa_reset_by_admin: Two-factor authentication reset by admin
+      passkey_added: Passkey registered
+      passkey_removed: Passkey removed
+      passkey_revoked_by_admin: Passkey removed by admin
+      passkey_sign_in: Passkey sign-in
+      project.created: Project created
+      project.updated: Project updated
+      project.sharing.changed: Project sharing changed
+      project.instructions.changed: Project instructions changed
+      project.knowledge_mode.changed: Project knowledge mode changed
+      project.agents.changed: Project agents changed
+      project.models.changed: Project models changed
+      project.connectors.changed: Project connectors changed
+      project.file.attached: File attached to project
+      project.file.detached: File detached from project
+      project.thread.shared: Chat shared with project
+      project.thread.unshared: Chat removed from project
+      project.thread.moved: Chat moved between projects
+      project.archived: Project archived
+      project.restored: Project restored
+      project.deleted: Project deleted
+      policy.created: Policy created
+      policy.updated: Policy updated
+      policy.retention_bounds_proposal_applied: Retention bounds proposal applied
+      policy.retention_bounds_initial_applied: Retention bounds initially applied
+      retention.run_completed: Retention run completed
+      retention.run_failed: Retention run failed
+      legal_hold_release_approved: Legal hold release approved
+      legal_hold_release_approved_self: Legal hold release self-approved
+      ai.completion_failed: AI completion failed
+      pii.blocked_in_chat: PII blocked in chat
+      chat_filter.blocked_in_chat: Chat filter blocked message
+      moderation_provider.blocked_in_chat: Moderation provider blocked message
+      chat_thread.restored_by_user: Chat restored by user
+      chat_thread.restored_by_admin: Chat restored by admin
+      chat_thread.retention_override_restore: Chat restored (retention override)
+      chat_thread.retention_expired: Chat expired by retention
+      document.retention_expired: Document expired by retention
+      document.retention_override_restore: Document restored (retention override)
+      document.restored_by_admin: Document restored by admin
+      file_metadata.retention_expired: File expired by retention
+      file_metadata.retention_override_restore: File restored (retention override)
+      file_metadata.restored_by_admin: File restored by admin
+      prompt_template.created: Prompt template created
+      prompt_template.saved: Prompt template saved
+      prompt_template.deleted: Prompt template deleted
+      prompt_template.restored_from_version: Prompt template restored from version
+      prompt_template.history_truncated: Prompt template history truncated
+      prompt_template.retention_expired: Prompt template expired by retention
+      prompt_template.retention_override_restore: Prompt template restored (retention override)
+      prompt_template.restored_by_admin: Prompt template restored by admin
+      prompt_category.created: Prompt category created
+      prompt_category.renamed: Prompt category renamed
+      prompt_category.deleted: Prompt category deleted
+      message_feedback.retention_expired: Message feedback expired by retention
+      message_feedback.retention_override_restore: Message feedback restored (retention override)
+      message_feedback.restored_by_admin: Message feedback restored by admin
+      customer.retention_expired: Contact expired by retention
+      customer.retention_override_restore: Contact restored (retention override)
+      customer.restored_by_admin: Contact restored by admin
+      contact.retention_expired: Contact expired by retention
+      contact.retention_override_restore: Contact restored (retention override)
+      contact.restored_by_admin: Contact restored by admin
+      vendor.retention_expired: Vendor expired by retention
+      vendor.retention_override_restore: Vendor restored (retention override)
+      vendor.restored_by_admin: Vendor restored by admin
+      external_conversation.retention_expired: External conversation expired by retention
+      external_conversation.retention_override_restore: External conversation restored (retention override)
+      external_conversation.restored_by_admin: External conversation restored by admin
+      workflow_execution.retention_expired: Automation run expired by retention
+      workflow_execution.retention_override_restore: Automation run restored (retention override)
+      workflow_execution.restored_by_admin: Automation run restored by admin
+      usage_ledger.retention_expired: Usage ledger expired by retention
+      usage_ledger.retention_override_restore: Usage ledger restored (retention override)
+      usage_ledger.restored_by_admin: Usage ledger restored by admin
+      audit_log.retention_expired: Audit log expired by retention
+      audit_log.retention_override_restore: Audit log restored (retention override)
+      audit_log.restored_by_admin: Audit log restored by admin
+      chat_filter_event.retention_expired: Chat filter event expired by retention
+      chat_filter_event.retention_override_restore: Chat filter event restored (retention override)
+      chat_filter_event.restored_by_admin: Chat filter event restored by admin
+      memory_audit.retention_expired: Memory audit expired by retention
+      memory_audit.retention_override_restore: Memory audit restored (retention override)
+      memory_audit.restored_by_admin: Memory audit restored by admin
+    resourceTypeLabels:
+      conversation: Conversation
+      conversationMessage: Conversation message
+      document: Document
+      folder: Folder
+      agent: Agent
+      workflow: Automation
+      workflow_run: Automation run
+      automation_trigger: Automation trigger
+      workflow_creation: Automation creation
+      workflow_update: Automation update
+      customer: Contact
+      contact: Contact
+      vendor: Vendor
+      product: Product
+      organization: Organization
+      approval: Approval
+      mcp_tool_call: MCP tool call
+      audit_log_archive: Audit log archive
+      chat_message: Chat message
+      chat_thread: Chat
+      member: Member
+      team: Team
+      project: Project
+      connector: Connector
+      connector_operation: Connector operation
+      connector_credential: Connector credential
+      api_key: API key
+      webdav_app_password: WebDAV app password
+      sso_provider: SSO provider
+      video_link: Video link
+      location_request: Location request
+      document_write: Document write
+      twoFactorAuth: Two-factor authentication
+      user: User
+      thread: Chat
+      file: File
+      prompt_template: Prompt template
+      prompt_category: Prompt category
+      message_feedback: Message feedback
+      external_conversation: External conversation
+      workflow_execution: Automation run
+      wf_execution: Automation run
+      wf_trigger_log: Automation trigger log
+      workflow_llm_step: Automation LLM step
+      usage_ledger: Usage ledger
+      audit_log: Audit log
+      chat_filter_event: Chat filter event
+      memory_audit: Memory audit
+      governance_policy: Governance policy
+      legal_matter: Legal matter
+      legal_hold: Legal hold
+      legal_hold_batch: Legal hold batch
+      retention_run: Retention run
+      retentionRun: Retention run
+      cron_run: Cron run
+      agent_completion: Agent completion
+      openai_compat_request: OpenAI-compatible request
+      provider: Provider
+      video_link_job: Video link job
+      sandbox_workspace: Sandbox workspace
+branding:
+  logo: Logo
+  logoDescription: Upload your organization logo (SVG preferred; raster images at least 64×64 pixels)
+  favicon: Favicon
+  faviconDescription: Generated from your logo if left empty. 64 x 64 pixels.
+  light: Light
+  dark: Dark
+  accentColor: Accent color
+  uploadLogo: Upload logo
+  uploadFavicon: Upload favicon
+  preview: Branding preview
+  pickColorAria: Pick {label}
+  hexValueAria: '{label} hex value'
+  removeImageAria: Remove {label}
+  imageFallback: image
+  resetConfirmTitle: Reset branding?
+  resetConfirmDescription:
+    This deletes the uploaded logo and favicons and clears
+    the accent color. Removed images can’t be restored.
+  resetDone: Branding reset
+dataResidency:
+  readOnly:
+    title: Read-only access
+  externalPostgres: External Postgres
+  field:
+    host: Host
+    port: Port
+    database: Database
+    user: User
+    sslMode: SSL mode
+    password: Password
+  password:
+    storedNoPreviewHint:
+      A value is stored — leave blank to keep it, or enter a new
+      one to replace it.
+    writeOnlyHint: Write-only; leave blank to keep the stored value
+  testConnection: Test connection
+  result:
+    ok: OK
+    failed: Failed
+  knowledge:
+    paradeDbNote:
+      The external knowledge database must run ParadeDB (pgvector +
+      pg_search) for full hybrid search; plain pgvector degrades to
+      vector-only.
+  storage:
+    externalS3: External S3
+    region: Region
+    endpoint: Endpoint (MinIO/R2; blank for AWS)
+    endpointShort: Endpoint
+    forcePathStyle: Force path-style (MinIO/R2)
+    accessKeyId: Access key ID
+    writeOnly: Write-only
+    secretAccessKey: Secret access key
+  orgKnowledge:
+    title: Knowledge database
+    description:
+      The Postgres database holding this organization's knowledge corpus
+      for search and retrieval.
+    statusDefault: Deployment default
+    readOnlyBody:
+      Admin permissions are required to change where this organization's
+      knowledge corpus is stored.
+    note:
+      Off, this organization's knowledge lives in the deployment's built-in
+      database, isolated per organization. On, the corpus lives in the
+      database above — an empty database is prepared automatically, but
+      entries indexed before the switch do not move with it.
+    cleared:
+      Connection removed — this organization's knowledge search uses the
+      deployment's built-in database again.
+    clearConfirm:
+      title: Remove the knowledge database connection?
+      description:
+        Knowledge search for this organization goes back to the deployment's
+        built-in database. Entries already written to your database stay
+        there, but Tale can no longer read them until the connection is
+        added again.
+      confirm: Remove connection
+    errors:
+      readFailed: "Couldn't load the stored connection: {error}"
+      hostRequired: Enter the database host.
+      hostInvalid: Only letters, digits, dots, dashes, colons, and brackets.
+      portInvalid: Enter a port between 1 and 65535.
+      databaseRequired: Enter the database name.
+      userRequired: Enter the database user.
+  orgEmbedding:
+    title: Embedding model
+    description:
+      The model that turns this organization's documents and queries into
+      vectors for knowledge search — required before knowledge search can
+      run, on any database.
+    statusConfigured: Configured
+    statusNotConfigured: Not configured
+    statusCredentialMissing: Credential missing
+    credentialMissingWarning: >-
+      The credential this embedding model resolves no longer exists, so
+      document indexing and knowledge search are down. Add or restore a
+      credential under Settings → AI providers, or choose another one
+      here and save.
+    notConfiguredWarning:
+      Knowledge search is unavailable until an embedding model is
+      configured.
+    banner:
+      title: Knowledge search is off
+      body: This organization has an AI provider but no embedding model, so
+        documents cannot be indexed and neither documents nor websites can
+        be searched.
+      link: Choose an embedding model
+    recommendationBody:
+      Your {provider} credential can serve {model} ({dimensions}-dimensional
+      vectors).
+    recommendationApply: Use this model
+    readOnlyBody:
+      Admin permissions are required to change this organization's embedding
+      model.
+    noCredentials:
+      No AI provider credentials are stored yet — add one under Settings →
+      AI providers to choose a provider here.
+    provider: Provider
+    providerPlaceholder: Choose a provider
+    credential: Credential
+    credentialDefault: Provider default
+    credentialHint:
+      Which stored credential authorizes the embedding calls; the default is
+      the provider's default credential.
+    model: Model
+    modelHint: The model tag exactly as the provider spells it.
+    modelCatalogHint: Embedding models the provider's catalog lists.
+    modelCatalogCustomHint:
+      Embedding models this provider's listing carries; pick Other model to
+      type a tag it does not list.
+    modelUncuratedHint:
+      Tale knows no vector width for {provider}. Enter the model tag (or
+      your deployment name) and the vector width that model produces.
+    modelUnsupportedHint:
+      '{provider} offers no embedding model. Choose a provider that serves
+      one.'
+    modelUnsupported: Cannot embed
+    modelCatalogUnavailableHint:
+      The {provider} catalog could not be loaded. Refresh the catalogs under
+      Settings → AI providers and try again.
+    modelUnavailable: Catalog unavailable
+    modelUncheckedHint:
+      Tale could not check whether {provider} can embed, so no model can be
+      chosen yet. Use Try again above.
+    modelUnchecked: Could not check
+    supportReadFailed:
+      Tale could not check which providers can embed. No model can be
+      chosen until the check answers.
+    supportReadRetry: Try again
+    modelPlaceholder: Choose a model
+    modelCustom: Other model…
+    modelTag: Model tag
+    dimensions: Vector width
+    dimensionsHint:
+      'Stated, never guessed: the exact dimension count this model produces.
+      Changing it later strands vectors already written at the old width.'
+    baseUrl: Base URL
+    baseUrlHint: OpenAI-compatible endpoint; leave blank for the provider's own.
+    sharedDbNote:
+      On the deployment's shared database, all organizations share one
+      vector width — it is pinned when the first vector is written. Give
+      this organization its own knowledge database to choose freely.
+    removed:
+      Embedding model removed — knowledge search is unavailable until a new
+      one is configured.
+    removeConfirm:
+      title: Remove the embedding model?
+      description:
+        Knowledge search for this organization stops working until a new
+        embedding model is configured. Vectors already written stay in the
+        corpus.
+      confirm: Remove model
+    errors:
+      readFailed: "Couldn't load the stored embedding config: {error}"
+      invalid: The embedding settings are invalid. Check the fields and try again.
+      providerRequired: Choose a provider.
+      modelRequired: Enter the model tag.
+      dimensionsInvalid: Enter a whole number between 1 and 16000.
+      baseUrlInvalid: Enter an http(s) URL, or leave blank.
+      credentialNotFound: The selected credential no longer exists — choose another.
+      credentialMismatch: The selected credential belongs to a different provider.
+      credentialDisabled: The selected credential is disabled — re-enable it or pick another.
+      providerUnsupported: This provider offers no embedding model — choose a provider that serves one.
+  orgStorage:
+    title: Object storage
+    description:
+      The S3-compatible bucket holding this organization's uploaded files
+      — documents, attachments, audio, and generated media.
+    statusDefault: Deployment default
+    readOnlyBody:
+      Admin permissions are required to change where this organization's
+      files are stored.
+    bucket: Bucket
+    prefix: Key prefix
+    prefixHint:
+      Optional namespace inside the bucket; blank stores objects at the
+      bucket root.
+    credentialsHint:
+      Write-only — stored keys are never shown. Enter both keys, or
+      leave both blank to test the stored keys.
+    verified: Bucket verified (upload, read, delete)
+    corsNote: Uploads and downloads run directly between the browser and your
+      bucket, so the bucket must accept cross-origin (CORS) requests from
+      {origin} — allow that origin with the GET, PUT and HEAD methods and all
+      request headers. The connection test runs on the server and cannot check
+      this.
+    note:
+      Off, this organization's files live in the deployment's built-in storage,
+      isolated per organization. On, new uploads go to the bucket above; files
+      stored before the switch stay readable where they are.
+    cleared:
+      Connection removed — new uploads go back to the deployment's built-in
+      storage. Files already in your bucket stay there but are unavailable to
+      Tale until you reconnect it.
+    clearConfirm:
+      title: Remove the object-storage connection?
+      description:
+        New uploads for this organization go back to the deployment's
+        built-in storage. Files already written to your bucket stay there, but
+        Tale can no longer read them until the connection is added again.
+      confirm: Remove connection
+    backfill:
+      start: Move existing files
+      description:
+        Copies files stored before the switch from the deployment's built-in
+        storage into your bucket, so everything lives in one place. Runs in
+        the background; uploads keep working meanwhile.
+      confirm:
+        title: Move existing files into your bucket?
+        description:
+          Files this organization stored in the deployment's built-in storage
+          are copied into your bucket and served from there. This runs in the
+          background and can take a while for large file sets.
+        confirm: Move files
+      status:
+        running: 'Moving files… {migrated} moved, {failed} failed so far.'
+        completed: 'Done — {migrated} files moved, {failed} failed.'
+        completedDry: 'Dry run — {candidates} files would move.'
+        failed: 'The move stopped with an error: {error}'
+      errors:
+        alreadyRunning: A move is already running — wait for it to finish.
+        notConfigured: Save the bucket connection before moving existing files.
+    errors:
+      forbidden: You're not allowed to manage this organization's data residency.
+      invalidConnection: The connection settings are invalid. Check the fields and try again.
+      credentialsPair: Enter the access key ID and the secret access key together.
+      credentialsRequired:
+        Enter an access key ID and secret access key — they're
+        required the first time object storage is configured.
+      readFailed: "Couldn't load the stored connection: {error}"
+      regionRequired: Enter the bucket's region.
+      endpointInvalid: Enter an http(s) URL, or leave blank for AWS.
+      bucketRequired: Enter the bucket name.

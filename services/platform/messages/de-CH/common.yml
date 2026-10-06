@@ -1,0 +1,8 @@
+actions:
+  close: Schliessen
+  completeStepToContinue: Schliesse diesen Schritt ab, um fortzufahren
+import:
+  reasons:
+    tooLarge: '{field} ist zu gross'
+aria:
+  zoomIn: Vergrössern

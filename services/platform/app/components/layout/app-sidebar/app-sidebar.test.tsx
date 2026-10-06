@@ -2,9 +2,9 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { enMessages } from '@/tests/utils/messages';
 import { render, screen } from '@/tests/utils/render';
 
-import enMessages from '../../../../messages/en.yml';
 import { AppSidebar } from './app-sidebar';
 
 vi.mock('./sidebar-context', () => ({

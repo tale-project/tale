@@ -1,0 +1,203 @@
+sessionLapse:
+  title: Deine Sitzung ist beendet
+  description: Zum Anmelden verlässt du diese Seite. Ungespeicherte Änderungen können verloren gehen. Bleib hier, um alles zu kopieren, was du behalten möchtest.
+  paused: Deine Seite bleibt geöffnet. Kopiere alles, was du behalten möchtest. Wenn du bereit bist, schließe offene Dialoge und wähle Anmelden.
+  stayHere: Hier bleiben
+  signIn: Anmelden
+  checkFailed: Deine Sitzung konnte nicht geprüft werden. Bleib hier und versuche es erneut, sobald die Verbindung wiederhergestellt ist.
+accountUnavailable:
+  description: Dein Konto konnte nicht geladen werden.
+  signInAgain: Erneut anmelden
+oauth:
+  title: 'Mit Tale fortfahren'
+  request: '{application} möchte dich mit Tale anmelden.'
+  permissions: 'Erlaube dieser Anwendung, deinen Namen, deine bestätigte E-Mail-Adresse und deine Mitgliedschaft in ihrer Tale-Organisation zu lesen. Dein Passwort bleibt in Tale.'
+  allow: 'Erlauben und fortfahren'
+  cancel: 'Abbrechen'
+  continuing: 'Weiter…'
+  retry: 'Erneut versuchen'
+  failed: 'Diese Anmeldung lässt sich nicht fortsetzen. Kehre zur Anwendung zurück und starte erneut.'
+email: E-Mail
+password: Passwort
+emailPlaceholder: Gib deine E-Mail-Adresse ein
+passwordPlaceholder: Gib Dein Passwort ein
+login:
+  loginTitle: Anmelden
+  loginButton: Anmelden
+  continueWithSso: Weiter mit SSO
+  ssoTitle: Mit SSO anmelden
+  ssoDescription: Wähle deine Organisation, um dich bei ihrem Identitätsanbieter anzumelden.
+  ssoOrgListLabel: Organisationen
+  ssoBackToLogin: Zurück zur Anmeldung
+  ssoNoOrganizations:
+    Keine Organisation für die Anmeldung verfügbar. Wende dich
+    an deine Administration.
+  proxyHandoff:
+    pending: Du wirst über den Anmeldedienst deiner Organisation angemeldet …
+    stalled: Die automatische Anmeldung wurde nicht abgeschlossen. Melde dich
+      unten auf einem anderen Weg an oder versuche es erneut.
+    retry: Erneut versuchen
+    continue: Mit der automatischen Anmeldung fortfahren
+    held: Die automatische Anmeldung ist nach einer Abmeldung pausiert. Fahre
+      fort, wenn du bereit bist.
+    recovery: Melde dich unten auf einem anderen Weg an oder bitte die
+      Administration, die Übergabe des Proxys zu prüfen.
+    errors:
+      missingKey: Der Proxy hat keinen Trusted-Header-Schlüssel gesendet.
+      unknownKey: Der Trusted-Header-Schlüssel des Proxys ist unbekannt oder widerrufen.
+      rateLimited:
+        Zu viele fehlgeschlagene Übergaben von dieser Adresse. Versuche es
+        später erneut.
+      disabled: Vertrauenswürdige Header sind für diese Organisation ausgeschaltet.
+      missingEmail: Der Proxy hat keine E-Mail-Adresse gesendet.
+      notMember:
+        Dein Konto ist kein Mitglied der Organisation, in die dieser Proxy
+        anmeldet.
+      configError: Der Server ist nicht für die Proxy-Anmeldung konfiguriert.
+      failed: Die Proxy-Anmeldung konnte nicht abgeschlossen werden.
+  continueWithPasskey: Mit einem Passkey anmelden
+  passkeyFailed:
+    Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es
+    erneut oder nutze dein Passwort.
+  wrongCredentials: Falsche E-Mail oder falsches Passwort
+  accountLockedGeneric: Konto vorübergehend gesperrt — zu viele Fehlversuche. Später erneut versuchen oder einen Administrator kontaktieren.
+  accountLockedSeconds:
+    Konto vorübergehend gesperrt. In {seconds, plural, one {#
+    Sekunde} other {# Sekunden}} erneut versuchen oder einen Administrator
+    kontaktieren.
+  accountLockedMinutes:
+    Konto vorübergehend gesperrt. In {minutes, plural, one {#
+    Minute} other {# Minuten}} erneut versuchen oder einen Administrator
+    kontaktieren.
+  accountLockedHours: Konto vorübergehend gesperrt. In {hours, plural, one {#
+    Stunde} other {# Stunden}} erneut versuchen oder einen Administrator
+    kontaktieren.
+  forgotPassword: Passwort vergessen?
+  forgotPasswordToast:
+    title: Wende dich an deinen Administrator
+    description: Das Zurücksetzen des Passworts wird von deiner Organisation verwaltet.
+  toast:
+    success: Angemeldet
+  lockoutAdvisory: Wiederholte Fehlversuche sperren das Konto vorübergehend.
+signup:
+  wrongCredentials: Falsche E-Mail oder falsches Passwort
+validation:
+  emailRequired: E-Mail ist erforderlich
+  passwordRequiredForNewUser: Passwort ist erforderlich, um einen neuen Benutzer zu erstellen
+  emailAlreadyMember: Dieser Benutzer ist bereits Mitglied dieser Organisation
+  passwordMinLength: Passwort muss mindestens {n} Zeichen lang sein
+  passwordLowercase: Passwort muss einen Kleinbuchstaben enthalten
+  passwordUppercase: Passwort muss einen Großbuchstaben enthalten
+  passwordNumber: Passwort muss eine Zahl enthalten
+  passwordSpecial: Passwort muss ein Sonderzeichen enthalten
+userButton:
+  defaultName: Benutzer
+  manageAccount: Konto verwalten
+  getApp: App installieren
+  documentation: Dokumentation
+  currentVersion: 'Aktuelle Version: v{version}'
+  whatsNew: Neuigkeiten
+  updateAvailable: Update verfügbar
+  themeSystem: Systemdesign
+  themeLight: Helles Design
+  themeDark: Dunkles Design
+  language: Sprache
+  logOut: Abmelden
+  logOutConfirm:
+    title: Abmelden
+    description:
+      Damit endet deine Sitzung auf diesem Gerät. Zum Weiterarbeiten
+      musst du dich erneut anmelden.
+    confirm: Abmelden
+  toast:
+    signOutFailed: Abmelden fehlgeschlagen
+changePassword:
+  title: Passwort ändern
+  currentPassword: Aktuelles Passwort
+  newPassword: Neues Passwort
+  confirmPassword: Neues Passwort bestätigen
+  placeholder:
+    current: Aktuelles Passwort eingeben
+    new: Neues Passwort eingeben
+    confirm: Neues Passwort bestätigen
+  requirements:
+    length: Mindestens {n} Zeichen
+    lowercase: Ein Kleinbuchstabe
+    uppercase: Ein Großbuchstabe
+    number: Eine Zahl
+    specialChar: Ein Sonderzeichen
+  validation:
+    currentRequired: Aktuelles Passwort ist erforderlich
+    currentIncorrect: Aktuelles Passwort ist falsch
+    newRequired: Neues Passwort ist erforderlich
+    confirmRequired: Neues Passwort bestätigen
+    mismatch: Passwörter stimmen nicht überein
+    policyViolation: Dieses Passwort erfüllt die Passwort-Richtlinie deiner Organisation nicht.
+  warning:
+    description:
+      Beim Ändern deines Passworts wirst du auf allen Geräten abgemeldet.
+      Du musst dich anschließend mit deinem neuen Passwort erneut anmelden.
+forcedChange:
+  title: Passwortänderung erforderlich
+  submit: Passwort aktualisieren
+  description:
+    Dein Passwort ist gemäß der Rotationsrichtlinie der Organisation
+    abgelaufen. Lege ein neues Passwort fest, um fortzufahren.
+  descriptionAdminSet: Ein Administrator hat dein Passwort festgelegt. Wähle ein neues, um fortzufahren.
+  signedInAs: Angemeldet als {email}
+  notYou: Nicht du?
+  logOut: Abmelden
+setPassword:
+  title: Passwort festlegen
+  description:
+    Dein Konto verwendet externe Anmeldung. Lege ein Passwort fest, um
+    dich auch mit E-Mail und Passwort anmelden zu können.
+  newPassword: Neues Passwort
+  confirmPassword: Passwort bestätigen
+sso:
+  errors:
+    serverError: Single Sign-On ist wegen eines Serverfehlers fehlgeschlagen. Versuch es erneut — oder wende dich an deine Administration, wenn's immer wieder passiert.
+    multipleConnections:
+      Hier nutzen mehrere Organisationen Single Sign-On. Gib
+      zuerst die E-Mail-Adresse deiner Organisation ein und versuche es dann
+      erneut.
+    mfaRequired: Für die Anmeldung ist eine Multi-Faktor-Authentifizierung erforderlich.
+    conditionalAccessBlocked: Die Anmeldung wurde durch eine Richtlinie für
+      bedingten Zugriff blockiert.
+    userNotAssigned:
+      Dein Konto ist dieser Anwendung nicht zugewiesen. Wende dich an
+      deine Administration, um Zugriff anzufordern.
+    notOrgMember: Dein Konto ist kein Mitglied dieser Organisation. Bitte die
+      Administration dieser Organisation, dich einzuladen, und melde dich
+      danach erneut an.
+    flowMismatch:
+      Diese Anmeldung ist nicht in dem Browser gelandet, in dem sie begonnen
+      hat. Starte sie von dieser Seite aus neu.
+    assertionNotEncrypted:
+      Diese Organisation verlangt verschlüsselte SAML-Assertions, der
+      Identitätsanbieter hat aber eine unverschlüsselte geschickt. Bitte
+      deine Administration, die Verschlüsselung der Assertions im
+      Identitätsanbieter einzuschalten.
+    silentAuthFailed: Stille Anmeldung fehlgeschlagen. Melde dich stattdessen manuell an.
+    refreshTokenExpired: Deine Sitzung ist abgelaufen. Melde dich erneut an.
+    consentRequired: Ein Administrator muss die Zustimmung erteilen, bevor du dich anmelden kannst.
+    redirectMismatch:
+      Die Weiterleitungs-URL für die Anmeldung stimmt nicht mit der
+      in Microsoft Entra ID hinterlegten überein. Bitte deine Administration,
+      die exakte Weiterleitungs-URL zu hinterlegen.
+    clientNotFound: Die Single-Sign-On-Anwendung wurde im Verzeichnis nicht
+      gefunden. Bitte deine Administration, die Client-ID zu prüfen.
+    invalidClientSecret: Der Single-Sign-On-Client-Schlüssel ist ungültig oder
+      abgelaufen. Bitte deine Administration, ihn zu aktualisieren.
+    recovery:
+      completeMfa:
+        Bestätige die Multi-Faktor-Abfrage in deiner Authenticator-App, um
+        fortzufahren.
+      contactAdmin: Wende dich für Zugriff an deine Administration.
+      signInInteractively: Versuche die Anmeldung erneut und schließe alle Abfragen ab.
+      signInAgain: Melde dich erneut an, um fortzufahren.
+      grantConsent: Eine Administration muss dieser Anwendung zustimmen.
+  actions:
+    tryAgain: Erneut versuchen
+    completeMfa: Multi-Faktor-Anmeldung abschließen
+    contactAdminMessage: Wende dich an deine Administration, um das zu beheben.

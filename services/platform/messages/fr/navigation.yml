@@ -1,0 +1,41 @@
+home: Accueil
+knowledge: Connaissances
+automations: Automatisations
+userSettings: Paramètres
+notifications: Notifications
+organization: Organisation
+teams: Équipes
+members: Membres
+connectors: Connectors
+providers: Fournisseurs IA
+skills: Skills
+apiKeys: Clés API
+api: API
+apiRest: REST
+apiModels: Modèles
+branding: Branding
+governance: Gouvernance
+metrics: Métriques
+personalization: Personnalisation
+account: Compte
+usage: Utilisation
+agents: Agents
+mcp: MCP
+webdav: WebDAV
+myTeams:
+  label: Équipes
+  none: Aucune équipe
+  count: '{count, plural, one {# équipe} other {# équipes}}'
+orgSwitcher:
+  label: Organisation
+aria:
+  primaryNavigation: Navigation principale
+  unreadConversations: '{count, plural, one {# conversation non lue} other {# conversations non lues}}'
+  unreadNotifications: '{count, plural, one {# notification non lue} other {# notifications non lues}}'
+dataResidency: Résidence des données
+sandboxes: Sandboxes
+enterpriseSso: SSO d'entreprise
+sidebar:
+  landmark: Barre latérale du tableau de bord
+  search: Rechercher
+  searchGlobal: Tout rechercher

@@ -64,7 +64,7 @@ Every user-visible change updates `en`, `de`, and `fr` in the same PR. `locale-t
 meaning and completeness. DE and FR are authored natively per
 [`write-translations`](../.agents/skills/write-translations/SKILL.md) (one narrator per language,
 `du`/`tu`, loanword buckets), never rendered word-for-word. UI labels match
-the relevant service’s `messages/<locale>.yml` merged over shared package catalogs character-for-character,
+the relevant service’s `messages/<locale>.yml` (the platform’s `messages/<locale>/<topic>.yml`) merged over shared package catalogs character-for-character,
 including locale fallback. Preserve factual currencies, values, jurisdictions, permissions, and
 limits while translating. A locale changes the language, not the contract. The voice strike lists live in
 `packages/ui/src/i18n/tests/locales/<locale>/voice.ts`. Internal links in non-`en` pages carry the

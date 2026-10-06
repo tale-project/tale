@@ -83,7 +83,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   [`write-translations`](skills/write-translations/SKILL.md) skill. A key present in one catalog
   and missing in another full catalog is a defect, not a follow-up. Shared controls own their keys
   in `packages/ui`; marketing frames own theirs in `packages/marketing-ui`. Service catalogs
-  override package keys per leaf. The product docs ship EN/DE/FR; `services/ui-docs/content` is
+  override package keys per leaf. The platform keeps one file per topic and locale
+  (`services/platform/messages/<locale>/<topic>.yml`, a topic being one top-level namespace), and
+  every locale has the same topic files — `de-CH` only the ones it overrides; the i18n parity
+  tests enforce both. The product docs ship EN/DE/FR; `services/ui-docs/content` is
   an English-only guide with complete EN/DE/FR chrome catalogs.
 - **A failure shows its words, never its payload** — a toast or an Alert reads what a call threw
   through `failureDetail` (`services/platform/app/lib/backend/adapters.ts`: a refusal's own words,

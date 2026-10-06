@@ -4,9 +4,7 @@ import { cloneElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
-import deMessages from '@/messages/de.yml';
-import enMessages from '@/messages/en.yml';
-import frMessages from '@/messages/fr.yml';
+import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 
 import deUiMessages from '../../../../../../packages/ui/src/i18n/messages/de.yml';
 import enUiMessages from '../../../../../../packages/ui/src/i18n/messages/en.yml';

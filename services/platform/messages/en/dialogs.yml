@@ -1,0 +1,35 @@
+addMember:
+  title: Add member
+  existingUserHint:
+    This person already has an account, so no password is needed —
+    they sign in with their existing credentials.
+memberAdded:
+  title: Member added
+  credentialsWarning: Save these credentials now — they won't be shown again.
+  existingUserNotice:
+    This user already had an account, so no new credentials were
+    created. They can log in with their existing password.
+search:
+  title: Search
+  placeholder: Search projects, tasks, chats, documents, and contacts
+  loading: Searching...
+  noResults: No results
+  empty: Start typing to search
+  emptyHint: Search projects, tasks, chats, documents, and contacts across this organization
+  groupProjects: Projects
+  groupChat: Chats
+  groupTasks: Tasks
+  groupDocuments: Documents
+  groupContacts: Contacts
+  scopeLabel: Search scope
+  scopeChats: Chats
+  scopeEverything: Everything
+  badgeArchived: Archived
+  badgeProjectArchived: Archived project
+thisMember: this member
+confirmRemoveMember: Remove {name} from this organization? They'll lose access to it and all associated resources.
+toSend: to send
+contactInfo:
+  title: Contact details
+  contactId: Contact ID
+selectConversation: Select conversation

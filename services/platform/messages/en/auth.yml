@@ -1,0 +1,186 @@
+sessionLapse:
+  title: Your session has ended
+  description: Signing in leaves this page. Unsaved changes may be lost. Stay here to copy any work you want to keep before continuing.
+  paused: Your page is still open. Copy any work you want to keep. When you are ready, close any open dialog and choose Sign in.
+  stayHere: Stay here
+  signIn: Sign in
+  checkFailed: Your session could not be checked. Stay here and try again when your connection is restored.
+accountUnavailable:
+  description: Your account could not be loaded.
+  signInAgain: Sign in again
+oauth:
+  title: 'Continue with Tale'
+  request: '{application} wants to sign you in with Tale.'
+  permissions: 'Allow this application to read your name, verified email address, and membership in its Tale organization. Your password stays in Tale.'
+  allow: 'Allow and continue'
+  cancel: 'Cancel'
+  continuing: 'Continuing…'
+  retry: 'Try again'
+  failed: 'This sign-in request could not continue. Return to the application and start again.'
+email: Email
+password: Password
+emailPlaceholder: Enter your email address
+passwordPlaceholder: Enter your password
+login:
+  loginTitle: Log in
+  loginButton: Log in
+  continueWithSso: Continue with SSO
+  ssoTitle: Sign in with SSO
+  ssoDescription: Choose your organization to continue to its sign-in provider.
+  ssoOrgListLabel: Organizations
+  ssoBackToLogin: Back to log in
+  ssoNoOrganizations: No organizations are available for sign-in. Contact your administrator.
+  proxyHandoff:
+    pending: Signing you in through your organization's sign-in service…
+    stalled: Automatic sign-in did not complete. Sign in another way below, or try again.
+    retry: Try again
+    continue: Continue with automatic sign-in
+    held: Automatic sign-in is paused after a sign-out. Continue when you're ready.
+    recovery: Sign in another way below, or ask an administrator to check the proxy hand-off.
+    errors:
+      missingKey: The proxy sent no trusted-header key.
+      unknownKey: The proxy's trusted-header key is unknown or revoked.
+      rateLimited: Too many failed hand-off attempts from this address. Try again later.
+      disabled: Trusted headers are switched off for this organization.
+      missingEmail: The proxy sent no email address.
+      notMember: Your account is not a member of the organization this proxy signs into.
+      configError: The server is not configured for proxy sign-in.
+      failed: Proxy sign-in could not be completed.
+  continueWithPasskey: Sign in with a passkey
+  passkeyFailed: Passkey sign-in failed or was cancelled. Try again or use your password.
+  wrongCredentials: Wrong email or password
+  accountLockedGeneric: Account temporarily locked — too many failed attempts. Try again later or contact an administrator.
+  accountLockedSeconds:
+    Account temporarily locked. Try again in {seconds, plural,
+    one {# second} other {# seconds}}, or contact an administrator.
+  accountLockedMinutes:
+    Account temporarily locked. Try again in {minutes, plural,
+    one {# minute} other {# minutes}}, or contact an administrator.
+  accountLockedHours:
+    Account temporarily locked. Try again in {hours, plural, one
+    {# hour} other {# hours}}, or contact an administrator.
+  forgotPassword: Forgot password?
+  forgotPasswordToast:
+    title: Contact your administrator
+    description: Password reset is managed by your organization.
+  toast:
+    success: Signed in
+  lockoutAdvisory: Repeated failed attempts will temporarily lock the account.
+signup:
+  wrongCredentials: Wrong email or password
+validation:
+  emailRequired: Email is required
+  passwordRequiredForNewUser: Password is required to create a new user
+  emailAlreadyMember: This user is already a member of this organization
+  passwordMinLength: Password must be at least {n} characters
+  passwordLowercase: Password must contain a lowercase letter
+  passwordUppercase: Password must contain an uppercase letter
+  passwordNumber: Password must contain a number
+  passwordSpecial: Password must contain a special character
+userButton:
+  defaultName: User
+  manageAccount: Manage account
+  getApp: Get app
+  documentation: Documentation
+  currentVersion: 'Current version: v{version}'
+  whatsNew: What's new
+  updateAvailable: Update available
+  themeSystem: System theme
+  themeLight: Light theme
+  themeDark: Dark theme
+  language: Language
+  logOut: Log out
+  logOutConfirm:
+    title: Log out
+    description:
+      This ends your session on this device. You will have to sign in
+      again to get back in.
+    confirm: Log out
+  toast:
+    signOutFailed: Couldn't sign out
+changePassword:
+  title: Change password
+  currentPassword: Current password
+  newPassword: New password
+  confirmPassword: Confirm new password
+  placeholder:
+    current: Enter current password
+    new: Enter new password
+    confirm: Confirm new password
+  requirements:
+    length: At least {n} characters
+    lowercase: One lowercase letter
+    uppercase: One uppercase letter
+    number: One number
+    specialChar: One special character
+  validation:
+    currentRequired: Current password is required
+    currentIncorrect: Current password is incorrect
+    newRequired: New password is required
+    confirmRequired: Confirm your new password
+    mismatch: Passwords don't match
+    policyViolation: This password doesn't meet your organization's password policy.
+  warning:
+    description:
+      Changing your password signs you out of all devices. You'll need to
+      sign in again with your new password.
+forcedChange:
+  title: Password change required
+  submit: Update password
+  description:
+    Your password has expired per the organization's rotation policy.
+    Set a new password to continue.
+  descriptionAdminSet: An administrator set your password. Choose a new password to continue.
+  signedInAs: Signed in as {email}
+  notYou: Not you?
+  logOut: Log out
+setPassword:
+  title: Set password
+  description:
+    Your account uses external sign-in. Set a password to also sign in
+    with email and password.
+  newPassword: New password
+  confirmPassword: Confirm password
+sso:
+  errors:
+    serverError: Single sign-on failed due to a server error. Try again, or contact your administrator if it keeps happening.
+    multipleConnections:
+      More than one organization uses single sign-on here. Enter
+      your organization email address first, then try again.
+    mfaRequired: Multi-factor authentication is required to sign in.
+    conditionalAccessBlocked: Sign-in was blocked by a conditional-access policy.
+    userNotAssigned:
+      Your account is not assigned to this application. Contact your
+      administrator to request access.
+    notOrgMember:
+      Your account is not a member of this organization. Ask an admin of
+      this organization to invite you, then sign in again.
+    flowMismatch:
+      This sign-in did not finish in the browser it started in. Start the
+      sign-in again from this page.
+    assertionNotEncrypted:
+      This organization requires encrypted SAML assertions, but the identity
+      provider sent one in plain text. Ask your administrator to turn on
+      assertion encryption in the identity provider.
+    silentAuthFailed: Silent sign-in failed. Sign in manually instead.
+    refreshTokenExpired: Your session expired. Sign in again.
+    consentRequired: An admin needs to grant consent before you can sign in.
+    redirectMismatch:
+      The sign-in redirect URL does not match the one registered in
+      Microsoft Entra ID. Ask your administrator to register the exact
+      redirect URL.
+    clientNotFound: The single sign-on application could not be found in the
+      directory. Ask your administrator to check the client ID.
+    invalidClientSecret:
+      The single sign-on client secret is invalid or expired. Ask
+      your administrator to update it.
+    recovery:
+      completeMfa: Complete the multi-factor prompt from your authenticator to continue.
+      contactAdmin: Contact your administrator for access.
+      signInInteractively: Try signing in again and complete any prompts.
+      signInAgain: Sign in again to continue.
+      grantConsent: An administrator must grant consent for this application.
+  actions:
+    tryAgain: Try again
+    completeMfa: Complete multi-factor sign-in
+    contactAdminMessage: Contact your administrator to resolve this.

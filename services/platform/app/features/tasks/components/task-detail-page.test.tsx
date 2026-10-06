@@ -1,9 +1,9 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { enMessages } from '@/tests/utils/messages';
 import { render, screen } from '@/tests/utils/render';
 
-import enMessages from '../../../../messages/en.yml';
 import { TaskDetailPage } from './task-detail-page';
 
 const read = vi.hoisted(() => ({

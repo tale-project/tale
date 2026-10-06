@@ -1,0 +1,208 @@
+sessionLapse:
+  title: Ta session a pris fin
+  description: Te reconnecter te fera quitter cette page. Les modifications non enregistrées risquent d'être perdues. Reste ici pour copier le travail que tu souhaites garder avant de continuer.
+  paused: Ta page reste ouverte. Copie le travail que tu souhaites garder. Quand tu es prêt, ferme les boîtes de dialogue ouvertes et choisis Se reconnecter.
+  stayHere: Rester ici
+  signIn: Se reconnecter
+  checkFailed: Ta session n'a pas pu être vérifiée. Reste ici et réessaie quand la connexion sera rétablie.
+accountUnavailable:
+  description: Ton compte n'a pas pu être chargé.
+  signInAgain: Se reconnecter
+oauth:
+  title: 'Continuer avec Tale'
+  request: '{application} souhaite te connecter avec Tale.'
+  permissions: 'Autorise cette application à lire ton nom, ton adresse e-mail vérifiée et ton appartenance à son organisation Tale. Ton mot de passe reste dans Tale.'
+  allow: 'Autoriser et continuer'
+  cancel: 'Annuler'
+  continuing: 'Connexion…'
+  retry: 'Réessayer'
+  failed: 'Cette connexion ne peut pas continuer. Retourne dans l’application et recommence.'
+email: Courriel
+password: Mot de passe
+emailPlaceholder: Entre ton adresse email
+passwordPlaceholder: Entre ton mot de passe
+login:
+  loginTitle: Connexion
+  loginButton: Se connecter
+  continueWithSso: Continuer avec SSO
+  ssoTitle: Se connecter avec SSO
+  ssoDescription: Choisis ton organisation pour continuer vers son fournisseur d’identité.
+  ssoOrgListLabel: Organisations
+  ssoBackToLogin: Retour à la connexion
+  ssoNoOrganizations:
+    Aucune organisation disponible pour la connexion. Contacte
+    ton administration.
+  proxyHandoff:
+    pending: Connexion en cours via le service de connexion de ton organisation…
+    stalled: La connexion automatique n’a pas abouti. Connecte-toi autrement
+      ci-dessous ou réessaie.
+    retry: Réessayer
+    continue: Continuer avec la connexion automatique
+    held:
+      La connexion automatique est en pause après une déconnexion. Continue
+      quand tu es prêt.
+    recovery:
+      Connecte-toi autrement ci-dessous ou demande à l’administration de
+      vérifier le passage du proxy.
+    errors:
+      missingKey: Le proxy n’a envoyé aucune clé trusted headers.
+      unknownKey: La clé trusted headers du proxy est inconnue ou révoquée.
+      rateLimited:
+        Trop de passages échoués depuis cette adresse. Réessaie plus
+        tard.
+      disabled: Les en-têtes de confiance sont désactivés pour cette organisation.
+      missingEmail: Le proxy n’a envoyé aucune adresse e-mail.
+      notMember:
+        Ton compte n’est pas membre de l’organisation dans laquelle ce
+        proxy connecte.
+      configError: Le serveur n’est pas configuré pour la connexion par proxy.
+      failed: La connexion par proxy n’a pas pu être finalisée.
+  continueWithPasskey: Se connecter avec un passkey
+  passkeyFailed:
+    La connexion par passkey a échoué ou a été annulée. Réessaie ou
+    utilise ton mot de passe.
+  wrongCredentials: Courriel ou mot de passe incorrect
+  accountLockedGeneric: Compte temporairement verrouillé en raison d'échecs répétés. Réessaie plus tard ou contacte un administrateur.
+  accountLockedSeconds:
+    Compte temporairement verrouillé. Réessaie dans {seconds,
+    plural, one {# seconde} other {# secondes}}, ou contacte un
+    administrateur.
+  accountLockedMinutes:
+    Compte temporairement verrouillé. Réessaie dans {minutes,
+    plural, one {# minute} other {# minutes}}, ou contacte un administrateur.
+  accountLockedHours: Compte temporairement verrouillé. Réessaie dans {hours,
+    plural, one {# heure} other {# heures}}, ou contacte un administrateur.
+  forgotPassword: Mot de passe oublié ?
+  forgotPasswordToast:
+    title: Contacte ton administrateur
+    description: La réinitialisation du mot de passe est gérée par ton organisation.
+  toast:
+    success: Connecté
+  lockoutAdvisory: Des échecs répétés verrouillent temporairement le compte.
+signup:
+  wrongCredentials: Courriel ou mot de passe incorrect
+validation:
+  emailRequired: L'email est requis
+  passwordRequiredForNewUser: Un mot de passe est requis pour créer un nouvel utilisateur
+  emailAlreadyMember: Cet utilisateur est déjà membre de cette organisation
+  passwordMinLength: Le mot de passe doit contenir au moins {n} caractères
+  passwordLowercase: Le mot de passe doit contenir une lettre minuscule
+  passwordUppercase: Le mot de passe doit contenir une lettre majuscule
+  passwordNumber: Le mot de passe doit contenir un chiffre
+  passwordSpecial: Le mot de passe doit contenir un caractère spécial
+userButton:
+  defaultName: Utilisateur
+  manageAccount: Gérer le compte
+  getApp: Installer l'app
+  documentation: Documentation
+  currentVersion: 'Version actuelle : v{version}'
+  whatsNew: Nouveautés
+  updateAvailable: Mise à jour disponible
+  themeSystem: Thème système
+  themeLight: Thème clair
+  themeDark: Thème sombre
+  language: Langue
+  logOut: Se déconnecter
+  logOutConfirm:
+    title: Se déconnecter
+    description:
+      Ta session sur cet appareil se termine. Il faudra te reconnecter
+      pour revenir.
+    confirm: Se déconnecter
+  toast:
+    signOutFailed: Échec de la déconnexion
+changePassword:
+  title: Changer le mot de passe
+  currentPassword: Mot de passe actuel
+  newPassword: Nouveau mot de passe
+  confirmPassword: Confirmer le nouveau mot de passe
+  placeholder:
+    current: Entre le mot de passe actuel
+    new: Entre le nouveau mot de passe
+    confirm: Confirme le nouveau mot de passe
+  requirements:
+    length: Au moins {n} caractères
+    lowercase: Une lettre minuscule
+    uppercase: Une lettre majuscule
+    number: Un chiffre
+    specialChar: Un caractère spécial
+  validation:
+    currentRequired: Le mot de passe actuel est requis
+    currentIncorrect: Le mot de passe actuel est incorrect
+    newRequired: Le nouveau mot de passe est requis
+    confirmRequired: Confirme ton nouveau mot de passe
+    mismatch: Les mots de passe ne correspondent pas
+    policyViolation: Ce mot de passe ne respecte pas la politique de mot de passe de ton organisation.
+  warning:
+    description:
+      Changer ton mot de passe te déconnecte de tous les appareils. Tu
+      devras te reconnecter avec ton nouveau mot de passe.
+forcedChange:
+  title: Changement de mot de passe requis
+  submit: Mettre à jour le mot de passe
+  description: Ton mot de passe a expiré selon la politique de rotation de
+    l'organisation. Définis un nouveau mot de passe pour continuer.
+  descriptionAdminSet: Ton mot de passe a été défini par un administrateur.
+    Choisis un nouveau mot de passe pour continuer.
+  signedInAs: Connecté en tant que {email}
+  notYou: Ce n'est pas toi ?
+  logOut: Se déconnecter
+setPassword:
+  title: Définir un mot de passe
+  description:
+    Ton compte utilise une connexion externe. Définis un mot de passe
+    pour te connecter également avec ton email et un mot de passe.
+  newPassword: Nouveau mot de passe
+  confirmPassword: Confirmer le mot de passe
+sso:
+  errors:
+    serverError:
+      L’authentification unique n’a pas pu aboutir en raison d’une erreur
+      serveur. Réessaie, ou contacte ton administration si le problème
+      persiste.
+    multipleConnections:
+      Plusieurs organisations utilisent l’authentification unique
+      ici. Saisis d’abord l’adresse e-mail de ton organisation, puis réessaie.
+    mfaRequired: Une authentification multifacteur est requise pour te connecter.
+    conditionalAccessBlocked: La connexion a été bloquée par une stratégie d’accès conditionnel.
+    userNotAssigned:
+      Ton compte n’est pas affecté à cette application. Contacte ton
+      administration pour demander l’accès.
+    notOrgMember: Ton compte n’est pas membre de cette organisation. Demande à
+      l’administration de cette organisation de t’inviter, puis
+      reconnecte-toi.
+    flowMismatch:
+      Cette connexion ne s’est pas terminée dans le navigateur où elle a
+      commencé. Relance-la depuis cette page.
+    assertionNotEncrypted:
+      Cette organisation exige des assertions SAML chiffrées, mais le
+      fournisseur d’identité en a envoyé une en clair. Demande à ton
+      administration d’activer le chiffrement des assertions côté
+      fournisseur d’identité.
+    silentAuthFailed: La connexion silencieuse a échoué. Connecte-toi de manière interactive.
+    refreshTokenExpired: Ta session a expiré. Reconnecte-toi.
+    consentRequired:
+      Cette application nécessite le consentement d’un administrateur
+      avant que tu puisses te connecter.
+    redirectMismatch:
+      L’URL de redirection de connexion ne correspond pas à celle
+      enregistrée dans Microsoft Entra ID. Demande à ton administration
+      d’enregistrer l’URL de redirection exacte.
+    clientNotFound:
+      L’application d’authentification unique est introuvable dans
+      l’annuaire. Demande à ton administration de vérifier l’ID client.
+    invalidClientSecret:
+      Le secret client de l’authentification unique est invalide
+      ou expiré. Demande à ton administration de le mettre à jour.
+    recovery:
+      completeMfa:
+        Valide la demande multifacteur depuis ton authentificateur pour
+        continuer.
+      contactAdmin: Contacte ton administration pour obtenir l’accès.
+      signInInteractively: Réessaie de te connecter et complète les éventuelles demandes.
+      signInAgain: Reconnecte-toi pour continuer.
+      grantConsent: Une administration doit accorder son consentement à cette application.
+  actions:
+    tryAgain: Réessayer
+    completeMfa: Terminer la connexion multifacteur
+    contactAdminMessage: Contacte ton administration pour résoudre ce problème.

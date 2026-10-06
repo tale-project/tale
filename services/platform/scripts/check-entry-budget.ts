@@ -51,11 +51,12 @@ export const FORBIDDEN_PACKAGES = [
 ];
 
 /**
- * The service's own catalogs no preloaded chunk may carry, from its root: a
- * session reads one language, and German and French load when one first
- * needs them (`lib/i18n/i18n.ts`).
+ * The service's own catalogs no preloaded chunk may carry, from its root, a
+ * path ending in `/` naming every file under it: a session reads one
+ * language, and German and French load when one first needs them
+ * (`lib/i18n/i18n.ts`).
  */
-export const FORBIDDEN_SOURCES = ['messages/de.yml', 'messages/fr.yml'];
+export const FORBIDDEN_SOURCES = ['messages/de/', 'messages/fr/'];
 
 /**
  * The module scripts and modulepreloads of a built index.html, in document
@@ -97,10 +98,13 @@ export function forbiddenSourcesIn(
   mapDir: string,
   serviceRoot: string,
 ): string[] {
-  const named = new Set(sources.map((source) => resolve(mapDir, source)));
-  return FORBIDDEN_SOURCES.filter((path) =>
-    named.has(resolve(serviceRoot, path)),
-  );
+  const named = sources.map((source) => resolve(mapDir, source));
+  return FORBIDDEN_SOURCES.filter((path) => {
+    const forbidden = resolve(serviceRoot, path);
+    return path.endsWith('/')
+      ? named.some((source) => source.startsWith(`${forbidden}/`))
+      : named.includes(forbidden);
+  });
 }
 
 /**

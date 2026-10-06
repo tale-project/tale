@@ -2,26 +2,38 @@ import { detectPreferredLocale } from '@tale/ui/i18n/detect-locale';
 import { initServiceI18n } from '@tale/ui/i18n/init-service';
 import { loadLocale } from '@tale/ui/i18n/load-locale';
 import { uiMessages } from '@tale/ui/i18n/messages';
+import {
+  catalogsByLocale,
+  loadLocaleTopics,
+} from '@tale/ui/i18n/topic-catalogs';
 
-import enMessages from '@/messages/en.yml';
 import globalMessages from '@/messages/global.yml';
 
-type Bundle = Record<string, Record<string, unknown>>;
+// Every catalog is a directory of topic files, one namespace each
+// (`messages/<locale>/<topic>.yml`), the same topics in every locale.
+// English, which every key falls back to, ships with the app, and so do the
+// sparse regional overrides (`de-CH`). Vite requires the glob patterns to be
+// literals at the call site.
+const shipped = catalogsByLocale(
+  import.meta.glob<Record<string, unknown>>(
+    ['../../messages/en/*.yml', '../../messages/*-*/*.yml'],
+    { eager: true, import: 'default' },
+  ),
+);
+// German and French load when a session first needs them: each is about
+// 110 KB gzip, and a session reads one language.
+const fetched = import.meta.glob<Record<string, unknown>>(
+  ['../../messages/de/*.yml', '../../messages/fr/*.yml'],
+  { import: 'default' },
+);
 
 export const i18n = initServiceI18n({
-  bundles: { en: enMessages },
-  // German and French load when a session first needs them: each is about
-  // 110 KB gzip, and a session reads one language. English, which every key
-  // falls back to, ships with the app.
+  bundles: { ...shipped, en: shipped.en ?? {} },
   lazyBundles: {
-    de: () => import('@/messages/de.yml').then((module) => module.default),
-    fr: () => import('@/messages/fr.yml').then((module) => module.default),
+    de: () => loadLocaleTopics(fetched, 'de'),
+    fr: () => loadLocaleTopics(fetched, 'fr'),
   },
-  // Vite requires the glob pattern to be a literal at the call site.
-  regional: import.meta.glob<Bundle>('../../messages/*-*.yml', {
-    eager: true,
-    import: 'default',
-  }),
+  regional: {},
   global: globalMessages,
   packages: [uiMessages],
 });
