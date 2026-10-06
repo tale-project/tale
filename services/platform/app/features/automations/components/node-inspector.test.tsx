@@ -249,6 +249,59 @@ describe('NodeInspector', () => {
     expect(screen.getByText(/not valid json yet/i)).toBeVisible();
   });
 
+  it.each(['42', 'null', 'true', '"text"', '[]'])(
+    'keeps the existing Input mapping when JSON is %s',
+    async (scalar) => {
+      const onChange = vi.fn();
+      const { user } = render(
+        <NodeInspector
+          id="inspector"
+          node={{
+            id: 'calc',
+            type: 'transform',
+            code: 'return 1;',
+            input: { recipient: 'important@example.test' },
+          }}
+          nodeType={transformType}
+          readOnly={false}
+          organizationId="org_test"
+          onChange={onChange}
+        />,
+      );
+      const input = screen.getByRole('textbox', { name: 'Input' });
+
+      await user.click(input);
+      await user.keyboard('{Control>}a{/Control}');
+      await user.type(input, scalar);
+
+      expect(input).toHaveValue(scalar);
+      expect(screen.getByText('Input must be a JSON object.')).toBeVisible();
+      expect(onChange).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps empty Input clearing as an explicit operation', async () => {
+    const onChange = vi.fn();
+    const { user } = render(
+      <NodeInspector
+        id="inspector"
+        node={{
+          id: 'calc',
+          type: 'transform',
+          code: 'return 1;',
+          input: { recipient: 'important@example.test' },
+        }}
+        nodeType={transformType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={onChange}
+      />,
+    );
+
+    await user.clear(screen.getByRole('textbox', { name: 'Input' }));
+
+    expect(onChange).toHaveBeenCalledWith({ input: undefined });
+  });
   it('leads with the node fields, not the empty input JSON', () => {
     render(
       <NodeInspector

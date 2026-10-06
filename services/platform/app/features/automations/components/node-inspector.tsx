@@ -140,6 +140,8 @@ function JsonField({
   value,
   readOnly,
   onCommit,
+  objectOnly = false,
+  objectError,
 }: {
   label: string;
   description?: string;
@@ -149,6 +151,8 @@ function JsonField({
   value: unknown;
   readOnly: boolean;
   onCommit: (parsed: unknown) => void;
+  objectOnly?: boolean;
+  objectError?: string;
 }) {
   const { t } = useT('automations');
   const id = useId();
@@ -186,6 +190,15 @@ function JsonField({
           }
           try {
             const parsed: unknown = JSON.parse(next);
+            if (
+              objectOnly &&
+              (parsed === null ||
+                typeof parsed !== 'object' ||
+                Array.isArray(parsed))
+            ) {
+              setError(objectError ?? t('editor.invalidJson'));
+              return;
+            }
             setError(null);
             onCommit(parsed);
           } catch {
@@ -476,6 +489,8 @@ export function NodeFields({
         title={t('editor.fields.inputDescription')}
         value={node.input}
         readOnly={readOnly}
+        objectOnly
+        objectError={t('editor.inputObject')}
         onCommit={(parsed) => {
           onChange({
             input:
