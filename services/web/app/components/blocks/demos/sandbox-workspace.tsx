@@ -130,8 +130,8 @@ export function SandboxWorkspace({
                   {...reveal(!showLive)}
                   className="absolute inset-0 flex min-h-0"
                 >
-                  <div className="flex min-h-0 min-w-0 flex-1">
-                    <div className="border-border-base/70 flex w-[42%] shrink-0 flex-col gap-0.5 border-r px-1.5 py-2">
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col @2xl/demo:flex-row">
+                    <div className="border-border-base/70 flex w-full shrink-0 flex-col gap-0.5 border-b px-1.5 py-2 @2xl/demo:w-[42%] @2xl/demo:border-r @2xl/demo:border-b-0">
                       <p className="text-fg-subtle mb-1 truncate px-1 text-[9px] font-medium tracking-wide uppercase">
                         {t('demos.sandbox.treeRoot')}
                       </p>
