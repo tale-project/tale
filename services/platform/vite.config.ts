@@ -290,6 +290,16 @@ export default defineConfig({
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
+        // A topic file fetched on first use names its locale (`de-auth-….js`),
+        // so a session's language reads off the network panel.
+        chunkFileNames: (chunk) => {
+          const topic = /[\\/]messages[\\/]([^\\/]+)[\\/]([^\\/]+)\.yml$/.exec(
+            chunk.facadeModuleId ?? '',
+          );
+          return topic
+            ? `assets/${topic[1]}-${topic[2]}-[hash].js`
+            : 'assets/[name]-[hash].js';
+        },
         // Rolldown's native chunk groups rather than the `manualChunks`
         // shim, which cannot order them — see `coreChunk`.
         codeSplitting: {

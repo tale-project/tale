@@ -134,8 +134,9 @@ magnitude:
   flow canvas stay behind dynamic imports, and every page but the sign-in
   pages and the chat landing loads its code with the page); their
   `transferSize` sums to at most **1.5 MB** (the measured baseline is
-  0.90 MB gzip for an English browser, down from 2.09 MB / 46 files before
-  #4089 and 2.60 MB / 41 files; a German or French one adds its catalog,
+  0.79 MB gzip for an English browser, down from 0.90 MB before the
+  per-topic catalogs, 2.09 MB / 46 files before #4089 and 2.60 MB / 41
+  files; a German or French one adds the topics its first page reads,
   `PERF-P15`) and the favicon file
   (favicon.ico) transfers under 20 KB. The number to compare against is the `Cold-load JS:` line
   `scripts/check-entry-budget.ts` prints in the build log.
@@ -149,7 +150,7 @@ magnitude:
 - [ ] `PERF-P12` · **Content-heavy task board** — Open `/dashboard/{org}/projects/{projectId}/tasks/board` in a fixture project with 1,000 tasks carrying long descriptions, then switch to `/dashboard/{org}/projects/{projectId}/tasks/list`. → Both views mount only the task cards or rows near the viewport, retain the full lane counts, and reveal distant tasks on scroll. The board response omits description and file bodies; searching a distinctive phrase in a description or comment still finds the task. Record response bytes, mounted row counts and the warm interaction trace.
 - [ ] `PERF-P13` · **Large task details and discussion** — Open a task with a 20,000-character description, resolved mentions and 300 comments from the board. → The complete description appears with its formatting and mentions; the discussion starts with at most 30 comments, and loading earlier comments reveals the next page. Close and reopen the sheet, edit the description, save, reload and read it back. Record warm open latency and long tasks; unchanged prose does not trigger another Markdown parse during unrelated status or picker updates.
 - [ ] `PERF-P14` · **Large Home collections and deep links** — With 1,000 chats, tasks and projects, open `/dashboard/{org}/chat/{threadId}` for an older chat and `/dashboard/{org}/projects/{projectId}` for a project near the end of its list. → Home mounts stream rows around the viewport and only project rows near the project tree's viewport, including the selected item; opening a deep link does not mount every preceding row. Scroll both lists to the end and search for an item beyond the initial window: it remains reachable, with no duplicate selected row. Record the DOM counts and warm trace.
-- [ ] `PERF-P15` · **Language catalogs on first use** — In a brand-new browser context with the browser language set to German, open `/log-in`; then, in another with English and `localStorage` cleared, sign in and pick Language → Français in the user menu. → The German page is German from its first frame, its title included, and fetches one German catalog (`de-*.js`, about 110 KB gzip) and no French one; the English one fetches neither. Picking Français fetches the French catalog once and turns the page French without a reload, and a reload starts in French. With the network offline, a language whose catalog cannot load leaves the page in the language it shows.
+- [ ] `PERF-P15` · **Language catalogs per topic** — In a brand-new browser context with the browser language set to German, open `/log-in`; then, in another with English and `localStorage` cleared, sign in, pick Language → Français in the user menu, and open a page not visited yet (Automations). → The German page is German from its first frame, its title included, and fetches only the German topic files its page reads (`de-<topic>-*.js`, a few KB each, about 36 KB gzip for the first pages) and no French one; the English one fetches neither. Picking Français fetches the French topics of the pages already loaded, each once, and turns the page French without a reload; the page opened next is French from its first frame, and a reload starts in French. With the network offline, a language whose topics cannot load leaves the page in the language it shows.
 
 ## Response-time SLAs
 
