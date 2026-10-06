@@ -1,9 +1,9 @@
 import {
   defaultRangeExtractor,
+  observeElementOffset,
   type Range,
   useVirtualList,
 } from '@tale/ui/use-virtual-list';
-import { observeElementOffset } from '@tanstack/react-virtual';
 import {
   type ReactNode,
   useCallback,

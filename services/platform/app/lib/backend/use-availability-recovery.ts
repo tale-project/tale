@@ -5,12 +5,6 @@ import { useBackendReachable } from './connection-state';
 
 const pendingRecoveries = new WeakMap<QueryClient, number>();
 
-/** An observed outage will refresh this client's reads on the next positive
- * verdict. SSE replay recovery can leave that refresh to the same owner. */
-export function hasPendingAvailabilityRecovery(client: QueryClient): boolean {
-  return (pendingRecoveries.get(client) ?? 0) > 0;
-}
-
 /** Refresh reads after an outage, including errors that exhausted retries.
  * Mutations are never retried: the user decides whether to submit again. */
 export function useAvailabilityRecovery(): void {
