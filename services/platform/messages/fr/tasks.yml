@@ -476,7 +476,6 @@ timeline:
   unresolvedWorkflow: Automatisation
   deletedAgent: Agent supprimé
   viewMore: "Voir plus"
-  viewAgent: Voir l'agent
   viewWorkflow: Voir l'automatisation
 dueDate:
   label: Échéance

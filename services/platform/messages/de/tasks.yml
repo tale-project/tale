@@ -478,7 +478,6 @@ timeline:
   unresolvedWorkflow: Automatisierung
   deletedAgent: Gelöschter Agent
   viewMore: "Mehr anzeigen"
-  viewAgent: Agent anzeigen
   viewWorkflow: Automatisierung anzeigen
 dueDate:
   label: Fällig am

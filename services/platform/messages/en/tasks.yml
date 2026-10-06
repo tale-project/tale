@@ -471,7 +471,6 @@ timeline:
   unresolvedWorkflow: Automation
   deletedAgent: Deleted agent
   viewMore: "View more"
-  viewAgent: View agent
   viewWorkflow: View automation
 dueDate:
   label: Due date
