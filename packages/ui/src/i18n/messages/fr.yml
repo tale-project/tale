@@ -187,6 +187,8 @@ common:
     fixHighlightedFields: Corrige les champs surlignés et réessaie.
   errors:
     contactSupport: contacter le support
+    documentPreview: Aperçu du document
+    errorLoadingDocumentPreview: L'aperçu du document n'a pas pu être chargé. Réessaie.
     errorLoadingPage: Une erreur s'est produite lors du chargement de cette page. Tu peux réessayer ou naviguer vers une autre section.
     hideDetails: Masquer les détails
     persistsProblem: Si ce problème persiste,

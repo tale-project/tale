@@ -1,3 +1,4 @@
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { ErrorBoundaryBase } from '@tale/ui/error-boundaries/error-boundary-base';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
@@ -270,12 +271,61 @@ describe('dashboard lazy chunk failures', () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'Something went wrong while loading this page. Try again or go to another section.',
-      ),
+      screen.getByText('The document preview could not be loaded. Try again.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('main')).toContainElement(
       screen.getByRole('heading', { name: 'Page' }),
+    );
+    const container = screen.getByRole('region', { name: 'Document preview' });
+    expect(container).toHaveFocus();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'If this keeps happening, contact support.',
+    );
+    expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite');
+
+    // The next dynamic import succeeds; keep the real lazy/boundary path.
+    vi.doMock(
+      '@/app/features/documents/components/document-preview-dialog',
+      () => {
+        chunkAttempts.preview();
+        return {
+          DocumentPreviewDialog: () => (
+            <Dialog
+              open
+              onOpenChange={() => undefined}
+              title="Document preview loaded"
+            >
+              <p>Preview contents</p>
+            </Dialog>
+          ),
+        };
+      },
+    );
+    const attemptsBeforeRetry = chunkAttempts.preview.mock.calls.length;
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    retry.focus();
+    await act(async () => {
+      fireEvent.click(retry);
+    });
+    expect(
+      await screen.findByRole('heading', { name: 'Document preview loaded' }),
+    ).toBeInTheDocument();
+    expect(chunkAttempts.preview.mock.calls.length).toBeGreaterThan(
+      attemptsBeforeRetry,
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByRole('dialog', { name: 'Document preview loaded' }),
+      ).toHaveFocus();
+    });
+    expect(
+      screen.queryByRole('button', { name: 'Try again' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    // The recovered modal hides the dashboard from the accessibility tree,
+    // but does not unmount its page.
+    expect(screen.getByRole('main', { hidden: true })).toContainElement(
+      screen.getByRole('heading', { name: 'Page', hidden: true }),
     );
     expect(screen.queryByText('Dashboard failed')).not.toBeInTheDocument();
   });

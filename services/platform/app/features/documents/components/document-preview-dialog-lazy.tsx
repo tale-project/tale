@@ -1,6 +1,7 @@
 import { DialogErrorBoundary } from '@tale/ui/error-boundaries/dialog-error-boundary';
+import { useT } from '@tale/ui/i18n/client';
 import { lazyComponent } from '@tale/ui/lazy-component';
-import type { ComponentProps } from 'react';
+import { useRef, useState, type ComponentProps } from 'react';
 
 import type { DocumentPreviewDialog as DocumentPreviewDialogComponent } from './document-preview-dialog';
 
@@ -13,21 +14,42 @@ import type { DocumentPreviewDialog as DocumentPreviewDialogComponent } from './
  */
 const loadDocumentPreviewDialog = () => import('./document-preview-dialog');
 
-const LazyDocumentPreviewDialog = lazyComponent<
-  ComponentProps<typeof DocumentPreviewDialogComponent>
->(() =>
-  loadDocumentPreviewDialog().then((module) => ({
-    default: module.DocumentPreviewDialog,
-  })),
-);
+const createLazyDocumentPreviewDialog = () =>
+  lazyComponent<ComponentProps<typeof DocumentPreviewDialogComponent>>(() =>
+    loadDocumentPreviewDialog().then((module) => ({
+      default: module.DocumentPreviewDialog,
+    })),
+  );
 
 export function DocumentPreviewDialog(
   props: ComponentProps<typeof DocumentPreviewDialogComponent>,
 ) {
+  const { t } = useT('common');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [LazyDocumentPreviewDialog, setLazyDocumentPreviewDialog] = useState(
+    createLazyDocumentPreviewDialog,
+  );
+  const description = t('errors.errorLoadingDocumentPreview');
+
   return (
-    <DialogErrorBoundary>
-      <LazyDocumentPreviewDialog {...props} />
-    </DialogErrorBoundary>
+    <div
+      ref={containerRef}
+      tabIndex={-1}
+      role="region"
+      aria-label={t('errors.documentPreview')}
+    >
+      <DialogErrorBoundary
+        description={description}
+        onError={() => containerRef.current?.focus()}
+        onReset={() => {
+          // React.lazy caches rejected promises; retry with a fresh instance.
+          containerRef.current?.focus();
+          setLazyDocumentPreviewDialog(() => createLazyDocumentPreviewDialog());
+        }}
+      >
+        <LazyDocumentPreviewDialog {...props} />
+      </DialogErrorBoundary>
+    </div>
   );
 }
 

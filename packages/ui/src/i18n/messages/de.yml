@@ -187,6 +187,8 @@ common:
     fixHighlightedFields: Bitte korrigiere die hervorgehobenen Felder und versuche es erneut.
   errors:
     contactSupport: kontaktiere den Support
+    documentPreview: Dokumentvorschau
+    errorLoadingDocumentPreview: Die Dokumentvorschau konnte nicht geladen werden. Versuche es erneut.
     errorLoadingPage: Beim Laden dieser Seite ist etwas schiefgelaufen. Versuch es erneut oder wechsle zu einem anderen Bereich.
     hideDetails: Details ausblenden
     persistsProblem: Wenn das immer wieder passiert,
