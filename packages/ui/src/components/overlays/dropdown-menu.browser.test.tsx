@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 
 import { render, screen } from '@/tests/utils/render';
 
@@ -166,5 +166,9 @@ describe('DropdownMenu long content', () => {
     expect(metrics.overflowY).toBe('auto');
     expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
     expect(metrics.bottom).toBeLessThanOrEqual(window.innerHeight);
+
+    const before = menu.scrollTop;
+    await userEvent.wheel(menu, { delta: { y: 400 } });
+    await waitFor(() => expect(menu.scrollTop).toBeGreaterThan(before));
   });
 });

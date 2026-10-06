@@ -138,6 +138,13 @@ interface DropdownMenuProps {
   /** Disables the trigger at the Radix level so the menu can't open — a
    *  disabled child <button> alone doesn't stop keyboard/pointer activation. */
   disabled?: boolean;
+  /**
+   * Registers the menu as a modal layer. Use this when the trigger lives in
+   * a modal Dialog so that the dialog's scroll lock does not swallow wheel
+   * events over the portaled menu content.
+   * @default false
+   */
+  modal?: boolean;
 }
 
 function RadioIndicator() {
@@ -385,6 +392,7 @@ export function DropdownMenu({
   tooltip,
   tooltipSide = 'top',
   disabled,
+  modal = false,
 }: DropdownMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -425,7 +433,7 @@ export function DropdownMenu({
       // Keeping both layers modal leaves Radix's outside-pointer lock behind
       // when the second overlay closes. The dialog owns modality; menus keep
       // their roving focus, Escape and outside-dismiss behavior without it.
-      modal={false}
+      modal={modal}
     >
       {tooltip ? (
         // Radix's documented composition for "tooltip on a menu trigger":
