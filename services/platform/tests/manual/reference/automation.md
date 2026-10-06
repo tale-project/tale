@@ -206,6 +206,12 @@ One row per case group, carried over from the per-suite coverage tables the
 guides used to hold. **Don't** re-verify an automated row by hand: a red there
 is a spec failure and belongs in the gate, not in a round.
 
+The All projects board and list never badge the archived project retained in
+the URL. `app/routes/dashboard/$id/projects/$projectId.test.tsx` covers a live
+archive update, a fresh mount with an archived path project (reload state), and
+the archived badge retained on single-project board/list pages. Real-browser
+reloads and cross-session archive delivery remain manual.
+
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 
 | Suite | Boxes | Status | Owning spec |
