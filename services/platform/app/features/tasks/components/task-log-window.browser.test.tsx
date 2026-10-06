@@ -326,6 +326,26 @@ describe('task modal log window', () => {
     expect(list.querySelectorAll('[data-index]').length).toBeLessThan(40);
   });
 
+  it('keeps an active edit mounted when the discussion crosses the window threshold', async () => {
+    state.comments = state.comments.slice(0, 90);
+    const view = render(<Harness mode="comments" canComment leadHeight={0} />);
+    const comment = await screen.findByText('Comment 0 opening line.');
+    const row = comment.closest('li');
+    if (row === null) throw new Error('Missing comment row');
+    await userEvent.click(
+      within(row).getByRole('button', { name: 'actions.edit' }),
+    );
+    const field = within(row).getByRole('textbox');
+    await userEvent.fill(field, 'Draft retained across windowing');
+    state.comments = Array.from({ length: 120 }, (_, index) => ({
+      ...state.comments[index % state.comments.length],
+      messageId: `comment-${index}`,
+    }));
+    view.rerender(<Harness mode="comments" canComment leadHeight={0} />);
+    await waitFor(() => expect(field).toBeInTheDocument());
+    expect(field).toHaveValue('Draft retained across windowing');
+  });
+
   it('keeps an edit draft mounted after scrolling into older pages and moving focus', async () => {
     render(<Harness mode="comments" canComment leadHeight={0} />);
     const scroller = screen.getByTestId('scrollport');

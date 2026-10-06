@@ -20,7 +20,6 @@ const TaskLogViewportContext =
 
 type RowKey = string | number;
 type SetRowActive = (rowKey: RowKey, source: string, active: boolean) => void;
-const NOOP_SET_ROW_ACTIVE: SetRowActive = () => undefined;
 const TaskLogRowActivityContext = createContext<
   ((source: string, active: boolean) => void) | null
 >(null);
@@ -170,12 +169,12 @@ export function useTaskLogWindow({
     return () => observer.disconnect();
   }, [getScrollElement, window.scrollElement, listElement]);
 
-  // Small discussions render every row and do not need an activity pin. A
-  // no-op keeps editor focus from causing a second list reconciliation in that
-  // common case; large windows still pin dirty or portaled rows as they leave
-  // the viewport.
+  // Register activity in every mode. A row can become active while the list is
+  // below the window threshold and remain active when new rows turn
+  // virtualization on; keeping the registration avoids dropping its draft on
+  // that crossing render.
   return Object.assign(window, {
     listRef: attachList,
-    setRowActive: window.virtualized ? setRowActive : NOOP_SET_ROW_ACTIVE,
+    setRowActive,
   });
 }
