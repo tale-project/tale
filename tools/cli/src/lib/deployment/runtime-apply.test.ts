@@ -427,7 +427,7 @@ describePosix('managed source-Compose runtime adoption', () => {
     for (const original of originalMounts) {
       const retained = run.docker.containers.find(
         (container) => container.Name === original.name,
-      ) as { Mounts: unknown[] } | undefined;
+      ) as { Mounts: (typeof originalMounts)[number]['mounts'] } | undefined;
       expect(retained?.Mounts).toEqual(expect.arrayContaining(original.mounts));
     }
     const platform = run.docker.containers.find(
