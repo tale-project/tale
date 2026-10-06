@@ -216,6 +216,7 @@ actions:
   created: Aufgabe erstellt
   comment: Kommentieren
   commentPlaceholder: Schreib einen Kommentar – mit @ erwähnst du eine Person oder einen Agenten
+  commentAgentHint: "Erwähne den zugewiesenen Agenten für Feedback. Wenn er arbeitet, geht die Erwähnung an seinen aktuellen Lauf."
   commentShortcut: '{shortcut} zum Senden'
   assign: Zuweisen
   add: Hinzufügen
@@ -476,7 +477,7 @@ timeline:
   systemActor: System
   unresolvedWorkflow: Automatisierung
   deletedAgent: Gelöschter Agent
-  viewAgent: Agent anzeigen
+  viewMore: "Mehr anzeigen"
   viewWorkflow: Automatisierung anzeigen
 dueDate:
   label: Fällig am

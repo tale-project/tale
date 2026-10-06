@@ -2022,6 +2022,9 @@ export function EditTaskBody({
         currentUserId={me?.userId}
         isAdmin={me?.isAdmin}
         commentCount={task.commentCount}
+        {...(task.assigneeType === 'agent' && task.assigneeId
+          ? { composerHint: t('actions.commentAgentHint') }
+          : {})}
       />
 
       <TaskTimeline
@@ -2423,6 +2426,9 @@ export function EditTaskBody({
                   organizationId={task.organizationId}
                   projectId={task.projectId}
                   variant="chat"
+                  {...(task.assigneeType === 'agent' && task.assigneeId
+                    ? { hint: t('actions.commentAgentHint') }
+                    : {})}
                 />
               ) : null
             }
