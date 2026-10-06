@@ -158,28 +158,11 @@ describe('evaluateTwoFactorEnforcement', () => {
     });
   });
 
-  it('never restarts a running grace period, and applies a shorter one at once [TFA-R4]', async () => {
-    organizations({ enforced: true, gracePeriodDays: 7 });
-    // Three days are left of the period that started earlier.
-    expect(await decide({ graceUntil: NOW + 3 * DAY_MS })).toMatchObject({
-      decision: 'grace',
-      graceUntilToSet: null,
-      graceDeadline: NOW + 3 * DAY_MS,
-    });
-    // The policy now allows two days: the stored ten no longer count.
-    organizations({ enforced: true, gracePeriodDays: 2 });
-    expect(await decide({ graceUntil: NOW + 10 * DAY_MS })).toMatchObject({
-      decision: 'grace',
-      graceUntilToSet: null,
-      graceDeadline: NOW + 2 * DAY_MS,
-    });
-  });
-
   it('recomputes from the persisted anchor when policy lengthens or shortens [TFA-R4]', async () => {
     organizations({ enforced: true, gracePeriodDays: 2 });
     expect(await decide({ firstRequiredSignInAt: NOW - DAY_MS })).toMatchObject(
       {
-        decision: 'blocked',
+        decision: 'grace',
         graceDeadline: NOW + DAY_MS,
       },
     );
@@ -190,6 +173,17 @@ describe('evaluateTwoFactorEnforcement', () => {
         graceDeadline: NOW + 6 * DAY_MS,
       },
     );
+  });
+
+  it('never restarts grace at later sign-ins and blocks after the anchored deadline [TFA-R4]', async () => {
+    organizations({ enforced: true, gracePeriodDays: 2 });
+    expect(
+      await decide({ firstRequiredSignInAt: NOW - 3 * DAY_MS }),
+    ).toMatchObject({
+      decision: 'blocked',
+      graceUntilToSet: null,
+      graceDeadline: NOW - DAY_MS,
+    });
   });
 
   it('keeps a legacy row deadline unchanged [TFA-R4]', async () => {
