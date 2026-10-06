@@ -7708,6 +7708,7 @@ tasks:
     created: Tâche créée
     comment: Commenter
     commentPlaceholder: Écris un commentaire — tape @ pour mentionner une personne ou un agent
+    commentAgentHint: Mentionne l’agent assigné pour lui donner un retour. S’il travaille, la mention est envoyée à son exécution en cours.
     commentShortcut: '{shortcut} pour envoyer'
     assign: Assigner
     add: Ajouter

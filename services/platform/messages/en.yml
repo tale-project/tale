@@ -7766,6 +7766,7 @@ tasks:
     created: Task created
     comment: Comment
     commentPlaceholder: Write a comment — type @ to mention a person or an agent
+    commentAgentHint: Mention the assigned agent for feedback. If it is working, the mention goes to its current run.
     commentShortcut: '{shortcut} to send'
     assign: Assign
     add: Add
