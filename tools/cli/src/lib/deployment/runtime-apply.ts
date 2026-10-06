@@ -383,7 +383,7 @@ function assertContainerCustody(
       return {
         named,
         source: named
-          ? `${options.composeProject}_${source}`
+          ? projectVolumeName(options.composeProject, source)
           : source.startsWith('./')
             ? join(options.stateDirectory, 'src', source.slice(2))
             : source,
@@ -417,9 +417,7 @@ function assertContainerCustody(
       const additive =
         projectVolumes !== undefined &&
         missing.every(
-          (mount) =>
-            mount.named &&
-            !projectVolumes.has(`${options.composeProject}_${mount.source}`),
+          (mount) => mount.named && !projectVolumes.has(mount.source),
         );
       requireRuntime(
         additive,
@@ -563,6 +561,10 @@ const volumeRecordSchema = z.object({ Name: z.string().min(1) });
  * inventory: filtered as one, it would read every volume, the gateway store's
  * included, as absent. An empty listing is a host without volumes.
  */
+function projectVolumeName(project: string, source: string): string {
+  return `${project}_${source}`;
+}
+
 function volumeInventory(stdout: string): string[] {
   const records = (stdout === '' ? [] : stdout.split('\n')).map((line) =>
     parseJson(line),
@@ -738,7 +740,7 @@ export async function applyRuntime(
     dependencies,
   );
   const projectVolumes = volumeInventory(volumeResult.stdout).filter((name) =>
-    name.startsWith(`${options.composeProject}_`),
+    name.startsWith(projectVolumeName(options.composeProject, '')),
   );
   const projectVolumeSet = new Set(projectVolumes);
   let containers = await runtimeContainers(
@@ -757,7 +759,7 @@ export async function applyRuntime(
   requireRuntime(
     projectVolumes.every(
       (name) =>
-        name === `${options.composeProject}_${BACKUP_VOLUME}` ||
+        name === projectVolumeName(options.composeProject, BACKUP_VOLUME) ||
         Object.hasOwn(
           compose.volumes,
           name.slice(options.composeProject.length + 1),
@@ -860,7 +862,9 @@ export async function applyRuntime(
     receipt,
     containers,
     bundle,
-    projectVolumes.includes(`${options.composeProject}_${GATEWAY_VOLUME}`),
+    projectVolumes.includes(
+      projectVolumeName(options.composeProject, GATEWAY_VOLUME),
+    ),
     inspectedDigests,
   );
   const environment = prepareRuntimeEnvironment(
