@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createPwaPlugin } from '@tale/ui/pwa/vite-plugin';
+import { messageTopics } from '@tale/ui/vite/message-topics';
 import { yamlImports } from '@tale/ui/vite/yaml';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
@@ -322,6 +323,9 @@ export default defineConfig({
   },
   plugins: [
     yamlImports(),
+    // English messages ride with the modules that read them; see
+    // `lib/i18n/i18n.ts`.
+    messageTopics({ messagesDir: resolve(import.meta.dirname, 'messages') }),
     tanstackRouter({
       autoCodeSplitting: true,
       codeSplittingOptions: {

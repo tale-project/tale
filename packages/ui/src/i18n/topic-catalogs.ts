@@ -57,24 +57,3 @@ export function topicLoaders(
   }
   return out;
 }
-
-/**
- * One locale's bundle from a lazy glob of topic files
- * (`import.meta.glob('…/messages/de/*.yml', { import: 'default' })`), every
- * topic file fetched at once.
- */
-export async function loadLocaleTopics(
-  modules: Record<string, () => Promise<Messages | null | undefined>>,
-  locale: string,
-): Promise<Bundle> {
-  const entries = Object.entries(modules).flatMap(([path, load]) => {
-    const file = topicFileOf(path);
-    return file?.locale === locale ? [{ topic: file.topic, load }] : [];
-  });
-  const loaded = await Promise.all(
-    entries.map(
-      async ({ topic, load }) => [topic, (await load()) ?? {}] as const,
-    ),
-  );
-  return Object.fromEntries(loaded);
-}

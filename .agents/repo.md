@@ -86,7 +86,11 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   override package keys per leaf. The platform keeps one file per topic and locale
   (`services/platform/messages/<locale>/<topic>.yml`, a topic being one top-level namespace), and
   every locale has the same topic files — `de-CH` only the ones it overrides; the i18n parity
-  tests enforce both. The product docs ship EN/DE/FR; `services/ui-docs/content` is
+  tests enforce both. Every locale also loads per topic: English ships with the modules that name
+  a topic (the `messageTopics` plugin in `services/platform/vite.config.ts`), and the other
+  locales are fetched as the session's pages need them. So name a namespace literally where it is
+  read (`useT('tasks')`, `{ ns: 'tasks' }`); `lib/i18n/topic-references.test.ts` refuses a
+  computed one. The product docs ship EN/DE/FR; `services/ui-docs/content` is
   an English-only guide with complete EN/DE/FR chrome catalogs.
 - **A failure shows its words, never its payload** — a toast or an Alert reads what a call threw
   through `failureDetail` (`services/platform/app/lib/backend/adapters.ts`: a refusal's own words,

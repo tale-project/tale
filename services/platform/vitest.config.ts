@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
+import { messageTopics } from '@tale/ui/vite/message-topics';
 import { yamlImports } from '@tale/ui/vite/yaml';
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
@@ -10,8 +11,12 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   // Every project inherits the root plugins via `extends: true`; the yaml
-  // transform must run everywhere message catalogs are imported.
-  plugins: [yamlImports()],
+  // transform must run everywhere message catalogs are imported, and the
+  // modules that read messages bring their English as they do in the app.
+  plugins: [
+    yamlImports(),
+    messageTopics({ messagesDir: path.join(dirname, 'messages') }),
+  ],
   resolve: {
     // Match the app's React singleton across workspace and browser dependencies.
     dedupe: ['react', 'react-dom'],

@@ -17,7 +17,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   // The session's language is in place before the first frame and before any
   // head is resolved: German and French load on first use, and a title read
   // before them would stay English until the next navigation.
-  loader: () => sessionLocaleReady,
+  loader: () => sessionLocaleReady(),
   head: () => ({
     meta: seo('default'),
   }),

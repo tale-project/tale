@@ -98,26 +98,27 @@ describe('forbiddenSourcesIn', () => {
   const root = '/srv/platform';
   const mapDir = '/srv/platform/dist/assets';
 
-  it("names the service's German and French topic files a chunk carries", () => {
+  it("names the service's German, French and Swiss topic files a chunk carries", () => {
     expect(
       forbiddenSourcesIn(
         [
           '../../messages/en/chat.yml',
           '../../messages/de/chat.yml',
           '../../messages/fr/settings.yml',
+          '../../messages/de-CH/chat.yml',
         ],
         mapDir,
         root,
       ),
-    ).toEqual(['messages/de/', 'messages/fr/']);
+    ).toEqual(['messages/de/', 'messages/fr/', 'messages/de-CH/']);
   });
 
-  it("passes a package's catalog of the same name and a regional override", () => {
+  it("passes English and a package's catalog of the same name", () => {
     expect(
       forbiddenSourcesIn(
         [
           '../../../../packages/ui/src/i18n/messages/de.yml',
-          '../../messages/de-CH/chat.yml',
+          '../../messages/en/chat.yml',
         ],
         mapDir,
         root,

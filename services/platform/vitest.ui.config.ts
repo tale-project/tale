@@ -1,5 +1,7 @@
 import os from 'node:os';
+import path from 'node:path';
 
+import { messageTopics } from '@tale/ui/vite/message-topics';
 import { yamlImports } from '@tale/ui/vite/yaml';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
@@ -20,8 +22,13 @@ const uiMaxWorkers = Math.max(2, Math.min(cpuCount - 1, 6));
 
 export default defineConfig({
   // The yaml transform matches the root vitest config — UI components import
-  // the message catalogs (messages/<locale>/*.yml) through the i18n layer.
-  plugins: [react(), yamlImports()],
+  // the message catalogs (messages/<locale>/*.yml) through the i18n layer,
+  // and bring the English topics they read as they do in the app.
+  plugins: [
+    react(),
+    yamlImports(),
+    messageTopics({ messagesDir: path.join(import.meta.dirname, 'messages') }),
+  ],
   resolve: {
     tsconfigPaths: true,
   },
