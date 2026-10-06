@@ -35359,8 +35359,8 @@ async function checkWebsitesCrawl(
             text: string | null;
           }[]
         >`
-          SELECT u.status, u.etag, u.last_modified AS "lastModified",
-                 u.probe_hash AS "probeHash",
+          SELECT u.status, u.etag_v2 AS etag, u.last_modified_v2 AS "lastModified",
+                 u.probe_hash_v2 AS "probeHash",
                  u.last_crawled_at > now() - interval '1 hour' AS visited,
                  (SELECT count(*)::text FROM public_web.chunks c
                    WHERE c.domain = u.domain AND c.url = u.url) AS chunks,
@@ -35407,7 +35407,7 @@ async function checkWebsitesCrawl(
     await pool`
       INSERT INTO public_web.website_urls
         (domain, url, status, discovered_at, listed, last_crawled_at,
-         word_count, content, content_hash, probe_hash)
+         word_count, content, content_hash, probe_hash_v2)
       VALUES (${CHECK_DOMAIN}, ${checkUrl('/page.html')}, 'active', NOW(), FALSE,
               NOW() - INTERVAL '2 days', 20, ${htmlText}, ${htmlHash}, ${htmlHash})
       ON CONFLICT (domain, url) DO NOTHING
@@ -35418,6 +35418,127 @@ async function checkWebsitesCrawl(
       VALUES (${CHECK_DOMAIN}, ${checkUrl('/page.html')}, 'Check fixture', ${htmlHash}, 0, ${htmlText})
       ON CONFLICT DO NOTHING
     `;
+    // Migration 14 upgrades a legacy corpus and blocks old writers mid-roll.
+    // Run twice on real PostgreSQL, retaining a fresh v2 check on reapplication.
+    const { corpusMigrations } = await import('./core/knowledge/ddl.ts');
+    const strictMigration = corpusMigrations().find(
+      (migration) =>
+        migration.schema === 'public_web' && Number(migration.version) === 14,
+    );
+    if (strictMigration === undefined)
+      throw new Error('Missing strict change-check migration');
+    await pool.begin(async (tx) => {
+      await tx.unsafe(
+        'DROP TRIGGER invalidate_legacy_page_check ON public_web.website_urls',
+      );
+      await tx`
+        UPDATE public_web.website_urls
+           SET etag = '"legacy"', last_modified = 'Fri, 10 Jul 2026 09:11:16 GMT',
+               probe_hash = ${htmlHash}
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      await tx.unsafe(strictMigration.sql);
+      const checks = async () =>
+        (
+          await tx<
+            {
+              etag: string | null;
+              last_modified: string | null;
+              probe_hash: string | null;
+              etag_v2: string | null;
+              last_modified_v2: string | null;
+              probe_hash_v2: string | null;
+            }[]
+          >`
+        SELECT etag, last_modified, probe_hash, etag_v2, last_modified_v2, probe_hash_v2
+          FROM public_web.website_urls
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `
+        )[0];
+      const empty = (row: Awaited<ReturnType<typeof checks>>) =>
+        row !== undefined &&
+        Object.values(row).every((value) => value === null);
+      record(
+        'websites strict checks: migration invalidates all legacy checks',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      const seedStrict = async () => {
+        await tx`
+          UPDATE public_web.website_urls
+             SET etag_v2 = '"strict"', last_modified_v2 = 'Fri, 10 Jul 2026 09:11:16 GMT',
+                 probe_hash_v2 = ${htmlHash}
+           WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+        `;
+      };
+      await seedStrict();
+      await tx.unsafe(strictMigration.sql);
+      const repeated = await checks();
+      record(
+        'websites strict checks: migration reapplication retains fresh v2 provenance',
+        repeated?.etag_v2 === '"strict"' &&
+          repeated.last_modified_v2 !== null &&
+          repeated.probe_hash_v2 === htmlHash,
+        'The second application must preserve all three v2 fields',
+      );
+      await tx`
+        UPDATE public_web.website_urls
+           SET etag = '"legacy"', last_modified = 'Fri, 10 Jul 2026 09:11:16 GMT', probe_hash = ${htmlHash}
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      record(
+        'websites strict checks: old writer cannot renew checks and invalidates v2',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      await seedStrict();
+      await tx`
+        UPDATE public_web.website_urls SET etag = NULL, last_modified = NULL, probe_hash = NULL
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      record(
+        'websites strict checks: old writer null-to-null purge invalidates v2',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      await seedStrict();
+      await tx`
+        UPDATE public_web.website_urls SET content = content, content_hash = content_hash
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      record(
+        'websites strict checks: any content write invalidates v2',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      const inserted = await tx<
+        {
+          etag: string | null;
+          last_modified: string | null;
+          probe_hash: string | null;
+        }[]
+      >`
+        INSERT INTO public_web.website_urls (domain, url, etag, last_modified, probe_hash)
+        VALUES (${CHECK_DOMAIN}, ${checkUrl('/legacy-insert.txt')}, '"legacy"',
+                'Fri, 10 Jul 2026 09:11:16 GMT', ${htmlHash})
+        RETURNING etag, last_modified, probe_hash
+      `;
+      record(
+        'websites strict checks: old inserts cannot populate legacy checks',
+        inserted[0] !== undefined &&
+          Object.values(inserted[0]).every((value) => value === null),
+        'All three legacy fields must be null',
+      );
+      await tx`
+        DELETE FROM public_web.website_urls
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/legacy-insert.txt')}
+      `;
+      // Re-establish the fixture's complete-coverage check for the scan oracle.
+      await tx`
+        UPDATE public_web.website_urls SET etag_v2 = NULL, last_modified_v2 = NULL, probe_hash_v2 = ${htmlHash}
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+    });
     checkSitemapRoutes.push('/page.html');
     const checkThird = await checkRescan();
     const taggedThird = await checkRow('/tagged.txt');

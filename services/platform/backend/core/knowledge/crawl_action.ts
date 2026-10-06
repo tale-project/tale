@@ -1139,9 +1139,9 @@ interface DuePage {
   readonly listed: boolean;
   /** What the page's last settled visit left to check it by
    * ({@link PageCheck}); absent or null when it left nothing. */
-  readonly etag?: string | null;
-  readonly last_modified?: string | null;
-  readonly probe_hash?: string | null;
+  readonly etag_v2?: string | null;
+  readonly last_modified_v2?: string | null;
+  readonly probe_hash_v2?: string | null;
   /** False while a chunk of the page is cut from other text than the row
    * stores — a scan stored the new text and stopped before indexing it. */
   readonly indexed?: boolean;
@@ -1184,15 +1184,17 @@ const NO_PAGE_CHECK: PageCheck = {
 /** What a row offers this scan to check its page by: nothing unless it
  * holds the page's text and that text is indexed — "unchanged" would
  * otherwise leave a page without text, or with chunks of its earlier text,
- * exactly as it is. */
+ * exactly as it is. Only the v2 columns have complete-coverage provenance:
+ * migration 14 retires legacy checks and prevents old writers from renewing
+ * them mid-roll. */
 function storedCheck(page: DuePage): PageCheck {
   if (page.content_hash === null || page.indexed === false) {
     return NO_PAGE_CHECK;
   }
   return {
-    etag: page.etag ?? null,
-    lastModified: page.last_modified ?? null,
-    probeHash: page.probe_hash ?? null,
+    etag: page.etag_v2 ?? null,
+    lastModified: page.last_modified_v2 ?? null,
+    probeHash: page.probe_hash_v2 ?? null,
   };
 }
 
@@ -1283,7 +1285,7 @@ async function readPlainHtml(
 /**
  * What a rendered page leaves to check it by next time: its probe's
  * validators and plain-text hash when the plain HTML carried what the
- * browser showed ({@link plainTextCarriesRendered}), nothing when it did
+ * browser showed ({@link plainTextCoverage}), nothing when it did
  * not — that page is rendered again on every scan. Exported for tests only.
  */
 export function checkAfterRender(
@@ -1325,7 +1327,7 @@ async function nextDuePages(
   limit: number,
 ): Promise<DuePage[]> {
   return await sql.unsafe<DuePage[]>(
-    `SELECT url, content_hash, listed, etag, last_modified, probe_hash,
+    `SELECT url, content_hash, listed, etag_v2, last_modified_v2, probe_hash_v2,
             NOT EXISTS (
               SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.chunks c
                WHERE c.domain = website_urls.domain
@@ -1760,7 +1762,7 @@ async function markPageCrawled(
   await sql.unsafe(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
         SET last_crawled_at = NOW(),
-            etag = $3, last_modified = $4, probe_hash = $5
+            etag_v2 = $3, last_modified_v2 = $4, probe_hash_v2 = $5
       WHERE domain = $1 AND url = $2`,
     [domain, url, check.etag, check.lastModified, check.probeHash],
   );
@@ -1793,7 +1795,7 @@ async function markPageUnchanged(
   await sql.unsafe(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
         SET ${cleared},
-            etag = $3, last_modified = $4, probe_hash = $5
+            etag_v2 = $3, last_modified_v2 = $4, probe_hash_v2 = $5
       WHERE domain = $1 AND url = $2`,
     [domain, url, check.etag, check.lastModified, check.probeHash],
   );
@@ -1822,7 +1824,7 @@ async function purgePageContentIn(
   await tx.unsafe(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
         SET content = NULL, content_hash = NULL, word_count = 0,
-            etag = NULL, last_modified = NULL, probe_hash = NULL,
+            etag_v2 = NULL, last_modified_v2 = NULL, probe_hash_v2 = NULL,
             status = CASE WHEN status = 'deleted' THEN status ELSE 'discovered' END
       WHERE domain = $1 AND url = $2`,
     [domain, url],

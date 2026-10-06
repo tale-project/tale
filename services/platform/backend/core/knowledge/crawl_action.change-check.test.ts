@@ -4,7 +4,10 @@ import { computeContentHash } from '@tale/shared/utils/hashing';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { EMPTY_ROBOTS_POLICY } from '../../../lib/knowledge/crawl-parse';
+import {
+  EMPTY_ROBOTS_POLICY,
+  plainTextCoverage,
+} from '../../../lib/knowledge/crawl-parse';
 import { htmlToText } from '../../../lib/knowledge/html-to-text';
 import { safeFetchBinary } from '../../../lib/net/safe-fetch';
 import type { ActionCtx } from '../lib/ctx';
@@ -121,7 +124,9 @@ const settled = (check: {
   last_modified: null,
   probe_hash: null,
   indexed: true,
-  ...check,
+  etag_v2: check.etag ?? null,
+  last_modified_v2: check.last_modified ?? null,
+  probe_hash_v2: check.probe_hash ?? null,
 });
 
 const sentHeaders = (): Record<string, string> => {
@@ -329,7 +334,7 @@ describe('fetchAndStorePage — a server that gives no modification time', () =>
       statement.text.includes('SET content = NULL'),
     );
     expect(purge?.text).toContain(
-      'etag = NULL, last_modified = NULL, probe_hash = NULL',
+      'etag_v2 = NULL, last_modified_v2 = NULL, probe_hash_v2 = NULL',
     );
   });
 
@@ -409,8 +414,16 @@ describe('checkAfterRender', () => {
   });
 
   it('does not save a fast-path check when a small rendered widget is missing', () => {
-    const rendered = `${plain} widget update`;
-    expect(checkAfterRender(found, rendered)).toEqual({
+    const longPlain = `${plain} Every reader receives the latest guidance on each visit.`;
+    const rendered = `${longPlain} widget update`;
+    expect(plainTextCoverage(longPlain, rendered)).toBeGreaterThanOrEqual(0.9);
+    expect(plainTextCoverage(longPlain, rendered)).toBeLessThan(1);
+    expect(
+      checkAfterRender(
+        { ...found, text: longPlain, hash: computeContentHash(longPlain) },
+        rendered,
+      ),
+    ).toEqual({
       etag: null,
       lastModified: null,
       probeHash: null,
@@ -515,7 +528,7 @@ describe('scanWebsiteImpl — a page that changed', () => {
     statements.find(
       (statement) =>
         statement.text.includes('last_crawled_at = NOW()') &&
-        statement.text.includes('probe_hash = $5'),
+        statement.text.includes('probe_hash_v2 = $5'),
     );
 
   it('reads what a page is checked by out of the frontier, with whether its text is indexed', async () => {
@@ -528,7 +541,9 @@ describe('scanWebsiteImpl — a page that changed', () => {
     const frontier = statements.find((statement) =>
       statement.text.startsWith('SELECT url, content_hash, listed'),
     );
-    expect(frontier?.text).toContain('etag, last_modified, probe_hash');
+    expect(frontier?.text).toContain(
+      'etag_v2, last_modified_v2, probe_hash_v2',
+    );
     expect(frontier?.text).toContain(
       'c.content_hash IS DISTINCT FROM website_urls.content_hash ) AS indexed',
     );
@@ -573,6 +588,64 @@ describe('scanWebsiteImpl — a page that changed', () => {
       hashOf(now),
     ]);
   });
+
+  it.each(['hash', 'validators'])(
+    'renders a legacy partial-coverage check instead of trusting its %s',
+    async (mode) => {
+      const words = `${TEXT_V1} Every reader receives the latest guidance on each visit.`;
+      const plainHtml = body(words, 'a');
+      const oldHtml = body(`${words} widget old`, 'a');
+      const newHtml = body(`${words} widget update`, 'b');
+      expect(
+        plainTextCoverage(htmlToText(plainHtml), htmlToText(oldHtml)),
+      ).toBeGreaterThanOrEqual(0.9);
+      expect(
+        plainTextCoverage(htmlToText(plainHtml), htmlToText(oldHtml)),
+      ).toBeLessThan(1);
+      const { sql, statements } = scanCorpus({
+        ...settled({}),
+        content_hash: hashOf(oldHtml),
+        // Pre-v2 data, including a hash that would match the unchanged probe.
+        probe_hash: hashOf(plainHtml),
+        etag: mode === 'validators' ? '"shell"' : null,
+        last_modified:
+          mode === 'validators' ? 'Fri, 10 Jul 2026 09:11:16 GMT' : null,
+      });
+      vi.mocked(getKnowledgePoolForOrg).mockResolvedValue(sql);
+      vi.mocked(safeFetchBinary).mockImplementation(async (_url, options) => {
+        const conditional = options?.headers?.['If-None-Match'];
+        return {
+          status: conditional === undefined ? 200 : 304,
+          statusText: 'OK',
+          finalUrl: URL,
+          headers: new Headers({
+            'content-type': 'text/html',
+            etag: '"shell"',
+          }),
+          body: new Blob([conditional === undefined ? plainHtml : '']),
+        };
+      });
+      shows(newHtml);
+
+      await scanWebsiteImpl(engineCtx(), SCAN);
+
+      expect(sentHeaders()['If-None-Match']).toBeUndefined();
+      expect(sentHeaders()['If-Modified-Since']).toBeUndefined();
+      expect(renderUrlsInSandbox).toHaveBeenCalledTimes(1);
+      const stored = statements.find((statement) =>
+        statement.text.includes('SET content = $3'),
+      );
+      expect(stored?.params).toContain(htmlToText(newHtml));
+      expect(stored?.params).toContain(hashOf(newHtml));
+      expect(settledWrite(statements)?.params).toEqual([
+        DOMAIN,
+        URL,
+        null,
+        null,
+        null,
+      ]);
+    },
+  );
 
   it('keeps nothing to check a page by when only the browser could read it', async () => {
     const shell = body('Loading…', 'a');
