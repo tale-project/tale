@@ -162,7 +162,7 @@ const INITIAL_MESSAGE = {
  * the loser on the winner's row so the ingest treats the mail as already
  * landed — never a failed pass, never the mail twice.
  */
-describe('ingest writers — the loser of a Message-ID race', () => {
+describe('ingest writers — the loser of a Message-ID race [CONV-R6]', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('createConversationWithMessage answers the row the Message-ID already landed on', async () => {

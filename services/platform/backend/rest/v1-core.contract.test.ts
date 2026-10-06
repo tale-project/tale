@@ -291,7 +291,7 @@ describe('a trashed contact', () => {
   });
 });
 
-describe('POST /knowledge/search without an embedding model', () => {
+describe('POST /knowledge/search without an embedding model [KNOW-R10]', () => {
   it('answers the documented 409 with the domain code', async () => {
     vi.mocked(searchKnowledgeForOrg).mockRejectedValueOnce(
       new KnowledgeError(
@@ -313,7 +313,7 @@ describe('POST /knowledge/search without an embedding model', () => {
   });
 });
 
-describe('POST /knowledge/search when the embedding provider fails', () => {
+describe('POST /knowledge/search when the embedding provider fails [KNOW-R12]', () => {
   it('answers 409 for an account refusal (balance or plan), never a 429', async () => {
     vi.mocked(searchKnowledgeForOrg).mockRejectedValueOnce(
       new KnowledgeError(
@@ -611,7 +611,7 @@ describe('knowledge search resource scope', () => {
     ['/knowledge/search', [], true, 'all'],
     ['/projects/p-1/knowledge/search', ['p-1'], false, 'documents'],
   ])(
-    'limits %s to the caller and the URL scope',
+    'limits %s to the caller and the URL scope [KNOW-R3]',
     async (route, projectIds, includeHub, corpus) => {
       vi.mocked(searchKnowledgeForOrg).mockReset();
       vi.mocked(searchKnowledgeForOrg).mockResolvedValueOnce({
@@ -650,7 +650,7 @@ describe('knowledge search resource scope', () => {
   );
 
   it.each(['/knowledge/search', '/projects/p-1/knowledge/search'])(
-    'rejects payload scope on %s',
+    'rejects payload scope on %s [KNOW-R3]',
     async (route) => {
       vi.mocked(searchKnowledgeForOrg).mockClear();
       const { app } = mount();
@@ -664,7 +664,7 @@ describe('knowledge search resource scope', () => {
   );
 
   it.each([null, { organizationId: 'other-org' }, { teamId: 'private-team' }])(
-    'hides inaccessible projects before retrieval: %s',
+    'hides inaccessible projects before retrieval: %s [KNOW-R3]',
     async (project) => {
       vi.mocked(searchKnowledgeForOrg).mockClear();
       const { app } = mount({ project, role: 'member' });
@@ -685,6 +685,50 @@ describe('knowledge search resource scope', () => {
       json('POST', { query: 'refunds', corpus: 'web' }),
     );
     expect(res.status).toBe(400);
+    expect(searchKnowledgeForOrg).not.toHaveBeenCalled();
+  });
+});
+
+describe('knowledge search size limits', () => {
+  it('takes a query of 2,000 characters and a page of 50 [KNOW-R13]', async () => {
+    vi.mocked(searchKnowledgeForOrg).mockReset();
+    vi.mocked(searchKnowledgeForOrg).mockResolvedValueOnce({
+      hits: [],
+      diagnostics: {
+        bm25: true,
+        dense: true,
+        reranked: false,
+        cached: false,
+        admitted: 0,
+        legs: {},
+      },
+    });
+    const { app } = mount();
+    const res = await app.request(
+      'http://localhost/knowledge/search',
+      json('POST', { query: 'q'.repeat(2000), limit: 50 }),
+    );
+    expect(res.status).toBe(200);
+    expect(searchKnowledgeForOrg).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ query: 'q'.repeat(2000), limit: 50 }),
+    );
+  });
+
+  it.each([
+    ['a query of 2,001 characters', { query: 'q'.repeat(2001) }],
+    ['a query of spaces alone', { query: '   ' }],
+    ['a page of 51', { query: 'refunds', limit: 51 }],
+    ['a page of 0', { query: 'refunds', limit: 0 }],
+  ])('refuses %s before it searches [KNOW-R13]', async (_case, body) => {
+    vi.mocked(searchKnowledgeForOrg).mockClear();
+    const { app } = mount();
+    const res = await app.request(
+      'http://localhost/knowledge/search',
+      json('POST', body),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
     expect(searchKnowledgeForOrg).not.toHaveBeenCalled();
   });
 });

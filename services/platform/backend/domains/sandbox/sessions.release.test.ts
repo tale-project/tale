@@ -55,7 +55,7 @@ afterEach(() => {
 });
 
 describe('releaseProjectAgentSessionSlot', () => {
-  it('hibernates the owner-keyed session behind the running-op and pinned guards', async () => {
+  it('hibernates the owner-keyed session behind the running-op and pinned guards [SBX-R10]', async () => {
     const { sql, statements } = fakeSql([{ id: 'row-1' }]);
 
     const released = await releaseProjectAgentSessionSlot(sql, ARGS);

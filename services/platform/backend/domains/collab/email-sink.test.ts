@@ -70,7 +70,7 @@ function fakeSql(world: { taskId: string | null; readers: string[] }): {
 
 const PAYLOAD = { notificationId: 'n-1', epoch: 2 };
 
-describe('the notification email sink', () => {
+describe('the notification email sink [COLLAB-R2]', () => {
   beforeEach(() => {
     vi.mocked(runConnectorAction).mockReset();
     vi.mocked(runConnectorAction).mockResolvedValue({

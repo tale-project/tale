@@ -101,7 +101,7 @@ describe('collectAllApplicableRules', () => {
   });
 });
 
-describe('checkRuleAgainstUsage', () => {
+describe('checkRuleAgainstUsage [GOV-R4]', () => {
   it('returns null when no limits are set', () => {
     const rule: BudgetRule = { scope: 'default', period: 'monthly' };
     const result = checkRuleAgainstUsage(rule, {
@@ -206,7 +206,7 @@ describe('checkRuleAgainstUsage', () => {
 });
 
 describe('resolveEffectiveLimits', () => {
-  it('uses user-scoped limits as highest priority', () => {
+  it('uses user-scoped limits as highest priority [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       { scope: 'default', period: 'monthly', maxTokens: 500_000 },
       {
@@ -220,7 +220,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxTokens).toBe(1_000_000);
   });
 
-  it('falls back to team-scoped limits when no user limit', () => {
+  it('falls back to team-scoped limits when no user limit [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       { scope: 'default', period: 'monthly', maxTokens: 500_000 },
       {
@@ -239,7 +239,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxTokens).toBe(750_000);
   });
 
-  it('falls back to role-scoped limits when no user or team limit', () => {
+  it('falls back to role-scoped limits when no user or team limit [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       { scope: 'default', period: 'monthly', maxTokens: 500_000 },
       {
@@ -253,7 +253,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxTokens).toBe(600_000);
   });
 
-  it('falls back to default when no more specific limits exist', () => {
+  it('falls back to default when no more specific limits exist [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       { scope: 'default', period: 'monthly', maxTokens: 500_000 },
     ];
@@ -261,7 +261,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxTokens).toBe(500_000);
   });
 
-  it('resolves each limit field independently', () => {
+  it('resolves each limit field independently [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       { scope: 'default', period: 'monthly', maxCostCents: 10_000 },
       {
@@ -286,7 +286,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxRequests).toBeUndefined();
   });
 
-  it('picks the strictest team rule for multi-team users', () => {
+  it('picks the strictest team rule for multi-team users [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       {
         scope: 'team',
@@ -312,7 +312,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxTokens).toBe(500_000);
   });
 
-  it("returns the team's own caps as its shared teamLimits entry", () => {
+  it("returns the team's own caps as its shared teamLimits entry [GOV-R2]", () => {
     const rules: BudgetRule[] = [
       {
         scope: 'team',
@@ -332,7 +332,7 @@ describe('resolveEffectiveLimits', () => {
     ]);
   });
 
-  it('keeps the team shared cap in force when a user rule wins the personal tier', () => {
+  it('keeps the team shared cap in force when a user rule wins the personal tier [GOV-R2]', () => {
     const rules: BudgetRule[] = [
       {
         scope: 'user',
@@ -388,7 +388,7 @@ describe('resolveEffectiveLimits', () => {
     ]);
   });
 
-  it('measures each team against its own rule, and the person against the strictest', () => {
+  it('measures each team against its own rule, and the person against the strictest [GOV-R2]', () => {
     const rules: BudgetRule[] = [
       {
         scope: 'team',
@@ -648,7 +648,7 @@ describe('collectAllApplicableRules — apiKey scope', () => {
   });
 });
 
-describe('resolveEffectiveLimits — apiKey scope (independent bucket)', () => {
+describe('resolveEffectiveLimits — apiKey scope (independent bucket) [GOV-R3]', () => {
   it('resolves apiKey caps into their own bucket, not the per-user tier', () => {
     const rules: BudgetRule[] = [
       {

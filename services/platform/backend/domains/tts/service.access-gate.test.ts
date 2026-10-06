@@ -66,7 +66,7 @@ function answers(opts: { owner: string; messageInThread: boolean }): Answer {
   };
 }
 
-describe('synthesizeChunk — the message must belong to the thread', () => {
+describe('synthesizeChunk — the message must belong to the thread [TTS-R1]', () => {
   it('refuses a messageId that is not a row of the (owned) thread, and audits it', async () => {
     const log: { text: string; values: unknown[] }[] = [];
     const sql = fakeSql(answers({ owner: OWNER, messageInThread: false }), log);
@@ -132,7 +132,7 @@ describe('synthesizeChunk — the message must belong to the thread', () => {
   });
 });
 
-describe('getChunkForServe — ownership gate, not org membership', () => {
+describe('getChunkForServe — ownership gate, not org membership [TTS-R2]', () => {
   it('serves a ready chunk to the owner of its thread', async () => {
     const log: { text: string; values: unknown[] }[] = [];
     const sql = fakeSql(answers({ owner: OWNER, messageInThread: true }), log);

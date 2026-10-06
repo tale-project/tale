@@ -64,7 +64,7 @@ describe('decodeImageProxyTarget', () => {
     ['a javascript: URL', btoa('javascript:alert(1)')],
     ['a file: URL', btoa('file:///etc/passwd')],
     ['a data: URL', btoa('data:image/png;base64,AAAA')],
-  ])('refuses %s as INVALID_IMAGE_URL', (_label, param) => {
+  ])('refuses %s as INVALID_IMAGE_URL [IMGPX-R3]', (_label, param) => {
     expect(() => decodeImageProxyTarget(param)).toThrow(
       expect.objectContaining({ code: 'INVALID_IMAGE_URL', status: 400 }),
     );
@@ -72,7 +72,11 @@ describe('decodeImageProxyTarget', () => {
 });
 
 describe('fetchProxiedImage', () => {
-  it('asks with no credential, capped, and answers the type the bytes are', async () => {
+  it('caps an image at 10 MB [IMGPX-R6]', () => {
+    expect(IMAGE_PROXY_MAX_BYTES).toBe(10 * 1024 * 1024);
+  });
+
+  it('asks with no credential, capped, and answers the type the bytes are [IMGPX-R4] [IMGPX-R7]', async () => {
     const fetchBinary = answering(PNG, { type: 'application/octet-stream' });
 
     const image = await fetchProxiedImage(TARGET, fetchBinary);
@@ -103,7 +107,7 @@ describe('fetchProxiedImage', () => {
       '<!doctype html><p>hi</p>',
       'image/png',
     ],
-  ])('refuses %s as NOT_AN_IMAGE', async (_label, body, type) => {
+  ])('refuses %s as NOT_AN_IMAGE [IMGPX-R7]', async (_label, body, type) => {
     const refusal = await refusalOf(
       fetchProxiedImage(TARGET, answering(body, { type })),
     );
@@ -157,8 +161,13 @@ describe('fetchProxiedImage', () => {
     ['invalid_url', 'INVALID_IMAGE_URL', 400],
     ['network_error', 'IMAGE_FETCH_FAILED', 502],
     ['tls_error', 'IMAGE_FETCH_FAILED', 502],
-  ] as const)('answers a %s refusal as %s (%i)', async (kind, code, status) => {
-    const refusal = await refusalOf(fetchProxiedImage(TARGET, refusing(kind)));
-    expect(refusal).toMatchObject({ code, status });
-  });
+  ] as const)(
+    'answers a %s refusal as %s (%i) [IMGPX-R5] [IMGPX-R6]',
+    async (kind, code, status) => {
+      const refusal = await refusalOf(
+        fetchProxiedImage(TARGET, refusing(kind)),
+      );
+      expect(refusal).toMatchObject({ code, status });
+    },
+  );
 });

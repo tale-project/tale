@@ -98,7 +98,7 @@ afterEach(() => {
 const updateOf = (statements: Statement[]): Statement | undefined =>
   statements.find((s) => s.text.startsWith('UPDATE app.documents SET'));
 
-describe('updateDocument metadata', () => {
+describe('updateDocument metadata [DOC-R9]', () => {
   it('merges the patch into the stored bag per RFC 7396', async () => {
     const { tx, statements } = fakeTx();
     await updateDocument(tx, auth, {
@@ -125,7 +125,7 @@ describe('updateDocument metadata', () => {
   });
 });
 
-describe('updateDocument no-op', () => {
+describe('updateDocument no-op [DOC-R9]', () => {
   it('writes nothing and emits nothing for an empty patch', async () => {
     const { tx, statements } = fakeTx();
     const result = await updateDocument(tx, auth, { documentId: 'doc-1' });
@@ -201,7 +201,7 @@ describe('updateDocument folder move', () => {
   const authIn = { ...auth, role: 'editor', teamIds: ['team-product'] };
   const authOut = { ...auth, role: 'editor', teamIds: ['team-sales'] };
 
-  it('refuses a destination folder the caller cannot see', async () => {
+  it('refuses a destination folder the caller cannot see [DOC-R7]', async () => {
     const { tx, statements } = fakeTx(HUB_DOC, { folder: teamFolder });
     await expect(
       updateDocument(tx, authOut, {
@@ -212,7 +212,7 @@ describe('updateDocument folder move', () => {
     expect(updateOf(statements)).toBeUndefined();
   });
 
-  it('lets an admin file into a team folder they are not a member of', async () => {
+  it('lets an admin file into a team folder they are not a member of [DOC-R7]', async () => {
     // Owners and admins see every audience (`canSeeAudience`), so the folder
     // rule never hides a destination from them — the document still takes
     // the folder's audience, as for anyone else.
@@ -224,7 +224,7 @@ describe('updateDocument folder move', () => {
     expect(updateOf(statements)?.values).toContainEqual(['team-product']);
   });
 
-  it('stamps the folder team onto a document moved into a team folder', async () => {
+  it('stamps the folder team onto a document moved into a team folder [DOC-R8]', async () => {
     const { tx, statements } = fakeTx(HUB_DOC, { folder: teamFolder });
     await updateDocument(tx, authIn, {
       documentId: 'doc-1',
@@ -249,7 +249,7 @@ describe('updateDocument folder move', () => {
     expect(update?.values).not.toContain('team-product');
   });
 
-  it('keeps a team document’s audience on a plain move to an org-wide folder — nothing is re-validated', async () => {
+  it('keeps a team document’s audience on a plain move to an org-wide folder — nothing is re-validated [DOC-R8]', async () => {
     // The document's existing teams are not a request: an editor in sales
     // moves a sales document into an org-wide folder and it stays sales —
     // no team read, no `TEAM_ACCESS_DENIED` for a team they are not in.
@@ -270,7 +270,7 @@ describe('updateDocument folder move', () => {
     expect(update?.values).not.toContainEqual(['team-sales']);
   });
 
-  it('re-stamps a team document moved into another team’s folder with that folder’s audience', async () => {
+  it('re-stamps a team document moved into another team’s folder with that folder’s audience [DOC-R8]', async () => {
     const salesDoc = {
       ...HUB_DOC,
       teamId: 'team-sales',
@@ -289,7 +289,7 @@ describe('updateDocument folder move', () => {
     expect(updateOf(statements)?.values).toContainEqual(['team-product']);
   });
 
-  it('lets a document leave a folder for the root', async () => {
+  it('lets a document leave a folder for the root [DOC-R7]', async () => {
     const inFolder = { ...HUB_DOC, folderId: 'folder-org' };
     const { tx, statements } = fakeTx(inFolder, { folder: orgFolder });
     await updateDocument(tx, authIn, {

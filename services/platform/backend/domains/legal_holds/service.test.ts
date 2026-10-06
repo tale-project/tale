@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 describe('legal-hold release anti-chaining delay', () => {
-  it('returns the remaining time when a different admin approves too soon', async () => {
+  it('returns the remaining time when a different admin approves too soon [HOLD-R3]', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
     const statements: string[] = [];
     const tag = (parts: TemplateStringsArray) => {

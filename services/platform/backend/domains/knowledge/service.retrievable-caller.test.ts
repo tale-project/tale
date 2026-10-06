@@ -116,7 +116,7 @@ async function dispatch(
   return result as string[];
 }
 
-describe('filterRetrievableRagFileIds through the shim', () => {
+describe('filterRetrievableRagFileIds through the shim [KNOW-R5]', () => {
   const assigned = {
     id: 'conv-1',
     assigneeUserId: 'u-assignee',

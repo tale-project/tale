@@ -13,7 +13,7 @@ workspace and its build/test commands.
 | Process startup, shutdown and roles | `main.ts`, `env.ts`, `http-shutdown.ts` |
 | Browser-facing domain routes and SQL services | `domains/` |
 | Who a billable call is booked under (the usage ledger's billing subject) | [`domains/governance/README.md`](domains/governance/README.md) |
-| What a domain guarantees, rule by rule, and the test that holds each rule | [`domains/spec-template.md`](domains/spec-template.md); the first spec is [`domains/tasks/spec.md`](domains/tasks/spec.md) |
+| What a domain guarantees, rule by rule, and the test that holds each rule | [`domains/spec-template.md`](domains/spec-template.md); every domain has its own `domains/<domain>/spec.md`, [`domains/tasks/spec.md`](domains/tasks/spec.md) being the first |
 | Public REST resources and error contracts | `rest/` |
 | Accounts, sessions, membership and native identity | `auth/` |
 | Durable jobs, schedules and queue policies | `jobs/` |

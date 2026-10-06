@@ -188,7 +188,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('ingestVideoUrl in-flight cap', () => {
+describe('ingestVideoUrl in-flight cap [VID-R4]', () => {
   it('locks the org, counts and inserts inside one transaction', async () => {
     const fake = fakeSql({ inFlight: 2 });
 
@@ -226,7 +226,7 @@ describe('ingestVideoUrl in-flight cap', () => {
   });
 });
 
-describe('retryVideoLink in-flight cap', () => {
+describe('retryVideoLink in-flight cap [VID-R4]', () => {
   it('re-queues only after the locked count inside the transaction', async () => {
     const fake = fakeSql({ inFlight: 2, jobs: [jobRow({})] });
 

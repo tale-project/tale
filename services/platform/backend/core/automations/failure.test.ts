@@ -19,7 +19,7 @@ import {
   RUN_FAILURE_CODES,
 } from './failure.ts';
 
-describe('isPermanentFailureCode', () => {
+describe('isPermanentFailureCode [AUTO-R13]', () => {
   it.each([
     'node_error',
     'connector_error',
@@ -106,5 +106,12 @@ describe('PERMANENT_FAILURES_BEFORE_PAUSE', () => {
     // The copy that names it ("{failures} runs in a row") reads as plural,
     // and one failure is no pattern.
     expect(PERMANENT_FAILURES_BEFORE_PAUSE).toBeGreaterThanOrEqual(2);
+  });
+
+  it('is five, the number the trigger docs and the manual suite give [AUTO-R13]', () => {
+    // "After five such failures in a row" (docs/en/platform/automations/
+    // triggers.md) and "After the fifth" (AUTO-F52): moving the number
+    // moves both.
+    expect(PERMANENT_FAILURES_BEFORE_PAUSE).toBe(5);
   });
 });

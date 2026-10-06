@@ -65,6 +65,8 @@ Write **Instructions** that define responsibility, evidence and boundaries. For 
 
 If the work needs **Secrets**, an Owner or Admin grants named organization credentials. The running agent can read their values, so use narrowly scoped, replaceable tokens. Shared names affect other agents and workflow nodes when their underlying value changes. A run a Member starts gets none of these secrets, nor the token of an equipped GitHub connection: an Editor or higher has to start work that needs them.
 
+For a private repository, use a key restricted to that repository and state the allowed Git operations in the agent's instructions. Credentialed turns use the workspace owner's Git author name and email even without a GitHub connector grant. Keep SSH host verification enabled; a self-hosted sandbox routes repository SSH through its existing proxy as described in [SSH repository access](/self-hosted/configuration/environment-reference#ssh-repository-access).
+
 Select **Create agent**. Check the new row’s runtime, provider and model, then reopen it if you need to inspect the saved equipment or instructions.
 
 </Step>

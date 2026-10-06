@@ -65,6 +65,8 @@ Rédige des **Instructions** qui définissent responsabilité, preuves et limite
 
 Si le travail demande des **Secrets**, un Propriétaire ou Admin accorde des identifiants nommés de l’organisation. L’agent en cours peut lire leurs valeurs : utilise des jetons limités et remplaçables. Modifier une valeur partagée affecte aussi les autres agents et nœuds de workflow qui utilisent ce nom. Une exécution qu’un Membre démarre ne reçoit aucun de ces secrets, ni le jeton d’une connexion GitHub équipée : un Éditeur ou un rôle supérieur doit démarrer le travail qui en a besoin.
 
+Pour un repository privé, utilise une clé limitée à ce repository et précise les opérations Git autorisées dans les instructions de l’agent. Les exécutions équipées d’identifiants utilisent le nom et l’e-mail Git du propriétaire de l’espace de travail, même sans accès accordé au connector GitHub. Garde la vérification de l’hôte SSH activée. Un sandbox auto-hébergé fait passer le SSH du repository par son proxy existant ; [Accès SSH aux repositories](/fr/self-hosted/configuration/environment-reference#ssh-repository-access) décrit la configuration.
+
 Choisis **Créer l'agent**. Vérifie l’environnement, le fournisseur et le modèle de la nouvelle ligne. Rouvre l’agent pour examiner l’équipement et les instructions enregistrés.
 
 </Step>

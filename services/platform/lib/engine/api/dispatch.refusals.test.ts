@@ -205,7 +205,7 @@ describe('every refusal carries a code and a hint', () => {
     expect(result.hint).toMatch(/\S/);
   });
 
-  it('the deploy gate names failing tests, and records the verdict on the version', async () => {
+  it('the deploy gate names failing tests, and records the verdict on the version [AUTO-R4]', async () => {
     vi.mocked(runAutomationTests).mockResolvedValueOnce({
       passed: 0,
       failed: 1,

@@ -25,7 +25,7 @@ const BASE = {
   conversationId: 'conv_1',
 };
 
-describe('draftReplyToConversation', () => {
+describe('draftReplyToConversation [CONV-R12]', () => {
   it('refuses an empty body before opening a transaction', async () => {
     await expect(
       draftReplyToConversation(sqlThatMustNotRun(), {
@@ -86,7 +86,7 @@ function txDouble(
   return { tx: tx as unknown as TransactionSql, statements };
 }
 
-describe('completePendingDraftInTx', () => {
+describe('completePendingDraftInTx [CONV-R12]', () => {
   // The API lane used to skip this: a sent and acknowledged reply left the
   // draft pending, so the composer re-offered it on every reload (CONV-F13).
   it('completes the pending draft with the send receipt', async () => {

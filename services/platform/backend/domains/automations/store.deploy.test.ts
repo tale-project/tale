@@ -112,7 +112,7 @@ describe('deploy — the tests verdict', () => {
     expect(deployed(fake.statements)).toBe(false);
   });
 
-  it('stamps nothing when the gate ran no tests', async () => {
+  it('stamps nothing when the gate ran no tests [AUTO-R4]', async () => {
     const fake = fakeStore(null);
     await deploy(fake.sql, args);
     expect(stamp(fake.statements)).toBeUndefined();

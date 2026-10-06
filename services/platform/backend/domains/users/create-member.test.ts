@@ -158,7 +158,7 @@ function transactionWrites(statements: Statement[]): string[] {
 }
 
 describe('createMember', () => {
-  it('adds an existing user through addMember: member row, add_member audit and member hint in one tx', async () => {
+  it('adds an existing user through addMember: member row, add_member audit and member hint in one tx [USER-R9]', async () => {
     const { sql, statements } = createRecordingSql({
       callerRole: 'admin',
       existingUser: true,
@@ -199,7 +199,7 @@ describe('createMember', () => {
     expect(hint?.values).toEqual([ORG_ID, null, 'member', EXISTING_USER_ID]);
   });
 
-  it('signs a new user up, then adds them and anchors the forced password change in one tx', async () => {
+  it('signs a new user up, then adds them and anchors the forced password change in one tx [USER-R9]', async () => {
     const { sql, statements } = createRecordingSql({
       callerRole: 'owner',
       existingUser: false,
@@ -245,7 +245,7 @@ describe('createMember', () => {
     expect(anchor?.values).toEqual(expect.arrayContaining([NEW_USER_ID, true]));
   });
 
-  it('refuses a duplicate membership with the members domain code and writes nothing', async () => {
+  it('refuses a duplicate membership with the members domain code and writes nothing [USER-R8]', async () => {
     const { sql, statements } = createRecordingSql({
       callerRole: 'admin',
       existingUser: true,
@@ -263,7 +263,7 @@ describe('createMember', () => {
     expect(statements.filter(isWrite)).toEqual([]);
   });
 
-  it('refuses a non-admin caller before any sign-up or write', async () => {
+  it('refuses a non-admin caller before any sign-up or write [USER-R7]', async () => {
     const { sql, statements } = createRecordingSql({
       callerRole: 'member',
       existingUser: false,

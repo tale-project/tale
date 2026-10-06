@@ -16,7 +16,7 @@ function email(overrides: Partial<EmailType> = {}): EmailType {
   };
 }
 
-describe('parseThreadReferenceIds', () => {
+describe('parseThreadReferenceIds [CONV-R5]', () => {
   it('returns empty when only references are present (no in-reply-to)', () => {
     const ids = parseThreadReferenceIds(
       email({

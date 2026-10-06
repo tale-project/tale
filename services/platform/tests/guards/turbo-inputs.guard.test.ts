@@ -105,11 +105,15 @@ const OUTSIDE_READS = [
     readers: 'backend/core/connector_credentials/catalog_docs.test.ts',
   },
   {
-    // The user docs' task page, which states the task caps in each locale
-    // and is the Docs page the tasks domain spec links.
+    // The user docs' task page, which states the task caps in each locale.
     path: 'docs/*/platform/projects/tasks.md',
-    readers:
-      'backend/core/tasks/limits_docs.test.ts and tests/guards/domain-specs.guard.test.ts',
+    readers: 'backend/core/tasks/limits_docs.test.ts',
+  },
+  {
+    // The Docs page a domain spec links: the guard holds each link to a page
+    // that exists, so a page that moves must turn its verdict.
+    path: 'docs/en/platform',
+    readers: 'tests/guards/domain-specs.guard.test.ts',
   },
   {
     path: 'knip.config.ts',

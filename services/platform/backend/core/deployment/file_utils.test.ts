@@ -17,7 +17,7 @@ describe('parseDeploymentConfig', () => {
     ).toEqual({ version: 1, sandboxRuntime: { tier: 'runc' } });
   });
 
-  it('drops the retired dataStores section with a warning instead of failing the read', () => {
+  it('drops the retired dataStores section with a warning instead of failing the read [DEPLOY-R4]', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
       const parsed = parseDeploymentConfig(
@@ -48,13 +48,13 @@ describe('parseDeploymentConfig', () => {
     }
   });
 
-  it('still fails closed on any other unknown key', () => {
+  it('still fails closed on any other unknown key [DEPLOY-R4]', () => {
     expect(() => parseDeploymentConfig('version: 1\nbogus: true\n')).toThrow(
       /Invalid deployment config/,
     );
   });
 
-  it('fails closed on a wrong version and on unparseable content', () => {
+  it('fails closed on a wrong version and on unparseable content [DEPLOY-R4]', () => {
     expect(() => parseDeploymentConfig('version: 2\n')).toThrow(
       /Invalid deployment config/,
     );

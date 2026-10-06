@@ -16,7 +16,7 @@ import { isValidErasureReasonCode } from './service';
  * `child` over HTTP) runs in the integration check.
  */
 
-describe('isValidErasureReasonCode', () => {
+describe('isValidErasureReasonCode [ERASE-R7]', () => {
   it('accepts every code the constants module (and the picker) offers', () => {
     for (const code of ERASURE_REASON_CODES) {
       expect(isValidErasureReasonCode(code)).toBe(true);

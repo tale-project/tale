@@ -54,7 +54,7 @@ ARG TARGETARCH
 # jq for the hook scripts (tale-steer-hook, tale-plan-gate,
 # tale-vision-read-hook), ca-certificates for HTTPS to pypi/npm via
 # the egress proxy, bash for user `.sh` steps (Debian slim ships only dash),
-# and the coding-agent tooling: git/ripgrep/fd/curl/procps for the session
+# and the coding-agent tooling: git/OpenSSH/netcat/ripgrep/fd/curl/procps for the session
 # role, plus the Playwright system libraries (Chromium needs them to launch
 # headless — installed here because read-only-root + non-root can't add them
 # at runtime).
@@ -65,6 +65,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       jq \
       bash \
       git \
+      openssh-client \
+      netcat-openbsd \
       ripgrep \
       fd-find \
       curl \

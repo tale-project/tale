@@ -81,6 +81,8 @@ export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
   restored: 'activity.restored',
   reordered: 'activity.reordered',
   'status.changed': 'activity.statusChanged',
+  'external_status.projected': 'activity.externalStatusProjected',
+  'external_status.requested': 'activity.externalStatusRequested',
   'assignee.changed': 'activity.assigneeChanged',
   'title.changed': 'activity.titleChanged',
   'description.changed': 'activity.descriptionChanged',
@@ -151,6 +153,8 @@ export interface TaskActivityField {
 export const TASK_ACTIVITY_FIELD: Record<string, TaskActivityField> = {
   created: { kind: 'status' },
   'status.changed': { kind: 'status' },
+  'external_status.projected': { kind: 'status' },
+  'external_status.requested': { kind: 'status' },
   // The retired claim door (until 2026-09) stored the claimer's user id.
   claimed: { kind: 'person' },
   'priority.changed': { kind: 'priority', emptyKey: 'priority.none' },

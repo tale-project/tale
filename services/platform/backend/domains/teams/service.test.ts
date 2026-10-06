@@ -87,7 +87,7 @@ beforeEach(() => {
 });
 
 describe('retireTeamScopes', () => {
-  it('drops the team from every audience, re-derives the mirrors, resets queues and sync configs', async () => {
+  it('drops the team from every audience, re-derives the mirrors, resets queues and sync configs [TEAM-R9]', async () => {
     const { tx, statements } = fakeSql(
       changed({
         projects: [
@@ -210,7 +210,7 @@ describe('retireDeletedTeamScopes', () => {
 });
 
 describe('teamDeletionImpact', () => {
-  it('counts what the delete touches and what becomes organization-wide', async () => {
+  it('counts what the delete touches and what becomes organization-wide [TEAM-R8]', async () => {
     const { sql, statements } = fakeSql((statement) =>
       statement.text.startsWith('SELECT t."name"')
         ? [
@@ -250,14 +250,14 @@ describe('teamDeletionImpact', () => {
     expect(read?.values.slice(-2)).toEqual(['t-fin', 'org_1']);
   });
 
-  it('answers null for a team that is not this organization’s', async () => {
+  it('answers null for a team that is not this organization’s [TEAM-R10]', async () => {
     const { sql } = fakeSql(() => []);
     expect(await teamDeletionImpact(sql, 'org_1', 't-other')).toBeNull();
   });
 });
 
 describe('deleteTeamInTx', () => {
-  it('retires the scopes, the provenance, the memberships and the row in one transaction', async () => {
+  it('retires the scopes, the provenance, the memberships and the row in one transaction [TEAM-R9]', async () => {
     const { tx, statements } = fakeSql((statement) => {
       if (statement.text.startsWith('SELECT "id", "name" FROM "team"')) {
         return [{ id: 't-fin', name: 'Finance' }];
@@ -310,7 +310,7 @@ describe('deleteTeamInTx', () => {
     });
   });
 
-  it('answers null and writes nothing for a team of another organization', async () => {
+  it('answers null and writes nothing for a team of another organization [TEAM-R10]', async () => {
     const { tx, statements } = fakeSql(() => []);
     expect(await deleteTeamInTx(tx, 'org_1', 't-other')).toBeNull();
     expect(statements).toHaveLength(1);

@@ -158,7 +158,7 @@ afterEach(() => {
 });
 
 describe('runSyncConfigJobWith — failure episode', () => {
-  it('a dead grant stamps needs-reauth, opens the episode and tells the owner at once', async () => {
+  it('a dead grant stamps needs-reauth, opens the episode and tells the owner at once [ODRIVE-R7]', async () => {
     const log = await run(
       HEALTHY,
       adapter({
@@ -200,7 +200,7 @@ describe('runSyncConfigJobWith — failure episode', () => {
     expect(hintEntities()).toEqual(['folder']);
   });
 
-  it('a retryable failure opens the episode without a notice, then notifies once it is an hour old', async () => {
+  it('a retryable failure opens the episode without a notice, then notifies once it is an hour old [ODRIVE-R8]', async () => {
     const throttled = adapter({
       listFolderContents: () =>
         Promise.resolve({ success: false, error: 'HTTP 503 throttled' }),
@@ -264,7 +264,7 @@ describe('runSyncConfigJobWith — failure episode', () => {
     expect(hintEntities()).toEqual([]);
   });
 
-  it('a successful run closes the episode, dismisses the bell and refreshes the page', async () => {
+  it('a successful run closes the episode, dismisses the bell and refreshes the page [ODRIVE-R9]', async () => {
     const failing: SyncConfigRow = {
       ...HEALTHY,
       status: 'error',

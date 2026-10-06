@@ -105,7 +105,7 @@ describe('modelApiWireErrors', () => {
   });
 });
 
-describe('the x-api-key refusal on the model endpoints', () => {
+describe('the x-api-key refusal on the model endpoints [MAPI-R3]', () => {
   it('tells an Anthropic client to send the key as an auth token, in the Anthropic shape', async () => {
     const res = await app().request(
       'http://localhost/api/v1/anthropic/v1/messages',

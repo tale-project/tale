@@ -59,7 +59,7 @@ describe('google_drive getFileMetadata', () => {
     expect(urls[0]).toContain('modifiedTime');
   });
 
-  it('reports a trashed item as not found', async () => {
+  it('reports a trashed item as not found [GDRIVE-R2]', async () => {
     stubDrive(200, {
       id: 'folder-1',
       name: 'Reports',

@@ -116,7 +116,7 @@ describe('assertChatTurnBudget', () => {
     ]);
   });
 
-  it('refuses a reached cap with BUDGET_EXCEEDED, naming the cap and its reset', async () => {
+  it('refuses a reached cap with BUDGET_EXCEEDED, naming the cap and its reset [CHAT-R6]', async () => {
     gate.violation = {
       scope: 'team',
       teamId: 'team_1',

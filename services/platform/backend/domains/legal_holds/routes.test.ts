@@ -69,7 +69,7 @@ describe('legal-hold routes — role doors', () => {
     listActiveHoldTargetIds.mockResolvedValue({ targetIds: [] });
   });
 
-  it('preserves the remaining approval delay in the HTTP error envelope', async () => {
+  it('preserves the remaining approval delay in the HTTP error envelope [HOLD-R3]', async () => {
     approveLegalHoldRelease.mockRejectedValueOnce(
       new LegalHoldError('APPROVAL_TOO_SOON', 'Wait five minutes.', 409, {
         remainingMs: 240_000,
@@ -87,7 +87,7 @@ describe('legal-hold routes — role doors', () => {
     });
   });
 
-  it('GET / lists holds for an admin', async () => {
+  it('GET / lists holds for an admin [HOLD-R1]', async () => {
     const res = await makeApp().request('/?orgId=o1&status=all');
     expect(res.status).toBe(200);
     expect(listLegalHolds).toHaveBeenCalledWith(expect.anything(), 'o1', {
@@ -95,7 +95,7 @@ describe('legal-hold routes — role doors', () => {
     });
   });
 
-  it('GET / refuses a member — the register is the admin surface', async () => {
+  it('GET / refuses a member — the register is the admin surface [HOLD-R1]', async () => {
     viewerRole.current = 'member';
     const res = await makeApp().request('/?orgId=o1&status=all');
     expect(res.status).toBe(403);
@@ -103,7 +103,7 @@ describe('legal-hold routes — role doors', () => {
     expect(listLegalHolds).not.toHaveBeenCalled();
   });
 
-  it('GET /targets stays member-readable (the badge read)', async () => {
+  it('GET /targets stays member-readable (the badge read) [HOLD-R2]', async () => {
     viewerRole.current = 'member';
     const res = await makeApp().request('/targets?orgId=o1&targetType=thread');
     expect(res.status).toBe(200);

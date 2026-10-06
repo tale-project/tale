@@ -102,7 +102,7 @@ describe('GET /recent/:feedbackId/comment', () => {
     });
   });
 
-  it('refuses members before reading comments', async () => {
+  it('refuses members before reading comments [FDBK-R3]', async () => {
     const sql = vi.fn();
     const app = createFeedbackRoutes({ sql: sql as never, auth: {} as never });
     const res = await app.request('/recent/fb-1/comment');
@@ -111,7 +111,7 @@ describe('GET /recent/:feedbackId/comment', () => {
   });
 
   it.each(['active', 'unknown', 'trashed'])(
-    'scopes the %s read by organization and lifecycle',
+    'scopes the %s read by organization and lifecycle [FDBK-R4]',
     async (state) => {
       member.role = 'admin';
       const comment = 'a'.repeat(620) + ' correction ending';
@@ -144,7 +144,7 @@ describe('GET /recent/:feedbackId/comment', () => {
 });
 
 describe('POST /feedback — a message outside the caller reach', () => {
-  it('answers an opaque 404 and records nothing', async () => {
+  it('answers an opaque 404 and records nothing [FDBK-R1]', async () => {
     const app = createFeedbackRoutes({ sql: {} as never, auth: {} as never });
     const res = await app.request('/?orgId=o1', {
       method: 'POST',

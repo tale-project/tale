@@ -300,7 +300,7 @@ describe('dispatch — the shared method table', () => {
     expect(result.hint).toContain('run_deployed');
   });
 
-  it('the deploy gate refuses a version whose tests fail', async () => {
+  it('the deploy gate refuses a version whose tests fail [AUTO-R4]', async () => {
     const store = dispatchStore();
     const broken: Automation = {
       version: 1,

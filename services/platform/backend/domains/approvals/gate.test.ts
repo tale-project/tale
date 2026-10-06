@@ -65,7 +65,7 @@ afterEach(() => {
 });
 
 describe('evaluateApprovalGate', () => {
-  it('claims the pending row with an ON CONFLICT insert and answers with it', async () => {
+  it('claims the pending row with an ON CONFLICT insert and answers with it [APV-R5]', async () => {
     const fake = fakeGate({ records: [[]], inserts: [[{ id: 'a-1' }]] });
 
     const decision = await evaluateApprovalGate(fake.sql, args);
@@ -81,7 +81,7 @@ describe('evaluateApprovalGate', () => {
     expect(insert?.text).toContain('RETURNING id');
   });
 
-  it('answers with the winner card when a concurrent evaluation claimed the operation first', async () => {
+  it('answers with the winner card when a concurrent evaluation claimed the operation first [APV-R5]', async () => {
     const fake = fakeGate({
       // Empty on the first read; the winner's committed row on the re-read.
       records: [[], [{ id: 'a-winner', status: 'pending', metadata: null }]],
@@ -102,7 +102,7 @@ describe('evaluateApprovalGate', () => {
     for (const read of reads) expect(read.text).toContain('FOR UPDATE');
   });
 
-  it('keeps answering a re-entry from the record on file without a new insert', async () => {
+  it('keeps answering a re-entry from the record on file without a new insert [APV-R5]', async () => {
     const fake = fakeGate({
       records: [[{ id: 'a-1', status: 'pending', metadata: null }]],
       inserts: [],
@@ -138,7 +138,7 @@ describe('evaluateApprovalGate', () => {
     expect(fake.statements).toEqual([]);
   });
 
-  it('consumes an approved record to completed on its first pass through', async () => {
+  it('consumes an approved record to completed on its first pass through [APV-R6]', async () => {
     const fake = fakeGate({
       records: [[{ id: 'a-1', status: 'executing', metadata: null }]],
       inserts: [],

@@ -120,7 +120,7 @@ afterEach(() => {
 });
 
 describe('teardownDeletedOrganization', () => {
-  it('refuses a slug a live organization still owns and touches nothing', async () => {
+  it('refuses a slug a live organization still owns and touches nothing [ORG-R9]', async () => {
     const { sql, statements } = fakeSql([{ id: 'org-live' }]);
 
     const result = await teardownDeletedOrganization(sql, SLUG);
@@ -132,7 +132,7 @@ describe('teardownDeletedOrganization', () => {
     expect(statements.some((t) => t.startsWith('DELETE FROM'))).toBe(false);
   });
 
-  it('purges corpus, then blobs in the org namespace, then the config tree, and clears the tombstone last', async () => {
+  it('purges corpus, then blobs in the org namespace, then the config tree, and clears the tombstone last [ORG-R8]', async () => {
     const { sql, statements } = fakeSql([]);
     vi.mocked(s3ListObjectKeys).mockResolvedValue([
       `tenants/${SLUG}/blob-1`,
@@ -184,7 +184,7 @@ describe('teardownDeletedOrganization', () => {
     );
   });
 
-  it('keeps the tombstone and the config tree when the corpus purge fails, so a retry resumes', async () => {
+  it('keeps the tombstone and the config tree when the corpus purge fails, so a retry resumes [ORG-R8]', async () => {
     const { sql, statements } = fakeSql([]);
     vi.mocked(purgeCorpusForOrg).mockRejectedValue(new Error('corpus down'));
 

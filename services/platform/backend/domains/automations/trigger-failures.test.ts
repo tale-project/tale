@@ -235,7 +235,7 @@ afterEach(() => {
   expect(unjudged, 'WHERE conjuncts the fake cannot judge').toEqual([]);
 });
 
-describe('recordTriggerRunOutcome', () => {
+describe('recordTriggerRunOutcome [AUTO-R13]', () => {
   it.each(['user:u_1', 'api-key:u_1', 'u_1', 'trigger:'])(
     'leaves every trigger alone for a run started by %s',
     async (startedBy) => {

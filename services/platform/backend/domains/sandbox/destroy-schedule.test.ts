@@ -63,7 +63,7 @@ describe('scheduleSessionDestroy', () => {
     expect(statements[1]?.values).toEqual(['org-1', 'pa-1']);
   });
 
-  it('queues nothing when the organization holds no row under the id', async () => {
+  it('queues nothing when the organization holds no row under the id [SBX-R3]', async () => {
     const { sql } = fakeSql([]);
     await expect(scheduleSessionDestroy(sql, ARGS)).resolves.toBe(false);
     expect(addJobInTx).not.toHaveBeenCalled();
@@ -77,7 +77,7 @@ describe('scheduleSessionDestroy', () => {
 });
 
 describe('sessionDestroyStates', () => {
-  it('reads an unfinished job as pending and a failed one as failed', async () => {
+  it('reads an unfinished job as pending and a failed one as failed [SBX-R11]', async () => {
     const { sql } = fakeSql([
       { sessionId: 'queued', state: 'created' },
       { sessionId: 'retrying', state: 'retry' },
@@ -122,7 +122,7 @@ describe('sessionDestroyStates', () => {
 });
 
 describe('sessionDestroyPending', () => {
-  it('reads a queued, retrying or running Destroy of a live row under the id', async () => {
+  it('reads a queued, retrying or running Destroy of a live row under the id [SBX-R9]', async () => {
     const { sql, statements } = fakeSql([{ pending: true }]);
     await expect(sessionDestroyPending(sql, ARGS)).resolves.toBe(true);
     const [statement] = statements;

@@ -428,7 +428,7 @@ describe('POST /threads/{id}/messages provider choice', () => {
       body: JSON.stringify({ content: 'Hello', ...body }),
     });
 
-  it('refuses a provider the model list does not carry, and queues nothing', async () => {
+  it('refuses a provider the model list does not carry, and queues nothing [CHAT-R7]', async () => {
     const { sql } = fakeSql();
     const res = await send(sql, {
       model: 'model-a',
@@ -442,7 +442,7 @@ describe('POST /threads/{id}/messages provider choice', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('refuses a listed provider that does not serve the chosen model', async () => {
+  it('refuses a listed provider that does not serve the chosen model [CHAT-R7]', async () => {
     const { sql } = fakeSql();
     const res = await send(sql, {
       model: 'model-b',
@@ -491,7 +491,7 @@ describe('POST /threads/{id}/messages provider choice', () => {
     );
   });
 
-  it('refuses a model the listing does not carry before anything is queued', async () => {
+  it('refuses a model the listing does not carry before anything is queued [CHAT-R7]', async () => {
     const { sql } = fakeSql();
     const res = await send(sql, { model: 'gpt-4o-mini' });
     expect(res.status).toBe(400);
@@ -502,7 +502,7 @@ describe('POST /threads/{id}/messages provider choice', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('holds a model served by two providers until the caller names one', async () => {
+  it('holds a model served by two providers until the caller names one [CHAT-R7]', async () => {
     const { sql } = fakeSql();
     const res = await send(sql, { model: 'shared-model' });
     expect(res.status).toBe(400);
@@ -892,7 +892,7 @@ describe('thread lifecycle', () => {
     },
   );
 
-  it('DELETE trashes the thread, and refuses one mid-turn', async () => {
+  it('DELETE trashes the thread, and refuses one mid-turn [CHAT-R13]', async () => {
     const { sql } = fakeSql();
     const res = await mount(sql).request('http://localhost/threads/t-1', {
       method: 'DELETE',
@@ -973,7 +973,7 @@ describe('thread lifecycle', () => {
     expect(await raced.json()).toMatchObject({ code: 'CHAT_TURN_IN_PROGRESS' });
   });
 
-  it('DELETE refuses a thread whose accepted send is still queued', async () => {
+  it('DELETE refuses a thread whose accepted send is still queued [CHAT-R13]', async () => {
     // The 202 was answered and the worker has not opened the turn: the
     // job would otherwise open a turn on a trashed thread.
     const queued = fakeSql({ queued: true });
@@ -988,7 +988,7 @@ describe('thread lifecycle', () => {
     expect(trashThread).not.toHaveBeenCalled();
   });
 
-  it('DELETE …/generation asks the running turn to stop, and is a 404 when idle', async () => {
+  it('DELETE …/generation asks the running turn to stop, and is a 404 when idle [CHAT-R9]', async () => {
     const busy = fakeSql({ generating: true });
     const res = await mount(busy.sql).request(
       'http://localhost/threads/t-1/generation',
@@ -1036,7 +1036,7 @@ describe('thread lifecycle', () => {
    * the marker names (conditionally — the marker write is the verdict) and
    * the job settles it as cancelled without a model call.
    */
-  it('DELETE …/generation stops a send that is still queued', async () => {
+  it('DELETE …/generation stops a send that is still queued [CHAT-R9]', async () => {
     const { sql, queries } = fakeSql({ queued: true });
     const res = await mount(sql).request(
       'http://localhost/threads/t-1/generation',
@@ -1058,7 +1058,7 @@ describe('thread lifecycle', () => {
 
 describe('POST /threads uses the built-in assistant', () => {
   it.each(['agentSlug', 'agentId', 'projectAgentId'])(
-    'rejects an unsupported %s selector before creating a thread',
+    'rejects an unsupported %s selector before creating a thread [CHAT-R14]',
     async (selector) => {
       const { sql, queries } = fakeSql();
       const response = await mount(sql).request('http://localhost/threads', {
@@ -1075,7 +1075,7 @@ describe('POST /threads uses the built-in assistant', () => {
     },
   );
 
-  it('creates a direct thread with no selector', async () => {
+  it('creates a direct thread with no selector [CHAT-R14]', async () => {
     const { sql } = fakeSql();
     const response = await mount(sql).request('http://localhost/threads', {
       method: 'POST',
@@ -1179,7 +1179,7 @@ describe('POST …/messages — the 202 names the reply and bounds the turn', ()
    * answered 202, overwrote the first send's marker and reply id, and ran
    * a second turn — two bills, and a poll handle stolen from the first.
    */
-  it('refuses a send while an accepted one is still queued, and queues nothing', async () => {
+  it('refuses a send while an accepted one is still queued, and queues nothing [CHAT-R5]', async () => {
     const { sql } = fakeSql({ queued: true });
     const res = await mount(sql).request(
       'http://localhost/threads/t-1/messages',
@@ -1208,7 +1208,7 @@ describe('POST …/messages — the 202 names the reply and bounds the turn', ()
     ['archived', 409, 'CHAT_THREAD_ARCHIVED'],
     ['trashed', 404, 'THREAD_NOT_FOUND'],
   ] as const)(
-    'answers a send whose thread was %s meanwhile with %s %s, and queues nothing',
+    'answers a send whose thread was %s meanwhile with %s %s, and queues nothing [CHAT-R16] [CHAT-R1]',
     async (settledMeanwhile, status, code) => {
       const { sql, queries } = fakeSql({ settledMeanwhile });
       const res = await mount(sql).request(
@@ -1231,7 +1231,7 @@ describe('POST …/messages — the 202 names the reply and bounds the turn', ()
     },
   );
 
-  it('refuses a send while a turn streams — the claim finds no row, no pre-read needed', async () => {
+  it('refuses a send while a turn streams — the claim finds no row, no pre-read needed [CHAT-R5]', async () => {
     const { sql, queries } = fakeSql({ generating: true });
     const res = await mount(sql).request(
       'http://localhost/threads/t-1/messages',
@@ -1282,7 +1282,7 @@ describe('POST …/messages — the 202 names the reply and bounds the turn', ()
    * cap — or their key's — was answered 202 and the turn ran, spending
    * exactly what the cap was there to stop.
    */
-  it('refuses a send over a budget cap with 429, the cap and Retry-After, and queues nothing', async () => {
+  it('refuses a send over a budget cap with 429, the cap and Retry-After, and queues nothing [CHAT-R6]', async () => {
     const sentence =
       "Usage limit reached. This API key's daily request limit is used up until 2026-09-16T00:00:00.000Z.";
     // Just under 91 s ahead: the header rounds the wait up to whole seconds.
@@ -1493,7 +1493,7 @@ describe('POST …/messages — Idempotency-Key', () => {
     ).toBe(true);
   });
 
-  it('answers the remembered 202 with duplicate: true for the same request, and queues nothing', async () => {
+  it('answers the remembered 202 with duplicate: true for the same request, and queues nothing [CHAT-R15]', async () => {
     const response = {
       threadId: 't-1',
       status: 'accepted',
@@ -1524,7 +1524,7 @@ describe('POST …/messages — Idempotency-Key', () => {
     ).toBe(false);
   });
 
-  it('refuses a key outside printable ASCII with 400 INVALID_HEADER, claiming and queueing nothing', async () => {
+  it('refuses a key outside printable ASCII with 400 INVALID_HEADER, claiming and queueing nothing [CHAT-R15]', async () => {
     const { sql, queries } = fakeSql();
     const res = await keyedSend(sql, 'send-é');
     expect(res.status).toBe(400);
@@ -1538,7 +1538,7 @@ describe('POST …/messages — Idempotency-Key', () => {
     ).toBe(false);
   });
 
-  it('refuses a live key reused with another body (409 IDEMPOTENCY_KEY_REUSED) and queues nothing', async () => {
+  it('refuses a live key reused with another body (409 IDEMPOTENCY_KEY_REUSED) and queues nothing [CHAT-R15]', async () => {
     const { sql } = fakeSql({
       remembered: {
         requestHash: sendIdempotencyRequestHash({
@@ -1557,7 +1557,7 @@ describe('POST …/messages — Idempotency-Key', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('never remembers a refusal: a busy thread refuses after the claim, and the accept never lands', async () => {
+  it('never remembers a refusal: a busy thread refuses after the claim, and the accept never lands [CHAT-R15]', async () => {
     const { sql, queries } = fakeSql({ queued: true });
     const res = await keyedSend(sql, 'send-1');
     expect(res.status).toBe(409);
@@ -1579,7 +1579,7 @@ describe('POST …/messages — Idempotency-Key', () => {
 
   // A blank key used to be read as "no key" and accepted the send unkeyed
   // (2026-09-14 evaluation, g5-2); it is refused now, and nothing is queued.
-  it('refuses a blank key with 400 INVALID_HEADER, sending nothing', async () => {
+  it('refuses a blank key with 400 INVALID_HEADER, sending nothing [CHAT-R15]', async () => {
     const { sql, queries } = fakeSql();
     const res = await keyedSend(sql, '   ');
     expect(res.status).toBe(400);

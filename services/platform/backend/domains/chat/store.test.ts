@@ -411,7 +411,7 @@ describe('createPgTurnStore.beginTurn', () => {
     ).toBe(true);
   });
 
-  it('claims the thread with DO NOTHING and rolls the whole open back when another turn holds it', async () => {
+  it('claims the thread with DO NOTHING and rolls the whole open back when another turn holds it [CHAT-R5]', async () => {
     const f = fakeChatSql({ threadHeld: true });
 
     await expect(
@@ -478,7 +478,7 @@ describe('createPgTurnStore.beginTurn', () => {
     expect(f.transactions).toEqual(['commit']);
   });
 
-  it('rolls the whole open back when the admission refuses', async () => {
+  it('rolls the whole open back when the admission refuses [CHAT-R6]', async () => {
     budget.budgetPolicyActive.mockResolvedValueOnce(true);
     budget.admitChatTurnSpend.mockRejectedValueOnce(
       new Error('BUDGET_EXCEEDED'),
@@ -659,7 +659,7 @@ describe('createPgTurnStore.finalizeAssistantMessage', () => {
     expect(f.pool[0]?.values).toContain('complete');
   });
 
-  it('settles a stopped turn as cancelled, keeping what streamed and its usage', async () => {
+  it('settles a stopped turn as cancelled, keeping what streamed and its usage [CHAT-R9]', async () => {
     // A user stop used to be recorded as a complete, often empty, reply —
     // the documented `cancelled` status was never written.
     const f = fakeChatSql();

@@ -397,8 +397,12 @@ test.skipIf(process.platform === 'win32').each([255, 300])(
     expect(result.stdout).toContain(
       `sandbox-llm-gateway: ${size} MB ≤ 300 MB budget`,
     );
-    expect(result.stdout).toContain('Tests: 45');
-    expect(result.stdout).toContain('Passed: 45');
+    expect(result.stdout).toContain('Tests: 47');
+    expect(result.stdout).toContain('Passed: 47');
+    for (const uid of [65534, 10001])
+      expect(result.stdout).toContain(
+        `sandbox-runtime: SSH agent and HTTP CONNECT work as uid ${uid}`,
+      );
     expect(result.stdout).toContain('Failed: 0');
     expect(result.stdout).toContain('ALL IMAGE VALIDATION TESTS PASSED');
   },
@@ -426,8 +430,8 @@ test.skipIf(process.platform === 'win32').each([
     expect(result.stdout).toContain(
       `sandbox-llm-gateway: ${sizeMb} MB ≤ 300 MB budget`,
     );
-    expect(result.stdout).toContain('Tests: 45');
-    expect(result.stdout).toContain('Passed: 45');
+    expect(result.stdout).toContain('Tests: 47');
+    expect(result.stdout).toContain('Passed: 47');
     expect(result.stdout).toContain('Failed: 0');
     expect(result.stdout).toContain('ALL IMAGE VALIDATION TESTS PASSED');
   },

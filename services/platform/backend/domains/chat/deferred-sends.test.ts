@@ -457,7 +457,7 @@ describe('pollDeferredSend — settle at user append, trace on failure', () => {
 });
 
 describe('pollDeferredSend — the thread and the claimed videos at fire time', () => {
-  it("drops a parked send whose thread is no longer the owner's active thread and releases its videos", async () => {
+  it("drops a parked send whose thread is no longer the owner's active thread and releases its videos [CHAT-R13]", async () => {
     loadOwnedThread.mockResolvedValue(null);
     const f = fakeSql(({ text }) =>
       text.includes('FROM app.deferred_sends')

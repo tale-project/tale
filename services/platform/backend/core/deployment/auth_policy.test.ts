@@ -16,7 +16,7 @@ describe('decideInstanceAdmin', () => {
     else process.env[ENV] = original;
   });
 
-  it('denies a caller who administers no org (read or write)', () => {
+  it('denies a caller who administers no org (read or write) [DEPLOY-R1]', () => {
     for (const write of [false, true]) {
       const d = decideInstanceAdmin({
         email: 'a@x.io',
@@ -28,7 +28,7 @@ describe('decideInstanceAdmin', () => {
     }
   });
 
-  it('allows an admin to READ regardless of the editor allowlist', () => {
+  it('allows an admin to READ regardless of the editor allowlist [DEPLOY-R1]', () => {
     delete process.env[ENV]; // empty allowlist = nobody may edit
     const d = decideInstanceAdmin({
       email: 'a@x.io',
@@ -38,7 +38,7 @@ describe('decideInstanceAdmin', () => {
     expect(d.ok).toBe(true);
   });
 
-  it('blocks a WRITE by an admin not in the editor allowlist', () => {
+  it('blocks a WRITE by an admin not in the editor allowlist [DEPLOY-R2]', () => {
     process.env[ENV] = 'editor@x.io';
     const d = decideInstanceAdmin({
       email: 'other@x.io',
@@ -49,7 +49,7 @@ describe('decideInstanceAdmin', () => {
     if (!d.ok) expect(d.code).toBe('FORBIDDEN_DEPLOYMENT_EDITOR');
   });
 
-  it('allows a WRITE by an admin in the editor allowlist (case-insensitive)', () => {
+  it('allows a WRITE by an admin in the editor allowlist (case-insensitive) [DEPLOY-R2]', () => {
     process.env[ENV] = 'Editor@X.io';
     const d = decideInstanceAdmin({
       email: 'editor@x.io',
@@ -59,7 +59,7 @@ describe('decideInstanceAdmin', () => {
     expect(d.ok).toBe(true);
   });
 
-  it('locks ALL writes when the allowlist is empty', () => {
+  it('locks ALL writes when the allowlist is empty [DEPLOY-R3]', () => {
     delete process.env[ENV];
     const d = decideInstanceAdmin({
       email: 'a@x.io',
