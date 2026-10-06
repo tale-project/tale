@@ -585,7 +585,7 @@
     "postcss": "8.5.23",
     "qs": "6.16.0",
     "react-is": "19.2.5",
-    "seroval": "1.5.3",
+    "seroval": "1.6.3",
     "sharp": "0.35.4",
     "tmp": "0.2.7",
     "undici": "7.29.1",
@@ -4016,7 +4016,7 @@
 
     "serialize-javascript": ["serialize-javascript@7.1.0", "", {}, "sha512-RNEqWOyhhUQYN9V1GfHwu9AR/g+NTciH6Z5u3/no6X3/w+04J2lVDL+svFQVXgXrEGBMG2puMVN3gq2SNGuTGw=="],
 
-    "seroval": ["seroval@1.5.3", "", {}, "sha512-BXe0x4buEeYiIKaRUnth1WqCILQ3k4O67KP/B4pC3pVz0Mv2c96ngA9QDREUYxWY1sb2RZVRqwI9RcpVMyHCVw=="],
+    "seroval": ["seroval@1.6.3", "", {}, "sha512-5PwLbVPpT4DEki1hYVSSsoxWY6xCNMVucAVLK/CH0mXSDfp/I4KaAex72q80GNt5hpn7CCMGdSpIg4YGqH/wXQ=="],
 
     "seroval-plugins": ["seroval-plugins@1.6.2", "", { "peerDependencies": { "seroval": "^1.0" } }, "sha512-TfxuUjlbBESzUOWdTkTKqvSmav0ABym+itetDXLK6mDz8SmrpdI30aF8RTXE8Bvq+tH/1yIDkvy3W0lfQb1ipQ=="],
 
