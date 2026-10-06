@@ -13,6 +13,28 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 `internal-dockerd` is reserved for the root supervisor's engine child. Any
 other argument exits 65 (there is no per-call language lane).
 
+## Repository SSH access
+
+The maintained runtime installs OpenSSH (`ssh`, `ssh-agent`, `ssh-add`) and
+`netcat-openbsd`. Repository-scoped keys are explicitly granted project secrets;
+load them from the turn environment into `ssh-agent` through stdin, never a key
+file. Member-started turns keep the existing secret-withholding policy.
+Credentialed turns receive the real workspace owner's Git author name and email
+even when no GitHub connector is equipped; SSH authentication grants no connector
+permission.
+
+Internal sandbox sessions already carry `HTTP_PROXY`. Route SSH with
+`nc -X connect -x <proxy-host>:<proxy-port> %h %p` as OpenSSH's `ProxyCommand`,
+using a proxy-authorized repository endpoint (GitHub's SSH endpoint is
+`ssh.github.com:443`). Parse the existing proxy URL, require an unauthenticated
+`http` proxy, and quote every argument with `shlex.join`; keep strict host-key
+verification against the provider's independently verified public pin. This
+passes the repository hostname to the existing egress service instead of
+requiring external DNS in the isolated session. The runnable configuration is in
+[SSH repository access](https://docs.tale.dev/self-hosted/configuration/environment-reference#ssh-repository-access).
+The container image conformance suite tests stdin key loading and an offline
+CONNECT tunnel as both supported non-root runtime users.
+
 When DinD is enabled, the session starts with the standard Docker socket and
 no inner engine. Its first Docker client starts the engine automatically;
 concurrent clients share that startup. After five minutes without clients,

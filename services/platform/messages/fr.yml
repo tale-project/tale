@@ -7518,6 +7518,17 @@ projectSecrets:
     loadFailed: "Impossible de charger les secrets de ce projet."
     refreshFailed: "Impossible d'actualiser les secrets de ce projet. L'affichage n'est peut-être plus à jour."
 tasks:
+  sourceStatus:
+    heading: Processus de la source
+    explanation: Choisis une action et complète les informations. La source connectée vérifie tes autorisations et chaque transition avant de mettre à jour cette tâche.
+    submit: Envoyer la demande
+    pending: La source vérifie ta demande.
+    accepted: La source a accepté ta demande.
+    refused: La source a refusé ta demande.
+    invalidFields: Vérifie les champs obligatoires et leur format.
+    submitFailed: La demande n'a pas pu être envoyée. Réessaie.
+    loadFailed: Les actions de la source n'ont pas pu être chargées.
+    retry: Réessayer
   sourceIssue:
     heading: 'Issue {provider}'
     state:
@@ -7867,6 +7878,8 @@ tasks:
     restored: Restauré
     reordered: Réordonné
     statusChanged: Statut modifié
+    externalStatusProjected: Statut de la source synchronisé
+    externalStatusRequested: Transition demandée à la source
     assigneeChanged: Responsable modifié
     titleChanged: Titre modifié
     descriptionChanged: Description modifiée

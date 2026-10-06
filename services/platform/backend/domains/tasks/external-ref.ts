@@ -470,11 +470,22 @@ export async function upsertTaskByExternalRef(
     let completedAt: number | null = existing.completedAt;
     let externalClosedAt: number | null = existing.externalClosedAt;
     let rank = existing.rank;
+    const sourceOwnedStatus = await tx<{ taskId: string }[]>`
+      SELECT task_id AS "taskId" FROM app.task_external_status
+      WHERE org_id = ${args.organizationId} AND task_id = ${existing.id}
+        AND external_system = ${externalSystem} AND external_id = ${externalId}
+      LIMIT 1
+    `;
+    // Opting into accepted source projection removes the older two-state
+    // intake's claim on progress. Metadata refreshes must not undo a recorded
+    // source-approved completion when `externalState` defaults to open.
+    const mirrorLifecycleState =
+      sourceOwnedStatus.length > 0 ? undefined : lifecycleState;
     if (preserveAgentReview) {
-      if (lifecycleState === 'closed') externalClosedAt ??= now;
-      else if (lifecycleState === 'open') externalClosedAt = null;
+      if (mirrorLifecycleState === 'closed') externalClosedAt ??= now;
+      else if (mirrorLifecycleState === 'open') externalClosedAt = null;
     } else if (
-      lifecycleState === 'closed' &&
+      mirrorLifecycleState === 'closed' &&
       !TERMINAL_STATUSES.has(existing.status)
     ) {
       newStatus = completingActor ? 'done' : 'in_review';
@@ -483,7 +494,7 @@ export async function upsertTaskByExternalRef(
       externalClosedAt = now;
       rank = await computeEndRank(tx, existing.projectId, newStatus);
     } else if (
-      lifecycleState === 'open' &&
+      mirrorLifecycleState === 'open' &&
       (existing.status === 'done' || mirrorParked)
     ) {
       newStatus = SYNC_OPEN_STATUS;

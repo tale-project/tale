@@ -1,4 +1,5 @@
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
+import type { ExternalStatusRequestInput } from '@tale/shared/schemas/task-external-status';
 import type {
   ProjectTaskReviewer,
   SetTaskReviewerInput,
@@ -6,6 +7,7 @@ import type {
   TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
 
+import type { TaskStatusSnapshot } from '@/backend/domains/tasks/external-status';
 import type { PendingTaskReview } from '@/backend/domains/tasks/reviews';
 import type { TaskRepeat } from '@/lib/shared/task-repeat';
 
@@ -75,6 +77,19 @@ export interface TaskPendingReviewIndicator {
 }
 
 export interface TasksContract {
+  'tasks/queries:getExternalStatus': {
+    kind: 'query';
+    args: { organizationId: string; taskId: string };
+    returns: TaskStatusSnapshot;
+  };
+  'tasks/mutations:requestExternalStatus': {
+    kind: 'mutation';
+    args: ExternalStatusRequestInput & {
+      organizationId: string;
+      taskId: string;
+    };
+    returns: TaskStatusSnapshot;
+  };
   'tasks/queries:getTaskReviewer': {
     kind: 'query';
     args: { organizationId: string; taskId: string };

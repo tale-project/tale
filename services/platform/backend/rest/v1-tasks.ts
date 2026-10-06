@@ -41,6 +41,11 @@ import {
   startWorkflowForTaskInTx,
   upsertTaskByExternalRef,
 } from '../domains/tasks/external-ref.ts';
+import {
+  externalTaskStatusBodySchema,
+  projectExternalTaskStatus,
+  readTaskStatusSnapshot,
+} from '../domains/tasks/external-status.ts';
 import { getPendingReviewForTask } from '../domains/tasks/reviews.ts';
 import {
   archiveTask,
@@ -612,6 +617,44 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         c.req.param('taskId'),
       );
       return c.json({ task: await taskPayload(task) });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  app.get('/projects/:id/tasks/:taskId/status', noQuery, async (c) => {
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const task = await loadVisibleTask(
+        deps.sql,
+        auth,
+        c.req.param('id'),
+        c.req.param('taskId'),
+      );
+      return c.json(
+        await readTaskStatusSnapshot(deps.sql, auth.organizationId, task.id),
+      );
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  app.put('/projects/:id/tasks/:taskId/external-status', noQuery, async (c) => {
+    const body = await parseBody(c, externalTaskStatusBodySchema);
+    if (body instanceof Response) return body;
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const projectId = c.req.param('id');
+      const taskId = c.req.param('taskId');
+      const projected = await transactSerializable(deps.sql, async (tx) => {
+        await loadRestProject(tx, auth, projectId, { active: true });
+        return projectExternalTaskStatus(tx, auth, {
+          projectId,
+          taskId,
+          input: body,
+        });
+      });
+      return c.json(projected);
     } catch (error) {
       return domainErrorResponse(c, error);
     }

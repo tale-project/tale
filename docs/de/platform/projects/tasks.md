@@ -123,6 +123,12 @@ Das aktuelle Review erklärt auch eine unzulässige Selbstprüfung, eine geände
 
 Bei Agentenaufgaben kann ein Statuswechsel die Ausführung starten oder abbrechen. Lies deshalb den Aktionshinweis vor dem Verschieben. Ein Agent liefert sein Ergebnis unter **In Prüfung** ab; auf **Erledigt** darf er es nicht selbst setzen.
 
+### Den Ablauf einer verbundenen Quelle nutzen
+
+Eine Aufgabe, deren verbundenes Quellsystem den Geschäftsablauf steuert, kann in ihren Details **Ablauf der Quelle** anzeigen. Wähle die Aktion der Quelle, ergänze ihre Felder und klicke auf **Anfrage senden**. Die Quelle prüft deine Identität, Rolle und Übergangsregeln, bevor sie die Aufgabe aktualisiert. Trage erforderliche Prüfnotizen, Abschlussbelege oder Wiedereröffnungsgründe in diesem Formular ein; eine Board-Spalte kann diese Angaben nicht erfassen und zwei Quellphasen, die beide als **In review** erscheinen, nicht unterscheiden.
+
+Während die Quelle eine Anfrage prüft, zeigt die Aufgabe den ausstehenden Zustand und verhindert eine zweite Anfrage. Das angenommene Ergebnis oder der Ablehnungsgrund bleibt nach dem Neuladen sichtbar. Bei einer Ablehnung bleibt der gültige Quellzustand erhalten; lies den Grund, bevor du eine weitere Aktion anfragst. Eine Quelle kann für einen archivierten Datensatz eine geschützte Wiedereröffnung anbieten. Diese Aktionen verlangen ein verifiziertes, aktives Konto und das Recht, die Aufgabe zu bearbeiten.
+
 ## Entscheidungen an der Aufgabe festhalten
 
 Öffne die Aufgabe, um Beschreibung, Anhänge, Termine, Labels, Teilaufgaben oder Kommentare zu ergänzen. Halte Fragen, Entscheidungen und Rückmeldungen in Kommentaren fest, die spätere Prüfer nachvollziehen können.
