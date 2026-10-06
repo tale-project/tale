@@ -183,17 +183,13 @@ async function renderShell(recovery: Recovery = SIGNED_IN) {
   let view: ReturnType<typeof renderApp>;
   await act(async () => {
     view = renderApp(shell(recovery));
-    await import(
-      '@/app/features/settings/data-residency/components/embedding-setup-alert'
-    );
+    await import('@/app/features/settings/data-residency/components/embedding-setup-alert');
   });
   return {
     rerender: async (at: Recovery = recovery) => {
       await act(async () => {
         view.rerender(shell(at));
-        await import(
-          '@/app/features/settings/data-residency/components/embedding-setup-alert'
-        );
+        await import('@/app/features/settings/data-residency/components/embedding-setup-alert');
       });
     },
   };

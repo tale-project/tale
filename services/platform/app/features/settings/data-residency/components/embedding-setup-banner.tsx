@@ -1,11 +1,10 @@
 'use client';
 
-import { lazy, Suspense } from 'react';
-
 import { useProviderCredentials } from '@/app/features/settings/providers/hooks/queries';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 
 import { useOrgKnowledgeEmbedding } from '../hooks/queries';
+import { EmbeddingSetupAlert } from './embedding-setup-alert';
 
 /**
  * Dashboard banner for the gap between "this org has an AI provider" and
@@ -70,19 +69,7 @@ export function useEmbeddingSetupNudge(
   return credentialsQuery.data.length > 0 ? 'shown' : 'hidden';
 }
 
-// The alert itself, with the settings words it quotes, loads only for an
-// organization that needs it.
-const EmbeddingSetupAlert = lazy(() =>
-  import('./embedding-setup-alert').then((module) => ({
-    default: module.EmbeddingSetupAlert,
-  })),
-);
-
 function EmbeddingSetupNudge({ organizationId }: { organizationId: string }) {
   if (useEmbeddingSetupNudge(organizationId) !== 'shown') return null;
-  return (
-    <Suspense fallback={null}>
-      <EmbeddingSetupAlert organizationId={organizationId} />
-    </Suspense>
-  );
+  return <EmbeddingSetupAlert organizationId={organizationId} />;
 }
