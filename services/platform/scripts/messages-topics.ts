@@ -228,9 +228,10 @@ function mergeTopic(
 
 /** Returns the topic files left with conflict markers. */
 export function resolve(messagesDir: string): string[] {
-  const root = git(['rev-parse', '--show-toplevel'], messagesDir).trim();
   // Git names the real path; the given one may run through a symlink.
-  const relDir = relative(root, realpathSync(messagesDir));
+  const dir = realpathSync(messagesDir);
+  const root = git(['rev-parse', '--show-toplevel'], dir).trim();
+  const relDir = relative(root, dir);
   const { base, branch } = carriedEdits(root);
   const conflicts: string[] = [];
   const scratch = mkdtempSync(join(tmpdir(), 'messages-topics-'));
@@ -250,8 +251,8 @@ export function resolve(messagesDir: string): string[] {
         const was = before.get(topic) ?? '';
         const is = after.get(topic) ?? '';
         if (was === is) continue;
-        mkdirSync(join(messagesDir, locale), { recursive: true });
-        const target = join(messagesDir, locale, `${topic}.yml`);
+        mkdirSync(join(dir, locale), { recursive: true });
+        const target = join(dir, locale, `${topic}.yml`);
         if (!existsSync(target)) writeFileSync(target, '');
         const name = relative(root, target);
         if (mergeTopic(target, was, is, scratch) > 0) {
