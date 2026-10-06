@@ -17,6 +17,7 @@ import { useAccentColor } from '@tale/ui/accent-color';
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { SlidingHighlight } from '@tale/ui/section-nav';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { SubPanelDisclosureBody } from '@tale/ui/sub-panel-list';
@@ -34,7 +35,13 @@ import {
   PinOff,
   SquarePen,
 } from 'lucide-react';
-import { memo, useCallback, useMemo, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  type ComponentProps,
+} from 'react';
 
 import { ProjectRowsSkeleton } from '@/app/components/layout/home-panel-skeleton';
 import {
@@ -44,7 +51,7 @@ import {
 import { useProjectPin } from '@/app/features/chat/data/chat-backend';
 import type { ChatProjectSummary } from '@/app/features/chat/types';
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
-import { ProjectCreateDialog } from '@/app/features/projects/components/project-create-dialog';
+import type { ProjectCreateDialog as ProjectCreateDialogComponent } from '@/app/features/projects/components/project-create-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
@@ -55,6 +62,27 @@ import {
   type HomeListEntry,
   type HomeRowPlacement,
 } from './home-stream';
+
+/**
+ * The dialog New project opens loads the first time it opens, not with Home:
+ * it brings the project form and its identity picker. Pointing at the button
+ * starts the load, so a click mostly finds it there.
+ */
+const loadProjectCreateDialog = () =>
+  import('@/app/features/projects/components/project-create-dialog');
+const ProjectCreateDialog = lazyComponent<
+  ComponentProps<typeof ProjectCreateDialogComponent>
+>(() =>
+  loadProjectCreateDialog().then((module) => ({
+    default: module.ProjectCreateDialog,
+  })),
+);
+function warmProjectCreateDialog() {
+  loadProjectCreateDialog().catch((error: unknown) => {
+    // Opening the dialog loads it again, and says so if it still fails.
+    console.warn('[home] the project dialog did not load ahead', error);
+  });
+}
 
 /** How a row behaves on a phone: a toggle that narrows the stream. */
 export interface HomeProjectScope {
@@ -344,6 +372,8 @@ export function HomeProjects({
                   size="icon"
                   variant="ghost"
                   onClick={() => setCreateOpen(true)}
+                  onPointerEnter={warmProjectCreateDialog}
+                  onFocus={warmProjectCreateDialog}
                   aria-label={t('projects.newProject')}
                   className="text-muted-foreground hover:text-foreground size-6 p-1"
                 >

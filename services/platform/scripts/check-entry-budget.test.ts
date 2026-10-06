@@ -113,7 +113,17 @@ describe('forbiddenSourcesIn', () => {
     ).toEqual(['messages/de/', 'messages/fr/', 'messages/de-CH/']);
   });
 
-  it("passes English and a package's catalog of the same name", () => {
+  it('names the large English topics the first pages do not read', () => {
+    expect(
+      forbiddenSourcesIn(
+        ['../../messages/en/settings.yml', '../../messages/en/governance.yml'],
+        mapDir,
+        root,
+      ),
+    ).toEqual(['messages/en/settings.yml', 'messages/en/governance.yml']);
+  });
+
+  it("passes the English the first pages read and a package's catalog of the same name", () => {
     expect(
       forbiddenSourcesIn(
         [

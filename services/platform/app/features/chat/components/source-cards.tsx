@@ -21,7 +21,10 @@ import { Text } from '@tale/ui/text';
 import { ChevronDown, ChevronUp, FileText, Globe } from 'lucide-react';
 import { useState } from 'react';
 
-import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
+import {
+  DocumentPreviewDialog,
+  warmDocumentPreviewDialog,
+} from '@/app/features/documents/components/document-preview-dialog-lazy';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -224,6 +227,8 @@ export function SourceCards({
               <button
                 type="button"
                 onClick={() => openDocument(source)}
+                onPointerEnter={warmDocumentPreviewDialog}
+                onFocus={warmDocumentPreviewDialog}
                 className={`${cardClass} hover:bg-muted focus-visible:ring-ring text-left transition-colors focus-visible:ring-2 focus-visible:outline-none`}
               >
                 {card(source)}

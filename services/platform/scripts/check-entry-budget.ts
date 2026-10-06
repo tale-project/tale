@@ -54,12 +54,18 @@ export const FORBIDDEN_PACKAGES = [
  * The service's own catalogs no preloaded chunk may carry, from its root, a
  * path ending in `/` naming every file under it: a session reads one
  * language, and German, French and the Swiss overrides load per topic as a
- * session in them first needs one (`lib/i18n/i18n.ts`).
+ * session in them first needs one (`lib/i18n/i18n.ts`). English rides with
+ * the modules that read it, so the largest topics the first pages do not
+ * read stay with the pages that do.
  */
 export const FORBIDDEN_SOURCES = [
   'messages/de/',
   'messages/fr/',
   'messages/de-CH/',
+  'messages/en/settings.yml',
+  'messages/en/governance.yml',
+  'messages/en/documents.yml',
+  'messages/en/projects.yml',
 ];
 
 /**
