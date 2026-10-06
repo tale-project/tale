@@ -347,7 +347,7 @@ describePosix('managed source-Compose runtime adoption', () => {
           (container.Config as { Labels: Record<string, string> }).Labels[
             'com.docker.compose.service'
           ] === 'platform',
-      )!;
+      ) as { Mounts: { Name: string }[] };
       expect(run.docker.volumes).toContain('tale_config-data');
       platform.Mounts = platform.Mounts.filter(
         (mount) => mount.Name !== 'tale_config-data',
@@ -427,7 +427,7 @@ describePosix('managed source-Compose runtime adoption', () => {
     for (const original of originalMounts) {
       const retained = run.docker.containers.find(
         (container) => container.Name === original.name,
-      );
+      ) as { Mounts: unknown[] } | undefined;
       expect(retained?.Mounts).toEqual(expect.arrayContaining(original.mounts));
     }
     const platform = run.docker.containers.find(
