@@ -50,6 +50,12 @@ export function catalogFiles(messagesDir: string, name: string): CatalogFile[] {
     }));
 }
 
+/** Where a finding in the catalog named `name` points: its file, or its directory of topic files. */
+export function catalogPath(messagesDir: string, name: string): string {
+  const file = path.join(messagesDir, `${name}.yml`);
+  return fs.existsSync(file) ? file : path.join(messagesDir, name);
+}
+
 /** The topic files of a per-topic catalog, by name; empty for a single file. */
 export function catalogTopics(messagesDir: string, name: string): string[] {
   return catalogFiles(messagesDir, name).flatMap((file) =>

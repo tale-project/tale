@@ -1,5 +1,5 @@
 /**
- * i18n tests for `services/platform/messages/*.json`.
+ * i18n tests for the platform's catalogs (`services/platform/messages/<locale>/<topic>.yml`).
  *
  * One call into the centralized framework registers every applicable check.
  * `parity` and `usage` run in `enforce` mode (they have always been clean);
