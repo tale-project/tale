@@ -33,7 +33,8 @@ export const FORBIDDEN_PRELOADS = [
  * entry's too), the flow canvas, KaTeX, and what single pages need: zip
  * files (skill uploads, document previews), the automation engine's schema
  * validation and YAML (the MCP settings page), cron schedules (automations),
- * the table library (list pages).
+ * the table library (list pages), the HTML sanitizer (diagrams, previews,
+ * email).
  * Read from the chunks' source maps, so a static import that pulls one into
  * the entry fails the build.
  */
@@ -46,6 +47,7 @@ export const FORBIDDEN_PACKAGES = [
   'yaml',
   'cron-parser',
   '@tanstack/table-core',
+  'dompurify',
 ];
 
 /**
