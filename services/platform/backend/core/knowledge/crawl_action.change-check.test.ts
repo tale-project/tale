@@ -14,6 +14,7 @@ import {
   fetchAndStorePage,
   scanWebsiteImpl,
 } from './crawl_action';
+import { assertCorpusWritable } from './index_health';
 import { getKnowledgePoolForOrg } from './pool';
 
 vi.mock('../../../lib/net/safe-fetch', async (importOriginal) => ({
@@ -29,7 +30,12 @@ vi.mock('../node_only/sandbox/render_fetch', async (importOriginal) => ({
 vi.mock('./pool', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./pool')>()),
   getKnowledgePoolForOrg: vi.fn(),
+  resolveOrgUrl: vi.fn(async () => 'postgresql://corpus.example/tale'),
 }));
+// The indexer's gate on a corpus under repair: these tests store text the
+// index already holds, so it must never be asked — and never reach for a
+// real database when one is.
+vi.mock('./index_health', () => ({ assertCorpusWritable: vi.fn() }));
 
 /**
  * A scan asks for each page once and opens the browser only for a page that
@@ -133,7 +139,11 @@ beforeEach(() => {
   vi.mocked(safeFetchBinary).mockReset();
   vi.mocked(renderUrlsInSandbox).mockReset();
   vi.mocked(getKnowledgePoolForOrg).mockReset();
-  vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  vi.mocked(assertCorpusWritable).mockClear();
+  // Cleared: a spy on a method that is already spied on keeps its calls.
+  vi.spyOn(console, 'log')
+    .mockClear()
+    .mockImplementation(() => undefined);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
@@ -530,9 +540,13 @@ describe('scanWebsiteImpl — a page that changed', () => {
 
   it('renders a changed page and keeps what to check it by next time', async () => {
     const now = body(TEXT_V2, 'b');
-    const { sql, statements } = scanCorpus(
-      settled({ probe_hash: hashOf(body(TEXT_V1, 'a')) }),
-    );
+    const { sql, statements } = scanCorpus({
+      ...settled({ probe_hash: hashOf(body(TEXT_V1, 'a')) }),
+      // The row already stores what the browser is about to show (an
+      // earlier scan stored it and stopped before stamping the visit), so
+      // the store finds nothing to index.
+      content_hash: hashOf(now),
+    });
     vi.mocked(getKnowledgePoolForOrg).mockResolvedValue(sql);
     answers({ body: now, headers: { etag: '"v2"' } });
     // The browser shows what the plain HTML already said.
@@ -541,6 +555,7 @@ describe('scanWebsiteImpl — a page that changed', () => {
     await scanWebsiteImpl(engineCtx(), SCAN);
 
     expect(renderUrlsInSandbox).toHaveBeenCalledTimes(1);
+    expect(assertCorpusWritable).not.toHaveBeenCalled();
     expect(settledWrite(statements)?.params).toEqual([
       DOMAIN,
       URL,
@@ -552,18 +567,21 @@ describe('scanWebsiteImpl — a page that changed', () => {
 
   it('keeps nothing to check a page by when only the browser could read it', async () => {
     const shell = body('Loading…', 'a');
-    const { sql, statements } = scanCorpus(settled({}));
+    const shown = body(
+      `${TEXT_V1} ${TEXT_V2} A long article that only the page's own scripts fetched and rendered for the reader.`,
+      'a',
+    );
+    const { sql, statements } = scanCorpus({
+      ...settled({}),
+      content_hash: hashOf(shown),
+    });
     vi.mocked(getKnowledgePoolForOrg).mockResolvedValue(sql);
     answers({ body: shell, headers: { etag: '"shell"' } });
-    shows(
-      body(
-        `${TEXT_V1} ${TEXT_V2} A long article that only the page's own scripts fetched and rendered for the reader.`,
-        'a',
-      ),
-    );
+    shows(shown);
 
     await scanWebsiteImpl(engineCtx(), SCAN);
 
+    expect(assertCorpusWritable).not.toHaveBeenCalled();
     expect(settledWrite(statements)?.params).toEqual([
       DOMAIN,
       URL,

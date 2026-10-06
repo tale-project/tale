@@ -566,7 +566,7 @@ export function plainTextCoverage(
  * consent banner, a counter, a hydrated widget), a page built by its
  * JavaScript at 0.01. Nine in ten keeps the first kind and can never admit
  * the second; a page in between is rendered, which is only slower. */
-export const PLAIN_TEXT_COVERAGE_FLOOR = 0.9;
+const PLAIN_TEXT_COVERAGE_FLOOR = 0.9;
 
 /**
  * Whether a page's plain HTML carries what a browser shows for it — the
