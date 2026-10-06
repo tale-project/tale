@@ -2961,7 +2961,8 @@ export interface TaskOutputEntry {
 
 /**
  * TRUSTED deliverables merge into the task's Output zone (same fileName ⇒
- * replace) — the settle's attach step.
+ * replace and move to the end) — the settle's attach step. Stored order tracks
+ * the last write so the staging window includes re-delivered older names.
  */
 export async function agentRecordTaskOutputsTrusted(
   tx: TransactionSql,
@@ -2993,8 +2994,8 @@ export async function agentRecordTaskOutputsTrusted(
       ...(args.runId !== undefined ? { runId: args.runId } : {}),
     };
     const at = next.findIndex((output) => output.fileName === fileName);
-    if (at === -1) next.push(entry);
-    else next[at] = entry;
+    if (at !== -1) next.splice(at, 1);
+    next.push(entry);
   }
   await tx`
     UPDATE app.tasks SET
