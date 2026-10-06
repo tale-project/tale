@@ -171,6 +171,15 @@ empty library keeps its empty state. These cases are owned by
 stopped with nothing loaded (`packages/ui/src/components/data-table/data-table.test.tsx`).
 Real-browser speech and layout remain manual.
 
+<a id="usage-reporting-windows-tale-195"></a>
+
+`backend/domains/governance/usage-metrics.test.ts` exercises the real reader and
+fold with a fake SQL boundary: daily, weekly and monthly charts preserve the
+same seven-day totals, detail tables and equal-length prior comparison. Partial
+months, ISO week-year boundaries, out-of-window and future days are covered;
+a foreign organization reads zero. Chart granularity groups only current-window
+daily rows. Real PostgreSQL query execution remains an integration proof.
+
 Text-only edits retain the original uploaded attachment references in both
 the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:
