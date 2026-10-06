@@ -215,6 +215,7 @@ actions:
   created: Task created
   comment: Comment
   commentPlaceholder: Write a comment — type @ to mention a person or an agent
+  commentAgentHint: "Mention the assigned agent for feedback. If it is working, the mention goes to its current run."
   commentShortcut: '{shortcut} to send'
   assign: Assign
   add: Add
@@ -469,7 +470,7 @@ timeline:
   systemActor: System
   unresolvedWorkflow: Automation
   deletedAgent: Deleted agent
-  viewAgent: View agent
+  viewMore: "View more"
   viewWorkflow: View automation
 dueDate:
   label: Due date

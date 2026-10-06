@@ -138,7 +138,10 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   mention highlighted; a mentioned agent shows the preview chip **{slug} will
   respond** (`tasks.mentionPreview.willRespond`); an edited comment is marked
   (`tasks.comment.edited`); delete confirms (`tasks.comment.deleteConfirm`);
-  the thread survives reload (`tasks.detail.comments`)
+  the thread survives reload (`tasks.detail.comments`). On a task assigned to
+  an agent, the composer explains that mentioning the assigned agent sends
+  feedback to its current run when it is working
+  (`tasks.actions.commentAgentHint`).
 - [ ] `TASK-F34` · **Mentions in the description** — With a second member B
   and a project agent: **Create task** (`tasks.actions.create`) with a
   **Description** (`tasks.fields.description`) that mentions the agent, then

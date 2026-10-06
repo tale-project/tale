@@ -881,13 +881,12 @@ async function mintTurnServing(
           ? credential.endpointUrl
           : undefined) ?? resolved.apiBaseUrl,
       bridgeToken,
-      ...(credential.authMethod === 'subscription-broker'
-        ? {
-            targetEnvVar: credential.targetEnvVar,
-            ...(credential.accountId !== undefined
-              ? { accountId: credential.accountId }
-              : {}),
-          }
+      ...(credential.targetEnvVar !== undefined
+        ? { targetEnvVar: credential.targetEnvVar }
+        : {}),
+      ...(credential.authMethod === 'subscription-broker' &&
+      credential.accountId !== undefined
+        ? { accountId: credential.accountId }
         : {}),
     },
     execModel: resolved.modelId,

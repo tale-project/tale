@@ -216,6 +216,18 @@ agents:
   emptyReaderTitle: No agents in this project yet
   emptyReaderBody: Agents work tasks on your behalf. Ask an Editor or Admin to add one to this project.
   equippedCount: '{count} equipped'
+  rowView: "View agent details"
+  detailsTitle: "Agent details"
+  providerLabel: "Provider"
+  providerUnpinned: "Not pinned"
+  detailsUnavailable: "Not specified"
+  detailsSkills: "Skills"
+  detailsConnectors: "Connectors"
+  detailsTools: "Platform tools"
+  detailsNone: "None"
+  detailsMoreCount: "+{count} more"
+  detailsProviderCurrently: "The provider is resolved for future runs and may change."
+  detailsStandardSnapshot: "Saved configuration. The standard agent resolves its model, skills, and instructions again when a run starts."
   rowEdit: Edit agent
   rowDelete: Delete agent
   dialogCreateTitle: New agent

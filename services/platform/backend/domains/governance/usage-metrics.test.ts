@@ -7,7 +7,7 @@
  */
 
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import { buildPeriodKeyFromTimestamp } from '../../core/governance/helpers.ts';
@@ -52,6 +52,129 @@ function bucket(periodKey: string, index: number) {
 }
 
 describe('getOrgUsageMetricsPg', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('keeps seven-day totals and prior spend isolated across chart granularities', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-28T12:00:00Z'));
+    // All three granularities exist on write. The September monthly bucket
+    // contains spend outside both seven-day reporting windows.
+    const bookings = [
+      ['2026-09-05', 300],
+      ['2026-09-16', 20],
+      ['2026-09-28', 10],
+      ['2026-09-29', 500],
+    ] as const;
+    const ledger = bookings.flatMap(([date, costEstimate]) =>
+      (['daily', 'weekly', 'monthly'] as const).map((granularity) =>
+        Object.assign(
+          bucket(buildPeriodKeyFromTimestamp(granularity, Date.parse(date)), 0),
+          { orgId: 'org_1', granularity, costEstimate },
+        ),
+      ),
+    );
+    const { sql, statements } = fakeSql((statement) => {
+      if (!statement.text.includes('FROM app.usage_ledger')) return [];
+      const [orgId, granularity, scanStart] = statement.values;
+      return ledger.filter(
+        (row) =>
+          row.orgId === orgId &&
+          row.granularity === granularity &&
+          typeof scanStart === 'string' &&
+          row.periodKey >= scanStart,
+      );
+    });
+    const results = [];
+    for (const granularity of ['daily', 'weekly', 'monthly'] as const) {
+      const metrics = await getOrgUsageMetricsPg(sql, 'org_1', {
+        granularity,
+        periodDays: 7,
+      });
+      expect(metrics.summary).toEqual({
+        totalRequests: 1,
+        totalInputTokens: 10,
+        totalOutputTokens: 5,
+        totalTokens: 15,
+        totalCostCents: 10,
+        activeUsers: 1,
+        capped: false,
+      });
+      expect(metrics.previousSummary).toEqual({
+        totalRequests: 1,
+        totalTokens: 15,
+        totalCostCents: 20,
+        activeUsers: 1,
+      });
+      expect(metrics.users).toHaveLength(1);
+      expect(metrics.users[0]).toMatchObject({ requests: 1, costCents: 10 });
+      expect(metrics.topAgents[0]).toMatchObject({
+        requests: 1,
+        costCents: 10,
+      });
+      expect(metrics.topModels[0]).toMatchObject({
+        requests: 1,
+        costCents: 10,
+      });
+      expect(
+        metrics.series.reduce((sum, point) => sum + point.costCents, 0),
+      ).toBe(10);
+      results.push(metrics);
+    }
+    expect(results[0]?.series).toHaveLength(7);
+    expect(results[2]?.series).toEqual([
+      {
+        periodKey: '2026-09',
+        requests: 1,
+        inputTokens: 10,
+        outputTokens: 5,
+        tokens: 15,
+        costCents: 10,
+      },
+    ]);
+    for (const statement of statements.filter((s) =>
+      s.text.includes('FROM app.usage_ledger'),
+    )) {
+      expect(statement.values.slice(0, 3)).toEqual([
+        'org_1',
+        'daily',
+        '2026-09-15',
+      ]);
+    }
+    const foreign = await getOrgUsageMetricsPg(sql, 'foreign_org', {
+      granularity: 'monthly',
+      periodDays: 7,
+    });
+    expect(foreign.summary.totalRequests).toBe(0);
+    expect(foreign.summary.totalCostCents).toBe(0);
+    expect(foreign.previousSummary.totalCostCents).toBe(0);
+    expect(foreign.users).toEqual([]);
+  });
+
+  it('assigns boundary days before grouping a partial month or ISO week', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2027-01-04T12:00:00Z'));
+    const rows = [
+      { ...bucket('2026-12-21', 0), costEstimate: 1000 }, // outside
+      { ...bucket('2026-12-22', 0), costEstimate: 1 }, // prior start
+      { ...bucket('2026-12-28', 0), costEstimate: 2 }, // prior end
+      { ...bucket('2026-12-29', 0), costEstimate: 4 }, // current start
+      { ...bucket('2027-01-04', 0), costEstimate: 8 }, // current end
+      { ...bucket('2027-01-05', 0), costEstimate: 1000 }, // future
+    ];
+    const { sql } = fakeSql((s) =>
+      s.text.includes('FROM app.usage_ledger') ? rows : [],
+    );
+    for (const granularity of ['daily', 'weekly', 'monthly'] as const) {
+      const metrics = await getOrgUsageMetricsPg(sql, 'org_1', {
+        granularity,
+        periodDays: 7,
+      });
+      expect(metrics.summary.totalCostCents).toBe(12);
+      expect(metrics.previousSummary.totalCostCents).toBe(3);
+      expect(
+        metrics.series.filter((p) => p.requests > 0).map((p) => p.costCents),
+      ).toEqual([4, 8]);
+    }
+  });
+
   it('walks the ledger newest-first under a deterministic order', async () => {
     const { sql, statements } = fakeSql((statement) =>
       statement.text.includes('FROM app.usage_ledger') ? [] : [],

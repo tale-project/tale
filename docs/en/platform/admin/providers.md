@@ -40,6 +40,12 @@ Tale therefore runs a subscription in tasks and automations, where its runtime w
 
 To chat with a model you reach through a subscription, add an API key or environment-variable credential for the same provider, or connect a provider such as OpenRouter that serves the model.
 
+## Paste a Claude OAuth token
+
+To use one Anthropic subscription without a broker, choose **Subscription key** and paste a Claude OAuth token, such as one from `claude setup-token`. Tale hands the token to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN` in tasks and automations.
+
+Tale does not refresh a pasted token. When it expires, or you move to another Claude account, use the row's replacement action to paste a new one, then run the task again. [Rotate or retire credentials](#rotate-or-retire-credentials) describes that action.
+
 ## Connect a subscription broker
 
 Subscription brokers support Anthropic subscriptions through Claude Code and OpenAI ChatGPT subscriptions through Codex. These credentials serve task and automation agents; chats require direct API credentials, for the [reasons above](#use-subscriptions-in-tasks-not-in-chat).

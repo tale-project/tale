@@ -73,7 +73,7 @@ const WORKER_EXIT_MARGIN_MS = 20_000;
  * back fails the batch deterministically (the crawl would retry the same
  * batch forever), so the worker bounds the serialized file before it admits
  * each page. */
-const RENDER_MAX_HTML_BYTES = 6 * 1024 * 1024;
+export const RENDER_MAX_HTML_BYTES = 6 * 1024 * 1024;
 const RENDER_MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 
 export type RenderPageOutcome =

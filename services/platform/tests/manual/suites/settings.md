@@ -863,6 +863,19 @@ run.
   `settings.providers.credential.tasksOnly` under its name. In `en`, `de`,
   `de-CH` (which spells *ausser*) and `fr`, both texts wrap without clipping
   at desktop and narrow widths.
+- [ ] `SET-F75` · **Paste a Claude OAuth token, then replace it** —
+  `/dashboard/{org}/settings/providers` → **Add credential** → Anthropic →
+  **Authentication method** **Subscription key**
+  (`settings.providers.authMethod.subscriptionKey`) → paste a Claude OAuth
+  token and save → the row appears with **Subscription key** and the tasks-only
+  note. Open the row menu, choose the replacement action
+  (`settings.providers.replace.subscriptionKeyTitle`), paste a second token and
+  save → the dialog closes with the saved toast and neither token is shown
+  again. Run a task on a Claude Code project agent whose model this credential
+  serves → the run starts and its session carries the newest token in
+  `CLAUDE_CODE_OAUTH_TOKEN` with `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY`
+  empty. Chat lists no model that only this credential serves
+  ([CHAT-F59](chat.md)).
 
 ## Boundary & error tests
 
