@@ -17,6 +17,7 @@
  */
 
 import { Alert } from '@tale/ui/alert';
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import {
@@ -27,7 +28,7 @@ import {
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
 import { useRetryFocus } from '@tale/ui/use-retry-focus';
-import { Loader2, Play } from 'lucide-react';
+import { Loader2, Play, RotateCcw, XCircle } from 'lucide-react';
 import { useState } from 'react';
 
 import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
@@ -277,6 +278,11 @@ export function TaskAgentRunEntry({
     );
   }
 
+  const statusLabel =
+    run.status === 'queued' && run.waitingForCapacity === true
+      ? t('agentRun.waitingForSlot')
+      : t(`agentRun.status.${run.status}`);
+
   return (
     <Stack gap={1} className="min-w-0">
       {previousAssignee && (
@@ -284,40 +290,43 @@ export function TaskAgentRunEntry({
           {t('agentRun.previousRun', { name: run.agentName ?? run.harness })}
         </Text>
       )}
-      {/* One word + one signal: a spinner while the run moves, a coloured
-          state dot once it stopped. The agent identity lives in the Assignee
-          row right above; harness · model stay one hover away. */}
+      {/* The status itself opens the transcript. A separate Details verb made
+          this narrow property row wrap; the status is the obvious target. */}
       <Row align="center" gap={2} className="min-w-0">
-        {live ? (
-          <Loader2
-            aria-hidden
-            className="text-muted-foreground size-3.5 shrink-0 animate-spin"
-          />
-        ) : (
-          <StatusIndicator
-            size="sm"
-            variant={
-              run.status === 'settled'
-                ? 'success'
-                : run.status === 'failed'
-                  ? 'error'
-                  : 'neutral'
-            }
-          />
-        )}
-        <Text
-          as="span"
-          variant="caption"
-          className="min-w-0 truncate font-medium"
-          title={`${run.harness} · ${run.model}`}
+        <button
+          type="button"
+          className="focus-visible:ring-ring inline-flex min-w-0 items-center gap-2 rounded-md text-left focus-visible:ring-1 focus-visible:outline-none"
+          onClick={() => setDetailsOpen(true)}
+          aria-label={statusLabel}
         >
-          {/* A capacity-parked run is honest about WHAT it is queued on —
-              a bare "Queued" reads as "about to start" while the org's
-              sandbox budget may hold it for a while. */}
-          {run.status === 'queued' && run.waitingForCapacity === true
-            ? t('agentRun.waitingForSlot')
-            : t(`agentRun.status.${run.status}`)}
-        </Text>
+          {run.status === 'failed' ? (
+            <Badge variant="destructive" icon={XCircle}>
+              {statusLabel}
+            </Badge>
+          ) : (
+            <>
+              {live ? (
+                <Loader2
+                  aria-hidden
+                  className="text-muted-foreground size-3.5 shrink-0 animate-spin"
+                />
+              ) : (
+                <StatusIndicator
+                  size="sm"
+                  variant={run.status === 'settled' ? 'success' : 'neutral'}
+                />
+              )}
+              <Text
+                as="span"
+                variant="caption"
+                className="min-w-0 truncate font-medium"
+                title={`${run.harness} · ${run.model}`}
+              >
+                {statusLabel}
+              </Text>
+            </>
+          )}
+        </button>
       </Row>
       {/* A run the platform re-kicked by itself says so — otherwise a user
           who watched the run fail sees it silently "running" again and
@@ -337,15 +346,7 @@ export function TaskAgentRunEntry({
               })}
         </Text>
       ) : null}
-      {/* The verbs wrap: the panel is 17rem wide, and two German labels side
-          by side ("Details", "Erneut ausführen") outgrew it and were cut at
-          its edge. */}
       <Row gap={1} className="-ml-2 flex-wrap">
-        {/* Reading the transcript is a READ — offered to every viewer, for
-            live and settled runs alike. */}
-        <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(true)}>
-          {t('run.details')}
-        </Button>
         {canStop ? (
           <Button
             variant="ghost"
@@ -361,14 +362,26 @@ export function TaskAgentRunEntry({
         (previousAssignee ||
           run.status === 'failed' ||
           run.status === 'cancelled') ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            onClick={() => void start()}
-          >
-            {t(previousAssignee ? 'agentRun.start' : 'agentRun.retry')}
-          </Button>
+          previousAssignee ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => void start()}
+            >
+              {t('agentRun.start')}
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t('agentRun.retry')}
+              disabled={busy}
+              onClick={() => void start()}
+            >
+              <RotateCcw aria-hidden className="size-4" />
+            </Button>
+          )
         ) : null}
       </Row>
       <TaskAgentRunDetailsDialog
