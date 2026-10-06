@@ -274,7 +274,7 @@ describe('runApiTurn — what the 202 promised reaches the turn', () => {
     expect(appendAssistantErrorMessage).not.toHaveBeenCalled();
   });
 
-  it('keeps the marker when the drain window re-queues the accepted send', async () => {
+  it('keeps the marker when the drain window re-queues the accepted send [CHAT-R17]', async () => {
     vi.mocked(isBackendDraining).mockResolvedValue(true);
     await runApiTurn(sql, { ...payload, assistantMessageId: 'm-pre' });
     expect(addJobInTx).toHaveBeenCalledWith(
@@ -488,7 +488,7 @@ describe('runApiTurn — the accepted scope is checked again before execution', 
  * marker the thread held — a later send's included.
  */
 describe('runApiTurn — the thread is busy when the job runs', () => {
-  it('records the accepted prompt beside a thread_busy failure, and clears only its own marker', async () => {
+  it('records the accepted prompt beside a thread_busy failure, and clears only its own marker [CHAT-R5]', async () => {
     const busyStatements: string[] = [];
     const busySql = (() => {
       const tag = (strings: unknown, ..._values: unknown[]) => {
@@ -561,7 +561,7 @@ describe('runApiTurn — a stop that arrived while the send was queued', () => {
     return { sql: pool as unknown as Sql, seen };
   }
 
-  it('settles the promised reply as cancelled without a model call, and clears the marker', async () => {
+  it('settles the promised reply as cancelled without a model call, and clears the marker [CHAT-R9]', async () => {
     const { sql: stamped, seen } = stampedSql('m-promised');
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await runApiTurn(stamped, {

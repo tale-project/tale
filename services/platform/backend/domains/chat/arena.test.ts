@@ -128,7 +128,7 @@ function settleSql(
 const writes = (statements: Statement[]) =>
   statements.filter((s) => /^\s*(UPDATE|INSERT)\b/.test(s.text));
 
-describe('settleArenaPair verdict integrity', () => {
+describe('settleArenaPair verdict integrity [CHAT-R11]', () => {
   it('refuses a verdict when one column holds only an error row, writing nothing', async () => {
     const { sql, statements } = settleSql((threadId) =>
       threadId === 'thread_a'
@@ -203,7 +203,7 @@ describe('settleArenaPair verdict integrity', () => {
 });
 
 describe('ensureArenaPair', () => {
-  it("gives column B the conversation's project filing and effort pick", async () => {
+  it("gives column B the conversation's project filing and effort pick [CHAT-R12]", async () => {
     const { sql, statements } = fakeSql((statement) => {
       if (statement.text.includes('FROM app.threads t')) return [THREAD_A];
       if (statement.text.includes('SELECT arena FROM'))
@@ -251,7 +251,7 @@ function trashWrites(statements: Statement[]) {
  * hidden archived row no list, search or delete can reach (2026-09-26
  * evaluation, A-09).
  */
-describe('settleArenaPair discards the loser into Trash', () => {
+describe('settleArenaPair discards the loser into Trash [CHAT-R12]', () => {
   beforeEach(() => {
     createAuditLog.mockClear();
   });

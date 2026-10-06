@@ -118,7 +118,7 @@ beforeEach(() => {
 });
 
 describe('setThreadArchived legal hold', () => {
-  it('checks the same organization, thread and custodian hold as Trash before writing', async () => {
+  it('checks the same organization, thread and custodian hold as Trash before writing [CHAT-R13]', async () => {
     const { sql, statements } = fakeSql(() => [OWNED_ROW]);
     const refused = new Error('LEGAL_HOLD_ACTIVE');
     assertNotHeld.mockRejectedValueOnce(refused);
@@ -128,6 +128,31 @@ describe('setThreadArchived legal hold', () => {
         { organizationId: 'org_1', userId: 'user_1' },
         'thread_1',
         true,
+      ),
+    ).rejects.toThrow(refused);
+    expect(assertNotHeld).toHaveBeenCalledWith(
+      sql,
+      'org_1',
+      'thread',
+      'thread_1',
+      undefined,
+      'user_1',
+    );
+    expect(statements.some(({ text }) => text.includes('UPDATE'))).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+});
+
+describe('trashThread legal hold', () => {
+  it('refuses a held thread before writing, like the archive does [CHAT-R13]', async () => {
+    const { sql, statements } = fakeSql(() => [OWNED_ROW]);
+    const refused = new Error('LEGAL_HOLD_ACTIVE');
+    assertNotHeld.mockRejectedValueOnce(refused);
+    await expect(
+      trashThread(
+        sql,
+        { organizationId: 'org_1', userId: 'user_1' },
+        'thread_1',
       ),
     ).rejects.toThrow(refused);
     expect(assertNotHeld).toHaveBeenCalledWith(
@@ -238,7 +263,7 @@ describe('setThreadArchived with the turn fence', () => {
 describe('trashThread with the turn fence', () => {
   const auth = { organizationId: 'org_1', userId: 'user_1' };
 
-  it('trashes through one conditional UPDATE — no separate generation read', async () => {
+  it('trashes through one conditional UPDATE — no separate generation read [CHAT-R13]', async () => {
     const { sql, statements } = fakeSql(({ text }) =>
       text.includes("status = 'trashed', status_changed_at_ms") &&
       text.includes('RETURNING')
@@ -271,7 +296,7 @@ describe('trashThread with the turn fence', () => {
     expect(cascade?.values.slice(1)).toEqual(['thread_1', 'org_1']);
   });
 
-  it('answers CHAT_TURN_IN_PROGRESS when a send claimed the row meanwhile, and true when it was trashed meanwhile', async () => {
+  it('answers CHAT_TURN_IN_PROGRESS when a send claimed the row meanwhile, and true when it was trashed meanwhile [CHAT-R13]', async () => {
     const claimed = fakeSql(({ text }) => {
       if (text.includes("status = 'trashed', status_changed_at_ms")) return [];
       if (text.includes('SELECT status FROM app.thread_metadata')) {
@@ -313,7 +338,7 @@ describe('shareThread freezes the leaf', () => {
   const update = (statements: Statement[]) =>
     statements.find((s) => s.text.includes('shared_thread_id = ?'));
 
-  it('stores the sibling on screen when it is a live branch of the root, owned by the sharer', async () => {
+  it('stores the sibling on screen when it is a live branch of the root, owned by the sharer [CHAT-R4]', async () => {
     const { sql, statements } = fakeSql((statement) => {
       if (isSiblingCheck(statement)) return [{ id: 'b1' }];
       if (isOwnedRead(statement)) return [OWNED_ROW];
@@ -338,7 +363,7 @@ describe('shareThread freezes the leaf', () => {
     expect(update(statements)?.values[3]).toBeNull();
   });
 
-  it('refuses a leaf that is not a live sibling of the root (foreign, trashed, another lineage)', async () => {
+  it('refuses a leaf that is not a live sibling of the root (foreign, trashed, another lineage) [CHAT-R4]', async () => {
     const { sql, statements } = fakeSql((statement) => {
       if (isSiblingCheck(statement)) return [];
       if (isOwnedRead(statement)) return [OWNED_ROW];
@@ -350,7 +375,7 @@ describe('shareThread freezes the leaf', () => {
     expect(update(statements)).toBeUndefined();
   });
 
-  it('resolves the leaf from the stored selection map when the caller names none', async () => {
+  it('resolves the leaf from the stored selection map when the caller names none [CHAT-R4]', async () => {
     const { sql, statements } = fakeSql((statement) => {
       if (statement.text.includes('branch_parent_id IS NOT NULL')) {
         return [
@@ -370,7 +395,7 @@ describe('shareThread freezes the leaf', () => {
 });
 
 describe('getSharedThread', () => {
-  it('resolves the token only for an ACTIVE thread — trash and expiry go dark', async () => {
+  it('resolves the token only for an ACTIVE thread — trash and expiry go dark [CHAT-R4] [CHAT-R13]', async () => {
     const { sql, statements } = fakeSql((statement) =>
       statement.text.includes('share_token') ? [OWNED_ROW] : [],
     );
@@ -381,7 +406,19 @@ describe('getSharedThread', () => {
     expect(lookup?.text).toContain("tm.status = 'active'");
   });
 
-  it('reads the frozen sibling’s rows while it is live, the root’s once it is gone', async () => {
+  it('goes dark once the owner stopped sharing, reading no messages [CHAT-R4]', async () => {
+    const { sql, statements } = fakeSql((statement) =>
+      statement.text.includes('share_token')
+        ? [{ ...OWNED_ROW, isShared: false }]
+        : [],
+    );
+    await expect(getSharedThread(sql, ['org_1'], 'tok')).resolves.toBeNull();
+    expect(statements.some((s) => s.text.includes('FROM app.messages'))).toBe(
+      false,
+    );
+  });
+
+  it('reads the frozen sibling’s rows while it is live, the root’s once it is gone [CHAT-R4]', async () => {
     const messagesOf = (statements: Statement[]) =>
       statements.find((s) => s.text.includes('FROM app.messages'));
     const isLeafCheck = (s: Statement) =>
@@ -475,7 +512,7 @@ describe('getSharedThread', () => {
  * "Try again"s — read as three siblings of one fork point with the original
  * among them. A fork after the sibling's own fork stays on the sibling.
  */
-describe('branchForEdit / branchForRegenerate hang a fork off the turn it versions', () => {
+describe('branchForEdit / branchForRegenerate hang a fork off the turn it versions [CHAT-R10]', () => {
   interface Ancestor {
     id: string;
     branchParentId: string | null;
@@ -616,7 +653,7 @@ describe('branchForEdit / branchForRegenerate hang a fork off the turn it versio
 });
 
 describe('unshareThread', () => {
-  it('revokes on the owner-matched row regardless of lifecycle, and says whether it did', async () => {
+  it('revokes on the owner-matched row regardless of lifecycle, and says whether it did [CHAT-R4]', async () => {
     const { sql, statements } = fakeSql((statement) =>
       statement.text.includes('is_shared = false')
         ? [{ threadId: 'thread_1' }]
@@ -635,7 +672,7 @@ describe('unshareThread', () => {
     expect(revoke?.values).toEqual(['thread_1', 'org_1', 'user_1']);
   });
 
-  it('answers false for a thread the caller does not own', async () => {
+  it('answers false for a thread the caller does not own [CHAT-R1] [CHAT-R4]', async () => {
     const { sql } = fakeSql(() => []);
     await expect(
       unshareThread(sql, 'org_1', 'user_2', 'thread_1'),
@@ -643,7 +680,7 @@ describe('unshareThread', () => {
   });
 });
 
-describe('moveThreadToProject', () => {
+describe('moveThreadToProject [CHAT-R3]', () => {
   const auth = { organizationId: 'org_1', userId: 'user_1', email: 'o@x.io' };
   const answering =
     (row: Omit<typeof OWNED_ROW, 'projectId'> & { projectId: string | null }) =>
@@ -831,7 +868,7 @@ describe('searchChats lineage', () => {
  * the root is the leaf the OWNER's view resolves to — the branch on their
  * screen, never the version it replaced, and never a sibling id.
  */
-describe('the project share read grant', () => {
+describe('the project share read grant [CHAT-R2]', () => {
   const isSharedRead = (text: string): boolean =>
     text.includes('FROM app.threads t') &&
     text.includes('tm.shared_with_project = true');
