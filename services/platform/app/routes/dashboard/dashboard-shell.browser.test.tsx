@@ -177,20 +177,26 @@ async function renderShell(recovery: Recovery = SIGNED_IN) {
       </SessionLapseRecovery>
     </QueryClientProvider>
   );
-  // React's lazy alert can finish after a cold browser import. Settle the
-  // actual module load and React's commit before measuring the shell; a
-  // polling timeout outside act can observe only the Suspense fallback.
+  // Warm the real lazy module before mounting, including its settings words.
+  // React still crosses the lazy boundary; act flushes that commit and the
+  // title below confirms the alert stands before any geometry is measured.
+  await import('@/app/features/settings/data-residency/components/embedding-setup-alert');
+  const settledEmbeddingAlert = async () => {
+    if (!h.embeddingConfigured) {
+      await screen.findByText(/^Knowledge search is off$/);
+    }
+  };
   let view: ReturnType<typeof renderApp>;
   await act(async () => {
     view = renderApp(shell(recovery));
-    await import('@/app/features/settings/data-residency/components/embedding-setup-alert');
   });
+  await settledEmbeddingAlert();
   return {
     rerender: async (at: Recovery = recovery) => {
       await act(async () => {
         view.rerender(shell(at));
-        await import('@/app/features/settings/data-residency/components/embedding-setup-alert');
       });
+      await settledEmbeddingAlert();
     },
   };
 }
