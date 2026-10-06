@@ -392,7 +392,7 @@ describePosix('managed source-Compose runtime adoption', () => {
     const originalVolumes = [...run.docker.volumes];
     const originalMounts = run.docker.containers.map((container) => ({
       name: container.Name,
-      mounts: structuredClone(container.Mounts),
+      mounts: structuredClone(container.Mounts) as { Name: string }[],
     }));
     run.fixture.source.volumes['static-assets'] = {};
     run.fixture.source.services.platform.volumes = [
