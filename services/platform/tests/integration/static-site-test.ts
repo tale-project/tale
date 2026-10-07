@@ -23,7 +23,7 @@ import {
   nonRootImageUser,
   sleep,
 } from './lib/docker';
-import { projectRoot } from './lib/exec';
+import { capture, projectRoot } from './lib/exec';
 import { CYAN, GREEN, header, NC, RED, Results, YELLOW } from './lib/log';
 
 interface StaticSiteProbe {
@@ -145,6 +145,25 @@ export async function runStaticSiteTest(
     } else {
       r.fail(`${svc}: no HEALTHCHECK instruction`);
     }
+
+    const { packageManager } = await Bun.file(`${root}/package.json`).json();
+    const expectedBun = packageManager.replace('bun@', '');
+    const bun = await capture([
+      'docker',
+      'run',
+      '--rm',
+      '--network',
+      'none',
+      '--entrypoint',
+      'timeout',
+      image,
+      '10',
+      'bun',
+      '--version',
+    ]);
+    if (bun.exitCode === 0 && bun.stdout.trim() === expectedBun)
+      r.pass(`${svc}: Bun ${expectedBun} matches the workspace toolchain`);
+    else r.fail(`${svc}: Bun runtime does not match ${expectedBun}`);
 
     const sizeMb = metadata.sizeMb;
     if (sizeMb <= sizeBudgetMb) {

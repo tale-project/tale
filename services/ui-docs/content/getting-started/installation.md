@@ -32,7 +32,7 @@ For marketing components, also install `github:tale-project/tale#dist/marketing-
 
 For a reproducible release, replace the moving branch with a published `ui-v<version>` tag and, when used, its matching `marketing-ui-v<version>` tag. `<version>` is a placeholder, not a tag to install literally. Commit the resulting lockfile. To deliberately refresh a moving Git dependency, use `bun install --force` and review the lockfile changes.
 
-The packages' export maps point at TypeScript source. Run Vite through Bun (`bun --bun vite` and `bun --bun vite build`), as the Tale service scripts do. Use TypeScript's bundler module resolution and React JSX transform. Inside Tale-project repositories, select the appropriate shared `tsconfig` family rather than adding workspace-specific compiler options.
+The packages' export maps point at TypeScript source. Run Vite through Bun (`bun --bun vite` for development and `bun --bun vite build` for a client build). In the Tale monorepo, use `bun run --filter @tale/<service> build` for the complete production build; its shared client helper waits for Vite plugins to finish before exiting. Use TypeScript's bundler module resolution and React JSX transform. Inside Tale-project repositories, select the appropriate shared `tsconfig` family rather than adding workspace-specific compiler options.
 
 ## Load Tailwind and YAML
 

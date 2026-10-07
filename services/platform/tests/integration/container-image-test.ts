@@ -156,6 +156,30 @@ async function main(): Promise<number> {
 
   if (r.failed > 0) return 1;
 
+  const { packageManager } = await Bun.file(
+    `${PROJECT_ROOT}/package.json`,
+  ).json();
+  const expectedBun = packageManager.replace('bun@', '');
+  for (const svc of ['platform', 'sandbox', 'sandbox-runtime']) {
+    const image = images.get(svc)!;
+    const bun = await capture([
+      'docker',
+      'run',
+      '--rm',
+      '--network',
+      'none',
+      '--entrypoint',
+      'timeout',
+      image,
+      '10',
+      'bun',
+      '--version',
+    ]);
+    if (bun.exitCode === 0 && bun.stdout.trim() === expectedBun)
+      r.pass(`${svc}: Bun ${expectedBun} matches the workspace toolchain`);
+    else r.fail(`${svc}: Bun runtime does not match ${expectedBun}`);
+  }
+
   // 1. OCI label checks
   header('Checking OCI labels');
   for (const svc of SERVICES) {

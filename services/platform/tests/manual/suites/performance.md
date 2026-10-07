@@ -38,7 +38,7 @@ magnitude:
   `prod` on a local stack, add `TALE_E2E_SERVE_BUILD=1` to the environment of
   mode A's or B's `bun scripts/dev.ts`: it serves `dist/` through
   `vite preview`, which proxies the backend like the dev server, and runs
-  `bun --bun vite build` first when `dist/` is missing. Delete `dist/` to
+  `bun --bun ../../packages/ui/bin/build-client.ts` first when `dist/` is missing. Delete `dist/` to
   build again; the build alone needs about 3 GB of memory.
 
 > **Agent / measurement note**:
