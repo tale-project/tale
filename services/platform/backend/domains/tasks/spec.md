@@ -5,7 +5,7 @@
 The rules a task write is held to before anything is saved: who can create, change and delete
 a task, what an archived task or project refuses, how long its text can be, how often
 automations can start an agent on it, and what a deleted task leaves behind. Agent runs,
-reviews, repeating tasks and the importers are not covered; see Not yet.
+reviews beyond captured agent handoffs, repeating tasks and the importers are not covered; see Not yet.
 
 ## Who can do what
 
@@ -251,12 +251,42 @@ intent is reconciled; it never replaces or obsoletes a newer visible request.
   Mia retries → the same decision returns; a later delayed reply cannot replace
   her newer pending closure request or submit either transition again.
 
+## Captured agent review handoffs
+
+### TASK-R21 · A granted manager delegates only the exact captured agent gate
+
+The live manager needs an explicit project-only routing grant and project-wide
+starter authority. The recipient must already be an eligible independent agent
+of the same project, distinct from the manager and implementation agent. The
+captured approval, source run, reviewer and evidence must still match. Human or
+workflow gates, live work, archived tasks and policy failures are refused.
+The task's implementation owner, status, source, future reviewer configuration
+and permissions stay unchanged. The handoff starts no run.
+
+- **Example**: A manager moves an agent review to an available qualified reviewer
+  → one successor approval preserves the source and task owner; the old approval
+  records its successor and a receipt attributed to the manager agent.
+- **Example**: A verdict wins while a manager holds the old review identity
+  → delegation is refused and no successor gate appears.
+
+### TASK-R22 · A handoff receipt cannot replay a changed review
+
+An identical retry needs the same still-authorized live issuer, the unchanged
+pending successor and current source evidence. A newer handoff, decision or
+source edit refuses the old intent. The native task read exposes the validated
+historical handoff into its latest gate, separately from current pending ownership.
+
+- **Example**: A handoff reply is lost and the same manager retries immediately
+  → the same receipt returns without another approval or activity.
+- **Example**: The recipient decides before that retry → the old handoff refuses;
+  its historical receipt does not claim the review is still pending.
+
 ## Not yet
 
 - **Agent runs**: starting, steering, stopping, retrying and re-attaching a run, and how a run
   moves the card between statuses (`agent-runs.ts`, `run-start.ts`, `reattach.ts`,
   `kick-plan.ts`).
-- **Reviews**: who a review goes to, an agent as reviewer, and what a decision does to the task
+- **Reviews beyond `TASK-R21`–`TASK-R22`**: who a review goes to, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`).
 - **Repeating tasks, date notifications, metrics and board search** (`repeat.ts`,
   `date-notifications.ts`, `metrics.ts`).

@@ -4314,7 +4314,7 @@ export async function liveAgentRunOfTask(
 }
 
 /** Whether any run family holds this task live (agent turn or automation). */
-async function taskHasLiveRun(
+export async function taskHasLiveRun(
   tx: TransactionSql,
   task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>,
 ): Promise<boolean> {

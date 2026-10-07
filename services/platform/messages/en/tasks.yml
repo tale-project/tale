@@ -348,6 +348,7 @@ assignee:
   standardAgentFooter: Until this project has agents of its own, the organization's standard agent takes its tasks.
 activity:
   reviewResponded: "Review decided"
+  reviewDelegated: "Review delegated"
   created: Created
   updated: Updated
   claimed: Claimed

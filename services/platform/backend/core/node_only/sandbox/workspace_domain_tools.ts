@@ -1,5 +1,7 @@
 import {
   taskAgentResumeFromSchema,
+  taskDelegateReviewInputSchema,
+  type TaskDelegateReviewReceipt,
   taskAgentReviewInputSchema,
   taskAgentReviewStageFileSchema,
   type AgentReviewBlockedReason,
@@ -66,6 +68,7 @@ export const WORKSPACE_TASK_TOOLS = [
   'task_update_status',
   'task_update_metadata',
   'task_review',
+  'task_delegate_review',
   'task_start_agent',
   'task_upsert_by_external_ref',
 ] as const;
@@ -248,6 +251,7 @@ interface TaskWorkStateAnswer {
   workflowRun: WorkflowRunAnswer | null;
   pendingReview: PendingReviewAnswer | null;
   reviewDecision?: TaskAgentReviewReceipt | null;
+  reviewDelegation?: TaskDelegateReviewReceipt | null;
 }
 
 interface AgentRunAnswer {
@@ -1196,6 +1200,7 @@ export async function runTaskTool(
           workflowRun: workflowRunView(work.workflowRun),
           pendingReview: pendingReviewView(work.pendingReview),
           reviewDecision: work.reviewDecision ?? null,
+          reviewDelegation: work.reviewDelegation ?? null,
           reviewFiles,
         },
       };
@@ -1468,6 +1473,42 @@ export async function runTaskTool(
           sessionId: args.session.sessionId,
           taskRunExecId: args.session.taskRunExecId,
           patch: parsed.data,
+        },
+      );
+      return { status: 'ok', output };
+    }
+
+    if (args.tool === 'task_delegate_review') {
+      if (
+        confinedTo !== undefined ||
+        authority.scope.kind !== 'project' ||
+        args.session?.taskRunExecId === undefined
+      ) {
+        return {
+          status: 'unavailable',
+          blockers: [
+            {
+              code: 'not_a_project_agent_run',
+              guidance:
+                'Only a live project agent run with project-wide authority can delegate a captured agent review.',
+            },
+          ],
+        };
+      }
+      const parsed = taskDelegateReviewInputSchema.safeParse(callArgs);
+      if (!parsed.success)
+        return {
+          status: 'invalid_args',
+          message:
+            'task_delegate_review needs only {taskId, reviewerAgentId, expected: {approvalId, runId, evidenceRevision, reviewer: {kind: "agent", agentId}}, reason}. Copy full native IDs and current evidence from task_get. No execution, grants or future routing fields are accepted.',
+        };
+      const output = await ctx.runMutation(
+        internal.tasks.internal_mutations.agentDelegateTaskReview,
+        {
+          organizationId,
+          sessionId: args.session.sessionId,
+          taskRunExecId: args.session.taskRunExecId,
+          review: parsed.data,
         },
       );
       return { status: 'ok', output };

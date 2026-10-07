@@ -20,6 +20,7 @@ import {
 import { reviewAgentTask } from '../tasks/agent-review.ts';
 import { startDelegatedAgentRun } from '../tasks/delegated-start.ts';
 import { TaskError } from '../tasks/errors.ts';
+import { delegateAgentTaskReview } from '../tasks/review-delegation.ts';
 import {
   isTaskRunConfined,
   runStarterMayEditProject,
@@ -663,6 +664,34 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
             'TASK_REVIEW_FORBIDDEN',
           );
           return reviewAgentTask(
+            tx,
+            {
+              organizationId: args.organizationId,
+              sessionId: args.sessionId,
+              ...authority,
+            },
+            args.review,
+          );
+        }),
+      );
+    },
+
+    'tasks/internal_mutations:agentDelegateTaskReview': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; the domain validates the complete delegation input
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        review: unknown;
+      };
+      return coded(() =>
+        transactSerializable(sql, async (tx) => {
+          const authority = await requireProjectTaskRun(
+            tx,
+            args,
+            'TASK_REVIEW_FORBIDDEN',
+          );
+          return delegateAgentTaskReview(
             tx,
             {
               organizationId: args.organizationId,

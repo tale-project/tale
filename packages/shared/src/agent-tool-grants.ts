@@ -40,7 +40,8 @@ export const AGENT_TOOL_CATALOG = [
  * answers to (`domains/tasks/delegated-start.ts`). An automation starts
  * agents with its `task.start_agent` step instead. `task_update_metadata`
  * triages existing tasks without starting work; `task_review` decides an
- * independent native task review. The automation agent node
+ * independent native task review. `task_delegate_review` moves only one captured
+ * agent gate to another eligible reviewer without starting work. The automation agent node
  * neither offers nor grants these project-only tools.
  */
 export const PROJECT_AGENT_ONLY_TOOLS: readonly string[] = [

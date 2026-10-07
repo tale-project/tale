@@ -268,6 +268,7 @@ agents:
     task_update_status: Move tasks between columns
     task_update_metadata: Change task priority and agent assignment
     task_review: "Review other agents’ task results"
+    task_delegate_review: "Delegate pending agent reviews"
     task_start_agent: Start other agents on tasks
     task_upsert_by_external_ref: Sync an external item to a task
     document_find: Find documents

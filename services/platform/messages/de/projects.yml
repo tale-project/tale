@@ -276,6 +276,7 @@ agents:
     task_update_status: Aufgaben zwischen Spalten verschieben
     task_update_metadata: Aufgabenpriorität und Agentenzuweisung ändern
     task_review: "Aufgabenergebnisse anderer Agenten prüfen"
+    task_delegate_review: "Offene Agentenreviews weitergeben"
     task_start_agent: Andere Agenten auf Aufgaben starten
     task_upsert_by_external_ref: Externes Element mit einer Aufgabe abgleichen
     document_find: Dokumente finden

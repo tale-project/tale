@@ -352,6 +352,7 @@ assignee:
   standardAgentFooter: Tant que ce projet n'a pas d'agents propres, l'agent standard de l'organisation prend en charge ses tâches.
 activity:
   reviewResponded: "Décision de relecture"
+  reviewDelegated: "Relecture réattribuée"
   created: Créé
   updated: Mis à jour
   claimed: Pris en charge
