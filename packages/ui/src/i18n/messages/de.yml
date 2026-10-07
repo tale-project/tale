@@ -161,6 +161,7 @@ common:
     dateFilterUnavailable: Datumsfilter nicht verfügbar
   datePicker:
     chooseDay: Wähle
+    unavailableDay: Nicht verfügbar
     month: Monat
     calendar: Kalender
     clear: Datum entfernen
