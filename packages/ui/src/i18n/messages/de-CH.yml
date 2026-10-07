@@ -9,6 +9,5 @@ search:
 docs:
   closeMenu: Navigationsmenü schliessen
 common:
-  errors:
   aria:
     close: Schliessen

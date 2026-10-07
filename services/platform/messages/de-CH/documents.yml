@@ -1,7 +1,3 @@
-preview:
-  errors:
-    documentPreview: Dokumentvorschau
-    errorLoadingDocumentPreview: Die Dokumentvorschau konnte nicht geladen werden. Versuche es erneut.
   closePreview: Vorschau schliessen
   truncatedNotice: Diese Datei ist zu gross für eine vollständige Vorschau —
     angezeigt wird der Anfang. Lade die Datei herunter, um alles zu sehen.

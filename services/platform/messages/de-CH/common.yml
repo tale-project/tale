@@ -6,3 +6,7 @@ import:
     tooLarge: '{field} ist zu gross'
 aria:
   zoomIn: Vergrössern
+
+errors:
+  documentPreview: Dokumentvorschau
+  errorLoadingDocumentPreview: Die Dokumentvorschau konnte nicht geladen werden. Versuche es erneut.

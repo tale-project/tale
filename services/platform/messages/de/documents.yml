@@ -219,9 +219,6 @@ filter:
     orgWide: Organisationsweit
     mine: Meine Teams
 preview:
-  errors:
-    documentPreview: Dokumentvorschau
-    errorLoadingDocumentPreview: Die Dokumentvorschau konnte nicht geladen werden. Versuche es erneut.
   loading: Lädt...
   failedToLoad: Dokument konnte nicht geladen werden
   downloadComplete: Download abgeschlossen
