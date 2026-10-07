@@ -303,12 +303,12 @@ export async function checkExecLimitPark(
       WHERE org_id = ${orgId} AND agent_id = ${agentId}
         AND status IN ('queued', 'running')
     `;
+    // Only this lane's own workspace ops are removed: the external-turn
+    // metrics read every op of the organization, and these stand-in turns
+    // are none of its outcomes.
     await sql`
-      UPDATE app.sandbox_session_ops SET
-        status = 'cancelled', finished_at_ms = ${Date.now()},
-        finalized_at_ms = coalesce(finalized_at_ms, ${Date.now()})
+      DELETE FROM app.sandbox_session_ops
       WHERE org_id = ${orgId} AND session_id = ${sessionId}
-        AND status = 'running'
     `;
     await sql`
       UPDATE app.sandbox_sessions SET status = 'stopped'
