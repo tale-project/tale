@@ -27,6 +27,8 @@ La règle est la même partout : une requête compte pour la personne qui a dem
 
 Une nouvelle tentative d’une exécution d’agent poursuit l’exécution lancée par son initiateur ; son usage reste donc imputé à cette personne. Quand une intégration agit avec une clé API pour un autre membre, l’exécution compte pour ce membre, et la limite de la clé la compte aussi.
 
+Le travail dans un projet compte aussi pour ce projet, quelle que soit la personne qui l’a demandé : les chats du projet, avec leurs titres, les réponses lues à voix haute et les appels d’outils de l’assistant ; les exécutions de ses agents et des automatisations qui y tournent, avec les images qu’elles créent ; et les appels faits avec les propres clés API du projet. Une transcription ne compte pas pour un projet.
+
 Une clé API qu’un admin a créée pour un membre compte pour ce membre, comme sa propre clé. Une clé qui appartient à une équipe, à un projet ou à l’organisation ([Clés API](/fr/platform/admin/api-keys#create-a-key-for-someone-else)) n’est pas une personne : ce qu’elle demande compte pour la clé elle-même. L’analyse de l’usage la présente sur sa propre ligne sous **Utilisation par utilisateur**, sous le nom de la clé avec son équipe, son projet ou l’organisation en dessous, et ne la compte jamais comme utilisateur actif. La clé d’une équipe compte aussi dans l’usage de son équipe.
 
 ## Quelles limites s’appliquent
@@ -34,6 +36,7 @@ Une clé API qu’un admin a créée pour un membre compte pour ce membre, comme
 - **Les limites personnelles, d’équipe et de rôle** s’appliquent à la personne à qui une requête est imputée. Une exécution lancée par une planification, un webhook ou un événement n’a pas de telle personne et n’est mesurée par rapport à aucune d’elles. La clé propre d’une équipe, d’un projet ou de l’organisation non plus, sauf que la clé d’une équipe est tenue par la limite de son équipe.
 - **Les limites de l’organisation** s’appliquent à toute requête, y compris aux exécutions lancées par un déclencheur.
 - **Les limites de clé API** s’appliquent aux requêtes authentifiées par cette clé : les messages de chat qu’elle a envoyés, ses appels aux endpoints de modèles et les exécutions qu’elle a lancées.
+- **Les limites de projet** s’appliquent au travail dans ce projet, quelle que soit la personne qui l’a demandé, y compris aux exécutions lancées par un déclencheur.
 
 Quand une limite est atteinte, Tale refuse la requête suivante avant de l’exécuter et nomme la limite. Un tour d’agent géré est refusé à son démarrage ; un tour déjà en cours conserve l’enveloppe qui lui a été accordée. Une image que l’agent demande pendant son tour est vérifiée à part, avant l’appel au modèle d’images : si une limite est atteinte, Tale refuse l’image et le tour continue. L’image puise aussi dans l’enveloppe du tour qui l’a demandée. [Comment les règles se combinent](/fr/platform/admin/governance/policies-and-limits#how-rules-combine) traite le cas où plusieurs règles visent la même personne.
 
@@ -41,10 +44,10 @@ Quand une limite est atteinte, Tale refuse la requête suivante avant de l’ex�
 
 **Un collègue mentionne ton agent dans un commentaire ou dans la description d’une tâche.** Publier le commentaire ou enregistrer la description lance une exécution, et celle-ci compte pour le collègue qui en est l’auteur, pas pour toi en tant que créateur de l’agent.
 
-**Une automatisation planifiée dépense chaque nuit.** Ses exécutions apparaissent sur la ligne **Automatisations (déclencheurs)**. Elles n’augmentent jamais l’usage personnel de quelqu’un ni le nombre d’utilisateurs actifs, et seules les limites de l’organisation peuvent les arrêter. Définis une limite de coût ou de requêtes pour l’organisation si tu as besoin d’un plafond pour elles.
+**Une automatisation planifiée dépense chaque nuit.** Ses exécutions apparaissent sur la ligne **Automatisations (déclencheurs)**. Elles n’augmentent jamais l’usage personnel de quelqu’un ni le nombre d’utilisateurs actifs, et seules les limites de l’organisation peuvent les arrêter, ou celles d’un projet quand l’automatisation y tourne. Définis une limite de coût ou de requêtes pour l’organisation ou le projet si tu as besoin d’un plafond pour elles.
 
 **Une intégration utilise une clé API au nom d’un membre.** Les limites personnelles et d’équipe du membre voient l’exécution, et la limite de la clé aussi. Deux plafonds s’appliquent, et le plus strict refuse en premier.
 
 ## Ce que voient les membres
 
-**Paramètres > Utilisation** liste chaque limite qui s’applique au membre connecté avec son utilisation actuelle : les chats envoyés, les sorties vocales demandées, les appels aux endpoints de modèles et les exécutions d’agents lancées, quelle que soit la façon de les lancer. Les limites partagées d’équipe et d’organisation y figurent aussi, parce qu’elles peuvent être atteintes avant une limite personnelle.
+**Paramètres > Utilisation** liste chaque limite qui s’applique au membre connecté avec son utilisation actuelle : les chats envoyés, les sorties vocales demandées, les appels aux endpoints de modèles et les exécutions d’agents lancées, quelle que soit la façon de les lancer. Les limites partagées d’équipe et d’organisation y figurent aussi, parce qu’elles peuvent être atteintes avant une limite personnelle. La limite d’un projet n’y figure pas ; une requête qu’elle refuse la nomme.
