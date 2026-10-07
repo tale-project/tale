@@ -59,7 +59,7 @@ export function servingLabel(value: unknown): string | undefined {
  * - Mistral regional inference: EU and EFTA countries, or the United States
  *   (https://docs.mistral.ai/inference/regional-inference).
  */
-export const REGIONAL_ENDPOINTS: Readonly<Record<string, EndpointRegion>> = {
+const REGIONAL_ENDPOINTS: Readonly<Record<string, EndpointRegion>> = {
   'eu.openrouter.ai': 'europe',
   'us.openrouter.ai': 'united-states',
   'eu.api.openai.com': 'europe',
