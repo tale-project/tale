@@ -139,6 +139,7 @@ import {
 } from './domains/tasks/delegated-start.integration.ts';
 import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
+import { checkExecLimitPark } from './domains/tasks/exec-limit-park.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkTaskExternalStatusProjection } from './domains/tasks/external-status.integration.ts';
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
@@ -60538,6 +60539,10 @@ async function main(): Promise<void> {
       [
         'checkSessionOpTranscriptMerge',
         () => checkSessionOpTranscriptMerge(sql, authCtx, record),
+      ],
+      [
+        'checkExecLimitPark',
+        () => checkExecLimitPark(sql, baseUrl, authCtx, record),
       ],
       [
         'checkTaskRunConnectorCaller',

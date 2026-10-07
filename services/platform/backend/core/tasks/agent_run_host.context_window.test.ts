@@ -13,9 +13,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import {
+  classifyOutcome,
+  NO_OUTCOME_RESULT_STATUSES,
+} from '../../domains/sandbox/external-turn-outcome';
+import { releaseTurnKey } from '../automations/agent_host';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
-import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants';
+import {
+  AWAITING_ROOM_RESULT_STATUS,
+  SANDBOX_DESTROY_PENDING_MESSAGE,
+} from '../sandbox/session_constants';
 
 const io = vi.hoisted(() => ({
   instructions: [] as string[],
@@ -74,7 +82,7 @@ vi.mock('../automations/agent_host', () => ({
     onTimeline() {},
     async flush() {},
   }),
-  releaseTurnKey: async () => ({ won: true }),
+  releaseTurnKey: vi.fn(async () => ({ won: true })),
   stageWorkflowSkills: async () => '',
 }));
 vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
@@ -467,6 +475,105 @@ describe('a task agent start', () => {
     expect(
       mutations.some(
         (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      ),
+    ).toBe(false);
+  });
+
+  /** The start window of an exec the workspace's runtime refused before it
+   * spawned: the spawner's result for runnerd's `fail` (no exit, no output). */
+  function refusedExecWindow(errorCode: string, errorMessage: string) {
+    return {
+      kind: 'terminal',
+      text: '',
+      textTruncated: false,
+      answerText: '',
+      timeline: [],
+      exited: true,
+      execResult: {
+        status: 'failed',
+        exitCode: null,
+        durationMs: 0,
+        stdoutBase64: '',
+        stderrBase64: '',
+        truncated: { stdout: false, stderr: false },
+        errorCode,
+        errorMessage,
+      },
+      outputTokens: 0,
+    };
+  }
+
+  it('parks a launched start whose exec found every live-exec place of its workspace taken, instead of failing it', async () => {
+    // The agent's other runs hold all of the workspace's exec places: the
+    // runtime refuses the fifth exec before it spawns (`EXEC_LIMIT`).
+    io.windows = [refusedExecWindow('EXEC_LIMIT', 'live exec cap 4 reached')];
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
+
+    expect(io.starts).toHaveLength(1);
+    // Parked through the capacity lane, off its launch: no failure, no
+    // settle, so no retry is armed and no attempt is spent.
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:parkTaskAgentRunForCapacity',
+      )?.args,
+    ).toEqual({ runId: 'run-1', execId: 'exec-1', execRefused: true });
+    expect(
+      mutations.some(
+        (m) =>
+          m.name === 'tasks/agent_runs:markTaskAgentRunFailed' ||
+          m.name === 'tasks/agent_runs:markTaskAgentRunSettled' ||
+          m.name === 'tasks/agent_runs:completeTaskAgentRun',
+      ),
+    ).toBe(false);
+    // The refused exec's key and op row close as cancelled, marked as a
+    // room wait: nothing ran.
+    expect(releaseTurnKey).toHaveBeenCalledExactlyOnceWith(ctx, {
+      organizationId: 'org-1',
+      sessionId: 'pa-alice',
+      execId: 'exec-1',
+      status: 'cancelled',
+      agentResultStatus: AWAITING_ROOM_RESULT_STATUS,
+    });
+  });
+
+  it('closes a refused exec as a room wait, never as a cancelled turn of the external-turn metrics', async () => {
+    io.windows = [refusedExecWindow('EXEC_LIMIT', 'live exec cap 4 reached')];
+    const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
+
+    // The op row as the start finalizes it, read the way the metrics read
+    // it: no outcome, left out before the row cap. Counted as a cancelled
+    // turn, every refusal — and every re-wake into a still-full workspace —
+    // would add one, with a near-zero duration.
+    const closed = vi.mocked(releaseTurnKey).mock.calls[0]?.[1];
+    expect(closed?.status).toBe('cancelled');
+    expect(NO_OUTCOME_RESULT_STATUSES).toContain(closed?.agentResultStatus);
+    expect(
+      classifyOutcome(closed?.agentResultStatus ?? null, closed?.status ?? ''),
+    ).toBe('parked');
+  });
+
+  it('still fails a start whose exec the runtime refused for any other reason', async () => {
+    io.windows = [refusedExecWindow('RUNTIME_ERROR', 'exec id is live')];
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
+
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      )?.args,
+    ).toMatchObject({
+      runId: 'run-1',
+      execId: 'exec-1',
+      failureCode: 'harness_error',
+    });
+    expect(
+      mutations.some(
+        (m) => m.name === 'tasks/agent_runs:parkTaskAgentRunForCapacity',
       ),
     ).toBe(false);
   });

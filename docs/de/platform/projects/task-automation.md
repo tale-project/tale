@@ -122,7 +122,7 @@ Fragen einer Automatisierung und Workflow-Genehmigungen bleiben Sache von Person
 
 | Zustand oder Problem | Maßnahme |
 | --- | --- |
-| Warten auf einen Sandbox-Platz | Die Kapazität der Organisation oder der gemeinsam genutzten Infrastruktur kann ausgeschöpft sein. Warte auf einen Platz oder bitte einen Admin, [Sandboxes](/de/platform/admin/sandboxes) zu prüfen. |
+| Warten auf einen Sandbox-Platz | Die Kapazität der Organisation oder der gemeinsam genutzten Infrastruktur kann ausgeschöpft sein, oder im Arbeitsbereich des Agenten laufen bereits vier seiner Läufe gleichzeitig; der Lauf startet dann, sobald einer davon endet. Das Warten verbraucht keine automatische Wiederholung. Warte auf einen Platz oder bitte einen Admin, [Sandboxes](/de/platform/admin/sandboxes) zu prüfen. |
 | Automatischer Wiederholungsversuch | Tale wiederholt einen behebbaren Fehler. Beobachte die Versuchszahl und starte keinen zusätzlichen Lauf. |
 | **Der Agent konnte diese Aufgabe nicht fertigstellen** | Es folgt keine automatische Wiederholung. Der Hinweis sagt, was schiefging und wer es beheben kann, und **Details** neben dem Lauf zeigt, was der Lauf selbst gemeldet hat; [Wenn der Agent nicht fertig wird](#wenn-der-agent-nicht-fertig-wird) zählt die Fälle auf. Behebe die Ursache und nutze dann **Erneut ausführen**, um das Gespräch fortzusetzen. |
 | Neuzuweisung wird verweigert | Brich den aktiven Lauf ab, bevor du neu zuweist. |
