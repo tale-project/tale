@@ -63,6 +63,6 @@ Chaque nettoyage est consigné dans le [journal d’audit](/fr/platform/admin/go
 
 ## Préserver les données sous gel
 
-Les gels juridiques priment sur la conservation dans leur périmètre. Un gel de l’organisation la protège dans son ensemble ; un gel plus ciblé protège les entités ou personnes concernées. Consulte le [parcours du gel juridique](/fr/platform/admin/governance/legal-hold) avant de modifier une politique qui les touche.
+Les conservations légales priment sur la rétention dans leur périmètre. Une conservation de l’organisation la protège dans son ensemble ; une conservation plus ciblée protège les entités ou personnes concernées. Consulte le [parcours de la conservation légale](/fr/platform/admin/governance/legal-hold) avant de modifier une politique qui les touche.
 
 Un gel ne remplace pas une sauvegarde. Une fois la suppression achevée hors gel, augmenter la durée ne récupère pas les données. La restauration dépend d’une sauvegarde conservée et de l’état de déploiement correspondant.

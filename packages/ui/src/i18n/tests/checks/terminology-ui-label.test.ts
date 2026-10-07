@@ -21,17 +21,24 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+/** `terms: null` checks against the shipped glossary. */
 function context(
-  terms: readonly Term[],
+  terms: readonly Term[] | null,
   texts: Record<string, string>,
   kind: Source['kind'] = 'markdown',
 ): CheckContext {
-  const glossaryPath = path.join(root, 'glossary.yml');
-  fs.writeFileSync(glossaryPath, JSON.stringify({ terms }));
+  // The glossary loader and the scanner cache by path for the whole run, so
+  // every context writes to its own directory.
+  const dir = fs.mkdtempSync(path.join(root, 'context-'));
+  let glossaryPath: string | undefined;
+  if (terms) {
+    glossaryPath = path.join(dir, 'glossary.yml');
+    fs.writeFileSync(glossaryPath, JSON.stringify({ terms }));
+  }
   const glossary = loadGlossary(glossaryPath);
   const sources: Source[] = Object.entries(texts).map(([locale, text]) => {
     const filePath = path.join(
-      root,
+      dir,
       `${locale}.${kind === 'json' ? 'yml' : 'md'}`,
     );
     fs.writeFileSync(filePath, text);
@@ -40,7 +47,7 @@ function context(
   return {
     locales: LOCALE_REGISTRY.filter((locale) => locale.id in texts),
     glossary: () => glossary,
-    scanner: createScanner(sources, root),
+    scanner: createScanner(sources, dir),
   };
 }
 
@@ -213,5 +220,147 @@ describe('terminology UI labels', () => {
       { key: 'menu.title', line: 2, column: 1 },
       { key: 'menu.title', line: 2, column: 7 },
     ]);
+  });
+
+  // #4499: French UI strings and guides used a lowercase loanword and two
+  // retired translations that the case-sensitive `en` form never matched.
+  it('reports non-shipped names in any case, only in their locale', () => {
+    const findings = terminologyUiLabel.run(
+      context(
+        [
+          {
+            key: 'legalHold',
+            category: 'feature',
+            en: 'Legal hold',
+            de: 'Aufbewahrungs-Pflicht',
+            fr: 'Conservation légale',
+            _avoid: { fr: ['legal hold', 'gel juridique'] },
+          },
+        ],
+        {
+          de: 'Legal Hold, legal hold.',
+          fr: [
+            'Placement de legal hold refusé, LEGAL HOLD.',
+            'Legal hold et Gel juridique.',
+            'Conservation légale, gel, gels juridiques, legal-hold, illegal holdings.',
+          ].join('\n'),
+        },
+      ),
+    );
+    expect(
+      findings.map(({ locale, line, column, rule, detail, suggest }) => ({
+        locale,
+        line,
+        column,
+        rule,
+        detail,
+        suggest,
+      })),
+    ).toEqual([
+      {
+        locale: 'fr',
+        line: 1,
+        column: 14,
+        rule: 'ui-label-non-shipped',
+        detail:
+          '"legal hold" is not the shipped name of UI-label term "Legal hold"',
+        suggest: 'use "Conservation légale"',
+      },
+      {
+        locale: 'fr',
+        line: 1,
+        column: 33,
+        rule: 'ui-label-non-shipped',
+        detail:
+          '"LEGAL HOLD" is not the shipped name of UI-label term "Legal hold"',
+        suggest: 'use "Conservation légale"',
+      },
+      {
+        locale: 'fr',
+        line: 2,
+        column: 1,
+        rule: 'ui-label-mismatch',
+        detail: 'UI-label term "Legal hold" must match shipped string',
+        suggest: 'use "Conservation légale"',
+      },
+      {
+        locale: 'fr',
+        line: 2,
+        column: 15,
+        rule: 'ui-label-non-shipped',
+        detail:
+          '"Gel juridique" is not the shipped name of UI-label term "Legal hold"',
+        suggest: 'use "Conservation légale"',
+      },
+    ]);
+  });
+
+  it('keeps non-shipped names behind locale exclusions and opt-outs', () => {
+    const term: Term = {
+      key: 'legalHold',
+      category: 'feature',
+      en: 'Legal hold',
+      fr: 'Conservation légale',
+      _avoid: { fr: ['legal hold'] },
+    };
+    expect(
+      terminologyUiLabel.run(
+        context([{ ...term, _lintExclude: { fr: true } }], {
+          fr: 'Placement de legal hold refusé.',
+        }),
+      ),
+    ).toEqual([]);
+    expect(
+      terminologyUiLabel.run(
+        context([term], {
+          fr: '---\ni18nLintExclude: ["terminology-ui-label"]\n---\nlegal hold',
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  const shippedLegalHold = (texts: Record<string, string>) =>
+    terminologyUiLabel
+      .run(context(null, texts))
+      .filter(({ detail }) => detail.includes('UI-label term "Legal hold"'))
+      .map(({ locale, line, detail }) => ({ locale, line, detail }));
+
+  it('rejects the French legal-hold names that #4502 replaced', () => {
+    const nonShipped = (name: string) =>
+      `"${name}" is not the shipped name of UI-label term "Legal hold"`;
+    expect(
+      shippedLegalHold({
+        fr: [
+          'Placement de legal hold refusé',
+          'Ce projet est sous legal hold et ne peut pas être supprimé.',
+          'Levées de legal holds en échec',
+          'Conservation juridique',
+          'Les conservations juridiques priment sur la rétention.',
+          'Elle reste sous gel juridique.',
+          'Les gels juridiques bloquent la suppression.',
+        ].join('\n'),
+      }),
+    ).toEqual([
+      { locale: 'fr', line: 1, detail: nonShipped('legal hold') },
+      { locale: 'fr', line: 2, detail: nonShipped('legal hold') },
+      { locale: 'fr', line: 3, detail: nonShipped('legal holds') },
+      { locale: 'fr', line: 4, detail: nonShipped('Conservation juridique') },
+      { locale: 'fr', line: 5, detail: nonShipped('conservations juridiques') },
+      { locale: 'fr', line: 6, detail: nonShipped('gel juridique') },
+      { locale: 'fr', line: 7, detail: nonShipped('gels juridiques') },
+    ]);
+  });
+
+  it('keeps the shipped French name and the German loanword', () => {
+    expect(
+      shippedLegalHold({
+        fr: [
+          'Placement de conservation légale refusé',
+          'Ce projet est sous conservation légale et ne peut pas être supprimé.',
+          'Une conservation légale préserve les données ; lève la conservation dans Gouvernance > Conservation légale.',
+        ].join('\n'),
+        de: 'Ein Legal Hold schützt die Daten.\nDie Aufbewahrungs-Pflicht bleibt.',
+      }),
+    ).toEqual([]);
   });
 });

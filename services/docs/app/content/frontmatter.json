@@ -2616,7 +2616,7 @@
     "slug": "platform/admin/governance/legal-hold",
     "locale": "fr",
     "frontmatter": {
-      "title": "Conservation juridique",
+      "title": "Conservation légale",
       "description": "Préserve les données d’une personne ou de l’organisation, regroupe les gels par dossier et examine les demandes de libération."
     }
   },
