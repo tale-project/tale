@@ -237,8 +237,8 @@ agents:
   dialogEditTitle: Modifier l'agent
   nameLabel: Nom
   namePlaceholder: p. ex. Relecteur de PR
-  harnessLabel: Harness
-  harnessPlaceholder: Choisis le harness sur lequel il tourne
+  harnessLabel: Environnement d'agent
+  harnessPlaceholder: Choisis l'environnement d'agent sur lequel il tourne
   modelLabel: Modèle
   modelPlaceholder: Choisis le modèle qu'il appelle
   modelSearchPlaceholder: Rechercher des modèles
@@ -325,9 +325,9 @@ agents:
   standard:
     name: Agent standard
     badge: Standard
-    managedNote: Mis en place par Tale pour ce projet. Son harness, son modèle et ses instructions suivent les réglages de l'organisation dans Gouvernance.
+    managedNote: Mis en place par Tale pour ce projet. Son environnement d'agent, son modèle et ses instructions suivent les réglages de l'organisation dans Gouvernance.
     emptyTitle: L'agent standard prend en charge les tâches de ce projet
-    emptyBody: Tant que ce projet n'a pas d'agents propres, ses tâches peuvent aller à l'agent standard de l'organisation. Ajoutes-en un avec Nouvel agent pour donner à ce projet son propre harness, son propre modèle et ses propres instructions.
+    emptyBody: Tant que ce projet n'a pas d'agents propres, ses tâches peuvent aller à l'agent standard de l'organisation. Ajoutes-en un avec Nouvel agent pour donner à ce projet son propre environnement d'agent, son propre modèle et ses propres instructions.
     emptyReaderBody: Tant que ce projet n'a pas d'agents propres, tu peux confier ses tâches à l'agent standard de l'organisation. Un éditeur ou un admin peut ajouter des agents propres au projet.
 settings:
   name: Nom
@@ -407,7 +407,7 @@ errors:
     caractères. Raccourcis-les avant d'enregistrer.
   PROJECT_AGENT_NAME_INVALID: Le nom de l'agent doit faire entre 1 et 120 caractères.
   PROJECT_AGENT_NAME_TAKEN: Un autre agent de ce projet porte déjà ce nom.
-  PROJECT_AGENT_HARNESS_INVALID: Ce harness ne peut pas être utilisé pour les agents de projet.
+  PROJECT_AGENT_HARNESS_INVALID: Cet environnement d'agent ne peut pas être utilisé pour les agents de projet.
   PROJECT_AGENT_MODEL_INVALID: Choisis un modèle pour cet agent.
   PROJECT_AGENT_INSTRUCTIONS_TOO_LONG: Les instructions dépassent la limite de
     20 000 caractères. Raccourcis-les avant d'enregistrer.

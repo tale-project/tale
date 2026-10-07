@@ -109,7 +109,7 @@ agentRun:
     switchedOff: The organization's standard agent is switched off. Ask an Admin to switch it on under Governance.
     noModel: No model you can use can run the standard agent. Ask an Admin to set up an AI provider or to give you access to a model.
     pinUnavailable: The model chosen for the standard agent isn't one you can use. Ask an Admin to choose another under Governance.
-    harnessInvalid: The agent type chosen for the standard agent isn't available. Ask an Admin to choose another under Governance.
+    harnessInvalid: The agent runtime chosen for the standard agent isn't available. Ask an Admin to choose another under Governance.
     unreadable: The standard agent's settings can't be read. Ask an Admin to check them under Governance.
     notNeeded: This project has agents of its own. Assign one of them instead.
 automation:
@@ -317,7 +317,7 @@ assignee:
   assignToMe: Assign to me
   agents: Agents
   agentsInfo:
-    Runs in a sandbox on the harness chosen when the agent was created,
+    Runs in a sandbox on the agent runtime chosen when the agent was created,
     pre-equipped with its skills, connectors, and instructions.
   createAgent: Create an agent…
   createAgentHint:

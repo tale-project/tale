@@ -100,7 +100,7 @@ Dateien, Anweisungen, persönliche und geteilte Chats sowie Aufgaben zusammenhal
 
 <Card title="Agenten" icon="bot" href="/de/platform/agents/concepts">
 
-Agenten mit passendem Harness, Modell und Ausstattung für Projektaufgaben einrichten.
+Agenten mit passender Agent-Laufzeit, Modell und Ausstattung für Projektaufgaben einrichten.
 
 </Card>
 

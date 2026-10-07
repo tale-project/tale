@@ -39,11 +39,11 @@ automations:
     title: Keine Läufe
     description: Im gewählten Zeitraum ist keine Automatisierung gelaufen.
 externalTurns:
-  title: Harness-Runden
-  description: Zuverlässigkeit der Harness-Runden in der Sandbox.
+  title: Runden der Agent-Laufzeit
+  description: Zuverlässigkeit der Runden der Agent-Laufzeit in der Sandbox.
   errors:
-    loadFailed: Die Metriken der Harness-Runden konnten nicht geladen werden.
-    refreshFailed: Die Metriken der Harness-Runden konnten nicht aktualisiert werden. Die angezeigten Zahlen sind möglicherweise veraltet.
+    loadFailed: Die Metriken der Runden der Agent-Laufzeit konnten nicht geladen werden.
+    refreshFailed: Die Metriken der Runden der Agent-Laufzeit konnten nicht aktualisiert werden. Die angezeigten Zahlen sind möglicherweise veraltet.
   cappedNotice: Es werden die letzten 5.000 Runden in diesem Zeitraum
     angezeigt. Ältere Runden fließen nicht in diese Summen ein.
   cards:
@@ -54,12 +54,12 @@ externalTurns:
     cancelled: Von Nutzer gestoppt
     recovered: Wiederhergestellt
   byHarness:
-    title: Nach Harness
-    harness: Harness
+    title: Nach Agent-Laufzeit
+    harness: Agent-Laufzeit
     turns: Runden
     successRate: Erfolgsquote
     timeouts: Timeouts
-    empty: Im gewählten Zeitraum ist keine Harness-Runde gelaufen.
+    empty: Im gewählten Zeitraum ist keine Runde der Agent-Laufzeit gelaufen.
 usage:
   title: Nutzungs-Metriken
   description: Tokenverbrauch, Anfragen und aktive Benutzer im Zeitverlauf.

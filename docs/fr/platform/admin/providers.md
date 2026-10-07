@@ -61,7 +61,7 @@ Renseigne `$.tokens` dans **Chemin du tableau de jetons**, `access_token` dans *
 
 Pour OpenAI, limite **Modèles autorisés** aux identifiants de modèles pris en charge par ton abonnement ChatGPT. Le catalogue de l’API OpenAI peut inclure des modèles auxquels cet abonnement ne donne pas accès.
 
-Pour utiliser un modèle GPT-6 avec l’abonnement ChatGPT, enregistre les identifiants du courtier OpenAI, puis configure un [agent de projet](/fr/platform/projects/project-agents) en choisissant **Codex** sous **Harness**. Sous **Modèle**, recherche l’identifiant du modèle, par exemple `gpt-6.1-sol`, et sélectionne l’entrée **OpenAI · Abonnement**. [Utiliser les modèles GPT-6](#utiliser-les-modeles-gpt-6) indique où chaque modèle fonctionne par ailleurs.
+Pour utiliser un modèle GPT-6 avec l’abonnement ChatGPT, enregistre les identifiants du courtier OpenAI, puis configure un [agent de projet](/fr/platform/projects/project-agents) en choisissant **Codex** sous **Environnement d'agent**. Sous **Modèle**, recherche l’identifiant du modèle, par exemple `gpt-6.1-sol`, et sélectionne l’entrée **OpenAI · Abonnement**. [Utiliser les modèles GPT-6](#utiliser-les-modeles-gpt-6) indique où chaque modèle fonctionne par ailleurs.
 
 Choisis **Sélection du jeton** selon la répartition souhaitée pour les nouveaux tours d’agent :
 
@@ -105,7 +105,7 @@ Sélectionne **Définir par défaut** dans le menu d’une ligne. Chaque fournis
 
 La liste **Modèles autorisés** limite seulement les identifiants concernés. [Modèles](/fr/platform/admin/governance/content-models) définit les modèles par défaut et les règles d’accès des personnes, équipes et rôles pour tous les fournisseurs. Les deux restrictions s’appliquent : élargir une liste ne contourne pas l’autre.
 
-La section **Harnesses**, sous le tableau, est en lecture seule. Elle présente les modèles et abonnements disponibles pour chaque environnement d’exécution. Modifie les identifiants au-dessus pour changer cette configuration. Un environnement d’exécution est signalé **En échec récemment** quand au moins la moitié de ses exécutions des 30 dernières minutes ont échoué, à partir de trois exécutions. Si Tale ne peut pas le vérifier, un avis au-dessus de la liste l’indique, avec **Réessayer**.
+La section **Environnements d'agent**, sous le tableau, est en lecture seule. Elle présente les modèles et abonnements disponibles pour chaque environnement d’agent. Modifie les identifiants au-dessus pour changer cette configuration. Un environnement d’agent est signalé **En échec récemment** quand au moins la moitié de ses exécutions des 30 dernières minutes ont échoué, à partir de trois exécutions. Si Tale ne peut pas le vérifier, un avis au-dessus de la liste l’indique, avec **Réessayer**.
 
 ## Résoudre un modèle absent ou en échec
 

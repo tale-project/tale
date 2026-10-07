@@ -42,6 +42,12 @@ _categories:
   abbreviation: Shorthand forms used in tooltips and tight UI (e.g., z. B., p.
     ex.). `_note` carries the expansion.
 terms:
+  - key: agent_runtime
+    category: feature
+    en: Agent runtime
+    de: Agent-Laufzeit
+    fr: Environnement d'agent
+    _note: "The program running an agent session (Claude Code, Codex, Gemini CLI, Hermes, OpenClaw and peers). Plurals: Agent runtimes, Agent-Laufzeiten, Environnements d'agent. Use this term in runtime selectors and prose; do not use Agent type or Harness. Technical identifiers such as harness remain unchanged. de-CH inherits de."
   - key: brand_tale
     category: brand
     en: Tale

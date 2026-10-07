@@ -15,7 +15,7 @@ Grenze eine Störung anhand der Dienstzuständigkeit ein, bevor du Container än
 | Jobs, geplante Automatisierungen oder Importe kommen nicht weiter | `backend-worker` | Warteschlange, Job-Fehler, Zugangsdaten und benötigte Speicher. |
 | Lesen oder Schreiben scheitert an vielen Stellen | `db` oder die externe Anwendungsdatenbank | Verbindung, Plattenplatz, Sperren und Datenbankprotokolle. |
 | Dateien lassen sich nicht hoch- oder herunterladen | `backend-api`, danach `object-store` oder externer Bucket | Aufgelöste Organisationsverbindung, Zugangsdaten, öffentlicher Endpunkt und Browser-CORS. |
-| Ein Harness startet nicht oder erreicht sein Modell nicht | `sandbox`, `sandbox-llm-gateway` | Sitzungserstellung, Gateway-Anmeldung, Modellverfügbarkeit und Laufzeit-Image. |
+| Eine Agent-Laufzeit startet nicht oder erreicht ihr Modell nicht | `sandbox`, `sandbox-llm-gateway` | Sitzungserstellung, Gateway-Anmeldung, Modellverfügbarkeit und Laufzeit-Image. |
 | Sandbox-Netzzugriff oder Seitenrendering scheitert | `sandbox-egress`, `sandbox` | Zielhost, erlaubte Ports, Egress-Regeln und Sitzungsprotokolle. |
 | Videotranskript wird nicht abgerufen | `backend-worker`, `bgutil-provider` | Videozugriff, Extraktionsfehler, konfigurierter Proxy und Browsersitzungsstatus. |
 
@@ -27,7 +27,7 @@ Nutze logische Dienstnamen mit `tale logs <service>`. Für deinen eigenen Compos
 2. Die API prüft Sitzung und Organisation, ermittelt Modell und Zugangsdaten und führt den interaktiven Turn aus. Fortschritt wird in der Anwendungsdatenbank gespeichert.
 3. Der Browser liest Fortschritt über den Stream-Endpunkt des Chats. `/events` liefert Hinweise zum erneuten Laden von Daten und enthält nicht den Token-Stream.
 4. Wissenswerkzeuge verwenden die Wissensverbindung der anfragenden Organisation. Originaldateien werden über deren Speicherkonfiguration gelesen.
-5. Ein Turn mit Coding-Harness benötigt eine Sandbox-Sitzung und das Modell-Gateway. Eingereihte Aufgaben, Workflow-Agent-Jobs und REST-Chat-Turns können außerdem Worker benötigen.
+5. Ein Turn mit einer Agent-Laufzeit benötigt eine Sandbox-Sitzung und das Modell-Gateway. Eingereihte Aufgaben, Workflow-Agent-Jobs und REST-Chat-Turns können außerdem Worker benötigen.
 
 Ein Worker-Ausfall hat daher einen anderen Umfang als ein API-Ausfall. Daraus folgt aber nicht, dass sämtliche Chat- oder Agentenarbeit weiterläuft. Prüfe Einstiegspunkt und Ausführungstyp des betroffenen Ablaufs. Sichere den ursprünglichen Fehler, bevor du einen Turn wiederholst, der Tokens verbrauchen oder externe Aktionen ausführen könnte.
 

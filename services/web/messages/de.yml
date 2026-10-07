@@ -1026,11 +1026,11 @@ platformAgents:
           Wähle eine Laufzeit, ein kompatibles Modell mit Anbieter, dauerhafte
           Anweisungen und die nötige Ausstattung.
         docsLabel: Agent-Konzepte
-      - title: Unterstützte Agentenlaufzeiten
+      - title: Unterstützte Agent-Laufzeiten
         body:
-          Binde Claude Code, Codex, Hermes und OpenClaw als Harness, auf dem ein
+          Binde Claude Code, Codex, Hermes und OpenClaw als Agent-Laufzeit, auf der ein
           Projekt-Agent oder ein Automatisierungs-Agent-Knoten läuft.
-        docsLabel: Harnesses
+        docsLabel: Agent-Laufzeiten
       - title: Delegation zwischen Agents
         body:
           Ein entsprechend ausgestatteter Manager-Agent kann andere Agenten
@@ -1081,7 +1081,7 @@ platformAgents:
       path: /platform/agents/concepts
     - label: Projekt-Agenten
       path: /platform/projects/project-agents
-    - label: Harnesses
+    - label: Agent-Laufzeiten
       path: /platform/agents/harnesses
     - label: Aufgaben-Automatisierung
       path: /platform/projects/task-automation
@@ -1123,7 +1123,7 @@ platformAgents:
           Dem Agent in Files
           und Live zusehen
         description:
-          Agents, die auf einem Harness laufen, arbeiten in einer Sandbox —
+          Agents, die auf einer Agent-Laufzeit laufen, arbeiten in einer Sandbox —
           brows den Workspace-Tree, öffne die Datei, die sie gerade geschrieben
           haben, und schau im Live-Browser zu, wie sie das Ergebnis durchklicken.
   demos:

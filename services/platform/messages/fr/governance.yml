@@ -1765,12 +1765,12 @@ standardAgent:
   title: Agent standard
   description: L'agent que Tale fournit dans chaque projet qui n'en a pas, pour que toute personne qui peut ouvrir le projet puisse lui confier une tâche, membres compris.
   enabledLabel: Fournir un agent standard
-  harnessLabel: Harness
-  harnessHint: Automatique utilise Claude Code, ou le harness auquel un modèle d'abonnement est lié.
+  harnessLabel: Environnement d'agent
+  harnessHint: Automatique utilise Claude Code, ou l'environnement d'agent auquel un modèle d'abonnement est lié.
   modelLabel: Modèle
   modelHint: Automatique choisit un modèle recommandé que la personne qui lance la tâche peut utiliser. Un modèle choisi reste en vigueur jusqu'à ce que tu le changes, même s'il devient indisponible.
   automaticLabel: Automatique
-  automaticHarnessHint: Laisse Tale choisir le harness.
+  automaticHarnessHint: Laisse Tale choisir l'environnement d'agent.
   automaticModelHint: Laisse Tale choisir un modèle pour chaque personne.
   instructionsLabel: Instructions
   instructionsHint: Ce que l'agent standard garde toujours en tête. Laisse ce champ vide pour utiliser les instructions intégrées.
@@ -1779,13 +1779,13 @@ standardAgent:
   refusal:
     switchedOff: L'agent standard est désactivé.
     unreadable: Les réglages enregistrés sont illisibles. Réessaie, ou enregistre-les à nouveau pour les réparer.
-    harnessInvalid: Le harness choisi n'est pas disponible, l'agent standard ne peut donc pas démarrer. Choisis un autre harness ou Automatique.
+    harnessInvalid: L'environnement d'agent choisi n'est pas disponible, l'agent standard ne peut donc pas démarrer. Choisis un autre environnement d'agent ou Automatique.
     noModel: Aucun modèle que tu peux utiliser ne peut faire fonctionner l'agent standard. Ajoute un accès dans Fournisseurs IA, ou vérifie l'accès aux modèles.
     pinUnavailable: Le modèle choisi ne t'est pas accessible, l'agent standard ne peut donc pas démarrer pour toi. Choisis un autre modèle ou Automatique. Tale ne passe pas à un autre modèle tant que ce choix est enregistré.
   invalidPolicy: Les réglages enregistrés de l'agent standard ne sont pas valides. Enregistre-les à nouveau pour les réparer.
   savedUnavailable: La sélection enregistrée est actuellement indisponible
-  searchHarnesses: Rechercher un harness
-  noHarnessesFound: Aucun harness correspondant
+  searchHarnesses: Rechercher un environnement d'agent
+  noHarnessesFound: Aucun environnement d'agent correspondant
   searchModels: Rechercher un modèle
   noModelsFound: Aucun modèle correspondant
   draftHint: Enregistre pour appliquer ces réglages.

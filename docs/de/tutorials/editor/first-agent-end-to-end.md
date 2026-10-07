@@ -7,7 +7,7 @@ Erstelle einen Agenten, der eine Kontaktnachricht zusammenfasst und einen nächs
 
 ## Bevor du beginnst
 
-Du brauchst ein Projekt mit Bearbeitungszugriff, einen verfügbaren Coding-Agent-Harness mit passenden Modellzugangsdaten und eine funktionierende Sandbox-Zuteilung. Ein Administrator verwaltet [KI-Anbieter](/de/platform/admin/providers) und [Sandboxes](/de/platform/admin/sandboxes). Dass ein Modell im Chat funktioniert, genügt allein nicht: Der gewählte Harness muss seine Zugangsdaten verwenden können.
+Du brauchst ein Projekt mit Bearbeitungszugriff, eine verfügbare Agent-Laufzeit mit passenden Modellzugangsdaten und eine funktionierende Sandbox-Zuteilung. Ein Administrator verwaltet [KI-Anbieter](/de/platform/admin/providers) und [Sandboxes](/de/platform/admin/sandboxes). Dass ein Modell im Chat funktioniert, genügt allein nicht: Die gewählte Agent-Laufzeit muss ihre Zugangsdaten verwenden können.
 
 Fehlen die Agentenseite oder die Modellauswahl, kläre zuerst Zugriff und Einrichtung. Für diese Übung sind keine Skills, Connectoren, Plattform-Tools oder eingeblendeten Secrets nötig.
 
@@ -15,7 +15,7 @@ Fehlen die Agentenseite oder die Modellauswahl, kläre zuerst Zugriff und Einric
 
 Öffne **Agenten** im Projekt und klicke auf **Neuer Agent**.
 
-<Frame caption="Die Agententabelle zeigt Harness, Provider und Modell jedes Agenten.">
+<Frame caption="Die Agententabelle zeigt Agent-Laufzeit, Provider und Modell jedes Agenten.">
 
 ![Website relaunch listet Content editor mit Claude Code und Redirect auditor mit Codex samt Provider und Modell neben Neuer Agent.](/images/platform/project-agents-models.webp)
 
@@ -70,6 +70,6 @@ Nutze einen Aufgabenkommentar für eine einmalige Korrektur. Ändere die Agenten
 
 ## Wenn der Lauf nicht startet oder abschließt
 
-Bei einem fehlenden Modell müssen Provider und Harness geprüft werden. Bei einem Sandbox-Fehler prüft ein Administrator Kapazität und Infrastruktur. Ein fehlgeschlagener Aufgabenlauf bleibt zur Untersuchung sichtbar. Behebe die Ursache, bevor du ihn wiederholst, und starte nicht erneut, solange bereits ein Lauf aktiv ist.
+Bei einem fehlenden Modell müssen Provider und Agent-Laufzeit geprüft werden. Bei einem Sandbox-Fehler prüft ein Administrator Kapazität und Infrastruktur. Ein fehlgeschlagener Aufgabenlauf bleibt zur Untersuchung sichtbar. Behebe die Ursache, bevor du ihn wiederholst, und starte nicht erneut, solange bereits ein Lauf aktiv ist.
 
 [Aufgaben automatisieren](/de/platform/projects/task-automation) erklärt Wiederholung, Abbruch, Übergabe zur Prüfung und Nacharbeit. [Projektagenten](/de/platform/projects/project-agents) beschreibt die Ausstattung, die du nach dieser ersten erfolgreichen Aufgabe ergänzen kannst.

@@ -61,7 +61,7 @@ Set **Token array path** to `$.tokens`, **Token field** to `access_token`, and *
 
 For OpenAI, restrict **Model allowlist** to model IDs your ChatGPT plan supports. The OpenAI API catalog can include models that the subscription cannot use.
 
-To run a GPT-6 model on the ChatGPT subscription, save the OpenAI broker credential, then configure a [project agent](/platform/projects/project-agents) with **Agent type** set to **Codex**. Under **Model**, search for the model ID, such as `gpt-6.1-sol`, and select the entry marked **OpenAI · Subscription**. [Run the GPT-6 models](#run-the-gpt-6-models) explains where else each model runs.
+To run a GPT-6 model on the ChatGPT subscription, save the OpenAI broker credential, then configure a [project agent](/platform/projects/project-agents) with **Agent runtime** set to **Codex**. Under **Model**, search for the model ID, such as `gpt-6.1-sol`, and select the entry marked **OpenAI · Subscription**. [Run the GPT-6 models](#run-the-gpt-6-models) explains where else each model runs.
 
 Choose **Token selection** according to how you want to distribute new agent turns:
 
@@ -105,7 +105,7 @@ Choose **Make default** from a credential's row menu. There is one default per p
 
 A credential's **Model allowlist** limits only that credential. [Models](/platform/admin/governance/content-models) sets default models and access rules for people, teams, and roles across providers. Both restrictions apply; widening one list cannot bypass the other.
 
-The **Agent runtimes** section below the credentials is read-only. It shows available models and subscriptions for each runtime; change the credentials above to change that configuration. A runtime is marked **Recently failing** when at least half of its runs in the last 30 minutes failed, counting from three runs. When that check can't be read, a notice above the list says so, with **Try again**.
+The **Agent runtimes** section below the credentials is read-only. It shows available models and subscriptions for each agent runtime; change the credentials above to change that configuration. An agent runtime is marked **Recently failing** when at least half of its runs in the last 30 minutes failed, counting from three runs. When that check can't be read, a notice above the list says so, with **Try again**.
 
 ## Recover a missing or failing model
 

@@ -1045,11 +1045,11 @@ platformAgents:
           Choisis un moteur, un modèle et un fournisseur compatibles, des
           consignes permanentes et l’équipement nécessaire au travail.
         docsLabel: Concepts agents
-      - title: Moteurs d’agents pris en charge
+      - title: Environnements d'agent pris en charge
         body:
-          Lie Claude Code, Codex, Hermes et OpenClaw comme harness sur lequel
+          Lie Claude Code, Codex, Hermes et OpenClaw comme environnement d'agent sur lequel
           tourne un agent de projet ou un nœud agent d’automation.
-        docsLabel: Harnesses
+        docsLabel: Environnements d'agent
       - title: Délégation entre agents
         body:
           Un agent de coordination équipé pour cela peut lancer d’autres
@@ -1101,7 +1101,7 @@ platformAgents:
       path: /platform/agents/concepts
     - label: Agents de projet
       path: /platform/projects/project-agents
-    - label: Harnesses
+    - label: Environnements d'agent
       path: /platform/agents/harnesses
     - label: Automatisation des tâches
       path: /platform/projects/task-automation
@@ -1145,7 +1145,7 @@ platformAgents:
           Regarde l’agent
           dans Files et Live
         description:
-          Les agents qui tournent sur un harness travaillent dans un sandbox —
+          Les agents qui tournent sur un environnement d'agent travaillent dans un sandbox —
           parcours l’arbre du workspace, ouvre le fichier qu’ils viennent d’écrire,
           et suis le navigateur live pendant qu’ils cliquent dans le résultat.
   demos:

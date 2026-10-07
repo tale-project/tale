@@ -3,7 +3,7 @@ title: Déléguer une tâche à un agent
 description: Lance un agent, examine son résultat, demande des modifications et reprends ou annule une exécution.
 ---
 
-Un agent de projet travaille sur une tâche et remet son résultat pour relecture. Assigne le travail, démarre l’exécution et garde les retours sur la tâche pour que l’agent et le relecteur partagent le même contexte. Il te faut le droit de modifier la tâche : un Éditeur ou un rôle supérieur l’a sur toutes les tâches du projet, un Membre sur celles qu’il a créées ou qui lui sont attribuées. Il faut aussi un fournisseur fonctionnel, un harness compatible et de la capacité de sandbox.
+Un agent de projet travaille sur une tâche et remet son résultat pour relecture. Assigne le travail, démarre l’exécution et garde les retours sur la tâche pour que l’agent et le relecteur partagent le même contexte. Il te faut le droit de modifier la tâche : un Éditeur ou un rôle supérieur l’a sur toutes les tâches du projet, un Membre sur celles qu’il a créées ou qui lui sont attribuées. Il faut aussi un fournisseur fonctionnel, un environnement d’agent compatible et de la capacité de sandbox.
 
 <Frame caption="Le travail des agents utilise le même tableau que le travail humain : il démarre à En cours et attend sa validation à En revue.">
 

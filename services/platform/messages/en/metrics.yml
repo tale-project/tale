@@ -3,7 +3,7 @@ groups:
   usage: Usage
   feedback: Feedback
   chat-health: Chat health
-  external-turns: Harness turns
+  external-turns: Agent runtime turns
   automations: Automations
   projects: Projects
 projects:

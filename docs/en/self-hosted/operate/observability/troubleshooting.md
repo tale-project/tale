@@ -75,7 +75,7 @@ The non-concurrent command can block work. Coordinate it with your database oper
 
 Check the run or chat error and the owning API/worker logs. A provider `429`, credential refusal, execution timeout, approval wait, and disconnected browser stream are distinct states. An approval wait needs a decision, not a service restart. A disconnected stream can hide an operation that still runs; inspect its stored result before retrying.
 
-For provider failures, check the selected credential's quota and permissions, and the provider's status. Change models only if the replacement is allowed and suitable for the task. For harness failures, inspect `sandbox`, `sandbox-llm-gateway`, the runtime image, and session logs.
+For provider failures, check the selected credential's quota and permissions, and the provider's status. Change models only if the replacement is allowed and suitable for the task. For agent runtime failures, inspect `sandbox`, `sandbox-llm-gateway`, the runtime image, and session logs.
 
 ## Sandbox network access is refused
 

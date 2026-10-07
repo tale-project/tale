@@ -3,7 +3,7 @@ title: Delegate a task to an agent
 description: Start an agent on a project task, review its result, request changes, and recover or cancel a run.
 ---
 
-A project agent works on a task and returns a result for review. Choose its assignment, start the work, and keep feedback on the task so the agent and reviewer have the same context. You need to be able to change the task: an Editor or higher can on every task in the project, and a Member on the tasks they created or that are assigned to them. The organization also needs a working provider, compatible harness, and available sandbox capacity.
+A project agent works on a task and returns a result for review. Choose its assignment, start the work, and keep feedback on the task so the agent and reviewer have the same context. You need to be able to change the task: an Editor or higher can on every task in the project, and a Member on the tasks they created or that are assigned to them. The organization also needs a working provider, compatible agent runtime, and available sandbox capacity.
 
 <Frame caption="Agent work uses the same board as human work: start at In progress and review the result at In review.">
 

@@ -425,7 +425,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Eine Agent-Laufzeit wählen",
-      "description": "Stimme Harness, Zugangsdaten, Werkzeuge und Sandbox-Verhalten auf die Aufgabe ab."
+      "description": "Stimme Agent-Laufzeit, Zugangsdaten, Werkzeuge und Sandbox-Verhalten auf die Aufgabe ab."
     }
   },
   "de:platform/agents/skills": {
@@ -1132,7 +1132,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Bonus — Tale für Entwickler",
-      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser und Harnesses, die in eingehegten Sandboxes arbeiten."
+      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser und Agent-Laufzeiten, die in eingehegten Sandboxes arbeiten."
     }
   },
   "de:tutorials/videos/welcome-to-tale": {
@@ -1577,7 +1577,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Choose an agent runtime",
-      "description": "Match a coding harness to its credentials, tools and sandbox behavior before assigning real work."
+      "description": "Match an agent runtime to its credentials, tools and sandbox behavior before assigning real work."
     }
   },
   "en:platform/agents/skills": {
@@ -2284,7 +2284,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Bonus — Tale for developers",
-      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, and harnesses working in contained sandboxes."
+      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, and agent runtimes working in contained sandboxes."
     }
   },
   "en:tutorials/videos/welcome-to-tale": {
@@ -2729,7 +2729,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Choisir un environnement d’agent",
-      "description": "Associe le harness aux identifiants, aux outils et au fonctionnement de la sandbox avant de confier une tâche."
+      "description": "Associe l’environnement d’agent aux identifiants, aux outils et au fonctionnement de la sandbox avant de confier une tâche."
     }
   },
   "fr:platform/agents/skills": {
@@ -3436,7 +3436,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bonus — Tale pour les développeurs",
-      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, et les harnesses qui travaillent dans des bacs à sable contenus."
+      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, et les environnements d’agent qui travaillent dans des bacs à sable contenus."
     }
   },
   "fr:tutorials/videos/welcome-to-tale": {

@@ -3,7 +3,7 @@ groups:
   usage: Utilisation
   feedback: Retours
   chat-health: Santé de l'assistant
-  external-turns: Tours de harness
+  external-turns: Tours d'environnement d'agent
   automations: Automatisations
   projects: Projets
 projects:

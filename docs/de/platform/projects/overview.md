@@ -32,7 +32,7 @@ Lege Zuständigkeit, Prüfung, Termine und Abnahmekriterien fest und verfolge de
 </Card>
 
 <Card title="Einen Projektagenten einrichten" icon="bot" href="/de/platform/projects/project-agents">
-Wähle Harness, Modell, Tools und Anweisungen für einen Agenten, der Aufgaben übernimmt.
+Wähle Agent-Laufzeit, Modell, Tools und Anweisungen für einen Agenten, der Aufgaben übernimmt.
 </Card>
 
 <Card title="Agentenarbeit starten und prüfen" icon="workflow" href="/de/platform/projects/task-automation">

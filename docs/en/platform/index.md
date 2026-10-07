@@ -100,7 +100,7 @@ Keep files, instructions, personal and shared chats, and tasks together.
 
 <Card title="Agents" icon="bot" href="/platform/agents/concepts">
 
-Configure agents to work on project tasks with a chosen harness, model, and equipment.
+Configure agents to work on project tasks with a chosen agent runtime, model, and equipment.
 
 </Card>
 

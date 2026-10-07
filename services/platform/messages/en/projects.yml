@@ -234,8 +234,8 @@ agents:
   dialogEditTitle: Edit agent
   nameLabel: Name
   namePlaceholder: e.g. PR reviewer
-  harnessLabel: Agent type
-  harnessPlaceholder: Choose the agent type
+  harnessLabel: Agent runtime
+  harnessPlaceholder: Choose the agent runtime
   modelLabel: Model
   modelPlaceholder: Choose the model it calls
   modelSearchPlaceholder: Search models
@@ -317,9 +317,9 @@ agents:
   standard:
     name: Standard agent
     badge: Standard
-    managedNote: Set up by Tale for this project. Its agent type, model and instructions follow the organization's settings under Governance.
+    managedNote: Set up by Tale for this project. Its agent runtime, model and instructions follow the organization's settings under Governance.
     emptyTitle: The standard agent takes this project's tasks
-    emptyBody: Until this project has agents of its own, its tasks can go to the organization's standard agent. Add one with New agent to give this project its own agent type, model and instructions.
+    emptyBody: Until this project has agents of its own, its tasks can go to the organization's standard agent. Add one with New agent to give this project its own agent runtime, model and instructions.
     emptyReaderBody: Until this project has agents of its own, you can hand its tasks to the organization's standard agent. An Editor or Admin can add agents of its own.
 settings:
   name: Name
@@ -391,7 +391,7 @@ errors:
   PROJECT_INSTRUCTIONS_TOO_LONG: Instructions exceed the {cap}-character limit. Trim before saving.
   PROJECT_AGENT_NAME_INVALID: Agent name must be 1–120 characters.
   PROJECT_AGENT_NAME_TAKEN: Another agent in this project already has that name.
-  PROJECT_AGENT_HARNESS_INVALID: That harness can't be used for project agents.
+  PROJECT_AGENT_HARNESS_INVALID: That agent runtime can't be used for project agents.
   PROJECT_AGENT_MODEL_INVALID: Pick a model for this agent.
   PROJECT_AGENT_INSTRUCTIONS_TOO_LONG: Instructions exceed the 20,000-character limit. Trim before saving.
   PROJECT_AGENT_LIMIT: This project has reached its agent limit.
