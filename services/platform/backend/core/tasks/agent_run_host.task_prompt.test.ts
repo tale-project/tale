@@ -98,6 +98,7 @@ describe('buildKickPrompts — a description mention', () => {
       resumeDiscussionSince: 150,
     });
     expect(resume).toContain(`${EDIT_HEAD}. It now reads:\n${EDITED_TO}`);
+    expect(resume.split(EDITED_TO)).toHaveLength(2);
     expect(resume).not.toContain(KICKED_WITH);
     // Not a review that sent finished work back.
     expect(resume).not.toContain(FEEDBACK_HEAD);
@@ -123,6 +124,105 @@ describe('buildKickPrompts — a description mention', () => {
       `${FEEDBACK_HEAD} — address it before anything else:\n${comment}`,
     );
     expect(resume).not.toContain(EDIT_HEAD);
+  });
+});
+
+describe('buildKickPrompts — current description on every resumed kick', () => {
+  it('refreshes a kick without feedback and keeps the current staged deliverables', () => {
+    const description =
+      '    preserve this indented requirement\n\nCheck its result.';
+    const { resume } = buildKickPrompts({
+      brief: brief(description),
+      outputDir: '/agent/output/task-1',
+      inputs: {
+        ...inputs,
+        attachments: ['requirements.md'],
+        outputs: ['brief.md'],
+      },
+      sweep: true,
+    });
+
+    expect(resume).toContain(`Current task description:\n${description}`);
+    expect(resume).toContain('/agent/inputs/task-1/attachments/');
+    expect(resume).toContain('/agent/inputs/task-1/outputs/');
+    expect(resume).toContain('requirements.md');
+    expect(resume).toContain('brief.md');
+    expect(resume).toContain('Your delivery box was emptied');
+    expect(resume).toContain('SAME file name');
+    expect(resume).not.toContain(FEEDBACK_HEAD);
+  });
+
+  it.each([
+    undefined,
+    { kind: 'automation' as const, name: 'Scheduled review' },
+    { kind: 'agent' as const, name: 'Review coordinator' },
+  ])('refreshes the description when the requester is %o', (requester) => {
+    const description = 'Review only the updated deployment policy.';
+    const { resume } = buildKickPrompts({
+      brief: brief(description),
+      ...(requester !== undefined ? { requester } : {}),
+      feedback: 'Continue the current task.',
+      outputDir: '/agent/output/task-1',
+      inputs,
+      resumeDiscussionSince: 150,
+    });
+
+    expect(resume).toContain(`Current task description:\n${description}`);
+    expect(resume.split(description)).toHaveLength(2);
+    expect(resume).toContain('replaces any earlier task description');
+    expect(resume).toContain('Do NOT redo work that is already done');
+    expect(resume).toContain('Agent: Drafted v1');
+    expect(resume).not.toContain('Earlier note');
+    expect(resume).not.toContain(EDIT_HEAD);
+  });
+
+  it.each([undefined, '', ' \n\t '])(
+    'explicitly clears a remembered description when the current value is %j',
+    (description) => {
+      for (const mentionSource of [undefined, 'description' as const]) {
+        const { resume } = buildKickPrompts({
+          brief: {
+            title: 'Launch brief',
+            ...(description !== undefined ? { description } : {}),
+            discussion: [],
+          },
+          ...(mentionSource !== undefined ? { mentionSource } : {}),
+          ...(mentionSource === 'description' ? { feedback: KICKED_WITH } : {}),
+          outputDir: '/agent/output/task-1',
+          inputs,
+        });
+
+        expect(resume).toContain('This task currently has no description.');
+        expect(resume).toContain(
+          'Do not keep following an earlier task description',
+        );
+        expect(resume).not.toContain(KICKED_WITH);
+      }
+    },
+  );
+
+  it('preserves human feedback authority and deduplicates its discussion entry', () => {
+    const feedback = 'Use the newer requirements in this review.';
+    const { resume } = buildKickPrompts({
+      brief: {
+        ...brief('Draft the launch brief'),
+        discussion: [{ author: 'user', body: feedback, at: 300 }],
+      },
+      feedback,
+      mentionSource: 'comment',
+      outputDir: '/agent/output/task-1',
+      inputs,
+      resumeDiscussionSince: 150,
+    });
+
+    expect(resume).toContain(
+      'Current task description:\nDraft the launch brief',
+    );
+    expect(resume.split(feedback)).toHaveLength(2);
+    expect(resume).toContain('This feedback is authoritative');
+    expect(resume.indexOf('Current task description:')).toBeLessThan(
+      resume.indexOf(FEEDBACK_HEAD),
+    );
   });
 });
 
