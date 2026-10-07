@@ -64,6 +64,8 @@ budgets:
   searchProjects: Search projects
   noProjectsFound: No projects found
   selectProjectAriaLabel: Select project
+  projectDeleted: Deleted project
+  projectDeletedHint: This project no longer exists, so the rule limits nothing. Choose a project or remove the rule.
   apiKey: API key
   selectApiKey: Select API key...
   searchApiKeys: Search API keys

@@ -64,6 +64,8 @@ budgets:
   searchProjects: Projekte suchen
   noProjectsFound: Keine Projekte gefunden
   selectProjectAriaLabel: Projekt auswählen
+  projectDeleted: Gelöschtes Projekt
+  projectDeletedHint: Dieses Projekt gibt es nicht mehr, darum begrenzt die Regel nichts. Wähle ein Projekt oder entferne die Regel.
   apiKey: API-Schlüssel
   selectApiKey: API-Schlüssel auswählen...
   searchApiKeys: API-Schlüssel suchen

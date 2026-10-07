@@ -634,19 +634,79 @@ describe('BudgetEditor', () => {
       maxCostCents: 5_000,
     };
 
-    it('names the project a rule caps, archived or not', () => {
+    it('names the project a rule caps, marks an archived one, and says when it is gone', () => {
       setLoaded(
         [],
-        [PROJECT_RULE, { ...PROJECT_RULE, scopeId: 'project-old' }],
+        [
+          PROJECT_RULE,
+          { ...PROJECT_RULE, scopeId: 'project-old' },
+          { ...PROJECT_RULE, scopeId: 'project-gone' },
+        ],
       );
       render(<BudgetEditor organizationId="org-1" />);
-      expect(screen.getAllByRole('cell', { name: 'Project' })).toHaveLength(2);
+      expect(screen.getAllByRole('cell', { name: 'Project' })).toHaveLength(3);
       expect(
         screen.getByRole('cell', { name: 'Website relaunch' }),
       ).toBeInTheDocument();
+      const archived = screen.getByRole('cell', { name: /Old campaign/ });
+      expect(within(archived).getByText('Archived')).toBeInTheDocument();
+      // Never a bare id: a project that is gone says so.
       expect(
-        screen.getByRole('cell', { name: 'Old campaign' }),
+        screen.getByRole('cell', { name: 'Deleted project' }),
       ).toBeInTheDocument();
+      expect(screen.queryByText('project-gone')).not.toBeInTheDocument();
+    });
+
+    it('says a rule’s project is gone in its dialog', async () => {
+      setLoaded([], [{ ...PROJECT_RULE, scopeId: 'project-gone' }]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /edit rule/i }));
+      const dialog = within(await screen.findByRole('dialog'));
+      expect(
+        dialog.getByText(/This project no longer exists/),
+      ).toBeInTheDocument();
+    });
+
+    it('starts a switched scope without the previous scope’s target', async () => {
+      upsert.mockClear();
+      setLoaded([
+        { scope: 'role', scopeId: 'admin', period: 'monthly', maxCostCents: 5 },
+      ]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /edit rule/i }));
+      const dialog = within(await screen.findByRole('dialog'));
+      await user.click(dialog.getByRole('combobox', { name: 'Scope' }));
+      await user.click(screen.getByRole('option', { name: 'Project' }));
+      await user.click(dialog.getByRole('button', { name: /confirm/i }));
+
+      // A role's id is no project: the rule needs a target before it saves.
+      expect(
+        await screen.findByText(/select a target for this scope/i),
+      ).toBeInTheDocument();
+      expect(upsert).not.toHaveBeenCalled();
+    });
+
+    it('keeps the table in the order a save reads back', async () => {
+      upsert.mockClear();
+      setLoaded([DEFAULT_RULE], [PROJECT_RULE]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      const dialog = within(await screen.findByRole('dialog'));
+      await user.click(dialog.getByRole('combobox', { name: 'Scope' }));
+      await user.click(screen.getByRole('option', { name: 'Organization' }));
+      await user.type(dialog.getByLabelText(/max cost/i), '9');
+      await user.click(dialog.getByRole('button', { name: /confirm/i }));
+
+      // The new organization rule sits with the other `rules`, ahead of the
+      // project's cap — where the saved file puts it.
+      const scopes = screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => within(row).getAllByRole('cell')[0]?.textContent);
+      expect(scopes).toEqual(['Default', 'Organization', 'Project']);
     });
 
     it('saves a project’s cap apart from the other rules', async () => {

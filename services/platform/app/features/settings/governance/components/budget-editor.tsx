@@ -43,6 +43,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { ProjectArchivedBadge } from '@/app/features/projects/components/project-archived-badge';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
@@ -187,6 +188,38 @@ function ApiKeyRuleTarget({
   );
 }
 
+/**
+ * The Target cell of a project's rule: the project by name, marked when it is
+ * archived. A rule outlives its project: one that is gone says so instead of
+ * showing a bare id — except while the project list is still loading.
+ */
+function ProjectRuleTarget({
+  projectId,
+  project,
+  loading,
+}: {
+  projectId: string;
+  project: ProjectTarget | undefined;
+  loading: boolean;
+}) {
+  const { t } = useT('governance');
+  if (project === undefined) {
+    return loading ? (
+      <span className="break-all">{projectId}</span>
+    ) : (
+      <Text as="span" variant="muted">
+        {t('budgets.projectDeleted')}
+      </Text>
+    );
+  }
+  return (
+    <HStack gap={2} className="flex-wrap">
+      <span className="break-words">{project.name}</span>
+      {project.archived && <ProjectArchivedBadge />}
+    </HStack>
+  );
+}
+
 function emptyRule(): BudgetRule {
   return {
     scope: 'default',
@@ -276,6 +309,13 @@ function validateBudgetRule(rule: BudgetRule, t: TFunction): BudgetRuleErrors {
   return errors;
 }
 
+/** The rules in the order the saved file reads back — its `rules`, then its
+ *  project caps — so the table does not reorder when the save lands, and a
+ *  row's index keeps naming the rule it showed. */
+function inSavedOrder(rules: readonly BudgetRule[]): BudgetRule[] {
+  return allBudgetRules(budgetConfigOf(true, rules));
+}
+
 /** The saved file, both kinds of rule in it read as one list. */
 function parseBudgetConfig(policy: unknown): BudgetConfig {
   const config = isRecord(policy) ? policy : {};
@@ -315,6 +355,9 @@ interface RuleDialogProps {
   /** Every project, archived ones included: the picker offers the active
    *  ones, and the one a saved rule names whatever became of it. */
   projects: readonly ProjectTarget[];
+  /** Whether the project list is still loading — a project not in it yet
+   *  is not gone. */
+  projectsLoading: boolean;
   /** Every key the listing describes: the live ones the picker offers,
    *  and the ones a saved rule still names. */
   apiKeys: readonly OrgApiKeyWire[];
@@ -337,6 +380,7 @@ function RuleDialog({
   memberOptions,
   teamOptions,
   projects,
+  projectsLoading,
   apiKeys,
 }: RuleDialogProps) {
   const { t } = useT('governance');
@@ -381,14 +425,12 @@ function RuleDialog({
     });
     setDraft((prev) => {
       const updated = { ...prev, ...patch };
-      if (patch.scope === 'default' || patch.scope === 'org') {
+      if (patch.scope !== undefined && patch.scope !== prev.scope) {
+        // A target names a subject of ITS scope: a user's id is no team, a
+        // role no project. Kept across a switch, it would save a rule that
+        // matches nothing while the field reads "Select…", so every switch
+        // starts the new scope without a target.
         delete updated.scopeId;
-        delete updated.apiKeyId;
-      } else if (patch.scope === 'apiKey') {
-        // apiKey targets `apiKeyId`; drop any stale user/team/role `scopeId`.
-        delete updated.scopeId;
-      } else if (patch.scope !== undefined) {
-        // Switching to a scopeId-targeted scope: drop any stale `apiKeyId`.
         delete updated.apiKeyId;
       }
       // A project's cap warns no one, so a threshold on it would be inert.
@@ -405,9 +447,24 @@ function RuleDialog({
     () =>
       projects
         .filter((project) => !project.archived || project.id === draft.scopeId)
-        .map((project) => ({ value: project.id, label: project.name })),
+        .map((project) => {
+          const option: SearchableSelectOption = {
+            value: project.id,
+            label: project.name,
+          };
+          if (project.archived) option.labelBadge = <ProjectArchivedBadge />;
+          return option;
+        }),
     [projects, draft.scopeId],
   );
+  // A rule whose project is gone limits nothing; the field says so rather
+  // than reading "Select project…" over a target it still keeps.
+  const projectGone =
+    draft.scope === 'project' &&
+    draft.scopeId !== undefined &&
+    draft.scopeId !== '' &&
+    !projectsLoading &&
+    !projects.some((project) => project.id === draft.scopeId);
 
   // The picker offers the keys that can still spend. A rule being edited
   // keeps its own key in the list whatever became of it, so the field shows
@@ -529,6 +586,9 @@ function RuleDialog({
             emptyText={t('budgets.noProjectsFound')}
             aria-label={t('budgets.selectProjectAriaLabel')}
             error={showTargetError}
+            {...(projectGone
+              ? { description: t('budgets.projectDeletedHint') }
+              : {})}
           />
         )}
 
@@ -704,9 +764,10 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   const { teams } = useOrgTeams();
   // A rule outlives its project's archiving: archived projects are listed
   // so the table still names the project a saved rule caps.
-  const { projects: projectRows } = useProjects(organizationId, {
-    includeArchived: true,
-  });
+  const { projects: projectRows, isLoading: projectsLoading } = useProjects(
+    organizationId,
+    { includeArchived: true },
+  );
   // The API keys an admin can attach a budget to: every member's live key,
   // not only the admin's own — a per-key cap is how an admin bounds one
   // person's script or coding tool. A rule stores the raw `apiKeyId` and
@@ -852,12 +913,11 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
 
   const handleDialogSave = useCallback(
     (rule: BudgetRule) => {
-      let newRules: BudgetRule[];
-      if (editingIndex === null) {
-        newRules = [...rules, rule];
-      } else {
-        newRules = rules.map((r, i) => (i === editingIndex ? rule : r));
-      }
+      const edited =
+        editingIndex === null
+          ? [...rules, rule]
+          : rules.map((r, i) => (i === editingIndex ? rule : r));
+      const newRules = inSavedOrder(edited);
       setRules(newRules);
       void saveConfig(newRules);
     },
@@ -884,8 +944,11 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
         case 'project': {
           if (!rule.scopeId) return '—';
           return (
-            projects.find((project) => project.id === rule.scopeId)?.name ??
-            rule.scopeId
+            <ProjectRuleTarget
+              projectId={rule.scopeId}
+              project={projects.find((project) => project.id === rule.scopeId)}
+              loading={projectsLoading}
+            />
           );
         }
         case 'role':
@@ -911,7 +974,15 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           return '—';
       }
     },
-    [memberOptions, teamOptions, projects, roleOptions, apiKeyById, t],
+    [
+      memberOptions,
+      teamOptions,
+      projects,
+      projectsLoading,
+      roleOptions,
+      apiKeyById,
+      t,
+    ],
   );
 
   const onAddRule = openAddDialog;
@@ -1130,6 +1201,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           memberOptions={memberOptions}
           teamOptions={teamOptions}
           projects={projects}
+          projectsLoading={projectsLoading}
           apiKeys={apiKeys ?? NO_API_KEYS}
         />
 

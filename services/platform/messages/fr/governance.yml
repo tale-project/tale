@@ -66,6 +66,8 @@ budgets:
   searchProjects: Rechercher des projets
   noProjectsFound: Aucun projet trouvé
   selectProjectAriaLabel: Sélectionner un projet
+  projectDeleted: Projet supprimé
+  projectDeletedHint: Ce projet n'existe plus, la règle ne limite donc rien. Choisis un projet ou supprime la règle.
   apiKey: Clé API
   selectApiKey: Sélectionner une clé API...
   searchApiKeys: Rechercher des clés API
