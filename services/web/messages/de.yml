@@ -90,7 +90,7 @@ nav:
       label: Platform-Übersicht
       description: So arbeiten Menschen und Agenten gemeinsam an Projekten.
     agents:
-      label: Agents
+      label: Agenten
       description: Delegiere Aufgaben an Agenten mit eigenen Werkzeugen und Laufzeiten.
     chat:
       label: Chats
@@ -105,7 +105,7 @@ nav:
       label: Wissen
       description: Dokumente, Websites und Datensätze, die Agents zitieren.
     governance:
-      label: Governance
+      label: Richtlinien
       description: Freigaben, Audit-Trail und Ausgabenkontrolle.
   resource:
     compare:
@@ -194,9 +194,9 @@ home:
     connect:
       label: 'Animierte Demo: Die Agents-Liste zeigt Claude Code, Codex, Hermes,
         Support-Agent und OpenClaw als installierte Zeilen mit Modell-Chips.'
-      windowTitle: Agents
-      searchPlaceholder: Agents suchen
-      addLabel: Agents
+      windowTitle: Agenten
+      searchPlaceholder: Agenten suchen
+      addLabel: Agenten
       colName: Name
       colModel: Modell
       colStatus: Status
@@ -313,7 +313,7 @@ home:
       searchPlaceholder: Projekte suchen
       newProject: Neues Projekt
       colName: Name
-      colAgents: Agents
+      colAgents: Agenten
       colMembers: Mitglieder
       project1: Customer Support
       project2: Engineering
@@ -1010,7 +1010,7 @@ featureShared:
   relatedHeading: Verwandte Module
   docsHeading: Docs lesen
 platformAgents:
-  eyebrow: Agents
+  eyebrow: Agenten
   title: Was sind Agents in Tale?
   description: Projektagenten bearbeiten Aufgaben gemeinsam mit deinem Team. Gib jedem
     Agenten Anweisungen, eine unterstützte Laufzeit, ein Modell und Tools.
@@ -1312,7 +1312,7 @@ platformAutomations:
           Connector-Schreibzugriff auf eine Person. Die Freigabe erlaubt den
           Ausführungsversuch, eine Ablehnung verhindert ihn.
       - id: agents
-        eyebrow: Agents
+        eyebrow: Agenten
         title: |-
           Gib einem Agenten
           einen Workflow-Schritt
@@ -1595,7 +1595,7 @@ platformChat:
       source4: Ton-Guide
       sourceType4: entry
 platformGovernance:
-  eyebrow: Governance
+  eyebrow: Richtlinien
   title: Regeln für dein Team und deine Agenten
   description:
     Steuere Zugriffe, konfiguriere Genehmigungen für Connector-Aktionen und
@@ -1818,7 +1818,7 @@ platformHub:
       gemeinsame Arbeit.
     stages:
       - id: agents
-        eyebrow: Agents
+        eyebrow: Agenten
         title: |-
           Agenten für
           deine Projektaufgaben
@@ -1843,7 +1843,7 @@ platformHub:
           Auslöser ein und prüfe die Ergebnisse jedes Laufs. Freigaberegeln
           für Connector-Aktionen können geschützte Schreibzugriffe anhalten.
       - id: govern
-        eyebrow: Governance
+        eyebrow: Richtlinien
         title: |-
           Angehalten, bis
           jemand entscheidet
@@ -2080,7 +2080,7 @@ platformKnowledge:
           Abgerufene Passagen landen als Zitat-Karten — Leser öffnen die
           Datei oder Seite, die die Antwort genutzt hat.
       - id: agents
-        eyebrow: Agents
+        eyebrow: Agenten
         title: |-
           Statte Agenten
           für die Suche aus
