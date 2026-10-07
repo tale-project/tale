@@ -131,13 +131,18 @@ After a completed rollout, `tale --json deploy accept --bundle
 "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT"
 --expected-version "$TALE_RELEASE_VERSION"` collects current read-only acceptance.
 It verifies the exact Ready receipt, runtime image custody and OCI release labels,
-the declared origin's serving version, and complete SQL/TypeScript migration
-inventories from the runtime source. It refuses older bundles without that
-inventory, pending operations, missing or extra ledger entries, and changed
-container identities. No application or configuration state is written. The
-existing deployment lock is held for the bounded observation; repeat the command
-when fresh evidence is needed. `sourceTag` is image-reference metadata and may
-be a source SHA tag; OCI labels and the health response establish the version.
+complete SQL/TypeScript migration inventories, and both frontend/API serving
+processes. The canonical HTTPS health responses must carry the same fresh public
+process identities as the captured local containers, including a final reread;
+another installation at the same version is refused. Legacy servers without that
+identity contract cannot supply acceptance. No application/configuration state is
+written. The existing lock and an owned temporary bundle copy preserve custody.
+External observations share a 120-second elapsed budget; the bundle's existing
+2 GiB/256 MiB-per-file limits bound preparation resources, but filesystem waits
+and cleanup do not have a cancellable whole-command deadline. Use an external
+process supervisor when a total deadline is required. A receipt is point-in-time
+correlation, not authentication or a guarantee of later routing. `sourceTag` is
+image-reference metadata; OCI labels and frontend health establish the version.
 
 Managed runtime error reporting defaults `SENTRY_ENVIRONMENT` to the deployment's
 retained `name`. To use a canonical reporting label, declare

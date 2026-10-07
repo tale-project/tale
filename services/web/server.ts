@@ -202,6 +202,7 @@ startReactServer({
   port: Number(process.env.PORT ?? 3001),
   distDir: resolve(import.meta.dir, 'dist'),
   logPrefix: 'web',
+  servingService: 'web',
   shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,
   securityHeaders: defaultReactServerSecurityHeaders,
   artifacts: artifactsServer,

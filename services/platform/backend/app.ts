@@ -1,4 +1,8 @@
 import { oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider';
+import {
+  createServingIdentity,
+  SERVING_IDENTITY_HEADER,
+} from '@tale/ui/server/serving-identity';
 import { Hono } from 'hono';
 import { requestId } from 'hono/request-id';
 import type { Sql } from 'postgres';
@@ -115,6 +119,7 @@ export interface AppDeps {
 }
 
 export function createApp(deps: AppDeps): Hono<AuthEnv> {
+  const servingIdentity = createServingIdentity('backend-api');
   // One trailing slash under /api/v1/ routes like its absence
   // (lib/http-hygiene.ts) — the path is normalised once, here, so every
   // door and the 405/OPTIONS probe read the same value.
@@ -207,6 +212,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   let readinessProbe: ReturnType<typeof probeAppDatabase> | undefined;
   app.get('/api/health/ready', async (c) => {
     c.header('Cache-Control', 'no-store');
+    c.header(SERVING_IDENTITY_HEADER, servingIdentity);
     readinessProbe ??= probeAppDatabase(deps.sql).finally(() => {
       readinessProbe = undefined;
     });

@@ -9,7 +9,12 @@ import { gitSha, sha, slug } from '../config/releases/model';
 import { exec } from '../docker/exec';
 import { validateLockPaths } from '../state/lock-guard';
 import { withLock } from '../state/with-lock';
-import { acceptanceHealth } from './acceptance-health';
+import {
+  acceptanceHealth,
+  localServingArgs,
+  localServingIdentity,
+  type ServingService,
+} from './acceptance-health';
 import {
   acceptedMigrations,
   acceptanceMigrationScript,
@@ -90,8 +95,8 @@ function ready(bundle: DeploymentBundle, directory: string) {
 }
 
 /** Observe only: no apply, environment resolution, credential export, migration
- * or application/configuration write. Local lock metadata is the sole host state
- * changed, through the same deployment lock as every maintained deploy command. */
+ * or application/configuration write. Uses the same deployment lock and an owned
+ * bounded temporary bundle copy, removed by the existing custody helper. */
 export async function acceptDeployment(
   options: AcceptDeploymentOptions,
   dependencies: {
@@ -231,12 +236,39 @@ export async function acceptDeployment(
           app,
           knowledge,
         );
-        const serving = await acceptanceHealth(
-          bundle.spec.origin,
-          options.expectedVersion,
-          remaining(),
-          dependencies.fetch,
-        );
+        const localServing = async (service: ServingService) => {
+          const matches = before.containers.filter(
+            (c) => c.Config.Labels?.['com.docker.compose.service'] === service,
+          );
+          requireRuntime(
+            matches.length === 1,
+            'Acceptance requires one captured container per serving process.',
+          );
+          return localServingIdentity(
+            await query(localServingArgs(matches[0].Id, service)),
+            service,
+          );
+        };
+        const frontend = await localServing('platform');
+        const backend = await localServing('backend-api');
+        const canonicalServing = async () => {
+          for (const process of [frontend, backend])
+            await acceptanceHealth(
+              bundle.spec.origin,
+              options.expectedVersion,
+              process,
+              remaining(),
+              dependencies.fetch,
+            );
+        };
+        await canonicalServing();
+        const serving = {
+          status: 'ok',
+          version: options.expectedVersion,
+          origin: bundle.spec.origin,
+          frontend,
+          backend,
+        };
         // Recheck the whole runtime custody, every container identity, current
         // migration ledgers and Ready bytes before returning the compact receipt.
         const after = await observeReadyState(runtimeOptions, { exec: run });
@@ -254,6 +286,15 @@ export async function acceptDeployment(
         requireRuntime(
           stableJson(await identities()) === stableJson(started),
           'Runtime identity changed during final ledger observation.',
+        );
+        // The origin may change while local custody/ledger reads settle. Bind
+        // both routes again, then verify the captured processes still match.
+        await canonicalServing();
+        requireRuntime(
+          stableJson(await localServing('platform')) === stableJson(frontend) &&
+            stableJson(await localServing('backend-api')) ===
+              stableJson(backend),
+          'Serving process changed during deployment acceptance.',
         );
         const final = ready(bundle, directory);
         requireRuntime(
