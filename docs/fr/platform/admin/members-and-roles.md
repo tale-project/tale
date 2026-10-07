@@ -27,6 +27,10 @@ Tu dois avoir le rôle Propriétaire ou Admin pour gérer les membres.
 
 La personne apparaît dans la liste. Ce parcours n’envoie ni invitation ni courriel de réinitialisation du mot de passe : en ajoutant quelqu’un, tu confirmes son adresse. Le compte fonctionne donc partout tout de suite, y compris dans les applications où l’on se connecte avec son compte Tale. Si l’adresse est déjà membre de cette organisation, le formulaire le signale sans créer de doublon.
 
+Lorsqu’un administrateur définit ton mot de passe, l’écran **Changement de mot de passe requis** s’affiche à ta prochaine connexion. Il indique « Ton mot de passe a été défini par un administrateur. Choisis un nouveau mot de passe pour continuer. » Choisis-y un nouveau mot de passe avant de continuer. Le même écran s’affiche lorsque ton mot de passe expire selon la politique de rotation de l’organisation ; il indique alors « Ton mot de passe a expiré selon la politique de rotation de l’organisation. Définis un nouveau mot de passe pour continuer. »
+
+Lorsqu’un administrateur définit ton mot de passe, l’écran **Changement de mot de passe requis** s’affiche à ta prochaine connexion. Il indique « Ton mot de passe a été défini par un administrateur. Choisis un nouveau mot de passe pour continuer. » Choisis-y un nouveau mot de passe avant de continuer. Le même écran s’affiche lorsque ton mot de passe expire selon la politique de rotation de l’organisation ; il indique alors « Ton mot de passe a expiré selon la politique de rotation de l’organisation. Définis un nouveau mot de passe pour continuer. »
+
 <Tip>
 
 Ajoute ensuite la personne aux équipes dont elle a besoin. Un rôle seul ne donne pas les accès aux projets d’une équipe ni à sa file de conversations.
@@ -58,7 +62,7 @@ Seuls les propriétaires et les admins peuvent lire les journaux d’audit. Les 
 
 Dans le menu de la ligne de la personne, sélectionne **Modifier**, puis change le **Rôle**. Sélectionne **Enregistrer** et vérifie le rôle dans la liste. Pour rétablir l’accès d’un membre désactivé, choisis explicitement le rôle à lui attribuer.
 
-Le dialogue permet aussi de changer le nom affiché. Le courriel est en lecture seule. Pour définir un nouveau mot de passe, active **Mettre à jour le mot de passe**, saisis une valeur conforme aux exigences affichées, puis enregistre. Vérifie l’identité de la personne selon la procédure de ton organisation avant de réinitialiser son compte.
+Le dialogue permet aussi de changer le nom affiché. Le courriel est en lecture seule. Pour définir un nouveau mot de passe, active **Mettre à jour le mot de passe**, saisis une valeur conforme aux exigences affichées, puis enregistre. Le membre doit choisir un nouveau mot de passe à sa prochaine connexion ; une réinitialisation le déconnecte de toutes ses sessions. Vérifie l’identité de la personne selon la procédure de ton organisation avant de réinitialiser son compte.
 
 Ce menu ne permet pas de modifier ton propre rôle, d’attribuer Propriétaire dans la liste des rôles, ni de rétrograder le dernier administrateur. Les propriétaires existants et le créateur de l’organisation ont aussi des rôles protégés. Si une modification est refusée, vérifie le compte concerné avant d’essayer un autre rôle.
 

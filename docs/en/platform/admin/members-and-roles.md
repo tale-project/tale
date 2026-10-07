@@ -27,6 +27,10 @@ You need an Owner or Admin account to manage members.
 
 The person appears in the member list. Tale does not send an invitation or password-reset email for this flow: adding someone is your confirmation of their address, so the account works everywhere at once — including applications people sign in to with their Tale account. If the address is already a member of this organization, the form reports that instead of adding a duplicate.
 
+When an administrator sets your password, the **Password change required** screen appears at your next sign-in. It says “An administrator set your password. Choose a new password to continue.” Choose a new password there before you continue. The same screen appears when your password expires under the organization’s rotation policy; it says “Your password has expired per the organization’s rotation policy. Set a new password to continue.”
+
+When an administrator sets your password, the **Password change required** screen appears at your next sign-in. It says “An administrator set your password. Choose a new password to continue.” Choose a new password there before you continue. The same screen appears when your password expires under the organization’s rotation policy; it says “Your password has expired per the organization’s rotation policy. Set a new password to continue.”
+
 <Tip>
 
 After adding a person, assign the teams they need. A role alone does not put them into a team's project access or conversation queue.
@@ -58,7 +62,7 @@ Audit-log viewing is restricted to Owners and Admins. Actions by other roles can
 
 Open the person's row menu, choose **Edit**, and change **Role**. Select **Save**, then check the role badge in the list. To restore a disabled member's access, explicitly select the role they should receive.
 
-The edit dialog also changes the display name. Email is read-only. To set a replacement password, enable **Update password**, enter a password that meets the displayed requirements, and save. Use your organization's identity-checking process before resetting an account.
+The edit dialog also changes the display name. Email is read-only. To set a replacement password, enable **Update password**, enter a password that meets the displayed requirements, and save. The member must choose a new password on their next sign-in; resetting the password signs the member out of all sessions. Use your organization's identity-checking process before resetting an account.
 
 You cannot edit your own role through this menu, assign Owner through the role picker, or demote the last administrator. Existing Owners and the organization creator also have protected roles. If a change is refused, check the relevant account before trying a different role.
 
