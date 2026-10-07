@@ -693,6 +693,18 @@ describe('BudgetEditor', () => {
       expect(options).toHaveLength(3);
     });
 
+    it('offers no warning threshold for a project’s cap, which warns no one', async () => {
+      setLoaded([{ scope: 'default', period: 'monthly', maxCostCents: 100 }]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /edit rule/i }));
+      const dialog = within(await screen.findByRole('dialog'));
+      expect(dialog.getByLabelText(/warning threshold/i)).toBeInTheDocument();
+      await user.click(dialog.getByRole('combobox', { name: 'Scope' }));
+      await user.click(screen.getByRole('option', { name: 'Project' }));
+      expect(dialog.queryByLabelText(/warning threshold/i)).toBeNull();
+    });
+
     it('blocks saving a project rule that names no project', async () => {
       setLoaded([]);
       const { user } = render(<BudgetEditor organizationId="org-1" />);

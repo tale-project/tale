@@ -160,8 +160,9 @@ agent.
   the **Project** select appears (placeholder
   `governance.budgets.selectProject`, aria-label
   `governance.budgets.selectProjectAriaLabel`) and offers the active
-  projects; pick one, set **Max requests** 2 → **Confirm** → reload → the
-  row's **Scope** reads **Project** and its **Target** the project's name.
+  projects, and **Warning threshold (%)** is gone; pick one, set **Max
+  requests** 2 → **Confirm** → reload → the row's **Scope** reads
+  **Project** and its **Target** the project's name.
   As a member far from any personal cap, send two messages in one of the
   project's chats → the third send is refused with **This project's monthly
   request limit…**, while a chat outside the project still answers; with

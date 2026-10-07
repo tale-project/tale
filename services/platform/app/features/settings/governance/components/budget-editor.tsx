@@ -391,6 +391,8 @@ function RuleDialog({
         // Switching to a scopeId-targeted scope: drop any stale `apiKeyId`.
         delete updated.apiKeyId;
       }
+      // A project's cap warns no one, so a threshold on it would be inert.
+      if (patch.scope === 'project') delete updated.warningThresholdPercent;
       return updated;
     });
   }, []);
@@ -637,28 +639,31 @@ function RuleDialog({
             <FieldError message={errors.limits} />
           )}
 
-          <div>
-            <Input
-              label={t('budgets.warningThreshold')}
-              type="number"
-              value={draft.warningThresholdPercent ?? ''}
-              onChange={(e) =>
-                updateDraft({
-                  warningThresholdPercent: e.target.value
-                    ? Number(e.target.value)
-                    : undefined,
-                })
-              }
-              disabled={cannotManage}
-              placeholder="e.g. 80"
-              min={0}
-              max={100}
-              errorMessage={fieldError('warningThresholdPercent')}
-            />
-            <Text className="text-muted-foreground mt-1 text-xs">
-              {t('budgets.warningThresholdHelp')}
-            </Text>
-          </div>
+          {/* A project's cap warns no one: no threshold is offered for it. */}
+          {draft.scope !== 'project' && (
+            <div>
+              <Input
+                label={t('budgets.warningThreshold')}
+                type="number"
+                value={draft.warningThresholdPercent ?? ''}
+                onChange={(e) =>
+                  updateDraft({
+                    warningThresholdPercent: e.target.value
+                      ? Number(e.target.value)
+                      : undefined,
+                  })
+                }
+                disabled={cannotManage}
+                placeholder="e.g. 80"
+                min={0}
+                max={100}
+                errorMessage={fieldError('warningThresholdPercent')}
+              />
+              <Text className="text-muted-foreground mt-1 text-xs">
+                {t('budgets.warningThresholdHelp')}
+              </Text>
+            </div>
+          )}
         </Stack>
       </Stack>
     </FormDialog>
