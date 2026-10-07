@@ -132,7 +132,7 @@ describe('settleSessionOpSpend', () => {
     });
     expect(ledger.incrementUsageLedger.mock.calls[0]?.[1]).toMatchObject({
       userId: '__automation__',
-      projectId: 'project-1',
+      projectIds: ['project-1'],
       costEstimateCents: 25,
     });
   });

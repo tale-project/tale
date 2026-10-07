@@ -122,7 +122,7 @@ export async function assertChatTurnBudget(
     organizationId: args.organizationId,
     userId: args.userId,
     ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
-    ...(projectId !== undefined ? { projectId } : {}),
+    ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
   });
   const violation = await findBudgetViolation(sql, subject, {
     reservations: await readInFlightReservations(

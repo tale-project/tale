@@ -68,12 +68,16 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 9. **Spend in a project is the project's too.** Work that belongs to a project — a chat turn or
    title in one of its threads, an answer read aloud there, the chat's tool calls, a turn of one
    of its agents or of an automation run in it (and that turn's images), a call made with the
-   project's own API key — names the project to `incrementUsageLedger` (`projectId`), which books
-   the same figures into the project's buckets, `app.project_usage`, beside the ledger row. A
-   `project` budget rule (`projectRules` in the budgets file) is measured against those buckets,
-   whoever spent: a project cap binds an impersonal subject too. A hold in flight counts toward
-   the project through its thread (`app.generations` → `app.thread_metadata.project_id`) or the
-   project its reservation stamped (`sandbox_session_ops.project_id`). A project's key spends in
+   project's own API key — names its projects to `incrementUsageLedger` (`projectIds`), which
+   books the same figures into each project's buckets, `app.project_usage`, beside the ledger
+   row. An automation run that names no project belongs to every project its automation is bound
+   to — the set its language context, skills and session reach already use — so it counts toward
+   each, as a member's spend counts toward each of their teams; an automation bound to none
+   spends in no project. A `project` budget rule (`projectRules` in the budgets file) is measured
+   against its project's buckets, whoever spent: a project cap binds an impersonal subject too,
+   and work in several projects must fit each one's cap. A hold in flight counts toward its
+   projects through its thread (`app.generations` → `app.thread_metadata.project_id`) or the
+   projects its reservation stamped (`sandbox_session_ops.project_ids`). A project's key spends in
    its project whatever it calls (`loadBudgetSubject`). Transcription and video ingestion name no
    project.
 
@@ -84,7 +88,7 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 | Chat turn (App, REST) | `lib/chat/turn.ts` → `createPgUsageLedger` | the sender / the member acted for | assistant slug | the REST key | the thread's |
 | Chat title | `core/chat/generate_title.ts` → same ledger | the thread's member | `thread-title` | — | the thread's (`chat.generate_title` job) |
 | Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | — | `project_agent_runs.project_id` |
-| Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id` |
+| Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
 | Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above | the run's, as above |
 | Voice output | `domains/tts` | the requester | `__tts__` | — | the thread's |
 | Transcription | `domains/files/transcription.ts` | the requester | `__transcription__` | — | — |

@@ -48,7 +48,9 @@ What a project spent is everything done in it: the chats in its threads (their t
 answers read aloud and the assistant's tool calls included), the turns of its agents and the
 agent steps of the automations run in it, with the images they make, and the calls made with its
 own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
-schedule started included, and binds nothing done outside the project.
+schedule started included, and binds nothing done outside the project. A run that names no
+project, of an automation installed in several projects, is each one's work: it counts toward,
+and must fit, every one of their limits, as a member's spend counts toward each of their teams.
 
 - **Example**: The Website project is capped at 100 a month and has spent 100. Mia, far from
   her own limit, writes in one of the project's chats → refused, naming the project's limit.
@@ -161,8 +163,6 @@ It counts only in the organization it was granted in.
   nothing while it is made.
 - **An automation's model steps**: an `llm` step is admitted against no limit and booked to no
   ledger — the organization's, a person's, a key's or a project's.
-- **Which project a scheduled run spends in** when its automation is installed in several
-  projects: today none, so no project's limit binds it.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.

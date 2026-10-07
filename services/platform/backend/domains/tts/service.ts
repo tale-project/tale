@@ -430,7 +430,7 @@ export async function reserveChunk(
     const subject = await loadBudgetSubject(tx, {
       organizationId: args.organizationId,
       userId: args.userId,
-      ...(projectId !== undefined ? { projectId } : {}),
+      ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
     });
     // No lane books a team on a ledger row: a team's usage is its CURRENT
     // members' usage, read through membership by the budget gate — so this
@@ -593,7 +593,7 @@ async function markChunkReadyAndRecordUsage(
       organizationId: row.organizationId,
       userId: row.userId,
       ...(row.teamId !== null ? { teamId: row.teamId } : {}),
-      ...(projectId !== undefined ? { projectId } : {}),
+      ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
       agentSlug: TTS_SLUG,
       model: args.modelId,
       provider: args.providerName,

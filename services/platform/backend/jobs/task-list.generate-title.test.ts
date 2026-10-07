@@ -67,7 +67,7 @@ describe('chat.generate_title', () => {
       expect.objectContaining({
         agentSlug: 'thread-title',
         totalTokens: 12,
-        projectId: 'project-1',
+        projectIds: ['project-1'],
       }),
     );
   });
@@ -75,7 +75,7 @@ describe('chat.generate_title', () => {
   it('books naming a thread outside a project to the ledger alone', async () => {
     await createTaskList({ sql: SQL })['chat.generate_title']?.(PAYLOAD);
     expect(mocks.record).toHaveBeenCalledWith(
-      expect.not.objectContaining({ projectId: expect.anything() }),
+      expect.not.objectContaining({ projectIds: expect.anything() }),
     );
   });
 });

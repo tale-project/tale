@@ -211,7 +211,7 @@ describe('resolveImageTurnContext', () => {
     mocks.attribution.mockResolvedValue({
       userId: '__automation__',
       agentSlug: 'agent_1',
-      projectId: 'project_1',
+      projectIds: ['project_1'],
     });
     await expect(
       resolveImageTurnContext(sql, {
@@ -221,7 +221,7 @@ describe('resolveImageTurnContext', () => {
         execId: 'exec_1',
       }),
     ).resolves.toMatchObject({
-      subject: { userId: '__automation__', projectId: 'project_1' },
+      subject: { userId: '__automation__', projectIds: ['project_1'] },
     });
   });
 
@@ -473,25 +473,28 @@ describe('admitImageGeneration', () => {
     const { sql, statements } = opSql();
     await admitImageGeneration(
       sql,
-      { ...ADMIT, subject: { userId: 'user_starter', projectId: 'project_1' } },
+      {
+        ...ADMIT,
+        subject: { userId: 'user_starter', projectIds: ['project_1'] },
+      },
       deps,
     );
     const hold = holdWrite(statements);
-    expect(hold?.text).toContain('project_id = coalesce(project_id, ?)');
-    expect(hold?.values).toContain('project_1');
+    expect(hold?.text).toContain('project_ids = coalesce( project_ids, ? )');
+    expect(hold?.values).toContainEqual(['project_1']);
   });
 
   it('holds an image in a project to the project’s caps, whoever the turn is for [GOV-R14]', async () => {
     for (const subject of [
-      { userId: 'user_starter', projectId: 'project_1' },
-      { userId: '__automation__', projectId: 'project_1' },
+      { userId: 'user_starter', projectIds: ['project_1'] },
+      { userId: '__automation__', projectIds: ['project_1'] },
     ]) {
       mocks.findBudgetViolation.mockClear();
       const { sql } = opSql();
       await admitImageGeneration(sql, { ...ADMIT, subject, images: 1 }, deps);
       expect(mocks.findBudgetViolation).toHaveBeenCalledWith(
         sql,
-        expect.objectContaining({ projectId: 'project_1' }),
+        expect.objectContaining({ projectIds: ['project_1'] }),
         expect.anything(),
       );
     }
@@ -589,13 +592,13 @@ describe('settleImageGeneration', () => {
     const { sql } = scriptedSql([]);
     await settleImageGeneration(sql, {
       ...SETTLE,
-      subject: { ...SETTLE.subject, projectId: 'project_1' },
+      subject: { ...SETTLE.subject, projectIds: ['project_1'] },
       charges: [3.9],
     });
     expect(mocks.incrementUsageLedger).toHaveBeenCalledWith(
       sql,
       expect.objectContaining({
-        projectId: 'project_1',
+        projectIds: ['project_1'],
         costEstimateCents: 3.9,
       }),
     );

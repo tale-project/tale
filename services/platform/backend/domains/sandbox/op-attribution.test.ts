@@ -171,7 +171,7 @@ describe('resolveSessionOpAttribution — the project the work is in [GOV-R14]',
       ]);
       await expect(
         resolveSessionOpAttribution(sql, TASK_OP),
-      ).resolves.toMatchObject({ projectId: 'project-1' });
+      ).resolves.toMatchObject({ projectIds: ['project-1'] });
     }
   });
 
@@ -192,11 +192,55 @@ describe('resolveSessionOpAttribution — the project the work is in [GOV-R14]',
       ]);
       await expect(
         resolveSessionOpAttribution(sql, WORKFLOW_OP),
-      ).resolves.toMatchObject({ projectId: 'project-1' });
+      ).resolves.toMatchObject({ projectIds: ['project-1'] });
     }
   });
 
-  it('names none for a run outside a project, and reads the stamp’s once the run is gone', async () => {
+  it('names every project an automation is bound to for a run that names none, as such a run acts in each', async () => {
+    const { sql, statements } = fakeSql([
+      {
+        match: 'JOIN app.automation_runs ar',
+        rows: [
+          {
+            startedBy: 'trigger:t-1',
+            name: 'invoices/monthly',
+            apiKeyId: null,
+            projectId: null,
+            boundProjectIds: ['project-1', 'project-2'],
+          },
+        ],
+      },
+    ]);
+    await expect(
+      resolveSessionOpAttribution(sql, WORKFLOW_OP),
+    ).resolves.toMatchObject({ projectIds: ['project-1', 'project-2'] });
+    // The bindings are read with the run, by its automation's name.
+    expect(statements[0]?.text).toContain(
+      'FROM app.automation_project_bindings b WHERE b.org_id = ar.org_id AND b.automation_name = ar.name',
+    );
+  });
+
+  it('names only the run’s own project when it names one, whatever else its automation is bound to', async () => {
+    const { sql } = fakeSql([
+      {
+        match: 'JOIN app.automation_runs ar',
+        rows: [
+          {
+            startedBy: 'user:user-2',
+            name: 'invoices/monthly',
+            apiKeyId: null,
+            projectId: 'project-2',
+            boundProjectIds: ['project-1', 'project-2'],
+          },
+        ],
+      },
+    ]);
+    await expect(
+      resolveSessionOpAttribution(sql, WORKFLOW_OP),
+    ).resolves.toMatchObject({ projectIds: ['project-2'] });
+  });
+
+  it('names none for a run of an automation in no project, and reads the stamp’s once the run is gone', async () => {
     const outside = fakeSql([
       {
         match: 'JOIN app.automation_runs ar',
@@ -206,13 +250,14 @@ describe('resolveSessionOpAttribution — the project the work is in [GOV-R14]',
             name: 'invoices/monthly',
             apiKeyId: null,
             projectId: null,
+            boundProjectIds: null,
           },
         ],
       },
     ]);
     await expect(
       resolveSessionOpAttribution(outside.sql, WORKFLOW_OP),
-    ).resolves.not.toHaveProperty('projectId');
+    ).resolves.not.toHaveProperty('projectIds');
     const stamped = fakeSql([
       {
         match: 'FROM app.sandbox_session_ops',
@@ -221,7 +266,7 @@ describe('resolveSessionOpAttribution — the project the work is in [GOV-R14]',
             userId: 'identity-1',
             agentSlug: '__direct_api__',
             apiKeyId: 'key-1',
-            projectId: 'project-1',
+            projectIds: ['project-1'],
           },
         ],
       },
@@ -235,7 +280,7 @@ describe('resolveSessionOpAttribution — the project the work is in [GOV-R14]',
       userId: 'identity-1',
       agentSlug: '__direct_api__',
       apiKeyId: 'key-1',
-      projectId: 'project-1',
+      projectIds: ['project-1'],
     });
   });
 });

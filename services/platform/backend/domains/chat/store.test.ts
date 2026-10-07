@@ -156,7 +156,7 @@ describe('createPgUsageLedger', () => {
     const { sql, calls } = capturingSql();
     await createPgUsageLedger(sql).record({
       ...ENTRY,
-      projectId: 'project_1',
+      projectIds: ['project_1'],
     });
     // The three ledger buckets and the project's three.
     expect(calls.length).toBe(6);

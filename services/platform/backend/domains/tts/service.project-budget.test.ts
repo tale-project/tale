@@ -152,7 +152,7 @@ describe('synthesizeChunk in a project’s thread [GOV-R14]', () => {
       expect.objectContaining({
         userId: USER,
         agentSlug: '__tts__',
-        projectId: 'project-1',
+        projectIds: ['project-1'],
       }),
     );
   });
@@ -161,7 +161,7 @@ describe('synthesizeChunk in a project’s thread [GOV-R14]', () => {
     await synthesizeChunk(scriptedSql(null, 0), CHUNK);
     expect(mocks.incrementUsageLedger).toHaveBeenCalledWith(
       expect.anything(),
-      expect.not.objectContaining({ projectId: expect.anything() }),
+      expect.not.objectContaining({ projectIds: expect.anything() }),
     );
   });
 

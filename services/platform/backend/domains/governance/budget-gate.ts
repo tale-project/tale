@@ -185,10 +185,12 @@ export interface OrgBudgetSubject {
    * its spend is the key's — a run its REST comment started books under
    * the identity without naming the key — so the key's caps count it. */
   apiKeyIdentity?: string;
-  /** The project the work belongs to — a chat in one of its threads, a run
-   * of one of its agents or automations, a call with its own API key. Its
-   * `project` caps bind the work, whoever asked for it. */
-  projectId?: string;
+  /** The projects the work belongs to — a chat's thread's, an agent run's,
+   * an automation run's (every project its automation is bound to, when the
+   * run names none), a project's own API key's. Each one's `project` caps
+   * bind the work, whoever asked for it, as each of a member's teams' caps
+   * bind them. */
+  projectIds?: readonly string[];
 }
 
 /**
@@ -209,8 +211,8 @@ export async function loadBudgetSubject(
     organizationId: string;
     userId: string;
     apiKeyId?: string;
-    /** The project the work belongs to, when the lane knows it. */
-    projectId?: string;
+    /** The projects the work belongs to, when the lane knows them. */
+    projectIds?: readonly string[];
   },
 ): Promise<OrgBudgetSubject> {
   const [member, userTeamIds] = await Promise.all([
@@ -237,10 +239,8 @@ export async function loadBudgetSubject(
       apiKeyIdentity: args.userId,
       // A project's own key spends in its project, whatever it calls.
       ...(principal.kind === 'project' && principal.projectId !== null
-        ? { projectId: principal.projectId }
-        : args.projectId !== undefined
-          ? { projectId: args.projectId }
-          : {}),
+        ? { projectIds: [principal.projectId] }
+        : inProjects(args.projectIds)),
     };
   }
   return {
@@ -249,8 +249,17 @@ export async function loadBudgetSubject(
     userTeamIds,
     ...(member !== null ? { userRole: member.role } : {}),
     ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
-    ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
+    ...inProjects(args.projectIds),
   };
+}
+
+/** The `projectIds` of a subject in these projects; nothing for none. */
+function inProjects(projectIds: readonly string[] | undefined): {
+  projectIds?: readonly string[];
+} {
+  return projectIds !== undefined && projectIds.length > 0
+    ? { projectIds: [...new Set(projectIds)] }
+    : {};
 }
 
 /** Whether the organization's budget policy is on with at least one rule —
@@ -283,15 +292,15 @@ export interface BudgetReservations {
   org?: ReservedSpend;
   apiKey?: ReservedSpend;
   teams?: Readonly<Record<string, ReservedSpend>>;
-  /** What the work in flight in the subject's project holds. */
-  project?: ReservedSpend;
+  /** What the work in flight in each of the subject's projects holds. */
+  projects?: Readonly<Record<string, ReservedSpend>>;
 }
 
 export type BudgetScope = 'user' | 'team' | 'org' | 'apiKey' | 'project';
 
 /** The buckets one evaluation walks, in the order the ladder binds: the
- * caller's personal triple, each of their teams' shared caps, the project's,
- * the org's, then the authenticating key's. */
+ * caller's personal triple, each of their teams' shared caps, each of the
+ * work's projects', the org's, then the authenticating key's. */
 interface BudgetBucket {
   scope: BudgetScope;
   teamId?: string;
@@ -363,31 +372,32 @@ async function bucketsFor(
       ),
     });
   }
-  // The project's cap against everything spent in the project.
-  const projectLimits = limits.projectLimits;
-  if (
-    projectLimits !== undefined &&
-    (projectLimits.maxTokens != null ||
-      projectLimits.maxCostCents != null ||
-      projectLimits.maxRequests != null)
-  ) {
+  // Each project's cap against everything spent in that project.
+  for (const projectLimit of limits.projectLimits) {
+    if (
+      projectLimit.maxTokens == null &&
+      projectLimit.maxCostCents == null &&
+      projectLimit.maxRequests == null
+    ) {
+      continue;
+    }
     buckets.push({
       scope: 'project',
-      projectId: projectLimits.projectId,
+      projectId: projectLimit.projectId,
       rule: {
         scope: 'project',
-        scopeId: projectLimits.projectId,
+        scopeId: projectLimit.projectId,
         period,
-        maxTokens: projectLimits.maxTokens,
-        maxCostCents: projectLimits.maxCostCents,
-        maxRequests: projectLimits.maxRequests,
+        maxTokens: projectLimit.maxTokens,
+        maxCostCents: projectLimit.maxCostCents,
+        maxRequests: projectLimit.maxRequests,
       },
       usage: withReserved(
         await periodUsage(sql, org, periodKey, {
           kind: 'project',
-          projectId: projectLimits.projectId,
+          projectId: projectLimit.projectId,
         }),
-        reservations.project,
+        reservations.projects?.[projectLimit.projectId],
       ),
     });
   }
@@ -462,7 +472,7 @@ async function applicableLimitsByPeriod(
     subject.userTeamIds,
     subject.userRole,
     subject.apiKeyId,
-    subject.projectId,
+    subject.projectIds,
   );
   return PERIODS.flatMap((period) => {
     const periodRules = applicableRules.filter((r) => r.period === period);
@@ -476,7 +486,7 @@ async function applicableLimitsByPeriod(
           subject.userTeamIds,
           subject.userRole,
           subject.apiKeyId,
-          subject.projectId,
+          subject.projectIds,
         ),
       },
     ];

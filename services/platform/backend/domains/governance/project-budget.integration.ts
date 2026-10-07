@@ -13,6 +13,7 @@ import {
   assertChatTurnBudget,
   ChatBudgetExceededError,
 } from '../chat/budget-admission.ts';
+import { settleSessionOpSpend } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
 import { readInFlightReservations } from './budget-reservations.ts';
 import { incrementUsageLedger } from './service.ts';
@@ -82,6 +83,10 @@ export async function checkProjectBudgets(
   const projectThread = await newThread({ projectId });
   const ownThread = await newThread({});
   const opSession = `model-api:itest-project-${suffix}`;
+  const automationName = `itest/project-budget-${suffix}`;
+  const runSession = `wf-itest-project-${suffix}`;
+  let secondProjectId = '';
+  let runId = '';
   // A hidden branch of the project's conversation, as an edit or a
   // regenerate leaves one: later turns run on it.
   const [branch] = await sql<{ id: string }[]>`
@@ -164,7 +169,7 @@ export async function checkProjectBudgets(
       costEstimateCents: 60,
       timestamp: now,
       agentSlug,
-      projectId,
+      projectIds: [projectId],
     });
     const buckets = await sql<
       { granularity: string; periodKey: string; cost: number; tokens: number }[]
@@ -209,7 +214,11 @@ export async function checkProjectBudgets(
       execId: 'held',
       kind: 'model-api',
       defaultBudgetCents: 10,
-      subject: { userId, agentSlug: '__direct_api__', projectId },
+      subject: {
+        userId,
+        agentSlug: '__direct_api__',
+        projectIds: [projectId],
+      },
       whole: { prospectiveTokens: 10 },
     });
     record(
@@ -232,19 +241,24 @@ export async function checkProjectBudgets(
       execId: 'admitted',
       kind: 'model-api',
       defaultBudgetCents: 10,
-      subject: { userId, agentSlug: '__direct_api__', projectId },
+      subject: {
+        userId,
+        agentSlug: '__direct_api__',
+        projectIds: [projectId],
+      },
       whole: { prospectiveTokens: 10 },
     });
-    const stamp = await sql<{ projectId: string | null }[]>`
-      SELECT project_id AS "projectId" FROM app.sandbox_session_ops
+    const stamp = await sql<{ projectIds: string[] | null }[]>`
+      SELECT project_ids AS "projectIds" FROM app.sandbox_session_ops
       WHERE session_id = ${opSession} AND exec_id = 'admitted'
     `;
     const holds = await readInFlightReservations(sql, {
       organizationId: orgId,
       userId,
       userTeamIds: [],
-      projectId,
+      projectIds: [projectId],
     });
+    const projectHold = holds.projects?.[projectId];
     // Taken out of the project and filed back: the branch follows each
     // move, so a turn on it spends where the conversation is.
     const out = await refile(null);
@@ -257,10 +271,92 @@ export async function checkProjectBudgets(
     record(
       'project budgets: a model request in a project stamps its project, and its hold counts toward the project',
       admitted.allowed &&
-        stamp[0]?.projectId === projectId &&
-        holds.project?.costCents === 10 &&
-        holds.project.requests === 1,
-      `admitted=${admitted.allowed}, stamp=${stamp[0]?.projectId ?? 'none'} (want the project), project hold=${JSON.stringify(holds.project)} (want 10 cents, 1 request)`,
+        JSON.stringify(stamp[0]?.projectIds) === JSON.stringify([projectId]) &&
+        projectHold?.costCents === 10 &&
+        projectHold.requests === 1,
+      `admitted=${admitted.allowed}, stamp=${JSON.stringify(stamp[0]?.projectIds)} (want the project), project hold=${JSON.stringify(projectHold)} (want 10 cents, 1 request)`,
+    );
+
+    // An automation bound to this project and a second one: a run a
+    // schedule starts names neither, so it acts — and spends — in both.
+    const [second] = await sql<{ id: string }[]>`
+      INSERT INTO app.projects (
+        org_id, name, key, team_ids, team_id, shared_with_team_ids,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${`Budget ${suffix} two`}, ${`PC${suffix.slice(0, 4)}`},
+        ${[]}, ${null}, ${[]}, ${userId}, ${now}, ${now}
+      )
+      RETURNING id
+    `;
+    secondProjectId = second?.id ?? '';
+    for (const bound of [projectId, secondProjectId]) {
+      await sql`
+        INSERT INTO app.automation_project_bindings (
+          org_id, automation_name, project_id, bound_at_ms, bound_by
+        ) VALUES (${orgId}, ${automationName}, ${bound}, ${now}, ${userId})
+      `;
+    }
+    const [run] = await sql<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, input, checkpoints,
+        wake_at_ms, claim_epoch, started_at_ms
+      ) VALUES (
+        ${orgId}, ${automationName}, 1, 'running', 'live', 'trigger:itest',
+        ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
+        ${null}, 1, ${now}
+      ) RETURNING id
+    `;
+    runId = run?.id ?? '';
+    await sql`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        pinned, created_at_ms, expires_at_ms
+      ) VALUES (
+        ${orgId}, ${runSession}, 'active', 'workflow_run', ${runId},
+        'itest', false, ${now}, ${now + 3_600_000}
+      )
+    `;
+    const turn = await reserveTurnBudget(sql, {
+      organizationId: orgId,
+      sessionId: runSession,
+      execId: 'step',
+      kind: 'workflow-agent',
+      defaultBudgetCents: 10,
+    });
+    const runStamp = await sql<{ projectIds: string[] | null }[]>`
+      SELECT project_ids AS "projectIds" FROM app.sandbox_session_ops
+      WHERE session_id = ${runSession} AND exec_id = 'step'
+    `;
+    const secondHolds = await readInFlightReservations(sql, {
+      organizationId: orgId,
+      userId: '__automation__',
+      userTeamIds: [],
+      projectIds: [secondProjectId],
+    });
+    await settleSessionOpSpend(sql, {
+      sessionId: runSession,
+      execId: 'step',
+      spentCents: 7,
+      usage: { inputTokens: 5, outputTokens: 2 },
+    });
+    const booked = await sql<{ projectId: string; cost: number }[]>`
+      SELECT project_id AS "projectId", cost_estimate_cents::float8 AS cost
+      FROM app.project_usage
+      WHERE org_id = ${orgId} AND granularity = 'monthly'
+        AND project_id = ANY(${[projectId, secondProjectId]})
+    `;
+    const costOf = (id: string): number | undefined =>
+      booked.find((row) => row.projectId === id)?.cost;
+    record(
+      'project budgets: a scheduled run of an automation bound to two projects holds and books in both',
+      turn.allowed &&
+        JSON.stringify(runStamp[0]?.projectIds) ===
+          JSON.stringify([projectId, secondProjectId].toSorted()) &&
+        secondHolds.projects?.[secondProjectId]?.costCents === 10 &&
+        costOf(projectId) === 67 &&
+        costOf(secondProjectId) === 7,
+      `admitted=${turn.allowed}, stamp=${JSON.stringify(runStamp[0]?.projectIds)} (want both projects), second project's hold=${JSON.stringify(secondHolds.projects?.[secondProjectId])} (want 10 cents), booked=${JSON.stringify(booked)} (want 60+7 and 7)`,
     );
   } finally {
     await unlink(budgetsFile).catch((error: unknown) => {
@@ -269,7 +365,16 @@ export async function checkProjectBudgets(
     clearOrgConfigCaches();
     await sql`
       DELETE FROM app.sandbox_session_ops
-      WHERE org_id = ${orgId} AND session_id = ${opSession}
+      WHERE org_id = ${orgId} AND session_id = ANY(${[opSession, runSession]})
+    `;
+    await sql`
+      DELETE FROM app.sandbox_sessions
+      WHERE org_id = ${orgId} AND session_id = ${runSession}
+    `;
+    await sql`DELETE FROM app.automation_runs WHERE id = ${runId}`;
+    await sql`
+      DELETE FROM app.automation_project_bindings
+      WHERE org_id = ${orgId} AND automation_name = ${automationName}
     `;
     await sql`
       DELETE FROM app.threads
@@ -279,12 +384,15 @@ export async function checkProjectBudgets(
     `;
     await sql`
       DELETE FROM app.usage_ledger
-      WHERE org_id = ${orgId} AND agent_slug = ${agentSlug}
+      WHERE org_id = ${orgId} AND agent_slug = ANY(${[agentSlug, automationName]})
     `;
     await sql`
       DELETE FROM app.project_usage
-      WHERE org_id = ${orgId} AND project_id = ${projectId}
+      WHERE org_id = ${orgId}
+        AND project_id = ANY(${[projectId, secondProjectId]})
     `;
-    await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
+    await sql`
+      DELETE FROM app.projects WHERE id = ANY(${[projectId, secondProjectId]})
+    `;
   }
 }

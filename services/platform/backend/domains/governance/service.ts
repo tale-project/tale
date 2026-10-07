@@ -195,15 +195,16 @@ export interface UsageLedgerEntryInput {
   characterCount?: number;
   /** Transcription lane: audio seconds, accumulated on the bucket. */
   audioDurationSec?: number;
-  /** The project the spend belongs to: also booked on the project's own
-   * buckets (`app.project_usage`), which a `project` budget rule reads. */
-  projectId?: string;
+  /** The projects the spend belongs to: also booked on each project's own
+   * buckets (`app.project_usage`), which a `project` budget rule reads — a
+   * run of an automation bound to several projects belongs to each. */
+  projectIds?: readonly string[];
 }
 
 const ALL_PERIODS = ['daily', 'weekly', 'monthly'] as const;
 
 /** One billable call → three period buckets, each an atomic upsert — and,
- * for spend that belongs to a project, the project's three as well. */
+ * for spend that belongs to projects, each project's three as well. */
 export async function incrementUsageLedger(
   sql: Sql | TransactionSql,
   entry: UsageLedgerEntryInput,
@@ -264,14 +265,14 @@ export async function incrementUsageLedger(
         provider = coalesce(app.usage_ledger.provider, EXCLUDED.provider),
         updated_at_ms = ${now}
     `;
-    if (entry.projectId !== undefined) {
+    for (const projectId of new Set(entry.projectIds ?? [])) {
       await sql`
         INSERT INTO app.project_usage (
           org_id, project_id, granularity, period_key, input_tokens,
           output_tokens, total_tokens, cost_estimate_cents, request_count,
           updated_at_ms
         ) VALUES (
-          ${entry.organizationId}, ${entry.projectId}, ${period},
+          ${entry.organizationId}, ${projectId}, ${period},
           ${periodKey}, ${entry.inputTokens}, ${entry.outputTokens},
           ${totalTokens}, ${entry.costEstimateCents}, 1, ${now}
         )
@@ -308,7 +309,7 @@ export async function recordConnectorUsage(
   await incrementUsageLedger(sql, {
     organizationId: args.organizationId,
     userId: args.userId,
-    ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
+    ...(args.projectId !== undefined ? { projectIds: [args.projectId] } : {}),
     inputTokens: 0,
     outputTokens: 0,
     costEstimateCents: args.costEstimateCents,

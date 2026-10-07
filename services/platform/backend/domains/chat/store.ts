@@ -632,8 +632,8 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
           : {}),
         model: entry.model,
         provider: entry.provider,
-        ...(entry.projectId !== undefined
-          ? { projectId: entry.projectId }
+        ...(entry.projectIds !== undefined
+          ? { projectIds: entry.projectIds }
           : {}),
       });
     },

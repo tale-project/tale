@@ -64,7 +64,7 @@ describe('incrementUsageLedger', () => {
       outputTokens: 5,
       costEstimateCents: 3,
       timestamp,
-      projectId: 'project_1',
+      projectIds: ['project_1'],
     });
     const project = statements.flatMap((text, index) =>
       text.includes('INSERT INTO app.project_usage') ? [index] : [],
@@ -93,5 +93,32 @@ describe('incrementUsageLedger', () => {
     expect(statements.some((text) => text.includes('app.project_usage'))).toBe(
       false,
     );
+  });
+
+  it('books spend in several projects into each project’s buckets [GOV-R14]', async () => {
+    const { sql, statements, bindings } = capturingSql();
+    await incrementUsageLedger(sql, {
+      organizationId: 'org_1',
+      userId: '__automation__',
+      inputTokens: 1,
+      outputTokens: 1,
+      costEstimateCents: 2,
+      timestamp: Date.UTC(2026, 9, 7, 12),
+      projectIds: ['project_1', 'project_2', 'project_1'],
+    });
+    const booked = statements.flatMap((text, index) =>
+      text.includes('INSERT INTO app.project_usage')
+        ? [String(bindings[index]?.[1])]
+        : [],
+    );
+    // Three periods for each project, a repeated id booked once.
+    expect(booked.toSorted()).toEqual([
+      'project_1',
+      'project_1',
+      'project_1',
+      'project_2',
+      'project_2',
+      'project_2',
+    ]);
   });
 });

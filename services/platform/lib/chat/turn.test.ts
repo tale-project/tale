@@ -360,12 +360,12 @@ describe('runTurn — the happy path', () => {
     const d = deps();
     await runTurn(request({ projectId: 'project_1' }), d.deps);
     expect(d.usage).toEqual([
-      expect.objectContaining({ userId: 'user_1', projectId: 'project_1' }),
+      expect.objectContaining({ userId: 'user_1', projectIds: ['project_1'] }),
     ]);
     const outside = deps();
     await runTurn(request(), outside.deps);
     expect(outside.usage).toEqual([
-      expect.not.objectContaining({ projectId: expect.anything() }),
+      expect.not.objectContaining({ projectIds: expect.anything() }),
     ]);
   });
 

@@ -410,7 +410,7 @@ describe('reserveTurnBudget', () => {
       const upsert = statements.find((s) =>
         s.text.includes('INSERT INTO app.sandbox_session_ops'),
       );
-      // `project_id` follows `api_key_id` in the insert's column list.
+      // `project_ids` follows `api_key_id` in the insert's column list.
       return upsert?.values[7];
     }
 
@@ -431,9 +431,9 @@ describe('reserveTurnBudget', () => {
       expect(gate.loadBudgetSubject).toHaveBeenCalledWith(expect.anything(), {
         organizationId: 'org-1',
         userId: 'user-1',
-        projectId: 'project-1',
+        projectIds: ['project-1'],
       });
-      expect(projectStamp(statements)).toBe('project-1');
+      expect(projectStamp(statements)).toEqual(['project-1']);
     });
 
     it('holds a run a schedule started to its project’s caps too', async () => {
@@ -461,9 +461,12 @@ describe('reserveTurnBudget', () => {
       });
       expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ impersonal: true, projectId: 'project-1' }),
+        expect.objectContaining({
+          impersonal: true,
+          projectIds: ['project-1'],
+        }),
       );
-      expect(projectStamp(statements)).toBe('project-1');
+      expect(projectStamp(statements)).toEqual(['project-1']);
     });
 
     it('stamps a project’s own key’s model request with the key’s project', async () => {
@@ -479,7 +482,7 @@ describe('reserveTurnBudget', () => {
         userRole: 'member',
         impersonal: true,
         apiKeyId: 'key-9',
-        projectId: 'project-1',
+        projectIds: ['project-1'],
       } as never);
       const { sql, statements } = fakeSql([]);
       await reserveTurnBudget(sql, {
@@ -494,7 +497,38 @@ describe('reserveTurnBudget', () => {
           apiKeyId: 'key-9',
         },
       });
-      expect(projectStamp(statements)).toBe('project-1');
+      expect(projectStamp(statements)).toEqual(['project-1']);
+    });
+
+    it('holds an unscoped run of an automation bound to two projects to both, and stamps both', async () => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 500,
+      });
+      const { sql, statements } = fakeSql([
+        {
+          match: 'JOIN app.automation_runs ar',
+          rows: [
+            {
+              startedBy: 'trigger:t-1',
+              name: 'invoices/monthly',
+              apiKeyId: null,
+              projectId: null,
+              boundProjectIds: ['project-1', 'project-2'],
+            },
+          ],
+        },
+      ]);
+      await reserveTurnBudget(sql, {
+        ...ARGS,
+        sessionId: 'wf-run-4',
+        kind: 'workflow-agent',
+      });
+      expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ projectIds: ['project-1', 'project-2'] }),
+      );
+      expect(projectStamp(statements)).toEqual(['project-1', 'project-2']);
     });
 
     it('stamps no project on work outside one', async () => {

@@ -67,9 +67,6 @@ interface HoldRow {
   orgCostCents: number;
   orgTokens: number;
   orgRequests: number;
-  projectCostCents: number;
-  projectTokens: number;
-  projectRequests: number;
   userCostCents: number;
   userTokens: number;
   userRequests: number;
@@ -84,6 +81,14 @@ interface HoldRow {
         requests: number;
       }[]
     | null;
+  projects:
+    | {
+        projectId: string;
+        costCents: number;
+        tokens: number;
+        requests: number;
+      }[]
+    | null;
 }
 
 /**
@@ -93,8 +98,9 @@ interface HoldRow {
  * team's usage is read), the authenticating API key's — a keyed chat turn's, a keyed run's
  * managed turn and a model-endpoint request alike, each op row carrying the
  * key its reservation stamped, and, for a key that is not a person, every
- * hold of its identity — and the subject's project's: a chat turn in one
- * of its threads, and every op row its reservation stamped with it. A chat
+ * hold of its identity — and each of the subject's projects': a chat turn
+ * in one of its threads, and every op row its reservation stamped with it
+ * (an automation run's op, with every project the run belongs to). A chat
  * turn's hold, a managed turn's
  * allowance and a model-endpoint request count as one request each; an
  * image generation in flight counts one per image it may make. Costs count
@@ -115,11 +121,13 @@ export async function readInFlightReservations(
   const apiKeyId = subject.apiKeyId ?? null;
   // A key that is not a person: everything its identity holds is the key's.
   const keyIdentity = subject.apiKeyIdentity ?? null;
-  const projectId = subject.projectId ?? null;
+  const projectIds = [...(subject.projectIds ?? [])];
   const rows = await sql<HoldRow[]>`
     WITH holds AS (
       -- A chat turn belongs to its thread's project.
-      SELECT g.user_id, g.api_key_id, tm.project_id,
+      SELECT g.user_id, g.api_key_id,
+             CASE WHEN tm.project_id IS NULL THEN '{}'::text[]
+                  ELSE ARRAY[tm.project_id] END AS project_ids,
              g.reserved_cost_cents::float8 AS cost_cents,
              g.reserved_tokens::float8 AS tokens,
              1::float8 AS requests
@@ -130,9 +138,9 @@ export async function readInFlightReservations(
       UNION ALL
       -- A managed turn or a model-endpoint request: its gateway allowance
       -- (a subscription turn has none) and the tokens its hold sized, plus
-      -- the image generation it has in flight — in the project its
+      -- the image generation it has in flight — in the projects its
       -- reservation stamped.
-      SELECT user_id, api_key_id, project_id,
+      SELECT user_id, api_key_id, coalesce(project_ids, '{}'::text[]),
              (coalesce(budget_cents, 0) + image_hold_cents)::float8,
              coalesce(reserved_tokens, 0)::float8,
              ((CASE WHEN budget_cents IS NULL THEN 0 ELSE 1 END)
@@ -164,6 +172,17 @@ export async function readInFlightReservations(
       FROM holds h
       JOIN team_spenders ts ON ts.user_id = h.user_id
       GROUP BY ts.team_id
+    ),
+    -- A hold in several projects counts toward each of them.
+    project_holds AS (
+      SELECT p.project_id AS "projectId",
+             sum(h.cost_cents)::float8 AS "costCents",
+             sum(h.tokens)::float8 AS "tokens",
+             sum(h.requests)::float8 AS "requests"
+      FROM holds h
+      CROSS JOIN LATERAL unnest(h.project_ids) AS p(project_id)
+      WHERE p.project_id = ANY(${projectIds}::text[])
+      GROUP BY p.project_id
     )
     SELECT
       coalesce(sum(cost_cents), 0)::float8 AS "orgCostCents",
@@ -184,13 +203,8 @@ export async function readInFlightReservations(
       coalesce(sum(requests) FILTER (
         WHERE api_key_id = ${apiKeyId} OR user_id = ${keyIdentity}), 0)::float8
         AS "keyRequests",
-      coalesce(sum(cost_cents) FILTER (WHERE project_id = ${projectId}), 0)::float8
-        AS "projectCostCents",
-      coalesce(sum(tokens) FILTER (WHERE project_id = ${projectId}), 0)::float8
-        AS "projectTokens",
-      coalesce(sum(requests) FILTER (WHERE project_id = ${projectId}), 0)::float8
-        AS "projectRequests",
-      (SELECT json_agg(team_holds) FROM team_holds) AS "teams"
+      (SELECT json_agg(team_holds) FROM team_holds) AS "teams",
+      (SELECT json_agg(project_holds) FROM project_holds) AS "projects"
     FROM holds
   `;
   const row = rows[0];
@@ -205,12 +219,13 @@ export async function readInFlightReservations(
     ...(subject.apiKeyId !== undefined
       ? { apiKey: hold(row?.keyCostCents, row?.keyTokens, row?.keyRequests) }
       : {}),
-    ...(subject.projectId !== undefined
+    ...(projectIds.length > 0
       ? {
-          project: hold(
-            row?.projectCostCents,
-            row?.projectTokens,
-            row?.projectRequests,
+          projects: Object.fromEntries(
+            (row?.projects ?? []).map((project) => [
+              project.projectId,
+              hold(project.costCents, project.tokens, project.requests),
+            ]),
           ),
         }
       : {}),

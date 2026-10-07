@@ -82,11 +82,11 @@ export async function reserveTurnBudget(
       attribution?.apiKeyId !== undefined
         ? { apiKeyId: attribution.apiKeyId }
         : {};
-    // The project the run is in: its caps bind the turn, a trigger's run
-    // included — it spends the project's budget all the same.
+    // The projects the run is in: their caps bind the turn, a trigger's run
+    // included — it spends their budgets all the same.
     const project =
-      attribution?.projectId !== undefined
-        ? { projectId: attribution.projectId }
+      attribution?.projectIds !== undefined
+        ? { projectIds: attribution.projectIds }
         : {};
     // Nobody to measure — an op without a run to attribute, or a run a
     // trigger started — is evaluated against the organization's caps (and
@@ -150,14 +150,14 @@ export async function reserveTurnBudget(
     await tx`
       INSERT INTO app.sandbox_session_ops (
         org_id, session_id, exec_id, kind, status, user_id, agent_slug,
-        api_key_id, project_id, model_ref, harness, budget_cents,
+        api_key_id, project_ids, model_ref, harness, budget_cents,
         reserved_tokens, heartbeat_at_ms, started_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.sessionId}, ${args.execId},
         ${args.kind}, 'running',
         ${userId === '' ? null : userId},
         ${attribution?.agentSlug ?? null}, ${attribution?.apiKeyId ?? null},
-        ${subject.projectId ?? null},
+        ${subject.projectIds !== undefined ? [...subject.projectIds] : null},
         ${args.modelRef ?? null}, ${args.harness ?? null},
         ${allowance.budgetCents}, ${args.whole?.prospectiveTokens ?? null},
         ${now}, ${now}
@@ -169,8 +169,8 @@ export async function reserveTurnBudget(
           EXCLUDED.agent_slug),
         api_key_id = coalesce(app.sandbox_session_ops.api_key_id,
           EXCLUDED.api_key_id),
-        project_id = coalesce(app.sandbox_session_ops.project_id,
-          EXCLUDED.project_id),
+        project_ids = coalesce(app.sandbox_session_ops.project_ids,
+          EXCLUDED.project_ids),
         model_ref = coalesce(EXCLUDED.model_ref,
           app.sandbox_session_ops.model_ref),
         harness = coalesce(EXCLUDED.harness, app.sandbox_session_ops.harness)

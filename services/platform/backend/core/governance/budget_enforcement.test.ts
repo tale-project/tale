@@ -99,17 +99,8 @@ describe('collectAllApplicableRules', () => {
         maxCostCents: 1_000,
       },
     ];
-    expect(
-      collectAllApplicableRules(
-        projectRules,
-        'user-1',
-        [],
-        'member',
-        undefined,
-        'project-1',
-      ),
-    ).toHaveLength(1);
-    for (const projectId of [undefined, 'project-2']) {
+    // One project, or one of several an automation is bound to.
+    for (const projectIds of [['project-1'], ['project-2', 'project-1']]) {
       expect(
         collectAllApplicableRules(
           projectRules,
@@ -117,7 +108,19 @@ describe('collectAllApplicableRules', () => {
           [],
           'member',
           undefined,
-          projectId,
+          projectIds,
+        ),
+      ).toHaveLength(1);
+    }
+    for (const projectIds of [undefined, [], ['project-2']]) {
+      expect(
+        collectAllApplicableRules(
+          projectRules,
+          'user-1',
+          [],
+          'member',
+          undefined,
+          projectIds,
         ),
       ).toEqual([]);
     }
@@ -573,27 +576,24 @@ describe('resolveEffectiveLimits', () => {
       { scope: 'default', period: 'monthly', maxCostCents: 5_000 },
     ];
     const inProject = resolveEffectiveLimits(
-      collectAllApplicableRules(
-        rules,
-        'user-1',
-        [],
-        'member',
-        undefined,
+      collectAllApplicableRules(rules, 'user-1', [], 'member', undefined, [
         'project-1',
-      ),
+      ]),
       'user-1',
       [],
       'member',
       undefined,
-      'project-1',
+      ['project-1'],
     );
     // The tightest of the project's own rules, field by field.
-    expect(inProject.projectLimits).toEqual({
-      projectId: 'project-1',
-      maxCostCents: 6_000,
-      maxRequests: 900,
-      warningThresholdPercent: 80,
-    });
+    expect(inProject.projectLimits).toEqual([
+      {
+        projectId: 'project-1',
+        maxCostCents: 6_000,
+        maxRequests: 900,
+        warningThresholdPercent: 80,
+      },
+    ]);
     // The person's own cap is still the default's.
     expect(inProject.maxCostCents).toBe(5_000);
     // Work in no project is held to no project's cap.
@@ -603,7 +603,20 @@ describe('resolveEffectiveLimits', () => {
       [],
       'member',
     );
-    expect(outside.projectLimits).toBeUndefined();
+    expect(outside.projectLimits).toEqual([]);
+    // Work in several projects is held to each project's own caps.
+    const inBoth = resolveEffectiveLimits(
+      rules,
+      'user-1',
+      [],
+      'member',
+      undefined,
+      ['project-1', 'project-2'],
+    );
+    expect(inBoth.projectLimits).toEqual([
+      expect.objectContaining({ projectId: 'project-1', maxCostCents: 6_000 }),
+      { projectId: 'project-2', maxCostCents: 1 },
+    ]);
   });
 
   it('resolves limits independently across different periods', () => {

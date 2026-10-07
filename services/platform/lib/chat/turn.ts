@@ -371,9 +371,10 @@ export interface UsageLedgerEntry {
   /** The prompt-cache hits among `inputTokens`, when the provider reported
    * them — priced at the catalog's cache-hit rate by the ledger. */
   readonly cachedInputTokens?: number;
-  /** The project the thread belongs to: the spend is also the project's,
-   * which its `project` budget rules measure. */
-  readonly projectId?: string;
+  /** The projects the spend belongs to — a chat's thread's, an automation
+   * step's run's: it is theirs too, which their `project` budget rules
+   * measure. */
+  readonly projectIds?: readonly string[];
 }
 
 export interface UsageLedger {
@@ -1202,7 +1203,7 @@ async function recordUsage(
     userId: request.userId,
     ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
     ...(request.projectId !== undefined
-      ? { projectId: request.projectId }
+      ? { projectIds: [request.projectId] }
       : {}),
     agentSlug: request.agent?.slug,
     model: request.model.id,

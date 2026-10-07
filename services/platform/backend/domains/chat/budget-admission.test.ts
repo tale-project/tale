@@ -140,8 +140,8 @@ describe('assertChatTurnBudget', () => {
       threadId: 'thread_alone',
     });
     expect(gate.subjects).toEqual([
-      expect.objectContaining({ userId: 'user_1', projectId: 'project_1' }),
-      expect.not.objectContaining({ projectId: expect.anything() }),
+      expect.objectContaining({ userId: 'user_1', projectIds: ['project_1'] }),
+      expect.not.objectContaining({ projectIds: expect.anything() }),
     ]);
     // The thread is read within the sender's organization.
     expect(statements[0]?.text).toContain('FROM app.thread_metadata');

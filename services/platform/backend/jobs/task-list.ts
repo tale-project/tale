@@ -1049,7 +1049,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           );
           await createPgUsageLedger(deps.sql).record({
             ...entry,
-            ...(projectId !== undefined ? { projectId } : {}),
+            ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
           });
         },
       );
