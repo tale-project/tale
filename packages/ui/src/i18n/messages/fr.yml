@@ -252,6 +252,7 @@ common:
 envEditor:
   add: Ajouter une variable
   badKey: « {key} » n'est pas un nom de variable valide (lettres, chiffres, tiret bas ; ne doit pas commencer par un chiffre).
+  projectSecretBadKey: « {key} » doit commencer par une majuscule et contenir uniquement des majuscules, chiffres ou tirets bas (64 caractères maximum).
   confirmRemoveDescription: Elle sera supprimée lorsque tu enregistreras tes modifications. Cette action est irréversible.
   confirmRemoveTitle: Supprimer la variable ?
   dupKey: Nom de variable en double — chaque NOM doit être unique.

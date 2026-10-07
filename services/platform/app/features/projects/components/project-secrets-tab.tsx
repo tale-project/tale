@@ -114,9 +114,14 @@ export function ProjectSecretsTab({
   // for a fault. Never the thrown error's message: a refusal serializes its
   // payload there.
   const saveFailure = (error: unknown) =>
-    new Error(failureDetail(error) ?? tCommon('errors.generic'), {
-      cause: error,
-    });
+    new Error(
+      backendErrorCode(error) === 'SECRET_NAME_INVALID'
+        ? t('errors.SECRET_NAME_INVALID')
+        : (failureDetail(error) ?? tCommon('errors.generic')),
+      {
+        cause: error,
+      },
+    );
 
   return (
     <ProjectSecretsLayout>
@@ -146,6 +151,7 @@ export function ProjectSecretsTab({
         {unavailable ? null : (
           <EnvVarListEditor
             forceSecret
+            projectSecretNameRule
             rows={rows}
             isLoading={isLoading}
             disabled={isArchived}

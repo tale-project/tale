@@ -252,6 +252,7 @@ common:
 envEditor:
   add: Add variable
   badKey: "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit)."
+  projectSecretBadKey: '"{key}" must start with an uppercase letter and contain only uppercase letters, numbers, or underscores (maximum 64 characters).'
   confirmRemoveDescription: It will be removed when you save your changes. This can't be undone.
   confirmRemoveTitle: Remove variable?
   dupKey: Duplicate variable name — each NAME must be unique.

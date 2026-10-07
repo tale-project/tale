@@ -26,6 +26,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /** Env var name: letters/digits/underscore, not starting with a digit. */
 const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const PROJECT_SECRET_KEY_RE = /^[A-Z][A-Z0-9_]{0,63}$/;
 
 /** Fallback mask shown for a stored secret when the query omits a preview. */
 const SECRET_MASK = '••••••••';
@@ -107,6 +108,8 @@ export interface EnvVarListEditorProps {
    *  rows to secret. For write-only stores (e.g. project secrets) where a
    *  plaintext value never makes sense. */
   forceSecret?: boolean;
+  /** Apply the project-secrets server naming contract. */
+  projectSecretNameRule?: boolean;
   /** When provided, each row gains a token-source dropdown — picking one turns
    *  the row into a binding (its env var is filled from a rotating broker pool).
    *  Omitted on surfaces that don't support token sources (no behavior change). */
@@ -167,6 +170,7 @@ export function EnvVarListEditor({
   externalSave = false,
   onEditorState,
   forceSecret = false,
+  projectSecretNameRule = false,
   tokenSources,
   onSet,
   onDelete,
@@ -289,13 +293,21 @@ export function EnvVarListEditor({
 
   const onSave = async (): Promise<void> => {
     const active = localRows.filter((r) => r.key.trim() !== '');
-    const keys = active.map((r) => r.key.trim());
+    const keys = active.map((r) =>
+      projectSecretNameRule ? r.key.trim().toUpperCase() : r.key.trim(),
+    );
     for (const k of keys) {
-      if (!ENV_KEY_RE.test(k)) {
+      const valid = projectSecretNameRule
+        ? PROJECT_SECRET_KEY_RE.test(k)
+        : ENV_KEY_RE.test(k);
+      if (!valid) {
         // External mode: throw so the header cluster's EditorActions surfaces
         // the failure (and doesn't flash "Saved" on a resolved promise).
-        if (externalSave) throw new Error(t('badKey', { key: k }));
-        toast({ title: t('badKey', { key: k }), variant: 'destructive' });
+        const message = projectSecretNameRule
+          ? t('projectSecretBadKey', { key: k })
+          : t('badKey', { key: k });
+        if (externalSave) throw new Error(message);
+        toast({ title: message, variant: 'destructive' });
         return;
       }
     }
@@ -315,7 +327,9 @@ export function EnvVarListEditor({
       // Upsert each active row — skip a secret that wasn't re-typed and kept its
       // name (its ciphertext + preview stay untouched).
       for (const r of active) {
-        const key = r.key.trim();
+        const key = projectSecretNameRule
+          ? r.key.trim().toUpperCase()
+          : r.key.trim();
         // A token-source binding: re-save whenever the bound slug changed (or
         // it's new); value/secret are ignored server-side for a binding.
         if (r.tokenSourceSlug !== undefined) {
