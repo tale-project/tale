@@ -98,6 +98,29 @@ describe('readInFlightReservations', () => {
     );
   });
 
+  it('holds against a key that is not a person everything its identity holds [APIKEY-R9]', async () => {
+    // A run the key's REST comment started holds under the identity without
+    // naming the key; it is the key's all the same.
+    const { sql, statements } = scriptedSql([NO_HOLDS]);
+    await readInFlightReservations(sql, {
+      organizationId: 'org-1',
+      userId: 'identity-1',
+      userTeamIds: [],
+      impersonal: true,
+      apiKeyId: 'key-1',
+      apiKeyIdentity: 'identity-1',
+    });
+    const read = statements[0]?.text ?? '';
+    expect(read).toContain(
+      'coalesce(sum(cost_cents) FILTER ( WHERE api_key_id = ? OR user_id = ?), 0)::float8 AS "keyCostCents"',
+    );
+    const values = statements[0]?.values ?? [];
+    expect(values.filter((value) => value === 'identity-1').length).toBe(
+      // The user bucket's three filters, and the key bucket's three.
+      6,
+    );
+  });
+
   it('adds an image generation in flight to its turn’s hold, one request per image', async () => {
     const { sql, statements } = scriptedSql([NO_HOLDS]);
     await readInFlightReservations(sql, {

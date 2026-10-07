@@ -18,7 +18,7 @@ import {
   buildPeriodKeyFromTimestamp,
 } from '../../core/governance/helpers.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
-import { readServicePrincipal } from '../api_keys/owners.ts';
+import { readKeyIdentity } from '../api_keys/owners.ts';
 
 /**
  * The org budget gate over the policy FILE + `app.usage_ledger`, with the
@@ -51,7 +51,13 @@ const NO_USAGE: UsageTotals = {
 export type UsageScope =
   | { kind: 'user'; userId: string }
   | { kind: 'team'; teamId: string }
-  | { kind: 'apiKey'; apiKeyId: string }
+  | {
+      kind: 'apiKey';
+      apiKeyId: string;
+      /** The key's own identity, when it is not a person: everything it
+       * spends is the key's, whether or not the booking named the key. */
+      identity?: string;
+    }
   | { kind: 'org' };
 
 /**
@@ -114,7 +120,12 @@ async function periodUsage(
                coalesce(sum(request_count), 0)::float8 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-          AND api_key_id = ${scope.apiKeyId}
+          AND (api_key_id = ${scope.apiKeyId}
+               OR user_id = ANY(${
+                 scope.identity === undefined
+                   ? []
+                   : usageLedgerSubjectForms(scope.identity)
+               }))
       `;
       break;
     case 'org':
@@ -154,6 +165,10 @@ export interface OrgBudgetSubject {
    * organization's, the key's when a key was involved, and the shared cap
    * of the team in `userTeamIds` (a team's own key). */
   impersonal?: boolean;
+  /** For an API key that is not a person, its identity (`userId`): all
+   * its spend is the key's — a run its REST comment started books under
+   * the identity without naming the key — so the key's caps count it. */
+  apiKeyIdentity?: string;
 }
 
 /**
@@ -176,9 +191,11 @@ export async function loadBudgetSubject(
     findOrganizationMember(sql, args.organizationId, args.userId),
     getUserTeamIds(sql, args.organizationId, args.userId),
   ]);
-  // A person has a member row; only a subject without one can be a key.
+  // A person has a member row; only a subject without one can be a key —
+  // read live or revoked: work the key started before it was revoked still
+  // spends as the key, never as a person.
   const principal =
-    member === null ? await readServicePrincipal(sql, args.userId) : null;
+    member === null ? await readKeyIdentity(sql, args.userId) : null;
   if (principal !== null) {
     return {
       organizationId: args.organizationId,
@@ -191,6 +208,7 @@ export async function loadBudgetSubject(
           : [],
       impersonal: true,
       apiKeyId: args.apiKeyId ?? principal.apiKeyId,
+      apiKeyIdentity: args.userId,
     };
   }
   return {
@@ -349,6 +367,9 @@ async function bucketsFor(
         await periodUsage(sql, org, periodKey, {
           kind: 'apiKey',
           apiKeyId: subject.apiKeyId,
+          ...(subject.apiKeyIdentity !== undefined
+            ? { identity: subject.apiKeyIdentity }
+            : {}),
         }),
         reservations.apiKey,
       ),

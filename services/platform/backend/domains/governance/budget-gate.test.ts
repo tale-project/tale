@@ -681,6 +681,7 @@ describe('loadBudgetSubject — an API key that is its own identity [APIKEY-R9]'
       userTeamIds: ['team-1'],
       impersonal: true,
       apiKeyId: 'key-1',
+      apiKeyIdentity: 'identity-1',
     });
     for (const kind of ['project', 'organization']) {
       const other = identitySql(binding(kind));
@@ -700,6 +701,58 @@ describe('loadBudgetSubject — an API key that is its own identity [APIKEY-R9]'
         userId: 'identity-1',
       }),
     ).resolves.toMatchObject({ userTeamIds: [], impersonal: true });
+  });
+
+  it('is still the key once it was revoked, never a person', async () => {
+    // Work the key started before its revocation keeps spending as the key.
+    const revoked = identitySql(binding('team', { revokedAt: '5' }));
+    await expect(
+      loadBudgetSubject(revoked.sql, {
+        organizationId: 'org-1',
+        userId: 'identity-1',
+      }),
+    ).resolves.toMatchObject({
+      impersonal: true,
+      apiKeyId: 'key-1',
+      apiKeyIdentity: 'identity-1',
+      userTeamIds: ['team-1'],
+    });
+    const read = revoked.queries.find(
+      (q) => q.includes('FROM app.api_key_owners') && !q.includes(' UNION '),
+    );
+    expect(read).not.toContain('revoked_at_ms IS NULL');
+  });
+
+  it('measures the key’s cap against all its identity spent, the key named or not', async () => {
+    // A run the key's REST comment started books under the identity alone.
+    policy.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'apiKey',
+          apiKeyId: 'key-1',
+          period: 'daily',
+          maxCostCents: 1_000,
+        },
+      ],
+    };
+    const { sql, queries, bindings } = recordingLedger({
+      apiKey: { totalTokens: 0, costEstimate: 1_000, requestCount: 3 },
+    });
+    const violation = await findBudgetViolation(sql, {
+      organizationId: 'org-1',
+      userId: 'identity-1',
+      userTeamIds: [],
+      impersonal: true,
+      apiKeyId: 'key-1',
+      apiKeyIdentity: 'identity-1',
+    });
+    expect(violation).toMatchObject({ scope: 'apiKey', code: 'COST_LIMIT' });
+    const index = queries.findIndex((q) => q.includes('api_key_id ='));
+    expect(queries[index]).toContain('OR user_id = ANY(');
+    expect(bindings[index]?.[3]).toEqual(
+      expect.arrayContaining(['identity-1', 'user:identity-1']),
+    );
   });
 
   it('holds a team’s key to its team’s shared cap and the organization’s, never a personal one', async () => {

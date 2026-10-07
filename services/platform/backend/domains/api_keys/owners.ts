@@ -135,6 +135,30 @@ export async function readApiKeyOwner(
 }
 
 /**
+ * The key whose own identity `userId` is — a team's, a project's or the
+ * organization's — live or revoked, or null when `userId` is a person. An
+ * identity is never a person, whatever became of its key: the spend of work
+ * it started before the revocation is still the key's, and is measured so.
+ */
+export async function readKeyIdentity(
+  db: Db,
+  userId: string,
+): Promise<ApiKeyOwner | null> {
+  const rows = await db<OwnerRow[]>`
+    SELECT api_key_id AS "apiKeyId", org_id AS "organizationId",
+           owner_kind AS "kind", principal_user_id AS "principalUserId",
+           team_id AS "teamId", project_id AS "projectId", role, name,
+           created_by AS "createdBy", created_at_ms AS "createdAt",
+           revoked_at_ms AS "revokedAt", revoked_by AS "revokedBy"
+    FROM app.api_key_owners
+    WHERE principal_user_id = ${userId} AND owner_kind <> 'member'
+    LIMIT 1
+  `;
+  const row = rows[0];
+  return row === undefined ? null : toOwner(row);
+}
+
+/**
  * The live key whose own identity `userId` is — a team's, a project's or
  * the organization's key — or null when `userId` is a person (or the key
  * was revoked).

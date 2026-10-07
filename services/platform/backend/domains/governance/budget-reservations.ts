@@ -90,7 +90,8 @@ interface HoldRow {
  * team's usage is read)
  * and the authenticating API key's — a keyed chat turn's, a keyed run's
  * managed turn and a model-endpoint request alike, each op row carrying the
- * key its reservation stamped. A chat turn's hold, a managed turn's
+ * key its reservation stamped, and, for a key that is not a person, every
+ * hold of its identity. A chat turn's hold, a managed turn's
  * allowance and a model-endpoint request count as one request each; an
  * image generation in flight counts one per image it may make. Costs count
  * as reserved, tokens where the work sized them (a chat turn's round, a
@@ -108,6 +109,8 @@ export async function readInFlightReservations(
 ): Promise<BudgetReservations> {
   const org = subject.organizationId;
   const apiKeyId = subject.apiKeyId ?? null;
+  // A key that is not a person: everything its identity holds is the key's.
+  const keyIdentity = subject.apiKeyIdentity ?? null;
   const rows = await sql<HoldRow[]>`
     WITH holds AS (
       SELECT user_id, api_key_id,
@@ -164,11 +167,14 @@ export async function readInFlightReservations(
         AS "userTokens",
       coalesce(sum(requests) FILTER (WHERE user_id = ${subject.userId}), 0)::float8
         AS "userRequests",
-      coalesce(sum(cost_cents) FILTER (WHERE api_key_id = ${apiKeyId}), 0)::float8
+      coalesce(sum(cost_cents) FILTER (
+        WHERE api_key_id = ${apiKeyId} OR user_id = ${keyIdentity}), 0)::float8
         AS "keyCostCents",
-      coalesce(sum(tokens) FILTER (WHERE api_key_id = ${apiKeyId}), 0)::float8
+      coalesce(sum(tokens) FILTER (
+        WHERE api_key_id = ${apiKeyId} OR user_id = ${keyIdentity}), 0)::float8
         AS "keyTokens",
-      coalesce(sum(requests) FILTER (WHERE api_key_id = ${apiKeyId}), 0)::float8
+      coalesce(sum(requests) FILTER (
+        WHERE api_key_id = ${apiKeyId} OR user_id = ${keyIdentity}), 0)::float8
         AS "keyRequests",
       (SELECT json_agg(team_holds) FROM team_holds) AS "teams"
     FROM holds

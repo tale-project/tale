@@ -110,8 +110,11 @@ and the audit log names who made and who ended it.
 ### APIKEY-R9 · A key that is not a person spends under its own name
 
 No personal, role or default limit applies to it. The organization's limits and the limits set
-for the key itself do, and a team's key counts toward, and is held to, its team's limit. On the
-usage page its spend is a row of its own, never an active user.
+for the key itself do, and a team's key counts toward, and is held to, its team's limit. A limit
+set for the key counts everything its identity spends, whether or not the booking names the key
+(a run its REST comment started), and the key stays itself after it is revoked: the work it
+started before keeps spending as the key. On the usage page its spend is a row of its own, never
+an active user.
 
 - **Example**: The Finance team's key spends 30 → the Finance team's total grows by 30, and no
   member's own total changes.
@@ -122,5 +125,7 @@ usage page its spend is a row of its own, never an active user.
   key limits; there is no limit for everything one project spends.
 - **Renaming a key, or changing its role or expiry** after it is made: make a new key and end the
   old one.
+- **Revoking a key stops what it would start, not what it started**: a run in flight or a REST
+  message already accepted finishes and spends as the key.
 - **The live-schema proof**: the binding table's constraints and the cascades are proven against
   Postgres by the `backend:integration` check, not by a test named here.
