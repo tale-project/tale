@@ -758,7 +758,7 @@ Une exécution lancée par un déclencheur (`startedBy: "trigger:<id>"`) porte a
 | Origine de l’échec | Exemples et action |
 | --- | --- |
 | Automatisation | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted` : examine le nœud en échec et sa trace. Corrige les données ou la définition. Si une opération a été refusée, tiens compte du motif du refus avant de demander une nouvelle exécution. |
-| Fournisseur de modèle | Par exemple `credit_exhausted` ou `rate_limited` : résous le problème du fournisseur avant un nouvel essai. |
+| Fournisseur de modèle | Par exemple `credit_exhausted` ou `rate_limited` : résous le problème du fournisseur avant un nouvel essai. Une étape `llm` refusée par une limite de budget échoue avec `budget_exceeded` ; `detail` nomme la limite et le moment où elle se réinitialise. |
 | Exécution d’agent | Par exemple `harness_error`, `session_gone`, `deadline` ou `budget_exceeded` : examine le détail et les limites de l’agent. L’énumération complète figure dans OpenAPI. |
 
 Le code identifie la cause sans garantir qu’un redémarrage complet soit sans effet indésirable : des nœuds précédents peuvent déjà avoir modifié un système externe. `startedAt` indique l’acceptation du démarrage, avant sa prise en charge par un worker. Aucun horodatage distinct ne marque cette prise en charge ; `finishedAt - startedAt` inclut donc la file et les autres attentes.
