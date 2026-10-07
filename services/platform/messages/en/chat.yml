@@ -336,6 +336,7 @@ messageInfo:
     preparing: Preparing
     waiting: Waiting for the model
     thinking: Thinking
+    tools: Model and tools
     writing: Writing
   perceivedWait: On your screen, the first words appeared {duration} after you sent.
   toolCalls: Tool calls
