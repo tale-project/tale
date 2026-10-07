@@ -347,7 +347,7 @@ function renderHome({
     pathname: `/dashboard/${ORG}/chat/${openThreadId}`,
     search: {},
   };
-  return render(
+  const home = (
     <div
       data-testid="frame"
       style={{ height, ...(width !== undefined ? { width } : {}) }}
@@ -357,8 +357,19 @@ function renderHome({
       {variant === 'screen' && (
         <nav aria-label="Primary navigation" className="mobile-tab-bar" />
       )}
-    </div>,
+    </div>
   );
+  const result = render(home);
+  return {
+    ...result,
+    navigateTo(threadId: string) {
+      backend.location = {
+        pathname: `/dashboard/${ORG}/chat/${threadId}`,
+        search: {},
+      };
+      result.rerender(home);
+    },
+  };
 }
 
 function frame() {
@@ -646,7 +657,10 @@ describe('Home panel in Chromium', () => {
   });
 
   it('opens the next chat by Alt+Arrow from the full order outside the rendered window', async () => {
-    renderHome({ threads: chatList(2_000), openThreadId: 'chat-1000' });
+    const rendered = renderHome({
+      threads: chatList(2_000),
+      openThreadId: 'chat-1000',
+    });
     await expect
       .poll(() => drawnInside(chatRow('chat-1000'), streamRows()))
       .toBe(true);
@@ -659,7 +673,7 @@ describe('Home panel in Chromium', () => {
       event.preventDefault();
       opened.push(link.pathname);
       // Model the router completing navigation before asserting the new active row.
-      renderHome({ threads: chatList(2_000), openThreadId: 'chat-1001' });
+      rendered.navigateTo('chat-1001');
     };
     frame().addEventListener('click', capture);
     try {
