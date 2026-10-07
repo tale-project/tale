@@ -8,6 +8,7 @@
     "./automation-name": "./src/automation-name.ts",
     "./task-limits": "./src/task-limits.ts",
     "./db/retry": "./src/db/retry.ts",
+    "./db/migration-files": "./src/db/migration-files.ts",
     "./db/serializable": "./src/db/serializable.ts",
     "./logging/logger": "./src/logging/logger.ts",
     "./terminal": "./src/terminal/index.ts",

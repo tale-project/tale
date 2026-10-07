@@ -527,12 +527,7 @@
         {
           "path": ["jobs", "backend-integration", "steps", 14],
           "kind": "keys",
-          "expected": ["if", "name", "run"]
-        },
-        {
-          "path": ["jobs", "backend-integration", "steps", 14, "if"],
-          "kind": "value",
-          "expected": "always()"
+          "expected": ["name", "run"]
         },
         {
           "path": ["jobs", "backend-integration", "steps", 15],
@@ -542,15 +537,25 @@
         {
           "path": ["jobs", "backend-integration", "steps", 15, "if"],
           "kind": "value",
-          "expected": "failure()"
+          "expected": "always()"
         },
         {
           "path": ["jobs", "backend-integration", "steps", 16],
           "kind": "keys",
-          "expected": ["if", "name", "run", "timeout-minutes"]
+          "expected": ["if", "name", "run"]
         },
         {
           "path": ["jobs", "backend-integration", "steps", 16, "if"],
+          "kind": "value",
+          "expected": "failure()"
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 17],
+          "kind": "keys",
+          "expected": ["if", "name", "run", "timeout-minutes"]
+        },
+        {
+          "path": ["jobs", "backend-integration", "steps", 17, "if"],
           "kind": "value",
           "expected": "always()"
         },
@@ -559,29 +564,29 @@
             "jobs",
             "backend-integration",
             "steps",
-            16,
+            17,
             "timeout-minutes"
           ],
           "kind": "value",
           "expected": 2
         },
         {
-          "path": ["jobs", "backend-integration", "steps", 17],
+          "path": ["jobs", "backend-integration", "steps", 18],
           "kind": "keys",
           "expected": ["if", "name", "uses", "with"]
         },
         {
-          "path": ["jobs", "backend-integration", "steps", 17, "if"],
+          "path": ["jobs", "backend-integration", "steps", 18, "if"],
           "kind": "value",
           "expected": "always()"
         },
         {
-          "path": ["jobs", "backend-integration", "steps", 17, "uses"],
+          "path": ["jobs", "backend-integration", "steps", 18, "uses"],
           "kind": "value",
           "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
         },
         {
-          "path": ["jobs", "backend-integration", "steps", 17, "with"],
+          "path": ["jobs", "backend-integration", "steps", 18, "with"],
           "kind": "value",
           "expected": {
             "name": "backend-integration-${{ github.run_id }}-${{ github.run_attempt }}",
@@ -593,7 +598,7 @@
         {
           "path": ["jobs", "backend-integration", "steps"],
           "kind": "length",
-          "expected": 18
+          "expected": 19
         },
         {
           "path": ["jobs", "build"],

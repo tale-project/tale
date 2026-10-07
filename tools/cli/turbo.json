@@ -98,6 +98,8 @@
         "$TURBO_ROOT$/.github/workflows/release.yml",
         "$TURBO_ROOT$/compose.yml",
         "$TURBO_ROOT$/services/proxy/Caddyfile",
+        "$TURBO_ROOT$/services/platform/backend/db/migrations/**",
+        "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",
         "$TURBO_ROOT$/services/proxy/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/platform/Dockerfile",
         "$TURBO_ROOT$/services/platform/docker-entrypoint.sh",

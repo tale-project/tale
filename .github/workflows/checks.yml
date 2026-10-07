@@ -993,6 +993,9 @@ jobs:
           node --version
           bun run backend:integration 2>&1 | tee "$PROOF_DIR/backend-integration.log"
 
+      - name: Verify current deployment acceptance ledgers
+        run: bun tools/cli/scripts/check-deployment-acceptance.ts tale-itest-db
+
       - name: Summarize
         if: always()
         run: |

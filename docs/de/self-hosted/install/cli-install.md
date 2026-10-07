@@ -282,6 +282,22 @@ Die Vorbereitung prüft zuerst jede Konfiguration mit den eigenen Schemas der CL
 
 `deploy verify-bundle` prüft vollständiges Inventar und Datei-Hashes ohne Zielkontakt. `deploy --bundle --dry-run` prüft Konfigurationsartefakte und Zielbedingungen, ohne Änderungen anzuwenden. Verwaltete Deployments akzeptieren keine Workspace-Optionen wie `--services`, `--host` oder `--override-all`. Sie rollen den Stack unter Erhalt seines Zustands mit Zustands- und Herkunftsprüfungen aus. Das oben beschriebene Blue-Green-Verhalten des Workspace ist ein eigener Ablauf.
 
+#### Das aktuelle Deployment prüfen
+
+Sobald genau dieses Bundle vollständig angewendet wurde, erstellst du auf dem Deployment-Host einen aktuellen Prüfnachweis:
+
+```bash
+tale --json deploy accept --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT" \
+  --expected-version "$TALE_RELEASE_VERSION"
+```
+
+Für diese Prüfung sind beide vollständigen Quell-Commits erforderlich; das Bundle muss mit `--deployment-ref` vorbereitet worden sein. Setze `TALE_RELEASE_VERSION` auf die unabhängig ausgewählte veröffentlichte Version ohne das Präfix `v`. Die CLI hält die bestehende Deployment-Sperre und liest den Ready-Nachweis, die aktuellen Container, die fixierten Images, `/api/health` des kanonischen Ursprungs sowie alle drei Migrationsregister. OCI-Version und Quell-Commit jedes Tale-Images müssen mit Bundle und ausgelieferter Version übereinstimmen. `sourceTag` darf `sha-<source>` sein; dieses Feld beschreibt die Image-Referenz, nicht die ausgelieferte Version.
+
+Das JSON-Ergebnis enthält Quell-Commits, Bundle- und Ready-Hashes, Image-Identitäten, die ausgelieferte Version und vollständige Migrations-IDs aus dem Quellstand samt Inventar-Hashes. Dazu gehören SQL-Migrationen der Anwendung und nummerierte TypeScript-Datenmigrationen. Fehlende, zusätzliche, doppelte oder unvollständige Migrationen, ein ausstehendes Deployment, Versionsabweichungen und geänderte Identitäten führen zur Ablehnung. Die Beobachtung ist auf 120 Sekunden begrenzt; auch Prozessausgaben und die Zustandsantwort haben Größenlimits. Die Prüfung ändert keine Konfiguration, startet keine Container neu, führt keine Migrationen aus und exportiert keine Zugangsdaten. Nur die Metadaten der bestehenden Sperre ändern sich.
+
+Ältere Bundles bleiben einsetzbar. Für diese Prüfung brauchen sie jedoch das Migrationsinventar einer kompatiblen CLI. Bereite ein geprüftes Bundle vor und wende es über den normalen Deployment-Ablauf vollständig an, bevor du seinen Prüfnachweis erstellst. Der Nachweis belegt den beobachteten Zustand zu seinem Zeitstempel; wiederhole die Prüfung, wenn du aktuelle Belege brauchst.
+
 #### Native Identität bereitstellen
 
 `deploy provision [--bundle <directory>]` ist die lokale Backend-Phase des Bundle-Deployments. Sie liest höchstens 64 KiB privates JSON von stdin, weist das lokale Konto und die ausgewählte Organisation nach und meldet die Sitzung vor der Erfolgsmeldung ab. Die Felder umfassen `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optionale Entra-Zugangsdaten und `nativeClients`. Standardmäßig bleibt das bestehende Konto erforderlich. Explizites `identity.bootstrap: "fresh"` erlaubt die Anlage des ersten lokalen Kontos und der Organisation. Ein Bundle bindet diese Wahl und die vorbereiteten Konfigurationen vor nativen Änderungen. `deploy provision` verweigert Workspace-Flags und `--dry-run`; nutze lesende Bundle- und Konfigurationsprüfungen. Die optionalen Erwartungen `--cli-ref` und `--deployment-ref` erfordern `--bundle` und greifen vor der Anmeldung.
