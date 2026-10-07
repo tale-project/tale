@@ -347,7 +347,7 @@ function renderHome({
     pathname: `/dashboard/${ORG}/chat/${openThreadId}`,
     search: {},
   };
-  const home = (
+  const home = () => (
     <div
       data-testid="frame"
       style={{ height, ...(width !== undefined ? { width } : {}) }}
@@ -359,7 +359,7 @@ function renderHome({
       )}
     </div>
   );
-  const result = render(home);
+  const result = render(home());
   return {
     ...result,
     navigateTo(threadId: string) {
@@ -367,7 +367,7 @@ function renderHome({
         pathname: `/dashboard/${ORG}/chat/${threadId}`,
         search: {},
       };
-      result.rerender(home);
+      result.rerender(home());
     },
   };
 }
@@ -682,6 +682,12 @@ describe('Home panel in Chromium', () => {
       await expect
         .poll(() => opened)
         .toEqual([`/dashboard/${ORG}/chat/chat-1001`]);
+      await expect
+        .poll(() => chatRow('chat-1001').querySelector('a'))
+        .toHaveAttribute('aria-current', 'page');
+      await expect
+        .poll(() => chatRow('chat-1000').querySelector('a'))
+        .not.toHaveAttribute('aria-current');
       await expect
         .poll(() => drawnInside(chatRow('chat-1001'), streamRows()))
         .toBe(true);
