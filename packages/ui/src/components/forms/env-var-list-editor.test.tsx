@@ -9,6 +9,7 @@ import {
   within,
 } from '@/tests/utils/render';
 
+import messages from '../../i18n/messages/en.yml';
 import { EnvVarListEditor, type LoadedEnvVar } from './env-var-list-editor';
 
 // The inline Save reports through the standalone `toast`; one shared spy
@@ -20,11 +21,15 @@ const plainRows: LoadedEnvVar[] = [
   { key: 'FOO', isSecret: false, value: 'bar' },
 ];
 
-function setup(rows: readonly LoadedEnvVar[] = plainRows) {
+function setup(
+  rows: readonly LoadedEnvVar[] = plainRows,
+  projectSecretNameRule?: boolean,
+) {
   const onSet = vi.fn().mockResolvedValue(undefined);
   const onDelete = vi.fn().mockResolvedValue(undefined);
   const utils = render(
     <EnvVarListEditor
+      projectSecretNameRule={projectSecretNameRule}
       rows={rows}
       isLoading={false}
       onSet={onSet}
@@ -231,4 +236,76 @@ describe('EnvVarListEditor — inline save failure', () => {
       );
     },
   );
+});
+
+describe('EnvVarListEditor — project secret name rule', () => {
+  beforeEach(() => toastMock.mockClear());
+
+  function addKey(key: string) {
+    fireEvent.click(screen.getByRole('button', { name: 'Add variable' }));
+    const inputs = screen.getAllByPlaceholderText('NAME');
+    fireEvent.change(inputs[inputs.length - 1], { target: { value: key } });
+  }
+
+  it.each(['_TOKEN', 'A'.repeat(65)])(
+    'rejects invalid project name %s before any write',
+    async (key) => {
+      const { onSet, onDelete } = setup([], true);
+      addKey(key);
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(toastMock).toHaveBeenCalledWith({
+          title: messages.envEditor.projectSecretBadKey.replace('{key}', key),
+          variant: 'destructive',
+        }),
+      );
+      expect(onSet).not.toHaveBeenCalled();
+      expect(onDelete).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects token and TOKEN as duplicates before any write', async () => {
+    const { onSet, onDelete } = setup([], true);
+    addKey('token');
+    addKey('TOKEN');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith({
+        title: messages.envEditor.dupKey,
+        variant: 'destructive',
+      }),
+    );
+    expect(onSet).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it('normalizes a lowercase project name and accepts the 64-character boundary', async () => {
+    const { onSet } = setup([], true);
+    addKey('token');
+    addKey('A'.repeat(64));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onSet).toHaveBeenCalledTimes(2));
+    expect(onSet).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'TOKEN' }),
+    );
+    expect(onSet).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'A'.repeat(64) }),
+    );
+  });
+
+  it('keeps underscore, long names and case-sensitive keys valid by default', async () => {
+    const { onSet } = setup([]);
+    for (const key of ['_TOKEN', 'A'.repeat(65), 'token', 'TOKEN']) addKey(key);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onSet).toHaveBeenCalledTimes(4));
+    for (const key of ['_TOKEN', 'A'.repeat(65), 'token', 'TOKEN']) {
+      expect(onSet).toHaveBeenCalledWith(
+        expect.objectContaining({ key, isSecret: false }),
+      );
+    }
+    expect(toastMock).toHaveBeenCalledWith({
+      title: messages.envEditor.saved,
+      variant: 'success',
+    });
+  });
 });

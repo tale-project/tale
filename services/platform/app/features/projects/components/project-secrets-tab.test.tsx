@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { i18n } from '@/tests/utils/i18n-all-languages';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { ProjectSecretsTab } from './project-secrets-tab';
@@ -77,7 +78,8 @@ function renderTab() {
 const NO_HEADING_ORDER = { rules: { 'heading-order': { enabled: false } } };
 
 describe('ProjectSecretsTab', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
     vi.clearAllMocks();
     secretsFixture = [];
     secretsErrorFixture = undefined;
@@ -92,7 +94,9 @@ describe('ProjectSecretsTab', () => {
 
       expect(screen.getByText('This project is archived')).toBeInTheDocument();
       expect(
-        screen.getByRole('button', { name: 'Add variable' }),
+        screen.getByRole('button', {
+          name: i18n.t('add', { ns: 'envEditor' }),
+        }),
       ).toBeDisabled();
       expect(screen.getByDisplayValue('OPENAI_API_KEY')).toBeDisabled();
       expect(mockSetMutateAsync).not.toHaveBeenCalled();
@@ -106,11 +110,24 @@ describe('ProjectSecretsTab', () => {
       const { container } = renderTab();
 
       expect(
-        screen.getByRole('heading', { name: 'Environment' }),
+        screen.getByRole('heading', {
+          name: i18n.t('title', { ns: 'projectSecrets' }),
+        }),
       ).toBeInTheDocument();
-      expect(screen.getByText('Available to agents')).toBeInTheDocument();
       expect(
-        screen.getByRole('button', { name: 'Add variable' }),
+        screen.getByText(i18n.t('agentAccessTitle', { ns: 'projectSecrets' })),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', {
+          name: i18n.t('add', { ns: 'envEditor' }),
+        }),
+      ).toBeInTheDocument();
+
+      expect(
+        screen.getByText(i18n.t('description', { ns: 'projectSecrets' })),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(i18n.t('agentAccessBody', { ns: 'projectSecrets' })),
       ).toBeInTheDocument();
 
       await checkAccessibility(container, NO_HEADING_ORDER);
@@ -143,9 +160,15 @@ describe('ProjectSecretsTab', () => {
       expect(screen.getByText(body)).toBeInTheDocument();
       // The dead-end affordances are gone: no editor, no agent-access notice.
       expect(
-        screen.queryByRole('button', { name: 'Add variable' }),
+        screen.queryByRole('button', {
+          name: i18n.t('add', { ns: 'envEditor' }),
+        }),
       ).not.toBeInTheDocument();
-      expect(screen.queryByText('Available to agents')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          i18n.t('agentAccessTitle', { ns: 'projectSecrets' }),
+        ),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -153,9 +176,23 @@ describe('ProjectSecretsTab', () => {
     it('calls setProjectSecret with the typed name + value on Save', async () => {
       const { user } = renderTab();
 
-      await user.click(screen.getByRole('button', { name: 'Add variable' }));
-      await user.type(screen.getByPlaceholderText('NAME'), 'MY_SECRET');
-      await user.type(screen.getByPlaceholderText('value'), 'super-secret');
+      await user.click(
+        screen.getByRole('button', {
+          name: i18n.t('add', { ns: 'envEditor' }),
+        }),
+      );
+      await user.type(
+        screen.getByPlaceholderText(
+          i18n.t('keyPlaceholder', { ns: 'envEditor' }),
+        ),
+        'MY_SECRET',
+      );
+      await user.type(
+        screen.getByPlaceholderText(
+          i18n.t('valuePlaceholder', { ns: 'envEditor' }),
+        ),
+        'super-secret',
+      );
       await user.click(screen.getByRole('button', { name: 'Save' }));
 
       await waitFor(() => expect(mockSetMutateAsync).toHaveBeenCalledTimes(1));
@@ -168,6 +205,51 @@ describe('ProjectSecretsTab', () => {
         }),
       );
     });
+  });
+
+  describe('localized name refusal', () => {
+    it.each(['en', 'de', 'fr'])(
+      'shows SECRET_NAME_INVALID in %s',
+      async (locale) => {
+        await i18n.changeLanguage(locale);
+        mockSetMutateAsync.mockRejectedValueOnce(
+          new AppError({ code: 'SECRET_NAME_INVALID' }),
+        );
+        const { user } = renderTab();
+        await user.click(
+          screen.getByRole('button', {
+            name: i18n.t('add', { ns: 'envEditor' }),
+          }),
+        );
+        await user.type(
+          screen.getByPlaceholderText(
+            i18n.t('keyPlaceholder', { ns: 'envEditor' }),
+          ),
+          'TOKEN',
+        );
+        await user.type(
+          screen.getByPlaceholderText(
+            i18n.t('valuePlaceholder', { ns: 'envEditor' }),
+          ),
+          'secret',
+        );
+        await user.click(
+          screen.getByRole('button', {
+            name: i18n.t('save', { ns: 'envEditor' }),
+          }),
+        );
+        await waitFor(() =>
+          expect(mockToast).toHaveBeenCalledWith({
+            title: i18n.t('saveError', { ns: 'envEditor' }),
+            description: i18n.t('errors.SECRET_NAME_INVALID', {
+              ns: 'projectSecrets',
+            }),
+            variant: 'destructive',
+          }),
+        );
+        expect(mockToast).toHaveBeenCalledTimes(1);
+      },
+    );
   });
 
   describe('delete wiring', () => {
