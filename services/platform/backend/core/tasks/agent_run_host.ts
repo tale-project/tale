@@ -56,10 +56,13 @@ import {
   isDestroyPendingRefusal,
   queuedWakeAfterMs,
   sandboxCapacityRefusal,
+  type CapacityRefusal,
 } from '../node_only/sandbox/capacity_refusal';
 import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
+  isSessionExecLimitResult,
+  SessionExecLimitError,
   sessionCancelExec,
   sessionDeleteFiles,
   sessionExecStatus,
@@ -1498,6 +1501,7 @@ export async function startTaskAgentTurnImpl(
         onText: progress.onText,
         onTimeline: progress.onTimeline,
       });
+      throwIfExecPlacesTaken(window, args);
       if (resume !== undefined && isResumeLaunchFailure(window, resume)) {
         // A dead handle does not throw: the CLI launches, emits one error
         // result (echoing the id back), and exits — a terminal, errored
@@ -1532,26 +1536,37 @@ export async function startTaskAgentTurnImpl(
             onText: progress.onText,
             onTimeline: progress.onTimeline,
           });
+          throwIfExecPlacesTaken(window, args);
         }
       }
       await progress.flush();
       await continueOrSettle(ctx, keys, window, resume);
     } catch (err) {
       // No room is not a failure: the organization's session budget is
-      // spent, or the sandbox host is at capacity or short of memory. Park
+      // spent, the sandbox host is at capacity or short of memory, or the
+      // workspace's runtime already runs its maximum of live execs. Park
       // the run and let the next slot release (or the watchdog backstop,
       // every two minutes) restart it — or, when the host keeps a line and
-      // said when the run's place comes up, a wake at that moment. A
-      // workspace an administrator is destroying parks the run too: the
-      // Destroy's settle is a release edge, and the run starts afresh after
-      // it. Everything else settles as a failure with the REAL reason.
+      // said when the run's place comes up, a wake at that moment; a run
+      // whose exec found no live-exec place wakes when another turn of its
+      // workspace ends. A workspace an administrator is destroying parks
+      // the run too: the Destroy's settle is a release edge, and the run
+      // starts afresh after it. Everything else settles as a failure with
+      // the REAL reason.
       const noRoom = sandboxCapacityRefusal(err);
       if (noRoom !== null || isDestroyPendingRefusal(err)) {
         console.warn(
           noRoom === null
             ? `[task-agent] the sandbox workspace for ${args.execId} is being destroyed — parking the run until the Destroy settles`
-            : `[task-agent] no ${noRoom.scope === 'host' ? 'sandbox host capacity' : 'session slot'} for ${args.execId} — parking the run until one frees`,
+            : `[task-agent] no ${capacityShortOf(noRoom.scope)} for ${args.execId} — parking the run until one frees`,
         );
+        // The runtime refuses an exec only after the launch: the run reads
+        // `running`, with a key minted and an op row open for an exec that
+        // never ran. The park takes the run back to `queued` on a fresh
+        // exec, so its next start mints its own and the wait counts as no
+        // executed time; the refused exec's key and op row then close as
+        // cancelled (the key revoked, nothing spent).
+        const execRefused = noRoom?.scope === 'session';
         const wakeAfterMs =
           noRoom !== null ? queuedWakeAfterMs(noRoom) : undefined;
         await ctx.runMutation(
@@ -1560,8 +1575,22 @@ export async function startTaskAgentTurnImpl(
             runId: args.runId,
             execId: args.execId,
             ...(wakeAfterMs !== undefined ? { wakeAfterMs } : {}),
+            ...(execRefused ? { execRefused: true } : {}),
           },
         );
+        if (execRefused) {
+          await releaseTurnKey(ctx, {
+            organizationId: args.organizationId,
+            sessionId: args.sessionId,
+            execId: args.execId,
+            status: 'cancelled',
+          }).catch((releaseErr: unknown) => {
+            console.warn(
+              `[task-agent] closing the refused exec ${args.execId} failed:`,
+              releaseErr,
+            );
+          });
+        }
         return null;
       }
       console.error('[task-agent] turn start failed:', err);
@@ -1674,6 +1703,24 @@ export async function driveTaskAgentTurnImpl(
  * carries content and settles normally — and from an empty answer: the
  * conversation launched cleanly (the pinned CLI announces the resumed id
  * itself) and only its model said nothing. Exported for its unit test. */
+/** What a parked start waits for, as its log line names it. */
+function capacityShortOf(scope: CapacityRefusal['scope']): string {
+  if (scope === 'host') return 'sandbox host capacity';
+  if (scope === 'session') return 'free live-exec place in its workspace';
+  return 'session slot';
+}
+
+/** Raise a start window the workspace's runtime refused for want of a
+ * live-exec place (`EXEC_LIMIT`) as the capacity refusal it is: the exec
+ * never ran, so there is no harness end to settle, only room to wait for. */
+function throwIfExecPlacesTaken(
+  window: Awaited<ReturnType<typeof drainHarnessWindow>>,
+  keys: Pick<TurnKeys, 'sessionId' | 'execId'>,
+): void {
+  if (window.kind === 'terminal' && isSessionExecLimitResult(window.execResult))
+    throw new SessionExecLimitError(keys.sessionId, keys.execId);
+}
+
 function isResumeLaunchFailure(
   window: Awaited<ReturnType<typeof drainHarnessWindow>>,
   attemptedResume?: string,
@@ -2158,17 +2205,23 @@ async function settleTaskAgentTurn(
  * sibling task's live turn keeps the session up (the release mutation checks
  * running ops AND live runs of the agent, so a sibling that is admitted but
  * has no exec yet is not uncounted); the workspace is preserved either way.
+ * The run's workspace rides along: the ended exec freed one of its live-exec
+ * places, which a run parked on that workspace waits for.
  * Best-effort: a failed release costs latency (the task watchdog's orphan
  * backstop gets it), never the settle.
  */
 async function releaseProjectAgentSlotAfterSettle(
   ctx: ActionCtx,
-  args: Pick<TurnKeys, 'organizationId' | 'agentId'>,
+  args: Pick<TurnKeys, 'organizationId' | 'agentId' | 'sessionId'>,
 ): Promise<void> {
   try {
     await ctx.runMutation(
       internal.sandbox.session_mutations.releaseProjectAgentSessionSlot,
-      { organizationId: args.organizationId, agentId: args.agentId },
+      {
+        organizationId: args.organizationId,
+        agentId: args.agentId,
+        sessionId: args.sessionId,
+      },
     );
   } catch (err) {
     console.warn('[task-agent] session-slot release failed:', err);

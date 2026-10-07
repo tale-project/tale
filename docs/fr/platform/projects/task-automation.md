@@ -114,7 +114,7 @@ Les questions d’une automatisation et les approbations de workflows restent l�
 
 | État ou symptôme | Action |
 | --- | --- |
-| Attente d’une place de sandbox | La capacité de l’organisation ou de l’infrastructure partagée peut être épuisée. Attends une place ou demande à un admin d’examiner [Sandboxes](/fr/platform/admin/sandboxes). |
+| Attente d’une place de sandbox | La capacité de l’organisation ou de l’infrastructure partagée peut être épuisée, ou l’espace de travail de l’agent exécute peut-être déjà quatre de ses exécutions à la fois ; l’exécution démarre alors dès que l’une d’elles se termine. L’attente ne consomme aucune nouvelle tentative automatique. Attends une place ou demande à un admin d’examiner [Sandboxes](/fr/platform/admin/sandboxes). |
 | Nouvelle tentative automatique affichée | Tale reprend après un échec récupérable. Surveille le compteur sans lancer une autre exécution. |
 | **L’agent n’a pas pu terminer cette tâche** | Aucune nouvelle tentative automatique ne suit. L’avis indique ce qui s’est passé et qui peut y remédier, et **Détails**, à côté de l’exécution, montre ce que l’exécution elle-même a signalé ; [Quand l’agent ne peut pas terminer](#quand-lagent-ne-peut-pas-terminer) détaille les cas. Corrige la cause, puis utilise **Relancer** pour continuer la conversation. |
 | Réassignation refusée | Annule l’exécution active avant de choisir un autre responsable. |

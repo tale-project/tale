@@ -114,7 +114,7 @@ Answering an automation's question and deciding a workflow approval stay with pe
 
 | State or symptom | What to do |
 | --- | --- |
-| Waiting for a sandbox slot | Available capacity may be exhausted for the organization or shared infrastructure. Wait for a slot, or ask an admin to inspect [Sandboxes](/platform/admin/sandboxes). |
+| Waiting for a sandbox slot | Available capacity may be exhausted for the organization or shared infrastructure, or the agent's workspace may already be running four of its runs at once; the run then starts as soon as one of them ends. Waiting uses up no automatic retry. Wait for a slot, or ask an admin to inspect [Sandboxes](/platform/admin/sandboxes). |
 | Automatic retry is shown | Tale is retrying a recoverable failure. Read the attempt count and avoid starting another run. |
 | **The agent couldn't finish this task** | No automatic retry follows. The notice says what went wrong and who can fix it, and **Details** beside the run shows what the run itself reported; [When the agent can't finish](#when-the-agent-cant-finish) lists the cases. Resolve the cause, then use **Retry** to continue the conversation. |
 | Reassignment is refused | Cancel the live run before choosing another assignee. |
