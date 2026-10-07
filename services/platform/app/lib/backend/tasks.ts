@@ -32,8 +32,8 @@ import {
 // ---------------------------------------------------------------------------
 
 type TasksByProjectResult = ReturnsOf<'tasks/queries:listTasksByProject'>;
-type TaskItem = TasksByProjectResult['tasks'][number];
 type GetTaskResult = ReturnsOf<'tasks/queries:getTask'>;
+type TaskItem = NonNullable<GetTaskResult>['task'];
 type TaskLabelItem = ItemOf<'tasks/queries:listTaskLabels'>;
 type TaskDependenciesResult = ReturnsOf<'tasks/queries:listTaskDependencies'>;
 type ProjectDependencyEdge = ItemOf<'tasks/queries:listProjectDependencies'>;
@@ -195,7 +195,18 @@ interface BoardWire {
 
 function boardView(body: BoardWire): TasksByProjectResult {
   return {
-    tasks: body.tasks.map(taskView),
+    tasks: body.tasks.map((row) => {
+      // An older backend may still answer with full content during a roll.
+      // Never retain those unused bodies in the board's metadata cache.
+      const {
+        description: _description,
+        attachments: _attachments,
+        outputs: _outputs,
+        externalIssue: _externalIssue,
+        ...summary
+      } = row;
+      return taskView(summary);
+    }),
     truncated: body.truncated,
     canEdit: body.canEdit,
     canCreate: body.canCreate,
@@ -268,6 +279,7 @@ function boardFilterParams(args: Record<string, unknown>): {
   const query = typeof args.query === 'string' ? args.query.trim() : '';
   const params = new URLSearchParams({
     includeArchived: String(includeArchived),
+    summary: 'true',
     ...(status.length > 0 ? { status } : {}),
     ...(statuses.length > 0 ? { statuses: statuses.join(',') } : {}),
     ...(assigneeId.length > 0 ? { assigneeId } : {}),

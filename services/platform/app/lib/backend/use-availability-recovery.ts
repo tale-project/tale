@@ -1,7 +1,9 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 
 import { useBackendReachable } from './connection-state';
+
+const pendingRecoveries = new WeakMap<QueryClient, number>();
 
 /** Refresh reads after an outage, including errors that exhausted retries.
  * Mutations are never retried: the user decides whether to submit again. */
@@ -12,9 +14,19 @@ export function useAvailabilityRecovery(): void {
   useEffect(() => {
     if (!reachable) {
       wasUnavailable.current = true;
+      pendingRecoveries.set(
+        queryClient,
+        (pendingRecoveries.get(queryClient) ?? 0) + 1,
+      );
+      return () => {
+        const remaining = (pendingRecoveries.get(queryClient) ?? 1) - 1;
+        if (remaining > 0) pendingRecoveries.set(queryClient, remaining);
+        else pendingRecoveries.delete(queryClient);
+      };
     } else if (wasUnavailable.current) {
       wasUnavailable.current = false;
       void queryClient.invalidateQueries({ queryKey: ['backend'] });
     }
+    return undefined;
   }, [reachable, queryClient]);
 }

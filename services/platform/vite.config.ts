@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createPwaPlugin } from '@tale/ui/pwa/vite-plugin';
+import { messageTopics } from '@tale/ui/vite/message-topics';
 import { yamlImports } from '@tale/ui/vite/yaml';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
@@ -289,6 +290,16 @@ export default defineConfig({
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
+        // A topic file fetched on first use names its locale (`de-auth-….js`),
+        // so a session's language reads off the network panel.
+        chunkFileNames: (chunk) => {
+          const topic = /[\\/]messages[\\/]([^\\/]+)[\\/]([^\\/]+)\.yml$/.exec(
+            chunk.facadeModuleId ?? '',
+          );
+          return topic
+            ? `assets/${topic[1]}-${topic[2]}-[hash].js`
+            : 'assets/[name]-[hash].js';
+        },
         // Rolldown's native chunk groups rather than the `manualChunks`
         // shim, which cannot order them — see `coreChunk`.
         codeSplitting: {
@@ -311,7 +322,7 @@ export default defineConfig({
             {
               name: 'messages',
               tags: ['$initial'],
-              test: /[\\/]messages[\\/][^\\/]+\.yml$/,
+              test: /[\\/]messages[\\/](?:[^\\/]+[\\/])?[^\\/]+\.yml$/,
               priority: 1,
             },
             { name: 'app', tags: ['$initial'] },
@@ -322,6 +333,9 @@ export default defineConfig({
   },
   plugins: [
     yamlImports(),
+    // English messages ride with the modules that read them; see
+    // `lib/i18n/i18n.ts`.
+    messageTopics({ messagesDir: resolve(import.meta.dirname, 'messages') }),
     tanstackRouter({
       autoCodeSplitting: true,
       codeSplittingOptions: {

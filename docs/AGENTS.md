@@ -25,15 +25,15 @@ reference lives in [`services/docs/tests/AGENTS.md`](../services/docs/tests/AGEN
   guessed addresses (a title turned into a slug, a translated folder, a sidebar group's label such
   as `/de/verwaltung`) are answered by the server's near-miss resolver (`lib/near-miss.ts`), not by
   entries here.
-- The site: `services/docs/` (Vite + React + TanStack Router, prerendered static HTML). Its
-  locale-root landing pages use the shared **marketing** language for search and guide discovery.
-  Their text companions remain `docs/{en,de,fr}/index.md`, including the published Markdown
-  exports. Guide pages keep the **platform app** design language — a `SubPanel` navigation rail, one sticky
-  `h-13` header strip carrying the breadcrumb trail and the page actions, the article column, and
-  the "On this page" outline (a rail from `xl`, a disclosure below it). That chrome is the shared
-  `@tale/ui/docs/*` frame the design-system guide renders too; change it in `packages/ui`, never
-  in a site. Component map: [`services/docs/README.md`](../services/docs/README.md) → _The page
-  layout_.
+- The site: `services/docs/` (Vite + React + TanStack Router, prerendered static HTML). The root
+  and locale roots open the first guide in `docs/nav.json`, with the same shared documentation
+  frame as every deep guide. There is no separate locale-root `index.md`; legacy root Markdown
+  aliases redirect to the first guide's export. Guide pages keep the **platform app** design
+  language — a `SubPanel` navigation rail, one sticky `h-13` header strip carrying the breadcrumb
+  trail and the page actions, the article column, and the "On this page" outline (a rail from
+  `xl`, a disclosure below it). That chrome is the shared `@tale/ui/docs/*` frame the design-system
+  guide renders too; change it in `packages/ui`, never in a site. Component map:
+  [`services/docs/README.md`](../services/docs/README.md) → _The page layout_.
 
 This contract covers Tale’s product documentation. The separate English design-system guide
 at `services/ui-docs/content/` follows its own [authoring contract](../services/ui-docs/content/README.md)
@@ -64,7 +64,7 @@ Every user-visible change updates `en`, `de`, and `fr` in the same PR. `locale-t
 meaning and completeness. DE and FR are authored natively per
 [`write-translations`](../.agents/skills/write-translations/SKILL.md) (one narrator per language,
 `du`/`tu`, loanword buckets), never rendered word-for-word. UI labels match
-the relevant service’s `messages/<locale>.yml` merged over shared package catalogs character-for-character,
+the relevant service’s `messages/<locale>.yml` (the platform’s `messages/<locale>/<topic>.yml`) merged over shared package catalogs character-for-character,
 including locale fallback. Preserve factual currencies, values, jurisdictions, permissions, and
 limits while translating. A locale changes the language, not the contract. The voice strike lists live in
 `packages/ui/src/i18n/tests/locales/<locale>/voice.ts`. Internal links in non-`en` pages carry the
@@ -85,9 +85,9 @@ checks.
 
 ## Frontmatter opt-outs (Tale-specific)
 
-`noindex: true` (legal/drafts), `kind: index` (locale-root landing pages, exempt from the opening
-rule), `noCurrencyCheck: true`, `noEmDashCheck: true`, `i18nLintExclude: ["check-id"]` — sparingly,
-with a comment.
+`noindex: true` (legal/drafts), `kind: index` (section index pages whose cards provide the opening
+orientation), `noCurrencyCheck: true`, `noEmDashCheck: true`, `i18nLintExclude: ["check-id"]` —
+sparingly, with a comment.
 
 ## Screenshots — the Tale pipeline
 

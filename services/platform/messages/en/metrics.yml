@@ -1,0 +1,15 @@
+title: Metrics
+groups:
+  usage: Usage
+  feedback: Feedback
+  chat-health: Chat health
+  external-turns: Harness turns
+  automations: Automations
+  projects: Projects
+projects:
+  selectLabel: Project
+  selectPlaceholder: Select a project
+  searchPlaceholder: Search projects
+  searchEmpty: No projects found
+  emptyTitle: Select a project
+  emptyDescription: Choose a project to view its metrics.

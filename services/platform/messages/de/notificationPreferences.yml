@@ -1,0 +1,43 @@
+title: Benachrichtigungen
+description: Wähle, welche Ereignisse in deiner Glocke erscheinen.
+  Review-Anfragen bleiben immer an — das sind Sicherheitssignale.
+deliveryTitle: E-Mail-Zustellung
+deliveryDescription: Handlungsrelevante Alerts (Zuweisungen, Erwähnungen,
+  Reviews, Eskalationen) können zusätzlich an deine Konto-E-Mail gehen, wenn
+  die Organisation ein verbundenes Postfach hat.
+saveFailed: Deine Benachrichtigungseinstellungen konnten nicht gespeichert werden.
+fields:
+  actionableEmail:
+    label: Handlungsrelevante Alerts per E-Mail
+    description:
+      Return-Loop-Benachrichtigungen an deine Konto-E-Mail senden — über
+      das verbundene Gmail-, Outlook- oder SMTP-Postfach der Organisation.
+  taskAssigned:
+    label: Aufgabe mir zugewiesen
+    description: Wenn dir eine Aufgabe zugewiesen wird.
+  taskStatusChanged:
+    label: Status geändert
+    description: Wenn eine Aufgabe, der du folgst, den Status wechselt.
+  taskCommented:
+    label: Neuer Kommentar
+    description: Wenn jemand eine Aufgabe kommentiert, der du folgst.
+  mention:
+    label: Erwähnungen
+    description: Wenn dich jemand mit @ erwähnt.
+  taskDeadlines:
+    label: Start- und Fälligkeitstermine
+    description: Wenn eine Aufgabe, die du trägst, startet, fällig wird oder
+      überfällig ist.
+  taskReview:
+    label: Review-Anfragen
+    description: Wenn Arbeit auf dein Review wartet.
+    lockedHint: Immer an — das ist ein Sicherheitssignal.
+  escalation:
+    label: Agenten-Eskalationen
+    description: Wenn ein Agent dir eine Frage stellt, eine Aufgabe an einen Menschen eskaliert oder eine Aufgabe nicht fertigstellen kann.
+  automationAlerts:
+    label: Automatisierungs-Warnungen
+    description: Wenn der Zeitplan einer Automatisierung pausiert, weil ihre Läufe immer wieder fehlschlagen.
+  conversationMessages:
+    label: Konversationsnachrichten
+    description: Wenn eine Kontaktnachricht in Konversationen ankommt.

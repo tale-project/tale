@@ -1207,7 +1207,7 @@ async function ensureMembers(
       .click();
     await page
       .getByRole('option', {
-        name: t(`settings.roles.${member.role}`),
+        name: t(`roles.${member.role}`),
         exact: true,
       })
       .click();

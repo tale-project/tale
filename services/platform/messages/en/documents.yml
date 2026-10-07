@@ -1,0 +1,538 @@
+entityLabel: documents
+entityLabelOne: document
+tableCaption: Documents and folders
+searchPlaceholder: Search documents
+refreshFailed: "Couldn't load the latest documents. What's listed may be incomplete or out of date."
+loadFailed: "Couldn't load the documents here. Only the folders are listed until the documents load."
+foldersLoadFailed: "Couldn't load the folders here. Documents filed in folders aren't listed until the folders load."
+record:
+  badge: 'v{version} · {state}'
+  state:
+    draft: Draft
+    inReview: In review
+    approved: Approved
+  waitingOn: 'Waiting on {name}'
+  blockedByRecord: Protected controlled record
+  actions:
+    markControlled: Mark as controlled
+    replaceFile: Replace file
+    submitForReview: Submit for review
+    review: Review record
+    changeReviewer: Change reviewer
+    newRevision: New revision
+  replace:
+    title: Replace file
+    description:
+      Replace the file in "{name}". The document name and revision stay the
+      same.
+    approvedDescription:
+      Replace the file in "{name}". Approved v{version} stays unchanged. Once
+      the replacement completes, it opens as draft v{nextVersion}.
+    dropZoneAria: Choose a replacement file for {name}
+    dropZoneTitle: Choose replacement file
+    dropZoneDescription: '{format} up to {maxSize} MB'
+    sameFormat: Same format
+    oneFileOnly: Choose one replacement file
+    formatTitle: File format does not match
+    extensionMismatch: Choose a .{extension} file to match this document.
+    formatMismatch: Choose a file with the same format as this document.
+    unchanged: This file has the same content as the current file.
+    staleRevision: This revision changed. Close the dialog and try again.
+    staleDialog:
+      This draft changed while the dialog was open. Close and reopen it before
+      choosing another file.
+    approvedStaleDialog:
+      This approved record changed while the dialog was open. Close and reopen
+      it before choosing another file.
+    stateChanged:
+      This document changed state. Close the dialog and reopen it before
+      replacing its file.
+    blockedByHold: Blocked by legal hold
+    contentMismatch: The file contents do not match the selected document format.
+    historyLimit:
+      This draft has reached its file-replacement history limit. Create a new
+      controlled document to continue.
+    finalizePending:
+      The replacement is still being confirmed. Wait for the document to
+      update before trying again.
+    intentExpired: This replacement upload expired. Close the dialog and start again.
+    historyHint:
+      Replacing the file keeps the document name and revision. Approved
+      versions stay in history.
+    approvedHistoryHint:
+      Approved v{version} stays unchanged in history. The replacement opens
+      draft v{nextVersion} for review.
+    confirm: Replace file
+    approvedConfirm: Replace and open draft v{version}
+    success: 'File replaced in v{version}'
+    approvedSuccess: Draft v{version} opened with the replacement — approved
+      v{approvedVersion} is unchanged
+  submit:
+    title: Submit for review
+    reviewerLabel: Reviewer
+    reviewerPlaceholder: Choose a reviewer
+    reviewerSearch: Search members
+    freezeHint: The document freezes while it is in review — the reviewer
+      decides on exactly this version.
+    lastFeedback: 'Changes requested on v{version} by {name}:'
+    lastFeedbackNoName: 'Changes requested on v{version}:'
+    confirm: Submit
+  reassign:
+    title: Change reviewer
+    hint: 'The pending request to {name} is withdrawn — the new reviewer
+      decides on this version.'
+    hintNoName: The pending request is withdrawn — the new reviewer decides
+      on this version.
+    confirm: Change reviewer
+  review:
+    title: 'Review record (v{version})'
+    frozenHint: Approving locks this version as an immutable snapshot;
+      requesting changes reopens the draft.
+    approve: Approve
+    requestChanges: Request changes
+    sendFeedback: Send feedback
+    feedbackPlaceholder: What should change? The decision is recorded with
+      this feedback.
+    onlyDesignee: 'Only {name} can decide this review.'
+    onlyDesigneeNoName: Only the designated reviewer can decide this review.
+  toast:
+    controlled: This document is now a controlled record
+    controlledFailed: Could not mark the document as controlled
+    submitted: Submitted for review — the document is frozen
+    submitFailed: Could not submit for review
+    reviewerChanged: Reviewer changed — the review request moved to the new
+      reviewer
+    reviewerChangeFailed: Could not change the reviewer
+    approved: 'Version {version} approved'
+    changesRequested: Changes requested — the record is a draft again
+    respondFailed: Could not record the review decision
+    revisionOpened: 'Revision v{version} opened'
+    revisionFailed: Could not open a new revision
+deleteFolder:
+  title: Delete folder
+  confirmation: Delete folder "{name}"?
+  requirement: All files and subfolders inside this folder will also be
+    permanently deleted.
+  deleteButton: Delete folder
+deleteSyncFolder:
+  title: Delete sync folder
+  confirmation: Delete sync folder "{name}"?
+  thisWillDelete: 'This will permanently delete:'
+  willDelete:
+    filesAndSubfolders: All files and subfolders
+    autoSyncConfig: Auto-sync configuration
+    syncHistory: Sync history
+  willNotDelete:
+    prefix: This will
+    not: not
+    suffix: delete the files from your OneDrive.
+  deleteButton: Delete sync folder
+noItemsFound: No items found
+noItemsMatchingSearch: No items found matching your search.
+noItemsAvailable: No items available
+noItemsSelected: No items selected
+searchFilesAndFolders: Search files and folders
+emptyState:
+  title: No documents yet
+  description: Upload documents so agents can use them in chat.
+actions:
+  rename: Rename
+  deleteSyncFolder: Delete sync folder
+  deleteFolderFailed: Couldn't delete folder
+  deleteFolderProtectedRecord:
+    A controlled document in this folder has an approved version, which is
+    a retained record — move it out of the folder first.
+  deleteFileFailed: Couldn't delete the file — try again.
+  manageTeams: Assign team
+  reindex: Reindex
+  stopSync: Stop syncing
+  stopSyncDone: Syncing stopped. The imported files stay in your workspace.
+  stopSyncFailed: Couldn't stop syncing
+  moveToFolder: Move to folder…
+folder:
+  renameFolder: Rename folder
+  renaming: Renaming...
+  renamed: Folder renamed
+  renameFailed: "Couldn't rename folder"
+  renameSyncManaged: "The sync keeps this folder's name: it is synced, holds a synced folder, or sits inside one."
+  invalidName: Use up to 128 characters without slashes or control characters, and not just one or two dots.
+  newFolder: New folder
+  createFolder: Create folder
+  folderName: Folder name
+  folderNamePlaceholder: Enter folder name
+  nameRequired: Folder name is required
+  creating: Creating...
+  created: Folder created
+  createFailed: Couldn't create folder
+  duplicateName: A folder with this name already exists
+teamTags:
+  title: Manage teams
+  team: Team
+  updated: Teams updated
+  updateFailed: Couldn't update teams
+  noTeamsTitle: No teams yet
+  noTeamsDescription: Create teams in Settings to control which groups can access this item.
+  goToSettings: Go to settings
+  orgWide: Organization-wide
+  projectScoped: Project-scoped
+  unknownTeam: Unknown team
+  moreTeams: '+{count}'
+deleteFile:
+  title: Delete document
+  confirmation: Delete "{name}"? This can't be undone.
+  thisDocument: this document
+  deleteButton: Delete
+breadcrumb:
+  navigation: Breadcrumb
+  documents: Documents
+  oneDrive: OneDrive
+  googleDrive: Google Drive
+aria:
+  openFolder: Open folder {name}
+  openDocument: Open document {name}
+  navigateToFolder: Navigate to folder {name}
+  selectFolder: Select folder {name}
+  selectFile: Select file {name}
+folderNotFound: Folder not found or no longer accessible
+filter:
+  ragStatus:
+    indexed: Indexed
+    notIndexed: Not indexed
+    indexing: Indexing
+    failed: Failed
+    unsupported: Not supported
+    needsReindex: Needs reindex
+  source:
+    upload: Upload
+    oneDrive: OneDrive
+    sharePoint: SharePoint
+  teams:
+    orgWide: Organization-wide
+    mine: My teams
+preview:
+  loading: Loading…
+  failedToLoad: Couldn't load document
+  downloadComplete: Download complete
+  downloadFile: Download file
+  closePreview: Close preview
+  downloadedSuccessfully: '{filename} downloaded'
+  downloadFailed: Couldn't download the file
+  notAvailable: Preview not available
+  notAvailableDescription: This file type cannot be previewed. Download the
+    file to view its contents.
+  truncatedNotice: This file is too large to preview in full — showing the
+    beginning. Download the file to view everything.
+  download: Download
+  document: Document
+  title: Document preview
+  dragToolbar: Drag toolbar
+  link:
+    copy: Copy link
+    copied: Copied
+    visit: Visit link
+  sidebar:
+    document: Document
+    source: Source
+    ragStatus: RAG status
+    teams: Teams
+    uploadedBy: Uploaded by
+    modified: Modified
+    imagePages: Image pages
+upload:
+  cancelUpload: Cancel upload
+  importDocuments: Upload documents
+  fromYourDevice: From your device
+  fromMicrosoft365: From Microsoft 365
+  fromGoogleDrive: From Google Drive
+  uploadInProgress: Upload in progress
+  uploadingFileNamed: Uploading {fileName}
+  confirming: Confirming upload…
+  confirmingFileNamed: Confirming upload of {fileName}
+  binding: Adding file to document…
+  bindingFileNamed: Adding {fileName} to its document
+  announcements:
+    uploading: Uploading {fileName}
+    finalizing: Finalizing upload of {fileName}
+    binding: Adding {fileName} to its document
+    completed: Upload of {fileName} completed
+  failedFileName: '{fileName} — Failed'
+  pleaseWaitForUpload: Wait for the current upload to finish
+  noFilesSelected: No files selected
+  fileTooLarge: File too large
+  fileSizeExceeded: 'File {name} exceeds {maxSize}MB limit. Current size: {currentSize}MB'
+  uploadCancelled: Upload cancelled
+  uploadFailed: Couldn't upload the file
+  uploadFailedRetry: Upload failed. Check your connection and try again.
+  quotaExceeded:
+    Storage quota full — {used} of {limit} used. Delete files to free
+    space (failed uploads still count).
+  quotaUsage: '{used} of {limit} used'
+  rateLimited: Too many uploads at once. Wait a moment and try again.
+  fileTooLargeLimit: File exceeds the {limit} limit.
+  uploadTimedOut: Upload timed out. Check your connection and try again.
+  storedButNotIndexed: Stored and downloadable, but not indexed for search (legacy format).
+  storedButNotIndexedNoExtension: 'Stored and downloadable, but not indexed for search: the file name is only an extension.'
+  filesCompletedSummary: '{completed} of {total} files completed'
+  filesCompletedWithFailures: '{completed} of {total} files completed · {failed} failed'
+  selectTeams: Assign to teams
+  teamLockedToFolder: Files uploaded here are assigned to this folder’s team.
+  selectTeamsDescription: Choose which team the uploaded documents belong to
+  noTeamsAvailable: You are not a member of any teams
+  allMembersHint: Organization-wide documents are accessible to everyone in the organization.
+  dropZoneTitle: Upload a file
+  dropZoneDescription: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML up to {maxSize} MB
+  retryUpload: Retry upload
+  retry: Retry
+  documentsUploadedSuccessfully: '{count} {count, plural, one {document} other
+    {documents}} uploaded — indexing runs in the background'
+  unsupportedFileType: Unsupported file type
+  unsupportedFileTypeDescription: '{name} is not a supported format. Supported
+    formats: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML, PY, AC2, images.'
+  extensionBlocked: '{name}: .{ext} files are blocked by upload policy.'
+  extensionNotAllowed: '{name}: .{ext} is not allowed. Allowed types: {allowed}.'
+  uploadDocuments: Upload
+move:
+  title: Move to folder
+  description: Choose where {name} should live.
+  destinationLabel: Destination
+  rootOption: Knowledge base (no folder)
+  confirm: Move
+  moving: Moving…
+  moved: Document moved
+  moveFailed: Couldn't move the document
+ocr:
+  unavailable: OCR unavailable
+  processingWithOcr: Document processed with OCR
+microsoft365:
+  title: Import from Microsoft 365
+  myOneDrive: My OneDrive
+  sharePointSites: SharePoint Sites
+  selectDescription: Choose files or folders to import
+  noSites: No SharePoint sites found
+  noSitesDescription: You don't have access to any SharePoint sites or sites could not be loaded.
+  noDrives: No document libraries found
+  noDrivesDescription: This site doesn't have any document libraries.
+  siteUrl: Site URL
+  driveType: Type
+cloudImport:
+  appNotConfigured:
+    Importing from this provider is not set up yet. Ask an organization
+    admin to configure its OAuth app under Settings > Connectors.
+  appNotConfiguredAdmin:
+    Importing from this provider needs an OAuth app first. Configure one
+    under Settings > Connectors > OAuth apps, then come back to connect.
+  appStatusLoadFailed:
+    Couldn't check whether importing from {provider} is set up. You can
+    connect once the check works.
+  openConnectorSettings: Open connector settings
+  importedPartial: 'Imported {imported} of {total} files'
+  syncedPartial: 'Synced {imported} of {total} files'
+  failedFileDetail: '{name}: {reason}'
+  importInterrupted: >-
+    Access to your {provider} account ended during the import. {imported,
+    plural, =0 {No files were imported.} one {# of {total} files was
+    imported and is kept.} other {# of {total} files were imported and are
+    kept.}}
+  reconnectToImportRest: >-
+    Reconnect your account, then import the same files or folders again to
+    bring in the rest. The files already imported aren't imported twice.
+onedrive:
+  importSettings: Import settings
+  settingsDescription:
+    Choose how to import your {count} selected {count, plural,
+    one {item} other {items}}.
+  microsoftNotConnected: Connect Microsoft 365
+  microsoftNotConnectedDescription:
+    To upload files, you'll need to grant access to your Microsoft 365
+    account.
+  connect: Connect Microsoft 365
+  reconnect: Reconnect Microsoft 365
+  disconnect: Disconnect Microsoft 365
+  disconnecting: Disconnecting Microsoft 365…
+  disconnectFailed: Could not disconnect Microsoft 365
+  grantPermissions: Grant Microsoft 365 permissions
+  redirecting: Redirecting...
+  folderEmpty: This folder is empty.
+  loadFailed: Couldn't load items
+  noFilesSelected: No importable files in the selection
+  listingTruncated: >-
+    Showing the first {count} items — this folder holds more. Open a
+    subfolder or search to reach the rest.
+  folderTooLargeToImport: >-
+    "{name}" holds more items than one import can list. Import its
+    subfolders one at a time, or set up a sync import.
+  oneTimeImport: One-time import
+  oneTimeDescription: Import files once and store them in your workspace
+  syncImport: Sync import
+  syncDescription: Keep files automatically synchronized
+  importCount: Import ({count})
+  importing: Importing...
+  syncing: Syncing...
+  importStarted: Import started
+  syncStarted: Sync started
+  importingItems: Importing {count} items to storage...
+  syncingItems: Syncing {count} items to storage...
+  importCompleted: Import completed
+  syncCompleted: Sync completed
+  filesImportedCount: '{count} of {total} files imported'
+  filesSyncedCount: '{count} of {total} files synced'
+  importFailed: Import failed
+  syncFailed: Sync failed
+  importItems: Import {count} {count, plural, one {item} other {items}}
+  syncItems: Sync {count} {count, plural, one {item} other {items}}
+googledrive:
+  title: Import from Google Drive
+  selectDescription: Choose files or folders to import
+  notConnected: Connect Google Drive
+  notConnectedDescription: To upload files, you'll need to grant access to your Google Drive account.
+  connect: Connect Google Drive
+  reconnect: Reconnect Google Drive
+  disconnect: Disconnect Google Drive
+  disconnecting: Disconnecting Google Drive…
+  disconnectFailed: Could not disconnect Google Drive
+  grantPermissions: Grant Google Drive permissions
+  redirecting: Redirecting...
+  loadFailed: Couldn't load items
+  noFilesSelected: No importable files in the selection
+  oneTimeImport: One-time import
+  oneTimeDescription: Import files once and store them in your workspace
+  syncImport: Sync import
+  syncDescription: Keep files automatically synchronized
+  importSettings: Import settings
+  settingsDescription:
+    Choose how to import your {count} selected {count, plural, one {item} other
+    {items}}.
+  importCount: Import ({count})
+  importing: Importing...
+  syncing: Syncing...
+  importStarted: Import started
+  syncStarted: Sync started
+  importingItems: Importing {count} items to storage...
+  syncingItems: Syncing {count} items to storage...
+  importCompleted: Import completed
+  syncCompleted: Sync completed
+  filesImportedCount: '{count} of {total} files imported'
+  filesSyncedCount: '{count} of {total} files synced'
+  importFailed: Import failed
+  syncFailed: Sync failed
+  importItems: Import {count} {count, plural, one {item} other {items}}
+  syncItems: Sync {count} {count, plural, one {item} other {items}}
+rag:
+  status:
+    queued: Queued
+    queuedHint: Waiting to become searchable in chat.
+    indexing: Indexing
+    indexingHint: Making this document searchable in chat…
+    indexed: Indexed
+    failed: Failed
+    unsupported: Not supported
+    notIndexed: Not indexed
+    needsReindex: Needs reindex
+    unknown: Unknown
+  retryIndexing: Retry indexing
+  toast:
+    documentIdRequired: Document ID is required for retry
+    indexingStarted: Indexing started
+    retryFailed: Retry failed
+    retryFailedDescription: Couldn't retry RAG indexing
+    unexpectedError: Couldn't finish that action. Try again.
+  dialog:
+    indexed:
+      title: Document indexed
+      description: This document is indexed and available for knowledge search.
+      indexedOn: 'Indexed on:'
+    failed:
+      title: Indexing failed
+      description: Couldn't index this document for knowledge search.
+      errorDetails: 'Error details:'
+      unknownError: Unknown error occurred
+      embeddingNotConfigured:
+        hint:
+          Knowledge indexing needs an embedding model, and this organization
+          doesn't have one configured yet.
+        configureCta: Configure embedding model
+        askAdmin: Ask an organization admin to configure one, then retry indexing.
+    unsupported:
+      title: Document cannot be indexed
+      description:
+        These file contents cannot be indexed. Upload a readable text version
+        or a supported document with extractable text.
+      reasons:
+        unsupported_type: This file type has no supported text extractor.
+        image_no_vision: Knowledge indexing does not extract text from images.
+        empty: The file holds no text to index — it is empty, whitespace alone, or a scanned document with no text layer.
+        not_text: The file contains binary data instead of readable text. Export it as UTF-8 text.
+        malformed: The file cannot be read as its stated format. It may be damaged or password-protected.
+sourceType:
+  confluence: Confluence
+  webDav: WebDAV
+  oneDriveSynced: OneDrive (synced)
+  oneDriveNotSynced: OneDrive (not synced)
+  sharePointSynced: SharePoint (synced)
+  sharePointNotSynced: SharePoint (not synced)
+  uploaded: Upload
+  agent: Agent
+  knowledgeEntry: Knowledge entry
+  api: API
+  googleDriveSynced: Google Drive (synced)
+  googleDriveNotSynced: Google Drive (not synced)
+syncHealth:
+  badge:
+    failed: Sync failed
+    needsReauth: Reconnect needed
+  dialog:
+    failedTitle: Sync failed
+    failedDescription: >-
+      The last sync of "{name}" did not go through. Tale retries about every
+      15 minutes and clears this notice as soon as a run succeeds.
+    needsReauthTitle: '{provider} access expired'
+    needsReauthDescription: >-
+      Tale can no longer reach {provider} with the account that syncs
+      "{name}". The files synced so far stay in place; nothing new arrives
+      until that account is reconnected.
+    failingSince: Failing since {time}
+    syncedBy: Synced with the account of {ownerName}
+    syncedByUnknown: Synced with the account of a member who has since left
+    errorDetails: Error details
+    ownerNextStep: >-
+      Reconnect your account to resume syncing. The next run picks it up
+      within 15 minutes.
+    otherNextStep: >-
+      Ask {ownerName} to reconnect. A member who can import documents can
+      also start a new sync import of this item to take the sync over.
+    otherNextStepUnknown: >-
+      Start a new sync import of this item to take the sync over — the
+      account it ran under is gone.
+comparison:
+  statsSummary: Change summary
+  statsAdded: '{count} added'
+  statsDeleted: '{count} deleted'
+  statsModified: '{count} modified'
+  statsUnchanged: '{count} unchanged'
+  highDivergence: These versions differ a lot — review carefully.
+  resultsTruncated: Showing a subset of changes.
+  noChanges: No differences found.
+  changesList: Changes
+  changeBlockLabel: Change {index}
+  removedText: Removed
+  addedText: Added
+history:
+  dialogTitle: Version history — {name}
+  dialogDescription: Select two versions to compare. The current file is listed first.
+  versionsLabel: Versions
+  currentBadge: Current
+  loading: Loading versions…
+  loadFailed: Couldn't load version history
+  empty: No stored versions for this file.
+  singleVersion: Only the current version is stored — revise the file to build history.
+  selectTwo: Select two versions
+  compareSelected: Compare selected
+  comparing: Comparing…
+  compareFailed: Couldn't compare versions
+  compareOffline: Comparing versions is currently unavailable.
+  backToList: Back to versions
+  versionLabel: Version from {date}
+  selectAsCompare: Select to compare
+  baseSelected: Base
+  compareSelectedBadge: Compare
+  notFound: That file has no version history yet.

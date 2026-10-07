@@ -1,0 +1,1740 @@
+policyReadFailed: "Die gespeicherte Richtlinie konnte nicht geladen werden. Die Bearbeitung ist erst nach erfolgreichem Laden möglich."
+policyReadRetry: Erneut versuchen
+policyReadRetrying: Richtlinie wird erneut geladen
+title: Richtlinien
+toastSavedTitle: Änderungen gespeichert
+toastSaveFailedTitle: Änderungen konnten nicht gespeichert werden
+systemPrompt:
+  title: Benutzerdefinierte Anweisungen
+  description:
+    Dieser Text steht in diesem Workspace vor den Anweisungen jedes Agents.
+    Nutzer können ihn nicht überschreiben.
+  enabled: Benutzerdefinierte Anweisungen
+  instructionsPlaceholder: Verbindliche Anweisungen eingeben...
+  charLimitExceeded: Zeichenlimit überschritten
+  saveFailed: Benutzerdefinierte Anweisungen konnten nicht gespeichert werden
+budgets:
+  title: Budgetregeln
+  description: Token-, Kosten- und Anfragelimits pro Bereich und
+    Abrechnungszeitraum festlegen.
+  addRule: Regel hinzufügen
+  addRuleDialogTitle: Budgetregel hinzufügen
+  editRuleDialogTitle: Budgetregel bearbeiten
+  scope: Bereich
+  target: Ziel
+  period: Zeitraum
+  tokenLimit: Max. Token
+  tokenLimitHelp: Gesamte Ein- und Ausgabe-Token. 1M Token ~ 750K Wörter.
+  costLimitUsd: Max. Kosten (USD)
+  costLimitHelp: Feste Ausgabengrenze in USD. GPT-4o ~ $10/1M Token.
+  maxCost: Max. Kosten
+  maxRequests: Max. Anfragen
+  maxRequestsHelp: KI-Anfragen pro Zeitraum. Leer lassen für kein Limit.
+  warningThreshold: Warnschwelle (%)
+  warningThresholdHelp: Warnung, wenn die Nutzung diesen Prozentsatz des Limits überschreitet.
+  orgScopeTarget: Gesamte Organisation
+  allUsers: Alle Benutzer
+  overrideHint: 'Spezifischere Bereiche überschreiben allgemeinere: Benutzer >
+    Team > Rolle > Standard. Org-Limits gelten immer zusätzlich.'
+  noRulesTitle: Keine Budgetregeln konfiguriert
+  noRulesDescription: Füge eine Regel hinzu, um Limits durchzusetzen.
+  editRuleAriaLabel: Regel {index} bearbeiten
+  removeRuleAriaLabel: Regel {index} entfernen
+  removeRuleConfirmTitle: Budgetregel entfernen?
+  removeRuleConfirmDescription:
+    Diese Regel setzt keine Budgetlimits mehr durch.
+    Du kannst sie später jederzeit neu erstellen.
+  removeRuleConfirmAction: Entfernen
+  actions: Aktionen
+  confirm: Bestätigen
+  role: Rolle
+  user: Benutzer
+  team: Team
+  selectUser: Benutzer auswählen...
+  searchUsers: Benutzer suchen
+  noUsersFound: Keine Benutzer gefunden
+  selectUserAriaLabel: Benutzer auswählen
+  selectTeam: Team auswählen...
+  searchTeams: Teams suchen
+  noTeamsFound: Keine Teams gefunden
+  selectTeamAriaLabel: Team auswählen
+  apiKey: API-Schlüssel
+  selectApiKey: API-Schlüssel auswählen...
+  searchApiKeys: API-Schlüssel suchen
+  noApiKeysFound: Keine API-Schlüssel gefunden
+  selectApiKeyAriaLabel: API-Schlüssel auswählen
+  saved: Budgetregeln aktualisiert
+  saveFailed: Budgetregeln konnten nicht gespeichert werden
+  targetRequired: Wählen Sie ein Ziel für diesen Geltungsbereich, sonst greift die Regel nie.
+  limitRequired: Legen Sie mindestens ein Limit (Tokens, Kosten oder Anfragen)
+    fest, damit die Regel greifen kann.
+  invalidTokenLimit: Das Token-Limit muss größer als null sein.
+  invalidCostLimit: Das Kostenlimit muss größer als null sein.
+  invalidMaxRequests: Das Anfragenlimit muss größer als null sein.
+  invalidWarningThreshold: Der Warnschwellenwert muss zwischen 0 und 100 liegen.
+  scopeLabels:
+    default: Standard
+    user: Benutzer
+    team: Team
+    role: Rolle
+    apiKey: API-Schlüssel
+    org: Organisation
+  periodLabels:
+    daily: Täglich
+    weekly: Wöchentlich
+    monthly: Monatlich
+  apiKeyOwnerUnknown: Inhaber unbekannt
+  apiKeyInactive: Dieser Schlüssel kann in dieser Organisation nichts mehr verbrauchen, deshalb begrenzt die Regel nichts. Wähle einen aktiven Schlüssel oder entferne die Regel.
+  apiKeyStatus:
+    expired: Abgelaufen
+    disabled: Deaktiviert
+    revoked: Widerrufen
+    unavailable: Nicht verfügbar
+    holder_left: Ehemaliges Mitglied
+    unknown: Unbekannter Schlüssel
+defaultModels:
+  title: Standardmodelle
+  description: Standardmodelle für bestimmte Benutzergruppen oder Rollen festlegen.
+  saved: Standardmodell-Konfiguration aktualisiert
+  saveFailed: Standardmodell-Konfiguration konnte nicht gespeichert werden
+  addRule: Regel hinzufügen
+  addRuleTitle: Standardmodell-Regel hinzufügen
+  editRuleTitle: Standardmodell-Regel bearbeiten
+  editRule: Regel {index} bearbeiten
+  removeRule: Regel {index} entfernen
+  removeRuleConfirmTitle: Standardmodell-Regel entfernen?
+  removeRuleConfirmDescription: Diese Regel weist den passenden Benutzern kein
+    Standardmodell mehr zu. Du kannst sie später jederzeit neu erstellen.
+  removeRuleConfirmAction: Entfernen
+  scope: Geltungsbereich
+  target: Ziel
+  provider: Anbieter
+  model: Modell
+  role: Rolle
+  actions: Aktionen
+  noRulesTitle: Keine Regeln konfiguriert
+  noRulesDescription: Füge eine Regel hinzu, um Standardmodelle pro Bereich festzulegen.
+  allUsers: Alle Benutzer
+  selectProvider: Anbieter auswählen...
+  selectModel: Modell auswählen...
+  selectTeam: Team auswählen...
+  searchProviders: Anbieter suchen
+  searchModels: Modelle suchen
+  searchTeams: Teams suchen
+  noProvidersFound: Keine Anbieter gefunden
+  noModelsFound: Keine Modelle gefunden
+  noTeamsFound: Keine Teams gefunden
+  confirm: Bestätigen
+  allowlistConflictWarning:
+    Dieses Modell ist derzeit nicht durch die Allowlist
+    der Modellzugriffsrichtlinie für diesen Geltungsbereich zugelassen.
+    Betroffene Benutzer weichen auf ein erlaubtes Modell aus.
+  allowlistConflictWarningTitle: Modell nicht in Allowlist
+  blocklistConflictWarning: Dieses Modell ist derzeit durch die
+    Modellzugriffsrichtlinie für diesen Geltungsbereich blockiert. Betroffene
+    Benutzer weichen auf ein erlaubtes Modell aus.
+  blocklistConflictWarningTitle: Modell ist blockiert
+visionModel:
+  title: Modell für Bilder
+  description:
+    Kann das Modell eines Agenten selbst keine Bilder sehen, liest dieses
+    Modell die Bilder für ihn — über das Gateway, es gelangt also kein
+    Provider-Schlüssel in die Sandbox. Modelle, die Bilder ohnehin lesen,
+    brauchen es nie.
+  label: Modell, das Bilder liest
+  labelHint:
+    Automatisch passt für die meisten Organisationen. Lege eins fest, wenn
+    die Wahl dem Provider-Katalog nicht mehr folgen soll.
+  automaticLabel: Automatisch
+  automaticHint: Tale wählt aus den Modellen, die deine Zugänge erreichen.
+  resolved:
+    pinned: 'Bilder liest derzeit {model}.'
+    preferred: 'Bilder liest derzeit {model} — die empfohlene Wahl.'
+    cheapest:
+      'Bilder liest derzeit {model} — das günstigste erreichbare Modell, weil
+      keines der empfohlenen verfügbar ist.'
+  resolvedNone:
+    Keines deiner erreichbaren Modelle kann Bilder lesen, damit können es
+    Agenten auf einem reinen Textmodell auch nicht. Hinterlege einen Zugang
+    zu einem Provider, der ein Modell für Bilder bedient.
+  searchModels: Modelle suchen
+  noModelsFound: Kein Modell verfügbar, das Bilder liest
+  saveFailed: Modell für Bilder konnte nicht gespeichert werden
+imageGeneration:
+  title: Bildgenerierung
+  description:
+    Projekt-Agenten können bei ihren Aufgaben Bilder erstellen, ebenso
+    Agent-Knoten in Automatisierungen. Die Kosten trägt deine Organisation.
+    Die Funktion bleibt aus, bis du sie einschaltest. Im Chat entstehen nie
+    Bilder.
+  enabledLabel: Agenten Bilder erstellen lassen
+  label: Bildmodell
+  labelHint:
+    Automatisch nimmt das erste empfohlene Bildmodell, das deine
+    Anbieterzugänge erreichen. Ein festgelegtes Modell bleibt ausgewählt,
+    bis du es änderst, auch wenn es nicht mehr verfügbar ist.
+  automaticLabel: Automatisch
+  automaticHint: Tale wählt aus den empfohlenen Bildmodellen, die deine Zugänge erreichen.
+  currentModel:
+    pinned: 'Agenten erstellen Bilder derzeit mit {model}.'
+    preferred: 'Agenten erstellen Bilder derzeit mit {model} — die empfohlene Wahl.'
+  draftHint: Speichere, um diese Auswahl anzuwenden.
+  noAvailable:
+    Keines der empfohlenen Bildmodelle ist verfügbar, daher erhalten
+    Agenten kein Tool für Bilder. Füge unter KI-Anbieter einen Zugang zu
+    OpenRouter oder OpenAI hinzu oder wähle eines der aufgeführten Modelle.
+  unavailable:
+    Das gespeicherte Bildmodell ist nicht verfügbar, daher erhalten Agenten
+    kein Tool für Bilder. Wähle ein anderes Modell oder Automatisch oder
+    prüfe den Anbieterzugang und die dafür erlaubten Modelle. Solange diese
+    Auswahl gespeichert ist, wechselt Tale nicht zu einem anderen Modell.
+  invalidPolicy:
+    Die gespeicherte Konfiguration der Bildgenerierung ist ungültig, daher
+    erhalten Agenten kein Tool für Bilder. Schalte die Bildgenerierung
+    aus und wieder ein oder wähle ein Modell und speichere, um sie zu
+    korrigieren.
+  policyUnavailable:
+    Die gespeicherte Konfiguration der Bildgenerierung konnte nicht gelesen
+    werden. Versuche es erneut, bevor du sie änderst. Bis sie lesbar ist,
+    erhalten Agenten kein Tool für Bilder.
+  resolutionFailed:
+    Tale konnte das Bildmodell nicht prüfen. Prüfe die Verbindung zum
+    Anbieter und versuche es erneut.
+  loadFailed: Die Einstellungen zur Bildgenerierung konnten nicht geladen werden. Versuche es erneut.
+  invalidSelection: Ungültige gespeicherte Konfiguration
+  unknownSelection: Gespeicherte Auswahl konnte nicht gelesen werden
+  savedUnavailable: Gespeicherte Auswahl ist derzeit nicht verfügbar
+  providersLink: KI-Anbieter
+  retry: Erneut versuchen
+  searchModels: Bildmodelle suchen
+  noModelsFound: Kein passendes Bildmodell
+  saveFailed: Einstellungen zur Bildgenerierung konnten nicht gespeichert werden
+  remoteUpdate:
+    Diese Einstellung wurde in einer anderen Sitzung geändert. Verwirf deinen
+    Entwurf, um die gespeicherte Auswahl zu laden, oder speichere, um sie zu
+    ersetzen.
+transcriptionModel:
+  title: Modell für Audiotranskription
+  description:
+    Dieses Modell transkribiert Audio- und Videoanhänge. Es übernimmt auch
+    die Spracheingabe, wenn die Spracherkennung des Browsers nicht verfügbar
+    ist. Die Spracherkennung des Browsers nutzt ihr eigenes Modell.
+  label: Modell zur Audiotranskription
+  labelHint:
+    Automatisch wählt ein verfügbares Modell. Ein festgelegtes Modell bleibt
+    ausgewählt, bis du es änderst, auch wenn es nicht mehr verfügbar ist.
+  automaticLabel: Automatisch
+  automaticHint: Tale wählt aus den verfügbaren Modellen zur Audiotranskription.
+  currentModel: 'Aktuelles Modell für Audiotranskription: {model}.'
+  draftHint: Speichere, um diese Auswahl anzuwenden.
+  noAvailable:
+    Kein Modell zur Audiotranskription ist verfügbar. Füge unter KI-Anbieter
+    einen kompatiblen Zugang hinzu oder aktiviere ihn. Prüfe auch, welche
+    Modelle dieser Zugang erlaubt.
+  unavailable:
+    Das gespeicherte Modell ist nicht verfügbar. Wähle ein anderes Modell
+    oder Automatisch oder prüfe den Anbieterzugang und die dafür erlaubten Modelle.
+    Solange diese Auswahl gespeichert ist, wechselt Tale nicht zu einem
+    anderen Modell.
+  invalidPolicy:
+    Die gespeicherte Konfiguration des Audiomodells ist ungültig. Wähle ein
+    Modell oder Automatisch und speichere, um sie zu korrigieren.
+  policyUnavailable:
+    Die gespeicherte Konfiguration des Audiomodells konnte nicht gelesen
+    werden. Versuche es erneut, bevor du sie änderst. Tale kann bei
+    nicht verfügbarer Konfiguration nicht von Automatisch ausgehen.
+  resolutionFailed:
+    Tale konnte das Modell zur Audiotranskription nicht prüfen. Prüfe die
+    Verbindung zum Anbieter und versuche es erneut.
+  loadFailed: Die Audiomodelleinstellungen konnten nicht geladen werden. Versuche es erneut.
+  invalidSelection: Ungültige gespeicherte Konfiguration
+  unknownSelection: Gespeicherte Auswahl konnte nicht gelesen werden
+  savedUnavailable: Gespeicherte Auswahl ist derzeit nicht verfügbar
+  providersLink: KI-Anbieter
+  retry: Erneut versuchen
+  searchModels: Audiomodelle suchen
+  noModelsFound: Kein passendes Audiomodell
+  saveFailed: Modell für Audiotranskription konnte nicht gespeichert werden
+  remoteUpdate:
+    Diese Einstellung wurde in einer anderen Sitzung geändert. Verwirf deinen
+    Entwurf, um die gespeicherte Auswahl zu laden, oder speichere, um sie zu
+    ersetzen.
+uploadPolicy:
+  title: Upload-Richtlinie
+  description: Konfiguriere erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits.
+  enabled: Upload-Richtlinie aktivieren
+  allowedExtensions: Erlaubte Dateierweiterungen
+  blockedExtensions: Blockierte Dateierweiterungen
+  conflictingExtensions: 'Diese Erweiterungen sind sowohl erlaubt als auch
+    blockiert: {extensions}. Entferne sie aus einer der Listen.'
+  allowedMimeTypes: Erlaubte MIME-Typen
+  maxFileSize: Maximale Dateigrösse
+  maxVolumePerUser: Maximales Gesamtvolumen pro Benutzer
+  invalidMaxFileSize: Die maximale Dateigrösse muss null oder eine positive Zahl sein.
+  invalidMaxVolume: Das maximale Gesamtvolumen muss null oder eine positive Zahl sein.
+  extensionPlaceholder: pdf, png, csv
+  mimeTypePlaceholder: image/*, application/pdf
+  mbUnit: MB
+  gbUnit: GB
+  saveFailed: Upload-Richtlinie konnte nicht gespeichert werden
+retentionPolicy:
+  title: Aufbewahrungsrichtlinie
+  description: Lege fest, wie lange jeder Datentyp vor der Löschung aufbewahrt wird.
+  saved: Aufbewahrungsrichtlinie aktualisiert
+  saveFailed: Aufbewahrungsrichtlinie konnte nicht gespeichert werden
+  save: Änderungen speichern
+  reset: Auf Standardwerte zurücksetzen
+  unsavedHint: Du hast nicht gespeicherte Änderungen.
+  summary:
+    disabled: Deaktiviert
+  drawer:
+    title: Aufbewahrungsrichtlinie bearbeiten
+    description: Lege fest, wie lange jeder Datentyp vor der Löschung aufbewahrt wird.
+  enabled: Aktiviert
+  retentionDays: Aufbewahrungstage
+  retentionHours: Aufbewahrungsstunden
+  envDisabled: Aufbewahrung ist derzeit vom Operator deaktiviert
+    (TALE_RETENTION_DISABLED=true). Bereinigung läuft erst, wenn das Env-Flag
+    entfernt wurde.
+  envBoundHint: 'Env-Bindung: {min}{minApplied} / {max}{maxApplied}'
+  boundHelper: Operator beschränkt dies auf {min}-{max} {unit}.
+  allowedRange: 'Erlaubt: {min}–{max} {unit}.'
+  errors:
+    belowFloor: Unter Operator-Untergrenze (min {bound} {unit}).
+    exceedsCeiling: Über Operator-Obergrenze (max {bound} {unit}).
+  diff:
+    title: Aufbewahrungsänderungen bestätigen
+    description:
+      Prüfe die Änderungen vor dem Speichern. Die Bereinigung übernimmt
+      die neue Richtlinie beim nächsten Lauf.
+    confirmLabel: Änderungen speichern
+    noChanges: Keine Änderungen zum Speichern.
+  deletionGrace:
+    label: Schonfrist (Tage)
+    helper: 0 = Pass A löscht sofort permanent (kein Trash-Fenster). >0 hält
+      Einträge so viele Tage im Admin-Trash sichtbar, bevor Pass B sie
+      physisch entfernt.
+  timeline:
+    ariaLabel: Visualisierung des Lösch-Lebenszyklus
+    activeLabel: Aktiv
+    activeSub: Sichtbar, voll zugänglich
+    trashedLabel: Im Papierkorb / Abgelaufen
+    trashedSub: '{days}-Tage-Schonfrist, wiederherstellbar'
+    skipTrashLabel: Übersprungen
+    skipTrashSub: graceDays = 0
+    permanentLabel: Endgültig gelöscht
+    permanentSub: Eintrag + Nachfahren weg
+    graceConnector: nach Aufbewahrungsfenster
+    noGraceConnector: kein Schonfrist-Fenster
+    cascadeConnector: Kaskaden-Löschung
+  pendingChange:
+    loadFailed: Die ausstehende Aufbewahrungsänderung konnte nicht geladen werden.
+    refreshFailed: Die ausstehende Aufbewahrungsänderung konnte nicht aktualisiert werden. Zuvor geladene Angaben sind möglicherweise nicht mehr aktuell.
+    title: Eine Aufbewahrungsverkürzung steht aus.
+    applyIn: wird in {days} Tag(en) wirksam.
+    cancel: Abbrechen
+    cancelFailedToast: Ausstehende Aufbewahrungsänderung konnte nicht abgebrochen werden.
+  boundsProposal:
+    title: Der Betreiber hat Änderungen an den Aufbewahrungsgrenzen vorgeschlagen.
+    firstApplyTitle: Die Aufbewahrungsgrenzen des Betreibers benötigen deine erste Freigabe.
+    summary:
+      '{tightened} von {total} Änderung(en) verschärfen die Aufbewahrung. Vor
+      dem Anwenden prüfen.'
+    firstApplyDescription: Für diese Organisation wurden noch keine Grenzen
+      angewendet. Prüfe die Betreiberkonfiguration und klicke auf Anwenden, um
+      die Aufbewahrung zu aktivieren.
+    applyLabel: Anwenden
+    applyingLabel: Wird angewendet…
+    rejectLabel: Ablehnen
+    rejectingLabel: Wird abgelehnt…
+    detailsLabel: Details anzeigen
+    detailsTitle: Vorgeschlagene Grenzwertänderungen
+    detailsDescription:
+      Prüfe die vom Betreiber vorgeschlagenen Aufbewahrungsgrenzen
+      vor dem Anwenden oder Ablehnen.
+    detailsEmpty: Keine detaillierten Änderungen erfasst.
+    diffHeading: Grenzwertänderungen
+    impactHeading: Auswirkung auf deine gespeicherten Werte
+    diffRow: '{category}: {field} {from} → {to} ({direction})'
+    impactRow: '{category}: {current} wird auf {clamped} begrenzt'
+    appliedToast:
+      Grenzwertvorschlag angewendet. Die Bereinigung verwendet beim
+      nächsten Lauf die neuen Grenzen.
+    rejectedToast:
+      Grenzwertvorschlag abgelehnt. Die Bereinigung verwendet weiterhin
+      die bisherigen Grenzen.
+    applyFailedToast: Grenzwertvorschlag konnte nicht angewendet werden.
+    rejectFailedToast: Grenzwertvorschlag konnte nicht abgelehnt werden.
+  promptTemplates:
+    title: Prompt-Vorlagen
+    description: Gespeicherte Prompts über alle Sichtbarkeitsebenen hinweg
+      (persönlich, Team, global).
+  messageFeedback:
+    title: Nachrichten-Feedback
+    description: Daumen/Kommentare zu Agenten-Nachrichten. Freitext-Kommentare
+      können zitierten Nutzerinhalt enthalten.
+  contacts:
+    title: Kontakte
+    description: 'Pro-Org CRM-Datensätze: Name, E-Mail, Adresse, Locale, Metadaten.'
+  externalConversations:
+    title: Externe Konversationen
+    description: Top-Level-Kontaktkanal-Posteingang (E-Mail/Chat-Connectors).
+      Kaskadiert zu Nachrichteninhalten.
+  chatFilterEvents:
+    title: Chat-Filter-Ereignisse
+    description:
+      Telemetrie für Content-Filter-Auslöser (PII, Profanität, eigene
+      Regeln). Jedes Ereignis enthält Filter, Kategorien, Richtung und
+      Anzahl, nie den gefundenen Text. Die Guardrails-Seite und der
+      Chat-Zustand zeigen nur die noch aufbewahrten Ereignisse.
+    placeholder: z. B. 90
+    helper: Filter-Ereignis-Telemetrie älter als dies wird gelöscht.
+  notifications:
+    title: Benachrichtigungen
+    description: In-App-Benachrichtigungen (Erwähnungen, Agentenergebnisse,
+      Systemwarnungen). Können Inhalte aus Chats, Dokumenten oder
+      Automatisierungsläufen referenzieren.
+    placeholder: z. B. 30
+    helper: Benachrichtigungen, die älter als dies sind, werden gelöscht.
+  chatHistory:
+    title: Chat-Verlauf
+    description: Konversationen mit Agents (Chat-Threads), die älter als die
+      Aufbewahrungsfrist sind, automatisch löschen. Nachrichteninhalte in der
+      Agent-Komponente werden archiviert. Die Löschung ist unumkehrbar.
+    placeholder: z. B. 90
+    helper:
+      Chat-Threads, die (gemessen am letzten Aktualisierungszeitpunkt) älter
+      sind, werden gelöscht.
+  documents:
+    title: Aufbewahrung von Dokumenten
+    description:
+      Dokumente, die die Aufbewahrungsfrist überschreiten, automatisch
+      löschen. Mit Vorsicht verwenden — gelöschte Dokumente können nicht
+      wiederhergestellt werden.
+    placeholder: z. B. 90
+    helper: Dokumente, die älter sind, werden gelöscht.
+  userTemp:
+    title: Bereinigung temporärer Nutzerdateien
+    description:
+      Dateien, die von Nutzern hochgeladen, aber nie in einem Dokument
+      gespeichert wurden (z. B. Chat-Anhänge, abgebrochene Uploads),
+      automatisch löschen.
+    placeholder: z. B. 24
+    helper: Temporäre Dateien, die älter sind, werden gelöscht.
+  agentTemp:
+    title: Bereinigung temporärer Agent-Dateien
+    description: Dateien, die von Agents erzeugt, aber nie in einem Dokument
+      gespeichert wurden (z. B. Zwischenresultate, Wissensdateien),
+      automatisch löschen.
+    placeholder: z. B. 24
+    helper: Temporäre Dateien, die älter sind, werden gelöscht.
+  workflowLogs:
+    title: Protokolle von Automatisierungsläufen
+    description:
+      Einträge zu Automatisierungsläufen, die älter als die Aufbewahrungsfrist
+      sind, automatisch löschen. Schließt pro Ausführung gespeicherte
+      Variablen-/Output-Blobs ein.
+    placeholder: z. B. 30
+    helper: Automatisierungsläufe, die älter sind, werden gelöscht.
+  auditLogs:
+    title: Audit-Logs
+    description: Audit-Log-Einträge, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Audit-Logs sind unveränderliche Aufzeichnungen — halte die Frist lang genug, um deine Compliance-Anforderungen zu erfüllen.
+    placeholder: z. B. 90
+    helper: Audit-Log-Einträge, die älter sind, werden gelöscht.
+  usageLedger:
+    title: Nutzungsbuch
+    description: Token-Verbrauchsdaten, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Eine kürzere Frist schneidet historische Auswertungen ab — Budgets und Berichte stützen sich auf diese Daten.
+    placeholder: z. B. 365
+    helper: Nutzungsbuch-Zeilen, die älter sind, werden gelöscht.
+  loginAttempts:
+    title: Anmeldeversuche
+    description: Aufzeichnungen fehlgeschlagener Anmeldeversuche, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Diese Einstellung gilt deployment-weit — der kürzeste Wert aller Organisationen greift.
+    placeholder: z. B. 90
+    helper: Einträge zu Anmeldeversuchen, die älter sind, werden gelöscht.
+passwordPolicy:
+  title: Passwort-Richtlinie
+  description: Mindestlänge, Zeichenklassen-Anforderungen und Rotation für
+    Passwörter konfigurieren.
+  minLength: Mindestlänge
+  minLengthHint: Mindestanzahl an Zeichen für neue Passwörter.
+  requireUpper: Großbuchstabe erforderlich
+  requireLower: Kleinbuchstabe erforderlich
+  requireDigit: Ziffer erforderlich
+  requireSpecial: Sonderzeichen erforderlich
+  rotationEnabled: Passwort-Rotation aktivieren
+  rotationDays: Rotationszeitraum (Tage)
+  rotationDaysHint: Benutzer müssen ihr Passwort nach dieser Anzahl von Tagen
+    ändern. Das Kulanzfenster beginnt mit der erstmaligen Aktivierung der
+    Rotation, bestehende Benutzer werden also nicht sofort zur Änderung
+    gezwungen.
+  invalidMinLength: Mindestlänge muss eine ganze Zahl zwischen 6 und 128 sein.
+  invalidRotationDays: Rotationszeitraum muss eine ganze Zahl zwischen 1 und 3650 sein.
+  saveFailed: Speichern der Passwort-Richtlinie fehlgeschlagen
+twoFactorPolicy:
+  title: Zwei-Faktor-Authentifizierung
+  description: Alle passwort-authentifizierten Benutzer müssen nach einer
+    Übergangsfrist einen zweiten Faktor (TOTP) einrichten.
+  enforced: Zwei-Faktor-Authentifizierung verlangen
+  policyDisabledHint:
+    Zwei-Faktor-Authentifizierung ist optional, solange diese
+    Richtlinie deaktiviert ist.
+  gracePeriodDays: Übergangsfrist (Tage)
+  gracePeriodDaysHint:
+    Tage, die jedem Benutzer ab der ersten Anmeldung bleiben,
+    in der die Richtlinie auf ihn zutrifft, bevor die Einrichtung erzwungen
+    wird. 0 = sofortige Durchsetzung.
+  exemptSsoUsers: Nur-SSO-Benutzer ausnehmen
+  exemptSsoUsersHint:
+    Benutzer, deren einziges Konto eine föderierte Identität ist
+    (z. B. Microsoft Entra ID), verlassen sich auf MFA im vorgelagerten IdP.
+  invalidGrace: Die Übergangsfrist muss eine ganze Zahl zwischen 0 und 30 sein.
+  confirmEnforceTitle: Zwei-Faktor-Authentifizierung verlangen?
+  confirmEnforceDescription:
+    Jedes Mitglied, das sich mit Passwort anmeldet, wird zur
+    Zwei-Faktor-Einrichtung weitergeleitet (Nur-SSO-Benutzer bleiben
+    ausgenommen, solange die Ausnahme aktiv ist). Nach Ablauf der
+    Übergangsfrist werden Mitglieder abgemeldet, bis sie die Einrichtung
+    abschließen.
+  confirmEnforceCta: Zwei-Faktor verlangen
+  saved: Zwei-Faktor-Richtlinie aktualisiert
+  saveFailed: Speichern der Zwei-Faktor-Richtlinie fehlgeschlagen
+loginPolicy:
+  title: Anmeldeversuch-Limits
+  description:
+    Konten nach wiederholten fehlgeschlagenen Anmeldungen sperren und
+    die Wartezeit zwischen Versuchen verlängern.
+  enabled: Anmeldeversuch-Limits aktivieren
+  maxAttempts: Fehlversuche bis zur Sperre
+  maxAttemptsHint:
+    Anzahl aufeinanderfolgender Falscheingaben des Passworts, bevor
+    das Konto vorübergehend gesperrt wird.
+  backoffSchedule: Backoff-Zeitplan (Sekunden)
+  backoffScheduleHint: 'Komma-getrennte Wartezeiten nach jeder Sperre, in
+    Sekunden. Der letzte Wert wird für weitere Fehlversuche wiederverwendet.
+    Standard: 1, 10, 60, 600.'
+  trustedProxies: Vertrauenswürdige Proxies
+  trustedProxiesHint:
+    'Komma-getrennte Liste von IPs / CIDRs / Schlüsselwörtern
+    (loopback, uniquelocal, linklocal) für Reverse-Proxies vor dieser
+    Installation. Ermittelt die echte Client-IP aus X-Forwarded-For. Standard:
+    loopback, uniquelocal.'
+  invalidAttempts: Schwellenwert muss eine ganze Zahl zwischen 1 und 50 sein.
+  invalidSchedule: Backoff-Zeitplan muss eine komma-getrennte Liste
+    nicht-negativer Zahlen sein.
+  invalidProxies:
+    Vertrauenswürdige Proxies müssen eine komma-getrennte Liste aus
+    IPs, CIDRs oder Schlüsselwörtern sein (max. 32).
+  saveFailed: Anmelderichtlinie konnte nicht gespeichert werden
+sessionIdleTimeout:
+  title: Sitzungs-Leerlaufzeit
+  description:
+    Mitglieder nach einer Phase der Inaktivität abmelden. Dies kann das
+    installationsweite Limit nur verkürzen, niemals verlängern.
+  enabled: Sitzungs-Leerlaufzeit aktivieren
+  minutes: Leerlaufzeit (Minuten)
+  minutesHint:
+    'Minuten der Inaktivität, bevor ein Mitglied abgemeldet wird. Wird
+    durch SESSION_IDLE_TIMEOUT_MINUTES der Installation begrenzt, sofern
+    gesetzt. Standard: 30.'
+  invalid: Leerlaufzeit muss eine ganze Zahl zwischen 1 und 1440 Minuten sein.
+  saveFailed: Sitzungs-Leerlaufzeit konnte nicht gespeichert werden
+featureFlags:
+  title: Feature-Steuerung
+  description: Begrenze das Kontextfenster für KI-Antworten pro Benutzer, Team oder Rolle.
+  maxContextTokens: Max. Kontext-Tokens
+  maxContextTokensHint: Maximale Kontext-Tokens für KI-Antworten. Leer lassen für unbegrenzt.
+  invalidMaxContextTokens: Max. Kontext-Tokens müssen mindestens {min} betragen.
+  scope: Geltungsbereich
+  target: Ziel
+  allUsers: Alle Benutzer
+  addRule: Regel hinzufügen
+  editRule: Regel bearbeiten
+  deleteRule: Regel löschen
+  removeRuleConfirmTitle: Feature-Regel löschen?
+  removeRuleConfirmDescription: Diese Regel gilt nicht mehr für die passenden
+    Benutzer. Du kannst sie später jederzeit neu erstellen.
+  removeRuleConfirmAction: Löschen
+  noRulesTitle: Keine Feature-Regeln konfiguriert
+  noRulesDescription: Füge eine Regel hinzu, um Kontext-Tokens pro Benutzer, Team oder Rolle zu begrenzen.
+  saved: Feature-Steuerung aktualisiert
+  saveFailed: Feature-Steuerung konnte nicht gespeichert werden
+  actions: Aktionen
+  role: Rolle
+  scopeLabels:
+    default: Standard
+    user: Benutzer
+    team: Team
+    role: Rolle
+  roleLabels:
+    admin: Admin
+    developer: Entwickler
+    editor: Editor
+    member: Mitglied
+  searchUsers: Benutzer suchen
+  noUsersFound: Keine Benutzer gefunden
+  selectUser: Benutzer auswählen...
+  searchTeams: Teams suchen
+  noTeamsFound: Keine Teams gefunden
+  selectTeam: Team auswählen...
+voiceOutput:
+  title: Sprachausgabe
+  description: Wenn deaktiviert, kann kein Mitglied dieser Organisation
+    Sprachausgabe nutzen. Persönliche Voreinstellungen und Chat-spezifische
+    Überschreibungen haben dann keine Wirkung.
+  enabledLabel: Sprachausgabe für diese Organisation aktiviert
+  saved: Sprachausgabe-Richtlinie aktualisiert
+  saveFailed: Sprachausgabe-Richtlinie konnte nicht gespeichert werden
+skillSharing:
+  title: Skill-Freigabe
+  description: Lege fest, wer einen Skill mit der ganzen Organisation teilen
+    darf. Mit den eigenen Teams kann jede Person einen Skill weiterhin
+    teilen, und eine strengere Einstellung schränkt keinen Skill ein, der
+    schon mit der Organisation geteilt ist.
+  label: Skills mit der Organisation teilen
+  labelHint: Inhaber und Admins dürfen das immer. Um es einem weiteren
+    Mitglied zu erlauben, weise ihm unter Kompetenzen „Skills für die
+    Organisation veröffentlichen“ zu.
+  modes:
+    everyone: Alle Mitglieder
+    editors: Redakteure und höher
+    admins: Nur Inhaber und Admins
+  saveFailed: Richtlinie zur Skill-Freigabe konnte nicht gespeichert werden
+dataNotice:
+  title: Vertraulichkeitshinweis
+  description:
+    Zeigt allen Mitgliedern dieser Organisation unter dem Nachrichtenfeld im
+    Chat einen kurzen Hinweis an, etwa die Erinnerung, keine sensiblen Daten
+    zu teilen. Der Hinweis bleibt aus, bis du ihn einschaltest.
+  enabledLabel: Vertraulichkeitshinweis im Chat anzeigen
+  textsHint:
+    Mitglieder sehen den Text in ihrer Sprache. Für eine leere Sprache
+    erscheint der englische Text oder, wenn auch dieser leer ist, der
+    Standardhinweis.
+  charLimitExceeded: Verwende höchstens {max} Zeichen
+  languagesLabel: Sprachen des Hinweises
+  textLabel: Hinweistext ({language})
+  saveFailed: Vertraulichkeitshinweis konnte nicht gespeichert werden
+personalization:
+  enabledLabel: Für diese Organisation aktiviert
+  saved: Personalisierungsrichtlinie aktualisiert
+  saveFailed: Personalisierungsrichtlinie konnte nicht aktualisiert werden
+  customInstructions:
+    title: Standard für benutzerdefinierte Anweisungen
+    description: Wenn aktiviert, sind benutzerdefinierte Anweisungen für alle
+      Mitglieder dieser Organisation standardmäßig aktiv. Mitglieder, die sich
+      explizit dagegen entscheiden, behalten ihre Wahl.
+pii:
+  title: PII-Schutz
+  description: Personenbezogene Daten erkennen und maskieren oder blockieren,
+    bevor sie an KI-Modelle gesendet werden.
+  enableLabel: PII-Schutz aktivieren
+  saved: PII-Konfiguration aktualisiert
+  saveFailed: PII-Konfiguration konnte nicht gespeichert werden
+guardrailsOverview:
+  title: Guardrails-Übersicht
+  description: Filterschichten laufen in dieser Reihenfolge für jede Nachricht.
+  statusCards:
+    on: An
+    off: Aus
+    notConfigured: Nicht konfiguriert
+    contentSafety:
+      title: Inhaltssicherheit
+      description: Wortlisten und vom Admin bereitgestellte Regex-Muster.
+      summary: '{count} Kategorien · {targets}'
+    pii:
+      title: PII-Erkennung
+      description: Integrierte Muster für Emails, Telefonnummern, IDs usw.
+      summary: 'Modus: {mode}'
+    moderation:
+      title: Moderations-Anbieter
+      description: Externer Klassifikator (OpenAI / Azure / Perspective /
+        benutzerdefiniert).
+      summary: '{value}'
+  filterNames:
+    pii: PII
+    chatFilter: Inhaltssicherheit
+    moderation: Moderation
+  recentEvents:
+    title: Aktuelle Ereignisse
+    description:
+      Die letzten 50 Erkennungen / Blockierungen / Anbieter-Fehler dieser
+      Organisation. Treffertext wird nie gespeichert.
+    filterPii: PII
+    filterChatFilter: Inhaltssicherheit
+    filterModeration: Moderation
+    kindDetected: Erkannt
+    kindBlocked: Blockiert
+    kindStepError: Schritt-Fehler
+    kindCircuitOpen: Circuit offen
+    columnTime: Zeit
+    columnFilter: Filter
+    columnDirection: Richtung
+    columnKind: Art
+    columnCategories: Kategorien
+    columnMatches: Treffer
+    empty:
+      title: Noch keine Ereignisse
+      description:
+        Erkennungen aus den Modi flag / mask / block erscheinen hier,
+        sobald Chat-Traffic beginnt.
+    viewEventAria: Ereignis {id} anzeigen
+  eventDetails:
+    title: Ereignisdetails
+    description:
+      Vollständige Metadaten zu einem Guardrails-Ereignis. Treffertext
+      wird nie gespeichert.
+    filter: Filter
+    direction: Richtung
+    kind: Art
+    categories: Kategorien
+    matches: Treffer
+    truncated: Gekürzt
+    truncatedValue: Ja — Nachricht hat die Scan-Längengrenze überschritten
+    errorClass: Fehlerklasse
+    httpStatus: HTTP-Status
+    duration: Dauer
+    durationValue: '{ms} ms'
+    attempt: Versuch
+    sanitizationRun: Sanitization-Lauf
+    sanitizationRunCopyLabel: Sanitization-Lauf-ID
+    thread: Thread
+    threadCopyLabel: Thread-ID
+    message: Nachricht
+    messageCopyLabel: Nachrichten-ID
+    agent: Agent
+    actorType: Akteurstyp
+    timestamp: Zeitstempel
+    categoryDeleted: (gelöscht)
+    copied: '{label} kopiert'
+    copyFailed: Kopieren fehlgeschlagen
+    close: Schließen
+contentSafety:
+  title: Inhaltssicherheit
+  description: Wortlisten und benutzerdefinierte Regex-Muster werden auf
+    Chat-Nachrichten angewendet. Alle drei Modi (block / mask / flag) werden
+    nacheinander ausgeführt und zu einem einzigen Audit-Ereignis pro Nachricht
+    zusammengefasst.
+  cannotManage:
+    Du benötigst Admin-Rechte, um die Richtlinie für Inhaltssicherheit
+    zu bearbeiten.
+  enabled: Aktiviert
+  enableLabel: Inhaltssicherheit aktivieren
+  applyTo: Anwenden auf
+  applyToDescription:
+    Input filtert Nachrichten der Nutzer:innen, bevor sie das
+    Modell erreichen. Output filtert die Antwort des Assistenten; kann Latenz
+    pro Chunk erhöhen.
+  userInput: Nutzer-Eingabe
+  modelOutput: Modell-Ausgabe
+  maskReplacement: Maskierungsersatz
+  categoriesTitle: Kategorien
+  categoriesDescription: Jede Kategorie hat ihren eigenen Modus. block schlägt
+    mask schlägt flag bei mehreren Treffern.
+  categoriesEmpty: Keine Kategorien konfiguriert. Füge eine hinzu, um mit dem
+    Filtern zu beginnen.
+  addCategory: Kategorie hinzufügen
+  editCategory: Kategorie bearbeiten
+  categorySheetDescription: Konfiguriere eine Kategorie für Inhaltssicherheit,
+    ihren Durchsetzungsmodus und ihre Wortliste.
+  categoryEditorDescription: block schlägt mask schlägt flag, wenn mehrere
+    Kategorien dieselbe Nachricht treffen.
+  categoryLabel: Bezeichnung
+  categoryLabelPlaceholder: z. B. Hassrede
+  categoryMode: Modus
+  categoryModeDescription: Block lehnt die Nachricht ab. Mask ersetzt Treffer
+    durch den konfigurierten Platzhalter. Flag protokolliert die Erkennung,
+    lässt die Nachricht aber passieren.
+  modeBlock: Blockieren
+  modeMask: Maskieren
+  modeFlag: Markieren
+  wordsCount: Wörter ({count})
+  wordsDescription: Ein Wort oder eine Phrase pro Zeile. Groß-/Kleinschreibung
+    egal. Für CJK/Thai/Laotisch wird automatisch Teilstring-Matching
+    verwendet; andere Schriften nutzen Unicode-basierte Wortgrenzen.
+  importTxt: .txt importieren
+  exportTxt: .txt exportieren
+  columnLabel: Bezeichnung
+  columnMode: Modus
+  columnEnabled: Aktiviert
+  columnWords: Wörter
+  columnPatterns: Muster
+  enableAria: '{label} aktivieren'
+  editAria: '{label} bearbeiten'
+  deleteAria: '{label} löschen'
+  newCategoryDefault: Neue Kategorie
+  deleteConfirmTitle: Kategorie löschen?
+  deleteConfirmAction: Löschen
+  deleteConfirm:
+    Kategorie "{label}" löschen? Dies entfernt ihre {words} Wörter
+    und {patterns} Muster.
+  importReplaceConfirm:
+    '{existing} vorhandene Wörter durch {incoming} Wörter aus
+    "{filename}" ersetzen?'
+  wordsPlaceholder: |-
+    verboten
+    forbidden
+    interdit
+  saved: Inhaltssicherheit gespeichert
+  saveFailed: Speichern fehlgeschlagen
+moderationProvider:
+  title: Moderations-Anbieter
+  description:
+    Klassifiziere Chat-Nachrichten mit einer externen Moderations-API
+    (OpenAI, Azure, Perspective oder benutzerdefiniert).
+  cannotManage: Du benötigst Admin-Rechte, um den Moderations-Anbieter zu konfigurieren.
+  enabled: Aktiviert
+  enableLabel: Moderations-Anbieter aktivieren
+  applyTo: Anwenden auf
+  userInput: Nutzer-Eingabe
+  modelOutput: Modell-Ausgabe
+  failBehavior: Fehlerverhalten
+  failBehaviorDescription: Was tun, wenn der Anbieter ein Timeout hat, Fehler
+    wirft oder der Circuit Breaker offen ist. Input-Default ist fail-open
+    (Nachricht durchlassen); Output-Default ist fail-closed (Antwort
+    blockieren), da unreviewte Modell-Ausgabe höhere Haftung birgt.
+  input: Eingabe
+  output: Ausgabe
+  failOpen: Fail open (durchlassen)
+  failClosed: Fail closed (blockieren)
+  provider: Anbieter
+  providerDescription: Wähle ein integriertes Preset — URL, Header,
+    Request-Template und Response-Parser werden für dich ausgefüllt. Der
+    API-Schlüssel selbst wird unten im Abschnitt „API-Schlüssel“ eingegeben
+    (und verschlüsselt), niemals in der Policy-Config. Wähle „Custom JSONPath“
+    für jede andere HTTPS-Moderations-API, die du anbinden willst.
+  presetCustomJsonPath: Eigener JSONPath
+  presetCustomJsonPathActive: Eigener JSONPath
+  presetApplied: Preset angewendet
+  presetAppliedMappings:
+    '{count} Standard-Kategorie-Zuordnungen hinzugefügt (alle
+    im flag-Modus — unten feinjustieren).'
+  customJsonPathHint: Öffne unten „Endpoint“, trage deine HTTPS-URL, das
+    Request-Body-Template und den JSONPath für Kategorien ein. Der Schalter
+    bleibt nicht gespeichert, bis diese Felder gesetzt sind.
+  enableNeedsEndpoint:
+    Lege zuerst einen Endpoint fest. Öffne unten „Endpoint“ und
+    trage die URL der Moderations-API ein — das Aktivieren bleibt nicht
+    gespeichert, bis er konfiguriert ist.
+  apiKey: API-Schlüssel
+  apiKeyDescription:
+    Hier eingefügt, serverseitig mit AES-256-GCM verschlüsselt
+    und in `governanceSecrets` gespeichert. Der Klartextwert ersetzt
+    `{secretPlaceholder}` in deinen Endpoint-Headern zur Request-Zeit.
+    Verwende den vollständigen Header-Wert für Authorization-Header (z. B.
+    'Bearer sk-…'); den reinen Schlüssel für Azures
+    `Ocp-Apim-Subscription-Key`.
+  apiKeyPlaceholder: Bearer sk-... oder reiner API-Schlüssel
+  apiKeySaved: API-Schlüssel gespeichert
+  apiKeyLoading: Lade…
+  apiKeyNotConfigured: Nicht konfiguriert
+  replaceKey: Ersetzen
+  setKey: Schlüssel setzen
+  endpoint: Endpunkt
+  endpointDescription: HTTPS-URL, Header, Request-Template und Timeout für den externen Aufruf.
+  endpointUrlLabel: URL
+  endpointHeadersLabel: Header
+  endpointTimeoutLabel: Timeout
+  endpointUrlNotSet: Nicht gesetzt
+  endpointTimeoutValue: '{ms} ms'
+  editEndpointTitle: Endpoint bearbeiten
+  editEndpointDescription:
+    URL, Header und Request-Template werden serverseitig
+    validiert. Die Platzhalter {textPlaceholder} und {directionPlaceholder}
+    sind JSON-sicher; {secretPlaceholder} ist nur in Header-Werten erlaubt.
+  endpointUrlField: Endpoint-URL
+  endpointUrlFieldDescription:
+    Vollständige HTTPS-URL der Moderations-API (HTTP
+    ist für interne / localhost-Mocks erlaubt). Nur dieser Host wird
+    kontaktiert — Redirects zu anderen Hosts werden aus
+    SSRF-Sicherheitsgründen abgelehnt.
+  endpointUrlPlaceholder: https://api.example.com/v1/moderate
+  headersTitle: Header
+  headerNameAria: Header-Name
+  headerNamePlaceholder: Authorization
+  headerValueAria: Header-Wert
+  headerValuePlaceholder: Bearer {secretPlaceholder}
+  removeHeaderAria: Header entfernen
+  addHeader: Header hinzufügen
+  requestTemplateLabel: Request-Body-Template
+  requestTemplateDescription: JSON mit den Platzhaltern {textPlaceholder} und
+    optional {directionPlaceholder}. Substitution ist JSON-sicher; Secrets
+    sind im Body NICHT erlaubt, nur in Headern.
+  timeoutLabel: Timeout (ms)
+  parseResponseLabel: Anbieter-Antwort parsen
+  parseResponseDescription:
+    Sag uns, wie die JSON-Antwort des Anbieters aussieht,
+    damit wir die markierten Kategorien extrahieren können. Wenn du unsicher
+    bist, ruf den Anbieter einmal im Terminal (curl) auf und übertrage die
+    Antwortstruktur in die Felder unten.
+  shapeStepTitle: 1. Response-Struktur wählen
+  shapeStepDescription: Welches Format verwendet der Anbieter für seine Kategorie-Flags?
+  shapeRecordBool: Objekt aus Booleans
+  shapeRecordScore: Objekt aus Scores
+  shapeArray: Array aus Namen
+  pathStepTitle: 2. Pfad zu den Kategorien
+  pathStepRequired: '*erforderlich'
+  pathStepDescription: Wo die obige Struktur in der Antwort steht. Ein
+    Dollarzeichen ist die Wurzel; Punkte durchlaufen Objekte; Zahlen in
+    eckigen Klammern indizieren Arrays.
+  pathExampleTitle: 'Beispiel-Antwort, auf die dieser Pfad passt:'
+  pathExampleExplanation: Der Pfad wählt den hervorgehobenen Teil aus.
+  showAdvanced: Erweitert anzeigen (Gesamt-Flagged-Pfad)
+  flaggedPathLabel: Gesamt-Flagged-Pfad
+  flaggedPathOptional: (optional)
+  flaggedPathDescription: Manche Anbieter liefern zusätzlich einen einzelnen
+    Top-Level-Boolean — z. B. OpenAIs $.results[0].flagged. Wenn gesetzt,
+    verhindert `false` hier die Kategorie-Prüfung und die Nachricht passiert.
+    Leer lassen, wenn der Anbieter dieses Feld nicht hat.
+  categoryMappings: Kategorie-Zuordnungen
+  categoryMappingsDescription: Mappe Anbieter-Kategorien (z. B. OpenAIs
+    `hate/threatening`) auf eine interne Bezeichnung, einen Durchsetzungsmodus
+    und einen optionalen Score-Schwellenwert. block schlägt mask schlägt flag.
+  mappingsEmpty:
+    Keine Kategorie-Zuordnungen konfiguriert. Füge eine hinzu, um die
+    Ergebnisse dieses Anbieters durchzusetzen.
+  mappingsWarning:
+    Keine Kategorie-Zuordnungen konfiguriert. Der Anbieter wird bei
+    jeder Nachricht aufgerufen, aber nichts wird je geflaggt, maskiert oder
+    blockiert — nur zugeordnete Kategorien erzeugen Ereignisse. Füge unten
+    mindestens eine Zuordnung hinzu oder wende ein Preset erneut an, um
+    Standardwerte zu setzen.
+  mappingColumnProviderCategory: Anbieter-Kategorie
+  mappingColumnInternalLabel: Interne Bezeichnung
+  mappingColumnMode: Modus
+  mappingColumnThreshold: Schwellenwert
+  mappingColumnEnabled: Aktiviert
+  yes: Ja
+  no: Nein
+  addMapping: Kategorie-Zuordnung hinzufügen
+  editMappingAria: Zuordnung für {category} bearbeiten
+  editMappingTitle: Kategorie-Zuordnung bearbeiten
+  addMappingTitle: Kategorie-Zuordnung hinzufügen
+  deleteMappingConfirmTitle: Kategorie-Zuordnung löschen?
+  deleteMappingConfirmDescription: Diese Zuordnung gilt nicht mehr, wenn der
+    Anbieter diese Kategorie zurückgibt.
+  deleteMappingConfirmAction: Löschen
+  mappingDialogDescription: block schlägt mask schlägt flag, wenn mehrere Zuordnungen auslösen.
+  providerCategoryLabel: Anbieter-Kategorie
+  providerCategoryDescription:
+    Der exakte Kategorie-Schlüssel, den der Anbieter
+    zurückgibt (z. B. `hate`, `hate/threatening`, `violence`).
+  providerCategoryPlaceholder: hate
+  internalLabelLabel: Interne Bezeichnung
+  internalLabelDescription: Menschenlesbarer Name, angezeigt im Audit-Log und in Dashboards.
+  internalLabelPlaceholder: Hassrede
+  modeLabel: Modus
+  modeBlock: Blockieren
+  modeMask: Mask (flag-äquivalent)
+  modeFlag: Markieren
+  scoreThresholdLabel: Score-Schwellenwert
+  scoreThresholdDescription:
+    Optional. Wenn der Anbieter Scores zurückgibt, löst
+    die Zuordnung erst aus, wenn der Kategorie-Score diesen Wert erreicht oder
+    überschreitet.
+  scoreThresholdPlaceholder: '0.5'
+  testConnection: Verbindung testen
+  testConnectionDescription: Sende eine Beispielnachricht durch den echten
+    Anbieterpfad. Prüft API-Schlüssel, Endpoint-URL, Request-Template,
+    Response-Parser und Kategorie-Zuordnungen in einem Roundtrip. Es wird
+    keine Chat-Nachricht gespeichert — dieser Aufruf umgeht Thread und
+    Audit-Pipeline.
+  testPlaceholder: Gib eine Beispielnachricht ein, die durch den Anbieter geschickt wird…
+  testDefaultText: Ich will alle in diesem Gebäude umbringen
+  testing: Teste…
+  runTest: Test ausführen
+  testPass: Aufruf — keine Kategorien zutreffend
+  testFlagged: Aufruf — geflaggt
+  testBlocked: Aufruf — würde blockieren
+  testModified: Aufruf — würde maskieren
+  testNotConfigured: Nicht konfiguriert
+  testStepError: Schritt-Fehler ({errorClass})
+  testResultHttpStatus: HTTP-Status
+  testResultDuration: Dauer
+  testResultDurationValue: '{ms} ms'
+  testResultMatched: Getroffen
+  testResultMatchCount: Trefferzahl
+  testResultCircuit: Circuit
+  testResultCircuitOpened: Durch diesen Fehler geöffnet
+  saved: Moderations-Anbieter gespeichert
+  saveFailed: Speichern fehlgeschlagen
+  presetAzure: Azure Content Safety verwenden
+  presetAzureActive: Azure Content Safety
+  presetAzureNote: Ersetze die Subdomain durch den Namen deiner eigenen Azure-Ressource.
+  presetOpenai: OpenAI Moderation verwenden
+  presetOpenaiActive: OpenAI Moderation
+  presetPerspective: Perspective API verwenden
+  presetPerspectiveActive: Perspective API
+  presetPerspectiveNote: Perspective authentifiziert per URL-Query-Parameter,
+    nicht per Header. Nach dem Anwenden des Presets öffne „Endpoint“ und
+    hänge?key=DEIN_PERSPECTIVE_KEY an die URL an. (Das unten verschlüsselte
+    API-Schlüsselfeld wird von Perspective nicht verwendet.)
+groups:
+  contentAndModels: Modelle
+  policiesAndLimits: Richtlinien & Limits
+  securityAndMonitoring: Sicherheit
+  competences: Kompetenzen
+  legalHold: Legal Hold
+  trash: Papierkorb
+  guardrails: Guardrails
+  logs: Protokolle
+  dataSubjectRequests: Anfragen betroffener Personen
+competences:
+  title: Kompetenzen
+  description: Erlaube einem Mitglied eine einzelne, eng begrenzte Berechtigung ohne Admin-Rolle, oder halte eine Qualifikation fest, die deine Freigaberichtlinie verlangt. Jede Zuweisung und jeder Widerruf wird protokolliert, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
+  accessDenied: Nur Inhaber und Admins der Organisation können Kompetenzen verwalten.
+  formerMember: Ehemaliges Mitglied
+  grantedBy: von {name}
+  revokedBy: Widerrufen von {name}
+  revokedBySystem: Nach dem Ablauf durch eine neue Zuweisung ersetzt
+  columns:
+    member: Mitglied
+    competence: Kompetenz
+    status: Status
+    granted: Zugewiesen
+    evidence: Nachweis
+    actions: Aktionen
+  status:
+    active: Aktiv
+    expired: Abgelaufen
+    revoked: Widerrufen
+  statusDetail:
+    until: Bis {date}
+    noExpiry: Kein Ablauf
+  capabilities:
+    modelsApi:
+      label: Modelle über die API aufrufen
+      description: Die Modelle der Organisation mit einem persönlichen API-Schlüssel aus eigenen Werkzeugen nutzen, über die OpenAI- und Anthropic-kompatiblen Endpunkte, sobald die Modellzugriffsrichtlinie sie aktiviert. Inhaber, Admins und Entwickler können das auch ohne diese Kompetenz.
+    notificationsExport:
+      label: Benachrichtigungen exportieren
+      description: Die Benachrichtigungen, die ein anderes Mitglied sieht, über die REST-API lesen, um sie in einer anderen Anwendung zu spiegeln.
+    restActAs:
+      label: Für ein anderes Mitglied handeln
+      description: Bei einem API-Aufruf das Mitglied nennen, für das eine Frage beantwortet oder eine Prüfung entschieden wird, damit der Eintrag diese Person zeigt statt des Schlüssels.
+    skillsPublish:
+      label: Skills für die Organisation veröffentlichen
+      description: Einen Skill mit der ganzen Organisation teilen, auch wenn die Richtlinie zur Skill-Freigabe das Redakteuren oder Admins vorbehält.
+  empty:
+    title: Noch keine Kompetenzen zugewiesen
+    description: Weise einem Mitglied eine Plattform-Berechtigung oder eine Qualifikation zu. Sie gilt nur in dieser Organisation.
+  actions:
+    grant: Kompetenz zuweisen
+    revoke: Widerrufen
+    revokeFor: '{competence} für {member} widerrufen'
+  grantDialog:
+    title: Kompetenz zuweisen
+    description: Das Mitglied hat sie in dieser Organisation, bis sie abläuft oder ein Admin sie widerruft.
+    memberLabel: Mitglied
+    memberPlaceholder: Mitglied auswählen
+    memberSearch: Mitglieder suchen
+    memberEmpty: Keine Mitglieder gefunden
+    competenceLabel: Kompetenz
+    competencePlaceholder: Kompetenz auswählen
+    capabilitiesGroup: Plattform-Berechtigungen
+    qualificationsGroup: Deine Organisation
+    qualificationOption: Qualifikation
+    qualificationOptionDescription: Ein Name aus deiner Freigaberichtlinie
+    qualificationLabel: Name der Qualifikation
+    qualificationDescription: Der Name, den deine Freigaberichtlinie verwendet, zum Beispiel tax-reviewer.
+    expiryLabel: Läuft ab
+    expiryOptions:
+      never: Nie
+      30days: In 30 Tagen
+      90days: In 90 Tagen
+      1year: In 1 Jahr
+    evidenceLabel: Nachweis
+    evidenceDescription: Warum das Mitglied sie hat, etwa ein Zertifikat, ein Ticket oder das System, dem sie dient. Der Nachweis bleibt im Register.
+    submit: Zuweisen
+    validation:
+      memberRequired: Wähle ein Mitglied aus.
+      competenceRequired: Wähle eine Kompetenz aus.
+      qualificationRequired: Gib einen Namen für die Qualifikation ein.
+      qualificationTooLong: Verwende höchstens 120 Zeichen.
+      qualificationReserved: 'Namen, die mit "tale:" beginnen, sind für Plattform-Berechtigungen reserviert.'
+      evidenceTooLong: Verwende höchstens 2000 Zeichen.
+  revokeDialog:
+    title: Kompetenz widerrufen?
+    description: '{member} verliert "{competence}" in dieser Organisation sofort. Die Zuweisung bleibt als Verlauf im Register.'
+    confirm: Widerrufen
+  toasts:
+    granted: Kompetenz zugewiesen
+    revoked: Kompetenz widerrufen
+    revokeFailed: Kompetenz konnte nicht widerrufen werden
+  errors:
+    generic: Die Änderung konnte nicht gespeichert werden. Versuch es noch einmal.
+    alreadyGranted: Dieses Mitglied hat diese Kompetenz bereits. Widerrufe die bestehende Zuweisung, bevor du sie erneut zuweist.
+    notMember: Diese Person ist kein Mitglied der Organisation.
+    forbidden: Nur Inhaber und Admins der Organisation können Kompetenzen zuweisen oder widerrufen.
+    capabilityUnknown: Das ist keine Plattform-Berechtigung.
+    expiryInPast: Der Ablauf muss in der Zukunft liegen.
+    evidenceTooLong: Der Nachweis darf höchstens 2000 Zeichen haben.
+    invalid: Ein Kompetenzname hat 1 bis 120 Zeichen.
+    notFound: Diese Zuweisung gibt es nicht mehr.
+    alreadyRevoked: Diese Zuweisung wurde bereits widerrufen.
+trash:
+  title: Papierkorb
+  description:
+    Stelle durch Aufbewahrung gelöschte Datensätze wieder her, bevor
+    sie am Ende des Kulanzfensters endgültig entfernt werden.
+  accessDenied: Nur für Administratoren.
+  empty:
+    Nichts im Papierkorb. Aufbewahrung verschiebt abgelaufene Zeilen hierhin,
+    sobald deren Kulanzfenster beginnt.
+  filterTitle: Kategorie
+  column:
+    type: Typ
+    name: Name
+    owner: Eigentümer
+    status: Status
+    statusChangedAt: Verworfen
+    actions: Aktionen
+  status:
+    trashed: Verworfen
+    expired: Abgelaufen
+  tab:
+    thread: Chatverlauf
+    document: Dokumente
+    fileMetadata: Temporäre Dateien
+    promptTemplate: Prompt-Vorlagen
+    messageFeedback: Nachrichten-Feedback
+    contact: Kontakte
+    externalConversation: Externe Konversationen
+    messageMetadata: Nachrichten-Metadaten
+    workflowExecution: Automatisierungsläufe
+    workflowTriggerLog: Automatisierungs-Trigger-Logs
+    usageLedger: Nutzungsbuch
+    auditLog: Audit-Logs
+    chatFilterEvent: Chat-Filter-Ereignisse
+    chatThread: Chats
+    memoryAudit: Memory-Audit
+  restore:
+    label: Wiederherstellen
+    confirm: Wiederherstellen
+    trashedTitle: Datensatz wiederherstellen?
+    trashedDescription: Diesen Datensatz wieder aktivieren. Er kehrt in seine Quellliste zurück.
+    expiredTitle: Aufbewahrungs-abgelaufenen Datensatz wiederherstellen?
+    expiredDescription:
+      Dieser Datensatz wurde durch die Aufbewahrungsrichtlinie
+      gelöscht. Eine Wiederherstellung übersteuert diese Richtlinie und
+      aktiviert den Datensatz wieder. Auditiert.
+    expiredPhraseLabel: Tippe "restore" zum Bestätigen
+    restoredToast: Wiederhergestellt.
+    failedToast: Wiederherstellung fehlgeschlagen
+    failedDescription: Dieser Datensatz konnte nicht wiederhergestellt werden.
+  emptyTitle: Papierkorb ist leer
+  entityLabelOne: Datensatz
+  entityLabel: Datensätze
+  refreshFailed: Die neuesten Datensätze konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
+  loadFailed: Die Datensätze im Papierkorb konnten nicht geladen werden.
+legalHold:
+  targetTypes:
+    thread: Thread
+    document: Dokument
+    execution: Ausführung
+    userMembership: Benutzer
+    org: Organisation
+  filters:
+    allTargets: Alle Zieltypen
+    allStatuses: Alle Status
+    active: Aktiv
+    released: Freigegeben
+    open: Offen
+    closed: Geschlossen
+    pending: Ausstehend
+    approved: Genehmigt
+    rejected: Abgelehnt
+    effected: Wirksam
+  sections:
+    activeHolds:
+      title: Aktive Holds
+      description: Aktuell vor Bereinigung und Löschung geschützte Entitäten. Holds lassen sich auf einzelne Benutzer oder auf Organisationsebene setzen.
+      empty:
+        title: Keine aktiven Legal Holds
+        description:
+          Setze einen Custodian-Hold auf einen bestimmten Benutzer oder einen
+          organisationsweiten Hold über die Aktion oben.
+    releaseRequests:
+      title: Freigabeanträge
+      description:
+        Ausstehende Anträge müssen von einem anderen Admin genehmigt
+        werden. Genehmigte Anträge warten anschließend die Cooldown-Phase ab.
+      pendingHeader: Ausstehende Genehmigung
+      approvedHeader: Genehmigt (Cooldown läuft)
+      empty:
+        title: Keine Freigabeanträge
+        description: Eingereichte Freigabeanträge erscheinen hier zur Vier-Augen-Prüfung.
+    matters:
+      title: Fälle
+      description:
+        Holds nach Fall gruppieren. Beim Schließen eines Falls werden
+        Freigabeanträge für alle verknüpften Holds eingereicht (weiterhin mit
+        Vier-Augen-Genehmigung).
+      empty:
+        title: Keine Fälle
+        description: Lege einen Fall an, um Holds nach Aktenzeichen oder
+          eDiscovery-Umfang zu gruppieren.
+    history:
+      title: Freigabeverlauf
+      entityLabel: Freigaben
+      entityLabelOne: Freigabe
+      description:
+        Schreibgeschützte Übersicht wirksam gewordener und abgelehnter
+        Freigabeanträge.
+      empty:
+        title: Noch keine abgeschlossenen Freigabeanträge
+        description: Wirksame und abgelehnte Freigaben erscheinen hier.
+  columns:
+    type: Typ
+    target: Ziel
+    reason: Begründung
+    matter: Fall
+    placedBy: Gesetzt von
+    placedAt: Gesetzt am
+    actions: Aktionen
+    status: Status
+    name: Name
+    caseNumber: Aktenzeichen
+    linkedHolds: Verknüpfte Holds
+    createdAt: Erstellt
+    requestedBy: Antragsteller
+    requestedAt: Beantragt
+    approvedBy: Genehmigt von
+    effectiveAt: Wirksam
+    rejectReason: Ablehnungsgrund
+    legacy: (Altbestand)
+  actions:
+    placeHold: Legal Hold setzen
+    requestRelease: Freigabe beantragen
+    approve: Genehmigen
+    reject: Ablehnen
+    createMatter: Fall anlegen
+    editMatter: Bearbeiten
+    closeMatter: Fall schließen
+  dialogs:
+    placeHold:
+      title: Legal Hold setzen
+      description: Inhalte für Rechtsstreitigkeiten, Audits oder eDiscovery
+        aufbewahren. Setze einen Custodian-Hold auf einen bestimmten Benutzer
+        oder einen organisationsweiten Hold. Eine Begründung ist Pflicht und
+        wird im Audit-Log erfasst.
+      targetTypeLabel: Zieltyp
+      userPickerLabel: Benutzer
+      userPickerPlaceholder: Nach Name oder E-Mail suchen
+      userPickerEmpty: Keine passenden Benutzer.
+      userPickerFailed: Benutzer konnten nicht geladen werden.
+      orgWarning:
+        Organisationsweite Holds frieren ALLE Aufbewahrung für jede Entität
+        in diesem Tenant ein. Es handelt sich um eine bewusste, im Audit-Log
+        erfasste Aktion — prüfe den Fallkontext, bevor du fortfährst.
+      orgConfirmLabel: '{phrase} eingeben, um zu bestätigen'
+      orgConfirmDescription:
+        Pflicht für organisationsweite Holds. Der Senden-Button
+        bleibt deaktiviert, bis die Phrase exakt übereinstimmt.
+      reasonLabel: Begründung
+      reasonPlaceholder: z. B. Beweissicherungs-Hold für Acme./. Co. (Az. 2026-04)
+      matterLabel: Fall
+      matterPlaceholder: Fall auswählen oder anlegen
+      matterPickerFailed: Fälle konnten nicht geladen werden.
+      matterCreateNew: Neuen Fall anlegen…
+      submit: Hold setzen
+    requestRelease:
+      title: Freigabe beantragen
+      description:
+        Ein Freigabeantrag startet den Vier-Augen-Workflow. Ein anderer
+        Admin muss genehmigen, und die Freigabe wird erst nach dem Cooldown
+        wirksam.
+      reasonLabel: Begründung
+      submit: Antrag einreichen
+    approveRelease:
+      title: Freigabe genehmigen
+      description: Die Genehmigung dieses Antrags gibt den Hold nach dem
+        konfigurierten Cooldown frei. Dies ist die zweite von zwei
+        Admin-Unterschriften.
+      submit: Genehmigen
+      selfApproveBlocked:
+        Ein anderer Admin muss genehmigen. Selbstgenehmigung ist
+        gesperrt, sofern das Deployment nicht für Single-Admin-Modus
+        konfiguriert ist.
+    rejectRelease:
+      title: Freigabe ablehnen
+      description: Die Ablehnung schließt den Antrag, ohne den Hold freizugeben.
+      reasonLabel: Ablehnungsgrund
+      submit: Ablehnen
+    upsertMatter:
+      createTitle: Fall anlegen
+      editTitle: Fall bearbeiten
+      description: Verwandte Holds unter einem Fall gruppieren. Beim späteren
+        Schließen werden Freigabeanträge für alle verknüpften Holds
+        eingereicht.
+      nameLabel: Name
+      namePlaceholder: z. B. Acme./. Co. (2026-04)
+      caseNumberLabel: Aktenzeichen
+      descriptionLabel: Beschreibung
+      submitCreate: Fall anlegen
+      submitEdit: Speichern
+    closeMatter:
+      title: Fall schließen
+      description:
+        Beim Schließen werden Freigabeanträge für {count} aktive verknüpfte
+        Hold(s) eingereicht. Jede Freigabe benötigt weiterhin
+        Vier-Augen-Genehmigung.
+      reasonLabel: Freigabegrund
+      reasonPlaceholder: z. B. Fall geschlossen; Aufbewahrung nicht mehr erforderlich.
+      submit: Fall schließen
+  toasts:
+    placedTitle: Legal Hold gesetzt
+    placedDescription: Der {targetType} ist jetzt vor Bereinigung und Löschung geschützt.
+    releaseRequestedTitle: Freigabeantrag eingereicht
+    releaseRequestedDescription: Wartet auf Genehmigung durch einen anderen Admin.
+    releaseApprovedTitle: Freigabe genehmigt
+    releaseRejectedTitle: Freigabe abgelehnt
+    matterCreatedTitle: Fall angelegt
+    matterUpdatedTitle: Fall aktualisiert
+    matterClosedTitle: Fall geschlossen
+    matterClosedDescription: '{count} Freigabeantrag/-anträge eingereicht.'
+  countdown:
+    ready: Bereit
+    soon: Weniger als eine Minute
+    minutesSeconds: '{minutes}m {seconds}s'
+    hoursMinutes: '{hours}h {minutes}m'
+    daysHours: '{days}d {hours}h'
+  errors:
+    generic:
+      title: Etwas ist schiefgelaufen
+      description: Versuch es nochmal. Hält das Problem an, wende dich an die Administration.
+    unauthenticated: Anmeldung erforderlich.
+    forbidden: Du hast keine Berechtigung dafür.
+    validation: Prüf die Formularfelder.
+    notFound: Nicht gefunden.
+    alreadyActive: Auf dieses Ziel besteht bereits ein aktiver Legal Hold.
+    matterNotFound: Dieser Fall existiert in der Organisation nicht.
+    targetNotInOrg: Dieses Ziel gehört nicht zu dieser Organisation.
+    targetOrgMismatch: Org-weite Holds müssen das Org-Ziel selbst sein.
+    alreadyReleased: Dieser Legal Hold ist bereits freigegeben.
+    releaseAlreadyPending: Für diesen Hold ist bereits ein Freigabeantrag ausstehend.
+    releaseNotPending: Der Freigabeantrag ist nicht mehr ausstehend.
+    selfApprovalBlocked: Ein anderer Admin muss genehmigen. Setze
+      TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true, um Selbstgenehmigung in
+      Single-Admin-Deployments zu erlauben.
+    approvalTooSoon: Genehmigung möglich in {countdown}.
+    requesterNoLongerAdmin:
+      Der ursprüngliche Antragsteller ist kein Admin mehr.
+      Lehne den Antrag ab und lasse einen aktuellen Admin einen neuen
+      einreichen.
+    bulkTooLarge: Maximal 200 Einträge pro Batch.
+modelAccess:
+  title: Modellzugriff
+  description: Steuere, welche KI-Modelle für Benutzer, Teams und Rollen verfügbar sind.
+  enabled: Modellzugriffsrichtlinie aktivieren
+  mode: Modus
+  addRule: Regel hinzufügen
+  editRule: Regel bearbeiten
+  deleteRule: Regel löschen
+  removeRuleConfirmTitle: Zugriffsregel löschen?
+  removeRuleConfirmDescription: Diese Regel gilt nicht mehr für die passenden
+    Benutzer. Du kannst sie später jederzeit neu erstellen.
+  removeRuleConfirmAction: Löschen
+  noRulesTitle: Keine Zugriffsregeln konfiguriert
+  noRulesDescription: Alle Modelle sind für alle Benutzer verfügbar.
+  scope: Geltungsbereich
+  target: Ziel
+  actions: Aktionen
+  allowedModels: Erlaubte Modelle
+  blockedModels: Gesperrte Modelle
+  allUsers: Alle Benutzer
+  role: Rolle
+  user: Benutzer
+  team: Team
+  selectUser: Benutzer auswählen
+  selectTeam: Team auswählen
+  selectModels: Modelle auswählen
+  searchUsers: Benutzer suchen
+  searchTeams: Teams suchen
+  noUsersFound: Keine Benutzer gefunden
+  noTeamsFound: Keine Teams gefunden
+  confirm: Bestätigen
+  saved: Modellzugriffsrichtlinie aktualisiert
+  saveFailed: Modellzugriffsrichtlinie konnte nicht gespeichert werden
+  removeDefaultConfirmTitle: Berechtigung für aktives Standardmodell entfernen?
+  removeDefaultConfirmBody:
+    'Folgende Standardmodell-Regel(n) verwenden Modelle,
+    die nicht mehr erlaubt wären: {rules}. Betroffene Benutzer weichen auf ein
+    anderes erlaubtes Modell aus.'
+  removeDefaultConfirmAction: Trotzdem speichern
+  modelApi:
+    title: Modell-Endpunkte für API-Schlüssel
+    description: Erlaube Inhabern, Admins und Entwicklern — und Mitgliedern
+      mit der Kompetenz „Modelle über die API aufrufen“ —, die Modelle, die
+      diese Richtlinie erlaubt, mit einem persönlichen API-Schlüssel aus
+      eigenen Werkzeugen zu nutzen, über OpenAI- und Anthropic-kompatible
+      Endpunkte. Aufrufe zählen gegen die Budgets und durchlaufen die
+      Eingabe-Guardrails; die Antworten der Modelle werden nicht gefiltert.
+    enabled: Modell-Endpunkte für API-Schlüssel aktivieren
+dataSubjectRequests:
+  title: Anfragen betroffener Personen
+  entityLabel: Anfragen
+  entityLabelOne: Anfrage
+  description:
+    DSGVO Art. 17 Löschungsbelege. Neue Anfragen einreichen, Fristen
+    überwachen und Art. 12(3)-Verlängerungen gewähren, wenn komplexe Fälle
+    mehr Zeit brauchen.
+  accessDenied: Nur Administratoren.
+  filters:
+    statusTitle: Status
+  sections:
+    requestsList:
+      title: Anfragen
+      empty:
+        title: Noch keine Löschungsanfragen
+        description: Reiche oben eine Anfrage ein, um einen Art.-17-Beleg zu erfassen.
+  columns:
+    status: Status
+    sla: Frist
+    target: Person
+    reasonCode: Rechtsgrund
+    requestedBy: Eingereicht von
+    requestedAt: Eingereicht
+  status:
+    pending: Offen
+    pendingCoolingOff:
+      Offen · noch {hours, plural, one {# Std.} other {# Std.}} bis
+      zur Ausführung
+    pendingAwaitingApproval: Wartet auf Freigabe
+    running: Läuft
+    done: Abgeschlossen
+    partial: Teilweise
+    failed: Fehlgeschlagen
+    blocked: Blockiert
+    cancelled: Abgebrochen
+  slaBadge:
+    daysLeft: noch {days}T
+    daysLeftOne: noch 1T
+    overdue: Überfällig {days}T
+    terminal: —
+  reasonCodes:
+    consent_withdrawn:
+      label: Einwilligung widerrufen
+    no_longer_necessary:
+      label: Nicht mehr erforderlich
+    unlawful_processing:
+      label: Unrechtmäßige Verarbeitung
+    legal_obligation:
+      label: Rechtliche Verpflichtung
+    objection:
+      label: Widerspruch der Person
+    child:
+      label: Minderjährige Person
+    contract_termination:
+      label: Vertragsbeendigung
+  actions:
+    fileRequest: Anfrage einreichen
+    extendDeadline: Frist verlängern
+    retry: Erneut versuchen
+    cancel: Anfrage abbrechen
+  approval:
+    description: Ein anderer Admin muss diesen Antrag genehmigen, bevor die Wartezeit beginnt.
+    capturedPolicy: Die Freigabepflicht wurde bei der Einreichung festgehalten; eine spätere Änderung der Richtlinie gilt nicht für diesen Antrag.
+    approve: Antrag genehmigen
+    reject: Antrag ablehnen
+    approveDescription: Genehmige diesen Löschantrag und starte die festgelegte Wartezeit. Ohne Wartezeit kann die Löschung sofort beginnen.
+    rejectDescription: Lehne diesen Löschantrag ab. Der Antrag wird abgebrochen und es werden keine Daten gelöscht.
+    saved: Entscheidung gespeichert
+  drawer:
+    description: Beleg mit Audit-Verlauf.
+    headerTitle: Löschungsbeleg
+    subjectSection: Person und Anfrage
+    countersSection: Zähler
+    auditSection: Audit-Verlauf
+    auditEmpty: Noch keine Audit-Einträge.
+    reasonNarrative: Begründung
+    slaDeadline: Frist
+    extensionGrantedTitle: Verlängerung gewährt von {name}
+    threadsErased: Gelöschte Konversationen
+    threadsSkippedByHold: Durch Legal Hold übersprungene Konversationen
+    threadsBlockedByHold: Durch Legal Hold blockierte Konversationen
+    documentsBlockedByHold: Durch Legal Hold blockierte Dokumente
+    ragDocumentsRemoved: Aus RAG entfernte Dokumente
+    documentsErased: Gelöschte Dokumente
+    documentsSkippedByHold: Durch Legal Hold übersprungene Dokumente
+    wfExecutionsErased: Gelöschte Automatisierungsläufe
+    startedAt: Gestartet
+    completedAt: Abgeschlossen
+    errorMessage: Fehler
+    errorState:
+      title: Diese Anfrage konnte nicht geladen werden
+      description:
+        Der Beleg wurde möglicherweise gelöscht oder du hast keinen Zugriff
+        darauf.
+      retry: Erneut versuchen
+    coolingOffBanner:
+      title: Karenzzeit läuft
+      description:
+        Diese Anfrage befindet sich in einer Karenzzeit, bevor die Kaskade
+        läuft. Jeder Admin kann sie vor Ablauf abbrechen.
+    cancelledBlock:
+      title: Abgebrochen
+      attribution: Abgebrochen von {name}
+    fullBreakdownTitle: Vollständige Aufschlüsselung über alle Datenkategorien
+    fullBreakdownEntry:
+      '{rows, plural, =0 {0 gelöscht} one {# gelöscht} other {#
+      gelöscht}}{skippedByHold, plural, =0 {} other { · # durch Legal Hold
+      übersprungen}}'
+    fullBreakdownNoData:
+      Keine Daten in {count, plural, one {# weiteren Kategorie}
+      other {# weiteren Kategorien}}.
+  auditActions:
+    gdpr_erasure_requested: Eingereicht
+    gdpr_erasure_denied: Abgelehnt
+    gdpr_erasure_blocked_by_hold: Durch Legal Hold blockiert
+    gdpr_erasure_executed: Ausgeführt
+    gdpr_erasure_watchdog_failed: Zeitüberschreitung (Watchdog)
+    gdpr_erasure_late_finalize_dropped: Verspäteter Abschluss ignoriert
+    gdpr_erasure_cascade_attempts_exhausted: Kaskaden-Versuche erschöpft
+    gdpr_erasure_extended: Frist verlängert
+    gdpr_erasure_retried: Wiederholt
+    gdpr_erasure_rejected: Zurückgewiesen
+    gdpr_erasure_cancelled: Abgebrochen
+  categories:
+    userMemories: Persönliche Memos
+    userPreferences: Nutzereinstellungen
+    messageFeedback: Nachrichten-Feedback
+    fileMetadata: Im Chat hochgeladene Dateien
+    usageLedger: Token-Verbrauchsbuch
+    twoFactorAttempts: 2FA-Versuche
+    policyAcknowledgements: Richtlinien-Bestätigungen
+    onedrive: OneDrive-Sync-Konfigurationen
+    googleDriveSync: Google-Drive-Sync-Konfigurationen
+    userCloudAuthorizations: Cloud-Import-Autorisierungen
+    loginAttempts: Login-Versuche und Sperren
+    notifications: Sicherheitsbenachrichtigungen
+    wfExecutions: Automatisierungsläufe
+    promptTemplates: Persönliche Prompts
+    sandboxWorkspaces: Sandbox-Arbeitsbereiche
+  legalHoldBlock:
+    title: Löschung durch Legal Hold blockiert
+    orgHeld: Ein organisationsweiter Legal Hold bewahrt jede Entität in diesem
+      Tenant. Hebe ihn auf, bevor du es erneut versuchst.
+    userCustodianHeld:
+      Die Person steht unter einem Custodian-Legal-Hold. Hebe ihn
+      auf, bevor du es erneut versuchst.
+    generic: Ein aktiver Legal Hold bewahrt die Daten der Person.
+    released: Der Legal Hold wurde aufgehoben — wähle Erneut versuchen, um die Löschung fortzusetzen.
+    threadsCount:
+      '{count, plural, one {# bewahrte Konversation} other {# bewahrte
+      Konversationen}}.'
+    documentsCount:
+      '{count, plural, one {# bewahrtes Dokument} other {# bewahrte
+      Dokumente}}.'
+    openLegalHold: Legal-Hold-Einstellungen öffnen
+    openLegalHoldAria: Legal-Hold-Einstellungen öffnen
+  dialogs:
+    fileRequest:
+      title: Löschungsanfrage einreichen
+      description:
+        Erfasst einen Art.-17-Beleg für die ausgewählte Person und führt
+        die Kaskade asynchron aus. Die Identitätsprüfung liegt beim
+        einreichenden Admin — bestätige die Identität über euren Prozess,
+        bevor du fortfährst.
+      userPickerLabel: Person
+      userPickerPlaceholder: Nach Name oder E-Mail suchen
+      userPickerEmpty: Keine passenden Mitglieder.
+      userPickerFailed: Mitglieder konnten nicht geladen werden.
+      reasonCodeLabel: Rechtsgrund
+      reasonCodeDescription: DSGVO Art. 17(1)(a)–(f) plus operativer Vertragsbeendigungs-Grund.
+      reasonLabel: Begründung
+      reasonPlaceholder:
+        'z. B. Person hat Einwilligung am 2026-05-08 widerrufen —
+        HR-Ticket #4711'
+      confirmLabel: Tippe {phrase} zur Bestätigung
+      confirmDescription:
+        Für jede Löschungsanfrage erforderlich. Der Absende-Button
+        bleibt deaktiviert, bis der Text exakt übereinstimmt.
+      submit: Anfrage einreichen
+    extendDeadline:
+      title: Art.-12(3)-Frist verlängern
+      description:
+        Bis zu 60 Tage zum Antwortfenster hinzufügen. Die Verlängerung
+        selbst muss innerhalb des ursprünglichen Monats begründet mitgeteilt
+        werden (Art. 12(3)). Jede Anfrage kann höchstens einmal verlängert
+        werden.
+      extraDaysLabel: Zusätzliche Tage ({min}–{max})
+      extraDaysDescription: Ganze Tage zusätzlich zur ursprünglichen 30-Tage-Frist.
+      extraDaysError: Gib eine ganze Zahl zwischen {min} und {max} ein.
+      extensionReasonLabel: Verlängerungsgrund
+      extensionReasonPlaceholder:
+        z. B. grenzüberschreitende rechtliche Prüfung —
+        Anwalt bittet um zwei zusätzliche Wochen
+      submit: Verlängerung gewähren
+    retry:
+      title: Löschung erneut versuchen
+      description:
+        Führt die Kaskade für diese Anfrage erneut aus. Nutze dies nach
+        Aufhebung einer Sperre oder nach Behebung der vorherigen
+        Fehlerursache.
+      confirm: Erneut versuchen
+    cancel:
+      title: Löschungsanfrage abbrechen
+      description:
+        Bricht diese Anfrage vor der Ausführung ab. Der Beleg bleibt als
+        Nachweis des Abbruchs erhalten, es werden aber keine Daten gelöscht.
+        Ein Abbruch ist nur während der Karenzzeit möglich.
+      reasonLabel: Abbruchgrund
+      reasonPlaceholder:
+        z. B. Die Person hat ihren Antrag zurückgezogen — bestätigt
+        über HR-Ticket Nr. 4712
+      confirm: Anfrage abbrechen
+  toasts:
+    filedTitle: Löschungsanfrage eingereicht
+    filedDescription: Die Kaskade läuft. Öffne den Beleg, um den Fortschritt zu verfolgen.
+    extendedTitle: Frist verlängert
+    extendedDescription: '{days, plural, =1 {# Tag} other {# Tage}} zum
+      Antwortfenster hinzugefügt.'
+    retryTitle: Erneuter Löschversuch gestartet
+    retryDescription: Die Kaskade wurde neu eingeplant.
+    cancelledTitle: Löschungsanfrage abgebrochen
+    cancelledDescription:
+      Die Anfrage wird nicht ausgeführt. Der Beleg bleibt für
+      den Audit-Trail erhalten.
+  errors:
+    generic:
+      title: Etwas ist schiefgelaufen
+      description: Versuch es nochmal. Hält das Problem an, wende dich an die Administration.
+    unauthenticated: Anmeldung erforderlich.
+    forbidden: Du hast keine Berechtigung dafür.
+    validation: Prüf die Formularfelder.
+    notFound: Nicht gefunden.
+    alreadyPending: Für diese Person ist bereits eine Löschungsanfrage offen — ausstehend, laufend, durch einen Legal Hold blockiert oder teilweise ausgeführt. Wiederhole sie (oder storniere sie, solange sie noch aussteht), statt neu einzureichen.
+    legalHoldBlocked: Ein aktiver Legal Hold bewahrt die Daten dieser Person.
+    notRetriable: Diese Anfrage befindet sich nicht in einem wiederholbaren Zustand.
+    notExtendable: Diese Anfrage ist in einem Endzustand und kann nicht verlängert werden.
+    alreadyExtended: Diese Anfrage wurde bereits einmal verlängert. Art. 12(3)
+      erlaubt eine einzige Verlängerung.
+    deadlineLapsed:
+      Die ursprüngliche Art.-12(3)-Frist ist bereits abgelaufen; eine
+      rückwirkende Verlängerung ist nicht möglich.
+    reasonTooShort: Gib eine Begründung mit mindestens 10 Zeichen an.
+    notCancellable: Nur offene Anfragen innerhalb der Karenzzeit können abgebrochen werden.
+    cannotCancelAfterCooldown: Die Karenzzeit ist abgelaufen; der Prozessor wurde bereits gestartet.
+    rateLimited:
+      Du hast das tägliche Limit für Löschungsanfragen erreicht. Versuche
+      es später erneut.
+    dualApprovalRequired:
+      'Doppelfreigabe erforderlich: Die einreichende Person kann
+      ihre eigene Anfrage nicht freigeben.'
+dsarPolicy:
+  title: Governance für Anfragen betroffener Personen
+  description: Karenzzeit, Doppelfreigabe und tägliches Limit pro Admin für
+    DSGVO-Art.-17-Löschungsanfragen.
+  coolingOffHours:
+    label: Karenzzeit (Stunden)
+    description:
+      'Stunden zwischen Einreichung und tatsächlicher Ausführung der
+      Kaskade. Jeder Admin kann innerhalb dieses Fensters abbrechen. 0 =
+      sofortige Ausführung. Bereich: 0–72.'
+  requireDualApproval:
+    label: Doppelfreigabe erforderlich
+    description:
+      Wenn aktiviert, muss jede eingereichte Anfrage von einem zweiten
+      Admin freigegeben werden (die einreichende Person kann nicht selbst
+      freigeben), bevor die Karenzzeit beginnt. Empfohlen für sensible
+      Deployments mit zwei oder mehr Admins.
+  dailyLimitPerAdmin:
+    label: Tägliches Limit pro Admin
+    description:
+      'Maximale Anzahl an Löschungsanfragen, die ein einzelner Admin pro
+      Tag einreichen darf. Begrenzt den Schaden bei kompromittierten
+      Admin-Zugängen. Bereich: 1–50.'
+  saved: Governance für Anfragen betroffener Personen aktualisiert.
+  saveFailed: Governance-Richtlinie konnte nicht gespeichert werden. Versuch es nochmal.
+  invalidCoolingOffHours: Die Karenzzeit muss eine ganze Zahl zwischen 0 und 72 sein.
+  invalidDailyLimit: Das tägliche Limit muss eine ganze Zahl zwischen 1 und 50 sein.
+  ownerOnlyNotice:
+    Nur der Owner kann diese Richtlinie ändern. Admins können sie
+    lesen. Jede Lockerung der Schutzmaßnahmen (kürzere Karenzzeit,
+    Deaktivieren der Doppelfreigabe, Anheben des täglichen Limits) wird 24
+    Stunden lang gestaffelt, damit jeder Admin sie zurücksetzen kann.
+  loosenProposedTitle: Änderung vorgemerkt — 24-Stunden-Prüffenster gestartet
+  loosenProposedDescription: Lockernde Änderungen werden erst nach einem
+    24-Stunden-Karenzfenster wirksam. Jeder Admin kann sie vorher abbrechen.
+  loosenCancelledTitle: Vorgemerkte Änderung abgebrochen.
+  pendingFieldLocked: Während des Prüffensters gesperrt
+  pendingBanner:
+    title: Vorgemerkte Richtlinien-Lockerung
+    description:
+      Vorgeschlagen von {name}. Jeder Admin kann sie vor Wirksamwerden
+      abbrechen.
+    cancel: Vorgemerkte Änderung abbrechen
+errors:
+  saveForbidden: Sie haben keine Berechtigung, diese Einstellung zu ändern.
+conversationRouting:
+  title: Konversations-Routing
+  description: 'Leite neue Konversationen anhand ihres Eingangs an ein Team oder eine Person weiter: über ein Postfach, die Adresse, an die sie gesendet wurden, oder eine API-App. Die Regeln greifen automatisch, sobald eine Konversation eingeht.'
+  addRule: Regel hinzufügen
+  editRule: Regel bearbeiten
+  deleteRule: Regel löschen
+  sentTo: Gesendet an
+  addressPlaceholder: rechnung@deinefirma.de
+  invalidAddress: Gib eine gültige E-Mail-Adresse ein
+  assignedTo: Zugewiesen an
+  actions: Aktionen
+  noRulesTitle: Keine Routing-Regeln
+  noRulesDescription: 'Füge eine Regel hinzu, um neue Konversationen anhand des Postfachs, der API-App oder der Zieladresse automatisch zuzuweisen.'
+  removeRuleConfirmTitle: Routing-Regel entfernen?
+  removeRuleConfirmDescription: 'Neue Konversationen, auf die diese Regel zutrifft, werden nicht mehr automatisch zugewiesen.'
+  removeRuleConfirmAction: Entfernen
+  confirm: Regel speichern
+  saved: Routing-Regeln aktualisiert
+  saveFailed: Routing-Regeln konnten nicht gespeichert werden
+  routeTo: Zuweisen an
+  routeToPlaceholder: Team oder Person auswählen
+  peopleSection: Personen
+  teamsSection: Teams
+  searchAssignees: Personen und Teams suchen
+  noAssignees: Keine Personen oder Teams gefunden
+  removePerson: Person entfernen
+  removeTeam: Team entfernen
+  handoffAddRuleDescription: 'Neue Konversationen wie diese werden automatisch zugewiesen. Die Regeln liegen hier unter Konversations-Routing — du erreichst diese Seite jederzeit über Einstellungen.'
+  backToConversation: Zurück zur Konversation
+  arrivesOn: Eingang über
+  anyMailbox: Beliebiges Postfach
+  mailboxesSection: Postfächer
+  apiSection: API-Apps
+  apiSource: 'API: {source}'
+  sentToHint: 'Pflicht bei „Beliebiges Postfach“, optional für ein bestimmtes Postfach. Eine Regel für support@ erfasst auch support+rechnung@; eine Regel für die Adresse mit Zusatz hat Vorrang.'
+  anyAddress: Beliebige Adresse
+  removedMailbox: Entferntes Postfach
+  duplicateRule: Für dieses Postfach und diese Adresse gibt es bereits eine Regel
+  precedence: 'Die genaueste Regel gewinnt: zuerst ein Postfach mit genau dieser Adresse, dann ein Postfach mit der Grundadresse, dann eine Adresse in beliebigem Postfach, zuletzt ein Postfach allein.'
+standardAgent:
+  title: Standard-Agent
+  description: Der Agent, den Tale in jedem Projekt ohne eigene Agenten bereitstellt. So kann jeder, der das Projekt öffnen kann, ihm eine Aufgabe übergeben, auch Mitglieder.
+  enabledLabel: Standard-Agenten bereitstellen
+  harnessLabel: Agent-Laufzeit
+  harnessHint: Automatisch nutzt Claude Code oder die Agent-Laufzeit, an die ein Abo-Modell gebunden ist.
+  modelLabel: Modell
+  modelHint: Automatisch wählt ein empfohlenes Modell, das die Person nutzen darf, die die Aufgabe startet. Ein gewähltes Modell bleibt in Kraft, bis du es änderst, auch wenn es nicht mehr verfügbar ist.
+  automaticLabel: Automatisch
+  automaticHarnessHint: Tale wählt die Agent-Laufzeit.
+  automaticModelHint: Tale wählt für jede Person ein Modell.
+  instructionsLabel: Anweisungen
+  instructionsHint: Was der Standard-Agent immer beachten soll. Lass das Feld leer, um die eingebauten Anweisungen zu nutzen.
+  instructionsPlaceholder: Eingebaute Anweisungen
+  current: Für dich läuft er mit {harness} und {model}.
+  refusal:
+    switchedOff: Der Standard-Agent ist ausgeschaltet.
+    unreadable: Die gespeicherten Einstellungen können nicht gelesen werden. Versuche es erneut oder speichere sie noch einmal, um sie zu reparieren.
+    harnessInvalid: Die gewählte Agent-Laufzeit ist nicht verfügbar, deshalb kann der Standard-Agent nicht starten. Wähle eine andere Agent-Laufzeit oder Automatisch.
+    noModel: Kein Modell, das du nutzen darfst, kann den Standard-Agenten ausführen. Füge unter KI-Anbieter einen Zugang hinzu oder prüfe den Modellzugriff.
+    pinUnavailable: Das gewählte Modell steht dir nicht zur Verfügung, deshalb kann der Standard-Agent für dich nicht starten. Wähle ein anderes Modell oder Automatisch. Solange diese Auswahl gespeichert ist, wechselt Tale nicht zu einem anderen Modell.
+  invalidPolicy: Die gespeicherten Einstellungen des Standard-Agenten sind ungültig. Speichere sie noch einmal, um sie zu reparieren.
+  savedUnavailable: Gespeicherte Auswahl ist derzeit nicht verfügbar
+  searchHarnesses: Agent-Laufzeiten durchsuchen
+  noHarnessesFound: Keine passende Agent-Laufzeit
+  searchModels: Modelle durchsuchen
+  noModelsFound: Kein passendes Modell
+  draftHint: Speichere, um diese Einstellungen anzuwenden.
+  saveFailed: Die Einstellungen des Standard-Agenten konnten nicht gespeichert werden
+  loadFailed: Die Einstellungen des Standard-Agenten konnten nicht geladen werden. Versuche es erneut.
+  remoteUpdate: Diese Einstellungen wurden in einer anderen Sitzung geändert. Verwirf deinen Entwurf, um sie zu laden, oder speichere, um sie zu ersetzen.
+  offNote: Solange das ausgeschaltet ist, bieten Projekte ohne eigene Agenten keinen Agenten an, und Aufgaben, die schon einem Standard-Agenten gehören, können nicht starten.
+  providersLink: KI-Anbieter
+  retry: Erneut versuchen

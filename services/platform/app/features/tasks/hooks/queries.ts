@@ -57,6 +57,8 @@ function sameBoardRows<T>(scope: readonly unknown[]) {
 const NO_IDS: readonly string[] = [];
 const NO_EDGES: readonly never[] = [];
 const NO_REVIEWS: readonly never[] = [];
+const NO_ACTIVITY: never[] = [];
+const NO_RUNS: never[] = [];
 
 interface BoardReadOptions {
   includeArchived?: boolean;
@@ -312,7 +314,7 @@ export function useTaskActivity(taskId: string | undefined) {
     'tasks/queries:listTaskActivity',
     taskId && organizationId ? { taskId, organizationId } : 'skip',
   );
-  return { activity: data ?? [], isLoading };
+  return { activity: data ?? NO_ACTIVITY, isLoading };
 }
 
 export function useTaskOpsIndicators(projectId: string | undefined) {
@@ -358,7 +360,7 @@ export function useTaskAgentRuns(taskId: string | undefined) {
     'tasks/queries:listTaskAgentRuns',
     taskId && organizationId ? { taskId, organizationId } : 'skip',
   );
-  return { runs: data ?? [], isLoading };
+  return { runs: data ?? NO_RUNS, isLoading };
 }
 
 /**

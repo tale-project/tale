@@ -68,6 +68,7 @@ describe('forbiddenPackagesIn', () => {
         '../../../../node_modules/yaml/browser/index.js',
         '../../../../node_modules/cron-parser/dist/index.js',
         '../../../../node_modules/@tanstack/table-core/build/lib/index.mjs',
+        '../../../../node_modules/dompurify/dist/purify.es.mjs',
       ]),
     ).toEqual([
       'recharts',
@@ -78,6 +79,7 @@ describe('forbiddenPackagesIn', () => {
       'yaml',
       'cron-parser',
       '@tanstack/table-core',
+      'dompurify',
     ]);
   });
 
@@ -96,24 +98,38 @@ describe('forbiddenSourcesIn', () => {
   const root = '/srv/platform';
   const mapDir = '/srv/platform/dist/assets';
 
-  it("names the service's German and French catalogs a chunk carries", () => {
+  it("names the service's German, French and Swiss topic files a chunk carries", () => {
     expect(
       forbiddenSourcesIn(
         [
-          '../../messages/en.yml',
-          '../../messages/de.yml',
-          '../../messages/fr.yml',
+          '../../messages/en/chat.yml',
+          '../../messages/de/chat.yml',
+          '../../messages/fr/settings.yml',
+          '../../messages/de-CH/chat.yml',
         ],
         mapDir,
         root,
       ),
-    ).toEqual(['messages/de.yml', 'messages/fr.yml']);
+    ).toEqual(['messages/de/', 'messages/fr/', 'messages/de-CH/']);
   });
 
-  it("passes a package's catalog of the same name", () => {
+  it('names the large English topics the first pages do not read', () => {
     expect(
       forbiddenSourcesIn(
-        ['../../../../packages/ui/src/i18n/messages/de.yml'],
+        ['../../messages/en/settings.yml', '../../messages/en/governance.yml'],
+        mapDir,
+        root,
+      ),
+    ).toEqual(['messages/en/settings.yml', 'messages/en/governance.yml']);
+  });
+
+  it("passes the English the first pages read and a package's catalog of the same name", () => {
+    expect(
+      forbiddenSourcesIn(
+        [
+          '../../../../packages/ui/src/i18n/messages/de.yml',
+          '../../messages/en/chat.yml',
+        ],
         mapDir,
         root,
       ),

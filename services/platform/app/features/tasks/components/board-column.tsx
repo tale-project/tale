@@ -118,18 +118,15 @@ export const BoardColumn = memo(function BoardColumn({
         )}
       >
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-          {windowed ? (
-            <WindowedTaskRows
-              tasks={tasks}
-              scrollElement={laneElement}
-              estimateSize={CARD_HEIGHT_ESTIMATE}
-              gap={CARD_GAP}
-              activeId={activeId}
-              renderTask={renderCard}
-            />
-          ) : (
-            tasks.map(renderCard)
-          )}
+          <WindowedTaskRows
+            tasks={tasks}
+            windowed={windowed}
+            scrollElement={laneElement}
+            estimateSize={CARD_HEIGHT_ESTIMATE}
+            gap={CARD_GAP}
+            activeId={activeId}
+            renderTask={renderCard}
+          />
         </SortableContext>
         {tasks.length === 0 && (
           <Row

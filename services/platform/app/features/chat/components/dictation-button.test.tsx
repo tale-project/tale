@@ -7,7 +7,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
 // The component's `useT` is mocked to a fixed EN map so the assertions stay
-// independent of the catalog loader; values mirror `messages/en.yml`.
+// independent of the catalog loader; values mirror `messages/en/`.
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => {

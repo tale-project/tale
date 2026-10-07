@@ -37,8 +37,9 @@ not exempt SSO accounts holds them like everyone else.
 ### TFA-R4 · The grace period starts at a person's first sign-in and is never restarted
 
 Someone without a second factor gets the policy's number of days, counted from their first
-sign-in under the requirement. Later sign-ins do not start it again, and neither does a policy
-that is made more generous afterwards. A policy that is made shorter applies at once.
+sign-in under the requirement. Later sign-ins do not start it again. Changes to the policy length recompute the deadline
+from that same first sign-in, so a longer policy extends it and a shorter policy applies at
+once. Legacy rows without a first-sign-in timestamp keep their stored deadline.
 
 - **Example**: The policy gives 7 days. Mia first signs in on Monday → she has until the next
   Monday. An admin then cuts the period to 2 days → she has until Wednesday.

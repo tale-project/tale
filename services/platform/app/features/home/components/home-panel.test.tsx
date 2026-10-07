@@ -347,6 +347,50 @@ describe('HomeNavigator', () => {
     expect(new Set(ageReads.current)).toEqual(new Set([TODAY, TODAY - 1000]));
   });
 
+  it('updates a live row without re-rendering unchanged rows in the same places', () => {
+    const initial = data();
+    homeData.current = initial;
+    const view = render(<HomeNavigator organizationId="org-1" />);
+    const task = within(stream()).getByRole('link', {
+      name: /Review the launch checklist/,
+    });
+    const conversation = within(stream()).getByRole('link', {
+      name: /Invoice shows the wrong VAT rate/,
+    });
+    const taskPosition = task.closest('li')?.getAttribute('aria-posinset');
+    const conversationPosition = conversation
+      .closest('li')
+      ?.getAttribute('aria-posinset');
+    expect(taskPosition).toBe('2');
+    expect(conversationPosition).toBe('3');
+    ageReads.current = [];
+
+    homeData.current = {
+      ...initial,
+      items: initial.items.map((item) =>
+        item.kind === 'chat'
+          ? Object.assign({}, item, { title: 'Quarterly report updated live' })
+          : item,
+      ),
+    };
+    view.rerender(<HomeNavigator organizationId="org-1" />);
+
+    expect(
+      within(stream()).getByRole('link', {
+        name: /Quarterly report updated live/,
+        current: 'page',
+      }),
+    ).toBeInTheDocument();
+    expect(task.isConnected).toBe(true);
+    expect(conversation.isConnected).toBe(true);
+    expect(task.closest('li')).toHaveAttribute('aria-posinset', taskPosition);
+    expect(conversation.closest('li')).toHaveAttribute(
+      'aria-posinset',
+      conversationPosition,
+    );
+    expect(new Set(ageReads.current)).toEqual(new Set([TODAY]));
+  });
+
   it('narrows the stream to one kind from the switcher, and remembers it', async () => {
     const { user, unmount } = render(<HomeNavigator organizationId="org-1" />);
 
@@ -468,13 +512,19 @@ describe('HomeNavigator', () => {
         ['task', 'k1', 'Review the launch checklist'],
       ] as const
     ).flatMap(([kind, id, title]) =>
-      ['<Button />', '<tag>', 'ordinary unsent note', '', '   '].map(
-        (text) => [kind, id, title, text] as const,
-      ),
+      (
+        [
+          ['component', '<Button />'],
+          ['tag', '<tag>'],
+          ['plain text', 'ordinary unsent note'],
+          ['empty', ''],
+          ['whitespace', '   '],
+        ] as const
+      ).map(([label, text]) => ({ kind, id, title, label, text })),
     ),
   )(
-    'keeps literal %s drafts discoverable after leaving, reopening and remounting (%s, %s, %j)',
-    (kind, id, title, text) => {
+    'keeps literal $kind $label drafts discoverable after leaving, reopening and remounting',
+    ({ kind, id, title, text }) => {
       const pathname =
         '/dashboard/org-1/' + (kind === 'chat' ? 'chat' : 'tasks') + '/' + id;
       const key = homeDraftKey({ kind, id }, 'u1', 'org-1');
@@ -545,6 +595,28 @@ describe('HomeNavigator', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<HomeNavigator organizationId="org-1" />);
+    const list = stream();
+    const headings = within(list).getAllByRole('heading', { level: 3 });
+    expect(headings).toHaveLength(2);
+    for (const heading of headings) {
+      const wrapper = heading.closest('li');
+      expect(wrapper).toHaveRole('listitem');
+    }
+    const items = within(list).getAllByRole('listitem');
+    expect(items).toHaveLength(5);
+    const rows = items.filter((item) =>
+      item.querySelector('[data-indicator-key]'),
+    );
+    expect(rows).toHaveLength(3);
+    rows.forEach((item, index) => {
+      expect(item).toHaveAttribute('aria-posinset', String(index + 1));
+      expect(item).toHaveAttribute('aria-setsize', '3');
+    });
+    const firstRow = within(list)
+      .getByRole('link', { name: /Quarterly report/ })
+      .closest('li');
+    expect(firstRow).toHaveAttribute('aria-posinset', '1');
+    expect(firstRow).toHaveAttribute('aria-setsize', '3');
     await checkAccessibility(container);
   });
 });

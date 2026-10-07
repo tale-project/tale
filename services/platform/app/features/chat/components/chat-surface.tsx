@@ -551,7 +551,7 @@ function ChatSurfaceInner({
   // 0.3 doctrine: header and sidebar never drift) — shared handlers, plus
   // the same one-bulk-read hold gating for the destructive tail.
   const { t: tCommon } = useT('common');
-  const { t: tGovernance } = useT('governance');
+  const { t: tLegalHold } = useT('legalHold');
   const projectsQuery = useChatProjects(organizationId);
   const headerProjects =
     projectsQuery.status === 'ready' ? projectsQuery.data : [];
@@ -585,7 +585,7 @@ function ChatSurfaceInner({
           [
             {
               type: 'label' as const,
-              content: tGovernance('legalHold.badges.blockedByHold'),
+              content: tLegalHold('blockedByHold'),
             },
           ],
         ]

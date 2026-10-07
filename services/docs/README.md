@@ -11,7 +11,8 @@ bun install --frozen-lockfile
 bun run --filter @tale/docs dev
 ```
 
-Open `http://localhost:3002`. Content edits reload the preview so the current page body is loaded again. This command builds the search index before starting Vite. You do not need the platform, a database, or an AI provider to preview existing pages.
+Open `http://localhost:3002`. The root and locale roots (`/de`, `/fr`) render the first guide
+in `docs/nav.json` directly, with its canonical deep URL and the shared docs frame. Content edits reload the preview so the current page body is loaded again. This command builds the search index before starting Vite. You do not need the platform, a database, or an AI provider to preview existing pages.
 
 After changing page titles or descriptions, rebuild the search index so search and navigation use the updated metadata:
 
@@ -38,23 +39,19 @@ Keep English, German, and French pages in sync. Swiss German message overrides a
 
 ## The page layout
 
-The locale roots (`/`, `/de`, `/fr`) are discovery pages built with `@tale/marketing-ui`: a
-search-led introduction, linked task progression, entry paths, tutorials, and reference guides.
-Their card copy comes from the target pages’ localized frontmatter; `docs/{en,de,fr}/index.md`
-keeps the same routes available in search and Markdown exports. Import `landing.css`, not the
-full marketing `globals.css`: only the homepage’s `.marketing-surface` changes canonical
-foreground, border, and accent tokens.
+The locale roots (`/`, `/de`, `/fr`) render the first guide in `docs/nav.json`
+directly, inside the same documentation frame as the deep guide URL. That URL
+owns the canonical metadata and sitemap entry.
 
-On an article, the reader follows a navigation rail, breadcrumb header, article, and section outline. The frame
+The reader follows a navigation rail, breadcrumb header, article, and section outline. The frame
 is the shared `@tale/ui/docs/*` family, which the [design-system guide](../ui-docs/README.md)
 renders too, so a change to it lands on both sites. It uses the app design language; the site
 supports light and dark themes. This workspace feeds the frame its content:
 
 | Part | Responsibility |
 | --- | --- |
-| `app/routes/__root.tsx` | Keep locale, theme, and offline handling around both shells; mount `DocsLayout` for articles. |
-| `app/pages/home-page.tsx` | Render the discovery homepage with shared marketing components and the same docs search dialog. |
-| `lib/content/use-docs-search-config.ts` | Share locale-aware indexes, result breadcrumbs, and search history between the two shells. |
+| `app/routes/__root.tsx` | Mount `DocsLayout` once for every page with locale, theme and offline handling. |
+| `lib/content/use-docs-search-config.ts` | Provide locale-aware indexes, result breadcrumbs and search history to the shared frame. |
 | `lib/content/nav-sections.ts` | Resolve `docs/nav.json` into translated rail sections, neighboring pages, and search-result ancestors. |
 | `app/pages/docs-page.tsx` | Render `DocsHeader` with breadcrumbs and page actions, then `DocsArticle` with the single `h1`, body, outline, neighbors, and edit link. |
 | `app/pages/not-found-page.tsx` | Rank the closest pages for `DocsNotFound`. |
@@ -70,7 +67,8 @@ Recovery files carry SHA-256 integrity, so mixed-release bytes fail installation
 and a later update check retries while the current worker remains active.
 
 Change the shared parts in [`packages/ui/src/components/docs/`](../../packages/ui/src/components/docs/)
-and check both sites. Read the [design contract](../../design/docs/README.md) and verify keyboard
+and check both sites. The copyright and licence footnote comes from
+`@tale/ui/use-site-copyright`, also used by the marketing site. Read the [design contract](../../design/docs/README.md) and verify keyboard
 access, the single article `h1`, hidden duplicate navigation, both themes, and narrow-width
 wrapping. From `md` up, the header strip and the rail’s logo row end on one line whether or not
 the strip holds actions; `bun run --filter @tale/ui test:browser` measures it in Chromium.

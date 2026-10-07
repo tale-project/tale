@@ -286,6 +286,7 @@ export function HomeNavigator({
       const row = adjacentRow(event, root);
       if (row === null) return;
       event.preventDefault();
+      row.scrollIntoView({ block: 'nearest' });
       row.click();
     };
     window.addEventListener('keydown', onKeyDown);
@@ -581,16 +582,6 @@ export function HomeNavigator({
   const [streamElement, setStreamElement] = useState<HTMLDivElement | null>(
     null,
   );
-  const activeKey =
-    location.kind === 'chat'
-      ? // A fresh chat's draft row is the open item too.
-        (location.threadId ?? DRAFT_ROW_KEY)
-      : location.kind === 'task'
-        ? location.taskId
-        : location.kind === 'conversation'
-          ? location.conversationId
-          : undefined;
-  // The row the stream's highlight rests on, in the rows' own keys.
   const highlightKey =
     location.kind === 'chat'
       ? location.threadId !== undefined
@@ -607,22 +598,6 @@ export function HomeNavigator({
     location.kind === 'chat' &&
     location.threadId === undefined &&
     viewIncludes(view, 'chat');
-  // Once per open item and view: the row may arrive after the first render
-  // (the inbox answers after the chats), so each change to the stream looks
-  // again until it is found — but a row already revealed is left where the
-  // user scrolled it.
-  const revealedRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (activeKey === undefined) return;
-    const target = `${view}:${activeKey}`;
-    if (revealedRef.current === target) return;
-    const row = streamRef.current?.querySelector<HTMLElement>(
-      '[aria-current="page"]',
-    );
-    if (row === null || row === undefined) return;
-    revealedRef.current = target;
-    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [activeKey, view, streamLoading, groups, draftingChat]);
 
   const streamLayout = useMemo(
     () =>

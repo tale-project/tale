@@ -276,6 +276,16 @@ describe('a long board lane (real Chromium)', () => {
     );
     const first = screen.getByRole('button', { name: 'Lane task 0' });
     expect(laneTitles().length).toBeLessThan(WINDOWED_LANE_MIN_CARDS);
+    const trigger = first
+      .closest('[data-index]')
+      ?.querySelector<HTMLButtonElement>('button[aria-label="Priority"]');
+    if (trigger === null || trigger === undefined)
+      throw new Error('The retained card has no priority picker');
+    await page.elementLocator(trigger).click();
+    await expect.element(page.getByRole('listbox')).toBeVisible();
+    const picker = screen.getByRole('listbox');
+    const input = screen.getByRole('combobox', { name: 'Priority' });
+    await page.elementLocator(input).fill('Urgent');
 
     view.rerender(
       <div className="h-[600px] w-full">
@@ -288,6 +298,9 @@ describe('a long board lane (real Chromium)', () => {
     // Still windowed: the same card nodes, nothing remounted.
     expect(first.isConnected).toBe(true);
     expect(laneTitles().length).toBeLessThan(WINDOWED_LANE_MIN_CARDS);
+    expect(screen.getByRole('listbox')).toBe(picker);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('Urgent');
 
     view.rerender(
       <div className="h-[600px] w-full">
@@ -298,5 +311,11 @@ describe('a long board lane (real Chromium)', () => {
       </div>,
     );
     expect(laneTitles()).toHaveLength(UNWINDOWED_LANE_MAX_CARDS - 1);
+    // The lower threshold switches back to native flow without replacing
+    // the retained card or its open, portaled picker.
+    expect(first.isConnected).toBe(true);
+    expect(screen.getByRole('listbox')).toBe(picker);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('Urgent');
   });
 });

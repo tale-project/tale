@@ -5,7 +5,8 @@ import { render } from '@/tests/utils/render';
 
 import { initServiceI18n } from '../../i18n/init-service';
 import { uiMessages } from '../../i18n/messages';
-import { Mermaid, sanitizeMermaidSvg } from './mermaid';
+import { Mermaid } from './mermaid';
+import { sanitizeMermaidSvg } from './mermaid-sanitize';
 
 beforeAll(() => {
   initServiceI18n({

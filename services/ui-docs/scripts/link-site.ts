@@ -20,6 +20,7 @@ import {
   type SitePage,
 } from '@tale/ui/docs/links';
 
+import { firstNavSlug } from '../lib/content/nav';
 import { uiDocsNearMissIndex } from '../lib/near-miss';
 import { guidePath, resolveRedirect } from '../lib/redirects';
 
@@ -87,7 +88,12 @@ export function answerUiDocsPath(pathname: string): AddressAnswer {
   if (ARTIFACTS.has(pathname) || PUBLIC_FILES.has(pathname)) {
     return { kind: 'file' };
   }
-  if (pathname === '/') return { kind: 'page' };
+  if (pathname === '/') {
+    const file = GUIDES.get(firstNavSlug());
+    return file
+      ? { kind: 'page', anchors: () => anchorsOf(file) }
+      : { kind: 'missing' };
+  }
   const markdown = pathname.endsWith('.md');
   const trimmed = pathname.replace(/\.md$/, '').replace(/\/+$/, '');
   const slug = trimmed.startsWith('/docs/')

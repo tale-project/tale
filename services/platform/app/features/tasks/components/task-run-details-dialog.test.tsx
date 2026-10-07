@@ -1,12 +1,23 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AbilityContext } from '@/app/context/ability-context';
 import { defineAbilityFor } from '@/lib/permissions/ability';
 import { render, screen } from '@/tests/utils/render';
 
 import { TaskRunDetailsDialog } from './task-run-details-dialog';
+
+const reads = vi.hoisted(() => ({
+  run: vi.fn(),
+  automation: vi.fn(),
+  runData: {
+    _id: 'run-1',
+    version: 7,
+    status: 'succeeded',
+    trace: [],
+  } as unknown,
+}));
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -30,11 +41,21 @@ vi.mock('@tale/ui/i18n/client', () => ({
 }));
 
 vi.mock('@/app/features/automations/hooks/queries', () => ({
-  useAutomationRun: () => ({
-    data: { _id: 'run-1', status: 'succeeded', trace: [] },
-  }),
-  useAutomation: () => ({ data: undefined }),
+  useAutomationRun: (...args: unknown[]) => {
+    reads.run(...args);
+    return { data: reads.runData };
+  },
+  useAutomation: (...args: unknown[]) => {
+    reads.automation(...args);
+    return { data: undefined };
+  },
 }));
+
+beforeEach(() => {
+  reads.run.mockClear();
+  reads.automation.mockClear();
+  reads.runData = { _id: 'run-1', version: 7, status: 'succeeded', trace: [] };
+});
 
 vi.mock('@/app/features/automations/components/run-step-timeline', () => ({
   RunStepTimeline: () => <ol aria-label="steps" />,
@@ -54,7 +75,7 @@ type Role = keyof typeof abilities;
 // The dialog is the quick look any project member gets; the full run page it
 // links to is an automation page, which only Owners, Admins and Developers
 // may use.
-function renderDialog(role: Role) {
+function renderDialog(role: Role, open = true) {
   return render(
     <AbilityContext.Provider value={abilities[role]}>
       <TaskRunDetailsDialog
@@ -64,7 +85,7 @@ function renderDialog(role: Role) {
         runId="run-1"
         name="Mail sync"
         live={false}
-        open
+        open={open}
         onOpenChange={() => {}}
       />
     </AbilityContext.Provider>,
@@ -72,6 +93,29 @@ function renderDialog(role: Role) {
 }
 
 describe('TaskRunDetailsDialog', () => {
+  it('creates no run or automation reads while closed', () => {
+    renderDialog('developer', false);
+    expect(reads.run).not.toHaveBeenCalled();
+    expect(reads.automation).not.toHaveBeenCalled();
+  });
+
+  it('waits for the run before reading the version it actually executed', () => {
+    reads.runData = undefined;
+    const { unmount } = renderDialog('developer');
+    expect(reads.run).toHaveBeenCalledWith('org-1', 'run-1');
+    expect(reads.automation).not.toHaveBeenCalled();
+    unmount();
+
+    reads.runData = {
+      _id: 'run-1',
+      version: 7,
+      status: 'succeeded',
+      trace: [],
+    };
+    renderDialog('developer');
+    expect(reads.automation).toHaveBeenCalledWith('org-1', 'mail-sync', 7);
+  });
+
   it('links a developer to the full run page', () => {
     renderDialog('developer');
 

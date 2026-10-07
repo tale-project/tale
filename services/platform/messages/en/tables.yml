@@ -1,0 +1,29 @@
+headers:
+  name: Name
+  status: Status
+  source: Source
+  updated: Updated
+  modified: Modified
+  member: Member
+  role: Role
+  joined: Joined
+  document: Document
+  size: Size
+  ragStatus: RAG status
+  locale: Locale
+  interval: Interval
+  teams: Teams
+  uploadedBy: Uploaded by
+  actions: Actions
+  created: Added
+  email: Email
+  product: Product
+  scanned: Scanned
+  stock: Stock
+  price: Price
+  category: Category
+  website: Website
+cells:
+  unknown: Unknown
+  empty: '-'
+  noEmail: No email

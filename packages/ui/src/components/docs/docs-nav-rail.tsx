@@ -2,9 +2,9 @@
 
 import { TaleLogo } from '@tale/ui/logo';
 import { SubPanel } from '@tale/ui/sub-panel';
-import { Link } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 
+import { DocsAncestorLink } from './docs-ancestor-link';
 import type { DocsNavGroup } from './docs-nav';
 import { DocsNavTree } from './docs-nav-tree';
 import { DocsSearchTrigger } from './docs-search-trigger';
@@ -67,16 +67,16 @@ export function DocsNavRail({
       className="bg-muted/20 sticky top-0 h-dvh print:hidden"
     >
       <div className="border-border/70 flex h-13 shrink-0 items-center border-b px-5">
-        <Link
+        <DocsAncestorLink
           to={homeHref}
-          // Exact: a locale home (`/de`) prefixes every page under it, and an
-          // active router link claims `aria-current="page"` by itself.
+          // Only the navigation row identifies the current guide. The logo
+          // may lead to that same guide without becoming another current row.
           activeOptions={{ exact: true }}
           aria-label={homeLabel}
           className="text-foreground focus-visible:ring-ring inline-flex items-center rounded-sm focus-visible:ring-2 focus-visible:outline-none"
         >
           <TaleLogo />
-        </Link>
+        </DocsAncestorLink>
       </div>
       <div className="shrink-0 px-4 pt-5">
         <DocsSearchTrigger onClick={onOpenSearch} />

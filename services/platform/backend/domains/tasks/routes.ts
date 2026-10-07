@@ -490,6 +490,12 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const statuses = c.req.query('statuses');
     return {
       includeArchived: c.req.query('includeArchived') === 'true',
+      // Additive read projection: older callers still receive full rows.
+      ...(c.req.query('summary') === 'true'
+        ? { summary: true }
+        : c.req.query('summary') === 'false'
+          ? { summary: false }
+          : {}),
       ...(c.req.query('status') !== undefined
         ? { status: c.req.query('status') }
         : {}),

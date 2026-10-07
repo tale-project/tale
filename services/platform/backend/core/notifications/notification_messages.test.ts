@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import deMessages from '../../../messages/de.yml';
-import enMessages from '../../../messages/en.yml';
-import frMessages from '../../../messages/fr.yml';
+import {
+  deMessages,
+  enMessages,
+  frMessages,
+} from '../../../tests/utils/messages';
 import {
   ACTIONABLE_INBOX_KEYS,
   INBOX_I18N,

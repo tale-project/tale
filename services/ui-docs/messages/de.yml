@@ -3,13 +3,7 @@ seo:
   ogImageAlt: Tale-Logo
 nav:
   homeAriaLabel: Startseite des Tale Design-Systems
-  skipToMain: Zum Hauptinhalt springen
   sidebarAriaLabel: Dokumentation des Design-Systems
-  openMenu: Navigationsmenü öffnen
-  closeMenu: Navigationsmenü schließen
-  docs: Doku
-  components: Komponenten
-  github: GitHub
   groups:
     gettingStarted: Erste Schritte
     foundations: Grundlagen
@@ -25,65 +19,3 @@ demo:
   missingTitle: Unbekanntes Beispiel
   missingBody: Unter „{name}“ ist kein Beispiel registriert. Leg
     app/demos/{name}.tsx an und verlinke es aus einer Seite.
-home:
-  heroEyebrow: Tale UI · Designsystem
-  heroTitle: React-Komponenten. Eine gemeinsame Sprache.
-  heroDescription: Baue Apps und Websites mit den MIT-lizenzierten React-Komponenten von Tale. Probiere die Bedienelemente aus und stelle deine Oberfläche mit den Anleitungen zusammen.
-  heroPrimary: Loslegen
-  heroSecondary: Komponenten ansehen
-  heroMeta: "{count, plural, one {# Anleitung} other {# Anleitungen}} · Zwei Pakete · MIT-lizenziert"
-  showcaseTitle: Komponentenstudio
-  showcaseLive: Interaktive Vorschau
-  showcaseDescription: Probiere das Namensfeld und den Schalter aus. Änderungen bleiben auf dieser Seite.
-  showcaseMarketingDescription: Im Marketing-Leitfaden findest du Seitenabschnitte, Navigation und Produktdemos.
-  showcasePackagesLabel: Vorschau der Komponentenpakete
-  showcaseAppTab: App-UI
-  showcaseMarketingTab: Marketing-UI
-  showcaseNameLabel: Arbeitsbereichsname
-  showcaseNameValue: Nordwind Studio
-  showcaseNamePlaceholder: Dein Arbeitsbereich
-  showcaseDigestLabel: Wöchentliche Zusammenfassung
-  showcaseDigestDescription: Ein Überblick für dein Team am Montag.
-  showcaseDigestOn: Zusammenfassung an
-  showcaseDigestOff: Zusammenfassung aus
-  showcaseReset: Vorschau zurücksetzen
-  showcaseSiteName: Nordwind
-  showcaseSiteEyebrow: Für deine nächste Idee
-  showcaseSiteTitle: Etwas Raum. Viele Möglichkeiten.
-  showcaseSiteDescription: Gib deinem Produkt ein Zuhause mit gemeinsamer Typografie, Themes und Seitenabschnitten.
-  showcaseSiteAction: Bausteine ansehen
-  packagesTitle: Zwei Pakete. Ein Designsystem.
-  packagesDescription: Gemeinsame Tokens, Themes und Interaktionsmuster. Nutze eines oder beide Pakete in deinem eigenen Repository – ohne Tale-Backend.
-  appPackageTitle: Anwendungsoberflächen
-  appPackageDescription: Formulare, Tabellen, Dialoge und Navigation für die Arbeit in deiner Anwendung.
-  appPackageLink: Anwendungskomponenten ansehen
-  appPackageSpecimen: Bereit
-  marketingPackageTitle: Öffentliche Websites
-  marketingPackageDescription: Seitennavigation, Seitenabschnitte, Handlungsaufforderungen und Produktillustrationen. Baut auf @tale/ui auf.
-  marketingPackageLink: Marketing-Komponenten ansehen
-  marketingPackageSpecimen: Gib deinen Ideen Raum.
-  marketingPackageSpecimenAction: Loslegen
-  sectionsTitle: Finde deinen nächsten Baustein.
-  sectionsDescription: Von der ersten Installation bis zu den Details einer fertigen Oberfläche. Jeder Abschnitt enthält funktionierende Beispiele oder praktische Anleitungen.
-  sectionsGettingStarted: Installation, Themes und Übersetzungen.
-  sectionsFoundations: Farbe, Typografie, Abstände, Icons und Barrierefreiheit.
-  sectionsComponents: Props, Zustände und interaktive Komponentenbeispiele.
-  sectionsPatterns: Übersichts- und Einstellungsseiten zusammensetzen.
-  sectionsMarketingUi: Seitennavigation, Seitenabschnitte und Produktdemos.
-  guideCount: "{count, plural, one {# Anleitung} other {# Anleitungen}}"
-  installTitle: Für dein eigenes Projekt.
-  installDescription: Installiere TypeScript-Quellcode von GitHub. Starte mit einem Snapshot-Branch; fixiere für reproduzierbare Builds ein Release-Tag und committe deine Lockdatei.
-  installPackagesLabel: Zu installierendes Paket
-  installCodeLabel: Terminal · Bun
-  installAppCopyLabel: Installationsbefehl für das Anwendungspaket
-  installMarketingCopyLabel: Installationsbefehl für das Marketing-Paket
-  installSetupNote: Konfiguriere danach Vite, importiere das Stylesheet und füge AppShell hinzu. Die Installationsanleitung beschreibt die vollständige Einrichtung.
-  installDocsLink: Installationsanleitung lesen
-  closingTitle: Open Source. Für deine Ideen.
-  closingDescription: Lies den Quellcode, passe die Komponenten an und verbinde deine eigenen Daten.
-  closingPrimary: Das Designsystem kennenlernen
-footer:
-  copyrightLine1: © {year} Tale by Ruler GmbH
-  copyrightLine2: Tale ist MIT-lizenziert — frei nutzbar, anpassbar und verteilbar.
-  llmsTxt: llms.txt
-  github: GitHub

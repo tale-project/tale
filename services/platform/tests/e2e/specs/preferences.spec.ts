@@ -1,7 +1,5 @@
-import { readFileSync } from 'node:fs';
-
 import { type Page } from '@playwright/test';
-import { parse as parseYaml } from 'yaml';
+import { createI18n } from '@tale/e2e/i18n';
 
 import { TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
@@ -30,31 +28,13 @@ type StoredTheme = 'system' | 'light' | 'dark';
 const ENDONYM_GERMAN = 'Deutsch';
 const ENDONYM_ENGLISH = 'English';
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
 /**
  * Read a dot-path key from the GERMAN catalog. Justified for a locale test:
- * after switching to German the visible UI no longer matches `messages/en.yml`
+ * after switching to German the visible UI no longer matches `messages/en/`
  * (which the shared `t()` reads), so we need the German label to assert the
- * switch took. Mirrors `helpers/i18n.ts`, scoped to this spec.
+ * switch took. The resolver `helpers/i18n.ts` builds, scoped to this spec.
  */
-function de(key: string): string {
-  const messagesUrl = new URL('../../../messages/de.yml', import.meta.url);
-  const parsed: unknown = parseYaml(readFileSync(messagesUrl, 'utf8'));
-  let node: unknown = parsed;
-  for (const part of key.split('.')) {
-    if (!isRecord(node)) {
-      throw new Error(`Missing de.yml key: ${key} (failed at "${part}")`);
-    }
-    node = node[part];
-  }
-  if (typeof node !== 'string') {
-    throw new Error(`de.json key is not a string: ${key}`);
-  }
-  return node;
-}
+const { t: de } = createI18n(new URL('../../../messages/de/', import.meta.url));
 
 function chatUrl(organizationId: string): string {
   return `/dashboard/${organizationId}/chat`;

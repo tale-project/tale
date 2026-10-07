@@ -7,9 +7,9 @@
  * cross-locale parity checks cannot see it.
  */
 
-import fs from 'node:fs';
 import path from 'node:path';
 
+import { catalogPath, readCatalog } from '../internals/catalog';
 import type { Finding } from './types';
 import { createCheck } from './types';
 
@@ -21,9 +21,10 @@ export const icuBraceBalance = createCheck({
     if (!ctx.messagesDir) return [];
     const findings: Finding[] = [];
     for (const locale of ctx.locales) {
-      const localeFile = path.join(ctx.messagesDir, `${locale.id}.json`);
-      if (!fs.existsSync(localeFile)) continue;
-      const messages = flatten(JSON.parse(fs.readFileSync(localeFile, 'utf8')));
+      const catalog = readCatalog(ctx.messagesDir, locale.id);
+      if (catalog === undefined) continue;
+      const localeFile = catalogPath(ctx.messagesDir, locale.id);
+      const messages = flatten(catalog);
       for (const [key, value] of messages) {
         const depth = braceDepth(value);
         if (depth === 0) continue;

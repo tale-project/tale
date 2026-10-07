@@ -1,0 +1,101 @@
+title: Produkte
+entityLabelOne: Produkt
+searchPlaceholder: Produkte suchen
+addButton: Produkt hinzufügen
+importMenu:
+  fromDevice: Von deinem Gerät
+  manualEntry: Manuelle Eingabe
+noValidData: Keine gültigen Produktdaten gefunden
+noneImported: Es wurden keine Produkte importiert
+edit:
+  title: Produkt bearbeiten
+  description: Produktinformationen aktualisieren.
+  namePlaceholder: Produktname eingeben
+  descriptionPlaceholder: Produktbeschreibung eingeben
+  categoryPlaceholder: Elektronik, Kleidung usw.
+  pricePlaceholder: '0.00'
+  stockPlaceholder: '0'
+  imageUrlPlaceholder: https://example.com/image.jpg
+  uploadImage: Bild hochladen
+  removeImage: Bild entfernen
+  pasteUrl: Oder URL einfügen
+  imageTooLarge: Bild ist zu groß (max. 5 MB).
+  imageUploadFailed: Bild-Upload fehlgeschlagen. Versuch es nochmal.
+  imageActiveContent: Diese SVG-Datei enthält Skripte oder Event-Handler und kann nicht verwendet werden. Lade ein normales Bild oder eine SVG-Datei ohne solche Inhalte hoch.
+  imageUnsupported: Diese Datei ist kein unterstütztes Bild. Verwende PNG, JPEG, WebP, GIF oder SVG.
+  currencyPlaceholder: USD
+  validation:
+    currency: Gib einen dreistelligen ISO-4217-Währungscode ein (zum Beispiel EUR oder CHF)
+    imageUrl: Gib eine Bild-URL ein, die mit https:// oder http:// beginnt
+    priceNumber: Gib eine Zahl als Preis ein
+    priceNonNegative: Der Preis muss 0 oder mehr sein
+    priceTooLarge: Der Preis ist zu hoch
+    stockNumber: Gib eine Zahl als Bestand ein
+    stockNonNegative: Der Bestand muss 0 oder mehr sein
+    stockTooLarge: Der Bestand ist zu hoch
+    stockInteger: Der Bestand muss eine ganze Zahl sein
+  labels:
+    name: Produktname
+    description: Beschreibung
+    imageUrl: Bild-URL
+    image: Bild
+    price: Preis
+    currency: Währung
+    stock: Bestand
+    category: Kategorie
+    status: Status
+  toast:
+    success: Produkt aktualisiert
+    error: Produkt konnte nicht aktualisiert werden
+    duplicateName: Ein Produkt mit diesem Namen existiert bereits
+create:
+  title: Produkt hinzufügen
+  labels:
+    status: Status
+  toast:
+    success: Produkt erstellt
+    error: Produkt konnte nicht erstellt werden
+    duplicateName: Ein Produkt mit diesem Namen existiert bereits
+createWizard:
+  steps:
+    basics: Grundlagen
+    pricing: Preis & Bestand
+    review: Überprüfen
+  basicsHint: Beginne mit Name, Beschreibung und Bild.
+  pricingHint: Füge Preis, Bestand und Kategorie hinzu.
+  reviewHint: Überprüfe die Angaben und erstelle dann das Produkt.
+import:
+  uploadProducts: Produkte hochladen
+  uploadFile: Lade eine Datei hoch
+  success: Import
+  successDescription:
+    '{success} Produkte importiert{failed, select, 0 {} other {,
+    {failed} fehlgeschlagen}}'
+  error: Produkte konnten nicht importiert werden
+  clickToUpload: Klicken zum Hochladen
+  supportedFormats: .xlsx,.xls oder.csv
+  expectedColumns:
+    'Erwartete Spalten: name, description, imageUrl, stock, price,
+    currency, category, status'
+  draftStatusNote: Importierte Produkte werden standardmässig mit dem Status
+    "Entwurf" erstellt.
+  errorCodes:
+    unknown: Ein unerwarteter Fehler ist aufgetreten
+actions:
+  deleteFailed: Produkt konnte nicht gelöscht werden
+delete:
+  title: Produkt löschen
+  confirmation: '{name} löschen?'
+  thisProduct: dieses Produkt
+  warning: Alle zugehörigen Beziehungen und Daten werden dauerhaft entfernt.
+view:
+  title: Produktdetails
+  labels:
+    price: Preis
+    stock: Bestand
+    category: Kategorie
+    lastUpdated: Zuletzt aktualisiert
+    tags: Tags
+    fullDescription: Vollständige Beschreibung
+    source: Quelle
+    productId: Produkt-ID

@@ -1,0 +1,31 @@
+providers:
+  title: Verbinde deinen ersten AI-Anbieter
+  description: Füge einen API-Schlüssel hinzu, und dein Team kann sofort mit den zugehörigen Modellen chatten.
+connectors:
+  title: Noch keine Connectors verbunden
+  description: Verbinde ein Postfach, ein Repository oder einen Chat-Workspace, um es in Automationen und im Chat zu nutzen.
+contacts:
+  title: Noch keine Kontakte
+  description: Füge Kontakte hinzu, um ihnen aus dem Posteingang eine E-Mail zu schicken.
+products:
+  title: Noch keine Produkte
+  description: Füge Produkte hinzu, damit Agents mit deinem Katalog antworten können.
+websites:
+  title: Noch keine Websites
+  description: Füge Websites hinzu, die Agents in Antworten zitieren können.
+knowledgeEntries:
+  title: Noch keine Wissenseinträge
+  description: Speichere Fakten aus dem Chat oder füge Einträge hinzu, die Agents nutzen können.
+skills:
+  title: Noch keine Skills
+  description: Schreib einen Skill einmal und rüste dann Projekt-Agenten oder Agent-Knoten in Automatisierungen damit aus.
+members:
+  title: Keine Mitglieder gefunden
+  description: Lade Personen ein, in diesem Workspace zusammenzuarbeiten.
+teams:
+  title: Noch keine Teams
+  description: Fasse Mitglieder in Teams zusammen, um den Zugriff auf Agents und Skills zu steuern.
+apiKeys:
+  title: Noch keine API-Schlüssel
+  description: Erstelle einen Schlüssel, um externe Tools und Skripte zu verbinden.
+  descriptionNoCreate: Einen Schlüssel erstellen können Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.

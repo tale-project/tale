@@ -4,3 +4,6 @@ storybook-static
 *.tsbuildinfo
 .env
 .env.local
+# Vitest browser failure captures, not snapshot baselines.
+__screenshots__/
+.vitest-attachments/

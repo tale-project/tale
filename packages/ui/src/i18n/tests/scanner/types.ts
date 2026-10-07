@@ -38,6 +38,8 @@ export interface JsonSource {
   readonly kind: 'json';
   readonly path: string;
   readonly locale: string;
+  /** The namespace a topic file's keys sit under (`<locale>/<topic>.yml`). */
+  readonly keyPrefix?: string;
 }
 
 export interface MarkdownSource {

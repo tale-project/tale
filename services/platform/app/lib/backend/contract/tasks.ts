@@ -76,6 +76,13 @@ export interface TaskPendingReviewIndicator {
   reviewer?: TaskReviewRecipient | null;
 }
 
+/** The board and Home only read task metadata. Full descriptions and files
+ * are loaded by the task detail read before its editor mounts. */
+export type TaskBoardSummary = Omit<
+  NonNullable<TasksContract['tasks/queries:getTask']['returns']>['task'],
+  'description' | 'attachments' | 'outputs' | 'externalIssue'
+>;
+
 export interface TasksContract {
   'tasks/queries:getExternalStatus': {
     kind: 'query';
@@ -848,78 +855,7 @@ export interface TasksContract {
       projectId: string;
     };
     returns: {
-      tasks: Array<
-        {
-          number?: number;
-          attachments?: Array<{
-            fileId: string;
-            fileName: string;
-            fileType: string;
-            fileSize: number;
-          }>;
-          status:
-            | 'cancelled'
-            | 'done'
-            | 'in_review'
-            | 'backlog'
-            | 'todo'
-            | 'in_progress';
-          rank: string;
-          organizationId: string;
-          projectId: string;
-          createdBy: string;
-          createdAt: number;
-          _creationTime: number;
-          updatedAt: number;
-          claimedAt?: number;
-          statusChangedAt?: number;
-          title: string;
-          threadId?: string;
-          priority?: 'p0' | 'p1' | 'p2' | 'p3';
-          dueDate?: number;
-          description?: string;
-          completedAt?: number;
-          externalId?: string;
-          reviewerUserId?: string;
-          reviewerAgentId?: string;
-          archivedAt?: number;
-          createdByType: 'user' | 'agent' | 'app';
-          outputs?: Array<{
-            runId: string;
-            fileId: string;
-            fileName: string;
-            fileType: string;
-            fileSize: number;
-            producedAt: number;
-          }>;
-          labelIds?: string[];
-          assigneeType?: 'user' | 'agent' | 'app';
-          assigneeId?: string;
-          parentTaskId?: string;
-          commentCount?: number;
-          externalSystem?: string;
-          externalUrl?: string;
-          externalIssue?: TaskExternalIssue;
-          startDate?: number;
-          startNotifiedAt?: number;
-          repeat?: TaskRepeat;
-          repeatNextTaskId?: string;
-          repeatContinued?: boolean;
-          slaLevel?: number;
-          slaLevelAt?: number;
-          agentRunsPausedAt?: number;
-          agentRunsPausedReason?: string;
-          totalCostCents?: number;
-          agentRunCount?: number;
-          lastAgentRunAt?: number;
-          discussionThreadId?: string;
-          sourceDiscussionThreadId?: string;
-          _id: string;
-        } & { labels?: Array<{ id?: string; name: string; color: string }> } & {
-          folderExists: boolean;
-          hasFiles: boolean;
-        }
-      >;
+      tasks: TaskBoardSummary[];
       truncated: boolean;
       /** An editor of the (active) project: may work every task on it. */
       canEdit: boolean;
@@ -949,79 +885,7 @@ export interface TasksContract {
       organizationId: string;
     };
     returns: {
-      tasks: Array<
-        {
-          number?: number;
-          attachments?: Array<{
-            fileId: string;
-            fileName: string;
-            fileType: string;
-            fileSize: number;
-          }>;
-          status:
-            | 'cancelled'
-            | 'done'
-            | 'in_review'
-            | 'backlog'
-            | 'todo'
-            | 'in_progress';
-          rank: string;
-          organizationId: string;
-          projectId: string;
-          createdBy: string;
-          createdAt: number;
-          _creationTime: number;
-          updatedAt: number;
-          claimedAt?: number;
-          statusChangedAt?: number;
-          title: string;
-          threadId?: string;
-          priority?: 'p0' | 'p1' | 'p2' | 'p3';
-          dueDate?: number;
-          description?: string;
-          completedAt?: number;
-          externalId?: string;
-          reviewerUserId?: string;
-          reviewerAgentId?: string;
-          archivedAt?: number;
-          createdByType: 'user' | 'agent' | 'app';
-          outputs?: Array<{
-            runId: string;
-            fileId: string;
-            fileName: string;
-            fileType: string;
-            fileSize: number;
-            producedAt: number;
-          }>;
-          labelIds?: string[];
-          assigneeType?: 'user' | 'agent' | 'app';
-          assigneeId?: string;
-          parentTaskId?: string;
-          commentCount?: number;
-          externalSystem?: string;
-          externalUrl?: string;
-          externalIssue?: TaskExternalIssue;
-          startDate?: number;
-          startNotifiedAt?: number;
-          repeat?: TaskRepeat;
-          repeatNextTaskId?: string;
-          repeatContinued?: boolean;
-          slaLevel?: number;
-          slaLevelAt?: number;
-          agentRunsPausedAt?: number;
-          agentRunsPausedReason?: string;
-          totalCostCents?: number;
-          agentRunCount?: number;
-          lastAgentRunAt?: number;
-          discussionThreadId?: string;
-          sourceDiscussionThreadId?: string;
-          _id: string;
-        } & { labels?: Array<{ id?: string; name: string; color: string }> } & {
-          projectKey?: string;
-          folderExists: boolean;
-          hasFiles: boolean;
-        }
-      >;
+      tasks: Array<TaskBoardSummary & { projectKey?: string }>;
       truncated: boolean;
       /** Role-level: an editor role works every task on the board. */
       canEdit: boolean;

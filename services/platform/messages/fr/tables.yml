@@ -1,0 +1,29 @@
+headers:
+  name: Nom
+  status: Statut
+  source: Source
+  updated: Mis à jour
+  modified: Modifié
+  member: Membre
+  role: Rôle
+  joined: Inscrit
+  document: Document
+  size: Taille
+  ragStatus: Statut RAG
+  locale: Langue
+  interval: Intervalle
+  teams: Équipes
+  uploadedBy: Téléversé par
+  actions: Actions
+  created: Ajouté
+  email: Courriel
+  product: Produit
+  scanned: Analysé
+  stock: Stock
+  price: Prix
+  category: Catégorie
+  website: Site web
+cells:
+  unknown: Inconnu
+  empty: '-'
+  noEmail: Aucun email

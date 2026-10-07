@@ -10,9 +10,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 - `services/` — deployable units: `platform` (the flagship app: Vite + React 19 + TanStack Router +
   the Postgres backend), `web` (marketing site), `docs` (docs site at docs.tale.dev), `ui-docs`
-  (the design-system docs site at [ui.tale.dev](https://ui.tale.dev), port 3003: a
-  marketing-language front page on `@tale/marketing-ui`, app-language `/docs/*` pages with live
-  `<Demo>` examples), plus `db`, `proxy`, and the `sandbox*` family. `docs` and `ui-docs` render
+  (the design-system docs site at [ui.tale.dev](https://ui.tale.dev), port 3003:
+  app-language documentation at `/` and `/docs/*` with live `<Demo>` examples), plus `db`,
+  `proxy`, and the `sandbox*` family. `docs` and `ui-docs` render
   one documentation frame, `@tale/ui/docs/*` (rail, header strip, article, outline, footer, 404,
   search); a site feeds it content and never forks a piece of it.
 - `packages/` — `ui` (the design system: every reusable platform component, hook and UI util —
@@ -83,7 +83,14 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   [`write-translations`](skills/write-translations/SKILL.md) skill. A key present in one catalog
   and missing in another full catalog is a defect, not a follow-up. Shared controls own their keys
   in `packages/ui`; marketing frames own theirs in `packages/marketing-ui`. Service catalogs
-  override package keys per leaf. The product docs ship EN/DE/FR; `services/ui-docs/content` is
+  override package keys per leaf. The platform keeps one file per topic and locale
+  (`services/platform/messages/<locale>/<topic>.yml`, a topic being one top-level namespace), and
+  every locale has the same topic files — `de-CH` only the ones it overrides; the i18n parity
+  tests enforce both. Every locale also loads per topic: English ships with the modules that name
+  a topic (the `messageTopics` plugin in `services/platform/vite.config.ts`), and the other
+  locales are fetched as the session's pages need them. So name a namespace literally where it is
+  read (`useT('tasks')`, `{ ns: 'tasks' }`); `lib/i18n/topic-references.test.ts` refuses a
+  computed one. The product docs ship EN/DE/FR; `services/ui-docs/content` is
   an English-only guide with complete EN/DE/FR chrome catalogs.
 - **A failure shows its words, never its payload** — a toast or an Alert reads what a call threw
   through `failureDetail` (`services/platform/app/lib/backend/adapters.ts`: a refusal's own words,
@@ -608,11 +615,14 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   refusing every delivery reads as never called (2026-09, round i). The reference says so.
   Paying it down means a `delivery_refused` skip reason stamped from the webhook door beside
   `start_refused`.
-- **A page is fetched three to four times a scan** — the plain probe, the render pass and, for
-  the homepage, a create-time metadata probe. The robots parser now honours group selection by
-  product token (`User-agent: TaleBot` > `*`), `Allow` with longest-match precedence, `$`
-  end-anchors and `Crawl-delay` (`lib/knowledge/crawl-parse.ts`, 2026-09 round J); paying down the
-  remaining fetch count means one fetch per page per scan.
+- **A changed page is fetched twice a scan** — the plain probe and the render pass — and the
+  homepage once more at create, for its metadata. A page that did not change is asked for once
+  and not rendered (2026-10: the probe's validators and the text of its plain HTML decide,
+  `core/knowledge/crawl_action.ts`); a page built by its JavaScript is still rendered on every
+  scan. The robots parser honours group selection by product token (`User-agent: TaleBot` >
+  `*`), `Allow` with longest-match precedence, `$` end-anchors and `Crawl-delay`
+  (`lib/knowledge/crawl-parse.ts`, 2026-09 round J). Paying down the rest means one fetch per
+  changed page: a server-rendered page read from the probe's own bytes, without the browser.
 - **A cancelled run answers `trace: null` and `effects: null`** where a failed run answers both,
   so what a cancel did not undo is readable only through `checkpoints` (2026-09, round i).
   Paying it down means keeping the partial trace the way the failed path does.

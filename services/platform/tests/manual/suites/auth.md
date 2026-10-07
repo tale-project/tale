@@ -131,7 +131,7 @@ compute codes from the enrollment secret.
   `/dashboard/{org}/settings/organization` → **Add member**
   (`settings.organization.addMember`) opens the **Add member** dialog
   (`dialogs.addMember.title`); fill name/email/role=**Member**
-  (`settings.roles.member`)/password → submit → **New member created and added
+  (`roles.member`)/password → submit → **New member created and added
   to organization** toast (`toast.success.newMemberCreated`); signing in as
   that member, the **Add member** button is NOT visible (admin-gated)
 - [ ] `AUTH-F15` · **SSO error surfaced** — Signed out, open
@@ -153,8 +153,8 @@ compute codes from the enrollment secret.
 - [ ] `AUTH-F17` · **Org-switch interstitial** — With ≥2 orgs: user-button
   dropdown → pick the other organization → The switch stages through
   `/dashboard/switching?to={targetOrgId}` showing a centered spinner labelled
-  **Switching organization…** (`settings.organization.switchingLabel` /
-  `settings.organization.switchingTo`), then lands on the target org's
+  **Switching organization…** (`navigation.orgSwitcher.switchingLabel` /
+  `navigation.orgSwitcher.switchingTo`), then lands on the target org's
   dashboard — the URL's org id changes and the org name in the user button
   matches the target. No flash of the old org's content after landing.
 

@@ -23,26 +23,26 @@ interface LegalHoldBadgeProps {
 }
 
 export function LegalHoldBadge({ hold }: LegalHoldBadgeProps) {
-  const { t } = useT('governance');
+  const { t } = useT('legalHold');
   if (!hold) return null;
 
   if (hold.hasApprovedRelease) {
     return (
       <Badge variant="green" icon={Lock} aria-live="polite">
-        {t('legalHold.badges.releaseApproved')}
+        {t('releaseApproved')}
       </Badge>
     );
   }
   if (hold.hasPendingRelease) {
     return (
       <Badge variant="yellow" icon={Lock} aria-live="polite">
-        {t('legalHold.badges.releasePending')}
+        {t('releasePending')}
       </Badge>
     );
   }
   return (
     <Badge variant="orange" icon={Lock}>
-      {t('legalHold.badges.held')}
+      {t('held')}
     </Badge>
   );
 }

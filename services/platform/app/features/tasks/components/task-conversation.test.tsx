@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import { useSyncExternalStore } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TaskActivityRow } from '../utils/task-timeline';
@@ -19,10 +20,23 @@ const data: {
   activity: TaskActivityRow[];
 } = { comments: [], hasEarlier: false, activity: [] };
 
+const discussionListeners = new Set<() => void>();
+
+function subscribeDiscussion(listener: () => void) {
+  discussionListeners.add(listener);
+  return () => {
+    discussionListeners.delete(listener);
+  };
+}
+
+function getDiscussionSnapshot() {
+  return data.comments;
+}
+
 vi.mock('../hooks/queries', () => ({
   // The discussion arrives newest first, like the backend's page walk.
   useTaskDiscussion: () => ({
-    comments: data.comments,
+    comments: useSyncExternalStore(subscribeDiscussion, getDiscussionSnapshot),
     hasEarlier: data.hasEarlier,
     isLoadingEarlier: false,
     loadEarlier: vi.fn(),
@@ -154,30 +168,24 @@ describe('TaskConversation', () => {
       },
     ];
     data.activity = [];
-    const { rerender } = renderConversation();
+    renderConversation();
     expect(screen.getByText('Already here').closest('li')).not.toHaveClass(
       'animate-in',
     );
 
-    data.comments = [
-      {
-        messageId: 'm2',
-        authorType: 'user',
-        authorId: 'u1',
-        body: 'Just posted',
-        createdAt: NOON - 1000,
-      },
-      ...data.comments,
-    ];
-    rerender(
-      <TaskConversation
-        taskId="task-1"
-        organizationId="org-1"
-        projectId="project-1"
-        canComment
-        currentUserId="u1"
-      />,
-    );
+    act(() => {
+      data.comments = [
+        {
+          messageId: 'm2',
+          authorType: 'user',
+          authorId: 'u1',
+          body: 'Just posted',
+          createdAt: NOON - 1000,
+        },
+        ...data.comments,
+      ];
+      for (const listener of discussionListeners) listener();
+    });
     expect(screen.getByText('Just posted').closest('li')).toHaveClass(
       'animate-in',
     );

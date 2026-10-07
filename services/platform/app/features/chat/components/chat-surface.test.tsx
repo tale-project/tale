@@ -413,6 +413,8 @@ describe('ChatSurface while the chat backend is unavailable', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
+    // An async audit is not a DOM polling assertion: waitFor's 1s clock can
+    // abort it while axe is still running. Await the audit within the test budget.
     await checkAccessibility(container);
   });
 });

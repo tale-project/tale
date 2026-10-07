@@ -1,0 +1,116 @@
+import:
+  rowErrorsTitle: '{count, plural, one {# row was not imported} other {# rows were not imported}}'
+  rowError: 'Row {row}: {message}'
+  moreRows: '…and {count} more'
+  tooManyRows: This file has {count} rows to import, and Tale imports at most {max} at a time. Split it into smaller files and import each one.
+  unpairedQuotes: 'The quotes in this row don''t pair up. Close each quoted cell, and write a quote inside one as two quotes ("").'
+  fields:
+    name: Name
+    price: Price
+    stock: Stock
+    currency: Currency
+    status: Status
+    email: Email
+  reasons:
+    blank: '{field} must not be blank'
+    notNumber: '{field} must be a number'
+    negative: '{field} must be 0 or more'
+    tooLarge: '{field} is too large'
+    notInteger: '{field} must be a whole number'
+    notCurrency: '{field} must be a three-letter ISO 4217 currency code'
+    notOneOf: '{field} must be one of {options}'
+or: or
+units:
+  stock: '{count, plural, one {# unit} other {# units}}'
+actions:
+  saving: Saving...
+  edit: Edit
+  adding: Adding...
+  create: Create
+  close: Close
+  back: Back
+  next: Next
+  skip: Skip
+  completeStepToContinue: Complete this step to continue
+  loading: Loading...
+  done: Done
+  view: View
+  viewSource: View source
+  showInfo: Show info
+  import: Import
+  importing: Importing...
+upload:
+  clickToUpload: Upload
+  supportedFormats: .xlsx, .xls or .csv
+labels:
+  phone: Phone
+  source: Source
+  locale: Locale
+  address: Address
+  tags: Tags
+  notes: Notes
+  created: Created
+  notAvailable: N/A
+status:
+  active: Active
+  inactive: Inactive
+  pending: Pending
+  running: Running
+  completed: Completed
+  failed: Failed
+  waitingForInput: Waiting for input
+  pausedDebug: Paused (debug)
+  draft: Draft
+  enabled: Enabled
+  disabled: Disabled
+  archived: Archived
+stepProgress: 'Step {current} of {total}: {label}'
+validation:
+  required: '{field} is required'
+  maxLength: '{field} must be {max} characters or fewer'
+  email: Enter a valid email address
+  emailLocalPart: Use at most {max} characters before the @
+  phone: Enter a phone number using digits and + ( ) - only
+  uploadFile: Upload a file
+  unsupportedFileType: Unsupported file type
+aria:
+  dismiss: Dismiss
+  zoomIn: Zoom in
+  zoomOut: Zoom out
+  pageNumber: Page number
+  removeNamed: Remove {name}
+  unread: Unread
+  completed: Completed
+  backTo: Back to {page}
+  breadcrumb: Breadcrumb
+  knowledgeNavigation: Knowledge navigation
+  skipToContent: Skip to main content
+  mainNavigation: Main navigation
+  projectsNavigation: Projects navigation
+  automationsNavigation: Automations navigation
+  sortAscending: sorted ascending
+  sortDescending: sorted descending
+  sortAvailable: sort available
+mentions:
+  unresolvedTitle: Mention not recognized
+  unresolvedDescription:
+    '{tokens} did not match anyone in your organization — no
+    notification was sent.'
+errors:
+  generic: Something went wrong — try again, or reload the page if it keeps happening.
+  failedToCopy: Couldn't copy to clipboard
+  sessionEnded: Your session has ended. Sign in again.
+  connectionLost: Couldn't reach Tale. Check your connection and try again.
+notFound:
+  title: Page not found
+  description: The page you're looking for doesn't exist or may have been moved.
+  backToDashboard: Back to Home
+moveUp: Move up
+moveDown: Move down
+drag: Drag to reorder
+sessionIdle:
+  warningTitle: You'll be signed out soon
+  warningDescription: Your session ends after a period of inactivity. Interact
+    with the page or use the button below to keep working.
+  staySignedIn: Stay signed in
+  signedOutNotice: You were signed out because your session was inactive for too long.

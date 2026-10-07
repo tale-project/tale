@@ -33,7 +33,8 @@ export const FORBIDDEN_PRELOADS = [
  * entry's too), the flow canvas, KaTeX, and what single pages need: zip
  * files (skill uploads, document previews), the automation engine's schema
  * validation and YAML (the MCP settings page), cron schedules (automations),
- * the table library (list pages).
+ * the table library (list pages), the HTML sanitizer (diagrams, previews,
+ * email).
  * Read from the chunks' source maps, so a static import that pulls one into
  * the entry fails the build.
  */
@@ -46,14 +47,26 @@ export const FORBIDDEN_PACKAGES = [
   'yaml',
   'cron-parser',
   '@tanstack/table-core',
+  'dompurify',
 ];
 
 /**
- * The service's own catalogs no preloaded chunk may carry, from its root: a
- * session reads one language, and German and French load when one first
- * needs them (`lib/i18n/i18n.ts`).
+ * The service's own catalogs no preloaded chunk may carry, from its root, a
+ * path ending in `/` naming every file under it: a session reads one
+ * language, and German, French and the Swiss overrides load per topic as a
+ * session in them first needs one (`lib/i18n/i18n.ts`). English rides with
+ * the modules that read it, so the largest topics the first pages do not
+ * read stay with the pages that do.
  */
-export const FORBIDDEN_SOURCES = ['messages/de.yml', 'messages/fr.yml'];
+export const FORBIDDEN_SOURCES = [
+  'messages/de/',
+  'messages/fr/',
+  'messages/de-CH/',
+  'messages/en/settings.yml',
+  'messages/en/governance.yml',
+  'messages/en/documents.yml',
+  'messages/en/projects.yml',
+];
 
 /**
  * The module scripts and modulepreloads of a built index.html, in document
@@ -95,10 +108,13 @@ export function forbiddenSourcesIn(
   mapDir: string,
   serviceRoot: string,
 ): string[] {
-  const named = new Set(sources.map((source) => resolve(mapDir, source)));
-  return FORBIDDEN_SOURCES.filter((path) =>
-    named.has(resolve(serviceRoot, path)),
-  );
+  const named = sources.map((source) => resolve(mapDir, source));
+  return FORBIDDEN_SOURCES.filter((path) => {
+    const forbidden = resolve(serviceRoot, path);
+    return path.endsWith('/')
+      ? named.some((source) => source.startsWith(`${forbidden}/`))
+      : named.includes(forbidden);
+  });
 }
 
 /**

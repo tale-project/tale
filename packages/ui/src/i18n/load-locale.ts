@@ -14,6 +14,17 @@ interface LocaleLoaders {
 const loadersByInstance = new WeakMap<I18nInstance, LocaleLoaders>();
 
 /**
+ * Where an instance that loads its messages per topic (`attachTopics`) gets
+ * the messages of a locale: the topics registered so far.
+ */
+export interface LocaleSource {
+  load(locale: string): Promise<void>;
+  isLoaded(locale: string): boolean;
+}
+
+const sourcesByInstance = new WeakMap<I18nInstance, LocaleSource>();
+
+/**
  * The instance itself: react-i18next's `useTranslation` hands out a copy of
  * it per mount and language, which points back at it as `__original`.
  */
@@ -44,6 +55,14 @@ export function registerLocaleLoader(
   loaders.fetchers.set(baseOf(locale), fetch);
 }
 
+/** Answer `loadLocale` and `isLocaleLoaded` for `instance` from `source`. */
+export function registerLocaleSource(
+  instance: I18nInstance,
+  source: LocaleSource,
+): void {
+  sourcesByInstance.set(original(instance), source);
+}
+
 /**
  * Whether the messages `locale` reads (a regional variant reads its base's)
  * are in `instance`'s store: always, for a locale it was initialised with.
@@ -52,6 +71,8 @@ export function isLocaleLoaded(
   instance: I18nInstance,
   locale: string,
 ): boolean {
+  const source = sourcesByInstance.get(original(instance));
+  if (source !== undefined) return source.isLoaded(locale);
   const base = baseOf(locale);
   const loaders = loadersByInstance.get(original(instance));
   if (loaders?.fetchers.has(base) !== true) return true;
@@ -70,6 +91,8 @@ export function loadLocale(
   locale: string,
 ): Promise<void> {
   const owner = original(instance);
+  const source = sourcesByInstance.get(owner);
+  if (source !== undefined) return source.load(locale);
   const base = baseOf(locale);
   const loaders = loadersByInstance.get(owner);
   const fetch = loaders?.fetchers.get(base);

@@ -2,50 +2,69 @@ import { detectPreferredLocale } from '@tale/ui/i18n/detect-locale';
 import { initServiceI18n } from '@tale/ui/i18n/init-service';
 import { loadLocale } from '@tale/ui/i18n/load-locale';
 import { uiMessages } from '@tale/ui/i18n/messages';
+import { topicLoaders } from '@tale/ui/i18n/topic-catalogs';
 
-import enMessages from '@/messages/en.yml';
 import globalMessages from '@/messages/global.yml';
 
-type Bundle = Record<string, Record<string, unknown>>;
+// Every catalog is a directory of topic files, one namespace each
+// (`messages/<locale>/<topic>.yml`), the same topics in every locale, and
+// every locale loads per topic. English, which every key falls back to,
+// comes with the code that reads it (the `messageTopics` plugin in
+// `vite.config.ts`); German, French and the Swiss overrides are fetched per
+// topic, in the language the session shows, as its pages need them. Vite
+// requires the glob patterns to be literals at the call site.
+const topics = topicLoaders(
+  import.meta.glob<Record<string, unknown>>(
+    ['../../messages/*/*.yml', '!../../messages/en/*.yml'],
+    { import: 'default' },
+  ),
+);
 
 export const i18n = initServiceI18n({
-  bundles: { en: enMessages },
-  // German and French load when a session first needs them: each is about
-  // 110 KB gzip, and a session reads one language. English, which every key
-  // falls back to, ships with the app.
-  lazyBundles: {
-    de: () => import('@/messages/de.yml').then((module) => module.default),
-    fr: () => import('@/messages/fr.yml').then((module) => module.default),
+  bundles: { en: {} },
+  topics: {
+    lazy: topics,
+    // Without the build's chunks, nothing waits for the topics a module
+    // brings: the dev server and the test runs fetch a language whole.
+    eager: !import.meta.env.PROD,
   },
-  // Vite requires the glob pattern to be a literal at the call site.
-  regional: import.meta.glob<Bundle>('../../messages/*-*.yml', {
-    eager: true,
-    import: 'default',
-  }),
+  regional: {},
   global: globalMessages,
   packages: [uiMessages],
 });
 
 const sessionLocale = detectPreferredLocale();
 
+// The topics of the session's language start loading as the app's own
+// modules register theirs, alongside the session check.
+loadLocale(i18n, sessionLocale).catch((error: unknown) => {
+  console.warn(`[i18n] the ${sessionLocale} messages did not load`, error);
+});
+
+let sessionLocaleSwitch: Promise<void> | undefined;
+
 /**
- * The session's language, its messages in the store and switched to, before
- * the first frame: `LocaleProvider` starts from the same detection, and the
- * root route waits for this, so the first frame and every page title already
- * speak it. Started with the app's own modules, so a German or French
- * catalog is fetched alongside the session check. Never rejects: when the
+ * The session's language, the topics of the app's first page in the store
+ * and switched to, before the first frame: `LocaleProvider` starts from the
+ * same detection, and the root route waits for this, so the first frame and
+ * every page title already speak it. Called by the root route's loader once
+ * every module of the cold load has registered its topics; it switches the
+ * language once, whatever the later navigations. Never rejects: when the
  * messages do not load, the page stays in English, and `LocaleSync` fetches
  * them again when it mounts.
  */
-export const sessionLocaleReady: Promise<void> = loadLocale(i18n, sessionLocale)
-  .then(async () => {
-    if (i18n.language !== sessionLocale) {
-      await i18n.changeLanguage(sessionLocale);
-    }
-  })
-  .catch((error: unknown) => {
-    console.warn(
-      `[i18n] the ${sessionLocale} messages did not load; the page stays in ${i18n.language}`,
-      error,
-    );
-  });
+export function sessionLocaleReady(): Promise<void> {
+  sessionLocaleSwitch ??= loadLocale(i18n, sessionLocale)
+    .then(async () => {
+      if (i18n.language !== sessionLocale) {
+        await i18n.changeLanguage(sessionLocale);
+      }
+    })
+    .catch((error: unknown) => {
+      console.warn(
+        `[i18n] the ${sessionLocale} messages did not load; the page stays in ${i18n.language}`,
+        error,
+      );
+    });
+  return sessionLocaleSwitch;
+}

@@ -159,7 +159,7 @@ describe('E2E service scheduling', () => {
       ['services/platform/scripts/prerender-boot-shell.tsx', ['platform']],
       ['services/platform/public/assets/logo.svg', ['platform']],
       ['configs/platform/custom/agents/assistant.json', ['platform']],
-      ['services/platform/messages/en.yml', ['platform']],
+      ['services/platform/messages/en/chat.yml', ['platform']],
       ['configs/platform/system/harnesses/example.yml', ['platform']],
       ['services/sandbox-runtime/daemon/src/file-ops.ts', ['platform']],
       ['tools/cli/src/lib/compose/types.ts', ['platform']],

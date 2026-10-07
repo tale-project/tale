@@ -18,18 +18,20 @@
  * whole stream, mounting the row they land on.
  */
 
+import { cn } from '@tale/ui/cn';
 import {
   defaultRangeExtractor,
   type Range,
-  type VirtualItem,
   type Virtualizer,
-  useVirtualizer,
-} from '@tanstack/react-virtual';
+  useVirtualList,
+} from '@tale/ui/use-virtual-list';
 import {
   Fragment,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type KeyboardEvent,
   type ReactNode,
@@ -43,10 +45,8 @@ import {
   DRAFT_ROW_KEY,
   homeItemKey,
   type HomeGroup,
-  type HomeGroupKey,
   type HomeItem,
 } from '../lib/home-items';
-import { moveRowFocus } from '../lib/row-navigation';
 
 /**
  * A stream holding more rows than this mounts only the rows near the view;
@@ -58,6 +58,8 @@ export const WINDOWED_STREAM_MIN_ROWS = 60;
 /** Sizes before a row is measured: a two-line row, a band heading. */
 const ROW_ESTIMATE = 48;
 const HEADING_ESTIMATE = 28;
+/** Clear the sticky date band, including its top spacing, when moving up. */
+const HEADING_SCROLL_PADDING = 32;
 const DRAFT_ESTIMATE = 56;
 /** The rows' `gap-px`, which the window places itself. */
 const ROW_GAP = 1;
@@ -80,15 +82,15 @@ export interface HomeRowPlacement {
   readonly onFocusWithin: (key: string, within: boolean) => void;
 }
 
-type Entry =
+export type HomeListEntry<T> =
   | { readonly kind: 'draft'; readonly key: string }
   | {
       readonly kind: 'heading';
       readonly key: string;
-      readonly group: HomeGroupKey;
+      readonly heading: ReactNode;
       readonly first: boolean;
     }
-  | { readonly kind: 'row'; readonly key: string; readonly item: HomeItem };
+  | { readonly kind: 'row'; readonly key: string; readonly item: T };
 
 export function HomeStream({
   groups,
@@ -109,94 +111,79 @@ export function HomeStream({
   activeKey: string | null;
 }) {
   const { t } = useT('home');
-  const rowCount =
-    groups.reduce((count, group) => count + group.items.length, 0) +
-    (draft === null ? 0 : 1);
-
-  if (rowCount <= WINDOWED_STREAM_MIN_ROWS) {
-    return (
-      <ol
-        aria-label={ariaLabel}
-        onKeyDown={moveRowFocus}
-        className="animate-in fade-in-0 flex flex-col gap-1 duration-200 motion-reduce:animate-none"
-      >
-        {draft !== null && (
-          <li>
-            <ul role="list" className="flex flex-col pt-2">
-              {draft}
-            </ul>
-          </li>
-        )}
-        {groups.map((group) => (
-          <li key={group.key}>
-            <h3 className="bg-background text-muted-foreground sticky top-0 z-20 px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider uppercase">
-              {t(`groups.${group.key}`)}
-            </h3>
-            <ul role="list" className="flex flex-col gap-px">
-              {group.items.map((item) => renderRow(item))}
-            </ul>
-          </li>
-        ))}
-      </ol>
-    );
-  }
-
-  return (
-    <WindowedHomeStream
-      groups={groups}
-      draft={draft}
-      renderRow={renderRow}
-      ariaLabel={ariaLabel}
-      scrollElement={scrollElement}
-      activeKey={activeKey}
-    />
-  );
-}
-
-function WindowedHomeStream({
-  groups,
-  draft,
-  renderRow,
-  ariaLabel,
-  scrollElement,
-  activeKey,
-}: {
-  groups: readonly HomeGroup[];
-  draft: ReactNode;
-  renderRow: (item: HomeItem, placement?: HomeRowPlacement) => ReactNode;
-  ariaLabel: string;
-  scrollElement: HTMLElement | null;
-  activeKey: string | null;
-}) {
-  const { t } = useT('home');
-  // dnd-kit measures the dragged row while it travels: it stays mounted.
   const { draggedThreadId } = useThreadDndState();
   const draggedKey =
     draggedThreadId === null
       ? null
       : homeItemKey({ kind: 'chat', id: draggedThreadId });
-  const [listElement, setListElement] = useState<HTMLOListElement | null>(null);
-  const scrollMargin = useOffsetInScrollport(listElement, scrollElement);
-
-  // Whether a draft row leads, not the row itself: its element is new on
-  // every render, and the entries (with every row's placement) must not be.
-  const hasDraftRow = draft !== null;
+  const hasDraft = draft !== null;
   const entries = useMemo(() => {
-    const list: Entry[] = [];
-    if (hasDraftRow) list.push({ kind: 'draft', key: DRAFT_ROW_KEY });
+    const list: HomeListEntry<HomeItem>[] = [];
+    if (hasDraft) list.push({ kind: 'draft', key: DRAFT_ROW_KEY });
     groups.forEach((group, groupIndex) => {
       list.push({
         kind: 'heading',
         key: `heading:${group.key}`,
-        group: group.key,
-        first: groupIndex === 0 && !hasDraftRow,
+        heading: t(`groups.${group.key}`),
+        first: groupIndex === 0 && !hasDraft,
       });
       for (const item of group.items) {
         list.push({ kind: 'row', key: homeItemKey(item), item });
       }
     });
     return list;
-  }, [groups, hasDraftRow]);
+  }, [groups, hasDraft, t]);
+
+  return (
+    <HomeWindowedList
+      entries={entries}
+      draft={draft}
+      renderRow={renderRow}
+      ariaLabel={ariaLabel}
+      scrollElement={scrollElement}
+      activeKey={activeKey}
+      draggedKey={draggedKey}
+      revealActive
+    />
+  );
+}
+
+/** The one Home list engine, shared by the grouped stream, Inbox and projects.
+ * Both modes retain the same keyed rows, so live threshold changes preserve
+ * an inline draft, a portaled menu and focus. Native rows are measured too. */
+export function HomeWindowedList<T>({
+  entries,
+  draft = null,
+  renderRow,
+  ariaLabel,
+  scrollElement,
+  activeKey,
+  draggedKey = null,
+  as: List = 'ol',
+  rowEstimate = ROW_ESTIMATE,
+  rowGap = ROW_GAP,
+  measurementsPaused = false,
+  revealActive = false,
+  className,
+}: {
+  entries: readonly HomeListEntry<T>[];
+  draft?: ReactNode;
+  renderRow: (item: T, placement?: HomeRowPlacement) => ReactNode;
+  ariaLabel?: string;
+  scrollElement: HTMLElement | null;
+  activeKey: string | null;
+  draggedKey?: string | null;
+  as?: 'ol' | 'ul';
+  rowEstimate?: number;
+  rowGap?: number;
+  measurementsPaused?: boolean;
+  /** Reveal the open work item once; subsequent live reads leave the reader
+   * where they scrolled. Projects keep their existing independent position. */
+  revealActive?: boolean;
+  className?: string;
+}) {
+  const [listElement, setListElement] = useState<HTMLElement | null>(null);
+  const scrollMargin = useOffsetInScrollport(listElement, scrollElement);
 
   // The rows (the draft included) in stream order, and where each sits in
   // the list of entries.
@@ -214,10 +201,19 @@ function WindowedHomeStream({
 
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const [pendingFocusKey, setPendingFocusKey] = useState<string | null>(null);
+  const release = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(release.current), []);
   const onFocusWithin = useCallback((key: string, within: boolean) => {
-    setFocusedKey((current) =>
-      within ? key : current === key ? null : current,
-    );
+    clearTimeout(release.current);
+    if (within) {
+      setFocusedKey(key);
+      return;
+    }
+    // Portaled menu focus can follow the blur in a later React event. Keep
+    // the row until that focus either returns or settles elsewhere.
+    release.current = setTimeout(() => {
+      setFocusedKey((current) => (current === key ? null : current));
+    }, 0);
   }, []);
 
   const pinned = useMemo(() => {
@@ -229,12 +225,14 @@ function WindowedHomeStream({
     const last = rowIndexes.at(-1);
     if (first !== undefined) indexes.add(first);
     if (last !== undefined) indexes.add(last);
-    const active = activeKey === null ? undefined : indexByKey.get(activeKey);
-    if (active !== undefined) {
-      const at = rowIndexes.indexOf(active);
-      for (const neighbour of [at - 1, at, at + 1]) {
-        const index = rowIndexes[neighbour];
-        if (index !== undefined) indexes.add(index);
+    for (const key of [activeKey, focusedKey]) {
+      const at =
+        key === null ? -1 : rowIndexes.indexOf(indexByKey.get(key) ?? -1);
+      if (at !== -1) {
+        for (const neighbour of [at - 1, at, at + 1]) {
+          const index = rowIndexes[neighbour];
+          if (index !== undefined) indexes.add(index);
+        }
       }
     }
     for (const key of [focusedKey, pendingFocusKey, draggedKey]) {
@@ -263,21 +261,34 @@ function WindowedHomeStream({
     [pinned],
   );
 
-  const virtualizer = useVirtualizer<HTMLElement, HTMLLIElement>({
+  const windowed = rowIndexes.length > WINDOWED_STREAM_MIN_ROWS;
+  const virtualizer = useVirtualList<HTMLElement, HTMLLIElement>({
     count: entries.length,
     getScrollElement: () => scrollElement,
     estimateSize: (index) => {
       const entry = entries[index];
       if (entry?.kind === 'heading') return HEADING_ESTIMATE;
       if (entry?.kind === 'draft') return DRAFT_ESTIMATE;
-      return ROW_ESTIMATE;
+      return rowEstimate;
     },
     getItemKey: (index) => entries[index]?.key ?? index,
-    gap: ROW_GAP,
+    gap: rowGap,
     overscan: OVERSCAN,
     scrollMargin,
+    scrollPaddingStart: entries.some((entry) => entry.kind === 'heading')
+      ? HEADING_SCROLL_PADDING
+      : 0,
     initialRect: INITIAL_RECT,
     rangeExtractor,
+    enabled: entries.length > 0,
+    useCachedMeasurements: measurementsPaused,
+    useAnimationFrameWithResizeObserver: true,
+    measureElement: (element, entry) => {
+      const blockSize = entry?.borderBoxSize[0]?.blockSize;
+      if (blockSize !== undefined) return blockSize;
+      const rectHeight = element.getBoundingClientRect().height;
+      return rectHeight > 0 ? rectHeight : element.offsetHeight;
+    },
   });
 
   const placements = useStablePlacements(
@@ -287,38 +298,142 @@ function WindowedHomeStream({
     onFocusWithin,
   );
 
-  const rowKeys = useMemo(
-    () => rowIndexes.flatMap((index) => entries[index]?.key ?? []),
-    [rowIndexes, entries],
-  );
-  const handleKeyDown = useRowWindowKeys({
-    listElement,
-    rowKeys,
-    indexByKey,
+  // A parent effect runs before the stateful scrollport reaches this child.
+  // Its native smooth scroll would then be cancelled by the virtualizer's
+  // initial offset write. Let the attached virtualizer own the reveal and
+  // reconcile its target as estimated row heights become measured heights.
+  const revealedKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !revealActive ||
+      activeKey === null ||
+      scrollElement === null ||
+      virtualizer.scrollElement !== scrollElement ||
+      revealedKey.current === activeKey
+    )
+      return;
+    const index = indexByKey.get(activeKey);
+    if (index === undefined) return;
+    revealedKey.current = activeKey;
+    // An already visible item needs no scroll command that might keep
+    // chasing it if the reader starts scrolling straight after opening.
+    if (
+      virtualizer.getOffsetForIndex(index, 'auto')?.[0] ===
+      scrollElement.scrollTop
+    )
+      return;
+    virtualizer.scrollToIndex(index, {
+      align: 'auto',
+      // A long window resolves estimated heights as it travels. Reveal its
+      // indexed destination directly; ordinary lists retain their glide.
+      behavior: windowed ? 'auto' : 'smooth',
+    });
+  }, [
+    revealActive,
+    activeKey,
+    scrollElement,
     virtualizer,
-    pendingFocusKey,
-    setPendingFocusKey,
-  });
+    indexByKey,
+    windowed,
+  ]);
 
-  const items = virtualizer.getVirtualItems();
-  const spacing = windowSpacing(
-    items,
-    entries.length,
-    virtualizer.getTotalSize(),
-    scrollMargin,
-    ROW_GAP,
+  const focusRow = useCallback(
+    (key: string) => {
+      const index = indexByKey.get(key);
+      if (index === undefined) return;
+      // First/last/open rows can be pinned far outside the viewport. Even
+      // when their link already exists, the indexed command must reconcile
+      // late measurements rather than leave native focus partly clipped.
+      virtualizer.scrollToIndex(index, { align: 'auto' });
+      const link = listElement?.querySelector<HTMLElement>(
+        `[data-indicator-key="${CSS.escape(key)}"]`,
+      );
+      if (link) {
+        link.focus({ preventScroll: true });
+        return;
+      }
+      setPendingFocusKey(key);
+    },
+    [listElement, indexByKey, virtualizer],
   );
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const items = windowed
+    ? virtualItems
+    : entries.map((entry, index) => ({
+        key: entry.key,
+        index,
+        start: 0,
+        end: 0,
+      }));
+
+  // A row ↑/↓/Home/End moved to that was not mounted yet takes the focus
+  // once the window mounts it.
+  useLayoutEffect(() => {
+    if (pendingFocusKey === null) return;
+    const link = listElement?.querySelector<HTMLElement>(
+      `[data-indicator-key="${CSS.escape(pendingFocusKey)}"]`,
+    );
+    if (!link) return;
+    link.focus({ preventScroll: true });
+    setPendingFocusKey(null);
+  }, [pendingFocusKey, listElement, virtualItems]);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) {
+      return;
+    }
+    const target = event.target;
+    if (
+      !(target instanceof HTMLElement) ||
+      !target.matches('a[data-indicator-key],button[data-indicator-key]')
+    ) {
+      return;
+    }
+    const at = rowIndexes.indexOf(
+      indexByKey.get(target.dataset.indicatorKey ?? '') ?? -1,
+    );
+    if (at === -1) return;
+    const next =
+      event.key === 'ArrowDown'
+        ? at + 1
+        : event.key === 'ArrowUp'
+          ? at - 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? rowIndexes.length - 1
+              : undefined;
+    const index = next === undefined ? undefined : rowIndexes[next];
+    const entry = index === undefined ? undefined : entries[index];
+    if (entry === undefined) return;
+    event.preventDefault();
+    focusRow(entry.key);
+  };
+
+  const totalSize = virtualizer.getTotalSize();
   const nodes: ReactNode[] = [];
   items.forEach((virtualItem, position) => {
     const entry = entries[virtualItem.index];
     if (entry === undefined) return;
-    const space = spacing.before[position] ?? 0;
+    // Rows the window leaves out are stood in for by one spacer, so the
+    // mounted rows sit where the whole stream would put them; the list's
+    // gap falls on both sides of it.
+    const previous = items[position - 1];
+    const space = !windowed
+      ? 0
+      : previous === undefined
+        ? virtualItem.index === 0
+          ? 0
+          : virtualItem.start - scrollMargin - rowGap
+        : virtualItem.index === previous.index + 1
+          ? 0
+          : virtualItem.start - previous.end - 2 * rowGap;
     nodes.push(
       <Fragment key={entry.key}>
-        {space > 0 && <WindowSpacer height={space} />}
+        {space > 0 && <Spacer height={space} />}
         {entry.kind === 'heading' ? (
           <li
-            role="presentation"
             data-index={virtualItem.index}
             ref={virtualizer.measureElement}
             className={
@@ -328,11 +443,23 @@ function WindowedHomeStream({
             }
           >
             <h3 className="text-muted-foreground px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider uppercase">
-              {t(`groups.${entry.group}`)}
+              {entry.heading}
             </h3>
           </li>
         ) : entry.kind === 'draft' ? (
-          <li data-index={virtualItem.index} ref={virtualizer.measureElement}>
+          <li
+            data-index={virtualItem.index}
+            ref={virtualizer.measureElement}
+            aria-posinset={placements.get(entry.key)?.position}
+            aria-setsize={rowIndexes.length}
+            onFocus={() => onFocusWithin(entry.key, true)}
+            onBlur={(event) => {
+              const next = event.relatedTarget;
+              if (next instanceof Node && event.currentTarget.contains(next))
+                return;
+              onFocusWithin(entry.key, false);
+            }}
+          >
             <ul role="list" className="flex flex-col pt-2">
               {draft}
             </ul>
@@ -343,58 +470,31 @@ function WindowedHomeStream({
       </Fragment>,
     );
   });
+  const last = items.at(-1);
+  const trailing =
+    !windowed || last === undefined || last.index === entries.length - 1
+      ? 0
+      : totalSize - (last.end - scrollMargin) - rowGap;
+
   return (
-    <ol
+    <List
       ref={setListElement}
+      role={List === 'ul' ? 'list' : undefined}
       aria-label={ariaLabel}
       onKeyDown={handleKeyDown}
-      className="animate-in fade-in-0 flex flex-col gap-px duration-200 motion-reduce:animate-none"
+      className={cn(
+        'animate-in fade-in-0 flex flex-col duration-200 motion-reduce:animate-none',
+        className,
+      )}
+      style={{ gap: rowGap }}
     >
       {nodes}
-      {spacing.after > 0 && <WindowSpacer height={spacing.after} />}
-    </ol>
+      {trailing > 0 && <Spacer height={trailing} />}
+    </List>
   );
 }
 
-/**
- * The room a windowed flow list leaves for the items it did not mount: the
- * height of the spacer before each mounted item (`before`, by its place in
- * `items`) and after the last (`after`). The list lays its children out with
- * `gap` between them, spacers included, so each mounted item sits where the
- * whole list would put it.
- */
-export function windowSpacing(
-  items: readonly VirtualItem[],
-  count: number,
-  totalSize: number,
-  scrollMargin: number,
-  gap: number,
-  /** The list's own padding, given to the virtualizer as
-   * `paddingStart` / `paddingEnd` too. */
-  padding: { start: number; end: number } = { start: 0, end: 0 },
-): { before: number[]; after: number } {
-  const before = items.map((item, position) => {
-    const previous = items[position - 1];
-    if (previous === undefined) {
-      return item.index === 0
-        ? 0
-        : item.start - scrollMargin - padding.start - gap;
-    }
-    return item.index === previous.index + 1
-      ? 0
-      : item.start - previous.end - 2 * gap;
-  });
-  const last = items.at(-1);
-  const after =
-    last === undefined || last.index === count - 1
-      ? 0
-      : totalSize - (last.end - scrollMargin) - gap - padding.end;
-  return { before, after };
-}
-
-/** One spacer of a windowed list: hidden from assistive technology, which
- * counts the list's items by `aria-setsize` instead. */
-export function WindowSpacer({ height }: { height: number }) {
+function Spacer({ height }: { height: number }) {
   return (
     <li
       aria-hidden="true"
@@ -406,101 +506,44 @@ export function WindowSpacer({ height }: { height: number }) {
 }
 
 /**
- * ↑/↓/Home/End through every row of a windowed list: `rowKeys` in order,
- * `indexByKey` each row's place among the virtualizer's items. A row's
- * focusable element carries `data-indicator-key`; one the window has not
- * mounted is scrolled to, kept mounted (`pendingFocusKey`, which the list
- * pins) and focused once it is. Answers the list's `onKeyDown`.
+ * One placement object per row, kept while its placement is unchanged:
+ * scrolling or another row's live update leaves a memoized row alone.
  */
-export function useRowWindowKeys({
-  listElement,
-  rowKeys,
-  indexByKey,
-  virtualizer,
-  pendingFocusKey,
-  setPendingFocusKey,
-}: {
-  listElement: HTMLElement | null;
-  rowKeys: readonly string[];
-  indexByKey: ReadonlyMap<string, number>;
-  virtualizer: Virtualizer<HTMLElement, HTMLLIElement>;
-  pendingFocusKey: string | null;
-  setPendingFocusKey: (key: string | null) => void;
-}): (event: KeyboardEvent<HTMLElement>) => void {
-  const findRow = useCallback(
-    (key: string) =>
-      listElement?.querySelector<HTMLElement>(
-        `[data-indicator-key="${CSS.escape(key)}"]`,
-      ) ?? null,
-    [listElement],
-  );
-
-  const items = virtualizer.getVirtualItems();
-  useLayoutEffect(() => {
-    if (pendingFocusKey === null) return;
-    const row = findRow(pendingFocusKey);
-    if (row === null) return;
-    row.focus();
-    setPendingFocusKey(null);
-  }, [pendingFocusKey, findRow, items, setPendingFocusKey]);
-
-  return (event: KeyboardEvent<HTMLElement>) => {
-    if (event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) {
-      return;
-    }
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const at = rowKeys.indexOf(target.dataset.indicatorKey ?? '');
-    if (at === -1) return;
-    const next =
-      event.key === 'ArrowDown'
-        ? at + 1
-        : event.key === 'ArrowUp'
-          ? at - 1
-          : event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? rowKeys.length - 1
-              : undefined;
-    const key = next === undefined ? undefined : rowKeys[next];
-    if (key === undefined) return;
-    event.preventDefault();
-    const row = findRow(key);
-    if (row !== null) {
-      row.focus();
-      return;
-    }
-    const index = indexByKey.get(key);
-    if (index === undefined) return;
-    setPendingFocusKey(key);
-    virtualizer.scrollToIndex(index, { align: 'auto' });
-  };
-}
-
-/**
- * One placement object per row, kept while the stream's entries are: a
- * memoized row then re-renders as the list scrolls only when it mounts.
- */
-function useStablePlacements(
-  entries: readonly Entry[],
+function useStablePlacements<T>(
+  entries: readonly HomeListEntry<T>[],
   rowIndexes: readonly number[],
   virtualizer: Virtualizer<HTMLElement, HTMLLIElement>,
   onFocusWithin: (key: string, within: boolean) => void,
 ): ReadonlyMap<string, HomeRowPlacement> {
   const { measureElement } = virtualizer;
-  return useMemo(() => {
+  const previous = useRef<ReadonlyMap<string, HomeRowPlacement>>(new Map());
+  const placements = useMemo(() => {
     const map = new Map<string, HomeRowPlacement>();
     rowIndexes.forEach((index, position) => {
       const entry = entries[index];
       if (entry === undefined) return;
-      map.set(entry.key, {
-        measureRef: measureElement,
-        index,
-        position: position + 1,
-        size: rowIndexes.length,
-        onFocusWithin,
-      });
+      const cached = previous.current.get(entry.key);
+      map.set(
+        entry.key,
+        cached?.measureRef === measureElement &&
+          cached.index === index &&
+          cached.position === position + 1 &&
+          cached.size === rowIndexes.length &&
+          cached.onFocusWithin === onFocusWithin
+          ? cached
+          : {
+              measureRef: measureElement,
+              index,
+              position: position + 1,
+              size: rowIndexes.length,
+              onFocusWithin,
+            },
+      );
     });
     return map;
   }, [entries, rowIndexes, measureElement, onFocusWithin]);
+  useLayoutEffect(() => {
+    previous.current = placements;
+  }, [placements]);
+  return placements;
 }

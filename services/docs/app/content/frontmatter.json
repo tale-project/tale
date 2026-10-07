@@ -194,15 +194,6 @@
       "description": "Bei Tale anmelden, einen Chat starten, ein Modell wählen und die Antwort prüfen."
     }
   },
-  "de:index": {
-    "slug": "index",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Tale-Dokumentation",
-      "description": "Koordiniere Teammitglieder und KI-Agenten in Tales Open-Source-Arbeitsbereich mit Projektaufgaben, Delegation, Sandboxes und prüfbaren Ergebnissen.",
-      "kind": "index"
-    }
-  },
   "de:legal/privacy": {
     "slug": "legal/privacy",
     "locale": "de",
@@ -1355,15 +1346,6 @@
       "description": "Sign in to Tale, start a chat, choose a model, and check the response."
     }
   },
-  "en:index": {
-    "slug": "index",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Tale documentation",
-      "description": "Coordinate teammates and AI agents in Tale’s open-source workspace with project tasks, delegation, sandboxes, and reviewable results.",
-      "kind": "index"
-    }
-  },
   "en:legal/privacy": {
     "slug": "legal/privacy",
     "locale": "en",
@@ -2514,15 +2496,6 @@
     "frontmatter": {
       "title": "Envoyer ton premier message",
       "description": "Te connecter à Tale, lancer un chat, choisir un modèle et vérifier sa réponse."
-    }
-  },
-  "fr:index": {
-    "slug": "index",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Documentation Tale",
-      "description": "Coordonne ton équipe et tes agents IA dans l’espace open source de Tale avec des tâches de projet, la délégation, des sandboxes et la revue des résultats.",
-      "kind": "index"
     }
   },
   "fr:legal/privacy": {

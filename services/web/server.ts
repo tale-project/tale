@@ -25,6 +25,7 @@ import { buildDiscordPayload } from './lib/forms/discord-embeds';
 import { webHealthStatus } from './lib/forms/health';
 import { checkRateLimit } from './lib/forms/rate-limit';
 import { MIN_SUBMIT_DELAY_MS, submitRequest } from './lib/forms/schemas';
+import { handleWebRedirect } from './lib/redirects';
 import { createReleaseFeed, releaseFeedHealth } from './lib/releases/feed';
 import { handleReleasesRequest, RELEASES_ROUTES } from './lib/releases/route';
 import { withLegalArtifactNoindex } from './lib/seo/legal-artifacts';
@@ -214,6 +215,8 @@ startReactServer({
     return Response.json(body, { status });
   },
   extraRoutes: (request, url) => {
+    const redirect = handleWebRedirect(request, url);
+    if (redirect) return redirect;
     if (url.pathname === '/api/forms/submit') {
       return handleFormSubmit(request);
     }

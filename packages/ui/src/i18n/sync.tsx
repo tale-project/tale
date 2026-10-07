@@ -32,10 +32,10 @@ interface LocaleSyncProps {
  * Reads the i18n instance via `useTranslation()` so it picks up whichever
  * singleton the surrounding `<I18nextProvider>` injected.
  *
- * A locale whose messages the service fetches on first use (`lazyBundles`)
- * is switched to once they have landed, so every reader re-renders with its
- * words present; until then the page stays in the language it shows, and
- * so does `<html lang>`.
+ * A locale whose messages the service fetches on first use (`lazyBundles`,
+ * or per topic with `topics`) is switched to once they have landed, so every
+ * reader re-renders with its words present; until then the page stays in the
+ * language it shows, and so does `<html lang>`.
  */
 export function LocaleSync({ locale, htmlLang }: LocaleSyncProps): null {
   const { i18n } = useTranslation();

@@ -57,13 +57,79 @@ export function TaskRunDetailsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('tasks');
-  const canUseAutomations = useCanUseAutomations();
-  const runQuery = useAutomationRun(organizationId, open ? runId : undefined);
+  return (
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-3xl">
+        <ResponsiveDialogTitle className="flex items-center gap-2 text-base font-semibold">
+          {live
+            ? t('run.detailsTitleLive', { name })
+            : t('run.detailsTitle', { name })}
+          {live && (
+            <Loader2
+              className="text-muted-foreground size-4 shrink-0 animate-spin"
+              aria-hidden
+            />
+          )}
+        </ResponsiveDialogTitle>
+        {open && (
+          <TaskRunDetailsContent
+            organizationId={organizationId}
+            projectId={projectId}
+            automationSlug={automationSlug}
+            runId={runId}
+          />
+        )}
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
+  );
+}
+
+/** No observers or document graph exist for a closed details dialog. */
+function TaskRunDetailsContent({
+  organizationId,
+  projectId,
+  automationSlug,
+  runId,
+}: {
+  organizationId: string;
+  projectId: string;
+  automationSlug: string;
+  runId: string;
+}) {
+  const runQuery = useAutomationRun(organizationId, runId);
   const run = runQuery.data ?? null;
+  if (run === null) return null;
+  return (
+    <TaskRunTimeline
+      organizationId={organizationId}
+      projectId={projectId}
+      automationSlug={automationSlug}
+      runId={runId}
+      run={run}
+    />
+  );
+}
+
+/** Wait for the run's version before reading its immutable document. */
+function TaskRunTimeline({
+  organizationId,
+  projectId,
+  automationSlug,
+  runId,
+  run,
+}: {
+  organizationId: string;
+  projectId: string;
+  automationSlug: string;
+  runId: string;
+  run: NonNullable<ReturnType<typeof useAutomationRun>['data']>;
+}) {
+  const { t } = useT('tasks');
+  const canUseAutomations = useCanUseAutomations();
   const versionQuery = useAutomation(
     organizationId,
     automationSlug,
-    open ? run?.version : undefined,
+    run.version,
   );
   const automation = useMemo(
     () => readDocument(versionQuery.data?.document),
@@ -79,49 +145,32 @@ export function TaskRunDetailsDialog({
     readRunCursorNode(run) ?? projection.trace.at(-1)?.node ?? null;
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-3xl">
-        <ResponsiveDialogTitle className="flex items-center gap-2 text-base font-semibold">
-          {live
-            ? t('run.detailsTitleLive', { name })
-            : t('run.detailsTitle', { name })}
-          {live && (
-            <Loader2
-              className="text-muted-foreground size-4 shrink-0 animate-spin"
-              aria-hidden
-            />
-          )}
-        </ResponsiveDialogTitle>
-        {run !== null && (
-          <>
-            <RunStepTimeline
-              graph={graph}
-              projection={projection}
-              currentNodeId={currentNodeId}
-              waitingForRoom={run.waitingFor === 'room'}
-              organizationId={organizationId}
-              runId={runId}
-            />
-            {/* The dialog is the quick look; the run page is the audit — an
+    <>
+      <RunStepTimeline
+        graph={graph}
+        projection={projection}
+        currentNodeId={currentNodeId}
+        waitingForRoom={run.waitingFor === 'room'}
+        organizationId={organizationId}
+        runId={runId}
+      />
+      {/* The dialog is the quick look; the run page is the audit — an
                 automation page, so only for those who may use Automations. */}
-            {canUseAutomations && (
-              <Link
-                to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId"
-                params={{
-                  id: organizationId,
-                  projectId,
-                  automationSlug: automationSlugToParam(automationSlug),
-                  runId,
-                }}
-                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-fit items-center gap-1 rounded-sm text-xs focus-visible:ring-2 focus-visible:outline-none"
-              >
-                {t('run.openFull')}
-                <ArrowUpRight className="size-3.5" aria-hidden />
-              </Link>
-            )}
-          </>
-        )}
-      </ResponsiveDialogContent>
-    </ResponsiveDialog>
+      {canUseAutomations && (
+        <Link
+          to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId"
+          params={{
+            id: organizationId,
+            projectId,
+            automationSlug: automationSlugToParam(automationSlug),
+            runId,
+          }}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-fit items-center gap-1 rounded-sm text-xs focus-visible:ring-2 focus-visible:outline-none"
+        >
+          {t('run.openFull')}
+          <ArrowUpRight className="size-3.5" aria-hidden />
+        </Link>
+      )}
+    </>
   );
 }

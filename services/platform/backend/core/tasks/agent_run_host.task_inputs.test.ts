@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MAX_STAGED_TASK_OUTPUTS,
   partitionTaskInputSkips,
+  selectTaskOutputsForStaging,
   type PlannedTaskInput,
 } from './agent_run_host.ts';
 
@@ -104,5 +106,41 @@ describe('partitionTaskInputSkips', () => {
         planned,
       ).kind,
     ).toBe('failed');
+  });
+});
+
+describe('selectTaskOutputsForStaging', () => {
+  it('keeps all outputs when the task is within the mirror cap', () => {
+    const outputs = [{ fileName: 'first.md' }, { fileName: 'latest.md' }];
+    expect(selectTaskOutputsForStaging(outputs, 2)).toEqual({
+      selected: outputs,
+      omitted: 0,
+    });
+  });
+
+  it('keeps the newest outputs and reports the retained history omitted', () => {
+    const outputs = Array.from({ length: 5 }, (_, index) => `out-${index}`);
+    expect(selectTaskOutputsForStaging(outputs, 2)).toEqual({
+      selected: ['out-3', 'out-4'],
+      omitted: 3,
+    });
+  });
+
+  it('does not let a non-positive cap bypass bounding', () => {
+    expect(selectTaskOutputsForStaging(['old-1', 'old-2'], 0)).toEqual({
+      selected: [],
+      omitted: 2,
+    });
+  });
+
+  it('uses the production cap so a large retained history stays bounded', () => {
+    const outputs = Array.from(
+      { length: MAX_STAGED_TASK_OUTPUTS + 7 },
+      (_, index) => index,
+    );
+    const selection = selectTaskOutputsForStaging(outputs);
+    expect(selection.selected).toHaveLength(MAX_STAGED_TASK_OUTPUTS);
+    expect(selection.omitted).toBe(7);
+    expect(selection.selected[0]).toBe(7);
   });
 });

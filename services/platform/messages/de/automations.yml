@@ -1,0 +1,482 @@
+issueImport:
+  description: Importiere Issues als Tale-Aufgaben. Bei einem erneuten Import werden die verknüpften Aufgaben wiederverwendet; ihr Status und ihre Beschreibung bleiben erhalten. Richte zuerst die Zugangsdaten der Quelle unter Einstellungen > Connectors ein.
+  chooseProject: Tale-Projekt wählen
+  noProjects: Keine Projekte gefunden. Erstelle vor dem Import ein Projekt.
+  limitHint: 'Lies 1 bis 500 Issues der Quelle pro Durchlauf. Wenn weitere Issues passen, setze den Import im Ergebnis fort.'
+  fields:
+    projectId: Tale-Projekt
+    owner: GitHub-Inhaber oder Organisation
+    repo: GitHub-Repository
+    labels: GitHub-Labels (kommagetrennt)
+    organization: GlitchTip-Organisationskennung
+    project: GlitchTip-Projektkennung
+    query: GlitchTip-Suche
+    limit: Maximale Anzahl an Issues
+  resultTitle: Importierte Aufgaben
+  summary: 'Verarbeitete Issues: {imported}. Neue Aufgaben: {created}. Vorhandene Aufgaben: {updated}.'
+  mockResult: Dies ist ein Testergebnis. Es wurden keine Issues abgerufen und keine Aufgaben geschrieben.
+  openTask: 'Aufgabe {id} öffnen'
+  truncated: 'Weitere Issues passen zu den Filtern. Setze den Import mit dem nächsten Stapel fort. Bereits verknüpfte Issues verwenden ihre Tale-Aufgaben weiter.'
+  continuing: 'Setze den Import mit dem nächsten Stapel fort. Wenn du die Quellfilter oder das Tale-Projekt änderst, beginnt ein neuer Suchlauf.'
+  continue: 'Import fortsetzen'
+  skipped: 'Übersprungene Issues: {count}. Geschlossene oder gelöste Issues ohne verknüpfte Tale-Aufgabe werden nicht importiert.'
+  refreshHasMore: 'Weitere verknüpfte Aufgaben brauchen eine Aktualisierung der Quelle. Starte den Import erneut für die nächste Gruppe; Tale prüft die ältesten Abfragen zuerst.'
+title: Automatisierungen
+entityLabel: Automatisierungen
+entityLabelOne: Automatisierung
+navigation:
+  editor: Editor
+  general: Allgemein
+  runs: Läufe
+switcher:
+  title: Automatisierung wechseln
+  searchPlaceholder: Automatisierungen suchen
+  empty: Keine Automatisierungen gefunden
+  ariaLabel: 'Automatisierung wechseln, aktuell: {name}'
+list:
+  createButton: Automatisierung erstellen
+  searchPlaceholder: Automatisierungen suchen
+  columnName: Name
+  columnProjects: Projekte
+  columnVersions: Versionen
+  columnStatus: Status
+  versionCount: '{count, plural, one {# Version} other {# Versionen}}'
+  notDeployed: Nicht live
+  projectBound: Projekt
+  loadFailed: 'Die Automatisierungen konnten nicht geladen werden: {error}'
+  empty:
+    title: Noch keine Automatisierungen
+    description: Wähle „Automatisierung erstellen“, um mit einem Trigger und einem Agenten zu beginnen oder ein Paket hochzuladen.
+createMenu:
+  blank: Leer (Trigger + Agent)
+blank:
+  title: Neue Automatisierung
+  stepAgent: Lege den Agenten fest — was er bei jedem Lauf tut.
+  stepTrigger: Wähle, wann er läuft.
+  nameLabel: Name
+  namePlaceholder: z. B. GlitchTip-Issues triagieren
+  slugHint: 'Gespeichert als: {slug}'
+  nameTaken: Eine Automatisierung mit diesem Namen gibt es bereits.
+  nameReserved: Dieser Name beginnt mit einem Wort, das die Plattform für eigene Seiten braucht. Fang mit einem anderen Wort an.
+  modelLabel: Agent-Modell
+  modelPlaceholder: Wähle das Modell, das der Agent aufruft
+  modelSearchPlaceholder: Modelle suchen
+  modelSearchEmpty: Keine Modelle gefunden
+  promptLabel: Was soll er tun?
+  promptPlaceholder: z. B. Offene GlitchTip-Issues durchsehen und für jede
+    neue eine Aufgabe anlegen.
+  equipmentLabel: Ausrüstung
+  timezoneInvalid: Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).
+  webhookHint: Die Webhook-URL erscheint genau einmal, direkt nach dem
+    Anlegen — kopiere sie, bevor du den Editor öffnest.
+  stepWebhook: Kopiere die Webhook-URL — sie wird nur jetzt angezeigt.
+  copyWebhookUrl: Webhook-URL kopieren
+  openAutomation: Automatisierung öffnen
+  enableNow: Jetzt aktivieren
+  enableNowHint: Aus lässt den Trigger pausiert — es startet nichts, bis du ihn auf der Trigger-Karte einschaltest.
+  triggerFailed: 'Die Automatisierung wurde angelegt, aber ihr Trigger ließ
+    sich nicht setzen: {error}. Setze ihn über die Trigger-Karte.'
+  cancel: Abbrechen
+  back: Zurück
+  next: Weiter
+  submit: Automatisierung erstellen
+  submitting: Erstellt …
+  initialMessage: Erste Version
+notFound:
+  title: Automatisierung nicht gefunden
+  description:
+    Vielleicht wurde sie umbenannt, oder sie gehört zu einer anderen
+    Organisation.
+detail:
+  loading: Automatisierung wird geladen …
+  loadFailed:
+    title: Automatisierung konnte nicht geladen werden
+  # Eine gelöschte Automatisierung behält ihre Laufhistorie, bis die
+  # Aufbewahrung sie entfernt; die Läufe-Seiten öffnen unter diesem Banner.
+  deleted:
+    banner: 'Diese Automatisierung wurde am {date} gelöscht. Ihre Laufhistorie bleibt, bis die Aufbewahrung sie entfernt.'
+    title: Automatisierung gelöscht
+    description: Es gibt nichts mehr zu bearbeiten oder zu veröffentlichen; die aufgezeichneten Läufe sind weiterhin lesbar.
+    openRuns: Laufhistorie öffnen
+  deployedVersion: 'Live: v{version}'
+  versionSelect: Version
+  deployVersion: 'v{version} live schalten'
+  runMock: Testlauf
+  saveVersion: Version speichern
+  saveMessageLabel: Notiz zur Version
+  saveMessageDescription: Was sich geändert hat, damit die Versionsliste lesbar bleibt.
+  saveDialog:
+    title: Neue Version speichern
+    description: Speichert eine neue Version. Läufe, die gerade aktiv sind, nutzen weiter die deployte Version.
+  switchVersion:
+    title: Andere Version anzeigen?
+    description: Beim Versionswechsel gehen nicht gespeicherte Änderungen verloren.
+    confirm: Verwerfen und wechseln
+  staleVersion:
+    title: Diese Automatisierung hat sich während deiner Bearbeitung geändert
+    description: "{message}"
+    reload: Meine Änderungen verwerfen und neu laden
+    saveAnyway: Trotzdem speichern
+  showLastRun: Letzten Lauf einblenden
+  hideLastRun: Letzten Lauf ausblenden
+  runLive: Live ausführen
+  runLiveNeedsDeploy: Schalte zuerst eine Version live — ein Live-Lauf führt
+    die Version aus, die live ist.
+  deployedReadFailed: Die live geschaltete Version konnte nicht geladen werden
+  runLiveNeedsDeployedRead: Die live geschaltete Version konnte nicht geladen werden — versuche es erneut.
+  runLiveTitle: Live ausführen?
+  runLiveBody: Führt die deployte Version live aus — Mails gehen raus, Daten ändern sich. Ein erneuter Lauf startet nicht automatisch.
+  runInput:
+    label: Eingabe für den Lauf (JSON)
+    description: 'Eingabe für die gespeicherte Version {version}. Die Automatisierung bleibt unverändert.'
+    schema: Eingabeschema
+    invalidJson: Gib die Eingabe für den Lauf als gültiges JSON ein.
+    invalid: 'Die Eingabe entspricht nicht dem Schema. Prüfe diese Felder: {paths}.'
+    mockDescription: Teste die gespeicherte Version mit simulierten Antworten. Es werden keine externen Aktionen ausgeführt.
+  runScope:
+    label: Projektbereich
+    orgWide: Organisationsweit
+    confirmOrgWide: Dieser Lauf arbeitet organisationsweit, über alle Projekte hinweg.
+    confirmProject: Dieser Lauf arbeitet im Projekt {project} — seine Aufgaben- und Dokument-Tools wirken dort.
+  delete:
+    title: Automatisierung löschen
+    description: '"{name}" löschen? Trigger hören sofort auf. Die bisherigen Läufe bleiben, bis die Aufbewahrungsfrist sie entfernt.'
+    done: Automatisierung gelöscht
+    failed: Automatisierung konnte nicht gelöscht werden
+trigger:
+  title: Trigger
+  description: Was diese Automatisierung startet. Ein Trigger führt immer die Live-Version aus.
+  none: Kein Trigger — diese Automatisierung läuft nur, wenn du sie von Hand oder über die API startest.
+  add: Trigger hinzufügen
+  kindLabel: Trigger-Typ
+  kinds:
+    schedule: Zeitplan
+    webhook: Webhook
+    event: Plattform-Ereignis
+  cronLabel: Cron
+  cronHint: Standard-Cron mit 5 Feldern (Minute Stunde Tag Monat Wochentag).
+  cronInvalid: Dieser Cron-Ausdruck ist ungültig.
+  cronInvalidReason: 'Dieser Cron-Ausdruck ist ungültig: {reason}'
+  cronNext: 'Nächster Lauf {at}'
+  paused: Pausiert — es starten keine Läufe
+  notDeployed: 'Startet erst, wenn eine Version bereitgestellt ist · nächster Lauf wäre {at}'
+  cronEveryMinutes: '{n, plural, one {Jede Minute} other {Alle # Minuten}}'
+  cronEveryHours: '{n, plural, one {Jede Stunde} other {Alle # Stunden}}'
+  cronDailyAt: 'Jeden Tag um {time}'
+  timezoneLabel: Zeitzone
+  timezoneSearch: Zeitzonen suchen
+  timezoneEmpty: Keine passende Zeitzone
+  eventLabel: Ereignisname
+  eventPlaceholder: Ereignis wählen
+  enabledLabel: Aktiv
+  lastFired: 'Zuletzt ausgelöst {at}'
+  failures:
+    pausedTitle: 'Nach wiederholten Fehlern pausiert'
+    pausedBody: '{count, plural, one {# Lauf ist} other {# Läufe sind}} nacheinander mit einem Fehler fehlgeschlagen, den ein erneuter Versuch nicht behebt, deshalb hat sich der Zeitplan ausgeschaltet. Behebe den Fehler in der Automatisierung, schalte den Trigger dann wieder ein und speichere.'
+    streak: '{count, plural, one {Der letzte Lauf ist} other {Die letzten # Läufe sind}} mit einem Fehler fehlgeschlagen, den ein erneuter Versuch nicht behebt.'
+    streakSchedule: 'Nach {limit} solchen Fehlern in Folge schaltet sich der Zeitplan aus.'
+    last: 'Letzter Fehler {at}:'
+    viewRun: 'Lauf ansehen'
+  remove: Trigger entfernen
+  removeTitle: Trigger entfernen?
+  removeBody: Entfernt den Trigger. Die Automatisierung und ihre Versionshistorie bleiben unberührt.
+  tokenTitle: Webhook-URL — kopiere sie jetzt
+  tokenHint: Der Token ist der letzte Teil der URL, erscheint genau einmal
+    und liegt nur als Hash gespeichert.
+  webhookEndpointLabel: Webhook-Endpunkt
+  webhookHowto: Diese URL gilt für Automatisierungen, die keinem Projekt zugeordnet sind.
+  hasToken: Ein Token ist aktiv — die URL braucht den beim Anlegen einmalig
+    gezeigten Token; rotiere, um eine neue URL zu erzeugen.
+  noToken: Zum Erzeugen des Tokens speichern; die vollständige URL erscheint
+    einmal.
+  webhookProjectHint: Für ein aktives Projekt, in dem die Automatisierung eingerichtet ist, setzt du dessen ID in die folgende URL ein.
+  rotate: Token rotieren
+  revokeConfirm:
+    title: Webhook ersetzen?
+    body: Ein Wechsel des Trigger-Typs widerruft die Webhook-URL sofort — Absender, die sie noch nutzen, bekommen 404, und ein später neu eingerichteter Webhook erhält eine andere URL.
+    confirm: Ersetzen und widerrufen
+  rotateConfirm:
+    title: Webhook-Token rotieren?
+    body: Die aktuelle URL funktioniert nicht mehr, sobald das neue Token erzeugt ist. Kopiere die neue URL und aktualisiere jedes sendende System.
+  revokedToast: Die bisherige Webhook-URL wurde widerrufen — Absender, die sie nutzen, bekommen jetzt 404.
+canvas:
+  ariaLabel: Canvas der Automatisierung
+  readsFrom: 'Liest {nodes}'
+  unpinnedModel: Kein fester Anbieter — der Lauf wählt ihn automatisch.
+  empty:
+    title: Diese Version hat keine Nodes
+    description:
+      Ein Automatisierungsdokument besteht aus Nodes. Sobald du dem Dokument
+      eine hinzufügst, erscheint sie hier.
+  cycle:
+    title: Diese Nodes verweisen im Kreis aufeinander
+    description: Gezeigt wird die Reihenfolge, in der die Nodes im Dokument
+      stehen – nicht die Reihenfolge, in der sie laufen würden, denn die Engine
+      kann keinen Kreis ausführen. Entferne eine der Referenzen, um ihn
+      aufzubrechen.
+  edge:
+    data: '{target} liest die Ausgabe von {source}'
+    control: '{target} läuft nach {source}'
+  controlFlow:
+    when: 'wenn {value}'
+    elseOf: 'sonst zu {value}'
+    forEach: 'für jedes {value}'
+    repeatUntil: 'wiederholen bis {value}'
+    repeatUntilCapped: 'wiederholen bis {value}, höchstens {maxRepeats}×'
+    onError: bei Fehler weiterlaufen
+editor:
+  unknownType: 'Unbekannter Node-Typ: {type}'
+  catalogUnavailable:
+    Der Katalog der Node-Typen konnte nicht geladen werden, deshalb
+    sind nur die eingebauten Typen beschrieben. Die Felder dieser Node siehst
+    du trotzdem.
+  invalidJson: Das ist noch kein gültiges JSON, deshalb wurde die Node nicht geändert.
+  versionNotFound:
+    title: 'Version {version} gibt es nicht'
+    description: Diese Automatisierung hat keine Version mit dieser Nummer — der Link ist vielleicht veraltet oder die Nummer vertippt.
+    openLatest: Neueste öffnen
+  controlFlowTitle: Ablaufsteuerung
+  nodeSheetDescription: Bearbeite die Felder dieses Knotens, dann speichere die
+    Änderung oder verwirf sie.
+  agent:
+    equipmentLabel: Ausrüstung
+    harnessDefault: Standard (Claude Code)
+    modelUnlisted: 'Kein verbundener Anbieter bietet das gespeicherte Modell
+      "{model}" für diese Agent-Laufzeit an — wähle eines aus der Liste.'
+  # Die Modellauswahl der llm-Node: was die Anbieter der Organisation
+  # bedienen, mit Freitext für ein Modell, dessen Anbieter noch fehlt.
+  llm:
+    modelPlaceholder: Modell wählen, das aufgerufen wird
+    modelUnlisted: 'Kein verbundener Anbieter bedient "{model}" — ein
+      Live-Lauf würde an dieser Node fehlschlagen. Wähle ein Modell aus der
+      Liste oder behalte die ID, wenn du den Anbieter noch verbindest.'
+    typeUnlisted: Ein Modell eingeben, das nicht aufgeführt ist
+    modelIdLabel: Modell-ID
+    modelIdHint: Genau so, wie der Anbieter sie schreibt, z. B. anbieter/modellname.
+  runTitle: In diesem Lauf
+  resolvedInput: Aufgelöste Eingabe
+  output: Ausgabe
+  fields:
+    input: Eingabe
+    inputDescription: Ein JSON-Objekt. Ein Text-Wert darf die Ausgabe einer
+      anderen Node referenzieren – genau diese Referenz zeichnet die Kante auf
+      dem Canvas.
+    code: Code
+    prompt: Prompt
+    system: System-Prompt
+    model: Modell
+    outputSchema: Ausgabeschema
+    automation: Automatisierung
+    credential: Zugangsdaten
+    harness: Agent-Laufzeit
+    skills: Skills
+    connectors: Connectors
+    tools: Plattform-Tools
+    secrets: Secrets
+    files: Bereitgestellte Dateien
+    when: Wenn
+    whenDescription: Diese Node überspringen, wenn der Ausdruck falsch ist.
+    elseOf: Sonst zu
+    elseOfDescription:
+      Läuft genau dann, wenn die genannte Node durch ihre eigene
+      Bedingung übersprungen wurde.
+    forEach: Für jedes
+    forEachDescription: Läuft einmal pro Element des Arrays, das der Ausdruck ergibt.
+    repeatUntil: Wiederholen bis
+    repeatUntilDescription: Diese Node wiederholen, bis der Ausdruck wahr ist.
+bindings:
+  title: Projekte
+  countBadge: '{count, plural, one {An # Projekt gebunden} other {An # Projekte gebunden}}'
+  hint: Auf bestimmte Projekte eingrenzen — oder leer lassen für alle.
+  placeholder: Projekte wählen
+  searchPlaceholder: Projekte durchsuchen
+  empty: Keine passenden Projekte
+  noProjects: Diese Organisation hat noch keine Projekte.
+versions:
+  title: Versionen
+  empty: Es wurde noch keine Version gespeichert.
+  versionLabel: v{version}
+  deployed: Live
+  deployRefused: Diese Version wurde nicht live geschaltet
+  testsPassed: Tests bestanden
+  testsFailed: Tests fehlgeschlagen
+  noMessage: Keine Notiz
+upload:
+  trigger: Paket hochladen
+  title: Paket hochladen
+  description: Lade eine Workflow-Datei oder Pack-ZIP hoch, um sie zu deinen Automatisierungen hinzuzufügen.
+  filesLabel: Paketdateien
+  filesHelp: workflow.yml (plus automation.yml) oder eine Pack-.zip.
+  uploading: Lädt das Paket hoch…
+  zipOnly: Lade die .zip allein hoch — sie bringt das ganze Pack schon mit.
+  zipTooLarge: Die .zip liegt über der 20-MiB-Paketgrenze.
+  skillsSummary: 'Skills: {created} installiert, {replaced} ersetzt, {unchanged} unverändert.'
+  skillConflictTitle: '{count, plural, one {# Skill existiert bereits mit anderem Inhalt} other {# Skills existieren bereits mit anderem Inhalt}}'
+  skillConflictDescription: Bestätigen ersetzt jeden gelisteten Skill durch die Version aus dem Paket. Die abgelöste SKILL.md bleibt im Verlauf des Skills erhalten.
+  skillConflictConfirm: '{count, plural, one {Skill ersetzen} other {# Skills ersetzen}}'
+  skillConflictCancel: Bestehende Skills behalten
+  removeFile: '{name} entfernen'
+  targetLabel: Installieren in
+  targetOrg: Organisation
+  targetHelp: Ein Projekt bindet sie an dieses Board; Organisation teilt sie org-weit.
+  submit: Paket hochladen
+  submitting: Validieren und speichern…
+  successTitle: Paket hochgeladen
+  successNote: '{name} v{version} ist als Entwurf gespeichert.'
+  successHint: Entwürfe laufen nie von selbst — Trigger und Aufgaben-Boards nutzen nur die Live-Version. Schalte den Entwurf jetzt live oder später auf der Seite der Automatisierung.
+  deployNow: 'v{version} live schalten'
+  deployLater: Später
+  deployed: '{name} v{version} ist live.'
+  warnings: '{count, plural, one {# Validierungswarnung} other {# Validierungswarnungen}}'
+runs:
+  agentLog:
+    title: Agenten-Log
+    starting: Der Agent startet in der Sandbox…
+    empty: Der Agent hat für diesen Lauf kein Log erzeugt.
+    readFailed: Das Agenten-Log konnte nicht geladen werden.
+    readFailedDescription: Das Transkript ist vorübergehend nicht verfügbar. Versuche es erneut, um es zu laden.
+    retry: Erneut versuchen
+    servedBy: 'Diese Runde lief auf {model}.'
+    visionModel: 'Bilder in diesem Lauf hat {model} gelesen.'
+  approval:
+    title: 'Wartet auf deine Freigabe: {operation}'
+    node: 'Angefragt von Node "{node}" — mit der Freigabe führt sie den Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.'
+    pending: Mit der Freigabe führt der wartende Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.
+    approved: '{operation} freigegeben — der Lauf setzt beim nächsten Poll fort.'
+    rejected: '{operation} abgelehnt — der Schritt schlägt fehl und der Lauf stoppt.'
+    input: Der Schritt würde aufrufen mit
+    approve: Freigeben
+    reject: Ablehnen
+    loading: Freigabe wird geladen…
+    loadFailed: Diese Freigabe konnte nicht geladen werden.
+    retry: Erneut versuchen
+    decideFailed: Deine Entscheidung konnte nicht gespeichert werden.
+  ask:
+    title: Der Agent braucht deine Antwort, um weiterzumachen
+    answerLabel: Deine Antwort
+    placeholder: Schreib deine Antwort — Freitext genügt.
+    submit: Antwort senden & fortsetzen
+  title: Läufe
+  description: Jeder Lauf dieser Automatisierung, neueste zuerst — Testläufe wie Live-Läufe. Öffne einen für seine Schritte, Auswirkungen und Ausgabe.
+  breadcrumb: Lauf
+  heading: 'Lauf von {automation}'
+  empty: Diese Automatisierung ist noch nicht gelaufen.
+  loading: Lauf wird geladen …
+  loadFailed: Dieser Lauf konnte nicht geladen werden.
+  # Während die Plattform den fehlgeschlagenen Agent-Schritt von selbst
+  # wiederholt — damit klar ist, dass nicht du es warst.
+  autoRetrying: 'Automatischer Versuch {n} von {max}'
+  cancel: Lauf stoppen
+  # Wird vor dem Stoppen gefragt: Es ist endgültig und zieht zurück, worauf
+  # der Lauf wartet (eine Freigabekarte, eine Frage).
+  cancelConfirm:
+    title: Diesen Lauf stoppen?
+    body:
+      Der Lauf stoppt an der nächsten Schrittgrenze und lässt sich nicht
+      fortsetzen. Bereits Erledigtes bleibt; eine offene Freigabe oder Frage
+      wird zurückgezogen.
+  # Wer oder was den Lauf gestartet hat — nie die `user:<id>`- /
+  # `trigger:<id>`-Tür, die der Datensatz trägt.
+  starter:
+    you: Von dir gestartet
+    youApi: Von dir gestartet (API)
+    member: 'Gestartet von {name}'
+    apiKey: 'Gestartet von {name} (API)'
+    formerMember: Gestartet von einem ehemaligen Mitglied
+    formerMemberApi: Gestartet von einem ehemaligen Mitglied (API)
+    schedule: Gestartet vom Zeitplan
+    webhook: Gestartet von einem Webhook
+    event: Gestartet von einem Plattform-Ereignis
+    trigger: Gestartet von einem Trigger
+    unknown: Starter nicht erfasst
+  # Worauf ein wartender Lauf parkt, in Worten.
+  waiting:
+    approval: Wartet auf Freigabe
+    ask: Wartet auf deine Antwort
+    agent: Agent arbeitet
+    room: Wartet auf einen Sandbox-Platz
+    repeat: 'Pollt — Schritt {node}'
+  startedAt: 'Gestartet {date}'
+  finishedAt: 'Beendet {date}'
+  inputTitle: Eingabe des Laufs
+  outputTitle: Ausgabe des Laufs
+  notFound:
+    title: Lauf nicht gefunden
+    description: Vielleicht wurde er entfernt, oder er gehört zu einer anderen
+      Organisation.
+  mode:
+    mock: Test
+    live: Live
+  status:
+    queued: In der Warteschlange
+    running: Läuft
+    waiting: Wartet
+    success: Erfolgreich
+    failed: Fehlgeschlagen
+    cancelled: Gestoppt
+  nodeStatus:
+    ok: Gelaufen
+    skipped: Übersprungen
+    error: Fehlgeschlagen
+    not_run: Nie erreicht
+    pending: Noch nicht erreicht
+    running: Läuft gerade
+    stopped: Hier gestoppt
+  effects:
+    title: '{count, plural, one {# Auswirkung} other {# Auswirkungen}}'
+    description:
+      Alles, was dieser Lauf außerhalb der Plattform verändert hat, in
+      der Reihenfolge, in der es passiert ist.
+    none: Dieser Lauf hat außerhalb der Plattform nichts verändert.
+    noneForNode: Diese Node hat außerhalb der Plattform nichts verändert.
+    noneYetForNode: Diese Node hat außerhalb der Plattform noch nichts verändert.
+    byNode: 'aus {node}'
+    inputLabel: Aufgerufen mit
+  timeline:
+    label: Schritte des Laufs
+    current: Aktueller Schritt
+    empty: Der Lauf hat noch keinen Schritt erreicht.
+    actions: '{count, plural, one {# Aktion} other {# Aktionen}}'
+settings:
+  loading: Lädt Einstellungen…
+  loadFailed: Einstellungen konnten nicht geladen werden — schließe den Dialog und versuch es nochmal.
+  save: Speichern
+  saveAndContinue: Speichern und weiter
+  showMore: Mehr anzeigen
+  showLess: Weniger anzeigen
+  dialogTitle: '{name} — Einstellungen'
+  tabsLabel: Einstellungsbereiche
+  moreTabs: Weitere Einstellungsbereiche
+  unsavedTab: Nicht gespeicherte Änderungen
+  saved: Einstellungen gespeichert.
+  saveFailed: Einstellungen konnten nicht gespeichert werden. Versuch es nochmal.
+  errors:
+    required: Dieses Feld ist erforderlich.
+    number: Gib eine Zahl ein.
+    pattern: Das entspricht nicht dem erwarteten Format.
+  uploads:
+    empty: Noch keine Dateien.
+    loading: Dateien werden geladen…
+    treeLabel: Hochgeladene Dateien
+    addButton: Dateien hier ablegen oder klicken zum Hochladen
+    addToFolder: 'Dateien hier ablegen — sie landen in "{folder}"'
+    pickFolderHint: Erstelle oder wähle oben einen Ordner — Uploads landen im ausgewählten Ordner.
+    newFolderButton: Neuer Ordner
+    newFolderTitle: Ordner erstellen
+    newFolderCreate: Erstellen
+    newFolderPlaceholder: z. B. Rechnungen
+    newFolderParent: 'Landet in "{folder}"'
+    newFolderFailed: Der Ordner konnte nicht erstellt werden — versuch es nochmal.
+    uploading: Lädt hoch…
+    uploaded: '{count} Datei(en) hochgeladen.'
+    uploadedPartial: '{ok} von {total} Datei(en) hochgeladen.'
+    uploadFailed: Datei konnte nicht hochgeladen werden — versuch es nochmal.
+    uploadFailedDetail: '{name}: {reason}'
+    wrongType: 'Nur diese Dateitypen sind erlaubt: {types}'
+    wrongName: Der Dateiname passt nicht zum erwarteten Muster dieses Formulars.
+    tooLarge: Die Datei überschreitet das Limit von {max} MB.
+    remove: '{name} löschen'
+    removeTitle: Diese Datei löschen?
+    removeDescription: '„{name}" wird endgültig aus dem Projekt gelöscht — das lässt sich nicht rückgängig machen.'
+    removeConfirm: Löschen
+    removeFailed: Die Datei konnte nicht gelöscht werden — versuch es nochmal.
