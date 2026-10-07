@@ -1,0 +1,19 @@
+page:
+  title: Benutzereinstellungen
+  enable:
+    orgStateOn: aktiv
+    orgStateOff: aus
+    followingOrgDefault: Folgt dem Organisations-Standard ({state}).
+    overridingOrgDefault: Überschreibt den Organisations-Standard ({state}).
+  customInstructionsToggle:
+    label: Benutzerdefinierte Anweisungen
+    description: 'Feste Anweisungen, die der Chat-Assistent in jeder Antwort an dich befolgt. In einem Projektchat gelten sie zusätzlich zu den Anweisungen des Projekts.'
+  customInstructions:
+    title: Benutzerdefinierte Anweisungen
+    placeholder: z. B. Antworte knapp. Verwende standardmäßig TypeScript bei Code-Themen.
+errors:
+  saveFailed: Speichern fehlgeschlagen. Versuch es nochmal.
+  loadFailed: Deine Einstellungen konnten nicht geladen werden. Benutzerdefinierte Anweisungen sind erst verfügbar, wenn die Einstellungen geladen sind.
+  tooLong: Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.
+toasts:
+  preferencesUpdated: Einstellungen aktualisiert.

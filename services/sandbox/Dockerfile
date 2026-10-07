@@ -17,7 +17,6 @@
 #   docker build -f services/sandbox/Dockerfile .
 
 ARG VERSION=dev
-ARG BUN_VERSION=1.3.12
 ARG DOCKER_CLI_VERSION=27
 
 # docker CLI stage — aliased so the runner stage can `COPY --from=docker-cli`
@@ -28,7 +27,7 @@ FROM docker:${DOCKER_CLI_VERSION}-cli AS docker-cli
 # =============================================================================
 # Stage 1: BUILDER — install full deps (incl. devDeps) for typecheck/tests
 # =============================================================================
-FROM oven/bun:${BUN_VERSION}-debian AS builder
+FROM oven/bun:1.4.2-debian@sha256:4f6e31d1a54d6a3dd312daef655fc998101b5043d52e12592ac293ef04b9bc73 AS builder
 
 WORKDIR /app
 
@@ -46,7 +45,7 @@ COPY packages/shared/src/monitoring/privacy.ts /packages/shared/src/monitoring/p
 # Stage 2: RUNNER — production deps only + docker CLI for spawning siblings
 # =============================================================================
 # trivy:ignore:AVD-DS-0002 -- runs as root by design; needs /var/run/docker.sock
-FROM oven/bun:${BUN_VERSION}-debian AS runner
+FROM oven/bun:1.4.2-debian@sha256:4f6e31d1a54d6a3dd312daef655fc998101b5043d52e12592ac293ef04b9bc73 AS runner
 
 WORKDIR /app
 

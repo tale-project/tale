@@ -2,7 +2,7 @@ import { FIELD_ROW_FRAME } from '@tale/ui/field-shell';
 import { describe, expect, it } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { SettingsRow } from './settings-row';
 
@@ -156,7 +156,7 @@ describe('SettingsRow', () => {
           <button type="button">Enable</button>
         </SettingsRow>,
       );
-      await waitFor(() => checkAccessibility(container));
+      await checkAccessibility(container);
     });
   });
 });

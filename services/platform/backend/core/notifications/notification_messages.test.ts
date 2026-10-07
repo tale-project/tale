@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import deMessages from '../../../messages/de.yml';
-import enMessages from '../../../messages/en.yml';
-import frMessages from '../../../messages/fr.yml';
+import {
+  deMessages,
+  enMessages,
+  frMessages,
+} from '../../../tests/utils/messages';
 import {
   ACTIONABLE_INBOX_KEYS,
   INBOX_I18N,
@@ -63,7 +65,7 @@ describe('renderInboxMessage', () => {
 const LINK = 'https://app.example.com/dashboard/org_1';
 
 describe('renderActionableEmailContent', () => {
-  it('includes a deep link and footer in plain text', () => {
+  it('includes a deep link and footer in plain text [NOTIF-R2]', () => {
     const content = renderActionableEmailContent('en', {
       titleKey: 'taskAssigned',
       bodyKey: 'taskAssignedBody',
@@ -81,7 +83,7 @@ describe('renderActionableEmailContent', () => {
   // A notification that names something the reader cannot reach is the
   // defect this pins: the CTA block used to be dropped whenever the deep
   // link came back null, so the email named a task and offered no way in.
-  it('always carries the CTA, in both lanes', () => {
+  it('always carries the CTA, in both lanes [NOTIF-R2]', () => {
     const content = renderActionableEmailContent('en', {
       titleKey: 'taskSlaEscalated',
       bodyKey: 'taskSlaEscalatedBody',
@@ -95,7 +97,7 @@ describe('renderActionableEmailContent', () => {
   // Regression: the html lane used to re-interpolate the ALREADY-interpolated
   // body, so the escape transform saw no placeholders and external text (task
   // titles, user names, conversation subjects) landed raw in HTML email.
-  it('HTML-escapes hostile params in the html lane', () => {
+  it('HTML-escapes hostile params in the html lane [NOTIF-R1]', () => {
     const content = renderActionableEmailContent('en', {
       titleKey: 'taskAssigned',
       bodyKey: 'taskAssignedByBody',
@@ -115,7 +117,7 @@ describe('renderActionableEmailContent', () => {
     expect(content.html).not.toContain('<b>');
   });
 
-  it('escapes params exactly once (pre-entitied input is not left as markup)', () => {
+  it('escapes params exactly once (pre-entitied input is not left as markup) [NOTIF-R1]', () => {
     const content = renderActionableEmailContent('en', {
       titleKey: 'taskAssigned',
       bodyKey: 'taskAssignedByBody',
@@ -128,7 +130,7 @@ describe('renderActionableEmailContent', () => {
     expect(content.html).toContain('&amp;amp;&lt;i&gt;');
   });
 
-  it('keeps the plain-text lane and subject unescaped', () => {
+  it('keeps the plain-text lane and subject unescaped [NOTIF-R1]', () => {
     const content = renderActionableEmailContent('en', {
       titleKey: 'taskAssigned',
       bodyKey: 'taskAssignedByBody',
@@ -144,7 +146,7 @@ describe('renderActionableEmailContent', () => {
 
   // The old double pass ALSO re-interpolated placeholder-shaped param values:
   // a hostile `{title}` param was substituted again on the second pass.
-  it('does not re-interpolate placeholder-shaped param values', () => {
+  it('does not re-interpolate placeholder-shaped param values [NOTIF-R1]', () => {
     const content = renderActionableEmailContent('en', {
       titleKey: 'taskAssigned',
       bodyKey: 'taskAssignedByBody',

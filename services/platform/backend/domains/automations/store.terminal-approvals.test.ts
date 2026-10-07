@@ -106,7 +106,7 @@ function expectWithdrawal(statements: Statement[]): void {
   expect(hints.map((s) => s.values[3])).toEqual(['appr_1', 'appr_2']);
 }
 
-describe('the terminal doors withdraw the run’s open approvals', () => {
+describe('the terminal doors withdraw the run’s open approvals [AUTO-R14]', () => {
   it('cancelRun', async () => {
     const fake = fakeSql(runRow);
     const result = await cancelRunInTx(

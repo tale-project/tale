@@ -32,6 +32,10 @@ import {
   SKILL_ORIGINS,
   SKILL_VISIBILITIES,
 } from '@tale/shared/schemas/skills';
+import {
+  externalStatusWorkflowSchema,
+  externalStatusDecisionSchema,
+} from '@tale/shared/schemas/task-external-status';
 // ── Small builders ───────────────────────────────────────────────────────────
 import { z } from 'zod';
 
@@ -3998,7 +4002,10 @@ export function buildSpec(): Json {
               'person or an agent made is theirs: `open` leaves it, and any ' +
               'move through the board ends the mirror’s claim on a park it ' +
               'made. Local triage owns every other status; a cancelled ' +
-              'task stays cancelled.',
+              'task stays cancelled. A task explicitly opted into accepted ' +
+              'source projection through `PUT …/external-status` keeps that ' +
+              'projected lifecycle on intake refresh; this legacy field no ' +
+              'longer changes its progress.',
           },
           runWorkflowSlug: {
             type: 'string',
@@ -4088,6 +4095,107 @@ export function buildSpec(): Json {
           'The key holder may not change this task (`RBAC_FORBIDDEN`), or the project is archived (`PROJECT_ARCHIVED`)',
         ),
         '404': taskNotFound,
+        ...standardErrors,
+      },
+    },
+  };
+  paths['/api/v1/projects/{id}/tasks/{taskId}/status'] = {
+    get: {
+      tags: ['Tasks'],
+      summary: 'Read task lifecycle revision and actor provenance',
+      description:
+        'A coherent status, archival and source-transition snapshot. `revision` is an opaque decimal activity sequence covering status, archival, accepted source projections and native source-transition requests; ordinary metadata and comments do not advance it. `change` names the actual current status actor independently of later archive/restore or form-submission actors. Human emails are present only while actively verified organization members. `externalStatus` is the last accepted source projection. `workflow` carries the source-declared actions rendered in native task details. `request` is the newest immutable human form submission, including same-column actions, source version, captured statusChangeId, typed input, actual session actor and durable source decision. Validate the actual human identity and original source revision, persist a decision by request.id, and reconcile any later independent native status intent before projecting current accepted source state. Archived tasks and projects remain readable.',
+      operationId: 'getTaskStatus',
+      security: sec,
+      parameters: taskParameters,
+      responses: {
+        '200': jsonResponse(
+          'The lifecycle snapshot',
+          ref('TaskStatusSnapshot'),
+        ),
+        '404': taskNotFound,
+        ...standardErrors,
+      },
+    },
+  };
+  paths['/api/v1/projects/{id}/tasks/{taskId}/external-status'] = {
+    put: {
+      tags: ['Tasks'],
+      summary: 'Project an accepted custom-source business lifecycle',
+      description:
+        'Explicit opt-in for a custom mirror whose source validates every business transition before calling. Requires exact custom external binding, existing task work permission and an active project; issue importers cannot opt in. Atomically compares expectedRevision, orders source lifecycle by sourceStatusAt and records external evidence without a native human approval. A captured native agent review refuses TASK_AGENT_REVIEW_REQUIRED, including on replay; pending human review is withdrawn on leave. Creates no agent run, second review or repeat copy. Status and optional archival apply together even on an archived task; other fields are preserved. Ordinary intake then preserves this accepted lifecycle. An identical lost-reply replay is a no-op only while still the latest lifecycle revision. Optional workflow replaces the source-declared form, bounded to 256 KiB, 16 actions and 30 fields per action; omission preserves it. Optional requestId and decision must appear together and settle that exact immutable native request. A refusal requires a reason. An older request may be acknowledged as a source fact under a fresh CAS after reconciling newer intent, but cannot replace the newest visible request or change an already recorded decision. Source ordering still refuses older lifecycle data. Source services cannot choose a native human actor.',
+      operationId: 'projectExternalTaskStatus',
+      security: sec,
+      parameters: taskParameters,
+      requestBody: jsonBody({
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'externalSystem',
+          'externalId',
+          'expectedRevision',
+          'sourceRevision',
+          'sourceStatusAt',
+          'status',
+        ],
+        properties: {
+          externalSystem: { type: 'string', minLength: 1, maxLength: 100 },
+          externalId: { type: 'string', minLength: 1, maxLength: 500 },
+          expectedRevision: {
+            type: 'string',
+            pattern: '^(0|[1-9]\\d{0,18})$',
+            description:
+              'The `/status` snapshot revision that was read and validated at the source',
+          },
+          sourceRevision: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 512,
+            description: 'Opaque identity of the accepted source snapshot',
+          },
+          sourceStatusAt: {
+            ...epochMsInput,
+            description:
+              'Monotonically increasing source lifecycle epoch ms, including for status and archival changes',
+          },
+          status: {
+            type: 'string',
+            enum: [
+              'backlog',
+              'todo',
+              'in_progress',
+              'in_review',
+              'done',
+              'cancelled',
+            ],
+          },
+          archived: {
+            type: 'boolean',
+            description:
+              'Optional accepted source archival; absent preserves current archival',
+          },
+          workflow: ref('ExternalStatusWorkflow'),
+          requestId: {
+            type: 'string',
+            format: 'uuid',
+            description:
+              'Immutable native request being acknowledged; supply decision as well',
+          },
+          decision: ref('ExternalStatusDecision'),
+        },
+      }),
+      responses: {
+        '200': jsonResponse(
+          'The accepted lifecycle snapshot',
+          ref('TaskStatusSnapshot'),
+        ),
+        '403': errorResponse(
+          'The key holder may not change this task (`RBAC_FORBIDDEN`), or the project is archived (`PROJECT_ARCHIVED`)',
+        ),
+        '404': taskNotFound,
+        '409': errorResponse(
+          'A newer native lifecycle revision (`TASK_STATUS_CONFLICT`), an older or same-time conflicting source lifecycle (`TASK_EXTERNAL_STATUS_STALE`), a mismatched or reserved external reference (`TASK_EXTERNAL_REF_INVALID`), a captured native agent review (`TASK_AGENT_REVIEW_REQUIRED`), or open subtasks on a terminal move (`TASK_HAS_OPEN_SUBTASKS`)',
+        ),
         ...standardErrors,
       },
     },
@@ -8802,6 +8910,181 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'The task the run works on, whose timeline mirrors the answer; absent for a run without a task',
             },
+          },
+        },
+        ExternalStatusWorkflow: z.toJSONSchema(externalStatusWorkflowSchema, {
+          target: 'openapi-3.0',
+          io: 'input',
+        }),
+        ExternalStatusDecision: z.toJSONSchema(externalStatusDecisionSchema, {
+          target: 'openapi-3.0',
+          io: 'input',
+        }),
+        TaskStatusSnapshot: {
+          type: 'object',
+          required: [
+            'task',
+            'revision',
+            'statusChangedAt',
+            'change',
+            'externalStatus',
+            'workflow',
+            'request',
+          ],
+          properties: {
+            task: {
+              type: 'object',
+              required: ['id', 'status'],
+              properties: {
+                id: str,
+                status: {
+                  type: 'string',
+                  enum: [
+                    'backlog',
+                    'todo',
+                    'in_progress',
+                    'in_review',
+                    'done',
+                    'cancelled',
+                  ],
+                },
+                archivedAt: epochMs,
+                externalSystem: str,
+                externalId: str,
+              },
+            },
+            revision: {
+              type: 'string',
+              pattern: '^(0|[1-9]\\d{0,18})$',
+              description:
+                'Opaque lifecycle activity sequence; compare it as a string',
+            },
+            statusChangedAt: nullable(epochMs),
+            change: nullable({
+              type: 'object',
+              description:
+                'Latest status activity, including creation or accepted source projection; a later archival activity advances revision without replacing this actor',
+              required: ['id', 'action', 'createdAt', 'origin', 'actor'],
+              properties: {
+                id: str,
+                action: str,
+                createdAt: epochMs,
+                origin: { type: 'string', enum: ['native', 'external'] },
+                actor: {
+                  type: 'object',
+                  required: ['type', 'userId', 'emailVerified', 'activeMember'],
+                  properties: {
+                    type: { type: 'string', enum: ['user', 'agent'] },
+                    userId: {
+                      type: 'string',
+                      description:
+                        'Immutable activity actor id; a person only when type is user',
+                    },
+                    email: {
+                      type: 'string',
+                      format: 'email',
+                      description:
+                        'Present only for an active verified human member of this organization',
+                    },
+                    emailVerified: { type: 'boolean' },
+                    activeMember: { type: 'boolean' },
+                  },
+                },
+              },
+            }),
+            externalStatus: nullable({
+              type: 'object',
+              required: [
+                'sourceRevision',
+                'sourceStatusAt',
+                'status',
+                'archived',
+              ],
+              properties: {
+                sourceRevision: {
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 512,
+                },
+                sourceStatusAt: epochMs,
+                status: {
+                  type: 'string',
+                  enum: [
+                    'backlog',
+                    'todo',
+                    'in_progress',
+                    'in_review',
+                    'done',
+                    'cancelled',
+                  ],
+                },
+                archived: { type: 'boolean' },
+              },
+            }),
+            workflow: nullable(ref('ExternalStatusWorkflow')),
+            request: nullable({
+              type: 'object',
+              required: [
+                'id',
+                'revision',
+                'statusChangeId',
+                'actionId',
+                'status',
+                'input',
+                'sourceRevision',
+                'sourceStatusAt',
+                'createdAt',
+                'actor',
+                'decision',
+              ],
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                revision: str,
+                statusChangeId: {
+                  ...str,
+                  description:
+                    'Actual status activity observed when submitting the form; a later archive does not replace it',
+                },
+                actionId: str,
+                status: {
+                  type: 'string',
+                  enum: [
+                    'backlog',
+                    'todo',
+                    'in_progress',
+                    'in_review',
+                    'done',
+                    'cancelled',
+                  ],
+                },
+                input: {
+                  type: 'object',
+                  additionalProperties: {
+                    oneOf: [
+                      { type: 'string', maxLength: 4000 },
+                      { type: 'number' },
+                      { type: 'boolean' },
+                    ],
+                  },
+                  description: 'Validated declared values plus move: actionId',
+                },
+                sourceRevision: str,
+                sourceStatusAt: epochMs,
+                createdAt: epochMs,
+                actor: {
+                  type: 'object',
+                  required: ['type', 'userId', 'emailVerified', 'activeMember'],
+                  properties: {
+                    type: { type: 'string', enum: ['user'] },
+                    userId: str,
+                    email: { type: 'string', format: 'email' },
+                    emailVerified: { type: 'boolean' },
+                    activeMember: { type: 'boolean' },
+                  },
+                },
+                decision: nullable(ref('ExternalStatusDecision')),
+              },
+            }),
           },
         },
         TaskReview: {

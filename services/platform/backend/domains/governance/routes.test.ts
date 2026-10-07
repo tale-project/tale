@@ -253,7 +253,7 @@ describe('POST /policies/:policyType — write order', () => {
     },
   );
 
-  it('writes the file LAST, inside the audited transaction', async () => {
+  it('writes the file LAST, inside the audited transaction [GOV-R11]', async () => {
     const res = await post('/policies/feature_flags?orgId=o1', NEXT);
 
     expect(res.status).toBe(200);
@@ -273,7 +273,7 @@ describe('POST /policies/:policyType — write order', () => {
     expect(getSandboxDeploymentLimits).not.toHaveBeenCalled();
   });
 
-  it('leaves the file untouched when the audit row cannot be written', async () => {
+  it('leaves the file untouched when the audit row cannot be written [GOV-R11]', async () => {
     createAuditLog.mockRejectedValue(new Error('audit chain unavailable'));
 
     const res = await post('/policies/feature_flags?orgId=o1', NEXT);
@@ -282,7 +282,7 @@ describe('POST /policies/:policyType — write order', () => {
     expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
   });
 
-  it('audits the config actually on disk, read fresh past the TTL cache', async () => {
+  it('audits the config actually on disk, read fresh past the TTL cache [GOV-R11]', async () => {
     await post('/policies/feature_flags?orgId=o1', NEXT);
 
     expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
@@ -694,7 +694,7 @@ describe('GET /my/budget-usage', () => {
     };
   });
 
-  it('answers a plain member the caps that bind them with their usage', async () => {
+  it('answers a plain member the caps that bind them with their usage [GOV-R7]', async () => {
     readGovernancePolicyForOrg.mockImplementation(
       async (_sql: unknown, _org: string, policyType: string) =>
         policyType === 'budgets'
@@ -814,7 +814,7 @@ describe('GET /my/budget-usage', () => {
   });
 });
 
-describe('GET /policies/:policyType — who may read', () => {
+describe('GET /policies/:policyType — who may read [GOV-R10]', () => {
   // The app's route loaders warm these for a caller whose role they do not
   // know yet (`isPolicyReadableByMember`), so this door must answer a member
   // exactly them and refuse the rest (#3098).

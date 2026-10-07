@@ -11,7 +11,7 @@ describe('useFirstFrameSlice', () => {
     const seen: number[] = [];
     const items = rows(200);
     const { result } = renderHook(() => {
-      const shown = useFirstFrameSlice(items, 20);
+      const shown = useFirstFrameSlice(items, 20, 'task-1');
       seen.push(shown.length);
       return shown;
     });
@@ -25,7 +25,7 @@ describe('useFirstFrameSlice', () => {
     const seen: number[] = [];
     const { result, rerender } = renderHook(
       ({ items }: { items: readonly string[] }) => {
-        const shown = useFirstFrameSlice(items, 20);
+        const shown = useFirstFrameSlice(items, 20, 'task-1');
         seen.push(shown.length);
         return shown;
       },
@@ -43,7 +43,30 @@ describe('useFirstFrameSlice', () => {
 
   it('hands a short list through whole', () => {
     const items = rows(5);
-    const { result } = renderHook(() => useFirstFrameSlice(items, 20));
+    const { result } = renderHook(() =>
+      useFirstFrameSlice(items, 20, 'task-1'),
+    );
     expect(result.current).toBe(items);
+  });
+
+  it('opens another list with its first screens again', async () => {
+    const seen: number[] = [];
+    const { result, rerender } = renderHook(
+      ({ items, listKey }: { items: readonly string[]; listKey: string }) => {
+        const shown = useFirstFrameSlice(items, 20, listKey);
+        seen.push(shown.length);
+        return shown;
+      },
+      { initialProps: { items: rows(100), listKey: 'task-1' } },
+    );
+    await act(async () => {});
+    expect(result.current).toHaveLength(100);
+
+    const next = rows(120);
+    seen.length = 0;
+    rerender({ items: next, listKey: 'task-2' });
+    expect(seen[0]).toBe(20);
+    await act(async () => {});
+    expect(result.current).toBe(next);
   });
 });

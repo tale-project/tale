@@ -75,6 +75,8 @@ When a `DataTableActionMenu` or `EntityRowActions` item opens a dialog, closing 
 
 Leave it off for a table embedded in a page that scrolls as a whole, such as a section of a settings page. Every collection screen takes it; see the [list-page pattern](/docs/patterns/list-page).
 
+In the normal sticky layout, a collection above 100 rows mounts only the rows near its viewport and any focused row. Heights are measured, and selection and sorting still use the complete loaded data. Tables with `enableExpanding`, tables that scroll with the page, and the short-viewport fallback render their rows in full. Keep mutable cell drafts in the host when they must survive scrolling out of view.
+
 A sticky frame is still only as tall as its rows, so a short list ends high on the page. Add `fillHeight` when the table is the whole screen and nothing follows it: the frame then takes the full bounded height, the count footer stays on the bottom edge, and the rows scroll inside it at any count. The empty, no-results and error states opt out of the stretch on their own — a line of copy centred in an empty frame reads worse than a frame that hugs it. Leave `fillHeight` off wherever the page continues below the table.
 
 ## Loading and errors

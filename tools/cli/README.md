@@ -127,6 +127,23 @@ bundle commands require POSIX custody checks and are unavailable on Windows.
 Retain the bundle, source pins and receipts together. Serialize competing
 deployments externally: a local lock does not coordinate separate hosts.
 
+After a completed rollout, `tale --json deploy accept --bundle
+"$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT"
+--expected-version "$TALE_RELEASE_VERSION"` collects current read-only acceptance.
+It verifies the exact Ready receipt, runtime image custody and OCI release labels,
+complete SQL/TypeScript migration inventories, and both frontend/API serving
+processes. The canonical HTTPS health responses must carry the same fresh public
+process identities as the captured local containers, including a final reread;
+another installation at the same version is refused. Legacy servers without that
+identity contract cannot supply acceptance. No application/configuration state is
+written. The existing lock and an owned temporary bundle copy preserve custody.
+External observations share a 120-second elapsed budget; the bundle's existing
+2 GiB/256 MiB-per-file limits bound preparation resources, but filesystem waits
+and cleanup do not have a cancellable whole-command deadline. Use an external
+process supervisor when a total deadline is required. A receipt is point-in-time
+correlation, not authentication or a guarantee of later routing. `sourceTag` is
+image-reference metadata; OCI labels and frontend health establish the version.
+
 Managed runtime error reporting defaults `SENTRY_ENVIRONMENT` to the deployment's
 retained `name`. To use a canonical reporting label, declare
 `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }`
@@ -292,7 +309,7 @@ it. See the [organization-creators guide](../../docs/en/self-hosted/install/cli-
 `config validate`, `plan`, `apply` and `read` use the same native configuration
 engine as managed deployments. Supported declarations include branding, governance,
 providers, environment credential metadata, embeddings, deployment settings, project
-and agent instructions, standing-task descriptions and native automation definitions,
+and agent instructions, agent tool grants, standing-task descriptions and native automation definitions,
 deployments and schedules.
 
 Review the saved plan before applying it with `--plan`, `--receipt` and `--yes`.
@@ -328,6 +345,39 @@ change task status. Project and task text retain whitespace; agent instructions 
 the native writer's trimming rule. Each text field is limited to 20,000 UTF-16 code
 units. The native route checks the previous field hash atomically and retains its
 audit and permission rules.
+
+An `agent-tools` resource adopts an existing `projectId` and `agentId` with a
+complete desired `tools` array. Keep every existing grant you intend to retain:
+the array replaces the tool set. The native catalog validates every name, removes
+duplicates and orders grants consistently before hashing. Unknown names fail;
+they are never silently removed. For example, this declaration equips one
+existing reviewer with task lookup and independent review:
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "agent-tools",
+      "config": {
+        "projectId": "11111111-1111-4111-8111-111111111111",
+        "agentId": "22222222-2222-4222-8222-222222222222",
+        "tools": ["task_find", "task_get", "task_review"]
+      }
+    }
+  ]
+}
+```
+
+Replace the example IDs with exact identities already read from the platform.
+The caller needs editor access to the active project, and the agent must not be
+managed by the platform. Members can read the narrow configuration but cannot
+apply tool changes. The writer preserves instructions, model, skills, connectors
+and every secret grant exactly, including unavailable equipment. An equal set
+changes no timestamp or audit row; a changed set invalidates stale full-agent
+saves. Plan/readback exposes only identity, tools and their native hash. A runtime
+without this configuration facet or a requested capability refuses the operation.
+Interrupted application uses the same pending receipt recovery described above.
 
 An `automation-definition` resource declares `projectId`, the exact native `name`
 (including folder slashes), `document`, `settings`, `presentation` and `taskContract`.

@@ -1,0 +1,61 @@
+title: Contacts
+entityLabelOne: contact
+searchPlaceholder: Rechercher des contacts
+filter:
+  source:
+    manual: Manuel
+    upload: Téléversement
+    api: API
+    conversation: Conversation
+    webhook: Webhook
+    custom: Personnalisé
+importForm:
+  manualEntry: Saisie manuelle
+  upload: Téléversement
+  formatHint:
+    'Format : email, nom (optionnel), locale (optionnel). Un contact par
+    ligne.'
+  localeHint:
+    La locale peut être n'importe quelle balise BCP 47 valide (ex. en,
+    en-US, de-DE, zh-Hans).
+  expectedColumns: 'Colonnes attendues : email, name, locale'
+addButton: Ajouter un contact
+editContact: Modifier le contact
+editDescription: Mettre à jour les informations du contact.
+deleteContact: Supprimer le contact
+importMenu:
+  fromDevice: Depuis ton appareil
+  manualEntry: Saisie manuelle
+create:
+  title: Ajouter un contact
+  description: Saisis l'adresse email, le nom, le numéro de téléphone et la locale du contact.
+  success: Contact créé
+  error: Échec de la création du contact
+  duplicateEmail: Un contact avec cette adresse email existe déjà
+thisContact: ce contact
+updateSuccess: Contact mis à jour
+updateError: Échec de la mise à jour du contact
+name: Nom
+namePlaceholder: Saisir le nom du contact
+email: Courriel
+emailPlaceholder: Saisir l'adresse email
+locale: Langue
+localePlaceholder: ex. en-US
+phone: Téléphone
+phonePlaceholder: '+33 1 23 45 67 89'
+import:
+  provideData: Fournis des données
+  noValidData: Aucune donnée de contact valide trouvée
+  success: Importé
+  successDescription: '{success} contacts importés{failed, select, 0 {} other {, {failed} échoué(s)}}'
+  noneImported: Aucun contact n'a été importé
+  error: Erreur d'importation
+  uploadContacts: Téléverser des contacts
+  import: Importer
+  errorCodes:
+    duplicate_email: Un contact avec cette adresse email existe déjà
+    duplicate_external_id: Un contact avec cet identifiant externe existe déjà
+    unknown: Une erreur inattendue s'est produite
+deleteConfirmation: Supprimer « {name} » ?
+deleteError: Échec de la suppression du contact
+deleteWarning: Cette action est irréversible.

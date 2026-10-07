@@ -1,0 +1,27 @@
+title: Richte deinen Arbeitsbereich ein
+subtitle: Ein paar schnelle Schritte, bis dein Arbeitsbereich einsatzbereit ist.
+backToApp: Zurück zur App
+stepsAriaLabel: Onboarding-Schritte
+progress: 'Schritt {current} von {total}: {label}'
+steps:
+  account: Konto
+  workspace: Arbeitsbereich
+  finish: Fertig
+account:
+  heading: Erstelle dein Inhaberkonto
+  why: Dies ist das erste Konto auf dieser Tale-Installation und erhält daher
+    volle Administratorrechte. Teammitglieder fügst du später hinzu.
+workspace:
+  createError: Dein Arbeitsbereich konnte nicht erstellt werden. Prüfe deine
+    Verbindung und klicke erneut auf „Weiter“.
+  creationForbidden: Du kannst in dieser Bereitstellung keine Organisation erstellen. Wende dich an den Betreiber, um einen Arbeitsbereich anzufordern.
+  nameTakenError: Dieser Name ist schon vergeben. Wähle einen anderen.
+finish:
+  heading: Bereit
+  subtitle: 'Das kannst du als Nächstes tun:'
+  providerItem: Verbinde einen KI-Anbieter für Agenten und Chat.
+  providerConnected: KI-Anbieter verbunden.
+  inviteItem: Lade Teammitglieder zur Zusammenarbeit ein.
+  providerCta: Anbieter verbinden
+  inviteCta: Teammitglieder einladen
+  goToDashboard: Zu Start

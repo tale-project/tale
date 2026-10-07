@@ -23,7 +23,7 @@ Pendant la génération, la commande d’envoi devient une commande d’arrêt. 
 
 ## Choisir un modèle lorsque c’est utile
 
-Le sélecteur démarre sur **Auto** lorsque plusieurs modèles utilisables sont disponibles. Auto choisit un modèle pour chaque message parmi ceux de ton organisation. Les règles de l’organisation peuvent définir un choix par défaut ou restreindre les modèles autorisés. Les détails sous la réponse indiquent celui qui a effectivement répondu.
+Le sélecteur démarre sur **Auto** lorsque plusieurs modèles utilisables sont disponibles. Auto choisit un modèle pour chaque message parmi ceux de ton organisation. Les règles de l’organisation peuvent définir un choix par défaut ou restreindre les modèles autorisés. Les [détails sous la réponse](#reply-details) indiquent celui qui a effectivement répondu.
 
 Choisis un modèle précis pour comparer des réponses dans les mêmes conditions ou lorsque tu sais lequel convient au travail. Il reste sélectionné jusqu’à ce que tu changes ce choix, y compris le fournisseur qui sert le modèle lorsque deux fournisseurs proposent le même. S’il permet de régler l’effort de raisonnement, le sélecteur propose aussi ce réglage. Un effort plus élevé peut prendre plus de temps ; il ne remplace pas la vérification du résultat.
 
@@ -58,6 +58,15 @@ Au-dessus de la réponse, le déroulé montre les recherches et les lectures. Un
 La zone **Sources** sous la réponse liste les documents et pages chargés. Ouvre une source et vérifie qu’elle appuie l’affirmation concernée. Une citation indique le contenu utilisé, sans garantir toutes les conclusions. Une réponse sans étape de consultation peut reposer sur les connaissances préalables du modèle.
 
 L’assistant peut rechercher des documents, entrées de connaissances, sites, contacts, produits, tâches accessibles et conversations de la boîte de réception que tu peux voir, y compris le texte des e-mails qu’elles ont reçus et de leurs pièces jointes. Une tâche peut être désignée par sa clé, par exemple `DOCS-12`, telle que le tableau l’affiche. Il peut lire le détail d’un résultat et une page web publique. Le chat n’exécute pas de code, ne modifie pas de systèmes connectés, ne crée pas d’images, ne produit pas de fichiers livrables et n’utilise pas de [skills](/fr/platform/workspace/skills). Confie ce travail à une [tâche de projet](/fr/platform/projects/tasks). Toute personne qui peut ouvrir le projet peut en créer une et la confier à l’un des agents du projet ; [Transformer un chat en tâche](#create-task-from-chat) montre comment la créer depuis la conversation. Un agent de projet qui traite la tâche peut créer des images si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images).
+
+## Voir comment une réponse a été produite {#reply-details}
+
+Choisis **Afficher les informations** sous une réponse pour ouvrir **Informations sur le message**. Tu y trouves le modèle qui a répondu et son **Fournisseur IA**, la durée de la réponse et le nombre de tokens utilisés, ainsi que l’endroit où elle a été traitée lorsqu’il est connu.
+
+- **Délai avant le premier token** indique le temps que le modèle a mis à commencer sa réponse, **Vitesse de sortie** la vitesse à laquelle il a écrit, en tokens par seconde, et **Durée totale** le temps de toute la réponse. La barre en dessous répartit ce temps entre la préparation, l’attente du modèle, la réflexion et la rédaction. Le serveur mesure à partir du moment où il a commencé la réponse ; le délai avant l’apparition des premiers mots sur ton écran, affiché sous la barre, peut donc être plus long.
+- **Traité par** nomme l’entreprise qui a exécuté le modèle lorsque ton fournisseur transmet les requêtes à un autre. OpenRouter peut par exemple servir un même modèle Claude via Anthropic, Amazon Bedrock ou Google Vertex.
+- **Région** indique où la réponse a été traitée, mais seulement si le fournisseur l’a indiqué, comme le fait Azure OpenAI (par exemple Switzerland North), ou si la requête est passée par un endpoint régional dont le fournisseur s’engage à traiter les requêtes dans une seule région, comme `eu.openrouter.ai` ou `eu.api.openai.com`. Sinon, elle affiche **Non indiquée** : Tale ne déduit pas un emplacement du nom ou du siège d’un fournisseur. Sur Azure, un déploiement de type Global peut traiter une requête dans n’importe quelle région, quelle que soit la région indiquée dans la réponse ; un déploiement Data Zone la traite dans sa zone de données, par exemple l’UE, et un déploiement régional dans sa zone géographique.
+- **Version du modèle** apparaît lorsque le fournisseur indique un modèle plus précis que celui demandé, par exemple une version datée derrière un alias ou le modèle derrière un nom de déploiement Azure.
 
 ## Transformer un chat en tâche {#create-task-from-chat}
 

@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { type ComponentPropsWithoutRef } from 'react';
+import { useMemo, type ComponentPropsWithoutRef } from 'react';
 import type { Components } from 'react-markdown';
 
 import { isFileHref } from './is-file-href';
@@ -72,11 +72,12 @@ export function RoutedMarkdown({
   components,
   className,
 }: RoutedMarkdownProps) {
+  const routedComponents = useMemo(
+    () => ({ ...ROUTED_COMPONENTS, ...components }),
+    [components],
+  );
   return (
-    <Markdown
-      className={className}
-      components={{ ...ROUTED_COMPONENTS, ...components }}
-    >
+    <Markdown className={className} components={routedComponents}>
       {children}
     </Markdown>
   );

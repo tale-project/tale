@@ -112,7 +112,7 @@
     "operations": "self-hosted/operate/observability/operations",
     "overview": "self-hosted/overview",
     "permissions": "platform/admin/members-and-roles",
-    "platform-documentation": "index",
+    "platform-documentation": "get-started/quickstart",
     "platform/admin/data-subject-requests": "platform/admin/governance/data-subject-requests",
     "platform/admin/usage-analytics": "platform/admin/governance/usage-analytics",
     "platform/agents/organigram": "platform/agents/concepts",

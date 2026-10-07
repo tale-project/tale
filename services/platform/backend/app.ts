@@ -1,4 +1,8 @@
 import { oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider';
+import {
+  createServingIdentity,
+  SERVING_IDENTITY_HEADER,
+} from '@tale/ui/server/serving-identity';
 import { Hono } from 'hono';
 import { requestId } from 'hono/request-id';
 import type { Sql } from 'postgres';
@@ -105,7 +109,7 @@ import {
 import { createSseAuthRoutes } from './realtime/oracle-routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
 import { mountRestV1Routes } from './rest/v1.ts';
-import { probeStores } from './store-health.ts';
+import { probeAppDatabase, probeStores } from './store-health.ts';
 import { backendMetricsResponse, initBackendTelemetry } from './telemetry.ts';
 import { requestTelemetry } from './tracing.ts';
 
@@ -115,6 +119,7 @@ export interface AppDeps {
 }
 
 export function createApp(deps: AppDeps): Hono<AuthEnv> {
+  const servingIdentity = createServingIdentity('backend-api');
   // One trailing slash under /api/v1/ routes like its absence
   // (lib/http-hygiene.ts) — the path is normalised once, here, so every
   // door and the 405/OPTIONS probe read the same value.
@@ -199,6 +204,21 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // what it was asked to; killing it mid-drain cuts the generations the drain
   // is waiting for.
   app.get('/ping', (c) => c.json({ ok: true, service: 'backend' }));
+  // The browser's availability check must reach the API and its database,
+  // rather than the independently healthy web process or an FRP error page.
+  // A draining replica still serves reads: drain is not an application outage.
+  // Share only concurrent checks, never a cached verdict. Reuse the store
+  // probe's five-second bound so idle browsers cannot pile up SQL on an outage.
+  let readinessProbe: ReturnType<typeof probeAppDatabase> | undefined;
+  app.get('/api/health/ready', async (c) => {
+    c.header('Cache-Control', 'no-store');
+    c.header(SERVING_IDENTITY_HEADER, servingIdentity);
+    readinessProbe ??= probeAppDatabase(deps.sql).finally(() => {
+      readinessProbe = undefined;
+    });
+    const { up } = await readinessProbe;
+    return c.json({ ok: up, service: 'backend' }, up ? 200 : 503);
+  });
   // STORES: whether the three stores this process depends on answer — the
   // app database, the deployment-default knowledge database and the
   // deployment-default object store — from the cached probe the metrics

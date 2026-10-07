@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { preconditionError } from '../../utils/fail';
 import { slug } from '../config/releases/model';
 import type { exec } from '../docker/exec';
+import { migrationInventorySchema } from './migration-model';
 
 export const RUNTIME_SERVICES = [
   'db',
@@ -70,6 +71,9 @@ export const runtimeBundleSchema = z
      * policy then hands organization creation to the backend instead of
      * refusing it, and the reader checks the file against this word. */
     organizationCreatorsDeclared: z.literal(true).optional(),
+    // Legacy bundles remain deployable; read-only acceptance requires the
+    // inventory prepared from the exact runtime source, including TS data migrations.
+    migrations: migrationInventorySchema.optional(),
     source: z.object({ composeSha256: sha256, caddySha256: sha256 }).strict(),
     files: z
       .object({ 'compose.yml': sha256, 'Caddyfile.production': sha256 })

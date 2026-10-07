@@ -370,7 +370,7 @@ export function DocumentsTable({
   );
 
   const navigateToFolder = useCallback(
-    (folderId: string | undefined) => {
+    (folderId: string | undefined, options?: { replace?: boolean }) => {
       void navigate({
         to: '/dashboard/$id/documents',
         params: { id: organizationId },
@@ -378,6 +378,7 @@ export function DocumentsTable({
           query: query.trim() || undefined,
           folderId,
         },
+        ...(options?.replace === true && { replace: true }),
       });
     },
     [navigate, organizationId, query],
@@ -439,11 +440,6 @@ export function DocumentsTable({
     });
   }, [navigate, organizationId, query, currentFolderId]);
 
-  const handleFolderDeleted = useCallback(
-    () => navigateToFolder(undefined),
-    [navigateToFolder],
-  );
-
   const handleDocumentClick = useCallback(
     (item: DocumentItem, e: React.MouseEvent) => {
       e.stopPropagation();
@@ -461,7 +457,6 @@ export function DocumentsTable({
     onDocumentClick: handleDocumentClick,
     onDocumentView: openPreview,
     currentFolderId,
-    onFolderDeleted: handleFolderDeleted,
     isLoadingTeams,
     nameOf,
     parentFolderTeamId,

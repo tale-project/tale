@@ -1,0 +1,79 @@
+title: Notifications
+ariaUnread: Unread
+emptyCaughtUpTitle: You're all caught up
+emptyCaughtUpDescription: We'll let you know when anything new comes in.
+emptyAllTitle: No notifications yet
+emptyAllDescription: Alerts and system updates will appear here when they arrive.
+markAsRead: Mark as read
+markAllAsRead: Mark all as read
+expand: Expand
+filterLabel: Show
+filterUnread: Unread
+filterAll: All
+sortLabel: Sort
+sortRecent: Most recent
+sortPriority: Priority
+loadMore: Load more
+loading: Loading…
+newNotifications: New notifications
+creditRequestTitle: Usage credits requested
+creditRequestBody: '{name} hit their usage limit and asked for more credits.'
+accountLocked: 'Account temporarily locked: {email}'
+lockoutDetails: '{consecutiveFailures} failed sign-in attempts from {ip}.'
+auditIntegrityFailed: Audit log integrity check failed
+auditIntegrityFailedDetails: "We couldn't verify the integrity of this
+  organization's audit log: {reason}. This can indicate tampering — please
+  investigate as soon as possible."
+websiteScanPaused: 'Website scans paused: {domain}'
+websiteScanPausedDetails: "Scans of {domain} were paused after {failures}
+  consecutive attempts couldn't reach this organization's knowledge database.
+  Check the connection under Settings → Data residency, then resume scanning
+  from the Websites page."
+knowledgeIndexRepaired: 'Knowledge search index repaired: {index}'
+knowledgeIndexRepairedDetails: "The search index {index} of this organization's knowledge database was found corrupted at startup and rebuilt automatically ({size}). Nothing was lost — the index is derived from the stored documents — and searches and uploads continue as before. Repeated repairs point at how the database container is being stopped."
+knowledgeIndexRebuilding: 'Knowledge search index rebuilding: {index}'
+knowledgeIndexRebuildingDetails: "The search index {index} of this organization's knowledge database was found corrupted and is being rebuilt in the background ({size}). New documents can't be indexed until it finishes; every document turned away in the meantime is indexed automatically afterwards."
+knowledgeIndexRepairFailed: 'Knowledge search index repair failed: {index}'
+knowledgeIndexRepairFailedDetails: "The search index {index} of this organization's knowledge database is corrupted and the automatic rebuild didn't fix it: {reason}. Indexing new documents is paused for this database until whoever operates the instance rebuilds the index (REINDEX) or restores the database — then retry the affected documents."
+dsarScheduled: Erasure request scheduled
+dsarScheduledBody: An erasure request was filed for a member of this
+  organization. It runs in {coolingOffHours} hours — open the receipt to
+  review or cancel it.
+dsarApprovalNeeded: Erasure request awaiting your approval
+dsarApprovalNeededBody: An erasure request needs a second admin's approval before it can run.
+dsarCancelled: Erasure request cancelled
+dsarCancelledBody: A pending erasure request was cancelled during its
+  cooling-off window, so it won't run.
+dsarScheduledByBody:
+  '{actor} filed an erasure request for {subject}. It runs in
+  {coolingOffHours} hours — open the receipt to review or cancel it.'
+dsarApprovalNeededByBody: "{actor} filed an erasure request for {subject}. It
+  needs a second admin's approval before it can run."
+dsarCancelledByBody: "{actor} cancelled the pending erasure request for
+  {subject}, so it won't run."
+dsarPolicyTightened: Data-erasure policy made stricter
+dsarPolicyTightenedBody:
+  This organization's data-erasure (DSAR) policy was made
+  stricter. It takes effect immediately.
+dsarPolicyLoosenProposed: Data-erasure policy weakening proposed
+dsarPolicyLoosenProposedBody:
+  A weaker data-erasure (DSAR) policy was proposed.
+  Any admin can cancel it within the 24-hour grace window before it takes
+  effect.
+dsarPolicyLoosenApplied: Data-erasure policy weakened
+dsarPolicyLoosenAppliedBody: A weaker data-erasure (DSAR) policy took effect
+  after the 24-hour grace window.
+dsarPolicyLoosenCancelled: Pending data-erasure policy change cancelled
+dsarPolicyLoosenCancelledBody: A pending data-erasure (DSAR) policy change was
+  cancelled before it took effect.
+agentBudgetWarnTitle: Agent approaching its budget
+agentBudgetWarnBody: '{agentSlug} has used {pct}% of its monthly budget ({spent} of {monthly}).'
+agentBudgetExceededTitle: Agent budget exceeded — runs paused
+agentBudgetExceededBody: '{agentSlug} reached its monthly budget ({spent} of
+  {monthly}) and has been paused. Runs resume next month or when you raise the
+  limit.'
+agentCircuitTrippedTitle: Agent runs paused — safety limit reached
+agentCircuitTrippedBody:
+  '{agentSlug} hit the safety limit of {windowRuns} runs
+  in {windowHours}h on "{taskTitle}". Change the task status to resume
+  automation.'

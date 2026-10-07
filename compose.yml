@@ -274,6 +274,7 @@ services:
     # tier mounts the same volume read-write — it owns every write.
     volumes:
       - config-data:/app/data:ro
+      - static-assets:/app/static-assets
 
     # Environment file (optional — see env_file note below)
     # Provide real secrets via .env; dev defaults live in compose.dev.yml.
@@ -970,6 +971,9 @@ services:
 # Volumes
 # ============================================================================
 volumes:
+  # Immutable frontend bundles retained across blue/green rollouts.
+  static-assets:
+    driver: local
   # Tale DB persistent storage
   db-data:
     driver: local

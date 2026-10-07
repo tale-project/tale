@@ -1,0 +1,167 @@
+title: Sites web
+entityLabelOne: site web
+searchPlaceholder: Rechercher des sites web
+addButton: Ajouter un site web
+addWebsite: Ajouter un site web
+addDescription: Indexe un site web entier ou une liste de pages, et choisis la fréquence d'analyse.
+editWebsite: Modifier le site web
+editDescription: Mettre à jour les informations du site web.
+urlPlaceholder: exemple.com
+scanIntervalPlaceholder: Sélectionner l'intervalle d'analyse
+domain: Domaine
+scanInterval: Intervalle d'analyse
+addMode:
+  label: Type de source
+  site: Site web entier
+  list: Liste d'URL
+urlList: URL
+urlListPlaceholder: |-
+  https://www.example.com/reports/annual.pdf
+  https://www.example.com/about
+urlListHint: Une URL par ligne. Seules ces pages exactes sont indexées, pas le site entier. Les URL de domaines différents sont enregistrées comme des sites web séparés. Les pages sont récupérées en HTTPS ; une ligne en http:// est récupérée en https://.
+kindList: Liste d'URL
+scanIntervals:
+  1hour: Toutes les heures
+  6hours: Toutes les 6 heures
+  12hours: Toutes les 12 heures
+  1day: Tous les jours
+  5days: Tous les 5 jours
+  7days: Tous les 7 jours
+  30days: Tous les 30 jours
+validation:
+  domainRequired: Le domaine est requis
+  validDomain: Saisis un domaine valide (ex. exemple.com)
+  scanIntervalRequired: L'intervalle d'analyse est requis
+  urlListRequired: Ajoute au moins une URL
+  urlListInvalid: "Cette ligne n'est pas une URL valide : {line}"
+toast:
+  addSuccess: Site web ajouté avec succès
+  addError: Échec de l'ajout du site web
+  addErrorDuplicate: Ce site web a déjà été ajouté
+  addListSuccess: "{count} URL enregistrées pour l'indexation"
+  addListPartial: "Échec de l'ajout de certaines sources : {domains}"
+  addErrorReason:
+    domainInvalid: Saisis un hôte public en https:// sans port ni chemin, p. ex. example.com — les adresses en http:// ne sont pas explorées.
+    notCrawlable: Le robot d'exploration ne peut pas atteindre cet hôte — les adresses privées, de bouclage et de métadonnées cloud sont refusées.
+  updateSuccess: Site web mis à jour avec succès
+  updateError: Échec de la mise à jour du site web
+  fetchPagesError: Échec du chargement des pages
+  searchError: La recherche a échoué
+  deleteError: Échec de la suppression du site web
+  scanStarted: Analyse lancée
+  scanAlreadyRunning: Une analyse est déjà en cours
+adding: Ajout en cours...
+viewDialog:
+  title: Détails du site web
+  status: Statut
+  nameField: Nom
+  scanInterval: Intervalle d'analyse
+  lastScanned: Dernière analyse
+  notScannedYet: Pas encore analysé
+  descriptionField: Description
+  created: Créé
+  websiteId: ID du site web
+  unknown: Inconnu
+  scanPausedNotice: L'analyse est suspendue après plusieurs échecs d'accès à
+    la base de connaissances. Vérifie la connexion sous Paramètres →
+    Résidence des données, puis reprends l'analyse.
+  scanError:
+    runtime: L'analyse n'a pas eu lieu.
+    notInCorpus: Cette liste d'URL n'est pas dans le crawler. Supprime-la et
+      ajoute-la à nouveau.
+    notInCorpusSite: Ce site n'est pas dans le crawler. La prochaine analyse
+      l'ajoutera à nouveau.
+    embedding: Le modèle d'embedding n'a pas pu traiter les pages.
+    generic: Le dernier scan ne s'est pas terminé.
+  scanEmpty:
+    runtime: Rien n'a été indexé. L'URL n'est pas le problème.
+    dns: Rien n'a été indexé. Change l'URL si l'hôte est incorrect.
+    notInCorpus: Rien n'a été indexé. Supprime la liste d'URL et ajoute-la à
+      nouveau.
+    notInCorpusSite: Rien n'a été indexé. La prochaine analyse ajoutera le site
+      à nouveau.
+    generic: Rien n'a été indexé.
+  scanDetail:
+    credential: Le fournisseur a rejeté les identifiants du modèle d'embedding. Un administrateur peut les réparer sous Paramètres → Fournisseurs IA.
+    credit: Le fournisseur a refusé la requête à cause du solde ou du forfait du compte. Un administrateur peut vérifier le compte chez le fournisseur.
+    unresolved: Les identifiants du modèle d'embedding ne peuvent pas être utilisés. Un administrateur peut les vérifier sous Paramètres → Fournisseurs IA.
+    dimension: Les vecteurs du modèle ne correspondent pas à cette base de connaissances. Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
+    upstream: Le fournisseur est en panne ou injoignable. Choisis Analyser maintenant dès qu'il est de retour.
+    throttled: La limite de débit du fournisseur a tenu malgré toutes les tentatives. La prochaine analyse reprend d'elle-même ; un administrateur peut espacer les requêtes sous Paramètres → Résidence des données.
+    generic: Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
+  technicalDetails: Détails techniques
+scanPausedBadge: Suspendu
+resumeScanning: Reprendre l'analyse
+scanNow: Analyser maintenant
+indexed: Indexé
+syncError:
+  title: Les statuts des sites web n'ont pas pu être actualisés
+  description: Les statuts et le nombre de pages indexées sont peut-être obsolètes. Essaie de les actualiser à nouveau.
+  retry: Réessayer
+searchNotice:
+  title: Le chat ne peut pas encore chercher dans ces sites web
+  description: Les pages sont explorées et enregistrées, mais la recherche de connaissances a besoin d'un modèle d'embedding qui fonctionne, et cette organisation n'en a pas encore.
+  configureCta: Configurer le modèle d'embedding
+  askAdmin: Demande à un administrateur de ton organisation d'en configurer un sous Paramètres → Résidence des données.
+pagesDialog:
+  title: Pages du site web
+  noPages: Aucune page explorée pour le moment
+  loadMore: Charger plus
+  wordCount: '{count} mots'
+  chunks: '{count} fragments'
+  lastCrawled: Exploré le {date}
+  searchPlaceholder: Rechercher dans le contenu du site web
+  noSearchResults: Aucun résultat trouvé
+  noSearchResultsDescription: Essaie un autre terme, ou efface la recherche pour parcourir toutes les pages.
+  noChunks: Aucun fragment indexé pour cette page
+  chunkIndex: Fragment {index}
+  lastError: '{count, plural, one {{count} tentative échouée} other {{count} tentatives échouées de suite}} — {message}'
+  failed: Échec
+  skipped: Ignorée
+  failedPages: '{count, plural, one {{count} page en échec} other {{count} pages en échec}}'
+  filter:
+    label: Pages à afficher
+    all: Toutes
+    failed: 'En échec ({count})'
+    skipped: 'Ignorées ({count})'
+  noFailedPages: Aucune page en échec
+  noSkippedPages: Aucune page ignorée
+  errorKind:
+    dnsFailed: Impossible de résoudre l'hôte.
+    timeout: La page n'a pas répondu à temps.
+    insecurePublicHttp: Redirection en clair ou vers une adresse privée refusée.
+    privateIp: Adresse privée refusée.
+    hostNotAllowed: Redirection hors du site refusée.
+    httpError: La page a répondu par une erreur.
+    networkError: Impossible d'atteindre la page.
+    renderFailed: Le navigateur n'a pas pu afficher la page.
+    extractionFailed: Impossible de lire le contenu de la page.
+    invalidUrl: L'URL n'est pas valide.
+    unsupportedProtocol: Ce protocole n'est pas pris en charge.
+    redirectMissingLocation: La redirection n'a pas de destination.
+    redirectLimitExceeded: Trop de redirections.
+    responseTooLarge: La page est trop volumineuse pour être récupérée.
+    responseTooSmall: La page était vide.
+    aborted: Récupération annulée.
+    tlsError: Le certificat n'est pas fiable.
+    unsupportedContent: Cette page n'est pas un texte que le crawler peut indexer.
+    robotsNoindex: La page a demandé à ne pas être indexée.
+    fallback: Impossible de récupérer cette page.
+filter:
+  status:
+    scanning: En cours d'analyse
+    active: Actif
+    error: Erreur
+    deleting: Suppression en cours
+  interval:
+    60m: Toutes les heures
+    6h: Toutes les 6 heures
+    12h: Toutes les 12 heures
+    1d: Tous les jours
+    5d: Tous les 5 jours
+    7d: Tous les 7 jours
+    30d: Tous les 30 jours
+delete:
+  confirmation: Supprimer « {name} » ?
+  warning: Cette action est irréversible.
+  title: Supprimer le site web

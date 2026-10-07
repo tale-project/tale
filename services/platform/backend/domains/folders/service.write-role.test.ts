@@ -175,7 +175,7 @@ const DOORS: [name: string, write: Door, wrote: string[]][] = [
 
 describe.each(DOORS)('%s', (_door, write, wrote) => {
   it.each(['member', 'disabled', 'wizard'])(
-    'refuses the %s role before anything is written',
+    'refuses the %s role before anything is written [FOLDER-R1]',
     async (role) => {
       const { tx, statements } = fakeTx();
       const error = await refusal(write(tx, role));
@@ -190,7 +190,7 @@ describe.each(DOORS)('%s', (_door, write, wrote) => {
   );
 
   it.each(['owner', 'admin', 'developer', 'editor'])(
-    'lets the %s role write',
+    'lets the %s role write [FOLDER-R1]',
     async (role) => {
       const { tx, statements } = fakeTx();
       await write(tx, role);
@@ -201,7 +201,7 @@ describe.each(DOORS)('%s', (_door, write, wrote) => {
 
 describe('the organization and team boundaries answer before the role', () => {
   it.each(['member', 'editor'])(
-    'another organization’s folder is not found for a %s',
+    'another organization’s folder is not found for a %s [FOLDER-R2]',
     async (role) => {
       const { tx, statements } = fakeTx();
       expect(
@@ -222,7 +222,7 @@ describe('the organization and team boundaries answer before the role', () => {
   );
 
   it.each(['member', 'editor'])(
-    'a team folder the %s cannot see stays out of reach',
+    'a team folder the %s cannot see stays out of reach [FOLDER-R3]',
     async (role) => {
       const { tx, statements } = fakeTx();
       const outsider = as(role, [TEAM_B]);
@@ -249,7 +249,7 @@ describe('the organization and team boundaries answer before the role', () => {
     },
   );
 
-  it('an editor still files only into their own teams', async () => {
+  it('an editor still files only into their own teams [FOLDER-R4]', async () => {
     const { tx, statements } = fakeTx();
     expect(
       await refusal(
@@ -268,7 +268,7 @@ describe('the organization and team boundaries answer before the role', () => {
   });
 });
 
-describe('a project folder keeps the project matrix', () => {
+describe('a project folder keeps the project matrix [FOLDER-R5]', () => {
   it('refuses a member with the project gate’s own answers', async () => {
     // A project the member can read: the gate's role refusal, decided on
     // the project row.

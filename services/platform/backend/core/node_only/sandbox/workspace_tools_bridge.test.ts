@@ -2692,3 +2692,104 @@ describe('dispatchWorkspaceToolImpl — task_review', () => {
     expect(mutations).toEqual([]);
   });
 });
+
+describe('dispatchWorkspaceToolImpl — task_delegate_review', () => {
+  const request = {
+    taskId: '00000000-0000-4000-8000-000000000001',
+    reviewerAgentId: '00000000-0000-4000-8000-000000000002',
+    expected: {
+      approvalId: '00000000-0000-4000-8000-000000000003',
+      runId: '00000000-0000-4000-8000-000000000004',
+      evidenceRevision: 'a'.repeat(64),
+      reviewer: {
+        kind: 'agent',
+        agentId: '00000000-0000-4000-8000-000000000005',
+      },
+    },
+    reason: 'Route the captured review to a qualified available reviewer.',
+  };
+  async function call(
+    callArgs: Record<string, unknown>,
+    options: { confined?: boolean; orgScope?: boolean; noExec?: boolean } = {},
+  ) {
+    const { dispatch } = await getActions();
+    const mutations: unknown[] = [];
+    const { ctx } = createCtx({
+      actionContext: {
+        allowed: true,
+        actorId: 'manager',
+        scope: options.orgScope
+          ? { kind: 'org' }
+          : { kind: 'project', projectId: 'project_1' },
+        ...(options.confined ? { confinedToTaskId: 'own-task' } : {}),
+      },
+      runMutation: vi.fn(async (ref, args) => {
+        if (
+          fnName(ref) === 'tasks/internal_mutations:agentDelegateTaskReview'
+        ) {
+          mutations.push(args);
+          return { approvalId: 'successor' };
+        }
+        return null;
+      }),
+    });
+    return {
+      result: await dispatch(ctx, {
+        ...BASE,
+        ...(options.noExec ? {} : { taskRunExecId: 'issuer-exec' }),
+        tool: 'task_delegate_review',
+        callArgs,
+      }),
+      mutations,
+    };
+  }
+  it('forwards only the authenticated token binding and exact captured request', async () => {
+    const { result, mutations } = await call(request);
+    expect(result.status).toBe('ok');
+    expect(mutations).toEqual([
+      {
+        organizationId: 'org_1',
+        sessionId: 'sid_1',
+        taskRunExecId: 'issuer-exec',
+        review: request,
+      },
+    ]);
+  });
+  it.each([{ confined: true }, { orgScope: true }, { noExec: true }])(
+    'refuses unsupported authority %j',
+    async (options) => {
+      const { result, mutations } = await call(request, options);
+      expect(result.status).toBe('unavailable');
+      expect(mutations).toEqual([]);
+    },
+  );
+  it.each([
+    'start',
+    'tools',
+    'secrets',
+    'status',
+    'agentId',
+    'projectId',
+    'decision',
+    'assigneeId',
+    'reviewer',
+  ])('refuses widened %s', async (field) => {
+    const { result, mutations } = await call({ ...request, [field]: true });
+    expect(result.status).toBe('invalid_args');
+    expect(mutations).toEqual([]);
+  });
+  it.each([
+    { taskId: '00000000' },
+    { reason: ' ' },
+    {
+      expected: {
+        ...request.expected,
+        reviewer: { kind: 'user', userId: 'human' },
+      },
+    },
+  ])('refuses missing full identity or human conversion %j', async (change) => {
+    const { result, mutations } = await call({ ...request, ...change });
+    expect(result.status).toBe('invalid_args');
+    expect(mutations).toEqual([]);
+  });
+});

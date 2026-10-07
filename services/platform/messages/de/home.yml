@@ -1,0 +1,76 @@
+title: Start
+newChat: Neuer Chat
+panel:
+  hide: Seitenleiste ausblenden
+  show: Seitenleiste einblenden
+views:
+  label: Anzeigen
+  all: Alle
+  chats: Chats
+  tasks: Aufgaben
+  inbox: Inbox
+groups:
+  pinned: Angeheftet
+  today: Heute
+  yesterday: Gestern
+  thisWeek: Letzte 7 Tage
+  earlier: Früher
+  searchPlaceholderAll: Alle durchsuchen...
+  searchPlaceholderChats: Chats durchsuchen...
+  searchPlaceholderTasks: Aufgaben durchsuchen...
+  newChatInProject: 'Neuer Chat in {project}'
+projects:
+  title: Projekte
+  newProject: Neues Projekt
+  allProjects: Alle Projekte
+  actions: 'Aktionen für {project}'
+  empty: Noch keine Projekte
+scope:
+  open: Projekt öffnen
+  emptyChatsTitle: Keine Chats in diesem Projekt
+  emptyChatsHint: In diesem Projekt abgelegte Chats erscheinen hier.
+  emptyTasksTitle: Keine dir zugewiesenen offenen Aufgaben in diesem Projekt
+  emptyTasksHint: Dir zugewiesene Aufgaben in diesem Projekt erscheinen hier.
+inbox:
+  statusLabel: '{status}, Konversationsstatus'
+  compose: Neue E-Mail
+  clearSelection: Auswahl aufheben
+  status:
+    open: Offen
+    closed: Geschlossen
+    spam: Spam
+    archived: Archiviert
+row:
+  untitledChat: Unbenannter Chat
+  chat: Chat
+  draft: Entwurf
+  unread: Ungelesen
+  generating: Schreibt eine Antwort …
+  awaitingReview: Wartet auf dein Review
+empty:
+  all:
+    title: Noch nichts da
+    hint: Starte einen Chat oder übernimm eine Aufgabe aus einem Projekt.
+  chats:
+    title: Noch keine Chats
+    hint: Deine Unterhaltungen mit dem Assistenten erscheinen hier.
+  tasks:
+    title: Dir ist nichts zugewiesen
+    hint: Offene Aufgaben, die dir in einem Projekt zugewiesen sind, erscheinen hier.
+  inbox:
+    title: Keine Konversationen
+    hint: Kundenkonversationen mit diesem Status erscheinen hier.
+    filtered: Keine Konversation passt zur Suche oder zu den Filtern.
+# Ein Lesevorgang, der aufgegeben hat (#4093): eine Zeile pro Art, die die
+# Ansicht listet, aneinandergereiht, wenn mehrere fehlschlugen, über den
+# Zeilen, die geladen wurden.
+failed:
+  chats: Deine Chats konnten nicht geladen werden.
+  tasks: Deine Aufgaben konnten nicht geladen werden.
+  conversations: Die Kundenkonversationen konnten nicht geladen werden.
+  retrying: Wird erneut versucht…
+aria:
+  panel: Start
+  stream: Deine Chats, Aufgaben und Konversationen
+  inbox: Inbox-Konversationen
+  attention: '{count, plural, one {# Eintrag wartet auf dich} other {# Einträge warten auf dich}}'

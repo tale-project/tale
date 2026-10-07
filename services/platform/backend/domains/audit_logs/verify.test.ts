@@ -96,7 +96,7 @@ const isRowPage = (text: string): boolean =>
 describe('verifyAuditChain — a resume anchor the retention sweep reaped', () => {
   const START = 1_700_000_000_000;
 
-  it('resumes after an anchor that is still there', async () => {
+  it('resumes after an anchor that is still there [AUDIT-R1]', async () => {
     const chain = await buildChain(5, START);
     const [, r2, r3, r4, r5] = chain;
     if (!r2 || !r3 || !r4 || !r5) throw new Error('chain');
@@ -113,7 +113,7 @@ describe('verifyAuditChain — a resume anchor the retention sweep reaped', () =
     expect(result.reanchored).toBeUndefined();
   });
 
-  it('re-anchors when the anchor (and its successor) were reaped past the cutoff', async () => {
+  it('re-anchors when the anchor (and its successor) were reaped past the cutoff [AUDIT-R2]', async () => {
     const chain = await buildChain(5, START);
     const [, r2, r3, r4, r5] = chain;
     if (!r2 || !r3 || !r4 || !r5) throw new Error('chain');
@@ -133,7 +133,7 @@ describe('verifyAuditChain — a resume anchor the retention sweep reaped', () =
     expect(result.lastVerifiedHash).toBe(r5.integrityHash);
   });
 
-  it('still reports a break when the anchor vanished INSIDE the retention window', async () => {
+  it('still reports a break when the anchor vanished INSIDE the retention window [AUDIT-R1] [AUDIT-R2]', async () => {
     const chain = await buildChain(5, START);
     const [, r2, r3, r4, r5] = chain;
     if (!r2 || !r3 || !r4 || !r5) throw new Error('chain');
@@ -154,7 +154,7 @@ describe('verifyAuditChain — a resume anchor the retention sweep reaped', () =
     });
   });
 
-  it('never excuses a missing anchor when the org has no audit retention', async () => {
+  it('never excuses a missing anchor when the org has no audit retention [AUDIT-R2]', async () => {
     const chain = await buildChain(5, START);
     const [, r2, , r4, r5] = chain;
     if (!r2 || !r4 || !r5) throw new Error('chain');
@@ -214,7 +214,7 @@ describe('runScheduledIntegrityCheck — the tamper bell survives a failed write
     });
   }
 
-  it('stamps the break even when the bell write fails, and reports the miss', async () => {
+  it('stamps the break even when the bell write fails, and reports the miss [AUDIT-R3]', async () => {
     const { rows, anchor, fingerprint } = await brokenOrg();
     vi.mocked(writeNotificationForOrgs).mockRejectedValueOnce(
       new Error('bell down'),
@@ -230,7 +230,7 @@ describe('runScheduledIntegrityCheck — the tamper bell survives a failed write
     expect(writeNotificationForOrgs).toHaveBeenCalledTimes(1);
   });
 
-  it('re-asserts the bell on the next run instead of trusting the stamp', async () => {
+  it('re-asserts the bell on the next run instead of trusting the stamp [AUDIT-R3]', async () => {
     const { rows, anchor, fingerprint } = await brokenOrg();
     // The previous run stamped the fingerprint but its bell never landed.
     vi.mocked(writeNotificationForOrgs).mockResolvedValue(undefined);

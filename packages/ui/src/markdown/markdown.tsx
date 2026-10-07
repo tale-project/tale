@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
@@ -24,7 +25,11 @@ interface MarkdownProps {
   className?: string;
 }
 
-export function Markdown({ children, components, className }: MarkdownProps) {
+export const Markdown = memo(function Markdown({
+  children,
+  components,
+  className,
+}: MarkdownProps) {
   return (
     <div className={className}>
       <ReactMarkdown
@@ -67,4 +72,4 @@ export function Markdown({ children, components, className }: MarkdownProps) {
       </ReactMarkdown>
     </div>
   );
-}
+});

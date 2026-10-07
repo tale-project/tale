@@ -4,6 +4,7 @@ import { runDeploy } from '../../lib/actions/run-deploy';
 import { ALL_SERVICES, STOP_GATED_SERVICES } from '../../lib/compose/types';
 import { usageError } from '../../utils/fail';
 import { action } from '../../utils/run-command';
+import { createAcceptCommand } from './accept';
 import {
   createExportClientCommand,
   createNativeExportClientCommand,
@@ -71,6 +72,7 @@ export function createDeployCommand(): Command {
     )
     .addCommand(createPrepareCommand())
     .addCommand(createVerifyBundleCommand())
+    .addCommand(createAcceptCommand())
     .addCommand(createProvisionCommand())
     .addCommand(createExportClientCommand())
     .addCommand(createNativeExportClientCommand(), { hidden: true })

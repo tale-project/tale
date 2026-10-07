@@ -77,14 +77,16 @@ function projectTeamIds(project: {
   ];
 }
 
-function formatRelative(timestamp: number, locale: string): string {
+function formatRelative(
+  timestamp: number,
+  rtf: Intl.RelativeTimeFormat,
+): string {
   const diffMs = Date.now() - timestamp;
   const diffSec = Math.round(diffMs / 1000);
   const diffMin = Math.round(diffSec / 60);
   const diffHr = Math.round(diffMin / 60);
   const diffDay = Math.round(diffHr / 24);
 
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
   if (diffSec < 60) return rtf.format(-diffSec, 'second');
   if (diffMin < 60) return rtf.format(-diffMin, 'minute');
   if (diffHr < 24) return rtf.format(-diffHr, 'hour');
@@ -236,6 +238,10 @@ export function ProjectsTable({
     typeof window !== 'undefined' && window.navigator?.language
       ? window.navigator.language
       : 'en';
+  const relativeTime = useMemo(
+    () => new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }),
+    [locale],
+  );
 
   const columns = useMemo<ColumnDef<ProjectOverviewRow>[]>(
     () => [
@@ -400,7 +406,7 @@ export function ProjectsTable({
         meta: { className: 'hidden lg:table-cell' },
         cell: ({ row }) => (
           <span className="text-muted-foreground text-xs whitespace-nowrap">
-            {formatRelative(row.original.updatedAt, locale)}
+            {formatRelative(row.original.updatedAt, relativeTime)}
           </span>
         ),
       },
@@ -427,7 +433,7 @@ export function ProjectsTable({
         enableSorting: false,
       },
     ],
-    [t, locale, organizationId, overdueTruncated, nameOf, isLoadingTeams],
+    [t, relativeTime, organizationId, overdueTruncated, nameOf, isLoadingTeams],
   );
 
   const list = useListPage<ProjectOverviewRow>({

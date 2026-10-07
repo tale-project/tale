@@ -16,6 +16,7 @@ import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 
 import { useAssignTask, useUpdateTask } from '../hooks/mutations';
+import { TaskActorDirectoryProvider } from '../hooks/task-actor-directory-context';
 import { useTaskBoardDnd } from '../hooks/use-task-board-dnd';
 import { BOARD_TASK_STATUSES, type TaskStatus } from '../lib/display';
 import { partitionSubtasks, subtaskProgress } from '../lib/subtasks';
@@ -42,7 +43,7 @@ import {
 } from './windowed-task-rows';
 
 /** A top-level row's height before it is measured (subtasks folded). */
-const ROW_HEIGHT_ESTIMATE = 37;
+const ROW_HEIGHT_ESTIMATE = 41;
 
 /**
  * Linear-style single-column list grouped by status. Each status is a
@@ -75,6 +76,10 @@ export const TasksList = memo(function TasksList({
   );
   const { confirmCancel, dialog: cancelConfirmDialog } = useRunCancelConfirm();
   const dnd = useTaskBoardDnd(topLevel, { confirmCancel, projectKey });
+  const directoryProjectId = useMemo(() => {
+    const first = tasks[0]?.projectId;
+    return tasks.every((task) => task.projectId === first) ? first : undefined;
+  }, [tasks]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   // Collapsed status sections, persisted per project so a fold survives reloads.
   const [collapsedStatuses, setCollapsedStatuses] = usePersistedState<
@@ -110,7 +115,7 @@ export const TasksList = memo(function TasksList({
     null,
   );
 
-  return (
+  const board = (
     <DndContext
       sensors={dnd.sensors}
       collisionDetection={dnd.collisionDetection}
@@ -159,6 +164,17 @@ export const TasksList = memo(function TasksList({
       </DragOverlay>
       {cancelConfirmDialog}
     </DndContext>
+  );
+  const organizationId = tasks[0]?.organizationId;
+  return organizationId === undefined ? (
+    board
+  ) : (
+    <TaskActorDirectoryProvider
+      organizationId={organizationId}
+      projectId={directoryProjectId}
+    >
+      {board}
+    </TaskActorDirectoryProvider>
   );
 });
 
@@ -277,18 +293,15 @@ const ListSwimlane = memo(function ListSwimlane({
       {!isCollapsed && (
         <div ref={setRowsRef} className={cn(isOver && 'bg-accent/30')}>
           <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-            {windowed ? (
-              <WindowedTaskRows
-                tasks={rows}
-                scrollElement={scrollElement}
-                scrollMargin={scrollMargin}
-                estimateSize={ROW_HEIGHT_ESTIMATE}
-                activeId={activeId}
-                renderTask={renderRow}
-              />
-            ) : (
-              rows.map(renderRow)
-            )}
+            <WindowedTaskRows
+              tasks={rows}
+              windowed={windowed}
+              scrollElement={scrollElement}
+              scrollMargin={scrollMargin}
+              estimateSize={ROW_HEIGHT_ESTIMATE}
+              activeId={activeId}
+              renderTask={renderRow}
+            />
           </SortableContext>
           {rows.length === 0 && (
             <div className="text-muted-foreground px-3 py-2 pl-9 text-xs">

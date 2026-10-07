@@ -91,7 +91,7 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
 }));
 
 const TOGGLE = 'Provide a standard agent';
-const HARNESS = 'Agent type';
+const HARNESS = 'Agent runtime';
 const MODEL = 'Model';
 
 function HeaderActions() {
@@ -191,7 +191,7 @@ describe('standard agent settings', () => {
     );
   });
 
-  it('pins an agent type, a model and instructions through Save', async () => {
+  it('pins an agent runtime, a model and instructions through Save', async () => {
     state.config = { enabled: true };
     const { user } = await renderEditor();
 

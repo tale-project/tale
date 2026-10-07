@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MCP_TOOL_GROUPS, MCP_TOOLS, type McpToolGroup } from '@/lib/mcp/tools';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { McpEndpointSection } from './mcp-endpoint-section';
 
@@ -123,6 +123,6 @@ describe('McpEndpointSection', () => {
     // Grouping must not duplicate or drop a tool across rows.
     expect(screen.getAllByRole('listitem')).toHaveLength(MCP_TOOLS.length);
 
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });

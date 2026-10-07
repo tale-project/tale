@@ -11,8 +11,9 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { isExternalTarget } from '@tale/ui/docs/redirects';
+import { isExternalTarget, renderRedirectHtml } from '@tale/ui/docs/redirects';
 
+import { BASE_LOCALES } from '../lib/i18n/locales';
 import { expandRedirects } from '../lib/redirects';
 import { docsSiteUrl } from '../lib/seo/build';
 import { listAllContent } from './walk-content';
@@ -56,37 +57,16 @@ function setHtmlLang(template: string, locale: string): string {
 }
 
 /**
- * Static stub for a moved page (`docs/redirects.json`). Keeps old URLs
- * working on plain static hosting where the Bun server's 301s don't run:
- * the meta refresh navigates, canonical + robots keep crawlers on the new
- * URL, and the anchor covers clients with refresh disabled.
- */
-function redirectStub(locale: string, toUrl: string): string {
-  return `<!doctype html>
-<html lang="${locale}">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="refresh" content="0;url=${toUrl}" />
-    <link rel="canonical" href="${toUrl}" />
-    <meta name="robots" content="noindex" />
-    <title>Redirecting…</title>
-  </head>
-  <body>
-    <p>This page has moved to <a href="${toUrl}">${toUrl}</a>.</p>
-  </body>
-</html>
-`;
-}
-
-/**
  * Write one redirect stub per (redirect entry × locale) at the OLD path,
  * same dist layout as prerendered routes. `prerendered` is the set of
  * route URLs the content loop wrote — a redirect source that is still a
  * real page would overwrite it, so it is skipped loudly instead
  * (`tests/redirects.test.ts` fails the suite on the same conflict).
  */
-async function writeRedirectStubs(prerendered: Set<string>): Promise<void> {
+async function writeRedirectStubs(
+  template: string,
+  prerendered: Set<string>,
+): Promise<void> {
   const siteUrl = docsSiteUrl();
   let written = 0;
   for (const redirect of expandRedirects()) {
@@ -99,7 +79,8 @@ async function writeRedirectStubs(prerendered: Set<string>): Promise<void> {
     const outPath = resolve(DIST, redirect.from.slice(1), 'index.html');
     await Bun.write(
       outPath,
-      redirectStub(
+      renderRedirectHtml(
+        template,
         redirect.locale,
         isExternalTarget(redirect.to)
           ? redirect.to
@@ -122,10 +103,16 @@ async function main() {
   };
 
   const records = await listAllContent();
-  const routes: Route[] = records.map((record) => ({
-    url: pathFor(record.locale, record.slug),
-    locale: record.locale,
-  }));
+  const routes: Route[] = [
+    ...BASE_LOCALES.map((locale) => ({
+      url: pathFor(locale, 'index'),
+      locale,
+    })),
+    ...records.map((record) => ({
+      url: pathFor(record.locale, record.slug),
+      locale: record.locale,
+    })),
+  ];
 
   // De-duplicate (the locale fallback chain doesn't apply to URLs, only content).
   const seen = new Set<string>();
@@ -149,7 +136,7 @@ async function main() {
     process.stdout.write('done\n');
   }
 
-  await writeRedirectStubs(seen);
+  await writeRedirectStubs(template, seen);
 
   // Prerendered 404 artifact (English shell; the client re-localizes after
   // mount). Outside the content walk so it never enters the sitemap. The

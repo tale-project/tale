@@ -2,6 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import {
+  HEALTHY_PROBE_INTERVAL_MS,
   PROBE_INTERVAL_MS,
   PROBE_SOON_MIN_GAP_MS,
   PROBE_TIMEOUT_MS,
@@ -32,6 +33,33 @@ afterEach(() => {
 });
 
 describe('useBackendConnectionState', () => {
+  it('detects a silent outage in a healthy idle tab and recovers on the fast loop', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(
+        async () =>
+          new Response('<html>Proxy unavailable</html>', { status: 503 }),
+      );
+    const { result } = renderHook(() => useBackendConnectionState());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HEALTHY_PROBE_INTERVAL_MS - 1);
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(result.current.isWebSocketConnected).toBe(false);
+    fetchMock.mockImplementation(async () =>
+      Response.json({ ok: true, service: 'backend' }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.current.isWebSocketConnected).toBe(true);
+  });
+
   it('tracks the hint stream: optimistic until something actually fails', () => {
     const { result } = renderHook(() => useBackendConnectionState());
     // Nothing has failed yet — a request that was never tried is not
@@ -82,7 +110,9 @@ describe('useBackendConnectionState', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.current.isWebSocketConnected).toBe(false);
 
-    fetchMock.mockResolvedValue(new Response('ok', { status: 200 }));
+    fetchMock.mockImplementation(async () =>
+      Response.json({ ok: true, service: 'backend' }),
+    );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS);
     });
@@ -102,7 +132,9 @@ describe('useBackendConnectionState', () => {
     vi.useFakeTimers();
     const fetchMock = vi
       .spyOn(window, 'fetch')
-      .mockResolvedValue(new Response('ok', { status: 200 }));
+      .mockImplementation(async () =>
+        Response.json({ ok: true, service: 'backend' }),
+      );
     const { result } = renderHook(() => useBackendConnectionState());
 
     await act(async () => {
@@ -153,7 +185,9 @@ describe('useBackendConnectionState', () => {
     vi.setSystemTime(new Date('2030-01-01T00:00:00Z'));
     const fetchMock = vi
       .spyOn(window, 'fetch')
-      .mockResolvedValue(new Response('ok', { status: 200 }));
+      .mockImplementation(async () =>
+        Response.json({ ok: true, service: 'backend' }),
+      );
     renderHook(() => useBackendConnectionState());
 
     await act(async () => {

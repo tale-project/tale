@@ -10,6 +10,9 @@ const library = join(
   repository,
   'services/platform/tests/integration/lib/docker.ts',
 );
+const expectedBun: string = JSON.parse(
+  await readFile(join(repository, 'package.json'), 'utf8'),
+).packageManager.replace('bun@', '');
 const temporary: string[] = [];
 afterEach(async () => {
   for (const directory of temporary.splice(0))
@@ -204,6 +207,8 @@ async function imageHarness(
   metadataFailure = '',
   gatewaySize = 255,
   runtimeHistory: { stdout?: string; exitCode?: number } = {},
+  bunVersion = expectedBun,
+  bunExit = 0,
 ) {
   await writeFile(
     join(directory, 'docker'),
@@ -231,6 +236,8 @@ elif args[:2] == ['image', 'history']:
     print(os.environ['RUNTIME_HISTORY'])
     sys.exit(int(os.environ['HISTORY_EXIT']))
 elif args[0] == 'run':
+    if args[-2:] == ['bun', '--version']:
+        print(os.environ['BUN_VERSION']); sys.exit(int(os.environ['BUN_EXIT']))
     if args[-2:] == ['-c', 'ls /app/system/providers | head -1; ls /app/builtin | head -1; stat -c %U /app/data']:
         print('provider\\nbuiltin\\napp')
 else:
@@ -259,8 +266,38 @@ else:
     GATEWAY_SIZE: String(gatewaySize * 1024 * 1024),
     RUNTIME_HISTORY: runtimeHistory.stdout ?? '0\n1048576\n0',
     HISTORY_EXIT: String(runtimeHistory.exitCode ?? 0),
+    BUN_VERSION: bunVersion,
+    BUN_EXIT: String(bunExit),
   });
 }
+
+test.skipIf(process.platform === 'win32').each([
+  ['stale binary', '1.3.12', 0],
+  ['missing output', '', 0],
+  ['failed version command', expectedBun, 7],
+] as const)(
+  'native image checks refuse %s',
+  async (_label, version, exitCode) => {
+    const directory = await fixture();
+    const result = await imageHarness(
+      directory,
+      '',
+      '',
+      '',
+      '',
+      255,
+      {},
+      version,
+      exitCode,
+    );
+    expect(result.exit).toBe(1);
+    for (const service of ['platform', 'sandbox', 'sandbox-runtime'])
+      expect(result.stdout).toContain(
+        `${service}: Bun runtime does not match ${expectedBun}`,
+      );
+    expect(result.stdout).not.toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);
 
 test.skipIf(process.platform === 'win32').each([
   ['exact budget', `${6000 * 1024 * 1024}`, 0, '6000 MB ≤ 6000 MB budget'],
@@ -397,8 +434,12 @@ test.skipIf(process.platform === 'win32').each([255, 300])(
     expect(result.stdout).toContain(
       `sandbox-llm-gateway: ${size} MB ≤ 300 MB budget`,
     );
-    expect(result.stdout).toContain('Tests: 45');
-    expect(result.stdout).toContain('Passed: 45');
+    expect(result.stdout).toContain('Tests: 50');
+    expect(result.stdout).toContain('Passed: 50');
+    for (const uid of [65534, 10001])
+      expect(result.stdout).toContain(
+        `sandbox-runtime: SSH agent and HTTP CONNECT work as uid ${uid}`,
+      );
     expect(result.stdout).toContain('Failed: 0');
     expect(result.stdout).toContain('ALL IMAGE VALIDATION TESTS PASSED');
   },
@@ -426,8 +467,8 @@ test.skipIf(process.platform === 'win32').each([
     expect(result.stdout).toContain(
       `sandbox-llm-gateway: ${sizeMb} MB ≤ 300 MB budget`,
     );
-    expect(result.stdout).toContain('Tests: 45');
-    expect(result.stdout).toContain('Passed: 45');
+    expect(result.stdout).toContain('Tests: 50');
+    expect(result.stdout).toContain('Passed: 50');
     expect(result.stdout).toContain('Failed: 0');
     expect(result.stdout).toContain('ALL IMAGE VALIDATION TESTS PASSED');
   },

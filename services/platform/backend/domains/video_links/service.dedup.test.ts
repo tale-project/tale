@@ -285,7 +285,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('in-thread dedup', () => {
+describe('in-thread dedup [VID-R3]', () => {
   it('keeps chat A’s job after the same URL was pasted in chat B (A/B/A)', async () => {
     const hash = await urlHash();
     const table = [

@@ -17,7 +17,7 @@ Ouvre le dialogue de modification et vérifie l’ensemble de la configuration, 
 
 | Vérification | Pourquoi elle compte | Où résoudre le problème |
 | --- | --- | --- |
-| Harness, modèle et fournisseur | Les identifiants doivent permettre ce mode d’exécution. | [Fournisseurs d’IA](/fr/platform/admin/providers). |
+| Environnement d’agent, modèle et fournisseur | Les identifiants doivent permettre ce mode d’exécution. | [Fournisseurs d’IA](/fr/platform/admin/providers). |
 | Skills et partage | Les équipes du projet déterminent les bundles disponibles. | [Bibliothèque de skills](/fr/platform/workspace/skills) et accès au projet. |
 | Connectors et outils de la plateforme | Ils autorisent des services et des opérations sur les données. | [Identifiants des connectors](/fr/platform/admin/connectors) et équipement de l’agent. |
 | Secrets | La session en cours peut lire les valeurs accordées. | Les commandes **Secrets** de l’agent, réservées aux Propriétaires et Admins. |

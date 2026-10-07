@@ -205,7 +205,7 @@ docker compose ps
 docker compose logs --tail=100 backend-api backend-worker
 ```
 
-Confirme santé des services, migrations backend réussies et progression des workers. Ouvre l’URL publique, suis [Premier administrateur](/fr/self-hosted/install/first-admin), configure fournisseur et modèle d’embedding, puis teste de façon contrôlée chat, import/téléchargement et recherche. Si tu utilises des harnesses, vérifie aussi une session sandbox.
+Confirme santé des services, migrations backend réussies et progression des workers. Ouvre l’URL publique, suis [Premier administrateur](/fr/self-hosted/install/first-admin), configure fournisseur et modèle d’embedding, puis teste de façon contrôlée chat, import/téléchargement et recherche. Si tu utilises des environnements d’agent, vérifie aussi une session sandbox.
 
 Les migrations de base s’exécutent au démarrage du backend. Ton processus doit maintenir des versions compatibles pendant cette étape, s’arrêter en cas d’échec, drainer le travail actif avant remplacement et conserver l’état nécessaire à la reprise. Copier la répartition des services n’active pas la coordination bleu-vert, la reprise de bascule, les snapshots automatiques ni les contrôles de rollback de la CLI.
 

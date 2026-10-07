@@ -14,7 +14,7 @@ Les paramètres de l’organisation servent à donner accès à Tale, à connect
 1. [Ajoute les membres et choisis leurs rôles](/fr/platform/admin/members-and-roles), en fonction du travail de chacun.
 2. [Crée des équipes](/fr/platform/admin/teams) lorsque plusieurs personnes ont besoin des mêmes accès aux projets ou aux conversations.
 3. [Connecte un fournisseur IA](/fr/platform/admin/providers) pour rendre des modèles disponibles dans les chats et les agents.
-4. [Ajoute les identifiants des connecteurs](/fr/platform/admin/connectors) utilisés par tes workflows.
+4. [Ajoute les identifiants des connectors](/fr/platform/admin/connectors) utilisés par tes workflows.
 
 Les propriétaires et les admins gèrent les paramètres de l’organisation. Les développeurs ont accès aux paramètres techniques des intégrations, mais ne peuvent ni gérer les membres ni ouvrir toute la partie gouvernance. Les paramètres personnels du compte restent distincts.
 

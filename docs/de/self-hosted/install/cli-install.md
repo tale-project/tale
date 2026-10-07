@@ -129,6 +129,7 @@ Fehler bei Docker, Compose, einem nicht unterstützten Container-Modus oder die 
 - `-q, --quiet` — Container-Logs während des Deployments unterdrücken.
 - `-y, --yes` — destruktive Bestätigungsabfragen automatisch akzeptieren (z. B. `--override-all`).
 - `--skip-backup` — den automatischen Pre-Deploy-Snapshot überspringen.
+- `--configuration-only` — wendet nur verwaltete Konfiguration (Anweisungen, Tool-Berechtigungen für Agenten und Automatisierungen) im laufenden Betrieb auf die exakt passende, gesunde Runtime eines bereits bereiten Deployments an. Erfordert `--bundle <directory>` und überspringt den Snapshot vor dem Deployment sowie den Neustart. Nutze die Option, wenn sich nur diese Ressourcen ändern; Runtime- und Identitätsangaben müssen unverändert bleiben, und es darf kein Runtime-Rollout ausstehen.
 - `--dry-run` — Vorschau ohne Änderungen.
 
 ### Verwaltete Deployments {#managed-deployments}
@@ -281,9 +282,29 @@ Die Vorbereitung prüft zuerst jede Konfiguration mit den eigenen Schemas der CL
 
 `deploy verify-bundle` prüft vollständiges Inventar und Datei-Hashes ohne Zielkontakt. `deploy --bundle --dry-run` prüft Konfigurationsartefakte und Zielbedingungen, ohne Änderungen anzuwenden. Verwaltete Deployments akzeptieren keine Workspace-Optionen wie `--services`, `--host` oder `--override-all`. Sie rollen den Stack unter Erhalt seines Zustands mit Zustands- und Herkunftsprüfungen aus. Das oben beschriebene Blue-Green-Verhalten des Workspace ist ein eigener Ablauf.
 
+#### Das aktuelle Deployment prüfen
+
+Sobald genau dieses Bundle vollständig angewendet wurde, erstellst du auf dem Deployment-Host einen aktuellen Prüfnachweis:
+
+```bash
+tale --json deploy accept --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT" \
+  --expected-version "$TALE_RELEASE_VERSION"
+```
+
+Für diese Prüfung sind beide vollständigen Quell-Commits erforderlich; das Bundle muss mit `--deployment-ref` vorbereitet worden sein. Setze `TALE_RELEASE_VERSION` auf die unabhängig ausgewählte veröffentlichte Version ohne das Präfix `v`. Die CLI hält die bestehende Deployment-Sperre und liest den Ready-Nachweis, aktuelle Container, fixierte Images und alle drei Migrationsregister. Sie vergleicht `/api/health` des Frontends und `/api/health/ready` der API am kanonischen HTTPS-Ursprung mit frischen Prozessidentitäten aus den zuvor erfassten lokalen Containern und liest diese Identitäten anschließend erneut. Fehlende Identitäten oder ein anderer Serverprozess führen auch bei gleicher Version zur Ablehnung. OCI-Version und Quell-Commit jedes Tale-Images müssen mit dem Bundle übereinstimmen. `sourceTag` darf `sha-<source>` sein; dieses Feld beschreibt die Image-Referenz, nicht die ausgelieferte Version.
+
+Das JSON-Ergebnis enthält Quell-Commits, Bundle- und Ready-Hashes, Image-Identitäten, den kanonischen Ursprung, beide Serverprozess-Identitäten und vollständige Migrations-IDs aus dem Quellstand samt Inventar-Hashes. Dazu gehören SQL-Migrationen der Anwendung und nummerierte TypeScript-Datenmigrationen. Fehlende, zusätzliche, doppelte oder unvollständige Migrationen, ein ausstehendes Deployment, Versionsabweichungen und geänderte Identitäten führen zur Ablehnung. Die öffentlichen Prozessidentitäten verbinden einen lokalen Container mit einer Antwort des Ursprungs; sie sind keine Zugangsdaten und kein Authentifizierungsnachweis.
+
+Docker- und HTTPS-Beobachtungen haben eigene Abbruchfristen und teilen sich ein Zeitbudget von 120 Sekunden, das an den Beobachtungsgrenzen geprüft wird. Bundle-Prüfung, private temporäre Kopie und Bereinigung unterliegen den bestehenden Größenlimits (insgesamt 2 GiB, höchstens 256 MiB pro Datei); Wartezeiten des Dateisystems sind nicht durch eine abbrechbare Frist für den gesamten Befehl begrenzt. Verwende eine externe Prozessüberwachung, wenn du eine solche Gesamtfrist brauchst. Die Prüfung ändert keine Konfiguration, startet keine Container neu, führt keine Migrationen aus und exportiert keine Zugangsdaten. Sie ändert Sperrmetadaten und erstellt und entfernt ihre private temporäre Bundle-Kopie.
+
+Ältere Bundles bleiben einsetzbar. Für diese Prüfung brauchen sie jedoch ein Migrationsinventar aus dem Quellstand und kompatible Server, die Prozessidentitäten ausgeben. Bereite ein geprüftes Bundle vor und wende es über den normalen Deployment-Ablauf vollständig an, bevor du seinen Prüfnachweis erstellst. Der Nachweis belegt den beobachteten Zustand zu seinem Zeitstempel; er garantiert keinen späteren Routing- oder Serverzustand. Wiederhole die Prüfung, wenn du aktuelle Belege brauchst.
+
 #### Native Identität bereitstellen
 
 `deploy provision [--bundle <directory>]` ist die lokale Backend-Phase des Bundle-Deployments. Sie liest höchstens 64 KiB privates JSON von stdin, weist das lokale Konto und die ausgewählte Organisation nach und meldet die Sitzung vor der Erfolgsmeldung ab. Die Felder umfassen `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optionale Entra-Zugangsdaten und `nativeClients`. Standardmäßig bleibt das bestehende Konto erforderlich. Explizites `identity.bootstrap: "fresh"` erlaubt die Anlage des ersten lokalen Kontos und der Organisation. Ein Bundle bindet diese Wahl und die vorbereiteten Konfigurationen vor nativen Änderungen. `deploy provision` verweigert Workspace-Flags und `--dry-run`; nutze lesende Bundle- und Konfigurationsprüfungen. Die optionalen Erwartungen `--cli-ref` und `--deployment-ref` erfordern `--bundle` und greifen vor der Anmeldung.
+
+Das Bundle-Deployment ruft `deploy provision` mit internen Optionen für reine Konfigurationsänderungen und die Prüfung gespeicherter Identitäten auf; nutze dafür als Betreiber `tale deploy --bundle <directory> --configuration-only`.
 
 Für einen administrativ geprüften neuen Betreiber deklarierst du ausdrücklich `identity.emailVerification: "operator-attested"`. Damit bestätigst du als Betreiber den Besitz der E-Mail-Adresse des authentifizierten Kontos; eine Postfachzustellung ist damit nicht nachgewiesen. Das Backend verwendet ein kurzlebiges natives Prüftoken für genau dieses Konto und diese Adresse und erhält native Hooks. Es verschickt keine E-Mail, ändert keine Adresse und erstellt keine weitere Sitzung. Die Option ist nur mit `bootstrap: "fresh"` zulässig. Ohne sie bleibt die normale native E-Mail-Prüfung bestehen. Ändert sich der Prüfstatus eines zuvor freigegebenen Kontos, stoppt der Ablauf zur Prüfung.
 
@@ -388,6 +409,10 @@ Diese Ressourcenarten nutzen die gemeinsamen Plattform-Schemas und nativen Berec
 | `provider-credential` | Metadaten benannter Umgebungszugangsdaten                 | Organisation    |
 | `knowledge-embedding` | Anbieter, Modell, Dimensionen, Endpunkt und Servergrenzen | Organisation    |
 | `deployment`          | Instanz-Einstellungen einschließlich Sandbox-Runtime      | Instanz         |
+
+Mit `agent-tools` verwaltest du ausschließlich die Tool-Berechtigungen eines vorhandenen Agenten. `config` enthält die exakten Werte für `projectId` und `agentId` sowie das vollständige gewünschte Array `tools`, etwa `["task_find", "task_get", "task_review"]`. Führe jede Berechtigung auf, die erhalten bleiben soll; `[]` entfernt alle Tool-Berechtigungen. Der native Katalog lehnt unbekannte Namen ab und vereinheitlicht Reihenfolge und Duplikate vor der Hash-Berechnung.
+
+Zum Anwenden brauchst du Bearbeitungsrechte für das aktive Projekt. Der Agent darf nicht von der Plattform verwaltet werden. Mitglieder können die begrenzte Konfiguration lesen. Alle anderen Agentenfelder bleiben unverändert, einschließlich Anweisungen, Modell und der exakten Zugriffsrechte auf Secrets. Der native Hash schützt vor konkurrierenden Tool-Änderungen; eine geänderte Auswahl macht auch veraltete vollständige Agentenspeicherungen ungültig. Eine gleichwertige Auswahl ändert weder Zeitstempel noch Audit-Einträge. Fehlt der Runtime die angeforderte Fähigkeit, lehnt sie den Vorgang ab. Lies die Tools nach dem Anwenden zurück und bewahre den ausstehenden Beleg auf, um einen unterbrochenen Vorgang fortzusetzen.
 
 Aufbewahrungs- und DSAR-Richtlinien brauchen ihre eigenen nativen Workflows. Pausiere Uploads, Synchronisation und Crawls, bevor du das Embedding-Modell wechselst. Die CLI prüft die Anzahl der Dokumente und Websites der gesamten Organisation; sie sperrt den Import nicht und migriert keine bestehenden Vektoren. Hat die Organisation Dokumente oder registrierte Websites, braucht ein Modellwechsel eine separate native Indexmigration. Eine Änderung, die nur `minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` oder `maxRequestsPerMinute` betrifft, lässt die vorhandenen Vektoren gültig; für sie entfällt diese Prüfung. Instanz-Einstellungen erfordern zusätzlich die native Freigabeliste für Deployment-Editoren. Bei Boot-Einstellungen meldet der einzelne Konfigurationsaufruf `restartRequired`; Speichern allein aktiviert diese Einstellungen noch nicht. Prüfe die Folgen im Plan vor dem Anwenden.
 

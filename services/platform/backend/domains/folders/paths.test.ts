@@ -85,7 +85,7 @@ describe('documentFolderPathFrom', () => {
  * person can act on — "Invalid folder name" named none (2026-09-13
  * evaluation, E2-04 / E2-07).
  */
-describe('validateFolderName', () => {
+describe('validateFolderName [FOLDER-R6]', () => {
   it('answers the name trimmed and NFC-normalized', () => {
     expect(validateFolderName('  cafe\u0301  ')).toBe('caf\u00e9');
     expect(validateFolderName('2026-Q1 invoices')).toBe('2026-Q1 invoices');

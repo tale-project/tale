@@ -1,0 +1,15 @@
+title: Métriques
+groups:
+  usage: Utilisation
+  feedback: Retours
+  chat-health: Santé de l'assistant
+  external-turns: Tours d'environnement d'agent
+  automations: Automatisations
+  projects: Projets
+projects:
+  selectLabel: Projet
+  selectPlaceholder: Sélectionner un projet
+  searchPlaceholder: Rechercher un projet
+  searchEmpty: Aucun projet trouvé
+  emptyTitle: Sélectionner un projet
+  emptyDescription: Choisis un projet pour afficher ses métriques.

@@ -75,7 +75,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('GET /me/password-policy', () => {
+describe('GET /me/password-policy [USER-R1]', () => {
   it('answers the strictest policy across every organization the caller belongs to', async () => {
     getUserOrganizations.mockResolvedValue([
       { organizationId: 'org-strict', role: 'member' },
@@ -110,7 +110,7 @@ describe('GET /me/password-policy', () => {
 });
 
 describe('POST /update-password', () => {
-  it('refuses a password the read rules refuse, though the default accepts it', async () => {
+  it('refuses a password the read rules refuse, though the default accepts it [USER-R1]', async () => {
     getUserOrganizations.mockResolvedValue([
       { organizationId: 'org-strict', role: 'member' },
     ]);
@@ -142,7 +142,7 @@ describe('POST /update-password', () => {
   });
 });
 
-describe('POST /update-password — the current password counts like a sign-in', () => {
+describe('POST /update-password — the current password counts like a sign-in [USER-R3]', () => {
   /** A caller with a password and no expiry: the voluntary change lane. */
   const credentialedSql = (() => {
     const tag = (strings: TemplateStringsArray) =>
@@ -207,7 +207,7 @@ describe('POST /update-password — the current password counts like a sign-in',
 describe('POST /update-name', () => {
   // The door used to answer the bare code, so the account form could only
   // say "Couldn't update profile"; the sentence now rides beside it.
-  it('answers a refused name with its code and its sentence', async () => {
+  it('answers a refused name with its code and its sentence [USER-R6]', async () => {
     const response = await routes().request('/update-name', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

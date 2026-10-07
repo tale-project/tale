@@ -2,6 +2,7 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -9,7 +10,12 @@ import {
   within,
 } from '@/tests/utils/render';
 
-import { EnvVarListEditor, type LoadedEnvVar } from './env-var-list-editor';
+import messages from '../../i18n/messages/en.yml';
+import {
+  EnvVarListEditor,
+  type LoadedEnvVar,
+  type EnvEditorState,
+} from './env-var-list-editor';
 
 // The inline Save reports through the standalone `toast`; one shared spy
 // makes the failure toast assertable.
@@ -20,11 +26,15 @@ const plainRows: LoadedEnvVar[] = [
   { key: 'FOO', isSecret: false, value: 'bar' },
 ];
 
-function setup(rows: readonly LoadedEnvVar[] = plainRows) {
+function setup(
+  rows: readonly LoadedEnvVar[] = plainRows,
+  projectSecretNameRule?: boolean,
+) {
   const onSet = vi.fn().mockResolvedValue(undefined);
   const onDelete = vi.fn().mockResolvedValue(undefined);
   const utils = render(
     <EnvVarListEditor
+      projectSecretNameRule={projectSecretNameRule}
       rows={rows}
       isLoading={false}
       onSet={onSet}
@@ -231,4 +241,141 @@ describe('EnvVarListEditor — inline save failure', () => {
       );
     },
   );
+});
+
+describe('EnvVarListEditor — project secret name rule', () => {
+  beforeEach(() => toastMock.mockClear());
+
+  function addKey(key: string) {
+    fireEvent.click(screen.getByRole('button', { name: 'Add variable' }));
+    const inputs = screen.getAllByPlaceholderText('NAME');
+    fireEvent.change(inputs[inputs.length - 1], { target: { value: key } });
+  }
+
+  it.each(['_TOKEN', 'A'.repeat(65)])(
+    'rejects invalid project name %s before any write',
+    async (key) => {
+      const { onSet, onDelete } = setup([], true);
+      addKey(key);
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(toastMock).toHaveBeenCalledWith({
+          title: messages.envEditor.projectSecretBadKey.replace('{key}', key),
+          variant: 'destructive',
+        }),
+      );
+      expect(onSet).not.toHaveBeenCalled();
+      expect(onDelete).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([false, true])(
+    'links invalid name errors and clears them on correction (externalSave=%s)',
+    async (externalSave) => {
+      const onSet = vi.fn().mockResolvedValue(undefined);
+      const onDelete = vi.fn().mockResolvedValue(undefined);
+      let state: EnvEditorState | undefined;
+      render(
+        <EnvVarListEditor
+          rows={[]}
+          isLoading={false}
+          forceSecret
+          projectSecretNameRule
+          externalSave={externalSave}
+          onEditorState={(next) => {
+            state = next;
+          }}
+          onSet={onSet}
+          onDelete={onDelete}
+        />,
+      );
+      addKey('_TOKEN');
+      const input = screen.getByPlaceholderText('NAME');
+      const message = messages.envEditor.projectSecretBadKey.replace(
+        '{key}',
+        '_TOKEN',
+      );
+      if (externalSave) {
+        await act(async () => {
+          await expect(state?.save()).rejects.toThrow(message);
+        });
+        expect(toastMock).not.toHaveBeenCalled();
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      }
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+      const error = screen.getByRole('alert');
+      expect(error).toBeVisible();
+      expect(error).toHaveTextContent(message);
+      expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(
+        error.id,
+      );
+      expect(onSet).not.toHaveBeenCalled();
+      expect(onDelete).not.toHaveBeenCalled();
+
+      fireEvent.change(input, { target: { value: 'TOKEN' } });
+      expect(input).not.toHaveAttribute('aria-invalid');
+      expect(input).not.toHaveAttribute('aria-describedby');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      if (externalSave) {
+        await act(async () => {
+          await state?.save();
+        });
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      }
+      await waitFor(() =>
+        expect(onSet).toHaveBeenCalledWith({
+          key: 'TOKEN',
+          value: '',
+          isSecret: true,
+        }),
+      );
+    },
+  );
+
+  it('rejects token and TOKEN as duplicates before any write', async () => {
+    const { onSet, onDelete } = setup([], true);
+    addKey('token');
+    addKey('TOKEN');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith({
+        title: messages.envEditor.dupKey,
+        variant: 'destructive',
+      }),
+    );
+    expect(onSet).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it('normalizes a lowercase project name and accepts the 64-character boundary', async () => {
+    const { onSet } = setup([], true);
+    addKey('token');
+    addKey('A'.repeat(64));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onSet).toHaveBeenCalledTimes(2));
+    expect(onSet).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'TOKEN' }),
+    );
+    expect(onSet).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'A'.repeat(64) }),
+    );
+  });
+
+  it('keeps underscore, long names and case-sensitive keys valid by default', async () => {
+    const { onSet } = setup([]);
+    for (const key of ['_TOKEN', 'A'.repeat(65), 'token', 'TOKEN']) addKey(key);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onSet).toHaveBeenCalledTimes(4));
+    for (const key of ['_TOKEN', 'A'.repeat(65), 'token', 'TOKEN']) {
+      expect(onSet).toHaveBeenCalledWith(
+        expect.objectContaining({ key, isSecret: false }),
+      );
+    }
+    expect(toastMock).toHaveBeenCalledWith({
+      title: messages.envEditor.saved,
+      variant: 'success',
+    });
+  });
 });

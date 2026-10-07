@@ -35,7 +35,7 @@ const HEALTHY = {
 };
 
 describe('decideFailureNotification', () => {
-  it('opens the episode on the first failure and waits for a retryable error', () => {
+  it('opens the episode on the first failure and waits for a retryable error [ODRIVE-R8]', () => {
     const decision = decideFailureNotification(HEALTHY, {
       now: NOW,
       needsReauth: false,
@@ -47,7 +47,7 @@ describe('decideFailureNotification', () => {
     });
   });
 
-  it('tells the owner at once when the grant is dead', () => {
+  it('tells the owner at once when the grant is dead [ODRIVE-R7]', () => {
     const decision = decideFailureNotification(HEALTHY, {
       now: NOW,
       needsReauth: true,
@@ -59,7 +59,7 @@ describe('decideFailureNotification', () => {
     });
   });
 
-  it('keeps the episode start across runs and notifies once it is an hour old', () => {
+  it('keeps the episode start across runs and notifies once it is an hour old [ODRIVE-R8]', () => {
     const since = NOW - SYNC_FAILURE_NOTIFY_GRACE_MS;
     const before = { ...HEALTHY, errorSince: since, lastSyncStatus: 'error' };
     expect(
@@ -77,7 +77,7 @@ describe('decideFailureNotification', () => {
     });
   });
 
-  it('never repeats a notice for the same cause', () => {
+  it('never repeats a notice for the same cause [ODRIVE-R8]', () => {
     const before = {
       errorSince: NOW - 3 * SYNC_FAILURE_NOTIFY_GRACE_MS,
       failureNotifiedAt: NOW - 2 * SYNC_FAILURE_NOTIFY_GRACE_MS,
@@ -94,7 +94,7 @@ describe('decideFailureNotification', () => {
     ).toBe(false);
   });
 
-  it('re-issues the notice when a told episode escalates to a dead grant', () => {
+  it('re-issues the notice when a told episode escalates to a dead grant [ODRIVE-R8]', () => {
     const before = {
       errorSince: NOW - 2 * SYNC_FAILURE_NOTIFY_GRACE_MS,
       failureNotifiedAt: NOW - SYNC_FAILURE_NOTIFY_GRACE_MS,

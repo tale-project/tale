@@ -5,9 +5,7 @@ import {
   IMPORT_ROW_FIELDS,
   IMPORT_ROW_REASONS,
 } from '@/lib/utils/file-parsing';
-import deMessages from '@/messages/de.yml';
-import enMessages from '@/messages/en.yml';
-import frMessages from '@/messages/fr.yml';
+import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 
 import {
   importRowErrorLine,

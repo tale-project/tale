@@ -27,6 +27,7 @@ import {
   type RuntimeImage,
   type RuntimePlatform,
 } from './runtime-model';
+import { sourceMigrationInventory } from './source-migrations';
 
 const imageInspectSchema = z.object({
   Os: z.string(),
@@ -266,6 +267,10 @@ export async function prepareRuntime(
     'Runtime output must be separate from the source checkout.',
   );
   const source = sourceFiles(options.repoRoot, options.revision);
+  const migrations = sourceMigrationInventory(
+    options.repoRoot,
+    options.revision,
+  );
   const compose = parseCompose(source.compose.toString('utf8'));
   if (containerPrefix !== undefined)
     for (const service of RUNTIME_SERVICES)
@@ -429,6 +434,7 @@ export async function prepareRuntime(
     images: [...images.values()].sort((a, b) =>
       a.repository.localeCompare(b.repository),
     ),
+    migrations,
   });
   const files = {
     'compose.yml': productionCompose,

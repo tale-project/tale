@@ -94,7 +94,7 @@ Les dossiers organisent la bibliothèque ; pour en renommer un, utilise **Renom
 
 ## Importer depuis Microsoft 365 ou Google Drive
 
-Choisis **Depuis Microsoft 365** ou **Depuis Google Drive** sous **Téléverser des documents**. À la première utilisation, connecte ton compte et autorise l’import. Si Tale indique qu’il n’est pas configuré, un administrateur doit préparer le service dans [Connecteurs](/fr/platform/admin/connectors). Si Tale ne parvient pas à vérifier si l’import est configuré, la boîte de dialogue l’indique et propose **Réessayer** à la place du bouton de connexion. Tu pourras te connecter dès que la vérification aboutira.
+Choisis **Depuis Microsoft 365** ou **Depuis Google Drive** sous **Téléverser des documents**. À la première utilisation, connecte ton compte et autorise l’import. Si Tale indique qu’il n’est pas configuré, un administrateur doit préparer le service dans [Connectors](/fr/platform/admin/connectors). Si Tale ne parvient pas à vérifier si l’import est configuré, la boîte de dialogue l’indique et propose **Réessayer** à la place du bouton de connexion. Tu pourras te connecter dès que la vérification aboutira.
 
 Sélectionne les fichiers ou dossiers, puis le mode d’import :
 

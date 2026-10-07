@@ -64,9 +64,9 @@ Use `tale update --dry-run` to inspect the proposed changes. Keep a version-cont
 
 ## Cursor: config plane vs runtime plane
 
-An editor agent working in this directory changes local configuration files. A Tale [project agent](/platform/projects/project-agents) using the Cursor harness runs work in a Tale-managed sandbox. These are separate execution contexts with separate credentials and consequences.
+An editor agent working in this directory changes local configuration files. A Tale [project agent](/platform/projects/project-agents) using the Cursor agent runtime runs work in a Tale-managed sandbox. These are separate execution contexts with separate credentials and consequences.
 
-The sandbox harness uses its configured provider account and model. Giving your editor the project instructions does not configure that account. Follow [Harnesses](/platform/agents/harnesses) for runtime setup.
+The sandbox agent runtime uses its configured provider account and model. Giving your editor the project instructions does not configure that account. Follow [Agent runtimes](/platform/agents/harnesses) for runtime setup.
 
 ## Review and apply a proposal
 

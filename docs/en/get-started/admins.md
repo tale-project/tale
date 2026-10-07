@@ -39,7 +39,7 @@ If the model list is empty or the provider rejects the request, use the recovery
 
 ## Add people with the access they need
 
-Open **Settings > Members** and select **Add member**. For a new account, the form sets an initial password; an existing account keeps its credentials. This flow does not send an invitation email. Follow [members and roles](/platform/admin/members-and-roles) for the fields and secure handover of the initial credentials.
+Open **Settings > Members** and select **Add member**. For a new account, the form sets an initial password; an existing account keeps its credentials. This flow does not send an invitation email. A member with a new account, or whose password an administrator sets or resets, must choose a new password at the next sign-in; resetting a password signs the member out of all sessions. Follow [members and roles](/platform/admin/members-and-roles) for the fields and secure handover of the initial credentials.
 
 <Frame caption="Review each member’s role before handing over access.">
 

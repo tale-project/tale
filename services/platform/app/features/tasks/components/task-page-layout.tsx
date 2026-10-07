@@ -160,10 +160,12 @@ export function TaskPageLayout({
             detailsOpen ? 'w-80' : 'w-0 border-l-0',
           )}
         >
-          <div className="scrollbar-thin flex h-full w-80 flex-col gap-4 overflow-y-auto px-5 py-5">
-            <h2 className="sr-only">{t('detail.details')}</h2>
-            {panel}
-          </div>
+          {canDock && (
+            <div className="scrollbar-thin flex h-full w-80 flex-col gap-4 overflow-y-auto px-5 py-5">
+              <h2 className="sr-only">{t('detail.details')}</h2>
+              {panel}
+            </div>
+          )}
         </aside>
       </div>
       <Sheet

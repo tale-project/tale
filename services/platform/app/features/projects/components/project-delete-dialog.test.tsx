@@ -16,6 +16,8 @@ import { ProjectDeleteDialog } from './project-delete-dialog';
 const mockDeleteProject = vi.fn();
 const mockNavigate = vi.fn();
 const mockToast = vi.fn();
+// The route the dialog opens on: the projects list by default.
+let mockParams: Record<string, string> = { id: 'org-1' };
 
 vi.mock('../hooks/mutations', () => ({
   useDeleteProject: () => ({ mutateAsync: mockDeleteProject }),
@@ -24,6 +26,7 @@ vi.mock('../hooks/mutations', () => ({
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
   useNavigate: () => mockNavigate,
+  useParams: () => mockParams,
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
@@ -53,6 +56,71 @@ function getDeleteButton() {
 describe('ProjectDeleteDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockParams = { id: 'org-1' };
+  });
+
+  it('leaves the deleted project for the projects list when deleted from its own page', async () => {
+    // The General tab's danger zone deletes the project it sits in; staying
+    // would leave the reader on "We couldn't find that project".
+    mockParams = { id: 'org-1', projectId: 'project-1' };
+    mockDeleteProject.mockResolvedValueOnce(null);
+
+    const { user } = renderDialog();
+
+    await user.click(getDeleteButton());
+
+    expect(mockDeleteProject).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      mode: 'detach',
+      confirmPhrase: undefined,
+    });
+    expect(mockNavigate).toHaveBeenCalledExactlyOnceWith({
+      to: '/dashboard/$id/projects',
+      params: { id: 'org-1' },
+      replace: true,
+    });
+  });
+
+  it('stays on the projects list when deleted from it', async () => {
+    // The row menu deletes from the list: moving would drop its filters.
+    mockDeleteProject.mockResolvedValueOnce(null);
+
+    const { user } = renderDialog();
+
+    await user.click(getDeleteButton());
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Project deleted', variant: 'success' }),
+    );
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('stays on the page of another project', async () => {
+    mockParams = { id: 'org-1', projectId: 'project-2' };
+    mockDeleteProject.mockResolvedValueOnce(null);
+
+    const { user } = renderDialog();
+
+    await user.click(getDeleteButton());
+
+    expect(mockDeleteProject).toHaveBeenCalledOnce();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('stays on the project page when the delete is refused', async () => {
+    mockParams = { id: 'org-1', projectId: 'project-1' };
+    mockDeleteProject.mockRejectedValueOnce(
+      new AppError({ code: 'PROJECT_LEGAL_HOLD' }),
+    );
+
+    const { user } = renderDialog();
+
+    await user.click(getDeleteButton());
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'destructive' }),
+    );
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('surfaces the actionable message with bound automation names on PROJECT_HAS_BOUND_AUTOMATIONS', async () => {

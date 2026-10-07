@@ -25,7 +25,7 @@ An agent belongs to exactly one project. People who can read the project can see
 
 | Part | What it controls | Example decision |
 | --- | --- | --- |
-| Harness | The coding program that runs the session in a sandbox. | Choose a runtime supported by the available credential. |
+| Agent runtime | The coding program that runs the session in a sandbox. | Choose a runtime supported by the available credential. |
 | Model and provider | The model called and the provider serving it. | Select the provider/model pair approved for the work. |
 | Instructions | The agent’s reusable responsibility and working rules, up to 20,000 characters. | Require evidence and a report of checks performed. |
 | Skills | Instruction bundles and supporting files. | Add the team’s review checklist. |
@@ -37,7 +37,7 @@ The skills, connectors, tools and secret-name lists each allow up to 25 entries.
 ```mermaid
 flowchart LR
     P[Project task and acceptance criteria] --> A[Configured agent]
-    H[Harness and model] --> A
+    H[Agent runtime and model] --> A
     I[Standing instructions] --> A
     E[Skills, connectors, tools and secrets] --> A
     A --> R[Report and files for review]
@@ -45,6 +45,6 @@ flowchart LR
 
 ## Check readiness before assigning work
 
-The provider credential must support the selected harness and model, and sandbox capacity must be available. Success in ordinary Chat proves neither condition. A task should explain what success looks like and include the material the agent needs to inspect.
+The provider credential must support the selected agent runtime and model, and sandbox capacity must be available. Success in ordinary Chat proves neither condition. A task should explain what success looks like and include the material the agent needs to inspect.
 
 [Create a project agent](/platform/projects/project-agents) once those choices are clear. [Task automation](/platform/projects/task-automation) explains starting, steering and reviewing its work.

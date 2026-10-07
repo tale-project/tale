@@ -29,7 +29,7 @@ afterEach(() => {
 const ORG = 'org_1';
 const SITE = 'https://app.example.com';
 
-describe('buildPersonalNotificationUrl — routing', () => {
+describe('buildPersonalNotificationUrl — routing [NOTIF-R3]', () => {
   it('opens the budget rules for a credit request', () => {
     expect(
       buildPersonalNotificationUrl({
@@ -174,7 +174,7 @@ describe('buildPersonalNotificationUrl — origin', () => {
     );
   });
 
-  it('carries BASE_PATH, so a subpath deployment does not 404', () => {
+  it('carries BASE_PATH, so a subpath deployment does not 404 [NOTIF-R3]', () => {
     process.env.SITE_URL = SITE;
     process.env.BASE_PATH = '/tale';
     expect(

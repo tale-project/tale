@@ -1,7 +1,7 @@
 import { render, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { i18n } from '@/lib/i18n/i18n';
+import { i18n } from '@/tests/utils/i18n-all-languages';
 
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import { TaskCommentView } from './task-comments';
@@ -44,7 +44,10 @@ vi.mock('@/app/features/automations/hooks/use-can-use-automations', () => ({
   useCanUseAutomations: () => false,
 }));
 
-vi.mock('../hooks/use-task-subject-contract', () => ({
+vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../hooks/use-task-subject-contract')
+  >()),
   useTaskContractAutomations: () => [],
 }));
 

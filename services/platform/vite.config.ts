@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createPwaPlugin } from '@tale/ui/pwa/vite-plugin';
+import { messageTopics } from '@tale/ui/vite/message-topics';
 import { yamlImports } from '@tale/ui/vite/yaml';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
@@ -73,11 +74,35 @@ const devFsAllow = [
 ];
 
 /**
+ * Routes whose components stay in the entry chunk: the sign-in pages and
+ * the signed-in landing (`/dashboard/$id` redirects to the chat), so neither
+ * waits on a second wave of chunks. Every other route's component loads
+ * with its route, which the router's intent preload starts on hover.
+ */
+const ENTRY_ROUTES = new Set<string>([
+  '/',
+  '/_auth',
+  '/_auth/log-in',
+  '/_auth/sign-up',
+  '/_auth/2fa',
+  '/2fa-enroll',
+  '/forced-change-password/$id',
+  '/dashboard',
+  '/dashboard/',
+  '/dashboard/$id',
+  '/dashboard/$id/',
+  '/dashboard/$id/chat',
+  '/dashboard/$id/chat/',
+  '/dashboard/$id/chat/$threadId',
+  '/dashboard/$id/home',
+]);
+
+/**
  * Packages the core patterns below match by name (`/react/`, `@tanstack`)
  * that load with the surfaces using them, not with every page: the flow
  * canvas (which brings its d3 modules) and the table and virtual-list cores.
  * In vendor-core they loaded with every page, the sign-in page's included,
- * whoever imported them (#4089).
+ * whoever imported them.
  */
 const NOT_CORE =
   /\/node_modules\/(?:@xyflow|@tanstack\/(?:table-core|react-table|virtual-core|react-virtual))\//;
@@ -129,7 +154,7 @@ function vendorChunk(id: string): string | null {
   }
   // The flow canvas, named so the cold-load budget can forbid it
   // (`scripts/check-entry-budget.ts`): only the automation editor and run
-  // pages load it (#4089). Recharts has no such group: its own dependencies
+  // pages load it. Recharts has no such group: its own dependencies
   // are shared with the entry, so a group capturing them would be preloaded.
   if (id.includes('/node_modules/@xyflow/')) {
     return 'vendor-flow';
@@ -137,7 +162,7 @@ function vendorChunk(id: string): string | null {
   // The KaTeX package alone: it has no dependencies of its own to drag in.
   // Matching every path with `katex` in it took `rehype-katex` too, and with
   // it the hast utilities the markdown renderers share, so the entry needed
-  // this chunk and KaTeX loaded with every page (#4089).
+  // this chunk and KaTeX loaded with every page.
   if (id.includes('/node_modules/katex/')) {
     return 'vendor-katex';
   }
@@ -265,17 +290,59 @@ export default defineConfig({
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
+        // A topic file fetched on first use names its locale (`de-auth-….js`),
+        // so a session's language reads off the network panel.
+        chunkFileNames: (chunk) => {
+          const topic = /[\\/]messages[\\/]([^\\/]+)[\\/]([^\\/]+)\.yml$/.exec(
+            chunk.facadeModuleId ?? '',
+          );
+          return topic
+            ? `assets/${topic[1]}-${topic[2]}-[hash].js`
+            : 'assets/[name]-[hash].js';
+        },
         // Rolldown's native chunk groups rather than the `manualChunks`
         // shim, which cannot order them — see `coreChunk`.
         codeSplitting: {
-          groups: [{ name: coreChunk, priority: 1 }, { name: vendorChunk }],
+          groups: [
+            { name: coreChunk, priority: 3 },
+            { name: vendorChunk, priority: 2 },
+            // Everything else the entry loads statically, in three chunks
+            // rather than one per set of importers: with the routes split,
+            // each module the entry shares with a route became a chunk of
+            // its own, 89 of them under 1 KB gzip, every one preloaded. Three,
+            // not one, so the browser compiles them side by side; split along
+            // the import direction (the app imports the libraries and the
+            // catalogs, never the reverse), so their order cannot cycle.
+            {
+              name: 'vendor-initial',
+              tags: ['$initial'],
+              test: /[\\/]node_modules[\\/]/,
+              priority: 1,
+            },
+            {
+              name: 'messages',
+              tags: ['$initial'],
+              test: /[\\/]messages[\\/](?:[^\\/]+[\\/])?[^\\/]+\.yml$/,
+              priority: 1,
+            },
+            { name: 'app', tags: ['$initial'] },
+          ],
         },
       },
     },
   },
   plugins: [
     yamlImports(),
-    tanstackRouter(),
+    // English messages ride with the modules that read them; see
+    // `lib/i18n/i18n.ts`.
+    messageTopics({ messagesDir: resolve(import.meta.dirname, 'messages') }),
+    tanstackRouter({
+      autoCodeSplitting: true,
+      codeSplittingOptions: {
+        splitBehavior: ({ routeId }) =>
+          ENTRY_ROUTES.has(routeId) ? [] : undefined,
+      },
+    }),
     injectAcceptLanguage(),
     stubSSRImports(),
     viteReact(),

@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import { useSyncExternalStore } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TaskActivityRow } from '../utils/task-timeline';
@@ -19,10 +20,23 @@ const data: {
   activity: TaskActivityRow[];
 } = { comments: [], hasEarlier: false, activity: [] };
 
+const discussionListeners = new Set<() => void>();
+
+function subscribeDiscussion(listener: () => void) {
+  discussionListeners.add(listener);
+  return () => {
+    discussionListeners.delete(listener);
+  };
+}
+
+function getDiscussionSnapshot() {
+  return data.comments;
+}
+
 vi.mock('../hooks/queries', () => ({
   // The discussion arrives newest first, like the backend's page walk.
   useTaskDiscussion: () => ({
-    comments: data.comments,
+    comments: useSyncExternalStore(subscribeDiscussion, getDiscussionSnapshot),
     hasEarlier: data.hasEarlier,
     isLoadingEarlier: false,
     loadEarlier: vi.fn(),
@@ -138,6 +152,45 @@ describe('TaskConversation', () => {
     );
     expect(text.indexOf('status.in_review')).toBeLessThan(
       text.indexOf('Second thought'),
+    );
+  });
+
+  // A long task opened with hundreds of comments sliding in at once; only a
+  // comment that arrives while the page is open announces itself that way.
+  it('slides in only the comments that arrive after it opened', () => {
+    data.comments = [
+      {
+        messageId: 'm1',
+        authorType: 'user',
+        authorId: 'u1',
+        body: 'Already here',
+        createdAt: NOON - 3000,
+      },
+    ];
+    data.activity = [];
+    renderConversation();
+    expect(screen.getByText('Already here').closest('li')).not.toHaveClass(
+      'animate-in',
+    );
+
+    act(() => {
+      data.comments = [
+        {
+          messageId: 'm2',
+          authorType: 'user',
+          authorId: 'u1',
+          body: 'Just posted',
+          createdAt: NOON - 1000,
+        },
+        ...data.comments,
+      ];
+      for (const listener of discussionListeners) listener();
+    });
+    expect(screen.getByText('Just posted').closest('li')).toHaveClass(
+      'animate-in',
+    );
+    expect(screen.getByText('Already here').closest('li')).not.toHaveClass(
+      'animate-in',
     );
   });
 

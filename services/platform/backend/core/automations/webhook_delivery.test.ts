@@ -268,4 +268,10 @@ describe('deliveryIdentity', () => {
     expect(BODY_LANE_WINDOW_MS).toBeLessThanOrEqual(5 * 60_000);
     expect(HEADER_LANE_WINDOW_MS).toBeGreaterThanOrEqual(60 * 60_000);
   });
+
+  it('remembers a delivery id for 24 hours and an identical body for two minutes, as the trigger docs say [AUTO-R9]', () => {
+    // docs/en/platform/automations/triggers.md, "Receive a webhook".
+    expect(HEADER_LANE_WINDOW_MS).toBe(24 * 60 * 60_000);
+    expect(BODY_LANE_WINDOW_MS).toBe(2 * 60_000);
+  });
 });

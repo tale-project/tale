@@ -102,7 +102,7 @@ function useBackendPaginatedQuery<Item>(
   // refetch answers the same rows, so the rows' memos downstream hold.
   const results = useMemo(
     () => data?.pages.flatMap((page) => page.page) ?? NO_RESULTS,
-    [data],
+    [data?.pages],
   );
   // A failed first page reads as an exhausted empty list (never an eternal
   // skeleton) — the retry policy has already given up on a deterministic 4xx.

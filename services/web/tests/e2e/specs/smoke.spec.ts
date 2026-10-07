@@ -177,6 +177,118 @@ test.describe('web marketing smoke', () => {
     ).toBeVisible();
   });
 
+  for (const locale of ['en', 'de', 'fr'] as const) {
+    const { t: tLocale } = createI18n(
+      new URL(`../../../messages/${locale}.yml`, import.meta.url),
+      {
+        packages: [
+          new URL(
+            `../../../../../packages/ui/src/i18n/messages/${locale}.yml`,
+            import.meta.url,
+          ),
+        ],
+      },
+    );
+    const prefix = locale === 'en' ? '' : `/${locale}`;
+
+    test(`${locale} unknown nested paths render the marketing 404 and localized recovery`, async ({
+      page,
+    }) => {
+      for (const width of [390, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const path of [
+          '/missing',
+          '/platform/missing',
+          '/legal/missing',
+        ]) {
+          await page.goto(`${prefix}${path}`);
+          await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+            tLocale('notFound.title'),
+          );
+          await expect(
+            page.getByRole('link', {
+              name: tLocale('notFound.backHome'),
+              exact: true,
+            }),
+          ).toHaveAttribute('href', prefix || '/');
+          await expect(page.locator('header')).toBeVisible();
+          await expect(page.locator('footer')).toHaveCount(1);
+          await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+            'content',
+            /noindex/,
+          );
+          await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+            'href',
+            `https://tale.dev${prefix}/404`,
+          );
+          expect(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth <= window.innerWidth,
+            ),
+          ).toBe(true);
+        }
+      }
+    });
+
+    test(`${locale} footer links to Tale UI and uses the shared public-site footnote`, async ({
+      page,
+    }) => {
+      await page.goto(prefix || '/');
+      const footer = page.locator('footer');
+      await expect(
+        footer.getByRole('link', {
+          name: tLocale('footer.taleUi'),
+          exact: true,
+        }),
+      ).toHaveAttribute('href', 'https://ui.tale.dev');
+      await expect(footer).toContainText(
+        tLocale('siteFooter.copyright').replace(
+          '{year}',
+          String(new Date().getFullYear()),
+        ),
+      );
+    });
+  }
+
+  test('/ui sends readers to the UI documentation site', async ({ page }) => {
+    await page.route(
+      (url) => url.hostname === 'ui.tale.dev',
+      (route) =>
+        route.fulfill({
+          contentType: 'text/html',
+          body: '<h1>Introduction</h1>',
+        }),
+    );
+    await page.goto('/ui');
+    await expect(page).toHaveURL('https://ui.tale.dev/');
+  });
+
+  test('UI aliases redirect from client navigation and keep the query', async ({
+    page,
+  }) => {
+    await page.route(
+      (url) => url.hostname === 'ui.tale.dev',
+      (route) =>
+        route.fulfill({
+          contentType: 'text/html',
+          body: '<h1>Introduction</h1>',
+        }),
+    );
+    for (const path of ['/ui', '/en/ui', '/de/ui', '/fr/ui']) {
+      await page.goto('/');
+      await page.getByRole('button', { name: t('nav.resources') }).click();
+      await expect(
+        page.getByRole('region', { name: t('nav.resources') }),
+      ).toBeVisible();
+      await page.keyboard.press('Escape');
+      await page.evaluate((target) => {
+        history.pushState(null, '', target);
+        dispatchEvent(new PopStateEvent('popstate'));
+      }, `${path}?source=client`);
+      await expect(page).toHaveURL('https://ui.tale.dev/?source=client');
+    }
+  });
+
   test('platform and pricing keep a single h1 and no skipped levels in main', async ({
     page,
   }) => {

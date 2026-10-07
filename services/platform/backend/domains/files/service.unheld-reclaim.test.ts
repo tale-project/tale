@@ -57,7 +57,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it('deletes only the bytes nothing holds, asking the shared rule once for every ref', async () => {
+it('deletes only the bytes nothing holds, asking the shared rule once for every ref [FILE-R9]', async () => {
   const fake = fakeSql(['s3:blobs/acme/loose']);
 
   const deleted = await deleteUnheldOrgBlobRefs(fake.sql, 'org_1', [
@@ -84,7 +84,7 @@ it('deletes only the bytes nothing holds, asking the shared rule once for every 
   expect(deleteOrgObject).toHaveBeenCalledWith('acme', 'blobs/acme/loose');
 });
 
-it('keeps every byte something holds, and asks nothing for no refs', async () => {
+it('keeps every byte something holds, and asks nothing for no refs [FILE-R9]', async () => {
   const held = fakeSql([]);
   expect(
     await deleteUnheldOrgBlobRefs(held.sql, 'org_1', ['s3:blobs/acme/held']),
@@ -96,7 +96,7 @@ it('keeps every byte something holds, and asks nothing for no refs', async () =>
   expect(none.statements).toEqual([]);
 });
 
-it('keeps every byte when the holder check fails, and logs it', async () => {
+it('keeps every byte when the holder check fails, and logs it [FILE-R9]', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   // Only the holder question fails; the fragments it is built from never
   // reach the database on their own.

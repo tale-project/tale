@@ -24,7 +24,10 @@ describe('task-actor-preview system sentinel', () => {
         actorId: SYSTEM_ACTOR_ID,
         agents: new Map(),
         workflows: new Map(),
-        labels: { unresolvedWorkflow: 'Workflow' },
+        labels: {
+          unresolvedWorkflow: 'Workflow',
+          deletedAgent: 'Deleted agent',
+        },
       }),
     ).toBeNull();
   });

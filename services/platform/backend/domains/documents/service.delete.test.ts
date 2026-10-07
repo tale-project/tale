@@ -113,7 +113,7 @@ afterEach(() => {
 });
 
 describe('deleteDocumentHard', () => {
-  it('writes no receipt when the purge could not finish', async () => {
+  it('writes no receipt when the purge could not finish [DOC-R11]', async () => {
     // The shape `purgeDocument` throws when a release failed: the row is
     // kept, the caller retries.
     const incomplete = Object.assign(new Error('Purge incomplete for doc-1'), {
@@ -131,7 +131,7 @@ describe('deleteDocumentHard', () => {
     expect(fake.begun).toEqual([]);
   });
 
-  it('audits the deletion only after the purge succeeded', async () => {
+  it('audits the deletion only after the purge succeeded [DOC-R11]', async () => {
     vi.mocked(purgeDocument).mockResolvedValueOnce(undefined);
     const fake = fakeSql();
 
@@ -184,7 +184,7 @@ describe('deleteDocumentHard', () => {
 // move and trash doors refused already, while the hard delete and the
 // detach checked `canEdit` alone — so an archived project's files could
 // still be purged or pulled out of it.
-describe('archived project', () => {
+describe('archived project [DOC-R11]', () => {
   const archived = { ...PROJECT, archivedAt: 1_700_000_000_000 };
   const projectDoc = { ...HUB_DOC, projectId: 'proj-1' };
 

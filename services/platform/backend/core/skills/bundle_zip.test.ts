@@ -110,7 +110,7 @@ describe('parseSkillBundleZip', () => {
     expect(parsed.files.map((f) => f.relPath)).toEqual(['SKILL.md']);
   });
 
-  it('refuses garbage, emptiness, and a missing SKILL.md', async () => {
+  it('refuses garbage, emptiness, and a missing SKILL.md [SKILL-R14]', async () => {
     await expectRefusal(Buffer.from('not a zip'), 'INVALID_BUNDLE');
     await expectRefusal(await zipOf({}), 'INVALID_BUNDLE');
     await expectRefusal(
@@ -127,7 +127,7 @@ describe('parseSkillBundleZip', () => {
     );
   });
 
-  it('refuses unsafe entry paths', async () => {
+  it('refuses unsafe entry paths [SKILL-R14]', async () => {
     // JSZip itself normalizes `../`-shaped names away at creation, so only
     // absolute and drive-letter paths reach the parser's guard from here;
     // the `..`-segment branch defends against zips other tools crafted.
@@ -164,7 +164,7 @@ describe('parseSkillBundleZip', () => {
     );
   });
 
-  it('enforces the entry and byte caps', async () => {
+  it('enforces the entry and byte caps [SKILL-R14]', async () => {
     const many: Record<string, string> = { 'SKILL.md': VALID_SKILL_MD };
     for (let i = 0; i <= MAX_SKILL_BUNDLE_FILES; i += 1) {
       many[`assets/file-${i}.txt`] = 'x';
@@ -242,7 +242,7 @@ function lieAboutUncompressedSize(
   return out;
 }
 
-describe('parseSkillBundleZip — caps hold before decompression', () => {
+describe('parseSkillBundleZip — caps hold before decompression [SKILL-R14]', () => {
   it('reads the declared size off a loaded entry, null for an empty one', async () => {
     const zip = await JSZip.loadAsync(
       await zipOf({

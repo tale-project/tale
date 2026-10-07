@@ -1,0 +1,163 @@
+title: Websites
+entityLabelOne: website
+searchPlaceholder: Search websites
+addButton: Add website
+addWebsite: Add website
+addDescription: Index a whole website or a list of pages, and choose how often to scan it.
+editWebsite: Edit website
+editDescription: Update website information.
+urlPlaceholder: example.com
+scanIntervalPlaceholder: Select scan interval
+domain: Domain
+scanInterval: Scan interval
+addMode:
+  label: Source type
+  site: Whole website
+  list: URL list
+urlList: URLs
+urlListPlaceholder: |-
+  https://www.example.com/reports/annual.pdf
+  https://www.example.com/about
+urlListHint: One URL per line. Only these exact pages are indexed, not the whole site. URLs from different domains are registered as separate websites. Pages are fetched over HTTPS; an http:// line is fetched as https://.
+kindList: URL list
+scanIntervals:
+  1hour: Every 1 hour
+  6hours: Every 6 hours
+  12hours: Every 12 hours
+  1day: Every 1 day
+  5days: Every 5 days
+  7days: Every 7 days
+  30days: Every 30 days
+validation:
+  domainRequired: Domain is required
+  validDomain: Enter a valid domain (e.g. example.com)
+  scanIntervalRequired: Scan interval is required
+  urlListRequired: Add at least one URL
+  urlListInvalid: 'This line is not a valid URL: {line}'
+toast:
+  addSuccess: Website added
+  addError: Couldn't add website
+  addErrorDuplicate: This website has already been added
+  addListSuccess: '{count} URLs registered for indexing'
+  addListPartial: 'Some sources could not be added: {domains}'
+  addErrorReason:
+    domainInvalid: Enter a public https:// host without a port or path, e.g. example.com — http:// addresses are not crawled.
+    notCrawlable: The crawler cannot reach this host — private, loopback and cloud-metadata addresses are refused.
+  updateSuccess: Website updated
+  updateError: Couldn't update website
+  fetchPagesError: Couldn't load pages
+  searchError: Search failed
+  deleteError: Couldn't delete website
+  scanStarted: Scan started
+  scanAlreadyRunning: A scan is already running
+adding: Adding...
+viewDialog:
+  title: Website details
+  status: Status
+  nameField: Name
+  scanInterval: Scan interval
+  lastScanned: Last scanned
+  notScannedYet: Not scanned yet
+  descriptionField: Description
+  created: Created
+  websiteId: Website ID
+  unknown: Unknown
+  scanPausedNotice: Scanning is paused after repeated failures to reach the
+    knowledge database. Fix the connection under Settings → Data residency,
+    then resume scanning.
+  scanError:
+    runtime: Scanning didn't run.
+    notInCorpus: This URL list isn't in the crawler. Delete it and add it again.
+    notInCorpusSite: This site isn't in the crawler. The next scan adds it again.
+    embedding: The embedding model couldn't process the pages.
+    generic: The last scan didn't finish.
+  scanEmpty:
+    runtime: Nothing was indexed. The URL isn't the problem.
+    dns: Nothing was indexed. Change the URL if the host is wrong.
+    notInCorpus: Nothing was indexed. Delete the URL list and add it again.
+    notInCorpusSite: Nothing was indexed. The next scan adds the site again.
+    generic: Nothing was indexed.
+  scanDetail:
+    credential: The provider rejected the embedding model's credential. An admin can repair it under Settings → AI providers.
+    credit: The provider refused the request over the account's balance or plan. An admin can check the account at the provider.
+    unresolved: The embedding model's credential can't be used. An admin can check it under Settings → AI providers.
+    dimension: The model's vectors don't fit this knowledge database. An admin can check the embedding model under Settings → Data residency.
+    upstream: The provider failed or couldn't be reached. Choose Scan now once it's back.
+    throttled: The provider's rate limit held through every retry. The next scan continues on its own; an admin can pace requests under Settings → Data residency.
+    generic: An admin can check the embedding model under Settings → Data residency.
+  technicalDetails: Technical details
+scanPausedBadge: Paused
+resumeScanning: Resume scanning
+scanNow: Scan now
+indexed: Indexed
+syncError:
+  title: Website statuses couldn't be refreshed
+  description: Statuses and indexed page counts may be out of date. Try refreshing them again.
+  retry: Retry
+searchNotice:
+  title: Chat can't search these websites yet
+  description: Pages are crawled and stored, but knowledge search needs a working embedding model, and this organization doesn't have one yet.
+  configureCta: Configure embedding model
+  askAdmin: Ask an organization admin to set one up under Settings → Data residency.
+pagesDialog:
+  title: Website pages
+  noPages: No pages crawled yet
+  loadMore: Load more
+  wordCount: '{count} words'
+  chunks: '{count} chunks'
+  lastCrawled: Crawled {date}
+  searchPlaceholder: Search website content
+  noSearchResults: No results found
+  noSearchResultsDescription: Try another term, or clear the search to browse all pages.
+  noChunks: No chunks indexed for this page
+  chunkIndex: Chunk {index}
+  lastError: '{count, plural, one {{count} failed attempt} other {{count} failed attempts in a row}} — {message}'
+  failed: Failed
+  skipped: Skipped
+  failedPages: '{count, plural, one {{count} page failed} other {{count} pages failed}}'
+  filter:
+    label: Which pages to show
+    all: All
+    failed: 'Failed ({count})'
+    skipped: 'Skipped ({count})'
+  noFailedPages: No page failed
+  noSkippedPages: No page was skipped
+  errorKind:
+    dnsFailed: Couldn't resolve the host.
+    timeout: The page didn't answer in time.
+    insecurePublicHttp: Refused a plaintext or private redirect.
+    privateIp: Refused a private address.
+    hostNotAllowed: Refused a redirect off the site.
+    httpError: The page answered with an error.
+    networkError: Couldn't reach the page.
+    renderFailed: The browser couldn't render the page.
+    extractionFailed: Couldn't read the page content.
+    invalidUrl: The URL isn't valid.
+    unsupportedProtocol: This protocol isn't supported.
+    redirectMissingLocation: The redirect had no destination.
+    redirectLimitExceeded: Too many redirects.
+    responseTooLarge: The page is too large to fetch.
+    responseTooSmall: The page was empty.
+    aborted: The fetch was cancelled.
+    tlsError: The certificate isn't trusted.
+    unsupportedContent: This page isn't text the crawler can index.
+    robotsNoindex: The page asked not to be indexed.
+    fallback: Couldn't fetch this page.
+filter:
+  status:
+    scanning: Scanning
+    active: Active
+    error: Error
+    deleting: Deleting
+  interval:
+    60m: Every 1 hour
+    6h: Every 6 hours
+    12h: Every 12 hours
+    1d: Every 1 day
+    5d: Every 5 days
+    7d: Every 7 days
+    30d: Every 30 days
+delete:
+  confirmation: Delete {name}?
+  warning: This can't be undone.
+  title: Delete website

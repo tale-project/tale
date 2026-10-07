@@ -200,7 +200,7 @@ describe('OnlineGate', () => {
         goOffline();
       });
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/health',
+        '/api/health/ready',
         expect.objectContaining({ cache: 'no-store' }),
       );
       act(() => {
@@ -217,7 +217,9 @@ describe('OnlineGate', () => {
       window.__ENV__ = { BASE_PATH: '' };
       const fetchMock = vi
         .spyOn(window, 'fetch')
-        .mockResolvedValue(new Response('ok', { status: 200 }));
+        .mockImplementation(async () =>
+          Response.json({ ok: true, service: 'backend' }),
+        );
       vi.useFakeTimers();
       render(
         <OnlineGate>

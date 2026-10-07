@@ -1,0 +1,15 @@
+title: Access denied
+connectors: You need Admin or Developer permissions to access connectors settings.
+apiKeys: Using API keys takes the Owner, Admin or Developer role, or a competence an Admin grants for one.
+apiTab: This page is for Owners, Admins and Developers.
+apiModels: Setting up the model endpoints takes the Owner, Admin or Developer role, or the Call models over the API competence.
+organization: You need Admin permissions to access organization settings.
+branding: You need Admin permissions to access branding settings.
+knowledge: You don't have permission to access knowledge.
+automations: Automations are for Owners, Admins and Developers.
+workspaceNotFound: That workspace doesn't exist or was removed.
+disabled: Your account is disabled. Contact support for help.
+noMembership: You're not a member of this workspace. Contact an administrator for access.
+enterpriseSso: You need Admin permissions to access Enterprise SSO settings.
+dataResidency: You need Admin permissions to access data residency settings.
+providers: You need Admin or Developer permissions to manage AI providers.

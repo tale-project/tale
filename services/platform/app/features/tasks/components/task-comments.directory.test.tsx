@@ -16,7 +16,7 @@ import { TaskComments } from './task-comments';
 // cost seconds to open and to close a task with hundreds of comments. These
 // pin the list to ONE directory, whether the surface provides it or not.
 
-const reads = vi.hoisted(() => ({ members: 0 }));
+const reads = vi.hoisted(() => ({ members: 0, editors: 0 }));
 
 vi.mock('@tale/ui/i18n/locale-provider', () => ({
   useLocale: () => ({ locale: 'en' }),
@@ -59,12 +59,18 @@ vi.mock('@/app/features/automations/hooks/use-can-use-automations', () => ({
   useCanUseAutomations: () => false,
 }));
 
-vi.mock('../hooks/use-task-subject-contract', () => ({
+vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../hooks/use-task-subject-contract')
+  >()),
   useTaskContractAutomations: () => [],
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useEditTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useEditTaskComment: () => {
+    reads.editors += 1;
+    return { mutateAsync: vi.fn(), isPending: false };
+  },
   useDeleteTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAddTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
@@ -123,6 +129,7 @@ function renderComments(wrap?: (children: ReactNode) => ReactNode) {
 describe('TaskComments — one actor directory per discussion', () => {
   beforeEach(() => {
     reads.members = 0;
+    reads.editors = 0;
   });
 
   it('names every author and mention from the directory the surface provides', () => {
@@ -140,6 +147,7 @@ describe('TaskComments — one actor directory per discussion', () => {
     // The provider's directory, read in its own renders — not once per
     // comment and per text run (that was 200+ reads here).
     expect(reads.members).toBeLessThanOrEqual(3);
+    expect(reads.editors).toBe(0);
   });
 
   it('reads one directory for the whole list where nothing provides one', () => {
@@ -150,6 +158,7 @@ describe('TaskComments — one actor directory per discussion', () => {
       COMMENTS.length * 2,
     );
     expect(reads.members).toBeLessThanOrEqual(3);
+    expect(reads.editors).toBe(0);
   });
 });
 

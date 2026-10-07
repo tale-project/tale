@@ -9,7 +9,7 @@ Wenn du ein Konto in der Anwendung verbinden möchtest, nutze [Connector-Zugangs
 
 ## Wie ein Connector deklariert wird
 
-Definitionen liegen unter `configs/platform/system/connectors/<slug>/connector.yml`, zusammen mit dem Symbol des Connectors. Der Verzeichnis-Slug muss `name` entsprechen. Automatisierungen rufen Aktionen mit `<connector>.<action>` auf, etwa `tavily.search`. Anbieter-Connectoren erscheinen in den Einstellungen; interne Connectoren mit Plattformauthentifizierung nicht.
+Definitionen liegen unter `configs/platform/system/connectors/<slug>/connector.yml`, zusammen mit dem Symbol des Connectors. Der Verzeichnis-Slug muss `name` entsprechen. Automatisierungen rufen Aktionen mit `<connector>.<action>` auf, etwa `tavily.search`. Anbieter-Connectors erscheinen in den Einstellungen; interne Connectors mit Plattformauthentifizierung nicht.
 
 Dieser Ausschnitt aus der mitgelieferten Tavily-Definition zeigt Identität und Authentifizierung. Er ist kein vollständiger Connector: Die Aktionsdefinitionen fehlen hier bewusst.
 
@@ -85,14 +85,14 @@ Der Connector deklariert Autorisierungs- und Token-URLs sowie angeforderte Berec
 
 | Quelle | Vorrang und Einrichtung |
 | --- | --- |
-| Organisations-App | Hat Vorrang. Ein Administrator hinterlegt Client-ID und Geheimnis unter **Einstellungen > Connectoren > OAuth-Apps** |
+| Organisations-App | Hat Vorrang. Ein Administrator hinterlegt Client-ID und Geheimnis unter **Einstellungen > Connectors > OAuth-Apps** |
 | Deployment-App | Standard ohne Organisations-App: `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` und `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` |
 
 Schreibe den Slug in Umgebungsvariablen groß und ersetze Bindestriche durch Unterstriche. Bei einer Microsoft-App für einen einzelnen Mandanten gehört die Verzeichnis-ID dazu, damit die Autorisierung diesen Mandanten statt `/common` nutzt. Organisationsgeheimnisse werden verschlüsselt und nicht erneut angezeigt.
 
 ### Die Callback-URL exakt registrieren
 
-Alle OAuth-Connectoren der Organisation verwenden diese Redirect-URI:
+Alle OAuth-Connectors der Organisation verwenden diese Redirect-URI:
 
 ```text
 ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
@@ -114,7 +114,7 @@ Registriere `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` als Events Req
 | --- | --- |
 | Unterstützte Anbieteraktion | Mitgelieferter Connector mit Organisationszugang |
 | Wiederverwendbare Aktion fehlt im Katalog | Quellcodebeitrag mit Schema, deterministischem Mock, Live-Backend und Tests |
-| Projektspezifische Aufrufe deines Dienstes | Geheimnisse und Sandbox-Code eines Projektagenten, innerhalb der Netzwerkfreigaben der Sandbox |
+| Projektspezifische Aufrufe deines Dienstes | **Secrets** und Sandbox-Code eines Projektagenten, innerhalb der Netzwerkfreigaben der Sandbox |
 | Eigene Logik in einer Automatisierung | `transform`-Knoten im Rahmen der Fähigkeiten und Netzwerkregeln des Runners |
 
 Ein Geheimnis ermöglicht die Anmeldung, aber nicht die Erreichbarkeit eines privaten Dienstes. Prüfe den Netzwerkzugriff aus der tatsächlichen Sandbox oder dem Runner, bevor du deine Integration darauf aufbaust.

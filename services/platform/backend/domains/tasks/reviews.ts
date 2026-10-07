@@ -179,7 +179,7 @@ async function agentReviewPolicyBlock(
 
 /** Derived from the same live authority and exact source that a verdict needs.
  * It never changes captured ownership or grants permission to another actor. */
-async function agentReviewBlockedReason(
+export async function agentReviewBlockedReason(
   sql: Sql | TransactionSql,
   args: {
     organizationId: string;
@@ -743,6 +743,32 @@ export async function replacePendingTaskReviewer(
     actorUserId: string;
   },
 ): Promise<void> {
+  await handoffPendingTaskReview(tx, {
+    task: args.task,
+    expected: args.expected,
+    actor: { kind: 'user', userId: args.actorUserId },
+  });
+}
+
+/** One source-checked mint/supersession path for editor and manager handoffs.
+ * Caller holds the task start lock. Agent callers additionally validate live
+ * authority, exact evidence and an agent-only captured gate in this transaction. */
+export async function handoffPendingTaskReview(
+  tx: TransactionSql,
+  args: {
+    task: TaskRow;
+    expected: PendingReviewIdentity | null;
+  } & (
+    | {
+        actor: { kind: 'user'; userId: string };
+        reviewer?: TaskReviewRecipient | null;
+      }
+    | {
+        actor: { kind: 'agent'; agentId: string };
+        reviewer: TaskReviewRecipient;
+      }
+  ),
+): Promise<string | null> {
   const prior = await listTaskReviewApprovals(tx, args.task.id);
   const pending = prior.filter((approval) => approval.status === 'pending');
   const expected = args.expected;
@@ -765,7 +791,7 @@ export async function replacePendingTaskReviewer(
       409,
     );
   }
-  if (current === undefined) return;
+  if (current === undefined) return null;
   if (args.task.status !== 'in_review') {
     throw new TaskReviewError(
       'TASK_REVIEWER_STALE',
@@ -773,7 +799,12 @@ export async function replacePendingTaskReviewer(
       409,
     );
   }
-  const reviewer = await resolveReviewer(tx, args.task);
+  // Editor default resolution stays after pending/status CAS, including its
+  // query-free no-pending path. Agent handoffs always provide their recipient.
+  const reviewer =
+    args.reviewer === undefined
+      ? await resolveReviewer(tx, args.task)
+      : args.reviewer;
   const runId = approvalRunId(current);
   if (reviewer?.kind === 'agent') {
     const runs = await tx<{ id: string; agentId: string; status: string }[]>`
@@ -829,21 +860,31 @@ export async function replacePendingTaskReviewer(
       );
     }
   }
-  if (sameRecipient(taskReviewRecipientOf(current.metadata), reviewer)) return;
+  if (sameRecipient(taskReviewRecipientOf(current.metadata), reviewer))
+    return current.id;
   const minted = await mintTaskReview(tx, {
     task: args.task,
     reviewer,
     prior,
-    requestedByUserId: args.actorUserId,
+    ...(args.actor.kind === 'user'
+      ? { requestedByUserId: args.actor.userId }
+      : {}),
     trigger:
       runId === undefined
-        ? { kind: 'human', actorId: args.actorUserId }
+        ? {
+            kind: 'human',
+            actorId:
+              args.actor.kind === 'user'
+                ? args.actor.userId
+                : args.actor.agentId,
+          }
         : { kind: 'agent_run', runId },
   });
   await createAuditLog(tx, {
     organizationId: args.task.organizationId,
-    actorId: args.actorUserId,
-    actorType: 'user',
+    actorId:
+      args.actor.kind === 'user' ? args.actor.userId : args.actor.agentId,
+    actorType: args.actor.kind === 'user' ? 'user' : 'api',
     action: 'task.review_retargeted',
     category: 'data',
     resourceType: 'task',
@@ -854,9 +895,13 @@ export async function replacePendingTaskReviewer(
       reviewer: taskReviewRecipientOf(current.metadata),
     },
     newState: { approvalId: minted.approvalId, reviewer },
-    metadata: { runId: runId ?? null },
+    metadata: {
+      runId: runId ?? null,
+      ...(args.actor.kind === 'agent' ? { viaAgent: true } : {}),
+    },
     status: 'success',
   });
+  return minted.approvalId;
 }
 
 export interface PendingTaskReview {
@@ -875,6 +920,25 @@ export interface PendingTaskReview {
   agentReviewBlockedReason: AgentReviewBlockedReason | null;
   runId: string | null;
   createdAt: number;
+}
+
+/** An external business decision cannot replace any captured native agent
+ * review, even when another pending row is newer or the task state drifted. */
+export async function hasPendingAgentReviewForTask(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  taskId: string,
+): Promise<boolean> {
+  const rows = await sql<{ pending: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM app.approvals
+      WHERE org_id = ${organizationId} AND resource_id = ${taskId}
+        AND resource_type = 'task_review' AND status = 'pending'
+        AND wf_execution_id IS NULL
+        AND metadata -> 'reviewer' ->> 'kind' = 'agent'
+    ) AS pending
+  `;
+  return rows[0]?.pending ?? false;
 }
 
 /** The task's open workflow-free review, newest first — the sheet's gate

@@ -104,7 +104,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('createJoinToken', () => {
-  it('answers the plaintext once and stores only its hash', async () => {
+  it('answers the plaintext once and stores only its hash [SBXDEV-R3]', async () => {
     const { sql, queries } = fakeSql((text) =>
       text.startsWith('SELECT count(*)') ? [{ count: '0' }] : undefined,
     );
@@ -126,7 +126,7 @@ describe('createJoinToken', () => {
     ]);
   });
 
-  it('refuses past the live-token ceiling and without a sandbox service', async () => {
+  it('refuses past the live-token ceiling and without a sandbox service [SBXDEV-R5]', async () => {
     const { sql } = fakeSql((text) =>
       text.startsWith('SELECT count(*)') ? [{ count: '20' }] : undefined,
     );
@@ -161,7 +161,7 @@ describe('getJoinTokenStatus', () => {
     },
   );
 
-  it('does not disclose missing, foreign or another administrator’s grant', async () => {
+  it('does not disclose missing, foreign or another administrator’s grant [SBXDEV-R4]', async () => {
     const { sql } = fakeSql(() => []);
     await expect(
       getJoinTokenStatus(sql, {
@@ -174,7 +174,7 @@ describe('getJoinTokenStatus', () => {
 });
 
 describe('joinDevice', () => {
-  it('spends the token once and answers the device secret with everything the device needs', async () => {
+  it('spends the token once and answers the device secret with everything the device needs [SBXDEV-R3]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.includes('FROM app.sandbox_device_join_tokens')) {
         return [{ id: 'jt-1', orgId: 'org_a', createdBy: 'admin-1' }];
@@ -227,7 +227,7 @@ describe('joinDevice', () => {
     expect(lookup?.text).toContain('FOR UPDATE');
   });
 
-  it('refuses a spent, expired or unknown token', async () => {
+  it('refuses a spent, expired or unknown token [SBXDEV-R3]', async () => {
     const { sql, queries } = fakeSql(() => undefined);
     await expect(
       joinDevice(sql, {
@@ -242,7 +242,7 @@ describe('joinDevice', () => {
     ).toBe(false);
   });
 
-  it('refuses past the per-organization device ceiling', async () => {
+  it('refuses past the per-organization device ceiling [SBXDEV-R5]', async () => {
     const { sql } = fakeSql((text) => {
       if (text.includes('FROM app.sandbox_device_join_tokens')) {
         return [{ id: 'jt-1', orgId: 'org_a', createdBy: 'admin-1' }];
@@ -274,7 +274,7 @@ describe('grantTicket', () => {
     lastSeenAt: Date.now(),
   };
 
-  it("mints a ticket the hub can verify, naming the secret's own device and organization", async () => {
+  it("mints a ticket the hub can verify, naming the secret's own device and organization [SBXDEV-R8]", async () => {
     const { sql } = fakeSql((text) =>
       text.includes('FROM app.sandbox_devices') ? [device] : undefined,
     );
@@ -326,7 +326,7 @@ describe('grantTicket', () => {
     expect(update?.values).toContain(6);
   });
 
-  it('a removed or unknown secret mints nothing', async () => {
+  it('a removed or unknown secret mints nothing [SBXDEV-R7]', async () => {
     const { sql } = fakeSql(() => undefined);
     await expect(
       grantTicket(sql, 'tsd_removed000', { version: '0.5.60' }),
@@ -341,7 +341,7 @@ describe('grantTicket', () => {
 });
 
 describe('removeDevice / leaveDevice', () => {
-  it('stamps the row, audits, and tells the hub to cut the tunnel', async () => {
+  it('stamps the row, audits, and tells the hub to cut the tunnel [SBXDEV-R10]', async () => {
     const { sql, queries } = fakeSql((text) =>
       text.includes('FROM app.sandbox_devices')
         ? [{ id: 'dev-1', name: 'studio', revokedAt: null }]
@@ -360,7 +360,7 @@ describe('removeDevice / leaveDevice', () => {
     expect(hubDisconnect).toHaveBeenCalledWith('dev-1');
   });
 
-  it("another organization's device is not found", async () => {
+  it("another organization's device is not found [SBXDEV-R9]", async () => {
     const { sql } = fakeSql(() => undefined);
     await expect(
       removeDevice(sql, {
@@ -372,7 +372,7 @@ describe('removeDevice / leaveDevice', () => {
     expect(hubDisconnect).not.toHaveBeenCalled();
   });
 
-  it('a hub that cannot be reached does not undo the removal, and stays owed', async () => {
+  it('a hub that cannot be reached does not undo the removal, and stays owed [SBXDEV-R10]', async () => {
     hubDisconnect.mockRejectedValue(new Error('spawner down'));
     const { sql, queries } = fakeSql((text) =>
       text.includes('FROM app.sandbox_devices')
@@ -409,7 +409,7 @@ describe('removeDevice / leaveDevice', () => {
     expect(stamp?.values).toContain('dev-1');
   });
 
-  it('the device can remove itself with its own secret', async () => {
+  it('the device can remove itself with its own secret [SBXDEV-R11]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.includes('WHERE secret_hash')) {
         return [
@@ -441,7 +441,7 @@ describe('removeDevice / leaveDevice', () => {
 });
 
 describe('releaseRemovedDevices', () => {
-  it('asks the hub again for every removal it has not confirmed', async () => {
+  it('asks the hub again for every removal it has not confirmed [SBXDEV-R10]', async () => {
     hubDisconnect
       .mockRejectedValueOnce(new Error('spawner still down'))
       .mockResolvedValueOnce({ disconnected: false, placementsDropped: 3 });

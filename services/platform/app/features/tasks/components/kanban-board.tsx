@@ -5,6 +5,7 @@ import { memo, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
+import { TaskActorDirectoryProvider } from '../hooks/task-actor-directory-context';
 import { useTaskBoardDnd } from '../hooks/use-task-board-dnd';
 import { plannedTransitionKind } from '../hooks/use-task-status-choreography';
 import {
@@ -102,7 +103,7 @@ export const KanbanBoard = memo(function KanbanBoard({
     return hints.size > 0 ? hints : null;
   }, [automations, dnd.activeTask, isAgentWorking, locale, t]);
 
-  return (
+  const board = (
     <DndContext
       sensors={dnd.sensors}
       collisionDetection={dnd.collisionDetection}
@@ -151,5 +152,16 @@ export const KanbanBoard = memo(function KanbanBoard({
       </DragOverlay>
       {dialog}
     </DndContext>
+  );
+  const organizationId = tasks[0]?.organizationId;
+  return organizationId === undefined ? (
+    board
+  ) : (
+    <TaskActorDirectoryProvider
+      organizationId={organizationId}
+      projectId={choreographyProjectId}
+    >
+      {board}
+    </TaskActorDirectoryProvider>
   );
 });

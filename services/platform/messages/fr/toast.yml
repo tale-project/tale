@@ -1,0 +1,39 @@
+success:
+  passwordChanged:
+    title: Mot de passe modifié
+    description: Utilise ton nouveau mot de passe lors de ta prochaine connexion.
+  passwordSet:
+    title: Mot de passe défini
+    description: Tu peux maintenant te connecter avec ton mot de passe.
+  newMemberCreated:
+    title: Membre ajouté
+    description: Le nouveau membre a été créé et ajouté à ton organisation.
+  existingUserAdded:
+    title: Membre ajouté
+    description: L'utilisateur a été ajouté à ton organisation.
+  faviconGenerated:
+    title: Favicon généré
+    description: Nous avons créé un favicon à partir de ton logo.
+error:
+  profileUpdateFailed:
+    title: Impossible de mettre à jour le profil
+    withReason: 'Impossible de mettre à jour le profil : {reason}'
+  passwordChangeFailed:
+    title: Impossible de changer le mot de passe
+    description: Vérifie ton mot de passe actuel et réessaie.
+  organizationUpdateFailed:
+    title: Impossible de mettre à jour l'organisation
+  brandingUpdateFailed:
+    title: Impossible de mettre à jour l'image de marque
+  imageUploadFailed: Échec du téléversement de l'image
+  logoTooSmall: Le logo doit faire au moins {min}×{min} pixels.
+  imageTooLarge: L'image est trop volumineuse. La taille maximale est de 2 Mo.
+  imageMimeUnsupported: Format d'image non pris en charge. Utilise PNG, SVG, JPG, WebP ou ICO.
+  imageSvgActiveContent: Le SVG contient des scripts ou des gestionnaires d'événements. Retire-les ou téléverse un PNG.
+  imageTypeInvalid: Type d'image invalide
+  addMemberFailed:
+    title: Impossible d'ajouter le membre
+    description: Une erreur s'est produite. Réessaie.
+  generic:
+    title: Une erreur s'est produite
+    description: Réessaie.

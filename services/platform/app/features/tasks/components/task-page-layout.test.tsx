@@ -103,12 +103,16 @@ describe('TaskPageLayout accessibility', () => {
       viewport.mobile = mobile;
       viewport.canDock = false;
       const { user } = taskPage();
+      // The hidden desktop copy used to mount the entire details tree on
+      // phones, and opening the sheet mounted it a second time.
+      expect(screen.queryByText('Change assignee')).toBeNull();
       const opener = screen.getByRole('button', { name: 'Show details' });
       expect(opener).toHaveAttribute('aria-haspopup', 'dialog');
       expect(opener).toHaveAttribute('aria-expanded', 'false');
       expect(opener).not.toHaveAttribute('aria-controls');
       await user.click(opener);
       const dialog = screen.getByRole('dialog', { name: 'Details' });
+      expect(screen.getAllByText('Change assignee')).toHaveLength(1);
       const controlled = document.getElementById(
         opener.getAttribute('aria-controls') ?? '',
       );

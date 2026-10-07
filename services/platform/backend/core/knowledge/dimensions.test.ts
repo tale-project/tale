@@ -204,7 +204,7 @@ describe('pinning a fresh corpus', () => {
   });
 });
 
-describe('a width that disagrees is refused', () => {
+describe('a width that disagrees is refused [KNOW-R11]', () => {
   it('refuses a corpus already declared at another width, and never re-types it', async () => {
     // Pinned by another organization on the shared database before this
     // process started: the memo is empty, so the column itself is the

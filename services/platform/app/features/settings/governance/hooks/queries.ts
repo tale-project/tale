@@ -6,7 +6,7 @@ import {
   uploadPolicyConfigSchema,
   type UploadPolicyConfig,
 } from '@tale/shared/schemas/governance';
-import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import { useMemo } from 'react';
 
 import { useActionQuery } from '@/app/hooks/use-action-query';

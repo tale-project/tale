@@ -137,7 +137,7 @@ describe('the consent intent', () => {
     );
   });
 
-  it('keeps the membership and role gate in front of the intent', async () => {
+  it('keeps the membership and role gate in front of the intent [CONN-R9]', async () => {
     connectorWriteAccess.mockResolvedValue('role_forbidden');
     const denied = await app(SIGNED_IN).request(
       '/start?connector=gmail&organizationId=org-1&credentialId=cred-sales',
@@ -153,7 +153,7 @@ describe('the consent intent', () => {
     expect(startOauth2).not.toHaveBeenCalled();
   });
 
-  it('never lets the callback request name the credential it writes', async () => {
+  it('never lets the callback request name the credential it writes [CONN-R9]', async () => {
     completeOauth2.mockResolvedValue({
       kind: 'connected',
       settingsUrl: 'https://tale.example/dashboard/org-1/settings/connectors',

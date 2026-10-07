@@ -28,10 +28,20 @@ vi.mock('@tale/ui/use-toast', async (importOriginal) => {
 });
 
 /** What the page knows about its deployment, and what a probe would find. */
-const deployment = vi.hoisted(() => ({ known: true, answers: true }));
+const deployment = vi.hoisted(() => ({
+  known: true,
+  answers: true,
+  listener: undefined as (() => void) | undefined,
+}));
 vi.mock('@/app/lib/backend/connection-state', () => ({
   isBackendReachable: () => deployment.known,
   probeBackend: vi.fn(() => Promise.resolve(deployment.answers)),
+  subscribeBackendReachability: (listener: () => void) => {
+    deployment.listener = listener;
+    return () => {
+      deployment.listener = undefined;
+    };
+  },
 }));
 
 // jsdom has no pointer capture, and the toast's swipe handling asks for it on
@@ -87,6 +97,7 @@ describe('installStaleBundleRecovery', () => {
     window.sessionStorage.clear();
     deployment.known = true;
     deployment.answers = true;
+    deployment.listener = undefined;
     render(<Toaster />);
   });
 
@@ -183,6 +194,7 @@ describe('installStaleBundleRecovery', () => {
     // The server went away mid-deploy: the chunk fetch and the probe both
     // get no answer. A reload now would land on the browser's error page.
     deployment.answers = false;
+    deployment.known = false;
     const duringOutage = loadPage();
     const event = await dispatchPreloadError(chunkFailure());
     expect(probeBackend).toHaveBeenCalledTimes(1);
@@ -193,10 +205,15 @@ describe('installStaleBundleRecovery', () => {
     // Its caller still got `undefined`: what it throws is not reported.
     expect(isStaleBundleFallout()).toBe(true);
 
-    // Back up, still on the previous build: the next failure gets its reload.
+    // Back up, still on the previous build: a memoized lazy import will not
+    // attempt another load, so recovery itself must reload it.
     deployment.answers = true;
-    await dispatchPreloadError(chunkFailure());
+    deployment.known = true;
+    await act(async () => {
+      deployment.listener?.();
+    });
     expect(duringOutage).toHaveBeenCalledTimes(1);
+    expect(deployment.listener).toBeUndefined();
   });
 
   it('asks the deployment afresh while the page still thinks it is away', async () => {
@@ -277,14 +294,19 @@ describe('installStaleBundleRecovery', () => {
     expect(window.sessionStorage).toHaveLength(0);
   });
 
-  it('leaves a failure while offline to the offline gate', async () => {
+  it('waits for recovery when a chunk fails while the device is offline', async () => {
     vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    deployment.answers = false;
+    deployment.known = false;
     const reload = loadPage();
     const event = await dispatchPreloadError(chunkFailure());
-    expect(event.defaultPrevented).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
     expect(reload).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
     expect(window.sessionStorage).toHaveLength(0);
+    expect(deployment.listener).toBeDefined();
+    uninstallPage?.();
+    expect(deployment.listener).toBeUndefined();
   });
 
   it('asks instead of reloading when it cannot remember the attempt', async () => {

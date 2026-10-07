@@ -403,6 +403,6 @@ describe('PreferencesSettings', () => {
       customInstructions: 'Be terse.',
     };
     const { container } = renderPage();
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });

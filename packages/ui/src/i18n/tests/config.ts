@@ -53,8 +53,9 @@ export type ModeMap = Partial<Record<CheckId, CheckMode>>;
 /**
  * Config for `defineI18nTests` — used by each service's `messages.test.ts`.
  *
- * The framework reads `<messagesDir>/<locale>.yml` for every locale in
- * `LOCALE_REGISTRY` that has a file present, plus `<messagesDir>/global.yml`
+ * The framework reads `<messagesDir>/<locale>.yml` — or the topic files of
+ * `<messagesDir>/<locale>/`, one per top-level namespace — for every locale in
+ * `LOCALE_REGISTRY` that has a catalog present, plus `<messagesDir>/global.yml`
  * (or whatever is listed in `sharedFiles`) which is spread into every locale
  * and therefore skipped from parity comparisons.
  *
@@ -112,8 +113,8 @@ export interface I18nTestsConfig {
 
   /**
    * Restrict the active locale set. By default every locale in
-   * `LOCALE_REGISTRY` with a present `<locale>.yml` file under `messagesDir`
-   * is considered.
+   * `LOCALE_REGISTRY` with a present catalog under `messagesDir`
+   * (`<locale>.yml` or `<locale>/`) is considered.
    */
   locales?: ReadonlyArray<string>;
 }

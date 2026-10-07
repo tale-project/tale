@@ -32,7 +32,7 @@ Set an owner, reviewer, dates, and acceptance criteria; follow progress on the b
 </Card>
 
 <Card title="Configure a project agent" icon="bot" href="/platform/projects/project-agents">
-Choose a harness, model, tools, and instructions for an agent that can take tasks.
+Choose an agent runtime, model, tools, and instructions for an agent that can take tasks.
 </Card>
 
 <Card title="Run and review agent work" icon="workflow" href="/platform/projects/task-automation">
@@ -45,4 +45,16 @@ Use Backlog to review ideas before committing them to the team's work.
 
 </CardGroup>
 
-Every project you can open is listed under **Projects** in [Home](/platform#home), where **All projects** opens the full list. A project opens on its task board; **General**, **Chats**, **Knowledge**, and **Agents** sit beside the task views. For Owners, Admins, and Developers, a bound automation adds an **Automations** surface; project administrators can configure **Environment**. Installed apps may add further tabs; you do not need them to start with files, chats, and tasks.
+Every project you can open is listed under **Projects** in [Home](/platform#home), where **All projects** opens the full list. A project opens on its task board; **General**, **Chats**, **Knowledge**, and **Agents** sit beside the task views. For Owners, Admins, and Developers, a bound automation adds an **Automations** surface; project administrators can configure [**Environment**](#environment-credentials). Installed apps may add further tabs; you do not need them to start with files, chats, and tasks.
+
+## Project credentials {#environment-credentials}
+
+Open the project’s **Environment** tab to store encrypted credentials for that project. Only project administrators see the tab or can view the stored names and manage credentials. On an archived project, it is read-only; restore the project before changing credentials.
+
+Select **Add variable**, enter a name such as `SERVICE_TOKEN` and its value, then select **Save**. The editor requires unique names matching `^[A-Za-z_][A-Za-z0-9_]*$`: letters, digits and underscores, with no digit at the start. The server also converts names to uppercase and requires a letter at the start and at most 64 characters. Use uppercase names beginning with a letter; names that differ only in case refer to the same stored credential.
+
+Saved values are never shown again. To replace one, enter the new value in its existing row and select **Save**. To delete one, select **Remove**, confirm, then select **Save**.
+
+The tab describes credentials for task runtimes such as Hermes and OpenClaw, but project credentials are currently stored without being injected into agent runs. To supply a running agent with environment variables, use the organization credentials granted under **Secrets** when you [configure the agent](/platform/projects/project-agents#configure-the-agent). Those grants reach the task runtime at execution time, including automation agent nodes with their own grants; a run a Member starts receives none. The ordinary Chat assistant does not receive these environment variables.
+
+If the initial credential list cannot load, the editor is hidden; select **Try again** before editing. A failed refresh keeps the last list and your draft with a warning that the display may be out of date.

@@ -38,8 +38,8 @@ for the prerender boxes.
 - [ ] `SEO-3` · **Read the page's JSON-LD** → one `Article` (headline = the
   title, `inLanguage` en, publisher Tale) and one `BreadcrumbList` whose items
   are the site, the section and the page, in that order.
-- [ ] `SEO-4` · **`curl -s /sitemap.xml`** → one `<url>` per content page plus
-  `/`, every `loc` absolute under `https://ui.tale.dev`, no `/404`, and every
+- [ ] `SEO-4` · **`curl -s /sitemap.xml`** → one `<url>` per canonical content page,
+  no duplicate `/`, every `loc` absolute under `https://ui.tale.dev`, no `/404`, and every
   page with `noindex: true` in its frontmatter absent.
 - [ ] `SEO-5` · **`curl -s /robots.txt`** → allows everything except the
   `noindex` pages, names this site's sitemap and the tale.dev sitemap.
@@ -50,7 +50,7 @@ for the prerender boxes.
   `content-type: text/markdown`, serialized frontmatter first and the authored body with site links resolved
   to absolute URLs (the `<Demo>` tags still self-closing).
 - [ ] `SEO-8` · **`curl -si /docs/nope-not-a-page`** → the status is **404**
-  and the body is the prerendered not-found page, not the home page and not an
+  and the body is the prerendered not-found page, the not-found page and not an
   empty shell.
 - [ ] `SEO-9` · **`curl -si /`** → the security headers the shared server sets
   are present (`content-security-policy`, `x-content-type-options: nosniff`,

@@ -9,7 +9,7 @@
 ARG VERSION=dev
 
 # Bun binary for all stages
-FROM oven/bun:1.3.12 AS bun-bin
+FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS bun-bin
 
 # Node binary for the 0.5 backend roles (api/worker). The backend runs its .ts
 # sources directly via Node's type stripping (>= 22.18); only the binary is
@@ -115,7 +115,7 @@ ENV NODE_ENV=production
 # `dist-seo/`. The runtime stage serves these via @tale/ui's precompiled
 # SEO server, so no source markdown is needed at request time.
 WORKDIR /app/services/platform
-RUN bun --bun vite build \
+RUN bun --bun ../../packages/ui/bin/build-client.ts \
     && bun scripts/check-sw-manifest.ts \
     && bun scripts/check-entry-budget.ts \
     && bun scripts/prerender-boot-shell.tsx \

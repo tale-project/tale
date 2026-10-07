@@ -117,7 +117,7 @@ beforeEach(() => {
 
 describe('website routes — who may manage a source', () => {
   it.each(WRITES)(
-    'refuses a read-only member: %s %s',
+    'refuses a read-only member: %s %s [WEB-R1]',
     async (method, route, body) => {
       const response = await call(method, route, body);
 
@@ -136,7 +136,7 @@ describe('website routes — who may manage a source', () => {
   );
 
   it.each(['editor', 'developer', 'admin', 'owner'])(
-    'lets a role with knowledge write through every door: %s',
+    'lets a role with knowledge write through every door: %s [WEB-R1]',
     async (role) => {
       caller.role = role;
 
@@ -150,7 +150,7 @@ describe('website routes — who may manage a source', () => {
     },
   );
 
-  it('keeps reading, the status sync and the search fact open to every member', async () => {
+  it('keeps reading, the status sync and the search fact open to every member [WEB-R1]', async () => {
     const list = await call('GET', '/');
     const count = await call('GET', '/count');
     const one = await call('GET', '/w-1');

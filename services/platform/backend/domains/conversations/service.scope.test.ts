@@ -39,6 +39,7 @@ import {
   countConversationsByStatus,
   countUnreadConversations,
   listConversationsPage,
+  loadVisibleConversation,
 } from './service.ts';
 
 const FRAGMENT = Symbol('fragment');
@@ -123,7 +124,7 @@ beforeEach(() => {
   getUserTeamIds.mockClear();
 });
 
-describe('every inbox door scopes to what the viewer may open', () => {
+describe('every inbox door scopes to what the viewer may open [CONV-R1]', () => {
   it('the list and both count doors emit the same assignment predicate', async () => {
     const list = recordingSql([]);
     await listPage(list.sql, MEMBER);
@@ -189,5 +190,74 @@ describe('every inbox door scopes to what the viewer may open', () => {
       expect(text).not.toMatch(/assignee_team_id IS NULL/i);
       expect(text).not.toMatch(/coalesce\(assignee/i);
     }
+  });
+});
+
+/**
+ * The single-row door applies the rule itself rather than its SQL mirror: a
+ * conversation the viewer may not open answers exactly what a missing one
+ * does, so an id tells a member nothing about a thread hidden from them.
+ */
+describe('opening one conversation follows the same rule [CONV-R1]', () => {
+  const HIDDEN = {
+    code: 'conversation_not_found',
+    status: 404,
+    message: 'Conversation not found',
+  };
+
+  /** Opens `c1` as `viewer`; the store answers it with these stamps. */
+  function open(
+    viewer: typeof MEMBER,
+    stamps: { assigneeUserId?: string; assigneeTeamId?: string },
+  ) {
+    const { sql } = recordingSql([
+      {
+        id: 'c1',
+        organizationId: ORG,
+        assigneeUserId: stamps.assigneeUserId ?? null,
+        assigneeTeamId: stamps.assigneeTeamId ?? null,
+      },
+    ]);
+    return loadVisibleConversation(sql, viewer, 'c1');
+  }
+
+  it('answers a member the conversation assigned to them or to a team of theirs', async () => {
+    await expect(
+      open(MEMBER, { assigneeUserId: MEMBER.userId }),
+    ).resolves.toMatchObject({ id: 'c1' });
+    await expect(
+      open(MEMBER, { assigneeTeamId: 't-support' }),
+    ).resolves.toMatchObject({ id: 'c1' });
+    // Either stamp is enough when the conversation carries both.
+    await expect(
+      open(MEMBER, { assigneeUserId: 'u-other', assigneeTeamId: 't-support' }),
+    ).resolves.toMatchObject({ id: 'c1' });
+  });
+
+  it('answers a member an unassigned conversation, or one of someone else, as not found', async () => {
+    await expect(open(MEMBER, {})).rejects.toMatchObject(HIDDEN);
+    await expect(
+      open(MEMBER, { assigneeUserId: 'u-other' }),
+    ).rejects.toMatchObject(HIDDEN);
+    await expect(
+      open(MEMBER, { assigneeTeamId: 't-sales' }),
+    ).rejects.toMatchObject(HIDDEN);
+  });
+
+  it('answers an owner or an admin every conversation, unassigned included', async () => {
+    for (const role of ['owner', 'admin']) {
+      const viewer = { ...ADMIN, role };
+      await expect(open(viewer, {})).resolves.toMatchObject({ id: 'c1' });
+      await expect(
+        open(viewer, { assigneeUserId: 'u-other', assigneeTeamId: 't-sales' }),
+      ).resolves.toMatchObject({ id: 'c1' });
+    }
+  });
+
+  it('answers a hidden conversation exactly as one that does not exist', async () => {
+    const { sql } = recordingSql([]);
+    await expect(
+      loadVisibleConversation(sql, MEMBER, 'c-none'),
+    ).rejects.toMatchObject(HIDDEN);
   });
 });

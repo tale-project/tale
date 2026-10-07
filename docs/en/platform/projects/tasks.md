@@ -123,6 +123,12 @@ Change **Status** in the task details, or drag a card to another column on **Boa
 
 For an agent-owned task, changing status can start or cancel execution. Read the action hint before moving it. An agent reports back at **In review**; it cannot mark its own work **Done**.
 
+### Follow a connected source workflow
+
+A task connected to a source that owns its business workflow can show **Source workflow** in its details. Choose the source's action, complete its fields, and select **Send request**. The source checks your identity, role and transition rules before updating the task. Provide the required verification note, closure evidence or reopening reason in this form; a board column alone cannot express those details or distinguish two source stages that both appear as **In review**.
+
+While the source validates a request, the task shows its pending state and prevents a second submission. Its accepted result or refusal explanation remains visible after a reload. A refusal keeps the source's accepted state; read the explanation before submitting another action. A source may offer a guarded reopening action on an archived record. These actions require a verified, active account and permission to work the task.
+
 ## Keep decisions with the work
 
 Open the task to add a description, attachments, dates, labels, subtasks, or comments. Use comments for questions, decisions, and feedback that future reviewers need to understand.

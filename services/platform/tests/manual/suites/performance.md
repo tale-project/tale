@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 21 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 27 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -38,7 +38,7 @@ magnitude:
   `prod` on a local stack, add `TALE_E2E_SERVE_BUILD=1` to the environment of
   mode A's or B's `bun scripts/dev.ts`: it serves `dist/` through
   `vite preview`, which proxies the backend like the dev server, and runs
-  `bun --bun vite build` first when `dist/` is missing. Delete `dist/` to
+  `bun --bun ../../packages/ui/bin/build-client.ts` first when `dist/` is missing. Delete `dist/` to
   build again; the build alone needs about 3 GB of memory.
 
 > **Agent / measurement note**:
@@ -129,13 +129,28 @@ magnitude:
 - [ ] `PERF-P10` · **Cold /log-in JS budget** — In a brand-new browser
   context (empty cache) open `/log-in`, then read
   `performance.getEntriesByType('resource')` filtered to `.js` → The page
-  fetches about **70** script files and **no** `vendor-codemirror-*`,
+  fetches about **9** script files and **no** `vendor-codemirror-*`,
   `vendor-katex-*` or `vendor-flow-*` chunk (the editor stack, KaTeX and the
-  flow canvas stay behind dynamic imports); their `transferSize` sums to at
-  most **2.0 MB** (the measured baseline is 1.83 MB gzip, down from
-  2.09 MB / 46 files before #4089 and 2.60 MB / 41 files) and the favicon file
+  flow canvas stay behind dynamic imports, and every page but the sign-in
+  pages and the chat landing loads its code with the page); their
+  `transferSize` sums to at most **1.5 MB** (the measured baseline is
+  0.79 MB gzip for an English browser, down from 0.90 MB before the
+  per-topic catalogs, 2.09 MB / 46 files before #4089 and 2.60 MB / 41
+  files; a German or French one adds the topics its first page reads,
+  `PERF-P15`) and the favicon file
   (favicon.ico) transfers under 20 KB. The number to compare against is the `Cold-load JS:` line
   `scripts/check-entry-budget.ts` prints in the build log.
+- [ ] `PERF-P11` · **Search palette without a GPU** — Start Chrome with
+  `--disable-gpu`, open any dashboard page, press ⌘K (Ctrl+K) and type a word
+  quickly → each keystroke paints promptly (DevTools → Performance: no
+  interaction near 200 ms), and the palette still reads as a panel over the
+  dimmed page.
+
+
+- [ ] `PERF-P12` · **Content-heavy task board** — Open `/dashboard/{org}/projects/{projectId}/tasks/board` in a fixture project with 1,000 tasks carrying long descriptions, then switch to `/dashboard/{org}/projects/{projectId}/tasks/list`. → Both views mount only the task cards or rows near the viewport, retain the full lane counts, and reveal distant tasks on scroll. The board response omits description and file bodies; searching a distinctive phrase in a description or comment still finds the task. Record response bytes, mounted row counts and the warm interaction trace.
+- [ ] `PERF-P13` · **Large task details and discussion** — Open a task with a 20,000-character description, resolved mentions and 300 comments from the board. → The complete description appears with its formatting and mentions; the discussion starts with at most 30 comments, and loading earlier comments reveals the next page. Close and reopen the sheet, edit the description, save, reload and read it back. Record warm open latency and long tasks; unchanged prose does not trigger another Markdown parse during unrelated status or picker updates.
+- [ ] `PERF-P14` · **Large Home collections and deep links** — With 1,000 chats, tasks and projects, open `/dashboard/{org}/chat/{threadId}` for an older chat and `/dashboard/{org}/projects/{projectId}` for a project near the end of its list. → Home mounts stream rows around the viewport and only project rows near the project tree's viewport, including the selected item; opening a deep link does not mount every preceding row. Scroll both lists to the end and search for an item beyond the initial window: it remains reachable, with no duplicate selected row. Record the DOM counts and warm trace.
+- [ ] `PERF-P15` · **Language catalogs per topic** — In a brand-new browser context with the browser language set to German, open `/log-in`; then, in another with English and `localStorage` cleared, sign in, pick Language → Français in the user menu, and open a page not visited yet (Automations). → The German page is German from its first frame, its title included, and fetches only the German topic files its page reads (`de-<topic>-*.js`, a few KB each, about 36 KB gzip for the first pages) and no French one; the English one fetches neither. Picking Français fetches the French topics of the pages already loaded, each once, and turns the page French without a reload; the page opened next is French from its first frame, and a reload starts in French. With the network offline, a language whose topics cannot load leaves the page in the language it shows.
 
 ## Response-time SLAs
 
@@ -226,15 +241,18 @@ single warm sample.
   minute of the start, or at once on **Try again**. Neither failure sends an
   event to `SENTRY_DSN`: the edge's `UPSTREAM_UNAVAILABLE` is an operational
   answer, like `DATABASE_UNAVAILABLE` in `PERF-B5`.
-- [ ] `PERF-B9` · **Long Home stream** — With more than 60 chats in Home (a
-  few hundred seeded), open one, scroll the stream to its end and back, press
-  **End** and **Home** on a row, then drag a chat from the far end onto a
-  project. → The panel holds only the rows near its view (under 100
+- [ ] `PERF-B9` · **Long Home stream** — With more than 60 chats and more
+  than 60 projects in Home (a few hundred of each seeded), open one, scroll
+  the stream and the PROJECTS list to their ends and back, press **End** and
+  **Home** on a row of each, then drag a chat from the far end onto a
+  project. → The panel holds only the rows near each list's view (under 100
   `[data-thread-id]` elements), and every row is reached by scrolling and by
-  the arrow keys, with no blank gap and no jump. A screen reader reads a row
-  as one item of the whole stream; the open chat keeps its highlight wherever
-  the list scrolls; the drag files the chat. A stream of 60 or fewer keeps
-  every row in the page, so **Ctrl+F** finds any of them.
+  the arrow keys, with no blank gap and no jump. A screen reader reads
+  consistent item positions and totals for the whole list, including its day
+  headings and any draft row; the open chat and the open project keep their
+  highlight wherever their list scrolls; the drag files the chat. A stream
+  of 60 work rows or fewer, or a PROJECTS list of 60 projects or fewer,
+  keeps every row in the page, so **Ctrl+F** finds any of them.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -247,3 +265,4 @@ single warm sample.
   skeleton shimmer stops: the pulse element carries
   `motion-reduce:animate-none` (source: `packages/ui/.../skeleton.tsx`) so no
   infinite animation runs. Verify via emulated reduced-motion.
+- [ ] `PERF-A3` · **Keyboard traversal** — In the project tree with more than 60 projects, focus a row and use **ArrowUp**, **ArrowDown**, **Home** and **End**. → Every project is reachable in order, focus stays on the named row, the selected project remains mounted while the list scrolls, and a collapsed project tree does not mount rows until it is opened.

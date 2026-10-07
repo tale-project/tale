@@ -1,11 +1,33 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import ReactMarkdown from 'react-markdown';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { render } from '@/tests/utils/render';
 
-import { markdownComponents } from './markdown-renderer';
+import { MarkdownContent, markdownComponents } from './markdown-renderer';
+
+afterEach(() => vi.restoreAllMocks());
+
+describe('MarkdownContent', () => {
+  it('keeps large content parsed across unrelated parent and styling updates', () => {
+    const paragraph = vi.spyOn(markdownComponents, 'p');
+    const content = Array.from(
+      { length: 300 },
+      (_, index) => `Paragraph ${index}.`,
+    ).join('\n\n');
+    const { container, rerender } = render(
+      <MarkdownContent content={content} />,
+    );
+    expect(paragraph).toHaveBeenCalledTimes(300);
+    rerender(<MarkdownContent content={content} className="wider-column" />);
+    expect(paragraph).toHaveBeenCalledTimes(300);
+    expect(container.firstElementChild).toHaveClass('wider-column');
+    rerender(<MarkdownContent content={`${content}\n\nFinal paragraph.`} />);
+    expect(paragraph).toHaveBeenCalledTimes(601);
+    expect(container.textContent).toContain('Final paragraph.');
+  });
+});
 
 describe('markdownComponents', () => {
   it('lets lists inherit the answer’s text colour', () => {

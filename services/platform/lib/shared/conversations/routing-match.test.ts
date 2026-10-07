@@ -25,7 +25,7 @@ const email = (
  * red. From most specific: mailbox + exact address, mailbox + base address,
  * any mailbox + exact, any mailbox + base, mailbox alone.
  */
-describe('matchRoutingRule precedence (email)', () => {
+describe('matchRoutingRule precedence (email) [CONV-R8]', () => {
   const tiers = config({
     sourceRules: [
       { mailbox: 'cred-a', teamId: 't-mailbox-only' },
@@ -87,7 +87,7 @@ describe('matchRoutingRule precedence (email)', () => {
   });
 });
 
-describe('matchRoutingRule details', () => {
+describe('matchRoutingRule details [CONV-R8]', () => {
   it('takes the first rule in its array within a tier', () => {
     expect(
       matchRoutingRule(

@@ -403,6 +403,9 @@ export function ProjectAgentDialog({
         onChange={setBinding}
         disabled={isSubmitting}
         label={t('agents.equipmentLabel')}
+        // The menu is portaled outside this dialog; register it as a modal
+        // layer so the dialog scroll lock does not swallow wheel events.
+        modal
         // Team skills resolve against the PROJECT's teams here, not the
         // member configuring the agent — the agent runs for everyone in
         // the project.

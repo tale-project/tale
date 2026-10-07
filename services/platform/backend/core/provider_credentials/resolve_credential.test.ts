@@ -31,6 +31,14 @@ vi.mock('../../../lib/net/safe-fetch', async (importOriginal) => {
   return { ...original, safeFetch: vi.fn() };
 });
 
+// The org's providers are the shipped YAML, so the test reads the real
+// Anthropic and Z.ai `subscription-key` entries rather than a stand-in.
+vi.mock('../lib/providers/org_providers', async () => {
+  const { loadProviderDefinitions } =
+    await import('../lib/providers/load_system_config');
+  return { resolveProvidersForOrgId: async () => loadProviderDefinitions() };
+});
+
 const mockedFetch = vi.mocked(safeFetch);
 
 const ORG = 'org_a';
@@ -528,5 +536,44 @@ describe('isTerminalCredentialRefusal / credentialRefusalMessage', () => {
       credentialRefusalMessage(new AppError({ code: 'OTHER', message: 'x' })),
     ).toBeNull();
     expect(credentialRefusalMessage(new Error('plain'))).toBeNull();
+  });
+});
+
+describe('subscription-key delivery variable', () => {
+  function ctxServingKey(providerSlug: string) {
+    const row = {
+      _id: 'cred-2',
+      organizationId: ORG,
+      providerSlug,
+      authMethod: 'subscription-key',
+      name: 'Pasted token',
+      encryptedData: encryptSecret('pasted-secret'),
+      status: 'active',
+    };
+    return { runQuery: vi.fn(async () => row) } as unknown as ActionCtx;
+  }
+
+  it("names the OAuth variable the Anthropic provider's entry declares", async () => {
+    const resolved = await resolveProviderCredential(
+      ctxServingKey('anthropic'),
+      { organizationId: ORG, providerSlug: 'anthropic' },
+    );
+    expect(resolved).toMatchObject({
+      authMethod: 'subscription-key',
+      secret: 'pasted-secret',
+      targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+    });
+  });
+
+  it("leaves a coding-plan key on the harness's default variable", async () => {
+    const resolved = await resolveProviderCredential(ctxServingKey('zai'), {
+      organizationId: ORG,
+      providerSlug: 'zai',
+    });
+    expect(resolved).toMatchObject({
+      authMethod: 'subscription-key',
+      secret: 'pasted-secret',
+    });
+    expect(resolved).not.toHaveProperty('targetEnvVar');
   });
 });

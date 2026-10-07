@@ -7,7 +7,12 @@ import {
   queuedWakeAfterMs,
   sandboxCapacityRefusal,
 } from './capacity_refusal';
-import { SpawnerBusyError } from './helpers/session_client';
+import {
+  isSessionExecLimitResult,
+  SessionExecLimitError,
+  SpawnerBusyError,
+  type SessionExecResult,
+} from './helpers/session_client';
 
 describe('sandboxCapacityRefusal', () => {
   it('reads a busy sandbox host with its retry hint', () => {
@@ -48,7 +53,15 @@ describe('sandboxCapacityRefusal', () => {
     expect(organization && queuedWakeAfterMs(organization)).toBeUndefined();
   });
 
-  it("reads the organization's spent session budget in every shape it arrives in", () => {
+  it("reads a workspace whose every live-exec place is taken as the workspace's own room, woken by its turns ending", () => {
+    const refusal = sandboxCapacityRefusal(
+      new SessionExecLimitError('pa-agent', 'exec-5'),
+    );
+    expect(refusal).toStrictEqual({ scope: 'session', retryAfterMs: 15_000 });
+    expect(refusal && queuedWakeAfterMs(refusal)).toBeUndefined();
+  });
+
+  it("reads the organization's spent session budget in every shape it arrives in [SBX-R8]", () => {
     const shapes = [
       new AppError({ code: 'QUOTA_EXCEEDED', message: 'At most 2 sessions' }),
       Object.assign(new Error('At most 2 workflow sandbox sessions'), {
@@ -65,7 +78,7 @@ describe('sandboxCapacityRefusal', () => {
     }
   });
 
-  it('reads a pending Destroy as no want of room, in every shape it arrives in', () => {
+  it('reads a pending Destroy as no want of room, in every shape it arrives in [SBX-R9]', () => {
     // The admission verbs refuse a session an administrator's Destroy is
     // removing with a `QUOTA_EXCEEDED` of their own: read as a spent budget,
     // an automation step waited up to two hours, then started over in the
@@ -102,5 +115,38 @@ describe('sandboxCapacityRefusal', () => {
     ).toBeNull();
     expect(sandboxCapacityRefusal('QUOTA')).toBeNull();
     expect(sandboxCapacityRefusal(undefined)).toBeNull();
+  });
+});
+
+describe('isSessionExecLimitResult', () => {
+  const refused: SessionExecResult = {
+    status: 'failed',
+    exitCode: null,
+    durationMs: 0,
+    stdoutBase64: '',
+    stderrBase64: '',
+    truncated: { stdout: false, stderr: false },
+    errorCode: 'EXEC_LIMIT',
+    errorMessage: 'live exec cap 4 reached',
+  };
+
+  it("reads the runtime's refusal by its code, never by its words", () => {
+    expect(isSessionExecLimitResult(refused)).toBe(true);
+    expect(
+      isSessionExecLimitResult({ ...refused, errorMessage: 'anything else' }),
+    ).toBe(true);
+    // An older spawner folded the refusal into a runtime error: its words
+    // alone decide nothing.
+    expect(
+      isSessionExecLimitResult({ ...refused, errorCode: 'RUNTIME_ERROR' }),
+    ).toBe(false);
+  });
+
+  it('is false for an exec that ran, and for no result at all', () => {
+    expect(isSessionExecLimitResult({ ...refused, exitCode: 1 })).toBe(false);
+    expect(isSessionExecLimitResult({ ...refused, status: 'completed' })).toBe(
+      false,
+    );
+    expect(isSessionExecLimitResult(undefined)).toBe(false);
   });
 });

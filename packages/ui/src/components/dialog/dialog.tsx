@@ -191,6 +191,8 @@ export interface DialogProps {
    * close (e.g. a dropdown menu item). Passed to `useRestoreFocus`.
    */
   restoreFocusRef?: React.RefObject<HTMLElement | null>;
+  /** Called after the dialog's close focus restoration handler completes. */
+  onCloseAutoFocus?: (event: Event) => void;
   /**
    * Where focus lands when the overlay opens. `default` is the body's first
    * form field (a form opens ready to type; on a touch screen, where that
@@ -248,6 +250,7 @@ export function Dialog({
   trigger,
   preventCloseAutoFocus = false,
   restoreFocusRef,
+  onCloseAutoFocus,
   openAutoFocus = 'default',
 }: DialogProps) {
   const parentDepth = React.useContext(DialogDepthContext);
@@ -300,9 +303,11 @@ export function Dialog({
                 contentRef.current?.focus({ preventScroll: true });
               }
             }}
-            onCloseAutoFocus={
-              preventCloseAutoFocus ? (e) => e.preventDefault() : restoreFocus
-            }
+            onCloseAutoFocus={(event) => {
+              if (preventCloseAutoFocus) event.preventDefault();
+              else restoreFocus(event);
+              onCloseAutoFocus?.(event);
+            }}
           >
             <PagePointerPin />
             {/* Close sits in the header row when headerActions exist, so it

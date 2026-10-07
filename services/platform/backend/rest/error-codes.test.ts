@@ -284,7 +284,6 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // `loadRestProject`, which applies the same matrix first.
   'TASK_COMMENT_INVALID',
   'TASK_DESCRIPTION_INVALID',
-  'TASK_EXTERNAL_REF_INVALID',
   'TASK_FORBIDDEN',
   'TASK_LABELS_INVALID',
   'TASK_TITLE_INVALID',

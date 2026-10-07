@@ -1,0 +1,237 @@
+availabilityError: We couldn't check your Inbox sources. Try again to refresh Inbox availability.
+title: Inbox
+unknownContact: Unknown contact
+messagePlaceholder: Type a message
+searchPlaceholder: Search conversations
+suggestEditsPlaceholder: Suggest edits to the text (optional)
+fallbackImageAttachment: Image attachment
+fallbackAttachment: Attachment
+status:
+  open: Open
+  closed: Closed
+  spam: Spam
+  archived: Archived
+improvement:
+  title: Message improvement preview
+  description: Review the AI-improved version and accept or reject the changes
+  original: Original
+  improved: Improved
+  reject: Reject
+  accept: Accept changes
+bulkSend:
+  title: Send {count, plural, one {# Message} other {# Messages}}
+  description: You're about to send replies for {count, plural, one {#
+    conversation} other {# conversations}}. This action can't be undone.
+  messageLabel: Message
+  messagePlaceholder: Type your reply...
+  send: Send
+compose:
+  compose: Compose
+  newEmail: New email
+  title: New email
+  description: Start a new email conversation with a contact.
+  to: To
+  toPlaceholder: Select a contact
+  searchContacts: Search contacts
+  contactsLoading: Loading contacts…
+  noContacts: No contacts with an email address yet
+  noContactsFound: No contacts match "{query}"
+  noContactsFoundAddHint: No contacts match "{query}". Type a full email
+    address to add a new contact.
+  addContact: Add "{email}" as a contact
+  contactExistsSelected: Already a contact — selected it
+  inboxLabel: Inbox
+  inboxPlaceholder: Select an inbox
+  fromLabel: From
+  fromDomainHint: Any address at {domain}
+  fromLocalPlaceholder: support
+  from: 'From: {from}'
+  noEmailConnectorTitle: Can't send yet
+  noEmailConnector: Connect an email inbox under Settings > Connectors.
+  noEmailConnectorAskAdmin: Ask an organization admin to connect an email
+    inbox before you can send.
+  emailConnectorReadErrorTitle: Email connection unavailable
+  emailConnectorReadError: We couldn't load your email connections. Your draft is
+    safe; try again.
+  retryEmailConnectorRead: Try again
+  openConnectorSettings: Open connector settings
+  subject: Subject
+  subjectPlaceholder: What's this about?
+  assignLabel: Assign to
+  assignPlaceholder: Choose a person or team
+  assignSearch: Search people and teams
+  assignYou: You
+  bodyPlaceholder: Write your message…
+  fillRequired: Choose a contact, an inbox, and a subject to send.
+  discard: Discard
+  discardConfirm:
+    title: Discard draft?
+    description: This draft will be permanently discarded.
+  sent: Email sent
+  sending: Sending… The draft is locked until the send finishes.
+updating: Updating conversations...
+bulk:
+  progress: 'Updating conversations... {settled} of {total}'
+  outcomeWithReason: '{outcome} — {reason}'
+  sendMessages: Send messages
+  close: Close
+  reopen: Reopen
+  messagesSent: Messages sent
+  messagesSentDescription: Sent {successCount} messages{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  sendFailed: Couldn't send messages
+  resolved: Conversations resolved
+  resolvedDescription: Resolved {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  resolveFailed: Couldn't resolve conversations
+  reopened: Conversations reopened
+  reopenedDescription: Reopened {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  reopenFailed: Couldn't reopen conversations
+  selectedCount: '{count, plural, one {# selected} other {# selected}}'
+  archive: Archive
+  unarchive: Unarchive
+  archived: Conversations archived
+  archivedDescription: Archived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  archiveFailed: Couldn't archive conversations
+  unarchived: Conversations unarchived
+  unarchivedDescription: Unarchived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  unarchiveFailed: Couldn't unarchive conversations
+  markSpam: Mark as spam
+  markedAsSpam: Conversations marked as spam
+  markedAsSpamDescription: Marked {successCount} conversations as spam{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  spamFailed: Couldn't mark conversations as spam
+header:
+  moreActions: More actions
+  copyLink: Copy link
+  linkCopied: Link copied
+  contactInfo: Contact info
+  closeConversation: Close conversation
+  closing: Closing...
+  reopenConversation: Reopen conversation
+  reopening: Reopening...
+  markAsSpam: Mark as spam
+  markingAsSpam: Marking as spam...
+  assignee: Assignee
+  assign: Assign
+  assignedTo: Assigned to {name}
+  unassign: Unassign
+  assignError: Couldn't update the assignee
+  inboxSource: 'Inbox: {inbox}'
+  toast:
+    closed: Conversation closed
+    closeFailed: Couldn't close the conversation — try again.
+    reopened: Conversation reopened
+    reopenFailed: Couldn't reopen the conversation — try again.
+    markedAsSpam: Conversation marked as spam
+    markAsSpamFailed: Couldn't mark conversation as spam — try again.
+  assignedTeam: Team
+  assignedToTeam: Queued to {name}
+  unassignTeam: Remove team
+  reclickToUnassign: Choose again to unassign
+  peopleSection: People
+  teamsSection: Team
+  assignSearchAll: Search people and teams
+  noAssignees: No people or teams found
+  autoAssignSettings: Auto assign
+  apiSource: 'API: {source}'
+  apiSourceShort: API
+  replyVia: 'Reply goes out via {source}'
+  replyViaApi: 'Reply goes back via {source}'
+  replyViaUnknown: This conversation has no channel to reply through
+editor:
+  noContent: No content to improve
+  improveFailed: Couldn't improve content. Try again.
+  improveUnavailable: No AI provider can rewrite messages yet — connect one under Settings › AI providers.
+  sendFailed: Couldn't send message. Try again.
+  backToEditor: Back to editor
+  improving: Improving...
+  improveWithAi: Improve with AI
+  generateImprovement: Generate improvement
+  replyImproved: Reply improved
+  attachFile: Attach file
+  send: Send message
+attachment:
+  download: Download
+  unavailable: No longer available
+  attachments: '{count, plural, one {# attachment} other {# attachments}}'
+panel:
+  uploadFailed: Couldn't upload attachments. Try again.
+  noSelected: No conversation selected
+  selectToView: Select a conversation to view details
+  notFound: Conversation not found
+  noMessages: No messages yet
+  invalidFileAttachment: Invalid file attachment
+  contactEmailNotFound: 'Cannot send email: contact email not found'
+  loadFailed: Couldn't load conversation
+  loadFailedDescription: Something went wrong while loading this conversation.
+  tryAgain: Try again
+  closedBanner: Closed on {date}
+  closedBannerNoDate: Closed
+  archivedBanner: Archived
+  spamBanner: Marked as spam
+  unarchive: Unarchive
+  notSpam: Not spam
+  delete: Delete
+  deleting: Deleting...
+  deleteSuccess: Conversation deleted
+  deleteFailed: Couldn't delete conversation.
+  showEarlierMessages: Show {count} earlier {count, plural, one {message} other {messages}}
+  undoSendFailed: Couldn't undo the send — the message may already be on its way.
+  retrySendFailed: Couldn't retry the send.
+  discardMessageFailed: Couldn't delete the message.
+suggestedReply:
+  title: Suggested reply
+  description: Drafted by an automation and waiting for you — nothing has been sent.
+  use: Put in editor
+  discard: Discard
+  used: The suggestion is in the editor. Edit it as you like; sending it completes the suggestion.
+  discardFailed: Couldn't discard the suggestion.
+message:
+  sendingIn: Sending in {seconds}s
+  undoSend: Undo
+  notDelivered: Not delivered
+  retrySend: Retry
+  discard: Delete
+list:
+  empty: No conversations in this tab
+  loadFailed: Couldn't load conversations
+  loadFailedDescription: Something went wrong while loading these conversations.
+activate:
+  title: No conversations yet
+  description: Incoming conversations from your connected channels will appear here.
+  noAutomationTitle: Set up your Inbox
+  noAutomationDescription:
+    Install an email automation (Gmail, Outlook, or IMAP)
+    to start reading and replying to conversations here.
+  composeNotice: To email {name}, first install an email automation.
+  composeNoticeReader: You can email {name} once an email automation is deployed.
+  browseAutomations: Browse automations
+  noAutomationReaderDescription:
+    Once someone with the Owner, Admin, or Developer role deploys an email
+    automation (Gmail, Outlook, or IMAP), you can read and reply to
+    conversations here.
+filter:
+  all: All
+  read: Read
+  unread: Unread
+  readStatus: Read status
+  channel: Channel
+  allChannels: All channels
+  mailboxInactive: '{name} (inactive)'
+  assignee: Assignee
+  assigneeMe: Assigned to me
+  assigneeMyTeams: My teams
+  assigneeUnassigned: Unassigned
+  assigneePeople: People
+  assigneeTeams: Teams
+  assigneeUnknownPerson: Unknown person
+queue:
+  unknownTeam: Unknown team
+category:
+  churnSurvey: Churn survey
+  productRecommendation: Product recommendation
+  serviceRequest: Service request
+priority:
+  high: High
+  low: Low
+  medium: Medium
+history:
+  loadingMore: Searching more conversations…

@@ -1,0 +1,80 @@
+title: Benachrichtigungen
+ariaUnread: Ungelesen
+emptyCaughtUpTitle: Alles erledigt
+emptyCaughtUpDescription: Wir melden uns, sobald etwas Neues eintrifft.
+emptyAllTitle: Noch keine Benachrichtigungen
+emptyAllDescription: Hinweise und System-Updates erscheinen hier, sobald sie eintreffen.
+markAsRead: Als gelesen markieren
+markAllAsRead: Alle als gelesen markieren
+expand: Vergrößern
+filterLabel: Anzeigen
+filterUnread: Ungelesen
+filterAll: Alle
+sortLabel: Sortieren
+sortRecent: Neueste zuerst
+sortPriority: Priorität
+loadMore: Mehr laden
+loading: Lädt…
+newNotifications: Neue Benachrichtigungen
+creditRequestTitle: Nutzungskontingent angefragt
+creditRequestBody: '{name} hat das Nutzungslimit erreicht und um mehr Kontingent gebeten.'
+accountLocked: 'Konto vorübergehend gesperrt: {email}'
+lockoutDetails: '{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.'
+auditIntegrityFailed: Integritätsprüfung des Audit-Logs fehlgeschlagen
+auditIntegrityFailedDetails: 'Wir konnten die Integrität des Audit-Logs dieser
+  Organisation nicht bestätigen: {reason}. Das kann auf Manipulation hindeuten
+  — untersuche das so schnell wie möglich.'
+websiteScanPaused: 'Website-Scans pausiert: {domain}'
+websiteScanPausedDetails: 'Die Scans von {domain} wurden pausiert, nachdem
+  die Wissensdatenbank dieser Organisation {failures} Mal in Folge nicht
+  erreichbar war. Prüfe die Verbindung unter Einstellungen → Datenresidenz
+  und setze die Scans danach auf der Websites-Seite fort.'
+knowledgeIndexRepaired: 'Suchindex der Wissensdatenbank repariert: {index}'
+knowledgeIndexRepairedDetails: 'Der Suchindex {index} der Wissensdatenbank dieser Organisation war beim Start beschädigt und wurde automatisch neu aufgebaut ({size}). Verloren ging nichts — der Index leitet sich aus den gespeicherten Dokumenten ab — und Suche wie Uploads laufen weiter wie zuvor. Wiederholte Reparaturen deuten darauf hin, wie der Datenbank-Container gestoppt wird.'
+knowledgeIndexRebuilding: 'Suchindex der Wissensdatenbank im Neuaufbau: {index}'
+knowledgeIndexRebuildingDetails: 'Der Suchindex {index} der Wissensdatenbank dieser Organisation ist beschädigt und baut sich gerade im Hintergrund neu auf ({size}). Bis dahin lassen sich neue Dokumente nicht indexieren; jedes Dokument, das währenddessen abgewiesen wurde, wird danach automatisch indexiert.'
+knowledgeIndexRepairFailed: 'Reparatur des Suchindex der Wissensdatenbank fehlgeschlagen: {index}'
+knowledgeIndexRepairFailedDetails: 'Der Suchindex {index} der Wissensdatenbank dieser Organisation ist beschädigt, und der automatische Neuaufbau hat das nicht behoben: {reason}. Für diese Datenbank pausiert die Indexierung neuer Dokumente, bis der Betreiber der Instanz den Index neu aufbaut (REINDEX) oder die Datenbank wiederherstellt — danach indexierst du die betroffenen Dokumente erneut.'
+dsarScheduled: Löschungsanfrage geplant
+dsarScheduledBody: Eine Löschungsanfrage wurde für ein Mitglied dieser
+  Organisation eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt —
+  öffne den Beleg, um sie zu prüfen oder abzubrechen.
+dsarApprovalNeeded: Löschungsanfrage wartet auf deine Freigabe
+dsarApprovalNeededBody: Eine Löschungsanfrage benötigt die Freigabe eines
+  zweiten Admins, bevor sie ausgeführt werden kann.
+dsarCancelled: Löschungsanfrage abgebrochen
+dsarCancelledBody: Eine offene Löschungsanfrage wurde während der Karenzzeit
+  abgebrochen und läuft daher nicht.
+dsarScheduledByBody: '{actor} hat eine Löschungsanfrage für {subject}
+  eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt — öffne den
+  Beleg, um sie zu prüfen oder abzubrechen.'
+dsarApprovalNeededByBody: '{actor} hat eine Löschungsanfrage für {subject}
+  eingereicht. Sie benötigt die Freigabe eines zweiten Admins, bevor sie
+  ausgeführt werden kann.'
+dsarCancelledByBody: '{actor} hat die offene Löschungsanfrage für {subject}
+  abgebrochen; sie läuft daher nicht.'
+dsarPolicyTightened: Löschrichtlinie verschärft
+dsarPolicyTightenedBody: Die Löschrichtlinie (DSAR) dieser Organisation wurde
+  verschärft. Sie wird sofort wirksam.
+dsarPolicyLoosenProposed: Lockerung der Löschrichtlinie vorgeschlagen
+dsarPolicyLoosenProposedBody: Eine schwächere Löschrichtlinie (DSAR) wurde
+  vorgeschlagen. Jeder Admin kann sie innerhalb des 24-Stunden-Karenzfensters
+  abbrechen, bevor sie wirksam wird.
+dsarPolicyLoosenApplied: Löschrichtlinie gelockert
+dsarPolicyLoosenAppliedBody: Eine schwächere Löschrichtlinie (DSAR) wurde nach
+  dem 24-Stunden-Karenzfenster wirksam.
+dsarPolicyLoosenCancelled: Vorgemerkte Änderung der Löschrichtlinie abgebrochen
+dsarPolicyLoosenCancelledBody: Eine vorgemerkte Änderung der Löschrichtlinie
+  (DSAR) wurde abgebrochen, bevor sie wirksam wurde.
+agentBudgetWarnTitle: Agent nähert sich seinem Budget
+agentBudgetWarnBody: '{agentSlug} hat {pct} % seines Monatsbudgets verbraucht
+  ({spent} von {monthly}).'
+agentBudgetExceededTitle: Agent-Budget überschritten — Ausführungen pausiert
+agentBudgetExceededBody: '{agentSlug} hat sein Monatsbudget erreicht ({spent}
+  von {monthly}) und wurde pausiert. Ausführungen laufen nächsten Monat weiter
+  oder sobald du das Limit erhöhst.'
+agentCircuitTrippedTitle: Agent-Ausführungen pausiert — Sicherheitslimit erreicht
+agentCircuitTrippedBody:
+  '{agentSlug} hat das Sicherheitslimit von {windowRuns}
+  Ausführungen in {windowHours}h bei "{taskTitle}" erreicht. Ändere den
+  Aufgabenstatus, um die Automatisierung fortzusetzen.'

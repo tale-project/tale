@@ -857,6 +857,37 @@ export async function wakeParkedAgentRun(
   });
 }
 
+/** Wake the OLDEST run parked on one workspace, when a turn of that workspace
+ * has ended: its exec gave back one of the runtime's live-exec places, the
+ * room a run whose exec was refused for want of one (`EXEC_LIMIT`) waits
+ * for — and any other run parked on the workspace finds it up. One claim,
+ * single-winner like every wake: a run that still finds no place parks
+ * again, and the watchdog's sweep stays the backstop. */
+export async function wakeSessionParkedAgentRun(
+  sql: Sql,
+  args: { organizationId: string; sessionId: string },
+): Promise<number> {
+  return sql.begin(async (tx) => {
+    const parked = await tx<ParkedRun[]>`
+      SELECT id, org_id AS "organizationId", exec_id AS "execId",
+             task_id AS "taskId"
+      FROM app.project_agent_runs
+      WHERE org_id = ${args.organizationId}
+        AND session_id = ${args.sessionId}
+        AND status = 'queued'
+        AND waiting_for_capacity_at_ms IS NOT NULL
+        AND deadline_at_ms > ${Date.now()}
+      ORDER BY waiting_for_capacity_at_ms
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    `;
+    const run = parked[0];
+    if (!run) return 0;
+    await restartParkedRun(tx, run);
+    return 1;
+  });
+}
+
 /** Claim one organization's OLDEST parked run and re-enqueue its turn — the
  * watchdog's per-organization wake (see {@link wakeOldestParkedAgentRun}). */
 export async function wakeOrganizationParkedAgentRun(

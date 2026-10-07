@@ -4,7 +4,7 @@ description: Ein geprüftes Transkript ins passende Projekt importieren, die Ind
 ---
 Mache ein exportiertes Besprechungstranskript zur Projektquelle, die sich im Chat abfragen lässt. Beginne mit einer geprüften Textdatei und kontrolliere Zugriff und Indexierung, bevor du die Übernahme automatisierst. Du brauchst Bearbeitungsrechte im Zielprojekt und die Erlaubnis, das Transkript mit dessen Mitgliedern zu teilen.
 
-Tale enthält weder einen eigenen Meetily-Konnektor noch einen überwachten Transkriptordner. Exportiere aus deinem Transkriptionswerkzeug und nutze anschließend den Dokumentupload oder die API von Tale. Diese Anleitung beginnt nach der Transkription; sie zeichnet keine Besprechung auf und richtet kein Transkriptionswerkzeug ein.
+Tale enthält weder einen eigenen Meetily-Connector noch einen überwachten Transkriptordner. Exportiere aus deinem Transkriptionswerkzeug und nutze anschließend den Dokumentupload oder die API von Tale. Diese Anleitung beginnt nach der Transkription; sie zeichnet keine Besprechung auf und richtet kein Transkriptionswerkzeug ein.
 
 ## Das Transkript vorbereiten
 

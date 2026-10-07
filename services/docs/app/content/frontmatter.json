@@ -12,7 +12,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Datenresidenz in der Cloud verstehen",
-      "description": "Speicherort und Datenflüsse zu Anbietern und Konnektoren vor der Cloud-Nutzung prüfen."
+      "description": "Speicherort und Datenflüsse zu Anbietern und Connectors vor der Cloud-Nutzung prüfen."
     }
   },
   "de:cloud/index": {
@@ -192,15 +192,6 @@
     "frontmatter": {
       "title": "Deine erste Nachricht senden",
       "description": "Bei Tale anmelden, einen Chat starten, ein Modell wählen und die Antwort prüfen."
-    }
-  },
-  "de:index": {
-    "slug": "index",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Tale-Dokumentation",
-      "description": "Koordiniere Teammitglieder und KI-Agenten in Tales Open-Source-Arbeitsbereich mit Projektaufgaben, Delegation, Sandboxes und prüfbaren Ergebnissen.",
-      "kind": "index"
     }
   },
   "de:legal/privacy": {
@@ -434,7 +425,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Eine Agent-Laufzeit wählen",
-      "description": "Stimme Harness, Zugangsdaten, Werkzeuge und Sandbox-Verhalten auf die Aufgabe ab."
+      "description": "Stimme Agent-Laufzeit, Zugangsdaten, Werkzeuge und Sandbox-Verhalten auf die Aufgabe ab."
     }
   },
   "de:platform/agents/skills": {
@@ -1093,7 +1084,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Episode 7 — Connectors & die Außenwelt",
-      "description": "Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Connector, ein MCP-Abschnitt, der im Server-Panel der früheren Version aufgenommen wurde, und Egress, der im Zweifel schließt."
+      "description": "Die Türen aus dem Arbeitsbereich — Connectors, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn eines angebundenen Connectors, ein MCP-Abschnitt, der im Server-Panel der früheren Version aufgenommen wurde, und Egress, der im Zweifel schließt."
     }
   },
   "de:tutorials/videos/governance-and-trust": {
@@ -1141,7 +1132,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Bonus — Tale für Entwickler",
-      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser und Harnesses, die in eingehegten Sandboxes arbeiten."
+      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser und Agent-Laufzeiten, die in eingehegten Sandboxes arbeiten."
     }
   },
   "de:tutorials/videos/welcome-to-tale": {
@@ -1353,15 +1344,6 @@
     "frontmatter": {
       "title": "Send your first message",
       "description": "Sign in to Tale, start a chat, choose a model, and check the response."
-    }
-  },
-  "en:index": {
-    "slug": "index",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Tale documentation",
-      "description": "Coordinate teammates and AI agents in Tale’s open-source workspace with project tasks, delegation, sandboxes, and reviewable results.",
-      "kind": "index"
     }
   },
   "en:legal/privacy": {
@@ -1595,7 +1577,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Choose an agent runtime",
-      "description": "Match a coding harness to its credentials, tools and sandbox behavior before assigning real work."
+      "description": "Match an agent runtime to its credentials, tools and sandbox behavior before assigning real work."
     }
   },
   "en:platform/agents/skills": {
@@ -2302,7 +2284,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Bonus — Tale for developers",
-      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, and harnesses working in contained sandboxes."
+      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, and agent runtimes working in contained sandboxes."
     }
   },
   "en:tutorials/videos/welcome-to-tale": {
@@ -2334,7 +2316,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Comprendre la résidence des données Cloud",
-      "description": "Distinguer le stockage des flux vers les fournisseurs et les connecteurs avant de choisir un déploiement Cloud."
+      "description": "Distinguer le stockage des flux vers les fournisseurs et les connectors avant de choisir un déploiement Cloud."
     }
   },
   "fr:cloud/index": {
@@ -2399,7 +2381,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Connectors",
-      "description": "Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connecteur ne convient."
+      "description": "Comment un connector est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connector ne convient."
     }
   },
   "fr:develop/contributing-docker": {
@@ -2516,15 +2498,6 @@
       "description": "Te connecter à Tale, lancer un chat, choisir un modèle et vérifier sa réponse."
     }
   },
-  "fr:index": {
-    "slug": "index",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Documentation Tale",
-      "description": "Coordonne ton équipe et tes agents IA dans l’espace open source de Tale avec des tâches de projet, la délégation, des sandboxes et la revue des résultats.",
-      "kind": "index"
-    }
-  },
   "fr:legal/privacy": {
     "slug": "legal/privacy",
     "locale": "fr",
@@ -2579,7 +2552,7 @@
     "slug": "platform/admin/connectors",
     "locale": "fr",
     "frontmatter": {
-      "title": "Identifiants des connecteurs",
+      "title": "Identifiants des connectors",
       "description": "Connecte les comptes de services, choisis les accès par défaut et renouvelle les autorisations."
     }
   },
@@ -2756,7 +2729,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Choisir un environnement d’agent",
-      "description": "Associe le harness aux identifiants, aux outils et au fonctionnement de la sandbox avant de confier une tâche."
+      "description": "Associe l’environnement d’agent aux identifiants, aux outils et au fonctionnement de la sandbox avant de confier une tâche."
     }
   },
   "fr:platform/agents/skills": {
@@ -3415,7 +3388,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Épisode 7 — Connectors & le monde extérieur",
-      "description": "Les portes hors de l'espace de travail — des connecteurs dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par une connector reliée, un segment MCP enregistré sur le panneau de serveurs de la version précédente, et une sortie réseau qui échoue fermée."
+      "description": "Les portes hors de l'espace de travail — des connectors dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par un connector relié, un segment MCP enregistré sur le panneau de serveurs de la version précédente, et une sortie réseau qui échoue fermée."
     }
   },
   "fr:tutorials/videos/governance-and-trust": {
@@ -3463,7 +3436,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bonus — Tale pour les développeurs",
-      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, et les harnesses qui travaillent dans des bacs à sable contenus."
+      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, et les environnements d’agent qui travaillent dans des bacs à sable contenus."
     }
   },
   "fr:tutorials/videos/welcome-to-tale": {

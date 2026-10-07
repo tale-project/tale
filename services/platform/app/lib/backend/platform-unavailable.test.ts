@@ -57,6 +57,12 @@ describe('isPlatformUnavailable', () => {
     }
   });
 
+  it.each([502, 503, 504])('reads an unstructured gateway %i', (status) => {
+    expect(isPlatformUnavailable(backendApiErrorFromBody(status, null))).toBe(
+      true,
+    );
+  });
+
   it('is false for every other failure', () => {
     // The backend's own fault: a text 500 the app reads by status alone.
     expect(
@@ -64,10 +70,6 @@ describe('isPlatformUnavailable', () => {
         backendApiErrorFromBody(500, 'Internal Server Error'),
       ),
     ).toBe(false);
-    // A 502 from something other than the edge's rule: no code at all.
-    expect(isPlatformUnavailable(backendApiErrorFromBody(502, null))).toBe(
-      false,
-    );
     // A dependency the platform answers for, not the platform itself.
     expect(
       isPlatformUnavailable(

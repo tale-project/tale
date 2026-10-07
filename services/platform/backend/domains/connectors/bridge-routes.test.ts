@@ -145,7 +145,7 @@ beforeEach(() => {
   toolCalls = [];
 });
 
-describe('POST /api/connectors/* — request-body cap', () => {
+describe('POST /api/connectors/* — request-body cap [CONN-R6]', () => {
   beforeEach(() => {
     getSessionTokenByHash.mockResolvedValue({
       organizationId: 'org_1',
@@ -279,7 +279,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
   });
 
   it.each(['queued', 'running'])(
-    'runs a task turn’s call for the starter of its %s run',
+    'runs a task turn’s call for the starter of its %s run [CONN-R1]',
     async (status) => {
       runs.set('exec_1', { status, startedBy: 'user_starter' });
       tokenWith(TASK_TURN);
@@ -299,7 +299,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     },
   );
 
-  it('acts for the member a REST start named (the api-key door)', async () => {
+  it('acts for the member a REST start named (the api-key door) [CONN-R1]', async () => {
     runs.set('exec_1', { status: 'running', startedBy: 'api-key:user_1' });
     tokenWith(TASK_TURN);
 
@@ -310,7 +310,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     });
   });
 
-  it('runs a user-keyed token’s call for its own user', async () => {
+  it('runs a user-keyed token’s call for its own user [CONN-R1]', async () => {
     tokenWith({ userId: 'user_1' });
 
     const res = await post('/execute', LIST_ISSUES);
@@ -330,7 +330,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     ['the automation sentinel', AUTOMATION_SUBJECT_ID],
     ['a door no reader knows', 'webhook:x'],
   ])(
-    'refuses a task run %s started, naming how to start one that acts for a member',
+    'refuses a task run %s started, naming how to start one that acts for a member [CONN-R3]',
     async (_label, startedBy) => {
       runs.set('exec_1', { status: 'running', startedBy });
       tokenWith(TASK_TURN);
@@ -351,7 +351,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
   );
 
   it.each(['settled', 'failed', 'cancelled'])(
-    'refuses a token whose run has %s, before reading anyone’s membership',
+    'refuses a token whose run has %s, before reading anyone’s membership [CONN-R4]',
     async (status) => {
       runs.set('exec_1', { status, startedBy: 'user_starter' });
       tokenWith(TASK_TURN);
@@ -371,7 +371,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     },
   );
 
-  it('refuses the token of an exec its run has moved off (a steer restart)', async () => {
+  it('refuses the token of an exec its run has moved off (a steer restart) [CONN-R4]', async () => {
     // The run now lives on exec_2; the token still names exec_1.
     runs = new Map([
       ['exec_2', { status: 'running', startedBy: 'user_starter' }],
@@ -400,7 +400,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
       { connectorCaller: { kind: 'task-run', execId: '' } },
     ],
   ])(
-    'refuses a token that %s, with both lanes’ remedies',
+    'refuses a token that %s, with both lanes’ remedies [CONN-R3]',
     async (_label, scope) => {
       tokenWith(scope);
 
@@ -416,7 +416,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     },
   );
 
-  it('refuses a starter who is no longer a member of the organization', async () => {
+  it('refuses a starter who is no longer a member of the organization [CONN-R5]', async () => {
     members.delete('user_starter');
     tokenWith(TASK_TURN);
 
@@ -433,7 +433,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
   });
 
   it.each(['disabled', 'Disabled'])(
-    'refuses a starter whose membership is %s',
+    'refuses a starter whose membership is %s [CONN-R5]',
     async (role) => {
       members.set('user_starter', role);
       tokenWith(TASK_TURN);
@@ -448,7 +448,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     },
   );
 
-  it('checks the grant first, as before, before looking at the caller', async () => {
+  it('checks the grant first, as before, before looking at the caller [CONN-R2]', async () => {
     tokenWith(TASK_TURN);
 
     const body = await refusal(

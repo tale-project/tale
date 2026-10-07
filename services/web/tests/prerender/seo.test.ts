@@ -16,6 +16,7 @@ import {
   readMarketingContent,
 } from '../../lib/content/server';
 import { localizedPath, SUPPORTED_LOCALES } from '../../lib/i18n/locales';
+import { UI_DOCS_ENTRY_PATHS } from '../../lib/redirects';
 import {
   prerenderedBodyCount,
   RELEASE_DISPLAY_LIMIT,
@@ -170,6 +171,75 @@ describe('prerender SEO suite', () => {
     expect(html).not.toBeNull();
     expect(html ?? '').toMatch(/noindex/i);
   });
+
+  for (const path of UI_DOCS_ENTRY_PATHS) {
+    it(`${path} has a static Tale UI redirect without indexable marketing content`, () => {
+      const dom = new JSDOM(readHtml(path) ?? '');
+      try {
+        const document = dom.window.document;
+        expect(
+          document
+            .querySelector('meta[http-equiv="refresh"]')
+            ?.getAttribute('content'),
+        ).toBe('0;url=https://ui.tale.dev');
+        expect(
+          document.querySelector('link[rel="canonical"]')?.getAttribute('href'),
+        ).toBe('https://ui.tale.dev');
+        expect(
+          document
+            .querySelector('meta[name="robots"]')
+            ?.getAttribute('content'),
+        ).toContain('noindex');
+        expect(document.querySelectorAll('h1')).toHaveLength(0);
+        expect(document.querySelector('a')?.getAttribute('href')).toBe(
+          'https://ui.tale.dev',
+        );
+      } finally {
+        dom.window.close();
+      }
+    });
+  }
+
+  for (const path of [
+    '/missing',
+    '/de/missing',
+    '/fr/platform/missing',
+    '/de/legal/missing',
+  ]) {
+    it(`${path} renders the marketing 404 in SSR with metadata and site chrome`, async () => {
+      const { render } = (await import(`${ROOT}/dist-ssr/entry-server.js`)) as {
+        render: (url: string) => Promise<{ html: string; head: string }>;
+      };
+      const result = await render(path);
+      const dom = new JSDOM(
+        `<html><head>${result.head}</head><body>${result.html}</body></html>`,
+      );
+      try {
+        const document = dom.window.document;
+        expect(document.querySelectorAll('main h1')).toHaveLength(1);
+        expect(document.querySelector('main')?.textContent).not.toBe(
+          'Not Found',
+        );
+        expect(document.querySelectorAll('header')).toHaveLength(1);
+        expect(document.querySelectorAll('footer')).toHaveLength(1);
+        expect(
+          document
+            .querySelector('meta[name="robots"]')
+            ?.getAttribute('content'),
+        ).toContain('noindex');
+        const prefix = path.startsWith('/de/')
+          ? '/de'
+          : path.startsWith('/fr/')
+            ? '/fr'
+            : '';
+        expect(
+          document.querySelector('link[rel="canonical"]')?.getAttribute('href'),
+        ).toBe(`https://tale.dev${prefix}/404`);
+      } finally {
+        dom.window.close();
+      }
+    });
+  }
 
   it('ships og.png', () => {
     expect(existsSync(join(DIST, 'og.png'))).toBe(true);

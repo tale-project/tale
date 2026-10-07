@@ -4,10 +4,8 @@ import { QueryClient, useMutation } from '@tanstack/react-query';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import deMessages from '@/messages/de.yml';
-import enMessages from '@/messages/en.yml';
-import frMessages from '@/messages/fr.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 import { render } from '@/tests/utils/render';
 
 const { locale } = vi.hoisted(() => ({

@@ -74,12 +74,12 @@ beforeEach(() => {
 });
 
 describe('EmbeddingSetupBanner', () => {
-  it('points a provider-configured org at the embedding model it still needs', () => {
+  it('points a provider-configured org at the embedding model it still needs', async () => {
     readyToNudge();
 
     render(<EmbeddingSetupBanner organizationId="org-1" />);
 
-    const banner = screen.getByRole('status');
+    const banner = await screen.findByRole('status');
     expect(banner).toHaveTextContent('Knowledge search is off');
     const link = screen.getByRole('link', {
       name: 'Choose an embedding model',

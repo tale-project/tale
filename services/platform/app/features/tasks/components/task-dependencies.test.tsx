@@ -149,10 +149,18 @@ describe('TaskDependencies picker', () => {
     const [blockedBy] = screen.getAllByRole('button', { name: 'Add' });
     await user.click(blockedBy);
 
+    // All candidate data is built only on engagement. The shared picker
+    // windows its DOM in a real browser; jsdom has no measured viewport.
+    expect(identifiers.built).toBe(299);
+    await user.type(screen.getByRole('combobox'), 'Task t299');
     expect(
-      await screen.findByRole('option', { name: /Task t1\b/ }),
+      await screen.findByRole('option', { name: /Task t299\b/ }),
     ).toBeInTheDocument();
-    // Every other task of the project, the open one excluded.
-    expect(screen.getAllByRole('option')).toHaveLength(299);
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+    await user.click(screen.getByRole('option', { name: /Task t299\b/ }));
+    expect(state.add).toHaveBeenCalledWith({
+      blockerTaskId: 't299',
+      blockedTaskId: 't0',
+    });
   });
 });

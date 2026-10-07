@@ -1,0 +1,570 @@
+sourceStatus:
+  heading: Processus de la source
+  explanation: Choisis une action et complète les informations. La source connectée vérifie tes autorisations et chaque transition avant de mettre à jour cette tâche.
+  submit: Envoyer la demande
+  pending: La source vérifie ta demande.
+  accepted: La source a accepté ta demande.
+  refused: La source a refusé ta demande.
+  invalidFields: Vérifie les champs obligatoires et leur format.
+  submitFailed: La demande n'a pas pu être envoyée. Réessaie.
+  loadFailed: Les actions de la source n'ont pas pu être chargées.
+  retry: Réessayer
+sourceIssue:
+  heading: 'Issue {provider}'
+  state:
+    open: Ouverte à la source
+    closed: Fermée à la source
+    resolved: Résolue à la source
+    ignored: Ignorée à la source
+  unavailable: Cette connexion ne peut plus accéder à l'issue. Les dernières informations connues sont conservées et la tâche Tale reste inchangée.
+  synced: 'Source vérifiée le {date}'
+  independentStatus: Le statut de la source est indépendant de cette tâche. Vérifie et termine la tâche dans Tale.
+  description: Description de la source
+run:
+  started: '{name} a démarré et prend cette tâche en charge.'
+  alreadyRunning: '{name} travaille déjà sur cette tâche.'
+  notStarted: "{name} n'a pas pu démarrer — vérifie que l'automatisation est déployée."
+  cancelled: "L'exécution a été annulée."
+  missingInput: "Dépose d'abord les fichiers d'entrée — la liste Fichiers de cette tâche est encore vide."
+  working: '{name} travaille sur cette tâche.'
+  waitingAnswer: '{name} attend ta réponse à une question — dès que tu réponds ci-dessous, ça reprend.'
+  label: Exécution
+  details: Détails
+  detailsTitle: "{name} — détails de l'exécution"
+  detailsTitleLive: '{name} — avancement'
+  openFull: "Ouvrir l'exécution complète"
+subject:
+  runLoadError: "Impossible de charger l’état du workflow. Réessaie pour voir les actions disponibles."
+  ready: 'Prête à démarrer — {name} prend la suite.'
+  start: Démarrer
+  startAgain: Relancer
+  waitingInput: "En attente des fichiers d'entrée — dépose-les ci-dessous, puis clique sur Démarrer."
+  stalled: Cette tâche est En cours mais personne ne travaille dessus — relance-la.
+  review: 'Le résultat de {name} est prêt pour relecture.'
+  reviewWaitingOn: 'Le résultat de {name} est prêt pour relecture — en attente de {reviewer}.'
+  approve: Approuver
+  approveConfirmTitle: 'Approuver le résultat de {name} ?'
+  approved: Approuvé — la tâche est terminée.
+  requestChanges: Demander des modifications
+  requestChangesDialog: 'Ton retour est ajouté en commentaire sur cette tâche et {name} repart de là.'
+  requestChangesLabel: Ce qui doit changer
+  requestChangesPlaceholder: 'p. ex. le résumé cite encore la période précédente — remplace ces chiffres avant la prochaine exécution.'
+  requestChangesSend: Renvoyer
+  requestChangesSent: 'Renvoyée à {name} — la nouvelle exécution reprend tes commentaires.'
+  cancel: Annuler l'exécution
+  cancelConfirmTitle: Annuler cette exécution ?
+  cancelConfirmBody: "L'exécution {name} sur cette tâche s'arrête ; la tâche passe à Annulé et peut être relancée."
+  cancelConfirmMove: Une exécution travaille encore sur cette tâche — la sortir de En cours annule cette exécution. Elle pourra être relancée ensuite.
+agentRun:
+  automationDisabled: 'L’automatisation des tâches est désactivée. Demande à un administrateur de l’organisation de l’activer.'
+  automationUnavailable: 'L’automatisation des tâches est indisponible. Demande à un administrateur de l’organisation de vérifier sa politique.'
+  previousRun: 'Exécution précédente de {name}'
+  label: Exécution
+  started: L'agent s'y met — il rendra compte sur cette tâche pour relecture.
+  alreadyRunning: L'agent de cette tâche tourne déjà.
+  notStarted: L'exécution de l'agent n'a pas pu démarrer.
+  agentMissing: L'agent assigné n'existe plus. Assigne un autre agent pour exécuter cette tâche.
+  noAgentAssignee: Aucun agent n'est assigné à cette tâche. Assignes-en un pour lancer une exécution.
+  cancelled: L'exécution de l'agent a été annulée.
+  cancelFailed: L'exécution de l'agent n'a pas pu être annulée.
+  start: Démarrer l'agent
+  willStart: "Déposer ici démarre l'exécution de l'agent."
+  willCancel: "Déposer ici annule l'exécution en cours de l'agent."
+  # Un mot court par état — la ligne vit dans le panneau de propriétés,
+  # à côté du libellé « Exécution » et du statut de la tâche.
+  status:
+    queued: En attente
+    running: En cours…
+    settled: Terminée
+    failed: Échouée
+    cancelled: Annulée
+  # Remplace « En attente » tant que le quota de sandboxes de
+  # l'organisation est plein — l'exécution repart d'elle-même dès qu'une
+  # place se libère.
+  waitingForSlot: En attente d'une place de sandbox
+  # Ligne sous le statut pendant que la plateforme relance elle-même une
+  # exécution échouée — pour distinguer sa relance de la tienne.
+  autoRetrying: 'Tentative automatique {n} sur {max}'
+  # Remplace cette ligne quand le courtier a actualisé le jeton du compte
+  # en cours d'exécution et que la plateforme la reprend — sans tentative
+  # consommée.
+  resumedAfterTokenRefresh: Reprise après l'actualisation du jeton
+  retry: Relancer
+  cancel: Annuler l'exécution
+  notStartedYet: L’agent attend que tu le démarres.
+  failureTitle: L’agent n’a pas pu terminer cette tâche
+  reported: Ce que l’exécution a signalé
+  logReadFailed: Le journal de l’agent n’a pas pu être chargé. Réessaie.
+  runReadFailed: L’exécution de l’agent n’a pas pu être chargée. Réessaie.
+  failure:
+    budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
+    setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
+    input: Une pièce jointe de cette tâche n’est plus dans le stockage — « Détails » indique laquelle. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.
+    time_limit: L’exécution a atteint sa limite de temps avant que l’agent ait terminé. Relance l’agent, ou découpe la tâche en tâches plus petites.
+    capacity: L’exécution a attendu trop longtemps une sandbox libre. Relance l’agent quand moins d’agents seront occupés.
+    model: Le modèle d’IA derrière cet agent a échoué avant la fin du travail. Relance l’agent — s’il échoue encore, demande à un admin de vérifier le fournisseur d’IA.
+    start: L’exécution n’a pas pu démarrer. Réessaie — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
+    interrupted: L’exécution a été interrompue avant que l’agent ait terminé. Relance l’agent.
+    unknown: L’exécution a échoué. Relance l’agent — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
+  standardAgent:
+    switchedOff: L'agent standard de l'organisation est désactivé. Demande à un admin de l'activer dans Gouvernance.
+    noModel: Aucun modèle que tu peux utiliser ne peut faire fonctionner l'agent standard. Demande à un admin de configurer un fournisseur IA ou de te donner accès à un modèle.
+    pinUnavailable: Le modèle choisi pour l'agent standard ne t'est pas accessible. Demande à un admin d'en choisir un autre dans Gouvernance.
+    harnessInvalid: L'environnement d'agent choisi pour l'agent standard n'est pas disponible. Demande à un admin d'en choisir un autre dans Gouvernance.
+    unreadable: Les réglages de l'agent standard sont illisibles. Demande à un admin de les vérifier dans Gouvernance.
+    notNeeded: Ce projet a ses propres agents. Assigne plutôt l'un d'eux.
+automation:
+  hint: '{name} opère cette tâche et la fait avancer dans ses étapes.'
+  chipReady: Prête à démarrer
+  chipWaiting: En attente des fichiers
+  will:
+    start: "Démarre l'exécution {name}."
+    request_changes: 'La renvoie à {name} avec tes commentaires.'
+    cancel: "Annule d'abord l'exécution {name} en cours."
+outcome:
+  title: Résultat
+  pending: Pas encore prêt
+  untitled: Sans titre
+  open: 'Ouvrir {name}'
+inputFiles:
+  title: Fichiers
+  titleWithCount: 'Fichiers ({count})'
+  more: '+{count} autres'
+  showLess: Afficher moins
+  open: 'Ouvrir {name}'
+  empty: "Aucun fichier pour l'instant — dépose ici les documents sur lesquels {name} doit travailler."
+  untitled: Sans titre
+  uploading: Téléversement…
+  dropHint: Dépose des fichiers ici, ou clique pour parcourir
+  uploadFailed: Le téléversement a échoué — réessaie.
+  uploadFailedDetail: '{name} : {reason}'
+  remove: 'Supprimer {name}'
+  removeTitle: Supprimer ce fichier ?
+  removeDescription: '« {name} » est supprimé définitivement du projet — cette action est irréversible.'
+  removeConfirm: Supprimer
+  removeFailed: Le fichier n'a pas pu être supprimé — réessaie.
+template:
+  blank: Tâche vierge
+  nameLabel: Nom
+  invalidName: 'Doit correspondre au motif {pattern}.'
+  created: "Tâche créée — dépose les fichiers d'entrée, puis clique sur Démarrer."
+  exists: Une tâche existe déjà pour ce sujet.
+  setupMissing: "Le dossier {folder} est manquant — crée-le d'abord dans le projet."
+  setupIntro:
+    "Configure d'abord {name} pour ce projet. Les valeurs sont enregistrées
+    comme fichiers dans le dossier {folder}, où chaque exécution vient les
+    lire."
+  settingsOpen: Paramètres
+attachments:
+  label: Pièces jointes
+  add: Ajouter des pièces jointes
+  remove: Supprimer la pièce jointe
+  uploading: Téléversement…
+  emptyHint: Ajouter des images ou des documents
+  dropHint: Dépose ou colle des images ou des documents, ou clique pour parcourir
+outputs:
+  label: Fichiers produits
+title: Tâches
+status:
+  backlog: Backlog
+  todo: À faire
+  in_progress: En cours
+  in_review: En revue
+  done: Terminé
+  cancelled: Annulé
+priority:
+  p0: Urgent
+  p1: Élevée
+  p2: Moyenne
+  p3: Basse
+  none: Aucune priorité
+fields:
+  title: Titre
+  description: Description
+  assignee: Assigné à
+  reviewer: Relecteur
+  priority: Priorité
+  labels: Étiquettes
+  status: Statut
+  project: Projet
+  unassigned: Non assigné
+  author: Auteur
+  created: Créé le
+labels:
+  add: Ajouter une étiquette…
+  manage: Gérer les étiquettes
+  manageTitle: Étiquettes du projet
+  manageDescription: Étiquettes de ce projet. Crée-les ou attache-les depuis le sélecteur de tâche ; renomme et supprime-les ici.
+  empty: Aucune étiquette pour l'instant.
+  emptyHint: Tape un nom ci-dessus pour en créer une.
+  createNamed: 'Créer « {name} »'
+  createHeading: Nouvelle étiquette
+  namePlaceholder: Nom de l'étiquette
+  rename: Renommer
+  deleteConfirmTitle: Supprimer cette étiquette ?
+  deleteConfirmDescription: Retire « {label} » du projet et de toutes les tâches qui l'utilisent.
+  errors:
+    TASK_LABEL_NAME_TAKEN: Une étiquette porte déjà ce nom.
+    TASK_LABEL_UNKNOWN: Cette étiquette n'existe pas dans le projet — choisis-en une qu'il a déjà. Les Éditeurs et les rôles supérieurs ajoutent de nouvelles étiquettes dans le sélecteur.
+    TASK_LABELS_INVALID: Nom d'étiquette invalide.
+    TASK_LABEL_IN_USE: Cette étiquette est encore sur une tâche.
+    createFailed: Impossible de créer l'étiquette.
+    renameFailed: Impossible de renommer l'étiquette.
+    deleteFailed: Impossible de supprimer l'étiquette.
+actions:
+  create: Créer une tâche
+  createAndStart: Créer et démarrer l'agent
+  createOnly: Créer seulement
+  created: Tâche créée
+  comment: Commenter
+  commentPlaceholder: Écris un commentaire — tape @ pour mentionner une personne ou un agent
+  commentAgentHint: "Mentionne l’agent assigné pour lui donner un retour. S’il travaille, la mention est envoyée à son exécution en cours."
+  commentShortcut: '{shortcut} pour envoyer'
+  assign: Assigner
+  add: Ajouter
+  archive: Archiver
+  restore: Restaurer
+  delete: Supprimer
+searchPlaceholder: Rechercher des tâches
+views:
+  board: Tableau
+  list: Liste
+board:
+  noTasks: Aucune tâche
+list:
+  showArchived: Afficher les archivées
+# Une lecture du tableau qui a échoué après toutes ses tentatives (#3747) :
+# ce qui n’a pas été chargé et ce que la personne voit entre-temps — jamais
+# un tableau vide. Chaque alerte porte « Réessayer »
+# (common.actions.tryAgain) pour cette seule lecture.
+read:
+  tasksFailed: Impossible de charger les tâches, aucune n’est donc affichée. Ta recherche et tes filtres restent tels quels.
+  tasksStale: Impossible d’actualiser les tâches. Elles s’affichent telles qu’elles ont été chargées la dernière fois.
+  dependenciesFailed: Impossible de charger les dépendances, les tâches bloquées ne sont donc peut-être pas signalées comme bloquées.
+  activityFailed: Impossible de charger l’activité des agents et des relectures. Les agents en cours, les questions ouvertes et les relectures en attente ne sont donc peut-être pas signalés.
+  activityFailedReviewFilter: Impossible de charger l’activité des agents et des relectures. Les agents en cours, les questions ouvertes et les relectures en attente ne sont donc peut-être pas signalés, et « En attente de ma relecture » peut omettre des tâches qui t’attendent.
+  retrying: Nouvelle tentative…
+  # La lecture du tableau s’arrête à son plafond ; la recherche restreint la
+  # lecture elle-même et atteint donc chaque tâche. {count} est le nombre de
+  # tâches affichées.
+  truncated: '{count, plural, one {Seule la première tâche est affichée.} other {Seules les # premières tâches sont affichées.}} Utilise la recherche pour trouver les autres.'
+# Glisser au clavier dans le tableau et la liste : les instructions du
+# titre, puis les annonces en direct. {task} vaut `KEY-12, Titre` à la
+# saisie, puis `KEY-12` (le titre si le projet n'a pas de clé). Un dépôt
+# nomme l'endroit, pas un nouveau statut : un workflow peut encore le refuser.
+drag:
+  instructions: Entrée ouvre la tâche. Espace la saisit ; ensuite, les touches fléchées la déplacent, Espace la dépose et Échap annule.
+  pickedUp: 'Tu as saisi {task}. Statut {status}, position {position} sur {total}. Déplace-la avec les touches fléchées, dépose-la avec Espace ou annule avec Échap.'
+  over: 'Statut {status}, position {position} sur {total}.'
+  noTarget: Aucun statut visé. Déposer ici ne change rien.
+  dropped: 'Tu as déposé {task} dans le statut {status}, position {position} sur {total}.'
+  droppedInPlace: "Tu as déposé {task} à sa place d'origine, dans le statut {status}, position {position} sur {total}."
+  droppedOutside: 'Tu as déposé {task} hors des statuts : elle reste dans le statut {status}, position {position} sur {total}.'
+  cancelled: 'Déplacement annulé : {task} reste dans le statut {status}, position {position} sur {total}.'
+  gone: "Cette tâche n'est plus affichée ici : elle n'a pas été déplacée."
+archived:
+  badge: Archivée
+archive:
+  confirmTitle: Archiver la tâche ?
+  confirmDescription: La tâche disparaît du board et de la liste. Active
+    « Afficher les archivées » dans les filtres pour la restaurer plus tard.
+  restoreDescription: La tâche réapparaît dans le board et la liste.
+  success: Tâche archivée
+  error: Impossible d'archiver la tâche
+  restoreSuccess: Tâche restaurée
+  restoreError: Impossible de restaurer la tâche
+delete:
+  confirmTitle: "Supprimer la tâche ?"
+  confirmDescription: "Supprime cette tâche et ses sous-tâches avec leurs commentaires et fichiers, et arrête leurs exécutions d'agent en cours. Cette action est irréversible."
+  success: Tâche supprimée
+  error: Impossible de supprimer la tâche
+detail:
+  overview: Aperçu
+  comments: Commentaires
+  commentCount: '{count, plural, one {# commentaire} other {# commentaires}}'
+  noComments: Aucun commentaire pour le moment.
+  conversation: Conversation
+  conversationEmpty: Aucun commentaire pour le moment — lance la conversation ci-dessous.
+  details: Détails
+  showDetails: Afficher les détails
+  hideDetails: Masquer les détails
+  openBoard: Tableau
+  copyLink: Copier le lien
+  linkCopied: Lien copié
+  copyKey: 'Copier {key}'
+  keyCopied: '{key} copié'
+  showEarlierComments: Afficher les commentaires précédents
+  activity: Activité
+  subtasks: Sous-tâches
+  addSubtask: Ajouter une sous-tâche…
+  addDescription: Ajouter une description…
+  noDescription: Aucune description.
+  moreFields: Autres champs
+  parentCloseGuard: Termine toutes les sous-tâches avant de clôturer cette tâche.
+  dependencies: Dépendances
+  blockedBy: Bloqué par
+  blocks: Bloque
+  blocked: Bloqué
+  noDependencies: Aucune
+  linkTask: Lier une tâche…
+  dependencyCycle: Cela créerait une dépendance circulaire.
+  removeDependency: Supprimer la dépendance
+  partOf: Partie de {task}
+  subtask: Sous-tâche
+  notFound: Impossible de trouver cette tâche. Elle a peut-être été supprimée.
+comment:
+  edited: modifié
+  deleteConfirm: Supprimer ce commentaire ?
+assignee:
+  unassigned: Non assigné
+  assignToMe: M’assigner
+  agents: Agents
+  agentsInfo:
+    Tourne dans un bac à sable sur l'environnement d'agent choisi à la création de
+    l'agent — pré-équipé de ses skills, connectors et instructions.
+  createAgent: Créer un agent…
+  createAgentHint:
+    Aucun dans ce projet pour l'instant — un agent prend en charge les
+    tâches qu'on lui assigne et les travaille pour toi.
+  automations: Automatisations
+  automationsInfo:
+    Confie la tâche à une automatisation déployée — les changements de
+    statut passent alors par son workflow.
+  handoffConfirmTitle: Réassigner cette tâche ?
+  handoffConfirm:
+    '{name} travaille cette tâche. La réassigner détache son workflow des
+    changements de statut — tu peux la lui rendre à tout moment.'
+  handoffConfirmLiveRun:
+    "{name} travaille sur cette tâche en ce moment — la réassignation
+    annule d'abord l'exécution en cours."
+  liveRunGuard: Cette tâche a une exécution en cours — annule-la avant de réassigner.
+  handoffConfirmAction: Réassigner
+  unassign: Désassigner
+  you: Vous
+  search: Rechercher des personnes
+  liveAgentsOnly:
+    Seuls les agents de ce projet apparaissent ici — crée-les dans
+    l'onglet Agents du projet.
+  noAgentsReader: Ce projet n’a pas encore d’agent — demande à un éditeur ou à un admin d’en ajouter un dans l’onglet Agents du projet.
+  liveAgentsOnlyReader: Seuls les agents de ce projet apparaissent ici — les éditeurs et les admins les ajoutent dans l’onglet Agents du projet.
+  standardAgent: Agent standard
+  standardAgentHint: L'agent de l'organisation pour les projets sans agent propre
+  standardAgentFooter: Tant que ce projet n'a pas d'agents propres, l'agent standard de l'organisation prend en charge ses tâches.
+activity:
+  reviewResponded: "Décision de relecture"
+  reviewDelegated: "Relecture réattribuée"
+  created: Créé
+  updated: Mis à jour
+  claimed: Pris en charge
+  archived: Archivé
+  restored: Restauré
+  reordered: Réordonné
+  statusChanged: Statut modifié
+  externalStatusProjected: Statut de la source synchronisé
+  externalStatusRequested: Transition demandée à la source
+  assigneeChanged: Responsable modifié
+  titleChanged: Titre modifié
+  descriptionChanged: Description modifiée
+  priorityChanged: Priorité modifiée
+  labelsChanged: Étiquettes modifiées
+  attachmentsChanged: Pièces jointes modifiées
+  startDateChanged: Date de début modifiée
+  dueDateChanged: Échéance modifiée
+  reviewerChanged: Relecteur modifié
+  commentAdded: Commentaire ajouté
+  dependencyAdded: Dépendance ajoutée
+  dependencyRemoved: Dépendance supprimée
+  agentRunRefused: Exécution refusée
+  repeatChanged: Répétition modifiée
+  repeatNext: Tâche suivante créée
+  empty:
+    startDate: Aucune date de début
+    dueDate: Aucune échéance
+    description: Aucune description
+    labels: Aucune étiquette
+    attachments: Aucune pièce jointe
+review:
+  decisionApproved: "Approuvé"
+  decisionChangesRequested: "Modifications demandées"
+  decisionUnavailable: "Décision de relecture indisponible"
+  needsReview: Revue requise
+  waitingOn: 'En attente de {name}'
+  waitingOnYou: En attente de ta relecture
+  filterTitle: Relecture
+  needsMyReview: En attente de ma relecture
+  independentReviewerRequired: Ton organisation exige une relecture
+    indépendante — quelqu'un d'autre doit approuver ce travail.
+  competenceRequired: Approuver cette relecture demande une compétence que tu
+    n'as pas. Demande à un admin de ton organisation de te l'accorder.
+reviewer:
+  none: Aucun relecteur
+  assignToMe: Relire moi-même
+  search: "Rechercher des personnes et des agents"
+  editorsOnly: Seuls les membres qui peuvent modifier ce projet peuvent être relecteurs.
+  projectDefaultLabel: "Choix par défaut du projet"
+  projectDefault: "Choix du projet · {reviewer}"
+  projectDefaultHuman: "Choix du projet · personne"
+  independentAgent: "Choisis un autre agent que celui qui a effectué le travail."
+  agentReview: "Examine le résultat depuis sa propre tâche de relecture."
+  routingHint: "Les personnes doivent pouvoir modifier le projet. Les agents doivent avoir la permission de relire les tâches et ne peuvent pas relire leur propre travail."
+  pendingFor: "Relecture en cours : {reviewer}"
+  transferHint: "Choisir un relecteur lui transfère aussi cette relecture en attente."
+  agentUnavailable: "Cet agent relecteur est indisponible. Choisis un autre relecteur."
+  agentPermissionRequired: "Cet agent doit avoir la permission de relire les tâches avant de pouvoir décider."
+  saveError: "Impossible de changer le relecteur"
+  loadError: "Impossible de charger la relecture en cours. Réessaie avant de la modifier."
+  stale: "Le relecteur ou le résultat a changé. Vérifie la relecture en cours et choisis à nouveau."
+  handoffRequired: "Transfère explicitement la relecture en attente avant de changer de relecteur."
+  busy: "Attends la fin de l’exécution ou la réponse à la question ouverte avant de transférer la relecture."
+  sourceRequired: "Ce résultat ne comporte aucune exécution d’agent compatible avec la relecture."
+  sourceChanged: "Cette relecture ne correspond plus à l’exécution ou à l’agent chargé du travail. Si l’affectation a changé, rétablis l’agent d’origine ou transfère la relecture à une personne autorisée."
+  humanPolicy: "La politique de l’organisation exige une personne pour cette relecture. Transfère-la à un membre autorisé."
+  policyUnavailable: "La politique de relecture n’a pas pu être lue. Rétablis une politique d’organisation valide avant toute décision."
+  notIndependent: "Choisis un agent qui n’a pas produit ce résultat."
+  agentRequired: "L’agent chargé de la relecture doit se prononcer sur ce résultat."
+  invalid: "Choisis un membre autorisé ou un agent de ce projet."
+watch:
+  watch: Suivre
+  unwatch: Ne plus suivre
+errors:
+  PROJECT_ARCHIVED: Ce projet est archivé. Restaure-le pour modifier ses tâches.
+  TASK_TITLE_INVALID: Un titre compte de 1 à {max} caractères. La plupart des emojis comptent double.
+  TASK_DESCRIPTION_INVALID: Cette description est trop longue pour être enregistrée. Elle peut compter jusqu'à {max} caractères, et la plupart des emojis comptent double.
+runFailure:
+  title: L'agent n'a pas pu démarrer
+  description: "{agent} n'a pas pu démarrer : {reason}. Le statut de la tâche
+    reste inchangé."
+agentRuns:
+  working: L'agent travaille…
+  needsAnswer: En attente de ta réponse
+  totalCost: '{amount} au total'
+  status:
+    queued: En attente
+    running: En cours
+    completed: Terminé
+    settled: Terminée
+    failed: Échoué
+    cancelled: Annulée
+    timed_out: Délai dépassé
+  trigger:
+    assignment: assignation
+    mention: mention
+    revision: révision
+    sla_escalation: escalade
+    unblock: débloqué
+    decomposition: décomposition
+    manual: manuel
+    auto_retry: relance automatique
+    automation: automatisation
+    delegated: délégué
+  refused:
+    agent_busy: l'agent travaille sur une autre tâche
+    agent_disabled: l'agent n'est pas installé ou est désactivé
+    agent_not_found: agent introuvable ou mal configuré
+    automation_disabled: l'automatisation des tâches est désactivée
+    budget_paused: budget mensuel épuisé
+    task_circuit_breaker: les exécutions d'agents sont en pause sur cette tâche
+  detail:
+    openAria: Ouvrir les détails {status} pour {agent}
+    runningTitle: '{agent} — exécution en cours'
+    failedTitle: '{agent} — exécution échouée'
+    completedTitle: "{agent} — détails de l'exécution"
+    noLiveDetail: Aucun transcript en direct n'est disponible pour cette exécution.
+timeline:
+  runLabel: Exécution d'agent
+  startedByAgent: lancé par
+  systemActor: Système
+  unresolvedWorkflow: Automatisation
+  deletedAgent: Agent supprimé
+  viewMore: "Voir plus"
+  viewWorkflow: Voir l'automatisation
+dueDate:
+  label: Échéance
+  overdue: En retard
+  due: 'Échéance : {date}'
+startDate:
+  label: Date de début
+  afterDue: La date de début doit être antérieure ou égale à l'échéance.
+repeat:
+  label: Répéter
+  indicator: 'Se répète : {rule}'
+  nextTask: 'Tâche suivante : {task}'
+  openNextTask: Ouvrir la tâche suivante
+  nextCreated: Tâche suivante créée
+  nextDueDates: Prochaines échéances
+  noDueDateHint: Pas encore d'échéance. Choisir une répétition la fixe au premier jour qui correspond.
+  becomesDue: 'Cette tâche arrivera à échéance le {date}.'
+  noDueDateSaved: 'Pas d''échéance : la tâche suivante sera datée à partir du jour où celle-ci sera terminée ou annulée.'
+  dateOutOfRange: Les prochaines dates dépassent la plage de dates prise en charge. Choisis une date antérieure.
+  dueDateSet: 'L''échéance de cette tâche est maintenant le {date}.'
+  ruleOnDue: '{rule}, tâche suivante à l''échéance'
+  withParent: 'Avec {parent}'
+  onDue:
+    label: Créer la tâche suivante à l'échéance
+    description: 'Même si celle-ci est encore ouverte le {date}.'
+    descriptionNow: Celle-ci est déjà à échéance, la tâche suivante est donc créée tout de suite.
+  mode:
+    close: La tâche suivante est créée quand celle-ci est terminée ou annulée.
+    dueDate: La tâche suivante est créée à l'échéance, ou plus tôt si celle-ci est terminée ou annulée avant.
+  reason:
+    closed: Rouvre cette tâche pour modifier sa répétition.
+    continued: 'La série continue avec {task}. Modifie la répétition là-bas.'
+    continuedUnnamed: La série continue avec la tâche suivante. Modifie la répétition là-bas.
+    stopped: La série a été arrêtée.
+    nextDeleted: La tâche suivante a été supprimée. Cette tâche ne peut plus se répéter.
+    automation: Une automatisation gère cette tâche, elle ne se répète donc pas.
+    subtask: 'Cette sous-tâche revient avec {parent} : chaque fois que {parent} se répète, sa tâche suivante en reçoit une nouvelle copie.'
+    notOpen: Seules les tâches ouvertes se répètent.
+  stop:
+    action: Arrêter la répétition
+    altText: 'Tu peux aussi arrêter la répétition plus tard : ouvre la tâche et choisis « Arrêter la répétition » sous « Répéter ».'
+    done: Répétition arrêtée
+    removed: La tâche suivante a été supprimée.
+    kept: '{task} a déjà été modifiée, elle reste donc en place, mais ne se répétera plus.'
+    keptUnnamed: La tâche suivante a déjà été modifiée, elle reste donc en place, mais ne se répétera plus.
+mentionPreview:
+  willRespond: '{slug} va répondre'
+  willQueue: '{slug} va répondre (en file — limite de simultanéité atteinte)'
+  packDisabled: "{slug} ne répondra pas — l'automatisation des tâches est désactivée"
+  breakerPaused:
+    "{slug} ne répondra pas — les exécutions d'agents sont en pause
+    sur cette tâche"
+  budgetPaused: '{slug} ne répondra pas — budget mensuel épuisé'
+  agentNotLive: "{slug} ne répondra pas — l'agent n'est pas installé ou est désactivé"
+  notPermitted: "{slug} ne répondra pas — tu ne peux pas lancer d'agents sur cette tâche"
+  standardAgentUnavailable: "{slug} ne répondra pas — il n'est pas disponible pour toi"
+mentionPicker:
+  title: Mentionner un membre, un agent ou une automatisation
+  empty: Aucun résultat
+metrics:
+  title: Métriques du projet
+  description:
+    Indicateurs de livraison, d'intervention et de coût pour les tâches
+    de ce projet.
+  cappedNotice: Affichage des 5 000 dernières lignes de chaque source pour
+    cette période — l'activité plus ancienne n'est pas comptée.
+  noData: Aucune donnée
+  noFlowDescription: Aucune tâche n'était ouverte à la fin d'une journée de cette période.
+  noThroughputDescription: Aucune tâche n'a été créée ou terminée pendant cette période.
+  noCycleTimeDescription: Aucune tâche n'est passée de En cours à Terminé pendant cette période.
+  noCompletionsDescription: Aucune tâche n'a été terminée pendant cette période.
+  noCostDescription: Aucune exécution d'agent n'a démarré pendant cette période.
+  completed: Terminées ({days} j)
+  completedDetail: '{agent} par les agents · {human} par les humains'
+  cycleTime: Temps de cycle moyen
+  created: '{count} créées'
+  intervention: Taux d'intervention
+  interventionDetail: '{changes} modifications demandées · {escalations} escalades'
+  cost: Dépenses ({days} j)
+  costDetail: '{runs} exécutions · {failed} en échec'
+  cumulativeFlow: Flux cumulé (fin de journée)
+  throughput: Débit
+  createdLabel: Créées
+  completedLabel: Terminées
+  cycleTimeTrend: Tendance du temps de cycle
+  cycleHoursLabel: Temps de cycle moyen (h)
+  agentVsHuman: 'Terminées : agents vs humains'
+  agentLabel: Agents
+  humanLabel: Humains
+  costTrend: Dépenses quotidiennes
+  costLabel: Dépenses

@@ -2,6 +2,7 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import { configurationHashSchema } from '@tale/shared/schemas/configuration';
 import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import { managedTaskInstructionsSchema } from '@tale/shared/schemas/managed-configuration';
+import { externalStatusRequestBodySchema } from '@tale/shared/schemas/task-external-status';
 import { setTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
@@ -67,6 +68,10 @@ import {
   startWorkflowForTaskInTx,
   upsertTaskByExternalRef,
 } from './external-ref.ts';
+import {
+  readTaskStatusSnapshot,
+  requestExternalTaskStatus,
+} from './external-status.ts';
 import { getProjectTaskMetrics } from './metrics.ts';
 import { stopTaskRepeat, type TaskRepeatCopy } from './repeat.ts';
 import { TaskReviewError } from './reviews.ts';
@@ -350,6 +355,43 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       c.get('sessionBundle').user.email,
     );
 
+  app.get('/:taskId/external-status', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
+      assertTaskReadable(
+        await loadProjectOrThrow(deps.sql, task.projectId),
+        auth,
+      );
+      return c.json(
+        await readTaskStatusSnapshot(deps.sql, auth.organizationId, task.id),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:taskId/external-status-request', async (c) => {
+    const body = externalStatusRequestBodySchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await transactSerializable(deps.sql, (tx) =>
+          requestExternalTaskStatus(tx, auth, c.req.param('taskId'), body.data),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.get('/:taskId/configuration/instructions', async (c) => {
     const target = managedTaskInstructionsSchema
       .omit({ description: true })
@@ -448,6 +490,12 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const statuses = c.req.query('statuses');
     return {
       includeArchived: c.req.query('includeArchived') === 'true',
+      // Additive read projection: older callers still receive full rows.
+      ...(c.req.query('summary') === 'true'
+        ? { summary: true }
+        : c.req.query('summary') === 'false'
+          ? { summary: false }
+          : {}),
       ...(c.req.query('status') !== undefined
         ? { status: c.req.query('status') }
         : {}),

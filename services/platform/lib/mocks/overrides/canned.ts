@@ -38,6 +38,23 @@ export const MOCK_TRIGGERS = {
   empty: 'e2e:empty',
   length: 'e2e:length',
   streamError: 'e2e:stream-error',
+  gatewayRoute: 'e2e:gateway-route',
+  cloudRegion: 'e2e:cloud-region',
+} as const;
+
+/**
+ * Serving scenarios (`MOCK_TRIGGERS.gatewayRoute` / `cloudRegion`): the
+ * canned reply, streamed with what a provider says about where it served it.
+ * A gateway route names the upstream on every chunk, the way OpenRouter's
+ * top-level `provider` does; a cloud region names the region in a response
+ * header, the way Azure OpenAI's `x-ms-region` does. Both report a model id
+ * that differs from the requested one (a dated snapshot), as a provider
+ * resolving an alias or a deployment name does.
+ */
+export const MOCK_SERVING = {
+  upstream: 'Anthropic',
+  region: 'Switzerland North',
+  modelSuffix: '-20260115',
 } as const;
 
 /**

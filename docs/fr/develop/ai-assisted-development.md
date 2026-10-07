@@ -64,9 +64,9 @@ Examine le plan avec `tale update --dry-run`. Versionne la configuration publiqu
 
 ## Cursor dans l’éditeur et dans Tale
 
-Un agent de l’éditeur modifie les fichiers de configuration locaux. Un [agent de projet](/fr/platform/projects/project-agents) Tale utilisant le harness Cursor travaille dans une sandbox gérée par Tale. Ces contextes d’exécution ont des identifiants et des conséquences distincts.
+Un agent de l’éditeur modifie les fichiers de configuration locaux. Un [agent de projet](/fr/platform/projects/project-agents) Tale utilisant l’environnement d’agent Cursor travaille dans une sandbox gérée par Tale. Ces contextes d’exécution ont des identifiants et des conséquences distincts.
 
-Le harness de la sandbox utilise son compte fournisseur et son modèle configurés. Ajouter les instructions à ton éditeur ne configure pas ce compte. Consulte [Harnesses](/fr/platform/agents/harnesses) pour préparer l’exécution dans Tale.
+L’environnement d’agent de la sandbox utilise son compte fournisseur et son modèle configurés. Ajouter les instructions à ton éditeur ne configure pas ce compte. Consulte [Environnements d’agent](/fr/platform/agents/harnesses) pour préparer l’exécution dans Tale.
 
 ## Examiner et appliquer une proposition
 

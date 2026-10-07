@@ -17,7 +17,7 @@ Die Dockerfiles verwenden das Repository-Stammverzeichnis als Build-Kontext. Exa
 | `tale-db` | `services/db/` | PostgreSQL mit den mitgelieferten Such- und Vektorerweiterungen auf ParadeDB-Basis. Anwendungs- und Wissensdatenbank nutzen es gemeinsam. |
 | `tale-proxy` | `services/proxy/` | Caddy-Konfiguration und Proxy-Start. |
 | `tale-sandbox` | `services/sandbox/` | Sandbox-Verwaltung mit Bun und Docker-CLI. |
-| `tale-sandbox-runtime` | `services/sandbox-runtime/` | Python-basierte Ausführungsumgebung mit Coding-Harnesses, Node, Bun, Browsern und Dokumentwerkzeugen. |
+| `tale-sandbox-runtime` | `services/sandbox-runtime/` | Python-basierte Ausführungsumgebung mit Agent-Laufzeiten, Node, Bun, Browsern und Dokumentwerkzeugen. |
 | `tale-sandbox-egress` | `services/sandbox-egress/` | Alpine-basierter ausgehender Proxy mit DNS-Unterstützung. |
 | `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | BuildKit mit Netzwerk- und Startkonfiguration der Sandbox. |
 | `tale-sandbox-llm-gateway` | `services/sandbox-llm-gateway/` | Modell-Gateway auf Bifrost-Basis. |

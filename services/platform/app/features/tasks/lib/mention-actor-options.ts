@@ -92,7 +92,7 @@ export function useMentionActorOptions(
 }
 
 export function filterMentionActorOptions(
-  options: MentionActorOption[],
+  options: readonly MentionActorOption[],
   query: string,
 ): MentionActorOption[] {
   const q = query.trim().toLowerCase();

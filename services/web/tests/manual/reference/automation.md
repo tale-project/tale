@@ -93,3 +93,9 @@ error receipt and zero report traffic when disabled.
 
 | [navigation](../suites/navigation.md) | Homepage has a split task-board hero, three chapters and three capability cards; every module destination works; connector names remain readable; motion preference changes complete mounted demos without replay | ✅ automated | `home-demos.spec.ts`, `motion-and-connectors.spec.ts` |
 | [responsive](../suites/responsive.md) | French homepage and agents sandbox illustrations reserve their final height before normal-motion playback at 320px | ✅ automated | `home-demos.spec.ts` |
+
+| Area | Automated coverage | Manual scope |
+| --- | --- | --- |
+| Unknown localized and nested URLs retain the marketing 404, localized recovery, site chrome and noindex metadata at phone/desktop widths | `tests/e2e/specs/smoke.spec.ts`, `tests/prerender/seo.test.ts` | visual treatment in both themes |
+| `/ui` opens Tale UI through HTTP 301, client navigation and static hosting; footer link and shared footnote appear in EN/DE/FR | `lib/redirects.test.ts`, `tests/e2e/specs/smoke.spec.ts`, `tests/prerender/seo.test.ts` | footer spacing |
+| Agent roster rows and cells plus the Agents & connectors sandbox geometry stay fixed throughout normal playback at 390/1280px | `tests/e2e/specs/motion-and-connectors.spec.ts` | illustration readability and motion feel |

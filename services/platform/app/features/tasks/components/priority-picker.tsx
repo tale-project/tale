@@ -63,7 +63,7 @@ function NoPriorityGlyph() {
  *
  * The list mounts on the picker's first use and stays mounted from then on:
  * every card and row of a board carries one, and a closed picker's options
- * and select cost a 2,000-task board seconds (#4062). Until then the trigger
+ * and select cost a 2,000-task board seconds. Until then the trigger
  * stands alone and says what the list's trigger would say while shut.
  */
 export function PriorityPicker({

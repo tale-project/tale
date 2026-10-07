@@ -87,9 +87,13 @@ vi.mock('../hooks/use-actor-directory', () => ({
     resolveActor: () => ({ name: 'Test owner' }),
   }),
   useAssignableActors: () => ({
+    subjectEntries: [],
     assignableMembers: [],
     assignableAgents: [],
     agents: [],
+    members: [],
+    automations: [],
+    resolveActor: () => ({ name: 'Test owner' }),
   }),
 }));
 vi.mock('@/app/features/shared/files/use-file-upload', () => ({

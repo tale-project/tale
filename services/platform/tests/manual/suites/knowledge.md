@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 66 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 67 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -77,6 +77,15 @@ records and delete them after.
   confirm + reload the folder row is gone. **From Microsoft 365** remains
   available before an account is connected; its first-use flow shows the
   required setup or connection step.
+- [ ] `KNOW-F37` · **Deleting a subfolder keeps your place** — Documents →
+  open folder A that holds folder B; open B, copy the address bar and go back
+  to A → B's row **Open menu** → **Delete** (`common.actions.delete`) →
+  **Delete folder** (`documents.deleteFolder.deleteButton`) → B's row is gone
+  and you are still in A: the URL keeps A's `?folderId=` and the breadcrumb
+  still ends at A, not at the Documents root. Now open B's copied address →
+  the toast **Folder not found or no longer accessible**
+  (`documents.folderNotFound`) shows and the page lands on the Documents
+  root; Back does not return to B's address.
 - [ ] `KNOW-F29` · **Rename a folder** — Documents → a folder row's **Open
   menu** → **Rename** (`documents.actions.rename`) → the **Rename folder**
   dialog (`documents.folder.renameFolder`) opens on the current name → change

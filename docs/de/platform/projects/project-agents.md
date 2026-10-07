@@ -23,7 +23,7 @@ Trenne dauerhafte Anweisungen von der jeweiligen Aufgabe. „Erkenne fehlende Be
 
 <Step title="Namen und Laufzeit wählen">
 
-Öffne den Tab **Agenten** des Projekts und wähle **Neuer Agent**. Gib unter **Name** einen erkennbaren Namen ein und wähle die **Agent-Laufzeit**, also den Coding-[Harness](/de/platform/agents/harnesses). Namen sind innerhalb des Projekts eindeutig; bis zu 50 Agenten sind möglich.
+Öffne den Tab **Agenten** des Projekts und wähle **Neuer Agent**. Gib unter **Name** einen erkennbaren Namen ein und wähle die **Agent-Laufzeit**, also das [Programm für seine Ausführung](/de/platform/agents/harnesses). Namen sind innerhalb des Projekts eindeutig; bis zu 50 Agenten sind möglich.
 
 Du kannst auch bei einer Aufgabe beginnen: Solange das Projekt keinen Agenten hat, öffnet **Agent erstellen …** unter **Zuständig** den Dialog **Neuer Agent** über der Aufgabe und weist ihr den Agenten zu, den du erstellst.
 
@@ -65,6 +65,8 @@ Beschreibe unter **Anweisungen** Verantwortung, Belege und Grenzen. Für den Lau
 
 Braucht die Arbeit **Secrets**, ordnet ein Inhaber oder Admin benannte Zugangsdaten der Organisation zu. Der laufende Agent kann ihre Werte lesen. Verwende deshalb eng begrenzte, austauschbare Tokens. Ändert sich ein gemeinsam genutzter Wert, betrifft das auch andere Agenten und Workflow-Nodes mit diesem Namen. Ein Lauf, den ein Mitglied startet, erhält keines dieser Secrets und auch nicht das Token eines zugeordneten GitHub-Zugangs: Arbeit, die sie braucht, muss ein Redakteur oder eine höhere Rolle starten.
 
+Nutze für ein privates Repository einen auf dieses Repository beschränkten Schlüssel und lege die erlaubten Git-Operationen in den Anweisungen fest. Läufe mit Zugangsdaten verwenden den Git-Autorennamen und die E-Mail des Workspace-Besitzers auch ohne GitHub-Connector-Freigabe. Lass die SSH-Hostprüfung eingeschaltet. Eine selbst gehostete Sandbox leitet Repository-SSH über ihren bestehenden Proxy weiter; [SSH-Zugang zu Repositories](/de/self-hosted/configuration/environment-reference#ssh-repository-access) beschreibt die Einrichtung.
+
 Wähle **Agent erstellen**. Prüfe Laufzeit, Provider und Modell der neuen Zeile. Öffne den Agenten erneut, um gespeicherte Ausstattung und Anweisungen zu kontrollieren.
 
 </Step>
@@ -75,7 +77,7 @@ Wähle **Agent erstellen**. Prüfe Laufzeit, Provider und Modell der neuen Zeile
 
 Öffne eine Aufgabe desselben Projekts, wähle den Agenten als Zuständigen und klicke auf **Agent starten**. Zuweisung und Ausführung sind getrennte Aktionen. Ergänze Dateien und Abnahmekriterien vor dem Start. Bearbeitungszugriff auf das Projekt brauchst du dafür nicht: Mitglieder lassen einen Agenten an Aufgaben arbeiten, die sie erstellt haben oder die ihnen zugewiesen sind, Redakteure und höhere Rollen an jeder Aufgabe des Projekts. Ein Lauf, den ein Mitglied startet, bleibt bei dieser Aufgabe, ohne die Secrets des Agenten und in einem eigenen Arbeitsbereich; [Agentenläufe, die ein Mitglied startet](/de/platform/projects/tasks#agentenlaeufe-die-ein-mitglied-startet) zählt auf, was sich ändert.
 
-Der Bericht erscheint als Aufgabenkommentar; gesammelte Dateien werden als Ergebnisse angehängt. Hat ein Admin die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet, kann der Agent für die Aufgabe auch Bilder erstellen. Sie erscheinen bei den Ergebnisdateien und zählen für das Mitglied, das den Lauf gestartet hat. Nach erfolgreicher Agentenarbeit steht die Aufgabe **In Prüfung**, damit der benannte menschliche Reviewer oder unabhängige Reviewer-Agent sie beurteilt. Erwähne den Agenten in einem Kommentar, um die Arbeit zu lenken oder fortzusetzen. Der Harness bestimmt, ob der Hinweis in den laufenden Prozess gelangt oder eine Fortsetzung startet.
+Der Bericht erscheint als Aufgabenkommentar; gesammelte Dateien werden als Ergebnisse angehängt. Hat ein Admin die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet, kann der Agent für die Aufgabe auch Bilder erstellen. Sie erscheinen bei den Ergebnisdateien und zählen für das Mitglied, das den Lauf gestartet hat. Nach erfolgreicher Agentenarbeit steht die Aufgabe **In Prüfung**, damit der benannte menschliche Reviewer oder unabhängige Reviewer-Agent sie beurteilt. Erwähne den Agenten in einem Kommentar, um die Arbeit zu lenken oder fortzusetzen. Die Agent-Laufzeit bestimmt, ob der Hinweis in den laufenden Prozess gelangt oder eine Fortsetzung startet.
 
 Die [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt Fortschritt, Stoppen und Prüfung. Der gewöhnliche Chat-Assistent bleibt davon getrennt, auch mit Projektkontext.
 

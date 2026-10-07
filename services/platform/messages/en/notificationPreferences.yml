@@ -1,0 +1,41 @@
+title: Notifications
+description: Choose which events appear in your bell inbox. Review requests
+  always stay on — they are safety signals.
+deliveryTitle: Email delivery
+deliveryDescription: Actionable alerts (assignments, mentions, reviews,
+  escalations) can also reach your inbox when this organization has a
+  connected mailbox.
+saveFailed: Couldn't save your notification preferences.
+fields:
+  actionableEmail:
+    label: Email me actionable alerts
+    description: Send return-loop notifications to your account email via the
+      organization's connected Gmail, Outlook, or SMTP mailbox.
+  taskAssigned:
+    label: Task assigned to me
+    description: When a task is assigned to you.
+  taskStatusChanged:
+    label: Task status changed
+    description: When a task you follow moves to a new status.
+  taskCommented:
+    label: New comment
+    description: When someone comments on a task you follow.
+  mention:
+    label: Mentions
+    description: When someone @-mentions you.
+  taskDeadlines:
+    label: Start and due dates
+    description: When a task you carry starts, comes due, or runs late.
+  taskReview:
+    label: Review requests
+    description: When work is waiting for your review.
+    lockedHint: Always on — it's a safety signal.
+  escalation:
+    label: Agent escalations
+    description: When an agent asks you a question, escalates a task to a human, or can't finish a task.
+  automationAlerts:
+    label: Automation alerts
+    description: When an automation's schedule pauses itself because its runs keep failing.
+  conversationMessages:
+    label: Conversation messages
+    description: When a contact message arrives in Conversations.

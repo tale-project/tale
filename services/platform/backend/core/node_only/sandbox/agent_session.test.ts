@@ -179,7 +179,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
   });
 
   it.each([true, false])(
-    'a full organization refuses before provisioning (warm=%s)',
+    'a full organization refuses before provisioning (warm=%s) [SBX-R8]',
     async (warm) => {
       const f = fixture(
         scenario,

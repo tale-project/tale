@@ -41,6 +41,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
     resolveActor: () => ({ name: 'Ava Editor' }),
   }),
   useAssignableActors: () => ({
+    subjectEntries: [],
     assignableMembers: [],
     assignableAgents: [],
     agents: [],

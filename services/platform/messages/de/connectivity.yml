@@ -1,0 +1,17 @@
+tabTitle: Verbindung wird wiederhergestellt
+deviceTitle: Du bist offline
+deviceDescription: Prüfe deine Internetverbindung. Tale verbindet sich
+  automatisch wieder, sobald du online bist.
+backendTitle: Tale ist nicht erreichbar
+backendDescription: Der Tale-Server antwortet nicht. Wir versuchen, die
+  Verbindung wiederherzustellen.
+retry: Erneut versuchen
+getApp: App herunterladen
+reachingServer: Verbindung zum Server wird hergestellt
+newVersion:
+  title: Eine neue Version ist verfügbar
+  description: Dieser Tab läuft noch mit der vorherigen Version, deshalb
+    konnte ein Teil der Seite nicht geladen werden. Lade die Seite neu, um
+    fortzufahren.
+  reload: Neu laden
+  later: Später

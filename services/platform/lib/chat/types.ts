@@ -139,6 +139,54 @@ export interface TurnUsage {
    * or never sent — so the cost is an estimate of an estimate. Absent when
    * every round reported. */
   readonly estimated?: boolean;
+  /** Where the turn's model rounds were served, as the providers' own
+   * responses said. Absent when no response named anything. */
+  readonly serving?: TurnServing;
+}
+
+/**
+ * What one model response said about where it was served: the upstream a
+ * gateway routed the request to (OpenRouter's `provider`), the region that
+ * answered (Azure's `x-ms-region`), and the model id the provider reports
+ * serving. Each field is a provider's own statement, read off the response
+ * and bounded (`lib/chat/serving.ts`) — never inferred from a provider's
+ * name or headquarters.
+ */
+export interface ServedBy {
+  readonly provider?: string;
+  readonly region?: string;
+  readonly model?: string;
+  /** The documented regional endpoint the request was sent to — the one
+   * fact here that configuration sets rather than the response. */
+  readonly endpoint?: RegionalEndpoint;
+}
+
+/**
+ * A provider endpoint whose vendor commits to processing requests in one
+ * region (`eu.openrouter.ai`, `eu.api.openai.com`): the host, and the region
+ * it stands for. Known only for the hosts `lib/chat/serving.ts` lists.
+ */
+export interface RegionalEndpoint {
+  readonly host: string;
+  readonly region: EndpointRegion;
+}
+
+export type EndpointRegion = 'europe' | 'united-states';
+
+/**
+ * Where a turn was served, across its rounds: the distinct values the
+ * responses reported, in the order they first appeared. A tool loop calls
+ * the model once per round, and a gateway may route each call to another
+ * upstream, so each field is a list. `models` holds only ids that differ
+ * from the model the turn requested — a dated snapshot behind an alias, the
+ * pick of an auto-router, the model behind an Azure deployment name.
+ */
+export interface TurnServing {
+  readonly providers?: readonly string[];
+  readonly regions?: readonly string[];
+  readonly models?: readonly string[];
+  /** The regional endpoint the turn was sent to, when its host is one. */
+  readonly endpoint?: RegionalEndpoint;
 }
 
 /** Concatenate the text parts of a message — what token estimation and the

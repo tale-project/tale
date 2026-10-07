@@ -252,6 +252,7 @@ common:
 envEditor:
   add: Variable hinzufügen
   badKey: „{key}“ ist kein gültiger Variablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend).
+  projectSecretBadKey: „{key}“ muss mit einem Großbuchstaben beginnen und darf nur Großbuchstaben, Ziffern oder Unterstriche enthalten (maximal 64 Zeichen).
   confirmRemoveDescription: Sie wird beim Speichern deiner Änderungen entfernt. Dies kann nicht rückgängig gemacht werden.
   confirmRemoveTitle: Variable entfernen?
   dupKey: Doppelter Variablenname — jeder NAME muss eindeutig sein.
@@ -275,7 +276,7 @@ metrics:
     last90Days: Letzte 90 Tage
     allTime: Gesamter Zeitraum
 pwa:
-  offlineReady: Tale ist offline einsatzbereit.
+  offlineReady: Die Offline-Seite von Tale ist bereit.
   updateAvailableDescription: Eine neue Version von Tale ist bereit.
   updateAvailableTitle: Aktualisierung verfügbar
   updateNow: Jetzt aktualisieren
@@ -298,6 +299,7 @@ toast:
       title: Gelöscht
 tables:
   headers:
+    locale: Sprache
     description: Beschreibung
 recurrence:
   label: Wiederholen
@@ -348,3 +350,6 @@ recurrence:
     friday: Fr
     saturday: Sa
     sunday: So
+
+siteFooter:
+  copyright: © {year} Tale von Ruler GmbH. MIT-lizenziert.

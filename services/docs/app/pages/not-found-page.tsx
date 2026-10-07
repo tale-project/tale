@@ -3,6 +3,7 @@ import { slugLabel, suggestPages } from '@tale/ui/docs/suggest-pages';
 import { useRouterState } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
+import { firstNavSlug } from '@/lib/content/nav';
 import { docPath } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
 import type { SupportedLocale } from '@/lib/i18n/locales';
@@ -38,9 +39,9 @@ export function NotFoundPage({ locale }: NotFoundPageProps) {
         docsNearMissGroups(),
       ).map(({ slug }) => ({
         href: docPath(locale, slug),
-        label: slug === 'index' ? home : slugLabel(slug),
+        label: slugLabel(slug),
       })),
-    [home, locale, requestedSlug],
+    [locale, requestedSlug],
   );
 
   // The page copy is the shared frame's (`docs.notFound.*` in `@tale/ui`);
@@ -56,7 +57,7 @@ export function NotFoundPage({ locale }: NotFoundPageProps) {
 
   return (
     <DocsNotFound
-      home={{ href: docPath(locale, 'index'), label: home }}
+      home={{ href: docPath(locale, firstNavSlug()), label: home }}
       suggestions={suggestions}
     />
   );

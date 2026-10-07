@@ -1,6 +1,7 @@
 import { runAdapted } from '@/app/lib/backend/adapters';
 import { backendApiErrorFromBody } from '@/app/lib/backend/api-client';
-import { i18n } from '@/lib/i18n/i18n';
+
+import { i18n } from './i18n-all-languages';
 
 /**
  * The session door's answer to a request whose session has ended, as

@@ -23,7 +23,7 @@ Während die Antwort erscheint, wird aus der Sende- eine Stopp-Schaltfläche. Be
 
 ## Ein Modell gezielt auswählen
 
-Sind mehrere nutzbare Modelle verfügbar, startet die Auswahl mit **Auto**. Auto wählt für jede Nachricht ein Modell aus dem verfügbaren Angebot deiner Organisation. Organisationsregeln können ein Standardmodell festlegen oder die Auswahl einschränken. In den Antwortdetails siehst du, welches Modell tatsächlich geantwortet hat.
+Sind mehrere nutzbare Modelle verfügbar, startet die Auswahl mit **Auto**. Auto wählt für jede Nachricht ein Modell aus dem verfügbaren Angebot deiner Organisation. Organisationsregeln können ein Standardmodell festlegen oder die Auswahl einschränken. In den [Antwortdetails](#reply-details) siehst du, welches Modell tatsächlich geantwortet hat.
 
 Wähle ein bestimmtes Modell, wenn du Antworten vergleichen möchtest oder weißt, welches Modell zur Arbeit passt. Die Auswahl bleibt bestehen, bis du sie änderst – auch der Anbieter, der das Modell bereitstellt, wenn zwei Anbieter dasselbe Modell anbieten. Unterstützt das Modell einen einstellbaren Denkaufwand, erscheint auch diese Einstellung. Mehr Denkaufwand kann länger dauern und ersetzt keine Prüfung der Antwort.
 
@@ -58,6 +58,15 @@ Für Fragen zu Tale selbst musst du nichts hochladen: Der Assistent schlägt in 
 Unter **Quellen** stehen die geladenen Dokumente und Seiten. Öffne eine Quelle und prüfe, ob sie die jeweilige Aussage stützt. Eine Quellenangabe zeigt verwendetes Material, garantiert aber keine richtige Schlussfolgerung. Ohne Abrufschritt kann eine Antwort auf dem Vorwissen des Modells beruhen.
 
 Der Assistent durchsucht unter anderem Dokumente, Wissenseinträge, Websites, Kontakte, Produkte, zugängliche Aufgaben und die Inbox-Konversationen, die du sehen darfst. Dabei findet er auch den Text der E-Mails, die in diesen Konversationen eingegangen sind, und den ihrer Anhänge. Eine Aufgabe lässt sich über ihren Schlüssel nennen, etwa `DOCS-12`, wie das Board ihn anzeigt. Er kann Details zu einem Ergebnis abrufen und öffentliche Webseiten lesen. Code ausführen, verbundene Systeme ändern, Bilder erzeugen, Dateiergebnisse erstellen oder [Skills](/de/platform/workspace/skills) nutzen gehört nicht zum Chat. Lege dafür eine [Projektaufgabe](/de/platform/projects/tasks) an. Jeder, der das Projekt öffnen kann, kann sie anlegen und einem der Agenten des Projekts übergeben; [Aus einem Chat eine Aufgabe machen](#create-task-from-chat) zeigt, wie du sie direkt aus dem Gespräch anlegst. Ein Projektagent, der an der Aufgabe arbeitet, kann Bilder erstellen, wenn ein Admin die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet hat.
+
+## Sehen, wie eine Antwort entstanden ist {#reply-details}
+
+Wähle unter einer Antwort **Info anzeigen**, um die **Nachrichteninformation** zu öffnen. Sie nennt das Modell, das geantwortet hat, und seinen **Anbieter**, zeigt, wie lange die Antwort gedauert und wie viele Tokens sie verbraucht hat, und sagt, wo sie verarbeitet wurde, sofern das bekannt ist.
+
+- **Zeit bis zum ersten Token** ist die Zeit, bis das Modell mit seiner Antwort begonnen hat. **Ausgabetempo** gibt an, wie schnell es geschrieben hat, in Tokens pro Sekunde, und **Gesamtzeit**, wie lange die ganze Antwort gedauert hat. Der Balken darunter teilt diese Zeit in Vorbereitung, Warten auf das Modell, Denken und Schreiben auf. Der Server misst ab dem Moment, in dem er mit der Antwort begonnen hat. Die Zeit, bis die ersten Wörter auf deinem Bildschirm erschienen, steht unter dem Balken und kann deshalb länger sein.
+- **Verarbeitet von** nennt das Unternehmen, das das Modell ausgeführt hat, wenn dein Anbieter Anfragen weitergibt. OpenRouter kann zum Beispiel dasselbe Claude-Modell über Anthropic, Amazon Bedrock oder Google Vertex bereitstellen.
+- **Region** gibt an, wo die Antwort verarbeitet wurde, aber nur, wenn der Anbieter sie gemeldet hat, wie es Azure OpenAI tut (zum Beispiel Switzerland North), oder wenn die Anfrage an einen regionalen Endpoint ging, dessen Anbieter die Verarbeitung in einer Region zusichert, etwa `eu.openrouter.ai` oder `eu.api.openai.com`. Sonst steht dort **Nicht gemeldet**: Tale leitet keinen Standort aus dem Namen oder dem Sitz eines Anbieters ab. Bei Azure kann eine Bereitstellung vom Typ Global eine Anfrage in jeder Region verarbeiten, unabhängig davon, welche Region die Antwort nennt. Eine Datenzonen-Bereitstellung verarbeitet innerhalb ihrer Datenzone, etwa der EU, eine regionale Bereitstellung innerhalb ihrer Geografie.
+- **Modellversion** erscheint, wenn der Anbieter ein genaueres Modell meldet als das angefragte, etwa eine datierte Version hinter einem Alias oder das Modell hinter dem Namen einer Azure-Bereitstellung.
 
 ## Aus einem Chat eine Aufgabe machen {#create-task-from-chat}
 

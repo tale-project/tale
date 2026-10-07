@@ -256,7 +256,7 @@ describe('the one retry policy', () => {
   });
 });
 
-describe('account refusals from the provider', () => {
+describe('account refusals from the provider [KNOW-R12]', () => {
   // Z.ai answers account problems as HTTP 429 — 1113 for a spent balance,
   // 1311 for a model the subscription plan excludes. The SDK classes both
   // as RateLimitError, but waiting fixes neither and every retry re-bills
@@ -326,7 +326,7 @@ describe('account refusals from the provider', () => {
   });
 });
 
-describe('a per-minute limit is waited out, not billed', () => {
+describe('a per-minute limit is waited out, not billed [KNOW-R12]', () => {
   // DashScope's compatible mode answers its token-per-minute limit
   // (Throttling.AllocationQuota) with OpenAI's billing code: a scan of 300
   // pages used to end on the first one as "balance or plan", unretried.

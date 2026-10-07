@@ -66,6 +66,7 @@ Write each rule the way you would tell it to a colleague who has never opened th
 The optional **Docs** link names the user docs page of the feature. A page outside this
 workspace must be an input of the platform's `test` task in [`turbo.json`](../../turbo.json),
 or an edit to the page alone would replay the guard's cached verdict; the guard checks that too.
+Every page under `docs/en/platform/` is such an input already.
 
 ---
 
