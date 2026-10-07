@@ -161,6 +161,8 @@ It counts only in the organization it was granted in.
   nothing while it is made.
 - **An automation's model steps**: an `llm` step is admitted against no limit and booked to no
   ledger — the organization's, a person's, a key's or a project's.
+- **Which project a scheduled run spends in** when its automation is installed in several
+  projects: today none, so no project's limit binds it.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.
