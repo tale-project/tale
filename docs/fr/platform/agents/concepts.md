@@ -25,7 +25,7 @@ Un agent appartient à un seul projet. Les personnes qui peuvent lire le projet 
 
 | Élément | Ce qu’il détermine | Exemple de décision |
 | --- | --- | --- |
-| Harness | Le programme de code qui exécute la session dans une sandbox. | Choisir un environnement compatible avec les identifiants disponibles. |
+| Environnement d’agent | Le programme de code qui exécute la session dans une sandbox. | Choisir un environnement compatible avec les identifiants disponibles. |
 | Modèle et fournisseur | Le modèle appelé et le fournisseur qui le sert. | Choisir une combinaison autorisée pour ce travail. |
 | Instructions | La responsabilité et les règles réutilisables, jusqu’à 20 000 caractères. | Exiger des preuves et un compte rendu des vérifications. |
 | Skills | Des instructions regroupées avec leurs fichiers complémentaires. | Ajouter la liste de vérification de l’équipe. |
@@ -37,7 +37,7 @@ Les listes de skills, connectors, outils et noms de secrets acceptent chacune ju
 ```mermaid
 flowchart LR
     P[Tâche et critères d’acceptation] --> A[Agent configuré]
-    H[Harness et modèle] --> A
+    H[Environnement d’agent et modèle] --> A
     I[Instructions permanentes] --> A
     E[Skills, connectors, outils et secrets] --> A
     A --> R[Compte rendu et fichiers à examiner]
@@ -45,6 +45,6 @@ flowchart LR
 
 ## Vérifier les prérequis avant l’affectation
 
-Les identifiants du fournisseur doivent être compatibles avec le harness et le modèle choisis. Une sandbox doit aussi être disponible. Une réponse réussie dans Chat ne prouve aucune de ces conditions. La tâche doit préciser le résultat attendu et fournir les éléments à examiner.
+Les identifiants du fournisseur doivent être compatibles avec l’environnement d’agent et le modèle choisis. Une sandbox doit aussi être disponible. Une réponse réussie dans Chat ne prouve aucune de ces conditions. La tâche doit préciser le résultat attendu et fournir les éléments à examiner.
 
 Une fois ces choix établis, [crée un agent de projet](/fr/platform/projects/project-agents). Le guide d’[automatisation des tâches](/fr/platform/projects/task-automation) explique comment démarrer, guider et examiner son travail.

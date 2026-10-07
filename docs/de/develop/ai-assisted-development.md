@@ -64,9 +64,9 @@ Prüfe geplante Änderungen mit `tale update --dry-run`. Halte öffentliche Konf
 
 ## Cursor beim Bearbeiten und bei der Ausführung
 
-Ein Editor-Agent in diesem Verzeichnis ändert lokale Konfigurationsdateien. Ein Tale-[Projektagent](/de/platform/projects/project-agents) mit Cursor-Harness arbeitet dagegen in einer von Tale verwalteten Sandbox. Beide Kontexte haben eigene Zugangsdaten und unterschiedliche Auswirkungen.
+Ein Editor-Agent in diesem Verzeichnis ändert lokale Konfigurationsdateien. Ein Tale-[Projektagent](/de/platform/projects/project-agents) mit Agent-Laufzeit Cursor arbeitet dagegen in einer von Tale verwalteten Sandbox. Beide Kontexte haben eigene Zugangsdaten und unterschiedliche Auswirkungen.
 
-Der Sandbox-Harness nutzt sein konfiguriertes Anbieterkonto und Modell. Die Projektanweisungen im Editor richten dieses Konto nicht ein. Den Laufzeitaufbau erklären die [Harnesses](/de/platform/agents/harnesses).
+Die Agent-Laufzeit in der Sandbox nutzt ihr konfiguriertes Anbieterkonto und Modell. Die Projektanweisungen im Editor richten dieses Konto nicht ein. Den Laufzeitaufbau erklären die [Agent-Laufzeiten](/de/platform/agents/harnesses).
 
 ## Einen Vorschlag prüfen und anwenden
 

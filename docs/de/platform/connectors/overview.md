@@ -65,6 +65,6 @@ Ein neuer Zugang erweitert nicht beliebig die Tools des gewöhnlichen Chat-Assis
 
 ## Wenn der Dienst fehlt
 
-Ein Projektagent kann aus seiner Sandbox auf einen Dienst zugreifen, wenn sein Harness dafür geeignete Werkzeuge und ein ausdrücklich freigegebenes Secret erhält. Eine `transform`-Node formt nur Daten um und ruft keine externe API auf. Prüfe Berechtigungen und erwartete Auswirkungen vor einer direkten Integration.
+Ein Projektagent kann aus seiner Sandbox auf einen Dienst zugreifen, wenn seine Agent-Laufzeit dafür geeignete Werkzeuge und ein ausdrücklich freigegebenes Secret erhält. Eine `transform`-Node formt nur Daten um und ruft keine externe API auf. Prüfe Berechtigungen und erwartete Auswirkungen vor einer direkten Integration.
 
 Soll die externe Anwendung Tale aufrufen, nutze die [REST-API](/de/develop/api-reference) oder den [MCP-Endpunkt](/de/develop/mcp-endpoint). [MCP und eigene Integrationen](/de/platform/connectors/mcp-servers) erklärt diese Unterscheidung.

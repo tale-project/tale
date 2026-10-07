@@ -17,7 +17,7 @@ Les Dockerfiles utilisent la racine du dépôt comme contexte de construction. C
 | `tale-db` | `services/db/` | PostgreSQL et ses extensions de recherche et de vecteurs, sur une base ParadeDB. Les bases applicative et de connaissances utilisent cette image. |
 | `tale-proxy` | `services/proxy/` | Configuration Caddy et démarrage du proxy. |
 | `tale-sandbox` | `services/sandbox/` | Gestion des sandboxes avec Bun et la CLI Docker. |
-| `tale-sandbox-runtime` | `services/sandbox-runtime/` | Environnement Python avec harnesses de programmation, Node, Bun, navigateurs et outils documentaires. |
+| `tale-sandbox-runtime` | `services/sandbox-runtime/` | Environnement Python avec environnements d’agent de programmation, Node, Bun, navigateurs et outils documentaires. |
 | `tale-sandbox-egress` | `services/sandbox-egress/` | Proxy de sortie et prise en charge DNS sur Alpine. |
 | `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | BuildKit avec les réglages réseau et de démarrage de la sandbox. |
 | `tale-sandbox-llm-gateway` | `services/sandbox-llm-gateway/` | Passerelle de modèles construite à partir de Bifrost. |

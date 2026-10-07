@@ -25,7 +25,7 @@ Ein Agent gehört genau einem Projekt. Wer das Projekt lesen darf, sieht seine A
 
 | Bestandteil | Was er bestimmt | Beispiel für deine Entscheidung |
 | --- | --- | --- |
-| Harness | Das Coding-Programm, das die Sitzung in einer Sandbox ausführt. | Wähle eine Laufzeit, die zum verfügbaren Zugang passt. |
+| Agent-Laufzeit | Das Coding-Programm, das die Sitzung in einer Sandbox ausführt. | Wähle eine Laufzeit, die zum verfügbaren Zugang passt. |
 | Modell und Provider | Das aufgerufene Modell und den bereitstellenden Provider. | Wähle eine für die Arbeit freigegebene Kombination. |
 | Anweisungen | Wiederverwendbare Verantwortung und Arbeitsregeln, bis zu 20.000 Zeichen. | Verlange Belege und einen Bericht über durchgeführte Prüfungen. |
 | Skills | Anweisungs-Bundles und ergänzende Dateien. | Ordne die Review-Checkliste des Teams zu. |
@@ -37,7 +37,7 @@ Die Listen für Skills, Connectors, Tools und Secret-Namen erlauben jeweils bis 
 ```mermaid
 flowchart LR
     P[Projektaufgabe und Abnahmekriterien] --> A[Konfigurierter Agent]
-    H[Harness und Modell] --> A
+    H[Agent-Laufzeit und Modell] --> A
     I[Dauerhafte Anweisungen] --> A
     E[Skills, Connectors, Tools und Secrets] --> A
     A --> R[Bericht und Dateien zur Prüfung]

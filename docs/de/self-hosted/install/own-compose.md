@@ -205,7 +205,7 @@ docker compose ps
 docker compose logs --tail=100 backend-api backend-worker
 ```
 
-Prüfe gesunde Dienste, erfolgreiche Backend-Migrationen und Worker-Fortschritt. Öffne die öffentliche URL, folge [Erster Administrator](/de/self-hosted/install/first-admin), konfiguriere Anbieter und Embedding-Modell und teste kontrolliert Chat, Upload/Download und Wissenssuche. Werden Harnesses benötigt, prüfe auch eine Sandbox-Sitzung.
+Prüfe gesunde Dienste, erfolgreiche Backend-Migrationen und Worker-Fortschritt. Öffne die öffentliche URL, folge [Erster Administrator](/de/self-hosted/install/first-admin), konfiguriere Anbieter und Embedding-Modell und teste kontrolliert Chat, Upload/Download und Wissenssuche. Werden Agent-Laufzeiten benötigt, prüfe auch eine Sandbox-Sitzung.
 
 Datenbankmigrationen laufen beim Backend-Start. Dein Bereitstellungsablauf muss dabei kompatible Versionen verfügbar halten, bei Migrationsfehlern stoppen, aktive Arbeit vor Austausch entleeren und den Wiederherstellungszustand festhalten. Blue-Green-Koordination, Wiederaufnahme ausstehender Wechsel, automatische Snapshots und Rollback-Prüfungen entstehen nicht allein durch Kopieren der Dienstaufteilung.
 

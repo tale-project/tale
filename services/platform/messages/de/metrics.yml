@@ -3,7 +3,7 @@ groups:
   usage: Nutzung
   feedback: Feedback
   chat-health: Chat-Zustand
-  external-turns: Harness-Runden
+  external-turns: Runden der Agent-Laufzeit
   automations: Automatisierungen
   projects: Projekte
 projects:

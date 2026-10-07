@@ -243,7 +243,7 @@ Chaque **201** qui crée une ressource adressable porte `Location` — le chemin
 | Automatisations du projet | `/api/v1/projects/{id}/automations/...`<br>Lister, installer ou désinstaller les automatisations ; démarrer et lister leurs exécutions dans ce projet. |
 | Exécutions | `/api/v1/runs/...` ou `/api/v1/projects/{id}/runs/...`<br>Lister les exécutions ; lire leur statut, sortie, trace et effets ; annuler avec `POST .../{runId}/cancel` ou supprimer une exécution terminée avec `DELETE .../{runId}` ; lire la question d’une exécution en attente avec `GET .../ask` et y répondre avec `POST .../asks/{askId}`. |
 | Fils de conversation | `/api/v1/projects/{id}/threads/...` ou `/api/v1/threads/...`<br>Gérer les chats du détenteur de la clé, dans un projet ou sans projet : lister, créer, lire, archiver, restaurer et supprimer ; envoyer un message, suivre ou annuler son tour. |
-| Modèles | `GET /api/v1/models`<br>Consulter les modèles de chat configurés et accessibles au détenteur de la clé dans l’organisation, leurs capacités et leurs tarifs ; `harnesses` liste les harness de code sur lesquels un agent de projet peut tourner. |
+| Modèles | `GET /api/v1/models`<br>Consulter les modèles de chat configurés et accessibles au détenteur de la clé dans l’organisation, leurs capacités et leurs tarifs ; `harnesses` liste les environnements d’agent sur lesquels un agent de projet peut tourner. |
 | Équipes | `GET /api/v1/teams`<br>Chaque équipe de l’organisation — `id`, `name` et `member`, qui dit si le détenteur de la clé en fait partie — en une liste complète : ce sont les identifiants qu’attend une audience d’équipes (`teamIds` sur un projet ou un document du Hub, `teams` sur un skill). Les équipes se créent et se composent dans l’application (Paramètres > Équipes) ou par un fournisseur d’identité ; rien sur cette surface n’en écrit une. |
 | Agents | `/api/v1/projects/{id}/agents/...`<br>Lister, lire, créer, modifier ou supprimer les agents du projet ; protéger une modification avec `expectedUpdatedAt`. Un `PUT` qui reprend exactement la configuration enregistrée n’écrit rien et laisse `updatedAt` intact. |
 | Skills | `/api/v1/skills/...`<br>Lister, lire, créer, modifier ou supprimer les bundles de l’organisation ; lire leurs fichiers — une lecture validée (`ETag` et `Last-Modified` sur les octets ; `If-None-Match` / `If-Modified-Since` répondent **304**) ; protéger une écriture avec `If-Match`. Un skill n’a pas d’historique de versions sur cette surface : la lecture répond le bundle courant, rien d’autre. |
@@ -550,7 +550,7 @@ Chaque agent appartient à un projet. L’ID du projet est obligatoire dans l’
 | Enregistrer toute la configuration | `PUT /api/v1/projects/{id}/agents/{agentId}`    | `200 {agent}`  |
 | Supprimer                          | `DELETE /api/v1/projects/{id}/agents/{agentId}` | `204`          |
 
-Choisis un projet existant, un harness que `GET /api/v1/models` liste sous `harnesses` — ceux que la plateforme fait tourner avec ses propres identifiants — et un modèle qu’il peut utiliser. Cet exemple crée un agent Claude Code et relit sa configuration ; il ne lance aucune tâche.
+Choisis un projet existant, un environnement d’agent que `GET /api/v1/models` liste sous `harnesses` — ceux que la plateforme fait tourner avec ses propres identifiants — et un modèle qu’il peut utiliser. Cet exemple crée un agent Claude Code et relit sa configuration ; il ne lance aucune tâche.
 
 ```bash
 : "${BASE:?Set BASE to your Tale origin}"

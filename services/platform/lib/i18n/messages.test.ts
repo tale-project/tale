@@ -16,6 +16,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { defineI18nTests } from '@tale/ui/i18n/tests';
+import { describe, expect, it } from 'vitest';
+
+import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,4 +50,38 @@ defineI18nTests({
     'status-chatter': 'report',
     'prose-exclamation': 'report',
   },
+});
+
+// #4441: runtime selectors, provider status and metrics name the same concept.
+// Inspect values only: `harness` keys and ICU arguments remain API contracts.
+describe('agent runtime terminology', () => {
+  for (const [locale, messages, label, plural] of [
+    ['en', enMessages, 'Agent runtime', 'Agent runtimes'],
+    ['de', deMessages, 'Agent-Laufzeit', 'Agent-Laufzeiten'],
+    ['fr', frMessages, "Environnement d'agent", "Environnements d'agent"],
+  ] as const) {
+    it(`${locale}: uses one name across selectors, providers and analytics`, () => {
+      expect(messages.projects.agents.harnessLabel).toBe(label);
+      expect(messages.governance.standardAgent.harnessLabel).toBe(label);
+      expect(messages.automations.editor.fields.harness).toBe(label);
+      expect(messages.analytics.externalTurns.byHarness.harness).toBe(label);
+      expect(messages.settings.providers.harnesses.title).toBe(plural);
+      expect(messages.metrics.groups['external-turns']).toBe(
+        messages.analytics.externalTurns.title,
+      );
+    });
+
+    it(`${locale}: does not expose the old runtime synonyms in messages`, () => {
+      const inspect = (value: unknown): void => {
+        if (typeof value === 'string') {
+          expect(value.replace(/\{[^{}]*\}/g, '')).not.toMatch(
+            /\bharness(?:es)?\b|\bagent types?\b|\bAgenten?-?typ\b|\btype d['’]agent\b/i,
+          );
+        } else if (value !== null && typeof value === 'object') {
+          for (const child of Object.values(value)) inspect(child);
+        }
+      };
+      inspect(messages);
+    });
+  }
 });

@@ -241,7 +241,7 @@ editor:
     equipmentLabel: Équipement
     harnessDefault: Par défaut (Claude Code)
     modelUnlisted: 'Aucun fournisseur connecté ne propose le modèle
-      enregistré "{model}" pour ce harness — choisis-en un dans la liste.'
+      enregistré "{model}" pour cet environnement d''agent — choisis-en un dans la liste.'
   # Le sélecteur de modèle du nœud llm : ce que servent les fournisseurs
   # de l’organisation, avec une saisie libre pour un modèle dont le
   # fournisseur n’est pas encore connecté.
@@ -269,7 +269,7 @@ editor:
     outputSchema: Schéma de sortie
     automation: Automatisation
     credential: Identifiants
-    harness: Harness
+    harness: Environnement d'agent
     skills: Skills
     connectors: Connectors
     tools: Outils de la plateforme

@@ -1666,12 +1666,12 @@ standardAgent:
   title: Standard agent
   description: The agent Tale provides in every project that has none of its own, so anyone who can open the project can hand it a task, Members included.
   enabledLabel: Provide a standard agent
-  harnessLabel: Agent type
-  harnessHint: Automatic runs Claude Code, or the agent type a subscription model is bound to.
+  harnessLabel: Agent runtime
+  harnessHint: Automatic runs Claude Code, or the agent runtime a subscription model is bound to.
   modelLabel: Model
   modelHint: Automatic picks a recommended model the person starting the task may use. A chosen model stays in effect until you change it, even if it becomes unavailable.
   automaticLabel: Automatic
-  automaticHarnessHint: Let Tale choose the agent type.
+  automaticHarnessHint: Let Tale choose the agent runtime.
   automaticModelHint: Let Tale choose a model for each person.
   instructionsLabel: Instructions
   instructionsHint: What the standard agent always keeps in mind. Leave this empty to use the built-in instructions.
@@ -1680,13 +1680,13 @@ standardAgent:
   refusal:
     switchedOff: The standard agent is switched off.
     unreadable: The saved settings can't be read. Retry, or save them again to repair them.
-    harnessInvalid: The chosen agent type isn't available, so the standard agent can't start. Choose another agent type or Automatic.
+    harnessInvalid: The chosen agent runtime isn't available, so the standard agent can't start. Choose another agent runtime or Automatic.
     noModel: No model you can use can run the standard agent. Add a credential under AI providers, or check model access.
     pinUnavailable: The chosen model isn't available to you, so the standard agent can't start for you. Choose another model or Automatic. Tale won't switch to another model while this choice is saved.
   invalidPolicy: The saved standard agent settings are invalid. Save them again to repair them.
   savedUnavailable: Saved selection is not currently available
-  searchHarnesses: Search agent types
-  noHarnessesFound: No matching agent type
+  searchHarnesses: Search agent runtimes
+  noHarnessesFound: No matching agent runtime
   searchModels: Search models
   noModelsFound: No matching model
   draftHint: Save to apply these settings.

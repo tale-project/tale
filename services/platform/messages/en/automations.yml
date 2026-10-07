@@ -234,7 +234,7 @@ editor:
     equipmentLabel: Equipment
     harnessDefault: Default (Claude Code)
     modelUnlisted: 'No connected provider offers the saved model "{model}"
-      for this harness — pick one from the list.'
+      for this agent runtime — pick one from the list.'
   # The llm node's model picker: what the organization's providers serve,
   # with a typed escape for a model whose provider is not connected yet.
   llm:
@@ -260,7 +260,7 @@ editor:
     outputSchema: Output schema
     automation: Automation
     credential: Credential
-    harness: Harness
+    harness: Agent runtime
     skills: Skills
     connectors: Connectors
     tools: Platform tools

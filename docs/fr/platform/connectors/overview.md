@@ -65,6 +65,6 @@ Ajouter des identifiants n’ajoute pas librement des outils à l’assistant de
 
 ## Si le service manque
 
-Un agent de projet peut appeler un service depuis sa sandbox si son harness dispose des outils adaptés et d’un secret explicitement accordé. Un nœud `transform` transforme uniquement des données et ne peut pas appeler une API externe. Vérifie les permissions et les effets attendus avant de choisir une intégration directe.
+Un agent de projet peut appeler un service depuis sa sandbox si son environnement d’agent dispose des outils adaptés et d’un secret explicitement accordé. Un nœud `transform` transforme uniquement des données et ne peut pas appeler une API externe. Vérifie les permissions et les effets attendus avant de choisir une intégration directe.
 
 Si l’application externe doit appeler Tale, utilise l’[API REST](/fr/develop/api-reference) ou le [point d’accès MCP](/fr/develop/mcp-endpoint). [MCP et intégrations personnalisées](/fr/platform/connectors/mcp-servers) explique la distinction.

@@ -9,7 +9,7 @@ Ein nutzbarer Arbeitsbereich braucht eine Organisation, einen funktionierenden M
 
 Melde dich auf der richtigen Instanz als Inhaber oder Admin an. Die Ersteinrichtung erstellt das erste Konto und die Organisation. Siehst du deine Organisation bereits im Dashboard, öffne ihre Einstellungen, statt eine weitere anzulegen.
 
-Halte die Anbieter-Zugangsdaten im Passwortmanager bereit. Der Anbieter muss das gewünschte Modell und die vorgesehenen Aufgaben unterstützen. [KI-Anbieter](/de/platform/admin/providers) erklärt Zugangsdaten, Kataloge und Agentenlaufzeiten.
+Halte die Anbieter-Zugangsdaten im Passwortmanager bereit. Der Anbieter muss das gewünschte Modell und die vorgesehenen Aufgaben unterstützen. [KI-Anbieter](/de/platform/admin/providers) erklärt Zugangsdaten, Kataloge und Agent-Laufzeiten.
 
 ## Einen Anbieter verbinden und Chat testen
 

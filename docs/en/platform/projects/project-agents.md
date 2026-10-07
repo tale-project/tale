@@ -11,7 +11,7 @@ Choose a small outcome, such as reviewing a launch brief for missing approvals. 
 
 Separate reusable instructions from the task. “Identify missing evidence and report the checks you performed” belongs on the agent. The document, review date and acceptance criteria belong on the task.
 
-<Frame caption="The Agents tab — the project's own agents, each row naming its harness, serving provider, and model.">
+<Frame caption="The Agents tab — the project's own agents, each row naming its agent runtime, serving provider, and model.">
 
 ![The Agents tab of the Website relaunch project listing two named agents — Content editor on Claude Code and Redirect auditor on Codex — each row naming the serving provider and model id, beside a New agent button.](/images/platform/project-agents-models.webp)
 
@@ -23,7 +23,7 @@ Separate reusable instructions from the task. “Identify missing evidence and r
 
 <Step title="Name it and choose the runtime">
 
-Open the project’s **Agents** tab and select **New agent**. Give it a recognizable **Name**, then choose **Agent type**, the coding [harness](/platform/agents/harnesses). Names are unique within the project; a project supports up to 50 agents.
+Open the project’s **Agents** tab and select **New agent**. Give it a recognizable **Name**, then choose **Agent runtime**, the [program that runs its session](/platform/agents/harnesses). Names are unique within the project; a project supports up to 50 agents.
 
 You can also start from a task: while the project has no agent, **Create an agent…** under **Assignee** opens **New agent** over the task and assigns the agent you create to it.
 
@@ -77,7 +77,7 @@ Select **Create agent**. Check the new row’s runtime, provider and model, then
 
 Open a task in the same project, choose the agent as assignee and select **Start agent**. Assignment and execution are separate actions. Provide the files and acceptance criteria before starting. You don't need project edit access for this: a Member can put an agent to work on a task they created or that is assigned to them, and an Editor or higher on any task in the project. A run a Member starts keeps to that task, without the agent's secrets and in a workspace of its own; [Agent runs a Member starts](/platform/projects/tasks#agent-runs-a-member-starts) lists what changes.
 
-The agent's report appears in task comments and collected files appear as deliverables. When an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images), the agent can also create images for the task; they appear among the deliverables and count against the member who started the run. Successful agent work moves to **In review** for its designated human or independent agent reviewer. Mention the agent in a comment to guide a running task or continue the conversation; the chosen harness determines whether guidance enters the existing process or starts a continuation.
+The agent's report appears in task comments and collected files appear as deliverables. When an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images), the agent can also create images for the task; they appear among the deliverables and count against the member who started the run. Successful agent work moves to **In review** for its designated human or independent agent reviewer. Mention the agent in a comment to guide a running task or continue the conversation; the chosen agent runtime determines whether guidance enters the existing process or starts a continuation.
 
 [Task automation](/platform/projects/task-automation) explains progress, stopping and review. The ordinary Chat assistant remains separate, even when a chat has project context.
 
@@ -87,11 +87,11 @@ A project without agents of its own can still take on agent work. Unless an admi
 
 <Frame caption="The Agents tab of a project whose tasks go to the standard agent.">
 
-![The Agents tab of the Customer onboarding portal project with one row, Standard agent, marked Standard, reading Claude Code · OpenRouter · anthropic/claude-haiku-4.5 · 4 equipped and Set up by Tale for this project. Its agent type, model and instructions follow the organization's settings under Governance. The row has a delete button and no edit button.](/images/platform/project-agents-standard.webp)
+![The Agents tab of the Customer onboarding portal project with one row, Standard agent, marked Standard, reading Claude Code · OpenRouter · anthropic/claude-haiku-4.5 · 4 equipped and Set up by Tale for this project. Its agent runtime, model and instructions follow the organization's settings under Governance. The row has a delete button and no edit button.](/images/platform/project-agents-standard.webp)
 
 </Frame>
 
-The **Agents** tab lists it with the **Standard** badge. Nobody edits it: its agent type, model and instructions follow the organization's settings, read again whenever a run starts, and its equipment is whichever of the document skills `docx`, `pptx`, `xlsx` and `pdf` the project can use when a run starts, so a skill an admin turns off drops out instead of stopping the agent. On **Automatic**, each run uses a model that the person who starts it may use, so it can run on different models for different people.
+The **Agents** tab lists it with the **Standard** badge. Nobody edits it: its agent runtime, model and instructions follow the organization's settings, read again whenever a run starts, and its equipment is whichever of the document skills `docx`, `pptx`, `xlsx` and `pdf` the project can use when a run starts, so a skill an admin turns off drops out instead of stopping the agent. On **Automatic**, each run uses a model that the person who starts it may use, so it can run on different models for different people.
 
 To give the project an agent of its own, select **New agent**. From then on, the project isn't offered the standard agent any more; the one already set up stays assignable until you delete it. Deleting it keeps the history of its tasks, and while the project has no agents, the next task given to the standard agent sets it up again.
 

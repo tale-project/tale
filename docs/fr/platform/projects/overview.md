@@ -32,7 +32,7 @@ Définis le responsable, le relecteur, les dates et les critères d’acceptatio
 </Card>
 
 <Card title="Configurer un agent de projet" icon="bot" href="/fr/platform/projects/project-agents">
-Choisis le harness, le modèle, les outils et les instructions d’un agent capable de prendre des tâches.
+Choisis l’environnement d’agent, le modèle, les outils et les instructions d’un agent capable de prendre des tâches.
 </Card>
 
 <Card title="Lancer et relire le travail d’un agent" icon="workflow" href="/fr/platform/projects/task-automation">

@@ -110,7 +110,7 @@ agentRun:
     switchedOff: L'agent standard de l'organisation est désactivé. Demande à un admin de l'activer dans Gouvernance.
     noModel: Aucun modèle que tu peux utiliser ne peut faire fonctionner l'agent standard. Demande à un admin de configurer un fournisseur IA ou de te donner accès à un modèle.
     pinUnavailable: Le modèle choisi pour l'agent standard ne t'est pas accessible. Demande à un admin d'en choisir un autre dans Gouvernance.
-    harnessInvalid: Le harness choisi pour l'agent standard n'est pas disponible. Demande à un admin d'en choisir un autre dans Gouvernance.
+    harnessInvalid: L'environnement d'agent choisi pour l'agent standard n'est pas disponible. Demande à un admin d'en choisir un autre dans Gouvernance.
     unreadable: Les réglages de l'agent standard sont illisibles. Demande à un admin de les vérifier dans Gouvernance.
     notNeeded: Ce projet a ses propres agents. Assigne plutôt l'un d'eux.
 automation:
@@ -320,7 +320,7 @@ assignee:
   assignToMe: M’assigner
   agents: Agents
   agentsInfo:
-    Tourne dans un bac à sable sur le harness choisi à la création de
+    Tourne dans un bac à sable sur l'environnement d'agent choisi à la création de
     l'agent — pré-équipé de ses skills, connectors et instructions.
   createAgent: Créer un agent…
   createAgentHint:

@@ -32,7 +32,7 @@ Set an owner, reviewer, dates, and acceptance criteria; follow progress on the b
 </Card>
 
 <Card title="Configure a project agent" icon="bot" href="/platform/projects/project-agents">
-Choose a harness, model, tools, and instructions for an agent that can take tasks.
+Choose an agent runtime, model, tools, and instructions for an agent that can take tasks.
 </Card>
 
 <Card title="Run and review agent work" icon="workflow" href="/platform/projects/task-automation">

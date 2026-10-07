@@ -39,11 +39,11 @@ automations:
     title: No automation runs
     description: No automations have run in the selected period.
 externalTurns:
-  title: Harness turns
-  description: Reliability of harness turns running in the sandbox.
+  title: Agent runtime turns
+  description: Reliability of agent runtime turns running in the sandbox.
   errors:
-    loadFailed: Couldn't load harness turn metrics.
-    refreshFailed: Couldn't refresh harness turn metrics. The figures shown may be out of date.
+    loadFailed: Couldn't load agent runtime turn metrics.
+    refreshFailed: Couldn't refresh agent runtime turn metrics. The figures shown may be out of date.
   cappedNotice: Showing the most recent 5,000 turns in this window. Older
     turns in this period are not included in these totals.
   cards:
@@ -54,12 +54,12 @@ externalTurns:
     cancelled: Stopped by user
     recovered: Recovered
   byHarness:
-    title: By harness
-    harness: Harness
+    title: By agent runtime
+    harness: Agent runtime
     turns: Turns
     successRate: Success rate
     timeouts: Timeouts
-    empty: No harness turns have run in the selected period.
+    empty: No agent runtime turns have run in the selected period.
 usage:
   title: Usage metrics
   description: Token consumption, requests, and active users over time.

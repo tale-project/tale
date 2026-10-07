@@ -861,17 +861,17 @@ providers:
       No directly usable provider credential yet — add an API key or an
       environment credential above.
     noCompatibleModel:
-      A runtime without a model can run none of the directly served models
+      An agent runtime without a model can run none of the directly served models
       — they take tools only through the Responses API, which only Codex
-      speaks. Allow another model for those runtimes, or run the agent on
+      speaks. Allow another model for those agent runtimes, or run the agent on
       Codex.
     noModel: No model yet
     degraded: Recently failing
     subscriptionVia: Subscription · {provider}
-    subscriptionInert: Subscription · {provider} — not usable, this harness runs managed credentials only
+    subscriptionInert: Subscription · {provider} — not usable, this agent runtime runs managed credentials only
     listFailed: Couldn't load the agent status.
-    healthLoadFailed: Couldn't check which runtimes are failing, so none is marked as recently failing.
-    healthRefreshFailed: Couldn't refresh which runtimes are failing. What's shown may be out of date.
+    healthLoadFailed: Couldn't check which agent runtimes are failing, so none is marked as recently failing.
+    healthRefreshFailed: Couldn't refresh which agent runtimes are failing. What's shown may be out of date.
   apiFormat:
     openai: OpenAI-compatible API
     anthropic: Anthropic Messages API

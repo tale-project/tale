@@ -551,7 +551,7 @@ home:
         agent can do depends on its tools and permissions.
     agentSubscriptions:
       q: Can I use my existing agent subscription?
-      a: Yes, when the harness supports that subscription. Bring your own token
+      a: Yes, when the agent runtime supports that subscription. Bring your own token
         or supported login credential and choose the matching runtime. You can
         also use API-backed models. Subscription calls follow the provider’s
         limits and bypass Tale’s gateway metering and spending caps; check
@@ -1189,9 +1189,9 @@ platformAgents:
         docsLabel: Agent concepts
       - title: Supported agent runtimes
         body:
-          Bind Claude Code, Codex, Hermes, and OpenClaw as the harness a project
+          Bind Claude Code, Codex, Hermes, and OpenClaw as the agent runtime a project
           agent or automation agent node runs on.
-        docsLabel: Harnesses
+        docsLabel: Agent runtimes
       - title: Delegation between agents
         body:
           An equipped manager agent can start other agents on ready tasks in
@@ -1240,7 +1240,7 @@ platformAgents:
       path: /platform/agents/concepts
     - label: Project agents
       path: /platform/projects/project-agents
-    - label: Harnesses
+    - label: Agent runtimes
       path: /platform/agents/harnesses
     - label: Task automation
       path: /platform/projects/task-automation
@@ -1282,7 +1282,7 @@ platformAgents:
         title: |-
           Watch the agent
           in Files and Live
-        description: Agents that run on a harness work in a sandbox — browse the
+        description: Agents that run on an agent runtime work in a sandbox — browse the
           workspace tree, open the file they just wrote, and watch the live
           browser as they click through the result.
   demos:

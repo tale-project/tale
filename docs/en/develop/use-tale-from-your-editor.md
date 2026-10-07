@@ -351,9 +351,9 @@ To share the server with a team through a committed `.mcp.json`, reference the k
 
 ## Let a project agent edit scripts
 
-To have the edit made inside Tale, in a sandbox and with a person's review, hand the script to a [project agent](/platform/projects/project-agents). Tale runs a coding harness such as OpenCode in a sandbox, on the model the agent is configured with. The run counts against the budgets of the member who started it and is recorded under that person; a run you start over REST is booked to you, not to the API key. The edited files come back as the task's deliverables, and the task waits in review for a person. [Choose an agent runtime](/platform/agents/harnesses) compares the harnesses; OpenCode runs only through Tale's model gateway, so it never receives a provider key.
+To have the edit made inside Tale, in a sandbox and with a person's review, hand the script to a [project agent](/platform/projects/project-agents). Tale runs an agent runtime such as OpenCode in a sandbox, on the model the agent is configured with. The run counts against the budgets of the member who started it and is recorded under that person; a run you start over REST is booked to you, not to the API key. The edited files come back as the task's deliverables, and the task waits in review for a person. [Choose an agent runtime](/platform/agents/harnesses) compares the agent runtimes; OpenCode runs only through Tale's model gateway, so it never receives a provider key.
 
-Creating the agent needs edit access to the project, which starts at the Editor role; any member who can open the project can then create the task and start the agent on it. The organization needs a model the harness can use and available sandbox capacity. In the app, open the project's **Agents** tab, select **New agent**, choose OpenCode as the agent type and a model, then create a task with the script attached, assign it to the agent, and start the agent.
+Creating the agent needs edit access to the project, which starts at the Editor role; any member who can open the project can then create the task and start the agent on it. The organization needs a model the agent runtime can use and available sandbox capacity. In the app, open the project's **Agents** tab, select **New agent**, choose OpenCode as the agent runtime and a model, then create a task with the script attached, assign it to the agent, and start the agent.
 
 The same loop works from a terminal over REST, reusing `tale-api.sh` from the chat example. First check that this deployment runs OpenCode for project agents:
 
@@ -405,7 +405,7 @@ Review the edited files under the task's deliverables in the app before you appr
 
 From 0.2.10 through 0.3, Tale served an OpenAI-compatible layer: `POST /api/v1/chat/completions`, `POST /api/v1/images/generations`, and an OpenAI-shaped `GET /api/v1/models`, whose `model` field could name an agent. Tale 0.4 rebuilt the platform without it. The [model endpoints](#model-endpoints) take its place for model calls, with differences a client written for 0.3 has to follow:
 
-- The base URL is `/api/v1/openai`, or `/api/v1/anthropic` for an Anthropic client, not `/api/v1`. An OpenAI SDK pointed at `/api/v1` still receives `404 NOT_FOUND` for chat completions, and `GET /api/v1/models` is Tale's own listing of models and agent harnesses, not the OpenAI shape.
+- The base URL is `/api/v1/openai`, or `/api/v1/anthropic` for an Anthropic client, not `/api/v1`. An OpenAI SDK pointed at `/api/v1` still receives `404 NOT_FOUND` for chat completions, and `GET /api/v1/models` is Tale's own listing of models and agent runtimes, not the OpenAI shape.
 - `model` names a model as `<providerSlug>/<modelId>`, never an agent. For the workspace assistant, use the REST chat API; to put an agent to work, use a project agent.
 - Image generation is not served.
 - The endpoints are off until an Admin turns them on, and every call passes model access, the input guardrails, and the budgets.

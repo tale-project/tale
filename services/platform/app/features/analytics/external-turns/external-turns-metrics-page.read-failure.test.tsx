@@ -94,14 +94,14 @@ const answer = (metrics: ExternalTurnMetrics) => () => Response.json(metrics);
 /** The alert's own sentence in each shipped locale — the catalog entries
  * the alert must read, pinned here so a missing translation fails. */
 const LOAD_FAILED: Record<ShippedLocale, string> = {
-  en: "Couldn't load harness turn metrics.",
-  de: 'Die Metriken der Harness-Runden konnten nicht geladen werden.',
-  fr: 'Impossible de charger les métriques des tours de harness.',
+  en: "Couldn't load agent runtime turn metrics.",
+  de: 'Die Metriken der Runden der Agent-Laufzeit konnten nicht geladen werden.',
+  fr: "Impossible de charger les métriques des tours d'environnement d'agent.",
 };
 const REFRESH_FAILED: Record<ShippedLocale, string> = {
-  en: "Couldn't refresh harness turn metrics. The figures shown may be out of date.",
-  de: 'Die Metriken der Harness-Runden konnten nicht aktualisiert werden. Die angezeigten Zahlen sind möglicherweise veraltet.',
-  fr: "Impossible d'actualiser les métriques des tours de harness. Les chiffres affichés peuvent être obsolètes.",
+  en: "Couldn't refresh agent runtime turn metrics. The figures shown may be out of date.",
+  de: 'Die Metriken der Runden der Agent-Laufzeit konnten nicht aktualisiert werden. Die angezeigten Zahlen sind möglicherweise veraltet.',
+  fr: "Impossible d'actualiser les métriques des tours d'environnement d'agent. Les chiffres affichés peuvent être obsolètes.",
 };
 const TRY_AGAIN: Record<ShippedLocale, string> = {
   en: 'Try again',
