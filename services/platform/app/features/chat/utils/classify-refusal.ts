@@ -12,6 +12,8 @@
  * unclassified path before this map.
  */
 
+import { budgetExceededI18nKey } from '@/lib/shared/chat-errors';
+
 /** Whether a refusal's code says a budget cap that binds the sender is
  * reached. */
 export function isBudgetRefusalCode(code: string | undefined): boolean {
@@ -39,10 +41,7 @@ export function classifyRefusal(
   if (isBudgetRefusalCode(code)) {
     return {
       titleKey: 'toast.budgetExceeded',
-      descriptionKey:
-        budgetScope === 'project'
-          ? 'errorHintProjectBudgetExceeded'
-          : 'errorHintBudgetExceeded',
+      descriptionKey: budgetExceededI18nKey(budgetScope),
     };
   }
   if (reason === undefined || reason.length === 0) {

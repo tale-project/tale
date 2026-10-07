@@ -86,6 +86,24 @@ export const CHAT_ERROR_I18N_KEY: Readonly<Record<ChatErrorCode, string>> = {
   generic: 'errorGeneratingDescription',
 };
 
+/** The hint a reached budget cap reads, by whose cap it is, where the
+ * default (`errorHintBudgetExceeded`) would be wrong: a project's cap is the
+ * project's, and Settings > Usage, where the default sends the member, never
+ * lists it. */
+const BUDGET_SCOPE_I18N_KEY: Readonly<Record<string, string>> = {
+  project: 'errorHintProjectBudgetExceeded',
+};
+
+/** The `chat` i18n key that explains a reached budget cap, given the scope
+ * the refusal named (`data.scope`), when it named one. */
+export function budgetExceededI18nKey(budgetScope: string | undefined): string {
+  return (
+    (budgetScope !== undefined
+      ? BUDGET_SCOPE_I18N_KEY[budgetScope]
+      : undefined) ?? CHAT_ERROR_I18N_KEY.budget_exceeded
+  );
+}
+
 /**
  * Richer "named" i18n variant used when the failing provider/model is known.
  * Falls back to {@link CHAT_ERROR_I18N_KEY} when no name is available. Only the

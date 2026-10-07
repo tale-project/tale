@@ -685,7 +685,12 @@ describe('unshareThread', () => {
 describe('moveThreadToProject [CHAT-R3]', () => {
   const auth = { organizationId: 'org_1', userId: 'user_1', email: 'o@x.io' };
   const answering =
-    (row: Omit<typeof OWNED_ROW, 'projectId'> & { projectId: string | null }) =>
+    (
+      row: Omit<typeof OWNED_ROW, 'projectId' | 'branchRootId'> & {
+        projectId: string | null;
+        branchRootId: string | null;
+      },
+    ) =>
     (statement: Statement): unknown[] | undefined => {
       if (statement.text.includes('FROM app.threads t')) return [row];
       if (statement.text.includes('FROM app.projects WHERE id')) {
@@ -782,12 +787,15 @@ describe('moveThreadToProject [CHAT-R3]', () => {
   });
 
   it('moves the conversation’s hidden branches and arena column with it [GOV-R14]', async () => {
-    for (const [row, rootId] of [
-      [OWNED_ROW, 'thread_1'],
+    const rows: { id: string; branchRootId: string | null }[] = [
+      { id: 'thread_1', branchRootId: null },
       // A call that names one of the conversation's branches moves its root
       // lineage all the same.
-      [{ ...OWNED_ROW, id: 'branch_2', branchRootId: 'thread_1' }, 'thread_1'],
-    ] as const) {
+      { id: 'branch_2', branchRootId: 'thread_1' },
+    ];
+    for (const { id, branchRootId } of rows) {
+      const row = { ...OWNED_ROW, id, branchRootId };
+      const rootId = 'thread_1';
       const { sql, statements } = fakeSql(answering(row));
       await moveThreadToProject(sql, auth, row.id, 'project_b');
       const lineage = statements.find((s) =>
