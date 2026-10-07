@@ -27,7 +27,7 @@ The rule is the same everywhere: a request counts against the person who asked f
 
 A retry of an agent run continues the run its starter kicked off, so its usage stays with that person. When an integration uses an API key to act for another member, the run counts against the member acted for, and the key's own limit counts it too.
 
-An API key an Admin made for a member counts against that member, like the member's own key. A key that belongs to a team, a project, or the organization ([API keys](/platform/admin/api-keys#create-a-key-for-someone-else)) is not a person: what it asks for counts against the key itself. Usage analytics shows it as a row of its own under **Per-user usage**, named for its team, project, or organization, and never counts it as an active user. A team's key also counts toward its team's usage.
+An API key an Admin made for a member counts against that member, like the member's own key. A key that belongs to a team, a project, or the organization ([API keys](/platform/admin/api-keys#create-a-key-for-someone-else)) is not a person: what it asks for counts against the key itself. Usage analytics shows it as a row of its own under **Per-user usage**, under the key's name with its team, project, or organization beneath, and never counts it as an active user. A team's key also counts toward its team's usage.
 
 ## Which limits apply
 

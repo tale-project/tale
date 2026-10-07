@@ -71,6 +71,6 @@ An Owner can choose **Transfer ownership** from another member's row menu. Read 
 
 ## Remove or recover access
 
-Use **Disabled** when access should stop while the membership remains. Use the row's **Delete** action to remove the membership from this organization. Removing it also deletes the separate sandbox workspaces of the [agent runs the person started](/platform/projects/tasks#agent-runs-a-member-starts), with their files; **Disabled** keeps them. Review shared work and team responsibilities first; removing membership is different from a [data subject erasure request](/platform/admin/governance/data-subject-requests).
+Use **Disabled** when access should stop while the membership remains. Use the row's **Delete** action to remove the membership from this organization. Removing it also deletes the separate sandbox workspaces of the [agent runs the person started](/platform/projects/tasks#agent-runs-a-member-starts), with their files; **Disabled** keeps them. It also revokes the [API keys](/platform/admin/api-keys#create-a-key-for-someone-else) an Owner or Admin made for the person here, and the keys the person made here for other members. Review shared work and team responsibilities first; removing membership is different from a [data subject erasure request](/platform/admin/governance/data-subject-requests).
 
 If a member loses an authenticator or passkey, open **Edit** and use the relevant security controls. [Two-factor authentication](/platform/admin/two-factor-authentication) explains reset, recovery, and session consequences.

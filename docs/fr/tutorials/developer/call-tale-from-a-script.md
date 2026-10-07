@@ -12,7 +12,7 @@ Ouvre **Paramètres > API > REST**, choisis **Créer une clé API**, donne-lui u
 
 <Frame caption="Donne à la clé un nom qui explique son usage pour pouvoir la révoquer sans toucher à une autre intégration.">
 
-![La boîte de création d’une clé API permet de choisir un nom, à qui appartient la clé et une durée de validité avant sa génération.](/images/get-started/settings-api-keys.webp)
+![La boîte de création d’une clé API permet de choisir un nom et une durée de validité avant sa génération ; les propriétaires et admins choisissent aussi à qui elle appartient.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 

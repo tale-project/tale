@@ -41,7 +41,7 @@ Automations, agents, skills, folders, models, browser sessions, versions, and tr
 
 ## Authentication
 
-Create keys in **Settings > API > REST** as an Owner, Admin, or Developer, or as a member an Admin granted a competence that is used with a key (`tale:models.api`, `tale:notifications.export`, or `tale:rest.act-as`); anyone else is refused with `403 API_KEY_CREATE_FORBIDDEN`; [API keys](/platform/admin/api-keys) explains the UI. A key appears once and acts as the user who created it. This REST surface does not create, list, rotate, or revoke keys.
+Create keys in **Settings > API > REST** as an Owner, Admin, or Developer, or as a member an Admin granted a competence that is used with a key (`tale:models.api`, `tale:notifications.export`, or `tale:rest.act-as`); anyone else is refused with `403 API_KEY_CREATE_FORBIDDEN`; [API keys](/platform/admin/api-keys) explains the UI. A key appears once and acts as the user who created it, unless an Owner or Admin made it for someone else (below). This REST surface does not create, list, rotate, or revoke keys.
 
 An Owner or Admin can also create a key for another member, a team, a project, or the organization. Such a key works in that one organization only, needs no `X-Organization-Slug`, and answers `403 ORG_FORBIDDEN` to a header naming another organization. A member's key acts as the member. A team's, a project's, or the organization's key acts as its own identity, with the role it was created with: a team's key reaches what that team reaches, and a project's key reaches its own project alone — the routes under `/api/v1/projects/{projectId}`, `GET /api/v1/projects`, `GET /api/v1/me`, and the model endpoints — while every other route answers `403 API_KEY_SCOPE_FORBIDDEN` (contract 3.18.0).
 

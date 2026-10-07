@@ -469,15 +469,22 @@ run.
   /api/v1/me` answers an empty `user.email`, one organization with the chosen
   role and `key.owner` naming the team or project; with the project's key,
   `GET /api/v1/projects` lists that project alone and `GET /api/v1/contacts`
-  answers 403 `API_KEY_SCOPE_FORBIDDEN`; the team's key lists the team's
-  projects and the organization-wide ones, not another team's.
+  answers 403 `API_KEY_SCOPE_FORBIDDEN`, and a message sent with it in one of
+  the project's threads asking for the organization's contacts gets none;
+  the team's key lists the team's projects and the organization-wide ones,
+  not another team's.
 - [ ] `SET-F79` · **A key ends with what it belongs to** — with SET-F77's and
-  SET-F78's keys live: delete the team, delete the project, and remove the
-  member from the organization → each of their keys answers 401 on its next
-  call and leaves the table; the audit log (**Settings → Governance → Logs**)
-  shows one **API key revoked** row per key, by the system, with the reason
-  (`team_deleted`, `project_deleted`, `member_removed`). The organization's
-  key keeps working.
+  SET-F78's keys live: open the team's **Delete** confirmation → it counts the
+  team's API keys (`settings.teams.deleteImpact.apiKeys`); delete the team,
+  delete the project, and remove the member from the organization → each of
+  their keys answers 401 on its next call and leaves the table; the audit log
+  (**Settings → Governance → Logs**) shows one **API key revoked** row per
+  key, by the system, with the reason (`team_deleted`, `project_deleted`,
+  `member_removed`). The organization's key keeps working. Make a second key
+  for a Member as a second Admin, then change that Admin's role to Member →
+  the key answers 403 `ORG_FORBIDDEN` ("whoever made it is no longer an Owner
+  or Admin above the member"); remove that Admin instead → the key is revoked
+  with the reason `maker_removed`.
 - [ ] `SET-F33` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → copy the endpoint (`settings.mcpEndpoint.copyEndpoint`); read the tool
   inventory; **Copy example request** (`settings.mcpEndpoint.copyExample`) →
@@ -976,14 +983,16 @@ run.
   `settings.account.profile.nameRequired`,
   `settings.organization.nameRequired`, `settings.teams.teamNameRequired`;
   after a reload the original values are unchanged and no team row was added.
-- [ ] `SET-B34` · **Keys of others, seen from a member** — as a Member (no
-  admin role), open `/dashboard/{org}/settings/api/rest` → **Create API key**
+- [ ] `SET-B34` · **Keys of others, seen from a member** — sign in as the
+  Member SET-F77 made a key for (no Owner, Admin or Developer role, no
+  competence used with a key) and open `/dashboard/{org}/settings/api/rest`
+  → The page lists that key alone — never a team's, a project's, the
+  organization's or another member's key — and offers no **Create API key**
+  (`settings.apiKeys.createKey`). As a Developer member, **Create API key**
   shows no **Belongs to** (`settings.apiKeys.form.owner`), only the
-  personal-key hint (`settings.apiKeys.form.scopeHint`); the table lists the
-  member's own keys and the keys made for them, never a team's, a project's,
-  the organization's or another member's key. `DELETE
-  /api/app/api-keys/{id}` of a team's key from the member's session answers
-  404 `API_KEY_NOT_FOUND`, and the key keeps working.
+  personal-key hint (`settings.apiKeys.form.scopeHint`). `DELETE
+  /api/app/api-keys/{id}` of a team's key from either session answers 404
+  `API_KEY_NOT_FOUND`, and the key keeps working.
 - [ ] `SET-B7` · **API key edge cases** — Create with a blank **Key name**;
   after SET-F32's revoke, call a REST endpoint with the revoked key (e.g.
   `curl -H "Authorization: Bearer <key>"` against the API) → The blank name is

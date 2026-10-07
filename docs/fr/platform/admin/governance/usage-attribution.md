@@ -27,7 +27,7 @@ La règle est la même partout : une requête compte pour la personne qui a dem
 
 Une nouvelle tentative d’une exécution d’agent poursuit l’exécution lancée par son initiateur ; son usage reste donc imputé à cette personne. Quand une intégration agit avec une clé API pour un autre membre, l’exécution compte pour ce membre, et la limite de la clé la compte aussi.
 
-Une clé API qu’un admin a créée pour un membre compte pour ce membre, comme sa propre clé. Une clé qui appartient à une équipe, à un projet ou à l’organisation ([Clés API](/fr/platform/admin/api-keys#create-a-key-for-someone-else)) n’est pas une personne : ce qu’elle demande compte pour la clé elle-même. L’analyse de l’usage la présente sur sa propre ligne sous **Utilisation par utilisateur**, nommée d’après son équipe, son projet ou l’organisation, et ne la compte jamais comme utilisateur actif. La clé d’une équipe compte aussi dans l’usage de son équipe.
+Une clé API qu’un admin a créée pour un membre compte pour ce membre, comme sa propre clé. Une clé qui appartient à une équipe, à un projet ou à l’organisation ([Clés API](/fr/platform/admin/api-keys#create-a-key-for-someone-else)) n’est pas une personne : ce qu’elle demande compte pour la clé elle-même. L’analyse de l’usage la présente sur sa propre ligne sous **Utilisation par utilisateur**, sous le nom de la clé avec son équipe, son projet ou l’organisation en dessous, et ne la compte jamais comme utilisateur actif. La clé d’une équipe compte aussi dans l’usage de son équipe.
 
 ## Quelles limites s’appliquent
 

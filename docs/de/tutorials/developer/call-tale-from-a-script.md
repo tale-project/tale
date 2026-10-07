@@ -12,7 +12,7 @@ Du brauchst eine erreichbare Tale-Instanz, die Berechtigung zum Erstellen eines 
 
 <Frame caption="Gib dem Schlüssel einen erkennbaren Zweck, damit du ihn gezielt widerrufen kannst.">
 
-![Im Dialog zum Erstellen eines API-Schlüssels legst du vor der Erstellung einen Namen, die Zugehörigkeit des Schlüssels und die Gültigkeitsdauer fest.](/images/get-started/settings-api-keys.webp)
+![Im Dialog zum Erstellen eines API-Schlüssels legst du vor der Erstellung einen Namen und die Gültigkeitsdauer fest; Inhaber und Admins wählen außerdem, wem der Schlüssel gehört.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 
