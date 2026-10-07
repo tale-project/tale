@@ -10,7 +10,7 @@ Open **Settings > API > REST** and select **Create API key**. Name the key for i
 
 <Frame caption="Use one recognizable key per integration so you can replace or revoke it independently.">
 
-![The Create API key dialog asks for a descriptive name and an expiry before a key is generated.](/images/get-started/settings-api-keys.webp)
+![The Create API key dialog asks for a descriptive name, whom the key belongs to, and an expiry before a key is generated.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 

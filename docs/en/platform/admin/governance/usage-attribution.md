@@ -27,9 +27,11 @@ The rule is the same everywhere: a request counts against the person who asked f
 
 A retry of an agent run continues the run its starter kicked off, so its usage stays with that person. When an integration uses an API key to act for another member, the run counts against the member acted for, and the key's own limit counts it too.
 
+An API key an Admin made for a member counts against that member, like the member's own key. A key that belongs to a team, a project, or the organization ([API keys](/platform/admin/api-keys#create-a-key-for-someone-else)) is not a person: what it asks for counts against the key itself. Usage analytics shows it as a row of its own under **Per-user usage**, named for its team, project, or organization, and never counts it as an active user. A team's key also counts toward its team's usage.
+
 ## Which limits apply
 
-- **Personal, team, and role limits** bind the person a request counts against. A run a schedule, a webhook, or an event started has no such person and is not measured against any of them.
+- **Personal, team, and role limits** bind the person a request counts against. A run a schedule, a webhook, or an event started has no such person and is not measured against any of them. Neither is a team's, a project's, or the organization's own key, except that a team's key is held to its team's limit.
 - **Organization limits** bind every request, including trigger-started runs.
 - **API-key limits** bind the requests authenticated with that key: the chat messages it sent, its model endpoint calls, and the runs it started.
 

@@ -43,6 +43,8 @@ Automations, agents, skills, folders, models, browser sessions, versions, and tr
 
 Create keys in **Settings > API > REST** as an Owner, Admin, or Developer, or as a member an Admin granted a competence that is used with a key (`tale:models.api`, `tale:notifications.export`, or `tale:rest.act-as`); anyone else is refused with `403 API_KEY_CREATE_FORBIDDEN`; [API keys](/platform/admin/api-keys) explains the UI. A key appears once and acts as the user who created it. This REST surface does not create, list, rotate, or revoke keys.
 
+An Owner or Admin can also create a key for another member, a team, a project, or the organization. Such a key works in that one organization only, needs no `X-Organization-Slug`, and answers `403 ORG_FORBIDDEN` to a header naming another organization. A member's key acts as the member. A team's, a project's, or the organization's key acts as its own identity, with the role it was created with: a team's key reaches what that team reaches, and a project's key reaches its own project alone — the routes under `/api/v1/projects/{projectId}`, `GET /api/v1/projects`, `GET /api/v1/me`, and the model endpoints — while every other route answers `403 API_KEY_SCOPE_FORBIDDEN` (contract 3.18.0).
+
 | Header | Rule |
 | --- | --- |
 | `Authorization: Bearer <key>` | The only supported API-key location; preserve the whole opaque string, including its `tale` prefix |
@@ -60,7 +62,7 @@ A user with exactly one organization can omit the organization header. With seve
 
 Each of the three refusals lists the organizations you can select in `data.organizations`, as `slug` and `name` pairs. Disabled memberships are left out, so the list is empty when none remains. Retry with one of the listed slugs.
 
-`GET /api/v1/me` also returns the membership list as `organizations`. Its `key.expiresAt` is epoch milliseconds, or `null` for a non-expiring key: rotate unattended credentials before expiry causes `401`. `key.name` identifies the credential in use.
+`GET /api/v1/me` also returns the membership list as `organizations`; for a key that works in one organization only, that is the one organization, with the role the key acts with. Its `key.expiresAt` is epoch milliseconds, or `null` for a non-expiring key: rotate unattended credentials before expiry causes `401`. `key.name` identifies the credential in use, and `key.owner.kind` says whose it is: `user` for a person's own key, `member`, `team`, `project`, or `organization`, with the team or project under `key.owner.team` and `key.owner.project`. A team's, a project's, or the organization's key has no address, so its `user.email` is empty.
 
 Check both the role and the resource scope before offering an operation. Project readers can chat, comment, and create tasks, and they can change and start the tasks they created or are assigned to; changes to other resources and to other people's tasks require edit access.
 
