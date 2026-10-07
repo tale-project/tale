@@ -1,4 +1,3 @@
-import { AppShell } from '@tale/ui/app-shell';
 import { loadLocale } from '@tale/ui/i18n/load-locale';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -70,9 +69,6 @@ const PROJECT_ID = 'proj-1' as string;
 function renderTab() {
   return render(
     <ProjectSecretsTab organizationId="org-1" projectId={PROJECT_ID} />,
-    // Keep the language selected by the test; the client preference bridge
-    // would otherwise switch back to the browser's English locale.
-    { wrapper: ({ children }) => <AppShell i18n={i18n}>{children}</AppShell> },
   );
 }
 
