@@ -1,0 +1,219 @@
+searchPlaceholder: Rechercher des skills
+sectionDescription:
+  Des paquets d'instructions réutilisables que tes agents peuvent lire.
+  Écris-en un ici ou charge un bundle, puis partage-le avec des équipes ou
+  avec toute l'organisation.
+deleteSkill: Supprimer le skill
+notFound: Skill introuvable
+skillDeleted: Skill supprimé
+skillDeleteFailed: Échec de la suppression du skill
+deleteConfirmation:
+  Cela supprime le bundle du skill "{slug}" du disque. Tout agent qui l’a
+  équipé en est déséquipé.
+listFailed: Impossible de charger la bibliothèque de skills. Recharge et réessaie.
+readOnly: Tu peux lire ce skill mais pas le modifier — son propriétaire (ou un
+  admin de l'organisation pour les skills partagés) le gère.
+entityLabel: skills
+entityLabelOne: skill
+library:
+  labelFilterLabel: Filtrer par libellé
+  scopeFilterLabel: Visibilité
+  tabs:
+    org: Organisation
+    team: Équipes
+    personal: Personnel
+columns:
+  name: Nom
+  description: Description
+  visibility: Visibilité
+  labels: Libellés
+  createdBy: Créé par
+  loadError: Impossible de lire SKILL.md
+loadErrorDetail:
+  title:
+    yamlSyntax: Le frontmatter n'a pas pu être analysé
+    missingFrontmatter: Frontmatter manquant
+    unclosedFrontmatter: Frontmatter non fermé
+    frontmatterTooLarge: Frontmatter trop volumineux
+    invalidFrontmatter: Frontmatter invalide
+    emptyFrontmatter: Frontmatter vide
+    symlink: SKILL.md est un lien symbolique
+    inaccessible: Impossible de lire ce skill
+    generic: Ce skill n'a pas pu être chargé
+form:
+  description: Description
+section:
+  body: Instructions (corps)
+viewer:
+  toggleWrap: Basculer le retour à la ligne
+  imageNotice:
+    L'aperçu d'image n'est pas disponible dans le navigateur. Utilise
+    la CLI pour inspecter cet asset.
+  binaryNotice: Ce type de fichier n'est pas prévisualisable dans le navigateur.
+  largeFile: Fichier volumineux — coloration syntaxique désactivée pour les
+    performances.
+  notFound:
+    Ce fichier n'est plus dans le bundle. Choisis un autre fichier dans
+    l'arborescence.
+  loadFailed: Impossible de charger ce fichier.
+  refreshFailed:
+    Impossible d'actualiser ce fichier. Tu vois la version chargée
+    précédemment.
+  empty: Ce fichier est vide.
+detail:
+  loadFailed: Impossible de charger ce skill.
+  refreshFailed:
+    Impossible d'actualiser ce skill. Tu vois la version chargée
+    précédemment.
+  tree:
+    heading: Bundle
+    empty: Seulement SKILL.md — les assets du bundle vivent sous scripts/,
+      references/ ou assets/.
+    headingCount: Bundle · {fileCount} fichiers
+upload:
+  dialogTitle: Téléverser un skill
+  uploadDescription:
+    Téléverse un zip — ou choisis un dossier — avec SKILL.md à la racine,
+    plus tous les scripts, références ou assets optionnels.
+  dropZoneLabel: Téléverser un bundle de skill
+  dropOrClick: Dépose un .zip ici ou clique pour parcourir
+  dropHere: Dépose le bundle ici
+  acceptedFormats: Zip contenant SKILL.md à la racine
+  parsing: Lecture du bundle…
+  zipRequired: Le bundle doit être un fichier .zip.
+  folderDropUnsupported: Les dossiers ne peuvent pas être déposés ici —
+    utilise « Choisir un dossier » en dessous.
+  singleFileOnly: Dépose un seul fichier .zip, pas plusieurs fichiers.
+  chooseFolder: Choisir un dossier
+  bundleFiles: Fichiers du bundle
+  fileCount: '{count, plural, one {# fichier} other {# fichiers}}'
+  frontmatter: Frontmatter
+  license: Licence
+  recommendedPython: Python recommandé
+  recommendedNode: Node recommandé
+  disableModelInvocation: Demande un usage explicite de ce skill ; ne restreint pas l'accès.
+  unknownKeys: '{count, plural, one {# entrée frontmatter supplémentaire
+    conservée} other {# entrées frontmatter supplémentaires conservées}}'
+  sharingHeading: Partage
+  sharingAs:
+    private: Déclare le partage privé retiré — accepté seulement s'il
+      remplace un skill privé existant
+    team: Arrive partagé avec les équipes que son frontmatter déclare
+    org: Arrive partagé avec toute l'organisation
+  sharingEditableAfter: tu peux changer le partage après le téléversement.
+  submit: Téléverser le bundle
+  submitting: Téléversement…
+  uploadSuccess: Bundle de skill téléversé
+  uploadFailed: Échec du téléversement du bundle
+  replaceTitle: Remplacer le skill existant ?
+  replaceDescription: Un skill nommé "{slug}" existe déjà. Le téléversement
+    écrasera son contenu actuel.
+  replaceConfirm: Remplacer
+  replaceSuccess: Bundle de skill remplacé
+  errors:
+    notZip: Le bundle doit être un fichier .zip.
+    invalidZip: 'Archive zip invalide : {detail}'
+    emptyZip: Le bundle est vide.
+    tooManyEntries: Le bundle contient {count} entrées (maximum {max}).
+    unsafePath: "Chemin d'entrée non sûr dans le bundle : {path}"
+    absolutePath: 'Chemin absolu dans le bundle : {path}'
+    missingSkillMd: Il manque SKILL.md à la racine du bundle.
+    frontmatterRejected: 'Frontmatter de SKILL.md rejeté : {detail}'
+    invalidSlug: Le nom du frontmatter "{slug}" n'est pas un slug de skill valide.
+    skillMdTooLarge: SKILL.md dépasse la limite de {max} par fichier.
+    assetTooLarge: '"{path}" dépasse la limite de {max} par fichier.'
+    totalTooLarge: Le bundle décompressé dépasse {max}.
+attribution:
+  createdBy: Créé par
+  lastEditedBy: Dernière modification par
+  builtin: Fourni avec Tale
+  release: Release de configuration
+  releaseBy: Release de configuration · {name}
+  formerMember: Ancien membre
+  byMember: Par {name}
+  byFormerMember: Par un ancien membre
+publishing:
+  reserved:
+    editors: Ton organisation réserve le partage avec tout le monde aux
+      éditeurs et au-delà, ainsi qu'aux membres autorisés par un admin.
+    admins: Ton organisation réserve le partage avec tout le monde aux
+      propriétaires et aux admins, ainsi qu'aux membres autorisés par un
+      admin.
+  noTeams: Tu ne fais partie d'aucune équipe, et ton organisation réserve le
+    partage avec tout le monde. Demande à un admin de t'ajouter à une équipe
+    ou de t'autoriser à publier des skills.
+  lockedEdit: Tant que ce skill reste partagé avec toute l'organisation,
+    seule une personne autorisée à publier peut le modifier. Tu peux le
+    restreindre à tes équipes (et le modifier au même moment) ou le
+    supprimer.
+  uploadRefused: Dans SKILL.md, mets la visibilité sur team avec les
+    identifiants de tes équipes, ou demande à un admin de téléverser ce
+    bundle.
+  refused: Ton organisation réserve le partage avec tout le monde, et tu n'as
+    pas le droit de publier. Partage plutôt ce skill avec tes équipes.
+  exists: Un skill portant ce nom existe déjà. Aucune modification n’a été effectuée.
+addMenu:
+  label: Ajouter un skill
+createMenu:
+  blank: Skill vierge
+  uploadZip: Téléverser un zip
+  uploadFolder: Téléverser un dossier
+createDialog:
+  title: Créer un skill
+  nameLabel: Nom
+  namePlaceholder: mon-skill
+  nameHelp:
+    Identifiant unique — lettres minuscules, chiffres et tirets simples.
+    Ce nom devient le slug du skill.
+  namePatternError: Utilise des lettres minuscules, des chiffres et des tirets
+    simples (ex. mon-skill).
+  submit: Créer
+  creating: Création...
+  created: Skill créé
+  exists: Un skill avec ce nom existe déjà.
+visibility:
+  label: Visibilité
+  org: Organisation
+  orgHelp: Chaque membre peut le lire ; les agents de n'importe quel projet
+    peuvent l'équiper.
+  team: Équipes
+  teamHelp: Seuls les membres des équipes choisies le voient, et seuls les
+    agents de leurs projets peuvent l'équiper.
+  teamsLabel: Partagé avec les équipes
+  teamsPlaceholder: Choisis au moins une équipe
+  teamsRequired: Choisis au moins une équipe, ou une autre visibilité.
+  noTeamsHint: Ton organisation n'a pas encore d'équipes — crée-en une
+    d'abord sous Paramètres > Équipes.
+  unknownTeam: Équipe inconnue
+  teamBadgeMore: '{team} +{count}'
+  private: Privé
+  privateHelp: Retiré — toi seul le vois, et aucun agent ne peut l'équiper.
+    Choisis un partage plus large pour rendre le skill utilisable.
+  narrowingTitle: Restreindre qui voit ce skill ?
+  narrowingWarning: Quelqu'un qui voit ce skill maintenant perdra l'accès —
+    et chaque agent qui l'équipe à travers lui cessera de le charger.
+iconPicker:
+  label: Icône
+  trigger: Changer l'icône
+  searchPlaceholder: Rechercher des icônes
+  none: Aucune icône
+  refine: '{count, plural, one {# icône de plus — continue à taper pour
+    affiner} other {# icônes de plus — continue à taper pour affiner}}'
+editor:
+  saved: Skill enregistré
+  saveFailed: Échec de l'enregistrement du skill
+  descriptionHelp:
+    Une ou deux phrases sur ce que couvre le skill — c'est ce qui indique
+    au modèle quand le lire.
+  labels: Libellés
+  labelsPlaceholder: recherche, pdf, finance
+  labelsHelp: Séparés par des virgules, jusqu'à 8 — pour parcourir, pas pour le modèle.
+  labelsTooMany:
+    "Un skill accepte au plus {max} libellés. Retire {excess, plural, one {#
+    libellé} other {# libellés}} pour pouvoir enregistrer."
+  labelTooLong:
+    "Le libellé « {label} » dépasse {max} caractères. Raccourcis-le pour
+    pouvoir enregistrer."
+  bodyHelp:
+    Le markdown que le modèle lit quand il charge le skill — playbooks,
+    conventions, référence. Jamais exécuté.

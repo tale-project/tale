@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { taskCommentDraftKey } from '../lib/draft-key';
@@ -9,6 +10,7 @@ const localeState = { locale: 'en' };
 const mutationState = vi.hoisted(() => ({
   addPending: false,
   addMutateAsync: vi.fn(),
+  editRead: vi.fn(),
 }));
 
 vi.mock('@/app/hooks/use-current-user', () => ({
@@ -23,19 +25,9 @@ vi.mock('./mention-text', () => ({
   MentionText: ({ body }: { body: string }) => <p>{body}</p>,
 }));
 
-vi.mock('./mention-textarea', () => ({
-  MentionTextarea: (props: {
-    value: string;
-    placeholder?: string;
-    'aria-describedby'?: string;
-  }) => (
-    <textarea
-      placeholder={props.placeholder}
-      value={props.value}
-      aria-describedby={props['aria-describedby']}
-      readOnly
-    />
-  ),
+vi.mock('../lib/mention-actor-options', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/mention-actor-options')>()),
+  useMentionActorOptions: () => [],
 }));
 
 vi.mock('./mention-trigger-chips', () => ({
@@ -81,15 +73,30 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useAddTaskComment: () => ({
-    mutateAsync: mutationState.addMutateAsync,
-    isPending: mutationState.addPending,
-  }),
-  useEditTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useAddTaskComment: () => {
+    const [isPending, setIsPending] = useState(false);
+    return {
+      mutateAsync: async (args: { taskId: string; body: string }) => {
+        setIsPending(true);
+        try {
+          return await mutationState.addMutateAsync(args);
+        } finally {
+          setIsPending(false);
+        }
+      },
+      isPending: mutationState.addPending || isPending,
+    };
+  },
+  useEditTaskComment: () => {
+    mutationState.editRead();
+    return { mutateAsync: vi.fn(), isPending: false };
+  },
   useDeleteTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     resolveActor: (type: string, id: string) => ({
       type,
@@ -103,6 +110,19 @@ vi.mock('../hooks/use-actor-directory', () => ({
             kind: 'agent',
             name: 'Assistant',
             description: 'General-purpose helper',
+            agent: {
+              name: 'Assistant',
+              organizationId: 'org_1',
+              projectId: 'project_1',
+              harness: 'codex',
+              model: 'gpt-6.1',
+              modelProvider: 'openai',
+              skills: [],
+              connectors: [],
+              tools: [],
+              instructions: 'General-purpose helper',
+              managed: false,
+            },
             viewTo: '/dashboard/$id',
             viewParams: { id: 'org_1' },
           }
@@ -158,6 +178,17 @@ describe('TaskComments — who may change a comment', () => {
         {...props}
       />,
     );
+
+  it('creates no edit mutation observers until an author opens an editor', () => {
+    mutationState.editRead.mockClear();
+    localeState.locale = 'en';
+    thread({ currentUserId: 'user_1', canWork: false });
+    expect(mutationState.editRead).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'actions.edit' }));
+    expect(mutationState.editRead).toHaveBeenCalledTimes(1);
+    expect(screen.getByDisplayValue('Thanks.')).toBeInTheDocument();
+  });
 
   it('lets an author edit and delete their own comment on a task they may not work', () => {
     localeState.locale = 'en';
@@ -418,6 +449,93 @@ describe('TaskComments submit loading', () => {
 describe('TaskCommentComposer draft', () => {
   afterEach(() => {
     window.localStorage.clear();
+    mutationState.addMutateAsync.mockReset();
+    vi.restoreAllMocks();
+  });
+
+  describe.each(['inline', 'chat'] as const)('%s submission', (variant) => {
+    const composer = () => (
+      <TaskCommentComposer
+        taskId="task-1"
+        organizationId="org-1"
+        projectId="project-1"
+        variant={variant}
+      />
+    );
+    const key = taskCommentDraftKey('u1', 'org-1', 'task-1');
+
+    it.each([
+      ['Later unsent comment', true],
+      ['  First submitted comment  ', true],
+      ['First submitted comment', false],
+    ])('retains only a newer draft: %s', async (laterDraft, edited) => {
+      let finish!: (result: { unresolvedMentionTokens: string[] }) => void;
+      mutationState.addMutateAsync.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const view = render(composer());
+      const field = screen.getByRole('textbox');
+      fireEvent.change(field, { target: { value: 'First submitted comment' } });
+      fireEvent.click(screen.getByRole('button', { name: 'actions.comment' }));
+      expect(mutationState.addMutateAsync).toHaveBeenCalledExactlyOnceWith({
+        taskId: 'task-1',
+        body: 'First submitted comment',
+      });
+      expect(
+        screen.getByRole('button', { name: 'actions.comment' }),
+      ).toBeDisabled();
+      expect(field).not.toBeDisabled();
+      expect(field).not.toHaveAttribute('readonly');
+      if (edited) fireEvent.change(field, { target: { value: laterDraft } });
+      await act(async () => {
+        finish({ unresolvedMentionTokens: [] });
+      });
+      expect(field).toHaveValue(edited ? laterDraft : '');
+      expect(window.localStorage.getItem(key)).toBe(
+        edited ? JSON.stringify(laterDraft) : null,
+      );
+      view.unmount();
+      render(composer());
+      expect(screen.getByRole('textbox')).toHaveValue(edited ? laterDraft : '');
+    });
+
+    it.each([false, true])(
+      'retains a failed draft (edited: %s)',
+      async (edited) => {
+        let fail!: (error: Error) => void;
+        mutationState.addMutateAsync.mockReturnValue(
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+        );
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        render(composer());
+        const field = screen.getByRole('textbox');
+        fireEvent.change(field, {
+          target: { value: 'First submitted comment' },
+        });
+        fireEvent.click(
+          screen.getByRole('button', { name: 'actions.comment' }),
+        );
+        const retainedDraft = edited
+          ? 'Later unsent comment'
+          : 'First submitted comment';
+        if (edited)
+          fireEvent.change(field, { target: { value: retainedDraft } });
+        await act(async () => {
+          fail(new Error('Comment failed'));
+        });
+        expect(field).toHaveValue(retainedDraft);
+        expect(window.localStorage.getItem(key)).toBe(
+          JSON.stringify(retainedDraft),
+        );
+        expect(
+          screen.getByRole('button', { name: 'actions.comment' }),
+        ).toBeEnabled();
+      },
+    );
   });
 
   it.each(['Half a thought', '<Button />', '<tag>'])(

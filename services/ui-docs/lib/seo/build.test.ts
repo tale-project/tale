@@ -24,11 +24,10 @@ import {
 } from './build';
 
 describe('UI documentation discovery', () => {
-  it('keeps artifact and pre-JavaScript metadata aligned with the homepage catalog', async () => {
+  it('keeps artifact and pre-JavaScript metadata aligned with the site catalog', async () => {
     const title = enMessages.seo.siteTitle;
-    const description = enMessages.home.heroDescription;
+    const description = UI_DOCS_SITE_DESCRIPTION;
     expect(UI_DOCS_SITE_TITLE).toBe(title);
-    expect(UI_DOCS_SITE_DESCRIPTION).toBe(description);
 
     const dom = new JSDOM(
       await readFile(new URL('../../index.html', import.meta.url), 'utf8'),
@@ -80,12 +79,15 @@ describe('UI documentation discovery', () => {
     }
   });
 
-  it('includes the indexable homepage without advertising a missing Markdown twin', async () => {
+  it('indexes real guides and omits the retired homepage', async () => {
     const params = await buildUiDocsCompileParams();
     const files = await compileToMemory(params);
 
-    expect(files.get('/sitemap.xml')?.body).toContain(
+    expect(files.get('/sitemap.xml')?.body).not.toContain(
       '<loc>https://ui.tale.dev/</loc>',
+    );
+    expect(files.get('/sitemap.xml')?.body).toContain(
+      '<loc>https://ui.tale.dev/docs/getting-started/introduction</loc>',
     );
     expect(files.get('/llms.txt')?.body).not.toContain(
       new URL('/index.md', params.siteUrl).href,

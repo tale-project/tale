@@ -1,0 +1,22 @@
+title: Zugriff verweigert
+connectors: Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die
+  Connector-Einstellungen zuzugreifen.
+apiKeys: API-Schlüssel nutzen Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.
+apiTab: Diese Seite ist Inhabern, Admins und Entwicklern vorbehalten.
+apiModels: Die Einrichtung der Modell-Endpunkte ist Inhabern, Admins und Entwicklern vorbehalten und Mitgliedern mit der Kompetenz „Modelle über die API aufrufen“.
+organization: Du benötigst Admin-Berechtigungen, um auf die
+  Organisationseinstellungen zuzugreifen.
+branding: Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen
+  zuzugreifen.
+knowledge: Du hast keine Berechtigung, auf Wissen zuzugreifen.
+automations: Automatisierungen sind Inhabern, Admins und Entwicklern vorbehalten.
+workspaceNotFound: Dieser Workspace existiert nicht oder wurde entfernt.
+disabled: Dein Konto ist deaktiviert. Kontaktiere den Support.
+noMembership: Du bist kein Mitglied dieses Workspace. Wende dich an einen Administrator.
+enterpriseSso: Sie benötigen Administratorrechte, um auf die
+  Enterprise-SSO-Einstellungen zuzugreifen.
+dataResidency: Du benötigst Admin-Berechtigungen, um auf die
+  Datenresidenz-Einstellungen zuzugreifen.
+providers:
+  Du benötigst Admin- oder Entwickler-Berechtigungen, um KI-Anbieter zu
+  verwalten.

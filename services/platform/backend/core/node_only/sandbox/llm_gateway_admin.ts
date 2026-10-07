@@ -470,7 +470,8 @@ export async function mintVirtualKey(
     return await postVirtualKey(args, byProvider, options);
   } catch (error) {
     for (const provider of byProvider.keys()) {
-      recentProviderKeys.delete(providerMemoKey(args.organizationId, provider));
+      const memoKey = providerMemoKey(args.organizationId, provider);
+      recentProviderKeys.delete(memoKey);
     }
     throw error;
   }
@@ -1320,6 +1321,8 @@ async function writeProviderKey(
  * rotated credential still pushes at once; the host policy is rechecked
  * first all the same.
  */
+const provisioning = new Map<string, Promise<string | null>>();
+
 async function provisionOne(
   organizationId: string,
   p: ProviderProvision,
@@ -1332,10 +1335,34 @@ async function provisionOne(
       : false;
   const fingerprint = providerFingerprint(p, allowPrivateNetwork);
   const memoKey = providerMemoKey(organizationId, p.name);
-  const recent = reuseRecent ? recentProviderKey(memoKey) : undefined;
-  if (recent?.fingerprint === fingerprint) {
-    return recent.keyId; // pushed or verified by this process moments ago
+  const recent = recentProviderKey(memoKey);
+  if (reuseRecent && recent?.fingerprint === fingerprint) return recent.keyId;
+  // Only equivalent calls already in flight share work. DNS policy and the
+  // caller's live credential resolution still happen for every provision.
+  const flightKey = `${llmGatewayUrl()}:${memoKey}:${fingerprint}`;
+  const pending = provisioning.get(flightKey);
+  if (pending !== undefined) return pending;
+  const work = reconcileProvider(
+    organizationId,
+    p,
+    allowPrivateNetwork,
+    fingerprint,
+  );
+  provisioning.set(flightKey, work);
+  try {
+    return await work;
+  } finally {
+    if (provisioning.get(flightKey) === work) provisioning.delete(flightKey);
   }
+}
+
+async function reconcileProvider(
+  organizationId: string,
+  p: ProviderProvision,
+  allowPrivateNetwork: boolean,
+  fingerprint: string,
+): Promise<string | null> {
+  const memoKey = providerMemoKey(organizationId, p.name);
   const existing =
     (await listProviderKeys(p.name)).find(
       (k) => k.name === gatewayKeyName(organizationId, p.name),
@@ -1465,6 +1492,8 @@ let gatewayConfigAppliedAt: number | undefined;
  * creates keep re-asserting it in between. A failed apply is never
  * remembered: it throws, and the next call applies again.
  */
+const applyingGatewayConfig = new Map<string, Promise<void>>();
+
 export async function applyGatewayConfig(
   options: GatewayReuseOptions = {},
 ): Promise<void> {
@@ -1475,6 +1504,28 @@ export async function applyGatewayConfig(
   ) {
     return;
   }
+  const identity = createHash('sha256')
+    .update(
+      JSON.stringify([
+        llmGatewayUrl(),
+        adminUsername(),
+        requireGatewayAdminPassword(),
+      ]),
+    )
+    .digest('hex');
+  const pending = applyingGatewayConfig.get(identity);
+  if (pending !== undefined) return pending;
+  const work = verifyGatewayConfig();
+  applyingGatewayConfig.set(identity, work);
+  try {
+    await work;
+  } finally {
+    if (applyingGatewayConfig.get(identity) === work)
+      applyingGatewayConfig.delete(identity);
+  }
+}
+
+async function verifyGatewayConfig(): Promise<void> {
   const getRes = await managementFetch('/api/config');
   if (!getRes.ok) {
     throw new Error(
@@ -1487,6 +1538,18 @@ export async function applyGatewayConfig(
     auth_config?: { is_enabled?: boolean };
   };
   const current = cfg.client_config ?? {};
+  // Authenticate and inspect on every sandbox create; write only on drift.
+  // A restored/insecure store is repaired before any virtual key is minted.
+  if (
+    cfg.auth_config?.is_enabled === true &&
+    current.enforce_auth_on_inference === true &&
+    current.disable_content_logging === true &&
+    typeof current.log_retention_days === 'number' &&
+    current.log_retention_days >= 1
+  ) {
+    gatewayConfigAppliedAt = Date.now();
+    return;
+  }
   // `PUT /api/config` re-validates the whole client_config, but GET returns
   // server-side zero-defaults that fail it — notably log_retention_days=0 vs
   // the `min=1` validator. Clamp the known-constrained field before

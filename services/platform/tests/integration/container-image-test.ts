@@ -16,13 +16,16 @@
 import {
   Compose,
   composeArgs,
-  dockerInspect,
   imageExists,
-  imageSizeMb,
+  imageMetadata,
+  imageUnpackedSizeBytes,
+  nonRootImageUser,
+  type ImageMetadata,
 } from './lib/docker';
 import { checkDocumentTools } from './lib/document-tools';
 import { capture, projectRoot, stream } from './lib/exec';
 import { BOLD, GREEN, header, NC, RED, Results, YELLOW } from './lib/log';
+import { checkSshTools } from './lib/ssh-tools';
 
 const PROJECT_ROOT = projectRoot();
 const compose = new Compose(
@@ -41,39 +44,27 @@ const SIZE_BUDGETS: Record<string, number> = {
   platform: 2900,
   db: 1200,
   proxy: 100,
+  // Docker .Size measured 255 MiB in Build37264873673; ~17% headroom.
+  // Registry gzip layers are 86.45 MiB, a different metric from this guard.
+  'sandbox-llm-gateway': 300,
   sandbox: 320,
   'sandbox-egress': 80,
   // Debian-slim + the verbatim BuildKit static binaries + redsocks/iptables —
   // a lean, deterministic image (~335 MB amd64), ~13% headroom.
   'sandbox-buildkitd': 380,
-  // Carries a heavy toolchain by design, on top of the playwright/chromium base
-  // and native docker/compose-in-session (runtime tiers, #1881):
-  //   - document conversion: libreoffice + poppler + pandoc (~570 MB)
-  //   - LaTeX/XeTeX for pandoc publication-grade PDF: texlive-xetex +
-  //     latex-recommended + fonts-recommended + lang-chinese + lmodern (~660 MB)
-  //   - the baked external-agent CLIs (single-runtime-image doctrine): the
-  //     2026-07-07 wave — Codex (~290 MB, single-platform Rust binary),
-  //     OpenClaw (~170 MB), Pi (~80 MB) — landed on top of claude-code,
-  //     opencode, cursor, gemini and hermes, pushing amd64 from ~4.3 GB to
-  //     ~4.9 GB (their per-PR Build runs were concurrency-cancelled, so the
-  //     over-budget check never surfaced before merge).
-  //   - the builtin document skills' libraries, so they work without registry
-  //     egress: the Python lock adds ~290 MB (pandas, numpy, onnxruntime for
-  //     markitdown's file-type model, reportlab, pdfplumber/pypdfium2) and the
-  //     Node lock ~130 MB (react-icons alone ~85 MB, docx, pptxgenjs, sharp),
-  //     taking amd64 from ~4.87 GB to an estimated ~5.3 GB.
-  //   - the October refresh of all nine harnesses: upstream bundles grew
-  //     (OpenClaw ~730 MB, Codex ~380 MB, Pi ~160 MB). CI measured 6166 MB
-  //     before keeping ~120 MB of Bun/node-gyp build caches out of layers.
-  // ~10% headroom over the refreshed ~6.0 GB amd64 image. Runtime binaries
-  // and diagnostics stay intact; the image is shared by concurrent sessions.
-  'sandbox-runtime': 6600,
+  // Runtime disk budget uses exact unpacked layer bytes from Docker history.
+  // inspect.Size can count compressed OCI content on containerd and would
+  // accept a ~5.8 GB runtime as ~1.9 GB. Retained bytes in lower layers count
+  // even when a later layer deletes them. Includes every managed harness,
+  // Chromium, document libraries, Office/PDF tools, XeTeX and inner Docker.
+  'sandbox-runtime': 6000,
 };
 
 const SERVICES = [
   'platform',
   'db',
   'proxy',
+  'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',
   'sandbox-buildkitd',
@@ -99,8 +90,13 @@ const SAFE_SECRET_VALUES = new Set([
 const SPAWNER_IMAGES = new Set(['sandbox-runtime', 'sandbox-buildkitd']);
 
 /** Resolve a service's image ref, with the spawner-image fallbacks. */
-async function getImage(service: string): Promise<string> {
-  const fromCompose = await compose.imageFor(service);
+async function getImage(
+  service: string,
+  composeImages: string[],
+): Promise<string> {
+  const fromCompose = composeImages.find((image) =>
+    image.includes(`/tale-${service}:`),
+  );
   if (fromCompose) return fromCompose;
   if (SPAWNER_IMAGES.has(service)) {
     const local = `tale-${service}:latest`;
@@ -142,26 +138,31 @@ async function main(): Promise<number> {
     }
   }
 
+  // Resolve Compose once and snapshot each immutable image once. All later
+  // checks reuse these values instead of spawning Docker for every field.
+  const composeImages = await compose.images();
   const images = new Map<string, string>();
+  const metadata = new Map<string, ImageMetadata>();
   for (const svc of SERVICES) {
-    const img = await getImage(svc);
+    const img = await getImage(svc, composeImages);
     images.set(svc, img);
     if (img) {
+      metadata.set(svc, await imageMetadata(img));
       console.log(`  ${GREEN}✓${NC} ${svc}: ${img}`);
     } else {
-      console.log(
-        `  ${YELLOW}⚠${NC} ${svc}: image not found (skipping checks)`,
-      );
+      r.fail(`${svc}: required image not found`);
     }
   }
+
+  if (r.failed > 0) return 1;
 
   // 1. OCI label checks
   header('Checking OCI labels');
   for (const svc of SERVICES) {
     const img = images.get(svc);
     if (!img) continue;
-    const labels = await dockerInspect(img, '{{json .Config.Labels}}');
-    if (labels.includes('org.opencontainers.image.source')) {
+    const labels = metadata.get(svc)!.labels;
+    if ('org.opencontainers.image.source' in labels) {
       r.pass(`${svc}: OCI labels present`);
     } else {
       r.warn(`${svc}: OCI labels missing (acceptable for local builds)`);
@@ -173,8 +174,8 @@ async function main(): Promise<number> {
   for (const svc of SERVICES) {
     const img = images.get(svc);
     if (!img) continue;
-    const user = await dockerInspect(img, '{{.Config.User}}');
-    const nonRoot = Boolean(user) && user !== 'root' && user !== '0';
+    const user = metadata.get(svc)!.user;
+    const nonRoot = nonRootImageUser(user);
     switch (svc) {
       case 'platform':
         r.pass(`${svc}: root (expected — gosu to app at runtime)`);
@@ -196,9 +197,10 @@ async function main(): Promise<number> {
           `${svc}: root (expected — buildkitd needs root + --privileged for build mount/namespace ops)`,
         );
         break;
+      case 'sandbox-llm-gateway':
       case 'sandbox-runtime':
         if (nonRoot) r.pass(`${svc}: runs as user '${user}' (non-root)`);
-        else r.fail(`${svc}: runtime image must not run as root`);
+        else r.fail(`${svc}: image must not run as root`);
         break;
     }
   }
@@ -207,6 +209,16 @@ async function main(): Promise<number> {
   const runtimeImage = images.get('sandbox-runtime');
   if (runtimeImage) {
     for (const uid of [65534, 10001] as const) {
+      const ssh = await checkSshTools(runtimeImage, uid);
+      if (ssh.exitCode === 0) {
+        r.pass(
+          `sandbox-runtime: SSH agent and HTTP CONNECT work as uid ${uid}`,
+        );
+      } else {
+        r.fail(
+          `sandbox-runtime: SSH tools failed as uid ${uid}: ${ssh.combined.slice(-1200)}`,
+        );
+      }
       const result = await checkDocumentTools(runtimeImage, uid);
       if (result.exitCode === 0) {
         r.pass(
@@ -229,16 +241,13 @@ async function main(): Promise<number> {
     if (!img) continue;
     let foundSecret = false;
 
-    const envRaw = await dockerInspect(
-      img,
-      '{{range .Config.Env}}{{.}} {{end}}',
-    );
-    const tokens = envRaw.split(/\s+/).filter(Boolean);
+    // Preserve each complete ENV value; a space must not disguise a secret
+    // whose prefix matches one of the explicitly permitted dummy values.
+    const tokens = metadata.get(svc)!.env;
     for (const key of SECRET_KEYS) {
-      const entry = tokens.find(
-        (tok) => tok.startsWith(`${key}=`) && tok.length > key.length + 1,
-      );
-      if (entry) {
+      for (const entry of tokens.filter((token) =>
+        token.startsWith(`${key}=`),
+      )) {
         const value = entry.slice(key.length + 1);
         if (value && !SAFE_SECRET_VALUES.has(value)) {
           r.fail(`${svc}: secret ${key} found in image env`);
@@ -321,8 +330,7 @@ async function main(): Promise<number> {
       );
       continue;
     }
-    const healthcheck = await dockerInspect(img, '{{.Config.Healthcheck}}');
-    if (healthcheck && healthcheck !== '<nil>') {
+    if (metadata.get(svc)!.hasHealthcheck) {
       r.pass(`${svc}: HEALTHCHECK defined`);
     } else {
       r.fail(`${svc}: no HEALTHCHECK instruction`);
@@ -339,7 +347,10 @@ async function main(): Promise<number> {
   for (const svc of SERVICES) {
     const img = images.get(svc);
     if (!img) continue;
-    const sizeMb = await imageSizeMb(img);
+    const sizeMb =
+      svc === 'sandbox-runtime'
+        ? Math.ceil((await imageUnpackedSizeBytes(img)) / 1024 / 1024)
+        : metadata.get(svc)!.sizeMb;
     const budget = SIZE_BUDGETS[svc] ?? 0;
     if (sizeMb <= budget) {
       console.log(
@@ -362,6 +373,7 @@ try {
   exitCode = await main();
 } catch (err) {
   console.error(err);
+  r.fail('Image validation could not complete');
   exitCode = 1;
 }
 

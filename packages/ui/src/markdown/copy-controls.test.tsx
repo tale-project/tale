@@ -6,7 +6,10 @@ import { uiMessages } from '../i18n/messages';
 import { AnchoredHeading } from './anchored-heading';
 import { CodeBlock } from './code-block';
 
-vi.mock('./shiki', () => ({ highlightCode: async () => null }));
+vi.mock('./shiki', () => ({
+  highlightCode: async () => null,
+  peekHighlightedCode: () => null,
+}));
 
 let i18n: ReturnType<typeof initServiceI18n>;
 

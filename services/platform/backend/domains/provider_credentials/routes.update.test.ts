@@ -82,7 +82,7 @@ describe('POST /provider-credentials/:id — the edit door', () => {
   });
 
   it.each([{ status: 'disabled' }, { isDefault: false }])(
-    'answers the refused edit %j as 409 CREDENTIAL_IN_USE with what uses it',
+    'answers the refused edit %j as 409 CREDENTIAL_IN_USE with what uses it [PCRED-R5]',
     async (patch) => {
       updateCredential.mockRejectedValue(
         new CredentialAdminError('CREDENTIAL_IN_USE', 'in use', 409, {

@@ -65,6 +65,8 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     resolveActor: (_type: string, id: string) => ({
       name: id === 'issue-triager' ? 'Issue Triager' : id,

@@ -1,5 +1,8 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { configurationHashSchema } from '@tale/shared/schemas/configuration';
 import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
+import { managedTaskInstructionsSchema } from '@tale/shared/schemas/managed-configuration';
+import { externalStatusRequestBodySchema } from '@tale/shared/schemas/task-external-status';
 import { setTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
@@ -9,6 +12,7 @@ import { taskRepeatSchema } from '../../../lib/shared/task-repeat.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
 import {
   importedTaskTitleRefusal,
   TASK_ATTACHMENTS_MAX,
@@ -20,7 +24,10 @@ import {
 } from '../../core/tasks/helpers.ts';
 import { resolveTaskServing } from '../../core/tasks/task_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
+import {
+  invalidBodyResponse,
+  invalidBodyIssuesResponse,
+} from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
@@ -61,6 +68,10 @@ import {
   startWorkflowForTaskInTx,
   upsertTaskByExternalRef,
 } from './external-ref.ts';
+import {
+  readTaskStatusSnapshot,
+  requestExternalTaskStatus,
+} from './external-status.ts';
 import { getProjectTaskMetrics } from './metrics.ts';
 import { stopTaskRepeat, type TaskRepeatCopy } from './repeat.ts';
 import { TaskReviewError } from './reviews.ts';
@@ -103,6 +114,8 @@ import {
   assertTaskNotArchived,
   liveAgentRunOfTask,
   loadTaskOrThrow,
+  readTaskInstructionsConfiguration,
+  updateTaskInstructionsConfiguration,
   mayWorkTask,
 } from './service.ts';
 import { listTasksFromThread } from './source-thread.ts';
@@ -289,6 +302,9 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
+  if (error instanceof ConfigurationError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
+  }
   if (error instanceof TaskReviewError) {
     return c.json({ error: error.code, message: error.message }, error.status);
   }
@@ -339,6 +355,99 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       c.get('sessionBundle').user.email,
     );
 
+  app.get('/:taskId/external-status', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
+      assertTaskReadable(
+        await loadProjectOrThrow(deps.sql, task.projectId),
+        auth,
+      );
+      return c.json(
+        await readTaskStatusSnapshot(deps.sql, auth.organizationId, task.id),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:taskId/external-status-request', async (c) => {
+    const body = externalStatusRequestBodySchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await transactSerializable(deps.sql, (tx) =>
+          requestExternalTaskStatus(tx, auth, c.req.param('taskId'), body.data),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:taskId/configuration/instructions', async (c) => {
+    const target = managedTaskInstructionsSchema
+      .omit({ description: true })
+      .safeParse({
+        projectId: c.req.query('projectId'),
+        taskId: c.req.param('taskId'),
+      });
+    if (!target.success) return invalidBodyResponse(c, target.error);
+    try {
+      return c.json(
+        await readTaskInstructionsConfiguration(
+          deps.sql,
+          await authCtx(c),
+          target.data.projectId,
+          target.data.taskId,
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:taskId/configuration/instructions', async (c) => {
+    const body = z
+      .strictObject({
+        config: managedTaskInstructionsSchema,
+        expectedHash: configurationHashSchema,
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.projectId !== c.req.query('projectId') ||
+      body.data.config.taskId !== c.req.param('taskId')
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        updateTaskInstructionsConfiguration(
+          tx,
+          auth,
+          body.data.config,
+          body.data.expectedHash,
+        ),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   // What an UNPINNED project-agent model pick would run on RIGHT NOW — the
   // task resolver's direct-only walk (it intentionally differs from the
   // workflow lane's). A resolution failure is a RESULT, not an error.
@@ -381,6 +490,12 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const statuses = c.req.query('statuses');
     return {
       includeArchived: c.req.query('includeArchived') === 'true',
+      // Additive read projection: older callers still receive full rows.
+      ...(c.req.query('summary') === 'true'
+        ? { summary: true }
+        : c.req.query('summary') === 'false'
+          ? { summary: false }
+          : {}),
       ...(c.req.query('status') !== undefined
         ? { status: c.req.query('status') }
         : {}),

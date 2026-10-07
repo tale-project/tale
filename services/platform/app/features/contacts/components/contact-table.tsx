@@ -2,6 +2,7 @@
 
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
+import { useDebounce } from '@tale/ui/use-debounce';
 import { useListPage } from '@tale/ui/use-list-page';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
@@ -40,6 +41,7 @@ export function ContactsTable({
 }: ContactsTableProps) {
   const navigate = useNavigate();
   const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tContacts } = useT('contacts');
@@ -47,8 +49,11 @@ export function ContactsTable({
 
   const { data: count } = useApproxContactCount(organizationId);
   const { columns, searchPlaceholder, pageSize } = useContactsTableConfig();
+  const [searchValue, setSearchValue] = useState('');
+  const debouncedSearch = useDebounce(searchValue.trim(), 250);
   const paginatedResult = useListContactsPaginated({
     organizationId,
+    search: debouncedSearch || undefined,
     source,
     locale,
     initialNumItems: pageSize,
@@ -207,8 +212,11 @@ export function ContactsTable({
     },
     pageSize,
     sorting,
+    sortingColumns: columns,
     search: {
-      fields: ['name', 'email', 'externalId'],
+      serverSide: true,
+      value: searchValue,
+      onChange: setSearchValue,
       placeholder: searchPlaceholder,
     },
     filters: {
@@ -231,7 +239,11 @@ export function ContactsTable({
         enableRowSelection={canSelectRow}
         rowSelection={deletableSelection}
         onRowSelectionChange={setRowSelection}
-        sorting={{ initialSorting: sorting, onSortingChange: setSorting }}
+        sorting={{
+          manual: true,
+          initialSorting: sorting,
+          onSortingChange: setSorting,
+        }}
         actionMenu={
           <ContactsActionMenu
             organizationId={organizationId}
@@ -246,13 +258,20 @@ export function ContactsTable({
           headingLevel: 2,
         }}
         footer={
-          <BulkDeleteBar
-            rowSelection={deletableSelection}
-            onClearSelection={handleClearSelection}
-            onDeleteItem={handleDeleteItem}
-            onDeleteComplete={handleClearSelection}
-            describeFailure={firstFailureDetail}
-          />
+          canWrite && (
+            <BulkDeleteBar
+              rowSelection={deletableSelection}
+              onRowSelectionChange={setRowSelection}
+              getItemLabel={(id) =>
+                paginatedResult.results.find((item) => item._id === id)?.name ??
+                id
+              }
+              onClearSelection={handleClearSelection}
+              onDeleteItem={handleDeleteItem}
+              onDeleteComplete={handleClearSelection}
+              describeFailure={firstFailureDetail}
+            />
+          )
         }
         {...list.tableProps}
       />

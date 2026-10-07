@@ -86,7 +86,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('retireTasksInTx', () => {
+describe('retireTasksInTx [TASK-R13]', () => {
   it('does nothing for an empty set', async () => {
     const { tx, statements } = fakeTx();
     await expect(

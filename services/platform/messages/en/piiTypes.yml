@@ -1,0 +1,84 @@
+email: Email
+phone: Phone
+creditCard: Credit card
+cvc: Card CVC
+iban: IBAN
+ipAddress: IP address
+macAddress: MAC address
+jwt: JWT
+ssn: SSN
+dateOfBirth: Date of birth
+address: Address
+nationalId: National ID
+de-personalausweis: German ID
+at-passport: Austrian passport
+fr-nir: French SSN
+fr-passport: French passport
+it-codice-fiscale: Tax ID
+it-passport: Italian passport
+nl-bsn: Dutch SSN
+nl-passport: Dutch passport
+es-dni: Spanish ID
+es-nie: Foreigner ID
+es-passport: Spanish passport
+pt-nif: Portuguese tax ID
+br-cpf: Brazilian CPF
+pt-passport: Portuguese passport
+se-personnummer: Personnummer
+se-passport: Swedish passport
+pl-pesel: PESEL
+pl-passport: Polish passport
+uk-nino: NI number
+ca-sin: Canadian SIN
+ie-pps: PPS number
+ca-passport: Canadian passport
+ru-snils: SNILS
+ru-inn-individual: INN
+ru-passport: Russian passport
+ua-inn: Tax ID
+jp-my-number: My Number
+jp-passport: Japanese passport
+cn-resident-id: Chinese ID
+cn-passport: Chinese passport
+tw-id: Taiwan ID
+kr-rrn: Korean RRN
+kr-passport: Korean passport
+sa-national-id: Saudi ID
+eg-national-id: Egyptian ID
+il-teudat-zehut: Israeli ID
+tr-tckn: TC ID
+gr-amka: AMKA
+in-aadhaar: Aadhaar
+in-pan: PAN
+in-passport: Indian passport
+id-nik: NIK
+th-national-id: Thai ID
+cz-birth-number: Birth number
+fi-hetu: HETU
+dk-cpr: CPR
+no-fodselsnummer: Personnummer
+ro-cnp: CNP
+ir-national-id: Iranian ID
+pk-cnic: CNIC
+lt-personal-code: Personal code
+ch-ahv: Swiss AHV
+ch-uid: Swiss UID
+de-steuer-id: German Tax ID
+us-passport: US passport
+uk-nhs: NHS number
+au-tfn: Australian TFN
+au-medicare: Medicare number
+nz-ird: NZ IRD
+za-id: South African ID
+hk-hkid: Hong Kong HKID
+sg-nric: Singapore NRIC
+fr-siret: SIRET
+be-nrn: Belgian NRN
+it-piva: Partita IVA
+se-orgnr: Swedish Org. No.
+ar-cuil: CUIL/CUIT
+mx-curp: CURP
+mx-rfc: RFC
+cl-rut: Chilean RUT
+co-cc: Cédula
+_unknown: Sensitive

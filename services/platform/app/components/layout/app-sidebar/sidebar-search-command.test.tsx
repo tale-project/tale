@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AbilityContext } from '@/app/context/ability-context';
 import { defineAbilityFor } from '@/lib/permissions/ability';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { enMessages } from '@/tests/utils/messages';
 import {
   render,
   screen,
@@ -10,7 +11,6 @@ import {
   waitForElementToBeRemoved,
 } from '@/tests/utils/render';
 
-import enMessages from '../../../../messages/en.yml';
 import { SidebarProvider, useSidebar } from './sidebar-context';
 import { SidebarSearchCommand } from './sidebar-search-command';
 

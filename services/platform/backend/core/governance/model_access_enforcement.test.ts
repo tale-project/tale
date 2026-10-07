@@ -17,7 +17,7 @@ function makeConfig(
 }
 
 describe('model_access_enforcement', () => {
-  describe('resolveAllowedAndBlockedModels', () => {
+  describe('resolveAllowedAndBlockedModels [GOV-R8]', () => {
     it('returns null when there are no rules', () => {
       const config = makeConfig({ rules: [] });
       const result = resolveAllowedAndBlockedModels(
@@ -256,7 +256,7 @@ describe('model_access_enforcement', () => {
       ).toBe(false);
     });
 
-    it('allowlist mode: blockedModels overrides allowedModels', () => {
+    it('allowlist mode: blockedModels overrides allowedModels [GOV-R9]', () => {
       expect(
         isModelPermitted('allowlist', ['gpt-4o'], ['gpt-4o'], 'gpt-4o'),
       ).toBe(false);

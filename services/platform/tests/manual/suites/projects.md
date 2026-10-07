@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 59 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 65 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -199,6 +199,16 @@ projects-list row ⋯ menu.
   (`projects.settings.deleteConfirmPhrase`) → **Delete project**
   (`projects.settings.deleteSubmit`) → The project row is gone from the list
   after the dialog closes and survives a reload; its tasks are also removed.
+- [ ] `PROJ-F40` · **Delete from General lands on the list** — Open a
+  throwaway project's **General** tab (`projects.navigation.overview`) → in
+  the danger zone (`projects.dangerZone.title`) **Delete**
+  (`projects.rowActions.delete`) → **Delete project**
+  (`projects.settings.deleteSubmit`) → The toast **Project deleted**
+  (`projects.settings.deleteSuccess`) shows and the URL settles on
+  `/dashboard/{org}/projects`, never **We couldn't find that project. It may
+  have been deleted.** (`projects.errors.PROJECT_NOT_FOUND`); Back from the
+  list does not reopen the General page. Deleting from the list's row ⋯
+  instead leaves you on the list with its **Teams** filter still in the URL.
 - [ ] `PROJ-F16` · **List + board basics** — Create a project + task, view
   board & list, then cascade-delete → Mirrors the automated happy path in
   `projects.spec.ts`
@@ -476,6 +486,34 @@ projects-list row ⋯ menu.
   reads **A project appears here once someone shares it with you or one of
   your teams.** (`projects.list.emptyReaderDescription`). As an Editor both
   doors are back. The server refuses a create below the Editor role.
+- [ ] `PROJ-B16` · **A secrets read that fails is not an empty Environment** —
+  As a project administrator with one stored secret, block
+  `*/api/app/projects/*/secrets*` in DevTools (Network → request blocking)
+  and reload the project's **Environment** tab (`projectSecrets.title`) →
+  after the retries (a few seconds) an alert reads **Couldn't load this
+  project's secrets.** (`projectSecrets.errors.loadFailed`) with **Try
+  again** (`common.actions.tryAgain`), and there is no editor: no **Add
+  variable** (`envEditor.add`), no **Save** (`envEditor.save`), never the
+  empty list a project without secrets shows. A screen reader announces the
+  alert; **Try again** pressed while still blocked stays focused (busy) and
+  announces the failure again. Unblock → **Try again** → the stored
+  secret's row returns without a reload and the focus lands on the
+  **Environment** group. Network shows no write in either state.
+- [ ] `PROJ-B17` · **A project read that fails is not a project that is gone**
+  — On a project you can edit, block the project's own read
+  `*/api/app/projects/<its id>?*` in DevTools (Network → request blocking)
+  and reload its **Overview** tab (`projects.navigation.overview`) → after
+  the retries (a few seconds) the header and the tab strip stay, and in
+  place of the tab an alert reads **Couldn't load this project.**
+  (`projects.loadFailed`) with **Try again** (`common.actions.tryAgain`);
+  never **We couldn't find that project. It may have been deleted.**
+  (`projects.errors.PROJECT_NOT_FOUND`) and never a blank tab — the Files
+  and Agents tabs show the same alert, and reopening the project from the
+  Home panel keeps you on it. Unblock → **Try again** → the Overview's form
+  returns without a reload and the focus lands on the content region named
+  after the project. A deleted project's link still shows the not-found
+  message with **Projects** (`projects.title`), and no alert. Network shows
+  no write in either state.
 
 - [ ] `PROJ-A1` · **Board DnD** → A keyboard path exists to move/reorder a
   task (not drag-only)
@@ -539,4 +577,5 @@ projects-list row ⋯ menu.
 ## Default task reviewer
 
 - [ ] `PROJ-F39` · **Save a default without taking over waiting reviews** — As an editor, open `/dashboard/{org}/projects/{projectId}/overview` → **Task reviews** (`projects.taskReview.title`) → **Default reviewer** (`projects.taskReview.defaultReviewer`), choose project agent B, save, and reload → B remains selected. An existing pending review keeps the person named in **Current review** (`tasks.reviewer.pendingFor`); a later review on a task using **Project default** (`tasks.reviewer.projectDefaultLabel`) names B. Neither saving nor reloading starts B or grants **Review other agents’ task results** (`projects.agents.tool.task_review`).
+- [ ] `PROJ-B14` · **A slow agent save cannot discard later typing** — Edit an agent's **Instructions** (`projects.agents.instructionsLabel`), throttle the save request, and choose **Save changes** (`projects.agents.editSubmit`) → name, agent type, model, equipment, secrets and instructions are unavailable while saving; keyboard and pointer input cannot change the submitted draft. Successful completion closes the dialog and reopening shows the submitted instructions. Repeat with a duplicate name → the dialog stays open, the draft remains visible, and editing becomes available again; the stored agent is unchanged. Repeat in **New agent** → fields also lock until creation finishes.
 - [ ] `PROJ-B12` · **Keep the review default safe across concurrent saves** — Open the project's General tab in two editor sessions, edit the default in both, and save B in the first → the second save refuses with the localized stale-draft message (`projects.taskReview.stale`), and reloading still shows B. Discard the stale draft, choose another default and save; then make and save a second change after the first save's live update → both deliberate later choices persist, without an unexpected stale warning or lost draft.

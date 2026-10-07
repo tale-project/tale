@@ -11,9 +11,13 @@ Open **Settings > Account**. Under **Profile**, edit **Name** and click **Save**
 
 The name is visible to teammates and can be at most 100 characters long. It is not a private instruction to the assistant.
 
+## When a password change is required
+
+If an administrator sets or resets your password, or your password expires under the organization's rotation policy, the **Password change required** screen appears when you sign in. Enter a new password that meets the requirements shown on screen, confirm it, and select **Update password** to continue. For the exact messages, see [Members and roles](/platform/admin/members-and-roles).
+
 ## Protect your sign-in
 
-The **Password** section offers **Change password**, or **Set password** for an account that does not yet have one. Follow the password requirements shown in the dialog. They come from your organization's password policy. If you belong to several organizations, your password must meet the requirements of every one of them. Changing the password signs out your sessions, so keep the new password available before confirming.
+The **Password** section offers **Change password**, or **Set password** for an account that does not yet have one. Follow the password requirements shown in the dialog. They come from your organization's password policy. If you belong to several organizations, your password must meet the requirements of every one of them. Changing the password signs out your sessions, so keep the new password available before confirming. A wrong current password counts toward the same temporary lock as a failed sign-in.
 
 Set up an authenticator under **Two-factor authentication** or add a passkey under **Passkeys**. Store backup codes somewhere you can reach without signing in to Tale. [Two-factor authentication](/platform/admin/two-factor-authentication) covers setup, recovery, and organization requirements.
 
@@ -29,7 +33,7 @@ Check the organization name before changing settings or adding content.
 
 ## See your teams {#teams}
 
-**Settings > Account > Your teams** lists the teams you belong to. Teams decide which team documents, projects, and inbox queues you can see; work shared with the whole organization is visible to you regardless. When you are in no team, the section says so.
+**Settings > Account > Your teams** lists the teams you belong to. Teams decide which team documents, projects, and inbox queues you can see; work shared with the whole organization is visible to you regardless. When you are in no team, the section says so. If your teams can't be loaded, the section says that instead of claiming you are in no team. Choose **Try again** to load them. When a refresh fails, the teams already shown stay, with a note that they may be out of date.
 
 To narrow a list to certain work, use its **Teams** filter: **Organization-wide** shows only items without a team, **My teams** shows items any of your teams can see, and each team is listed by name. The inbox offers an **Assignee** filter behind its search box, listing people and teams together. A filter changes the current view; it does not grant access to another team’s data.
 

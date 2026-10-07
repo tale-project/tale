@@ -375,6 +375,24 @@ export function startReactServer(opts: ReactServerOptions) {
     if (resolved === distDir || resolved.startsWith(distPrefix)) {
       const candidate = await existingFile(resolved, rel);
       if (candidate) {
+        if (rel === 'offline.html') {
+          const canonical = await candidate.text();
+          return new Response(
+            url.searchParams.get('__tale_offline') === '1'
+              ? canonical
+              : canonical.replace(
+                  'src="/pwa-recovery.js"',
+                  () => `src="${redirectPrefix}/pwa-recovery.js"`,
+                ),
+            {
+              headers: {
+                'content-type': 'text/html; charset=utf-8',
+                'cache-control': 'no-cache',
+                'X-Tale-PWA-Offline': '1',
+              },
+            },
+          );
+        }
         const ct = contentTypeFor(pathname);
         const headers: Record<string, string> = {
           ...(ct ? { 'content-type': ct } : {}),

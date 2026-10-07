@@ -144,7 +144,7 @@ describe('mailRefsOf', () => {
   });
 });
 
-describe('queueSpamVerdictCorpusJobs', () => {
+describe('queueSpamVerdictCorpusJobs [CONV-R13]', () => {
   it('releases what a verdict marks, re-indexes what it lifts, leaves the rest', async () => {
     const { sql, reads } = sqlDouble(
       {

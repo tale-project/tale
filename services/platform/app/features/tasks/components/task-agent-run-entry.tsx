@@ -16,6 +16,8 @@
  * the run itself reported.
  */
 
+import { Alert } from '@tale/ui/alert';
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import {
@@ -25,7 +27,8 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
-import { Loader2, Play } from 'lucide-react';
+import { useRetryFocus } from '@tale/ui/use-retry-focus';
+import { Loader2, Play, RotateCcw, XCircle } from 'lucide-react';
 import { useState } from 'react';
 
 import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
@@ -86,11 +89,23 @@ function TaskAgentRunDetailsDialog({
 }) {
   const { t } = useT('tasks');
   const { t: tAutomations } = useT('automations');
+  const { t: tCommon } = useT('common');
   const opQuery = useBackendQuery(
     'tasks/queries:getTaskAgentRunSandboxOp',
     open ? { organizationId, runId } : 'skip',
   );
   const op = opQuery.data ?? null;
+  const readStatus =
+    !open || op !== null
+      ? 'ready'
+      : opQuery.isFetching
+        ? 'loading'
+        : opQuery.isError
+          ? 'failed'
+          : opQuery.data === null
+            ? 'ready'
+            : 'loading';
+  const retryFocus = useRetryFocus(readStatus, `${runId}:${open}`);
   // A harness often ends its transcript on the very words the run reported
   // (its own API error as its last text): then the log below says them, and
   // the reported block would only repeat them. A reason the run row alone
@@ -142,7 +157,23 @@ function TaskAgentRunDetailsDialog({
         )}
         {op !== null ? (
           <ExecutionLogView op={op} hideHeader className="max-h-[60vh]" />
-        ) : opQuery.data === null ? (
+        ) : readStatus === 'failed' ? (
+          <div ref={retryFocus.ref}>
+            <Alert variant="destructive" title={t('agentRun.logReadFailed')}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  retryFocus.arm();
+                  void opQuery.refetch();
+                }}
+              >
+                {tCommon('actions.tryAgain')}
+              </Button>
+            </Alert>
+          </div>
+        ) : readStatus === 'ready' ? (
           // A failed run said why above; "no log" would only repeat that it
           // never got to work.
           failure === undefined && (
@@ -151,10 +182,13 @@ function TaskAgentRunDetailsDialog({
             </Text>
           )
         ) : (
-          <Loader2
-            className="text-muted-foreground size-4 animate-spin"
-            aria-hidden
-          />
+          <Row gap={2} role="status">
+            <Loader2
+              className="text-muted-foreground size-4 animate-spin"
+              aria-hidden
+            />
+            <Text variant="muted">{tCommon('actions.loading')}</Text>
+          </Row>
         )}
       </ResponsiveDialogContent>
     </ResponsiveDialog>
@@ -170,6 +204,7 @@ export function TaskAgentRunEntry({
   assigneeLive = true,
 }: TaskAgentRunEntryProps) {
   const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
   // Kicking a run is for whoever may work the task (an editor, or the
   // member it belongs to), with an agent that can actually run it.
   const canKick = canEdit && assigneeLive;
@@ -181,6 +216,34 @@ export function TaskAgentRunEntry({
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   const run = runQuery.data;
+  const readStatus =
+    run !== undefined
+      ? 'ready'
+      : runQuery.isFetching
+        ? 'loading'
+        : runQuery.isError
+          ? 'failed'
+          : 'loading';
+  const retryFocus = useRetryFocus(readStatus, `${organizationId}:${taskId}`);
+  if (readStatus === 'failed') {
+    return (
+      <div ref={retryFocus.ref} className="min-w-0">
+        <Alert variant="destructive" title={t('agentRun.runReadFailed')}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              retryFocus.arm();
+              void runQuery.refetch();
+            }}
+          >
+            {tCommon('actions.tryAgain')}
+          </Button>
+        </Alert>
+      </div>
+    );
+  }
   if (run === undefined) return null;
   const live =
     run !== null && (run.status === 'queued' || run.status === 'running');
@@ -215,6 +278,11 @@ export function TaskAgentRunEntry({
     );
   }
 
+  const statusLabel =
+    run.status === 'queued' && run.waitingForCapacity === true
+      ? t('agentRun.waitingForSlot')
+      : t(`agentRun.status.${run.status}`);
+
   return (
     <Stack gap={1} className="min-w-0">
       {previousAssignee && (
@@ -222,40 +290,57 @@ export function TaskAgentRunEntry({
           {t('agentRun.previousRun', { name: run.agentName ?? run.harness })}
         </Text>
       )}
-      {/* One word + one signal: a spinner while the run moves, a coloured
-          state dot once it stopped. The agent identity lives in the Assignee
-          row right above; harness · model stay one hover away. */}
+      {/* The status itself opens the transcript. A separate Details verb made
+          this narrow property row wrap; the status is the obvious target. */}
       <Row align="center" gap={2} className="min-w-0">
-        {live ? (
-          <Loader2
-            aria-hidden
-            className="text-muted-foreground size-3.5 shrink-0 animate-spin"
-          />
-        ) : (
-          <StatusIndicator
-            size="sm"
-            variant={
-              run.status === 'settled'
-                ? 'success'
-                : run.status === 'failed'
-                  ? 'error'
-                  : 'neutral'
-            }
-          />
-        )}
-        <Text
-          as="span"
-          variant="caption"
-          className="min-w-0 truncate font-medium"
-          title={`${run.harness} · ${run.model}`}
+        <button
+          type="button"
+          className="focus-visible:ring-ring inline-flex min-w-0 items-center gap-2 rounded-md text-left focus-visible:ring-1 focus-visible:outline-none"
+          onClick={() => setDetailsOpen(true)}
+          aria-label={statusLabel}
         >
-          {/* A capacity-parked run is honest about WHAT it is queued on —
-              a bare "Queued" reads as "about to start" while the org's
-              sandbox budget may hold it for a while. */}
-          {run.status === 'queued' && run.waitingForCapacity === true
-            ? t('agentRun.waitingForSlot')
-            : t(`agentRun.status.${run.status}`)}
-        </Text>
+          {run.status === 'failed' ? (
+            <Badge variant="destructive" icon={XCircle}>
+              {statusLabel}
+            </Badge>
+          ) : (
+            <>
+              {live ? (
+                <Loader2
+                  aria-hidden
+                  className="text-muted-foreground size-3.5 shrink-0 animate-spin"
+                />
+              ) : (
+                <StatusIndicator
+                  size="sm"
+                  variant={run.status === 'settled' ? 'success' : 'neutral'}
+                />
+              )}
+              <Text
+                as="span"
+                variant="caption"
+                className="min-w-0 truncate font-medium"
+                title={`${run.harness} · ${run.model}`}
+              >
+                {statusLabel}
+              </Text>
+            </>
+          )}
+        </button>
+        {canKick &&
+        !live &&
+        !previousAssignee &&
+        (run.status === 'failed' || run.status === 'cancelled') ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('agentRun.retry')}
+            disabled={busy}
+            onClick={() => void start()}
+          >
+            <RotateCcw aria-hidden className="size-4" />
+          </Button>
+        ) : null}
       </Row>
       {/* A run the platform re-kicked by itself says so — otherwise a user
           who watched the run fail sees it silently "running" again and
@@ -275,15 +360,7 @@ export function TaskAgentRunEntry({
               })}
         </Text>
       ) : null}
-      {/* The verbs wrap: the panel is 17rem wide, and two German labels side
-          by side ("Details", "Erneut ausführen") outgrew it and were cut at
-          its edge. */}
       <Row gap={1} className="-ml-2 flex-wrap">
-        {/* Reading the transcript is a READ — offered to every viewer, for
-            live and settled runs alike. */}
-        <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(true)}>
-          {t('run.details')}
-        </Button>
         {canStop ? (
           <Button
             variant="ghost"
@@ -294,18 +371,14 @@ export function TaskAgentRunEntry({
             {t('agentRun.cancel')}
           </Button>
         ) : null}
-        {canKick &&
-        !live &&
-        (previousAssignee ||
-          run.status === 'failed' ||
-          run.status === 'cancelled') ? (
+        {canKick && !live && previousAssignee ? (
           <Button
             variant="ghost"
             size="sm"
             disabled={busy}
             onClick={() => void start()}
           >
-            {t(previousAssignee ? 'agentRun.start' : 'agentRun.retry')}
+            {t('agentRun.start')}
           </Button>
         ) : null}
       </Row>

@@ -7,12 +7,20 @@ import { render, screen } from '@/tests/utils/render';
 
 import { MentionTextarea } from './mention-textarea';
 
+// One array, as the real hook's memo hands out between changes.
+const mentions = vi.hoisted(() => ({
+  options: [
+    { type: 'agent' as const, id: 'alice', name: 'Alice', handle: 'alice' },
+    { type: 'agent' as const, id: 'bob', name: 'Bob', handle: 'bob' },
+  ],
+  reads: 0,
+}));
 vi.mock('../lib/mention-actor-options', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/mention-actor-options')>()),
-  useMentionActorOptions: () => [
-    { type: 'agent', id: 'alice', name: 'Alice', handle: 'alice' },
-    { type: 'agent', id: 'bob', name: 'Bob', handle: 'bob' },
-  ],
+  useMentionActorOptions: () => {
+    mentions.reads += 1;
+    return mentions.options;
+  },
 }));
 
 function Composer() {
@@ -31,6 +39,22 @@ function Composer() {
 
 beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
+  mentions.reads = 0;
+});
+
+// Every task opens with its comment composer on screen: the people, agents
+// and automations it can mention are read once someone starts writing.
+describe('mention textarea candidates', () => {
+  it('reads nothing until the field is focused, then offers them', async () => {
+    const { user } = render(<Composer />);
+    expect(mentions.reads).toBe(0);
+
+    const field = screen.getByRole('textbox', { name: 'Comment' });
+    await user.click(field);
+    expect(mentions.reads).toBeGreaterThan(0);
+    await user.type(field, '@al');
+    expect(screen.getByRole('option', { name: /Alice/ })).toBeInTheDocument();
+  });
 });
 
 describe('mention textarea accessibility', () => {

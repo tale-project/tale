@@ -27,6 +27,9 @@ Zum Verwalten von Mitgliedern brauchst du ein Konto mit der Rolle Inhaber oder A
 
 Die Person erscheint in der Mitgliederliste. Tale verschickt in diesem Ablauf weder eine Einladung noch eine E-Mail zum Zurücksetzen des Passworts: Dass du jemanden hinzufügst, ist die Bestätigung der Adresse. Das Konto funktioniert deshalb sofort überall — auch in Anwendungen, bei denen man sich mit dem Tale-Konto anmeldet. Ist die Adresse bereits Mitglied dieser Organisation, zeigt das Formular einen Hinweis und legt keinen zweiten Eintrag an.
 
+Ein von einem Administrator festgelegtes oder zurückgesetztes Passwort sowie ein nach der Rotationsrichtlinie abgelaufenes Passwort erfordern die Änderung bei der Anmeldung. Siehe [die Schritte zur Passwortänderung für Mitglieder](/de/platform/member/preferences#wenn-eine-passwortaenderung-erforderlich-ist).
+
+
 <Tip>
 
 Ordne die Person nach dem Hinzufügen den benötigten Teams zu. Eine Rolle allein gewährt weder den Projektzugriff eines Teams noch Zugang zu dessen Konversationen.
@@ -58,7 +61,7 @@ Nur Inhaber und Admins können Audit-Protokolle lesen. Aktionen anderer Rollen k
 
 Öffne das Zeilenmenü der Person, wähle **Bearbeiten** und ändere die **Rolle**. Wähle **Speichern** und prüfe anschließend die Rolle in der Liste. Um ein deaktiviertes Mitglied wieder freizuschalten, wählst du ausdrücklich die gewünschte Rolle.
 
-Im Dialog kannst du auch den Anzeigenamen ändern. Die E-Mail-Adresse ist schreibgeschützt. Für ein neues Passwort aktivierst du **Passwort aktualisieren**, gibst ein Passwort gemäß den angezeigten Anforderungen ein und speicherst. Prüfe die Identität der Person nach dem Verfahren deiner Organisation, bevor du ihr Konto zurücksetzt.
+Im Dialog kannst du auch den Anzeigenamen ändern. Die E-Mail-Adresse ist schreibgeschützt. Für ein neues Passwort aktivierst du **Passwort aktualisieren**, gibst ein Passwort gemäß den angezeigten Anforderungen ein und speicherst. Das Mitglied muss bei der nächsten Anmeldung ein neues Passwort wählen; ein Zurücksetzen meldet das Mitglied von allen Sitzungen ab. Prüfe die Identität der Person nach dem Verfahren deiner Organisation, bevor du ihr Konto zurücksetzt.
 
 Deine eigene Rolle lässt sich über dieses Menü nicht ändern. Inhaber lässt sich nicht im Rollenfeld vergeben, und der letzte Administrator darf nicht herabgestuft werden. Auch bestehende Inhaber und der Ersteller der Organisation haben geschützte Rollen. Prüfe bei einer Ablehnung das betroffene Konto, bevor du eine andere Rolle versuchst.
 

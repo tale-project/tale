@@ -1447,7 +1447,7 @@ Le `projectId` vient de l’URL : le répéter dans le corps provoque **400**. 
 
 Avec `externalSystem: "github"` ou `"glitchtip"`, `externalState` ne modifie jamais le statut de la tâche Tale. Les nouvelles tâches arrivent dans `backlog` ; fermer, résoudre ou rouvrir l’issue à la source ne change pas leur avancement local. Les automatisations d’import affichent l’état de la source séparément sur la tâche.
 
-Pour les autres systèmes sources, `externalState` synchronise l’état de l’élément source :
+Pour les autres systèmes sources, `externalState` synchronise l’état de l’élément source selon les règles suivantes. Dès qu’une tâche utilise la route de statut source validé décrite ci-dessous, les actualisations suivantes par cette entrée conservent son statut et son archivage au lieu d’appliquer ces règles ouvert/fermé :
 
 - `closed` place la tâche en `in_review` pour qu’une personne puisse la terminer. Dans ce parcours de synchronisation, seul un appel du moteur de workflow lui-même peut directement la placer en `done`.
 - `open` ramène en `backlog` une tâche que la synchronisation avait placée en `in_review`, ou une tâche en `done`.
@@ -1519,6 +1519,33 @@ Une nouvelle exécution est aussi refusée avec **403** `TASK_AUTOMATION_DISABLE
 Ces vérifications précèdent la facturation du budget de démarrage. `reason: "not_started"` couvre le cas résiduel où le déploiement disparaît entre la vérification et le démarrage.
 
 Des démarrages simultanés de la même tâche avec la même automatisation retrouvent la même exécution active. Ce mécanisme ne correspond pas à une prise en charge d’`Idempotency-Key` pour les tâches : après sa fin, un nouvel appel peut créer une autre exécution. Conserve le `runId` renvoyé et consulte-le avant de répéter un démarrage au résultat incertain.
+
+### Synchroniser un statut source validé
+
+Depuis le contrat 3.16.0, une source personnalisée qui valide ses propres transitions métier peut refléter les six colonnes Tale, y compris une clôture approuvée à la source. Crée d’abord la tâche avec ses clés externes par la route d’entrée. La projection exige exactement ses `externalSystem` et `externalId`, un projet actif et le droit existant de modifier la tâche. GitHub, GlitchTip et les tâches portant un instantané d’issue externe sont exclus (`TASK_EXTERNAL_REF_INVALID`).
+
+Lis `GET /api/v1/projects/{id}/tasks/{taskId}/status` avant de valider un déplacement sur le tableau. La réponse contient `task`, la `revision` opaque, `statusChangedAt`, la modification du statut actuel `change` et le dernier reçu accepté `externalStatus`. Un archivage ou une restauration ultérieurs augmentent `revision` tout en conservant l’auteur réel du statut dans `change`. `change.origin` distingue `native` de `external`. Pour une personne, `actor.userId` identifie l’auteur enregistré ; `actor.email` apparaît uniquement tant qu’elle est membre actif et vérifié de l’organisation. Vérifie `actor.type`, `emailVerified` et `activeMember` avant de transmettre son intention à la source. Une identité absente ou non fiable ne doit pas être remplacée par celle du worker.
+
+Une fois la transition métier acceptée ou refusée par la source, reflète son état accepté avec `PUT /api/v1/projects/{id}/tasks/{taskId}/external-status`. Remplace `<observed-revision>` par la révision que tu as validée et utilise la révision et l’horodatage d’état de ta source :
+
+```bash
+curl -sS --compressed -X PUT "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/external-status" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "externalSystem": "quality-service", "externalId": "ticket:7", "expectedRevision": "<observed-revision>", "sourceRevision": "accepted:2", "sourceStatusAt": 1791229200000, "status": "done", "archived": false }'
+# → 200, l’instantané de statut actualisé
+```
+
+`status` vaut `backlog`, `todo`, `in_progress`, `in_review`, `done` ou `cancelled`. `archived` est facultatif : sans ce champ, l’archivage actuel reste inchangé. Statut et archivage changent atomiquement, même pour une tâche déjà archivée ; attribution, commentaires et autres champs sont conservés. Tale enregistre la décision source comme preuve externe attribuée au détenteur de la clé. Il n’enregistre aucune approbation humaine Tale, ne démarre aucun agent, n’ouvre aucune seconde relecture et ne crée aucune copie récurrente locale. Quitter une relecture humaine en attente la retire. Une relecture attribuée à un agent refuse la projection avec **409** `TASK_AGENT_REVIEW_REQUIRED` jusqu’à sa résolution ou son transfert explicite par son propriétaire natif. Des sous-tâches ouvertes empêchent toujours un statut final avec `TASK_HAS_OPEN_SUBTASKS`.
+
+`revision` change lors des modifications d’état, pas lors des actualisations ordinaires du titre, des libellés ou des commentaires. Une `expectedRevision` différente provoque **409** `TASK_STATUS_CONFLICT` : relis et valide la nouvelle intention avant de réessayer. `sourceStatusAt` doit augmenter à chaque changement de statut ou d’archivage source, même lors du retour à un état précédent. Les observations anciennes ou les états contradictoires au même horodatage provoquent **409** `TASK_EXTERNAL_STATUS_STALE`. Une `sourceRevision` portant uniquement un changement de contenu peut conserver l’horodatage si statut et archivage sont identiques. Un nouvel essai identique après une réponse perdue ne modifie rien uniquement tant que cette projection reste la dernière révision d’état. Conserve les reçus et compare régulièrement les deux côtés pour réconcilier redémarrages, événements manqués et changements refusés. Explique le refus à l’utilisateur puis projette l’état accepté par la source avec la révision fraîchement lue.
+
+La projection peut publier `workflow: { actions: [...] }`. Chaque action contient `id`, `title`, le `status` cible Tale, éventuellement `description`/`i18n`, et des `fields` au format des paramètres existants : `key`, `label`, `type`, `required`, `default`, `pattern`, `options`, aide et textes localisés. Types : `text`, `number`, `boolean`, `select` ; le texte accepte `multiline: true`. La déclaration appartient à la `sourceRevision` acceptée. Limites : 16 actions, 30 champs par action, 1 000 options, 4 000 caractères par texte/défaut, 256 KiB au total. Des motifs sûrs imposent les limites plus étroites de la source avant la capture. L'omission conserve le formulaire ; un tableau d'actions vide retire les actions disponibles.
+
+Les détails natifs affichent ces actions, y compris une vérification dans la même colonne ou une clôture/réouverture avec notes obligatoires. Un membre vérifié et actif envoie via la route réservée aux sessions `POST /api/app/tasks/{taskId}/external-status-request?orgId={organizationId}` avec `{requestId, expectedRevision, expectedSourceRevision, actionId, values}`. `requestId` est un nouvel UUID ; `values` contient les chaînes déclarées. Tale vérifie champs obligatoires, motifs et choix, puis convertit nombres et booléens. La session fournit la personne réelle : ni une clé API ni un acteur choisi dans le corps ne peuvent envoyer. L'intention immuable avance `revision` sans déplacer la colonne. Une seule demande peut attendre ; une répétition identique conserve ID et corps, un corps différent sous le même ID provoque un conflit.
+
+Le snapshot `/status` contient `workflow` et la dernière `request` : `id`, `revision`, `statusChangeId` capturé, `actionId`, `status` cible, `input` typé avec `move`, `sourceRevision`/`sourceStatusAt` d'origine, acteur actuellement vérifié et `decision` durable ou `null`. Valide toutes les règles et la version source avec cet acteur et l'entrée complète. Compare `change.id` à `request.statusChangeId` pour distinguer un changement de colonne indépendant ultérieur d'un ancien changement remplacé par le formulaire ; l'archivage avance la CAS sans changer l'origine du statut. Persiste la décision sous `request.id` avant de répondre, pour éviter une nouvelle exécution après perte de réponse. Projette l'état accepté actuel avec CAS fraîche et `requestId`/`decision: {accepted, reason?}` ensemble. Un refus exige un motif visible ; une décision enregistrée ne peut pas être contredite. Un ancien accusé fidèle règle son propre historique après rapprochement des intentions plus récentes, sans remplacer la dernière demande. Demandes et décisions survivent aux redémarrages et rechargements.
 
 ### Archiver ou restaurer une tâche
 

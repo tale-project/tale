@@ -128,7 +128,7 @@ beforeEach(() => {
 });
 
 describe('project automation REST scope', () => {
-  it('lists only installations in the URL project without leaking other project ids', async () => {
+  it('lists only installations in the URL project without leaking other project ids [AUTO-R2]', async () => {
     vi.mocked(listAutomations).mockResolvedValue([
       {
         name: 'shared',
@@ -279,22 +279,25 @@ describe('project automation REST scope', () => {
     { project: null },
     { project: { organizationId: 'org-2' } },
     { project: { teamId: 'private-team' } },
-  ])('hides absent, foreign and inaccessible projects: %j', async (options) => {
-    const { app } = mount(options as never);
-    expect((await app.request('/api/v1/projects/p-1/runs/run-1')).status).toBe(
-      404,
-    );
-    expect(
-      (
-        await app.request(
-          '/api/v1/projects/p-1/automations/billing__dunning/runs',
-          json('POST'),
-        )
-      ).status,
-    ).toBe(404);
-    expect(getRun).not.toHaveBeenCalled();
-    expect(beginRunInTx).not.toHaveBeenCalled();
-  });
+  ])(
+    'hides absent, foreign and inaccessible projects: %j [AUTO-R2]',
+    async (options) => {
+      const { app } = mount(options as never);
+      expect(
+        (await app.request('/api/v1/projects/p-1/runs/run-1')).status,
+      ).toBe(404);
+      expect(
+        (
+          await app.request(
+            '/api/v1/projects/p-1/automations/billing__dunning/runs',
+            json('POST'),
+          )
+        ).status,
+      ).toBe(404);
+      expect(getRun).not.toHaveBeenCalled();
+      expect(beginRunInTx).not.toHaveBeenCalled();
+    },
+  );
 
   it('allows member reads but refuses project run writes including mock runs', async () => {
     const { app } = mount({ role: 'member' });
@@ -311,7 +314,7 @@ describe('project automation REST scope', () => {
     ).toBe(403);
   });
 
-  it('allows archived project reads but no new or cancelled runs', async () => {
+  it('allows archived project reads but no new or cancelled runs [AUTO-R8]', async () => {
     const { app } = mount({ project: { archivedAt: 1 } as never });
     expect((await app.request('/api/v1/projects/p-1/runs/run-1')).status).toBe(
       200,
@@ -336,7 +339,7 @@ describe('project automation REST scope', () => {
 });
 
 describe('organization run scope', () => {
-  it('keeps shared definitions in the org catalog without revealing their project installations', async () => {
+  it('keeps shared definitions in the org catalog without revealing their project installations [AUTO-R2]', async () => {
     vi.mocked(listAutomations).mockResolvedValue([
       {
         name: 'shared',
@@ -449,7 +452,7 @@ describe('organization run scope', () => {
     expect(cancelRun).not.toHaveBeenCalled();
   });
 
-  it('starts org runs with an atomic refusal of implicit project bindings', async () => {
+  it('starts org runs with an atomic refusal of implicit project bindings [AUTO-R7]', async () => {
     const response = await mount().app.request(
       '/api/v1/automations/billing__dunning/runs',
       json('POST'),

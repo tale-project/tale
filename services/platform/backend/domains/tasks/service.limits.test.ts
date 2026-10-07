@@ -174,7 +174,7 @@ beforeEach(() => {
   vi.mocked(loadProjectOrThrow).mockReset().mockResolvedValue(project);
 });
 
-describe('createTask (the human create path) names the refused limit', () => {
+describe('createTask (the human create path) names the refused limit [TASK-R8]', () => {
   it.each(['', '   \n'])(
     'refuses the empty title %j as empty, naming the range',
     async (title) => {
@@ -238,7 +238,7 @@ describe('createTask (the human create path) names the refused limit', () => {
   });
 });
 
-describe('updateTask (the human edit path) names the refused limit', () => {
+describe('updateTask (the human edit path) names the refused limit [TASK-R8]', () => {
   it('refuses a title cleared to empty as empty', async () => {
     const { tx, statements } = fakeTx();
     const error = await refusal(
@@ -277,7 +277,7 @@ describe('updateTask (the human edit path) names the refused limit', () => {
   });
 });
 
-describe('agentCreateTaskTrusted (the task_create lower half) names the refused limit', () => {
+describe('agentCreateTaskTrusted (the task_create lower half) names the refused limit [TASK-R8]', () => {
   const agentArgs = {
     organizationId: 'org-1',
     actorId: 'agent-7',

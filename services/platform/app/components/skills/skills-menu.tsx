@@ -64,6 +64,8 @@ interface SkillsMenuProps {
   /** Field label — same Label chrome as Input/Select. Omit only for unlabeled toolbars. */
   label?: string;
   description?: ReactNode;
+  /** Set when the menu is opened from inside a modal Dialog. */
+  modal?: boolean;
 }
 
 function toggle(
@@ -86,6 +88,7 @@ export function SkillsMenu({
   align = 'end',
   label,
   description,
+  modal,
 }: SkillsMenuProps) {
   // The capability vocabulary lives in the chat namespace; every surface
   // shares it so the labels can never diverge between hosts.
@@ -190,6 +193,12 @@ export function SkillsMenu({
         slug,
         label: t('skills.unavailableOption', { slug }),
       }));
+    const unavailableConnectors: SkillOption[] = value.connectors
+      .filter((slug) => !connectors.some((option) => option.slug === slug))
+      .map((slug) => ({
+        slug,
+        label: t('skills.unavailableOption', { slug }),
+      }));
 
     return [
       group(
@@ -202,7 +211,7 @@ export function SkillsMenu({
       group(
         t('skills.sectionConnectors'),
         t('skills.emptyConnectors'),
-        connectors,
+        [...connectors, ...unavailableConnectors],
         value.connectors,
         (slugs) => ({ ...value, connectors: slugs }),
       ),
@@ -218,6 +227,7 @@ export function SkillsMenu({
     <DropdownMenu
       align={asField ? 'start' : align}
       disabled={disabled}
+      modal={modal}
       trigger={
         <Button
           variant={variant}

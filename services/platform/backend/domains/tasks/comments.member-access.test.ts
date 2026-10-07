@@ -44,6 +44,7 @@ vi.mock('./service.ts', async (importOriginal) => ({
     assigneeType: null,
     assigneeId: null,
     parentTaskId: null,
+    archivedAt: null,
   }),
 }));
 vi.mock('../threads/store.ts', async (importOriginal) => ({

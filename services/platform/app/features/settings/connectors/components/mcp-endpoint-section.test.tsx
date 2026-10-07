@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MCP_TOOL_GROUPS, MCP_TOOLS, type McpToolGroup } from '@/lib/mcp/tools';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { McpEndpointSection } from './mcp-endpoint-section';
 
@@ -32,8 +32,14 @@ vi.mock('@tanstack/react-router', () => ({
 // The tenant-header row and the example request read the organization's slug
 // through `useOrganization`; the shared render mounts no QueryClient, so the
 // hook answers as a settled query.
+const organizationQuery = {
+  data: { slug: 'northlight' } as { slug?: string } | undefined,
+  isError: false,
+  refetch: vi.fn(),
+};
+
 vi.mock('@/app/features/organization/hooks/queries', () => ({
-  useOrganization: () => ({ data: { slug: 'northlight' } }),
+  useOrganization: () => organizationQuery,
 }));
 
 const GROUP_HEADINGS: Record<McpToolGroup, string> = {
@@ -62,6 +68,39 @@ describe('McpEndpointSection', () => {
     ).toBeInTheDocument();
   });
 
+  it('surfaces organization read failures and retries without a runnable example', async () => {
+    organizationQuery.data = undefined;
+    organizationQuery.isError = true;
+    organizationQuery.refetch.mockResolvedValue({});
+
+    const { user } = render(<McpEndpointSection organizationId="org-1" />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The organization details could not be loaded',
+    );
+    expect(
+      screen.queryByText(/X-Organization-Slug: <org-slug>/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Try it')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(organizationQuery.refetch).toHaveBeenCalledOnce();
+
+    organizationQuery.data = { slug: 'northlight' };
+    organizationQuery.isError = false;
+  });
+
+  it('does not invent a runnable example for a healthy organization without a slug', () => {
+    organizationQuery.data = {};
+    organizationQuery.isError = false;
+
+    render(<McpEndpointSection organizationId="org-1" />);
+
+    expect(screen.queryByText(/X-Organization-Slug:/)).not.toBeInTheDocument();
+
+    organizationQuery.data = { slug: 'northlight' };
+  });
+
   it('renders the tool inventory in the three documented groups', async () => {
     const { container } = render(<McpEndpointSection organizationId="org-1" />);
 
@@ -84,6 +123,6 @@ describe('McpEndpointSection', () => {
     // Grouping must not duplicate or drop a tool across rows.
     expect(screen.getAllByRole('listitem')).toHaveLength(MCP_TOOLS.length);
 
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });

@@ -34,18 +34,22 @@ import path from 'node:path';
 
 import { serve } from '@hono/node-server';
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { computeContentHash } from '@tale/shared/utils/hashing';
 import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 import * as XLSX from 'xlsx';
 import { z } from 'zod';
 
 import { robotsPolicyFromStored } from '../lib/knowledge/crawl-parse.ts';
+import { htmlToText } from '../lib/knowledge/html-to-text.ts';
 import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.ts';
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
+import { checkPasswordConfirmationThrottle } from './auth/password-confirmations.integration.ts';
+import { checkStaleSessionReauthentication } from './auth/reauthenticate.integration.ts';
 import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
@@ -66,6 +70,7 @@ import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkManagedAutomationConfiguration } from './domains/automations/managed-configuration.integration.ts';
 import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
@@ -86,15 +91,22 @@ import {
 import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
+import { checkUsageMetricsBuckets } from './domains/governance/usage-metrics.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
 import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
+import {
+  checkConcurrentEntryCreation,
+  checkConcurrentEntryRenameAndCreate,
+  checkConcurrentEntryUpdates,
+} from './domains/knowledge_entries/write-races.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkProductImageReleaseHolders } from './domains/products/image-release.integration.ts';
+import { checkManagedInstructions } from './domains/projects/managed-instructions.integration.ts';
 import { checkStandardAgent } from './domains/projects/standard-agent.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
@@ -113,6 +125,7 @@ import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integr
 import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routing.integration.ts';
 import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkArchivedTaskWrites } from './domains/tasks/archived-writes.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
 import {
@@ -124,8 +137,10 @@ import {
   checkInPlaceCompletionCycle,
   checkScheduledAgentStarts,
 } from './domains/tasks/delegated-start.integration.ts';
+import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
+import { checkTaskExternalStatusProjection } from './domains/tasks/external-status.integration.ts';
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
@@ -163,6 +178,7 @@ import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
+import { checkTaskCompletionEvidence } from './jobs/task-completion.integration.ts';
 import { createTaskList } from './jobs/task-list.ts';
 import type { TaskIdentifier } from './jobs/tasks.ts';
 import {
@@ -1772,6 +1788,13 @@ async function checkProjects(
   const assignedTaskId = overdueTaskBody.success
     ? overdueTaskBody.data.taskId
     : '';
+  await checkManagedInstructions(
+    sql,
+    base,
+    ctx,
+    { projectId, agentId: agentIdToDelete, taskId: assignedTaskId },
+    record,
+  );
   const tasksApi = `${base}/api/app/tasks`;
   const assignedToAgent = await fetch(
     `${tasksApi}/${assignedTaskId}/assign?orgId=${orgId}`,
@@ -17816,20 +17839,27 @@ async function checkSsoLogin(
     );
     orgConfig.clearOrgConfigCaches();
     const graceLogin = await loginRound();
-    const anchorAfterFirst = await sql<{ graceUntil: number }[]>`
-      SELECT grace_until_ms::float8 AS "graceUntil"
+    const anchorAfterFirst = await sql<
+      { graceUntil: number; firstRequiredSignInAt: number | null }[]
+    >`
+      SELECT grace_until_ms::float8 AS "graceUntil",
+        first_required_sign_in_at_ms::float8 AS "firstRequiredSignInAt"
       FROM app.two_factor_grace WHERE user_id = ${ssoUserId}
     `;
     const graceAgain = await loginRound();
-    const anchorAfterSecond = await sql<{ graceUntil: number }[]>`
-      SELECT grace_until_ms::float8 AS "graceUntil"
+    const anchorAfterSecond = await sql<
+      { graceUntil: number; firstRequiredSignInAt: number | null }[]
+    >`
+      SELECT grace_until_ms::float8 AS "graceUntil",
+        first_required_sign_in_at_ms::float8 AS "firstRequiredSignInAt"
       FROM app.two_factor_grace WHERE user_id = ${ssoUserId}
     `;
     const inGrace = await fetch(`${base}/api/app/projects?orgId=${orgId}`, {
       headers: { cookie: graceAgain.cookie, origin: base },
     });
     await sql`
-      UPDATE app.two_factor_grace SET grace_until_ms = ${Date.now() - 1}
+      UPDATE app.two_factor_grace
+      SET first_required_sign_in_at_ms = ${Date.now() - 8 * 24 * 60 * 60 * 1000}
       WHERE user_id = ${ssoUserId}
     `;
     const pastGrace = await fetch(`${base}/api/app/projects?orgId=${orgId}`, {
@@ -17850,6 +17880,9 @@ async function checkSsoLogin(
       graceLogin.callbackStatus === 302 &&
         graceLogin.cookie.includes('better-auth.session_token=') &&
         anchorAfterFirst.length === 1 &&
+        anchorAfterFirst[0]?.firstRequiredSignInAt != null &&
+        anchorAfterSecond[0]?.firstRequiredSignInAt ===
+          anchorAfterFirst[0]?.firstRequiredSignInAt &&
         (anchorAfterFirst[0]?.graceUntil ?? 0) > Date.now() &&
         anchorAfterSecond[0]?.graceUntil === anchorAfterFirst[0]?.graceUntil &&
         inGrace.status === 200 &&
@@ -19522,6 +19555,9 @@ async function checkTurnReattach(
     WHERE name = 'task.agent_drive'
   `;
 
+  // Simulate the next tick after the failed probes' reservation expires.
+  await sql`UPDATE app.project_agent_runs SET recovery_checked_at_ms = NULL
+    WHERE id = ANY(${[abandoned.runId, noOp.runId]})`;
   // Reachable: the abandoned turn and the op-less one re-attach; the live
   // one is refused by the claim.
   const recovered = await recoverStalledTaskAgentTurns(sql, {
@@ -19667,8 +19703,8 @@ async function checkTurnReattach(
       AND (id = ANY(${fenceJobIds.filter((id) => id !== null)})
         OR data ->> 'execId' = ${deadWorker.execId})
   `;
-  // The fence's turns are this check's alone: the backfill check below
-  // reads every op of the lane's sessions.
+  // The fence's turns are this check's alone; release their sessions
+  // before the independent fairness and backfill probes below.
   const fenceSessions = [fencedQueued, fencedRunning, deadWorker].map(
     (turn) => turn.sessionId,
   );
@@ -19683,6 +19719,81 @@ async function checkTurnReattach(
     UPDATE app.sandbox_sessions SET status = 'destroyed',
                                     destroyed_at_ms = ${Date.now()}
     WHERE session_id = ANY(${fenceSessions})
+  `;
+
+  // Failed probes rotate independently of run liveness. Two replicas must
+  // claim disjoint work, and the 26th row must not remain behind 25 offline
+  // devices. The database, not a process-local cursor, owns this progress.
+  const fairRuns: Array<{ runId: string; sessionId: string; execId: string }> =
+    [];
+  for (let n = 0; n < 26; n++) {
+    const run = await mkRun(`fair-${n}`, { withOp: false });
+    fairRuns.push(run);
+    await sql`UPDATE app.project_agent_runs SET updated_at_ms = ${now - 600_000 + n}
+      WHERE id = ${run.runId}`;
+  }
+  const fairIds = fairRuns.map((run) => run.runId);
+  const visits: string[] = [];
+  const offline = async (sessionId: string): Promise<never> => {
+    visits.push(sessionId);
+    throw new Error('offline device');
+  };
+  const replicas = await Promise.all([
+    recoverStalledTaskAgentTurns(sql, { probe: offline }),
+    recoverStalledTaskAgentTurns(sql, { probe: offline }),
+  ]);
+  const reserved = await sql<{ visited: number; live: number }[]>`
+    SELECT count(*) FILTER (WHERE recovery_checked_at_ms IS NOT NULL)::int AS visited,
+           count(*) FILTER (WHERE updated_at_ms < ${now - 500_000})::int AS live
+    FROM app.project_agent_runs WHERE id = ANY(${fairIds})
+  `;
+  record(
+    'task recovery fairness: replicas visit 26 offline runs once without refreshing their liveness',
+    replicas.reduce((count, result) => count + result.examined, 0) === 26 &&
+      visits.length === 26 &&
+      new Set(visits).size === 26 &&
+      reserved[0]?.visited === 26 &&
+      reserved[0]?.live === 26,
+    `visits=${visits.length}/26 unique=${new Set(visits).size}/26 reserved=${reserved[0]?.visited} unchanged=${reserved[0]?.live}`,
+  );
+  await sql`UPDATE app.project_agent_runs SET recovery_checked_at_ms = NULL WHERE id = ANY(${fairIds})`;
+  const reachable = fairRuns[25];
+  const selectivelyReachable = async (sessionId: string) => {
+    if (sessionId !== reachable?.sessionId) throw new Error('offline device');
+    return { state: 'running' as const };
+  };
+  const failedBatch = await recoverStalledTaskAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  const nextBatch = await recoverStalledTaskAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  record(
+    'task recovery fairness: 25 offline sessions cannot starve the next reachable run',
+    failedBatch.examined === 25 &&
+      failedBatch.resumed === 0 &&
+      nextBatch.examined === 1 &&
+      nextBatch.resumed === 1,
+    `first=${failedBatch.examined}/${failedBatch.resumed}, next=${nextBatch.examined}/${nextBatch.resumed}`,
+  );
+  await sql`DELETE FROM pgboss.job WHERE name = 'task.agent_drive' AND data ->> 'runId' = ANY(${fairIds})`;
+  await sql`UPDATE app.project_agent_runs SET status = 'cancelled' WHERE id = ANY(${fairIds})`;
+  const fairSessions = fairRuns.map((run) => run.sessionId);
+  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fairSessions})`;
+  await sql`UPDATE app.sandbox_sessions SET status = 'destroyed', destroyed_at_ms = ${Date.now()}
+    WHERE session_id = ANY(${fairSessions})`;
+
+  // A fairness worker can finish writing an op after the cleanup above.
+  // Keep one such neighboring op so the backfill snapshot must name its
+  // own five fixtures rather than every session with the lane's prefix.
+  const neighbor = fairRuns[25];
+  if (!neighbor) throw new Error('Missing recovery fairness fixture');
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, started_at_ms
+    ) VALUES (${orgId}, ${neighbor.sessionId}, ${neighbor.execId},
+              'task-agent', 'failed', ${now})
+    ON CONFLICT DO NOTHING
   `;
 
   // Migration 0127 names the ops written before the column existed. A
@@ -19739,10 +19850,18 @@ async function checkTurnReattach(
     ),
     'utf8',
   );
+  const harnessFixtures = [
+    [live.execId, 'pi'],
+    [noOp.execId, 'pi'],
+    [abandoned.execId, 'codex'],
+    ['reattach-exec-wf-bare', null],
+    ['reattach-exec-wf-stamped', null],
+  ] as const;
+  const harnessExecIds = harnessFixtures.map(([execId]) => execId);
   const opHarnesses = async () => {
     const rows = await sql<{ execId: string; harness: string | null }[]>`
       SELECT exec_id AS "execId", harness FROM app.sandbox_session_ops
-      WHERE org_id = ${orgId} AND session_id LIKE 'reattach-session-%'
+      WHERE org_id = ${orgId} AND exec_id = ANY(${harnessExecIds})
       ORDER BY exec_id
     `;
     return JSON.stringify(rows.map((row) => [row.execId, row.harness]));
@@ -19751,13 +19870,7 @@ async function checkTurnReattach(
   const backfilledHarnesses = await opHarnesses();
   await sql.unsafe(harnessBackfill);
   const backfilledHarnessesAgain = await opHarnesses();
-  const wantHarnesses = JSON.stringify([
-    [live.execId, 'pi'],
-    [noOp.execId, 'pi'],
-    [abandoned.execId, 'codex'],
-    ['reattach-exec-wf-bare', null],
-    ['reattach-exec-wf-stamped', null],
-  ]);
+  const wantHarnesses = JSON.stringify(harnessFixtures);
   record(
     'harness turns: migration 0127 names an op by its run, keeps a recorded harness, and is idempotent',
     backfilledHarnesses === wantHarnesses &&
@@ -20211,6 +20324,41 @@ async function checkSteerFallbackRecovery(
 async function checkWorkflowTurnReattach(
   sql: Sql,
   ctx: { orgId: string; userId: string },
+  boss: PgBoss,
+): Promise<void> {
+  const queue = 'automation.agent_drive';
+  const handler = createTaskList({ sql })[queue];
+  if (handler === undefined)
+    throw new Error('Missing automation drive handler');
+  // This lane proves recovery's queued work and op lease, without a real
+  // sandbox. A notify-driven consumer can otherwise settle the fake turn
+  // before the assertion reads it (missing SANDBOX_TOKEN fails immediately).
+  // Stop only this queue, using the worker-drain integration's offWork fence;
+  // every other real worker stays available throughout the lane.
+  await boss.offWork(queue, { wait: true });
+  try {
+    await checkWorkflowTurnReattachRows(sql, ctx);
+  } finally {
+    try {
+      // Never unleash an external drive for a fixture, even if a probe threw.
+      await sql`
+        DELETE FROM pgboss.job
+        WHERE name = 'automation.agent_drive'
+          AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
+      `;
+    } finally {
+      await startWorker({
+        boss,
+        concurrency: 4,
+        taskList: { [queue]: handler },
+      });
+    }
+  }
+}
+
+async function checkWorkflowTurnReattachRows(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
 ): Promise<void> {
   const { orgId, userId } = ctx;
   const now = Date.now();
@@ -20335,6 +20483,8 @@ async function checkWorkflowTurnReattach(
       AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
   `;
 
+  await sql`UPDATE app.automation_runs SET recovery_checked_at_ms = NULL
+    WHERE id = ANY(${[abandoned.runId, noOp.runId]})`;
   // Reachable: the abandoned turn and the op-less one re-attach; the live
   // one is refused by the claim; the ask-parked one is spared by the listing.
   const recovered = await recoverStalledWorkflowAgentTurns(sql, {
@@ -20384,15 +20534,72 @@ async function checkWorkflowTurnReattach(
       // The harness of the NODE's turn (the run cursor), not the one the
       // run's session was opened with.
       createdOp[0]?.harness === 'codex',
-    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want harness codex)`,
+    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.status ?? '-'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want watchdog/running/workflow-agent/codex)`,
   );
 
-  // Leave nothing for later sweeps or metrics folds to trip over.
-  await sql`
-    DELETE FROM pgboss.job
-    WHERE name = 'automation.agent_drive'
-      AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
+  // Failed probes rotate independently of run liveness. Two replicas must
+  // claim disjoint work, and the 26th row must not remain behind 25 offline
+  // devices. The database, not a process-local cursor, owns this progress.
+  const fairRuns: Array<{ runId: string; sessionId: string; execId: string }> =
+    [];
+  for (let n = 0; n < 26; n++) {
+    const run = await mkRun(`fair-${n}`, { withOp: false });
+    fairRuns.push(run);
+    await sql`UPDATE app.automation_runs SET started_at_ms = ${now - 600_000 + n}
+      WHERE id = ${run.runId}`;
+  }
+  const fairIds = fairRuns.map((run) => run.runId);
+  const visits: string[] = [];
+  const offline = async (sessionId: string): Promise<never> => {
+    visits.push(sessionId);
+    throw new Error('offline device');
+  };
+  const replicas = await Promise.all([
+    recoverStalledWorkflowAgentTurns(sql, { probe: offline }),
+    recoverStalledWorkflowAgentTurns(sql, { probe: offline }),
+  ]);
+  const reserved = await sql<{ visited: number; live: number }[]>`
+    SELECT count(*) FILTER (WHERE recovery_checked_at_ms IS NOT NULL)::int AS visited,
+           count(*) FILTER (WHERE started_at_ms < ${now - 500_000})::int AS live
+    FROM app.automation_runs WHERE id = ANY(${fairIds})
   `;
+  record(
+    'automation recovery fairness: replicas visit 26 offline runs once without refreshing their liveness',
+    replicas.reduce((count, result) => count + result.examined, 0) === 26 &&
+      visits.length === 26 &&
+      new Set(visits).size === 26 &&
+      reserved[0]?.visited === 26 &&
+      reserved[0]?.live === 26,
+    `visits=${visits.length}/26 unique=${new Set(visits).size}/26 reserved=${reserved[0]?.visited} unchanged=${reserved[0]?.live}`,
+  );
+  await sql`UPDATE app.automation_runs SET recovery_checked_at_ms = NULL WHERE id = ANY(${fairIds})`;
+  const reachable = fairRuns[25];
+  const selectivelyReachable = async (sessionId: string) => {
+    if (sessionId !== reachable?.sessionId) throw new Error('offline device');
+    return { state: 'running' as const };
+  };
+  const failedBatch = await recoverStalledWorkflowAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  const nextBatch = await recoverStalledWorkflowAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  record(
+    'automation recovery fairness: 25 offline sessions cannot starve the next reachable run',
+    failedBatch.examined === 25 &&
+      failedBatch.resumed === 0 &&
+      nextBatch.examined === 1 &&
+      nextBatch.resumed === 1,
+    `first=${failedBatch.examined}/${failedBatch.resumed}, next=${nextBatch.examined}/${nextBatch.resumed}`,
+  );
+  await sql`DELETE FROM pgboss.job WHERE name = 'automation.agent_drive' AND data ->> 'runId' = ANY(${fairIds})`;
+  await sql`UPDATE app.automation_runs SET status = 'cancelled' WHERE id = ANY(${fairIds})`;
+  const fairSessions = fairRuns.map((run) => run.sessionId);
+  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fairSessions})`;
+  await sql`UPDATE app.sandbox_sessions SET status = 'destroyed', destroyed_at_ms = ${Date.now()}
+    WHERE session_id = ANY(${fairSessions})`;
+
+  // Leave nothing for later sweeps or metrics folds to trip over.
   await sql`
     UPDATE app.automation_runs SET status = 'cancelled',
                                    finished_at_ms = ${Date.now()}
@@ -29569,6 +29776,9 @@ async function checkControlDrain(
   );
   const hasStreams = metricsBody.includes('tale_backend_hint_streams_open');
   const hasDrain = metricsBody.includes('tale_backend_drain_active');
+  const hasScan = metricsBody.includes(
+    'tale_backend_automation_trigger_scan_last_success_timestamp_seconds',
+  );
   const hasHttp = metricsBody.includes('tale_backend_http_requests_total');
   // The route label must be the bounded class, never a path with ids in it.
   const labelledByClass = /route="\/api\/app\/[a-z_-]+"/.test(metricsBody);
@@ -29584,10 +29794,11 @@ async function checkControlDrain(
       hasGenerations &&
       hasStreams &&
       hasDrain &&
+      hasScan &&
       hasHttp &&
       labelledByClass &&
       noIdsInLabels,
-    `status=${metricsRes.status}, process=${hasProcess} sla=${hasSla} jobs=${hasJobs} generations=${hasGenerations} streams=${hasStreams} drain=${hasDrain} http=${hasHttp}, routeClass=${labelledByClass} noIds=${noIdsInLabels}`,
+    `status=${metricsRes.status}, process=${hasProcess} sla=${hasSla} jobs=${hasJobs} generations=${hasGenerations} streams=${hasStreams} drain=${hasDrain} scan=${hasScan} http=${hasHttp}, routeClass=${labelledByClass} noIds=${noIdsInLabels}`,
   );
 
   record(
@@ -33633,6 +33844,37 @@ async function checkWebsitesCrawl(
   // page, no robots.txt and no sitemap, so the scan that restores the
   // registration finishes on the homepage.
   const HEAL_DOMAIN = 'itest-heal.example';
+  // A site for the change-check lanes (2026-10-06). Its fake server answers
+  // a conditional request the way a real one does — 304 when the validator
+  // it is asked about still stands — and counts what it sent for each page:
+  // the page, or a 304 in its place. `/page.html` is the page of a server
+  // that gives no modification time: no validator, and a new token in every
+  // response, around text that does not change.
+  const CHECK_DOMAIN = 'itest-check.example';
+  const checkPage = (word: string, version: string): string =>
+    `Change-check fixture ${word} page ${version}. Enough words about the ${word} subsystem to survive the chunking thresholds of the pipeline.`;
+  const checkSite = new Map<
+    string,
+    { body: string; etag?: string; lastModified?: string }
+  >([
+    ['/', { body: checkPage('home', 'v1') }],
+    ['/tagged.txt', { body: checkPage('tagged', 'v1'), etag: '"t1"' }],
+    [
+      '/dated.txt',
+      {
+        body: checkPage('dated', 'v1'),
+        lastModified: 'Fri, 10 Jul 2026 09:11:16 GMT',
+      },
+    ],
+    ['/plain.txt', { body: checkPage('plain', 'v1') }],
+  ]);
+  const checkSitemapRoutes = [...checkSite.keys()];
+  const checkSent = new Map<string, { bodies: number; notModified: number }>();
+  let checkToken = 0;
+  const checkHtml = (): string => {
+    checkToken += 1;
+    return `<html><head><meta name="csrf-token" content="token-${checkToken}"><title>Check fixture</title></head><body><main><p>${checkPage('html', 'v1')}</p></main><script>window.nonce = "${checkToken}"</script></body></html>`;
+  };
   const FAKE_HOSTS = new Set([
     DOMAIN,
     `www.${DOMAIN}`,
@@ -33700,6 +33942,66 @@ async function checkWebsitesCrawl(
         headers: {
           'content-type': page.type,
           'content-length': String(page.body.length),
+        },
+      });
+    }
+    if (
+      url.hostname === CHECK_DOMAIN ||
+      url.hostname === `www.${CHECK_DOMAIN}`
+    ) {
+      const answer = (body: string, type: string): Response =>
+        new Response(body, {
+          headers: {
+            'content-type': type,
+            'content-length': String(body.length),
+          },
+        });
+      if (url.pathname === '/robots.txt') {
+        return answer(
+          `User-agent: *\nSitemap: https://${CHECK_DOMAIN}/sitemap.xml\n`,
+          'text/plain',
+        );
+      }
+      if (url.pathname === '/sitemap.xml') {
+        return answer(
+          `<?xml version="1.0"?><urlset>${checkSitemapRoutes
+            .map(
+              (route) =>
+                `<url><loc>https://${CHECK_DOMAIN}${route}</loc></url>`,
+            )
+            .join('')}</urlset>`,
+          'application/xml',
+        );
+      }
+      const sent = checkSent.get(url.pathname) ?? { bodies: 0, notModified: 0 };
+      checkSent.set(url.pathname, sent);
+      if (url.pathname === '/page.html') {
+        sent.bodies += 1;
+        return answer(checkHtml(), 'text/html; charset=utf-8');
+      }
+      const page = checkSite.get(url.pathname);
+      if (!page) return new Response('gone', { status: 404 });
+      const validators = {
+        ...(page.etag === undefined ? {} : { etag: page.etag }),
+        ...(page.lastModified === undefined
+          ? {}
+          : { 'last-modified': page.lastModified }),
+      };
+      const asked = new Headers(init?.headers);
+      if (
+        (page.etag !== undefined && asked.get('if-none-match') === page.etag) ||
+        (page.lastModified !== undefined &&
+          asked.get('if-modified-since') === page.lastModified)
+      ) {
+        sent.notModified += 1;
+        return new Response(null, { status: 304, headers: validators });
+      }
+      sent.bodies += 1;
+      return new Response(page.body, {
+        headers: {
+          'content-type': 'text/plain',
+          'content-length': String(page.body.length),
+          ...validators,
         },
       });
     }
@@ -34989,6 +35291,303 @@ async function checkWebsitesCrawl(
     );
     if (robotsId !== '') {
       await v1(`/websites/${robotsId}`, { method: 'DELETE' });
+    }
+
+    // 4h. A scan asks for each page once, and a page that did not change is
+    //     neither downloaded nor rendered again (2026-10-06). The crawler's
+    //     one way to learn whether a page had changed was to do everything
+    //     again: fetch it, render it with every asset a render loads, and
+    //     compare content hashes afterwards — some 8,000 requests a scan on
+    //     a 700-page site whose pages had not changed in months. The request
+    //     now carries the validators of the last visit, a 304 ends it, and
+    //     for a server that gives no modification time the text of the
+    //     plain HTML is compared. "Scan now" asks the same way.
+    const checkCreated = z.looseObject({ id: z.string() }).safeParse(
+      await (
+        await v1('/websites', {
+          body: { domain: CHECK_DOMAIN, scanInterval: '6h' },
+        })
+      ).json(),
+    );
+    const checkId = checkCreated.success ? checkCreated.data.id : '';
+    await drainCrawlJobs();
+    const checkUrl = (route: string) => `https://${CHECK_DOMAIN}${route}`;
+    const checkRoutes = [
+      '/tagged.txt',
+      '/dated.txt',
+      '/plain.txt',
+      '/page.html',
+    ];
+    const checkSnapshot = () =>
+      new Map([...checkSent].map(([route, sent]) => [route, { ...sent }]));
+    /** What the site sent for each page since `before`, as
+     * `route:bodies/304s`. */
+    const sentSince = (before: ReturnType<typeof checkSnapshot>): string =>
+      checkRoutes
+        .map((route) => {
+          const now = checkSent.get(route) ?? { bodies: 0, notModified: 0 };
+          const then = before.get(route) ?? { bodies: 0, notModified: 0 };
+          return `${route}:${now.bodies - then.bodies}/${now.notModified - then.notModified}`;
+        })
+        .join(' ');
+    /** Every page reads as last visited two days ago, so a fresh stamp is
+     * this scan's. */
+    const checkRescan = async (): Promise<string> => {
+      await pool`
+        UPDATE public_web.website_urls
+           SET last_crawled_at = now() - interval '2 days'
+         WHERE domain = ${CHECK_DOMAIN}
+      `;
+      const before = checkSnapshot();
+      await websites.runWebsitesScan(sql, {
+        domain: CHECK_DOMAIN,
+        orgSlug,
+        organizationId: orgId,
+      });
+      await drainCrawlJobs();
+      return sentSince(before);
+    };
+    const checkRow = async (route: string) =>
+      (
+        await pool<
+          {
+            status: string;
+            etag: string | null;
+            lastModified: string | null;
+            probeHash: string | null;
+            visited: boolean;
+            chunks: string;
+            text: string | null;
+          }[]
+        >`
+          SELECT u.status, u.etag_v2 AS etag, u.last_modified_v2 AS "lastModified",
+                 u.probe_hash_v2 AS "probeHash",
+                 u.last_crawled_at > now() - interval '1 hour' AS visited,
+                 (SELECT count(*)::text FROM public_web.chunks c
+                   WHERE c.domain = u.domain AND c.url = u.url) AS chunks,
+                 (SELECT string_agg(c.chunk_content, ' ') FROM public_web.chunks c
+                   WHERE c.domain = u.domain AND c.url = u.url) AS text
+          FROM public_web.website_urls u
+          WHERE u.domain = ${CHECK_DOMAIN} AND u.url = ${checkUrl(route)}
+        `
+      )[0];
+
+    // The first scan stored every page and kept what each response gave to
+    // check it by. The rescan: the two pages the server vouches for are
+    // not sent again; the one without a validator is.
+    const taggedFirst = await checkRow('/tagged.txt');
+    const datedFirst = await checkRow('/dated.txt');
+    const checkSecond = await checkRescan();
+    const taggedSecond = await checkRow('/tagged.txt');
+    const datedSecond = await checkRow('/dated.txt');
+    record(
+      'websites change check: a page the server vouches for is not downloaded again, and is stamped as visited',
+      checkCreated.success &&
+        taggedFirst?.etag === '"t1"' &&
+        datedFirst?.lastModified === 'Fri, 10 Jul 2026 09:11:16 GMT' &&
+        checkSecond ===
+          '/tagged.txt:0/1 /dated.txt:0/1 /plain.txt:1/0 /page.html:0/0' &&
+        (taggedSecond?.visited ?? false) &&
+        (datedSecond?.visited ?? false) &&
+        taggedSecond?.status === 'active' &&
+        taggedSecond.chunks === taggedFirst.chunks &&
+        Number(taggedSecond.chunks) >= 1,
+      `created=${checkCreated.success} first scan kept etag=${taggedFirst?.etag ?? 'none'}/"t1" lastModified=${datedFirst?.lastModified ?? 'none'}, rescan sent bodies/304s [${checkSecond}] (want tagged 0/1, dated 0/1, plain 1/0), stamped tagged=${taggedSecond?.visited ?? '?'} dated=${datedSecond?.visited ?? '?'}, chunks ${taggedFirst?.chunks ?? '?'}→${taggedSecond?.chunks ?? '?'}`,
+    );
+
+    // A page that changed is sent and indexed again. And an HTML page of a
+    // server without validators — a new token in every response, the same
+    // text — is found unchanged by that text: the scan ends without a
+    // render session, which this harness could not open.
+    checkSite.set('/tagged.txt', {
+      body: checkPage('tagged', 'v2'),
+      etag: '"t2"',
+    });
+    const htmlText = htmlToText(checkHtml());
+    const htmlHash = computeContentHash(htmlText);
+    await pool`
+      INSERT INTO public_web.website_urls
+        (domain, url, status, discovered_at, listed, last_crawled_at,
+         word_count, content, content_hash, probe_hash_v2)
+      VALUES (${CHECK_DOMAIN}, ${checkUrl('/page.html')}, 'active', NOW(), FALSE,
+              NOW() - INTERVAL '2 days', 20, ${htmlText}, ${htmlHash}, ${htmlHash})
+      ON CONFLICT (domain, url) DO NOTHING
+    `;
+    await pool`
+      INSERT INTO public_web.chunks
+        (domain, url, title, content_hash, chunk_index, chunk_content)
+      VALUES (${CHECK_DOMAIN}, ${checkUrl('/page.html')}, 'Check fixture', ${htmlHash}, 0, ${htmlText})
+      ON CONFLICT DO NOTHING
+    `;
+    // Migration 14 upgrades a legacy corpus and blocks old writers mid-roll.
+    // Run twice on real PostgreSQL, retaining a fresh v2 check on reapplication.
+    const { corpusMigrations } = await import('./core/knowledge/ddl.ts');
+    const strictMigration = corpusMigrations().find(
+      (migration) =>
+        migration.schema === 'public_web' && Number(migration.version) === 14,
+    );
+    if (strictMigration === undefined)
+      throw new Error('Missing strict change-check migration');
+    await pool.begin(async (tx) => {
+      await tx.unsafe(
+        'DROP TRIGGER invalidate_legacy_page_check ON public_web.website_urls',
+      );
+      await tx`
+        UPDATE public_web.website_urls
+           SET etag = '"legacy"', last_modified = 'Fri, 10 Jul 2026 09:11:16 GMT',
+               probe_hash = ${htmlHash}
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      await tx.unsafe(strictMigration.sql);
+      const checks = async () =>
+        (
+          await tx<
+            {
+              etag: string | null;
+              last_modified: string | null;
+              probe_hash: string | null;
+              etag_v2: string | null;
+              last_modified_v2: string | null;
+              probe_hash_v2: string | null;
+            }[]
+          >`
+        SELECT etag, last_modified, probe_hash, etag_v2, last_modified_v2, probe_hash_v2
+          FROM public_web.website_urls
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `
+        )[0];
+      const empty = (row: Awaited<ReturnType<typeof checks>>) =>
+        row !== undefined &&
+        Object.values(row).every((value) => value === null);
+      record(
+        'websites strict checks: migration invalidates all legacy checks',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      const seedStrict = async () => {
+        await tx`
+          UPDATE public_web.website_urls
+             SET etag_v2 = '"strict"', last_modified_v2 = 'Fri, 10 Jul 2026 09:11:16 GMT',
+                 probe_hash_v2 = ${htmlHash}
+           WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+        `;
+      };
+      await seedStrict();
+      await tx.unsafe(strictMigration.sql);
+      const repeated = await checks();
+      record(
+        'websites strict checks: migration reapplication retains fresh v2 provenance',
+        repeated?.etag_v2 === '"strict"' &&
+          repeated.last_modified_v2 !== null &&
+          repeated.probe_hash_v2 === htmlHash,
+        'The second application must preserve all three v2 fields',
+      );
+      await tx`
+        UPDATE public_web.website_urls
+           SET etag = '"legacy"', last_modified = 'Fri, 10 Jul 2026 09:11:16 GMT', probe_hash = ${htmlHash}
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      record(
+        'websites strict checks: old writer cannot renew checks and invalidates v2',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      await seedStrict();
+      await tx`
+        UPDATE public_web.website_urls SET etag = NULL, last_modified = NULL, probe_hash = NULL
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      record(
+        'websites strict checks: old writer null-to-null purge invalidates v2',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      await seedStrict();
+      await tx`
+        UPDATE public_web.website_urls SET content = content, content_hash = content_hash
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      record(
+        'websites strict checks: any content write invalidates v2',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      const inserted = await tx<
+        {
+          etag: string | null;
+          last_modified: string | null;
+          probe_hash: string | null;
+        }[]
+      >`
+        INSERT INTO public_web.website_urls (domain, url, etag, last_modified, probe_hash)
+        VALUES (${CHECK_DOMAIN}, ${checkUrl('/legacy-insert.txt')}, '"legacy"',
+                'Fri, 10 Jul 2026 09:11:16 GMT', ${htmlHash})
+        RETURNING etag, last_modified, probe_hash
+      `;
+      record(
+        'websites strict checks: old inserts cannot populate legacy checks',
+        inserted[0] !== undefined &&
+          Object.values(inserted[0]).every((value) => value === null),
+        'All three legacy fields must be null',
+      );
+      await tx`
+        DELETE FROM public_web.website_urls
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/legacy-insert.txt')}
+      `;
+      // Re-establish the fixture's complete-coverage check for the scan oracle.
+      await tx`
+        UPDATE public_web.website_urls SET etag_v2 = NULL, last_modified_v2 = NULL, probe_hash_v2 = ${htmlHash}
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+    });
+    checkSitemapRoutes.push('/page.html');
+    const checkThird = await checkRescan();
+    const taggedThird = await checkRow('/tagged.txt');
+    const htmlThird = await checkRow('/page.html');
+    const checkCorpus = await pool<{ status: string; error: string | null }[]>`
+      SELECT status, error FROM public_web.websites WHERE domain = ${CHECK_DOMAIN}
+    `;
+    record(
+      'websites change check: a changed page is downloaded and indexed again, and an HTML page whose text reads the same ends the scan without a browser',
+      checkThird ===
+        '/tagged.txt:1/0 /dated.txt:0/1 /plain.txt:1/0 /page.html:1/0' &&
+        taggedThird?.etag === '"t2"' &&
+        (taggedThird.text ?? '').includes('v2') &&
+        !(taggedThird.text ?? '').includes('v1') &&
+        htmlThird?.status === 'active' &&
+        htmlThird.visited &&
+        htmlThird.probeHash === htmlHash &&
+        htmlThird.chunks === '1' &&
+        checkCorpus[0]?.status === 'completed' &&
+        checkCorpus[0].error === null,
+      `rescan sent bodies/304s [${checkThird}] (want tagged 1/0, dated 0/1, plain 1/0, html 1/0), tagged etag=${taggedThird?.etag ?? 'none'}/"t2" reindexed=${(taggedThird?.text ?? '').includes('v2')}, html=${htmlThird?.status ?? 'MISSING'}/active stamped=${htmlThird?.visited ?? '?'} hashKept=${htmlThird?.probeHash === htmlHash} chunks=${htmlThird?.chunks ?? '?'}/1, scan=${checkCorpus[0]?.status ?? '?'}/completed error=${checkCorpus[0]?.error ?? 'null'}`,
+    );
+
+    // "Scan now" is the same scan, started by a person: it asks each page
+    // the same way and is answered the same way.
+    await pool`
+      UPDATE public_web.website_urls
+         SET last_crawled_at = now() - interval '2 days'
+       WHERE domain = ${CHECK_DOMAIN}
+    `;
+    const beforeScanNow = checkSnapshot();
+    const scanNow = z
+      .looseObject({ queued: z.boolean() })
+      .safeParse(await (await post(`/${checkId}/scan`, {})).json());
+    await drainCrawlJobs();
+    const checkScanNow = sentSince(beforeScanNow);
+    const htmlScanNow = await checkRow('/page.html');
+    record(
+      'websites change check: Scan now asks each page the same way as a scheduled scan',
+      scanNow.success &&
+        scanNow.data.queued &&
+        checkScanNow ===
+          '/tagged.txt:0/1 /dated.txt:0/1 /plain.txt:1/0 /page.html:1/0' &&
+        (htmlScanNow?.visited ?? false),
+      `scanNow queued=${scanNow.success ? scanNow.data.queued : 'BAD SHAPE'} sent bodies/304s [${checkScanNow}] (want tagged 0/1, dated 0/1, plain 1/0, html 1/0) htmlStamped=${htmlScanNow?.visited ?? '?'}`,
+    );
+    if (checkId !== '') {
+      await v1(`/websites/${checkId}`, { method: 'DELETE' });
     }
 
     // 4f. Round g, g4-5: a site whose every page failed is not "a successful
@@ -45354,16 +45953,25 @@ async function checkTurnEquipmentBroker(
     `created=${created.success}, GITHUB_TOKEN=${env.GITHUB_TOKEN === token}, GH_TOKEN=${env.GH_TOKEN === token}, gitConfig=${env.GIT_CONFIG_COUNT ?? 'unset'} (want 3), helper=${helperPair?.[1] ?? 'missing'}, audit=${audit.map((row) => `${row.slug}:${row.kind}`).join(',') || 'none'}`,
   );
 
-  // An UNGRANTED turn does no credential work and injects nothing.
+  // An ungranted turn resolves the same owner's non-secret author identity,
+  // without fetching a connector token or recording credential access.
   const emptyEnv = await resolveTurnEquipmentEnv(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the work-lane jobs run the resolver on exactly this shim
     shim as unknown as Parameters<typeof resolveTurnEquipmentEnv>[0],
     { organizationId: orgId, sessionId, connectors: [], secrets: [] },
   );
   record(
-    'turn-equipment broker: no grants → empty env',
-    Object.keys(emptyEnv).length === 0,
-    `env keys=${Object.keys(emptyEnv).join(',') || 'none'}`,
+    'turn-equipment broker: no grants → owner identity only, no new credential access',
+    emptyEnv.GIT_CONFIG_COUNT === '2' &&
+      emptyEnv.GIT_CONFIG_KEY_0 === 'user.name' &&
+      emptyEnv.GIT_CONFIG_VALUE_0 === env.GIT_CONFIG_VALUE_1 &&
+      emptyEnv.GIT_CONFIG_KEY_1 === 'user.email' &&
+      emptyEnv.GIT_CONFIG_VALUE_1 === env.GIT_CONFIG_VALUE_2 &&
+      emptyEnv.GITHUB_TOKEN === undefined &&
+      (
+        await sql`SELECT 1 FROM app.sandbox_credential_access WHERE session_id = ${sessionId}`
+      ).length === audit.length,
+    `identity pairs=${emptyEnv.GIT_CONFIG_COUNT ?? 'unset'}, token present=${emptyEnv.GITHUB_TOKEN !== undefined}`,
   );
 
   // Leave no connected github credential behind — later checks read the
@@ -56039,6 +56647,69 @@ async function checkWatchdogs(
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
   );
 
+  // Historical stopped rows can outnumber compute-holding rows by orders of
+  // magnitude. Their independent quota must leave active health checks room,
+  // while both least-recently-visited walks advance on the next tick.
+  const prior = await sql<{ oldest: number }[]>`
+    SELECT coalesce(min(created_at_ms), ${now})::float8 AS oldest
+    FROM app.sandbox_sessions
+  `;
+  const quotaAncient = (prior[0]?.oldest ?? now) - 1_000;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    )
+    SELECT ${orgId}, 'wd-quota-cold-' || n, 'stopped', 'project',
+      'wd-quota-cold-' || n, 'itest:wd', ${quotaAncient}::bigint + n,
+      ${now + 24 * 3_600_000}::bigint
+    FROM generate_series(1, 30) n
+    UNION ALL
+    SELECT ${orgId}, 'wd-quota-active-' || n, 'active', 'project',
+      'wd-quota-active-' || n, 'itest:wd', ${quotaAncient + 100}::bigint + n,
+      ${now + 24 * 3_600_000}::bigint
+    FROM generate_series(1, 21) n
+  `;
+  const quotaProbed: string[] = [];
+  const quotaSpawner = {
+    ...scriptedSpawner,
+    observe: (sessionId: string) => {
+      quotaProbed.push(sessionId);
+      return Promise.resolve(
+        sessionId.startsWith('wd-quota-cold-') ? null : { pinned: false },
+      );
+    },
+  };
+  await sandboxWatchdogs.runSandboxWatchdog(sql, { spawner: quotaSpawner });
+  const quotaFirst = [...quotaProbed];
+  quotaProbed.length = 0;
+  await sandboxWatchdogs.runSandboxWatchdog(sql, { spawner: quotaSpawner });
+  const quotaCold = new Set(
+    [...quotaFirst, ...quotaProbed].filter((id) =>
+      id.startsWith('wd-quota-cold-'),
+    ),
+  );
+  const quotaActive = new Set(
+    [...quotaFirst, ...quotaProbed].filter((id) =>
+      id.startsWith('wd-quota-active-'),
+    ),
+  );
+  const retainedCold = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND session_id LIKE 'wd-quota-cold-%'
+      AND status = 'stopped' AND destroyed_at_ms IS NULL
+  `;
+  record(
+    'sandbox watchdog reserves active health capacity and independently rotates historical pin probes without retiring absent workspaces',
+    quotaFirst.filter((id) => id.startsWith('wd-quota-active-')).length ===
+      20 &&
+      quotaFirst.filter((id) => id.startsWith('wd-quota-cold-')).length === 5 &&
+      quotaActive.size === 21 &&
+      quotaCold.size === 10 &&
+      retainedCold[0]?.count === 30,
+    `first active=${quotaFirst.filter((id) => id.startsWith('wd-quota-active-')).length}/20 cold=${quotaFirst.filter((id) => id.startsWith('wd-quota-cold-')).length}/5; rotated active=${quotaActive.size}/21 cold=${quotaCold.size}/10; retained=${retainedCold[0]?.count}/30`,
+  );
+
   // Lane 3d: the render sessions of cut-off scan links. A link destroys its
   // render session when its batch ends; one cut off mid-batch (a restart, a
   // deploy, a crash) left the row compute-holding and the container running,
@@ -59409,6 +60080,32 @@ async function main(): Promise<void> {
         'checkKnowledgeEntries',
         () => checkKnowledgeEntries(sql, baseUrl, authCtx),
       ],
+      [
+        'checkKnowledgeEntryWriteRaces',
+        async () => {
+          const { resolveObjectStore, s3GetObjectBytes } =
+            await import('./lib/object-store.ts');
+          const store = await resolveObjectStore(`itest-${orgSuffix}`);
+          const writer = {
+            organizationId: authCtx.orgId,
+            userId: authCtx.userId,
+            role: 'owner',
+          };
+          const readBlob = async (ref: string): Promise<string> =>
+            new TextDecoder().decode(
+              await s3GetObjectBytes(store, ref.slice(3)),
+            );
+          await checkConcurrentEntryCreation(sql, writer);
+          await checkConcurrentEntryUpdates(sql, writer, readBlob);
+          await checkConcurrentEntryUpdates(sql, writer, readBlob, true);
+          await checkConcurrentEntryRenameAndCreate(sql, writer);
+          record(
+            'knowledge entries: concurrent creates, corrections and renames',
+            true,
+            'real transaction interleavings; one winner, normal 409, coherent history and backing bytes',
+          );
+        },
+      ],
       ['checkCollabEmitters', () => checkCollabEmitters(sql, baseUrl, authCtx)],
       ['checkBellHintWire', () => checkBellHintWire(sql, baseUrl, authCtx)],
       [
@@ -59489,6 +60186,40 @@ async function main(): Promise<void> {
         () => checkTwoFactor(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
       [
+        'checkPasswordConfirmationThrottle',
+        async () =>
+          checkPasswordConfirmationThrottle(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'confirm',
+              'member',
+            ),
+            record,
+          ),
+      ],
+      [
+        'checkStaleSessionReauthentication',
+        async () =>
+          checkStaleSessionReauthentication(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'reauth',
+              'member',
+            ),
+            record,
+          ),
+      ],
+      [
         'checkChatDeferredAuto',
         () =>
           checkChatDeferredAuto(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
@@ -59525,6 +60256,10 @@ async function main(): Promise<void> {
       [
         'checkAutomationTriggerDelivery',
         () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkManagedAutomationConfiguration',
+        () => checkManagedAutomationConfiguration(sql, authCtx, record),
       ],
       [
         'checkTriggerPauseAfterFailures',
@@ -59768,6 +60503,10 @@ async function main(): Promise<void> {
         () => checkWorkerDrainHandOff(sql, boss, record),
       ],
       [
+        'checkTaskCompletionEvidence',
+        () => checkTaskCompletionEvidence(sql, boss, record),
+      ],
+      [
         'checkImportCursorContinuation',
         () => checkImportCursorContinuation(sql, authCtx, record),
       ],
@@ -59809,12 +60548,28 @@ async function main(): Promise<void> {
         () => checkTaskExternalIssueSync(sql, authCtx, record),
       ],
       [
+        'checkTaskExternalStatusProjection',
+        () => checkTaskExternalStatusProjection(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkUsageMetricsBuckets',
+        () => checkUsageMetricsBuckets(sql, authCtx, record),
+      ],
+      [
         'checkProjectTaskMetrics',
         () => checkProjectTaskMetrics(sql, authCtx, record),
       ],
       [
+        'checkTaskSubtreeDeletion',
+        () => checkTaskSubtreeDeletion(sql, authCtx, record),
+      ],
+      [
         'checkTaskBoardSearch',
         () => checkTaskBoardSearch(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkArchivedTaskWrites',
+        () => checkArchivedTaskWrites(sql, baseUrl, authCtx, record),
       ],
       [
         'checkAgentTaskReadTools',
@@ -59854,7 +60609,7 @@ async function main(): Promise<void> {
       ],
       [
         'checkWorkflowTurnReattach',
-        () => checkWorkflowTurnReattach(sql, authCtx),
+        () => checkWorkflowTurnReattach(sql, authCtx, boss),
       ],
       [
         'checkConversationReplyMailbox',

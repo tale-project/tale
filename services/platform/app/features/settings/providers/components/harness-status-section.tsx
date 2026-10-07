@@ -5,7 +5,8 @@
  * organization: how the managed lane resolves for it (the direct-served
  * model pool and the default a turn falls back to), which vendor
  * subscriptions are bound to it — flagging an inert binding — and whether
- * the health signal currently marks it as failing.
+ * the health signal currently marks it as failing. A health signal that could
+ * not be read says so, rather than leave every runtime unmarked.
  *
  * Bring-your-own-only harnesses are omitted upstream; this panel only SHOWS
  * the resolution for harnesses the org can actually configure above.
@@ -17,7 +18,9 @@ import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { useCallback, useRef } from 'react';
 
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -112,6 +115,17 @@ export function HarnessStatusSection({
   const { t } = useT('settings');
   const statusQuery = useHarnessStatus(organizationId);
   const health = useHarnessHealth(organizationId);
+  const { refetch: refetchHealth } = health;
+  // A health read that failed is not a runtime without failures (#3891): it
+  // used to clear every "Recently failing" badge, with nothing to say so.
+  const healthRead = readStateOf(health);
+
+  // When the health read comes back, its alert and Try again leave the page;
+  // the runtime list, where the answer shows, takes the focus instead.
+  const listRef = useRef<HTMLUListElement>(null);
+  const focusList = useCallback(() => {
+    listRef.current?.focus();
+  }, []);
 
   const degraded = new Set(
     (health.data ?? [])
@@ -124,6 +138,22 @@ export function HarnessStatusSection({
     // both. This used to be a tab panel and carried its own description, which
     // became the same sentence twice once the tab became a section.
     <Stack gap={4}>
+      {/* Over the rows it qualifies; a failed status read says enough. */}
+      {!statusQuery.isError && (healthRead.unavailable || healthRead.stale) && (
+        <CatalogLoadError
+          // Each failure is announced again; Try again keeps its node, and
+          // the focus on it, through a retry that fails again.
+          failureKey={healthRead.failureCount}
+          onFocusLost={focusList}
+          message={t(
+            healthRead.stale
+              ? 'providers.harnesses.healthRefreshFailed'
+              : 'providers.harnesses.healthLoadFailed',
+          )}
+          onRetry={() => void refetchHealth()}
+          isRetrying={healthRead.retrying}
+        />
+      )}
       {statusQuery.isError ? (
         <CatalogLoadError
           message={t('providers.harnesses.listFailed')}
@@ -153,7 +183,13 @@ export function HarnessStatusSection({
                 {t('providers.harnesses.noCompatibleModel')}
               </Text>
             )}
-          <ul className="border-border divide-border divide-y rounded-lg border">
+          <ul
+            ref={listRef}
+            // Named and focusable (not tabbable) for the focus hand-off above.
+            aria-label={t('providers.harnesses.title')}
+            tabIndex={-1}
+            className="border-border divide-border divide-y rounded-lg border outline-none"
+          >
             {(statusQuery.isPending ? LOADING_HARNESSES : statusQuery.data).map(
               (row) => (
                 <HarnessRow

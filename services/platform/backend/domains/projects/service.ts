@@ -31,6 +31,8 @@ import {
   PROJECT_TEAM_IDS_SQL,
   TeamAssignmentError,
 } from '../../core/lib/audience.ts';
+import { assertExpectedHash } from '../../core/lib/config_store/precondition.ts';
+import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import { loadHarnesses } from '../../core/lib/providers/load_system_config.ts';
 import {
   ADMIN_ROLES,
@@ -189,6 +191,16 @@ const PROJECT_COLUMNS = `
   updated_at_ms::float8 AS "updatedAt", archived_at_ms::float8 AS "archivedAt",
   pinned_at_ms::float8 AS "pinnedAt"
 `;
+
+/** Metadata reads keep the nullable wire slot while skipping retained bodies. */
+const PROJECT_SUMMARY_COLUMNS = PROJECT_COLUMNS.replace(
+  ' instructions,',
+  ' NULL AS instructions,',
+);
+
+interface ProjectReadOptions {
+  summary?: boolean;
+}
 
 /** Project access input — the audience the matrix decides on. The whole row
  * goes in: `teamIds` decides, and a row that carries only the legacy pair (a
@@ -998,10 +1010,21 @@ export async function updateProjectInstructions(
   auth: ProjectAuthContext,
   projectId: string,
   instructions: string,
+  expectedHash?: string,
 ): Promise<void> {
   const project = await loadProjectOrThrow(tx, projectId);
   assertActiveWritable(project, auth);
   const validated = validateInstructions(instructions);
+  if (expectedHash !== undefined) {
+    assertExpectedHash(
+      managedConfigurationHash({
+        projectId,
+        instructions: project.instructions ?? '',
+      }),
+      expectedHash,
+    );
+    if ((project.instructions ?? '') === validated) return;
+  }
   await tx`
     UPDATE app.projects SET
       instructions = ${validated.length > 0 ? validated : null},
@@ -1018,6 +1041,17 @@ export async function updateProjectInstructions(
     }),
   );
   await hintProject(tx, auth.organizationId, projectId);
+}
+
+export async function readProjectInstructionsConfiguration(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+) {
+  const project = await loadProjectOrThrow(sql, projectId);
+  assertReadable(project, auth);
+  const config = { projectId, instructions: project.instructions ?? '' };
+  return { config, hash: managedConfigurationHash(config) };
 }
 
 export async function updateProjectSharing(
@@ -1431,6 +1465,19 @@ interface ProjectAgentFields {
   instructions: string | undefined;
 }
 
+function validateProjectAgentInstructions(
+  instructions: string | undefined,
+): string | undefined {
+  const value = instructions?.trim();
+  if (value !== undefined && value.length > PROJECT_AGENT_INSTRUCTIONS_MAX) {
+    throw new ProjectError(
+      'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG',
+      'Agent instructions too long',
+    );
+  }
+  return value;
+}
+
 function validateProjectAgentFields(args: {
   name: string;
   harness: string;
@@ -1481,16 +1528,7 @@ function validateProjectAgentFields(args: {
       `An agent may be equipped with at most ${PROJECT_AGENT_BINDINGS_MAX} skills, ${PROJECT_AGENT_BINDINGS_MAX} connectors, ${PROJECT_AGENT_BINDINGS_MAX} tools, and ${PROJECT_AGENT_BINDINGS_MAX} secrets.`,
     );
   }
-  const instructions = args.instructions?.trim();
-  if (
-    instructions !== undefined &&
-    instructions.length > PROJECT_AGENT_INSTRUCTIONS_MAX
-  ) {
-    throw new ProjectError(
-      'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG',
-      'Agent instructions too long',
-    );
-  }
+  const instructions = validateProjectAgentInstructions(args.instructions);
   // A grant the catalog does not carry is refused by name — it used to be
   // dropped in silence, so a caller that sent `["bash", "web_search"]` got
   // a 201 and an agent with no tools at all.
@@ -1584,7 +1622,8 @@ export async function detachSkillFromAgents(
 ): Promise<{ id: string; name: string; projectId: string }[]> {
   const detached = await tx<{ id: string; name: string; projectId: string }[]>`
     UPDATE app.project_agents
-    SET skills = array_remove(skills, ${slug}), updated_at_ms = ${Date.now()}
+    SET skills = array_remove(skills, ${slug}),
+      updated_at_ms = GREATEST(updated_at_ms + 1, ${Date.now()})
     WHERE org_id = ${organizationId} AND ${slug} = ANY(skills)
     RETURNING id, name, project_id AS "projectId"
   `;
@@ -1693,6 +1732,75 @@ export async function getProjectAgent(
     LIMIT 1
   `;
   return rows[0] ?? null;
+}
+
+export async function readAgentInstructionsConfiguration(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  agentId: string,
+) {
+  const agent = await getProjectAgent(sql, auth, projectId, agentId);
+  if (!agent)
+    throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
+  const config = { projectId, agentId, instructions: agent.instructions ?? '' };
+  return { config, hash: managedConfigurationHash(config) };
+}
+
+/** Instructions have no authority to replace equipment, credential grants or
+ * serving choices. The serializable caller protects this preimage alongside
+ * the native audit and realtime hint. */
+export async function updateAgentInstructionsConfiguration(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  config: { projectId: string; agentId: string; instructions: string },
+  expectedHash: string,
+): Promise<void> {
+  const project = await loadProjectOrThrow(tx, config.projectId);
+  assertAgentWritable(project, auth);
+  const agent = await getProjectAgent(
+    tx,
+    auth,
+    config.projectId,
+    config.agentId,
+  );
+  if (!agent)
+    throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
+  if (agent.managed)
+    throw new ProjectError(
+      'PROJECT_AGENT_MANAGED',
+      'Managed agent configuration is read-only',
+      409,
+    );
+  const instructions =
+    validateProjectAgentInstructions(config.instructions) ?? '';
+  assertExpectedHash(
+    managedConfigurationHash({
+      projectId: config.projectId,
+      agentId: config.agentId,
+      instructions: agent.instructions ?? '',
+    }),
+    expectedHash,
+  );
+  if ((agent.instructions ?? '') === instructions) return;
+  await tx`
+    UPDATE app.project_agents SET instructions = ${instructions.length > 0 ? instructions : null},
+      updated_at_ms = ${Math.max(Date.now(), agent.updatedAt + 1)}
+    WHERE id = ${config.agentId} AND project_id = ${config.projectId}
+      AND org_id = ${auth.organizationId}
+  `;
+  await createAuditLog(
+    tx,
+    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
+      metadata: {
+        op: 'update',
+        projectAgentId: config.agentId,
+        previousLength: agent.instructions?.length ?? 0,
+        newLength: instructions.length,
+      },
+    }),
+  );
+  await hintProject(tx, auth.organizationId, config.projectId);
 }
 
 export async function createProjectAgent(
@@ -1895,7 +2003,8 @@ export async function alignManagedProjectAgent(
     UPDATE app.project_agents SET
       harness = ${fields.harness}, model = ${fields.model},
       model_provider = ${fields.modelProvider}, skills = ${fields.skills},
-      instructions = ${fields.instructions}, updated_at_ms = ${Date.now()}
+      instructions = ${fields.instructions},
+      updated_at_ms = GREATEST(updated_at_ms + 1, ${Date.now()})
     WHERE id = (
       SELECT id FROM app.project_agents
       WHERE id = ${agent.id} AND managed
@@ -2018,7 +2127,9 @@ export async function updateProjectAgent(
     throw new ProjectError('PROJECT_AGENT_NAME_TAKEN', 'Agent name taken', 409);
   }
 
-  const now = Date.now();
+  // updatedAt is also the full-save precondition. A changed row must not
+  // reuse a revision when the wall clock stalls or moves backwards.
+  const now = Math.max(Date.now(), agent.updatedAt + 1);
   await tx`
     UPDATE app.project_agents SET
       name = ${fields.name}, harness = ${fields.harness},
@@ -2122,11 +2233,11 @@ function visibilityClause(sql: Sql | TransactionSql, auth: ProjectAuthContext) {
 export async function listProjects(
   sql: Sql,
   auth: ProjectAuthContext,
-  options: { includeArchived?: boolean } = {},
+  options: ProjectReadOptions & { includeArchived?: boolean } = {},
 ): Promise<ProjectListRow[]> {
   const includeArchived = options.includeArchived ?? false;
   const rows = await sql<ProjectRow[]>`
-    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND (${includeArchived} OR archived_at_ms IS NULL)
       AND ${visibilityClause(sql, auth)}
@@ -2149,7 +2260,10 @@ export interface ProjectOverviewRow extends ProjectListRow {
 export async function listProjectsOverview(
   sql: Sql,
   auth: ProjectAuthContext,
-  options: { includeArchived?: boolean; asOf?: number } = {},
+  options: ProjectReadOptions & {
+    includeArchived?: boolean;
+    asOf?: number;
+  } = {},
 ): Promise<{ projects: ProjectOverviewRow[]; overdueTruncated: boolean }> {
   const projects = await listProjects(sql, auth, options);
   const asOf = options.asOf ?? Date.now();
@@ -2194,6 +2308,7 @@ export async function searchProjects(
   auth: ProjectAuthContext,
   query: string,
   limit = 20,
+  options: ProjectReadOptions = {},
 ): Promise<ProjectRow[]> {
   const term = `%${query.trim()}%`;
   if (query.trim().length === 0) {
@@ -2203,7 +2318,7 @@ export async function searchProjects(
   // carries `archived_at_ms`, so the caller labels the row from what it gets.
   // Archived rows sort last so they cannot fill the capped page.
   return sql<ProjectRow[]>`
-    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND name ILIKE ${term}
       AND ${visibilityClause(sql, auth)}
@@ -2220,9 +2335,10 @@ export async function listSidebarProjects(
   sql: Sql,
   auth: ProjectAuthContext,
   limit = 50,
+  options: ProjectReadOptions = {},
 ): Promise<ProjectRow[]> {
   return sql<ProjectRow[]>`
-    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND archived_at_ms IS NULL
       AND ${visibilityClause(sql, auth)}

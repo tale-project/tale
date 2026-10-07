@@ -390,7 +390,7 @@ describe('admitImageGeneration', () => {
     });
   });
 
-  it('refuses a reached cap with the gate’s own sentence and holds nothing', async () => {
+  it('refuses a reached cap with the gate’s own sentence and holds nothing [SBX-R16]', async () => {
     const { sql, statements } = opSql();
     mocks.findBudgetViolation.mockResolvedValue({
       scope: 'user',

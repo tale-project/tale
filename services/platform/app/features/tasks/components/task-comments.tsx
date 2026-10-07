@@ -11,7 +11,16 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useIsMac } from '@tale/ui/use-is-mac';
 import { toast } from '@tale/ui/use-toast';
-import { useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useId,
+  memo,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { CHAT_COMPOSER_FRAME_CLASS } from '@/app/features/chat/lib/layout';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
@@ -25,7 +34,17 @@ import {
   useEditTaskComment,
 } from '../hooks/mutations';
 import { useTaskDiscussion } from '../hooks/queries';
-import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  useTaskActorDirectory,
+  withTaskActorDirectory,
+} from '../hooks/task-actor-directory-context';
+import { useFirstFrameSlice } from '../hooks/use-first-frame-slice';
+import { useTaskHistoryAnchor } from '../hooks/use-task-history-anchor';
+import {
+  TaskLogRow,
+  useTaskLogRowActivity,
+  useTaskLogWindow,
+} from '../hooks/use-task-log-window';
 import { taskCommentDraftKey } from '../lib/draft-key';
 import {
   pickCommentBody,
@@ -37,6 +56,7 @@ import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
 import { TaskActorName } from './task-actor-preview-popover';
+import { TaskHistoryEarlierButton } from './task-history-earlier-button';
 
 /**
  * A task comment in the unified model: a `task_discussion` message joined with
@@ -54,6 +74,10 @@ export interface TaskCommentData {
   bodyByLocale?: CommentBodyByLocale;
 }
 
+/** How many comments the opening frame of a discussion renders: more than a
+ * screen holds. The remaining history enters its window in a background pass. */
+const FIRST_FRAME_COMMENTS = 20;
+
 /** Submit on ⌘/Ctrl+Enter; a bare Enter stays a newline (comments are prose). */
 function onModEnter(submit: () => void) {
   return (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -70,7 +94,9 @@ function onModEnter(submit: () => void) {
  * edit draft is the comment's own state, so any list (the board dialog's log,
  * the task page's conversation) renders comments the same way.
  */
-export function TaskCommentView({
+export const TaskCommentView = withTaskActorDirectory(TaskCommentViewContent);
+
+function TaskCommentViewContent({
   comment: c,
   organizationId,
   projectId,
@@ -95,15 +121,13 @@ export function TaskCommentView({
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { locale } = useLocale();
-  const { resolveActor, resolveActorPreview } = useActorDirectory(
+  const { resolveActor, resolveActorPreview } = useTaskActorDirectory(
     organizationId,
     projectId,
   );
   const { formatRelative, formatDate } = useFormatDate();
-  const editComment = useEditTaskComment();
   const [editing, setEditing] = useState(false);
-  const [editDraft, setEditDraft] = useState('');
-  const isEditPending = editComment.isPending;
+  useTaskLogRowActivity(editing);
 
   const author = resolveActor(c.authorType, c.authorId);
   const preview = isPreviewableTaskActor(c.authorType, c.authorId)
@@ -116,20 +140,19 @@ export function TaskCommentView({
     !!currentUserId &&
     c.authorId === currentUserId;
 
-  const submitEdit = async () => {
-    const body = editDraft.trim();
-    if (!body || isEditPending) return;
-    try {
-      await editComment.mutateAsync({ messageId: c.messageId, body });
-      setEditing(false);
-    } catch (error) {
-      // The comment write's own toast reports the failure.
-      console.error('[tasks] comment action failed', error);
-    }
-  };
-
   return (
-    <Row gap={2} align="start" className="group/comment">
+    <Row
+      gap={2}
+      align="start"
+      // Keep offscreen history in the DOM for browser find, keyboard access
+      // and draft state, while letting the browser skip its layout/paint.
+      // Editing needs normal layout so its mention menu may overflow the row.
+      className={cn(
+        'group/comment',
+        !editing &&
+          '[contain-intrinsic-block-size:auto_8rem] [content-visibility:auto]',
+      )}
+    >
       <AssigneeAvatar
         assigneeType={c.authorType}
         assigneeId={c.authorId}
@@ -151,32 +174,13 @@ export function TaskCommentView({
         </div>
 
         {editing ? (
-          <Stack gap={2} className="mt-1">
-            <MentionTextarea
-              id={`edit-comment-${c.messageId}`}
-              organizationId={organizationId}
-              projectId={projectId}
-              rows={2}
-              value={editDraft}
-              onValueChange={setEditDraft}
-              onKeyDown={onModEnter(() => {
-                if (!isEditPending) void submitEdit();
-              })}
-              autoFocus
-            />
-            <Row gap={2} align="stretch">
-              <Button
-                disabled={editDraft.trim().length === 0 || isEditPending}
-                isLoading={isEditPending}
-                onClick={() => void submitEdit()}
-              >
-                {tCommon('actions.save')}
-              </Button>
-              <Button variant="secondary" onClick={() => setEditing(false)}>
-                {tCommon('actions.cancel')}
-              </Button>
-            </Row>
-          </Stack>
+          <TaskCommentEditor
+            comment={c}
+            organizationId={organizationId}
+            projectId={projectId}
+            initialBody={displayBody}
+            onClose={() => setEditing(false)}
+          />
         ) : (
           <MentionText
             body={displayBody}
@@ -195,7 +199,6 @@ export function TaskCommentView({
               <CommentAction
                 onClick={() => {
                   setEditing(true);
-                  setEditDraft(displayBody);
                 }}
               >
                 {tCommon('actions.edit')}
@@ -215,6 +218,76 @@ export function TaskCommentView({
     </Row>
   );
 }
+
+/** A read-only comment creates no mutation observer or edit draft. The
+ * editor stays mounted while editing, including when scrolled offscreen. */
+const TaskCommentEditor = memo(
+  function TaskCommentEditor({
+    comment: c,
+    organizationId,
+    projectId,
+    initialBody,
+    onClose,
+  }: {
+    comment: TaskCommentData;
+    organizationId: string;
+    projectId: string;
+    initialBody: string;
+    onClose: () => void;
+  }) {
+    const { t: tCommon } = useT('common');
+    const editComment = useEditTaskComment();
+    const [editDraft, setEditDraft] = useState(initialBody);
+    const isEditPending = editComment.isPending;
+    const submitEdit = async () => {
+      const body = editDraft.trim();
+      if (!body || isEditPending) return;
+      try {
+        await editComment.mutateAsync({ messageId: c.messageId, body });
+        onClose();
+      } catch (error) {
+        // The comment write's own toast reports the failure.
+        console.error('[tasks] comment action failed', error);
+      }
+    };
+
+    return (
+      <Stack gap={2} className="mt-1">
+        <MentionTextarea
+          id={`edit-comment-${c.messageId}`}
+          organizationId={organizationId}
+          projectId={projectId}
+          rows={2}
+          value={editDraft}
+          onValueChange={setEditDraft}
+          onKeyDown={onModEnter(() => {
+            if (!isEditPending) void submitEdit();
+          })}
+          autoFocus
+        />
+        <Row gap={2} align="stretch">
+          <Button
+            disabled={editDraft.trim().length === 0 || isEditPending}
+            isLoading={isEditPending}
+            onClick={() => void submitEdit()}
+          >
+            {tCommon('actions.save')}
+          </Button>
+          <Button variant="secondary" onClick={onClose}>
+            {tCommon('actions.cancel')}
+          </Button>
+        </Row>
+      </Stack>
+    );
+  },
+  (previous, next) =>
+    previous.comment.messageId === next.comment.messageId &&
+    previous.comment.body === next.comment.body &&
+    previous.comment.editedAt === next.comment.editedAt &&
+    previous.organizationId === next.organizationId &&
+    previous.projectId === next.projectId &&
+    previous.initialBody === next.initialBody,
+);
 
 /**
  * The task page's composer while its task is on the way: the same frame with
@@ -276,14 +349,16 @@ export function TaskCommentComposer({
   );
   const isAdding = addComment.isPending;
   const empty = draft.trim().length === 0;
+  const draftRevision = useRef(0);
 
   const submit = async () => {
     const body = draft.trim();
     if (!body || isAdding) return;
+    const submittedRevision = draftRevision.current;
     try {
       const result = await addComment.mutateAsync({ taskId, body });
       toastUnresolvedMentions(result.unresolvedMentionTokens, toast, tCommon);
-      clearDraft();
+      if (draftRevision.current === submittedRevision) clearDraft();
     } catch (error) {
       // The comment write's own toast reports the failure.
       console.error('[tasks] comment action failed', error);
@@ -297,7 +372,10 @@ export function TaskCommentComposer({
       projectId={projectId}
       rows={compact && empty ? 1 : 2}
       value={draft}
-      onValueChange={setDraft}
+      onValueChange={(value) => {
+        draftRevision.current += 1;
+        setDraft(value);
+      }}
       onKeyDown={onModEnter(() => {
         if (!isAdding) void submit();
       })}
@@ -382,11 +460,70 @@ export function TaskCommentComposer({
   );
 }
 
+type SetCommentRowActive = ReturnType<typeof useTaskLogWindow>['setRowActive'];
+
 /** Confirms a comment delete — one dialog per list, not per comment. */
-export function useTaskCommentDelete() {
+export function useTaskCommentDelete(setRowActive?: SetCommentRowActive) {
   const { t } = useT('tasks');
   const deleteComment = useDeleteTaskComment();
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deleteSource, setDeleteSource] = useState<{
+    messageId: string;
+    generation: number;
+  } | null>(null);
+  const source = useId();
+  const deleteSourceId = useRef<string | null>(null);
+  const deleteGeneration = useRef(0);
+  const releaseFrame = useRef(0);
+  const requestDelete = useCallback(
+    (messageId: string) => {
+      const generation = ++deleteGeneration.current;
+      cancelAnimationFrame(releaseFrame.current);
+      releaseFrame.current = 0;
+      if (setRowActive) {
+        const previous = deleteSourceId.current;
+        deleteSourceId.current = messageId;
+        setRowActive(messageId, source, true);
+        if (previous !== null && previous !== messageId) {
+          setRowActive(previous, source, false);
+        }
+        setDeleteSource({ messageId, generation });
+      }
+      setPendingDeleteId(messageId);
+    },
+    [setRowActive, source],
+  );
+  const releaseDeleteSource = useCallback(() => {
+    if (
+      pendingDeleteId !== null ||
+      deleteSource === null ||
+      !setRowActive ||
+      deleteGeneration.current !== deleteSource.generation
+    )
+      return;
+    // Close autofocus has now run. Keep its newly focused opener mounted
+    // until the virtual list's focus pin and measurements have settled.
+    cancelAnimationFrame(releaseFrame.current);
+    releaseFrame.current = requestAnimationFrame(() => {
+      releaseFrame.current = requestAnimationFrame(() => {
+        if (deleteGeneration.current !== deleteSource.generation) return;
+        deleteSourceId.current = null;
+        releaseFrame.current = 0;
+        setRowActive(deleteSource.messageId, source, false);
+        setDeleteSource(null);
+      });
+    });
+  }, [deleteSource, pendingDeleteId, setRowActive, source]);
+  useEffect(
+    () => () => {
+      deleteGeneration.current++;
+      cancelAnimationFrame(releaseFrame.current);
+      const messageId = deleteSourceId.current;
+      deleteSourceId.current = null;
+      if (messageId !== null) setRowActive?.(messageId, source, false);
+    },
+    [setRowActive, source],
+  );
 
   const confirmDelete = async () => {
     if (!pendingDeleteId) return;
@@ -408,10 +545,11 @@ export function useTaskCommentDelete() {
       title={t('comment.deleteConfirm')}
       isDeleting={deleteComment.isPending}
       onDelete={() => void confirmDelete()}
+      onCloseAutoFocus={releaseDeleteSource}
     />
   );
 
-  return { requestDelete: setPendingDeleteId, dialog };
+  return { requestDelete, pendingDeleteId, dialog };
 }
 
 /**
@@ -438,7 +576,9 @@ export function useTaskCommentDelete() {
  * ones before them — so however busy a task gets, its freshest comment is on
  * screen and nothing older is silently cut.
  */
-export function TaskComments({
+export const TaskComments = withTaskActorDirectory(TaskCommentsContent);
+
+function TaskCommentsContent({
   taskId,
   organizationId,
   projectId,
@@ -479,8 +619,42 @@ export function TaskComments({
     isLoadingEarlier,
     loadEarlier,
   } = useTaskDiscussion(taskId);
-  const comments = order === 'desc' ? newestFirst : newestFirst.toReversed();
-  const { requestDelete, dialog: deleteDialog } = useTaskCommentDelete();
+  const comments = useMemo(
+    () => (order === 'desc' ? newestFirst : newestFirst.toReversed()),
+    [newestFirst, order],
+  );
+  // Keep ascending conversations whole so adding rows above their newest
+  // end does not move the page under its reader.
+  const shownComments = useFirstFrameSlice(
+    comments,
+    order === 'desc' ? FIRST_FRAME_COMMENTS : Number.POSITIVE_INFINITY,
+    taskId,
+  );
+  const getItemKey = useCallback(
+    (index: number) => shownComments[index]?.messageId ?? `comment-${index}`,
+    [shownComments],
+  );
+  const estimateSize = useCallback(
+    (index: number) => {
+      const bodyLength = shownComments[index]?.body.length ?? 0;
+      return Math.max(96, Math.min(800, 64 + Math.ceil(bodyLength / 75) * 20));
+    },
+    [shownComments],
+  );
+  const window = useTaskLogWindow({
+    count: shownComments.length,
+    getItemKey,
+    estimateSize,
+    gap: 16,
+  });
+  const { requestDelete, dialog: deleteDialog } = useTaskCommentDelete(
+    window.setRowActive,
+  );
+  const { historyRef, loadEarlierWithAnchor } = useTaskHistoryAnchor(
+    newestFirst.at(-1)?.messageId,
+    loadEarlier,
+    isLoadingEarlier,
+  );
 
   // The composer sits at the NEWEST end of the thread — below an ascending
   // conversation, above a newest-first log — so a fresh comment appears where
@@ -502,19 +676,15 @@ export function TaskComments({
   // newest-first log, above an ascending conversation.
   const earlier = hasEarlier && (
     <Row gap={0} align="stretch" justify="center" className="my-3">
-      <Button
-        variant="secondary"
+      <TaskHistoryEarlierButton
         isLoading={isLoadingEarlier}
-        disabled={isLoadingEarlier}
-        onClick={loadEarlier}
-      >
-        {t('detail.showEarlierComments')}
-      </Button>
+        onLoadEarlier={loadEarlierWithAnchor}
+      />
     </Row>
   );
 
   return (
-    <section>
+    <section ref={historyRef}>
       {showHeading ? (
         <Text as="h3" variant="label">
           {t('detail.comments')} ({commentCount ?? comments.length})
@@ -524,7 +694,12 @@ export function TaskComments({
       {order === 'desc' && composer}
       {order === 'asc' && earlier}
 
-      <Stack as="ul" className={showHeading ? 'mt-3' : undefined}>
+      <Stack
+        as="ul"
+        ref={window.listRef}
+        gap={0}
+        className={showHeading ? 'mt-3' : undefined}
+      >
         {comments.length === 0 && !canComment && (
           <li>
             <Text as="p" variant="muted">
@@ -532,20 +707,60 @@ export function TaskComments({
             </Text>
           </li>
         )}
-        {comments.map((c) => (
-          <li key={c.messageId}>
-            <TaskCommentView
-              comment={c}
-              organizationId={organizationId}
-              projectId={projectId}
-              canComment={canComment}
-              canWork={canWork}
-              {...(currentUserId !== undefined ? { currentUserId } : {})}
-              {...(isAdmin !== undefined ? { isAdmin } : {})}
-              onRequestDelete={requestDelete}
-            />
-          </li>
-        ))}
+        {window.items.map((row) => {
+          const c = shownComments[row.index];
+          if (!c) return null;
+          return (
+            <Fragment key={row.key}>
+              {row.paddingBefore > 0 && (
+                <li
+                  aria-hidden
+                  role="presentation"
+                  style={{ height: row.paddingBefore, flexShrink: 0 }}
+                />
+              )}
+              <li
+                data-index={row.index}
+                data-task-history-entry
+                ref={window.measureElement}
+                onFocusCapture={window.onFocusCapture}
+                onBlurCapture={window.onBlurCapture}
+                aria-posinset={window.virtualized ? row.index + 1 : undefined}
+                aria-setsize={window.virtualized ? comments.length : undefined}
+                className={
+                  window.virtualized
+                    ? undefined
+                    : '[content-visibility:auto] focus-within:[content-visibility:visible]'
+                }
+                style={
+                  window.virtualized
+                    ? undefined
+                    : { containIntrinsicSize: 'auto 160px' }
+                }
+              >
+                <TaskLogRow rowKey={row.key} setRowActive={window.setRowActive}>
+                  <TaskCommentView
+                    comment={c}
+                    organizationId={organizationId}
+                    projectId={projectId}
+                    canComment={canComment}
+                    canWork={canWork}
+                    {...(currentUserId !== undefined ? { currentUserId } : {})}
+                    {...(isAdmin !== undefined ? { isAdmin } : {})}
+                    onRequestDelete={requestDelete}
+                  />
+                </TaskLogRow>
+              </li>
+            </Fragment>
+          );
+        })}
+        {window.paddingAfter > 0 && (
+          <li
+            aria-hidden
+            role="presentation"
+            style={{ height: window.paddingAfter, flexShrink: 0 }}
+          />
+        )}
       </Stack>
 
       {order === 'desc' && earlier}

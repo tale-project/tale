@@ -13,6 +13,7 @@ workspace and its build/test commands.
 | Process startup, shutdown and roles | `main.ts`, `env.ts`, `http-shutdown.ts` |
 | Browser-facing domain routes and SQL services | `domains/` |
 | Who a billable call is booked under (the usage ledger's billing subject) | [`domains/governance/README.md`](domains/governance/README.md) |
+| What a domain guarantees, rule by rule, and the test that holds each rule | [`domains/spec-template.md`](domains/spec-template.md); every domain has its own `domains/<domain>/spec.md`, [`domains/tasks/spec.md`](domains/tasks/spec.md) being the first |
 | Public REST resources and error contracts | `rest/` |
 | Accounts, sessions, membership and native identity | `auth/` |
 | Durable jobs, schedules and queue policies | `jobs/` |
@@ -226,6 +227,24 @@ Prometheus request labels use a finite vocabulary of HTTP methods and mounted ap
 domains. Unknown methods and paths share fallback labels. Concurrent `/metrics`
 scrapes share one render and one round of collectors; the next scrape reads afresh.
 
+`tale_backend_automation_trigger_scan_last_success_timestamp_seconds` reads
+the database completion time of an actually executed schedule scan. It is zero
+when no verified completion exists in the last ten minutes or the read fails.
+A queued job, drain handover, failed/aborted attempt or unavailable organization
+table cannot refresh it. The stamp survives process restarts; a healthy API
+process alone does not prove that its workers are scanning.
+
+The scan runs each minute with a 120-second attempt budget and one retry. An
+external alert can allow three minutes of stamp age and five continuous
+unhealthy minutes before firing, with two healthy minutes before resolving.
+That gives bootstrap/retry grace without resetting on every process restart.
+Treat a missing series and materially future timestamp as unhealthy. Enable
+the consumer only after this producer is deployed and its advancing stamp is
+observed. The native queue retains completed jobs for seven days; the query
+uses the queue's existing `(name,id)` index and a ten-minute evidence window.
+This measures scanner execution, not individual trigger or agent success;
+per-role liveness, useful results and deliberate pauses need separate evidence.
+
 Set `BACKEND_SENTRY_TRACES_SAMPLE_RATE` above `0` to sample backend operations
 independently of browser tracing. HTTP spans measure handler completion, excluding
 response-body streaming and health/metrics probes. Worker spans measure each job
@@ -236,3 +255,18 @@ URLs, inherited user context or breadcrumbs. Automatic performance integrations
 stay disabled and outgoing requests receive no trace headers. See the
 [operator guide](https://docs.tale.dev/self-hosted/configuration/observability-config)
 for configuration and sampling limits.
+
+Agent progress keeps one active database write and one combined pending text/
+timeline snapshot. Slow storage therefore drops superseded progress snapshots
+without retaining a growing promise chain. Drain windows rebuild bounded UI
+projections from the runtime journal, publishing resumed progress only after
+replay catches up. Missing journal history is an explicit `REPLAY_UNAVAILABLE`
+failure, and output beyond the journal budget fails with `OUTPUT_LIMIT`;
+neither can be booked as a successful turn with incomplete usage or tools.
+
+Task and workflow recovery claim candidates with `FOR UPDATE SKIP LOCKED` and a
+separate recovery timestamp. Unreachable sandboxes rotate behind other runs
+without refreshing agent liveness. Each sweep has a 60-second budget and at
+most four concurrent five-second probes; worker cancellation propagates to
+those probes. Direct chat uses independent worker slots at
+`WORKER_CONCURRENCY`, so a slow answer does not hold completed slots in a batch.

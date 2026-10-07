@@ -188,7 +188,7 @@ describe('a task-bound row always carries its project', () => {
   });
 });
 
-describe('a task-bound row is written only for someone who can open the task now (#3631)', () => {
+describe('a task-bound row is written only for someone who can open the task now (#3631) [COLLAB-R1]', () => {
   beforeEach(() => {
     vi.mocked(addJobInTx).mockReset();
   });
@@ -312,6 +312,72 @@ describe('a task-bound row is written only for someone who can open the task now
       actorId: 'u-actor',
     });
     expect(written(calls)).toEqual([['u-watcher', 'task_status_changed']]);
+  });
+
+  it('keeps the unread assignment unchanged after access loss and reassignment (#4077)', async () => {
+    const readers = ['u-departed', 'u-watcher'];
+    const rows: Row[] = [];
+    const { db, calls } = fakeDb((text) => {
+      if (text.startsWith('SELECT id, coalesce_key')) {
+        return rows.filter((row) => row.userId === calls.at(-1)?.values[0]);
+      }
+      if (text.startsWith('UPDATE app.user_notifications SET email_epoch')) {
+        return [{ emailEpoch: 1 }];
+      }
+      if (text.startsWith('INSERT INTO app.user_notifications')) {
+        const call = calls.at(-1);
+        const key = call?.values.find(
+          (value) => typeof value === 'string' && value.endsWith(':assignment'),
+        );
+        const id = `n-${rows.length}`;
+        rows.push({
+          id,
+          userId: call?.values[0],
+          read: false,
+          coalesceKey: key,
+          params: call?.values[5],
+        });
+        return [{ id }];
+      }
+      return [];
+    }, readers);
+
+    await notifyTaskAssigned(db, {
+      task: TASK,
+      assigneeType: 'user',
+      assigneeId: 'u-departed',
+      actorType: 'agent',
+      actorId: 'agent-1',
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.coalesceKey).toBe('task:task-1:assignment');
+    const original = structuredClone(rows);
+    const before = calls.length;
+    vi.mocked(addJobInTx).mockClear();
+    vi.mocked(emitHintInTx).mockClear();
+    readers.splice(readers.indexOf('u-departed'), 1);
+
+    await notifyTaskAssigned(db, {
+      task: { ...TASK, title: 'Confidential new title' },
+      assigneeType: 'user',
+      assigneeId: 'u-watcher',
+      previousAssigneeType: 'user',
+      previousAssigneeId: 'u-departed',
+      actorType: 'agent',
+      actorId: 'agent-1',
+    });
+
+    expect(rows[0]).toEqual(original[0]);
+    const reassignment = calls.slice(before);
+    expect(
+      reassignment.some((call) =>
+        call.text.startsWith('DELETE FROM app.user_notifications'),
+      ),
+    ).toBe(false);
+    expect(written(reassignment)).toEqual([['u-watcher', 'task_assigned']]);
+    expect(emitHintInTx).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(emitHintInTx).mock.calls[0]?.[1].userId).toBe('u-watcher');
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
   });
 
   it('tells a former assignee who lost access nothing; the new assignee is told', async () => {
@@ -450,7 +516,7 @@ describe('the personal bell hint (wire contract with the web app)', () => {
   });
 });
 
-describe('the reviewer-designation heads-up (task_reviewer_assigned)', () => {
+describe('the reviewer-designation heads-up (task_reviewer_assigned) [COLLAB-R6]', () => {
   /** Like `fakeDb`, but keeps each statement's VALUES so the row written can
    * be pinned (type, keys, params), not only the statement shape. */
   function recordingDb(answer: (text: string) => Row[]): {
@@ -623,7 +689,7 @@ describe('the reviewer-designation heads-up (task_reviewer_assigned)', () => {
   });
 });
 
-describe('the mention bell, per surface', () => {
+describe('the mention bell, per surface [COLLAB-R3]', () => {
   const task = {
     id: 'task-1',
     organizationId: 'org-1',
@@ -719,7 +785,7 @@ describe('the mention bell, per surface', () => {
   });
 });
 
-describe('the paused-schedule notice (automation_failed)', () => {
+describe('the paused-schedule notice (automation_failed) [COLLAB-R9]', () => {
   /** Like `fakeDb`, but the answer also sees the statement's values — the
    * preference read answers per recipient. */
   function fakeDbWithValues(
@@ -928,7 +994,7 @@ describe('the agent-question bell (agent_escalation)', () => {
 
   // A task-bound question is answered on the task, which everyone who can
   // see the project opens.
-  it('asks everyone who can see the project about a task-bound run', async () => {
+  it('asks everyone who can see the project about a task-bound run [COLLAB-R7]', async () => {
     const fake = fakeAskDb([]);
 
     await notifyAgentQuestionAsked(fake.db, {
@@ -940,7 +1006,7 @@ describe('the agent-question bell (agent_escalation)', () => {
   });
 });
 
-describe('the failed-run notice (agent_run_failed)', () => {
+describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
   interface World {
     /** Unmuted watchers of the task. */
     subscribers: string[];

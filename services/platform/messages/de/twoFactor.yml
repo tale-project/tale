@@ -1,0 +1,134 @@
+enrollment:
+  title: Zwei-Faktor-Authentifizierung
+  description: Sichere dein Konto mit einem zeitbasierten Code aus einer
+    Authenticator-App.
+  enabledHint: Zwei-Faktor-Authentifizierung ist für dein Konto aktiv.
+  requiredByOrg:
+    Deine Organisation verlangt Zwei-Faktor-Authentifizierung. Richte
+    sie jetzt ein, um fortzufahren.
+  enableButton: Zwei-Faktor aktivieren
+  disableButton: Deaktivieren
+  regenerateButton: Backup-Codes neu erzeugen
+  enabled: Zwei-Faktor-Authentifizierung aktiviert
+  disabled: Zwei-Faktor-Authentifizierung deaktiviert
+  passwordPromptDescription: Bestätige dein Passwort, um die Einrichtung der
+    Zwei-Faktor-Authentifizierung zu starten.
+  disablePromptDescription: Bestätige dein Passwort, um die
+    Zwei-Faktor-Authentifizierung auszuschalten.
+  disableEnforcedWarning: Deine Organisation verlangt
+    Zwei-Faktor-Authentifizierung. Wenn du sie deaktivierst, musst du sie bei
+    der nächsten Anmeldung erneut einrichten.
+  regeneratePromptDescription:
+    Bestätige dein Passwort. Beim Neuerzeugen werden
+    alle bisherigen Backup-Codes ungültig.
+passkeys:
+  title: Passkeys
+  description:
+    Melde dich mit einem Passkey an (Face ID, Touch ID, Windows Hello
+    oder ein Security-Key). Ein Passkey ist phishing-resistent und erfüllt die
+    Zwei-Faktor-Anforderung deiner Organisation.
+  addButton: Passkey hinzufügen
+  revokeButton: Entfernen
+  revokeConfirmTitle: Passkey entfernen?
+  revokeConfirmDescription:
+    Dadurch wird „{name}" entfernt und kann nicht mehr zur
+    Anmeldung verwendet werden. War es dein einziger zweiter Faktor, wirst du
+    möglicherweise erneut zur Einrichtung der Zwei-Faktor-Authentifizierung
+    aufgefordert.
+  unnamed: Passkey
+  registered: Passkey registriert
+  revoked: Passkey entfernt
+  empty: Du hast noch keinen Passkey hinzugefügt.
+  namePromptDescription: Gib diesem Passkey einen Namen, damit du ihn später
+    wiedererkennst (z. B. "MacBook Touch ID").
+  confirmPasswordDescription: Deine Anmeldung liegt schon eine Weile zurück. Bestätige dein Passwort, um einen Passkey hinzuzufügen.
+  signInAgainDescription: Deine Anmeldung liegt schon eine Weile zurück. Melde dich erneut an und füge dann deinen Passkey hinzu.
+  nameLabel: Passkey-Name
+  namePlaceholder: MacBook Touch ID
+  attachment:
+    label: Authenticator-Typ
+    any: Beliebig (empfohlen)
+    platform: Dieses Gerät (Face ID, Touch ID, Windows Hello)
+    crossPlatform: Security-Key oder Smartphone
+  errors:
+    registerFailed: Passkey konnte nicht registriert werden. Versuch es nochmal.
+    revokeFailed: Passkey konnte nicht entfernt werden. Versuch es nochmal.
+    listFailed: Deine Passkeys konnten nicht geladen werden.
+    refreshFailed: Deine Passkeys konnten nicht aktualisiert werden. Die angezeigte Liste ist womöglich veraltet.
+    confirmFailed: Dein Passwort konnte nicht bestätigt werden. Versuch es nochmal.
+setup:
+  title: Zwei-Faktor-Authentifizierung einrichten
+  qrInstructions: Scanne den QR-Code mit einer Authenticator-App (Google
+    Authenticator, 1Password, Authy) und gib anschließend den 6-stelligen Code
+    unten ein.
+  manualEntry: 'Oder manuell eingeben:'
+  verifyCodeLabel: Bestätigungscode
+  verifyButton: Prüfen und aktivieren
+backupCodes:
+  title: Backup-Codes speichern
+  description:
+    Jeder Code kann einmal verwendet werden, falls du keinen Zugriff
+    mehr auf deine Authenticator-App hast.
+  warningOnce: Wir zeigen diese Codes nicht erneut an. Lade sie jetzt herunter
+    oder kopiere sie.
+  downloadButton: Herunterladen
+  doneButton: Fertig
+  regenerated: Neue Backup-Codes erzeugt
+confirmPassword:
+  label: Passwort
+  submit: Bestätigen
+  wrongPassword: Falsches Passwort. Nach wiederholten Fehlversuchen wird dein Konto vorübergehend gesperrt.
+verify:
+  title: Identität bestätigen
+  description: Gib den 6-stelligen Code aus deiner Authenticator-App ein.
+  backupDescription: Gib einen deiner Backup-Codes ein.
+  codeLabel: Authentifizierungscode
+  useBackupCodeToggle: Stattdessen einen Backup-Code verwenden
+  useAuthenticatorToggle: Stattdessen die Authenticator-App verwenden
+  backupCodeLabel: Backup-Code
+  submitButton: Prüfen
+  invalid: Ungültiger oder abgelaufener Code. Versuch es nochmal.
+  tooManyAttempts: Zu viele Fehlversuche. Versuch es später nochmal.
+  success: Angemeldet
+  backupCodeSuccess: Backup-Code verwendet. Erwäge, die Backup-Codes in den
+    Einstellungen neu zu erzeugen.
+  usePasskeyButton: Stattdessen einen Passkey verwenden
+  passkeyFailed:
+    Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es
+    erneut oder verwende einen Code.
+lowBackupCodes:
+  body: Erzeuge einen neuen Satz, damit du dein Konto wiederherstellen kannst,
+    falls du deine Authenticator-App verlierst.
+  regenerateLink: Jetzt neu erzeugen
+  titleOne: Nur noch 1 Backup-Code übrig
+  titleOther: Nur noch {count} Backup-Codes übrig
+enroll:
+  title: Zwei-Faktor erforderlich
+  description: Deine Organisation verlangt Zwei-Faktor-Authentifizierung, um fortzufahren.
+  usePasskeyButton: Stattdessen einen Passkey registrieren
+grace:
+  body: Deine Organisation wird von allen Mitgliedern einen zweiten Faktor
+    verlangen. Richte ihn jetzt ein, um Unterbrechungen zu vermeiden.
+  setupLink: Jetzt einrichten
+  titleOne: Zwei-Faktor-Authentifizierung in {days} Tag erforderlich
+  titleOther: Zwei-Faktor-Authentifizierung in {days} Tagen erforderlich
+admin:
+  resetButton: Zwei-Faktor zurücksetzen
+  confirmTitle: Zwei-Faktor-Authentifizierung zurücksetzen?
+  confirmDescription: Dies deaktiviert Zwei-Faktor für {name} und beendet alle
+    aktiven Sitzungen. Beim nächsten Anmelden ist eine neue Einrichtung
+    erforderlich.
+  passkeys:
+    title: Passkeys
+    confirmTitle: Diesen Passkey entfernen?
+    confirmDescription:
+      Dies entfernt den Passkey "{name}" und beendet alle aktiven
+      Sitzungen des Mitglieds. Danach ist eine neue Anmeldung nötig.
+    deviceTypes:
+      singleDevice: Gerätegebundener Schlüssel
+      multiDevice: Synchronisierter Passkey
+errors:
+  enableFailed: Zwei-Faktor-Authentifizierung konnte nicht aktiviert werden. Versuch es nochmal.
+  disableFailed: Zwei-Faktor-Authentifizierung konnte nicht deaktiviert werden.
+  regenerateFailed: Neue Backup-Codes konnten nicht erzeugt werden.
+  invalidCode: Ungültiger oder abgelaufener Code. Versuch es nochmal.

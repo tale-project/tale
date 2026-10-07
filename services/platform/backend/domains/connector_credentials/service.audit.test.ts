@@ -89,7 +89,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe('connector credential writes — audit rows', () => {
+describe('connector credential writes — audit rows [CCRED-R7]', () => {
   it('records a creation under the signed-in person, naming the connector and never the secret', async () => {
     const { sql, statements } = fakeSql((s) =>
       s.text.startsWith('INSERT INTO app.connector_credentials')

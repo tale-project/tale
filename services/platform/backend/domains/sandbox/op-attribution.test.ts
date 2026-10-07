@@ -40,7 +40,7 @@ const TASK_OP = {
 const WORKFLOW_OP = { ...TASK_OP, sessionId: 'wf-1', kind: 'workflow-agent' };
 
 describe('resolveSessionOpAttribution — task-agent', () => {
-  it('books the person who kicked the run under the agent’s id', async () => {
+  it('books the person who kicked the run under the agent’s id [SBX-R14]', async () => {
     const { sql, statements } = fakeSql([
       {
         match: 'FROM app.project_agent_runs r',
@@ -70,7 +70,7 @@ describe('resolveSessionOpAttribution — task-agent', () => {
     });
   });
 
-  it('books a run a schedule began under the automation sentinel, under the agent’s id', async () => {
+  it('books a run a schedule began under the automation sentinel, under the agent’s id [SBX-R14]', async () => {
     const { sql, statements } = fakeSql([
       {
         match: 'FROM app.project_agent_runs r',
@@ -104,14 +104,14 @@ describe('resolveSessionOpAttribution — workflow-agent', () => {
     rows: [{ startedBy, name: 'invoices/monthly', apiKeyId }],
   });
 
-  it('derives the person from a `user:` starter, never the door string', async () => {
+  it('derives the person from a `user:` starter, never the door string [SBX-R14]', async () => {
     const { sql } = fakeSql([run('user:user-2')]);
     await expect(
       resolveSessionOpAttribution(sql, WORKFLOW_OP),
     ).resolves.toEqual({ userId: 'user-2', agentSlug: 'invoices/monthly' });
   });
 
-  it('books a keyed start to the person AND the key', async () => {
+  it('books a keyed start to the person AND the key [SBX-R14]', async () => {
     const { sql } = fakeSql([run('api-key:user-3', 'key-1')]);
     await expect(
       resolveSessionOpAttribution(sql, WORKFLOW_OP),
@@ -129,7 +129,7 @@ describe('resolveSessionOpAttribution — workflow-agent', () => {
     ).resolves.toEqual({ userId: 'user-3', agentSlug: 'invoices/monthly' });
   });
 
-  it('books a trigger-started run under the automation sentinel', async () => {
+  it('books a trigger-started run under the automation sentinel [SBX-R14]', async () => {
     const { sql } = fakeSql([run('trigger:t-1')]);
     await expect(
       resolveSessionOpAttribution(sql, WORKFLOW_OP),

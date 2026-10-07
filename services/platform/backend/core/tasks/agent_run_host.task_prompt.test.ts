@@ -24,6 +24,26 @@ const EDITED_TO = '@writer draft the brief in French';
 
 const inputs = { dir: '/agent/inputs/task-1', attachments: [], outputs: [] };
 
+describe('task input prompts — bounded retained outputs', () => {
+  it('tells fresh and resumed turns when older outputs were omitted', () => {
+    const boundedInputs = {
+      dir: '/agent/inputs/task-1',
+      attachments: [],
+      outputs: ['new.md'],
+      omittedOutputs: 699,
+    };
+    const { fresh, resume } = buildKickPrompts({
+      brief: brief('Continue the recurring report'),
+      outputDir: '/agent/output/task-1',
+      inputs: boundedInputs,
+    });
+    const notice =
+      '/agent/inputs/task-1/outputs/ contains the newest 1 deliverables; 699 older retained deliverables were left on the task and omitted from this turn to keep input staging bounded.';
+    expect(fresh).toContain(notice);
+    expect(resume).toContain(notice);
+  });
+});
+
 function brief(description: string) {
   return {
     title: 'Launch brief',

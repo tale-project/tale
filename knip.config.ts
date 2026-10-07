@@ -37,9 +37,10 @@ export default {
     // service boundary). Each side consumes a different subset of the shared
     // contract, so knip would see the members used only by the *other* side as
     // dead — but they are the cross-service contract and must stay in sync.
-    // The canonical copy is anchored by runnerd-protocol.test.ts (which
-    // imports both copies whole and pins them equal); the mirror stays
-    // excluded so its spawner-only members are not reported as dead.
+    // The canonical copy is an explicit public-contract entry below, and
+    // runnerd-protocol.test.ts pins both copies equal. Namespace enumeration
+    // in that test alone cannot describe every cross-service consumer to Knip.
+    // The mirror stays excluded so its spawner-only members are not dead.
     'services/sandbox-runtime/daemon/src/protocol.ts',
     // Written by `optimize-images` for future responsive marketing assets;
     // empty until sources land, but the generator always emits the file.
@@ -155,8 +156,24 @@ export default {
       // auto-detected from `dev`/`start` scripts; tests anchor the dead-code
       // sweep for unit-only helpers. `src/devices/apply-cli.ts` is the
       // image's `device-apply` helper, dispatched by entrypoint.sh.
-      entry: ['src/**/*.test.ts', 'src/devices/apply-cli.ts'],
+      entry: [
+        'src/**/*.test.ts',
+        'src/devices/apply-cli.ts',
+        // Public wire contract shared with the separately bundled runnerd.
+        'src/session/runnerd-protocol.ts',
+      ],
       project: ['src/**/*.ts'],
+    },
+    'services/sandbox-runtime/daemon': {
+      // Bundled for Node and launched by entrypoint.sh; the transport fixture
+      // is bundled by its Bun test and runs in a separate Node process.
+      entry: [
+        'src/main.ts',
+        'src/**/*.test.ts',
+        'src/lazy-docker-entry.ts',
+        'src/lazy-docker.node-fixture.ts',
+        'src/lazy-docker-health.node-fixture.ts',
+      ],
     },
     'configs/platform/custom/skills/visual-aspect-analyzer': {
       // Self-contained Bun/TS skill bundle: a library with a public embed API
@@ -257,6 +274,9 @@ export default {
       project: ['**/*.{ts,tsx,css}'],
     },
     'tools/cli': {
+      // The scan job invokes this from an isolated workflow checkout, whose
+      // prefix is not its actual source path in Knip's workspace graph.
+      entry: ['scripts/check-sbom-hashes.ts'],
       project: ['**/*.ts'],
       // The embedded native workflow validator imports Ajv from platform
       // source. A CLI-only filtered install must provide that runtime edge,

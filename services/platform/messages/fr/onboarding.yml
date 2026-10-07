@@ -1,0 +1,28 @@
+title: Configure ton espace de travail
+subtitle: Quelques étapes rapides pour préparer ton espace de travail.
+backToApp: Retour à l'application
+stepsAriaLabel: Étapes d'onboarding
+progress: 'Étape {current} sur {total} : {label}'
+steps:
+  account: Compte
+  workspace: Espace de travail
+  finish: Terminer
+account:
+  heading: Crée ton compte propriétaire
+  why: C'est le premier compte de cette installation Tale ; il dispose donc de
+    tous les droits d'administration. Tu ajouteras des coéquipiers plus tard.
+workspace:
+  createError:
+    Impossible de créer ton espace de travail. Vérifie ta connexion et
+    clique de nouveau sur « Suivant ».
+  creationForbidden: Tu ne peux pas créer d'organisation sur ce déploiement. Contacte l'opérateur pour demander un espace de travail.
+  nameTakenError: Ce nom est déjà pris. Choisis-en un autre.
+finish:
+  heading: "C'est prêt"
+  subtitle: 'Voici ce que tu peux faire ensuite :'
+  providerItem: Connecte un fournisseur d'IA pour alimenter les agents et le chat.
+  providerConnected: Fournisseur d'IA connecté.
+  inviteItem: Invite des coéquipiers à collaborer.
+  providerCta: Connecter un fournisseur
+  inviteCta: Inviter des coéquipiers
+  goToDashboard: Aller à l’Accueil

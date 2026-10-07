@@ -24,7 +24,7 @@ defineI18nTests({
     'pronouns-formal': 'report',
     'terminology-loanword': 'report',
     'terminology-half-compound': 'report',
-    'terminology-ui-label': 'report',
+    'terminology-ui-label': 'enforce',
     'voice-strikes': 'report',
     'voice-drift': 'report',
     'grammar-articles': 'report',

@@ -1,11 +1,12 @@
-import { renderHook } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { render, renderHook } from '@testing-library/react';
+import { memo, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ClockOffsetProvider,
   useClockOffset,
   useReportServerNow,
+  type ClockOffset,
 } from './use-clock-offset';
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -50,6 +51,44 @@ describe('useClockOffset', () => {
     // …and "now" is available in both frames.
     expect(result.current.serverEpochNow()).toBe(9000);
     expect(result.current.clientEpochNow()).toBe(1000);
+  });
+
+  it('converts with a learned offset without re-rendering its readers', () => {
+    // Every assistant row of a long transcript reads the clock: a new value
+    // per sample re-rendered all of them, toolbars included, the moment the
+    // first turn's live text reported the server clock (#4121).
+    vi.spyOn(Date, 'now').mockReturnValue(1000);
+    // Every value the reader rendered with, one per render.
+    const seen: ClockOffset[] = [];
+    const Reader = memo(function Reader() {
+      seen.push(useClockOffset());
+      return null;
+    });
+    function Reporter({ serverNow }: { serverNow?: number }) {
+      useReportServerNow(serverNow);
+      return null;
+    }
+    const tree = (serverNow?: number) => (
+      <ClockOffsetProvider>
+        <Reader />
+        <Reporter serverNow={serverNow} />
+      </ClockOffsetProvider>
+    );
+    const { rerender } = render(tree());
+    expect(seen).toHaveLength(1);
+    const clock = seen[0]!;
+
+    // The first sample: server 8 s ahead.
+    rerender(tree(9000));
+    expect(seen).toHaveLength(1);
+    expect(clock.offsetMs).toBe(8000);
+    expect(clock.toClientEpoch(9000)).toBe(1000);
+    expect(clock.serverEpochNow()).toBe(9000);
+
+    // A real re-sync is adopted the same way.
+    rerender(tree(20000));
+    expect(seen).toHaveLength(1);
+    expect(clock.toClientEpoch(20000)).toBe(1000);
   });
 
   it('ignores jitter within the threshold but adopts a real re-sync', () => {

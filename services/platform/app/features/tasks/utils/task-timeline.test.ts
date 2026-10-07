@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTaskActorPreview, WORKFLOW_ACTOR_ID } from './task-actor-preview';
+import {
+  buildAgentRunPreview,
+  buildTaskActorPreview,
+  WORKFLOW_ACTOR_ID,
+} from './task-actor-preview';
 import {
   inferWorkflowContextFromRuns,
   mergeTaskTimeline,
@@ -8,6 +12,7 @@ import {
 
 const labels = {
   unresolvedWorkflow: 'Workflow',
+  deletedAgent: 'Deleted agent',
 };
 
 describe('mergeTaskTimeline', () => {
@@ -127,6 +132,18 @@ describe('buildTaskActorPreview', () => {
       viewTo: '/dashboard/$id',
       viewParams: { id: 'org_1' },
     });
+  });
+
+  it('uses a readable label when a historical run agent was deleted', () => {
+    const preview = buildAgentRunPreview({
+      organizationId: 'org_1',
+      agentSlug: '8ebd2dbf-9973-4ca1-aeb7-947daee7234e',
+      agents: new Map(),
+      workflows: new Map(),
+      labels,
+    });
+
+    expect(preview.name).toBe('Deleted agent');
   });
 
   it('builds a workflow preview from activity context', () => {

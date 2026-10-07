@@ -55,6 +55,44 @@ describe('shipped providers', () => {
     });
   });
 
+  it('anthropic ships a pasted OAuth token method forcing claude-code', () => {
+    const anthropic = loadProviderDefinitions().find(
+      (c) => c.name === 'anthropic',
+    );
+    const key = anthropic?.auth.find((a) => a.method === 'subscription-key');
+    expect(key).toEqual({
+      method: 'subscription-key',
+      targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+      constraints: { execution: 'sandbox', harness: 'claude-code' },
+    });
+  });
+
+  it('every subscription-key targetEnvVar is a variable its forced harness accepts', () => {
+    const harnesses = loadHarnesses();
+    for (const provider of loadProviderDefinitions()) {
+      for (const auth of provider.auth) {
+        if (
+          auth.method !== 'subscription-key' ||
+          auth.targetEnvVar === undefined
+        ) {
+          continue;
+        }
+        const delivery = harnesses.find(
+          (h) => h.slug === auth.constraints.harness,
+        )?.subscription;
+        expect(
+          delivery?.kind,
+          `${provider.name} names ${auth.targetEnvVar} on a harness with no env delivery`,
+        ).toBe('env');
+        if (delivery?.kind !== 'env') continue;
+        expect(
+          [delivery.tokenVar, ...(delivery.tokenVarOverrides ?? [])],
+          `${provider.name} names ${auth.targetEnvVar}, which ${auth.constraints.harness} does not accept`,
+        ).toContain(auth.targetEnvVar);
+      }
+    }
+  });
+
   it('declares a native Anthropic harness endpoint only where the vendor serves one', () => {
     // Claude Code rides these instead of the gateway's Anthropic→OpenAI
     // down-conversion. Vendors that also serve one but are NOT listed here

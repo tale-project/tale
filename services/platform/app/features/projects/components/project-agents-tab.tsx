@@ -2,13 +2,14 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
-import { Bot, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Bot, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
@@ -22,7 +23,9 @@ import {
   useProjectHarnesses,
   useStandardAgent,
 } from '../hooks/queries';
+import { projectAgentDetails } from '../lib/agent-details';
 import { toModelOptions, type ModelOption } from '../lib/model-options';
+import { ProjectAgentDetailsDialog } from './project-agent-details';
 import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
 import {
   ProjectAgentRowsSkeleton,
@@ -57,7 +60,19 @@ export function ProjectAgentsTab({
   const { project, isLoading: projectLoading } = useProject(projectId);
   const rosterQuery = useProjectHarnesses(organizationId);
   const catalogQuery = useProjectCapabilityCatalog(organizationId, projectId);
-  const { agents, isLoading: agentsLoading } = useProjectAgents(projectId);
+  const {
+    agents,
+    hasAnswer,
+    isLoading: agentsLoading,
+    unavailable,
+    stale,
+    retrying,
+    failureCount,
+    retry,
+  } = useProjectAgents(projectId);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const focusBody = useCallback(() => bodyRef.current?.focus(), []);
+  const listAnswered = hasAnswer ?? !agentsLoading;
   const standardAgentAvailable =
     useStandardAgent(organizationId)?.available === true;
   const { mutateAsync: deleteAgent } = useDeleteProjectAgent();
@@ -69,6 +84,8 @@ export function ProjectAgentsTab({
   const [deleting, setDeleting] = useState<ProjectAgentRow | undefined>(
     undefined,
   );
+  const [viewingId, setViewingId] = useState<string | undefined>(undefined);
+  const viewing = agents.find((agent) => agent._id === viewingId);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const harnessRoster = rosterQuery.data?.harnesses;
@@ -141,125 +158,164 @@ export function ProjectAgentsTab({
 
   return (
     <ProjectAgentsFrame
-      action={canEdit ? newAgentButton : undefined}
+      action={canEdit && listAnswered ? newAgentButton : undefined}
       reader={!canEdit}
     >
-      {agentsLoading && agents.length === 0 ? (
-        <ProjectAgentRowsSkeleton canEdit={canEdit} />
-      ) : agents.length === 0 ? (
-        // Adding an agent is the editors'. A reader is told who can, not to
-        // "give one a model" on a page that offers them no way to — and,
-        // while the organization provides one, that its standard agent
-        // takes the project's tasks meanwhile.
-        <EmptyState
-          icon={Bot}
-          title={t(
-            standardAgentAvailable
-              ? 'agents.standard.emptyTitle'
-              : canEdit
-                ? 'agents.emptyTitle'
-                : 'agents.emptyReaderTitle',
-          )}
-          description={t(
-            standardAgentAvailable
-              ? canEdit
-                ? 'agents.standard.emptyBody'
-                : 'agents.standard.emptyReaderBody'
-              : canEdit
-                ? 'agents.emptyBody'
-                : 'agents.emptyReaderBody',
-          )}
-        />
-      ) : (
-        <Stack as="ul" gap={2}>
-          {agents.map((agent) => {
-            const option = harnessBySlug.get(agent.harness);
-            const equipped = agent.skills.length + agent.connectors.length;
-            return (
-              <li key={agent._id}>
-                <Row
-                  justify="between"
-                  align="center"
-                  gap={3}
-                  className="rounded-md border p-3"
-                >
-                  <Row align="center" gap={3} className="min-w-0">
-                    {option?.iconUrl !== undefined ? (
-                      <img
-                        src={option.iconUrl}
-                        alt=""
-                        className="size-6 shrink-0 rounded-sm"
-                      />
-                    ) : (
-                      <Bot
-                        aria-hidden
-                        className="text-muted-foreground size-6 shrink-0"
-                      />
-                    )}
-                    <Stack gap={1} className="min-w-0">
-                      <Row align="center" gap={2} className="min-w-0">
-                        <Text className="truncate font-medium">
-                          {agent.name}
-                        </Text>
-                        {agent.managed && (
-                          <Badge variant="outline" className="shrink-0">
-                            {t('agents.standard.badge')}
-                          </Badge>
-                        )}
-                      </Row>
-                      <Text
-                        variant="caption"
-                        className="text-muted-foreground truncate"
-                      >
-                        {option?.label ?? agent.harness}
-                        {agent.modelProvider !== undefined
-                          ? ` · ${providerLabelBySlug.get(agent.modelProvider) ?? agent.modelProvider}`
-                          : ''}
-                        {agent.model !== undefined ? ` · ${agent.model}` : ''}
-                        {equipped > 0
-                          ? ` · ${t('agents.equippedCount', { count: equipped })}`
-                          : ''}
-                      </Text>
-                      {agent.managed && (
+      <div
+        ref={bodyRef}
+        role="group"
+        aria-label={t('agents.agentsHeading')}
+        tabIndex={-1}
+        className="flex flex-col gap-3 outline-none"
+      >
+        {unavailable || stale ? (
+          <CatalogLoadError
+            failureKey={failureCount}
+            onFocusLost={focusBody}
+            message={t(
+              unavailable ? 'agents.loadFailed' : 'agents.refreshFailed',
+            )}
+            onRetry={retry}
+            isRetrying={retrying}
+          />
+        ) : null}
+        {unavailable ? null : !listAnswered ? (
+          <ProjectAgentRowsSkeleton canEdit={canEdit} />
+        ) : agents.length === 0 ? (
+          // Adding an agent is the editors'. A reader is told who can, not to
+          // "give one a model" on a page that offers them no way to — and,
+          // while the organization provides one, that its standard agent
+          // takes the project's tasks meanwhile.
+          <EmptyState
+            icon={Bot}
+            title={t(
+              standardAgentAvailable
+                ? 'agents.standard.emptyTitle'
+                : canEdit
+                  ? 'agents.emptyTitle'
+                  : 'agents.emptyReaderTitle',
+            )}
+            description={t(
+              standardAgentAvailable
+                ? canEdit
+                  ? 'agents.standard.emptyBody'
+                  : 'agents.standard.emptyReaderBody'
+                : canEdit
+                  ? 'agents.emptyBody'
+                  : 'agents.emptyReaderBody',
+            )}
+          />
+        ) : (
+          <Stack as="ul" gap={2}>
+            {agents.map((agent) => {
+              const option = harnessBySlug.get(agent.harness);
+              const equipped = agent.skills.length + agent.connectors.length;
+              return (
+                <li key={agent._id}>
+                  <Row
+                    justify="between"
+                    align="center"
+                    gap={3}
+                    className="rounded-md border p-3"
+                  >
+                    <Row align="center" gap={3} className="min-w-0">
+                      {option?.iconUrl !== undefined ? (
+                        <img
+                          src={option.iconUrl}
+                          alt=""
+                          className="size-6 shrink-0 rounded-sm"
+                        />
+                      ) : (
+                        <Bot
+                          aria-hidden
+                          className="text-muted-foreground size-6 shrink-0"
+                        />
+                      )}
+                      <Stack gap={1} className="min-w-0">
+                        <Row align="center" gap={2} className="min-w-0">
+                          <Text className="truncate font-medium">
+                            {agent.name}
+                          </Text>
+                          {agent.managed && (
+                            <Badge variant="outline" className="shrink-0">
+                              {t('agents.standard.badge')}
+                            </Badge>
+                          )}
+                        </Row>
                         <Text
                           variant="caption"
-                          className="text-muted-foreground"
+                          className="text-muted-foreground truncate"
                         >
-                          {t('agents.standard.managedNote')}
+                          {option?.label ?? agent.harness}
+                          {agent.modelProvider !== undefined
+                            ? ` · ${providerLabelBySlug.get(agent.modelProvider) ?? agent.modelProvider}`
+                            : ''}
+                          {agent.model !== undefined ? ` · ${agent.model}` : ''}
+                          {equipped > 0
+                            ? ` · ${t('agents.equippedCount', { count: equipped })}`
+                            : ''}
                         </Text>
-                      )}
-                    </Stack>
-                  </Row>
-                  {canEdit ? (
+                        {agent.managed && (
+                          <Text
+                            variant="caption"
+                            className="text-muted-foreground"
+                          >
+                            {t('agents.standard.managedNote')}
+                          </Text>
+                        )}
+                      </Stack>
+                    </Row>
                     <Row gap={1} className="shrink-0">
-                      {/* The standard agent's settings are the
-                          organization's: removable here, not editable. */}
-                      {!agent.managed && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={t('agents.rowEdit')}
-                          onClick={() => openEdit(agent)}
-                        >
-                          <Pencil aria-hidden className="size-4" />
-                        </Button>
-                      )}
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label={t('agents.rowDelete')}
-                        onClick={() => setDeleting(agent)}
+                        aria-label={t('agents.rowView')}
+                        onClick={() => setViewingId(agent._id)}
                       >
-                        <Trash2 aria-hidden className="size-4" />
+                        <Eye aria-hidden className="size-4" />
                       </Button>
+                      {canEdit ? (
+                        <>
+                          {/* The standard agent's settings are the
+                          organization's: removable here, not editable. */}
+                          {!agent.managed && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={t('agents.rowEdit')}
+                              onClick={() => openEdit(agent)}
+                            >
+                              <Pencil aria-hidden className="size-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={t('agents.rowDelete')}
+                            onClick={() => setDeleting(agent)}
+                          >
+                            <Trash2 aria-hidden className="size-4" />
+                          </Button>
+                        </>
+                      ) : null}
                     </Row>
-                  ) : null}
-                </Row>
-              </li>
-            );
-          })}
-        </Stack>
-      )}
+                  </Row>
+                </li>
+              );
+            })}
+          </Stack>
+        )}
+      </div>
+
+      {viewing ? (
+        <ProjectAgentDetailsDialog
+          agent={projectAgentDetails(viewing)}
+          open
+          onOpenChange={(open) => {
+            if (!open) setViewingId(undefined);
+          }}
+        />
+      ) : null}
 
       <ProjectAgentDialog
         open={dialogOpen}

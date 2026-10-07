@@ -4,14 +4,17 @@ import * as PopoverPrimitive from '@radix-ui/react-popover';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
+import { useT } from '@tale/ui/i18n/client';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { TooltipContent } from '@tale/ui/tooltip';
+import { useVirtualList } from '@tale/ui/use-virtual-list';
 import { Check, ChevronDown, Circle, Search } from 'lucide-react';
 import {
   Fragment,
   type KeyboardEvent,
   type ReactNode,
+  type RefCallback,
   useCallback,
   useEffect,
   useId,
@@ -68,7 +71,7 @@ export interface SearchableSelectProps {
    * to `Select` is rendered using `label`, `placeholder`, `size`, etc.
    */
   trigger?: ReactNode;
-  /** Label rendered above the default trigger. Ignored when `trigger` is provided. */
+  /** Field label; also names the open picker when no explicit accessible name is supplied. */
   label?: ReactNode;
   /** Placeholder shown on the default trigger when no value is selected. */
   placeholder?: ReactNode;
@@ -104,7 +107,7 @@ export interface SearchableSelectProps {
   sideOffset?: number;
   /** Additional className for the popover content */
   contentClassName?: string;
-  /** Accessible label for the listbox */
+  /** Accessible name for the listbox/popover and fallback name for the search input. */
   'aria-label'?: string;
   /** Custom filter function; defaults to case-insensitive match on label + description */
   filterFn?: (option: SearchableSelectOption, query: string) => boolean;
@@ -176,6 +179,8 @@ export interface SearchableSelectProps {
 // Match Popover's available-height scroll so a wrapped footer stays reachable.
 const CONTENT_CLASSES =
   'z-50 min-w-[min(max(14.5rem,var(--radix-popover-trigger-width)),var(--radix-popover-content-available-width))] max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-lg ring-1 ring-border bg-popover text-popover-foreground dark:bg-muted shadow-md outline-none p-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[var(--radix-popover-content-transform-origin)] duration-[var(--duration-short)] motion-reduce:animate-none';
+
+const EMPTY_OPTIONS: readonly SearchableSelectOption[] = [];
 
 function defaultFilterFn(option: SearchableSelectOption, query: string) {
   const lower = query.toLowerCase();
@@ -290,16 +295,28 @@ function SearchableSelectBase({
   title,
   variant = 'default',
 }: SearchableSelectProps) {
+  const { t } = useT('common');
   const isSwitcher = variant === 'switcher';
   const instanceId = useId();
   const listboxId = `${instanceId}-listbox`;
   const optionId = (index: number) => `${instanceId}-option-${index}`;
   const triggerId = providedId ?? `${instanceId}-trigger`;
   const descriptionId = `${instanceId}-description`;
+  const labelId = `${instanceId}-label`;
+  const searchLabel = searchPlaceholder?.trim();
+  const fieldLabel =
+    ariaLabel?.trim() || (typeof label === 'string' ? label.trim() : undefined);
+  const labelReference =
+    !fieldLabel && label && typeof label !== 'string' ? labelId : undefined;
+  const pickerLabel = fieldLabel || searchLabel || t('search.placeholder');
+  // A few async pickers briefly render before their options request resolves.
+  // Keep that transient state a valid empty list even when an untyped caller
+  // passes null instead of the declared array.
+  const optionList = options ?? EMPTY_OPTIONS;
 
   const selectedOption = useMemo(
-    () => (value ? options.find((o) => o.value === value) : undefined),
-    [value, options],
+    () => (value ? optionList.find((o) => o.value === value) : undefined),
+    [value, optionList],
   );
 
   const defaultTrigger = trigger ?? (
@@ -357,9 +374,9 @@ function SearchableSelectBase({
   const filter = filterFn ?? defaultFilterFn;
 
   const filteredOptions = useMemo(() => {
-    if (!search) return options;
-    return filterOptionsWithSections(options, search, filter);
-  }, [options, search, filter]);
+    if (!search) return optionList;
+    return filterOptionsWithSections(optionList, search, filter);
+  }, [optionList, search, filter]);
 
   // A pinned row is on screen whatever the query, so it is not evidence that
   // the query matched anything — a list showing only "Add <query> as a
@@ -368,6 +385,38 @@ function SearchableSelectBase({
     () => filteredOptions.some((option) => option.alwaysVisible !== true),
     [filteredOptions],
   );
+  const getScrollElement = useCallback(() => listRef.current, []);
+  const getItemKey = useCallback(
+    (index: number) => filteredOptions[index].value,
+    [filteredOptions],
+  );
+  const estimateSize = useCallback(
+    (index: number) => {
+      const option = filteredOptions[index];
+      return option.isSectionHeader
+        ? 28
+        : descriptionMode === 'inline' && option.description
+          ? 60
+          : 36;
+    },
+    [filteredOptions, descriptionMode],
+  );
+  const virtual = useVirtualList({
+    // Closed triggers share their options as data, without constructing a
+    // virtual row model or mounting any option controls.
+    count: isOpen ? filteredOptions.length : 0,
+    getScrollElement,
+    getItemKey,
+    estimateSize,
+    pinnedIndices: [highlightedIndex],
+  });
+  const optionPositions = useMemo(() => {
+    let count = 0;
+    const positions = filteredOptions.map((option) =>
+      option.isSectionHeader ? undefined : ++count,
+    );
+    return { positions, count };
+  }, [filteredOptions]);
 
   const initializeHighlight = useCallback(() => {
     if (filteredOptions.length === 0) return;
@@ -386,13 +435,11 @@ function SearchableSelectBase({
     setHighlightedIndex(findNextEnabledIndex(filteredOptions, -1, 1));
   }, [filteredOptions]);
 
+  const { scrollToIndex } = virtual;
   useEffect(() => {
-    if (!isOpen) return;
-    const el = listRef.current?.querySelector(
-      `[data-index="${highlightedIndex}"]`,
-    );
-    el?.scrollIntoView({ block: 'nearest' });
-  }, [highlightedIndex, isOpen]);
+    if (!isOpen || highlightedIndex < 0 || listRef.current === null) return;
+    scrollToIndex(highlightedIndex, { align: 'auto' });
+  }, [highlightedIndex, isOpen, scrollToIndex, virtual.scrollElement]);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -503,7 +550,8 @@ function SearchableSelectBase({
       <PopoverPrimitive.Portal>
         <SkeletonBox asChild>
           <PopoverPrimitive.Content
-            aria-label={ariaLabel ?? searchPlaceholder}
+            aria-label={pickerLabel}
+            aria-labelledby={labelReference}
             align={align}
             side={side}
             sideOffset={sideOffset}
@@ -570,12 +618,14 @@ function SearchableSelectBase({
                     aria-expanded={isOpen}
                     aria-controls={listboxId}
                     aria-activedescendant={
-                      filteredOptions.length > 0
+                      filteredOptions[highlightedIndex] &&
+                      !filteredOptions[highlightedIndex].isSectionHeader
                         ? optionId(highlightedIndex)
                         : undefined
                     }
                     aria-autocomplete="list"
-                    aria-label={searchPlaceholder}
+                    aria-label={searchLabel || pickerLabel}
+                    aria-labelledby={searchLabel ? undefined : labelReference}
                   />
                 </div>
               </div>
@@ -585,7 +635,8 @@ function SearchableSelectBase({
               ref={listRef}
               id={listboxId}
               role="listbox"
-              aria-label={ariaLabel}
+              aria-label={pickerLabel}
+              aria-labelledby={labelReference}
               className={cn(
                 'overflow-y-auto',
                 // Switcher stays compact so a long sibling list doesn't fill the
@@ -593,18 +644,21 @@ function SearchableSelectBase({
                 isSwitcher ? 'max-h-60' : 'max-h-[20rem] p-1',
               )}
             >
-              {filteredOptions.map((option, index) => (
-                <Fragment key={option.value}>
-                  {index > 0 &&
-                    !option.isSectionHeader &&
-                    !filteredOptions[index - 1]?.isSectionHeader &&
-                    option.group !== filteredOptions[index - 1]?.group && (
-                      <div
-                        role="separator"
-                        aria-hidden="true"
-                        className="border-border my-1 border-t"
-                      />
-                    )}
+              {virtual.items.map((row) => {
+                const index = row.index;
+                const option = filteredOptions[index];
+                const divider =
+                  index > 0 &&
+                  !option.isSectionHeader &&
+                  !filteredOptions[index - 1]?.isSectionHeader &&
+                  option.group !== filteredOptions[index - 1]?.group ? (
+                    <div
+                      role="separator"
+                      aria-hidden="true"
+                      className="border-border my-1 border-t"
+                    />
+                  ) : null;
+                const optionRow = (
                   <SearchableSelectOptionItem
                     option={option}
                     index={index}
@@ -617,9 +671,42 @@ function SearchableSelectBase({
                     descriptionMode={descriptionMode}
                     action={optionAction?.(option)}
                     variant={variant}
+                    position={optionPositions.positions[index]}
+                    setSize={optionPositions.count}
+                    isLast={index === filteredOptions.length - 1}
+                    measure={
+                      virtual.virtualized ? undefined : virtual.measureElement
+                    }
                   />
-                </Fragment>
-              ))}
+                );
+                return (
+                  <Fragment key={option.value}>
+                    {row.paddingBefore > 0 && (
+                      <div aria-hidden style={{ height: row.paddingBefore }} />
+                    )}
+                    {virtual.virtualized ? (
+                      <div
+                        role="presentation"
+                        ref={virtual.measureElement}
+                        onFocusCapture={virtual.onFocusCapture}
+                        onBlurCapture={virtual.onBlurCapture}
+                        data-index={index}
+                      >
+                        {divider}
+                        {optionRow}
+                      </div>
+                    ) : (
+                      <>
+                        {divider}
+                        {optionRow}
+                      </>
+                    )}
+                  </Fragment>
+                );
+              })}
+              {virtual.paddingAfter > 0 && (
+                <div aria-hidden style={{ height: virtual.paddingAfter }} />
+              )}
 
               {!hasMatches && emptyText && (
                 <Text
@@ -651,7 +738,12 @@ function SearchableSelectBase({
       {...(label
         ? {
             label: (
-              <Label htmlFor={triggerId} required={required} error={error}>
+              <Label
+                id={labelId}
+                htmlFor={triggerId}
+                required={required}
+                error={error}
+              >
                 {label}
               </Label>
             ),
@@ -688,6 +780,10 @@ function SearchableSelectOptionItem({
   descriptionMode = 'inline',
   action,
   variant = 'default',
+  position,
+  setSize,
+  isLast,
+  measure,
 }: {
   option: SearchableSelectOption;
   index: number;
@@ -700,14 +796,19 @@ function SearchableSelectOptionItem({
   descriptionMode?: 'inline' | 'tooltip';
   action?: ReactNode;
   variant?: 'default' | 'switcher';
+  position?: number;
+  setSize: number;
+  isLast: boolean;
+  measure?: RefCallback<HTMLDivElement>;
 }) {
   const isSwitcher = variant === 'switcher';
 
   if (option.isSectionHeader) {
     return (
       <div
+        ref={measure}
+        data-index={measure ? index : undefined}
         id={id}
-        data-index={index}
         role="presentation"
         className="text-muted-foreground flex items-center gap-1 px-2 pt-2 pb-1 text-xs font-medium tracking-wide uppercase"
       >
@@ -735,10 +836,13 @@ function SearchableSelectOptionItem({
   const row = (
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- keyboard handled via aria-activedescendant
     <div
+      ref={measure}
+      data-index={measure ? index : undefined}
       role="option"
       id={id}
-      data-index={index}
       aria-selected={isSelected}
+      aria-posinset={position}
+      aria-setsize={setSize}
       aria-disabled={option.disabled || undefined}
       data-highlighted={isHighlighted || undefined}
       onClick={() => !option.disabled && onSelect(option.value)}
@@ -748,7 +852,8 @@ function SearchableSelectOptionItem({
         isSwitcher ? 'rounded-none px-3 py-2' : OPTION_ROW_INSET,
         isSwitcher &&
           option.group === undefined &&
-          'border-border border-b last:border-b-0',
+          !isLast &&
+          'border-border border-b',
         showInlineDescription ? 'items-start' : 'items-center',
         isSwitcher && isSelected && 'bg-muted/60',
         isHighlighted && !(isSwitcher && isSelected) && 'bg-accent',

@@ -40,7 +40,7 @@ const context = {
 };
 
 describe('workspaceVerdict', () => {
-  it("deletes a deleted agent's workspace even while pinned or warm", () => {
+  it("deletes a deleted agent's workspace even while pinned or warm [SBX-R13]", () => {
     for (const extra of [{}, { pinned: true }, { inUse: true }]) {
       expect(
         workspaceVerdict(facts({ agentExists: false, ...extra }), context),
@@ -48,7 +48,7 @@ describe('workspaceVerdict', () => {
     }
   });
 
-  it('deletes the workspace of a member who left even while pinned or warm', () => {
+  it('deletes the workspace of a member who left even while pinned or warm [SBX-R13]', () => {
     for (const extra of [{}, { pinned: true }, { inUse: true }]) {
       expect(
         workspaceVerdict(facts({ memberLeft: true, ...extra }), context),
@@ -56,7 +56,7 @@ describe('workspaceVerdict', () => {
     }
   });
 
-  it("keeps a live agent's workspace in use, pinned or about to be used", () => {
+  it("keeps a live agent's workspace in use, pinned or about to be used [SBX-R10] [SBX-R12]", () => {
     const old = NOW - 400 * DAY;
     for (const extra of [
       { inUse: true },
@@ -69,7 +69,7 @@ describe('workspaceVerdict', () => {
     }
   });
 
-  it("deletes a live agent's workspace once unused past the window", () => {
+  it("deletes a live agent's workspace once unused past the window [SBX-R12]", () => {
     expect(
       workspaceVerdict(facts({ lastUsedAt: NOW - 31 * DAY }), context),
     ).toEqual({ retire: true, reason: 'unused', mode: 'stopped' });
@@ -78,7 +78,14 @@ describe('workspaceVerdict', () => {
     ).toEqual({ retire: false });
   });
 
-  it('follows the organization policy: its window, or no deletion at all', () => {
+  it('deletes after 30 days, switched on, unless the organization set otherwise [SBX-R12]', () => {
+    expect(DEFAULT_SANDBOX_WORKSPACES).toEqual({
+      deleteUnused: true,
+      unusedDays: 30,
+    });
+  });
+
+  it('follows the organization policy: its window, or no deletion at all [SBX-R12]', () => {
     const lastUsedAt = NOW - 8 * DAY;
     expect(
       workspaceVerdict(facts({ lastUsedAt }), {
@@ -94,7 +101,7 @@ describe('workspaceVerdict', () => {
     ).toEqual({ retire: false });
   });
 
-  it('waits a full window after the rule took effect before deleting for disuse', () => {
+  it('waits a full window after the rule took effect before deleting for disuse [SBX-R12] [SBX-R13]', () => {
     // An upgrade, a rule turned on or a shortened window 29 days ago: a
     // workspace unused for a year still has a day left.
     const justApplied = { ...context, unusedRuleSince: NOW - 29 * DAY };
@@ -238,7 +245,7 @@ describe('retireOrganizationSandboxes', () => {
 
   const alone = { otherSlicesPending: async () => 0 };
 
-  it('destroys every workspace whatever runs in it, then tears the organization down', async () => {
+  it('destroys every workspace whatever runs in it, then tears the organization down [SBX-R13]', async () => {
     const { spawner, calls } = scriptedSpawner({});
     await retireOrganizationSandboxes(payload, { ...alone, spawner });
     expect(calls).toEqual([
@@ -276,7 +283,7 @@ describe('retireOrganizationSandboxes', () => {
     expect(calls).toEqual(['destroy pa-1 force', 'destroy wf-2 force']);
   });
 
-  it('is not done while a workspace is out of use but its bytes are still on disk', async () => {
+  it('is not done while a workspace is out of use but its bytes are still on disk [SBX-R13]', async () => {
     const deletion = new Map<
       string,
       'done' | 'pending' | 'failed' | 'handed_off' | 'legacy'

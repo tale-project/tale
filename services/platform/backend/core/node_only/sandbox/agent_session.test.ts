@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
 import { ensureAgentSession, type AgentSessionOwner } from './agent_session';
@@ -52,7 +52,7 @@ const scenarios: Scenario[] = [
 
 function fixture(
   scenario: Scenario,
-  existing: { status: string; createdAt: number } | null,
+  existing: { status: string; createdAt: number; profile?: unknown } | null,
   failMutation?: string,
 ) {
   const events: string[] = [];
@@ -90,11 +90,39 @@ function fixture(
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv('SANDBOX_AGENT_PROFILE', undefined);
   runtime.sessionAcquire.mockResolvedValue(true);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
+  it('uses the light profile for fresh workspaces and preserves it on recreation', async () => {
+    vi.stubEnv('SANDBOX_AGENT_PROFILE', 'agent-light');
+    const fresh = fixture(scenario, null);
+    await fresh.ensure();
+    expect(runtime.sessionCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ profile: 'agent-light' }),
+    );
+    expect(fresh.ctx.runMutation).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({ profile: 'agent-light' }),
+    );
+    vi.stubEnv('SANDBOX_AGENT_PROFILE', 'agent');
+    const resumed = fixture(scenario, {
+      status: 'stopped',
+      createdAt: 123,
+      profile: 'agent-light',
+    });
+    runtime.sessionAcquire.mockResolvedValue(false);
+    await resumed.ensure();
+    expect(runtime.sessionCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ profile: 'agent-light' }),
+    );
+  });
+
   it('reuses a live session with its existing incarnation and no new slot', async () => {
     const f = fixture(scenario, { status: 'active', createdAt: 123 });
 
@@ -151,7 +179,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
   });
 
   it.each([true, false])(
-    'a full organization refuses before provisioning (warm=%s)',
+    'a full organization refuses before provisioning (warm=%s) [SBX-R8]',
     async (warm) => {
       const f = fixture(
         scenario,

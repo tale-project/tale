@@ -91,6 +91,31 @@ describe('ProjectBreadcrumbSwitcher', () => {
     expect(call.search({ projects: 'all' })).toEqual({});
   });
 
+  it("leaves the current project's upload folder behind (#3918)", async () => {
+    mockLocation.search = { folderId: 'folder-a' };
+    const { user } = render(
+      <ProjectBreadcrumbSwitcher
+        organizationId="org-1"
+        projectId={CURRENT_ID}
+        projectName="Getting started"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: /switch project, current: getting started/i,
+      }),
+    );
+    await user.click(screen.getByRole('option', { name: 'Acme AG' }));
+
+    const call = mockNavigate.mock.calls[0]?.[0] as {
+      to: string;
+      search: (prev: Record<string, unknown>) => Record<string, unknown>;
+    };
+    expect(call.to).toBe('/dashboard/org-1/projects/proj-acme/files');
+    expect(call.search({ folderId: 'folder-a' })).toEqual({});
+  });
+
   it('does not navigate when the current project is chosen again', async () => {
     const { user } = render(
       <ProjectBreadcrumbSwitcher

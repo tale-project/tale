@@ -1,0 +1,85 @@
+taskAssigned: Tâche assignée
+taskAssignedBody: « {title} » t'a été assignée.
+taskStatusChanged: Statut de tâche modifié
+taskStatusChangedBody: « {title} » est passée de {from} à {to}.
+taskCommented: Nouveau commentaire
+taskCommentedBody: Nouveau commentaire sur « {title} ».
+mention: Tu as été mentionné
+mentionBody: Tu as été mentionné dans « {title} ».
+taskAssignedByBody: "{actor} t'a assigné « {title} »."
+taskUnassigned: Ce n'est plus à toi
+taskUnassignedBody: Tu n'es plus en charge de « {title} ».
+taskUnassignedByBody: "{actor} t'a retiré « {title} »."
+taskStatusChangedByBody: '{actor} a fait passer « {title} » de {from} à {to}.'
+taskCommentedByBody: '{actor} a commenté « {title} ».'
+mentionByBody: "{actor} t'a mentionné dans « {title} »."
+taskReviewRequested: Revue demandée
+taskReviewRequestedBody: '{agentSlug} a terminé « {taskTitle} » — passe la
+  tâche en « Terminé » pour approuver, ou renvoie-la avec un commentaire.'
+taskReviewRequestedBodyNoAgent: Le travail de l'agent sur « {taskTitle} » est
+  prêt pour la revue — passe la tâche en « Terminé » pour approuver, ou
+  renvoie-la avec un commentaire.
+taskReviewRequestedByBody: '{actor} te demande une revue de « {taskTitle} » —
+  passe la tâche en « Terminé » pour approuver, ou renvoie-la avec un
+  commentaire.'
+taskReviewRequestedBodyHuman: « {taskTitle} » attend ta revue — passe la
+  tâche en « Terminé » pour approuver, ou renvoie-la avec un commentaire.
+taskReviewerAssigned: Tu es relecteur
+taskReviewerAssignedBody: Tu es maintenant relecteur de « {taskTitle} ».
+taskReviewerAssignedByBody: "{actor} t'a désigné relecteur de « {taskTitle} »."
+documentReviewRequested: Revue de document demandée
+documentReviewRequestedBody: '{requestedByName} t’a envoyé « {documentTitle} » (v{version}) en revue.'
+documentReviewRequestedBodyNoActor: « {documentTitle} » (v{version}) attend ta revue.
+documentReviewApproved: Document approuvé
+documentReviewApprovedBody: « {documentTitle} » v{version} a été approuvé.
+documentReviewChangesRequested: Modifications demandées
+documentReviewChangesRequestedBody: 'Des modifications ont été demandées sur « {documentTitle} » : {feedback}'
+taskSlaEscalated: Tâche en retard escaladée
+taskSlaEscalatedBody: « {title} » est nettement en retard et demande votre attention.
+taskDueSoon: Échéance proche
+taskDueSoonBody: « {title} » arrive bientôt à échéance.
+taskStartReached: Date de début atteinte
+taskStartReachedBody: « {title} » commence aujourd'hui.
+taskReviewReminder: Rappel de revue
+taskReviewReminderBody: Le travail de l'agent sur « {title} » attend toujours votre revue.
+taskReviewEscalated: Revue en retard
+taskReviewEscalatedBody: Une revue sur « {title} » attend depuis plus d'un jour.
+humanInputEscalated: Automatisation en attente d'une saisie
+humanInputEscalatedBody: Une automatisation attend une saisie humaine depuis {ageHours} heures.
+conversationInboundMessage: Nouveau message de conversation
+conversationInboundMessageBody: 'De {sender} : « {subject} » — ouvre ta boîte de réception pour répondre.'
+conversationAssigned: Conversation assignée
+conversationAssignedBody:
+  La conversation « {subject} » t'a été assignée — ouvre
+  ta boîte de réception pour répondre.
+conversationAssignedByBody:
+  "{actor} t'a assigné la conversation « {subject} » —
+  ouvre ta boîte de réception pour répondre."
+agentEscalation: Escalade d'agent
+agentEscalationBody: '{agent} a escaladé : {reason}'
+agentQuestionAsked: L'agent attend ta réponse
+agentQuestionAskedBody: '{name} attend ta réponse sur « {title} » : {question}'
+agentQuestionAskedNoTaskBody: '{name} attend ta réponse : {question}'
+cloudSyncFailed: Synchronisation cloud en échec
+cloudSyncFailedBody: 'La synchronisation de « {itemName} » depuis {provider} échoue depuis plus d’une heure ({reason}). Tale réessaie toutes les 15 minutes.'
+cloudSyncNeedsReauth: Synchronisation cloud à reconnecter
+cloudSyncNeedsReauthBody: 'Tale n’a plus accès à {provider} avec ton compte, donc « {itemName} » n’est plus synchronisé. Reconnecte {provider} depuis Documents pour reprendre.'
+usageCreditsRequested: Crédits d’utilisation demandés
+usageCreditsRequestedBody: '{name} a atteint une limite d’utilisation et demande plus de crédits.'
+automationTriggerPaused: Planification en pause
+automationTriggerPausedBody: '« {name} » a échoué {failures} fois de suite ({code}), sa planification est donc en pause. Corrige l’automatisation, puis réactive son déclencheur.'
+agentRunFailed: Échec de l’exécution de l’agent
+agentRunFailedBody: 'L’agent n’a pas pu terminer « {title} ». Ouvre la tâche pour voir pourquoi et le relancer.'
+agentRunFailedBudgetBody: 'Une limite d’utilisation a arrêté l’agent sur « {title} ». Relance-le dès qu’un admin l’aura relevée.'
+agentRunFailedSetupBody: 'Il manque quelque chose à l’agent de « {title} ». Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.'
+agentRunFailedInputBody: 'Une pièce jointe de « {title} » n’est plus dans le stockage. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.'
+email:
+  cta: Ouvrir dans Tale
+  footer: Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.
+conversationTeamAssigned: Conversation assignée à ton équipe
+conversationTeamAssignedBody:
+  La conversation « {subject} » a été assignée à ton
+  équipe — ouvre ta boîte de réception pour répondre.
+conversationTeamAssignedByBody:
+  '{actor} a assigné la conversation « {subject} »
+  à ton équipe — ouvre ta boîte de réception pour répondre.'

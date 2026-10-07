@@ -83,7 +83,7 @@ beforeEach(() => {
 });
 
 describe('resolveTurnAllowance', () => {
-  it('grants the deployment default when no budget policy binds', async () => {
+  it('grants the deployment default when no budget policy binds [GOV-R5]', async () => {
     const allowance = await resolveTurnAllowance(ledger({}), {
       ...SUBJECT,
       defaultCents: 500,
@@ -92,7 +92,7 @@ describe('resolveTurnAllowance', () => {
     expect(allowance).toEqual({ allowed: true, budgetCents: 500 });
   });
 
-  it('caps the allowance by what remains under the org cap after reservations', async () => {
+  it('caps the allowance by what remains under the org cap after reservations [GOV-R5]', async () => {
     policy.config = {
       enabled: true,
       rules: [{ scope: 'org', period: 'monthly', maxCostCents: 10_000 }],
@@ -110,7 +110,7 @@ describe('resolveTurnAllowance', () => {
     expect(allowance).toEqual({ allowed: true, budgetCents: 300 });
   });
 
-  it('refuses when the org cap is reached, with the cap’s own wording', async () => {
+  it('refuses when the org cap is reached, with the cap’s own wording [GOV-R4]', async () => {
     policy.config = {
       enabled: true,
       rules: [{ scope: 'org', period: 'daily', maxCostCents: 1_000 }],
@@ -131,7 +131,7 @@ describe('resolveTurnAllowance', () => {
     }
   });
 
-  it('names the cap that refused — whose bucket, which limit, when it resets', async () => {
+  it('names the cap that refused — whose bucket, which limit, when it resets [GOV-R4]', async () => {
     policy.config = {
       enabled: true,
       rules: [{ scope: 'org', period: 'daily', maxRequests: 3 }],
@@ -192,7 +192,7 @@ describe('resolveTurnAllowance', () => {
     }
   });
 
-  it('binds the personal cap against the user’s own spend and reservations', async () => {
+  it('binds the personal cap against the user’s own spend and reservations [GOV-R5]', async () => {
     policy.config = {
       enabled: true,
       rules: [
@@ -220,7 +220,7 @@ describe('resolveTurnAllowance', () => {
     expect(allowance).toEqual({ allowed: true, budgetCents: 300 });
   });
 
-  it('names whose cap a refusal is about', async () => {
+  it('names whose cap a refusal is about [GOV-R4]', async () => {
     policy.config = {
       enabled: true,
       rules: [{ scope: 'org', period: 'monthly', maxCostCents: 1_000 }],

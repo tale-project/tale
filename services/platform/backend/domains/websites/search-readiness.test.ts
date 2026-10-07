@@ -38,7 +38,7 @@ beforeEach(() => {
   vi.mocked(resolveOrgSlug).mockResolvedValue('acme');
 });
 
-describe('websiteSearchReady', () => {
+describe('websiteSearchReady [WEB-R10]', () => {
   it('is false while the organization has no embedding model', async () => {
     vi.mocked(readKnowledgeEmbeddingView).mockResolvedValue(
       view({ configured: false }),

@@ -11,7 +11,10 @@ import { useT } from '@/lib/i18n/client';
 
 interface BreadcrumbNavigationProps {
   folderId: string;
-  onNavigate: (folderId: string | undefined) => void;
+  onNavigate: (
+    folderId: string | undefined,
+    options?: { replace?: boolean },
+  ) => void;
 }
 
 export function BreadcrumbNavigation({
@@ -29,10 +32,13 @@ export function BreadcrumbNavigation({
     organizationId ? { folderId: folderId, organizationId } : 'skip',
   );
 
+  // A folder with no trail is gone (deleted, here or in another tab) or out
+  // of reach: leave its address for the root, in place of it, so Back does
+  // not walk into it again.
   useEffect(() => {
     if (!isLoading && breadcrumb !== undefined && breadcrumb.length === 0) {
       toast({ title: t('folderNotFound') });
-      onNavigateRef.current(undefined);
+      onNavigateRef.current(undefined, { replace: true });
     }
   }, [breadcrumb, isLoading, t]);
 

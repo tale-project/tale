@@ -218,7 +218,7 @@ describe('listUserOrganizations', () => {
     return tag as unknown as Sql;
   }
 
-  it('answers every assignable role verbatim — one membership, one role everywhere', async () => {
+  it('answers every assignable role verbatim — one membership, one role everywhere [ORG-R11]', async () => {
     const roles = MEMBER_ROLES.filter((role) => role !== 'disabled');
     const listed = await listUserOrganizations(
       sqlAnswering(
@@ -237,7 +237,7 @@ describe('listUserOrganizations', () => {
     expect(listed.map((o) => o.role)).toContain('editor');
   });
 
-  it('drops disabled memberships and normalizes an off-vocabulary role to member', async () => {
+  it('drops disabled memberships and normalizes an off-vocabulary role to member [ORG-R11]', async () => {
     const listed = await listUserOrganizations(
       sqlAnswering([
         { organizationId: 'a', role: 'Disabled', name: 'A', slug: 'a' },
@@ -253,7 +253,7 @@ describe('listUserOrganizations', () => {
   });
 });
 
-describe('describeOrganizationHoldBlock', () => {
+describe('describeOrganizationHoldBlock [ORG-R7]', () => {
   it('lets an organization without active holds through', () => {
     expect(
       describeOrganizationHoldBlock({
@@ -297,7 +297,7 @@ describe('deleteOrganization', () => {
   // E-22: the most destructive action in the product asks for the
   // organization's name typed back — the service is where the door's
   // proof is checked, before the hold gate and before any write.
-  it('refuses a confirmation that is not the organization name, writing nothing', async () => {
+  it('refuses a confirmation that is not the organization name, writing nothing [ORG-R5]', async () => {
     const sends = installFakeBoss();
     for (const typed of ['', 'Acme Corp', 'Other']) {
       const { tx, statements } = createRecordingTx({
@@ -316,7 +316,7 @@ describe('deleteOrganization', () => {
     expect(sends).toEqual([]);
   });
 
-  it('accepts the name trimmed and in any letter case', async () => {
+  it('accepts the name trimmed and in any letter case [ORG-R5]', async () => {
     installFakeBoss();
     const { tx } = createRecordingTx({
       memberRole: 'owner',
@@ -328,7 +328,7 @@ describe('deleteOrganization', () => {
     ).resolves.toEqual({ orgSlug: 'acme' });
   });
 
-  it('refuses under an org-wide hold without writing or enqueuing anything', async () => {
+  it('refuses under an org-wide hold without writing or enqueuing anything [ORG-R7]', async () => {
     const sends = installFakeBoss();
     const { tx, statements } = createRecordingTx({
       memberRole: 'owner',
@@ -345,7 +345,7 @@ describe('deleteOrganization', () => {
     expect(sends).toEqual([]);
   });
 
-  it('refuses under a custodian hold on any member — nothing is written', async () => {
+  it('refuses under a custodian hold on any member — nothing is written [ORG-R7]', async () => {
     const sends = installFakeBoss();
     const { tx, statements } = createRecordingTx({
       memberRole: 'owner',
@@ -360,7 +360,7 @@ describe('deleteOrganization', () => {
     expect(sends).toEqual([]);
   });
 
-  it('refuses non-owners and the default organization before any write', async () => {
+  it('refuses non-owners and the default organization before any write [ORG-R4] [ORG-R6]', async () => {
     const sends = installFakeBoss();
     const admin = createRecordingTx({
       memberRole: 'admin',
@@ -395,7 +395,7 @@ describe('deleteOrganization', () => {
     expect(sends).toEqual([]);
   });
 
-  it('tears down in order — guards, audit, cascade, Better Auth rows, org row, tombstone, cleanup job', async () => {
+  it('tears down in order — guards, audit, cascade, Better Auth rows, org row, tombstone, cleanup job [ORG-R8]', async () => {
     const sends = installFakeBoss();
     const { tx, statements } = createRecordingTx({
       memberRole: 'owner',

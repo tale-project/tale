@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 66 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 67 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -77,6 +77,15 @@ records and delete them after.
   confirm + reload the folder row is gone. **From Microsoft 365** remains
   available before an account is connected; its first-use flow shows the
   required setup or connection step.
+- [ ] `KNOW-F37` · **Deleting a subfolder keeps your place** — Documents →
+  open folder A that holds folder B; open B, copy the address bar and go back
+  to A → B's row **Open menu** → **Delete** (`common.actions.delete`) →
+  **Delete folder** (`documents.deleteFolder.deleteButton`) → B's row is gone
+  and you are still in A: the URL keeps A's `?folderId=` and the breadcrumb
+  still ends at A, not at the Documents root. Now open B's copied address →
+  the toast **Folder not found or no longer accessible**
+  (`documents.folderNotFound`) shows and the page lands on the Documents
+  root; Back does not return to B's address.
 - [ ] `KNOW-F29` · **Rename a folder** — Documents → a folder row's **Open
   menu** → **Rename** (`documents.actions.rename`) → the **Rename folder**
   dialog (`documents.folder.renameFolder`) opens on the current name → change
@@ -755,6 +764,14 @@ records and delete them after.
   it. A list of synced contacts only, or a Member's view, shows no checkbox
   and no **Select all**; a screen reader names the first column **Select
   row**.
+- [ ] `KNOW-B22` · **A product without a price reads as unpriced** — Products
+  → **Add product** with a name only, no **Price** and no **Stock** →
+  **Create**; a second with price `0`, currency `CHF` and stock `0` → reload
+  `/dashboard/{org}/products`: the first row's **Price** and **Stock** read
+  `-`, never `$0.00` or a blank cell, and its details (row click) show
+  neither; the second reads `CHF 0.00` and `0`, its details `CHF 0.00` and
+  **0 units** (`common.units.stock`). **Edit** the second, empty **Price**
+  and **Stock** → **Save** → reload → both read `-`.
 
 ## Accessibility (WCAG 2.1 AA)
 

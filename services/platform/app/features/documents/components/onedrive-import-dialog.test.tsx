@@ -4,6 +4,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  importFiles as nativeImportFiles,
+  type ImportFilesDependencies,
+} from '@/backend/core/onedrive/import_files';
 import { i18n } from '@/lib/i18n/i18n';
 import {
   SESSION_ENDED,
@@ -111,10 +115,19 @@ vi.mock('../hooks/queries', () => ({
     isLoading: false,
     error: null,
   }),
-  useSharePointSites: () => ({ data: [], isLoading: false }),
-  useSharePointDrives: () => ({ data: [], isLoading: false }),
+  useSharePointSites: () => ({
+    data: [{ id: 'site-1', displayName: 'Test site', name: 'Test site' }],
+    isLoading: false,
+  }),
+  useSharePointDrives: () => ({
+    data: [{ id: 'drive-1', name: 'Documents' }],
+    isLoading: false,
+  }),
   useSharePointFiles: () => ({
-    data: { items: [], truncated: false },
+    data: {
+      items: [{ id: 'report', name: 'Report.txt', size: 10, isFolder: false }],
+      truncated: false,
+    },
     isLoading: false,
   }),
 }));
@@ -128,6 +141,41 @@ const meetingsCheckbox = () =>
   screen.getByRole('checkbox', {
     name: 'documents.aria.selectFolder Meetings',
   });
+
+function nativeImportDeps() {
+  return {
+    getFileMetadata: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    downloadToStorage: vi.fn().mockResolvedValue({
+      success: true,
+      storageId: 'storage-1',
+      mimeType: 'text/plain',
+      size: 10,
+    }),
+    findDocumentByExternalId: vi.fn().mockResolvedValue(null),
+    createDocument: vi.fn().mockResolvedValue('doc-1'),
+    updateDocument: vi.fn().mockResolvedValue(undefined),
+    saveFileMetadata: vi.fn().mockResolvedValue(undefined),
+    upsertSyncConfig: vi.fn().mockResolvedValue('cfg-1'),
+  } satisfies ImportFilesDependencies;
+}
+
+async function selectSharePointReport(
+  user: ReturnType<typeof userEvent.setup>,
+) {
+  await user.click(
+    screen.getByRole('tab', { name: 'documents.microsoft365.sharePointSites' }),
+  );
+  await user.click(screen.getByText('Test site'));
+  await user.click(screen.getByText('Documents'));
+  await user.click(
+    screen.getByRole('checkbox', {
+      name: 'documents.aria.selectFile Report.txt',
+    }),
+  );
+  await user.click(
+    screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
+  );
+}
 
 describe('OneDriveImportDialog', () => {
   const defaultProps = {
@@ -148,6 +196,127 @@ describe('OneDriveImportDialog', () => {
     mockImportFiles.mockClear();
     vi.mocked(toast).mockClear();
     listingState.truncated = false;
+  });
+
+  it('offers SharePoint only one-time after a previous OneDrive sync selection', async () => {
+    const deps = nativeImportDeps();
+    mockImportFiles.mockImplementationOnce((args) =>
+      nativeImportFiles({ ...args, token: 'fixture', userId: 'user-1' }, deps),
+    );
+    const user = userEvent.setup();
+    render(<OneDriveImportDialog {...defaultProps} />);
+    await user.click(meetingsCheckbox());
+    await user.click(
+      screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
+    );
+    await user.click(screen.getByText('documents.onedrive.syncImport'));
+    expect(
+      screen.getByRole('button', { name: /documents\.onedrive\.syncItems/ }),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.back' }),
+    );
+    await selectSharePointReport(user);
+    expect(
+      screen.queryByText('documents.onedrive.syncImport'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('radio', { name: 'documents.onedrive.oneTimeImport' }),
+    ).toBeChecked();
+    await user.click(
+      screen.getByRole('button', { name: /documents\.onedrive\.importItems/ }),
+    );
+    await waitFor(() =>
+      expect(mockImportFiles).toHaveBeenCalledWith(
+        expect.objectContaining({
+          importType: 'one-time',
+          items: [
+            expect.objectContaining({ id: 'report', sourceType: 'sharepoint' }),
+          ],
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'documents.onedrive.importCompleted',
+        }),
+      ),
+    );
+    expect(toast).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'documents.onedrive.syncCompleted' }),
+    );
+    expect(deps.upsertSyncConfig).not.toHaveBeenCalled();
+    expect(deps.createDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ sourceMode: 'manual' }),
+      }),
+    );
+    expect(
+      deps.createDocument.mock.calls[0][0].metadata.syncConfigId,
+    ).toBeUndefined();
+  });
+
+  it('keeps settings open and reports Import failed when native SharePoint metadata is refused', async () => {
+    const deps = nativeImportDeps();
+    deps.getFileMetadata.mockResolvedValue({ success: false });
+    mockImportFiles.mockImplementationOnce((args) =>
+      nativeImportFiles({ ...args, token: 'fixture', userId: 'user-1' }, deps),
+    );
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <OneDriveImportDialog {...defaultProps} onOpenChange={onOpenChange} />,
+    );
+    await selectSharePointReport(user);
+    await user.click(
+      screen.getByRole('button', { name: /documents\.onedrive\.importItems/ }),
+    );
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'documents.onedrive.importFailed',
+          variant: 'destructive',
+        }),
+      ),
+    );
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('button', { name: /documents\.onedrive\.importItems/ }),
+    ).toBeInTheDocument();
+    expect(deps.upsertSyncConfig).not.toHaveBeenCalled();
+    expect(deps.createDocument).not.toHaveBeenCalled();
+  });
+
+  it('still registers native OneDrive sync and reports Sync completed', async () => {
+    const deps = nativeImportDeps();
+    mockImportFiles.mockImplementationOnce((args) =>
+      nativeImportFiles({ ...args, token: 'fixture', userId: 'user-1' }, deps),
+    );
+    const user = userEvent.setup();
+    render(<OneDriveImportDialog {...defaultProps} />);
+    await user.click(meetingsCheckbox());
+    await user.click(
+      screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
+    );
+    await user.click(screen.getByText('documents.onedrive.syncImport'));
+    await user.click(
+      screen.getByRole('button', { name: /documents\.onedrive\.syncItems/ }),
+    );
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'documents.onedrive.syncCompleted' }),
+      ),
+    );
+    expect(deps.upsertSyncConfig).toHaveBeenCalledTimes(1);
+    expect(deps.createDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          sourceMode: 'auto',
+          syncConfigId: 'cfg-1',
+        }),
+      }),
+    );
   });
 
   // Regression: the listers took Graph's first page only and the dialog

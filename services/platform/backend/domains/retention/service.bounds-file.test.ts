@@ -39,7 +39,7 @@ async function writeAuditLogFloor(min: number): Promise<void> {
 }
 
 describe('loadOrgRetentionConfig', () => {
-  it('reads an audit-log floor of 180 days', async () => {
+  it('reads an audit-log floor of 180 days [RETAIN-R5]', async () => {
     await writeAuditLogFloor(180);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
@@ -49,7 +49,7 @@ describe('loadOrgRetentionConfig', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('logs why a floor below its compliance floor reads as no bounds', async () => {
+  it('logs why a floor below its compliance floor reads as no bounds [RETAIN-R5]', async () => {
     await writeAuditLogFloor(179);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 

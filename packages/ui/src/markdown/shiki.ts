@@ -1,18 +1,14 @@
 /**
  * Shared Shiki highlighter singleton.
  *
- * Strategy: 39 common grammars are statically imported so docs / web /
- * platform get them on first paint. Anything else is lazy-loaded on
- * demand via a runtime dynamic import. Shiki's JS regex engine keeps
- * the bundle off the WASM oniguruma path.
+ * Strategy: the engine, the themes and 39 common grammars load together the
+ * first time code is highlighted (or `preloadHighlighter` asks), not with the
+ * page: a chat or a docs page without code never needs them. Anything else is
+ * lazy-loaded on demand via a runtime dynamic import. Shiki's JS regex engine
+ * keeps the bundle off the WASM oniguruma path.
  */
 
-import {
-  createHighlighterCore,
-  type HighlighterCore,
-  type ThemeRegistration,
-} from 'shiki/core';
-import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
+import type { HighlighterCore, ThemeRegistration } from 'shiki/core';
 
 let highlighterPromise: Promise<HighlighterCore> | null = null;
 
@@ -52,71 +48,78 @@ function withDiffColors(
 
 function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
-    highlighterPromise = createHighlighterCore({
-      themes: [
-        import('shiki/themes/min-dark.mjs').then((m) =>
-          withDiffColors(m.default, {
-            inserted: '#85e89d',
-            deleted: '#f97583',
-            range: '#b392f0',
-            header: '#79b8ff',
-          }),
-        ),
-        import('shiki/themes/min-light.mjs').then((m) =>
-          withDiffColors(m.default, {
-            inserted: '#22863a',
-            deleted: '#b31d28',
-            range: '#6f42c1',
-            header: '#005cc5',
-          }),
-        ),
-      ],
-      langs: [
-        import('shiki/langs/bash.mjs'),
-        import('shiki/langs/c.mjs'),
-        import('shiki/langs/cpp.mjs'),
-        import('shiki/langs/csharp.mjs'),
-        import('shiki/langs/css.mjs'),
-        import('shiki/langs/diff.mjs'),
-        import('shiki/langs/docker.mjs'),
-        import('shiki/langs/dotenv.mjs'),
-        import('shiki/langs/elixir.mjs'),
-        import('shiki/langs/go.mjs'),
-        import('shiki/langs/graphql.mjs'),
-        import('shiki/langs/hcl.mjs'),
-        import('shiki/langs/html.mjs'),
-        import('shiki/langs/http.mjs'),
-        import('shiki/langs/ini.mjs'),
-        import('shiki/langs/java.mjs'),
-        import('shiki/langs/javascript.mjs'),
-        import('shiki/langs/json.mjs'),
-        import('shiki/langs/jsx.mjs'),
-        import('shiki/langs/kotlin.mjs'),
-        import('shiki/langs/lua.mjs'),
-        import('shiki/langs/markdown.mjs'),
-        import('shiki/langs/nginx.mjs'),
-        import('shiki/langs/php.mjs'),
-        import('shiki/langs/powershell.mjs'),
-        import('shiki/langs/prisma.mjs'),
-        import('shiki/langs/python.mjs'),
-        import('shiki/langs/ruby.mjs'),
-        import('shiki/langs/rust.mjs'),
-        import('shiki/langs/scala.mjs'),
-        import('shiki/langs/scss.mjs'),
-        import('shiki/langs/sql.mjs'),
-        import('shiki/langs/swift.mjs'),
-        import('shiki/langs/toml.mjs'),
-        import('shiki/langs/tsx.mjs'),
-        import('shiki/langs/typescript.mjs'),
-        import('shiki/langs/xml.mjs'),
-        import('shiki/langs/yaml.mjs'),
-        import('shiki/langs/zig.mjs'),
-      ],
-      engine: createJavaScriptRegexEngine(),
-    }).catch((error) => {
-      highlighterPromise = null;
-      throw error;
-    });
+    highlighterPromise = Promise.all([
+      import('shiki/core'),
+      import('shiki/engine/javascript'),
+    ])
+      .then(([{ createHighlighterCore }, { createJavaScriptRegexEngine }]) =>
+        createHighlighterCore({
+          themes: [
+            import('shiki/themes/min-dark.mjs').then((m) =>
+              withDiffColors(m.default, {
+                inserted: '#85e89d',
+                deleted: '#f97583',
+                range: '#b392f0',
+                header: '#79b8ff',
+              }),
+            ),
+            import('shiki/themes/min-light.mjs').then((m) =>
+              withDiffColors(m.default, {
+                inserted: '#22863a',
+                deleted: '#b31d28',
+                range: '#6f42c1',
+                header: '#005cc5',
+              }),
+            ),
+          ],
+          langs: [
+            import('shiki/langs/bash.mjs'),
+            import('shiki/langs/c.mjs'),
+            import('shiki/langs/cpp.mjs'),
+            import('shiki/langs/csharp.mjs'),
+            import('shiki/langs/css.mjs'),
+            import('shiki/langs/diff.mjs'),
+            import('shiki/langs/docker.mjs'),
+            import('shiki/langs/dotenv.mjs'),
+            import('shiki/langs/elixir.mjs'),
+            import('shiki/langs/go.mjs'),
+            import('shiki/langs/graphql.mjs'),
+            import('shiki/langs/hcl.mjs'),
+            import('shiki/langs/html.mjs'),
+            import('shiki/langs/http.mjs'),
+            import('shiki/langs/ini.mjs'),
+            import('shiki/langs/java.mjs'),
+            import('shiki/langs/javascript.mjs'),
+            import('shiki/langs/json.mjs'),
+            import('shiki/langs/jsx.mjs'),
+            import('shiki/langs/kotlin.mjs'),
+            import('shiki/langs/lua.mjs'),
+            import('shiki/langs/markdown.mjs'),
+            import('shiki/langs/nginx.mjs'),
+            import('shiki/langs/php.mjs'),
+            import('shiki/langs/powershell.mjs'),
+            import('shiki/langs/prisma.mjs'),
+            import('shiki/langs/python.mjs'),
+            import('shiki/langs/ruby.mjs'),
+            import('shiki/langs/rust.mjs'),
+            import('shiki/langs/scala.mjs'),
+            import('shiki/langs/scss.mjs'),
+            import('shiki/langs/sql.mjs'),
+            import('shiki/langs/swift.mjs'),
+            import('shiki/langs/toml.mjs'),
+            import('shiki/langs/tsx.mjs'),
+            import('shiki/langs/typescript.mjs'),
+            import('shiki/langs/xml.mjs'),
+            import('shiki/langs/yaml.mjs'),
+            import('shiki/langs/zig.mjs'),
+          ],
+          engine: createJavaScriptRegexEngine(),
+        }),
+      )
+      .catch((error: unknown) => {
+        highlighterPromise = null;
+        throw error;
+      });
   }
   return highlighterPromise;
 }
@@ -221,12 +224,61 @@ export function resolveShikiTheme(theme: ShikiTheme): 'min-dark' | 'min-light' {
 }
 
 /**
+ * The highlighted HTML of the snippets highlighted lately, newest last. A
+ * chat highlighted every code block again each time it opened — Shiki's
+ * tokenizer is the most expensive step of rendering a reply — and showed it
+ * unhighlighted until then. Bounded by the HTML it holds; the oldest entry
+ * leaves first.
+ */
+const highlighted = new Map<string, HighlightResult>();
+let highlightedChars = 0;
+const HIGHLIGHTED_MAX_CHARS = 4_000_000;
+
+function highlightKey(
+  code: string,
+  lang: string | undefined,
+  theme: ShikiTheme,
+): string {
+  return `${resolveShikiTheme(theme)}\u0000${resolveLanguage(lang)}\u0000${code}`;
+}
+
+function remember(key: string, result: HighlightResult): void {
+  const known = highlighted.get(key);
+  if (known !== undefined) {
+    highlighted.delete(key);
+    highlightedChars -= known.html.length;
+  }
+  highlighted.set(key, result);
+  highlightedChars += result.html.length;
+  for (const [oldest, entry] of highlighted) {
+    if (highlightedChars <= HIGHLIGHTED_MAX_CHARS) break;
+    highlighted.delete(oldest);
+    highlightedChars -= entry.html.length;
+  }
+}
+
+/**
+ * The highlight `highlightCode` already made for this snippet, if it still
+ * holds one — synchronous, so a code block shown before renders highlighted
+ * from its first frame instead of flashing plain text.
+ */
+export function peekHighlightedCode(
+  code: string,
+  lang: string | undefined,
+  theme: ShikiTheme = 'light',
+): HighlightResult | null {
+  return highlighted.get(highlightKey(code, lang, theme)) ?? null;
+}
+
+/**
  * Tokenize `code` into highlighted HTML. Returns `null` when:
  *   - `code.length` exceeds `MAX_SHIKI_BYTES` (caller should plain-text)
  *   - the underlying highlighter fails to initialize or render
  *
  * Languages outside the eager list are lazy-loaded on first request and
- * cached for subsequent calls. Unknown grammars fall back to plaintext.
+ * cached for subsequent calls. Unknown grammars fall back to plaintext. A
+ * snippet highlighted before answers from {@link peekHighlightedCode}'s
+ * store without tokenizing again.
  */
 export async function highlightCode(
   code: string,
@@ -234,7 +286,22 @@ export async function highlightCode(
   theme: ShikiTheme = 'light',
 ): Promise<HighlightResult | null> {
   if (code.length > MAX_SHIKI_BYTES) return null;
+  const key = highlightKey(code, lang, theme);
+  const known = highlighted.get(key);
+  if (known !== undefined) {
+    remember(key, known);
+    return known;
+  }
+  const result = await tokenize(code, lang, theme);
+  if (result !== null) remember(key, result);
+  return result;
+}
 
+async function tokenize(
+  code: string,
+  lang: string | undefined,
+  theme: ShikiTheme,
+): Promise<HighlightResult | null> {
   let highlighter: HighlighterCore;
   try {
     highlighter = await getHighlighter();

@@ -94,7 +94,7 @@ Ordner gliedern die Bibliothek; umbenennen kannst du einen Ordner mit **Umbenenn
 
 ## Aus Microsoft 365 oder Google Drive importieren
 
-Wähle **Von Microsoft 365** oder **Von Google Drive** unter **Dokumente hochladen**. Verbinde beim ersten Mal dein Konto und erlaube den Import. Meldet Tale eine fehlende Einrichtung, muss ein Administrator den Dienst unter [Connectoren](/de/platform/admin/connectors) konfigurieren.
+Wähle **Von Microsoft 365** oder **Von Google Drive** unter **Dokumente hochladen**. Verbinde beim ersten Mal dein Konto und erlaube den Import. Meldet Tale eine fehlende Einrichtung, muss ein Administrator den Dienst unter [Connectoren](/de/platform/admin/connectors) konfigurieren. Kann Tale nicht prüfen, ob der Import eingerichtet ist, sagt der Dialog das und bietet **Erneut versuchen** statt der Schaltfläche zum Verbinden an. Verbinden kannst du, sobald die Prüfung klappt.
 
 Wähle Dateien oder Ordner und anschließend den Importmodus:
 

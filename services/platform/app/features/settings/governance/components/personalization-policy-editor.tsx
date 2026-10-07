@@ -12,6 +12,7 @@ import { isRecord } from '@/lib/utils/type-utils';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 // The org default for the one personalization feature the app offers.
 type PolicyType = 'custom_instructions';
@@ -114,7 +115,7 @@ interface PersonalizationPolicyEditorProps {
   organizationId: string;
 }
 
-export function PersonalizationPolicyEditor({
+function PersonalizationPolicyEditorContent({
   organizationId,
 }: PersonalizationPolicyEditorProps) {
   return (
@@ -126,3 +127,8 @@ export function PersonalizationPolicyEditor({
     />
   );
 }
+
+export const PersonalizationPolicyEditor = withGovernancePolicyReadBoundary(
+  PersonalizationPolicyEditorContent,
+  'custom_instructions',
+);

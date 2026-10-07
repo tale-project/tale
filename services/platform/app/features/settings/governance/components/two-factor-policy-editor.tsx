@@ -26,7 +26,9 @@ import { useT } from '@/lib/i18n/client';
 
 import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface TwoFactorPolicyEditorProps {
   organizationId: string;
@@ -45,9 +47,10 @@ const parseConfig = createConfigParser(twoFactorPolicyConfigSchema, () => ({
 // their exact size while loading. The disabled-policy hint and field hints stay
 // real text (read better than gray bars and are known at load time).
 // =============================================================================
-export function TwoFactorPolicyEditor({
+function TwoFactorPolicyEditorContent({
   organizationId,
 }: TwoFactorPolicyEditorProps) {
+  const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
@@ -241,7 +244,7 @@ export function TwoFactorPolicyEditor({
         </Stack>
 
         <ConfirmDialog
-          open={confirmEnforceOpen}
+          open={policyReadAvailable && confirmEnforceOpen}
           onOpenChange={setConfirmEnforceOpen}
           title={t('twoFactorPolicy.confirmEnforceTitle')}
           description={t('twoFactorPolicy.confirmEnforceDescription')}
@@ -255,3 +258,8 @@ export function TwoFactorPolicyEditor({
     </Skeletonize>
   );
 }
+
+export const TwoFactorPolicyEditor = withGovernancePolicyReadBoundary(
+  TwoFactorPolicyEditorContent,
+  'two_factor_policy',
+);

@@ -319,27 +319,37 @@ export function useChatProjects(
   });
   return useMemo(() => {
     if (projects.status !== 'ready') return projects;
-    return {
-      status: 'ready',
-      data: projects.data.map((project) => ({
-        id: project._id,
-        name: project.name,
-        ...(project.key !== undefined ? { key: project.key } : {}),
-        ...(project.icon !== undefined ? { icon: project.icon } : {}),
-        ...(project.color !== undefined ? { color: project.color } : {}),
-        ...(project.pinnedAt !== undefined
-          ? { pinnedAt: project.pinnedAt }
-          : {}),
-        ...(project.projectAgentCount !== undefined
-          ? { agentCount: project.projectAgentCount }
-          : {}),
-        // The chat's own projects read carries it when the backend does.
-        ...(typeof project.canEdit === 'boolean'
-          ? { canEdit: project.canEdit }
-          : {}),
-      })),
-    };
+    return { status: 'ready', data: projects.data.map(toChatProjectSummary) };
   }, [projects]);
+}
+
+type ProjectRow = ReturnsOf<'projects/queries:listProjects'>[number];
+
+/** One summary per project row: a refetch keeps every unchanged row's object
+ * (react-query shares the structure of an equal answer), so the summary —
+ * and every list row memoized on it — survives a refetch too. */
+const summaryByProject = new WeakMap<ProjectRow, ChatProjectSummary>();
+
+function toChatProjectSummary(project: ProjectRow): ChatProjectSummary {
+  const known = summaryByProject.get(project);
+  if (known !== undefined) return known;
+  const summary: ChatProjectSummary = {
+    id: project._id,
+    name: project.name,
+    ...(project.key !== undefined ? { key: project.key } : {}),
+    ...(project.icon !== undefined ? { icon: project.icon } : {}),
+    ...(project.color !== undefined ? { color: project.color } : {}),
+    ...(project.pinnedAt !== undefined ? { pinnedAt: project.pinnedAt } : {}),
+    ...(project.projectAgentCount !== undefined
+      ? { agentCount: project.projectAgentCount }
+      : {}),
+    // The chat's own projects read carries it when the backend does.
+    ...(typeof project.canEdit === 'boolean'
+      ? { canEdit: project.canEdit }
+      : {}),
+  };
+  summaryByProject.set(project, summary);
+  return summary;
 }
 
 /**

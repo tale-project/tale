@@ -5,7 +5,13 @@ import type {
   DataTableSearchConfig,
   EntityLabel,
 } from '@tale/ui/data-table/data-table-types';
-import type { SortingState } from '@tanstack/react-table';
+import {
+  createTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  type ColumnDef,
+  type SortingState,
+} from '@tanstack/react-table';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 
 import {
@@ -21,12 +27,7 @@ import {
  * One hook, so two lists cannot page or count differently.
  */
 
-/**
- * How many rows a list shows before it loads more on scroll. A host that
- * primes a backend page from a route loader asks for this many, so the first
- * paint is exactly the window the table renders.
- */
-export const DEFAULT_LIST_PAGE_SIZE = 20;
+export { DEFAULT_LIST_PAGE_SIZE } from './list-page-size';
 
 // ---------------------------------------------------------------------------
 // Data Source Types
@@ -54,8 +55,9 @@ interface RequestOutcome {
    * folders stay when its documents read never answered. While it holds,
    * the list loads no further, keeps its rows through a retry instead of
    * drawing a first-load skeleton, and says the rest could not be loaded —
-   * never "all". Absent, a paginated source counts as stopped once a
-   * request failed with rows loaded and more to come.
+   * never "all", and with no rows never the empty state. Absent, a
+   * paginated source counts as stopped once a request failed with rows
+   * loaded and more to come.
    */
   loadFailed?: boolean;
 }
@@ -101,6 +103,7 @@ interface ManagedSearch<TData> {
 }
 
 interface ControlledSearch {
+  serverSide?: boolean;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -126,6 +129,12 @@ interface ControlledFilters {
 interface UseListPageOptions<TData> {
   dataSource: DataSource<TData>;
   pageSize: number;
+  /** A different collection or view starts its display window over. Live
+   * updates of the same collection keep the user's loaded rows. */
+  windowKey?: string;
+  /** Keep a linked row from this collection visible without mounting every
+   * preceding row. The normal window still advances through the whole set. */
+  revealedRow?: TData;
   search?: ManagedSearch<TData> | ControlledSearch;
   filters?: ManagedFilters | ControlledFilters;
   getRowId?: (row: TData) => string;
@@ -144,11 +153,13 @@ interface UseListPageOptions<TData> {
    * The table's controlled sort state, when its columns are sortable. A sort
    * orders the WHOLE dataset, not the page the user happens to have scrolled
    * to, so while one is active the hook drains every remaining backend page
-   * and hands the table the full set instead of the `displayCount` window —
-   * otherwise the visible rows would reshuffle as later pages arrived.
-   * TanStack still owns the comparator; this only widens what it sorts.
+   * to preserve completeness. Without `sortingColumns`, the table receives
+   * the full set as before. Supply the table's columns to sort the whole
+   * buffer through TanStack before windowing; that table must use manual
+   * sorting so it does not independently sort the resulting window.
    */
   sorting?: SortingState;
+  sortingColumns?: ColumnDef<TData>[];
 }
 
 // ---------------------------------------------------------------------------
@@ -232,16 +243,15 @@ export function useListPage<TData>(
     entityLabel,
     countRow,
     sorting,
+    sortingColumns,
+    windowKey,
+    revealedRow,
   } = options;
 
   // 1. Normalize data source
-  const rawData = useMemo(
-    () =>
-      dataSource.type === 'paginated'
-        ? (dataSource.results ?? [])
-        : (dataSource.data ?? []),
-    [dataSource],
-  );
+  const sourceRows =
+    dataSource.type === 'paginated' ? dataSource.results : dataSource.data;
+  const rawData = useMemo(() => sourceRows ?? [], [sourceRows]);
 
   const requestError = dataSource.error ?? null;
   // With rows on screen, a failed request halts a paginated source where it
@@ -274,6 +284,11 @@ export function useListPage<TData>(
 
   // 4. Display count
   const [displayCount, setDisplayCount] = useState(pageSize);
+  const [previousWindowKey, setPreviousWindowKey] = useState(windowKey);
+  if (previousWindowKey !== windowKey) {
+    setPreviousWindowKey(windowKey);
+    setDisplayCount(pageSize);
+  }
 
   // Determine actual search value
   const searchValue =
@@ -291,7 +306,7 @@ export function useListPage<TData>(
     const searchActive = search
       ? isManagedSearch(search)
         ? managedSearchValue.trim().length > 0
-        : search.value.trim().length > 0
+        : !search.serverSide && search.value.trim().length > 0
       : false;
     const managedFilterActive = filterValues
       ? Object.values(filterValues).some((values) => values.length > 0)
@@ -306,7 +321,9 @@ export function useListPage<TData>(
 
   // 5. Process data (search + filters)
   const processed = useMemo(() => {
-    let data = [...rawData];
+    // Filtering creates a fresh result when necessary. Copying an unchanged
+    // source here invalidated every table row and sort on wrapper rerenders.
+    let data = rawData;
 
     // Apply managed text search
     if (search && isManagedSearch<TData>(search) && searchValue) {
@@ -346,15 +363,37 @@ export function useListPage<TData>(
     }
   }, [loadFailed, displayCount, processed.length]);
 
-  // 6. Slice for display — a sort takes the whole set (see `hasActiveSort`)
-  const displayed = useMemo(
-    () => (hasActiveSort ? processed : processed.slice(0, windowCount)),
-    [processed, windowCount, hasActiveSort],
-  );
+  const sortedProcessed = useMemo(() => {
+    if (!sortingColumns || !sorting?.length) return processed;
+    const table = createTable({
+      data: processed,
+      columns: sortingColumns,
+      state: { sorting },
+      onStateChange: () => {},
+      renderFallbackValue: null,
+      getCoreRowModel: getCoreRowModel(),
+      getSortedRowModel: getSortedRowModel(),
+      getRowId,
+    });
+    return table.getSortedRowModel().rows.map((row) => row.original);
+  }, [processed, sorting, sortingColumns, getRowId]);
+  const renderAllForSort =
+    hasActiveSort && (!sortingColumns || sortedProcessed.length < pageSize * 5);
+  const displayed = useMemo(() => {
+    if (renderAllForSort) return sortedProcessed;
+    const rows = sortedProcessed.slice(0, windowCount);
+    if (
+      revealedRow !== undefined &&
+      sortedProcessed.includes(revealedRow) &&
+      !rows.includes(revealedRow)
+    ) {
+      rows.push(revealedRow);
+    }
+    return rows;
+  }, [sortedProcessed, renderAllForSort, windowCount, revealedRow]);
 
-  // 7. Compute hasMore. `displayed` already holds every processed row while a
-  // sort is active, so only an un-drained backend can still add to it.
-  const localRemaining = !hasActiveSort && windowCount < processed.length;
+  const localRemaining =
+    !renderAllForSort && windowCount < sortedProcessed.length;
   const hasMore =
     dataSource.type === 'paginated'
       ? localRemaining ||
@@ -370,7 +409,7 @@ export function useListPage<TData>(
   // 9. handleLoadMore — prefetch from backend before buffer is exhausted
   const handleLoadMore = useCallback(() => {
     if (dataSource.type === 'paginated') {
-      const nextDisplayCount = displayCount + pageSize;
+      const nextDisplayCount = windowCount + pageSize;
       const remainingAfterIncrement = processed.length - nextDisplayCount;
       if (
         remainingAfterIncrement <= pageSize &&
@@ -380,8 +419,8 @@ export function useListPage<TData>(
         dataSource.loadMore(pageSize * 3);
       }
     }
-    setDisplayCount((prev) => prev + pageSize);
-  }, [dataSource, displayCount, processed.length, pageSize, loadFailed]);
+    setDisplayCount(windowCount + pageSize);
+  }, [dataSource, windowCount, processed.length, pageSize, loadFailed]);
 
   // 10. Build search config
   const searchConfig = useMemo((): DataTableSearchConfig | undefined => {

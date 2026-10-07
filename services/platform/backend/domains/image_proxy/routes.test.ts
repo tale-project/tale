@@ -50,7 +50,7 @@ beforeEach(() => {
 });
 
 describe('GET /api/image-proxy', () => {
-  it('refuses a request with no session, before fetching anything', async () => {
+  it('refuses a request with no session, before fetching anything [IMGPX-R1]', async () => {
     const { routes, fetchImage } = app(null);
 
     const res = await routes.request(PATH);
@@ -59,7 +59,7 @@ describe('GET /api/image-proxy', () => {
     expect(fetchImage).not.toHaveBeenCalled();
   });
 
-  it('serves the image under its detected type, inert and uncached by shared caches', async () => {
+  it('serves the image under its detected type, inert and uncached by shared caches [IMGPX-R8]', async () => {
     const { routes, fetchImage } = app(SIGNED_IN);
 
     const res = await routes.request(PATH);
@@ -80,7 +80,7 @@ describe('GET /api/image-proxy', () => {
     );
   });
 
-  it('answers a refusal in the coded envelope, never cached', async () => {
+  it('answers a refusal in the coded envelope, never cached [IMGPX-R8]', async () => {
     const { routes } = app(
       SIGNED_IN,
       vi.fn(async () => {
@@ -98,7 +98,7 @@ describe('GET /api/image-proxy', () => {
     });
   });
 
-  it('answers a malformed url parameter as 400 without fetching', async () => {
+  it('answers a malformed url parameter as 400 without fetching [IMGPX-R3]', async () => {
     const { routes, fetchImage } = app(SIGNED_IN);
 
     const res = await routes.request('/?url=not-base64%25');
@@ -108,7 +108,7 @@ describe('GET /api/image-proxy', () => {
     expect(fetchImage).not.toHaveBeenCalled();
   });
 
-  it('answers a spent budget with the 429 every door speaks', async () => {
+  it('answers a spent budget with the 429 every door speaks [IMGPX-R2]', async () => {
     checkUserRateLimit.mockRejectedValue(
       new RateLimitExceededError('Rate limit exceeded', 2_500),
     );

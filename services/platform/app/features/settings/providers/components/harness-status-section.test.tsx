@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import type { HarnessStatus } from '../hooks/queries';
 import { HarnessStatusSection } from './harness-status-section';
@@ -216,6 +216,6 @@ describe('HarnessStatusSection', () => {
     fixtures.statusError = null;
 
     const { container } = renderSection();
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });

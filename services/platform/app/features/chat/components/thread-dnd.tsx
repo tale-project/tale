@@ -37,7 +37,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useThreadProjectMove } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
-import { useThreadListFrame } from './thread-list-context';
+import { useActiveThreadId } from './thread-list-context';
 
 const NO_PROJECT_DROPPABLE_ID = 'project:none';
 const ARCHIVE_DROPPABLE_ID = 'archive';
@@ -165,10 +165,13 @@ const collisionDetection: CollisionDetection = (args) => {
 };
 
 // The PROJECTS list and the ARCHIVED drawer fold open and shut, and the lists
-// scroll, mid-drag — so re-measure drop targets continuously instead of only
-// at drag start.
+// scroll, mid-drag — so while a chat is dragged the drop targets are measured
+// again as the pointer moves, a tenth of a second apart at most. Only while
+// dragging: measuring at rest (`MeasuringStrategy.Always`) read the box of
+// every project row whenever the rows changed, and a drag measures them
+// afresh when it starts anyway.
 const measuring: MeasuringConfiguration = {
-  droppable: { strategy: MeasuringStrategy.Always },
+  droppable: { strategy: MeasuringStrategy.WhileDragging, frequency: 100 },
 };
 
 // On drop, fade the lifted row out where it was released (with a subtle
@@ -194,6 +197,18 @@ const dropAnimation: DropAnimation = {
   }),
 };
 
+// Module constants, not literals in the render: `useSensor` memoises on the
+// options' identity, and a new object each render handed DndContext new
+// activators, so its context changed and every draggable chat row and every
+// project drop zone re-rendered with each render of the panel — three times
+// over all 600 rows of a long list on one chat switch.
+/** Mouse: start dragging after a small move so plain clicks still open a chat. */
+const MOUSE_SENSOR_OPTIONS = { activationConstraint: { distance: 5 } };
+/** Touch: press-and-hold to drag, so a vertical swipe scrolls the list. */
+const TOUCH_SENSOR_OPTIONS = {
+  activationConstraint: { delay: 200, tolerance: 8 },
+};
+
 interface ActiveThread {
   id: string;
   title: string;
@@ -203,10 +218,13 @@ interface ActiveThread {
 
 const ThreadDndStateContext = createContext<{
   isDragging: boolean;
+  /** The chat being dragged — a windowed list keeps its row mounted. */
+  draggedThreadId: string | null;
   /** True while the row being dragged is an archived one. */
   activeIsArchived: boolean;
 }>({
   isDragging: false,
+  draggedThreadId: null,
   activeIsArchived: false,
 });
 
@@ -231,17 +249,13 @@ export function ThreadDndProvider({
   const { t } = useT('chat');
   const { move } = useThreadProjectMove(organizationId);
   const actions = useThreadActions(organizationId);
-  const { activeThreadId } = useThreadListFrame();
+  const activeThreadId = useActiveThreadId();
   const navigate = useNavigate();
   const [activeThread, setActiveThread] = useState<ActiveThread | null>(null);
 
   const sensors = useSensors(
-    // Mouse: start dragging after a small move so plain clicks still open a chat.
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    // Touch: press-and-hold to drag, so a vertical swipe scrolls the list.
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 8 },
-    }),
+    useSensor(MouseSensor, MOUSE_SENSOR_OPTIONS),
+    useSensor(TouchSensor, TOUCH_SENSOR_OPTIONS),
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -313,6 +327,7 @@ export function ThreadDndProvider({
   const state = useMemo(
     () => ({
       isDragging: activeThread !== null,
+      draggedThreadId: activeThread?.id ?? null,
       activeIsArchived: activeThread?.archived === true,
     }),
     [activeThread],

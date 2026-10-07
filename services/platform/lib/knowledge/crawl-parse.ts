@@ -531,6 +531,63 @@ export function siteHosts(domain: string): Set<string> {
   return hosts;
 }
 
+const wordsOf = (text: string): string[] =>
+  text.split(/\s+/).filter((word) => word !== '');
+
+/**
+ * How much of the text a browser shows for a page its plain HTML already
+ * carries: the share of the rendered text's words found in the text read
+ * out of the unrendered HTML, each word counted as often as it occurs. `1`
+ * for a page whose rendered text is empty — nothing it shows is missing.
+ */
+export function plainTextCoverage(
+  plainText: string,
+  renderedText: string,
+): number {
+  const rendered = wordsOf(renderedText);
+  if (rendered.length === 0) return 1;
+  const carried = new Map<string, number>();
+  for (const word of wordsOf(plainText)) {
+    carried.set(word, (carried.get(word) ?? 0) + 1);
+  }
+  let found = 0;
+  for (const word of rendered) {
+    const left = carried.get(word) ?? 0;
+    if (left === 0) continue;
+    carried.set(word, left - 1);
+    found += 1;
+  }
+  return found / rendered.length;
+}
+
+/** The share of a rendered page's words its plain HTML has to carry for the
+ * page to count as server-rendered. Measured, 2026-10-06: server-rendered
+ * pages sit between 0.87 and 1.00 (the rest is what their scripts add — a
+ * consent banner, a counter, a hydrated widget), a page built by its
+ * JavaScript at 0.01. Nine in ten keeps the first kind and can never admit
+ * the second; a page in between is rendered, which is only slower. */
+const PLAIN_TEXT_COVERAGE_FLOOR = 0.9;
+
+/**
+ * Whether a page's plain HTML carries what a browser shows for it — the
+ * page is server-rendered, so one plain request can tell a later scan
+ * whether it changed: the same text read out of the plain HTML is the same
+ * page. False for a page built by its JavaScript, whose plain HTML is a
+ * shell that reads the same whatever the page shows; such a page has to be
+ * rendered to be judged.
+ *
+ * Decided per page from the two texts of one visit, never from the site,
+ * its framework or its markup.
+ */
+export function plainTextCarriesRendered(
+  plainText: string,
+  renderedText: string,
+): boolean {
+  return (
+    plainTextCoverage(plainText, renderedText) >= PLAIN_TEXT_COVERAGE_FLOOR
+  );
+}
+
 /** Split page text into the paragraphs the boilerplate ledger hashes. Short
  * fragments (menu items, button labels) are ignored — hashing them would
  * blocklist ordinary words. */

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, within } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { ContactsTable } from './contact-table';
 
@@ -18,6 +18,8 @@ type Contact = ContactDoc;
 // reproduced without a backend or a CSV import.
 // ---------------------------------------------------------------------------
 let mockContacts: Contact[] = [];
+let mockStatus: 'CanLoadMore' | 'Exhausted' = 'Exhausted';
+const mockLoadMore = vi.fn();
 
 function makeContact(name: string, email: string): Contact {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal fixture; the table only renders name/email + reads source for row actions
@@ -56,18 +58,27 @@ vi.mock('../hooks/mutations', () => ({
 
 vi.mock('../hooks/queries', () => ({
   useApproxContactCount: () => ({ data: mockContacts.length }),
-  useListContactsPaginated: () => ({
-    results: mockContacts,
-    status: 'Exhausted',
-    loadMore: vi.fn(),
-    isLoading: false,
-  }),
+  useListContactsPaginated: ({ search }: { search?: string }) => {
+    return {
+      results: search
+        ? mockContacts.filter((contact) =>
+            [contact.name, contact.email, contact.externalId]
+              .filter(Boolean)
+              .some((value) =>
+                String(value).toLowerCase().includes(search.toLowerCase()),
+              ),
+          )
+        : mockContacts,
+      status: mockStatus,
+      loadMore: mockLoadMore,
+      isLoading: false,
+    };
+  },
 }));
 
 // Minimal columns that render the Name + Email so rows are queryable by their
-// cell text — mirrors the real config's name/email columns. The managed search
-// in `useListPage` matches on the `name`/`email`/`externalId` row fields (not
-// the columns), so this stays faithful to the production filtering contract.
+// cell text — mirrors the real config's name/email columns. The query mock
+// applies the same server-side name/email/external-id predicate as production.
 // Name keeps a clickable header on TanStack's own toggle handler, the way the
 // real config's `sortableHeader` does, so the sort can be driven from the UI.
 const columns: ColumnDef<Contact>[] = [
@@ -118,6 +129,8 @@ function contactRow(name: string): HTMLElement | undefined {
 
 beforeEach(() => {
   mockContacts = [];
+  mockStatus = 'Exhausted';
+  mockLoadMore.mockClear();
 });
 
 afterEach(() => {
@@ -141,8 +154,8 @@ describe('ContactsTable', () => {
   // Migrated from tests/e2e/specs/list-behaviors.spec.ts: the three DataTable
   // behaviours covered once on the contacts list. The e2e used a CSV import
   // only as SETUP to get rows on screen — here the rows are mocked and the same
-  // client-side search/pagination/empty-state logic is driven directly.
-  describe('client-side search', () => {
+  // server-search/pagination/empty-state logic is driven directly.
+  describe('server-side search', () => {
     it('search filters the contacts list and clearing restores it', async () => {
       mockContacts = [
         makeContact('Match Alpha', 'match@example.test'),
@@ -156,13 +169,13 @@ describe('ContactsTable', () => {
 
       // Filter to the match row by its unique name (substring, case-insensitive).
       await user.type(searchBox(), 'match alpha');
+      await waitFor(() => expect(contactRow('Other Beta')).toBeUndefined());
       expect(contactRow('Match Alpha')).toBeDefined();
-      expect(contactRow('Other Beta')).toBeUndefined();
 
       // Clearing the query brings the full list back.
       await user.clear(searchBox());
+      await waitFor(() => expect(contactRow('Other Beta')).toBeDefined());
       expect(contactRow('Match Alpha')).toBeDefined();
-      expect(contactRow('Other Beta')).toBeDefined();
     });
 
     it('shows the no-results empty state for an unmatched search', async () => {
@@ -174,7 +187,7 @@ describe('ContactsTable', () => {
       // A query that matches nothing flips the body to the `filtered-empty`
       // state, which renders the shared `common.search.*` no-results copy.
       await user.type(searchBox(), 'zzz-no-match-zzz');
-      expect(contactRow('Solo Contact')).toBeUndefined();
+      await waitFor(() => expect(contactRow('Solo Contact')).toBeUndefined());
       expect(screen.getByText('No results found')).toBeInTheDocument();
       expect(
         screen.getByText('Try adjusting your search criteria'),
@@ -182,9 +195,40 @@ describe('ContactsTable', () => {
 
       // Clearing the query returns the row.
       await user.clear(searchBox());
-      expect(contactRow('Solo Contact')).toBeDefined();
+      await waitFor(() => expect(contactRow('Solo Contact')).toBeDefined());
       expect(screen.queryByText('No results found')).not.toBeInTheDocument();
     });
+  });
+
+  it('does not drain broad server search pages during debounce or after a matching completion', async () => {
+    mockStatus = 'CanLoadMore';
+    mockContacts = Array.from({ length: 50 }, (_, index) =>
+      makeContact(
+        index === 0 ? 'Other' : `Match ${index}`,
+        `contact-${index}@example.test`,
+      ),
+    );
+    const { user } = render(<ContactsTable organizationId="test-org-id" />);
+    await user.type(searchBox(), 'Match');
+    expect(mockLoadMore).not.toHaveBeenCalled();
+    await waitFor(() => expect(contactRow('Other')).toBeUndefined());
+    expect(contactRow('Match 1')).toBeDefined();
+    expect(mockLoadMore).not.toHaveBeenCalled();
+  });
+
+  it('renders the globally first 20 rows under an active Name sort for the accented-name counterexample', async () => {
+    mockContacts = Array.from({ length: 100 }, (_, index) =>
+      makeContact(
+        index < 20 ? `Zebra ${index}` : `Álvaro ${index}`,
+        `contact-${index}@example.test`,
+      ),
+    );
+    const { user } = render(<ContactsTable organizationId="test-org-id" />);
+    await user.click(screen.getByRole('button', { name: 'Name' }));
+    expect(screen.getAllByRole('row')).toHaveLength(21);
+    expect(contactRow('Zebra 0')).toBeDefined();
+    expect(contactRow('Zebra 19')).toBeDefined();
+    expect(contactRow('Álvaro 20')).toBeUndefined();
   });
 
   // Contacts used to render a client paginator of its own (#1108). Every

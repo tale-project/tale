@@ -178,7 +178,7 @@ describe('finishRun — the trigger failure streak', () => {
     expect(hints[0]?.inTx).toBe(true);
   });
 
-  it('leaves triggers alone for a mock run', async () => {
+  it('leaves triggers alone for a mock run [AUTO-R13]', async () => {
     const fake = fakeSql(runRow({ mode: 'mock', startedBy: 'user:u_1' }));
     await finish(fake.sql);
     expect(recordTriggerRunOutcome).not.toHaveBeenCalled();

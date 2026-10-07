@@ -449,7 +449,23 @@ describe('prepareSentryEvent', () => {
       ).toBeNull();
     });
 
-    it('keeps the backend’s own fault and a 502 the edge did not word', () => {
+    it.each([502, 503, 504])(
+      'drops an unstructured gateway outage at %i',
+      (status) => {
+        expect(
+          prepareSentryEvent(
+            thrown(
+              'BackendApiError',
+              `Request failed with status ${status}`,
+              APP_SCRIPT,
+            ),
+            { originalException: backendApiErrorFromBody(status, null) },
+          ),
+        ).toBeNull();
+      },
+    );
+
+    it('keeps backend faults and an identified dependency refusal', () => {
       expect(
         prepareSentryEvent(
           thrown(
@@ -467,7 +483,12 @@ describe('prepareSentryEvent', () => {
             'Request failed with status 502',
             APP_SCRIPT,
           ),
-          { originalException: backendApiErrorFromBody(502, null) },
+          {
+            originalException: backendApiErrorFromBody(502, {
+              code: 'OBJECT_STORE_UNAVAILABLE',
+              message: 'Object store unavailable',
+            }),
+          },
         ),
       ).not.toBeNull();
     });

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
@@ -115,9 +115,15 @@ export const EMAIL_PROVIDER_SLUGS: ReadonlySet<string> = new Set([
 export function useEmailConnectors(organizationId: string): {
   emailConnectors: EmailConnectorOption[];
   isLoading: boolean;
+  error: unknown;
+  retry: () => Promise<unknown>;
 } {
-  const { inboxAutomations, isLoading: inboxLoading } =
-    useInboxAvailability(organizationId);
+  const {
+    inboxAutomations,
+    isLoading: inboxLoading,
+    error: inboxError,
+    retry: retryInbox,
+  } = useInboxAvailability(organizationId);
 
   const providerSlugs = useMemo(
     () => [
@@ -133,7 +139,12 @@ export function useEmailConnectors(organizationId: string): {
     [inboxAutomations],
   );
 
-  const { data: credentials, isLoading: credentialsLoading } = useBackendQuery(
+  const {
+    data: credentials,
+    error: credentialsError,
+    isLoading: credentialsLoading,
+    refetch: refetchCredentials,
+  } = useBackendQuery(
     'connector_credentials/queries:listCredentials',
     organizationId ? { organizationId } : 'skip',
   );
@@ -159,9 +170,16 @@ export function useEmailConnectors(organizationId: string): {
     return options.length === 0 ? EMPTY_EMAIL_CONNECTORS : options;
   }, [credentials, providerSlugs]);
 
+  const retry = useCallback(
+    () => Promise.all([retryInbox(), refetchCredentials()]),
+    [retryInbox, refetchCredentials],
+  );
+
   return {
     emailConnectors,
     isLoading: inboxLoading || credentialsLoading,
+    error: inboxError ?? credentialsError,
+    retry,
   };
 }
 

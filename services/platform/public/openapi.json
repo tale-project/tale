@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.15.0",
+    "version": "3.16.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -17804,7 +17804,7 @@
                   "externalState": {
                     "type": "string",
                     "enum": ["open", "closed"],
-                    "description": "The source item’s lifecycle (default `open`). For externalSystem `github` or `glitchtip`, this field never changes Tale status: new tasks enter `backlog`, and local progress stays authoritative on every repeat. Issue import automations show source status separately. For other source systems, `closed` parks the task at `in_review` for a person to complete — only the workflow engine itself lands a close at `done`. `open` reopens a task the mirror closed — one it parked at `in_review`, or a `done` one — back to `backlog`. A park a person or an agent made is theirs: `open` leaves it, and any move through the board ends the mirror’s claim on a park it made. Local triage owns every other status; a cancelled task stays cancelled."
+                    "description": "The source item’s lifecycle (default `open`). For externalSystem `github` or `glitchtip`, this field never changes Tale status: new tasks enter `backlog`, and local progress stays authoritative on every repeat. Issue import automations show source status separately. For other source systems, `closed` parks the task at `in_review` for a person to complete — only the workflow engine itself lands a close at `done`. `open` reopens a task the mirror closed — one it parked at `in_review`, or a `done` one — back to `backlog`. A park a person or an agent made is theirs: `open` leaves it, and any move through the board ends the mirror’s claim on a park it made. Local triage owns every other status; a cancelled task stays cancelled. A task explicitly opted into accepted source projection through `PUT …/external-status` keeps that projected lifecycle on intake refresh; this legacy field no longer changes its progress."
                   },
                   "runWorkflowSlug": {
                     "type": "string",
@@ -18499,6 +18499,595 @@
               },
               "Allow": {
                 "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds this operation’s byte cap — 1 MiB unless the description says otherwise (`BODY_TOO_LARGE`); the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/tasks/{taskId}/status": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "Read task lifecycle revision and actor provenance",
+        "description": "A coherent status, archival and source-transition snapshot. `revision` is an opaque decimal activity sequence covering status, archival, accepted source projections and native source-transition requests; ordinary metadata and comments do not advance it. `change` names the actual current status actor independently of later archive/restore or form-submission actors. Human emails are present only while actively verified organization members. `externalStatus` is the last accepted source projection. `workflow` carries the source-declared actions rendered in native task details. `request` is the newest immutable human form submission, including same-column actions, source version, captured statusChangeId, typed input, actual session actor and durable source decision. Validate the actual human identity and original source revision, persist a decision by request.id, and reconcile any later independent native status intent before projecting current accepted source state. Archived tasks and projects remain readable.",
+        "operationId": "getTaskStatus",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task ID in this project"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The lifecycle snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskStatusSnapshot"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "The project is missing or invisible (`PROJECT_NOT_FOUND` — the URL is judged left to right, so a bad project id is blamed on the project), or the task is missing or outside this project (`TASK_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/tasks/{taskId}/external-status": {
+      "put": {
+        "tags": ["Tasks"],
+        "summary": "Project an accepted custom-source business lifecycle",
+        "description": "Explicit opt-in for a custom mirror whose source validates every business transition before calling. Requires exact custom external binding, existing task work permission and an active project; issue importers cannot opt in. Atomically compares expectedRevision, orders source lifecycle by sourceStatusAt and records external evidence without a native human approval. A captured native agent review refuses TASK_AGENT_REVIEW_REQUIRED, including on replay; pending human review is withdrawn on leave. Creates no agent run, second review or repeat copy. Status and optional archival apply together even on an archived task; other fields are preserved. Ordinary intake then preserves this accepted lifecycle. An identical lost-reply replay is a no-op only while still the latest lifecycle revision. Optional workflow replaces the source-declared form, bounded to 256 KiB, 16 actions and 30 fields per action; omission preserves it. Optional requestId and decision must appear together and settle that exact immutable native request. A refusal requires a reason. An older request may be acknowledged as a source fact under a fresh CAS after reconciling newer intent, but cannot replace the newest visible request or change an already recorded decision. Source ordering still refuses older lifecycle data. Source services cannot choose a native human actor.",
+        "operationId": "projectExternalTaskStatus",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task ID in this project"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "externalSystem",
+                  "externalId",
+                  "expectedRevision",
+                  "sourceRevision",
+                  "sourceStatusAt",
+                  "status"
+                ],
+                "properties": {
+                  "externalSystem": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "externalId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9]\\d{0,18})$",
+                    "description": "The `/status` snapshot revision that was read and validated at the source"
+                  },
+                  "sourceRevision": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512,
+                    "description": "Opaque identity of the accepted source snapshot"
+                  },
+                  "sourceStatusAt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8640000000000000,
+                    "description": "Monotonically increasing source lifecycle epoch ms, including for status and archival changes"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "backlog",
+                      "todo",
+                      "in_progress",
+                      "in_review",
+                      "done",
+                      "cancelled"
+                    ]
+                  },
+                  "archived": {
+                    "type": "boolean",
+                    "description": "Optional accepted source archival; absent preserves current archival"
+                  },
+                  "workflow": {
+                    "$ref": "#/components/schemas/ExternalStatusWorkflow"
+                  },
+                  "requestId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Immutable native request being acknowledged; supply decision as well"
+                  },
+                  "decision": {
+                    "$ref": "#/components/schemas/ExternalStatusDecision"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The accepted lifecycle snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskStatusSnapshot"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "The key holder may not change this task (`RBAC_FORBIDDEN`), or the project is archived (`PROJECT_ARCHIVED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "The project is missing or invisible (`PROJECT_NOT_FOUND` — the URL is judged left to right, so a bad project id is blamed on the project), or the task is missing or outside this project (`TASK_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "A newer native lifecycle revision (`TASK_STATUS_CONFLICT`), an older or same-time conflicting source lifecycle (`TASK_EXTERNAL_STATUS_STALE`), a mismatched or reserved external reference (`TASK_EXTERNAL_REF_INVALID`), a captured native agent review (`TASK_AGENT_REVIEW_REQUIRED`), or open subtasks on a terminal move (`TASK_HAS_OPEN_SUBTASKS`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -38236,7 +38825,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.15.0"
+          "example": "3.16.0"
         }
       },
       "Location": {
@@ -38513,12 +39102,15 @@
                   "TASK_ARCHIVED",
                   "TASK_AUTOMATION_DISABLED",
                   "TASK_AUTOMATION_UNAVAILABLE",
+                  "TASK_EXTERNAL_REF_INVALID",
+                  "TASK_EXTERNAL_STATUS_STALE",
                   "TASK_HAS_LIVE_RUN",
                   "TASK_HAS_OPEN_SUBTASKS",
                   "TASK_LABEL_UNKNOWN",
                   "TASK_NOT_FOUND",
                   "TASK_NOT_IN_REVIEW",
                   "TASK_REVIEW_POLICY_UNAVAILABLE",
+                  "TASK_STATUS_CONFLICT",
                   "TEAM_ACCESS_DENIED",
                   "TEAM_INHERITED_FROM_FOLDER",
                   "TEAM_NOT_IN_ORG",
@@ -38737,12 +39329,15 @@
                   "TASK_ARCHIVED",
                   "TASK_AUTOMATION_DISABLED",
                   "TASK_AUTOMATION_UNAVAILABLE",
+                  "TASK_EXTERNAL_REF_INVALID",
+                  "TASK_EXTERNAL_STATUS_STALE",
                   "TASK_HAS_LIVE_RUN",
                   "TASK_HAS_OPEN_SUBTASKS",
                   "TASK_LABEL_UNKNOWN",
                   "TASK_NOT_FOUND",
                   "TASK_NOT_IN_REVIEW",
                   "TASK_REVIEW_POLICY_UNAVAILABLE",
+                  "TASK_STATUS_CONFLICT",
                   "TEAM_ACCESS_DENIED",
                   "TEAM_INHERITED_FROM_FOLDER",
                   "TEAM_NOT_IN_ORG",
@@ -38952,12 +39547,15 @@
               "TASK_ARCHIVED",
               "TASK_AUTOMATION_DISABLED",
               "TASK_AUTOMATION_UNAVAILABLE",
+              "TASK_EXTERNAL_REF_INVALID",
+              "TASK_EXTERNAL_STATUS_STALE",
               "TASK_HAS_LIVE_RUN",
               "TASK_HAS_OPEN_SUBTASKS",
               "TASK_LABEL_UNKNOWN",
               "TASK_NOT_FOUND",
               "TASK_NOT_IN_REVIEW",
               "TASK_REVIEW_POLICY_UNAVAILABLE",
+              "TASK_STATUS_CONFLICT",
               "TEAM_ACCESS_DENIED",
               "TEAM_INHERITED_FROM_FOLDER",
               "TEAM_NOT_IN_ORG",
@@ -41239,6 +41837,441 @@
           "taskId": {
             "type": "string",
             "description": "The task the run works on, whose timeline mirrors the answer; absent for a run without a task"
+          }
+        }
+      },
+      "ExternalStatusWorkflow": {
+        "type": "object",
+        "properties": {
+          "actions": {
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "i18n": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 2000
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "backlog",
+                    "todo",
+                    "in_progress",
+                    "in_review",
+                    "done",
+                    "cancelled"
+                  ]
+                },
+                "fields": {
+                  "default": [],
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": ["text", "number", "boolean", "select"]
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "pattern": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "default": {
+                        "type": "string",
+                        "maxLength": 4000
+                      },
+                      "placeholder": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "help": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "options": {
+                        "minItems": 1,
+                        "maxItems": 1000,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "i18n": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "label": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": ["value", "label"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "i18n": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "placeholder": {
+                              "type": "string",
+                              "maxLength": 200
+                            },
+                            "help": {
+                              "type": "string",
+                              "maxLength": 500
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "multiline": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["key", "label", "type"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["title", "id", "status"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["actions"],
+        "additionalProperties": false
+      },
+      "ExternalStatusDecision": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": ["accepted"],
+        "additionalProperties": false
+      },
+      "TaskStatusSnapshot": {
+        "type": "object",
+        "required": [
+          "task",
+          "revision",
+          "statusChangedAt",
+          "change",
+          "externalStatus",
+          "workflow",
+          "request"
+        ],
+        "properties": {
+          "task": {
+            "type": "object",
+            "required": ["id", "status"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "backlog",
+                  "todo",
+                  "in_progress",
+                  "in_review",
+                  "done",
+                  "cancelled"
+                ]
+              },
+              "archivedAt": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds"
+              },
+              "externalSystem": {
+                "type": "string"
+              },
+              "externalId": {
+                "type": "string"
+              }
+            }
+          },
+          "revision": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d{0,18})$",
+            "description": "Opaque lifecycle activity sequence; compare it as a string"
+          },
+          "statusChangedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds",
+            "nullable": true
+          },
+          "change": {
+            "type": "object",
+            "description": "Latest status activity, including creation or accepted source projection; a later archival activity advances revision without replacing this actor",
+            "required": ["id", "action", "createdAt", "origin", "actor"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds"
+              },
+              "origin": {
+                "type": "string",
+                "enum": ["native", "external"]
+              },
+              "actor": {
+                "type": "object",
+                "required": ["type", "userId", "emailVerified", "activeMember"],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["user", "agent"]
+                  },
+                  "userId": {
+                    "type": "string",
+                    "description": "Immutable activity actor id; a person only when type is user"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Present only for an active verified human member of this organization"
+                  },
+                  "emailVerified": {
+                    "type": "boolean"
+                  },
+                  "activeMember": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "nullable": true
+          },
+          "externalStatus": {
+            "type": "object",
+            "required": [
+              "sourceRevision",
+              "sourceStatusAt",
+              "status",
+              "archived"
+            ],
+            "properties": {
+              "sourceRevision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "sourceStatusAt": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "backlog",
+                  "todo",
+                  "in_progress",
+                  "in_review",
+                  "done",
+                  "cancelled"
+                ]
+              },
+              "archived": {
+                "type": "boolean"
+              }
+            },
+            "nullable": true
+          },
+          "workflow": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ExternalStatusWorkflow"
+              }
+            ],
+            "nullable": true
+          },
+          "request": {
+            "type": "object",
+            "required": [
+              "id",
+              "revision",
+              "statusChangeId",
+              "actionId",
+              "status",
+              "input",
+              "sourceRevision",
+              "sourceStatusAt",
+              "createdAt",
+              "actor",
+              "decision"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "statusChangeId": {
+                "type": "string",
+                "description": "Actual status activity observed when submitting the form; a later archive does not replace it"
+              },
+              "actionId": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "backlog",
+                  "todo",
+                  "in_progress",
+                  "in_review",
+                  "done",
+                  "cancelled"
+                ]
+              },
+              "input": {
+                "type": "object",
+                "additionalProperties": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "description": "Validated declared values plus move: actionId"
+              },
+              "sourceRevision": {
+                "type": "string"
+              },
+              "sourceStatusAt": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds"
+              },
+              "createdAt": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds"
+              },
+              "actor": {
+                "type": "object",
+                "required": ["type", "userId", "emailVerified", "activeMember"],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["user"]
+                  },
+                  "userId": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "emailVerified": {
+                    "type": "boolean"
+                  },
+                  "activeMember": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "decision": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ExternalStatusDecision"
+                  }
+                ],
+                "nullable": true
+              }
+            },
+            "nullable": true
           }
         }
       },

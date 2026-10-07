@@ -6,14 +6,16 @@
 // comment line every 20 s resets the idle clock through silent stretches
 // like `pip install` or a thinking agent) and bounds the buffered bytes.
 
+import { reportSandboxError } from './error-reporting.ts';
 import { RUNNERD_CONSUMER_BUFFER_MAX_BYTES } from './session/runnerd-protocol.ts';
 
 interface SseHandle {
-  send: (event: string, data: unknown) => void;
+  send: (event: string, data: unknown) => void | Promise<void>;
   signal: AbortSignal;
 }
 
 const SSE_KEEPALIVE_INTERVAL_MS = 20_000;
+const SSE_DRAIN_TIMEOUT_MS = 2_000;
 
 export function sseResponse(
   run: (handle: SseHandle) => Promise<void>,
@@ -22,9 +24,19 @@ export function sseResponse(
   const consumer = new AbortController();
   let closed = false;
   let keepalive: ReturnType<typeof setInterval> | undefined;
+  let drained: (() => void) | undefined;
+  let drainTimer: ReturnType<typeof setTimeout> | undefined;
+  const releaseDrain = () => {
+    clearTimeout(drainTimer);
+    drainTimer = undefined;
+    const resolve = drained;
+    drained = undefined;
+    resolve?.();
+  };
   const stop = () => {
     closed = true;
     clearInterval(keepalive);
+    releaseDrain();
   };
   const stream = new ReadableStream<Uint8Array>(
     {
@@ -47,16 +59,35 @@ export function sseResponse(
           }
           return true;
         };
-        const send = (event: string, data: unknown) => {
+        const send = (event: string, data: unknown): void | Promise<void> => {
           if (!canSend()) return;
           controller.enqueue(
             enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
           );
+          // Cooperative producers pause before reading more runnerd frames.
+          // Ignoring this promise still trips canSend's hard byte ceiling on
+          // the next event. Resolve on cancellation: the shared signal owns
+          // stopping the producer, without unhandled promise rejections from
+          // legacy synchronous callers.
+          if ((controller.desiredSize ?? 0) <= 0) {
+            return new Promise<void>((resolve) => {
+              drained = resolve;
+              drainTimer = setTimeout(
+                () => fail(new Error('SSE consumer stalled while draining')),
+                SSE_DRAIN_TIMEOUT_MS,
+              );
+            });
+          }
         };
         const sendKeepalive = () => {
+          if (drained !== undefined) return;
           if (canSend()) controller.enqueue(enc.encode(`: keepalive\n\n`));
         };
         keepalive = setInterval(sendKeepalive, SSE_KEEPALIVE_INTERVAL_MS);
+        const producerFailed = (error: unknown) => {
+          reportSandboxError(error, 'sse-producer', consumer.signal);
+          fail(error);
+        };
         try {
           // start must return immediately: a pending producer must not block
           // ReadableStream.cancel from detaching it. Own both promise outcomes.
@@ -66,10 +97,13 @@ export function sseResponse(
               controller.close();
             }
             return undefined;
-          }, fail);
+          }, producerFailed);
         } catch (error) {
-          fail(error);
+          producerFailed(error);
         }
+      },
+      pull(controller) {
+        if ((controller.desiredSize ?? 0) > 0) releaseDrain();
       },
       cancel(reason) {
         stop();

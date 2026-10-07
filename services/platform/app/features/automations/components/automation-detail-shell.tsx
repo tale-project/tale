@@ -129,17 +129,19 @@ function AutomationDetailFrame({
 
   // A remembered automation can be deleted between visits. When the rail
   // RESTORED us here, forget the stale place and fall back to the list
-  // rather than leaving the user on a not-found they never asked for.
+  // rather than leaving the user on a not-found, or on a deleted
+  // automation's banner, they never asked for.
   const wasRestored = state.navRestore === true;
+  const isGone = isMissing || deletedAt !== undefined;
   useEffect(() => {
-    if (!isMissing || !wasRestored || projectId !== undefined) return;
+    if (!isGone || !wasRestored || projectId !== undefined) return;
     clearAutomationMemory(organizationId);
     void navigate({
       to: '/dashboard/$id/automations',
       params: { id: organizationId },
       replace: true,
     });
-  }, [isMissing, wasRestored, projectId, organizationId, navigate]);
+  }, [isGone, wasRestored, projectId, organizationId, navigate]);
 
   const tabs = useMemo<TabNavigationItem[]>(() => {
     const deleted = deletedAt !== undefined;

@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { PriorityPicker } from './priority-picker';
 
@@ -32,5 +32,24 @@ describe('PriorityPicker', () => {
     );
     expect(screen.queryByRole('button')).toBeNull();
     expect(screen.getByText('High')).toBeInTheDocument();
+  });
+
+  it('opens its list on the first click, and stays shut through a disable and re-enable', async () => {
+    const onChange = vi.fn();
+    const view = render(<PriorityPicker priority="p1" onChange={onChange} />);
+    expect(screen.queryByRole('listbox')).toBeNull();
+    await view.user.click(screen.getByRole('button', { name: 'Priority' }));
+    expect(await screen.findByRole('listbox')).toBeInTheDocument();
+    await view.user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+
+    // The task is archived (read-only), then restored.
+    view.rerender(
+      <PriorityPicker priority="p1" onChange={onChange} disabled />,
+    );
+    view.rerender(<PriorityPicker priority="p1" onChange={onChange} />);
+    expect(screen.queryByRole('listbox')).toBeNull();
+    await view.user.click(screen.getByRole('button', { name: 'Priority' }));
+    expect(await screen.findByRole('listbox')).toBeInTheDocument();
   });
 });

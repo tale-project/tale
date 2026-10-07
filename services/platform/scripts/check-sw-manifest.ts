@@ -1,6 +1,6 @@
 /**
  * Pin the built service worker's precache manifest to what an offline shell
- * needs: every URL once, every entry revisioned.
+ * needs: every URL once, every entry revisioned and recovery bytes protected.
  *
  * Runs after `vite build` (the `build` script and the image build). The
  * generated `dist/sw.js` used to list nine files twice — once hashed from
@@ -16,37 +16,80 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import ts from 'typescript';
+
 interface PrecacheEntry {
   url: string;
   revision: string | null;
+  integrity?: string;
 }
 
-/** The `precacheAndRoute([...])` entries of a generated (minified) sw.js. */
+/** The manifest passed to Workbox, including a bundled/minified runtime. */
 export function parsePrecacheManifest(source: string): PrecacheEntry[] {
-  const start = source.indexOf('precacheAndRoute([');
-  if (start === -1) {
-    throw new Error('no precacheAndRoute([...]) call in the service worker');
-  }
-  const open = source.indexOf('[', start);
-  const close = source.indexOf(']', open);
-  if (close === -1) throw new Error('unterminated precache manifest');
-  const list = source.slice(open + 1, close);
-  const entries: PrecacheEntry[] = [];
-  for (const match of list.matchAll(/\{([^{}]*)\}/g)) {
-    const body = match[1] ?? '';
-    const url = /(?:^|,)\s*"?url"?\s*:\s*"([^"]*)"/.exec(body)?.[1];
-    const revision = /(?:^|,)\s*"?revision"?\s*:\s*(null|"[^"]*")/.exec(
-      body,
-    )?.[1];
-    if (url === undefined || revision === undefined) {
-      throw new Error(`unreadable precache entry: {${body}}`);
+  const file = ts.createSourceFile(
+    'sw.js',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS,
+  );
+  const manifests: PrecacheEntry[][] = [];
+  const property = (object: ts.ObjectLiteralExpression, key: string) =>
+    object.properties.find(
+      (member): member is ts.PropertyAssignment =>
+        ts.isPropertyAssignment(member) &&
+        (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) &&
+        member.name.text === key,
+    )?.initializer;
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      for (const argument of node.arguments) {
+        if (
+          !ts.isArrayLiteralExpression(argument) ||
+          !argument.elements.some(
+            (entry) =>
+              ts.isObjectLiteralExpression(entry) &&
+              property(entry, 'url') !== undefined &&
+              property(entry, 'revision') !== undefined,
+          )
+        )
+          continue;
+        manifests.push(
+          argument.elements.map((entry) => {
+            if (!ts.isObjectLiteralExpression(entry))
+              throw new Error('unreadable precache entry');
+            const url = property(entry, 'url');
+            const revision = property(entry, 'revision');
+            const integrity = property(entry, 'integrity');
+            if (
+              !url ||
+              !ts.isStringLiteral(url) ||
+              !revision ||
+              (!ts.isStringLiteral(revision) &&
+                revision.kind !== ts.SyntaxKind.NullKeyword) ||
+              (integrity && !ts.isStringLiteral(integrity))
+            ) {
+              throw new Error('unreadable precache entry');
+            }
+            const parsed: PrecacheEntry = {
+              url: url.text,
+              revision: ts.isStringLiteral(revision) ? revision.text : null,
+            };
+            if (integrity && ts.isStringLiteral(integrity))
+              parsed.integrity = integrity.text;
+            return parsed;
+          }),
+        );
+      }
     }
-    entries.push({
-      url,
-      revision: revision === 'null' ? null : revision.slice(1, -1),
-    });
-  }
-  return entries;
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  if (manifests.length !== 1 || !manifests[0])
+    throw new Error(
+      'expected one precacheAndRoute manifest in the service worker',
+    );
+  return manifests[0];
 }
 
 /** Every finding that makes the manifest unusable; empty when it is sound. */
@@ -66,8 +109,24 @@ export function findManifestDefects(entries: PrecacheEntry[]): string[] {
       defects.push(`${entry.url} has no revision`);
     }
   }
-  if (!entries.some((entry) => entry.url === 'offline.html')) {
-    defects.push('offline.html is not precached');
+  for (const required of [
+    'offline.html',
+    'pwa-recovery.js',
+    'pwa-build.json',
+  ]) {
+    const entry = entries.find(
+      (candidate) => candidate.url.split('?')[0] === required,
+    );
+    if (!entry) defects.push(`${required} is not precached`);
+    else {
+      if (!/^sha256-[A-Za-z0-9+/]{43}=$/.test(entry.integrity ?? ''))
+        defects.push(`${required} has no SHA-256 integrity`);
+      if (
+        required === 'offline.html' &&
+        entry.url !== 'offline.html?__tale_offline=1'
+      )
+        defects.push('offline.html must use the navigation fallback cache URL');
+    }
   }
   return defects;
 }
@@ -82,6 +141,6 @@ if (import.meta.main) {
     process.exit(1);
   }
   console.log(
-    `Service worker precache manifest: ${entries.length} entries, unique and revisioned`,
+    `Service worker precache manifest: ${entries.length} entries, unique and revisioned; recovery files carry integrity`,
   );
 }

@@ -71,7 +71,8 @@ function slugify(input: string): string {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
+    .slice(0, 64)
+    .replace(/^-+|-+$/g, '');
 }
 
 /** The slug a name outside the Latin script gets — `发票提醒` slugifies to
@@ -538,6 +539,9 @@ export function BlankAutomationDialog({
             onChange={setBinding}
             label={t('blank.equipmentLabel')}
             description={tProjects('agents.equipmentHint')}
+            // The menu is portaled outside this dialog; keep its wheel scroll
+            // independent from the dialog's scroll lock.
+            modal
           />
           <AgentSecretsField
             organizationId={organizationId}

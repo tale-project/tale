@@ -1,6 +1,11 @@
+import { AppShell } from '@tale/ui/app-shell';
+import { render as renderWithProviders } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { inPolicyWriteOrder } from '@/app/lib/backend/policy-write-order';
+import { i18n } from '@/tests/utils/i18n-all-languages';
+import { act, cleanup, render, screen, within } from '@/tests/utils/render';
 
 import { ModelAccessEditor } from './model-access-editor';
 
@@ -108,6 +113,181 @@ describe('ModelAccessEditor', () => {
   describe('immediate saves and server readback', () => {
     const accessSwitch = () =>
       screen.getByRole('switch', { name: 'Enable model access policy' });
+
+    it('invalidates delete confirmation when readback replaces indexed rules', async () => {
+      setLoaded();
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(screen.getByRole('button', { name: /delete rule/i }));
+      state.config = {
+        ...state.config,
+        rules: [
+          {
+            scope: 'role',
+            scopeId: 'member',
+            allowedModels: [],
+            blockedModels: [],
+          },
+          ...(state.config!.rules as unknown[]),
+        ],
+      };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(upsert.mutateAsync).not.toHaveBeenCalled();
+      await user.click(
+        screen.getAllByRole('button', { name: /delete rule/i })[1],
+      );
+      await user.click(screen.getByRole('button', { name: 'Delete' }));
+      expect(upsert.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            rules: [
+              {
+                scope: 'role',
+                scopeId: 'member',
+                allowedModels: [],
+                blockedModels: [],
+              },
+            ],
+          }),
+        }),
+      );
+    });
+
+    it('invalidates an edit draft when readback replaces indexed rules', async () => {
+      setLoaded();
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(screen.getByRole('button', { name: /edit rule/i }));
+      state.config = {
+        ...state.config,
+        rules: [
+          {
+            scope: 'role',
+            scopeId: 'member',
+            allowedModels: [],
+            blockedModels: [],
+          },
+          ...(state.config!.rules as unknown[]),
+        ],
+      };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(upsert.mutateAsync).not.toHaveBeenCalled();
+      expect(
+        screen.getAllByRole('button', { name: /edit rule/i }),
+      ).toHaveLength(2);
+      await user.click(
+        screen.getAllByRole('button', { name: /edit rule/i })[1],
+      );
+      expect(
+        within(screen.getByRole('dialog')).getByRole('combobox', {
+          name: 'Scope',
+        }),
+      ).toHaveTextContent('Default');
+    });
+
+    it('preserves an earlier acknowledged save when a later save fails before cache refresh', async () => {
+      setLoaded();
+      state.config = { ...state.config, enabled: false };
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(accessSwitch());
+      upsert.mutateAsync.mockRejectedValueOnce(new Error('save failed'));
+      const endpointsSwitch = () =>
+        screen.getByRole('switch', {
+          name: 'Enable model endpoints for API keys',
+        });
+      await user.click(endpointsSwitch());
+      await vi.waitFor(() =>
+        expect(endpointsSwitch()).toHaveAttribute('aria-checked', 'false'),
+      );
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'true');
+      await user.click(endpointsSwitch());
+      expect(upsert.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            enabled: true,
+            modelApi: { enabled: true },
+          }),
+        }),
+      );
+    });
+
+    it('applies a newer complete readback after rejection held behind the pending flag', async () => {
+      setLoaded();
+      state.config = { ...state.config, enabled: false };
+      const request = Promise.withResolvers<undefined>();
+      upsert.mutateAsync.mockReturnValueOnce(request.promise);
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(accessSwitch());
+      upsert.isPending = true;
+      state.config = {
+        enabled: true,
+        mode: 'allowlist',
+        rules: [],
+        modelApi: { enabled: true },
+      };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      request.reject(new Error('save failed'));
+      await vi.waitFor(() =>
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({ variant: 'destructive' }),
+        ),
+      );
+      upsert.isPending = false;
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('combobox')).toHaveTextContent('Allowlist');
+      expect(screen.queryByRole('button', { name: /edit rule/i })).toBeNull();
+      expect(
+        screen.getByRole('switch', {
+          name: 'Enable model endpoints for API keys',
+        }),
+      ).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('blocks whole-policy writes while the shared policy read is settling', async () => {
+      setLoaded();
+      render(<ModelAccessEditor organizationId="org-1" />);
+      const request = Promise.withResolvers<undefined>();
+      let write!: Promise<undefined>;
+      act(() => {
+        write = inPolicyWriteOrder(
+          'org-1',
+          'model_access',
+          () => request.promise,
+        );
+      });
+      try {
+        expect(accessSwitch()).toBeDisabled();
+        expect(
+          screen.getByRole('switch', {
+            name: 'Enable model endpoints for API keys',
+          }),
+        ).toBeDisabled();
+        expect(screen.getByRole('combobox')).toBeDisabled();
+        expect(
+          screen.getByRole('button', { name: /delete rule/i }),
+        ).toBeDisabled();
+        expect(
+          screen.getByRole('button', { name: /edit rule/i }),
+        ).toBeDisabled();
+        expect(upsert.mutateAsync).not.toHaveBeenCalled();
+      } finally {
+        await act(async () => {
+          request.resolve(undefined);
+          await write;
+        });
+      }
+      expect(accessSwitch()).not.toBeDisabled();
+    });
 
     it('rolls back failed enablement, keeps one failure toast, and allows retry', async () => {
       setLoaded();
@@ -309,6 +489,115 @@ describe('ModelAccessEditor', () => {
       expect(toast).not.toHaveBeenCalled();
     });
   });
+  it.each(['en', 'de', 'fr'])(
+    'localizes scope, role and mode labels (%s)',
+    async (language) => {
+      await i18n.changeLanguage(language);
+      try {
+        setLoaded();
+        state.config = {
+          enabled: true,
+          mode: 'blocklist',
+          rules: [
+            {
+              scope: 'role',
+              scopeId: 'developer',
+              allowedModels: [],
+              blockedModels: ['openai/gpt-4o'],
+            },
+          ],
+        };
+
+        const t = i18n.getFixedT(language, 'governance');
+        // Keep the selected test language: the shared render helper's client
+        // locale bridge would replace it with the detected browser preference.
+        const user = userEvent.setup();
+        renderWithProviders(
+          <AppShell i18n={i18n}>
+            <ModelAccessEditor organizationId="org-1" />
+          </AppShell>,
+        );
+        expect(
+          screen.getByRole('cell', { name: t('modelAccess.scopeLabels.role') }),
+        ).toBeInTheDocument();
+
+        expect(
+          screen.getByRole('cell', {
+            name: t('modelAccess.roleLabels.developer'),
+          }),
+        ).toBeInTheDocument();
+
+        const modeSelect = screen.getByRole('combobox');
+        expect(modeSelect).toHaveTextContent(
+          t('modelAccess.modeLabels.blocklist'),
+        );
+        await user.click(modeSelect);
+        expect(
+          screen.getByRole('option', {
+            name: t('modelAccess.modeLabels.allowlist'),
+          }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole('option', {
+            name: t('modelAccess.modeLabels.blocklist'),
+          }),
+        ).toBeInTheDocument();
+        await user.keyboard('{Escape}');
+
+        await user.click(
+          screen.getByRole('button', {
+            name: t('modelAccess.editRule', { index: 1 }),
+          }),
+        );
+        const dialog = within(screen.getByRole('dialog'));
+        const scopeSelect = dialog.getByRole('combobox', {
+          name: t('modelAccess.scope'),
+        });
+        expect(scopeSelect).toHaveTextContent(
+          t('modelAccess.scopeLabels.role'),
+        );
+        await user.click(scopeSelect);
+        for (const value of ['default', 'user', 'team', 'role']) {
+          expect(
+            i18n.exists(`modelAccess.scopeLabels.${value}`, {
+              lng: language,
+              ns: 'governance',
+            }),
+          ).toBe(true);
+          expect(
+            screen.getByRole('option', {
+              name: t(`modelAccess.scopeLabels.${value}`),
+            }),
+          ).toBeInTheDocument();
+        }
+        await user.keyboard('{Escape}');
+        const roleSelect = dialog.getByRole('combobox', {
+          name: t('modelAccess.role'),
+        });
+        expect(roleSelect).toHaveTextContent(
+          t('modelAccess.roleLabels.developer'),
+        );
+        await user.click(roleSelect);
+        for (const value of ['admin', 'developer', 'editor', 'member']) {
+          expect(
+            i18n.exists(`modelAccess.roleLabels.${value}`, {
+              lng: language,
+              ns: 'governance',
+            }),
+          ).toBe(true);
+          expect(
+            screen.getByRole('option', {
+              name: t(`modelAccess.roleLabels.${value}`),
+            }),
+          ).toBeInTheDocument();
+        }
+        await user.keyboard('{Escape}');
+      } finally {
+        cleanup();
+        await i18n.changeLanguage('en');
+      }
+    },
+  );
 
   describe('loaded state', () => {
     it('renders the real enable switch (in the a11y tree)', () => {

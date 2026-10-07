@@ -7,6 +7,9 @@ import { render, screen } from '@/tests/utils/render';
 
 import { Conversations } from './conversations';
 
+// These filtering controls belong to the phone list; desktop uses Home's inbox.
+vi.mock('@tale/ui/use-is-mobile', () => ({ useIsMobile: () => true }));
+
 // ---------------------------------------------------------------------------
 // Regression coverage for #1992: a lane opened via `?search=` seeds the filter
 // from the URL param, but clearing the search box must actually clear the

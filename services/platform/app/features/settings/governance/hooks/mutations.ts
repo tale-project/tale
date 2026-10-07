@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
+import { usePolicyReadWriteGuard } from './policy-read-access';
+
 /**
  * Save a governance policy to its per-org JSON file over HTTP. The backend
  * adapter invalidates policy reads after success, and also quota usage when
@@ -17,25 +19,29 @@ import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
  * `useUpsertRetentionPolicy` / `useProposeDsarPolicy` (bounds / loosen-grace).
  */
 export function useUpsertGovernancePolicy(options?: { errorToast?: false }) {
-  return useBackendAction(
-    'governance/file_actions:saveGovernancePolicy',
-    options,
-  );
+  const onMutate = usePolicyReadWriteGuard();
+  return useBackendAction('governance/file_actions:saveGovernancePolicy', {
+    ...options,
+    onMutate,
+  });
 }
 
 export function useProposeDsarPolicy() {
+  const onMutate = usePolicyReadWriteGuard();
   // Files are the source of truth, so this is an action (filesystem write).
   // The DSAR editor toasts its own failure message — opt out of the default.
   return useBackendAction('governance/dsar_policy:proposeDsarPolicy', {
     errorToast: false,
+    onMutate,
   });
 }
 
 export function useCancelPendingDsarPolicyChange() {
+  const onMutate = usePolicyReadWriteGuard();
   // The DSAR editor toasts its own failure message — opt out of the default.
   return useBackendMutation(
     'governance/dsar_policy:cancelPendingDsarPolicyChange',
-    { errorToast: false },
+    { errorToast: false, onMutate },
   );
 }
 
@@ -47,11 +53,12 @@ export function useCancelPendingDsarPolicyChange() {
  * then calls an internal mutation for the actual write.
  */
 export function useUpsertRetentionPolicy() {
+  const onMutate = usePolicyReadWriteGuard();
   // The retention drawer reports a failure itself: a bounds refusal under
   // its category, anything else in its own toast.
   return useBackendAction(
     'governance/retention_actions:upsertRetentionPolicyAction',
-    { errorToast: false },
+    { errorToast: false, onMutate },
   );
 }
 

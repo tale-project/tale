@@ -126,4 +126,4 @@ Rules apply when a new conversation arrives. They do not reassign an existing co
 
 ## Configure sign-in limits separately
 
-Password requirements, sign-in attempt limits, session idle timeout, and [two-factor policy](/platform/admin/two-factor-authentication) live under **Settings > Governance > Security**. An organization idle timeout can tighten the deployment's limit. For trusted-header authentication, coordinate session expiry with the proxy or identity provider, which can authenticate the member again.
+Enable **Enable password rotation** and set **Rotation period (days)** to require members to change their password when that period expires. The **Password change required** screen appears then and asks the member to set a new password before continuing. Password requirements, sign-in attempt limits, session idle timeout, and [two-factor policy](/platform/admin/two-factor-authentication) live under **Settings > Governance > Security**. An organization idle timeout can tighten the deployment's limit. For trusted-header authentication, coordinate session expiry with the proxy or identity provider, which can authenticate the member again.

@@ -53,6 +53,8 @@ Das gilt auch für die Teilaufgaben unter einer solchen Aufgabe, egal wer sie an
 
 Aufgaben anderer können Mitglieder lesen und kommentieren. Erwähnen sie dort einen Agenten, bleibt das eine gewöhnliche Erwähnung, die nichts startet. Eigene Kommentare kann jede Person auf jeder Aufgabe bearbeiten und löschen, die sie lesen darf; Inhaber und Admins können auch Kommentare anderer löschen.
 
+Eine archivierte Aufgabe lässt sich lesen, aber nicht ändern. Bis jemand sie wiederherstellt, kann niemand sie kommentieren, ihre Kommentare bearbeiten oder löschen oder ihre Abhängigkeiten ändern; eine Aufgabe, die sie blockiert, kann sie unter **Blockiert von** trotzdem entfernen. Ein Agentenlauf, der schon an der Aufgabe gearbeitet hat, legt sein Ergebnis dort weiterhin ab.
+
 Gibst du eine Aufgabe, die dir zugewiesen war, an jemand anderen weiter, an eine Person oder einen Agenten, gibst du damit auch das Recht ab, sie zu ändern – es sei denn, du hast sie erstellt. Einen Lauf, den du gestartet hast, behältst du aber in der Hand: Übergibt deine @-Erwähnung die Aufgabe an einen Agenten, kannst du diesen Lauf mit weiteren Erwähnungen lenken und mit **Lauf abbrechen** stoppen, bis er endet.
 
 Eine Abhängigkeit gehört zu der Aufgabe, die durch sie blockiert wird. Mitglieder halten Abhängigkeiten deshalb nur für ihre eigenen Aufgaben fest: unter **Blockiert von** bei einer eigenen Aufgabe oder unter **Blockiert** bei jeder Aufgabe, die sie öffnen können, wobei sie eine eigene Aufgabe als die blockierte wählen. Einstellungen, Agenten, Dateien und der Label-Katalog des Projekts bleiben bei Redakteuren und höheren Rollen; Mitglieder wählen aus den Labels, die das Projekt schon hat. Löschen können nur Inhaber und Admins; alle anderen, die eine Aufgabe ändern dürfen, archivieren sie stattdessen.
@@ -100,7 +102,9 @@ Ein Agent als Standard gilt nur für Ergebnisse aus einem nativen Projektagenten
 
 Öffne die Aufgabe und lies **Aktuelles Review** unter **Reviewer**. Dort steht, wer die ausstehende Prüfung übernommen hat; das kann vom aktuellen Projektstandard abweichen. Wählst du einen anderen Reviewer, überträgst du auch dieses Review, ohne die Zuständigkeit für die Arbeit zu ändern oder einen Lauf zu starten. Mit **Projektstandard** überträgst du es an die aktuelle Standardauswahl des Projekts. Haben sich Reviewer oder Ergebnis seit dem Laden geändert, wird die Übertragung abgelehnt. Prüfe den aktualisierten Stand, bevor du erneut wählst.
 
-Ein Agent darf nur ein abgeschlossenes Ergebnis eines anderen Projektagenten prüfen. Eine neue Aufgabenzuweisung ändert nicht, welcher Agent das Ergebnis erstellt hat. Ein laufender Prozess oder eine offene Frage kann die Übertragung an einen Agenten verhindern. Gibt es keinen unterstützten abgeschlossenen Agentenlauf oder verlangt die Richtlinie eine unabhängige menschliche Prüfung oder Kompetenznachweise, wähle eine berechtigte Person. Ist ein Agent nicht verfügbar oder fehlt ihm die Review-Berechtigung, zeigt die Aufgabe den Grund an; die Prüfung geht nicht stillschweigend an dich zurück.
+Ein Agent darf nur ein abgeschlossenes Ergebnis eines anderen Projektagenten prüfen. Weist du die Aufgabe jemand anderem zu, bleibt der ursprüngliche Agent als Ersteller des Ergebnisses vermerkt; die ausstehende Entscheidung des prüfenden Agenten ist jedoch blockiert. Soll die neue Zuweisung bestehen bleiben, übertrage die Prüfung dieses Ergebnisses ausdrücklich an eine berechtigte Person. Die Prüfrichtlinie der Organisation gilt weiterhin.
+
+Ein laufender Prozess oder eine offene Frage kann die Übertragung an einen Agenten verhindern. Gibt es keinen unterstützten abgeschlossenen Agentenlauf oder verlangt die Richtlinie eine unabhängige menschliche Prüfung oder Kompetenznachweise, wähle eine berechtigte Person. Ist ein Agent nicht verfügbar oder fehlt ihm die Review-Berechtigung, zeigt die Aufgabe den Grund an; die Prüfung geht nicht stillschweigend an dich zurück.
 
 Das aktuelle Review erklärt auch eine unzulässige Selbstprüfung, eine geänderte Zuweisung der Umsetzung und eine nicht lesbare Richtlinie. Behebe die angezeigte Ursache oder übertrage die Prüfung ausdrücklich; das Ergebnis des Laufs bleibt aufgezeichnet. Eine wiederholte Aufgabe behält einen ausdrücklich gewählten Agenten auch dann als Reviewer, wenn er gelöscht wurde oder seine Berechtigung verloren hat. Korrigiere diese Auswahl, statt unbemerkt einen anderen Reviewer zu übernehmen.
 
@@ -118,6 +122,12 @@ Das aktuelle Review erklärt auch eine unzulässige Selbstprüfung, eine geände
 | **Abgebrochen** | Die Arbeit wird nicht weitergeführt. |
 
 Bei Agentenaufgaben kann ein Statuswechsel die Ausführung starten oder abbrechen. Lies deshalb den Aktionshinweis vor dem Verschieben. Ein Agent liefert sein Ergebnis unter **In Prüfung** ab; auf **Erledigt** darf er es nicht selbst setzen.
+
+### Den Ablauf einer verbundenen Quelle nutzen
+
+Eine Aufgabe, deren verbundenes Quellsystem den Geschäftsablauf steuert, kann in ihren Details **Ablauf der Quelle** anzeigen. Wähle die Aktion der Quelle, ergänze ihre Felder und klicke auf **Anfrage senden**. Die Quelle prüft deine Identität, Rolle und Übergangsregeln, bevor sie die Aufgabe aktualisiert. Trage erforderliche Prüfnotizen, Abschlussbelege oder Wiedereröffnungsgründe in diesem Formular ein; eine Board-Spalte kann diese Angaben nicht erfassen und zwei Quellphasen, die beide als **In Prüfung** erscheinen, nicht unterscheiden.
+
+Während die Quelle eine Anfrage prüft, zeigt die Aufgabe den ausstehenden Zustand und verhindert eine zweite Anfrage. Das angenommene Ergebnis oder der Ablehnungsgrund bleibt nach dem Neuladen sichtbar. Bei einer Ablehnung bleibt der gültige Quellzustand erhalten; lies den Grund, bevor du eine weitere Aktion anfragst. Eine Quelle kann für einen archivierten Datensatz eine geschützte Wiedereröffnung anbieten. Diese Aktionen verlangen ein verifiziertes, aktives Konto und das Recht, die Aufgabe zu bearbeiten.
 
 ## Entscheidungen an der Aufgabe festhalten
 

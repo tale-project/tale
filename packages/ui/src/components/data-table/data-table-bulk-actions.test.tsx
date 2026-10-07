@@ -1,3 +1,5 @@
+import type { RowSelectionState } from '@tanstack/react-table';
+import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { render, screen, waitFor, within } from '@/tests/utils/render';
@@ -13,6 +15,7 @@ vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
 describe('BulkDeleteBar', () => {
   const defaultProps = {
     rowSelection: {},
+    onRowSelectionChange: vi.fn(),
     onClearSelection: vi.fn(),
     onDeleteItem: vi.fn().mockResolvedValue(undefined),
   };
@@ -139,6 +142,7 @@ describe('BulkDeleteBar', () => {
 describe('BulkArchiveBar', () => {
   const defaultProps = {
     rowSelection: {},
+    onRowSelectionChange: vi.fn(),
     onClearSelection: vi.fn(),
     onArchiveItem: vi.fn().mockResolvedValue(undefined),
   };
@@ -230,4 +234,144 @@ describe('BulkArchiveBar', () => {
       expect(describeFailure).toHaveBeenCalledWith([refusal]);
     });
   });
+});
+
+describe.each(['delete', 'archive'] as const)('%s recovery', (action) => {
+  it.each(['mixed', 'refused', 'success'] as const)(
+    'preserves the recovery context for %s and retries only failures',
+    async (outcome) => {
+      const onClear = vi.fn();
+      const onComplete = vi.fn();
+      let retry = false;
+      const operate = vi.fn(async (id: string) => {
+        if (
+          !retry &&
+          (outcome === 'refused' || (outcome === 'mixed' && id === 'bravo'))
+        ) {
+          throw new Error('Not allowed');
+        }
+      });
+      const labels: Record<string, string> = {
+        alpha: 'Selected Alpha',
+        bravo: 'Selected Bravo',
+        charlie: 'Unselected Charlie',
+      };
+      function Fixture() {
+        const [selection, setSelection] = useState<RowSelectionState>({
+          alpha: true,
+          bravo: true,
+          charlie: false,
+        });
+        const clear = () => {
+          onClear();
+          setSelection({});
+        };
+        const complete = () => {
+          onComplete();
+          setSelection({});
+        };
+        const props = {
+          rowSelection: selection,
+          onRowSelectionChange: setSelection,
+          onClearSelection: clear,
+          getItemLabel: (id: string) => labels[id] ?? id,
+          describeFailure: () => 'Not allowed',
+        };
+        return (
+          <>
+            {Object.entries(labels).map(([id, label]) => (
+              <label key={id}>
+                <input
+                  type="checkbox"
+                  checked={id in selection && selection[id]}
+                  onChange={() =>
+                    setSelection((current) => ({
+                      ...current,
+                      [id]: !current[id],
+                    }))
+                  }
+                />
+                {label}
+              </label>
+            ))}
+            {action === 'delete' ? (
+              <BulkDeleteBar
+                {...props}
+                onDeleteItem={operate}
+                onDeleteComplete={complete}
+              />
+            ) : (
+              <BulkArchiveBar
+                {...props}
+                onArchiveItem={operate}
+                onComplete={complete}
+              />
+            )}
+          </>
+        );
+      }
+      toastMock.mockClear();
+      const { user } = render(<Fixture />);
+      await user.click(
+        screen.getByRole('button', {
+          name: new RegExp(`${action} selected`, 'i'),
+        }),
+      );
+      const confirm = () =>
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: action === 'delete' ? /^delete$/i : /archive selected/i,
+        });
+      await user.click(confirm());
+      await waitFor(() => expect(toastMock).toHaveBeenCalledTimes(1));
+      expect(operate.mock.calls.map(([id]) => id)).toEqual(['alpha', 'bravo']);
+      expect(screen.getByLabelText('Unselected Charlie')).not.toBeChecked();
+      if (outcome !== 'success') {
+        expect(onClear).not.toHaveBeenCalled();
+        expect(onComplete).not.toHaveBeenCalled();
+        expect(screen.getByLabelText('Selected Bravo')).toBeChecked();
+        const failedIds = outcome === 'mixed' ? ['bravo'] : ['alpha', 'bravo'];
+        if (outcome === 'refused')
+          expect(screen.getByLabelText('Selected Alpha')).toBeChecked();
+        else expect(screen.getByLabelText('Selected Alpha')).not.toBeChecked();
+        const alert = within(screen.getByRole('dialog')).getByRole('alert');
+        expect(within(alert).getByText('Not allowed')).toBeInTheDocument();
+        expect(within(alert).getByText('Selected Bravo')).toBeInTheDocument();
+        if (outcome === 'mixed')
+          expect(
+            within(alert).queryByText('Selected Alpha'),
+          ).not.toBeInTheDocument();
+        await user.click(
+          within(screen.getByRole('dialog')).getByRole('button', {
+            name: /cancel/i,
+          }),
+        );
+        await waitFor(() =>
+          expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+        );
+        expect(screen.getByLabelText('Selected Bravo')).toBeChecked();
+        await user.click(
+          screen.getByRole('button', {
+            name: new RegExp(`${action} selected`, 'i'),
+          }),
+        );
+        retry = true;
+        operate.mockClear();
+        await user.click(confirm());
+        await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+        expect(operate.mock.calls.map(([id]) => id)).toEqual(failedIds);
+      }
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      expect(onClear).toHaveBeenCalledTimes(1);
+      expect(onComplete).toHaveBeenCalledTimes(1);
+      expect(screen.getByLabelText('Selected Alpha')).not.toBeChecked();
+      expect(screen.getByLabelText('Selected Bravo')).not.toBeChecked();
+      expect(
+        screen.queryByRole('button', {
+          name: new RegExp(`${action} selected`, 'i'),
+        }),
+      ).not.toBeInTheDocument();
+    },
+  );
 });

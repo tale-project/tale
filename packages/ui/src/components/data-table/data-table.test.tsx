@@ -800,6 +800,43 @@ describe('DataTable after a failed request stopped the list', () => {
     expect(getSkeletonRows()).toHaveLength(0);
   });
 
+  // #3880: a documents level whose folders never answered, with no
+  // unfiled documents, read "No documents yet".
+  it('is never the empty state with nothing loaded, and keeps its heading level for a search', () => {
+    const emptyState = { title: 'No entries yet', headingLevel: 2 as const };
+    const stopped = { hasMore: false, loadFailed: true, onLoadMore: vi.fn() };
+    const { rerender } = render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        approxRowCount={1}
+        emptyState={emptyState}
+        infiniteScroll={stopped}
+      />,
+    );
+
+    expect(screen.queryByText('No entries yet')).not.toBeInTheDocument();
+    // No skeleton stands in either: the body holds no row at all.
+    expect(within(getTbody()).queryAllByRole('row')).toHaveLength(0);
+
+    rerender(
+      <DataTable
+        columns={columns}
+        data={[]}
+        approxRowCount={1}
+        emptyState={emptyState}
+        search={{ value: 'nothing', onChange: vi.fn() }}
+        infiniteScroll={stopped}
+      />,
+    );
+    expect(
+      screen.getByRole('heading', {
+        level: 2,
+        name: 'No results among the loaded items',
+      }),
+    ).toBeInTheDocument();
+  });
+
   it('keeps the skeleton while a drain is still loading', () => {
     render(
       <DataTable
@@ -1242,5 +1279,36 @@ describe('DataTable — error state', () => {
     );
     await new Promise((resolve) => requestAnimationFrame(resolve));
     expect(onErrorFocusLost).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('DataTable — preordered window', () => {
+  it('preserves host ordering in manual sorting mode while leaving default sorting unchanged', () => {
+    const data = [...sampleRows].reverse();
+    const sorting = [{ id: 'name', desc: false }];
+    const { rerender } = render(
+      <DataTable
+        columns={columns}
+        data={data}
+        sorting={{ initialSorting: sorting, onSortingChange: vi.fn() }}
+      />,
+    );
+    expect(within(getTbody()).getAllByRole('row')[0]).toHaveTextContent(
+      'Alice',
+    );
+    rerender(
+      <DataTable
+        columns={columns}
+        data={data}
+        sorting={{
+          manual: true,
+          initialSorting: sorting,
+          onSortingChange: vi.fn(),
+        }}
+      />,
+    );
+    expect(within(getTbody()).getAllByRole('row')[0]).toHaveTextContent(
+      'Charlie',
+    );
   });
 });

@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { createI18n } from '@tale/e2e/i18n';
 
+import { gotoClientPage } from '../helpers/client-page';
+
 /**
  * Animated homepage demos, asserted deterministically: under
  * `prefers-reduced-motion` the timeline driver pins every demo to its final
@@ -30,23 +32,28 @@ for (const { path, namespace } of [
   test(`French sandbox reserves its final height on ${path} at 320px`, async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 320, height: 900 });
+    await page.setViewportSize({ width: 320, height: 150 });
     await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await page.goto(`/fr${path}`);
+    await gotoClientPage(page, `/fr${path}`);
     await page.evaluate(() => document.fonts.ready);
     const demo = page.getByRole('img', {
       name: tFrench(`${namespace}.demos.sandbox.label`),
       exact: true,
     });
     const reply = tFrench(`${namespace}.demos.sandbox.reply`);
-    // Wait for the browser's unplayed scene, rather than measuring the
-    // complete prerendered HTML before the client mounts.
-    await expect(demo).not.toContainText(reply);
+    const replyPart = demo.locator('[data-sandbox-part="reply"]');
+    const livePart = demo.locator('[data-sandbox-part="live"]');
+    // All parts reserve their final geometry while the unplayed scene is
+    // transparent. Judge playback by paint, rather than DOM membership.
+    await expect(replyPart).toHaveCSS('opacity', '0');
     const before = await demo.boundingBox();
     expect(before).not.toBeNull();
+    await page.setViewportSize({ width: 320, height: 900 });
     await demo.scrollIntoViewIfNeeded();
-    await expect(demo).toContainText(reply, { timeout: 10_000 });
-    await expect(demo).toContainText(
+    await expect(replyPart).toHaveCSS('opacity', '1', { timeout: 10_000 });
+    await expect(replyPart).toContainText(reply);
+    await expect(livePart).toHaveCSS('opacity', '1');
+    await expect(livePart).toContainText(
       tFrench(`${namespace}.demos.sandbox.previewDetail3`),
     );
     expect((await demo.boundingBox())?.height).toBe(before?.height);
@@ -57,7 +64,7 @@ test.describe('homepage demos', () => {
   test('hero demo renders its complete end state under reduced motion', async ({
     page,
   }) => {
-    await page.goto('/');
+    await gotoClientPage(page, '/');
 
     const demo = page.getByRole('img', { name: t('home.demos.tasks.label') });
     await expect(demo).toBeVisible();
@@ -72,7 +79,7 @@ test.describe('homepage demos', () => {
   test('tour demos render their complete end states under reduced motion', async ({
     page,
   }) => {
-    await page.goto('/');
+    await gotoClientPage(page, '/');
 
     const sandbox = page.getByRole('img', {
       name: t('home.demos.sandbox.label'),
@@ -114,7 +121,7 @@ test.describe('homepage demos', () => {
   test('three chapters and supporting capabilities link to every module', async ({
     page,
   }) => {
-    await page.goto('/');
+    await gotoClientPage(page, '/');
     for (const stage of [
       'projects',
       'connect',
@@ -154,7 +161,7 @@ test.describe('homepage demos', () => {
  */
 test.describe('feature page demo scenarios', () => {
   test('automations page runs the invoice pipeline', async ({ page }) => {
-    await page.goto('/platform/automations');
+    await gotoClientPage(page, '/platform/automations');
 
     const hero = page.getByRole('img', {
       name: t('platformAutomations.demos.automation.label'),
@@ -192,7 +199,7 @@ test.describe('feature page demo scenarios', () => {
   });
 
   test('knowledge page cites the indexed manual', async ({ page }) => {
-    await page.goto('/platform/knowledge');
+    await gotoClientPage(page, '/platform/knowledge');
 
     const hero = page.getByRole('img', {
       name: t('platformKnowledge.demos.knowledge.label'),
@@ -228,7 +235,7 @@ test.describe('feature page demo scenarios', () => {
   test('agents page shows its own roster and a sandbox Files/Live pane', async ({
     page,
   }) => {
-    await page.goto('/platform/agents');
+    await gotoClientPage(page, '/platform/agents');
 
     const hero = page.getByRole('img', {
       name: t('platformAgents.demos.connect.label'),
@@ -272,7 +279,7 @@ test.describe('feature page demo scenarios', () => {
   test('governance page holds a knowledge write for approval', async ({
     page,
   }) => {
-    await page.goto('/platform/governance');
+    await gotoClientPage(page, '/platform/governance');
 
     const hero = page.getByRole('img', {
       name: t('platformGovernance.demos.govern.label'),
@@ -295,7 +302,7 @@ test.describe('feature page demo scenarios', () => {
   });
 
   test('chat page duels announcement drafts in Arena', async ({ page }) => {
-    await page.goto('/platform/chat');
+    await gotoClientPage(page, '/platform/chat');
 
     const hero = page.getByRole('img', {
       name: t('platformChat.demos.arena.label'),
@@ -322,7 +329,7 @@ test.describe('feature page demo scenarios', () => {
   });
 
   test('platform hub samples each module story', async ({ page }) => {
-    await page.goto('/platform');
+    await gotoClientPage(page, '/platform');
 
     const hero = page.getByRole('img', {
       name: t('platformHub.demos.hero.label'),
@@ -391,7 +398,7 @@ test.describe('feature page demo scenarios', () => {
       t('nav.product.automations.label'),
     );
 
-    await page.goto('/');
+    await gotoClientPage(page, '/');
     const automationCard = page.locator(
       '#features a[href="/platform/automations"]',
     );
@@ -401,7 +408,7 @@ test.describe('feature page demo scenarios', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
       t('platformAutomations.title'),
     );
-    await page.goto('/');
+    await gotoClientPage(page, '/');
     const exploreProjects = t('home.tour.explore').replace(
       '{module}',
       t('nav.product.projects.label'),
@@ -410,14 +417,14 @@ test.describe('feature page demo scenarios', () => {
       page.getByRole('link', { name: exploreProjects }),
     ).toHaveAttribute('href', '/platform/projects');
 
-    await page.goto('/platform');
+    await gotoClientPage(page, '/platform');
     await expect(
       page.getByRole('link', { name: exploreAutomations }),
     ).toBeVisible();
   });
 
   test('projects page runs the relaunch workspace story', async ({ page }) => {
-    await page.goto('/platform/projects');
+    await gotoClientPage(page, '/platform/projects');
 
     const hero = page.getByRole('img', {
       name: t('platformProjects.demos.projects.label'),

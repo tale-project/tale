@@ -29,6 +29,10 @@ export const DEMO_OWNER = {
 /** Workspace name — shows in the sidebar and org switcher on every shot. */
 export const DEMO_ORG_NAME = 'Northlight Labs';
 
+/** The passkey the demo owner registers for the account shot — the name the
+ * two-factor guide's "Add a passkey" steps suggest. */
+export const DEMO_PASSKEY_NAME = 'Work laptop';
+
 /**
  * A seeded task. `status` is picked in the create dialog (task-modal's Status
  * field) — without it every task lands in `todo` and the board screenshots as
@@ -291,7 +295,7 @@ export const DEMO_CHAT_PROMPTS: readonly string[] = [
 interface DemoMember {
   readonly name: string;
   readonly email: string;
-  /** `settings.roles.*` key. */
+  /** `roles.*` key. */
   readonly role: string;
 }
 

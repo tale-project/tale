@@ -3,13 +3,7 @@ seo:
   ogImageAlt: Tale logo
 nav:
   homeAriaLabel: Tale design system home
-  skipToMain: Skip to main content
   sidebarAriaLabel: Design system documentation
-  openMenu: Open navigation menu
-  closeMenu: Close navigation menu
-  docs: Docs
-  components: Components
-  github: GitHub
   groups:
     gettingStarted: Getting started
     foundations: Foundations
@@ -25,65 +19,3 @@ demo:
   missingTitle: Unknown demo
   missingBody: No demo is registered under "{name}". Add
     app/demos/{name}.tsx and reference it from a page.
-home:
-  heroEyebrow: Tale UI · Design system
-  heroTitle: React components. One shared language.
-  heroDescription: Build apps and websites with MIT-licensed React components from Tale. Try the controls, explore the guides, and compose your own interface.
-  heroPrimary: Start building
-  heroSecondary: Browse components
-  heroMeta: "{count, plural, one {# guide} other {# guides}} · Two packages · MIT licensed"
-  showcaseTitle: Component studio
-  showcaseLive: Live preview
-  showcaseDescription: Try the name field and switch. Changes stay on this page.
-  showcaseMarketingDescription: Explore the marketing guide for page sections, navigation, and product demos.
-  showcasePackagesLabel: Component package preview
-  showcaseAppTab: Application UI
-  showcaseMarketingTab: Marketing UI
-  showcaseNameLabel: Workspace name
-  showcaseNameValue: Northwind Studio
-  showcaseNamePlaceholder: Your workspace
-  showcaseDigestLabel: Weekly digest
-  showcaseDigestDescription: A Monday summary for your team.
-  showcaseDigestOn: Digest on
-  showcaseDigestOff: Digest off
-  showcaseReset: Reset preview
-  showcaseSiteName: Northwind
-  showcaseSiteEyebrow: Made for your next idea
-  showcaseSiteTitle: A little space. A lot of possibility.
-  showcaseSiteDescription: Give your product a home with shared typography, themes, and page sections.
-  showcaseSiteAction: Explore the building blocks
-  packagesTitle: Two packages. One design system.
-  packagesDescription: Shared tokens, themes, and interaction patterns. Use either package in your own repository, with no Tale backend required.
-  appPackageTitle: Application interfaces
-  appPackageDescription: Forms, tables, dialogs, and navigation for the work inside your application.
-  appPackageLink: Explore app components
-  appPackageSpecimen: Ready
-  marketingPackageTitle: Public websites
-  marketingPackageDescription: Site navigation, page sections, calls to action, and product illustrations. Built on @tale/ui.
-  marketingPackageLink: Explore marketing components
-  marketingPackageSpecimen: Give your ideas room.
-  marketingPackageSpecimenAction: Get started
-  sectionsTitle: Find your next building block.
-  sectionsDescription: Go from the first install to the details of a finished screen. Every section has working examples or practical guidance.
-  sectionsGettingStarted: Installation, theming, and translations.
-  sectionsFoundations: Colour, type, spacing, icons, and accessibility.
-  sectionsComponents: Props, states, and live component examples.
-  sectionsPatterns: Compose collection and settings screens.
-  sectionsMarketingUi: Site chrome, page sections, and product demos.
-  guideCount: "{count, plural, one {# guide} other {# guides}}"
-  installTitle: Bring it into your project.
-  installDescription: Install TypeScript source from GitHub. Start with a snapshot branch; pin a release tag and commit your lockfile for reproducible builds.
-  installPackagesLabel: Package to install
-  installCodeLabel: Terminal · Bun
-  installAppCopyLabel: Application package install command
-  installMarketingCopyLabel: Marketing package install command
-  installSetupNote: Next, configure Vite, import the stylesheet, and add AppShell. The installation guide covers the complete setup.
-  installDocsLink: Read the installation guide
-  closingTitle: Open source. Yours to compose.
-  closingDescription: Read the source, adapt the components, and connect your own data.
-  closingPrimary: Meet the design system
-footer:
-  copyrightLine1: © {year} Tale by Ruler GmbH
-  copyrightLine2: Tale is MIT licensed — free to use, modify, and distribute.
-  llmsTxt: llms.txt
-  github: GitHub

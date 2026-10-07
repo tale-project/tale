@@ -43,6 +43,7 @@ export function UpsertMatterDialog({
   onSuccess,
 }: UpsertMatterDialogProps) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const isEdit = matter !== undefined;
   const { mutateAsync, isPending } = useUpsertLegalMatter();
@@ -50,11 +51,39 @@ export function UpsertMatterDialog({
   const schema = useMemo(
     () =>
       z.object({
-        name: z.string().trim().min(1, t('legalHold.errors.validation')),
-        caseNumber: z.string().trim().max(200),
-        description: z.string().trim().max(2000),
+        name: z
+          .string()
+          .trim()
+          .min(1, t('legalHold.errors.validation'))
+          .max(
+            300,
+            tCommon('validation.maxLength', {
+              field: t('legalHold.dialogs.upsertMatter.nameLabel'),
+              max: 300,
+            }),
+          ),
+        caseNumber: z
+          .string()
+          .trim()
+          .max(
+            200,
+            tCommon('validation.maxLength', {
+              field: t('legalHold.dialogs.upsertMatter.caseNumberLabel'),
+              max: 200,
+            }),
+          ),
+        description: z
+          .string()
+          .trim()
+          .max(
+            4000,
+            tCommon('validation.maxLength', {
+              field: t('legalHold.dialogs.upsertMatter.descriptionLabel'),
+              max: 4000,
+            }),
+          ),
       }),
-    [t],
+    [t, tCommon],
   );
 
   const form = useForm<FormValues>({
@@ -140,6 +169,7 @@ export function UpsertMatterDialog({
           aria-label={t('legalHold.dialogs.upsertMatter.descriptionLabel')}
           placeholder={t('legalHold.dialogs.upsertMatter.descriptionLabel')}
           {...register('description')}
+          errorMessage={formState.errors.description?.message}
         />
       </FormSection>
     </FormDialog>

@@ -15,15 +15,23 @@ Protect your account with an authenticator app or a passkey. Members set up thei
 
 A passkey satisfies Tale's two-factor policy even if you have never set up an authenticator. Accounts that sign in only through SSO do not show authenticator setup because it requires a Tale password; your organization's SSO exemption determines whether you need a Tale passkey.
 
+<Frame caption="Settings > Account shows your password, two-factor authentication, and passkeys: start the authenticator setup or register another passkey from here.">
+
+![The Account settings page with the Password, Two-factor authentication, and Passkeys sections; the Passkeys section lists one passkey named Work laptop.](/images/platform/settings-account-security.webp)
+
+</Frame>
+
 ## Set up an authenticator
 
-1. Open **Settings > Account**, find **Security**, and select **Enable two-factor**.
-2. Enter your current Tale password and select **Confirm**.
+1. Open **Settings > Account**, find **Two-factor authentication**, and select **Enable two-factor**.
+2. Enter your current Tale password and select **Confirm**. A wrong password counts toward the same temporary lock as a failed sign-in.
 3. Scan the QR code with your authenticator app. If scanning is unavailable, enter the displayed setup secret manually in the app.
 4. Enter its current six-digit code in **Verification code**, then select **Verify and enable**.
 5. Download or copy the backup codes before selecting **Done**. Tale does not display them again.
 
 The account page now confirms that two-factor authentication is active. At your next password sign-in, enter a code from the same authenticator entry.
+
+Your authenticator app lists the entry under the name of this deployment, so entries from different deployments stay apart. A deployment for a client puts the client's name first, and a test deployment adds its environment, as in **Acme Tale Platform TE**; Tale's own production deployment is **Tale Platform**. Downloaded backup codes use the same words in their file name, such as `acme-tale-platform-te-backup-codes.txt`.
 
 <Tip>
 Keep recovery codes somewhere you can reach without the device you use to sign in, such as a password manager available on another trusted device.
@@ -31,10 +39,11 @@ Keep recovery codes somewhere you can reach without the device you use to sign i
 
 ## Add a passkey
 
-1. Under **Settings > Account > Security**, select **Add a passkey**.
-2. Give **Passkey name** a recognizable name, such as `Work laptop`.
-3. Leave **Authenticator type** on **Any (recommended)** to see the browser's available options, or choose the built-in device authenticator or a security key/phone.
-4. Select **Add a passkey** and complete the browser prompt.
+1. Open **Settings > Account**, find **Passkeys**, and select **Add a passkey**.
+2. If you signed in more than a day ago, Tale first asks for your password. Enter it in **Password** and select **Confirm**. A wrong password counts toward the same temporary lock as a failed sign-in.
+3. Give **Passkey name** a recognizable name, such as `Work laptop`.
+4. Leave **Authenticator type** on **Any (recommended)** to see the browser's available options, or choose the built-in device authenticator or a security key/phone.
+5. Select **Add a passkey** and complete the browser prompt.
 
 The passkey appears in your account's list. On the sign-in page, choose **Sign in with a passkey**. After a password sign-in, **Use a passkey instead** is also available on the verification screen.
 
@@ -64,7 +73,7 @@ Admins configure the policy in **Settings > Governance > Security**. Arrange a r
 | **Grace period (days)** | Time to enroll, counted from the member's first sign-in under the policy. Zero requires enrollment immediately. |
 | **Exempt SSO-only users** | Lets members without a Tale password rely on their identity provider's authentication. |
 
-During the grace period, members see a reminder. After it expires, Tale blocks organization access until they enroll. Disabling your personal authenticator does not exempt you from this policy.
+During the grace period, members see a reminder. After it expires, Tale blocks organization access until they enroll: the enrollment page asks for their password to set up an authenticator, or offers **Register a passkey instead**. A member who has been signed in for more than a day confirms their password before the passkey prompt; one who signs in only through SSO selects **Sign in again** first. Disabling your personal authenticator does not exempt you from this policy.
 
 ## Help a locked-out member
 

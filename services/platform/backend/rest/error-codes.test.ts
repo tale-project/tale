@@ -145,6 +145,8 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // Saving and deploying an automation happen through MCP and the app,
   // whose envelopes are their own (answering its human asks moved onto
   // `POST …/runs/{runId}/asks/{askId}`, and its codes into the registry).
+  // Managed adoption is app-only and refuses the existing tombstone too.
+  'AUTOMATION_DELETED',
   'AUTOMATION_DEPLOY_REJECTED',
   'AUTOMATION_NAME_INVALID',
   'AUTOMATION_NAME_RESERVED',
@@ -282,7 +284,6 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // `loadRestProject`, which applies the same matrix first.
   'TASK_COMMENT_INVALID',
   'TASK_DESCRIPTION_INVALID',
-  'TASK_EXTERNAL_REF_INVALID',
   'TASK_FORBIDDEN',
   'TASK_LABELS_INVALID',
   'TASK_TITLE_INVALID',
@@ -477,6 +478,12 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // the before-hooks of `/organization/create-team` and `/update-team`);
   // REST has no team write, and SCIM answers its own 409 `uniqueness`.
   'TEAM_NAME_TAKEN',
+  // The re-authentication door (`/api/auth/reauthenticate`), where a
+  // signed-in person confirms their password before adding a passkey: a
+  // wrong password, and an account with no password to confirm. REST
+  // authenticates a key and mounts no password confirmation.
+  'INVALID_PASSWORD',
+  'PASSWORD_NOT_SET',
 ]);
 
 describe('the REST error-code registry', () => {

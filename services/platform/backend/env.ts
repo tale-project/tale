@@ -1,6 +1,10 @@
 import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 import { z } from 'zod';
 
+import {
+  totpClientNameSchema,
+  totpEnvironmentSchema,
+} from '../lib/shared/authenticator-name.ts';
 import { ensureWebdavHmacKey } from '../lib/webdav/hmac-key.ts';
 
 /**
@@ -13,6 +17,11 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   PORT: z.coerce.number().int().min(1).max(65535).default(3005),
   ROLE: z.enum(['api', 'worker', 'all']).default('all'),
+  SANDBOX_AGENT_PROFILE: z.enum(['agent', 'agent-light']).default('agent'),
+  TALE_SANDBOX_CLAUDE_EFFORT: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.enum(['low', 'medium', 'high', 'max']).optional(),
+  ),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(5),
   /**
    * Agent turn starts a worker runs at once, per lane (task and automation);
@@ -47,6 +56,13 @@ const envSchema = z.object({
     ),
   /** Public origin auth cookies bind to; defaults to the direct dev port. */
   SITE_URL: z.string().url().default('http://localhost:3005'),
+  /**
+   * The client this deployment serves and its environment, as newly generated
+   * authenticator entries name them (`Acme Tale Platform TE`). Unset client:
+   * `Tale Platform`; `pr` or unset environment: no environment.
+   */
+  TOTP_CLIENT_NAME: totpClientNameSchema,
+  TOTP_ENVIRONMENT: totpEnvironmentSchema,
   /**
    * The other public origins this deployment is served from, comma- or
    * whitespace-separated (`https://tale.partner.example, https://…`). Each

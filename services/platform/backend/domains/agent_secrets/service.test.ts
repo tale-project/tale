@@ -64,7 +64,7 @@ const args = {
 };
 
 describe('upsertAgentSecret', () => {
-  it('writes one upsert on (org_id, name) under the org lock and reports what landed', async () => {
+  it('writes one upsert on (org_id, name) under the org lock and reports what landed [ASEC-R2]', async () => {
     const fresh = fakeSql({ others: 0, created: true });
     expect(await upsertAgentSecret(fresh.sql, args)).toEqual({
       created: true,
@@ -92,7 +92,7 @@ describe('upsertAgentSecret', () => {
     );
   });
 
-  it('counts only the other names against the cap and refuses a new one before writing', async () => {
+  it('counts only the other names against the cap and refuses a new one before writing [ASEC-R3]', async () => {
     const full = fakeSql({ others: 200, created: true });
     const err = await upsertAgentSecret(full.sql, args).catch(
       (e: unknown) => e,

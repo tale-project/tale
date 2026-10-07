@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import type { AnchorHTMLAttributes, ReactNode } from 'react';
+import { useState, type AnchorHTMLAttributes, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 
@@ -13,10 +13,15 @@ import { painted } from '@/tests/utils/paint';
 import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import type { HomeData } from '../hooks/use-home-data';
-import type { HomeItem } from '../lib/home-items';
+import type { HomeGroup, HomeItem } from '../lib/home-items';
 import { HomeNavigator, HomePanel } from './home-panel';
 import { HomePanelProvider } from './home-panel-context';
 import { HomeConversationRow } from './home-rows';
+import {
+  HomeStream,
+  WINDOWED_STREAM_MIN_ROWS,
+  type HomeRowPlacement,
+} from './home-stream';
 
 import '@/app/globals.css';
 
@@ -472,6 +477,243 @@ async function carryTo(from: Point, to: Point, settled: () => boolean) {
 }
 
 describe('Home panel in Chromium', () => {
+  it('keeps an inline rename draft and focus when live rows cross the virtual threshold', async () => {
+    const view = renderHome({ threads: chatList(WINDOWED_STREAM_MIN_ROWS) });
+    await page
+      .elementLocator(
+        within(chatRow('chat-0')).getByRole('button', { name: 'More actions' }),
+      )
+      .click();
+    await page.getByRole('menuitem', { name: 'Rename' }).click();
+    const input = screen.getByRole('textbox', { name: 'Rename' });
+    await page.elementLocator(input).fill('Keep this unsaved title');
+    const navigator = () => (
+      <div
+        data-testid="frame"
+        style={{ height: 640 }}
+        className="bg-background flex w-70 flex-col overflow-hidden"
+      >
+        <HomeNavigator organizationId={ORG} variant="panel" />
+      </div>
+    );
+    backend.home = homeData([], chatList(WINDOWED_STREAM_MIN_ROWS + 1));
+    view.rerender(navigator());
+    expect(input.isConnected).toBe(true);
+    expect(input).toHaveValue('Keep this unsaved title');
+    expect(input).toHaveFocus();
+    backend.home = homeData([], chatList(WINDOWED_STREAM_MIN_ROWS));
+    view.rerender(navigator());
+    expect(input).toHaveValue('Keep this unsaved title');
+    expect(input).toHaveFocus();
+  });
+
+  it('keeps the reading position and viewport when live rows cross the window threshold', async () => {
+    const view = renderHome({ threads: chatList(WINDOWED_STREAM_MIN_ROWS) });
+    const stream = streamRows();
+    chatRow('chat-20').scrollIntoView({ block: 'start' });
+    await nextFrame();
+    await nextFrame();
+    const anchor = chatRow('chat-20');
+    const offset = stream.scrollTop;
+    const anchorTop = box(anchor).top;
+    const viewport = box(stream);
+    expect(offset).toBeGreaterThan(600);
+    const navigator = () => (
+      <div
+        data-testid="frame"
+        style={{ height: 640 }}
+        className="bg-background flex w-70 flex-col overflow-hidden"
+      >
+        <HomeNavigator organizationId={ORG} variant="panel" />
+      </div>
+    );
+    for (const count of [
+      WINDOWED_STREAM_MIN_ROWS + 1,
+      WINDOWED_STREAM_MIN_ROWS,
+    ]) {
+      backend.home = homeData([], chatList(count));
+      view.rerender(navigator());
+      await nextFrame();
+      await nextFrame();
+      expect(anchor.isConnected).toBe(true);
+      await expect
+        .poll(() => Math.abs(box(anchor).top - anchorTop))
+        .toBeLessThanOrEqual(SUBPIXEL);
+      expect(Math.abs(stream.scrollTop - offset)).toBeLessThanOrEqual(SUBPIXEL);
+      expect(
+        Math.abs(box(stream).height - viewport.height),
+      ).toBeLessThanOrEqual(SUBPIXEL);
+      expect(Math.abs(box(stream).width - viewport.width)).toBeLessThanOrEqual(
+        SUBPIXEL,
+      );
+    }
+  });
+
+  it('retains a pointer drag source after scrolling a virtual list and commits its project drop', async () => {
+    renderHome({ projects: projectList(2), threads: chatList(2_000) });
+    const source = chatRow('chat-5');
+    const stream = streamRows();
+    await expect.poll(() => drawnInside(source, stream)).toBe(true);
+    await nextFrame();
+    await nextFrame();
+    const held = await pickUp(source);
+    // A blank-row pointer drag does not focus the row's link or select it.
+    expect(source.querySelector('a')).not.toHaveFocus();
+    stream.scrollTop = 20_000;
+    await expect.poll(() => stream.scrollTop).toBeGreaterThan(10_000);
+    await expect.poll(() => drawnInside(source, stream)).toBe(false);
+    expect(source.isConnected).toBe(true);
+    expect(frame().querySelectorAll('[data-thread-id]').length).toBeLessThan(
+      80,
+    );
+
+    const project = screen
+      .getByRole('link', { name: /Project 01/ })
+      .closest('li');
+    if (project === null) throw new Error('The project has no drop zone');
+    const release = centre(project);
+    await carryTo(held, release, () =>
+      project.classList.contains('ring-primary'),
+    );
+    expect(project).toHaveClass('ring-primary');
+    mouse(document, 'mouseup', release);
+    await expect
+      .poll(() => backend.move.mock.calls)
+      .toEqual([['chat-5', 'project-0']]);
+    expect(backend.setArchived).not.toHaveBeenCalled();
+  });
+
+  it('keeps thousands of chats bounded while revealing and focusing the complete row order', async () => {
+    renderHome({ threads: chatList(2_000), openThreadId: 'chat-1999' });
+    const stream = streamRows();
+    await expect
+      .poll(() => ({
+        inside: drawnInside(chatRow('chat-1999'), stream),
+        rowTop: box(chatRow('chat-1999')).top,
+        rowBottom: box(chatRow('chat-1999')).bottom,
+        streamTop: box(stream).top,
+        streamBottom: box(stream).bottom,
+        scrollTop: stream.scrollTop,
+        scrollHeight: stream.scrollHeight,
+      }))
+      .toMatchObject({ inside: true });
+    expect(frame().querySelectorAll('[data-thread-id]').length).toBeLessThan(
+      80,
+    );
+    const last = chatRow('chat-1999').querySelector('a');
+    if (last === null) throw new Error('The last chat has no link');
+    // Date headings are not counted as work rows.
+    expect(last.closest('li')).toHaveAttribute('aria-setsize', '2000');
+    last.focus();
+    await userEvent.keyboard('{Home}');
+    await expect.poll(() => chatRow('chat-0').querySelector('a')).toHaveFocus();
+    await expect.poll(() => drawnInside(chatRow('chat-0'), stream)).toBe(true);
+    await expect
+      .poll(
+        () =>
+          box(chatRow('chat-0')).top -
+          box(screen.getByRole('heading', { name: 'Today' })).bottom,
+      )
+      .toBeGreaterThanOrEqual(-SUBPIXEL);
+    await userEvent.keyboard('{End}');
+    await expect
+      .poll(() => chatRow('chat-1999').querySelector('a'))
+      .toHaveFocus();
+    await expect
+      .poll(() => drawnInside(chatRow('chat-1999'), stream))
+      .toBe(true);
+    await expect
+      .poll(() =>
+        Math.abs(
+          box(screen.getByRole('heading', { name: 'Today' })).top -
+            box(stream).top,
+        ),
+      )
+      .toBeLessThanOrEqual(SUBPIXEL);
+
+    // Retain a focused row and its neighbours even when a pointer scrolls away.
+    stream.scrollTop = 0;
+    await expect.poll(() => drawnInside(chatRow('chat-0'), stream)).toBe(true);
+    expect(chatRow('chat-1999').querySelector('a')).toHaveFocus();
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+    await expect
+      .poll(() => chatRow('chat-1998').querySelector('a'))
+      .toHaveFocus();
+    expect(frame().querySelectorAll('[data-thread-id]').length).toBeLessThan(
+      80,
+    );
+  });
+
+  it('opens the next chat by Alt+Arrow from the full order outside the rendered window', async () => {
+    renderHome({ threads: chatList(2_000), openThreadId: 'chat-1000' });
+    await expect
+      .poll(() => drawnInside(chatRow('chat-1000'), streamRows()))
+      .toBe(true);
+    const opened: string[] = [];
+    const capture = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const link = target.closest<HTMLAnchorElement>('a[data-indicator-key]');
+      if (link === null) return;
+      event.preventDefault();
+      opened.push(link.pathname);
+    };
+    frame().addEventListener('click', capture);
+    try {
+      document.body.focus();
+      await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}');
+      await expect
+        .poll(() => opened)
+        .toEqual([`/dashboard/${ORG}/chat/chat-1001`]);
+      await expect
+        .poll(() => drawnInside(chatRow('chat-1001'), streamRows()))
+        .toBe(true);
+    } finally {
+      frame().removeEventListener('click', capture);
+    }
+  });
+
+  it('bounds a thousand projects and keeps full-order keyboard navigation in its own scrollport', async () => {
+    const projects = projectList(1_000).map((project, index) =>
+      Object.assign({}, project, {
+        name: `Project ${String(index + 1).padStart(4, '0')}`,
+      }),
+    );
+    renderHome({ projects, threads: chatList(3) });
+    const first = screen.getByRole('link', { name: /Project 0001/ });
+    const scroller = first.closest<HTMLElement>('.overflow-y-auto');
+    if (scroller === null) throw new Error('Projects have no scrollport');
+    expect(scroller.querySelectorAll('li').length).toBeLessThan(80);
+    expect(box(scroller).height).toBeLessThan(box(frame()).height / 2);
+    first.focus();
+    await userEvent.keyboard('{End}');
+    await expect
+      .element(page.getByRole('link', { name: /Project 1000/ }))
+      .toHaveFocus();
+    const last = screen.getByRole('link', { name: /Project 1000/ });
+    expect(last.closest('li')).toHaveAttribute('aria-setsize', '1000');
+    await expect.poll(() => drawnInside(last, scroller)).toBe(true);
+    await userEvent.keyboard('{ArrowUp}');
+    await expect
+      .element(page.getByRole('link', { name: /Project 0999/ }))
+      .toHaveFocus();
+    expect(scroller.querySelectorAll('li').length).toBeLessThan(80);
+    expect(drawnInside(chatRow('chat-0'), streamRows())).toBe(true);
+    // A non-last row uses indexed alignment rather than the browser's
+    // maximum offset. Its list inset must not leave its lower edge clipped.
+    await userEvent.keyboard('{Home}');
+    await expect
+      .element(page.getByRole('link', { name: /Project 0001/ }))
+      .toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}'.repeat(12));
+    await expect
+      .element(page.getByRole('link', { name: /Project 0013/ }))
+      .toHaveFocus();
+    const middle = screen.getByRole('link', { name: /Project 0013/ });
+    await expect.poll(() => drawnInside(middle, scroller)).toBe(true);
+  });
+
   it('scrolls stream list and keeps open chat in view', async () => {
     renderHome({
       projects: projectList(4),
@@ -507,7 +749,7 @@ describe('Home panel in Chromium', () => {
     const stream = streamRows();
     stream.scrollTop = stream.scrollHeight;
     const last = chatRow('chat-59');
-    expect(drawnInside(last, stream)).toBe(true);
+    await expect.poll(() => drawnInside(last, stream)).toBe(true);
 
     // A short drag down that stays over the stream: the pointer stays inside the list.
     const held = await pickUp(last);
@@ -519,6 +761,24 @@ describe('Home panel in Chromium', () => {
 
     expect(backend.setArchived).not.toHaveBeenCalled();
     expect(backend.move).not.toHaveBeenCalled();
+  });
+
+  // Drop targets are measured when a drag starts and again as the pointer
+  // moves, never at rest: a project row must still take the chat dropped on
+  // it.
+  it('files a chat dropped on a project into it', async () => {
+    renderHome({ projects: projectList(4), threads: chatList(8) });
+    const project = screen.getByRole('link', { name: /Project 03/ });
+    const held = await pickUp(chatRow('chat-5'));
+    const target = centre(project);
+    await carryTo(held, target, () =>
+      Boolean(project.closest('li')?.className.includes('ring-primary')),
+    );
+    mouse(document, 'mouseup', target);
+    await expect
+      .poll(() => backend.move.mock.calls.at(-1))
+      .toEqual(['chat-5', 'project-2']);
+    expect(backend.setArchived).not.toHaveBeenCalled();
   });
 
   it("marks an unread chat with a dot in the organization's accent", () => {
@@ -534,6 +794,256 @@ describe('Home panel in Chromium', () => {
     expect(getComputedStyle(dot as HTMLElement).backgroundColor).toBe(
       'rgb(163, 0, 163)',
     );
+  });
+});
+
+/**
+ * Past `WINDOWED_STREAM_MIN_ROWS` the stream mounts only the rows near its
+ * view. A stream of 600 chats mounted 600 rows — each with its menu, drag
+ * handle, age and link — on every load and every search.
+ */
+describe('a long Home stream in Chromium', () => {
+  function mountedRows() {
+    return document.querySelectorAll('[data-thread-id]').length;
+  }
+
+  function rowLink(threadId: string) {
+    return chatRow(threadId).querySelector('a[data-indicator-key]');
+  }
+
+  it('mounts every row of a stream at the threshold', () => {
+    renderHome({ threads: chatList(WINDOWED_STREAM_MIN_ROWS) });
+    expect(mountedRows()).toBe(WINDOWED_STREAM_MIN_ROWS);
+  });
+
+  it('mounts only the rows near the view, each telling its place in the whole stream', async () => {
+    renderHome({ threads: chatList(400) });
+    await expect.poll(() => mountedRows()).toBeGreaterThan(10);
+    expect(mountedRows()).toBeLessThan(80);
+    expect(chatRow('chat-0')).toHaveAttribute('aria-posinset', '1');
+    expect(chatRow('chat-0')).toHaveAttribute('aria-setsize', '400');
+    // The rows sit one under the other, a pixel apart, as the whole list
+    // would place them.
+    const first = box(chatRow('chat-0'));
+    const second = box(chatRow('chat-1'));
+    expect(second.top - first.bottom).toBeCloseTo(1, 0);
+  });
+
+  it('mounts the rows a scroll reaches, at their place, and keeps the open chat with its neighbours', async () => {
+    renderHome({ threads: chatList(400), openThreadId: 'chat-10' });
+    const stream = streamRows();
+    await expect.poll(() => mountedRows()).toBeGreaterThan(10);
+    const expectedHeight = stream.scrollHeight;
+
+    stream.scrollTop = stream.scrollHeight;
+    await expect
+      .poll(() => document.querySelector('[data-thread-id="chat-399"]'))
+      .not.toBeNull();
+    await expect
+      .poll(() => drawnInside(chatRow('chat-399'), stream))
+      .toBe(true);
+    // The far end of the list ends where the list does.
+    expect(box(chatRow('chat-399')).bottom).toBeLessThanOrEqual(
+      box(stream).bottom + SUBPIXEL,
+    );
+    expect(Math.abs(stream.scrollHeight - expectedHeight)).toBeLessThan(
+      expectedHeight * 0.1,
+    );
+    // The open chat and its neighbours stay mounted for ⌥↑/⌥↓ and the
+    // highlight; a row between them and the view does not.
+    for (const id of ['chat-9', 'chat-10', 'chat-11']) {
+      expect(document.querySelector(`[data-thread-id="${id}"]`)).not.toBeNull();
+    }
+    expect(document.querySelector('[data-thread-id="chat-200"]')).toBeNull();
+    expect(mountedRows()).toBeLessThan(90);
+  });
+
+  it('walks the whole stream with the arrow keys, Home and End', async () => {
+    renderHome({ threads: chatList(400) });
+    await expect.poll(() => rowLink('chat-0')).not.toBeNull();
+    const firstLink = rowLink('chat-0');
+    if (!(firstLink instanceof HTMLElement)) throw new Error('No first row');
+    firstLink.focus();
+
+    await userEvent.keyboard('{End}');
+    await expect
+      .poll(() =>
+        document.activeElement
+          ?.closest('[data-thread-id]')
+          ?.getAttribute('data-thread-id'),
+      )
+      .toBe('chat-399');
+
+    await userEvent.keyboard('{ArrowUp}');
+    await expect
+      .poll(() =>
+        document.activeElement
+          ?.closest('[data-thread-id]')
+          ?.getAttribute('data-thread-id'),
+      )
+      .toBe('chat-398');
+
+    await userEvent.keyboard('{Home}');
+    await expect
+      .poll(() =>
+        document.activeElement
+          ?.closest('[data-thread-id]')
+          ?.getAttribute('data-thread-id'),
+      )
+      .toBe('chat-0');
+  });
+
+  it('keeps a focused row mounted, and focused, while the stream scrolls away', async () => {
+    renderHome({ threads: chatList(400) });
+    await expect.poll(() => rowLink('chat-5')).not.toBeNull();
+    const link = rowLink('chat-5');
+    if (!(link instanceof HTMLElement)) throw new Error('No row');
+    link.focus();
+
+    const stream = streamRows();
+    stream.scrollTop = stream.scrollHeight;
+    await expect
+      .poll(() => document.querySelector('[data-thread-id="chat-399"]'))
+      .not.toBeNull();
+    expect(document.querySelector('[data-thread-id="chat-5"]')).not.toBeNull();
+    expect(document.activeElement).toBe(link);
+  });
+
+  it("hands each row the same placement while a fresh chat's draft row leads", async () => {
+    const groups: HomeGroup[] = [
+      {
+        key: 'today',
+        items: Array.from({ length: 200 }, (_, index) => ({
+          kind: 'chat' as const,
+          id: `chat-${index}`,
+          title: `Chat ${index}`,
+          activityAt: 0,
+          unread: false,
+          generating: false,
+          shared: false,
+        })),
+      },
+    ];
+    const placements = new Map<string, HomeRowPlacement | undefined>();
+    function Stream() {
+      const [scrollElement, setScrollElement] = useState<HTMLElement | null>(
+        null,
+      );
+      return (
+        <div ref={setScrollElement} style={{ height: 400, overflow: 'auto' }}>
+          <HomeStream
+            groups={groups}
+            // A new element on every render, as the panel builds it.
+            draft={<li>Draft</li>}
+            renderRow={(item, placement) => {
+              placements.set(item.id, placement);
+              return (
+                <li
+                  key={item.id}
+                  ref={placement?.measureRef}
+                  data-index={placement?.index}
+                >
+                  {item.title}
+                </li>
+              );
+            }}
+            ariaLabel="Stream"
+            scrollElement={scrollElement}
+            activeKey={null}
+          />
+        </div>
+      );
+    }
+    const { rerender } = render(<Stream />);
+    await expect.poll(() => placements.get('chat-0')).toBeDefined();
+    const placement = placements.get('chat-0');
+
+    // The panel renders again, the draft row with it: a memoized row must
+    // not.
+    rerender(<Stream />);
+    expect(placements.get('chat-0')).toBe(placement);
+  });
+});
+
+describe('a long PROJECTS list in Chromium', () => {
+  // Three digits, so 300 names sort in their numeric order.
+  function manyProjects(count: number): ChatProjectSummary[] {
+    return Array.from({ length: count }, (_, index) => ({
+      id: `project-${index}`,
+      name: `Project ${String(index + 1).padStart(3, '0')}`,
+    }));
+  }
+
+  function projectRows() {
+    return screen
+      .getByRole('region', { name: 'Projects' })
+      .querySelectorAll('li[data-index]');
+  }
+
+  function projectsScroller() {
+    const list = screen
+      .getByRole('region', { name: 'Projects' })
+      .querySelector('ul[role="list"]');
+    const scroller = list?.parentElement;
+    if (!(scroller instanceof HTMLElement)) throw new Error('No scroller');
+    return scroller;
+  }
+
+  it('mounts only the projects near the view, and every one a scroll or End reaches', async () => {
+    renderHome({ projects: manyProjects(300), threads: chatList(3) });
+    await expect.poll(() => projectRows().length).toBeGreaterThan(5);
+    expect(projectRows().length).toBeLessThan(60);
+    const first = projectRows()[0];
+    expect(first).toHaveAttribute('aria-posinset', '1');
+    expect(first).toHaveAttribute('aria-setsize', '300');
+
+    const scroller = projectsScroller();
+    scroller.scrollTop = scroller.scrollHeight;
+    await expect
+      .poll(() => screen.queryByRole('link', { name: /Project 300/ }))
+      .not.toBeNull();
+    expect(projectRows().length).toBeLessThan(60);
+
+    scroller.scrollTop = 0;
+    const firstLink = await screen.findByRole('link', { name: /Project 001/ });
+    firstLink.focus();
+    await userEvent.keyboard('{End}');
+    await expect
+      .poll(() => document.activeElement?.textContent)
+      .toContain('Project 300');
+  });
+
+  it('keeps the open project mounted wherever the list scrolls', async () => {
+    renderHome({ projects: manyProjects(300), threads: chatList(3) });
+    backend.location = {
+      pathname: `/dashboard/${ORG}/projects/project-150`,
+      search: {},
+    };
+    cleanup();
+    render(
+      <div
+        data-testid="frame"
+        style={{ height: 640 }}
+        className="bg-background flex w-70 flex-col overflow-hidden"
+      >
+        <HomeNavigator organizationId={ORG} />
+      </div>,
+    );
+    await expect
+      .poll(() => screen.queryByRole('link', { name: /Project 151/ }))
+      .not.toBeNull();
+    expect(screen.getByRole('link', { name: /Project 151/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    const scroller = projectsScroller();
+    scroller.scrollTop = scroller.scrollHeight;
+    await expect
+      .poll(() => screen.queryByRole('link', { name: /Project 300/ }))
+      .not.toBeNull();
+    expect(
+      screen.getByRole('link', { name: /Project 151/ }),
+    ).toBeInTheDocument();
   });
 });
 

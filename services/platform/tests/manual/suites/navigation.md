@@ -158,7 +158,7 @@ loaded, and reads **No teams** for an account in none.
   (`pwa.updateAvailableTitle`) with **A new version of Tale is ready.**
   (`pwa.updateAvailableDescription`) and an **Update now** action
   (`pwa.updateNow`); clicking it reloads the page onto the new version.
-  Separately, the benign one-off toast **"Tale is ready to work offline."**
+  Separately, the benign one-off toast **"Tale's offline screen is ready."**
   (`pwa.offlineReady`) fires on first SW install — expected, do **not** file
   it (it can photobomb unrelated screenshots)
 - [ ] `NAV-F15` · **Archived work in the palette** — Needs a project with one
@@ -253,11 +253,11 @@ loaded, and reads **No teams** for an account in none.
   URL listed twice or an un-revisioned entry). Open the app in a browser
   profile that has never visited it → no **Update available**
   (`pwa.updateAvailableTitle`) toast (only the one-off
-  **"Tale is ready to work offline."**, `pwa.offlineReady`); DevTools →
+  **"Tale's offline screen is ready."**, `pwa.offlineReady`); DevTools →
   Application → Cache Storage holds the workbox precache with
-  `offline.html` and the icons; go offline and reload → Tale's own offline
-  page, not the browser's error page. After a second deploy, load the app
-  again → the **Update available** toast appears with **Update now**
+  `offline.html`, `pwa-recovery.js`, `pwa-build.json` and the icons; go offline and reload → Tale's own offline
+  page, not the browser's error page. Leave this first-visit tab open for a second, code-only deploy
+  and wait up to 60 s → the **Update available** toast appears with **Update now**
   (`pwa.updateNow`) and **Later** (`pwa.updateLater`); **Later** closes it,
   and it dismisses on its own within ~15 s either way.
 - [ ] `NAV-F41` · **The Home panel stands beside every Home route** — At ≥ 768
@@ -550,7 +550,7 @@ loaded, and reads **No teams** for an account in none.
   of the drop — with no click, reload or navigation — the full-screen
   **You're offline** overlay (`role="alertdialog"`, `connectivity.deviceTitle`)
   covers the cached list; it never sits silently on stale data. The Network
-  panel shows a `/api/health` probe every ~5 s while offline. Restore the
+  panel shows a `/api/health/ready` probe every ~5 s while offline. Restore the
   network → the overlay clears within ~5 s on its own, no reload, and the
   list underneath is still mounted.
 - [ ] `NAV-B12` · **Leaving pages on a slow network is not an outage** — With
@@ -562,22 +562,17 @@ loaded, and reads **No teams** for an account in none.
   (`connectivity.deviceTitle`) appears at any point, and the project receives
   no `AbortError` event.
 - [ ] `NAV-B13` · **A tab kept open across a deploy** — Needs a production
-  build (mode C, or a real instance; a dev server has no content-hashed
-  chunks). Open `/dashboard/{org}/documents` and open no preview; deploy a
-  new build (rebuild mode C, or `tale deploy`) and leave the tab alone. Then,
-  in that same tab, click a previewable document (PDF or DOCX) → The tab
-  reloads **once** by itself: the Network panel shows the old
-  `assets/document-preview-…` chunk answered with HTML, then one document
-  load whose entry `assets/index-….js` has a new name. It comes back with the
-  preview open (the URL keeps its `?doc=`), and no toast shows. Now block one
-  preview chunk (DevTools → Network → **Block request URL**
-  `*document-preview-docx-*`) and click a DOCX document → After exactly one
-  automatic reload the page stops, and a destructive toast **A new version
+  build with the shared `static-assets` volume. Open
+  `/dashboard/{org}/documents` and open no preview; deploy a new build and
+  leave the tab alone. Click a PDF or DOCX preview → The old preview chunk
+  still loads and the tab keeps working without a reload. Now block one
+  preview chunk in DevTools and click a DOCX document → After exactly one
+  automatic reload the page stops, and the destructive toast **A new version
   is available** (`connectivity.newVersion.title`) offers **Reload**
   (`connectivity.newVersion.reload`) and **Later**
-  (`connectivity.newVersion.later`). It stays until one is pressed, and
-  nothing reloads again on its own; **Reload** reloads once, and the toast
-  comes back while the block is on.
+  (`connectivity.newVersion.later`). No automatic reload loop occurs. If the
+  chunk failed during a server outage, restoring readiness triggers its one
+  reload without requiring a second attempt to open the preview.
 - [ ] `NAV-B14` · **Contact support goes to the operator's page** — Start
   the platform with
   `TALE_CONTACT_SUPPORT_URL=https://support.example.com/help?source=tale`
@@ -600,6 +595,25 @@ loaded, and reads **No teams** for an account in none.
 - [ ] `NAV-B15` · **Recover the header after typing in an iPhone Safari overlay** → On a real iPhone or iOS Simulator, test both the software keyboard and hardware-keyboard accessory bar. Open an automation node, focus a field, then dismiss the keyboard and close the panel; repeat by closing while the keyboard is still open, with Safari's toolbar expanded and collapsed, and with another form dialog. The title/profile row returns fully into view after dismissal and stays visible when navigating away; panel content remains scrollable. Repeat in the installed home-screen app and with pinch zoom: neither regresses.
 
 - [ ] `NAV-B16` · **Literal-code drafts stay discoverable in Home** → In a chat with a sent message, leave `<Button />` unsent and choose **New chat**: its Home row shows **Draft**. Reopen it: the composer retains exactly that text and its active row hides the badge. Leave again and reload: the badge returns, and reopening still preserves the text. Repeat with `<tag>`, an ordinary unsent note, and a task comment. Empty and whitespace-only chat or task drafts show no badge. An emptied rich Inbox reply (including an empty paragraph or nonbreaking space) shows no badge in either Home's combined stream or its Inbox view. Check EN/DE/FR using the existing localized Draft label; keyboard navigation and row names remain usable.
+
+- [ ] `NAV-B17` · **Proxy outage and automatic recovery** — With a production
+  worker installed, make the public gateway return an HTML 503, then reload
+  → Tale's connection screen appears with a working **Try again** button.
+  Restore the gateway while keeping the device online → The screen returns
+  to the original URL automatically, without a browser online event. Repeat
+  under a deployment base path and with a navigation that hangs → The same
+  screen appears within eight seconds. API and write requests never receive
+  the cached HTML shell.
+
+- [ ] `NAV-B18` · **Mixed-colour worker installation** — Keep a blue release
+  controlled by its worker. Serve the green worker while returning different blue bytes
+  for one of `offline.html`, `pwa-recovery.js` or `pwa-build.json` → The update
+  fails installation and the blue worker keeps controlling the tab. Restore
+  all green files and check for an update → The waiting worker installs and
+  activates normally. Repeat under a deployment base path, then return an
+  HTML 503 for a navigation and a direct `offline.html` visit → The green
+  connection screen runs its recovery script under the existing CSP and
+  recovers when the gateway returns.
 
 ## Accessibility (WCAG 2.1 AA)
 

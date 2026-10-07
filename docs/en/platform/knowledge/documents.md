@@ -94,7 +94,7 @@ Folders organize the library; to rename one, use **Rename** in its row menu. A s
 
 ## Import from Microsoft 365 or Google Drive
 
-Choose **From Microsoft 365** or **From Google Drive** under **Upload documents**. On first use, connect your account and authorize the import. If Tale reports that import is not configured, an administrator must set up the service under [Connectors](/platform/admin/connectors) before you can continue.
+Choose **From Microsoft 365** or **From Google Drive** under **Upload documents**. On first use, connect your account and authorize the import. If Tale reports that import is not configured, an administrator must set up the service under [Connectors](/platform/admin/connectors) before you can continue. If Tale cannot check whether import is set up, the dialog says so and offers **Try again** instead of the connect button. You can connect once the check works.
 
 Select files or folders, then choose the import mode:
 

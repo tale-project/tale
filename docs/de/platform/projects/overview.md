@@ -45,4 +45,16 @@ Prüfe Ideen im Backlog, bevor du sie in die geplante Arbeit des Teams übernimm
 
 </CardGroup>
 
-Alle Projekte, die du öffnen kannst, stehen im Bereich [Start](/de/platform#home) unter **Projekte**; **Alle Projekte** öffnet dort die vollständige Liste. Ein Projekt öffnet sich mit seinem Aufgaben-Board, und **Allgemein**, **Chats**, **Wissen** und **Agenten** ergänzen die Aufgabenansichten. Für Inhaber, Admins und Entwickler fügt eine zugeordnete Automatisierung **Automatisierungen** hinzu; Projektadministratoren können die **Umgebung** konfigurieren. Installierte Apps können weitere Tabs ergänzen. Für den Einstieg mit Dateien, Chats und Aufgaben sind sie nicht nötig.
+Alle Projekte, die du öffnen kannst, stehen im Bereich [Start](/de/platform#home) unter **Projekte**; **Alle Projekte** öffnet dort die vollständige Liste. Ein Projekt öffnet sich mit seinem Aufgaben-Board, und **Allgemein**, **Chats**, **Wissen** und **Agenten** ergänzen die Aufgabenansichten. Für Inhaber, Admins und Entwickler fügt eine zugeordnete Automatisierung **Automatisierungen** hinzu; Projektadministratoren können die [**Umgebung**](#environment-credentials) konfigurieren. Installierte Apps können weitere Tabs ergänzen. Für den Einstieg mit Dateien, Chats und Aufgaben sind sie nicht nötig.
+
+## Zugangsdaten für das Projekt {#environment-credentials}
+
+Öffne im Projekt den Tab **Umgebung**, um verschlüsselte Zugangsdaten für dieses Projekt zu speichern. Nur Projektadministratoren sehen den Tab und können die gespeicherten Namen ansehen und Zugangsdaten verwalten. In einem archivierten Projekt ist der Tab schreibgeschützt. Stelle das Projekt wieder her, bevor du Zugangsdaten änderst.
+
+Wähle **Variable hinzufügen**, gib einen Namen wie `SERVICE_TOKEN` und den Wert ein und wähle **Speichern**. Der Editor verlangt eindeutige Namen nach `^[A-Za-z_][A-Za-z0-9_]*$`: Buchstaben, Ziffern und Unterstriche, wobei am Anfang keine Ziffer stehen darf. Der Server wandelt Namen zusätzlich in Großbuchstaben um und verlangt einen Buchstaben am Anfang sowie höchstens 64 Zeichen. Verwende daher Großbuchstaben und beginne mit einem Buchstaben. Namen, die sich nur in der Groß- und Kleinschreibung unterscheiden, bezeichnen dieselben gespeicherten Zugangsdaten.
+
+Gespeicherte Werte werden nie wieder angezeigt. Um einen Wert zu ersetzen, gib den neuen Wert in der bestehenden Zeile ein und wähle **Speichern**. Zum Löschen wählst du **Entfernen**, bestätigst und wählst anschließend **Speichern**.
+
+Der Tab beschreibt Zugangsdaten für Aufgaben-Runtimes wie Hermes und OpenClaw. Derzeit werden die Zugangsdaten des Projekts jedoch nur gespeichert und nicht an Agentenläufe übergeben. Damit ein laufender Agent Umgebungsvariablen erhält, nutze die Zugangsdaten der Organisation, die du beim [Einrichten des Agenten](/de/platform/projects/project-agents#den-agenten-konfigurieren) unter **Secrets** freigibst. Diese Freigaben gelangen zur Laufzeit an die Aufgaben-Runtime, auch an Agentenknoten einer Automatisierung mit eigenen Freigaben. Ein von einem Mitglied gestarteter Lauf erhält keine davon. Der normale Chat-Assistent erhält diese Umgebungsvariablen nicht.
+
+Kann die Liste der Zugangsdaten beim ersten Laden nicht abgerufen werden, bleibt der Editor ausgeblendet. Wähle vor dem Bearbeiten **Erneut versuchen**. Schlägt eine Aktualisierung fehl, bleiben die letzte Liste und dein Entwurf erhalten; eine Warnung weist auf die möglicherweise veraltete Anzeige hin.

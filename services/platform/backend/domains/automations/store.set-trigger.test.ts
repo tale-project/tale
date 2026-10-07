@@ -119,7 +119,7 @@ describe('setTrigger', () => {
     ]);
   });
 
-  it('hands the plaintext out exactly when the minted hash landed', async () => {
+  it('hands the plaintext out exactly when the minted hash landed [AUTO-R11]', async () => {
     const fresh = fakeUpsert('fresh');
     const minted = await setTrigger(fresh.sql, args({ kind: 'webhook' }));
     expect(minted.token).toBeTypeOf('string');
@@ -135,7 +135,7 @@ describe('setTrigger', () => {
     expect(rebound).toEqual({});
   });
 
-  it('asks the database to rotate only when told to', async () => {
+  it('asks the database to rotate only when told to [AUTO-R11]', async () => {
     const plain = fakeUpsert('kept');
     await setTrigger(plain.sql, args({ kind: 'webhook' }));
     const rotate = fakeUpsert('fresh');
@@ -143,10 +143,10 @@ describe('setTrigger', () => {
       rotate.sql,
       args({ kind: 'webhook', rotateToken: true }),
     );
-    // The rotate flag is the CASE's boolean parameter (the last one), decided
+    // The rotate flag follows the eleven INSERT parameters, decided
     // in SQL against the existing row.
-    expect(upsertOf(plain.statements)?.values.at(-1)).toBe(false);
-    expect(upsertOf(rotate.statements)?.values.at(-1)).toBe(true);
+    expect(upsertOf(plain.statements)?.values[11]).toBe(false);
+    expect(upsertOf(rotate.statements)?.values[11]).toBe(true);
     expect(rotated.token).toBeTypeOf('string');
   });
 
@@ -176,18 +176,21 @@ describe('setTrigger', () => {
     expect(text).toContain('ELSE NULL');
   });
 
-  it('starts a fresh failure streak on every save', async () => {
+  it('starts a fresh failure streak on every save [AUTO-R13]', async () => {
     // A person looked at the binding: runs started before the save no
     // longer count toward pausing it (`trigger-failures.ts`).
     const fake = fakeUpsert('kept', { kind: 'schedule', tokenHash: null });
     await setTrigger(fake.sql, args({ kind: 'schedule', cron: '0 9 * * 1' }));
     const text = upsertOf(fake.statements)?.text ?? '';
-    expect(text).toContain('consecutive_failures = 0');
+    expect(text).toContain(
+      'consecutive_failures = CASE WHEN ? THEN t.consecutive_failures ELSE 0 END',
+    );
+    expect(upsertOf(fake.statements)?.values[12]).toBe(false);
     // A save that finds no pause dismisses nothing: the read and the write.
     expect(fake.statements).toHaveLength(2);
   });
 
-  it('clears the pause of a schedule its failures paused, and the notices of it', async () => {
+  it('clears the pause of a schedule its failures paused, and the notices of it [AUTO-R13]', async () => {
     const fake = fakeUpsert('kept', {
       id: 'trg_1',
       kind: 'schedule',
@@ -227,7 +230,7 @@ describe('setTrigger', () => {
    * explanation. The answer names it; a first bind and a same-kind re-bind
    * (which keeps the token) say nothing.
    */
-  it('names the webhook URL a kind change revoked', async () => {
+  it('names the webhook URL a kind change revoked [AUTO-R11]', async () => {
     const fake = fakeUpsert('fresh', {
       kind: 'webhook',
       tokenHash: 'existing-hash',
@@ -275,7 +278,7 @@ describe('setTrigger', () => {
     expect(upsertOf(fake.statements)?.values[5]).toBe('contact.created');
   });
 
-  it('refuses an invalid trigger before touching the database', async () => {
+  it('refuses an invalid trigger before touching the database [AUTO-R10]', async () => {
     const fake = fakeUpsert('fresh');
     await expect(
       setTrigger(fake.sql, args({ kind: 'schedule', cron: 'not a cron' })),

@@ -148,6 +148,14 @@ function TaskSubjectPanelBody({
     projectId: task.projectId,
     taskId: task._id,
   });
+  // A retry without cached data can return to pending. Keep the explanation
+  // mounted until a successful read, rather than losing the recovery surface.
+  const [runReadFailed, setRunReadFailed] = useState(false);
+  const runReadError = runQuery.isError || runReadFailed;
+  if (runQuery.isError && !runReadFailed) setRunReadFailed(true);
+  if (!runQuery.isError && runQuery.data !== undefined && runReadFailed) {
+    setRunReadFailed(false);
+  }
   const run = runQuery.data ?? null;
   // The live run's parked question, if its agent asked one — the panel's
   // whole story flips to "answer this" while it is pending.
@@ -184,7 +192,11 @@ function TaskSubjectPanelBody({
           hasFiles,
         });
   const canReview =
-    canEdit && state?.kind === 'review' && reviewReady && !agentReview;
+    canEdit &&
+    !runReadError &&
+    state?.kind === 'review' &&
+    reviewReady &&
+    !agentReview;
   const reviewIdentity = reviewConfirmationIdentity(
     task._id,
     pendingReview ?? null,
@@ -197,6 +209,65 @@ function TaskSubjectPanelBody({
   if ((!canReview || reviewChanged) && (approveOpen || changesOpen)) {
     setApproveOpen(false);
     setChangesOpen(false);
+  }
+  const ownershipContext = (
+    <>
+      <Row gap={2} align="center">
+        <Workflow
+          className="text-muted-foreground size-4 shrink-0"
+          aria-hidden
+        />
+        <Text
+          as="h3"
+          id={headingId}
+          variant="label"
+          className="min-w-0 flex-1 truncate"
+        >
+          {displayName}
+        </Text>
+        {!runReadError && state?.kind === 'running' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDetailsOpen(true)}
+          >
+            {t('run.details')}
+          </Button>
+        )}
+      </Row>
+
+      {/* The automation's OWN words on what it does — clamped, because a pack
+          may declare a paragraph and this is orientation, not documentation. */}
+      {displayDescription !== undefined && (
+        <Text as="p" variant="caption" className="line-clamp-2 text-pretty">
+          {displayDescription}
+        </Text>
+      )}
+    </>
+  );
+  if (runReadError) {
+    return (
+      <section
+        aria-labelledby={headingId}
+        className="border-border bg-card flex flex-col gap-2 rounded-lg border p-3"
+      >
+        {ownershipContext}
+        <Text as="p" role="alert" className="text-pretty">
+          {t('subject.runLoadError')}
+        </Text>
+        <Row gap={2} wrap>
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-busy={runQuery.isFetching}
+            disabled={runQuery.isFetching}
+            onClick={() => void runQuery.refetch()}
+          >
+            {tCommon('actions.tryAgain')}
+          </Button>
+        </Row>
+      </section>
+    );
   }
   // Facts still loading — render nothing rather than a state that flips.
   if (state === null || state.kind === 'idle') return null;
@@ -375,37 +446,7 @@ function TaskSubjectPanelBody({
           : 'border-primary/40 bg-primary/[0.03]',
       )}
     >
-      <Row gap={2} align="center">
-        <Workflow
-          className="text-muted-foreground size-4 shrink-0"
-          aria-hidden
-        />
-        <Text
-          as="h3"
-          id={headingId}
-          variant="label"
-          className="min-w-0 flex-1 truncate"
-        >
-          {displayName}
-        </Text>
-        {state.kind === 'running' && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setDetailsOpen(true)}
-          >
-            {t('run.details')}
-          </Button>
-        )}
-      </Row>
-
-      {/* The automation's OWN words on what it does — clamped, because a pack
-          may declare a paragraph and this is orientation, not documentation. */}
-      {displayDescription !== undefined && (
-        <Text as="p" variant="caption" className="line-clamp-2 text-pretty">
-          {displayDescription}
-        </Text>
-      )}
+      {ownershipContext}
 
       <Skeletonize
         loading={

@@ -9,6 +9,12 @@
 
 import type { SetProjectTaskReviewerInput } from '@tale/shared/schemas/task-review';
 
+/** Card/list metadata; the detail read owns retained project instructions. */
+export type ProjectSummary = Omit<
+  NonNullable<ProjectsContract['projects/queries:getProject']['returns']>,
+  'instructions'
+>;
+
 export interface ProjectsContract {
   'projects/mutations:setProjectTaskReviewer': {
     kind: 'mutation';
@@ -268,76 +274,14 @@ export interface ProjectsContract {
   'projects/queries:listProjects': {
     kind: 'query';
     args: { includeArchived?: boolean; organizationId: string };
-    returns: Array<
-      {
-        _id: string;
-        _creationTime: number;
-        pinnedAt?: number;
-        key?: string;
-        description?: string;
-        teamId?: string;
-        externalItemId?: string;
-        instructions?: string;
-        icon?: string;
-        color?: string;
-        defaultTaskReviewerAgentId?: string;
-        taskCounter?: number;
-        openTaskCount?: number;
-        doneTaskCount?: number;
-        projectAgentCount?: number;
-        taskLabelColors?: Record<string, string>;
-        sharedWithTeamIds?: string[];
-        /** The audience — every team the project is scoped to; [] = org-wide. */
-        teamIds?: string[];
-        agentCapabilities?: Record<
-          string,
-          { connectors: string[]; skills: string[] }
-        >;
-        archivedAt?: number;
-        organizationId: string;
-        name: string;
-        createdBy: string;
-        createdAt: number;
-        updatedAt: number;
-      } & { isOrgWide: boolean; canEdit: boolean; canAdminister: boolean }
-    >;
+    returns: ProjectSummary[];
   };
   'projects/queries:listProjectsOverview': {
     kind: 'query';
     args: { includeArchived?: boolean; asOf?: number; organizationId: string };
     returns: {
       projects: Array<
-        {
-          _id: string;
-          _creationTime: number;
-          pinnedAt?: number;
-          key?: string;
-          description?: string;
-          teamId?: string;
-          externalItemId?: string;
-          instructions?: string;
-          icon?: string;
-          color?: string;
-          defaultTaskReviewerAgentId?: string;
-          taskCounter?: number;
-          openTaskCount?: number;
-          doneTaskCount?: number;
-          projectAgentCount?: number;
-          taskLabelColors?: Record<string, string>;
-          sharedWithTeamIds?: string[];
-          /** The audience — every team the project is scoped to; [] = org-wide. */
-          teamIds?: string[];
-          agentCapabilities?: Record<
-            string,
-            { connectors: string[]; skills: string[] }
-          >;
-          archivedAt?: number;
-          organizationId: string;
-          name: string;
-          createdBy: string;
-          createdAt: number;
-          updatedAt: number;
-        } & { isOrgWide: boolean; canEdit: boolean; canAdminister: boolean } & {
+        ProjectSummary & {
           openTaskCount: number;
           doneTaskCount: number;
           projectAgentCount: number;

@@ -5,11 +5,15 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   readlink,
   rm,
+  stat,
+  symlink,
+  writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, posix } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import JSZip from 'jszip';
@@ -61,6 +65,42 @@ function trackedFiles() {
       const [mode, , blob] = metadata!.split(' ');
       return { path: path!, mode: mode!, blob: blob! };
     });
+}
+
+// Inventory extraction without following symlinks: their entries belong to
+// the archive, while their target trees are checked separately below.
+async function archivePaths(directory: string): Promise<string[]> {
+  const paths: string[] = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      paths.push(`${entry.name}/`);
+      for (const child of await archivePaths(join(directory, entry.name)))
+        paths.push(`${entry.name}/${child}`);
+    } else paths.push(entry.name);
+  }
+  return paths.sort();
+}
+
+// Compare the dereferenced copy with the real extracted target, including
+// empty directories and every file's bytes. Copies must contain no symlinks.
+async function expectCopiedTree(
+  source: string,
+  destination: string,
+): Promise<void> {
+  const sourceStat = await stat(source);
+  const copiedStat = await lstat(destination);
+  expect(copiedStat.isSymbolicLink()).toBe(false);
+  expect(copiedStat.isDirectory()).toBe(sourceStat.isDirectory());
+  if (sourceStat.isDirectory()) {
+    const entries = (await readdir(source)).sort();
+    expect((await readdir(destination)).sort()).toEqual(entries);
+    for (const entry of entries)
+      await expectCopiedTree(join(source, entry), join(destination, entry));
+  } else {
+    expect(sourceStat.isFile()).toBe(true);
+    expect(copiedStat.isFile()).toBe(true);
+    expect(await readFile(destination)).toEqual(await readFile(source));
+  }
 }
 
 test('the real source ZIP carries every tracked file and retains the setup action', async () => {
@@ -133,14 +173,39 @@ test.skipIf(process.platform === 'win32')(
       killSignal: 'SIGKILL',
     });
     expect(unpack.exitCode, unpack.stderr.toString()).toBe(0);
-    // Mirrors the runner's failure seam: extraction alone accepts dangling
-    // symlinks, but a subsequent dereferencing copy must be able to read them.
-    await cp(extracted, copied, { recursive: true, dereference: true });
-    expect(await readFile(join(copied, actionPath))).toEqual(
+    const tracked = trackedFiles();
+    const expectedPaths = new Set(tracked.map((entry) => entry.path));
+    for (const entry of tracked) {
+      let directory = posix.dirname(entry.path);
+      while (directory !== '.') {
+        expectedPaths.add(`${directory}/`);
+        directory = posix.dirname(directory);
+      }
+    }
+    expect(await archivePaths(extracted)).toEqual([...expectedPaths].sort());
+
+    const copiedAction = join(copied, actionPath);
+    await mkdir(dirname(copiedAction), { recursive: true });
+    await cp(join(extracted, actionPath), copiedAction, { dereference: true });
+    expect(await readFile(copiedAction)).toEqual(
       git(['show', `HEAD:${actionPath}`]),
     );
 
-    const links = trackedFiles().filter((entry) => entry.mode === '120000');
+    // Mirrors the runner's failure seam for every tracked link, without
+    // copying unrelated source assets a second time. Extraction alone accepts
+    // dangling symlinks; real recursive dereferencing must read each target.
+    const links = tracked.filter((entry) => entry.mode === '120000');
+    for (const link of links) {
+      const source = join(extracted, link.path);
+      const destination = join(copied, link.path);
+      expect((await lstat(source)).isSymbolicLink()).toBe(true);
+      expect(await readlink(source)).toBe(
+        git(['cat-file', 'blob', link.blob]).toString(),
+      );
+      await mkdir(dirname(destination), { recursive: true });
+      await cp(source, destination, { recursive: true, dereference: true });
+      await expectCopiedTree(source, destination);
+    }
     const environment = { GIT_INDEX_FILE: join(root, 'checkout-index') };
     git(['read-tree', 'HEAD'], environment);
     git(
@@ -163,4 +228,29 @@ test.skipIf(process.platform === 'win32')(
     }
   },
   60_000,
+);
+
+test.skipIf(process.platform === 'win32')(
+  'recursive dereferencing copies real linked bytes and rejects a dangling target',
+  async () => {
+    const root = await temporaryDirectory();
+    const target = join(root, 'target');
+    await mkdir(target);
+    await writeFile(join(target, 'source.txt'), 'owned archive fixture\n');
+    const link = join(root, 'valid-link');
+    await symlink('target', link, 'dir');
+    const copied = join(root, 'valid-copy');
+    await cp(link, copied, { recursive: true, dereference: true });
+    await expectCopiedTree(link, copied);
+
+    const dangling = join(root, 'dangling-link');
+    await symlink('missing-target', dangling, 'dir');
+    await expect(
+      cp(dangling, join(root, 'broken-copy'), {
+        recursive: true,
+        dereference: true,
+      }),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+  },
+  5_000,
 );

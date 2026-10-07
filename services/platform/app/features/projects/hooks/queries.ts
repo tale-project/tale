@@ -62,11 +62,22 @@ export type ProjectAgentRow = ItemOf<'projects/queries:listProjectAgents'>;
  * someone handed it work (`managed`). */
 export function useProjectAgents(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
+  const query = useBackendQuery(
     'projects/queries:listProjectAgents',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
-  return { agents: data ?? [], isLoading };
+  const { data, isLoading, error, refetch } = query;
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+  return {
+    agents: data ?? [],
+    hasAnswer: data !== undefined,
+    isLoading,
+    error,
+    ...readStateOf(query),
+    retry,
+  };
 }
 
 export type StandardAgentAvailability =
@@ -165,14 +176,34 @@ export function useProjects(
   };
 }
 
+/**
+ * The project, with how its read stands (`readStateOf`). The read answers
+ * `null` for a project that is gone or out of reach; a read that failed is
+ * not that, and says so — never a project that seems deleted, never a blank
+ * tab (#3885).
+ */
 export function useProject(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
+  const query = useBackendQuery(
     'projects/queries:getProject',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
-  return { project: data ?? null, isLoading };
+  const { refetch } = query;
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+  return {
+    project: query.data ?? null,
+    isLoading: query.isLoading,
+    ...readStateOf(query),
+    retry,
+  };
 }
+
+export type ProjectRead = Pick<
+  ReturnType<typeof useProject>,
+  'retrying' | 'failureCount' | 'retry'
+>;
 
 /**
  * A project list read's rows, with how the read stands (`readStateOf`): a
@@ -222,15 +253,17 @@ export function useProjectFolders(projectId: string | undefined) {
  * the ones other members shared with it, from the chat-v2 tables. */
 export function useProjectChatThreads(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
+  const query = useBackendQuery(
     'chat/project_threads:listThreadsForProject',
     projectId && organizationId
       ? { organizationId, projectId: projectId }
       : 'skip',
   );
   return {
-    mine: data?.mine ?? [],
-    shared: data?.shared ?? [],
-    isLoading,
+    mine: query.data?.mine ?? [],
+    shared: query.data?.shared ?? [],
+    isLoading: query.isLoading,
+    ...readStateOf(query),
+    retry: () => void query.refetch(),
   };
 }

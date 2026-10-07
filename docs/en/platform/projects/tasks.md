@@ -53,6 +53,8 @@ The same goes for the subtasks under such a task, whoever added them, for exampl
 
 On other people's tasks, a Member reads and comments; mentioning an agent there leaves an ordinary mention that starts nothing. Everyone can edit and delete their own comments on any task they can read, and Owners and Admins can also delete other people's comments.
 
+An archived task can be read but not changed. Until someone restores it, nobody can comment on it, edit or delete its comments, or change its dependencies; a task it blocks can still remove it under **Blocked by**. An agent run that was already working on the task still posts its result there.
+
 Handing a task that was assigned to you to someone else, a person or an agent, also hands over the right to change it, unless you created the task. A run you started still answers to you, though: when your @mention hands the task to an agent, you can guide that run with further mentions and stop it with **Cancel run** until it ends.
 
 A dependency belongs to the task it blocks, so a Member records dependencies for their own tasks only: under **Blocked by** on a task of theirs, or under **Blocks** on any task they can open, picking one of their tasks as the blocked one. The project's settings, agents, files, and label catalog stay with Editors and higher roles; a Member picks from the labels the project already has. Only Owners and Admins can delete a task; everyone else who can change it archives it instead.
@@ -100,7 +102,9 @@ An agent default applies only when a native project-agent run produced the resul
 
 Open the task and read **Current review** below **Reviewer**: it names who owns the waiting review, which can differ from the current project default. Choosing another reviewer also transfers that pending review, without changing the assignee or starting a run. Choose **Project default** to hand it to the project's current default. If the reviewer or result changed since the task was read, the transfer is refused; check the refreshed review before choosing again.
 
-An agent can review only a completed project-agent result from a different implementation agent. Changing the task's assignee does not change who produced that result. A live run or open question can prevent a transfer to an agent. For work without a supported completed agent run, or a review requiring human independence or competence records, choose an eligible person. If an agent is unavailable or lacks the review permission, the task shows that reason; it does not silently send the review to you.
+An agent can review only a completed project-agent result from a different implementation agent. Assigning the task to someone else keeps the original result's producer but blocks the pending agent decision. To keep the new assignment and review that result, explicitly transfer the review to an eligible person; the organization's review policy still applies.
+
+A live run or open question can prevent a transfer to an agent. For work without a supported completed agent run, or a review requiring human independence or competence records, choose an eligible person. If an agent is unavailable or lacks the review permission, the task shows that reason; it does not silently send the review to you.
 
 The current review also explains self-review, changed implementation ownership, and unavailable policy. Restore the indicated condition or transfer it explicitly; settlement still records the result. A repeated task retains an explicit agent reviewer even if that agent was deleted or lost its grant, so repair that choice instead of silently inheriting a different reviewer.
 
@@ -118,6 +122,12 @@ Change **Status** in the task details, or drag a card to another column on **Boa
 | **Cancelled** | The work is no longer going ahead. |
 
 For an agent-owned task, changing status can start or cancel execution. Read the action hint before moving it. An agent reports back at **In review**; it cannot mark its own work **Done**.
+
+### Follow a connected source workflow
+
+A task connected to a source that owns its business workflow can show **Source workflow** in its details. Choose the source's action, complete its fields, and select **Send request**. The source checks your identity, role and transition rules before updating the task. Provide the required verification note, closure evidence or reopening reason in this form; a board column alone cannot express those details or distinguish two source stages that both appear as **In review**.
+
+While the source validates a request, the task shows its pending state and prevents a second submission. Its accepted result or refusal explanation remains visible after a reload. A refusal keeps the source's accepted state; read the explanation before submitting another action. A source may offer a guarded reopening action on an archived record. These actions require a verified, active account and permission to work the task.
 
 ## Keep decisions with the work
 

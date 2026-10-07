@@ -11,7 +11,7 @@ import {
  * only guard was the 0015 UNIQUE constraint, whose violation escaped the
  * route as an unexplained 500.
  */
-describe('assertProviderCredentialNameFree', () => {
+describe('assertProviderCredentialNameFree [PCRED-R1]', () => {
   const rows = [
     { id: 'cred-1', name: 'Production' },
     { id: 'cred-2', name: 'Staging' },

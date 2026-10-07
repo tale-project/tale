@@ -60,6 +60,16 @@ describe('backendUrl', () => {
 });
 
 describe('backendFetch', () => {
+  it('marks a proxy HTML 200 as unavailable instead of healthy JSON', async () => {
+    reportBackendReachable();
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response('<!doctype html>Wrong tier', {
+        headers: { 'content-type': 'text/html' },
+      }),
+    );
+    await expect(backendFetch('/users/me')).rejects.toBeInstanceOf(SyntaxError);
+    expect(isBackendReachable()).toBe(false);
+  });
   it('GETs by default and returns the parsed body', async () => {
     const fetchMock = vi
       .spyOn(window, 'fetch')
@@ -90,6 +100,23 @@ describe('backendFetch', () => {
     expect(new Headers(init?.headers as HeadersInit).get('content-type')).toBe(
       'application/json',
     );
+  });
+
+  it('preserves the create-only header beside the JSON content type', async () => {
+    const fetchMock = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(200, { skill: { slug: 'alpha' } }));
+    await backendFetch('/skills/alpha', {
+      orgId: 'org1',
+      method: 'PUT',
+      headers: { 'if-none-match': '*' },
+      body: { description: 'New skill', body: '' },
+    });
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect(init?.method).toBe('PUT');
+    const headers = new Headers(init?.headers);
+    expect(headers.get('content-type')).toBe('application/json');
+    expect(headers.get('if-none-match')).toBe('*');
   });
 
   it('maps a JSON error body onto BackendApiError', async () => {
@@ -190,7 +217,7 @@ describe('backendFetch', () => {
     if (error instanceof BackendApiError) {
       expect(error.status).toBe(502);
       expect(error.message).toBe('Request failed with status 502');
-      expect(error.code).toBeUndefined();
+      expect(error.code).toBe('UPSTREAM_UNAVAILABLE');
     }
   });
 
@@ -303,7 +330,7 @@ describe('readBackendApiError', () => {
       status: 502,
       message: 'Request failed with status 502',
     });
-    expect(error.code).toBeUndefined();
+    expect(error.code).toBe('UPSTREAM_UNAVAILABLE');
     expect(warn).toHaveBeenCalledTimes(1);
   });
 });
@@ -391,14 +418,28 @@ describe('the lapsed-session report', () => {
 });
 
 describe('probeBackend', () => {
-  it('asks /api/health past every cache, under the deployment base path', async () => {
+  it('does not let an older failed probe overwrite newer API evidence', async () => {
+    let answer: ((response: Response) => void) | undefined;
+    vi.spyOn(window, 'fetch').mockReturnValue(
+      new Promise<Response>((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const pending = probeBackend();
+    reportBackendUnreachable();
+    reportBackendReachable();
+    answer?.(new Response('proxy', { status: 503 }));
+    await expect(pending).resolves.toBe(true);
+    expect(isBackendReachable()).toBe(true);
+  });
+  it('asks backend readiness past every cache, under the deployment base path', async () => {
     window.__ENV__ = { BASE_PATH: '/tale' };
     const fetchMock = vi
       .spyOn(window, 'fetch')
-      .mockResolvedValue(new Response('ok', { status: 200 }));
+      .mockResolvedValue(jsonResponse(200, { ok: true, service: 'backend' }));
     await expect(probeBackend()).resolves.toBe(true);
     expect(fetchMock).toHaveBeenCalledWith(
-      '/tale/api/health',
+      '/tale/api/health/ready',
       expect.objectContaining({
         cache: 'no-store',
         signal: expect.any(AbortSignal),
@@ -406,13 +447,27 @@ describe('probeBackend', () => {
     );
   });
 
-  it('marks the backend reachable on any HTTP status — a draining 503 still answers', async () => {
-    reportBackendUnreachable();
+  it.each([502, 503, 504])(
+    'does not mistake a proxy HTML %i for a live backend',
+    async (status) => {
+      reportBackendUnreachable();
+      vi.spyOn(window, 'fetch').mockResolvedValue(
+        new Response('<html>Service unavailable</html>', { status }),
+      );
+      await expect(probeBackend()).resolves.toBe(false);
+      expect(isBackendReachable()).toBe(false);
+    },
+  );
+
+  it.each([
+    '<html>The proxy is alive</html>',
+    JSON.stringify({ status: 'ok', version: 'old-web-tier' }),
+    JSON.stringify({ ok: false, service: 'backend' }),
+  ])('does not read an unrelated 200 body as readiness: %s', async (body) => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
-      new Response('draining', { status: 503 }),
+      new Response(body, { status: 200 }),
     );
-    await expect(probeBackend()).resolves.toBe(true);
-    expect(isBackendReachable()).toBe(true);
+    await expect(probeBackend()).resolves.toBe(false);
   });
 
   it('marks the backend unreachable when the probe gets no response', async () => {
@@ -445,7 +500,7 @@ describe('probeBackend', () => {
   it('shares one in-flight probe between concurrent callers', async () => {
     const fetchMock = vi
       .spyOn(window, 'fetch')
-      .mockResolvedValue(new Response('ok', { status: 200 }));
+      .mockResolvedValue(jsonResponse(200, { ok: true, service: 'backend' }));
     await Promise.all([probeBackend(), probeBackend()]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

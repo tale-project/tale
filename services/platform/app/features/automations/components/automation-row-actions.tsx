@@ -52,34 +52,37 @@ export function AutomationRowActions({
     <>
       <EntityRowActions actions={actions} />
 
-      <DeleteDialog
-        open={dialogs.isOpen.delete}
-        onOpenChange={(open) => {
-          if (!deleteAutomation.isPending) dialogs.setOpen.delete(open);
-        }}
-        title={t('detail.delete.title')}
-        description={t('detail.delete.description', { name: displayName })}
-        isDeleting={deleteAutomation.isPending}
-        onDelete={() => {
-          void (async () => {
-            try {
-              await deleteAutomation.mutateAsync({
-                organizationId,
-                name,
-              });
-              dialogs.setOpen.delete(false);
-              toast({ title: t('detail.delete.done'), variant: 'success' });
-            } catch (error) {
-              dialogs.setOpen.delete(false);
-              toast({
-                title: t('detail.delete.failed'),
-                description: automationErrorMessage(error),
-                variant: 'destructive',
-              });
-            }
-          })();
-        }}
-      />
+      {/* Mounted from its first open: every row of the list carries it. */}
+      {dialogs.mounted.delete && (
+        <DeleteDialog
+          open={dialogs.isOpen.delete}
+          onOpenChange={(open) => {
+            if (!deleteAutomation.isPending) dialogs.setOpen.delete(open);
+          }}
+          title={t('detail.delete.title')}
+          description={t('detail.delete.description', { name: displayName })}
+          isDeleting={deleteAutomation.isPending}
+          onDelete={() => {
+            void (async () => {
+              try {
+                await deleteAutomation.mutateAsync({
+                  organizationId,
+                  name,
+                });
+                dialogs.setOpen.delete(false);
+                toast({ title: t('detail.delete.done'), variant: 'success' });
+              } catch (error) {
+                dialogs.setOpen.delete(false);
+                toast({
+                  title: t('detail.delete.failed'),
+                  description: automationErrorMessage(error),
+                  variant: 'destructive',
+                });
+              }
+            })();
+          }}
+        />
+      )}
     </>
   );
 }

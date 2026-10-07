@@ -53,6 +53,8 @@ export interface SpawnerConfig {
   // SANDBOX_BUILDKITD_MEMORY): unset, an agent session's CPUs and twice its
   // memory (buildkitd.ts buildkitHelperLimits).
   buildkitdCpus?: number;
+  // Total optional-cache provisioning budget, including queued Docker calls.
+  buildkitdProvisionTimeoutMs?: number;
   buildkitdMemoryBytes?: number;
   // The build cache an organization's builder keeps when it stops for want of
   // agent sessions (env SANDBOX_BUILDKITD_IDLE_CACHE): unset, 5 GiB
@@ -103,6 +105,9 @@ export interface SpawnerConfig {
   // still adopted (running ones keep their live mount; stopped ones via the
   // legacy-compat resume fallback in docker-session-backend.ts).
   hostSessionRoot: string;
+  /** Opt-in, verified read-only view of DockerRootDir for disk admission. */
+  dockerDataPath?: string;
+  dockerDataRoot?: string;
   cacheVolumePrefix: { pip: string; npm: string; bun: string };
   egressNetwork: string;
   egressProxy: string;
@@ -173,8 +178,8 @@ export interface SessionConfig {
   /** Default + ceiling for per-exec timeoutMs inside a session. */
   execDefaultTimeoutMs: number;
   execMaxTimeoutMs: number;
-  /** Create-time budget for container launch + runnerd /healthz to go green
-   * (covers a cold image pull on K8s). */
+  /** Docker's total provisioning/readiness/seed-environment budget. On K8s,
+   * the runtime readiness budget includes a cold image pull. */
   createHealthTimeoutMs: number;
   /** Resource caps for the `agent` profile session containers. The `default`
    * profile mirrors the one-shot caps and is not configurable separately. */

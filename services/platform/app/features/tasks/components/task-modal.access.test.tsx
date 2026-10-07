@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
   projectCanEdit: false,
   isAdmin: false,
   ownedBy: null as Record<string, unknown> | null,
+  candidateReads: 0,
 }));
 
 const baseTask = {
@@ -103,17 +104,23 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useNavigate: () => vi.fn(),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
     resolveActor: () => ({ name: 'Teammate' }),
   }),
-  useAssignableActors: () => ({
-    assignableMembers: [],
-    assignableAgents: [],
-    agents: [],
-    resolveActor: () => ({ name: 'Teammate' }),
-  }),
+  useAssignableActors: () => {
+    state.candidateReads += 1;
+    return {
+      subjectEntries: [],
+      assignableMembers: [],
+      assignableAgents: [],
+      agents: [],
+      resolveActor: () => ({ name: 'Teammate' }),
+    };
+  },
 }));
 vi.mock('@/app/features/shared/files/use-file-upload', () => ({
   useFileUpload: () => ({ attachments: [], uploadingFiles: [] }),
@@ -174,6 +181,7 @@ beforeEach(() => {
   state.projectCanEdit = false;
   state.isAdmin = false;
   state.ownedBy = null;
+  state.candidateReads = 0;
 });
 
 describe('TaskModal — a member works their own task', () => {
@@ -241,6 +249,8 @@ describe('TaskModal — an editor, as before', () => {
     expect(
       screen.getByRole('button', { name: 'Manage labels' }),
     ).toBeInTheDocument();
+    // Opening the task names both pickers without their candidate reads.
+    expect(state.candidateReads).toBe(0);
   });
 });
 

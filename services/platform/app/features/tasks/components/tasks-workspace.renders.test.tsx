@@ -92,7 +92,16 @@ vi.mock('../hooks/use-actor-directory', () => {
     currentUserId: 'u-member',
     resolveActor: () => ({ name: 'Member' }),
   };
-  return { useActorDirectory: () => directory };
+  return {
+    useActorDirectory: () => directory,
+    useAssignableActors: () => ({
+      ...directory,
+      assignableMembers: directory.members,
+      assignableAgents: directory.agents,
+    }),
+    useProvidedActorDirectory: () => undefined,
+    ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
+  };
 });
 vi.mock('../hooks/mutations', () => ({
   useMoveTask: () => ({ mutate: vi.fn(), isPending: false }),

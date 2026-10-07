@@ -13,7 +13,7 @@ import {
 /**
  * The read-time fold behind the project metrics page: every figure derives
  * from the rows as the 0.3 rollup defined it, and the end-of-day flow is a
- * backwards replay of the status changes — exact for every day, not a
+ * backwards replay of status and archive changes — exact for every day, not a
  * snapshot of the compute day. Pinned here on a hand-built week so a change
  * to the bucketing, the cycle-time clock, or the replay shows up as a number.
  */
@@ -417,6 +417,206 @@ describe('foldProjectTaskMetrics', () => {
     expect(capped.daily.every((d) => d.capped)).toBe(true);
     expect(capped.previousDaily.every((d) => d.capped)).toBe(true);
     expect(result.daily.some((d) => d.capped)).toBe(false);
+  });
+
+  it.each([
+    [
+      'restore today',
+      null,
+      [
+        ['archived', T(9, 24, 10)],
+        ['restored', NOW],
+      ],
+      [1, 1, 1, 0, 0, 0, 1],
+    ],
+    ['archive today', NOW, [['archived', NOW]], [1, 1, 1, 1, 1, 1, 0]],
+    [
+      'restore and rearchive today',
+      NOW,
+      [
+        ['archived', T(9, 24, 10)],
+        ['restored', NOW - HOUR],
+        ['archived', NOW],
+      ],
+      [1, 1, 1, 0, 0, 0, 0],
+    ],
+    [
+      'multiple intervals',
+      null,
+      [
+        ['archived', T(9, 22)],
+        ['restored', T(9, 24)],
+        ['archived', T(9, 25)],
+        ['restored', NOW],
+      ],
+      [1, 0, 0, 1, 0, 0, 1],
+    ],
+    [
+      'archive at midnight',
+      T(9, 24),
+      [['archived', T(9, 24)]],
+      [1, 1, 1, 0, 0, 0, 0],
+    ],
+    [
+      'restore at midnight',
+      null,
+      [
+        ['archived', T(9, 22)],
+        ['restored', T(9, 24)],
+      ],
+      [1, 0, 0, 1, 1, 1, 1],
+    ],
+  ] as Array<[string, number | null, Array<[string, number]>, number[]]>)(
+    'replays %s into its proper UTC date windows',
+    (_description, archivedAt, events, expected) => {
+      const counted = foldProjectTaskMetrics(
+        {
+          ...week(),
+          tasks: [
+            task({ id: 'archive-task', createdAt: T(9, 21), archivedAt }),
+          ],
+          activity: events.map(([action, at]) =>
+            Object.assign(created('archive-task', at), {
+              action,
+              toValue: null,
+            }),
+          ),
+        },
+        { periodDays: 7, now: NOW },
+      );
+      expect(counted.daily.map((row) => row.statusCountsEod.todo)).toEqual(
+        expected,
+      );
+    },
+  );
+
+  it('replays archive intervals through the previous comparison window', () => {
+    const counted = foldProjectTaskMetrics(
+      {
+        ...week(),
+        tasks: [task({ id: 'archive-task' })],
+        activity: [
+          {
+            ...created('archive-task', T(9, 18)),
+            action: 'archived',
+            toValue: null,
+          },
+          {
+            ...created('archive-task', T(9, 24)),
+            action: 'restored',
+            toValue: null,
+          },
+        ],
+      },
+      { periodDays: 7, now: NOW },
+    );
+    expect(
+      counted.previousDaily.map((row) => row.statusCountsEod.todo),
+    ).toEqual([1, 1, 1, 1, 0, 0, 0]);
+    expect(counted.daily.map((row) => row.statusCountsEod.todo)).toEqual([
+      0, 0, 0, 1, 1, 1, 1,
+    ]);
+  });
+
+  it('keeps an archive interval that began before both windows', () => {
+    const counted = foldProjectTaskMetrics(
+      {
+        ...week(),
+        tasks: [task({ id: 'archive-task' })],
+        activity: [
+          {
+            ...created('archive-task', NOW),
+            action: 'restored',
+            toValue: null,
+          },
+        ],
+      },
+      { periodDays: 7, now: NOW },
+    );
+    expect(
+      counted.previousDaily.every((row) => row.statusCountsEod.todo === 0),
+    ).toBe(true);
+    expect(counted.daily.map((row) => row.statusCountsEod.todo)).toEqual([
+      0, 0, 0, 0, 0, 0, 1,
+    ]);
+  });
+
+  it.each([
+    ['archived', 'restored'],
+    ['restored', 'archived'],
+  ])(
+    'undoes same-millisecond transitions independently of scan order: %s / %s',
+    (first, second) => {
+      const counted = foldProjectTaskMetrics(
+        {
+          ...week(),
+          tasks: [task({ id: 'archive-task' })],
+          activity: [first, second].map((action) =>
+            Object.assign(created('archive-task', NOW), {
+              action,
+              toValue: null,
+            }),
+          ),
+        },
+        { periodDays: 7, now: NOW },
+      );
+      expect(
+        [...counted.previousDaily, ...counted.daily].every(
+          (row) => row.statusCountsEod.todo === 1,
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it('excludes every flow measure while archived without corrupting the status replay', () => {
+    const counted = foldProjectTaskMetrics(
+      {
+        ...week(),
+        tasks: [
+          task({
+            id: 'archive-task',
+            status: 'in_review',
+            dueDate: T(9, 20),
+            statusChangedAt: NOW,
+          }),
+        ],
+        activity: [
+          moved('archive-task', 'todo', 'in_progress', T(9, 15)),
+          {
+            ...created('archive-task', T(9, 23)),
+            action: 'archived',
+            toValue: null,
+          },
+          {
+            ...created('archive-task', NOW - HOUR),
+            action: 'restored',
+            toValue: null,
+          },
+          moved('archive-task', 'in_progress', 'in_review', NOW),
+        ],
+      },
+      { periodDays: 7, now: NOW },
+    );
+    expect(counted.daily[0]).toMatchObject({
+      statusCountsEod: { in_progress: 1 },
+      wipEod: 1,
+      overdueEod: 1,
+      staleEod: 1,
+    });
+    for (const row of counted.daily.slice(2, -1)) {
+      expect(row).toMatchObject({
+        statusCountsEod: { backlog: 0, todo: 0, in_progress: 0, in_review: 0 },
+        wipEod: 0,
+        overdueEod: 0,
+        staleEod: 0,
+      });
+    }
+    expect(counted.daily[6]).toMatchObject({
+      statusCountsEod: { in_review: 1 },
+      wipEod: 1,
+      overdueEod: 1,
+      staleEod: 0,
+    });
   });
 
   it('answers an all-zero window for a project with no rows', () => {

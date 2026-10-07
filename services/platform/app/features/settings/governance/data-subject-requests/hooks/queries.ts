@@ -1,4 +1,4 @@
-import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';

@@ -56,7 +56,7 @@ export interface DropdownMenuSubItem {
   type: 'sub';
   label: string;
   icon?: ComponentType<{ className?: string }>;
-  items: DropdownMenuGroup[];
+  items: DropdownMenuItemsSource;
   className?: string;
   /** Optional trailing text shown before the chevron (e.g. current selection). */
   trailing?: ReactNode;
@@ -108,9 +108,19 @@ export type DropdownMenuItem =
 
 export type DropdownMenuGroup = DropdownMenuItem[];
 
+export type DropdownMenuItemsSource =
+  | DropdownMenuGroup[]
+  | (() => DropdownMenuGroup[]);
+
 interface DropdownMenuProps {
   trigger: ReactNode;
-  items: DropdownMenuGroup[];
+  /**
+   * The menu's groups, or a function that builds them. Either way they are
+   * rendered only while the menu shows; a function is also only CALLED then,
+   * so a closed menu in every row of a long list builds nothing — pass one
+   * when the groups are costly to assemble (a submenu listing every project).
+   */
+  items: DropdownMenuItemsSource;
   align?: 'start' | 'center' | 'end';
   /** Side the menu opens on. @default 'bottom' (Radix default) */
   side?: 'top' | 'right' | 'bottom' | 'left';
@@ -138,6 +148,13 @@ interface DropdownMenuProps {
   /** Disables the trigger at the Radix level so the menu can't open — a
    *  disabled child <button> alone doesn't stop keyboard/pointer activation. */
   disabled?: boolean;
+  /**
+   * Registers the menu as a modal layer. Use this when the trigger lives in
+   * a modal Dialog so that the dialog's scroll lock does not swallow wheel
+   * events over the portaled menu content.
+   * @default false
+   */
+  modal?: boolean;
 }
 
 function RadioIndicator() {
@@ -261,7 +278,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
                 item.contentClassName,
               )}
             >
-              {renderGroups(item.items)}
+              <MenuGroups items={item.items} />
             </DropdownMenuPrimitive.SubContent>
           </DropdownMenuPrimitive.Portal>
         </DropdownMenuPrimitive.Sub>
@@ -361,6 +378,13 @@ function renderItem(item: DropdownMenuItem, key: number) {
   }
 }
 
+/** The open menu's rows. A component of its own, so its render — and a
+ * lazy `items` function — runs only while the Content it sits in is
+ * mounted: Radix mounts it while the menu shows, exit animation included. */
+function MenuGroups({ items }: { items: DropdownMenuItemsSource }) {
+  return renderGroups(typeof items === 'function' ? items() : items);
+}
+
 function renderGroups(groups: DropdownMenuGroup[]) {
   return groups.map((group, groupIndex) => (
     <Fragment key={groupIndex}>
@@ -385,6 +409,7 @@ export function DropdownMenu({
   tooltip,
   tooltipSide = 'top',
   disabled,
+  modal = false,
 }: DropdownMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -425,7 +450,7 @@ export function DropdownMenu({
       // Keeping both layers modal leaves Radix's outside-pointer lock behind
       // when the second overlay closes. The dialog owns modality; menus keep
       // their roving focus, Escape and outside-dismiss behavior without it.
-      modal={false}
+      modal={modal}
     >
       {tooltip ? (
         // Radix's documented composition for "tooltip on a menu trigger":
@@ -454,12 +479,18 @@ export function DropdownMenu({
           collisionPadding={collisionPadding ?? 16}
           onClick={(e) => e.stopPropagation()}
           onPointerDownOutside={keepTriggerPointerDown}
+          style={{
+            maxHeight:
+              'min(80vh, var(--radix-dropdown-menu-content-available-height, 80vh))',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+          }}
           className={cn(
-            'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--radix-dropdown-menu-content-available-height) max-w-(--radix-dropdown-menu-content-available-width) min-w-[max(10rem,var(--radix-dropdown-menu-trigger-width))] origin-[var(--radix-dropdown-menu-content-transform-origin)] overflow-x-hidden overflow-y-auto rounded-lg border p-1 shadow-md duration-[var(--duration-short)] motion-reduce:animate-none',
+            'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-[min(80vh,var(--radix-dropdown-menu-content-available-height,80vh))] max-w-(--radix-dropdown-menu-content-available-width) min-w-[max(10rem,var(--radix-dropdown-menu-trigger-width))] origin-[var(--radix-dropdown-menu-content-transform-origin)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border p-1 shadow-md duration-[var(--duration-short)] motion-reduce:animate-none',
             contentClassName,
           )}
         >
-          {renderGroups(items)}
+          <MenuGroups items={items} />
         </DropdownMenuPrimitive.Content>
       </DropdownMenuPrimitive.Portal>
     </DropdownMenuPrimitive.Root>

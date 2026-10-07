@@ -29,6 +29,8 @@ A harness turn is one piece of work an agent harness, such as Claude Code or Cod
 
 The cards report **Total turns**, the **Success rate**, the **Timeout rate**, the **p95 duration**, which 95% of the turns finished within, and the turns **Stopped by user**. **By harness** repeats the turns, success rate, and timeouts for each harness, so a rising timeout rate points to the harness it comes from. [Harnesses](/platform/agents/harnesses) explains how each one runs, and [Sandboxes](/platform/admin/sandboxes) where their capacity is set.
 
+If the figures cannot be loaded, the page says so and offers **Try again** instead of showing zero turns or an empty **By harness** table; the period you chose stays. If a refresh fails, the figures already shown stay, with a note that they may be out of date.
+
 ## Follow automation runs
 
 **Automations** counts live runs of your organization's automations; test runs appear on each automation's **Runs** tab but not here. Choose 7, 30, or 90 days; the page opens on 30 days. Each card compares its figure with the period of the same length before it.
@@ -46,7 +48,7 @@ The cards report **Total turns**, the **Success rate**, the **Timeout rate**, th
 | **Intervention rate** | Changes requested in review plus escalations (questions that agent steps in automations asked people), per agent run started in the period. |
 | **Spend** | The cost of the project's agent runs, with how many started and how many failed. |
 
-The charts below show the open tasks by status at the end of each day, the tasks created and completed each day, the cycle-time trend, each day's completions split into **Agents** and **Humans**, and the daily spend. That split, like the one under **Completed**, goes by each task's assignee as it is now, not by who completed the task. A task assigned to an agent counts for agents, although a person moved it to Done; a task assigned to a person, an automation, or no one counts for humans. Past days change too: when a task is later assigned to an agent or loses its agent, for example because the agent was deleted, its completion moves to the other side.
+The charts below show the open tasks by status at the end of each day, the tasks created and completed each day, the cycle-time trend, each day's completions split into **Agents** and **Humans**, and the daily spend. That split, like the one under **Completed**, goes by each task's assignee as it is now, not by who completed the task. A task assigned to an agent counts for agents, although a person moved it to Done; a task assigned to a person, an automation, or no one counts for humans. Past days change too: when a task is later assigned to an agent or loses its agent, for example because the agent was deleted, its completion moves to the other side. A task created directly in Done or Cancelled gets a completion timestamp at creation, but daily completion throughput counts status-change events only, so that creation is not counted as a completion event.
 
 A rising intervention rate with a steady number of runs means people are sending more work back or agents are asking more questions. Escalations come from agent steps in automations working on the project, and each one counts on the day it is raised, whether or not anyone answers. For work sent back, read the tasks in review before changing an agent's instructions under [Project agents](/platform/projects/project-agents); for questions, read the runs of the automation that asked them, as [Read automation runs](/platform/automations/execution-logs) explains.
 

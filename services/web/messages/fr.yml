@@ -101,10 +101,10 @@ nav:
       label: Projets
       description: Planifie, attribue et examine le travail en équipe.
     automations:
-      label: Automations
+      label: Automatisations
       description: Workflows typés avec déclencheurs et approbations.
     knowledge:
-      label: Knowledge
+      label: Connaissances
       description: Documents, sites et enregistrements cités par les agents.
     governance:
       label: Gouvernance
@@ -141,6 +141,7 @@ legal:
     data-processing-agreement: DPA
     technical-organizational-measures: MTO
 footer:
+  taleUi: Tale UI
   resources: Ressources
   legal: Mentions légales
   pricing: Tarifs
@@ -156,7 +157,6 @@ footer:
   githubAriaLabel: GitHub
   llmsTxtLabel: llms.txt
   llmsFullTxtLabel: llms-full.txt
-  copyright: © {year} Tale par Ruler GmbH. Sous licence MIT.
   platform: Plateforme
   company: Entreprise
   changelog: Changelog
@@ -222,9 +222,9 @@ home:
         'Démo animée : la table Documents de la base de connaissances indexe un
         PDF, un site, un catalogue produits et un runbook, puis affiche les
         badges d’indexation.'
-      windowTitle: Knowledge
+      windowTitle: Connaissances
       searchPlaceholder: Rechercher des documents
-      addLabel: Knowledge
+      addLabel: Connaissances
       colName: Nom
       colType: Type
       colStatus: Statut
@@ -245,7 +245,7 @@ home:
     automation:
       label: 'Démo animée : un canvas de workflow exécute Déclencheur → LLM →
         Condition → Action, puis la table Exécutions enregistre le run.'
-      windowTitle: Automations
+      windowTitle: Automatisations
       kindTrigger: Déclencheur
       kindLlm: LLM
       kindCondition: Condition
@@ -1240,8 +1240,8 @@ platformAgents:
       previewItem3: "Installation"
       previewDetail3: "Lancer sans accès réseau"
 platformAutomations:
-  eyebrow: Automations
-  title: Que sont les Automations dans Tale ?
+  eyebrow: Automatisations
+  title: Que sont les automatisations dans Tale ?
   description: Les automatisations rendent le travail récurrent réutilisable. Relie
     appels de modèles, étapes d’agents et actions dans un workflow versionné,
     teste-le et lance-le à la demande ou avec un déclencheur configuré.
@@ -1313,7 +1313,7 @@ platformAutomations:
       path: /platform/automations/triggers
     - label: Journaux d’exécution
       path: /platform/automations/execution-logs
-    - label: Automations intégrées
+    - label: Automatisations intégrées
       path: /platform/automations/builtin
   tour:
     heading: Comment les automatisations tournent dans Tale
@@ -1896,7 +1896,7 @@ platformHub:
           workflows réutilisables.
       - q: Quels modules Tale inclut-il ?
         a:
-          Chat, Projets, Knowledge, Agents, Automations et Governance — les Projets
+          Chat, Projets, Connaissances, Agents, Automatisations et Gouvernance — les Projets
           isolent le travail, les fichiers et les agents par équipe.
       - q: Tale est-il open source ?
         a: Oui. Community est sous licence MIT et gratuite en auto-hébergement.
@@ -1957,7 +1957,7 @@ platformHub:
       members4: '9'
     knowledge:
       label:
-        'Démo animée : l’échantillon Knowledge du hub indexe l’aperçu plateforme,
+        'Démo animée : la démo des connaissances du hub indexe l’aperçu plateforme,
         la carte des modules, le crawl du trust center et une FAQ d’onboarding.'
       source1: platform-overview.pdf
       sourceType1: pdf
@@ -2012,16 +2012,16 @@ platformHub:
       replyB1: Un espace pour ton équipe, les tâches des agents et le contexte du
         projet.
       replyB2: avec des règles de validation et d’accès définies par ton équipe.
-      replyB3: Commence par Agents ou Knowledge, puis branche Automations.
+      replyB3: Commence par les agents ou les connaissances, puis ajoute des automatisations.
 platformKnowledge:
-  eyebrow: Knowledge
-  title: Qu’est-ce que Knowledge dans Tale ?
+  eyebrow: Connaissances
+  title: Que sont les connaissances dans Tale ?
   description: Mets documents, faits utiles, contenus web et données structurées à
     disposition de ton équipe. Le chat et les agents de projet équipés pour
     cela peuvent consulter les sources accessibles pour répondre et travailler
     sur les tâches.
   capabilities:
-    heading: Que contient Knowledge ?
+    heading: Que contiennent les connaissances ?
     description:
       Prépare des sources utiles pour la recherche et vérifie les éléments qui
       étayent une réponse ou un livrable.
@@ -2031,7 +2031,7 @@ platformKnowledge:
           Importe des fichiers pris en charge et vérifie leur indexation. Le
           texte indexé peut être consulté avec ses références de source.
         docsLabel: Documents
-      - title: Entrées Knowledge
+      - title: Fiches de connaissances
         body:
           Enregistre un fait concis sous un sujet stable. Actualise la fiche
           lorsque l’information change et consulte son historique de versions.
@@ -2054,9 +2054,9 @@ platformKnowledge:
           correspondants pour consulter les connaissances.
         docsLabel: Vue d’ensemble des connaissances
   faq:
-    heading: FAQ Knowledge
+    heading: FAQ sur les connaissances
     items:
-      - q: Qu’est-ce que Knowledge dans Tale ?
+      - q: Que sont les connaissances dans Tale ?
         a:
           Les connaissances réunissent documents, fiches, sites indexés,
           contacts et produits partagés. Elles donnent une référence commune

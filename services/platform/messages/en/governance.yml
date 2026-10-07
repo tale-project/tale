@@ -1,0 +1,1698 @@
+policyReadFailed: "Couldn't load the saved policy. Editing is unavailable until the policy can be read."
+policyReadRetry: Retry
+policyReadRetrying: Retrying policy read
+title: Governance
+toastSavedTitle: Changes saved
+toastSaveFailedTitle: Couldn't save changes
+systemPrompt:
+  title: Custom instructions
+  description:
+    Text injected ahead of every agent's instructions in this workspace.
+    Users cannot override it.
+  enabled: Custom instructions
+  instructionsPlaceholder: Enter the mandatory instructions...
+  charLimitExceeded: Character limit exceeded
+  saveFailed: Couldn't save the custom instructions
+budgets:
+  title: Budget rules
+  description: Set token, cost, and request limits per scope and billing period.
+  addRule: Add rule
+  addRuleDialogTitle: Add budget rule
+  editRuleDialogTitle: Edit budget rule
+  scope: Scope
+  target: Target
+  period: Period
+  tokenLimit: Max tokens
+  tokenLimitHelp: Total input + output tokens. 1M tokens ~ 750K words.
+  costLimitUsd: Max cost (USD)
+  costLimitHelp: Hard spending cap in USD. GPT-4o ~ $10/1M tokens.
+  maxCost: Max cost
+  maxRequests: Max requests
+  maxRequestsHelp: Total AI requests per period. Leave empty for no limit.
+  warningThreshold: Warning threshold (%)
+  warningThresholdHelp: Alert when usage exceeds this percentage of the limit.
+  orgScopeTarget: Entire organization
+  allUsers: All users
+  overrideHint:
+    'More specific scopes override broader ones: user > team > role >
+    default. Org limits always apply as an additional cap.'
+  noRulesTitle: No budget rules configured
+  noRulesDescription: Add a rule to start enforcing limits.
+  editRuleAriaLabel: Edit rule {index}
+  removeRuleAriaLabel: Remove rule {index}
+  removeRuleConfirmTitle: Remove budget rule?
+  removeRuleConfirmDescription:
+    This rule will no longer enforce budget limits.
+    You can always re-create it later.
+  removeRuleConfirmAction: Remove
+  actions: Actions
+  confirm: Confirm
+  role: Role
+  user: User
+  team: Team
+  selectUser: Select user...
+  searchUsers: Search users
+  noUsersFound: No users found
+  selectUserAriaLabel: Select user
+  selectTeam: Select team...
+  searchTeams: Search teams
+  noTeamsFound: No teams found
+  selectTeamAriaLabel: Select team
+  apiKey: API key
+  selectApiKey: Select API key...
+  searchApiKeys: Search API keys
+  noApiKeysFound: No API keys found
+  selectApiKeyAriaLabel: Select API key
+  saved: Budget rules updated
+  saveFailed: Couldn't save budget rules
+  targetRequired: Select a target for this scope, or the rule will never apply.
+  limitRequired: Set at least one limit (tokens, cost, or requests) so the rule can enforce.
+  invalidTokenLimit: Token limit must be greater than zero.
+  invalidCostLimit: Cost limit must be greater than zero.
+  invalidMaxRequests: Request limit must be greater than zero.
+  invalidWarningThreshold: Warning threshold must be between 0 and 100.
+  scopeLabels:
+    default: Default
+    user: User
+    team: Team
+    role: Role
+    apiKey: API key
+    org: Organization
+  periodLabels:
+    daily: Daily
+    weekly: Weekly
+    monthly: Monthly
+  apiKeyOwnerUnknown: Owner unknown
+  apiKeyInactive: This key can no longer spend in this organization, so the rule limits nothing. Choose an active key or remove the rule.
+  apiKeyStatus:
+    expired: Expired
+    disabled: Disabled
+    revoked: Revoked
+    unavailable: Unavailable
+    holder_left: Former member
+    unknown: Unknown key
+defaultModels:
+  title: Default models
+  description: Set default models for specific user groups or roles.
+  saved: Default model configuration updated
+  saveFailed: Couldn't save default model configuration
+  addRule: Add rule
+  addRuleTitle: Add default model rule
+  editRuleTitle: Edit default model rule
+  editRule: Edit rule {index}
+  removeRule: Remove rule {index}
+  removeRuleConfirmTitle: Remove default model rule?
+  removeRuleConfirmDescription:
+    This rule will no longer assign a default model to
+    the matching users. You can always re-create it later.
+  removeRuleConfirmAction: Remove
+  scope: Scope
+  target: Target
+  provider: Provider
+  model: Model
+  role: Role
+  actions: Actions
+  noRulesTitle: No rules configured
+  noRulesDescription: Add a rule to set default models by scope.
+  allUsers: All users
+  selectProvider: Select provider...
+  selectModel: Select model...
+  selectTeam: Select team...
+  searchProviders: Search providers
+  searchModels: Search models
+  searchTeams: Search teams
+  noProvidersFound: No providers found
+  noModelsFound: No models found
+  noTeamsFound: No teams found
+  confirm: Confirm
+  allowlistConflictWarning: This model isn't currently permitted by the Model
+    access allowlist for this scope. Users receiving this default will fall
+    back to an allowlist-permitted model.
+  allowlistConflictWarningTitle: Model not in allowlist
+  blocklistConflictWarning:
+    This model is currently blocked by the Model access
+    policy for this scope. Users receiving this default will fall back to a
+    permitted model.
+  blocklistConflictWarningTitle: Model is blocked
+  scopeLabels:
+    default: Default
+    team: Team
+    role: Role
+  roleLabels:
+    admin: Admin
+    developer: Developer
+    editor: Editor
+    member: Member
+visionModel:
+  title: Vision model
+  description:
+    When an agent's own model cannot see images, any image it reads is
+    transcribed by this model — through the gateway, so no provider key
+    enters the sandbox. A model that already reads images never uses it.
+  label: Model that reads images
+  labelHint:
+    Automatic suits most organizations. Pin one when you want the choice to
+    stop following the provider catalog.
+  automaticLabel: Automatic
+  automaticHint: Let Tale choose from the models your credentials reach.
+  resolved:
+    pinned: 'Currently reading images with {model}.'
+    preferred: 'Currently reading images with {model}, the recommended choice.'
+    cheapest: 'Currently reading images with {model} — the cheapest model your
+      credentials reach, since none of the recommended ones is available.'
+  resolvedNone:
+    No model your credentials reach can read images, so agents on a
+    text-only model cannot either. Add a provider credential that serves a
+    vision model.
+  searchModels: Search models
+  noModelsFound: No model that reads images is available
+  saveFailed: Couldn't save the vision model
+imageGeneration:
+  title: Image generation
+  description:
+    Lets project agents working on tasks and agent nodes in automations
+    create images, billed to your organization. Off until you turn it on.
+    Chat never creates images.
+  enabledLabel: Let agents generate images
+  label: Image model
+  labelHint:
+    Automatic uses the first recommended image model your provider
+    credentials reach. A fixed selection stays in effect until you change
+    it, even if that model becomes unavailable.
+  automaticLabel: Automatic
+  automaticHint: Let Tale choose from the recommended image models your credentials reach.
+  currentModel:
+    pinned: 'Agents currently generate images with {model}.'
+    preferred: 'Agents currently generate images with {model}, the recommended choice.'
+  draftHint: Save to apply this selection.
+  noAvailable:
+    None of the recommended image models is available, so agents get no
+    image tool. Add an OpenRouter or OpenAI credential in AI providers, or
+    choose one of the listed models.
+  unavailable:
+    The saved image model is unavailable, so agents get no image tool.
+    Choose another model or Automatic, or check its provider credential and
+    the models it allows. Tale will not switch to another model while this
+    selection is saved.
+  invalidPolicy:
+    The saved image generation configuration is invalid, so agents get no
+    image tool. Switch image generation off and on, or choose a model and
+    save, to repair it.
+  policyUnavailable:
+    The saved image generation configuration could not be read. Retry
+    before changing it. Agents get no image tool until it can be read.
+  resolutionFailed:
+    Tale could not check the image model. Check the provider connection and
+    retry.
+  loadFailed: Couldn't load the image generation settings. Retry to load them.
+  invalidSelection: Invalid saved configuration
+  unknownSelection: Saved selection could not be read
+  savedUnavailable: Saved selection is not currently available
+  providersLink: AI providers
+  retry: Retry
+  searchModels: Search image models
+  noModelsFound: No matching image model
+  saveFailed: Couldn't save the image generation settings
+  remoteUpdate:
+    This setting changed in another session. Discard your draft to load the
+    saved selection, or save to replace it.
+transcriptionModel:
+  title: Audio transcription model
+  description:
+    Transcribes audio and video attachments. It also handles voice input
+    when browser speech recognition is unavailable. Browser speech
+    recognition uses its own model.
+  label: Model that transcribes audio
+  labelHint:
+    Automatic selects an available model. A fixed selection stays in effect
+    until you change it, even if that model becomes unavailable.
+  automaticLabel: Automatic
+  automaticHint: Let Tale choose from the available audio transcription models.
+  currentModel: 'Currently transcribing audio with {model}.'
+  draftHint: Save to apply this selection.
+  noAvailable:
+    No audio transcription model is available. Add or enable a compatible
+    credential in AI providers, then check which models that credential allows.
+  unavailable:
+    The saved model is unavailable. Choose another model or Automatic, or
+    check its provider credential and the models it allows. Tale will not switch to
+    another model while this selection is saved.
+  invalidPolicy:
+    The saved audio model configuration is invalid. Choose a model or
+    Automatic and save to repair it.
+  policyUnavailable:
+    The saved audio model configuration could not be read. Retry before
+    changing it. Tale cannot assume Automatic while its configuration is
+    unavailable.
+  resolutionFailed:
+    Tale could not check the audio transcription model. Check the provider
+    connection and retry.
+  loadFailed: Couldn't load the audio model settings. Retry to load them.
+  invalidSelection: Invalid saved configuration
+  unknownSelection: Saved selection could not be read
+  savedUnavailable: Saved selection is not currently available
+  providersLink: AI providers
+  retry: Retry
+  searchModels: Search audio models
+  noModelsFound: No matching audio model
+  saveFailed: Couldn't save the audio transcription model
+  remoteUpdate:
+    This setting changed in another session. Discard your draft to load the
+    saved selection, or save to replace it.
+uploadPolicy:
+  title: Upload policy
+  description: Configure allowed file types, maximum file size, and volume limits.
+  enabled: Enable upload policy
+  allowedExtensions: Allowed file extensions
+  blockedExtensions: Blocked file extensions
+  conflictingExtensions: 'These extensions are both allowed and blocked:
+    {extensions}. Remove them from one list.'
+  allowedMimeTypes: Allowed MIME types
+  maxFileSize: Maximum file size
+  maxVolumePerUser: Maximum total volume per user
+  invalidMaxFileSize: Maximum file size must be zero or a positive number.
+  invalidMaxVolume: Maximum total volume must be zero or a positive number.
+  extensionPlaceholder: pdf, png, csv
+  mimeTypePlaceholder: image/*, application/pdf
+  mbUnit: MB
+  gbUnit: GB
+  saveFailed: Couldn't save upload policy
+retentionPolicy:
+  title: Retention policy
+  description: Configure how long each data type is kept before deletion.
+  saved: Retention policy updated
+  saveFailed: Couldn't save retention policy
+  save: Save changes
+  reset: Reset to defaults
+  unsavedHint: You have unsaved changes.
+  summary:
+    disabled: Disabled
+  drawer:
+    title: Edit retention policy
+    description: Configure how long each data type is kept before deletion.
+  enabled: Enabled
+  retentionDays: Retention days
+  retentionHours: Retention hours
+  envDisabled: Retention is currently disabled by the operator
+    (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is
+    removed.
+  envBoundHint: 'env-bound: {min}{minApplied} / {max}{maxApplied}'
+  boundHelper: Operator caps this at {min}-{max} {unit}.
+  allowedRange: 'Allowed: {min}–{max} {unit}.'
+  errors:
+    belowFloor: Below operator floor (min {bound} {unit}).
+    exceedsCeiling: Exceeds operator ceiling (max {bound} {unit}).
+  diff:
+    title: Confirm retention changes
+    description:
+      Review the changes before saving. Cleanup applies the new policy on
+      its next run.
+    confirmLabel: Save changes
+    noChanges: No changes to save.
+  deletionGrace:
+    label: Grace period (days)
+    helper:
+      0 = Pass A immediately hard-deletes (no trash window). >0 keeps rows
+      visible in admin Trash for that many days before Pass B physically
+      removes them.
+  timeline:
+    ariaLabel: Deletion lifecycle visualization
+    activeLabel: Active
+    activeSub: Visible, fully accessible
+    trashedLabel: Trashed / Expired
+    trashedSub: '{days}-day grace, restorable'
+    skipTrashLabel: Skipped
+    skipTrashSub: graceDays = 0
+    permanentLabel: Permanently deleted
+    permanentSub: Row + descendants gone
+    graceConnector: after retention window
+    noGraceConnector: no grace window
+    cascadeConnector: cascade delete
+  pendingChange:
+    loadFailed: Couldn't load the pending retention change.
+    refreshFailed: Couldn't refresh the pending retention change. Previously loaded information may be out of date.
+    title: A retention reduction is pending.
+    applyIn: applies in {days} day(s).
+    cancel: Cancel
+    cancelFailedToast: Couldn't cancel the pending retention change.
+  boundsProposal:
+    title: Operator has proposed retention bound changes.
+    firstApplyTitle: Operator retention bounds need your initial approval.
+    summary:
+      '{tightened} of {total} change(s) tighten retention. Review before
+      applying.'
+    firstApplyDescription:
+      No bounds have been applied for this organization yet.
+      Review the operator config and Apply to start enforcing retention.
+    applyLabel: Apply
+    applyingLabel: Applying…
+    rejectLabel: Reject
+    rejectingLabel: Rejecting…
+    detailsLabel: View details
+    detailsTitle: Proposed bound changes
+    detailsDescription:
+      Review the operator-proposed retention bound changes before
+      applying or rejecting.
+    detailsEmpty: No detailed changes recorded.
+    diffHeading: Bound changes
+    impactHeading: Impact on your stored values
+    diffRow: '{category}: {field} {from} → {to} ({direction})'
+    impactRow: '{category}: {current} will clamp to {clamped}'
+    appliedToast: Bounds proposal applied. Cleanup will use new bounds on next run.
+    rejectedToast: Bounds proposal rejected. Cleanup continues with previous bounds.
+    applyFailedToast: Couldn't apply the bounds proposal.
+    rejectFailedToast: Couldn't reject the bounds proposal.
+  promptTemplates:
+    title: Prompt templates
+    description: Saved prompts across all visibility scopes (personal, team, global).
+  messageFeedback:
+    title: Message feedback
+    description:
+      Thumbs/comments left on agent messages. Free-text comments may
+      contain quoted user content.
+  contacts:
+    title: Contacts
+    description: 'Per-org CRM records: name, email, address, locale, metadata.'
+  externalConversations:
+    title: External conversations
+    description:
+      Top-level contact-channel inbox (email/chat connectors). Cascades
+      to message bodies.
+  chatFilterEvents:
+    title: Chat filter events
+    description:
+      Telemetry for content-filter triggers (PII, profanity, custom
+      rules). Each event holds the filter, categories, direction and
+      counts, never the matched text. The Guardrails page and Chat health
+      show only the events still kept.
+    placeholder: e.g. 90
+    helper: Filter-event telemetry rows older than this will be deleted.
+  notifications:
+    title: Notifications
+    description:
+      In-app notifications (mentions, agent results, system alerts). May
+      reference content from chats, documents, or automation runs.
+    placeholder: e.g. 30
+    helper: Notification rows older than this will be deleted.
+  chatHistory:
+    title: Chat history
+    description:
+      Automatically delete chat threads (conversations with agents) older
+      than the retention period. Message contents in the agent component are
+      archived. Deletion is irreversible.
+    placeholder: e.g. 90
+    helper: Chat threads older than this (by last-updated time) will be deleted.
+  documents:
+    title: Document retention
+    description:
+      Automatically delete documents that exceed the retention period.
+      Use with caution — deleted documents cannot be recovered.
+    placeholder: e.g. 90
+    helper: Documents older than this will be deleted.
+  userTemp:
+    title: User temporary file cleanup
+    description:
+      Automatically delete files uploaded by users but never saved to a
+      document (e.g. chat attachments, aborted uploads).
+    placeholder: e.g. 24
+    helper: Temporary files older than this will be deleted.
+  agentTemp:
+    title: Agent temporary file cleanup
+    description:
+      Automatically delete files generated by agents but never saved to a
+      document (e.g. intermediate outputs, knowledge files).
+    placeholder: e.g. 24
+    helper: Temporary files older than this will be deleted.
+  workflowLogs:
+    title: Automation run logs
+    description: Automatically delete automation run records older than the
+      retention period. Includes per-execution variable/output storage
+      blobs.
+    placeholder: e.g. 30
+    helper: Automation runs older than this will be deleted.
+  auditLogs:
+    title: Audit logs
+    description: Automatically delete audit log entries older than the retention period. Audit logs are immutable records — keep retention long enough to satisfy your compliance requirements.
+    placeholder: e.g. 90
+    helper: Audit log entries older than this will be deleted.
+  usageLedger:
+    title: Usage ledger
+    description: Automatically delete token-usage records older than the retention period. Shortening this truncates historical analytics — budgets and reports depend on these records.
+    placeholder: e.g. 365
+    helper: Usage ledger rows older than this will be deleted.
+  loginAttempts:
+    title: Login attempts
+    description: Automatically delete failed-login tracking records older than the retention period. These are deployment-wide — the shortest retention across all orgs applies.
+    placeholder: e.g. 90
+    helper: Login attempt records older than this will be deleted.
+passwordPolicy:
+  title: Password policy
+  description:
+    Configure minimum password length, character-class requirements,
+    and rotation.
+  minLength: Minimum length
+  minLengthHint: Minimum number of characters required in new passwords.
+  requireUpper: Require uppercase letter
+  requireLower: Require lowercase letter
+  requireDigit: Require digit
+  requireSpecial: Require special character
+  rotationEnabled: Enable password rotation
+  rotationDays: Rotation period (days)
+  rotationDaysHint: Users will be required to change their password after this
+    many days. The grace window starts when rotation is first enabled, so
+    existing users are not forced to change immediately.
+  invalidMinLength: Minimum length must be an integer between 6 and 128.
+  invalidRotationDays: Rotation period must be an integer between 1 and 3650.
+  saveFailed: Couldn't save password policy
+twoFactorPolicy:
+  title: Two-factor authentication
+  description:
+    Require all password-authenticated users to enrol a second factor
+    (TOTP) after a grace window.
+  enforced: Require two-factor authentication
+  policyDisabledHint:
+    Two-factor authentication is optional for all users while
+    this policy is disabled.
+  gracePeriodDays: Grace period (days)
+  gracePeriodDaysHint:
+    Days each user has from the first sign-in where enforcement
+    applies to them before enrolment is required. Set to 0 for immediate
+    enforcement.
+  exemptSsoUsers: Exempt SSO-only users
+  exemptSsoUsersHint: Users whose only account is a federated identity (e.g.
+    Microsoft Entra ID) rely on the upstream IdP for MFA.
+  invalidGrace: Grace period must be an integer between 0 and 30.
+  confirmEnforceTitle: Require two-factor authentication?
+  confirmEnforceDescription:
+    Every member signing in with a password will be redirected to
+    two-factor enrollment (SSO users stay exempt while the exemption is
+    on). Members past the grace period are signed out until they enroll.
+  confirmEnforceCta: Require two-factor
+  saved: Two-factor policy updated
+  saveFailed: Couldn't save two-factor policy
+loginPolicy:
+  title: Login attempt limits
+  description: Lock accounts after repeated sign-in failures and grow the wait
+    between attempts.
+  enabled: Enable login attempt limits
+  maxAttempts: Failures before lockout
+  maxAttemptsHint: Number of consecutive wrong-password attempts before the
+    account is temporarily locked.
+  backoffSchedule: Backoff schedule (seconds)
+  backoffScheduleHint:
+    'Comma-separated wait times applied after each lockout, in
+    seconds. The last entry is reused for further failures. Default: 1, 10,
+    60, 600.'
+  trustedProxies: Trusted proxies
+  trustedProxiesHint:
+    'Comma-separated list of IPs / CIDRs / keywords (loopback,
+    uniquelocal, linklocal) for reverse proxies sitting in front of this
+    deployment. Used to recover the real client IP from X-Forwarded-For.
+    Default: loopback, uniquelocal.'
+  invalidAttempts: Failure threshold must be an integer between 1 and 50.
+  invalidSchedule: Backoff schedule must be a comma-separated list of non-negative numbers.
+  invalidProxies:
+    Trusted proxies must be a comma-separated list of IPs, CIDRs, or
+    keywords (max 32).
+  saveFailed: Couldn't save login policy
+sessionIdleTimeout:
+  title: Session idle timeout
+  description: Sign members out after a period of inactivity. This can only
+    shorten the deployment-wide limit, never extend it.
+  enabled: Enable session idle timeout
+  minutes: Idle timeout (minutes)
+  minutesHint:
+    "Minutes of inactivity before a member is signed out. Capped by the
+    deployment's SESSION_IDLE_TIMEOUT_MINUTES when set. Default: 30."
+  invalid: Idle timeout must be an integer between 1 and 1440 minutes.
+  saveFailed: Couldn't save session idle timeout
+featureFlags:
+  title: Feature controls
+  description: Cap the context window for AI replies per user, team, or role.
+  maxContextTokens: Max context tokens
+  maxContextTokensHint:
+    Maximum number of context tokens for AI responses. Leave
+    empty for no limit.
+  invalidMaxContextTokens: Max context tokens must be at least {min}.
+  scope: Scope
+  target: Target
+  allUsers: All users
+  addRule: Add rule
+  editRule: Edit rule
+  deleteRule: Delete rule
+  removeRuleConfirmTitle: Delete feature control rule?
+  removeRuleConfirmDescription: This rule will no longer apply to the matching
+    users. You can always re-create it later.
+  removeRuleConfirmAction: Delete
+  noRulesTitle: No feature control rules configured
+  noRulesDescription: Add a rule to cap context tokens per user, team, or role.
+  saved: Feature controls updated
+  saveFailed: Couldn't save feature controls
+  actions: Actions
+  role: Role
+  scopeLabels:
+    default: Default
+    user: User
+    team: Team
+    role: Role
+  roleLabels:
+    admin: Admin
+    developer: Developer
+    editor: Editor
+    member: Member
+  searchUsers: Search users
+  noUsersFound: No users found
+  selectUser: Select user...
+  searchTeams: Search teams
+  noTeamsFound: No teams found
+  selectTeam: Select team...
+voiceOutput:
+  title: Voice output
+  description:
+    When disabled, no member of this organization can use voice output
+    — neither the user-level default nor any per-conversation override has any
+    effect.
+  enabledLabel: Voice output enabled for this organization
+  saved: Voice-output policy updated
+  saveFailed: Couldn't save the voice-output policy
+skillSharing:
+  title: Skill sharing
+  description: Choose who may share a skill with the whole organization.
+    Anyone can still share a skill with their own teams, and a stricter
+    setting narrows no skill that is already shared with the organization.
+  label: Share skills with the organization
+  labelHint: Owners and admins always may. To allow one more member, grant
+    them Publish skills to the organization under Competences.
+  modes:
+    everyone: Every member
+    editors: Editors and above
+    admins: Owners and admins only
+  saveFailed: Couldn't save the skill sharing policy
+dataNotice:
+  title: Confidentiality notice
+  description:
+    Shows a short note under the chat message field for every member of
+    this organization, such as a reminder not to share sensitive data. It
+    stays off until you turn it on.
+  enabledLabel: Show the confidentiality notice in chat
+  textsHint:
+    Members see the text for their language. A language left empty shows
+    the English text, or the default notice when English is empty too.
+  charLimitExceeded: Use {max} characters or fewer
+  languagesLabel: Notice languages
+  textLabel: Notice text ({language})
+  saveFailed: Couldn't save the confidentiality notice
+personalization:
+  enabledLabel: Enabled for this organization
+  saved: Personalization policy updated
+  saveFailed: Couldn't update personalization policy
+  customInstructions:
+    title: Custom instructions default
+    description:
+      When on, every member of this organization has custom instructions
+      enabled by default. Members who explicitly opt out keep their choice.
+pii:
+  title: PII protection
+  description: Detect and mask or block personal data before sending to AI models.
+  enableLabel: Enable PII protection
+  saved: PII configuration updated
+  saveFailed: Couldn't save PII configuration
+guardrailsOverview:
+  title: Guardrails overview
+  description: Filter layers run in this order on every message.
+  statusCards:
+    on: On
+    off: Off
+    notConfigured: Not configured
+    contentSafety:
+      title: Content safety
+      description: Word lists and admin-supplied regex patterns.
+      summary: '{count} categories · {targets}'
+    pii:
+      title: PII detection
+      description: Built-in patterns for emails, phones, IDs, etc.
+      summary: 'Mode: {mode}'
+    moderation:
+      title: Moderation provider
+      description: External classifier (OpenAI / Azure / Perspective / custom).
+      summary: '{value}'
+  filterNames:
+    pii: PII
+    chatFilter: Content safety
+    moderation: Moderation
+  recentEvents:
+    title: Recent events
+    description:
+      Last 50 detections / blocks / provider errors for this org. Raw
+      matched text is never stored.
+    filterPii: PII
+    filterChatFilter: Content safety
+    filterModeration: Moderation
+    kindDetected: Detected
+    kindBlocked: Blocked
+    kindStepError: Step error
+    kindCircuitOpen: Circuit open
+    columnTime: Time
+    columnFilter: Filter
+    columnDirection: Direction
+    columnKind: Kind
+    columnCategories: Categories
+    columnMatches: Matches
+    empty:
+      title: No events yet
+      description:
+        Detections from flag / mask / block modes will appear here once
+        chat traffic starts flowing.
+    viewEventAria: View event {id}
+  eventDetails:
+    title: Event details
+    description: Full metadata for a guardrails event. Raw matched text is never stored.
+    filter: Filter
+    direction: Direction
+    kind: Kind
+    categories: Categories
+    matches: Matches
+    truncated: Truncated
+    truncatedValue: Yes — message exceeded the scan-length cap
+    errorClass: Error class
+    httpStatus: HTTP status
+    duration: Duration
+    durationValue: '{ms} ms'
+    attempt: Attempt
+    sanitizationRun: Sanitization run
+    sanitizationRunCopyLabel: Sanitization run id
+    thread: Thread
+    threadCopyLabel: Thread id
+    message: Message
+    messageCopyLabel: Message id
+    agent: Agent
+    actorType: Actor type
+    timestamp: Timestamp
+    categoryDeleted: (deleted)
+    copied: '{label} copied'
+    copyFailed: Copy failed
+    close: Close
+contentSafety:
+  title: Content safety
+  description: Word lists and custom regex applied to chat messages. All three
+    modes (block / mask / flag) run in order and aggregate to a single audit
+    event per message.
+  cannotManage: You need admin permissions to edit content safety policy.
+  enabled: Enabled
+  enableLabel: Enable content safety
+  applyTo: Apply to
+  applyToDescription:
+    Input filters user messages before the model. Output filters
+    the assistant's reply; may add per-chunk latency.
+  userInput: User input
+  modelOutput: Model output
+  maskReplacement: Mask replacement
+  categoriesTitle: Categories
+  categoriesDescription:
+    Each category has its own mode. block wins over mask wins
+    over flag when multiple match.
+  categoriesEmpty: No categories configured. Add one to start filtering.
+  addCategory: Add category
+  editCategory: Edit category
+  categorySheetDescription:
+    Configure a content safety category, its enforcement
+    mode, and its word list.
+  categoryEditorDescription: Block wins over mask wins over flag when multiple
+    categories match the same message.
+  categoryLabel: Label
+  categoryLabelPlaceholder: e.g. Hate speech
+  categoryMode: Mode
+  categoryModeDescription:
+    Block refuses the message. Mask replaces matches with
+    the configured placeholder. Flag records the detection but lets the
+    message pass.
+  modeBlock: Block
+  modeMask: Mask
+  modeFlag: Flag
+  wordsCount: Words ({count})
+  wordsDescription: One word or phrase per line. Case-insensitive. For
+    CJK/Thai/Lao text, substring matching is used automatically; other scripts
+    use Unicode-aware word boundaries.
+  importTxt: Import .txt
+  exportTxt: Export .txt
+  columnLabel: Label
+  columnMode: Mode
+  columnEnabled: Enabled
+  columnWords: Words
+  columnPatterns: Patterns
+  enableAria: Enable {label}
+  editAria: Edit {label}
+  deleteAria: Delete {label}
+  newCategoryDefault: New category
+  deleteConfirmTitle: Delete category?
+  deleteConfirmAction: Delete
+  deleteConfirm: Delete category "{label}"? This removes its {words} words and
+    {patterns} patterns.
+  importReplaceConfirm: Replace {existing} existing words with {incoming} words from "{filename}"?
+  wordsPlaceholder: |-
+    forbidden
+    verboten
+    interdit
+  saved: Content safety saved
+  saveFailed: Save failed
+moderationProvider:
+  title: Moderation provider
+  description: Classify chat messages with an external moderation API (OpenAI,
+    Azure, Perspective, or custom).
+  cannotManage: You need admin permissions to configure the moderation provider.
+  enabled: Enabled
+  enableLabel: Enable moderation provider
+  applyTo: Apply to
+  userInput: User input
+  modelOutput: Model output
+  failBehavior: Fail behavior
+  failBehaviorDescription:
+    What to do when the provider times out, errors, or the
+    circuit breaker is open. Input default is fail-open (let the message
+    through); output default is fail-closed (block the response) since
+    unreviewed model output has higher liability.
+  input: Input
+  output: Output
+  failOpen: Fail open (pass)
+  failClosed: Fail closed (block)
+  provider: Provider
+  providerDescription: Pick a built-in preset — the URL, headers, request
+    template, and response parser are filled in for you. The API key itself is
+    entered (and encrypted) in the API key section below, never in the policy
+    config. Pick Custom JSONPath for any other HTTPS moderation API you want
+    to plug in.
+  presetCustomJsonPath: Custom JSONPath
+  presetCustomJsonPathActive: Custom JSONPath
+  presetApplied: Preset applied
+  presetAppliedMappings:
+    Added {count} default category mappings (all in flag mode
+    — tune them below).
+  customJsonPathHint:
+    Open Endpoint below, fill in your HTTPS URL, request body
+    template, and the JSONPath for categories. The switch won't persist until
+    those fields are set.
+  enableNeedsEndpoint: Set an endpoint first. Open Endpoint below and add the
+    moderation API URL — enabling won't persist until it's configured.
+  apiKey: API key
+  apiKeyDescription:
+    Pasted here, encrypted with AES-256-GCM on the server, and
+    stored in governanceSecrets. The plaintext value replaces
+    `{secretPlaceholder}` in your endpoint headers at request time. Use the
+    full header value for Authorization-style headers (e.g. 'Bearer sk-…');
+    raw key for Azure's Ocp-Apim-Subscription-Key.
+  apiKeyPlaceholder: Bearer sk-... or raw API key
+  apiKeySaved: API key saved
+  apiKeyLoading: Loading…
+  apiKeyNotConfigured: Not configured
+  replaceKey: Replace
+  setKey: Set key
+  endpoint: Endpoint
+  endpointDescription: HTTPS URL, headers, request template, and timeout for the external call.
+  endpointUrlLabel: URL
+  endpointHeadersLabel: Headers
+  endpointTimeoutLabel: Timeout
+  endpointUrlNotSet: Not set
+  endpointTimeoutValue: '{ms} ms'
+  editEndpointTitle: Edit endpoint
+  editEndpointDescription: URL, headers, and request template are validated
+    server-side. {textPlaceholder} and {directionPlaceholder} placeholders are
+    JSON-safe; {secretPlaceholder} is only allowed in header values.
+  endpointUrlField: Endpoint URL
+  endpointUrlFieldDescription:
+    Full HTTPS URL of the moderation API (HTTP allowed
+    for internal / localhost mocks). Only this host is contacted — redirects
+    to other hosts are rejected for SSRF safety.
+  endpointUrlPlaceholder: https://api.example.com/v1/moderate
+  headersTitle: Headers
+  headerNameAria: Header name
+  headerNamePlaceholder: Authorization
+  headerValueAria: Header value
+  headerValuePlaceholder: Bearer {secretPlaceholder}
+  removeHeaderAria: Remove header
+  addHeader: Add header
+  requestTemplateLabel: Request body template
+  requestTemplateDescription: JSON with {textPlaceholder} and optional
+    {directionPlaceholder} placeholders. Substitution is JSON-safe; secrets
+    are NOT permitted in the body, only in headers.
+  timeoutLabel: Timeout (ms)
+  parseResponseLabel: Parse provider response
+  parseResponseDescription:
+    Tell us how the provider's JSON response looks so we
+    can pull out the flagged categories. If you're not sure, run the provider
+    once in a terminal (curl) and paste the response shape into your picks
+    below.
+  shapeStepTitle: 1. Pick the response shape
+  shapeStepDescription: Which format does the provider use for its category flags?
+  shapeRecordBool: Object of booleans
+  shapeRecordScore: Object of scores
+  shapeArray: Array of names
+  pathStepTitle: 2. Path to the categories
+  pathStepRequired: '*required'
+  pathStepDescription:
+    Where the shape above lives inside the response. A dollar
+    sign is the root; dots traverse objects; numbers in brackets index arrays.
+  pathExampleTitle: 'Example response body this path matches:'
+  pathExampleExplanation: The path picks out the bold part.
+  showAdvanced: Show advanced (overall flagged path)
+  flaggedPathLabel: Overall flagged path
+  flaggedPathOptional: (optional)
+  flaggedPathDescription:
+    Some providers also return a single top-level boolean —
+    e.g. OpenAI's $.results[0].flagged. If set, `false` here short-circuits
+    the category check and the message passes. Leave empty for providers that
+    don't have this field.
+  categoryMappings: Category mappings
+  categoryMappingsDescription: Map provider categories (e.g. OpenAI's
+    `hate/threatening`) to an internal label, enforcement mode, and optional
+    score threshold. Block wins over mask wins over flag.
+  mappingsEmpty: No category mappings configured. Add one to enforce this
+    provider's verdicts.
+  mappingsWarning:
+    No category mappings configured. The provider is being called
+    on every message but nothing will ever be flagged, masked, or blocked —
+    only mapped categories produce events. Add at least one mapping below, or
+    re-apply a preset to seed defaults.
+  mappingColumnProviderCategory: Provider category
+  mappingColumnInternalLabel: Internal label
+  mappingColumnMode: Mode
+  mappingColumnThreshold: Threshold
+  mappingColumnEnabled: Enabled
+  yes: Yes
+  no: No
+  addMapping: Add category mapping
+  editMappingAria: Edit mapping for {category}
+  editMappingTitle: Edit category mapping
+  addMappingTitle: Add category mapping
+  deleteMappingConfirmTitle: Delete category mapping?
+  deleteMappingConfirmDescription: This mapping will no longer apply when the provider returns this category.
+  deleteMappingConfirmAction: Delete
+  mappingDialogDescription: Block wins over mask wins over flag when multiple mappings fire.
+  providerCategoryLabel: Provider category
+  providerCategoryDescription:
+    The exact category key the provider returns (e.g.
+    `hate`, `hate/threatening`, `violence`).
+  providerCategoryPlaceholder: hate
+  internalLabelLabel: Internal label
+  internalLabelDescription: Human-readable name shown in the audit log and dashboards.
+  internalLabelPlaceholder: Hate speech
+  modeLabel: Mode
+  modeBlock: Block
+  modeMask: Mask (flag-equivalent)
+  modeFlag: Flag
+  scoreThresholdLabel: Score threshold
+  scoreThresholdDescription: Optional. When the provider returns scores, the
+    mapping only fires when the category's score is at or above this value.
+  scoreThresholdPlaceholder: '0.5'
+  testConnection: Test connection
+  testConnectionDescription:
+    Send a sample message through the real provider path.
+    Verifies the API key, endpoint URL, request template, response parser, and
+    category mappings in one round-trip. No chat message is saved — this call
+    bypasses the thread and audit pipeline.
+  testPlaceholder: Type a sample message to send through the provider…
+  testDefaultText: I want to kill everyone in this building
+  testing: Testing…
+  runTest: Run test
+  testPass: Call succeeded — no categories matched
+  testFlagged: Call succeeded — flagged
+  testBlocked: Call succeeded — would block
+  testModified: Call succeeded — would mask
+  testNotConfigured: Not configured
+  testStepError: Step error ({errorClass})
+  testResultHttpStatus: HTTP status
+  testResultDuration: Duration
+  testResultDurationValue: '{ms} ms'
+  testResultMatched: Matched
+  testResultMatchCount: Match count
+  testResultCircuit: Circuit
+  testResultCircuitOpened: Opened by this failure
+  saved: Moderation provider saved
+  saveFailed: Save failed
+  presetAzure: Use Azure Content Safety
+  presetAzureActive: Azure Content Safety
+  presetAzureNote: Replace the subdomain with your own Azure resource name.
+  presetOpenai: Use OpenAI Moderation
+  presetOpenaiActive: OpenAI Moderation
+  presetPerspective: Use Perspective API
+  presetPerspectiveActive: Perspective API
+  presetPerspectiveNote:
+    Perspective authenticates via a URL query parameter, not
+    a header. After applying the preset, open Endpoint and append
+    ?key=YOUR_PERSPECTIVE_KEY to the URL. (The encrypted API-key field below
+    is not used by Perspective.)
+groups:
+  contentAndModels: Models
+  policiesAndLimits: Policies & Limits
+  securityAndMonitoring: Security
+  competences: Competences
+  legalHold: Legal hold
+  trash: Trash
+  guardrails: Guardrails
+  logs: Logs
+  dataSubjectRequests: Data subject requests
+competences:
+  title: Competences
+  description: Let a member do one narrow thing without an admin seat, or record a qualification your review policy asks for. Every grant and revocation is audited, and removing a member revokes their grants.
+  accessDenied: Only organization owners and admins can manage competences.
+  formerMember: Former member
+  grantedBy: by {name}
+  revokedBy: Revoked by {name}
+  revokedBySystem: Replaced by a new grant after it expired
+  columns:
+    member: Member
+    competence: Competence
+    status: Status
+    granted: Granted
+    evidence: Evidence
+    actions: Actions
+  status:
+    active: Active
+    expired: Expired
+    revoked: Revoked
+  statusDetail:
+    until: Until {date}
+    noExpiry: No expiry
+  capabilities:
+    modelsApi:
+      label: Call models over the API
+      description: Use the organization's models from one's own tools with a personal API key, through the OpenAI- and Anthropic-compatible endpoints, once the model access policy turns them on. Owners, admins and developers can without it.
+    notificationsExport:
+      label: Export notifications
+      description: Read the notifications another member can see through the REST API, to mirror them into another application.
+    restActAs:
+      label: Act for another member
+      description: Name the member an API call answers a question or decides a review for, so the record shows that person instead of the key.
+    skillsPublish:
+      label: Publish skills to the organization
+      description: Share a skill with the whole organization even when the skill sharing policy reserves that for Editors or admins.
+  empty:
+    title: No competences granted yet
+    description: Grant a member a platform capability or a qualification. It applies in this organization only.
+  actions:
+    grant: Grant competence
+    revoke: Revoke
+    revokeFor: Revoke {competence} from {member}
+  grantDialog:
+    title: Grant a competence
+    description: The member holds it in this organization until it expires or an admin revokes it.
+    memberLabel: Member
+    memberPlaceholder: Select a member
+    memberSearch: Search members
+    memberEmpty: No members found
+    competenceLabel: Competence
+    competencePlaceholder: Select a competence
+    capabilitiesGroup: Platform capabilities
+    qualificationsGroup: Your organization
+    qualificationOption: Qualification
+    qualificationOptionDescription: A name your review policy asks for
+    qualificationLabel: Qualification name
+    qualificationDescription: The name your review policy uses, for example tax-reviewer.
+    expiryLabel: Expires
+    expiryOptions:
+      never: Never
+      30days: In 30 days
+      90days: In 90 days
+      1year: In 1 year
+    evidenceLabel: Evidence
+    evidenceDescription: Why this member holds it, such as a certificate, a ticket or the system it serves. It stays in the register.
+    submit: Grant
+    validation:
+      memberRequired: Select a member.
+      competenceRequired: Select a competence.
+      qualificationRequired: Enter a qualification name.
+      qualificationTooLong: Use at most 120 characters.
+      qualificationReserved: 'Names starting with "tale:" are reserved for platform capabilities.'
+      evidenceTooLong: Use at most 2,000 characters.
+  revokeDialog:
+    title: Revoke competence?
+    description: '{member} loses "{competence}" in this organization right away. The grant stays in the register as history.'
+    confirm: Revoke
+  toasts:
+    granted: Competence granted
+    revoked: Competence revoked
+    revokeFailed: Couldn't revoke the competence
+  errors:
+    generic: Couldn't save the change. Try again.
+    alreadyGranted: This member already holds this competence. Revoke the current grant before you grant it again.
+    notMember: This person is not a member of the organization.
+    forbidden: Only organization owners and admins can grant or revoke competences.
+    capabilityUnknown: This is not a platform capability.
+    expiryInPast: The expiry has to be in the future.
+    evidenceTooLong: Evidence can be at most 2,000 characters.
+    invalid: A competence name has 1 to 120 characters.
+    notFound: This grant no longer exists.
+    alreadyRevoked: This grant has already been revoked.
+trash:
+  title: Trash
+  description: Recover retention-trashed records before they are permanently
+    deleted at the end of the grace window.
+  accessDenied: Admin only.
+  empty:
+    Nothing in the trash. Retention will move expired rows here once their
+    grace window starts.
+  filterTitle: Category
+  column:
+    type: Type
+    name: Name
+    owner: Owner
+    status: Status
+    statusChangedAt: Trashed
+    actions: Actions
+  status:
+    trashed: Trashed
+    expired: Expired
+  tab:
+    thread: Chat history
+    document: Documents
+    fileMetadata: Temporary files
+    promptTemplate: Prompt templates
+    messageFeedback: Message feedback
+    contact: Contacts
+    externalConversation: External conversations
+    messageMetadata: Message metadata
+    workflowExecution: Automation runs
+    workflowTriggerLog: Automation trigger logs
+    usageLedger: Usage ledger
+    auditLog: Audit logs
+    chatFilterEvent: Chat filter events
+    chatThread: Chats
+    memoryAudit: Memory audit
+  restore:
+    label: Restore
+    confirm: Restore
+    trashedTitle: Restore record?
+    trashedDescription: Bring this record back to active. It will return to its source list.
+    expiredTitle: Restore retention-expired record?
+    expiredDescription: This record was deleted by retention policy. Restoring
+      overrides that policy and brings the record back to active. Audited.
+    expiredPhraseLabel: Type "restore" to confirm
+    restoredToast: Restored.
+    failedToast: Couldn't restore
+    failedDescription: Couldn't restore this record.
+  emptyTitle: Trash is empty
+  entityLabelOne: record
+  entityLabel: records
+  refreshFailed: Couldn't load the latest records. What's listed may be incomplete or out of date.
+  loadFailed: Couldn't load the records in Trash.
+legalHold:
+  targetTypes:
+    thread: Thread
+    document: Document
+    execution: Execution
+    userMembership: User
+    org: Organization
+  filters:
+    allTargets: All target types
+    allStatuses: All statuses
+    active: Active
+    released: Released
+    open: Open
+    closed: Closed
+    pending: Pending
+    approved: Approved
+    rejected: Rejected
+    effected: Effected
+  sections:
+    activeHolds:
+      title: Active holds
+      description: Items currently protected from cleanup and deletion. Place holds at the user (custodian) or organization level.
+      empty:
+        title: No active legal holds
+        description:
+          Place a custodian hold on a specific user, or an organization-wide
+          hold from the action above.
+    releaseRequests:
+      title: Release requests
+      description:
+        Pending requests need a different admin to approve. Approved
+        requests still wait out the cooldown before they take effect.
+      pendingHeader: Pending approval
+      approvedHeader: Approved (awaiting cooldown)
+      empty:
+        title: No release requests
+        description: Filed release requests appear here for dual-control review.
+    matters:
+      title: Matters
+      description:
+        Group holds by case. Closing a matter files release requests for
+        every linked hold (still subject to dual-control approval).
+      empty:
+        title: No matters
+        description: Create a matter to group holds by case number or eDiscovery scope.
+    history:
+      title: Release history
+      entityLabel: releases
+      entityLabelOne: release
+      description: Read-only audit of effected and rejected release requests.
+      empty:
+        title: No completed release requests yet
+        description: Effected and rejected releases appear here.
+  columns:
+    type: Type
+    target: Target
+    reason: Reason
+    matter: Matter
+    placedBy: Placed by
+    placedAt: Placed
+    actions: Actions
+    status: Status
+    name: Name
+    caseNumber: 'Case #'
+    linkedHolds: Linked holds
+    createdAt: Created
+    requestedBy: Requested by
+    requestedAt: Requested
+    approvedBy: Approved by
+    effectiveAt: Effective
+    rejectReason: Reject reason
+    legacy: (legacy)
+  actions:
+    placeHold: Place legal hold
+    requestRelease: Request release
+    approve: Approve
+    reject: Reject
+    createMatter: Create matter
+    editMatter: Edit
+    closeMatter: Close matter
+  dialogs:
+    placeHold:
+      title: Place legal hold
+      description:
+        Preserve content for litigation, audit, or eDiscovery. Place a
+        custodian hold on a specific user, or an organization-wide hold. A
+        reason is required and recorded in the audit log.
+      targetTypeLabel: Target type
+      userPickerLabel: User
+      userPickerPlaceholder: Search by name or email
+      userPickerEmpty: No matching users.
+      userPickerFailed: Users could not be loaded.
+      orgWarning:
+        Organization-wide holds freeze ALL retention for every entity in
+        this tenant. This is a deliberate, audit-logged action — review the
+        matter context before continuing.
+      orgConfirmLabel: Type {phrase} to confirm
+      orgConfirmDescription:
+        Required for organization-wide holds. The submit button
+        stays disabled until the phrase matches exactly.
+      reasonLabel: Reason
+      reasonPlaceholder: 'e.g. Litigation hold for Acme v. Co. (matter #2026-04)'
+      matterLabel: Matter
+      matterPlaceholder: Pick or create a matter
+      matterPickerFailed: Matters could not be loaded.
+      matterCreateNew: Create new matter…
+      submit: Place hold
+    requestRelease:
+      title: Request release
+      description:
+        Filing a release request kicks off a dual-control flow. A different
+        admin must approve, and the release does not take effect until after
+        the cooldown.
+      reasonLabel: Reason
+      submit: File request
+    approveRelease:
+      title: Approve release
+      description:
+        Approving this request will release the hold after the configured
+        cooldown. This is the second of two admin signatures.
+      submit: Approve
+      selfApproveBlocked:
+        A different admin must approve. Self-approve is blocked
+        unless the deployment is configured for single-admin mode.
+    rejectRelease:
+      title: Reject release
+      description: Rejecting closes the request without releasing the hold.
+      reasonLabel: Reject reason
+      submit: Reject
+    upsertMatter:
+      createTitle: Create matter
+      editTitle: Edit matter
+      description:
+        Group related holds under one matter. Closing the matter later
+        files release requests for every linked hold.
+      nameLabel: Name
+      namePlaceholder: e.g. Acme v. Co. (2026-04)
+      caseNumberLabel: Case number
+      descriptionLabel: Description
+      submitCreate: Create matter
+      submitEdit: Save
+    closeMatter:
+      title: Close matter
+      description:
+        Closing this matter will file release requests for {count} active
+        linked hold(s). Each release still requires dual-control approval
+        before it takes effect.
+      reasonLabel: Release reason
+      reasonPlaceholder: e.g. Matter closed; preservation no longer required.
+      submit: Close matter
+  toasts:
+    placedTitle: Legal hold placed
+    placedDescription: The {targetType} is now protected from cleanup and deletion.
+    releaseRequestedTitle: Release request filed
+    releaseRequestedDescription: Awaiting approval from a different admin.
+    releaseApprovedTitle: Release approved
+    releaseRejectedTitle: Release rejected
+    matterCreatedTitle: Matter created
+    matterUpdatedTitle: Matter updated
+    matterClosedTitle: Matter closed
+    matterClosedDescription: '{count} release request(s) filed.'
+  countdown:
+    ready: Ready
+    soon: Less than a minute
+    minutesSeconds: '{minutes}m {seconds}s'
+    hoursMinutes: '{hours}h {minutes}m'
+    daysHours: '{days}d {hours}h'
+  errors:
+    generic:
+      title: Couldn't finish that action
+      description: Try again. If it keeps happening, contact your administrator.
+    unauthenticated: Sign in required.
+    forbidden: You don't have permission to do this.
+    validation: Check the form fields.
+    notFound: Not found.
+    alreadyActive: An active legal hold already exists on this target.
+    matterNotFound: That matter does not exist in this organization.
+    targetNotInOrg: That target does not belong to this organization.
+    targetOrgMismatch: Org-scoped hold target must equal the organization itself.
+    alreadyReleased: This legal hold has already been released.
+    releaseAlreadyPending: A release request is already pending for this hold.
+    releaseNotPending: Release request is no longer in pending state.
+    selfApprovalBlocked: A different admin must approve this release. Set
+      TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true to allow self-approval in
+      single-admin deployments.
+    approvalTooSoon: Approval is allowed in {countdown}.
+    requesterNoLongerAdmin:
+      The original requester is no longer an admin of this
+      org. Reject this request and have a current admin file a new one.
+    bulkTooLarge: At most 200 entries per batch.
+modelAccess:
+  title: Model access
+  description: Control which AI models are available to users, teams, and roles.
+  enabled: Enable model access policy
+  mode: Mode
+  addRule: Add rule
+  editRule: Edit rule
+  deleteRule: Delete rule
+  removeRuleConfirmTitle: Delete access rule?
+  removeRuleConfirmDescription: This rule will no longer apply to the matching
+    users. You can always re-create it later.
+  removeRuleConfirmAction: Delete
+  noRulesTitle: No access rules configured
+  noRulesDescription: All models are available to all users.
+  scope: Scope
+  target: Target
+  actions: Actions
+  allowedModels: Allowed models
+  blockedModels: Blocked models
+  allUsers: All users
+  role: Role
+  user: User
+  team: Team
+  selectUser: Select user
+  selectTeam: Select team
+  selectModels: Select models
+  searchUsers: Search users
+  searchTeams: Search teams
+  noUsersFound: No users found
+  noTeamsFound: No teams found
+  confirm: Confirm
+  saved: Model access policy updated
+  saveFailed: Couldn't save model access policy
+  removeDefaultConfirmTitle: Remove permission for active default model?
+  removeDefaultConfirmBody:
+    'The following default model rule(s) currently assign
+    models that would no longer be permitted: {rules}. Affected users will
+    fall back to another permitted model.'
+  removeDefaultConfirmAction: Save anyway
+  scopeLabels:
+    default: Default
+    user: User
+    team: Team
+    role: Role
+  roleLabels:
+    admin: Admin
+    developer: Developer
+    editor: Editor
+    member: Member
+  modeLabels:
+    allowlist: Allowlist
+    blocklist: Blocklist
+  modelApi:
+    title: Model endpoints for API keys
+    description: Let owners, admins and developers — and members granted the
+      Call models over the API competence — use the models this policy allows
+      from their own tools with a personal API key, over OpenAI- and
+      Anthropic-compatible endpoints. Calls count against budgets and pass the
+      input guardrails; the models' answers are not filtered.
+    enabled: Enable model endpoints for API keys
+dataSubjectRequests:
+  title: Data subject requests
+  entityLabel: requests
+  entityLabelOne: request
+  description: GDPR Art. 17 erasure receipts. File new requests, monitor SLA
+    deadlines, and grant Art. 12(3) extensions when complex cases need more
+    time.
+  accessDenied: Admin only.
+  filters:
+    statusTitle: Status
+  sections:
+    requestsList:
+      title: Requests
+      empty:
+        title: No erasure requests yet
+        description: File a request from the action above to record an Art. 17 receipt.
+  columns:
+    status: Status
+    sla: SLA
+    target: Subject
+    reasonCode: Reason code
+    requestedBy: Filed by
+    requestedAt: Filed
+  status:
+    pending: Pending
+    pendingCoolingOff: Pending · {hours, plural, one {# h} other {# h}} until execution
+    pendingAwaitingApproval: Awaiting approval
+    running: Running
+    done: Completed
+    partial: Partial
+    failed: Failed
+    blocked: Blocked
+    cancelled: Cancelled
+  slaBadge:
+    daysLeft: '{days}d left'
+    daysLeftOne: 1d left
+    overdue: Overdue {days}d
+    terminal: —
+  reasonCodes:
+    consent_withdrawn:
+      label: Consent withdrawn
+    no_longer_necessary:
+      label: No longer necessary
+    unlawful_processing:
+      label: Unlawful processing
+    legal_obligation:
+      label: Legal obligation
+    objection:
+      label: Subject objection
+    child:
+      label: Child subject
+    contract_termination:
+      label: Contract termination
+  actions:
+    fileRequest: File request
+    extendDeadline: Extend deadline
+    retry: Retry
+    cancel: Cancel request
+  approval:
+    description: A different admin must approve this request before its waiting period begins.
+    capturedPolicy: The approval requirement was captured when the request was filed; a later policy change does not apply to it.
+    approve: Approve request
+    reject: Reject request
+    approveDescription: Approve this erasure request and start its configured waiting period. With no waiting period, erasure can begin immediately.
+    rejectDescription: Reject this erasure request. The request will be cancelled and no erasure will run.
+    saved: Decision saved
+  drawer:
+    description: Receipt detail with audit timeline.
+    headerTitle: Erasure receipt
+    subjectSection: Subject and request
+    countersSection: Counters
+    auditSection: Audit timeline
+    auditEmpty: No audit entries yet.
+    reasonNarrative: Reason narrative
+    slaDeadline: SLA deadline
+    extensionGrantedTitle: Extension granted by {name}
+    threadsErased: Threads erased
+    threadsSkippedByHold: Threads skipped by hold
+    threadsBlockedByHold: Threads blocked by hold
+    documentsBlockedByHold: Documents blocked by hold
+    ragDocumentsRemoved: RAG documents removed
+    documentsErased: Documents erased
+    documentsSkippedByHold: Documents skipped by hold
+    wfExecutionsErased: Automation runs erased
+    startedAt: Started
+    completedAt: Completed
+    errorMessage: Error
+    errorState:
+      title: Could not load this request
+      description: The receipt may have been deleted, or you may not have access to it.
+      retry: Try again
+    coolingOffBanner:
+      title: Cooling-off in progress
+      description:
+        This request is held in a cooling-off window before the cascade
+        runs. Any admin can cancel it before the deadline elapses.
+    cancelledBlock:
+      title: Cancelled
+      attribution: Cancelled by {name}
+    fullBreakdownTitle: Full breakdown across all data categories
+    fullBreakdownEntry: '{rows, plural, =0 {0 erased} one {# erased} other {#
+      erased}}{skippedByHold, plural, =0 {} other { · # skipped by hold}}'
+    fullBreakdownNoData:
+      No data in {count, plural, one {# other category} other {#
+      other categories}}.
+  auditActions:
+    gdpr_erasure_requested: Filed
+    gdpr_erasure_denied: Denied
+    gdpr_erasure_blocked_by_hold: Blocked by legal hold
+    gdpr_erasure_executed: Executed
+    gdpr_erasure_watchdog_failed: Timed out (watchdog)
+    gdpr_erasure_late_finalize_dropped: Late finalize ignored
+    gdpr_erasure_cascade_attempts_exhausted: Cascade attempts exhausted
+    gdpr_erasure_extended: Deadline extended
+    gdpr_erasure_retried: Retried
+    gdpr_erasure_rejected: Rejected
+    gdpr_erasure_cancelled: Cancelled
+  categories:
+    userMemories: Personal memories
+    userPreferences: User preferences
+    messageFeedback: Message feedback
+    fileMetadata: Chat-uploaded files
+    usageLedger: Token usage ledger
+    twoFactorAttempts: Two-factor attempts
+    policyAcknowledgements: Policy acknowledgements
+    onedrive: OneDrive sync configs
+    googleDriveSync: Google Drive sync configs
+    userCloudAuthorizations: Cloud import authorizations
+    loginAttempts: Login attempts and lockouts
+    notifications: Security notifications
+    wfExecutions: Automation runs
+    promptTemplates: Personal prompts
+    sandboxWorkspaces: Sandbox workspaces
+  legalHoldBlock:
+    title: Erasure blocked by legal hold
+    orgHeld:
+      An organization-wide hold is preserving every entity in this tenant.
+      Release it before retrying erasure.
+    userCustodianHeld: The subject is on a custodian hold. Release it before retrying erasure.
+    generic: An active legal hold is preserving the subject's data.
+    released: The hold was released — choose Retry to continue the erasure.
+    threadsCount: '{count, plural, =1 {# held thread} other {# held threads}} preserved.'
+    documentsCount:
+      '{count, plural, =1 {# held document} other {# held documents}}
+      preserved.'
+    openLegalHold: Open legal hold settings
+    openLegalHoldAria: Open legal hold settings
+  dialogs:
+    fileRequest:
+      title: File erasure request
+      description:
+        Records an Art. 17 receipt for the chosen subject and runs the
+        cascade asynchronously. Identity verification is the filing admin's
+        responsibility — confirm the subject's identity through your
+        organization's process before continuing.
+      userPickerLabel: Subject
+      userPickerPlaceholder: Search by name or email
+      userPickerEmpty: No matching members.
+      userPickerFailed: Members could not be loaded.
+      reasonCodeLabel: Lawful ground
+      reasonCodeDescription: GDPR Art. 17(1)(a)–(f) plus the operational
+        contract-termination ground.
+      reasonLabel: Reason narrative
+      reasonPlaceholder: 'e.g. Subject withdrew consent on 2026-05-08 — HR ticket #4711'
+      confirmLabel: Type {phrase} to confirm
+      confirmDescription:
+        Required for every erasure request. The submit button stays
+        disabled until the phrase matches exactly.
+      submit: File request
+    extendDeadline:
+      title: Extend Art. 12(3) deadline
+      description:
+        Add up to 60 days to the response window. The extension itself must
+        be communicated to the subject within the original month, with
+        reasons, per Art. 12(3). Each request can be extended at most once.
+      extraDaysLabel: Extra days ({min}–{max})
+      extraDaysDescription: Whole days added on top of the original 30-day deadline.
+      extraDaysError: Enter a whole number between {min} and {max}.
+      extensionReasonLabel: Extension reason
+      extensionReasonPlaceholder: e.g. Cross-border legal review — counsel asked for an extra two weeks
+      submit: Grant extension
+    retry:
+      title: Retry erasure
+      description: Re-runs the cascade for this request. Use after releasing a
+        blocking legal hold or after fixing whatever caused the previous
+        failure.
+      confirm: Retry
+    cancel:
+      title: Cancel erasure request
+      description: Aborts this request before it executes. The receipt row is
+        preserved as a record of the cancellation, but no data is deleted.
+        Cancellation is only possible during the cooling-off window.
+      reasonLabel: Cancellation reason
+      reasonPlaceholder: 'e.g. Subject withdrew their request — verified via HR ticket #4712'
+      confirm: Cancel request
+  toasts:
+    filedTitle: Erasure request filed
+    filedDescription: The cascade is running. Open the receipt to track progress.
+    extendedTitle: Deadline extended
+    extendedDescription: Added {days, plural, =1 {# day} other {# days}} to the response window.
+    retryTitle: Erasure retry started
+    retryDescription: The cascade has been re-scheduled.
+    cancelledTitle: Erasure request cancelled
+    cancelledDescription:
+      The request will not execute. The receipt row is preserved
+      for the audit trail.
+  errors:
+    generic:
+      title: Couldn't finish that action
+      description: Try again. If it keeps happening, contact your administrator.
+    unauthenticated: Sign in required.
+    forbidden: You don't have permission to do this.
+    validation: Check the form fields.
+    notFound: Not found.
+    alreadyPending: An erasure request for this subject is already open — pending, running, blocked by a hold, or partially done. Retry it (or cancel it while it is still pending) instead of filing again.
+    legalHoldBlocked: An active legal hold is preserving this subject's data.
+    notRetriable: This request is not in a state that can be retried.
+    notExtendable: This request is in a terminal state and cannot be extended.
+    alreadyExtended:
+      This request has already been extended once. Art. 12(3) allows
+      a single extension.
+    deadlineLapsed:
+      The original Art. 12(3) deadline has already passed; extensions
+      cannot be granted retroactively.
+    reasonTooShort: Provide a reason of at least 10 characters.
+    notCancellable: Only pending requests in the cooling-off window can be cancelled.
+    cannotCancelAfterCooldown:
+      The cooling-off window has elapsed; the processor has
+      already been dispatched.
+    rateLimited:
+      You have reached the daily erasure-request limit for your account.
+      Try again later.
+    dualApprovalRequired: 'Dual approval is required: the filer of an erasure
+      request cannot also approve it.'
+dsarPolicy:
+  title: Data subject request governance
+  description:
+    Cooling-off window, dual-admin approval, and per-admin daily filing
+    limit for GDPR Art. 17 erasure requests.
+  coolingOffHours:
+    label: Cooling-off window (hours)
+    description:
+      'Hours between filing a request and the cascade actually running.
+      Any admin can cancel within this window. Set to 0 to execute
+      immediately. Range: 0–72.'
+  requireDualApproval:
+    label: Require dual approval
+    description:
+      When enabled, every filed request must be approved by a second
+      admin (the filer cannot approve their own request) before the
+      cooling-off window starts. Recommended for high-stakes deployments with
+      two or more admins.
+  dailyLimitPerAdmin:
+    label: Daily limit per admin
+    description:
+      'Maximum number of erasure requests a single admin may file per
+      day. Caps blast radius from a compromised admin credential. Range:
+      1–50.'
+  saved: Data subject request governance updated.
+  saveFailed: Couldn't save the policy. Try again.
+  invalidCoolingOffHours: Cooling-off window must be a whole number between 0 and 72.
+  invalidDailyLimit: Daily limit must be a whole number between 1 and 50.
+  ownerOnlyNotice:
+    Only the org owner can change this policy. Admins can read it.
+    To weaken any safeguard (shorter cooling-off, disabling dual approval, or
+    raising the daily limit), the change is staged for 24 hours so any admin
+    can revert it.
+  loosenProposedTitle: Change staged — 24h review window started
+  loosenProposedDescription:
+    Weakening changes apply after a 24-hour grace window.
+    Any admin can cancel before then.
+  loosenCancelledTitle: Pending change cancelled.
+  pendingFieldLocked: Locked while review window is open
+  pendingBanner:
+    title: Pending policy weakening
+    description: Proposed by {name}. Any admin can cancel before this takes effect.
+    cancel: Cancel pending change
+errors:
+  saveForbidden: You don't have permission to change this setting.
+conversationRouting:
+  title: Conversation routing
+  description: 'Route new conversations to a team or person by where they arrive: a mailbox, the address they were sent to, or an API app. Rules apply automatically the moment a conversation comes in.'
+  addRule: Add rule
+  editRule: Edit rule
+  deleteRule: Delete rule
+  sentTo: Sent to
+  addressPlaceholder: billing@yourcompany.com
+  invalidAddress: Enter a valid email address
+  assignedTo: Assigned to
+  actions: Actions
+  noRulesTitle: No routing rules
+  noRulesDescription: 'Add a rule to auto-assign new conversations by the mailbox or API app they arrive on, or the address they were sent to.'
+  removeRuleConfirmTitle: Remove routing rule?
+  removeRuleConfirmDescription: 'New conversations this rule matches will no longer be auto-assigned.'
+  removeRuleConfirmAction: Remove
+  confirm: Save rule
+  saved: Routing rules updated
+  saveFailed: Couldn't save the routing rules
+  routeTo: Route to
+  routeToPlaceholder: Select a team or person
+  peopleSection: People
+  teamsSection: Teams
+  searchAssignees: Search people and teams
+  noAssignees: No people or teams found
+  removePerson: Remove person
+  removeTeam: Remove team
+  handoffAddRuleDescription: 'New conversations like this one will be assigned automatically. These rules live here under Conversation routing — open this page anytime from Settings.'
+  backToConversation: Back to conversation
+  arrivesOn: Arrives on
+  anyMailbox: Any mailbox
+  mailboxesSection: Mailboxes
+  apiSection: API apps
+  apiSource: 'API: {source}'
+  sentToHint: 'Required for Any mailbox, optional for one mailbox. A rule for support@ also catches support+billing@, and a rule for the tagged address wins.'
+  anyAddress: Any address
+  removedMailbox: Removed mailbox
+  duplicateRule: A rule for this mailbox and address already exists
+  precedence: 'The most specific rule wins: a mailbox with its exact address, then a mailbox with the base address, then an address on any mailbox, then a mailbox alone.'
+standardAgent:
+  title: Standard agent
+  description: The agent Tale provides in every project that has none of its own, so anyone who can open the project can hand it a task, Members included.
+  enabledLabel: Provide a standard agent
+  harnessLabel: Agent type
+  harnessHint: Automatic runs Claude Code, or the agent type a subscription model is bound to.
+  modelLabel: Model
+  modelHint: Automatic picks a recommended model the person starting the task may use. A chosen model stays in effect until you change it, even if it becomes unavailable.
+  automaticLabel: Automatic
+  automaticHarnessHint: Let Tale choose the agent type.
+  automaticModelHint: Let Tale choose a model for each person.
+  instructionsLabel: Instructions
+  instructionsHint: What the standard agent always keeps in mind. Leave this empty to use the built-in instructions.
+  instructionsPlaceholder: Built-in instructions
+  current: For you, it runs on {harness} with {model}.
+  refusal:
+    switchedOff: The standard agent is switched off.
+    unreadable: The saved settings can't be read. Retry, or save them again to repair them.
+    harnessInvalid: The chosen agent type isn't available, so the standard agent can't start. Choose another agent type or Automatic.
+    noModel: No model you can use can run the standard agent. Add a credential under AI providers, or check model access.
+    pinUnavailable: The chosen model isn't available to you, so the standard agent can't start for you. Choose another model or Automatic. Tale won't switch to another model while this choice is saved.
+  invalidPolicy: The saved standard agent settings are invalid. Save them again to repair them.
+  savedUnavailable: Saved selection is not currently available
+  searchHarnesses: Search agent types
+  noHarnessesFound: No matching agent type
+  searchModels: Search models
+  noModelsFound: No matching model
+  draftHint: Save to apply these settings.
+  saveFailed: Couldn't save the standard agent settings
+  loadFailed: Couldn't load the standard agent settings. Retry to load them.
+  remoteUpdate: These settings changed in another session. Discard your draft to load them, or save to replace them.
+  offNote: While this is off, projects without agents of their own offer no agent, and tasks already given to a standard agent can't start.
+  providersLink: AI providers
+  retry: Retry

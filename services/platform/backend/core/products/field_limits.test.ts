@@ -7,7 +7,7 @@ import { iso4217Currencies, isIso4217Currency } from './field_limits';
  * share. The regression under test: `currency` was any string of at most
  * three characters, so `ZZZ`, `123` and `$` were stored as ISO 4217 codes.
  */
-describe('isIso4217Currency', () => {
+describe('isIso4217Currency [PROD-R3]', () => {
   it('knows the runtime’s ICU currency list, uppercase', () => {
     const known = iso4217Currencies();
     expect(known).not.toBeNull();

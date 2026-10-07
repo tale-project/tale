@@ -101,6 +101,8 @@ function fakeTx(
     nameTaken?: boolean;
     insertedId?: string;
     archived?: boolean;
+    instructions?: string;
+    updatedAt?: number;
   } = {},
 ): {
   tx: TransactionSql;
@@ -111,7 +113,13 @@ function fakeTx(
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
     if (text.includes('FROM app.project_agents WHERE id = ?')) {
-      return Promise.resolve([AGENT]);
+      return Promise.resolve([
+        {
+          ...AGENT,
+          instructions: options.instructions ?? AGENT.instructions,
+          updatedAt: options.updatedAt ?? AGENT.updatedAt,
+        },
+      ]);
     }
     if (
       text.startsWith('INSERT INTO app.project_agents') &&
@@ -161,6 +169,7 @@ const updates = (statements: Statement[]) =>
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 /**
@@ -170,7 +179,7 @@ afterEach(() => {
  * client that reuses on 409 and gives up on 400 gave up on a recoverable
  * collision.
  */
-describe('a duplicate agent name is the 409 every other duplicate answers', () => {
+describe('a duplicate agent name is the 409 every other duplicate answers [PROJ-R8]', () => {
   it('refuses a create whose name another agent carries, in any case, writing nothing', async () => {
     const { tx, statements } = fakeTx(['REVIEW_TOKEN'], { nameTaken: true });
     await expect(
@@ -195,7 +204,7 @@ describe('a duplicate agent name is the 409 every other duplicate answers', () =
     ).toBe(false);
   });
 
-  it('refuses a create on an archived project with PROJECT_ARCHIVED, not a permission code', async () => {
+  it('refuses a create on an archived project with PROJECT_ARCHIVED, not a permission code [PROJ-R7]', async () => {
     // Archived = read-only: the guard used to answer PROJECT_FORBIDDEN, which
     // the dialog rendered as "Couldn't save the agent" — nothing said the
     // project was archived. The distinct code lets the UI say "restore it".
@@ -246,7 +255,7 @@ describe('the harness rule is the models door’s eligible set', () => {
       connectors: [],
     });
 
-  it('refuses a harness that brings its own credentials, and an unknown one, naming the eligible set', async () => {
+  it('refuses a harness that brings its own credentials, and an unknown one, naming the eligible set [PROJ-R9]', async () => {
     for (const harness of ['cursor', 'not-a-harness']) {
       const { tx, statements } = fakeTx();
       await expect(create(tx, harness)).rejects.toMatchObject({
@@ -281,7 +290,55 @@ describe('the harness rule is the models door’s eligible set', () => {
 });
 
 describe('updateProjectAgent — the optimistic precondition', () => {
-  it('refuses a stale expectedUpdatedAt with 409 and the current stamp, writing nothing', async () => {
+  it('stores null when existing instructions are cleared', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      instructions: 'Old instructions',
+    });
+    await updateProjectAgent(tx, auth, {
+      ...config,
+      secrets: ['REVIEW_TOKEN'],
+    });
+    const [statement] = updates(statements);
+    expect(updates(statements)).toHaveLength(1);
+    expect(statement.text).toContain('instructions = ?');
+    const instructionIndex =
+      statement.text
+        .slice(0, statement.text.indexOf('instructions = ?'))
+        .split('?').length - 1;
+    expect(statement.values[instructionIndex]).toBeNull();
+  });
+
+  it.each([20, 19, 200])(
+    'advances the revision at wall time %i and refuses the earlier reader',
+    async (now) => {
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      const first = fakeTx();
+      await updateProjectAgent(first.tx, auth, {
+        ...config,
+        name: 'First replacement',
+        expectedUpdatedAt: AGENT.updatedAt,
+      });
+      const revision = updates(first.statements)[0]!.values.at(-2);
+      expect(revision).toBeGreaterThan(AGENT.updatedAt);
+      expect(revision).toBeGreaterThanOrEqual(now);
+      const second = fakeTx(['REVIEW_TOKEN'], {
+        updatedAt: revision as number,
+      });
+      vi.clearAllMocks();
+      await expect(
+        updateProjectAgent(second.tx, auth, {
+          ...config,
+          name: 'Stale replacement',
+          expectedUpdatedAt: AGENT.updatedAt,
+        }),
+      ).rejects.toMatchObject({ code: 'PROJECT_AGENT_STALE', status: 409 });
+      expect(updates(second.statements)).toEqual([]);
+      expect(createAuditLog).not.toHaveBeenCalled();
+      expect(outbox.emitHintInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a stale expectedUpdatedAt with 409 and the current stamp, writing nothing [PROJ-R10]', async () => {
     const { tx, statements } = fakeTx();
     await expect(
       updateProjectAgent(tx, auth, { ...config, expectedUpdatedAt: 10 }),
@@ -293,7 +350,7 @@ describe('updateProjectAgent — the optimistic precondition', () => {
     expect(updates(statements)).toEqual([]);
   });
 
-  it('writes nothing for a replace that names the stored configuration (2026-09-19, K4-5)', async () => {
+  it('writes nothing for a replace that names the stored configuration (2026-09-19, K4-5) [PROJ-R10]', async () => {
     const { tx, statements } = fakeTx();
     await updateProjectAgent(tx, auth, {
       ...config,
@@ -343,7 +400,7 @@ describe('the standard agent follows the organization, not an edit', () => {
       return [];
     });
 
-  it('refuses a save of the standard agent with PROJECT_AGENT_MANAGED, writing nothing', async () => {
+  it('refuses a save of the standard agent with PROJECT_AGENT_MANAGED, writing nothing [PROJ-R11]', async () => {
     const { tx, statements } = managedTx();
 
     await expect(updateProjectAgent(tx, auth, config)).rejects.toMatchObject({
@@ -457,7 +514,7 @@ describe('the standard agent follows the organization, not an edit', () => {
 });
 
 describe('updateProjectAgent — equipment the project can no longer see', () => {
-  it('validates only the equipment a save ADDS, so a stored but unshared skill blocks nothing else', async () => {
+  it('validates only the equipment a save ADDS, so a stored but unshared skill blocks nothing else [PROJ-R9]', async () => {
     // The agent still names `gone-skill` (unshared from the scope after it
     // was equipped); the author changes the model and adds `docx`. Only
     // the addition is checked (2026-09-26 evaluation, C-09).
@@ -494,7 +551,7 @@ describe('updateProjectAgent — equipment the project can no longer see', () =>
   });
 });
 
-describe('deleteProjectAgent', () => {
+describe('deleteProjectAgent [PROJ-R12]', () => {
   it('clears the tasks the agent was assigned to, in the same transaction, and counts them in the audit', async () => {
     // The docs' promise ("clears task assignment references while preserving
     // task history") was never kept: the delete touched only the agent row,

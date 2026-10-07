@@ -5,7 +5,7 @@ import type { Id } from '../../lib/rows';
 import { findOrCreateContactFromEmail } from './find_or_create_contact_from_email';
 import type { EmailType } from './types';
 
-describe('findOrCreateContactFromEmail', () => {
+describe('findOrCreateContactFromEmail [CONV-R7]', () => {
   it('creates inbound contacts with source conversation, not manual_import', async () => {
     const runMutation = vi.fn(async () => ({
       contactId: 'cont_1' as Id<'contacts'>,

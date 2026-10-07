@@ -21,6 +21,9 @@ import {
 
 const mocks = vi.hoisted(() => ({
   run: null as unknown,
+  runError: false,
+  runFetching: false,
+  refetchRun: vi.fn(),
   pendingAsk: null as unknown,
   reviewer: undefined as TaskReviewerState | undefined,
   reviewerError: false,
@@ -46,8 +49,11 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
       return { data: mocks.pendingAsk };
     }
     return {
-      data:
-        query === 'automations/queries:getLiveRunForTask' ? mocks.run : null,
+      data: mocks.run,
+      isError: mocks.runError,
+      isFetching: mocks.runFetching,
+      error: mocks.runError ? new Error('503') : null,
+      refetch: mocks.refetchRun,
     };
   },
 }));
@@ -80,6 +86,8 @@ const actorNames: Record<string, string> = {
   reviewer: 'Review agent',
 };
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: (_organizationId: string, projectId?: string) => ({
     resolveActor: (type: string, id: string) => ({
       type,
@@ -179,6 +187,9 @@ function capturedReview(
 describe('TaskSubjectPanel', () => {
   beforeEach(() => {
     mocks.run = null;
+    mocks.runError = false;
+    mocks.runFetching = false;
+    mocks.refetchRun.mockReset();
     mocks.pendingAsk = null;
     mocks.reviewer = {
       reviewer: { kind: 'inherit' },
@@ -197,6 +208,71 @@ describe('TaskSubjectPanel', () => {
     mocks.updateStatus.mockResolvedValue(undefined);
     mocks.cancel.mockReset();
     vi.mocked(toast).mockClear();
+  });
+
+  it('retains ownership through failure and retry, then restores Start after an empty successful read', async () => {
+    mocks.run = undefined;
+    mocks.runError = true;
+    const view = renderPanel(ownedBy(), true);
+    expect(
+      screen.getByRole('region', { name: 'Document verification desk' }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        'Verifies one batch of incoming documents for completeness and consistency.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the workflow state.",
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Start' }),
+    ).not.toBeInTheDocument();
+    await view.user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(mocks.refetchRun).toHaveBeenCalledTimes(1);
+    expect(mocks.start).not.toHaveBeenCalled();
+    expect(mocks.cancel).not.toHaveBeenCalled();
+    expect(mocks.updateStatus).not.toHaveBeenCalled();
+    mocks.runError = false;
+    mocks.runFetching = true;
+    view.rerender(panel(ownedBy(), true));
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Try again' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    mocks.runError = true;
+    mocks.runFetching = false;
+    view.rerender(panel(ownedBy(), true));
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+    mocks.runError = false;
+    mocks.run = null;
+    view.rerender(panel(ownedBy(), true));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
+  });
+
+  it('does not derive workflow actions from stale data after a failed read', () => {
+    mocks.runError = true;
+    renderPanel(ownedBy(), true);
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Start' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps initial loading quiet and clears failed-read memory for another task', () => {
+    mocks.run = undefined;
+    const view = renderPanel(ownedBy(), true);
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
+    mocks.runError = true;
+    view.rerender(panel(ownedBy(), true));
+    expect(screen.getByRole('alert')).toBeVisible();
+    mocks.runError = false;
+    view.rerender(panel(ownedBy(), true, 'backlog', undefined, 'task_2'));
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
   });
 
   it('shows the captured agent review without human verdict actions on an automation-owned task', () => {
@@ -289,6 +365,32 @@ describe('TaskSubjectPanel', () => {
       taskId: 'task_1',
       status: 'done',
     });
+  });
+
+  it('explains a refused human approval when organization policy is unavailable', async () => {
+    mocks.reviewer = capturedReview({ kind: 'user', userId: 'alice' });
+    mocks.updateStatus.mockRejectedValueOnce(
+      new AppError({
+        code: 'TASK_REVIEW_POLICY_UNAVAILABLE',
+        message:
+          'The review policy is unavailable; restore valid configuration before deciding',
+      }),
+    );
+    const { user } = renderPanel(ownedBy(), true, 'in_review', 'alice');
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledExactlyOnceWith({
+        title:
+          'Review policy could not be read. Restore valid organization policy before deciding.',
+        variant: 'destructive',
+      }),
+    );
+    expect(mocks.updateStatus).toHaveBeenCalledExactlyOnceWith({
+      taskId: 'task_1',
+      status: 'done',
+    });
+    expect(mocks.addComment).not.toHaveBeenCalled();
+    expect(screen.getByText('Current review: Alice')).toBeInTheDocument();
   });
 
   it('does not offer a human verdict or name a future reviewer before the captured review loads', () => {

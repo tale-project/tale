@@ -185,4 +185,46 @@ describe('TwoFactorEnrollPage – enrollment-wall guard (#2085[04])', () => {
     ).not.toBeInTheDocument();
     expect(mockNavigate).not.toHaveBeenCalled();
   });
+
+  it('words a wrong password, and the lock repeated ones bring', async () => {
+    mockStatus.value = status();
+    vi.mocked(authClient.twoFactor.enable)
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          status: 400,
+          statusText: 'BAD_REQUEST',
+          code: 'INVALID_PASSWORD',
+          message: 'Invalid password',
+        },
+        // oxlint-disable-next-line typescript/no-explicit-any -- better-auth's full response envelope is irrelevant to the wording under test
+      } as any)
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          status: 429,
+          statusText: 'TOO_MANY_REQUESTS',
+          message: 'Invalid credentials',
+          retryAfter: 30,
+        },
+        // oxlint-disable-next-line typescript/no-explicit-any -- better-auth's full response envelope is irrelevant to the wording under test
+      } as any);
+
+    const { user } = render(<TwoFactorEnrollPage />);
+    await user.type(screen.getByLabelText('Password'), 'guess');
+    await user.click(screen.getByRole('button', { name: 'Enable two-factor' }));
+    expect(
+      await screen.findByText(
+        'Wrong password. Repeated failed attempts temporarily lock your account.',
+      ),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Password'), '-again');
+    await user.click(screen.getByRole('button', { name: 'Enable two-factor' }));
+    expect(
+      await screen.findByText(
+        'Account temporarily locked. Try again in 30 seconds, or contact an administrator.',
+      ),
+    ).toBeInTheDocument();
+  });
 });

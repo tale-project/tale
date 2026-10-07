@@ -62,7 +62,7 @@ const ARGS = {
 };
 
 describe('the digests', () => {
-  it('scopes a key to its project and thread — the same key elsewhere is another send', () => {
+  it('scopes a key to its project and thread — the same key elsewhere is another send [CHAT-R15]', () => {
     const base = sendIdempotencyScopeKey({
       projectId: 'p-1',
       threadId: 't-1',
@@ -159,7 +159,7 @@ describe('claimSendIdempotency', () => {
     );
   });
 
-  it('replays the remembered 202 for the same request under a live key', async () => {
+  it('replays the remembered 202 for the same request under a live key [CHAT-R15]', async () => {
     const response = { threadId: 't-1', status: 'accepted', messageId: 'm-1' };
     const { tx } = fakeTx({
       claimed: false,
@@ -171,7 +171,7 @@ describe('claimSendIdempotency', () => {
     });
   });
 
-  it('refuses a live key reused for a different request with 409 IDEMPOTENCY_KEY_REUSED', async () => {
+  it('refuses a live key reused for a different request with 409 IDEMPOTENCY_KEY_REUSED [CHAT-R15]', async () => {
     const { tx } = fakeTx({
       claimed: false,
       remembered: { requestHash: 'hash-other', response: { messageId: 'm-1' } },

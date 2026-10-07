@@ -2,9 +2,11 @@
  * the page's figures come from, joined and bucketed the way the fold says. */
 import { randomUUID } from 'node:crypto';
 
+import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 
 import { getProjectTaskMetrics, type ProjectMetricsDay } from './metrics.ts';
+import { archiveTask, createTask, restoreTask } from './service.ts';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -23,6 +25,7 @@ export async function checkProjectTaskMetrics(
 ): Promise<void> {
   const { orgId, userId } = ctx;
   const projectId = randomUUID();
+  const terminalProjectId = randomUUID();
   const agentId = randomUUID();
   const agentTaskId = randomUUID();
   const humanTaskId = randomUUID();
@@ -35,11 +38,61 @@ export async function checkProjectTaskMetrics(
     VALUES (${projectId}, ${orgId}, 'Metrics proof', ${userId}, ${now}, ${now})
   `;
   await sql`
+    INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms, updated_at_ms)
+    VALUES (${terminalProjectId}, ${orgId}, 'Terminal creation proof', ${userId}, ${now}, ${now})
+  `;
+  await sql`
     INSERT INTO app.project_agents (id, org_id, project_id, name, harness, model,
       created_by, created_at_ms, updated_at_ms)
     VALUES (${agentId}, ${orgId}, ${projectId}, 'Metrics agent', 'claude-code',
       'itest-model', ${userId}, ${now}, ${now})
   `;
+  const terminalTaskIds = await transactSerializable(sql, async (tx) => {
+    const doneId = await createTask(
+      tx,
+      {
+        organizationId: orgId,
+        userId,
+        role: 'owner',
+        teamIds: [],
+      },
+      {
+        projectId: terminalProjectId,
+        title: 'Created done',
+        status: 'done',
+      },
+    );
+    const cancelledId = await createTask(
+      tx,
+      {
+        organizationId: orgId,
+        userId,
+        role: 'owner',
+        teamIds: [],
+      },
+      {
+        projectId: terminalProjectId,
+        title: 'Created cancelled',
+        status: 'cancelled',
+      },
+    );
+    return { cancelledId, doneId };
+  });
+  const terminalStamps = await sql<
+    { id: string; completedAt: number | null }[]
+  >`
+    SELECT id, completed_at_ms::float8 AS "completedAt"
+    FROM app.tasks
+    WHERE id = ${terminalTaskIds.doneId} OR id = ${terminalTaskIds.cancelledId}
+  `;
+  record(
+    'task creation: Done and Cancelled receive completion timestamps',
+    terminalStamps.length === 2 &&
+      terminalStamps.every(
+        (task) => typeof task.completedAt === 'number' && task.completedAt > 0,
+      ),
+    JSON.stringify(terminalStamps),
+  );
   // An agent task filed three days ago: started two days ago, sent back
   // once yesterday, approved an hour ago.
   const agentCreated = now - 3 * DAY;
@@ -292,6 +345,88 @@ export async function checkProjectTaskMetrics(
     await sql`DELETE FROM app.approvals WHERE org_id = ${orgId} AND resource_id = ${agentTaskId}`;
     await sql`DELETE FROM app.sandbox_session_ops WHERE org_id = ${orgId} AND session_id = ${sessionId}`;
     await sql`DELETE FROM app.project_agent_runs WHERE project_id = ${projectId}`;
+    await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
+    await sql`DELETE FROM app.projects WHERE id = ${terminalProjectId}`;
+  }
+  await checkProjectTaskArchiveHistory(sql, ctx, record);
+}
+
+async function checkProjectTaskArchiveHistory(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+  record: (name: string, ok: boolean, detail: string) => void,
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const projectId = randomUUID();
+  const taskId = randomUUID();
+  const now = Date.now();
+  const todayStart = Math.floor(now / DAY) * DAY;
+  const createdAt = todayStart - 4 * DAY + HOUR;
+  const archivedAt = todayStart - 3 * DAY + HOUR;
+  const auth = { organizationId: orgId, userId, role: 'owner', teamIds: [] };
+  await sql`
+    INSERT INTO app.projects (id, org_id, name, open_task_count, created_by,
+      created_at_ms, updated_at_ms)
+    VALUES (${projectId}, ${orgId}, 'Archive history proof', 1, ${userId},
+      ${createdAt}, ${createdAt})
+  `;
+  try {
+    await sql`
+      INSERT INTO app.tasks (id, org_id, project_id, title, status, rank,
+        created_by, created_by_type, created_at_ms, updated_at_ms)
+      VALUES (${taskId}, ${orgId}, ${projectId}, 'Archive history task',
+        'todo', 'a0', ${userId}, 'user', ${createdAt}, ${createdAt})
+    `;
+    await sql`
+      INSERT INTO app.task_activity (org_id, task_id, project_id, actor_type,
+        actor_id, action, created_at_ms)
+      VALUES (${orgId}, ${taskId}, ${projectId}, 'user', ${userId}, 'created', ${createdAt})
+    `;
+    await sql.begin((tx) => archiveTask(tx, auth, taskId));
+    await sql`UPDATE app.tasks SET archived_at_ms = ${archivedAt} WHERE id = ${taskId}`;
+    await sql`
+      UPDATE app.task_activity SET created_at_ms = ${archivedAt}
+      WHERE task_id = ${taskId} AND action = 'archived'
+    `;
+    const read = () =>
+      getProjectTaskMetrics(sql, auth, projectId, { periodDays: 7 });
+    const counts = (days: ProjectMetricsDay[]) =>
+      days.map((day) => day.statusCountsEod.todo);
+    const before = await read();
+    await sql.begin((tx) => restoreTask(tx, auth, taskId));
+    const restored = await read();
+    const expectedBefore = [0, 0, 1, 0, 0, 0, 0];
+    const expectedRestored = [0, 0, 1, 0, 0, 0, 1];
+    record(
+      'project task restore preserves historical archive interval',
+      JSON.stringify(counts(before.daily)) === JSON.stringify(expectedBefore) &&
+        JSON.stringify(counts(restored.daily)) ===
+          JSON.stringify(expectedRestored),
+      `before=${JSON.stringify(counts(before.daily))}, restored=${JSON.stringify(counts(restored.daily))} (want ${JSON.stringify(expectedBefore)} / ${JSON.stringify(expectedRestored)})`,
+    );
+    await sql.begin((tx) => archiveTask(tx, auth, taskId));
+    const rearchived = await read();
+    record(
+      'project task archive today changes only today after restore',
+      JSON.stringify(counts(rearchived.daily)) ===
+        JSON.stringify(expectedBefore),
+      `rearchived=${JSON.stringify(counts(rearchived.daily))} (want ${JSON.stringify(expectedBefore)})`,
+    );
+    await sql`
+      INSERT INTO app.task_activity (org_id, task_id, project_id, actor_type,
+        actor_id, action, created_at_ms)
+      SELECT ${orgId}, ${taskId}, ${projectId}, 'user', ${userId},
+        CASE WHEN sequence % 2 = 0 THEN 'archived' ELSE 'restored' END,
+        ${archivedAt}::bigint + sequence
+      FROM generate_series(1, 5002) AS sequence
+    `;
+    const capped = await read();
+    record(
+      'project task archive event history overflow is explicitly capped',
+      [...capped.daily, ...capped.previousDaily].every((day) => day.capped),
+      `capped days=${[...capped.daily, ...capped.previousDaily].filter((day) => day.capped).length} (want 14)`,
+    );
+  } finally {
     await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
   }
 }

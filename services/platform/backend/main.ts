@@ -59,6 +59,8 @@ async function main(): Promise<void> {
       databaseUrl: env.DATABASE_URL,
       secret: env.BETTER_AUTH_SECRET,
       baseUrl: env.SITE_URL,
+      totpClientName: env.TOTP_CLIENT_NAME,
+      totpEnvironment: env.TOTP_ENVIRONMENT,
       additionalOrigins: parseAdditionalSiteUrls(env.ADDITIONAL_SITE_URLS),
       sql,
     });

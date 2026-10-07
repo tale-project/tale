@@ -51,7 +51,7 @@ function SwitchingPage() {
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { t } = useT('settings');
+  const { t } = useT('navigation');
 
   const { organizations } = useUserOrganizationsWithDetails();
   const ranRef = useRef(false);
@@ -152,11 +152,11 @@ function SwitchingPage() {
   return (
     <FullPageCenter>
       <VStack gap={3} align="center">
-        <Spinner size="lg" label={t('organization.switchingLabel')} />
+        <Spinner size="lg" label={t('orgSwitcher.switchingLabel')} />
         <Text variant="muted" className="text-sm">
           {targetName
-            ? t('organization.switchingTo', { name: targetName })
-            : t('organization.switching')}
+            ? t('orgSwitcher.switchingTo', { name: targetName })
+            : t('orgSwitcher.switching')}
         </Text>
       </VStack>
     </FullPageCenter>

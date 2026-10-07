@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
@@ -41,6 +42,8 @@ import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { failureDetail } from '@/app/lib/backend/adapters';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
@@ -67,7 +70,7 @@ import {
   isMissingAutomationRead,
 } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
-import { nodeStatusMap, projectRun } from '../lib/run-view';
+import { nodeStatusMap, projectRun, readRunCursorNode } from '../lib/run-view';
 import {
   AUTOMATION_EDITOR_WORKBENCH_GRID,
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
@@ -229,6 +232,7 @@ function AutomationEditorScope({
   /** The version the draft was built on — pinned on its first edit, sent
    * with the save so the store can refuse a draft another tab overtook. */
   const draftBaseRef = useRef<number | undefined>(undefined);
+  const draftEpochRef = useRef(0);
   /** A save the store refused because a version landed after the draft
    * started: the author decides — drop the draft and reload, or save on
    * top of what landed. Never resolved silently either way. */
@@ -262,11 +266,22 @@ function AutomationEditorScope({
     automationSlug,
     version,
   );
+  const automationRead = readStateOf(automationQuery);
+  const editorRegionRef = useRef<HTMLDivElement>(null);
+  const readErrorRef = useRef('');
+  if (automationQuery.isError) {
+    readErrorRef.current = automationErrorMessage(automationQuery.error);
+  }
   const deployedQuery = useAutomation(
     organizationId,
     automationSlug,
     automationQuery.data?.deployedVersion,
   );
+  const deployedRead = readStateOf(deployedQuery);
+  const deployedReadError =
+    automationQuery.data?.deployedVersion !== undefined &&
+    (deployedRead.unavailable || deployedRead.stale);
+  const deployedFailureDetail = failureDetail(deployedQuery.error);
   // Only the newest run matters here — it is what the canvas overlays; the
   // Runs tab reads the log.
   const runsQuery = useAutomationRuns(organizationId, automationSlug, 1);
@@ -339,6 +354,7 @@ function AutomationEditorScope({
         ? nodeStatusMap(
             lastRunProjection,
             graph.nodes.map((node) => node.id),
+            readRunCursorNode(lastRun),
           )
         : undefined,
     [showLastRun, lastRun, lastRunProjection, graph.nodes],
@@ -356,7 +372,10 @@ function AutomationEditorScope({
       // follows every version another tab saves (its hint invalidates the
       // read), so reading the version at save time would name the one that
       // overtook the draft, not the one it was built on.
-      if (draft === null) draftBaseRef.current = automationQuery.data?.version;
+      if (draft === null) {
+        draftBaseRef.current = automationQuery.data?.version;
+        draftEpochRef.current += 1;
+      }
       setDraft(patchNode(automation, selectedNodeId, patch));
     },
     [automation, selectedNodeId, draft, automationQuery.data?.version],
@@ -406,6 +425,7 @@ function AutomationEditorScope({
   }, []);
 
   const discardDraft = useCallback(() => {
+    draftEpochRef.current += 1;
     setDraft(null);
   }, []);
 
@@ -489,6 +509,19 @@ function AutomationEditorScope({
       </ContentArea>
     );
   }
+  if (automationRead.unavailable) {
+    return (
+      <ContentArea variant="narrow">
+        <CatalogLoadError
+          message={`${t('detail.loadFailed.title')}: ${readErrorRef.current}`}
+          isRetrying={automationRead.retrying}
+          failureKey={automationRead.failureCount}
+          onRetry={() => void automationQuery.refetch()}
+          onFocusLost={() => editorRegionRef.current?.focus()}
+        />
+      </ContentArea>
+    );
+  }
   if (!automation) {
     return (
       <ContentArea variant="narrow">
@@ -531,7 +564,8 @@ function AutomationEditorScope({
   /** Append the draft as a version built on `baseVersion` (none: append
    * whatever the latest is), then show the version that landed. */
   const submitSave = async (baseVersion: number | undefined): Promise<void> => {
-    await save.mutateAsync({
+    const submittedEpoch = draftEpochRef.current;
+    const saved = await save.mutateAsync({
       organizationId,
       automation,
       // Package metadata belongs to the version being edited, even when
@@ -552,8 +586,10 @@ function AutomationEditorScope({
       ...(projectId !== undefined && { projectId }),
       ...(baseVersion !== undefined && { baseVersion }),
     });
+    if (draftEpochRef.current !== submittedEpoch) return;
     setSaveDialogOpen(false);
-    setDraft(null);
+    draftBaseRef.current = saved.version;
+    setDraft((current) => (current === automation ? null : current));
     setSaveMessage('');
     // The save appended a version; show it, whichever one was on screen.
     onSelectVersion(undefined);
@@ -601,7 +637,7 @@ function AutomationEditorScope({
   /** Drop the draft and show the version that landed. */
   const reloadAfterStale = (): void => {
     setStaleSave(null);
-    setDraft(null);
+    discardDraft();
     onSelectVersion(undefined);
   };
 
@@ -610,7 +646,8 @@ function AutomationEditorScope({
   const canRunLive =
     meta?.deployedVersion !== undefined &&
     !deployedQuery.isPending &&
-    deployed !== null;
+    deployed !== null &&
+    !deployedReadError;
 
   // The automation-level verbs: what to do with THIS version, not a node's
   // fields. Shared between the desktop header and the mobile canvas toolbar;
@@ -708,7 +745,11 @@ function AutomationEditorScope({
           icon={Zap}
           isLoading={startRun.isPending}
           disabled={!canRunLive}
-          disabledReason={t('detail.runLiveNeedsDeploy')}
+          disabledReason={
+            deployedReadError
+              ? t('detail.runLiveNeedsDeployedRead')
+              : t('detail.runLiveNeedsDeploy')
+          }
           onClick={() => {
             if (meta?.deployedVersion === undefined || deployed === null)
               return;
@@ -785,13 +826,31 @@ function AutomationEditorScope({
           table's rows, the canvas's background runs behind the pill, and its
           own zoom cluster and action toolbar (`FlowCanvas`) keep themselves
           clear of it instead of the workbench flooring on it site-wide. */}
-      <div className="mobile-nav-clearance flex min-w-0 flex-1 flex-col pb-[var(--mobile-floating-actions-pad,0px)] lg:min-h-0">
+      <div
+        ref={editorRegionRef}
+        role="region"
+        aria-label={t('navigation.editor')}
+        tabIndex={-1}
+        className="mobile-nav-clearance flex min-w-0 flex-1 flex-col pb-[var(--mobile-floating-actions-pad,0px)] lg:min-h-0"
+      >
         {/* A refused RUN, kept inline: it is the engine's own account of why
             nothing started, which the author has to read next to the automation
             it concerns. Save feedback goes through the editor cluster instead.
             The alerts keep the page inset, in a band above the workbench. */}
-        {(refusal !== null || deployRefusal !== null) && (
+        {(refusal !== null || deployRefusal !== null || deployedReadError) && (
           <div className="border-border flex flex-col gap-3 border-b p-4">
+            {deployedReadError && (
+              <CatalogLoadError
+                message={
+                  deployedFailureDetail === undefined
+                    ? t('detail.deployedReadFailed')
+                    : `${t('detail.deployedReadFailed')}: ${deployedFailureDetail}`
+                }
+                onRetry={() => void deployedQuery.refetch()}
+                isRetrying={deployedRead.retrying}
+                failureKey={deployedRead.failureCount}
+              />
+            )}
             {refusal !== null && (
               <Alert variant="destructive" description={refusal} />
             )}
@@ -1001,7 +1060,7 @@ function AutomationEditorScope({
         confirmText={t('detail.switchVersion.confirm')}
         variant="destructive"
         onConfirm={() => {
-          setDraft(null);
+          discardDraft();
           if (pendingVersion !== null) onSelectVersion(pendingVersion);
           setPendingVersion(null);
         }}

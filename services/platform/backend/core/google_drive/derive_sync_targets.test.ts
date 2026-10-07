@@ -18,7 +18,7 @@ const folderFile = (
   ...overrides,
 });
 
-describe('deriveSyncTargets', () => {
+describe('deriveSyncTargets [GDRIVE-R1]', () => {
   it('collapses a selected folder to a single folder target', () => {
     const targets = deriveSyncTargets([folderFile('a'), folderFile('b')]);
 

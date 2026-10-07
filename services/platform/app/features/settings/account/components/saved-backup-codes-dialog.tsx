@@ -7,18 +7,7 @@ import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
 
-function downloadBackupCodes(codes: string[]) {
-  const content = codes.join('\n');
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'tale-backup-codes.txt';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
+import { downloadBackupCodes } from '../lib/download-backup-codes';
 
 interface SavedBackupCodesDialogProps {
   backupCodes: string[];

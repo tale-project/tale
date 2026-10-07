@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import Handlebars from 'handlebars';
 import type { ActionType, NodePlopAPI, PlopGeneratorConfig } from 'plop';
 
 import { registerMigration } from '../generators/migration';
@@ -10,9 +11,67 @@ import { registerPackage } from '../generators/package';
 import { registerService } from '../generators/service';
 import { registerSkill } from '../generators/skill';
 import { registerTool } from '../generators/tool';
+import { registerHelpers } from '../helpers';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const templatesRoot = path.resolve(here, '../templates');
+
+const handlebars = Handlebars.create();
+registerHelpers({
+  setHelper: (name: string, fn: Handlebars.HelperDelegate) =>
+    handlebars.registerHelper(name, fn),
+} as never);
+
+describe('scaffolded image version metadata preserves filesystem caches', () => {
+  for (const kind of ['react', 'docker']) {
+    test(`${kind}: runtime VERSION follows every filesystem instruction`, () => {
+      const source = readFileSync(
+        path.join(templatesRoot, 'service', kind, 'Dockerfile.hbs'),
+        'utf8',
+      );
+      const rendered = handlebars.compile(source, { noEscape: true })({
+        name: 'billing-check',
+        description: 'Billing service',
+        port: '3001',
+      });
+      expect(rendered).not.toContain('{{');
+      const runtime = rendered.split(/^FROM /m).at(-1)!;
+      const lines = runtime
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => !line.startsWith('#'))
+        .join('\n')
+        .replace(/\\\n/g, ' ')
+        .split('\n')
+        .filter(Boolean);
+      const version = lines.findIndex((line) =>
+        line.startsWith('ARG VERSION='),
+      );
+      const filesystem = lines.reduce(
+        (last, line, index) => (/^(RUN|COPY|ADD) /.test(line) ? index : last),
+        -1,
+      );
+      expect(filesystem).toBeGreaterThan(-1);
+      expect(version).toBeGreaterThan(filesystem);
+      expect(lines.slice(0, version).join('\n')).not.toContain('${VERSION}');
+      const metadata = lines.slice(version);
+      const label = metadata.find((line) => line.startsWith('LABEL ')) ?? '';
+      expect(label).toContain('org.opencontainers.image.version="${VERSION}"');
+      expect(label).toContain(
+        'org.opencontainers.image.title="tale-billing-check"',
+      );
+      expect(label).toContain(
+        'org.opencontainers.image.description="Billing service"',
+      );
+      expect(
+        metadata.filter((line) => line.startsWith('ENV TALE_VERSION=')),
+      ).toEqual(['ENV TALE_VERSION=${VERSION}']);
+      expect(lines.filter((line) => line.startsWith('ARG VERSION='))).toEqual([
+        'ARG VERSION=dev',
+      ]);
+    });
+  }
+});
 
 interface Answers {
   name: string;

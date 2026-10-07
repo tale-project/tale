@@ -94,7 +94,7 @@ afterEach(async () => {
  * on every login (a promotion/demotion in the IdP should propagate), not just at
  * first provision — but it must never demote the org owner.
  */
-describe('shouldSyncMemberRole', () => {
+describe('shouldSyncMemberRole [SSO-R5]', () => {
   it('promotes an existing member when the mapped role differs', () => {
     expect(shouldSyncMemberRole(true, 'member', 'admin')).toBe(true);
   });
@@ -118,7 +118,7 @@ describe('shouldSyncMemberRole', () => {
 });
 
 describe('findOrCreateSsoUser — org-binding contract', () => {
-  it('refuses an existing user with no membership in the connection org, writing nothing', async () => {
+  it('refuses an existing user with no membership in the connection org, writing nothing [SSO-R1]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith('SELECT "id" FROM "user"')) {
         return [{ id: 'victim-user' }];
@@ -170,7 +170,7 @@ describe('findOrCreateSsoUser — org-binding contract', () => {
     );
   });
 
-  it('JIT-creates a user new to the deployment, bound to the connection org', async () => {
+  it('JIT-creates a user new to the deployment, bound to the connection org [SSO-R2]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith('SELECT "id" FROM "user"')) return [];
       if (text.startsWith('INSERT INTO "user"')) return [{ id: 'fresh-user' }];
@@ -236,7 +236,7 @@ describe('trusted SSO email verification preserves immutable bindings', () => {
       ).toBe(false);
     },
   );
-  it('refuses a different subject for an already linked account before any mutation', async () => {
+  it('refuses a different subject for an already linked account before any mutation [SSO-R4]', async () => {
     const { sql, queries } = fakeSql(memberAnswer);
     expect(
       await findOrCreateSsoUser(sql, {
@@ -249,7 +249,7 @@ describe('trusted SSO email verification preserves immutable bindings', () => {
     ).toMatchObject({ userId: null, refusal: 'provider_identity_conflict' });
     expect(writes(queries)).toHaveLength(0);
   });
-  it('refuses a previously bound subject renamed to another local email', async () => {
+  it('refuses a previously bound subject renamed to another local email [SSO-R4]', async () => {
     const { sql, queries } = fakeSql((text) =>
       text.startsWith('SELECT "userId" FROM "account"')
         ? [{ userId: 'somebody-else' }]
@@ -286,7 +286,7 @@ describe('trusted SSO email verification preserves immutable bindings', () => {
 });
 
 describe('handleSsoLogin — refusal surfaces, session binds the org', () => {
-  it('answers the actionable error key and mints NO session for a non-member', async () => {
+  it('answers the actionable error key and mints NO session for a non-member [SSO-R1]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith('SELECT "slug" FROM "organization"')) {
         return [{ slug: 'rogue-org-a' }];
@@ -315,7 +315,7 @@ describe('handleSsoLogin — refusal surfaces, session binds the org', () => {
     ).toBe(false);
   });
 
-  it("mints the member's session with activeOrganizationId bound to the SSO org", async () => {
+  it("mints the member's session with activeOrganizationId bound to the SSO org [SSO-R3]", async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith('SELECT "slug" FROM "organization"')) {
         return [{ slug: 'member-org-b' }];
@@ -350,7 +350,7 @@ describe('handleSsoLogin — refusal surfaces, session binds the org', () => {
 });
 
 describe('createSsoUserSession', () => {
-  it('binds the session to the SSO org', async () => {
+  it('binds the session to the SSO org [SSO-R3]', async () => {
     const { sql, queries } = fakeSql(() => []);
 
     const { sessionToken } = await createSsoUserSession(sql, {
@@ -381,7 +381,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
   const deletes = (queries: Captured[]): Captured[] =>
     queries.filter((q) => q.text.startsWith('DELETE'));
 
-  it('records provenance for the team and the membership it creates', async () => {
+  it('records provenance for the team and the membership it creates [SSO-R6]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith('SELECT "id", "name" FROM "team"')) return [];
       if (text.startsWith('INSERT INTO "team"')) return [{ id: 't-ops' }];
@@ -420,7 +420,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
     expect(lookups[0]?.values).toContain('ops');
   });
 
-  it('joins an existing admin-built team without claiming the team itself', async () => {
+  it('joins an existing admin-built team without claiming the team itself [SSO-R6]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith('SELECT "id", "name" FROM "team"'))
         return [{ id: 't-board' }];
@@ -455,7 +455,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
   // (case and inner whitespace folded, E-01); the sync looked teams up by
   // `lower(name)` alone, so an IdP group "Board  Members" created a second
   // team beside the admin-built "board members".
-  it('finds an existing team through the whitespace- and case-folded key', async () => {
+  it('finds an existing team through the whitespace- and case-folded key [SSO-R6]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith('SELECT "id", "name" FROM "team"'))
         return [{ id: 't-board', name: 'board members' }];
@@ -509,7 +509,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
     expect(deletes(queries)).toHaveLength(0);
   });
 
-  it('does not adopt a membership that already existed (admin- or SCIM-granted)', async () => {
+  it('does not adopt a membership that already existed (admin- or SCIM-granted) [SSO-R7]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith('SELECT "id", "name" FROM "team"'))
         return [{ id: 't-board' }];
@@ -528,7 +528,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
     expect(writes(queries)).toHaveLength(0);
   });
 
-  it('leaves a membership an admin granted alone when its group is absent (the data-loss regression)', async () => {
+  it('leaves a membership an admin granted alone when its group is absent (the data-loss regression) [SSO-R7]', async () => {
     // The user sits in the admin-built team "Board" (no provenance row) and
     // the claim carries only "Finance", where they are already a member.
     const { sql, queries } = fakeSql((text) => {
@@ -556,7 +556,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
     expect(deletes(queries)).toHaveLength(0);
   });
 
-  it('revokes only the membership it granted and reaps only the team it created', async () => {
+  it('revokes only the membership it granted and reaps only the team it created [SSO-R7]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith('SELECT "id", "name" FROM "team"'))
         return [{ id: 't-fin' }];
@@ -633,7 +633,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
     );
   });
 
-  it('treats an excluded group as unmanaged — its synced membership is not pruned either', async () => {
+  it('treats an excluded group as unmanaged — its synced membership is not pruned either [SSO-R8]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith('SELECT p.team_id')) {
         return [
@@ -680,7 +680,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
  * exemptSsoUsers=false the anchor was never persisted and the deadline was
  * recomputed as `now + grace` on every read: grace rolled forever.
  */
-describe('handleSsoLogin — org 2FA enforcement anchors on the SSO door', () => {
+describe('handleSsoLogin — org 2FA enforcement anchors on the SSO door [SSO-R10]', () => {
   async function writePolicy(slug: string, lines: string[]): Promise<void> {
     const dir = path.join(configRoot, slug, 'governance');
     await mkdir(dir, { recursive: true });

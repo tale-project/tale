@@ -78,14 +78,8 @@ WORKDIR /app
 # ============================================================================
 FROM oven/bun:1.3.12-slim AS runner
 
-ARG VERSION=dev
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="tale-web" \
-      org.opencontainers.image.description="Tale marketing site"
-
 ARG LOCALE_COOKIE_DOMAIN=
 ENV NODE_ENV=production \
-    TALE_VERSION=${VERSION} \
     PORT=3001 \
     HOSTNAME="0.0.0.0" \
     DO_NOT_TRACK=1 \
@@ -105,6 +99,13 @@ COPY --from=builder --chown=app:app /app/services/web/server.js ./server.js
 COPY --from=builder --chown=app:app /app/services/web/package.json ./package.json
 COPY --from=builder --chown=app:app /app/services/web/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
+
+# Keep version metadata after filesystem work so new releases reuse its layers.
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-web" \
+      org.opencontainers.image.description="Tale marketing site"
+ENV TALE_VERSION=${VERSION}
 
 USER app
 EXPOSE 3001

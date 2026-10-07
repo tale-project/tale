@@ -65,7 +65,7 @@ describe('isBackendDraining', () => {
     expect(await isBackendDraining(sql)).toBe(false);
   });
 
-  it('is false once the drain has expired (a deploy that died mid-drain)', async () => {
+  it('is false once the drain has expired (a deploy that died mid-drain) [CTRL-R4]', async () => {
     vi.stubEnv('TALE_COLOR', 'blue');
     const sql = sqlReturning({
       draining: true,
@@ -75,7 +75,7 @@ describe('isBackendDraining', () => {
     expect(await isBackendDraining(sql)).toBe(false);
   });
 
-  it('drains the colour the flag names', async () => {
+  it('drains the colour the flag names [CTRL-R3]', async () => {
     vi.stubEnv('TALE_COLOR', 'blue');
     const sql = sqlReturning({
       draining: true,
@@ -87,7 +87,7 @@ describe('isBackendDraining', () => {
 
   // THE regression: without this, a flip silences the colour it just
   // promoted for the entire drain window.
-  it('leaves the OTHER colour serving', async () => {
+  it('leaves the OTHER colour serving [CTRL-R3]', async () => {
     vi.stubEnv('TALE_COLOR', 'green');
     const sql = sqlReturning({
       draining: true,
@@ -98,7 +98,7 @@ describe('isBackendDraining', () => {
   });
 
   // An older CLI writes no colour. It means what it always meant.
-  it('drains every replica when the flag names no colour', async () => {
+  it('drains every replica when the flag names no colour [CTRL-R3]', async () => {
     vi.stubEnv('TALE_COLOR', 'green');
     const sql = sqlReturning({
       draining: true,
@@ -110,7 +110,7 @@ describe('isBackendDraining', () => {
 
   // A replica outside any colour (dev, a bare `docker compose up`) is the
   // only api there is, so "drain blue" can only have meant it.
-  it('drains an uncoloured replica whatever colour the flag names', async () => {
+  it('drains an uncoloured replica whatever colour the flag names [CTRL-R3]', async () => {
     vi.stubEnv('TALE_COLOR', '');
     const sql = sqlReturning({
       draining: true,

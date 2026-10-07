@@ -56,7 +56,7 @@ beforeEach(() => {
   vi.mocked(createAuditLog).mockResolvedValue(undefined as never);
 });
 
-describe('resolveSkillPublishing', () => {
+describe('resolveSkillPublishing [SKILL-R7]', () => {
   it('leaves every member free to publish when the organization has no policy', async () => {
     policy(null);
     for (const role of ['owner', 'admin', 'developer', 'editor', 'member']) {
@@ -133,7 +133,7 @@ describe('resolveSkillPublishing', () => {
   });
 });
 
-describe('maySkillPublishOrgWide', () => {
+describe('maySkillPublishOrgWide [SKILL-R7]', () => {
   it('answers an owner or admin without reading the policy or the grants', async () => {
     for (const role of ['owner', 'admin']) {
       expect(await maySkillPublishOrgWide(sql, caller(role))).toBe(true);
@@ -169,7 +169,7 @@ describe('auditIfPublishRefused', () => {
     expect(publishRefusalSlug(new Error('boom'))).toBeNull();
   });
 
-  it('records a refused publish as denied, in its own transaction', async () => {
+  it('records a refused publish as denied, in its own transaction [SKILL-R7]', async () => {
     await auditIfPublishRefused(sql, refusal, {
       organizationId: 'org-1',
       actor,

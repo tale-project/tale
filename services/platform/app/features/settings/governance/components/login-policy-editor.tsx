@@ -26,6 +26,7 @@ import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface LoginPolicyEditorProps {
   organizationId: string;
@@ -57,7 +58,7 @@ function stringToProxyList(value: string): string[] | null {
 }
 
 function scheduleToString(schedule: number[]): string {
-  return schedule.map((ms) => Math.round(ms / 1000)).join(', ');
+  return schedule.map((ms) => ms / 1000).join(', ');
 }
 
 function stringToSchedule(value: string): number[] | null {
@@ -84,7 +85,7 @@ function stringToSchedule(value: string): number[] | null {
 // arrives; the batched fields render once `enabled` is true (matching the
 // loaded behavior, since `enabled` defaults to `false` while loading).
 // =============================================================================
-export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
+function LoginPolicyEditorContent({ organizationId }: LoginPolicyEditorProps) {
   const { t } = useT('governance');
   const ability = useAbility();
 
@@ -264,3 +265,8 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
     </Skeletonize>
   );
 }
+
+export const LoginPolicyEditor = withGovernancePolicyReadBoundary(
+  LoginPolicyEditorContent,
+  'login_policy',
+);

@@ -70,6 +70,25 @@ beforeEach(() => {
 });
 
 describe('the board doors read the search with the other filters', () => {
+  it.each(['/by-project/p1', '/'])(
+    'passes explicit thin and full compatibility options for %s',
+    async (path) => {
+      await get(`${path}?summary=true&q=needle`);
+      const read =
+        path === '/' ? listTasksForAccessibleProjects : listTasksByProject;
+      const filters = read.mock.calls[0]?.at(-1);
+      expect(filters).toEqual({
+        includeArchived: false,
+        summary: true,
+        query: 'needle',
+      });
+      await get(`${path}?summary=false`);
+      expect(read.mock.calls[1]?.at(-1)).toEqual({
+        includeArchived: false,
+        summary: false,
+      });
+    },
+  );
   it('passes a project board its query', async () => {
     const res = await get(
       '/by-project/p1?includeArchived=true&statuses=todo,done&assigneeId=u2&q=Needle%20urgent',

@@ -1,0 +1,12 @@
+regionLabel: Progression des questions
+progress: Question {current} sur {total}
+otherOption: Autre chose…
+otherLabel: Ta réponse
+otherPlaceholder: Réponds avec tes propres mots
+back: Retour
+next: Suivant
+submit: Envoyer les réponses
+submitOne: Envoyer la réponse
+autoAdvanceHint: Choisir une réponse passe à la question suivante.
+multiSelectHint: Choisis tout ce qui s'applique.
+recommended: Recommandé

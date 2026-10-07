@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import {
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -53,6 +54,7 @@ import {
   useThreadDndState,
 } from '@/app/features/chat/components/thread-dnd';
 import {
+  ActiveThreadProvider,
   ThreadListFrameProvider,
   type ThreadListFrame,
 } from '@/app/features/chat/components/thread-list-context';
@@ -85,7 +87,7 @@ import {
   readHomeLocation,
   type HomeLocation,
 } from '../lib/home-paths';
-import { adjacentRow, moveRowFocus } from '../lib/row-navigation';
+import { adjacentRow } from '../lib/row-navigation';
 import { HomeInboxList } from './home-inbox-list';
 import { useHomePanel } from './home-panel-context';
 import { HomeProjects } from './home-projects';
@@ -95,6 +97,7 @@ import {
   HomeDraftChatRow,
   HomeTaskRow,
 } from './home-rows';
+import { HomeStream, type HomeRowPlacement } from './home-stream';
 import { HomeViewSwitcher } from './home-view-switcher';
 
 const SEARCH_PLACEHOLDER_KEY: Record<HomeView, string> = {
@@ -283,6 +286,7 @@ export function HomeNavigator({
       const row = adjacentRow(event, root);
       if (row === null) return;
       event.preventDefault();
+      row.scrollIntoView({ block: 'nearest' });
       row.click();
     };
     window.addEventListener('keydown', onKeyDown);
@@ -421,6 +425,16 @@ export function HomeNavigator({
       ? storedScope
       : scopeProject?.id;
 
+  // One object per scope, so the memoized project rows a phone narrows the
+  // stream with keep it across the panel's renders.
+  const projectScope = useMemo(
+    () => ({
+      projectId: scopeId,
+      onChange: (id: string | undefined) => setScope(id ?? ''),
+    }),
+    [scopeId, setScope],
+  );
+
   const holdsQuery = useThreadHolds(organizationId);
   const heldIds =
     holdsQuery.status === 'ready' ? holdsQuery.data.targetIds : undefined;
@@ -428,21 +442,37 @@ export function HomeNavigator({
     () => (heldIds !== undefined ? new Set(heldIds) : NO_HELD),
     [heldIds],
   );
+  const orgHeld =
+    holdsQuery.status === 'ready' ? holdsQuery.data.orgHeld : false;
+  // Unchanged by a navigation, so the rows below it are too: the open
+  // thread rides its own context (`activeThreadId`).
   const frame = useMemo<ThreadListFrame>(
     () => ({
       organizationId,
-      ...(location.kind === 'chat' && location.threadId !== undefined
-        ? { activeThreadId: location.threadId }
-        : {}),
       projects: data.projects,
-      orgHeld: holdsQuery.status === 'ready' ? holdsQuery.data.orgHeld : false,
+      orgHeld,
       heldThreadIds,
     }),
-    [organizationId, location, data.projects, holdsQuery, heldThreadIds],
+    [organizationId, data.projects, orgHeld, heldThreadIds],
   );
+  const activeThreadId =
+    location.kind === 'chat' ? location.threadId : undefined;
 
   const [search, setSearch] = useState('');
-  const query = search.trim().toLowerCase();
+  const query = useDeferredValue(search.trim().toLowerCase());
+
+  // Each project's name, lowercased once: the search matches every row's
+  // project on every keystroke.
+  const projectNames = useMemo(
+    () =>
+      new Map(
+        data.projects.map((project) => [
+          project.id,
+          project.name.toLowerCase(),
+        ]),
+      ),
+    [data.projects],
+  );
 
   const { serverEpochNow } = useClockOffset();
   const now = serverEpochNow();
@@ -488,10 +518,8 @@ export function HomeNavigator({
 
           // Search project name
           if (item.projectId) {
-            const project = data.projects.find((p) => p.id === item.projectId);
-            if (project && project.name.toLowerCase().includes(query)) {
-              return true;
-            }
+            const projectName = projectNames.get(item.projectId);
+            if (projectName?.includes(query)) return true;
           }
 
           // Search task identifier (e.g. WEB-12)
@@ -523,7 +551,7 @@ export function HomeNavigator({
       view,
       scopeId,
       query,
-      data.projects,
+      projectNames,
       chatArchivedFilter,
       taskStatusFilter,
       taskPriorityFilter,
@@ -551,16 +579,9 @@ export function HomeNavigator({
   // from elsewhere (a notification, search, a link), its row scrolls into
   // the stream's view instead of staying highlighted somewhere off-screen.
   const streamRef = useRef<HTMLDivElement>(null);
-  const activeKey =
-    location.kind === 'chat'
-      ? // A fresh chat's draft row is the open item too.
-        (location.threadId ?? DRAFT_ROW_KEY)
-      : location.kind === 'task'
-        ? location.taskId
-        : location.kind === 'conversation'
-          ? location.conversationId
-          : undefined;
-  // The row the stream's highlight rests on, in the rows' own keys.
+  const [streamElement, setStreamElement] = useState<HTMLDivElement | null>(
+    null,
+  );
   const highlightKey =
     location.kind === 'chat'
       ? location.threadId !== undefined
@@ -577,22 +598,6 @@ export function HomeNavigator({
     location.kind === 'chat' &&
     location.threadId === undefined &&
     viewIncludes(view, 'chat');
-  // Once per open item and view: the row may arrive after the first render
-  // (the inbox answers after the chats), so each change to the stream looks
-  // again until it is found — but a row already revealed is left where the
-  // user scrolled it.
-  const revealedRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (activeKey === undefined) return;
-    const target = `${view}:${activeKey}`;
-    if (revealedRef.current === target) return;
-    const row = streamRef.current?.querySelector<HTMLElement>(
-      '[aria-current="page"]',
-    );
-    if (row === null || row === undefined) return;
-    revealedRef.current = target;
-    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [activeKey, view, streamLoading, groups, draftingChat]);
 
   const streamLayout = useMemo(
     () =>
@@ -637,7 +642,7 @@ export function HomeNavigator({
     !active &&
     hasDraft(homeDraftKey(item, myUserId, organizationId), item.kind);
 
-  const renderRow = (item: HomeItem) => {
+  const renderRow = (item: HomeItem, placement?: HomeRowPlacement) => {
     const active = isActive(item, location);
     const draft = draftFor(item, active);
     if (item.kind === 'chat') {
@@ -656,6 +661,7 @@ export function HomeNavigator({
               : undefined
           }
           active={active}
+          placement={placement}
         />
       );
     }
@@ -668,6 +674,7 @@ export function HomeNavigator({
           item={item}
           organizationId={organizationId}
           active={active}
+          placement={placement}
         />
       );
     }
@@ -679,6 +686,7 @@ export function HomeNavigator({
         item={item}
         organizationId={organizationId}
         active={active}
+        placement={placement}
       />
     );
   };
@@ -711,163 +719,151 @@ export function HomeNavigator({
         />
       ) : (
         <ThreadListFrameProvider value={frame}>
-          <ThreadDndProvider organizationId={organizationId}>
-            <div
-              className={cn(
-                'flex min-h-0 flex-1 flex-col px-2.5',
-                variant === 'screen' && 'mobile-nav-clearance mobile-nav-inset',
-              )}
-            >
-              {viewIncludesScope && (
-                <HomeProjects
-                  organizationId={organizationId}
-                  projects={data.projects}
-                  loading={data.loading.projects}
-                  activeProjectId={
-                    location.kind === 'project' ? location.projectId : undefined
-                  }
-                  {...(variant === 'screen'
-                    ? {
-                        scope: {
-                          projectId: scopeId,
-                          onChange: (id) => setScope(id ?? ''),
-                        },
-                      }
-                    : {})}
-                />
-              )}
-
-              {variant === 'screen' && view === 'chats' && (
-                <div className="flex shrink-0 items-center justify-between pt-1 pb-1">
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-foreground h-7 gap-1.5 px-2 text-xs font-medium"
-                  >
-                    <Link
-                      to="/dashboard/$id/chat"
-                      params={{ id: organizationId }}
-                      search={
-                        scopeId !== undefined
-                          ? { projectId: scopeId }
-                          : { new: true }
-                      }
-                    >
-                      <SquarePen className="size-3.5" />
-                      {t('newChat')}
-                    </Link>
-                  </Button>
-                </div>
-              )}
-
-              <div className="flex shrink-0 items-center gap-1.5 pt-0.5 pb-1.5">
-                <SearchInput
-                  ref={searchRef}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder={t(SEARCH_PLACEHOLDER_KEY[view])}
-                  wrapperClassName="min-w-0 flex-1"
-                  className="h-8 bg-transparent text-xs shadow-none"
-                />
-                {view === 'chats' && (
-                  <FilterPanel
-                    filters={chatFilters}
-                    onClearAll={clearChatFilters}
-                    align="end"
-                    iconOnly
-                    compact
-                  />
+          <ActiveThreadProvider value={activeThreadId}>
+            <ThreadDndProvider organizationId={organizationId}>
+              <div
+                className={cn(
+                  'flex min-h-0 flex-1 flex-col px-2.5',
+                  variant === 'screen' &&
+                    'mobile-nav-clearance mobile-nav-inset',
                 )}
-                {view === 'tasks' && (
-                  <FilterPanel
-                    filters={taskFilters}
-                    onClearAll={clearTaskFilters}
-                    align="end"
-                    iconOnly
-                    compact
-                  />
-                )}
-              </div>
-
-              {streamFailed && (
-                <div className="shrink-0">
-                  <CatalogLoadError
-                    message={
-                      data.retrying
-                        ? t('failed.retrying')
-                        : failedSources
-                            .map(({ failedKey }) => t(failedKey))
-                            .join(' ')
-                    }
-                    onRetry={data.retry}
-                    isRetrying={data.retrying}
-                    onFocusLost={focusSearch}
-                  />
-                </div>
-              )}
-
-              <HomeStreamScroller
-                scrollerRef={streamRef}
-                highlightKey={highlightKey}
-                showBorder={view !== 'all'}
-                layoutVersion={`${view}|${draftingChat ? 'draft|' : ''}${streamLayout}`}
               >
-                {streamLoading ? (
-                  <Skeletonize loading className="flex flex-col gap-0.5 pt-2">
-                    <HomeRowsSkeleton />
-                  </Skeletonize>
-                ) : groups.length === 0 && !draftingChat ? (
-                  // A failed read has said so above: an empty state here
-                  // would claim a list nobody could read is empty.
-                  streamFailed ? null : (
-                    <HomeEmpty
-                      view={view}
-                      organizationId={organizationId}
-                      scoped={scoped}
-                      showCreate={variant === 'panel'}
+                {viewIncludesScope && (
+                  <HomeProjects
+                    organizationId={organizationId}
+                    projects={data.projects}
+                    loading={data.loading.projects}
+                    activeProjectId={
+                      location.kind === 'project'
+                        ? location.projectId
+                        : undefined
+                    }
+                    {...(variant === 'screen' ? { scope: projectScope } : {})}
+                  />
+                )}
+
+                {variant === 'screen' && view === 'chats' && (
+                  <div className="flex shrink-0 items-center justify-between pt-1 pb-1">
+                    <Button
+                      asChild
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-foreground h-7 gap-1.5 px-2 text-xs font-medium"
+                    >
+                      <Link
+                        to="/dashboard/$id/chat"
+                        params={{ id: organizationId }}
+                        search={
+                          scopeId !== undefined
+                            ? { projectId: scopeId }
+                            : { new: true }
+                        }
+                      >
+                        <SquarePen className="size-3.5" />
+                        {t('newChat')}
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex shrink-0 items-center gap-1.5 pt-0.5 pb-1.5">
+                  <SearchInput
+                    ref={searchRef}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={t(SEARCH_PLACEHOLDER_KEY[view])}
+                    wrapperClassName="min-w-0 flex-1"
+                    className="h-8 bg-transparent text-xs shadow-none"
+                  />
+                  {view === 'chats' && (
+                    <FilterPanel
+                      filters={chatFilters}
+                      onClearAll={clearChatFilters}
+                      align="end"
+                      iconOnly
+                      compact
                     />
-                  )
-                ) : (
-                  <ol
-                    // Re-keyed per view, so switching views fades the new
-                    // list in instead of swapping rows in place.
-                    key={view}
-                    aria-label={t('aria.stream')}
-                    onKeyDown={moveRowFocus}
-                    className="animate-in fade-in-0 flex flex-col gap-1 duration-200 motion-reduce:animate-none"
-                  >
-                    {draftingChat && (
-                      <li>
-                        <ul role="list" className="flex flex-col pt-2">
+                  )}
+                  {view === 'tasks' && (
+                    <FilterPanel
+                      filters={taskFilters}
+                      onClearAll={clearTaskFilters}
+                      align="end"
+                      iconOnly
+                      compact
+                    />
+                  )}
+                </div>
+
+                {streamFailed && (
+                  <div className="shrink-0">
+                    <CatalogLoadError
+                      message={
+                        data.retrying
+                          ? t('failed.retrying')
+                          : failedSources
+                              .map(({ failedKey }) => t(failedKey))
+                              .join(' ')
+                      }
+                      onRetry={data.retry}
+                      isRetrying={data.retrying}
+                      onFocusLost={focusSearch}
+                    />
+                  </div>
+                )}
+
+                <HomeStreamScroller
+                  scrollerRef={streamRef}
+                  onScrollElement={setStreamElement}
+                  highlightKey={highlightKey}
+                  showBorder={view !== 'all'}
+                  layoutVersion={`${view}|${draftingChat ? 'draft|' : ''}${streamLayout}`}
+                >
+                  {streamLoading ? (
+                    <Skeletonize loading className="flex flex-col gap-0.5 pt-2">
+                      <HomeRowsSkeleton />
+                    </Skeletonize>
+                  ) : groups.length === 0 && !draftingChat ? (
+                    // A failed read has said so above: an empty state here
+                    // would claim a list nobody could read is empty.
+                    streamFailed ? null : (
+                      <HomeEmpty
+                        view={view}
+                        organizationId={organizationId}
+                        scoped={scoped}
+                        showCreate={variant === 'panel'}
+                      />
+                    )
+                  ) : (
+                    <HomeStream
+                      // Re-keyed per view, so switching views fades the new
+                      // list in instead of swapping rows in place.
+                      key={view}
+                      groups={groups}
+                      draft={
+                        draftingChat ? (
                           <HomeDraftChatRow
                             organizationId={organizationId}
                             {...(draftProjectId !== undefined
                               ? { projectId: draftProjectId }
                               : {})}
                           />
-                        </ul>
-                      </li>
-                    )}
-                    {groups.map((group) => (
-                      <li key={group.key}>
-                        <h3 className="bg-background text-muted-foreground sticky top-0 z-20 px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider uppercase">
-                          {t(`groups.${group.key}`)}
-                        </h3>
-                        <ul role="list" className="flex flex-col gap-px">
-                          {group.items.map(renderRow)}
-                        </ul>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </HomeStreamScroller>
+                        ) : null
+                      }
+                      renderRow={renderRow}
+                      ariaLabel={t('aria.stream')}
+                      scrollElement={streamElement}
+                      activeKey={highlightKey}
+                    />
+                  )}
+                </HomeStreamScroller>
 
-              {(view === 'all' || view === 'chats') && !scopeId && (
-                <ArchivedSection />
-              )}
-            </div>
-          </ThreadDndProvider>
+                {(view === 'all' || view === 'chats') && !scopeId && (
+                  <ArchivedSection />
+                )}
+              </div>
+            </ThreadDndProvider>
+          </ActiveThreadProvider>
         </ThreadListFrameProvider>
       )}
     </div>
@@ -881,12 +877,17 @@ export function HomeNavigator({
  */
 function HomeStreamScroller({
   scrollerRef,
+  onScrollElement,
   highlightKey,
   layoutVersion,
   showBorder = true,
   children,
 }: {
   scrollerRef: RefObject<HTMLDivElement | null>;
+  /** The scroller as state, for the windowed stream inside it: a child's
+   * layout effect runs before this ref attaches, so a ref alone would leave
+   * the window without its scrollport on a quiet mount. */
+  onScrollElement: (node: HTMLDivElement | null) => void;
   /** The open row's key — the one the gliding highlight rests on. */
   highlightKey: string | null;
   /** Changes whenever rows move without the open one changing. */
@@ -905,10 +906,11 @@ function HomeStreamScroller({
   const setRefs = useCallback(
     (node: HTMLDivElement | null) => {
       scrollerRef.current = node;
+      onScrollElement(node);
       setDropRef(node);
       containerRef(node);
     },
-    [scrollerRef, setDropRef, containerRef],
+    [scrollerRef, onScrollElement, setDropRef, containerRef],
   );
   return (
     <div

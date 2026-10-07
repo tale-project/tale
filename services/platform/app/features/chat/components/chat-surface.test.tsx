@@ -109,9 +109,12 @@ vi.mock('@/app/features/shared/files/use-file-upload', () => ({
     onTranscriptionUnavailable?: (reason?: string) => void;
   }) => {
     uploadRecovery.notify = config.onTranscriptionUnavailable;
+    const [attachments, setAttachments] = React.useState(
+      uploadRecovery.attachments,
+    );
     return {
-      attachments: uploadRecovery.attachments,
-      setAttachments: vi.fn(),
+      attachments,
+      setAttachments,
       uploadingFiles: [],
       isUploading: false,
       uploadFiles: vi.fn(),
@@ -161,6 +164,14 @@ const videoLinksState = {
 vi.mock('../hooks/use-chat-video-links', () => ({
   useChatVideoLinks: () => videoLinksState,
 }));
+// The task dialog loads on first open (a lazy chunk); a marker stands in for
+// it so the cases below see what the surface hands it.
+vi.mock('./create-task-from-chat', () => ({
+  CreateTaskFromChat: ({ threadId }: { threadId: string }) => (
+    <div data-testid="create-task-from-chat">{threadId}</div>
+  ),
+}));
+
 // The parked-sends tray subscribes to Convex on its own; inert here.
 vi.mock('./deferred-send-tray', () => ({
   DeferredSendTray: () => null,
@@ -402,7 +413,9 @@ describe('ChatSurface while the chat backend is unavailable', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
-    await waitFor(() => checkAccessibility(container));
+    // An async audit is not a DOM polling assertion: waitFor's 1s clock can
+    // abort it while axe is still running. Await the audit within the test budget.
+    await checkAccessibility(container);
   });
 });
 
@@ -467,7 +480,7 @@ describe('ChatSurface when the model listing answers and is empty', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
@@ -1580,6 +1593,78 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     expect(input).toHaveValue('what did they decide?');
   });
 
+  it.each(['new chat start', 'existing thread outcome'])(
+    'restores text and staged attachment after a failed %s for retry',
+    async (failurePath) => {
+      const attachment = {
+        fileId: 's3:retry-file',
+        fileName: 'retry-file.txt',
+        fileType: 'text/plain',
+        fileSize: 42,
+      };
+      uploadRecovery.attachments = [attachment];
+      vi.mocked(useThreadView).mockReturnValue({
+        status: 'ready',
+        items: [],
+        generation: null,
+        streamingMessageId: undefined,
+        pendingConsumed: false,
+      });
+      let failRequest!: (error: Error) => void;
+      const failedRequest = new Promise<never>((_resolve, reject) => {
+        failRequest = reject;
+      });
+      failedRequest.catch(() => undefined);
+      const existingThread = failurePath === 'existing thread outcome';
+      start.mockImplementationOnce(() =>
+        existingThread
+          ? Promise.resolve({
+              threadId: 't-1',
+              boundVideoJobIds: [],
+              outcome: failedRequest,
+            })
+          : failedRequest,
+      );
+      start.mockResolvedValueOnce({
+        threadId: 't-1',
+        boundVideoJobIds: [],
+        outcome: new Promise(() => undefined),
+      });
+      const { user } = render(
+        <ChatSurface
+          organizationId="org-1"
+          {...(existingThread ? { threadId: 't-1' } : {})}
+        />,
+      );
+      const input = screen.getByRole('textbox', { name: 'Message input' });
+      await user.type(input, 'read this file for me');
+      expect(screen.getByText(attachment.fileName)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Send message' }));
+      expect(input).toHaveValue('');
+      expect(start).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          attachments: [attachment],
+          ...(existingThread ? { threadId: 't-1' } : {}),
+        }),
+      );
+      expect(screen.queryByText(attachment.fileName)).not.toBeInTheDocument();
+      await act(async () => {
+        failRequest(new TypeError('Failed to fetch'));
+      });
+      await waitFor(() => expect(input).toHaveValue('read this file for me'));
+      expect(screen.getByText(attachment.fileName)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Send message' }));
+      expect(start).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          text: 'read this file for me',
+          attachments: [attachment],
+        }),
+      );
+    },
+  );
+
   // The first message of a new chat creates its thread first; a door that
   // refused the thread (an archived project) used to toast a bare title.
   it('names why the door refused the new chat the send needed', async () => {
@@ -1659,7 +1744,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
@@ -1724,7 +1809,7 @@ describe('ChatSurface Home panel toggle', () => {
   it('passes an axe audit while folded', async () => {
     window.localStorage.setItem('chat-history-panel-open-org-1', 'false');
     const { container } = renderInHome();
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
@@ -2148,11 +2233,32 @@ describe('ChatSurface on a conversation shared with the project', () => {
     ).toBeNull();
   });
 
+  it('opens the task dialog from the header verb, loading it on first open', async () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-shared" />);
+
+    expect(screen.queryByTestId('create-task-from-chat')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }));
+    expect(
+      await screen.findByTestId('create-task-from-chat'),
+    ).toHaveTextContent('thread-shared');
+  });
+
+  it('starts loading the task dialog when the header verb is pointed at', async () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-shared" />);
+
+    const verb = screen.getByRole('button', { name: 'Create task' });
+    fireEvent.pointerEnter(verb);
+    fireEvent.click(verb);
+    expect(
+      await screen.findByTestId('create-task-from-chat'),
+    ).toHaveTextContent('thread-shared');
+  });
+
   it('passes an axe audit', async () => {
     const { container } = render(
       <ChatSurface organizationId="org-1" threadId="thread-shared" />,
     );
     await screen.findByTestId('message-copy-button');
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });

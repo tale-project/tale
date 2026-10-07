@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-router';
 
 import { isUrlPrefixedLocale } from '@/lib/i18n/locales';
+import { resolveWebRedirect } from '@/lib/redirects';
 
 /**
  * Layout route for `/$lang/...`. Validates that `$lang` is one of the
@@ -20,7 +21,13 @@ import { isUrlPrefixedLocale } from '@/lib/i18n/locales';
  * param; `useCurrentLocale()` reads it.
  */
 export const Route = createFileRoute('/$lang')({
-  beforeLoad: ({ params }) => {
+  beforeLoad: ({ params, location }) => {
+    const target = resolveWebRedirect(location.pathname);
+    if (target)
+      throw redirect({
+        href: `${target}${location.searchStr}`,
+        statusCode: 301,
+      });
     if (!isUrlPrefixedLocale(params.lang)) {
       if (params.lang === 'en') throw redirect({ to: '/' });
       throw notFound();

@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./automation-name": "./src/automation-name.ts",
+    "./task-limits": "./src/task-limits.ts",
     "./db/retry": "./src/db/retry.ts",
     "./db/serializable": "./src/db/serializable.ts",
     "./logging/logger": "./src/logging/logger.ts",
@@ -20,6 +22,7 @@
     "./schemas/knowledge": "./src/schemas/knowledge.ts",
     "./schemas/providers": "./src/schemas/providers.ts",
     "./schemas/configuration": "./src/schemas/configuration.ts",
+    "./schemas/managed-configuration": "./src/schemas/managed-configuration.ts",
     "./schemas/connectors": "./src/schemas/connectors.ts",
     "./schemas/epoch-ms": "./src/schemas/epoch-ms.ts",
     "./schemas/skills": "./src/schemas/skills.ts",
@@ -35,7 +38,9 @@
     "./schemas/automation-settings": "./src/schemas/automation-settings.ts",
     "./schemas/task-contract": "./src/schemas/task-contract.ts",
     "./schemas/task-external-issue": "./src/schemas/task-external-issue.ts",
-    "./schemas/task-review": "./src/schemas/task-review.ts"
+    "./schemas/task-external-status": "./src/schemas/task-external-status.ts",
+    "./schemas/task-review": "./src/schemas/task-review.ts",
+    "./monitoring/privacy": "./src/monitoring/privacy.ts"
   },
   "scripts": {
     "lint": "bunx oxlint --type-aware",

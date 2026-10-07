@@ -64,6 +64,8 @@ vi.mock('./mention-trigger-chips', () => ({
 // Stubbing the map leaves react-markdown's own renderers in place, so the
 // anchors below are the ones the markdown pipeline actually produced.
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({ members: [], agents: [], automations: [] }),
 }));
 vi.mock('@/app/features/shared/markdown/markdown-renderer', () => ({

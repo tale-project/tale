@@ -56,7 +56,7 @@ const statusWrites = (log: Query[]): unknown[][] =>
     .map((q) => q.values);
 
 describe('indexUploadedFile — images', () => {
-  it("marks an image 'unsupported' up front, never 'failed'", async () => {
+  it("marks an image 'unsupported' up front, never 'failed' [KNOW-R7]", async () => {
     const log: Query[] = [];
     await indexUploadedFile(fakeSql('photo.png', log), 'file-1');
 

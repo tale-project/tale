@@ -290,7 +290,7 @@ function passFilter(name: GuardrailFilter['name'] = 'pii'): GuardrailFilter {
   };
 }
 
-describe('runTurn — the at-most-one-turn claim', () => {
+describe('runTurn — the at-most-one-turn claim [CHAT-R5]', () => {
   it('propagates a busy refusal from the open and never closes the other turn', async () => {
     const { store, calls } = fakeStore();
     const held: TurnStore = {
@@ -793,7 +793,7 @@ describe('runTurn — the happy path', () => {
 });
 
 describe('runTurn — input guardrails', () => {
-  it('short-circuits: nothing after the refusal runs', async () => {
+  it('short-circuits: nothing after the refusal runs [CHAT-R8]', async () => {
     const model = vi.fn();
     const d = deps({
       model: model as unknown as ModelCall,
@@ -809,7 +809,7 @@ describe('runTurn — input guardrails', () => {
     expect(d.store.generations).toEqual([]);
   });
 
-  it('records the user message and the refusal on the thread so the UI can explain it', async () => {
+  it('records the user message and the refusal on the thread so the UI can explain it [CHAT-R8]', async () => {
     const d = deps({ inputFilters: [blockingFilter('chat_filter')] });
     await runTurn(request(), d.deps);
 
@@ -850,7 +850,7 @@ describe('runTurn — input guardrails', () => {
     });
   });
 
-  it('appends only the refusal on a regenerate — the user row already exists', async () => {
+  it('appends only the refusal on a regenerate — the user row already exists [CHAT-R8]', async () => {
     const d = deps({ inputFilters: [blockingFilter('chat_filter')] });
     await runTurn(request({ appendUserMessage: false }), d.deps);
 
@@ -1475,7 +1475,7 @@ describe('runTurn — the tool loop', () => {
     ]);
   }, 10_000);
 
-  it('stops when the store reports a cancel and keeps what streamed', async () => {
+  it('stops when the store reports a cancel and keeps what streamed [CHAT-R9]', async () => {
     const { store, calls } = fakeStore({ cancelAfterStreamWrites: 1 });
     const short = 'x'.repeat(40);
     const endless: ModelCall = async function* stream() {

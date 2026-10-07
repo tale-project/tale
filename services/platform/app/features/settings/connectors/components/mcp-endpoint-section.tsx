@@ -1,5 +1,7 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { CopyableField } from '@tale/ui/copyable-field';
 import { Link } from '@tanstack/react-router';
 
@@ -42,8 +44,10 @@ export function McpEndpointSection({
   // organization's slug — a copied request works for every key, not only a
   // single-organization one.
   const organization = useOrganization(organizationId);
-  const orgSlug = organization.data?.slug;
-  const example = `curl -X POST ${endpoint} -H 'Authorization: Bearer <api-key>' -H 'X-Organization-Slug: ${orgSlug ?? '<org-slug>'}' -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`;
+  const orgSlug = organization.isError ? undefined : organization.data?.slug;
+  const example = orgSlug
+    ? `curl -X POST ${endpoint} -H 'Authorization: Bearer <api-key>' -H 'X-Organization-Slug: ${orgSlug}' -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`
+    : undefined;
 
   return (
     <SettingsSection
@@ -51,6 +55,14 @@ export function McpEndpointSection({
       title={t('mcpEndpoint.title')}
       description={t('mcpEndpoint.description')}
     >
+      {organization.isError && (
+        <Alert variant="destructive">
+          <p>{t('mcpEndpoint.organizationReadFailed')}</p>
+          <Button type="button" onClick={() => void organization.refetch()}>
+            {t('mcpEndpoint.organizationReadRetry')}
+          </Button>
+        </Alert>
+      )}
       {/* Same divided rows as every settings section — label + hint left,
           the value pinned right. */}
       <SettingsFieldList>
@@ -110,16 +122,18 @@ export function McpEndpointSection({
           </SettingsFieldRow>
         ))}
 
-        <SettingsFieldRow
-          label={t('mcpEndpoint.exampleTitle')}
-          description={t('mcpEndpoint.exampleHelp')}
-        >
-          <CopyableField
-            value={example}
-            mono
-            copyAriaLabel={t('mcpEndpoint.copyExample')}
-          />
-        </SettingsFieldRow>
+        {example !== undefined && (
+          <SettingsFieldRow
+            label={t('mcpEndpoint.exampleTitle')}
+            description={t('mcpEndpoint.exampleHelp')}
+          >
+            <CopyableField
+              value={example}
+              mono
+              copyAriaLabel={t('mcpEndpoint.copyExample')}
+            />
+          </SettingsFieldRow>
+        )}
       </SettingsFieldList>
     </SettingsSection>
   );

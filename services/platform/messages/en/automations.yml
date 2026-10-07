@@ -1,0 +1,471 @@
+issueImport:
+  description: Import issues into Tale tasks. Repeating an import reuses the linked tasks and preserves their status and description. Configure the source credential in Settings > Connectors first.
+  chooseProject: Choose a Tale project
+  noProjects: No projects found. Create a project before importing issues.
+  limitHint: 'Read between 1 and 500 source issues per run. Continue from the result if more issues match.'
+  fields:
+    projectId: Tale project
+    owner: GitHub owner or organization
+    repo: GitHub repository
+    labels: GitHub labels (comma-separated)
+    organization: GlitchTip organization slug
+    project: GlitchTip project slug
+    query: GlitchTip search
+    limit: Maximum issues
+  resultTitle: Imported tasks
+  summary: 'Processed issues: {imported}. New tasks: {created}. Existing tasks: {updated}.'
+  mockResult: This is a test result. No issues were fetched and no tasks were written.
+  openTask: 'Open task {id}'
+  truncated: 'More issues match. Continue the import to read the next batch. Previously linked issues reuse their Tale tasks.'
+  continuing: 'Continue from the next batch. Changing the source filters or Tale project starts a new scan.'
+  continue: 'Continue import'
+  skipped: 'Issues skipped: {count}. Closed or resolved issues without a linked Tale task are not imported.'
+  refreshHasMore: 'More linked tasks need a source refresh. Run the import again to refresh the next group; Tale prioritizes the oldest checks.'
+title: Automations
+entityLabel: automations
+entityLabelOne: automation
+navigation:
+  editor: Editor
+  general: General
+  runs: Runs
+switcher:
+  title: Switch automation
+  searchPlaceholder: Search automations
+  empty: No automations found
+  ariaLabel: 'Switch automation, current: {name}'
+list:
+  createButton: Create automation
+  searchPlaceholder: Search automations
+  columnName: Name
+  columnProjects: Projects
+  columnVersions: Versions
+  columnStatus: Status
+  versionCount: '{count, plural, one {# version} other {# versions}}'
+  notDeployed: Not deployed
+  projectBound: Project
+  loadFailed: "Couldn't load automations: {error}"
+  empty:
+    title: No automations yet
+    description: Choose Create automation to start from a trigger and an agent, or to upload a package.
+createMenu:
+  blank: Blank (trigger + agent)
+blank:
+  title: New automation
+  stepAgent: Define the agent — what it does on every run.
+  stepTrigger: Choose when it runs.
+  nameLabel: Name
+  namePlaceholder: e.g. Triage GlitchTip issues
+  slugHint: 'Saved as: {slug}'
+  nameTaken: An automation with that name already exists.
+  nameReserved: That name starts with a word the platform keeps for its own pages. Start it with a different word.
+  modelLabel: Agent model
+  modelPlaceholder: Choose the model the agent calls
+  modelSearchPlaceholder: Search models
+  modelSearchEmpty: No models found
+  promptLabel: What should it do?
+  promptPlaceholder: e.g. Scan open GlitchTip issues and open a task for each
+    new one.
+  equipmentLabel: Equipment
+  timezoneInvalid: Pick a valid IANA time zone (e.g. Europe/Zurich or UTC).
+  webhookHint: The webhook URL is shown once, right after the automation is
+    created — copy it before opening the editor.
+  stepWebhook: Copy the webhook URL — it is shown only now.
+  copyWebhookUrl: Copy the webhook URL
+  openAutomation: Open the automation
+  enableNow: Enable now
+  enableNowHint: Off keeps the trigger paused — nothing starts until you switch it on from the Trigger card.
+  triggerFailed: 'The automation was created, but its trigger could not be
+    set: {error}. Set it from the Trigger card.'
+  cancel: Cancel
+  back: Back
+  next: Next
+  submit: Create automation
+  submitting: Creating…
+  initialMessage: Initial version
+notFound:
+  title: Automation not found
+  description: It may have been renamed, or it may belong to another
+    organization.
+detail:
+  loading: Loading the automation…
+  loadFailed:
+    title: Couldn't load the automation
+  # A deleted automation keeps its run history until retention removes
+  # it; the Runs pages still open under this banner.
+  deleted:
+    banner: 'This automation was deleted on {date}. Its run history stays until retention removes it.'
+    title: Automation deleted
+    description: There is nothing left to edit or deploy; the runs it recorded are still readable.
+    openRuns: Open the run history
+  deployedVersion: 'Live: v{version}'
+  versionSelect: Version
+  deployVersion: 'Deploy v{version}'
+  runMock: Test run
+  saveVersion: Save version
+  saveMessageLabel: Version message
+  saveMessageDescription: What changed, so the version list stays readable.
+  saveDialog:
+    title: Save a new version
+    description: Saves a new version. Any run already in progress keeps using the deployed version.
+  switchVersion:
+    title: Show another version?
+    description: Switching versions discards any unsaved changes you've made.
+    confirm: Discard and switch
+  staleVersion:
+    title: This automation changed while you were editing
+    description: "{message}"
+    reload: Discard my changes and reload
+    saveAnyway: Save anyway
+  showLastRun: Show last run
+  hideLastRun: Hide last run
+  runLive: Run live
+  runLiveNeedsDeploy: Deploy a version first — a live run executes the
+    deployed version.
+  deployedReadFailed: Couldn't load the deployed version
+  runLiveNeedsDeployedRead: Couldn't load the deployed version — try again.
+  runLiveTitle: Run live?
+  runLiveBody: This runs the deployed version for real — emails send, records change. It won't run again automatically.
+  runInput:
+    label: Run input (JSON)
+    description: 'Input for saved version {version}. It does not change the automation.'
+    schema: Input schema
+    invalidJson: Enter valid JSON for the run input.
+    invalid: 'The input does not match the schema. Check these fields: {paths}.'
+    mockDescription: Test the saved version with mock responses. No external actions run.
+  runScope:
+    label: Project scope
+    orgWide: Organization-wide
+    confirmOrgWide: This run operates organization-wide, across every project.
+    confirmProject: This run operates in the {project} project — its task and document tools act there.
+  delete:
+    title: Delete automation
+    description: Delete "{name}"? Triggers stop immediately. Run history stays until retention removes it.
+    done: Automation deleted
+    failed: Could not delete the automation
+trigger:
+  title: Trigger
+  description: What starts this automation. A trigger always runs the live version.
+  none: No trigger — this automation runs only when started by hand or through the API.
+  add: Add trigger
+  kindLabel: Trigger type
+  kinds:
+    schedule: Schedule
+    webhook: Webhook
+    event: Platform event
+  cronLabel: Cron
+  cronHint: Use a standard 5-field cron expression (minute hour day month weekday).
+  cronInvalid: That cron expression is not valid.
+  cronInvalidReason: 'That cron expression is not valid: {reason}'
+  cronNext: 'Next run {at}'
+  paused: Paused — no runs start
+  notDeployed: "Won't start until a version is deployed · would next run {at}"
+  cronEveryMinutes: '{n, plural, one {Every minute} other {Every # minutes}}'
+  cronEveryHours: '{n, plural, one {Every hour} other {Every # hours}}'
+  cronDailyAt: 'Every day at {time}'
+  timezoneLabel: Timezone
+  timezoneSearch: Search timezones
+  timezoneEmpty: No timezones match
+  eventLabel: Event name
+  eventPlaceholder: Select an event
+  enabledLabel: Enabled
+  lastFired: 'Last fired {at}'
+  failures:
+    pausedTitle: 'Paused after repeated failures'
+    pausedBody: '{count, plural, one {# run} other {# runs}} in a row failed with an error a retry won''t fix, so the schedule turned itself off. Fix the automation, then turn the trigger back on and save.'
+    streak: '{count, plural, one {The last run} other {The last # runs}} failed with an error a retry won''t fix.'
+    streakSchedule: 'After {limit} in a row, the schedule turns itself off.'
+    last: 'Last failure {at}:'
+    viewRun: 'View run'
+  remove: Remove trigger
+  removeTitle: Remove the trigger?
+  removeBody: Removes the trigger. The automation and its version history are unaffected.
+  tokenTitle: Webhook URL — copy it now
+  tokenHint: The token is the last part of the URL, shown once and stored only as a hash.
+  webhookEndpointLabel: Webhook endpoint
+  webhookHowto: Use this URL only when the automation has no project bindings.
+  hasToken: A token is active — the URL needs the token shown once when it was created; rotate to generate a new URL.
+  noToken: Save to mint the token; the full URL is shown once.
+  webhookProjectHint: To run in an installed project, use its ID in the URL below. The project must be active.
+  rotate: Rotate token
+  revokeConfirm:
+    title: Replace the webhook?
+    body: Switching the trigger type revokes the webhook URL immediately — senders still using it get 404, and configuring a webhook again later mints a different URL.
+    confirm: Replace and revoke
+  rotateConfirm:
+    title: Rotate the webhook token?
+    body: The current URL stops working the moment the new token is minted. Copy the new URL and update every sending system.
+  revokedToast: The previous webhook URL has been revoked — senders using it now get 404.
+canvas:
+  ariaLabel: Automation canvas
+  readsFrom: 'Reads {nodes}'
+  unpinnedModel: No pinned provider — each run picks one automatically.
+  empty:
+    title: This version has no nodes
+    description:
+      An automation document is a list of nodes. Add one to the document
+      and it appears here.
+  cycle:
+    title: These nodes reference each other in a circle
+    description:
+      The order shown is the order the nodes are written in, not the
+      order they would run in — the engine cannot run a cycle. Remove one of
+      the references to break it.
+  edge:
+    data: '{target} reads the output of {source}'
+    control: '{target} runs after {source}'
+  controlFlow:
+    when: 'when {value}'
+    elseOf: 'else of {value}'
+    forEach: 'for each {value}'
+    repeatUntil: 'repeat until {value}'
+    repeatUntilCapped: 'repeat until {value}, at most {maxRepeats}×'
+    onError: continue on error
+editor:
+  unknownType: 'Unknown node type: {type}'
+  catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
+  invalidJson: This is not valid JSON yet, so the node was not changed.
+  versionNotFound:
+    title: "Version {version} doesn't exist"
+    description: This automation has no version with that number — the link may be stale, or the number mistyped.
+    openLatest: Open latest
+  controlFlowTitle: Control flow
+  nodeSheetDescription: Edit the node's fields, then save or discard the change.
+  agent:
+    equipmentLabel: Equipment
+    harnessDefault: Default (Claude Code)
+    modelUnlisted: 'No connected provider offers the saved model "{model}"
+      for this harness — pick one from the list.'
+  # The llm node's model picker: what the organization's providers serve,
+  # with a typed escape for a model whose provider is not connected yet.
+  llm:
+    modelPlaceholder: Choose the model to call
+    modelUnlisted: 'No connected provider serves "{model}" — a live run
+      would fail at this node. Pick a listed model, or keep the id if you
+      will connect its provider.'
+    typeUnlisted: Type a model that is not listed
+    modelIdLabel: Model id
+    modelIdHint: Exactly as the provider spells it, e.g. vendor/model-name.
+  runTitle: In this run
+  resolvedInput: Resolved input
+  output: Output
+  fields:
+    input: Input
+    inputDescription: A JSON object. A string value may reference another
+      node's output, and that reference is exactly what draws an edge on the
+      canvas.
+    code: Code
+    prompt: Prompt
+    system: System prompt
+    model: Model
+    outputSchema: Output schema
+    automation: Automation
+    credential: Credential
+    harness: Harness
+    skills: Skills
+    connectors: Connectors
+    tools: Platform tools
+    secrets: Secrets
+    files: Staged files
+    when: When
+    whenDescription: Skip this node when the expression is falsy.
+    elseOf: Else of
+    elseOfDescription: Run only when the named node was skipped by its own condition.
+    forEach: For each
+    forEachDescription: Run once per item of the array the expression resolves to.
+    repeatUntil: Repeat until
+    repeatUntilDescription: Re-run this node until the expression is truthy.
+bindings:
+  title: Projects
+  countBadge: '{count, plural, one {Bound to # project} other {Bound to # projects}}'
+  hint: Restrict to specific projects, or leave empty for all.
+  placeholder: Select projects
+  searchPlaceholder: Search projects
+  empty: No projects match
+  noProjects: This organization has no projects yet.
+versions:
+  title: Versions
+  empty: No versions saved yet.
+  versionLabel: v{version}
+  deployed: Live
+  deployRefused: This version was not deployed
+  testsPassed: Tests passed
+  testsFailed: Tests failed
+  noMessage: No message
+upload:
+  trigger: Upload package
+  title: Upload package
+  description: Upload a workflow file or pack zip to add it to your automations.
+  filesLabel: Package files
+  filesHelp: workflow.yml (+ automation.yml), or a pack .zip.
+  uploading: Uploading the package…
+  zipOnly: Upload the zip on its own — it already carries the whole pack.
+  zipTooLarge: The zip is over the 20 MiB package cap.
+  skillsSummary: 'Skills: {created} installed, {replaced} replaced, {unchanged} unchanged.'
+  skillConflictTitle: '{count, plural, one {# skill already exists with different content} other {# skills already exist with different content}}'
+  skillConflictDescription: Confirming replaces each listed skill with the package's version. The superseded SKILL.md stays in the skill's history.
+  skillConflictConfirm: '{count, plural, one {Replace the skill} other {Replace # skills}}'
+  skillConflictCancel: Keep the existing skills
+  removeFile: 'Remove {name}'
+  targetLabel: Install into
+  targetOrg: Organization
+  targetHelp: Project binds it to that board; Organization shares it org-wide.
+  submit: Upload package
+  submitting: Validating and saving…
+  successTitle: Package uploaded
+  successNote: '{name} v{version} is saved as a draft.'
+  successHint: Drafts never run — triggers and task boards only use the deployed version. Deploy now to make this version live, or do it later from the automation's page.
+  deployNow: 'Deploy v{version}'
+  deployLater: Later
+  deployed: '{name} v{version} is live.'
+  warnings: '{count, plural, one {# validation warning} other {# validation warnings}}'
+runs:
+  agentLog:
+    title: Agent log
+    starting: The agent is starting up in the sandbox…
+    empty: The agent produced no log for this run.
+    readFailed: Could not load the agent log.
+    readFailedDescription: The transcript is temporarily unavailable. Try again to reload it.
+    retry: Try again
+    servedBy: 'This turn ran on {model}.'
+    visionModel: 'Images in this run were read by {model}.'
+  approval:
+    title: 'Waiting for your approval: {operation}'
+    node: 'Requested by node "{node}" — approving lets it act on the next poll; rejecting fails it.'
+    pending: Approving lets the parked step act on the next poll; rejecting fails it.
+    approved: '{operation} approved — the run resumes on its next poll.'
+    rejected: '{operation} rejected — the step fails and the run stops.'
+    input: The step would call with
+    approve: Approve
+    reject: Reject
+    loading: Loading the approval…
+    loadFailed: "Couldn't load this approval."
+    retry: Try again
+    decideFailed: "Couldn't record your decision."
+  ask:
+    title: The agent needs your answer to continue
+    answerLabel: Your answer
+    placeholder: Type your answer — plain text is fine.
+    submit: Send answer & resume
+  title: Runs
+  description: Every run of this automation, newest first — test runs and live runs alike. Open one for its steps, effects and output.
+  breadcrumb: Run
+  heading: 'Run of {automation}'
+  empty: This automation has not run yet.
+  loading: Loading the run…
+  loadFailed: "Couldn't load this run."
+  # The engine's own retry of a failed agent turn — the user must be able
+  # to tell the platform's retry from their own rerun.
+  autoRetrying: 'Auto-retry {n} of {max}'
+  cancel: Stop the run
+  # Asked before a stop: it is final, and it withdraws whatever the run is
+  # waiting on (an approval card, a question).
+  cancelConfirm:
+    title: Stop this run?
+    body:
+      The run stops at its next step boundary and cannot be resumed. Work
+      already done stays; a pending approval or question is withdrawn.
+  # Who or what started the run — never the `user:<id>` / `trigger:<id>`
+  # door the record carries.
+  starter:
+    you: Started by you
+    youApi: Started by you (API)
+    member: 'Started by {name}'
+    apiKey: 'Started by {name} (API)'
+    formerMember: Started by a former member
+    formerMemberApi: Started by a former member (API)
+    schedule: Started by the schedule
+    webhook: Started by a webhook
+    event: Started by a platform event
+    trigger: Started by a trigger
+    unknown: Starter not recorded
+  # What a waiting run is parked on, in words.
+  waiting:
+    approval: Waiting for approval
+    ask: Waiting for your answer
+    agent: Agent working
+    room: Waiting for a sandbox slot
+    repeat: 'Polling — step {node}'
+  startedAt: 'Started {date}'
+  finishedAt: 'Finished {date}'
+  inputTitle: Run input
+  outputTitle: Run output
+  notFound:
+    title: Run not found
+    description: It may have been removed, or it may belong to another
+      organization.
+  mode:
+    mock: Test
+    live: Live
+  status:
+    queued: Queued
+    running: Running
+    waiting: Waiting
+    success: Succeeded
+    failed: Failed
+    cancelled: Stopped
+  nodeStatus:
+    ok: Ran
+    skipped: Skipped
+    error: Failed
+    not_run: Never reached
+    pending: Not reached yet
+    running: Running now
+    stopped: Stopped here
+  effects:
+    title: '{count, plural, one {# effect} other {# effects}}'
+    description:
+      Everything this run changed outside the platform, in the order it
+      happened.
+    none: This run changed nothing outside the platform.
+    noneForNode: This node changed nothing outside the platform.
+    noneYetForNode: This node has not changed anything outside the platform yet.
+    byNode: 'from {node}'
+    inputLabel: Called with
+  timeline:
+    label: Run steps
+    current: Current step
+    empty: The run has not reached any step yet.
+    actions: '{count, plural, one {# action} other {# actions}}'
+settings:
+  loading: Loading settings…
+  loadFailed: Couldn't load settings — close the dialog and try again.
+  save: Save
+  saveAndContinue: Save and continue
+  showMore: Show more
+  showLess: Show less
+  dialogTitle: '{name} — settings'
+  tabsLabel: Settings sections
+  moreTabs: More settings sections
+  unsavedTab: Unsaved changes
+  saved: Settings saved.
+  saveFailed: Couldn't save settings — try again.
+  errors:
+    required: This field is required.
+    number: Enter a number.
+    pattern: This doesn't match the expected format.
+  uploads:
+    empty: No files yet.
+    loading: Loading files…
+    treeLabel: Uploaded files
+    addButton: Drop files here or click to upload
+    addToFolder: 'Drop files here — they go to "{folder}"'
+    pickFolderHint: Create or pick a folder above — uploads go into the selected folder.
+    newFolderButton: New folder
+    newFolderTitle: Create a folder
+    newFolderCreate: Create
+    newFolderPlaceholder: e.g. Invoices
+    newFolderParent: 'Created inside "{folder}"'
+    newFolderFailed: Couldn't create the folder — try again.
+    uploading: Uploading…
+    uploaded: '{count} file(s) uploaded.'
+    uploadedPartial: '{ok} of {total} file(s) uploaded.'
+    uploadFailed: Couldn't upload the file — try again.
+    uploadFailedDetail: '{name}: {reason}'
+    wrongType: 'Only these file types are accepted: {types}'
+    wrongName: The file name doesn't match the expected pattern for this form.
+    tooLarge: File exceeds the {max} MB limit.
+    remove: Delete {name}
+    removeTitle: Delete this file?
+    removeDescription: This deletes "{name}" from the project permanently — it can't be undone.
+    removeConfirm: Delete
+    removeFailed: Couldn't delete the file — try again.

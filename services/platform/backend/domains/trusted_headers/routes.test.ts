@@ -102,7 +102,7 @@ beforeEach(() => {
   vi.mocked(service.revokeTrustedHeaderKey).mockReset().mockResolvedValue();
 });
 
-describe('the orgSettings gate', () => {
+describe('the orgSettings gate [THDR-R1]', () => {
   it.each([
     ['GET', '/'],
     ['PUT', '/settings'],
@@ -188,7 +188,7 @@ describe('POST /keys', () => {
     expect(service.createTrustedHeaderKey).not.toHaveBeenCalled();
   });
 
-  it('answers 201 with the plaintext the service minted', async () => {
+  it('answers 201 with the plaintext the service minted [THDR-R2]', async () => {
     const res = await request('/keys', { body: { name: 'Host proxy' } });
 
     expect(res.status).toBe(201);
@@ -238,7 +238,7 @@ describe('DELETE /keys/:id', () => {
     );
   });
 
-  it("answers not-found for a key that is not this organization's", async () => {
+  it("answers not-found for a key that is not this organization's [THDR-R5]", async () => {
     vi.mocked(service.revokeTrustedHeaderKey).mockRejectedValue(
       new TrustedHeadersError('TRUSTED_HEADER_KEY_NOT_FOUND', 'no such', 404),
     );

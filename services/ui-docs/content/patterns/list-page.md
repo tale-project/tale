@@ -60,6 +60,10 @@ Content the page stacks above the table — a folder breadcrumb, a load-failure 
 
 The search field and filters describe the rows beneath them. `useListPage` keeps them honest: it matches the query against the complete set — draining a paginated source first, so a match on a page that has not loaded yet is still found — and starts its window over when the query changes, so a new search never opens halfway through the old result. Search `fields` name the row's own keys, or pass an accessor for a value the row does not carry, such as a label your service translates.
 
+For server-paginated search, use `search: { value, onChange, serverSide: true }` and send the debounced value to your query. The server must apply the search across the collection and return matching cursor pages. This opt-in avoids the client completeness drain, including while the query is debouncing; ordinary controlled searches retain their existing drain behavior. Managed client filters and client-side sorts still drain for completeness.
+
+For a bounded sorted window, pass the same `sortingColumns` and `sorting` that the table uses. The hook runs TanStack's complete column-aware model before slicing, including accessors, custom comparators and multiple sort keys. Set the table's `sorting.manual` to `true` to preserve that preordered window rather than re-sorting it independently. Without `sortingColumns`, the existing complete-sort path remains unchanged. Small sorted buffers below five pages are shown whole; larger buffers use the normal display window, which expands on scroll. This bounds the initial sort render. In its normal sticky layout, the table also limits mounted rows as the loaded collection grows.
+
 A facet that matches one field exactly can live in the hook through `filters.definitions`. Facets your service keeps itself — in the URL, say, or with several values at once — go to the hook as `filters.configs` with an `onClear`, and the rows you hand it are the ones those facets leave. Use `dateRange` and `filtersContent` on the table for the rest. Keep shareable filter state in the URL when reloads and copied links should preserve the view.
 
 `addAction` creates the primary toolbar affordance; it does not open a dialog by itself. Supply `onClick`, `href`, or menu items and derive availability from the host's permission state. Do not duplicate the same create action in the page header.
@@ -82,8 +86,22 @@ Choose stable IDs with `getRowId`. Use a named link or action for the item's des
 
 `isRowClickable` excludes rows that should not navigate. `onRowMouseEnter` can preload a destination, but the click handler still needs to work when there was no hover, including keyboard and touch use.
 
+## Bound a custom collection's rendering
+
+<Demo name="patterns/large-list" />
+
+Scroll this 5,000-item collection or activate **Scroll to last item**, then select **Item 5000**. All items remain available while the DOM contains only rows near the viewport and any focused row. Tab and Shift+Tab retain the focused row's immediate neighbours.
+
+Use `useVirtualList` from `@tale/ui/use-virtual-list` when a collection needs its own rows instead of `DataTable`. Give it a bounded scroll container, stable item keys, the full filtered count, and an estimated row height. Attach `measureElement` and `data-index` to each rendered row so taller content updates the scroll extent. Render `paddingBefore` and `paddingAfter` as hidden spacers in normal flow; this leaves transforms available for drag-and-drop. Pass spacing through `gap` rather than adding a CSS gap between the spacers and rows.
+
+The hook renders collections of 100 rows or fewer in full by default. `threshold` and `overscan` let the host tune that boundary and the surrounding rendered rows. Use `scrollToIndex` for a destination that may be unmounted. When a child borrows an ancestor's scroll ref, wait for the returned `scrollElement` before an initial scroll or offset measurement. A collection beneath earlier content in the same scroller also supplies `scrollMargin` and updates it when that content changes height.
+
+Attach the hook's `onFocusCapture` and `onBlurCapture` to each measured row so focus inside a portaled row control keeps its owning row mounted. Keep draft state outside rows that may unmount, or pass their indices through `pinnedIndices` while editing or dragging. A popup opened without focus or a dirty editor that no longer has focus needs an explicit pin. Search, sorting, permissions, and loading still operate on the host's full collection. Native reversed chat scrollers and expanding tables need their own layout treatment.
+
 ## Choose paging and prove the states
 
 Every collection screen pages the same way, whatever its source: `useListPage` hands the table a window of rows, loads more as the reader nears the end, and closes the frame on the count footer — "Showing all 12 automations", or "3 of 12" while a search narrows the set. Pass `{ type: 'query', data }` for a set that arrives whole and `{ type: 'paginated', … }` for cursor pages with their status and `loadMore`. Provide singular and plural `entityLabel` values for the footer's copy. Rows that aggregate several entities, such as a folder, can report how many they stand for through `countRow`.
+
+Pass `windowKey` when a service changes the collection or applies its own search and facets. A changed key restarts the display window; live updates under the same key preserve the rows already revealed. If a deep link selects a row outside that window, pass that row as `revealedRow`. The hook includes it once, in collection order, without mounting all the rows before it. The row must belong to the processed collection; search and filters still apply, and scrolling eventually fills the intervening rows.
 
 Before shipping, try an initially empty collection, a nonmatching search, a rejected request followed by Retry, and a narrow viewport. Tab to the search, a row action, and the create control. Confirm the host prevents unauthorized writes even if its UI state is bypassed.

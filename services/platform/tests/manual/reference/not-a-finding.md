@@ -33,18 +33,22 @@ here the first time a round re-files it.
   textbox — a property of any text control, not a leak: stored secrets are
   never echoed into the field. Report it only if a round finds a stored value
   rendered into the field.
-- **A client-side search, filter or sort on a paginated list drains every
-  page.** The contacts table (and every `useListPage` list) fetches one page
-  at rest, but a search box, facet or sort that is evaluated client-side
-  intentionally loads the remaining pages so the result is complete (#2054) —
-  eleven list responses after typing a query are that drain, not eager
-  paging. PERF-B2 measures the resting page only.
+- **A client-side filter or sort on a paginated list drains every page.**
+  A list fetches one page at rest, but a client-side facet or sort intentionally
+  loads the remaining pages so the result is complete (#2054). Contacts uses
+  its complete TanStack column model before displaying a bounded initial sort
+  window. Other lists retain their existing client-sort behavior unless they
+  opt into column-aware windowing. Contacts search is
+  server-side and does not use this exception: it sends the query with the
+  paginated request and keeps matching fields name, email and external id,
+  additionally matching phone via the existing server predicate.
+  PERF-B2 measures the resting page and the bounded sorted window.
 - **A new org in mode A is not provider-wired.** Wizard-created or minted by
   `save-auth-state.ts`, it lands on chat's **No AI provider connected yet**
   empty state with zero credentials until the mock provider is wired per
   [setup.md](../setup.md) §1.A (the provider file, then its environment
   credential). Observed live 2026-08-04 and 2026-10-03.
-- **"Tale is ready to work offline." fires once on first service-worker
+- **"Tale's offline screen is ready." fires once on first service-worker
   install.** Benign, and it will photobomb an unrelated screenshot.
 - **A chunked body past a route's cap is read to the cap before the 413.** A
   JSON write sent with `Transfer-Encoding: chunked` and no `Content-Length`
@@ -63,6 +67,20 @@ here the first time a round re-files it.
   `INVALID_HEADER`) is reachable only with the semicolon form
   (`-H 'Idempotency-Key;'`), which sends an empty value. Observed in the
   2026-09-14 round-h API evaluation (h1).
+
+- **A long board lane or list section keeps only the tasks near its view in
+  the page.** A status lane (or, in **List**, a status section) holding more
+  than 40 tasks mounts the tasks in and near its scrollport and the ones a
+  scroll reaches, and stays so until it falls below 30 tasks
+  (`windowed-task-rows.tsx`, `WINDOWED_LANE_MIN_CARDS`,
+  `UNWINDOWED_LANE_MAX_CARDS`); a 2,000-task board that mounted every card
+  blocked the tab for 16–26 s (#4062). The browser's find in page and a
+  screen reader's browse mode therefore reach a long lane's tasks only once
+  they are near the view, and **Tab** from a task the lane has scrolled away
+  from goes on to the tasks in view; **Search tasks** finds any task, the
+  header counts all of them, **Tab** walks the tasks in order from the view,
+  and a keyboard drag reaches every slot (`TASK-P5`). Report a lane or
+  section of fewer than 30 tasks missing one.
 
 ## Known benign console output
 

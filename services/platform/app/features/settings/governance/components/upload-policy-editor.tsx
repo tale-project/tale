@@ -23,6 +23,7 @@ import { useT } from '@/lib/i18n/client';
 import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 import {
   findConflictingExtensions,
   stringToExtensions,
@@ -88,7 +89,7 @@ function buildConfig(
 // `<Switch>`/`<Input>` leaves mask themselves while loading, so the loading and
 // loaded layouts are the SAME tree.
 // =============================================================================
-export function UploadPolicyEditor({
+function UploadPolicyEditorContent({
   organizationId,
 }: UploadPolicyEditorProps) {
   const { t } = useT('governance');
@@ -322,3 +323,8 @@ export function UploadPolicyEditor({
     </Skeletonize>
   );
 }
+
+export const UploadPolicyEditor = withGovernancePolicyReadBoundary(
+  UploadPolicyEditorContent,
+  'upload_policy',
+);

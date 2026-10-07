@@ -8,6 +8,55 @@ const KEY_HEX = 'ab'.repeat(32);
 const BASE = { DATABASE_URL: 'postgres://x', ENCRYPTION_SECRET_HEX: KEY_HEX };
 
 describe('loadEnv', () => {
+  it('validates and normalizes the authenticator client name', () => {
+    expect(loadEnv(BASE).TOTP_CLIENT_NAME).toBeUndefined();
+    expect(
+      loadEnv({ ...BASE, TOTP_CLIENT_NAME: ' Example \t plus ' })
+        .TOTP_CLIENT_NAME,
+    ).toBe('Example plus');
+    for (const value of ['', ' ', 'Example: Admin', 'a'.repeat(41)]) {
+      expect(() => loadEnv({ ...BASE, TOTP_CLIENT_NAME: value })).toThrow();
+    }
+  });
+  it('validates and normalizes the authenticator environment', () => {
+    expect(loadEnv(BASE).TOTP_ENVIRONMENT).toBeUndefined();
+    expect(
+      loadEnv({ ...BASE, TOTP_ENVIRONMENT: ' te ' }).TOTP_ENVIRONMENT,
+    ).toBe('TE');
+    for (const value of [
+      '',
+      ' ',
+      '<TE>',
+      'te:issuer',
+      'te/pr',
+      'a'.repeat(33),
+    ]) {
+      expect(() => loadEnv({ ...BASE, TOTP_ENVIRONMENT: value })).toThrow();
+    }
+  });
+  it('validates lightweight sessions and explicit Claude reasoning effort', () => {
+    expect(loadEnv(BASE).SANDBOX_AGENT_PROFILE).toBe('agent');
+    expect(loadEnv(BASE).TALE_SANDBOX_CLAUDE_EFFORT).toBeUndefined();
+    expect(
+      loadEnv({ ...BASE, TALE_SANDBOX_CLAUDE_EFFORT: '' })
+        .TALE_SANDBOX_CLAUDE_EFFORT,
+    ).toBeUndefined();
+    expect(
+      loadEnv({
+        ...BASE,
+        SANDBOX_AGENT_PROFILE: 'agent-light',
+        TALE_SANDBOX_CLAUDE_EFFORT: 'medium',
+      }),
+    ).toMatchObject({
+      SANDBOX_AGENT_PROFILE: 'agent-light',
+      TALE_SANDBOX_CLAUDE_EFFORT: 'medium',
+    });
+    expect(() => loadEnv({ ...BASE, SANDBOX_AGENT_PROFILE: 'agnt' })).toThrow();
+    expect(() =>
+      loadEnv({ ...BASE, TALE_SANDBOX_CLAUDE_EFFORT: 'faster' }),
+    ).toThrow();
+  });
+
   it('applies defaults for port, role, and concurrency', () => {
     const env = loadEnv({ ...BASE });
     expect(env.PORT).toBe(3005);

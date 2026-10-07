@@ -53,9 +53,13 @@ gh api repos/tale-project/tale/dispatches -f event_type=release-candidate \
 ```
 
 That event starts **Build, Checks, SAST, Commitlint, E2E, CLI and Security**, each titled
-`Release candidate <sha>`. It reuses their existing jobs, including all E2E shards and all five
+`Release candidate <sha>`. It reuses their existing jobs, including all four E2E platform shards, all four UI shards and all five
 CLI build targets. Candidate validation never attaches CLI binaries to a release. Normal
 pull request, push, nightly and manual events keep their existing behavior.
+They skip the standalone candidate-source resolver and retain their event's checkout
+commit (including pull-request and merge-group merge commits); manual CLI publication
+still resolves its requested release tag. Downstream jobs explicitly admit that intentional
+skip while retaining their dependency, cancellation and scope checks.
 
 Follow the runs in Actions or list one workflow at a time:
 
@@ -68,6 +72,11 @@ gh run watch <run id> --repo tale-project/tale
 
 The Build **Run workflow** action remains available for an individual Build validation; it
 does not start the other six workflows. Use the repository event for a complete candidate round.
+
+Candidate service scopes always select the complete graph. The stable UI aggregate and all four
+UI shard names, the E2E scope, and every E2E leg are required receipt evidence. Candidates skip
+unused informational SARIF generation; their blocking Opengrep and vulnerability gates still
+execute. The scheduling and cache contracts are in [CI.md](CI.md).
 
 Each workflow has a separate `<workflow>-candidate-<sha>` concurrency group with cancellation
 disabled. Main merges cannot cancel these runs. The shared **Candidate source / Resolve source**
@@ -141,7 +150,7 @@ To be `eligible`, the candidate must pass all of these:
   would skip the commit. Repository dispatches only count through their C-bound receipts;
   their GitHub `head_sha` describes H. CLI manual publication dispatches do not count as normal
   source evidence because their input tag can differ from the workflow source. The Build push
-  run does not count: path filters skip checks there and later merges cancel it.
+  run does not count: its path filters can skip required candidate checks.
 
 "Newest" uses GitHub's `run_started_at`, not the run's original creation time or id. Re-running an
 older run after a newer success makes that rerun the deciding evidence: its failure blocks, an
@@ -174,16 +183,21 @@ lists whose totals matched their pages, yet the newest runs were missing, or eve
   this category appear under `excluded`. Among eligible originals, the newest current attempt
   still decides. Delayed push workflows and later pushes never move the cutoff. The report's
   `arrival` field names the verified PR, repository id and canonical merge time (`createdAt`).
-- **The unfiltered walk goes past the cutoff and every listed original run**, including those
-  excluded from validation. An eligible run omitted by either read, different attempts or
-  completed outcomes, a repeated push of C, or an observed push before the canonical merge
-  answers `blocked`. A run still going in either read is judged as still going. Out-of-order
-  IDs or creation times, changed repeated records, incomplete pages or failure to cross the
-  boundary within 3,000 runs also block. Read again; do not tag from an incomplete result.
+- **The unfiltered walk goes a minute past the cutoff and past every listed original run**,
+  including those excluded from validation. An eligible run omitted by either read, different
+  attempts or completed outcomes, a repeated push of C, or an observed push before the canonical
+  merge answers `blocked`. A run still going in either read is judged as still going.
+  Out-of-order IDs, a creation time more than a minute later than the earliest one listed before
+  it, changed repeated records, incomplete pages or failure to cross the boundary within 3,000
+  runs also block. Read again; do not tag from an incomplete result.
 
-The accepted enumeration model is an unfiltered list in descending run-id and non-increasing
-original-creation-time order. Identical leading repeats caused by new runs shifting pagination
-are tolerated. GitHub does not document an immutable snapshot or ID/time-order guarantee; the
+The accepted enumeration model is an unfiltered list in descending run-id order whose original
+creation times never rise more than a minute above the earliest one listed before them. The
+observed inversion in #4330 was one second between runs of the same event. Sixty seconds is the
+gate's chosen tolerance, not an observed maximum or a GitHub guarantee. Under this model, the
+walk's extra minute past the cutoff keeps every run that could still count. Identical leading
+repeats caused by new runs shifting pagination are tolerated. GitHub does not document an
+immutable snapshot or ID/time-order guarantee; the
 gate checks observed ordering and disagreements under this model. It does not reconstruct every
 historical ref update or prove the first-ever arrival of C, and cannot detect arbitrary history
 omitted by every API read. Stronger lifetime guarantees require durable ref-update evidence.
@@ -264,8 +278,8 @@ A published version is not a deployment. Deployments follow their own procedure.
   continues.
 - **A real defect.** Do not release. Fix it on `main`, then choose a new candidate explicitly and
   say that it replaces the old one. Never tag a SHA other than the validated one.
-- **Do not re-run an old `main` Build run** to validate a candidate. It keeps its original group,
-  and the next merge cancels it again.
+- **Do not re-run an old `main` Build run** to validate a candidate. It keeps its ordinary
+  path-filtered graph and does not produce the complete candidate receipt.
 - **An expired receipt** (after 90 days) makes the gate ask for a new validation.
 - **Release-note validation fails.** Before tagging, correct the notes in a reviewed PR and choose
   the new candidate. If a tag was already pushed without valid notes, keep that tag and release
@@ -314,3 +328,36 @@ After expiry, the next holder takes the lease over only after reconciling the re
    failed, follow the rule above; no tag moves.
 
 Never start a second release while a Release run is in flight.
+
+
+## Source contract shared with Ops
+
+`.github/release-candidate-contract.json` is the source of the evaluator's required
+workflow/job map. The existing workflow guard checks its exact receipt dependencies
+and every matrix/reusable job. The same file declares candidate, ordinary main and
+CLI publication result sets and the source admission assertions consumed by Ops.
+No fetched executable evaluator is used by Ops.
+
+After changing an admission condition, needs edge, matrix, conditional step/input,
+execution defaults, runner/container/service selectors, permissions, timeouts,
+or the source/receipt helpers, refresh the descriptor with:
+
+```sh
+bun tools/cli/scripts/release-candidate-contract.ts --write
+```
+
+Review the descriptor diff and run the existing release-candidate workflow and gate
+tests. The refresh retains the required job map; it cannot remove a mandatory check
+on its own. Exact workflow/job/step key sets bind field presence and absence,
+including unknown future selectors. Every field value is bound except workflow
+and step display names and run bodies; job names remain required evidence.
+Reviewed-main run bodies still require code review, and this contract does not
+prove their semantic equivalence. Body/comment or display-name edits that preserve
+this admission shape need no Ops digest update.
+Admission changes require review of the complete canonical descriptor digest in Ops
+before a release uses them. A failed source-contract check is a compatibility task,
+never permission to weaken mandatory work or accept an unknown receipt shape.
+
+Ops policy v1 remains the historical v0.5.72 lane. Its descriptor-only v2 must be
+activated with a minimum source containing this descriptor, after both repositories'
+normal gates are green. This data extraction does not activate policy or deploy.

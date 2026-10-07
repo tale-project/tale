@@ -2,6 +2,7 @@ import { DocsLayout } from '@tale/ui/docs/docs-layout';
 import { LocaleSync } from '@tale/ui/i18n/sync';
 import { TALE_GITHUB_URL } from '@tale/ui/seo/globals';
 import { ThemeAssets } from '@tale/ui/theme/assets';
+import { useSiteCopyright } from '@tale/ui/use-site-copyright';
 import {
   createRootRoute,
   Outlet,
@@ -10,6 +11,7 @@ import {
 import { useMemo } from 'react';
 
 import { SwUpdateBanner } from '@/app/components/docs/sw-update-banner';
+import { firstNavSlug } from '@/lib/content/nav';
 import { navSections } from '@/lib/content/nav-sections';
 import { docPath } from '@/lib/content/paths';
 import { useDocsSearchConfig } from '@/lib/content/use-docs-search-config';
@@ -40,7 +42,7 @@ function isSpecialEndpoint(pathname: string): boolean {
 function activeSlugFromPathname(pathname: string): string {
   const segments = pathname.split('/').filter((s) => s.length > 0);
   if (segments[0] === 'de' || segments[0] === 'fr') segments.shift();
-  if (segments.length === 0) return 'index';
+  if (segments.length === 0) return firstNavSlug();
   return segments.join('/');
 }
 
@@ -49,17 +51,15 @@ function localeFromPathname(pathname: string): SupportedLocale {
 }
 
 /**
- * Article routes use the shared `@tale/ui` documentation frame, fed this
- * site's navigation tree, search index and footer copy. Locale homepages
- * own their marketing discovery shell; both surfaces share search behavior.
+ * Every route uses the shared `@tale/ui` documentation frame, fed this
+ * site's navigation tree, search index and footer copy.
  */
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const locale = localeFromPathname(pathname);
   const { t: tNav } = useT('nav');
-  const { t: tFooter } = useT('footer');
+  const copyright = useSiteCopyright();
   const search = useDocsSearchConfig(locale);
-  const isHome = activeSlugFromPathname(pathname) === 'index';
 
   const sections = useMemo(
     () => navSections(locale, (key) => tNav(key)),
@@ -76,29 +76,22 @@ function RootLayout() {
     <>
       <LocaleSync locale={resolveRegionalLocale(locale)} htmlLang={locale} />
       <ThemeAssets />
-      {isHome ? (
+      <DocsLayout
+        sections={sections}
+        activeHref={docPath(locale, activeSlugFromPathname(pathname))}
+        homeHref={docPath(locale, firstNavSlug())}
+        homeLabel={tNav('homeAriaLabel')}
+        navLabel={tNav('sidebarAriaLabel')}
+        search={search}
+        footer={{
+          legalLines: [copyright],
+          baseUrl: BASE_URL,
+          repositoryUrl: TALE_GITHUB_URL,
+          showLanguageSwitcher: true,
+        }}
+      >
         <Outlet />
-      ) : (
-        <DocsLayout
-          sections={sections}
-          activeHref={docPath(locale, activeSlugFromPathname(pathname))}
-          homeHref={docPath(locale, 'index')}
-          homeLabel={tNav('homeAriaLabel')}
-          navLabel={tNav('sidebarAriaLabel')}
-          search={search}
-          footer={{
-            legalLines: [
-              tFooter('copyrightLine1', { year: new Date().getFullYear() }),
-              tFooter('copyrightLine2'),
-            ],
-            baseUrl: BASE_URL,
-            repositoryUrl: TALE_GITHUB_URL,
-            showLanguageSwitcher: true,
-          }}
-        >
-          <Outlet />
-        </DocsLayout>
-      )}
+      </DocsLayout>
       <SwUpdateBanner />
     </>
   );

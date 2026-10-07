@@ -318,6 +318,7 @@ export function ProjectAgentDialog({
           setNameError(undefined);
         }}
         errorMessage={nameError}
+        disabled={isSubmitting}
       />
       <Select
         id="project-agent-harness"
@@ -340,6 +341,7 @@ export function ProjectAgentDialog({
         }))}
         required
         value={harness}
+        disabled={isSubmitting}
         // Radix fires a spurious '' on unmount/re-select races — never let it
         // clear a real choice.
         onValueChange={(value) => {
@@ -365,6 +367,7 @@ export function ProjectAgentDialog({
         searchPlaceholder={t('agents.modelSearchPlaceholder')}
         emptyText={t('agents.modelSearchEmpty')}
         options={modelOptions}
+        disabled={isSubmitting}
         filterFn={(option, query) => {
           const search = query.toLowerCase();
           return [
@@ -398,7 +401,11 @@ export function ProjectAgentDialog({
         tools={toolOptions}
         value={binding}
         onChange={setBinding}
+        disabled={isSubmitting}
         label={t('agents.equipmentLabel')}
+        // The menu is portaled outside this dialog; register it as a modal
+        // layer so the dialog scroll lock does not swallow wheel events.
+        modal
         // Team skills resolve against the PROJECT's teams here, not the
         // member configuring the agent — the agent runs for everyone in
         // the project.
@@ -419,6 +426,7 @@ export function ProjectAgentDialog({
         rows={6}
         maxLength={INSTRUCTIONS_MAX}
         value={instructions}
+        disabled={isSubmitting}
         onChange={(e) => setInstructions(e.target.value)}
       />
     </FormDialog>

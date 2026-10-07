@@ -1,0 +1,28 @@
+modeLabel: Mode
+modeTokenize: Tokeniser
+modeMask: Masquer
+modeBlock: Bloquer
+modeTokenizeDesc: Remplace les DCP par des jetons indexés avant l'envoi ;
+  restaure les détails originaux dans la réponse.
+modeMaskDesc: Remplace les DCP par des espaces réservés génériques.
+  Unidirectionnel — les détails originaux ne sont pas récupérables.
+modeBlockDesc: Rejette le message dès qu'une DCP est détectée. L'utilisateur
+  voit une notice de blocage à la place d'une réponse.
+patternsTitle: Motifs de détection
+patternsDescription: Choisissez les types de données personnelles que le
+  détecteur doit rechercher.
+customPatternsTitle: Règles regex personnalisées
+customPatternsDescription: Ajoutez des motifs que les règles intégrées ne
+  couvrent pas. Chaque règle nécessite un nom, une expression régulière et le
+  texte de remplacement utilisé en mode masque.
+customPatternNameLabel: Nom
+customPatternNamePlaceholder: p. ex. Matricule
+customPatternRegexLabel: Motif
+customPatternRegexPlaceholder: p. ex. EMP-\d{6}
+customPatternReplacementLabel: Remplacement
+customPatternReplacementPlaceholder: p. ex. [MATRICULE]
+customPatternInvalidRegex: Cette expression régulière n'est pas valide.
+addCustomPattern: Ajouter un motif personnalisé
+removeCustomPattern: Supprimer
+saveCustomPattern: Enregistrer le motif
+cancelCustomPattern: Annuler

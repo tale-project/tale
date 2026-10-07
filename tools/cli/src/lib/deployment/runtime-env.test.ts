@@ -43,6 +43,59 @@ async function create() {
 }
 
 describe('managed runtime credential adoption', () => {
+  test('declared reporting environment changes no persistent runtime identity or secret', async () => {
+    const { fixture, legacy } = await create();
+    const identity = {
+      name: fixture.options.name,
+      composeProject: fixture.options.composeProject,
+      stateDirectory: fixture.options.stateDirectory,
+    };
+    const result = prepareRuntimeEnvironment(
+      { ...fixture.options, environment: { SENTRY_ENVIRONMENT: 'example-pr' } },
+      fixture.revision,
+      true,
+    );
+    expect(
+      parseRuntimeEnvironment(result.environment, 'compose').SENTRY_ENVIRONMENT,
+    ).toBe('example-pr');
+    expect(result.secrets).toBe(legacy.secrets);
+    expect(result.regeneratedSecrets).toEqual([]);
+    expect({
+      name: fixture.options.name,
+      composeProject: fixture.options.composeProject,
+      stateDirectory: fixture.options.stateDirectory,
+    }).toEqual(identity);
+    const fallback = prepareRuntimeEnvironment(
+      fixture.options,
+      fixture.revision,
+      true,
+    );
+    expect(
+      parseRuntimeEnvironment(fallback.environment, 'compose')
+        .SENTRY_ENVIRONMENT,
+    ).toBe(identity.name);
+  });
+
+  test('invalid explicit reporting environments are refused before rendering', async () => {
+    const { fixture } = await create();
+    for (const value of [
+      '',
+      'production label',
+      'UPPER',
+      'sample/pr',
+      'x'.repeat(65),
+      'sample-pr\n',
+    ]) {
+      expect(() =>
+        prepareRuntimeEnvironment(
+          { ...fixture.options, environment: { SENTRY_ENVIRONMENT: value } },
+          fixture.revision,
+          true,
+        ),
+      ).toThrow('reporting environment');
+    }
+  });
+
   test('fresh gateway passwords satisfy every required class even when entropy encodes without them', async () => {
     const fixture = runtimeFixture();
     fixtures.push(fixture);

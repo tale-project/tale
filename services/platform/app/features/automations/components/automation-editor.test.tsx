@@ -1,9 +1,10 @@
 import { ActiveEditorProvider } from '@tale/ui/editor';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type AnchorHTMLAttributes } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { AutomationVersionPicker } from './automation-version-picker';
 import { AutomationVersionPickerTarget } from './automation-version-picker-target';
@@ -26,6 +27,7 @@ const {
   startRun,
   deploy,
   toastSpy,
+  refetch,
 } = vi.hoisted(() => ({
   state: {
     document: {
@@ -44,6 +46,9 @@ const {
     deployedUnpinnedAgentNodes: undefined as string[] | undefined,
     /** A `?version=` the read refuses with `AUTOMATION_VERSION_UNKNOWN`. */
     missingVersion: undefined as number | undefined,
+    detailError: undefined as Error | undefined,
+    deployedDetailError: undefined as Error | undefined,
+    realDetailRead: false,
   },
   /** The org's projects and the automation's bindings — the run-scope picker
    * appears only when two or more projects are bound. */
@@ -60,11 +65,13 @@ const {
     mode: string;
     startedBy: string;
     startedAt: number;
+    checkpoints?: unknown;
   }>,
   saveMutation: { mutateAsync: vi.fn(), isPending: false },
   startRun: { mutate: vi.fn(), isPending: false },
   deploy: { mutate: vi.fn(), isPending: false, variables: undefined },
   toastSpy: vi.fn(),
+  refetch: vi.fn(),
 }));
 
 // `EditorActions` owns every piece of save feedback and reaches for the
@@ -91,63 +98,101 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectHarnesses: () => ({ data: { harnesses: [], models: [] } }),
 }));
 
-vi.mock('../hooks/queries', () => ({
-  useAutomation: (_organizationId: string, _name: string, version?: number) =>
-    version !== undefined && version === state.missingVersion
-      ? {
-          data: undefined,
-          isPending: false,
-          isError: true,
-          error: {
-            data: {
-              code: 'AUTOMATION_VERSION_UNKNOWN',
-              message: `version ${version} does not exist`,
-              latestVersion: state.version,
-            },
-          },
-        }
-      : {
-          data: {
-            document:
-              version === state.deployedVersion &&
-              state.deployedDocument !== undefined
-                ? state.deployedDocument
-                : state.document,
-            version: version ?? state.version,
-            deployedVersion: state.deployedVersion,
-            ...(state.presentation !== undefined
-              ? { presentation: state.presentation }
-              : {}),
-            settings: state.settings,
-            taskContract: state.taskContract,
-            ...(state.deployedUnpinnedAgentNodes !== undefined
-              ? { deployedUnpinnedAgentNodes: state.deployedUnpinnedAgentNodes }
-              : {}),
-          },
-          isPending: false,
-          isError: false,
-          error: null,
+vi.mock('../hooks/queries', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../hooks/queries')>();
+  return {
+    useAutomation: (
+      _organizationId: string,
+      _name: string,
+      version?: number,
+    ) =>
+      state.realDetailRead
+        ? actual.useAutomation(_organizationId, _name, version)
+        : version === undefined && state.detailError !== undefined
+          ? {
+              data: undefined,
+              isPending: false,
+              isError: true,
+              error: state.detailError,
+              isFetching: false,
+              errorUpdateCount: 1,
+              refetch,
+            }
+          : version !== undefined && state.deployedDetailError !== undefined
+            ? {
+                data: undefined,
+                isPending: false,
+                isError: true,
+                error: state.deployedDetailError,
+                isFetching: false,
+                errorUpdateCount: 1,
+                refetch,
+              }
+            : version !== undefined && version === state.missingVersion
+              ? {
+                  data: undefined,
+                  isPending: false,
+                  isError: true,
+                  isFetching: false,
+                  errorUpdateCount: 1,
+                  error: {
+                    data: {
+                      code: 'AUTOMATION_VERSION_UNKNOWN',
+                      message: `version ${version} does not exist`,
+                      latestVersion: state.version,
+                    },
+                  },
+                  refetch,
+                }
+              : {
+                  data: {
+                    document:
+                      version === state.deployedVersion &&
+                      state.deployedDocument !== undefined
+                        ? state.deployedDocument
+                        : state.document,
+                    version: version ?? state.version,
+                    deployedVersion: state.deployedVersion,
+                    ...(state.presentation !== undefined
+                      ? { presentation: state.presentation }
+                      : {}),
+                    settings: state.settings,
+                    taskContract: state.taskContract,
+                    ...(state.deployedUnpinnedAgentNodes !== undefined
+                      ? {
+                          deployedUnpinnedAgentNodes:
+                            state.deployedUnpinnedAgentNodes,
+                        }
+                      : {}),
+                  },
+                  isPending: false,
+                  isError: false,
+                  isFetching: false,
+                  errorUpdateCount: 0,
+                  error: null,
+                  refetch,
+                },
+    useAutomationVersions: () => ({
+      data: [
+        {
+          version: 3,
+          message: 'tightened the prompt',
+          createdBy: 'user:a',
+          createdAt: 1_700_000_100_000,
         },
-  useAutomationVersions: () => ({
-    data: [
-      {
-        version: 3,
-        message: 'tightened the prompt',
-        createdBy: 'user:a',
-        createdAt: 1_700_000_100_000,
-      },
-      {
-        version: 2,
-        message: 'first cut',
-        createdBy: 'user:a',
-        createdAt: 1_700_000_000_000,
-      },
-    ],
-  }),
-  useAutomationRuns: () => ({ data: runsData }),
-  useAutomationProjects: () => ({ data: projectsData.bound }),
-  useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
-}));
+        {
+          version: 2,
+          message: 'first cut',
+          createdBy: 'user:a',
+          createdAt: 1_700_000_000_000,
+        },
+      ],
+    }),
+    useAutomationRuns: () => ({ data: runsData }),
+    useAutomationProjects: () => ({ data: projectsData.bound }),
+    useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
+  };
+});
 
 vi.mock('../hooks/mutations', () => ({
   useSaveAutomation: () => saveMutation,
@@ -186,10 +231,12 @@ vi.mock('./automation-canvas', () => ({
     graph,
     onSelectNode,
     inspectorId,
+    runStatusByNode,
   }: {
     graph: { nodes: readonly { id: string }[] };
     onSelectNode: (nodeId: string | null) => void;
     inspectorId: string;
+    runStatusByNode?: ReadonlyMap<string, string>;
   }) => (
     <div data-testid="canvas" data-inspector-id={inspectorId}>
       {graph.nodes.map((node) => (
@@ -199,6 +246,7 @@ vi.mock('./automation-canvas', () => ({
           onClick={() => {
             onSelectNode(node.id);
           }}
+          data-run-status={runStatusByNode?.get(node.id)}
         >
           {`select ${node.id}`}
         </button>
@@ -292,7 +340,10 @@ async function editTheNode(user: ReturnType<typeof renderPage>['user']) {
 }
 
 beforeEach(() => {
-  saveMutation.mutateAsync = vi.fn().mockResolvedValue(undefined);
+  saveMutation.mutateAsync = vi.fn().mockResolvedValue({
+    name: 'billing/dunning',
+    version: 4,
+  });
   saveMutation.isPending = false;
   toastSpy.mockClear();
   onSelectVersion.mockClear();
@@ -318,6 +369,297 @@ beforeEach(() => {
   state.deployedVersion = 2;
   state.deployedUnpinnedAgentNodes = undefined;
   state.missingVersion = undefined;
+  state.detailError = undefined;
+  state.deployedDetailError = undefined;
+  state.realDetailRead = false;
+  refetch.mockClear();
+});
+
+const detailQueryKey = [
+  'backend',
+  'org-1',
+  'automation',
+  'detail',
+  'billing/dunning',
+  'latest',
+];
+
+function realReadPage() {
+  state.realDetailRead = true;
+  const client = new QueryClient({
+    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
+  });
+  const view = render(
+    <QueryClientProvider client={client}>
+      <button type="button">Outside editor</button>
+      {page()}
+    </QueryClientProvider>,
+  );
+  return { ...view, client };
+}
+
+function automationResponse() {
+  return Response.json({
+    document: state.document,
+    version: state.version,
+    deployedVersion: state.deployedVersion,
+  });
+}
+
+function failedReadResponse() {
+  return Response.json({ message: 'Service unavailable' }, { status: 503 });
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('AutomationEditor real detail read recovery', () => {
+  it.each(['retry', 'outside'] as const)(
+    'keeps keyboard retry stable and respects %s focus on recovery',
+    async (recoveryFocus) => {
+      let recovering = false;
+      let finishRead: ((response: Response) => void) | undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (
+            new URL(url, window.location.origin).searchParams.has('version')
+          ) {
+            return Promise.resolve(automationResponse());
+          }
+          if (!recovering) return Promise.resolve(failedReadResponse());
+          return new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          });
+        }),
+      );
+      const { user } = realReadPage();
+      const retryButton = await screen.findByRole(
+        'button',
+        { name: 'Try again' },
+        { timeout: 15000 },
+      );
+      await user.click(screen.getByRole('button', { name: 'Outside editor' }));
+      await user.tab();
+      expect(retryButton).toHaveFocus();
+      recovering = true;
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(finishRead).toBeDefined());
+      expect(retryButton).toHaveFocus();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Service unavailable',
+      );
+      expect(screen.queryByText('Loading the automation…')).toBeNull();
+      expect(retryButton).toHaveAttribute('aria-busy', 'true');
+      await act(async () => {
+        finishRead?.(
+          Response.json({ message: 'Still unavailable' }, { status: 400 }),
+        );
+      });
+      await waitFor(() => expect(retryButton).not.toHaveAttribute('aria-busy'));
+      expect(screen.getByRole('button', { name: 'Try again' })).toBe(
+        retryButton,
+      );
+      expect(retryButton).toHaveFocus();
+      expect(screen.getByRole('alert')).toHaveTextContent('Still unavailable');
+      finishRead = undefined;
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(finishRead).toBeDefined());
+      if (recoveryFocus === 'outside') {
+        await user.click(
+          screen.getByRole('button', { name: 'Outside editor' }),
+        );
+      }
+      await act(async () => {
+        finishRead?.(automationResponse());
+      });
+      await screen.findByTestId('canvas');
+      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+      await waitFor(() => {
+        const target =
+          recoveryFocus === 'retry'
+            ? screen.getByRole('region', { name: 'Editor' })
+            : screen.getByRole('button', { name: 'Outside editor' });
+        expect(target).toHaveFocus();
+      });
+    },
+    30000,
+  );
+
+  it('keeps the canvas, inspector and dirty draft after a failed background read', async () => {
+    let failRefresh = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        const deployed = new URL(url, window.location.origin).searchParams.has(
+          'version',
+        );
+        return Promise.resolve(
+          failRefresh && !deployed
+            ? failedReadResponse()
+            : automationResponse(),
+        );
+      }),
+    );
+    const { user, client } = realReadPage();
+    await screen.findByTestId('canvas');
+    await editTheNode(user);
+    const canvas = screen.getByTestId('canvas');
+    const draftField = whenField();
+    expect(draftField).toHaveValue('x');
+    failRefresh = true;
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: detailQueryKey });
+    });
+    await waitFor(
+      () => expect(client.getQueryState(detailQueryKey)?.status).toBe('error'),
+      { timeout: 15000 },
+    );
+    expect(screen.getByTestId('canvas')).toBe(canvas);
+    expect(whenField()).toBe(draftField);
+    expect(draftField).toHaveValue('x');
+    expect(saveButton()).toBeEnabled();
+    expect(screen.queryByRole('alert')).toBeNull();
+  }, 30000);
+
+  it('does not steal outside focus when the initial failure settles', async () => {
+    let finishRead: ((response: Response) => void) | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          }),
+      ),
+    );
+    const { user } = realReadPage();
+    await user.click(screen.getByRole('button', { name: 'Outside editor' }));
+    await act(async () => {
+      finishRead?.(
+        Response.json({ message: 'Service unavailable' }, { status: 400 }),
+      );
+    });
+    await screen.findByRole('alert', {}, { timeout: 15000 });
+    expect(
+      screen.getByRole('button', { name: 'Outside editor' }),
+    ).toHaveFocus();
+  }, 30000);
+});
+
+describe('AutomationEditor detail read failure', () => {
+  it('names the error and retries instead of staying loading', async () => {
+    state.detailError = new Error('Request failed with status 503');
+    const { user } = renderPage();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the automation: Request failed with status 503",
+    );
+    const retryButton = screen.getByRole('button', { name: 'Try again' });
+    expect(retryButton).not.toHaveFocus();
+    expect(screen.queryByText('Loading the automation…')).toBeNull();
+
+    await user.click(retryButton);
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+});
+
+describe('AutomationEditor deployed read failure', () => {
+  it('reports the read error and offers retry with an accurate live reason', async () => {
+    state.deployedDetailError = new Error('Request failed with status 503');
+    const { user } = renderPage();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the deployed version: Request failed with status 503",
+    );
+    const liveRun = screen.getByRole('button', { name: 'Run live' });
+    expect(liveRun).toHaveAttribute('aria-disabled', 'true');
+    act(() => liveRun.focus());
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      "Couldn't load the deployed version — try again.",
+    );
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+  it.each([400, 503])(
+    'keeps the secondary %s failure visible during a real retry and recovers live runs',
+    async (status) => {
+      let recovering = false;
+      let finishRead: ((response: Response) => void) | undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (
+            !new URL(url, window.location.origin).searchParams.has('version')
+          ) {
+            return Promise.resolve(automationResponse());
+          }
+          if (!recovering)
+            return Promise.resolve(
+              Response.json(
+                {
+                  error: 'AUTOMATION_READ_REFUSED',
+                  message: 'Version unavailable',
+                },
+                { status },
+              ),
+            );
+          return new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          });
+        }),
+      );
+      const { user } = realReadPage();
+      const retryButton = await screen.findByRole(
+        'button',
+        { name: 'Try again' },
+        { timeout: 15000 },
+      );
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        status === 400
+          ? "Couldn't load the deployed version: Version unavailable"
+          : "Couldn't load the deployed version",
+      );
+      if (status === 503)
+        expect(screen.getByRole('alert')).not.toHaveTextContent(
+          'Version unavailable',
+        );
+      recovering = true;
+      await user.click(retryButton);
+      await waitFor(() => expect(finishRead).toBeDefined());
+      expect(retryButton).toHaveAttribute('aria-busy', 'true');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load the deployed version",
+      );
+      expect(screen.getByRole('alert')).not.toHaveTextContent(/null|undefined/);
+      expect(screen.getByRole('button', { name: 'Run live' })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+      await act(async () => {
+        finishRead?.(automationResponse());
+      });
+      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+      expect(
+        screen.getByRole('button', { name: 'Run live' }),
+      ).not.toHaveAttribute('aria-disabled', 'true');
+    },
+    30000,
+  );
+
+  it.each([new TypeError('runtime internals'), { message: 'private payload' }])(
+    'omits unsafe failure detail (%s)',
+    (error) => {
+      state.deployedDetailError = error as Error;
+      renderPage();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load the deployed version",
+      );
+      expect(screen.getByRole('alert')).not.toHaveTextContent(
+        /runtime internals|private payload|\[object Object\]/,
+      );
+    },
+  );
 });
 
 /**
@@ -617,6 +959,23 @@ describe('AutomationEditor', () => {
     expect(
       screen.getByRole('button', { name: 'Show last run' }),
     ).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('marks a waiting run cursor as running in the last-run overlay', () => {
+    runsData.push({
+      id: 'run_1',
+      name: 'billing/dunning',
+      version: 3,
+      status: 'waiting',
+      mode: 'mock',
+      startedBy: 'user:a',
+      startedAt: 1_700_000_200_000,
+      checkpoints: { cursor: { node: 'summary' } },
+    });
+    renderPage();
+    expect(
+      screen.getByRole('button', { name: 'select summary' }),
+    ).toHaveAttribute('data-run-status', 'running');
   });
 
   it('stays quiet when the deployed version has no pinless agent node', () => {
@@ -989,7 +1348,7 @@ describe('AutomationEditor', () => {
           baseVersion: 3,
         },
       })
-      .mockResolvedValue(undefined);
+      .mockResolvedValue({ name: 'billing/dunning', version: 5 });
     const { user } = renderPage();
     await editTheNode(user);
     await user.click(saveButton());
@@ -1019,6 +1378,208 @@ describe('AutomationEditor', () => {
     await waitFor(() => {
       expect(saveButton()).toBeDisabled();
     });
+  });
+
+  it.each([false, true])(
+    'keeps later edits dirty after Save anyway succeeds (query refreshed: %s)',
+    async (refreshQuery) => {
+      const append = Promise.withResolvers<{ name: string; version: number }>();
+      saveMutation.mutateAsync = vi
+        .fn()
+        .mockRejectedValueOnce({
+          data: {
+            code: 'AUTOMATION_VERSION_STALE',
+            message: 'v4 landed.',
+            latestVersion: 4,
+            baseVersion: 3,
+          },
+        })
+        .mockImplementationOnce(() => append.promise)
+        .mockResolvedValue({ name: 'billing/dunning', version: 6 });
+      const { user, rerender } = renderPage();
+      await user.click(screen.getByRole('button', { name: 'select summary' }));
+      const prompt = () => screen.getByRole('textbox', { name: 'Prompt' });
+      await user.clear(prompt());
+      await user.paste('Submitted draft');
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await screen.findByText('v4 landed.');
+      await user.click(screen.getByRole('button', { name: 'Save anyway' }));
+
+      saveMutation.isPending = true;
+      rerender(page());
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(prompt()).not.toHaveAttribute('readonly');
+      expect(saveButton()).toBeDisabled();
+      expect(discardButton()).toBeDisabled();
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 4,
+          automation: expect.objectContaining({
+            nodes: [expect.objectContaining({ prompt: 'Submitted draft' })],
+          }),
+        }),
+      );
+
+      await user.clear(prompt());
+      await user.paste('Later unsaved draft');
+      expect(prompt()).toHaveValue('Later unsaved draft');
+      const submitted = saveMutation.mutateAsync.mock.calls[1]?.[0].automation;
+      expect(submitted.nodes[0].prompt).toBe('Submitted draft');
+      if (refreshQuery) {
+        state.document = submitted;
+        state.version = 5;
+        rerender(page());
+      }
+      await act(async () => {
+        saveMutation.isPending = false;
+        append.resolve({ name: 'billing/dunning', version: 5 });
+      });
+      rerender(page());
+
+      expect(prompt()).toHaveValue('Later unsaved draft');
+      expect(saveButton()).toBeEnabled();
+      expect(discardButton()).toBeEnabled();
+      expect(toastSpy).not.toHaveBeenCalled();
+      expect(onSelectVersion).toHaveBeenCalledWith(undefined);
+
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await waitFor(() => expect(discardButton()).toBeDisabled());
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 5,
+          automation: expect.objectContaining({
+            nodes: [expect.objectContaining({ prompt: 'Later unsaved draft' })],
+          }),
+        }),
+      );
+    },
+    30_000,
+  );
+
+  it.each([true, false])(
+    'settles only its own draft after a pending append is discarded (replacement edited while pending: %s)',
+    async (editWhilePending) => {
+      state.deployedDocument = {
+        name: 'billing/dunning',
+        description: 'The v2 document.',
+        nodes: [{ id: 'summary', type: 'llm', prompt: 'Stored on v2' }],
+      };
+      const append = Promise.withResolvers<{ name: string; version: number }>();
+      saveMutation.mutateAsync = vi
+        .fn()
+        .mockRejectedValueOnce({
+          data: {
+            code: 'AUTOMATION_VERSION_STALE',
+            message: 'v4 landed.',
+            latestVersion: 4,
+            baseVersion: 3,
+          },
+        })
+        .mockImplementationOnce(() => append.promise)
+        .mockRejectedValueOnce({
+          data: {
+            code: 'AUTOMATION_VERSION_STALE',
+            message: 'v5 landed after v2.',
+            latestVersion: 5,
+            baseVersion: 2,
+          },
+        });
+      const { user, rerender } = renderPage();
+      const prompt = () => screen.getByRole('textbox', { name: 'Prompt' });
+      const editReplacement = async () => {
+        await user.clear(prompt());
+        await user.paste('Edited on v2');
+      };
+      await user.click(screen.getByRole('button', { name: 'select summary' }));
+      await user.clear(prompt());
+      await user.paste('Submitted draft');
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await screen.findByText('v4 landed.');
+      await user.click(screen.getByRole('button', { name: 'Save anyway' }));
+      saveMutation.isPending = true;
+      rerender(page());
+
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 4,
+          automation: expect.objectContaining({
+            nodes: [expect.objectContaining({ prompt: 'Submitted draft' })],
+          }),
+        }),
+      );
+      const submitted = saveMutation.mutateAsync.mock.calls[1]?.[0].automation;
+      await user.click(versionPicker());
+      await user.click(screen.getByRole('radio', { name: /^v2/ }));
+      await user.click(
+        screen.getByRole('button', { name: 'Discard and switch' }),
+      );
+      expect(prompt()).toHaveValue('Stored on v2');
+      if (editWhilePending) await editReplacement();
+      expect(versionPicker()).toHaveTextContent('v2');
+      onSelectVersion.mockClear();
+
+      state.document = submitted;
+      state.version = 5;
+      rerender(page());
+      await act(async () => {
+        saveMutation.isPending = false;
+        append.resolve({ name: 'billing/dunning', version: 5 });
+      });
+      rerender(page());
+
+      expect(versionPicker()).toHaveTextContent('v2');
+      expect(onSelectVersion).not.toHaveBeenCalled();
+      expect(prompt()).toHaveValue(
+        editWhilePending ? 'Edited on v2' : 'Stored on v2',
+      );
+      expect(submitted.nodes[0].prompt).toBe('Submitted draft');
+      if (!editWhilePending) {
+        expect(discardButton()).toBeDisabled();
+        await editReplacement();
+      }
+      expect(saveButton()).toBeEnabled();
+      expect(discardButton()).toBeEnabled();
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await screen.findByText('v5 landed after v2.');
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 2,
+          automation: expect.objectContaining({
+            description: 'The v2 document.',
+            nodes: [expect.objectContaining({ prompt: 'Edited on v2' })],
+          }),
+        }),
+      );
+      expect(toastSpy).not.toHaveBeenCalled();
+    },
+    30_000,
+  );
+
+  it('keeps the draft when the stale-version decision is cancelled', async () => {
+    saveMutation.mutateAsync = vi.fn().mockRejectedValue({
+      data: {
+        code: 'AUTOMATION_VERSION_STALE',
+        message: 'v4 landed.',
+        latestVersion: 4,
+        baseVersion: 3,
+      },
+    });
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await screen.findByText('v4 landed.');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(whenField()).toHaveValue('x');
+    expect(saveButton()).toBeEnabled();
+    expect(discardButton()).toBeEnabled();
+    expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(toastSpy).not.toHaveBeenCalled();
   });
 
   it('drops the draft and shows the newer version on reload after a stale refusal', async () => {

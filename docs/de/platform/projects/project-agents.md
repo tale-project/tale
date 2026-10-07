@@ -65,6 +65,8 @@ Beschreibe unter **Anweisungen** Verantwortung, Belege und Grenzen. Für den Lau
 
 Braucht die Arbeit **Secrets**, ordnet ein Inhaber oder Admin benannte Zugangsdaten der Organisation zu. Der laufende Agent kann ihre Werte lesen. Verwende deshalb eng begrenzte, austauschbare Tokens. Ändert sich ein gemeinsam genutzter Wert, betrifft das auch andere Agenten und Workflow-Nodes mit diesem Namen. Ein Lauf, den ein Mitglied startet, erhält keines dieser Secrets und auch nicht das Token eines zugeordneten GitHub-Zugangs: Arbeit, die sie braucht, muss ein Redakteur oder eine höhere Rolle starten.
 
+Nutze für ein privates Repository einen auf dieses Repository beschränkten Schlüssel und lege die erlaubten Git-Operationen in den Anweisungen fest. Läufe mit Zugangsdaten verwenden den Git-Autorennamen und die E-Mail des Workspace-Besitzers auch ohne GitHub-Connector-Freigabe. Lass die SSH-Hostprüfung eingeschaltet. Eine selbst gehostete Sandbox leitet Repository-SSH über ihren bestehenden Proxy weiter; [SSH-Zugang zu Repositories](/de/self-hosted/configuration/environment-reference#ssh-repository-access) beschreibt die Einrichtung.
+
 Wähle **Agent erstellen**. Prüfe Laufzeit, Provider und Modell der neuen Zeile. Öffne den Agenten erneut, um gespeicherte Ausstattung und Anweisungen zu kontrollieren.
 
 </Step>

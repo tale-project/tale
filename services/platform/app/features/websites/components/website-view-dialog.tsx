@@ -356,6 +356,7 @@ export function WebsiteViewDialog({
   const [activeQuery, setActiveQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CrawlerSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const searchRequestId = useRef(0);
   // The list narrowed to the failed or the skipped pages: a reader reaches
   // the five that failed without walking the five hundred that did not.
   // The counts come with every pages answer, whichever state is open.
@@ -400,23 +401,14 @@ export function WebsiteViewDialog({
     },
   );
 
-  const { mutate: searchContent } = useBackendAction(
+  const { mutateAsync: searchContent } = useBackendAction(
     'websites/actions:searchContent',
-    {
-      errorToast: false,
-      onSuccess: (data) => {
-        setSearchResults(data.results);
-        setIsSearching(false);
-      },
-      onError: () => {
-        setIsSearching(false);
-        toast({ title: t('toast.searchError'), variant: 'destructive' });
-      },
-    },
+    { errorToast: false },
   );
 
   useEffect(() => {
     if (isOpen) {
+      searchRequestId.current += 1;
       shownPages.current = 0;
       setPages([]);
       setOffset(0);
@@ -460,10 +452,22 @@ export function WebsiteViewDialog({
   const triggerSearch = useCallback(() => {
     const query = searchQuery.trim();
     if (!query) return;
+    const requestId = ++searchRequestId.current;
     setActiveQuery(query);
     setIsSearching(true);
-    searchContent({ websiteId: website._id, query, limit: 20 });
-  }, [searchQuery, website._id, searchContent]);
+    void searchContent({ websiteId: website._id, query, limit: 20 }).then(
+      (data) => {
+        if (requestId !== searchRequestId.current) return;
+        setSearchResults(data.results);
+        setIsSearching(false);
+      },
+      () => {
+        if (requestId !== searchRequestId.current) return;
+        setIsSearching(false);
+        toast({ title: t('toast.searchError'), variant: 'destructive' });
+      },
+    );
+  }, [searchQuery, t, website._id, searchContent]);
 
   const loadMore = useCallback(() => {
     const nextOffset = offset + PAGE_SIZE;
@@ -497,14 +501,18 @@ export function WebsiteViewDialog({
     [website._id, fetchPages],
   );
 
-  const handleSearchChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-    if (!e.target.value.trim()) {
-      setActiveQuery('');
-      setSearchResults([]);
-      setIsSearching(false);
-    }
-  }, []);
+  const handleSearchChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      setSearchQuery(e.target.value);
+      if (!e.target.value.trim() || e.target.value.trim() !== activeQuery) {
+        searchRequestId.current += 1;
+        setActiveQuery('');
+        setSearchResults([]);
+        setIsSearching(false);
+      }
+    },
+    [activeQuery],
+  );
 
   const handleSearchKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {

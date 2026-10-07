@@ -30,9 +30,12 @@ import { z } from 'zod';
 
 import { STANDALONE_PAGE } from '@/app/components/layout/standalone-page';
 import { LogoLink } from '@/app/components/logo/logo-link';
+import { usePasswordRefusalMessage } from '@/app/features/auth/hooks/use-password-refusal-message';
 import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { PasskeyRegisterDialog } from '@/app/features/settings/account/components/passkey-register-dialog';
+import { downloadBackupCodes } from '@/app/features/settings/account/lib/download-backup-codes';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
+import { readPasswordRefusal } from '@/app/lib/auth/password-refusal';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { twoFactorStatusQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
@@ -63,23 +66,10 @@ type Step =
     }
   | { kind: 'done'; backupCodes: string[] };
 
-function downloadBackupCodes(codes: string[]) {
-  const blob = new Blob([codes.join('\n')], {
-    type: 'text/plain;charset=utf-8',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'tale-backup-codes.txt';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
 // Exported for tests (mirrors `LogInPage` in `_auth/log-in.tsx`).
 export function TwoFactorEnrollPage() {
   const { t } = useT('twoFactor');
+  const refusalMessage = usePasswordRefusalMessage();
   const navigate = useNavigate();
   const queryClient = useReactQueryClient();
   const { redirectTo } = useSearch({ from: '/2fa-enroll' });
@@ -114,7 +104,14 @@ export function TwoFactorEnrollPage() {
     try {
       const result = await authClient.twoFactor.enable({ password });
       if (result.error || !result.data) {
-        setError(result.error?.message ?? t('errors.enableFailed'));
+        // A wrong password and the sign-in lock are worded; any other
+        // refusal keeps Better Auth's words.
+        const refusal = readPasswordRefusal(result.error);
+        setError(
+          refusal
+            ? refusalMessage(refusal)
+            : (result.error?.message ?? t('errors.enableFailed')),
+        );
         return;
       }
       // Better Auth 1.7 answers a discriminated union: an OTP-configured

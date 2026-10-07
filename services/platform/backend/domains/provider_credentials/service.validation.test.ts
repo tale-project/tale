@@ -190,7 +190,7 @@ describe('broker secret replacement', () => {
   });
 });
 
-describe('assertCredentialEndpointUrl', () => {
+describe('assertCredentialEndpointUrl [PCRED-R3]', () => {
   it('accepts a well-formed https endpoint', () => {
     expect(() =>
       assertCredentialEndpointUrl('https://itest.openai.azure.com/openai/v1'),
@@ -239,7 +239,7 @@ describe('createCredential — refusals land before any statement', () => {
     expect(error.status).toBe(400);
   });
 
-  it('refuses a per-credential endpoint on a metadata host', async () => {
+  it('refuses a per-credential endpoint on a metadata host [PCRED-R3]', async () => {
     const error = await caught(
       createCredential(refusingTx(), SCOPE, {
         providerSlug: 'azure-openai',
@@ -274,7 +274,7 @@ describe('createCredential — refusals land before any statement', () => {
   });
 });
 
-describe('updateCredential — an env credential has no secret to rotate', () => {
+describe('updateCredential — an env credential has no secret to rotate [PCRED-R4]', () => {
   it('refuses a secret patch on an env row after the lookup, writing nothing', async () => {
     const error = await caught(
       updateCredential(

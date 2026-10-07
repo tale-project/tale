@@ -10,8 +10,11 @@
  * deletes it. Values are never returned to the client, so a stored secret shows
  * a mask and the field clears for a clean re-type. The editor reports a failed
  * save in its own toast, so a write rejects with the sentence that toast shows.
+ * The editor only ever stands on a read that answered: a failed read is named
+ * with Try again instead (#3887).
  */
 import { Alert } from '@tale/ui/alert';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { ContentArea } from '@tale/ui/content-area';
 import {
   EnvVarListEditor,
@@ -19,6 +22,7 @@ import {
 } from '@tale/ui/env-var-list-editor';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { ShieldAlert } from 'lucide-react';
+import { useCallback, useRef } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
@@ -47,6 +51,11 @@ export function ProjectSecretsTab({
     isLoading,
     isError,
     error: secretsError,
+    unavailable,
+    stale,
+    retrying,
+    failureCount,
+    retry,
   } = useProjectSecrets(projectId);
   const setSecret = useSetProjectSecret();
   const deleteSecret = useDeleteProjectSecret();
@@ -55,6 +64,12 @@ export function ProjectSecretsTab({
   // write controls are gated here too (restore the project first).
   const { project } = useProject(projectId);
   const isArchived = project?.archivedAt !== undefined;
+  // Where the focus goes when the failure notice holding it leaves: a read
+  // that answered on Try again put the editor in its place.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const focusBody = useCallback(() => {
+    bodyRef.current?.focus();
+  }, []);
 
   // The tab is gated on `project.canAdminister` in the project layout, but a
   // non-admin can still reach this page via a direct URL. Surface the backend's
@@ -99,42 +114,73 @@ export function ProjectSecretsTab({
   // for a fault. Never the thrown error's message: a refusal serializes its
   // payload there.
   const saveFailure = (error: unknown) =>
-    new Error(failureDetail(error) ?? tCommon('errors.generic'), {
-      cause: error,
-    });
+    new Error(
+      backendErrorCode(error) === 'SECRET_NAME_INVALID'
+        ? t('errors.SECRET_NAME_INVALID')
+        : (failureDetail(error) ?? tCommon('errors.generic')),
+      {
+        cause: error,
+      },
+    );
 
   return (
     <ProjectSecretsLayout>
       {isArchived ? <ProjectReadOnlyBanner reason="archived" /> : null}
-      <EnvVarListEditor
-        forceSecret
-        rows={rows}
-        isLoading={isLoading}
-        disabled={isArchived}
-        onSet={async ({ key, value }) => {
-          try {
-            await setSecret.mutateAsync({
-              organizationId,
-              projectId,
-              name: key,
-              value,
-            });
-          } catch (error) {
-            throw saveFailure(error);
-          }
-        }}
-        onDelete={async (key) => {
-          try {
-            await deleteSecret.mutateAsync({
-              organizationId,
-              projectId,
-              name: key,
-            });
-          } catch (error) {
-            throw saveFailure(error);
-          }
-        }}
-      />
+      <div
+        ref={bodyRef}
+        role="group"
+        aria-label={t('title')}
+        tabIndex={-1}
+        className="flex flex-col gap-3 outline-none"
+      >
+        {unavailable || stale ? (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node.
+            failureKey={failureCount}
+            onFocusLost={focusBody}
+            message={
+              unavailable ? t('errors.loadFailed') : t('errors.refreshFailed')
+            }
+            onRetry={retry}
+            isRetrying={retrying}
+          />
+        ) : null}
+        {/* Never an editor over a read that did not answer: its empty list
+            would offer to add, and so overwrite, a stored secret it cannot
+            show. A failed refresh keeps the last answer and any draft. */}
+        {unavailable ? null : (
+          <EnvVarListEditor
+            forceSecret
+            projectSecretNameRule
+            rows={rows}
+            isLoading={isLoading}
+            disabled={isArchived}
+            onSet={async ({ key, value }) => {
+              try {
+                await setSecret.mutateAsync({
+                  organizationId,
+                  projectId,
+                  name: key,
+                  value,
+                });
+              } catch (error) {
+                throw saveFailure(error);
+              }
+            }}
+            onDelete={async (key) => {
+              try {
+                await deleteSecret.mutateAsync({
+                  organizationId,
+                  projectId,
+                  name: key,
+                });
+              } catch (error) {
+                throw saveFailure(error);
+              }
+            }}
+          />
+        )}
+      </div>
     </ProjectSecretsLayout>
   );
 }

@@ -282,7 +282,7 @@ describe('resumeInterruptedScans', () => {
     );
   });
 
-  it('stops resuming one scan at the limit', async () => {
+  it('stops resuming one scan at the limit [WEB-R7]', async () => {
     vi.mocked(listScanningRowsWithoutJob).mockResolvedValue([
       interrupted({ metadata: { scanResumes: MAX_SCAN_RESUMES } }),
     ]);
@@ -324,7 +324,7 @@ describe('resumeInterruptedScans', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('does not let one site that cannot be resumed hold up the next', async () => {
+  it('does not let one site that cannot be resumed hold up the next [WEB-R7]', async () => {
     vi.mocked(listScanningRowsWithoutJob).mockResolvedValue([
       interrupted({ id: 'w-1', domain: 'down.example' }),
       interrupted({ id: 'w-2', domain: 'example.com' }),

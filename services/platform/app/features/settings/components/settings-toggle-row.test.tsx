@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
+import { fireEvent, render, screen } from '@/tests/utils/render';
 
 import { SettingsToggleRow } from './settings-toggle-row';
 
@@ -82,7 +82,7 @@ describe('SettingsToggleRow', () => {
           checked
         />,
       );
-      await waitFor(() => checkAccessibility(container));
+      await checkAccessibility(container);
     });
 
     it('passes axe audit when disabled', async () => {
@@ -94,7 +94,7 @@ describe('SettingsToggleRow', () => {
           disabled
         />,
       );
-      await waitFor(() => checkAccessibility(container));
+      await checkAccessibility(container);
     });
   });
 });

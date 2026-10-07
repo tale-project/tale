@@ -10,8 +10,30 @@
         "$TURBO_ROOT$/services/platform/lib/harnesses/**",
         "$TURBO_ROOT$/configs/platform/system/harnesses/gemini/harness.yml",
         "$TURBO_ROOT$/services/sandbox-runtime/entrypoint.sh",
+        "$TURBO_ROOT$/services/sandbox-runtime/install-playwright-browsers.sh",
         "$TURBO_ROOT$/services/sandbox-runtime/playwright-mcp-args.json",
-        "$TURBO_ROOT$/services/sandbox-runtime/tale-*"
+        "$TURBO_ROOT$/services/sandbox-runtime/tale-*",
+        "$TURBO_ROOT$/services/sandbox/src/session/runnerd-client.ts",
+        "$TURBO_ROOT$/services/sandbox/src/session/runnerd-protocol.ts",
+        "$TURBO_ROOT$/services/sandbox/src/operation-budget.ts"
+      ]
+    },
+    "lint": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/sandbox/src/session/runnerd-client.ts",
+        "$TURBO_ROOT$/services/sandbox/src/session/runnerd-protocol.ts",
+        "$TURBO_ROOT$/services/sandbox/src/operation-budget.ts"
+      ]
+    },
+    "typecheck": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/sandbox/src/session/runnerd-client.ts",
+        "$TURBO_ROOT$/services/sandbox/src/session/runnerd-protocol.ts",
+        "$TURBO_ROOT$/services/sandbox/src/operation-budget.ts"
       ]
     }
   }
