@@ -23,6 +23,7 @@ export const AGENT_TOOL_CATALOG = [
   { name: 'task_update_status', effect: 'write', module: 'tasks' },
   { name: 'task_update_metadata', effect: 'write', module: 'tasks' },
   { name: 'task_review', effect: 'write', module: 'tasks' },
+  { name: 'task_delegate_review', effect: 'write', module: 'tasks' },
   { name: 'task_start_agent', effect: 'write', module: 'tasks' },
   { name: 'task_upsert_by_external_ref', effect: 'write', module: 'tasks' },
   { name: 'document_find', effect: 'read', module: 'documents' },
@@ -46,6 +47,7 @@ export const PROJECT_AGENT_ONLY_TOOLS: readonly string[] = [
   'task_start_agent',
   'task_update_metadata',
   'task_review',
+  'task_delegate_review',
 ];
 
 /** The grantable tools that change org data (status listings badge these). */
