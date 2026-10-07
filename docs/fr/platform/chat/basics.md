@@ -13,7 +13,7 @@ Utilise le chat pour poser une question, comprendre un document ou rechercher un
 
 ## Envoyer un premier message
 
-Ouvre **Accueil**. Sur ordinateur, le chat que tu as lu en dernier se rouvre, s’il y en a un. Pour aborder un nouveau sujet, choisis **Nouveau chat** en haut de la liste d’**Accueil** ou, sur ordinateur, sélectionne à nouveau **Accueil** alors que cette section est active. Écris dans le champ de message. Appuie sur **Entrée** pour envoyer ou sur **Maj+Entrée** pour aller à la ligne. Une suggestion de départ joue le même rôle que ta propre question : précise la source, le sujet et le type de réponse attendu.
+Ouvre **Accueil**. Sur ordinateur, un nouveau chat s’ouvre, et le panneau latéral d’**Accueil**, à côté, liste tes chats précédents ; sur téléphone, choisis **Chats**, puis **Nouveau chat**. Pour aborder un autre sujet plus tard, choisis à nouveau **Accueil** ou **Nouveau chat** en haut de la liste d’**Accueil**. Écris dans le champ de message. Appuie sur **Entrée** pour envoyer ou sur **Maj+Entrée** pour aller à la ligne. Une suggestion de départ joue le même rôle que ta propre question : précise la source, le sujet et le type de réponse attendu.
 
 Par exemple : « Retrouve les retours d’onboarding et résume les trois problèmes les plus fréquents. Cite les documents et sépare les problèmes signalés de tes suggestions. »
 

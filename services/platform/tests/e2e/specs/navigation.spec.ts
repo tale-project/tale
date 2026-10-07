@@ -130,12 +130,13 @@ test.describe('navigation: primary side-nav rail', () => {
       await expect(primaryNav(page)).toBeVisible();
     }
 
-    // The Home tile (shares its href with the logo) returns to chat, with the
-    // Home panel beside it.
-    await navLinkByHref(page, `/dashboard/${organizationId}/chat`)
-      .first()
+    // The Home tile opens a fresh chat, with the Home panel beside it. Its
+    // href carries `?new=true`, so it is found by its name (the unread chip
+    // may follow the label).
+    await primaryNav(page)
+      .getByRole('link', { name: new RegExp(`^${t('navigation.home')}`) })
       .click();
-    await page.waitForURL(/\/chat(?:[/?#]|$)/, { timeout: TIMEOUT.NAV });
+    await page.waitForURL(/\/chat\?new=true/, { timeout: TIMEOUT.NAV });
     await expect(chatSurfaceAnchor(page)).toBeVisible({
       timeout: TIMEOUT.VISIBLE,
     });

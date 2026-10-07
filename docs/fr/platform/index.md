@@ -14,14 +14,14 @@ Sur téléphone, la navigation flotte au-dessus de la page dans une barre arrond
 
 Quand tu fais défiler la page vers le bas, la barre devient plus petite, descend légèrement et n’affiche plus que les icônes. Remonte dans la page pour retrouver la barre complète et ses libellés. Toutes les destinations restent accessibles dans les deux formats.
 
-Une section s’ouvre toujours sur sa première page, quoi que tu y aies fait auparavant : le même choix te mène donc chaque fois au même endroit. Par exemple, ouvre l’onglet **Exécutions** d’une automatisation, passe dans **Accueil**, puis choisis **Automatisations** : la liste des automatisations s’ouvre, et non l’onglet que tu as quitté. Sur ordinateur, seul **Accueil** reprend où tu en étais : il rouvre le chat que tu as lu en dernier, ou un nouveau chat si tu n’en as aucun. Choisir **Accueil** alors que tu y es déjà démarre un nouveau chat, tout comme le raccourci **⌥⌘N** sur Mac ou **Alt+Ctrl+N** sous Windows et Linux.
+Une section s’ouvre toujours sur sa première page, quoi que tu y aies fait auparavant : le même choix te mène donc chaque fois au même endroit. **Accueil** ouvre un nouveau chat, **Connaissances** ouvre **Documents** et **Automatisations** ouvre la liste des automatisations. C’est aussi le cas quand tu choisis la section où tu te trouves déjà. Par exemple, ouvre l’onglet **Exécutions** d’une automatisation, passe dans **Connaissances**, puis choisis **Automatisations** : la liste des automatisations s’ouvre, et non l’onglet que tu as quitté. Sur téléphone, **Accueil** ouvre la liste d’**Accueil** plutôt qu’un nouveau chat. Le raccourci **⌥⌘N** sur Mac ou **Alt+Ctrl+N** sous Windows et Linux démarre aussi un nouveau chat.
 
 **Paramètres** liste ses pages dans un panneau latéral, à côté de la page, et l’en-tête indique la page ouverte ; sur téléphone, Paramètres commence par la liste de ses pages. **Connaissances** présente ses pages sous forme d’onglets sous son en-tête.
 
 | Tu souhaites… | Marche à suivre |
 | --- | --- |
 | Ouvrir une autre section | Choisis cette section dans la barre de navigation ou, sur téléphone, dans la barre d’onglets. |
-| Démarrer un nouveau chat | Sur ordinateur, choisis **Nouveau chat** dans **Accueil**, ou choisis **Accueil** alors que tu y es déjà. Sur téléphone, ouvre **Accueil**, choisis **Chats**, puis **Nouveau chat**. |
+| Démarrer un nouveau chat | Sur ordinateur, choisis **Accueil**, ou **Nouveau chat** dans **Accueil**. Sur téléphone, ouvre **Accueil**, choisis **Chats**, puis **Nouveau chat**. |
 | Ouvrir un projet | Sur ordinateur, choisis le projet sous **Projets** dans **Accueil**. Sur téléphone, choisis le projet, puis **Ouvrir le projet**. |
 | Revenir à la liste des projets | Choisis **Tous les projets** dans **Accueil**, ou clique sur **Projets** dans le fil d’Ariane au-dessus du projet. |
 | Revenir à la liste des documents | Choisis **Connaissances**. |

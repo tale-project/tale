@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 68 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 71 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -21,7 +21,7 @@ live in [chat.md](chat.md), the Inbox view in
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Primary nav sections | `/dashboard/{org}/{chat\|documents\|automations\|settings}` — the rail's **Home**, **Knowledge**, **Automations** and (at its foot) **Settings**                                      |
 | Home routes          | `/dashboard/{org}/{chat\|projects\|conversations}/…` and `/dashboard/{org}/tasks/{taskId}` — the Home panel stands beside every one                                               |
-| Home list (phone)    | `/dashboard/{org}/home` — a desktop visit redirects to `/dashboard/{org}/chat`                                                                                                      |
+| Home list (phone)    | `/dashboard/{org}/home` — a desktop visit redirects to a fresh chat, `/dashboard/{org}/chat?new=true`                                                                                                      |
 | Knowledge            | `/dashboard/{org}/documents` (the "Knowledge" rail item)                                                                                                                             |
 | Settings landing     | `/dashboard/{org}/settings` → redirects by role (`getDefaultSettingsRoute`): `…/settings/organization` (owner/admin), `…/settings/connectors` (developer), else `…/settings/account` |
 | Governance group     | `/dashboard/{org}/settings/governance` → redirects to `…/governance/content-models`                                                                                                  |
@@ -58,8 +58,8 @@ loaded, and reads **No teams** for an account in none.
   (`navigation.userSettings`), which sits at the rail's foot with the
   **Notifications** bell (`navigation.notifications`) and the account menu
   (`auth.userButton.manageAccount`) → Each click commits that section's
-  DEFAULT entry: Home opens `/chat` (the chat you last read, else a blank
-  composer) with the Home panel (`home.aria.panel`) beside it; Knowledge
+  DEFAULT entry: Home opens a fresh composer (`/chat?new=true`) with the
+  Home panel (`home.aria.panel`) beside it; Knowledge
   `/documents` (its pages — Documents, Knowledge entries, Websites, Products
   and Contacts — sit as tabs under its header, NAV-F32); Automations
   `/automations`; Settings the role's
@@ -177,23 +177,27 @@ loaded, and reads **No teams** for an account in none.
   again → You land on `/documents`, not Websites. Repeat for **Automations**
   (open one automation's **Runs** tab → `/automations`) and **Settings** (open
   **Teams** → the role's default landing): each opens the section's own first
-  page, never the tab or record you left. Only **Home** resumes, because its
-  entry point reopens the last chat you read (`NAV-F18`): open a project's
-  board with a task open (`?task=…`), click **Knowledge**, then **Home** → you
-  land on that chat, not on the board.
+  page, never the tab or record you left. **Home** too: open a project's
+  board with a task open (`?task=…`), click **Knowledge**, then **Home** → a
+  fresh composer (`/chat?new=true`), neither the board nor the chat you last
+  read (`NAV-F18`). And the reverse: open an automation from a project's
+  **Automations** tab, click **Knowledge**, then **Automations** → the
+  organization's list, not that automation.
 - [ ] `NAV-F17` · **Re-entry resets the section** — While sitting on a
   project's board (inside Home), click the **Home** tile you are already on →
   A fresh composer opens (`/chat?new=true`) and the Home panel's list gains
   the draft row **New chat** (`home.newChat`) at the top, marked current. Same
   gesture in **Knowledge** (from **Websites**) lands on `/documents`; in
   **Settings** on the role's default landing.
-- [ ] `NAV-F18` · **Home resumes the last chat** — From **Knowledge**, click
-  **Home** → It opens the chat you last READ (not merely the one with the
-  newest activity: have a second account post into an older chat first, then
-  confirm the tile still reopens yours). Now click **Home** again while
-  already in Home — on a chat, a project, a task page or the inbox → A fresh
-  composer opens (`?new=true`), not a chat. ⌥⌘N (Alt+Ctrl+N off a Mac), shown
-  in the tile's tooltip, does the same from any page.
+- [ ] `NAV-F18` · **Home always starts a new chat** — From **Knowledge**,
+  click **Home** → A fresh composer opens (`/chat?new=true`) with the Home
+  panel beside it, not the chat you last read. Click **Home** again while
+  already in Home — on a chat, a project, a task page or the inbox → The
+  same. ⌥⌘N (Alt+Ctrl+N off a Mac), shown in the tile's tooltip, and the
+  rail's logo do the same from any page. Opening the organization's own
+  address (`/dashboard/{org}`) still resumes the chat you last READ, not
+  merely the one with the newest activity: have a second account post into
+  an older chat first, then confirm that address reopens yours.
 - [ ] `NAV-F20` · **A pasted key stays in page memory** — Open `/docs`, click
   **Authorize**, paste an API key, run one request, then reload the page →
   The request went out authorized; after the reload the lock is open again
@@ -653,6 +657,15 @@ loaded, and reads **No teams** for an account in none.
   (NAV-A5).
 
 - [ ] `NAV-A8` · **Keep pinch zoom available after focusing a compact field on iOS** → In Safari 10 or later, open a compact field such as an inline rename, focus it and dismiss the keyboard: focus does not enlarge the page automatically, and a manual pinch still enlarges and restores it. Repeat the manual pinch in an installed home-screen app and in another iOS browser or an embedded web view; those contexts retain their original viewport settings and may still zoom on focus. Repeat on Android: manual pinch remains available.
+- [ ] `NAV-A9` · **The rail names the section you are in** → In the
+  accessibility tree (or with a screen reader) visit
+  `/dashboard/{org}/websites`, `/dashboard/{org}/automations/{slug}/runs`, a
+  project's board and `/dashboard/{org}/settings/teams` → Exactly one tile of
+  the rail carries `aria-current="page"`: **Knowledge**, **Automations**,
+  **Home**, and **Settings** at the rail's foot — always the tile the pill
+  sits on. Below 768 px the tab bar's buttons say the same. Tab to a tile and
+  press Enter → Its section's first page opens, and the tile keeps a visible
+  focus ring.
 
 ## Performance
 

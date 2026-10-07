@@ -530,7 +530,7 @@ output:
       `automations.detail.deleted.title` with **Open the run history**
       (`automations.detail.deleted.openRuns`). A slug nobody ever saved still
       reads `automations.notFound.title`.
-- [ ] `AUTO-F56` · **The rail forgets a deleted automation** — Open an
+- [ ] `AUTO-F56` · **A deleted automation leaves the rail on the list** — Open an
       automation's **Editor**, go back to the list and delete it from its row
       (`automations.detail.delete.title`), switch to **Knowledge**, then click
       the **Automations** rail tile → You land on `/dashboard/{org}/automations`
@@ -588,7 +588,7 @@ output:
       without **Open the full run** (`tasks.run.openFull`), and the
       automation's name in the timeline shows no **View automation**
       (`tasks.timeline.viewWorkflow`); choose **Home** in the rail after the
-      project URL → the project's own page or the chat opens, never the
+      project URL → a fresh chat opens (`/chat?new=true`), never the
       denial. An Owner, Admin or Developer gets every page, the tab and both
       links.
 - [ ] `AUTO-F54` · **An agent node creates an image into its output** — With
