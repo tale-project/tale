@@ -129,6 +129,7 @@ Un échec lié à Docker, Compose, à un mode de conteneurs non pris en charge o
 - `-q, --quiet` — masquer les logs des conteneurs pendant le déploiement.
 - `-y, --yes` — accepter automatiquement les confirmations destructives (p. ex. `--override-all`).
 - `--skip-backup` — ignorer le snapshot de volume automatique d'avant déploiement.
+- `--configuration-only` — applique uniquement la configuration gérée à chaud (instructions et automatisations) au runtime sain exact d’un déploiement déjà prêt. Exige `--bundle <directory>` et saute le snapshot préalable au déploiement ainsi que le redémarrage. Utilise cette option quand seules ces ressources changent ; les paramètres du runtime et de l’identité doivent rester inchangés, sans déploiement du runtime en attente.
 - `--dry-run` — prévisualiser sans rien modifier.
 
 ### Déploiements gérés {#managed-deployments}
@@ -284,6 +285,8 @@ La préparation vérifie d’abord chaque configuration avec les schémas propre
 #### Configurer l’identité native
 
 `deploy provision [--bundle <directory>]` est la phase locale au backend du déploiement du bundle. Elle lit au maximum 64 KiB de JSON privé sur stdin, vérifie le compte local et l’organisation sélectionnée, puis ferme la session avant d’annoncer le succès. Ses champs comprennent `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, les identifiants Entra optionnels et `nativeClients`. Par défaut, le compte existant reste requis. Un `identity.bootstrap: "fresh"` explicite autorise la création du premier compte local et de l’organisation. Un bundle lie ce choix et les configurations préparées avant toute modification native. `deploy provision` refuse les options de workspace et `--dry-run` ; utilise les vérifications en lecture seule. Les attentes optionnelles `--cli-ref` et `--deployment-ref` exigent `--bundle` et sont contrôlées avant connexion.
+
+Le déploiement du bundle appelle `deploy provision` avec des options internes pour les mises à jour de configuration seules et la vérification des identités conservées ; utilise `tale deploy --bundle <directory> --configuration-only` pour ce parcours opérateur.
 
 Pour un nouvel opérateur vérifié administrativement, déclare explicitement `identity.emailVerification: "operator-attested"`. Tu attestes ainsi la possession de l’adresse du compte authentifié ; ce n’est pas une preuve de livraison dans la boîte mail. Le backend utilise un jeton natif bref lié à ce compte et à cette adresse exacte, en conservant les hooks natifs. Il n’envoie aucun email, ne change pas l’adresse et ne crée pas d’autre session. Cette option exige `bootstrap: "fresh"`. Sans elle, la vérification native habituelle reste inchangée. Une dérive du statut vérifié d’un compte précédemment prêt bloque pour examen.
 

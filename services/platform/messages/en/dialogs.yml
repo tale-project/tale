@@ -29,6 +29,7 @@ search:
 thisMember: this member
 confirmRemoveMember: Remove {name} from this organization? They'll lose access to it and all associated resources.
 toSend: to send
+enterToSend: Enter to send
 contactInfo:
   title: Contact details
   contactId: Contact ID

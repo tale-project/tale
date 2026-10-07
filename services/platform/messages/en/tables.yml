@@ -10,7 +10,7 @@ headers:
   document: Document
   size: Size
   ragStatus: RAG status
-  locale: Locale
+  locale: Language
   interval: Interval
   teams: Teams
   uploadedBy: Uploaded by

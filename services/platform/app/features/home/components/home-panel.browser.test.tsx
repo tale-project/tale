@@ -666,7 +666,9 @@ describe('Home panel in Chromium', () => {
       await expect
         .poll(() => opened)
         .toEqual([`/dashboard/${ORG}/chat/chat-1001`]);
-      expect(drawnInside(chatRow('chat-1001'), streamRows())).toBe(true);
+      await expect
+        .poll(() => drawnInside(chatRow('chat-1001'), streamRows()))
+        .toBe(true);
     } finally {
       frame().removeEventListener('click', capture);
     }
@@ -747,7 +749,7 @@ describe('Home panel in Chromium', () => {
     const stream = streamRows();
     stream.scrollTop = stream.scrollHeight;
     const last = chatRow('chat-59');
-    expect(drawnInside(last, stream)).toBe(true);
+    await expect.poll(() => drawnInside(last, stream)).toBe(true);
 
     // A short drag down that stays over the stream: the pointer stays inside the list.
     const held = await pickUp(last);

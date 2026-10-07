@@ -1,11 +1,17 @@
 import { cn } from '@tale/ui/cn';
 
-export const WebsiteIcon = ({ className }: { className?: string }) => (
+export const WebsiteIcon = ({
+  className,
+  label,
+}: {
+  className?: string;
+  label?: string;
+}) => (
   <svg
     className={cn('size-full', className)}
     fill="none"
     viewBox="0 0 16 16"
-    aria-label="Website icon"
+    {...(label ? { 'aria-label': label } : { 'aria-hidden': true })}
   >
     <path
       d="M2 4.5C2 3.67157 2.67157 3 3.5 3H12.5C13.3284 3 14 3.67157 14 4.5V11.5C14 12.3284 13.3284 13 12.5 13H3.5C2.67157 13 2 12.3284 2 11.5V4.5Z"

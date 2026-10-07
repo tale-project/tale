@@ -270,6 +270,7 @@ export function createLocaleColumn<TData extends { locale?: string | null }>(
     accessorKey: 'locale',
     header: () => (
       <span className="inline-flex items-center">
+        <span className="sr-only">{i18n.t('tables:headers.locale')}</span>
         <LocaleIcon className="text-muted-foreground size-4" />
       </span>
     ),
