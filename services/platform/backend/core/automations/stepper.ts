@@ -342,7 +342,8 @@ interface RunContext {
   automation: string;
   mode: 'mock' | 'live';
   deadline: number;
-  /** The llm door for this run's organization; live llm nodes go through it. */
+  /** The llm door for this run's organization; live llm nodes go through
+   * it, each call measured against and booked to the run's budgets. */
   llm: AutomationLlmCall;
   /** The agent door for this run's organization; live agent nodes kick, poll
    * and cancel their sandbox turns through it. */
@@ -1518,8 +1519,9 @@ async function stepClaimedRun(
       mode: loaded.run.mode,
       deadline: Date.now() + stepBudgetMs(),
       // Built fresh every turn, like the approval gate below: the door closes
-      // over this invocation's ctx and the run's own organization.
-      llm: automationLlmCall(ctx, args.organizationId),
+      // over this invocation's ctx, the run's own organization, and the run
+      // whose spend each call is.
+      llm: automationLlmCall(ctx, args.organizationId, args.runId),
       agent: (agentHostFactory ?? automationAgentHost)(
         ctx,
         args.organizationId,

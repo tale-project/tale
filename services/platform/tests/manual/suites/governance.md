@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 84 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 85 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -176,6 +176,18 @@ agent.
   besides it; delete the project → the row reads **Deleted project**
   (`governance.budgets.projectDeleted`). Every label reads in German and
   French too. **Delete the rule after**
+- [ ] `GOV-F55` · **An automation's `llm` step is held to the budget** —
+  install an automation with one `llm` node in a project, and GOV-F54-style
+  give that project a **Project** rule with **Max requests** 1. Deploy it
+  and choose **Run live** in the editor → it succeeds, and **Usage
+  analytics** counts the call under the automation's name in **Top
+  assistants**. **Run live** again → the run
+  fails with `failureCode` `budget_exceeded`, its detail reading **the llm
+  call was refused: Usage limit reached. This project's monthly request
+  limit is used up until …**, and the provider received no second request.
+  Install it in a second project too and start a run from its schedule →
+  the call counts toward both projects, so a cap on either refuses it.
+  **Delete the rule after**
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the
