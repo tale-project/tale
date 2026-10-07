@@ -27,7 +27,7 @@ Zum Verwalten von Mitgliedern brauchst du ein Konto mit der Rolle Inhaber oder A
 
 Die Person erscheint in der Mitgliederliste. Tale verschickt in diesem Ablauf weder eine Einladung noch eine E-Mail zum Zurücksetzen des Passworts: Dass du jemanden hinzufügst, ist die Bestätigung der Adresse. Das Konto funktioniert deshalb sofort überall — auch in Anwendungen, bei denen man sich mit dem Tale-Konto anmeldet. Ist die Adresse bereits Mitglied dieser Organisation, zeigt das Formular einen Hinweis und legt keinen zweiten Eintrag an.
 
-Ein von einem Administrator festgelegtes oder zurückgesetztes Passwort sowie ein nach der Rotationsrichtlinie abgelaufenes Passwort erfordern die Änderung bei der Anmeldung. Siehe [die Schritte zur Passwortänderung für Mitglieder](/de/platform/member/preferences#wenn-eine-passwortänderung-erforderlich-ist).
+Ein von einem Administrator festgelegtes oder zurückgesetztes Passwort sowie ein nach der Rotationsrichtlinie abgelaufenes Passwort erfordern die Änderung bei der Anmeldung. Siehe [die Schritte zur Passwortänderung für Mitglieder](/de/platform/member/preferences#wenn-eine-passwortaenderung-erforderlich-ist).
 
 
 <Tip>
