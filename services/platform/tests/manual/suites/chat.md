@@ -139,7 +139,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.messageInfo.duration`) over a bar whose legend's phases add up to the
   total time, then **Token usage** (`chat.messageInfo.tokenUsage`) with its
   total beside the heading, and the timestamp and message ID last; the model
-  line matches the CHAT-F6 pick.
+  line matches the CHAT-F6 pick. On a reply that ran a tool (a search step in
+  its timeline), **Output speed** is absent and the legend shows **Model and
+  tools** (`chat.messageInfo.phases.tools`) and no waiting or thinking phase.
 - [ ] `CHAT-F62` · **Where a reply ran** — Mode A: send a message containing
   `e2e:gateway-route` → **Show info** → **Served by**
   (`chat.messageInfo.servedBy`) reads **Anthropic**, **Region** reads **Not
