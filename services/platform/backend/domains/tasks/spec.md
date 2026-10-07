@@ -256,18 +256,22 @@ intent is reconciled; it never replaces or obsoletes a newer visible request.
 ### TASK-R21 · A granted manager delegates only the exact captured agent gate
 
 The live manager needs an explicit project-only routing grant and project-wide
-starter authority. The recipient must already be an eligible independent agent
-of the same project, distinct from the manager and implementation agent. The
-captured approval, source run, reviewer and evidence must still match. Human or
-workflow gates, live work, archived tasks and policy failures are refused.
-The task's implementation owner, status, source, future reviewer configuration
-and permissions stay unchanged. The handoff starts no run.
+starter authority, and is never the captured source's implementation agent.
+The recipient must already be an eligible independent agent of the same
+project, distinct from the manager and implementation agent. The captured
+approval, source run, reviewer and evidence must still match. A task of another
+project, human or workflow gates, live work, archived tasks and policy failures
+are refused. The task's implementation owner, status, source, future reviewer
+configuration and permissions stay unchanged. The handoff starts no run.
 
 - **Example**: A manager moves an agent review to an available qualified reviewer
   → one successor approval preserves the source and task owner; the old approval
   records its successor and a receipt attributed to the manager agent.
 - **Example**: A verdict wins while a manager holds the old review identity
   → delegation is refused and no successor gate appears.
+- **Example**: The implementation agent also holds the routing grant and names a
+  reviewer it picked for its own work → refused with
+  `TASK_REVIEWER_NOT_INDEPENDENT`, and the captured reviewer keeps the gate.
 
 ### TASK-R22 · A handoff receipt cannot replay a changed review
 
