@@ -1326,9 +1326,9 @@ logs:
       gdpr_erasure_cascade_attempts_exhausted: Tentatives de cascade RGPD épuisées
       gdpr_erasure_late_finalize_dropped: Finalisation RGPD tardive abandonnée
       gdpr_erasure_watchdog_failed: Watchdog RGPD en échec
-      legal_hold_placed: Legal hold placé
+      legal_hold_placed: Conservation légale placée
       legal_hold_place_denied: Placement de legal hold refusé
-      legal_hold_bulk_placed: Legal hold placé en lot
+      legal_hold_bulk_placed: Conservation légale placée en lot
       legal_hold_release_requested: Levée de legal hold demandée
       legal_hold_release_effected: Levée de legal hold effectuée
       legal_hold_release_rejected: Levée de legal hold refusée
@@ -1530,7 +1530,7 @@ logs:
       memory_audit: Audit mémoire
       governance_policy: Politique de gouvernance
       legal_matter: Affaire légale
-      legal_hold: Legal hold
+      legal_hold: Conservation légale
       legal_hold_batch: Lot de legal hold
       retention_run: Cycle de rétention
       retentionRun: Cycle de rétention
