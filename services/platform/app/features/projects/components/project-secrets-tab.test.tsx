@@ -1,5 +1,5 @@
 import { loadLocale } from '@tale/ui/i18n/load-locale';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -80,11 +80,17 @@ const NO_HEADING_ORDER = { rules: { 'heading-order': { enabled: false } } };
 
 describe('ProjectSecretsTab', () => {
   beforeEach(async () => {
+    localStorage.setItem('user-locale', 'en');
     await i18n.changeLanguage('en');
     vi.clearAllMocks();
     secretsFixture = [];
     secretsErrorFixture = undefined;
     projectFixture = { archivedAt: undefined };
+  });
+
+  afterEach(async () => {
+    localStorage.removeItem('user-locale');
+    await i18n.changeLanguage('en');
   });
 
   describe('archived project', () => {
@@ -211,6 +217,8 @@ describe('ProjectSecretsTab', () => {
   it.each(['en', 'de', 'fr', 'de-CH'])(
     'attaches the invalid name error to the field and clears it in %s',
     async (locale) => {
+      // AppShell's client locale bridge reads the saved preference on mount.
+      localStorage.setItem('user-locale', locale);
       await loadLocale(i18n, locale);
       await i18n.changeLanguage(locale);
       const { user } = renderTab();
@@ -265,6 +273,7 @@ describe('ProjectSecretsTab', () => {
     it.each(['en', 'de', 'fr'])(
       'shows SECRET_NAME_INVALID in %s',
       async (locale) => {
+        localStorage.setItem('user-locale', locale);
         await i18n.changeLanguage(locale);
         mockSetMutateAsync.mockRejectedValueOnce(
           new AppError({ code: 'SECRET_NAME_INVALID' }),
