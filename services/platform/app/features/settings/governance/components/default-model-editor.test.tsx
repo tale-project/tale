@@ -1,3 +1,6 @@
+import { AppShell } from '@tale/ui/app-shell';
+import { render as renderWithProviders } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/tests/utils/i18n-all-languages';
@@ -113,7 +116,14 @@ describe('DefaultModelEditor', () => {
         };
         refreshPolicy();
         const t = i18n.getFixedT(language, 'governance');
-        const { user } = render(<DefaultModelEditor organizationId="org-1" />);
+        // Keep the selected test language: the shared render helper's client
+        // locale bridge would replace it with the detected browser preference.
+        const user = userEvent.setup();
+        renderWithProviders(
+          <AppShell i18n={i18n}>
+            <DefaultModelEditor organizationId="org-1" />
+          </AppShell>,
+        );
         expect(
           screen.getByRole('cell', {
             name: t('defaultModels.scopeLabels.role'),
