@@ -25,6 +25,26 @@ const baseEnv = {
   CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: [] as readonly string[],
 };
 
+test('frontend health correlates one server instance without changing its version body', async () => {
+  const first = createApp(baseEnv);
+  const second = createApp(baseEnv);
+  const read = (app: ReturnType<typeof createApp>) =>
+    app.fetch(new Request('http://localhost/api/health'));
+  const response = await read(first);
+  const identity = response.headers.get('Tale-Serving-Identity');
+  expect(identity).toMatch(/^v1;service=platform;instance=[a-f0-9-]{36}$/);
+  expect((await read(first)).headers.get('Tale-Serving-Identity')).toBe(
+    identity,
+  );
+  expect((await read(second)).headers.get('Tale-Serving-Identity')).not.toBe(
+    identity,
+  );
+  expect(await response.json()).toEqual({
+    status: 'ok',
+    version: process.env.TALE_VERSION ?? 'dev',
+  });
+});
+
 describe('blue-green browser assets', () => {
   test('either colour serves both release bundles before and after handover', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'tale-asset-handover-'));

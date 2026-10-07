@@ -10,7 +10,10 @@ Managed deployment acceptance reads the exact Ready receipt, current runtime
 custody and OCI version, canonical-origin health, and complete source-derived
 SQL/TypeScript and knowledge migration inventories without applying state.
 `tools/cli/src/lib/deployment/acceptance*.test.ts` and `source-migrations.test.ts`
-cover drift, missing/extra ledgers, legacy refusal and final-read races;
+cover drift, missing/extra ledgers, legacy refusal, same-version other-process
+routing, frontend/API identity correlation, direct proxy-free bounded HTTP reads
+and final process/container reread races. The shared server integration tests
+exercise independent real Bun processes and unchanged custom health bodies;
 `tools/cli/src/lib/docker/bounded-output.test.ts` covers bounded owned subprocess
 settlement. The existing Backend integration job runs the real read-only psql
 proof through `tools/cli/scripts/check-deployment-acceptance.ts` against its

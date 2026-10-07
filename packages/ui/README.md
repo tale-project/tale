@@ -23,6 +23,13 @@ and stories live together under `src/components/<family>/`.
 | Shared infrastructure | `i18n/*`, `markdown/*`, `seo/*`, `server`, `monitoring/*`, `theme`, `testing/*` |
 | Large custom collections | `use-virtual-list`; [windowing and focus guidance](https://ui.tale.dev/docs/patterns/list-page#bound-a-custom-collections-rendering) |
 
+`startReactServer` accepts an optional fixed `servingService` name. On its health
+route this adds `Tale-Serving-Identity: v1;service=<name>;instance=<UUIDv4>` while
+preserving the existing JSON and custom health checks. The identity is generated
+once per server bootstrap in memory. It allows an operator to correlate a captured
+local container with an origin response; it is public metadata, not authentication.
+`server/serving-identity` exposes the same producer for another HTTP server.
+
 Browse interactive stories from a Tale source checkout:
 
 ```bash
