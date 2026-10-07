@@ -14,10 +14,11 @@
  * `<project> / Automations / <name>` (and `… / Run`). The project's name
  * returns to the project, and Automations to the project's own Automations
  * tab, the list the automation was opened from — so the phone's back arrow
- * leads there too.
+ * leads there too. A project the read answers without (deleted, or out of
+ * this person's reach) has no tab to return to, so the trail is then the
+ * organization's.
  */
 
-import { cn } from '@tale/ui/cn';
 import {
   HEADER_CRUMB_LINK_CLASS,
   HeaderBreadcrumbs,
@@ -25,7 +26,15 @@ import {
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Link, useMatch } from '@tanstack/react-router';
+import { Tooltip } from '@tale/ui/tooltip';
+import { createLink, Link, useMatch } from '@tanstack/react-router';
+import {
+  useRef,
+  useState,
+  type ComponentProps,
+  type FocusEvent,
+  type PointerEvent,
+} from 'react';
 
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
@@ -44,7 +53,8 @@ export function AutomationBreadcrumbs({
   organizationId: string;
   automationSlug: string;
   /** When set, the trail starts at this project and every crumb stays on
-   *  the project route. */
+   *  the project route — unless the project is gone, when the trail is the
+   *  organization's. */
   projectId?: string;
 }) {
   const { t } = useT('automations');
@@ -57,6 +67,24 @@ export function AutomationBreadcrumbs({
     locale,
   );
   const slugParam = automationSlugToParam(automationSlug);
+
+  // The project the automation is opened in; the project shell's loader
+  // already read it, so it is usually there on the first frame. Outside a
+  // project the read is skipped.
+  const projectRead = useProject(
+    projectId !== undefined ? asProjectId(projectId) : undefined,
+  );
+  // The read ANSWERED without a project: it is gone, or out of this person's
+  // reach. Its Automations tab would only say the project was not found, so
+  // the trail is the organization's, as for an automation opened outside a
+  // project. A read that failed is not that: the project trail stays, and
+  // the tab it leads to names the failure and offers a retry.
+  const projectGone =
+    projectId !== undefined &&
+    !projectRead.isLoading &&
+    projectRead.project === null &&
+    !projectRead.unavailable;
+  const trailProjectId = projectGone ? undefined : projectId;
 
   // Either shell can host a run under this slug; the trail only cares that
   // we ARE on a run, so the name crumb can point back at the automation.
@@ -77,10 +105,10 @@ export function AutomationBreadcrumbs({
   // URL, so it matches exactly: TanStack would otherwise mark it as the
   // current page beside the leaf.
   const listCrumb =
-    projectId !== undefined ? (
+    trailProjectId !== undefined ? (
       <Link
         to="/dashboard/$id/projects/$projectId/automations"
-        params={{ id: organizationId, projectId }}
+        params={{ id: organizationId, projectId: trailProjectId }}
         activeOptions={{ exact: true }}
         className={HEADER_CRUMB_LINK_CLASS}
       >
@@ -98,10 +126,13 @@ export function AutomationBreadcrumbs({
     );
 
   // The automation's default surface, exactly where a list row lands — the
-  // bare entity URL would only forward there.
+  // bare entity URL would only forward there. It stays on the route the run
+  // was opened under: an automation's pages inside a project render without
+  // the project's own shell, so they open even when the project is gone.
+  // Capped like the project's name, so a long name leaves the leaf its room.
   const automationCrumb =
     projectId !== undefined ? (
-      <Link
+      <CappedCrumbLink
         to="/dashboard/$id/projects/$projectId/automations/$automationSlug/editor"
         params={{
           id: organizationId,
@@ -110,18 +141,20 @@ export function AutomationBreadcrumbs({
         }}
         activeOptions={{ exact: true }}
         className={HEADER_CRUMB_LINK_CLASS}
+        fullName={displayName}
       >
         {displayName}
-      </Link>
+      </CappedCrumbLink>
     ) : (
-      <Link
+      <CappedCrumbLink
         to="/dashboard/$id/automations/$automationSlug/editor"
         params={{ id: organizationId, automationSlug: slugParam }}
         activeOptions={{ exact: true }}
         className={HEADER_CRUMB_LINK_CLASS}
+        fullName={displayName}
       >
         {displayName}
-      </Link>
+      </CappedCrumbLink>
     );
 
   const nameLeaf = (
@@ -149,14 +182,16 @@ export function AutomationBreadcrumbs({
     <HeaderBreadcrumbs
       ariaLabel={tCommon('aria.breadcrumb')}
       crumbs={[
-        ...(projectId !== undefined
+        ...(trailProjectId !== undefined
           ? [
               {
                 key: 'project',
                 content: (
                   <ProjectCrumb
                     organizationId={organizationId}
-                    projectId={projectId}
+                    projectId={trailProjectId}
+                    project={projectRead.project}
+                    isLoading={projectRead.isLoading}
                   />
                 ),
               },
@@ -171,22 +206,24 @@ export function AutomationBreadcrumbs({
 }
 
 /**
- * The project an automation was opened in, leading back to it. The project
- * shell's loader already read it, so the name is usually there on the first
- * frame. Like the Automations crumb it is an ancestor of the current URL, so
- * it matches exactly. A long name truncates, so the automation's own name
- * keeps its room; the accessible name stays whole. A project that cannot be
- * read leaves the way out its not-found page offers: the project list.
+ * The project an automation was opened in, leading back to it. Like the
+ * Automations crumb it is an ancestor of the current URL, so it matches
+ * exactly. A long name is capped, so the automation's own name keeps its
+ * room. A read that failed leaves the way out the project's error page
+ * offers: the project list.
  */
 function ProjectCrumb({
   organizationId,
   projectId,
+  project,
+  isLoading,
 }: {
   organizationId: string;
   projectId: string;
+  project: { name: string } | null;
+  isLoading: boolean;
 }) {
   const { t } = useT('projects');
-  const { project, isLoading } = useProject(asProjectId(projectId));
 
   if (isLoading) {
     return (
@@ -198,14 +235,15 @@ function ProjectCrumb({
     );
   }
   return project ? (
-    <Link
+    <CappedCrumbLink
       to="/dashboard/$id/projects/$projectId"
       params={{ id: organizationId, projectId }}
       activeOptions={{ exact: true }}
-      className={cn(HEADER_CRUMB_LINK_CLASS, 'block max-w-48 truncate')}
+      className={HEADER_CRUMB_LINK_CLASS}
+      fullName={project.name}
     >
       {project.name}
-    </Link>
+    </CappedCrumbLink>
   ) : (
     <Link
       to="/dashboard/$id/projects"
@@ -217,3 +255,59 @@ function ProjectCrumb({
     </Link>
   );
 }
+
+/**
+ * An ancestor crumb that names one thing — a project, an automation — whose
+ * name can be long. It is capped in width so the trail keeps room for the
+ * page's own title, and while the name is cut its whole text shows in a
+ * tooltip, on hover and on keyboard focus alike; the accessible name is
+ * always whole. The crumb's list item is a flex row, which already makes
+ * the link a block box, so the cap carries no display class — and must not:
+ * the phone's back arrow re-uses the immediate parent's link, with an icon
+ * in place of the name, and keeps the icon button's own layout. An icon
+ * never overflows, so the arrow opens no tip.
+ */
+function CappedCrumbAnchor({
+  fullName,
+  children,
+  className,
+  onPointerEnter,
+  onFocus,
+  ...props
+}: ComponentProps<'a'> & { fullName: string }) {
+  const [open, setOpen] = useState(false);
+  // Measured when a tip can open — on pointer entry and on focus — rather
+  // than observed: the cut only matters at those moments.
+  const cut = useRef(false);
+  const measure = (element: HTMLAnchorElement) => {
+    cut.current = element.scrollWidth > element.clientWidth + 1;
+  };
+
+  return (
+    <Tooltip
+      content={fullName}
+      open={open}
+      onOpenChange={(next) => setOpen(next && cut.current)}
+    >
+      <a
+        {...props}
+        // Joined, not merged: the back arrow's icon-button classes arrive
+        // here too, and must reach the link exactly as they would without
+        // the cap.
+        className={`max-w-48 truncate ${className ?? ''}`.trim()}
+        onPointerEnter={(event: PointerEvent<HTMLAnchorElement>) => {
+          measure(event.currentTarget);
+          onPointerEnter?.(event);
+        }}
+        onFocus={(event: FocusEvent<HTMLAnchorElement>) => {
+          measure(event.currentTarget);
+          onFocus?.(event);
+        }}
+      >
+        {children}
+      </a>
+    </Tooltip>
+  );
+}
+
+const CappedCrumbLink = createLink(CappedCrumbAnchor);

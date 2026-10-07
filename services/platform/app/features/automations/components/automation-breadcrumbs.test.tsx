@@ -17,6 +17,7 @@ const fixtures = vi.hoisted(() => ({
   projectRead: {
     project: { name: 'Apollo' } as { name: string } | null,
     isLoading: false,
+    unavailable: false,
   },
   projectReadArgs: [] as (string | undefined)[],
 }));
@@ -28,6 +29,14 @@ interface MockLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   params?: Record<string, string>;
   preload?: string;
   activeOptions?: unknown;
+}
+
+/** The path a mocked link resolves to: `to` with its params filled in. */
+function mockHref({ to, params }: Pick<MockLinkProps, 'to' | 'params'>) {
+  return Object.entries(params ?? {}).reduce(
+    (path, [key, value]) => path.replace(`$${key}`, value),
+    to ?? '',
+  );
 }
 
 vi.mock('@tanstack/react-router', () => ({
@@ -42,16 +51,24 @@ vi.mock('@tanstack/react-router', () => ({
     },
     ref,
   ) {
-    const href = Object.entries(params ?? {}).reduce(
-      (path, [key, value]) => path.replace(`$${key}`, value),
-      to ?? '',
-    );
     return (
-      <a ref={ref} href={href} {...rest}>
+      <a ref={ref} href={mockHref({ to, params })} {...rest}>
         {children}
       </a>
     );
   }),
+  // A link over the caller's own anchor: the anchor gets the resolved href
+  // and every prop the router does not consume.
+  createLink: (Anchor: React.ComponentType<Record<string, unknown>>) =>
+    function CreatedLink({
+      to,
+      params,
+      preload: _preload,
+      activeOptions: _active,
+      ...rest
+    }: MockLinkProps & Record<string, unknown>) {
+      return <Anchor href={mockHref({ to, params })} {...rest} />;
+    },
   useMatch: ({ from }: { from: string }) => {
     if (!fixtures.onRun) return undefined;
     if (from.includes('/runs/$runId')) return { params: {} };
@@ -96,7 +113,11 @@ describe('AutomationBreadcrumbs', () => {
     // Empty listing → the leaf renders the plain name, so the cases that
     // assert exact h1 names stay valid without knowing about the switcher.
     fixtures.automations = [];
-    fixtures.projectRead = { project: { name: 'Apollo' }, isLoading: false };
+    fixtures.projectRead = {
+      project: { name: 'Apollo' },
+      isLoading: false,
+      unavailable: false,
+    };
     fixtures.projectReadArgs = [];
   });
 
@@ -189,8 +210,68 @@ describe('AutomationBreadcrumbs', () => {
     );
   });
 
-  it('falls back to the project list when the project cannot be read', () => {
-    fixtures.projectRead = { project: null, isLoading: false };
+  it('falls back to the organization trail when the project is gone', () => {
+    // Deleted, or out of this person's reach: the read answers without a
+    // project, and its Automations tab would only say it was not found.
+    fixtures.projectRead = {
+      project: null,
+      isLoading: false,
+      unavailable: false,
+    };
+
+    render(
+      <AutomationBreadcrumbs
+        organizationId="org-1"
+        automationSlug="billing/dunning"
+        projectId={asProjectId('proj-1')}
+      />,
+    );
+
+    expect(trailLinks()).toEqual([
+      ['Automations', '/dashboard/org-1/automations'],
+    ]);
+    expect(screen.getByRole('link', { name: /back/i })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/automations',
+    );
+  });
+
+  it("keeps a gone project's run on the route it was opened under", () => {
+    fixtures.projectRead = {
+      project: null,
+      isLoading: false,
+      unavailable: false,
+    };
+    fixtures.presentation = { name: 'Chase overdue invoices' };
+    fixtures.onRun = true;
+
+    render(
+      <AutomationBreadcrumbs
+        organizationId="org-1"
+        automationSlug="billing/dunning"
+        projectId={asProjectId('proj-1')}
+      />,
+    );
+
+    // The automation's own pages open without their project, so the name
+    // still leads there; only the list falls back to the organization's.
+    expect(trailLinks()).toEqual([
+      ['Automations', '/dashboard/org-1/automations'],
+      [
+        'Chase overdue invoices',
+        '/dashboard/org-1/projects/proj-1/automations/billing__dunning/editor',
+      ],
+    ]);
+  });
+
+  it('falls back to the project list when the project read fails', () => {
+    // A failed read is not a gone project: the project's Automations tab
+    // names the failure and offers a retry, so the trail keeps leading there.
+    fixtures.projectRead = {
+      project: null,
+      isLoading: false,
+      unavailable: true,
+    };
 
     render(
       <AutomationBreadcrumbs
@@ -207,7 +288,11 @@ describe('AutomationBreadcrumbs', () => {
   });
 
   it('holds the project crumb as a skeleton while the project loads', () => {
-    fixtures.projectRead = { project: null, isLoading: true };
+    fixtures.projectRead = {
+      project: null,
+      isLoading: true,
+      unavailable: false,
+    };
 
     render(
       <AutomationBreadcrumbs
@@ -234,7 +319,11 @@ describe('AutomationBreadcrumbs', () => {
     expect(trailLinks()).toEqual([
       ['Automations', '/dashboard/org-1/automations'],
     ]);
-    expect(fixtures.projectReadArgs).toEqual([]);
+    // Asked with no project, the read is skipped.
+    expect(fixtures.projectReadArgs.length).toBeGreaterThan(0);
+    expect(
+      fixtures.projectReadArgs.every((projectId) => projectId === undefined),
+    ).toBe(true);
   });
 
   it('on a run, links the automation name back to the automation page', () => {

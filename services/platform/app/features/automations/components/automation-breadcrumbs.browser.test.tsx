@@ -22,17 +22,19 @@ import '@/app/globals.css';
  * The trail of an automation opened inside a project, under a real router in
  * Chromium: where its crumbs lead, that only the leaf names the current page
  * (the ancestors are prefixes of the URL, which TanStack would otherwise mark
- * current too), the phone's back arrow, and a long project name that must
- * not crowd the automation's own name out.
+ * current too), the phone's back arrow, and long project and automation
+ * names that must not crowd the page's own title out, whose whole text a
+ * tooltip shows while they are cut.
  */
 
 const fixtures = vi.hoisted(() => ({
   projectName: 'Apollo',
+  automationName: 'Intake',
 }));
 
 vi.mock('../hooks/queries', () => ({
   useAutomation: () => ({
-    data: { presentation: { name: 'Intake' } },
+    data: { presentation: { name: fixtures.automationName } },
     isPending: false,
   }),
   useAutomations: () => ({ data: [], isPending: false }),
@@ -42,20 +44,29 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProject: () => ({
     project: { name: fixtures.projectName },
     isLoading: false,
+    unavailable: false,
   }),
 }));
 
 beforeEach(async () => {
   fixtures.projectName = 'Apollo';
+  fixtures.automationName = 'Intake';
+  fixedHeader.width = undefined;
   await page.viewport(1280, 800);
 });
 
 afterEach(cleanup);
 
+/** The header's width at `md` in the app: the viewport less the rail. */
+const fixedHeader = { width: undefined as number | undefined };
+
 function AutomationPage() {
   const { id, automationSlug, projectId } = useParams({ strict: false });
   return (
-    <header className="flex h-13 w-full min-w-0 items-center px-4">
+    <header
+      className="flex h-13 w-full min-w-0 items-center px-4"
+      style={fixedHeader.width ? { width: fixedHeader.width } : undefined}
+    >
       <AutomationBreadcrumbs
         organizationId={id ?? ''}
         automationSlug={paramToAutomationSlug(automationSlug ?? '')}
@@ -179,5 +190,85 @@ describe('the trail of an automation opened in a project, in Chromium', () => {
     const leaf = screen.getByRole('heading', { level: 1, name: 'Run' });
     expect(leaf.getBoundingClientRect().width).toBeGreaterThan(0);
     expect(leaf.getBoundingClientRect().right).toBeLessThanOrEqual(1280);
+  });
+
+  it('caps a long automation name on a run so the Run title keeps its room', async () => {
+    // At `md` the header is the viewport less the 3rem rail and the padding.
+    await page.viewport(768, 800);
+    fixedHeader.width = 720;
+    fixtures.projectName = 'Quarterly regional operations review';
+    fixtures.automationName =
+      'Chase every overdue invoice across all regional customer accounts';
+    renderTrail(`${PROJECT_AUTOMATION}/intake/runs/r-1`);
+
+    const automation = await screen.findByRole('link', {
+      name: fixtures.automationName,
+    });
+    await waitFor(() =>
+      expect(automation.scrollWidth).toBeGreaterThan(automation.clientWidth),
+    );
+    expect(automation.getBoundingClientRect().width).toBeLessThanOrEqual(192);
+    const header = screen.getByRole('banner').getBoundingClientRect();
+    const leaf = screen
+      .getByRole('heading', { level: 1, name: 'Run' })
+      .getBoundingClientRect();
+    expect(leaf.width).toBeGreaterThan(0);
+    expect(leaf.right).toBeLessThanOrEqual(header.right);
+  });
+
+  it('shows a cut name whole in a tooltip, on hover and on focus', async () => {
+    fixtures.projectName =
+      `Quarterly regional operations ${'review '.repeat(13)}`.trim();
+    const { user } = renderTrail(`${PROJECT_AUTOMATION}/intake/editor`);
+
+    const project = await screen.findByRole('link', {
+      name: fixtures.projectName,
+    });
+    await waitFor(() =>
+      expect(project.scrollWidth).toBeGreaterThan(project.clientWidth),
+    );
+
+    await user.hover(project);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      fixtures.projectName,
+    );
+    await user.unhover(project);
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull());
+
+    // The back arrow is the phone's; on a computer the project's name is the
+    // first stop.
+    await user.tab();
+    expect(project).toHaveFocus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      fixtures.projectName,
+    );
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull());
+  });
+
+  it('opens no tooltip over a name that fits', async () => {
+    const { user } = renderTrail(`${PROJECT_AUTOMATION}/intake/editor`);
+
+    const project = await screen.findByRole('link', { name: 'Apollo' });
+    await user.hover(project);
+    // Past the tooltip's open delay.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it("keeps the phone's back arrow an icon button on a run", async () => {
+    await page.viewport(390, 800);
+    fixtures.automationName =
+      'Chase every overdue invoice across all regional customer accounts';
+    renderTrail(`${PROJECT_AUTOMATION}/intake/runs/r-1`);
+
+    const back = await screen.findByRole('link', { name: 'Back' });
+    expect(back).toBeVisible();
+    expect(back).toHaveAttribute('href', `${PROJECT_AUTOMATION}/intake/editor`);
+    const box = back.getBoundingClientRect();
+    // The capped crumb's classes leave the square icon button as it was.
+    expect(box.width).toBe(box.height);
+    expect(box.width).toBeGreaterThanOrEqual(24);
+    expect(back.querySelector('svg')).toBeVisible();
   });
 });
