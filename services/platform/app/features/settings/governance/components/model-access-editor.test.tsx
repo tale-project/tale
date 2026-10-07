@@ -1,6 +1,10 @@
+import { AppShell } from '@tale/ui/app-shell';
+import { render as renderWithProviders } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { i18n } from '@/tests/utils/i18n-all-languages';
+import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import { ModelAccessEditor } from './model-access-editor';
 
@@ -89,6 +93,116 @@ function setLoading() {
 }
 
 describe('ModelAccessEditor', () => {
+  it.each(['en', 'de', 'fr'])(
+    'localizes scope, role and mode labels (%s)',
+    async (language) => {
+      await i18n.changeLanguage(language);
+      try {
+        setLoaded();
+        state.config = {
+          enabled: true,
+          mode: 'blocklist',
+          rules: [
+            {
+              scope: 'role',
+              scopeId: 'developer',
+              allowedModels: [],
+              blockedModels: ['openai/gpt-4o'],
+            },
+          ],
+        };
+
+        const t = i18n.getFixedT(language, 'governance');
+        // Keep the selected test language: the shared render helper's client
+        // locale bridge would replace it with the detected browser preference.
+        const user = userEvent.setup();
+        renderWithProviders(
+          <AppShell i18n={i18n}>
+            <ModelAccessEditor organizationId="org-1" />
+          </AppShell>,
+        );
+        expect(
+          screen.getByRole('cell', { name: t('modelAccess.scopeLabels.role') }),
+        ).toBeInTheDocument();
+
+        expect(
+          screen.getByRole('cell', {
+            name: t('modelAccess.roleLabels.developer'),
+          }),
+        ).toBeInTheDocument();
+
+        const modeSelect = screen.getByRole('combobox');
+        expect(modeSelect).toHaveTextContent(
+          t('modelAccess.modeLabels.blocklist'),
+        );
+        await user.click(modeSelect);
+        expect(
+          screen.getByRole('option', {
+            name: t('modelAccess.modeLabels.allowlist'),
+          }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole('option', {
+            name: t('modelAccess.modeLabels.blocklist'),
+          }),
+        ).toBeInTheDocument();
+        await user.keyboard('{Escape}');
+
+        await user.click(
+          screen.getByRole('button', {
+            name: t('modelAccess.editRule', { index: 1 }),
+          }),
+        );
+        const dialog = within(screen.getByRole('dialog'));
+        const scopeSelect = dialog.getByRole('combobox', {
+          name: t('modelAccess.scope'),
+        });
+        expect(scopeSelect).toHaveTextContent(
+          t('modelAccess.scopeLabels.role'),
+        );
+        await user.click(scopeSelect);
+        for (const value of ['default', 'user', 'team', 'role']) {
+          expect(
+            i18n.exists(`modelAccess.scopeLabels.${value}`, {
+              lng: language,
+              ns: 'governance',
+            }),
+          ).toBe(true);
+          expect(
+            screen.getByRole('option', {
+              name: t(`modelAccess.scopeLabels.${value}`),
+            }),
+          ).toBeInTheDocument();
+        }
+        await user.keyboard('{Escape}');
+        const roleSelect = dialog.getByRole('combobox', {
+          name: t('modelAccess.role'),
+        });
+        expect(roleSelect).toHaveTextContent(
+          t('modelAccess.roleLabels.developer'),
+        );
+        await user.click(roleSelect);
+        for (const value of ['admin', 'developer', 'editor', 'member']) {
+          expect(
+            i18n.exists(`modelAccess.roleLabels.${value}`, {
+              lng: language,
+              ns: 'governance',
+            }),
+          ).toBe(true);
+          expect(
+            screen.getByRole('option', {
+              name: t(`modelAccess.roleLabels.${value}`),
+            }),
+          ).toBeInTheDocument();
+        }
+        await user.keyboard('{Escape}');
+      } finally {
+        cleanup();
+        await i18n.changeLanguage('en');
+      }
+    },
+  );
+
   describe('loaded state', () => {
     it('renders the real enable switch (in the a11y tree)', () => {
       setLoaded();
