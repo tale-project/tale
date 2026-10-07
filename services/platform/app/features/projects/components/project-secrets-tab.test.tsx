@@ -1,3 +1,5 @@
+import { AppShell } from '@tale/ui/app-shell';
+import { loadLocale } from '@tale/ui/i18n/load-locale';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -68,6 +70,9 @@ const PROJECT_ID = 'proj-1' as string;
 function renderTab() {
   return render(
     <ProjectSecretsTab organizationId="org-1" projectId={PROJECT_ID} />,
+    // Keep the language selected by the test; the client preference bridge
+    // would otherwise switch back to the browser's English locale.
+    { wrapper: ({ children }) => <AppShell i18n={i18n}>{children}</AppShell> },
   );
 }
 
@@ -206,6 +211,59 @@ describe('ProjectSecretsTab', () => {
       );
     });
   });
+
+  it.each(['en', 'de', 'fr', 'de-CH'])(
+    'attaches the invalid name error to the field and clears it in %s',
+    async (locale) => {
+      await loadLocale(i18n, locale);
+      await i18n.changeLanguage(locale);
+      const { user } = renderTab();
+      await user.click(
+        screen.getByRole('button', {
+          name: i18n.t('add', { ns: 'envEditor' }),
+        }),
+      );
+      const input = screen.getByPlaceholderText(
+        i18n.t('keyPlaceholder', { ns: 'envEditor' }),
+      );
+      await user.type(input, '_TOKEN');
+      await user.click(
+        screen.getByRole('button', {
+          name: i18n.t('save', { ns: 'envEditor' }),
+        }),
+      );
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+      const message = i18n.t('projectSecretBadKey', {
+        ns: 'envEditor',
+        key: '_TOKEN',
+      });
+      const error = screen.getByText(message);
+      expect(error).toBeVisible();
+      expect(error).toHaveAttribute('role', 'alert');
+      expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(
+        error.id,
+      );
+      expect(mockSetMutateAsync).not.toHaveBeenCalled();
+      expect(mockDeleteMutateAsync).not.toHaveBeenCalled();
+      await user.clear(input);
+      await user.type(input, 'TOKEN');
+      expect(input).not.toHaveAttribute('aria-invalid');
+      expect(input).not.toHaveAttribute('aria-describedby');
+      expect(screen.queryByText(message)).not.toBeInTheDocument();
+      if (locale === 'de-CH') {
+        expect(message).toContain('Grossbuchstaben');
+        expect(
+          i18n.t('errors.SECRET_NAME_INVALID', { ns: 'projectSecrets' }),
+        ).toContain('Grossbuchstaben');
+      }
+      await user.click(
+        screen.getByRole('button', {
+          name: i18n.t('save', { ns: 'envEditor' }),
+        }),
+      );
+      await waitFor(() => expect(mockSetMutateAsync).toHaveBeenCalledTimes(1));
+    },
+  );
 
   describe('localized name refusal', () => {
     it.each(['en', 'de', 'fr'])(

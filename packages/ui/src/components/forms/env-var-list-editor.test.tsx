@@ -2,6 +2,7 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -10,7 +11,11 @@ import {
 } from '@/tests/utils/render';
 
 import messages from '../../i18n/messages/en.yml';
-import { EnvVarListEditor, type LoadedEnvVar } from './env-var-list-editor';
+import {
+  EnvVarListEditor,
+  type LoadedEnvVar,
+  type EnvEditorState,
+} from './env-var-list-editor';
 
 // The inline Save reports through the standalone `toast`; one shared spy
 // makes the failure toast assertable.
@@ -261,6 +266,71 @@ describe('EnvVarListEditor — project secret name rule', () => {
       );
       expect(onSet).not.toHaveBeenCalled();
       expect(onDelete).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([false, true])(
+    'links invalid name errors and clears them on correction (externalSave=%s)',
+    async (externalSave) => {
+      const onSet = vi.fn().mockResolvedValue(undefined);
+      const onDelete = vi.fn().mockResolvedValue(undefined);
+      let state: EnvEditorState | undefined;
+      render(
+        <EnvVarListEditor
+          rows={[]}
+          isLoading={false}
+          forceSecret
+          projectSecretNameRule
+          externalSave={externalSave}
+          onEditorState={(next) => {
+            state = next;
+          }}
+          onSet={onSet}
+          onDelete={onDelete}
+        />,
+      );
+      addKey('_TOKEN');
+      const input = screen.getByPlaceholderText('NAME');
+      const message = messages.envEditor.projectSecretBadKey.replace(
+        '{key}',
+        '_TOKEN',
+      );
+      if (externalSave) {
+        await act(async () => {
+          await expect(state?.save()).rejects.toThrow(message);
+        });
+        expect(toastMock).not.toHaveBeenCalled();
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      }
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+      const error = screen.getByRole('alert');
+      expect(error).toBeVisible();
+      expect(error).toHaveTextContent(message);
+      expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(
+        error.id,
+      );
+      expect(onSet).not.toHaveBeenCalled();
+      expect(onDelete).not.toHaveBeenCalled();
+
+      fireEvent.change(input, { target: { value: 'TOKEN' } });
+      expect(input).not.toHaveAttribute('aria-invalid');
+      expect(input).not.toHaveAttribute('aria-describedby');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      if (externalSave) {
+        await act(async () => {
+          await state?.save();
+        });
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      }
+      await waitFor(() =>
+        expect(onSet).toHaveBeenCalledWith({
+          key: 'TOKEN',
+          value: '',
+          isSecret: true,
+        }),
+      );
     },
   );
 

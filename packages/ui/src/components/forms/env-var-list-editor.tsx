@@ -182,6 +182,7 @@ export function EnvVarListEditor({
     !isLoading && rows ? rows.map(toRow) : [],
   );
   const [saving, setSaving] = useState(false);
+  const [validateNames, setValidateNames] = useState(false);
   // Index of the row awaiting remove confirmation (null = no dialog open).
   const [pendingRemove, setPendingRemove] = useState<number | null>(null);
   // While the user has unsaved edits, server (re)loads must not clobber them.
@@ -216,6 +217,7 @@ export function EnvVarListEditor({
     loadedKeys.current = new Set(loaded.map((r) => r.key));
     loadedRows.current = loaded;
     setLocalRows(loaded);
+    setValidateNames(false);
   }, [rows, isLoading]);
 
   // Whether the live rows differ from the loaded snapshot in a SAVABLE way —
@@ -291,21 +293,32 @@ export function EnvVarListEditor({
     setPendingRemove(null);
   };
 
+  const normalizeKey = (key: string): string =>
+    projectSecretNameRule ? key.trim().toUpperCase() : key.trim();
+  const nameError = (key: string): string | undefined => {
+    const normalized = normalizeKey(key);
+    // Blank rows are not saved, so they do not need a name error.
+    if (normalized === '') return undefined;
+    if (projectSecretNameRule) {
+      return PROJECT_SECRET_KEY_RE.test(normalized)
+        ? undefined
+        : t('projectSecretBadKey', { key: normalized });
+    }
+    return ENV_KEY_RE.test(normalized)
+      ? undefined
+      : t('badKey', { key: normalized });
+  };
+
   const onSave = async (): Promise<void> => {
     const active = localRows.filter((r) => r.key.trim() !== '');
-    const keys = active.map((r) =>
-      projectSecretNameRule ? r.key.trim().toUpperCase() : r.key.trim(),
-    );
+    const keys = active.map((r) => normalizeKey(r.key));
+    // Set field feedback before either save mode returns or throws. Deriving
+    // it from the current draft also clears it when a name is corrected.
+    setValidateNames(true);
     for (const k of keys) {
-      const valid = projectSecretNameRule
-        ? PROJECT_SECRET_KEY_RE.test(k)
-        : ENV_KEY_RE.test(k);
-      if (!valid) {
-        // External mode: throw so the header cluster's EditorActions surfaces
-        // the failure (and doesn't flash "Saved" on a resolved promise).
-        const message = projectSecretNameRule
-          ? t('projectSecretBadKey', { key: k })
-          : t('badKey', { key: k });
+      const message = nameError(k);
+      if (message) {
+        // External mode: the header owns the single failure toast.
         if (externalSave) throw new Error(message);
         toast({ title: message, variant: 'destructive' });
         return;
@@ -327,9 +340,7 @@ export function EnvVarListEditor({
       // Upsert each active row — skip a secret that wasn't re-typed and kept its
       // name (its ciphertext + preview stay untouched).
       for (const r of active) {
-        const key = projectSecretNameRule
-          ? r.key.trim().toUpperCase()
-          : r.key.trim();
+        const key = normalizeKey(r.key);
         // A token-source binding: re-save whenever the bound slug changed (or
         // it's new); value/secret are ignored server-side for a binding.
         if (r.tokenSourceSlug !== undefined) {
@@ -375,6 +386,7 @@ export function EnvVarListEditor({
     dirty.current = false;
     setIsDirty(false);
     setLocalRows(loadedRows.current);
+    setValidateNames(false);
   };
 
   // Report controller state to an external-save host. Callbacks go through
@@ -450,12 +462,14 @@ export function EnvVarListEditor({
       }
     };
     return (
-      <div key={i} className="flex min-w-0 items-center gap-2 overflow-x-auto">
+      <div key={i} className="flex min-w-0 items-start gap-2 overflow-x-auto">
         <Input
           placeholder={t('keyPlaceholder')}
           value={r.key}
           disabled={busy}
-          className="w-48 shrink-0 font-mono"
+          className="font-mono"
+          wrapperClassName="w-48 shrink-0"
+          errorMessage={validateNames ? nameError(r.key) : undefined}
           onChange={(e) => patch(i, { key: e.target.value })}
         />
         {hasSources && (
@@ -518,7 +532,7 @@ export function EnvVarListEditor({
           />
         )}
         {!hasSources && !forceSecret && (
-          <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
+          <label className="text-muted-foreground flex h-9 shrink-0 items-center gap-1.5 text-xs">
             <Checkbox
               checked={r.isSecret}
               disabled={busy}
