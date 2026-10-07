@@ -30,13 +30,19 @@ export interface RefusalToastKeys {
 export function classifyRefusal(
   reason: string | undefined,
   code?: string,
+  /** Whose cap a budget refusal names (its `data.scope`). */
+  budgetScope?: string,
 ): RefusalToastKeys {
   // The cap's own copy says where to see it and that it resets — the
-  // English sentence would only repeat that, untranslated.
+  // English sentence would only repeat that, untranslated. A project's cap
+  // is the project's, not the sender's: Settings > Usage never lists it.
   if (isBudgetRefusalCode(code)) {
     return {
       titleKey: 'toast.budgetExceeded',
-      descriptionKey: 'errorHintBudgetExceeded',
+      descriptionKey:
+        budgetScope === 'project'
+          ? 'errorHintProjectBudgetExceeded'
+          : 'errorHintBudgetExceeded',
     };
   }
   if (reason === undefined || reason.length === 0) {

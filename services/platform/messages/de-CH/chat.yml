@@ -1,1 +1,2 @@
 fileSizeExceededMultiple: '{names} überschreitet das Dateigrössenlimit von {maxSize} MB.'
+errorHintProjectBudgetExceeded: Das Nutzungslimit dieses Projekts ist erreicht. Chats ausserhalb des Projekts funktionieren weiterhin, und dein Administrator kann es erhöhen.

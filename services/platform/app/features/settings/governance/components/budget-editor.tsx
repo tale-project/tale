@@ -1,6 +1,8 @@
 'use client';
 
 import {
+  allBudgetRules,
+  budgetConfigOf,
   budgetConfigSchema,
   type BudgetConfig,
   type BudgetRule,
@@ -41,6 +43,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { useProjects } from '@/app/features/projects/hooks/queries';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -73,6 +76,7 @@ const SCOPES = [
   'default',
   'user',
   'team',
+  'project',
   'role',
   'apiKey',
   'org',
@@ -191,13 +195,15 @@ function emptyRule(): BudgetRule {
 }
 
 /** Scopes that target a specific subject — they only enforce when their target
- *  id matches a user/team/role/API key at runtime (see `budget_enforcement.ts`).
- *  Saving one with an empty target produces a permanently dead rule. The apiKey
- *  scope targets `apiKeyId`; the others target `scopeId`. */
+ *  id matches a user/team/project/role/API key at runtime (see
+ *  `budget_enforcement.ts`). Saving one with an empty target produces a
+ *  permanently dead rule. The apiKey scope targets `apiKeyId`; the others
+ *  target `scopeId`. */
 function scopeNeedsTarget(scope: BudgetRule['scope']): boolean {
   return (
     scope === 'user' ||
     scope === 'team' ||
+    scope === 'project' ||
     scope === 'role' ||
     scope === 'apiKey'
   );
@@ -270,6 +276,7 @@ function validateBudgetRule(rule: BudgetRule, t: TFunction): BudgetRuleErrors {
   return errors;
 }
 
+/** The saved file, both kinds of rule in it read as one list. */
 function parseBudgetConfig(policy: unknown): BudgetConfig {
   const config = isRecord(policy) ? policy : {};
   const result = budgetConfigSchema.safeParse(config);
@@ -305,9 +312,19 @@ interface RuleDialogProps {
   cannotManage: boolean;
   memberOptions: { value: string; label: string; description?: string }[];
   teamOptions: { value: string; label: string }[];
+  /** Every project, archived ones included: the picker offers the active
+   *  ones, and the one a saved rule names whatever became of it. */
+  projects: readonly ProjectTarget[];
   /** Every key the listing describes: the live ones the picker offers,
    *  and the ones a saved rule still names. */
   apiKeys: readonly OrgApiKeyWire[];
+}
+
+/** A project a rule can cap: its id, its name, and whether it is archived. */
+interface ProjectTarget {
+  id: string;
+  name: string;
+  archived: boolean;
 }
 
 function RuleDialog({
@@ -319,6 +336,7 @@ function RuleDialog({
   cannotManage,
   memberOptions,
   teamOptions,
+  projects,
   apiKeys,
 }: RuleDialogProps) {
   const { t } = useT('governance');
@@ -378,6 +396,16 @@ function RuleDialog({
   }, []);
 
   const errors = useMemo(() => validateBudgetRule(draft, t), [draft, t]);
+
+  // The picker offers the projects work still happens in; a rule being
+  // edited keeps its own project in the list, archived or not.
+  const projectOptions = useMemo(
+    () =>
+      projects
+        .filter((project) => !project.archived || project.id === draft.scopeId)
+        .map((project) => ({ value: project.id, label: project.name })),
+    [projects, draft.scopeId],
+  );
 
   // The picker offers the keys that can still spend. A rule being edited
   // keeps its own key in the list whatever became of it, so the field shows
@@ -483,6 +511,21 @@ function RuleDialog({
             searchPlaceholder={t('budgets.searchTeams')}
             emptyText={t('budgets.noTeamsFound')}
             aria-label={t('budgets.selectTeamAriaLabel')}
+            error={showTargetError}
+          />
+        )}
+
+        {draft.scope === 'project' && (
+          <SearchableSelect
+            label={t('budgets.project')}
+            placeholder={t('budgets.selectProject')}
+            disabled={cannotManage}
+            value={draft.scopeId ?? null}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
+            options={projectOptions}
+            searchPlaceholder={t('budgets.searchProjects')}
+            emptyText={t('budgets.noProjectsFound')}
+            aria-label={t('budgets.selectProjectAriaLabel')}
             error={showTargetError}
           />
         )}
@@ -654,6 +697,11 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
+  // A rule outlives its project's archiving: archived projects are listed
+  // so the table still names the project a saved rule caps.
+  const { projects: projectRows } = useProjects(organizationId, {
+    includeArchived: true,
+  });
   // The API keys an admin can attach a budget to: every member's live key,
   // not only the admin's own — a per-key cap is how an admin bounds one
   // person's script or coding tool. A rule stores the raw `apiKeyId` and
@@ -693,6 +741,16 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
     [teams],
   );
 
+  const projects = useMemo(
+    (): ProjectTarget[] =>
+      projectRows.map((project) => ({
+        id: project._id,
+        name: project.name || project._id,
+        archived: Boolean(project.archivedAt),
+      })),
+    [projectRows],
+  );
+
   const apiKeyById = useMemo(
     () => new Map((apiKeys ?? []).map((key) => [key.id, key])),
     [apiKeys],
@@ -716,7 +774,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    setRules(savedConfig.rules);
+    setRules(allBudgetRules(savedConfig));
   }, [savedConfig]);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
@@ -729,7 +787,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
     policyType: 'budgets',
     savedEnabled: savedConfig.enabled,
     isLoading: loading,
-    buildConfig: (next) => ({ enabled: next, rules: savedConfig.rules }),
+    buildConfig: (next) => budgetConfigOf(next, allBudgetRules(savedConfig)),
     failureTitle: t('toastSaveFailedTitle'),
     failureDescription: t('budgets.saveFailed'),
   });
@@ -740,8 +798,9 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
         await upsertMutation.mutateAsync({
           organizationId,
           policyType: 'budgets',
-          // A rule edit is only reachable while the section is on.
-          config: { enabled: true, rules: nextRules },
+          // A rule edit is only reachable while the section is on. A
+          // project's cap is saved in its own array (`budgetConfigOf`).
+          config: budgetConfigOf(true, nextRules),
         });
         toast({
           title: t('toastSavedTitle'),
@@ -817,6 +876,13 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
             rule.scopeId
           );
         }
+        case 'project': {
+          if (!rule.scopeId) return '—';
+          return (
+            projects.find((project) => project.id === rule.scopeId)?.name ??
+            rule.scopeId
+          );
+        }
         case 'role':
           if (!rule.scopeId) return '—';
           return (
@@ -840,7 +906,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           return '—';
       }
     },
-    [memberOptions, teamOptions, roleOptions, apiKeyById, t],
+    [memberOptions, teamOptions, projects, roleOptions, apiKeyById, t],
   );
 
   const onAddRule = openAddDialog;
@@ -1058,6 +1124,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           cannotManage={cannotManage}
           memberOptions={memberOptions}
           teamOptions={teamOptions}
+          projects={projects}
           apiKeys={apiKeys ?? NO_API_KEYS}
         />
 
