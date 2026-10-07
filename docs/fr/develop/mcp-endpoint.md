@@ -119,7 +119,7 @@ Les deux outils de version déployée utilisent le même moteur durable, avec le
 | `invoke_capability` | Appeler une capacité par son `id`. Si une approbation est nécessaire, renvoyer son état en attente au lieu d'exécuter l'action. |
 | `get_knowledge` | Récupérer des passages des documents et sites web explorés de l'organisation. `corpus` vaut `private` (documents), `public-web` (pages explorées) ou `all` ; les orthographes REST `documents` et `web` sont acceptées aussi. `query` est plafonné à 2000 caractères. Chaque passage porte `text`, `source` (un titre), `ref`, `corpus`, `chunkIndex`, `score`, `similarity` quand la recherche dense l’a classé, `url` pour une page web et — pour un document — le `documentId` qu’attend `GET /api/v1/documents/{id}` (l’id du fichier pour un résultat de projet) ainsi que son `projectId` : la même citation que renvoie la recherche REST. |
 
-Le registre de capacités contient actuellement les automatisations déployées. Il n'inclut ni outils intégrés, ni actions de connecteurs, ni skills, ni serveurs MCP externes. Appeler une automatisation déployée correspond à la même opération réelle que `run_deployed`. Si une approbation est nécessaire, le résultat `pending` permet au client d'expliquer qu'une personne doit décider avant la poursuite.
+Le registre de capacités contient actuellement les automatisations déployées. Il n'inclut ni outils intégrés, ni actions de connectors, ni skills, ni serveurs MCP externes. Appeler une automatisation déployée correspond à la même opération réelle que `run_deployed`. Si une approbation est nécessaire, le résultat `pending` permet au client d'expliquer qu'une personne doit décider avant la poursuite.
 
 ## Ce que la clé peut faire
 

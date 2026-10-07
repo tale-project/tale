@@ -12,7 +12,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Datenresidenz in der Cloud verstehen",
-      "description": "Speicherort und Datenflüsse zu Anbietern und Konnektoren vor der Cloud-Nutzung prüfen."
+      "description": "Speicherort und Datenflüsse zu Anbietern und Connectors vor der Cloud-Nutzung prüfen."
     }
   },
   "de:cloud/index": {
@@ -1084,7 +1084,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Episode 7 — Connectors & die Außenwelt",
-      "description": "Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Connector, ein MCP-Abschnitt, der im Server-Panel der früheren Version aufgenommen wurde, und Egress, der im Zweifel schließt."
+      "description": "Die Türen aus dem Arbeitsbereich — Connectors, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn eines angebundenen Connectors, ein MCP-Abschnitt, der im Server-Panel der früheren Version aufgenommen wurde, und Egress, der im Zweifel schließt."
     }
   },
   "de:tutorials/videos/governance-and-trust": {
@@ -2316,7 +2316,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Comprendre la résidence des données Cloud",
-      "description": "Distinguer le stockage des flux vers les fournisseurs et les connecteurs avant de choisir un déploiement Cloud."
+      "description": "Distinguer le stockage des flux vers les fournisseurs et les connectors avant de choisir un déploiement Cloud."
     }
   },
   "fr:cloud/index": {
@@ -2381,7 +2381,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Connectors",
-      "description": "Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connecteur ne convient."
+      "description": "Comment un connector est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connector ne convient."
     }
   },
   "fr:develop/contributing-docker": {
@@ -2552,7 +2552,7 @@
     "slug": "platform/admin/connectors",
     "locale": "fr",
     "frontmatter": {
-      "title": "Identifiants des connecteurs",
+      "title": "Identifiants des connectors",
       "description": "Connecte les comptes de services, choisis les accès par défaut et renouvelle les autorisations."
     }
   },
@@ -3388,7 +3388,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Épisode 7 — Connectors & le monde extérieur",
-      "description": "Les portes hors de l'espace de travail — des connecteurs dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par une connector reliée, un segment MCP enregistré sur le panneau de serveurs de la version précédente, et une sortie réseau qui échoue fermée."
+      "description": "Les portes hors de l'espace de travail — des connectors dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par un connector relié, un segment MCP enregistré sur le panneau de serveurs de la version précédente, et une sortie réseau qui échoue fermée."
     }
   },
   "fr:tutorials/videos/governance-and-trust": {

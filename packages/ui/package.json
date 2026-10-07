@@ -323,6 +323,7 @@
     "./seo/vite-plugin-artifacts": "./src/seo/runtime/vite-plugin.ts",
     "./separator": "./src/components/layout/separator.tsx",
     "./server": "./src/server/index.ts",
+    "./server/serving-identity": "./src/server/serving-identity.ts",
     "./sheet": "./src/components/overlays/sheet.tsx",
     "./skeleton": "./src/components/feedback/skeleton.tsx",
     "./skeleton-context": "./src/components/feedback/skeleton-context.tsx",

@@ -134,7 +134,7 @@ Comprends les capacités, la disponibilité et le choix des modèles.
 
 </Card>
 
-<Card title="Connecteurs" icon="plug" href="/fr/platform/connectors/overview">
+<Card title="Connectors" icon="plug" href="/fr/platform/connectors/overview">
 
 Connecte des services externes et vérifie les actions accessibles aux agents et automatisations.
 

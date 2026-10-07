@@ -153,13 +153,13 @@ Sans clé age, le module SOPS écrit les fichiers compatibles en clair avec les 
 
 Les identifiants de fournisseurs peuvent référencer une variable préfixée par `TALE_PROVIDER_KEY_` (40 caractères maximum). Les courtiers d’abonnement utilisent le préfixe distinct `TALE_TOKEN_SOURCE_` (60 maximum). Ces champs contiennent des noms de variables, pas les secrets. Injecte les valeurs dans les processus backend et recrée les conteneurs concernés après modification. [Fournisseurs](/fr/self-hosted/configuration/providers) décrit ce fonctionnement.
 
-## Applications OAuth des connecteurs
+## Applications OAuth des connectors {#applications-oauth-des-connecteurs}
 
-Les connecteurs OAuth (Gmail, Google Drive, Outlook, Teams, Slack, …) résolvent leur application fournisseur d’abord par organisation : une app configurée sous **Paramètres > Connectors > Apps OAuth** gagne pour cette organisation. L’environnement fournit la valeur par défaut du déploiement en dessous (et reste la seule source pour Slack, dont la vérification de signature des événements s’exécute avant qu’aucune organisation ne soit connue). Pour chaque slug de connecteur :
+Les connectors OAuth (Gmail, Google Drive, Outlook, Teams, Slack, …) résolvent leur application fournisseur d’abord par organisation : une app configurée sous **Paramètres > Connectors > Apps OAuth** gagne pour cette organisation. L’environnement fournit la valeur par défaut du déploiement en dessous (et reste la seule source pour Slack, dont la vérification de signature des événements s’exécute avant qu’aucune organisation ne soit connue). Pour chaque slug de connector :
 
 | Nom                                    | Défaut | Description                                                                                                               |
 | -------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID`     | unset  | Identifiant client OAuth pour ce connecteur. Slug en majuscules, tirets remplacés par des tirets bas (`gmail` → `GMAIL`). |
+| `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID`     | unset  | Identifiant client OAuth pour ce connector. Slug en majuscules, tirets remplacés par des tirets bas (`gmail` → `GMAIL`). |
 | `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` | unset  | Secret client correspondant.                                                                                              |
 | `CONNECTOR_SLACK_SIGNING_SECRET`       | unset  | Le secret de signature de l’app Slack. L’endpoint d’événements entrants vérifie chaque livraison avec lui et renvoie 503 tant qu’il manque. |
 
@@ -374,7 +374,7 @@ Les Pods Kubernetes ne reçoivent pas automatiquement de sysctls non sûrs. Le p
 
 ## Accès SSH aux repositories {#ssh-repository-access}
 
-La sandbox native contient OpenSSH et `netcat-openbsd`. Accorde une clé remplaçable limitée au repository comme secret nommé de l'agent, puis charge-la dans `ssh-agent` via stdin pendant le tour autorisé. Garde ses octets privés dans l'environnement ; ne crée jamais de fichier de clé et ne les affiche pas. Un tour lancé par un Membre ne reçoit aucun secret d'agent. Les commits Git utilisent le nom et l'e-mail du propriétaire du workspace même sans autorisation de connecteur GitHub.
+La sandbox native contient OpenSSH et `netcat-openbsd`. Accorde une clé remplaçable limitée au repository comme secret nommé de l'agent, puis charge-la dans `ssh-agent` via stdin pendant le tour autorisé. Garde ses octets privés dans l'environnement ; ne crée jamais de fichier de clé et ne les affiche pas. Un tour lancé par un Membre ne reçoit aucun secret d'agent. Les commits Git utilisent le nom et l'e-mail du propriétaire du workspace même sans autorisation de connector GitHub.
 
 Les sessions internes utilisent leur `HTTP_PROXY` existant pour les connexions sortantes. Le SSH direct ne peut pas compter sur le DNS externe dans ce réseau. Utilise le tunnel HTTP CONNECT du proxy et un port autorisé. GitHub prend en charge SSH sur `ssh.github.com:443` ; vérifie l'hôte avec les [empreintes publiées par GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints), comme décrit dans [SSH sur le port 443](https://docs.github.com/en/authentication/troubleshooting-ssh/using-ssh-over-the-https-port). Prépare un fichier known-hosts public contenant la clé vérifiée indépendamment, puis configure la commande après le chargement de la clé privée par l'agent :
 
@@ -398,7 +398,7 @@ environment["GIT_SSH_COMMAND"] = shlex.join([
 subprocess.run(["git", "ls-remote", "--exit-code", "ssh://git@ssh.github.com:443/org/repository.git", "HEAD"], env=environment, check=True, timeout=30)
 ```
 
-Le fichier known-hosts contient uniquement la clé publique de l'hôte du fournisseur ; la clé privée du repository reste dans `ssh-agent`. La politique egress existante et la portée d'accès de la clé du repository continuent de s'appliquer. Aucune autorisation de connecteur GitHub plus large n'est nécessaire.
+Le fichier known-hosts contient uniquement la clé publique de l'hôte du fournisseur ; la clé privée du repository reste dans `ssh-agent`. La politique egress existante et la portée d'accès de la clé du repository continuent de s'appliquer. Aucune autorisation de connector GitHub plus large n'est nécessaire.
 
 ## Appareils de sandbox {#sandbox-devices}
 
