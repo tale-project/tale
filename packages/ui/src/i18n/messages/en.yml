@@ -187,8 +187,6 @@ common:
     fixHighlightedFields: Fix the highlighted fields and try again.
   errors:
     contactSupport: contact support
-    documentPreview: Document preview
-    errorLoadingDocumentPreview: The document preview could not be loaded. Try again.
     errorLoadingPage: Something went wrong while loading this page. Try again or go to another section.
     hideDetails: Hide details
     persistsProblem: If this keeps happening,

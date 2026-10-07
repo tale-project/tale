@@ -219,6 +219,9 @@ filter:
     orgWide: Toute l'organisation
     mine: Mes équipes
 preview:
+  errors:
+    documentPreview: Aperçu du document
+    errorLoadingDocumentPreview: L'aperçu du document n'a pas pu être chargé. Réessaie.
   loading: Chargement…
   failedToLoad: Échec du chargement du document
   downloadComplete: Téléchargement terminé

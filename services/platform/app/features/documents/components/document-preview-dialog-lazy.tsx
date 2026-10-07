@@ -24,19 +24,19 @@ const createLazyDocumentPreviewDialog = () =>
 export function DocumentPreviewDialog(
   props: ComponentProps<typeof DocumentPreviewDialogComponent>,
 ) {
-  const { t } = useT('common');
+  const { t } = useT('documents');
   const containerRef = useRef<HTMLDivElement>(null);
   const [LazyDocumentPreviewDialog, setLazyDocumentPreviewDialog] = useState(
     createLazyDocumentPreviewDialog,
   );
-  const description = t('errors.errorLoadingDocumentPreview');
+  const description = t('preview.errors.errorLoadingDocumentPreview');
 
   return (
     <div
       ref={containerRef}
       tabIndex={-1}
       role="region"
-      aria-label={t('errors.documentPreview')}
+      aria-label={t('preview.errors.documentPreview')}
     >
       <DialogErrorBoundary
         description={description}

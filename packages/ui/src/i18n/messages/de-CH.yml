@@ -10,7 +10,5 @@ docs:
   closeMenu: Navigationsmenü schliessen
 common:
   errors:
-    documentPreview: Dokumentvorschau
-    errorLoadingDocumentPreview: Die Dokumentvorschau konnte nicht geladen werden. Versuche es erneut.
   aria:
     close: Schliessen

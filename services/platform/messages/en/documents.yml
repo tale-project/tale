@@ -210,6 +210,9 @@ filter:
     orgWide: Organization-wide
     mine: My teams
 preview:
+  errors:
+    documentPreview: Document preview
+    errorLoadingDocumentPreview: The document preview could not be loaded. Try again.
   loading: Loading…
   failedToLoad: Couldn't load document
   downloadComplete: Download complete
