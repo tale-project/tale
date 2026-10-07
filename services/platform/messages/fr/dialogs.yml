@@ -28,6 +28,7 @@ search:
 thisMember: ce membre
 confirmRemoveMember: Retirer {name} de cette organisation ? Cette personne perdra l'accès à celle-ci et à toutes les ressources associées.
 toSend: pour envoyer
+enterToSend: Entrée pour envoyer
 contactInfo:
   title: Détails du contact
   contactId: ID du contact
