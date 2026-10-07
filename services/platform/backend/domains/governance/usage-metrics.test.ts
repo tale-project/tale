@@ -189,7 +189,7 @@ describe('getOrgUsageMetricsPg', () => {
       s.text.includes('FROM app.usage_ledger'),
     );
     expect(scan).toBeDefined();
-    const orderAt = scan?.text.indexOf('ORDER BY period_key DESC') ?? -1;
+    const orderAt = scan?.text.indexOf('ORDER BY max(period_key) DESC') ?? -1;
     const limitAt = scan?.text.indexOf('LIMIT') ?? -1;
     expect(orderAt).toBeGreaterThan(-1);
     expect(limitAt).toBeGreaterThan(orderAt);
