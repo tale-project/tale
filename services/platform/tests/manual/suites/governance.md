@@ -182,9 +182,11 @@ agent.
   and choose **Run live** in the editor → it succeeds, and **Usage
   analytics** counts the call under the automation's name in **Top
   assistants**. **Run live** again → the run
-  fails with `failureCode` `budget_exceeded`, its detail reading **the llm
-  call was refused: Usage limit reached. This project's monthly request
-  limit is used up until …**, and the provider received no second request.
+  fails with `failureCode` `budget_exceeded`, its detail reading **‹node
+  id›: the llm call was refused: Usage limit reached. This project's
+  monthly request limit is used up until … — wait until the limit resets,
+  or ask an administrator to raise it**, and the provider received no
+  second request.
   Install it in a second project too and start a run from its schedule →
   the call counts toward both projects, so a cap on either refuses it.
   **Delete the rule after**

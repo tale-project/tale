@@ -12698,6 +12698,92 @@ async function checkAutomations(
       WHERE org_id = ${orgId} AND action = 'automation.run.success'
     `;
 
+    // The live run's llm step is its starter's spend, booked under the
+    // automation's name with the tokens the provider reported; once a cap
+    // is reached, the next run's step is refused before the provider is
+    // called (GOV-R14, GOV-R4).
+    const llmBooked = await sql<
+      { userId: string; tokens: number; requests: number }[]
+    >`
+      SELECT user_id AS "userId", total_tokens::float8 AS tokens,
+             request_count::float8 AS requests
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = 'ops/greet'
+        AND model = 'itest-llm' AND granularity = 'monthly'
+    `;
+    const budgetsFile = path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      orgSlug,
+      'governance',
+      'budgets.yml',
+    );
+    const priorBudgets = await readFile(budgetsFile, 'utf8').catch(() => null);
+    let capped:
+      | { status: string; failureCode: string | null; detail: string | null }
+      | undefined;
+    try {
+      await mkdir(path.dirname(budgetsFile), { recursive: true });
+      await writeFile(
+        budgetsFile,
+        [
+          'enabled: true',
+          'rules:',
+          '  - scope: org',
+          '    period: monthly',
+          '    maxRequests: 1',
+        ].join('\n'),
+      );
+      (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+      const cappedStart = z.object({ runId: z.string() }).safeParse(
+        await (
+          await post(`/api/app/automations/ops/greet/start?orgId=${orgId}`, {
+            input: { who: 'ops' },
+            mode: 'live',
+          })
+        ).json(),
+      );
+      const cappedRunId = cappedStart.success ? cappedStart.data.runId : '';
+      await waitFor(async () => {
+        const rows = await sql<{ status: string }[]>`
+          SELECT status FROM app.automation_runs WHERE id = ${cappedRunId}
+        `;
+        return ['success', 'failed', 'cancelled'].includes(
+          rows[0]?.status ?? '',
+        );
+      }, 30_000);
+      [capped] = await sql<
+        { status: string; failureCode: string | null; detail: string | null }[]
+      >`
+        SELECT status, failure_code AS "failureCode", detail
+        FROM app.automation_runs WHERE id = ${cappedRunId}
+      `;
+    } finally {
+      if (priorBudgets !== null) {
+        await writeFile(budgetsFile, priorBudgets);
+      } else {
+        await rm(budgetsFile, { force: true });
+      }
+      (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+    }
+    const llmRequestsAfter = await sql<{ requests: number }[]>`
+      SELECT coalesce(sum(request_count), 0)::float8 AS requests
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = 'ops/greet'
+        AND model = 'itest-llm' AND granularity = 'monthly'
+    `;
+    record(
+      'automations: a live llm step books its tokens under the run’s starter, and a reached cap refuses the next before the provider',
+      llmBooked.length === 1 &&
+        llmBooked[0]?.userId === userId &&
+        llmBooked[0].tokens === 18 &&
+        llmBooked[0].requests === 1 &&
+        capped?.status === 'failed' &&
+        capped.failureCode === 'budget_exceeded' &&
+        (capped.detail ?? '').includes('monthly request limit') &&
+        llmRequestsAfter[0]?.requests === 1,
+      `booked=${JSON.stringify(llmBooked)} (want one row: the starter, 18 tokens, 1 request), capped run=${JSON.stringify(capped)} (want failed, budget_exceeded, naming the monthly request limit), llm requests after=${llmRequestsAfter[0]?.requests} (want still 1)`,
+    );
+
     // Liveness: a queued run whose step job was LOST (inserted directly, no
     // enqueue) is overdue — the sweep must re-poke it to completion.
     const orphan = await sql<{ id: string }[]>`
