@@ -114,7 +114,7 @@ Registriere `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` als Events Req
 | --- | --- |
 | Unterstützte Anbieteraktion | Mitgelieferter Connector mit Organisationszugang |
 | Wiederverwendbare Aktion fehlt im Katalog | Quellcodebeitrag mit Schema, deterministischem Mock, Live-Backend und Tests |
-| Projektspezifische Aufrufe deines Dienstes | Geheimnisse und Sandbox-Code eines Projektagenten, innerhalb der Netzwerkfreigaben der Sandbox |
+| Projektspezifische Aufrufe deines Dienstes | **Secrets** und Sandbox-Code eines Projektagenten, innerhalb der Netzwerkfreigaben der Sandbox |
 | Eigene Logik in einer Automatisierung | `transform`-Knoten im Rahmen der Fähigkeiten und Netzwerkregeln des Runners |
 
 Ein Geheimnis ermöglicht die Anmeldung, aber nicht die Erreichbarkeit eines privaten Dienstes. Prüfe den Netzwerkzugriff aus der tatsächlichen Sandbox oder dem Runner, bevor du deine Integration darauf aufbaust.

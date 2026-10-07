@@ -11,7 +11,7 @@ Choisis le stockage de trois catégories : enregistrements applicatifs, connais
 | --- | --- | --- |
 | Base applicative : utilisateurs, chats, exécutions et audit | `DATABASE_URL` | Aucun réglage de base applicative distincte sur cette page. |
 | Base de connaissances : texte extrait, embeddings, index et contenu web | `KNOWLEDGE_DATABASE_URL` | **Paramètres > Résidence des données > Base de connaissances** |
-| Fichiers d’origine : documents, pièces jointes, audio et médias générés | `OBJECT_STORE_*` | **Paramètres > Résidence des données > Stockage objet** |
+| Fichiers d’origine : documents, pièces jointes, audio et médias générés | `OBJECT_STORE_*` | **Paramètres > Résidence des données > Stockage d'objets** |
 
 Le stack fourni place `tale_app` et `tale_knowledge` dans un service Postgres tout en gardant deux bases distinctes. D’autres installations utilisent des services séparés. Les valeurs d’environnement générées choisissent les connexions par défaut ; un processus applicatif démarré seul ne crée pas des identifiants de stockage objet valides.
 
@@ -80,7 +80,7 @@ L’indexation d’un document dispose d’au plus 15 minutes par tentative. Qua
 ## Connecter le bucket d’une organisation
 
 1. Prépare un bucket compatible S3 et les permissions objet nécessaires. Configure CORS pour les véritables origines du navigateur et les méthodes requises `GET`, `PUT` et `HEAD`.
-2. Dans **Stockage objet**, saisis région, point d’accès si nécessaire, bucket, préfixe de clé facultatif et identifiants. Utilise l’adressage path-style si ton stockage le demande.
+2. Dans **Stockage d'objets**, saisis région, point d’accès si nécessaire, bucket, préfixe de clé facultatif et identifiants. Utilise l’adressage path-style si ton stockage le demande.
 3. Lance **Tester la connexion**, puis enregistre. Une région ou un bucket manquant, ou une valeur qui dépasse la longueur maximale d’un champ, est signalé sous son champ avant tout envoi. Le test serveur écrit, lit et supprime un objet de test ; il ne teste pas CORS dans le navigateur.
 4. Envoie et télécharge un fichier contrôlé dans le navigateur avant de compter sur la nouvelle connexion.
 
