@@ -1,12 +1,11 @@
 import { expect, test } from 'bun:test';
 
-import { createServingIdentity } from '../../../../../packages/ui/src/server/serving-identity';
 import {
-  acceptanceHealth,
   localServingArgs,
   localServingIdentity,
   servingIdentity,
 } from './acceptance-health';
+import { acceptanceHttpProbe } from './acceptance-test-helper';
 
 const instance = '11111111-1111-4111-8111-111111111111';
 const header = `v1;service=platform;instance=${instance}`;
@@ -53,43 +52,8 @@ test('local observation projects only status and a bounded identity from the exa
 });
 
 test('actual servers using the shared identity producer at the same version cannot substitute for the captured process', async () => {
-  const servers = [0, 1].map(() => {
-    const identity = createServingIdentity('platform');
-    return Bun.serve({
-      hostname: '127.0.0.1',
-      port: 0,
-      fetch: () =>
-        Response.json(
-          { status: 'ok', version: '1.2.3' },
-          { headers: { 'Tale-Serving-Identity': identity } },
-        ),
-    });
-  });
-  try {
-    const origin = (index: number) =>
-      `http://127.0.0.1:${servers[index]!.port}`;
-    const response = await fetch(`${origin(0)}/api/health`);
-    const expected = servingIdentity(
-      response.headers.get('Tale-Serving-Identity'),
-      'platform',
-    );
-    await response.body?.cancel();
-    expect(await acceptanceHealth(origin(0), '1.2.3', expected, 1000)).toEqual(
-      expected,
-    );
-    await expect(
-      acceptanceHealth(origin(1), '1.2.3', expected, 1000),
-    ).rejects.toThrow('healthy serving version');
-    // A canonical path that reaches a different service is not identity proof.
-    await expect(
-      acceptanceHealth(
-        origin(0),
-        '1.2.3',
-        { ...expected, service: 'backend-api' },
-        1000,
-      ),
-    ).rejects.toThrow('healthy serving version');
-  } finally {
-    await Promise.all(servers.map((server) => server.stop(true)));
-  }
-});
+  const result = await acceptanceHttpProbe('identity');
+  expect(result.success, result.stderr).toBe(true);
+  expect(result.stdout).toBe('accepted');
+  expect(result.pid).not.toBe(process.pid);
+}, 35_000);

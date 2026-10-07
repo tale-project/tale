@@ -4,6 +4,11 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createServingIdentity } from '../../../../packages/ui/src/server/serving-identity';
+import {
+  acceptanceHealth,
+  servingIdentity,
+} from '../../src/lib/deployment/acceptance-health';
 import { acceptanceRequest } from '../../src/lib/deployment/acceptance-request';
 
 const identity =
@@ -187,8 +192,101 @@ async function proxyFixture() {
   }
 }
 
-// A fresh process isolates Bun's cached proxy state and suite-global exec mocks.
+async function refusal(mode: string) {
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: () => {
+      const headers = new Headers({ 'Tale-Serving-Identity': identity });
+      if (mode === 'redirect')
+        return new Response(null, {
+          status: 302,
+          headers: { location: 'https://example.invalid' },
+        });
+      if (mode === 'missing') headers.delete('Tale-Serving-Identity');
+      if (mode === 'duplicate')
+        headers.append('Tale-Serving-Identity', identity);
+      if (mode === 'stalled')
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('{'));
+            },
+          }),
+          { headers },
+        );
+      return new Response(mode === 'oversized' ? 'x'.repeat(65537) : '{}', {
+        headers,
+      });
+    },
+  });
+  try {
+    await assert.rejects(
+      acceptanceRequest(
+        `http://127.0.0.1:${server.port}/api/health`,
+        AbortSignal.timeout(100),
+      ),
+    );
+  } finally {
+    await server.stop(true);
+  }
+}
+
+async function identityFixture() {
+  const servers = [0, 1].map(() => {
+    const value = createServingIdentity('platform');
+    return Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: () =>
+        Response.json(
+          { status: 'ok', version: '1.2.3' },
+          { headers: { 'Tale-Serving-Identity': value } },
+        ),
+    });
+  });
+  try {
+    const origin = (index: number) =>
+      `http://127.0.0.1:${servers[index]!.port}`;
+    const response = await fetch(`${origin(0)}/api/health`);
+    const expected = servingIdentity(
+      response.headers.get('Tale-Serving-Identity'),
+      'platform',
+    );
+    await response.body?.cancel();
+    assert.deepEqual(
+      await acceptanceHealth(origin(0), '1.2.3', expected, 1000),
+      expected,
+    );
+    await assert.rejects(
+      acceptanceHealth(origin(1), '1.2.3', expected, 1000),
+      /healthy serving version/,
+    );
+    // A canonical path that reaches a different service is not identity proof.
+    await assert.rejects(
+      acceptanceHealth(
+        origin(0),
+        '1.2.3',
+        { ...expected, service: 'backend-api' },
+        1000,
+      ),
+      /healthy serving version/,
+    );
+  } finally {
+    await Promise.all(servers.map((server) => server.stop(true)));
+  }
+}
+
+// Fresh processes also separate aborted native sockets and server teardown from
+// later cases, alongside Bun's cached proxy state and suite-global exec mocks.
 if (process.argv[2] === 'tls') await tls();
 else if (process.argv[2] === 'proxy') await proxyFixture();
+else if (process.argv[2] === 'identity') await identityFixture();
+else if (
+  ['redirect', 'missing', 'oversized', 'stalled', 'duplicate'].includes(
+    process.argv[2] ?? '',
+  )
+)
+  await refusal(process.argv[2]!);
 else throw new Error('Unknown acceptance HTTP fixture');
 console.log('accepted');
