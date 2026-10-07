@@ -17,7 +17,8 @@
 --
 -- Rolling-safe and idempotent the same way: `chunks.embedding` and its
 -- index stay for one release, a trigger copies what the previous image
--- writes there, and the existing vectors are copied once, below.
+-- writes there, the new image writes there too at the column's declared
+-- width, and the existing vectors are copied once, below.
 
 DO $$
 DECLARE
@@ -37,11 +38,20 @@ END;
 $$;
 
 -- What the previous image writes into `chunks.embedding` during the roll.
+-- The trigger names no column, for the reason the private_knowledge
+-- migration gives: the previous image alters the column's type to pin it.
 CREATE OR REPLACE FUNCTION public_web.mirror_legacy_chunk_embedding()
 RETURNS trigger AS $$
 DECLARE
-    w integer := vector_dims(NEW.embedding);
+    w integer;
 BEGIN
+    IF NEW.embedding IS NULL THEN
+        RETURN NULL;
+    END IF;
+    IF TG_OP = 'UPDATE' AND OLD.embedding IS NOT DISTINCT FROM NEW.embedding THEN
+        RETURN NULL;
+    END IF;
+    w := vector_dims(NEW.embedding);
     IF w = ANY (ARRAY[256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096]) THEN
         EXECUTE format(
             'INSERT INTO public_web.chunk_vectors_%s (chunk_id, embedding)
@@ -56,9 +66,8 @@ $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS chunks_mirror_legacy_embedding ON public_web.chunks;
 CREATE TRIGGER chunks_mirror_legacy_embedding
-    AFTER INSERT OR UPDATE OF embedding ON public_web.chunks
+    AFTER INSERT OR UPDATE ON public_web.chunks
     FOR EACH ROW
-    WHEN (NEW.embedding IS NOT NULL)
     EXECUTE FUNCTION public_web.mirror_legacy_chunk_embedding();
 
 -- The existing vectors: one pass for a column declared at a width, each row

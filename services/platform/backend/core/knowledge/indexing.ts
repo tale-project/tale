@@ -62,7 +62,11 @@ import {
 import { sanitizeExtractedText } from '../../../lib/knowledge/sanitize-text';
 import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import { PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA } from '../../../lib/knowledge/types';
-import { assertVectorWidth, chunkVectorsTable } from './dimensions';
+import {
+  assertVectorWidth,
+  chunkVectorsTable,
+  legacyColumnWidth,
+} from './dimensions';
 import type { Embedder } from './embedding';
 import { assertCorpusWritable } from './index_health';
 import { applyPiiPolicyForIndexing } from './pii_gate';
@@ -596,6 +600,11 @@ export async function indexDocument(
     for (const isRepeat of repeated) {
       vectors.push(isRepeat ? null : (embedded[next++] ?? null));
     }
+    // The previous release's column holds this width too, when that is the
+    // width it is declared at: what the image serving beside this one reads
+    // during a roll, and after a rollback (see `legacyColumnWidth`).
+    const legacyColumn =
+      (await legacyColumnWidth(args.sql, SCHEMA)) === args.embedder.dimensions;
     const outcome = await writeChunks({
       sql: args.sql,
       orgSlug: args.orgSlug,
@@ -603,6 +612,7 @@ export async function indexDocument(
       chunks: window,
       vectors,
       vectorsTable,
+      legacyColumn,
     });
     if (outcome === 'released') {
       logger.info(
@@ -921,7 +931,14 @@ async function dropClaim(
  * BM25 index (pg_search) refuses an insert the executor runs after the main
  * statement, which is when a CTE nothing reads from is run — the case of a
  * repeated passage (`push_insert_state: ExecutorRunEntry should have already
- * been pushed onto the stack`). */
+ * been pushed onto the stack`).
+ *
+ * With `legacyColumn`, the chunk row carries the vector in the previous
+ * release's column as well (`legacyColumnWidth`); without it, that column
+ * is set to NULL, so a vector of another width never outlives the text it
+ * was embedded for. The migrations' trigger mirrors the column into the
+ * width's table, which is why the second statement updates nothing when the
+ * vector is already there — a changed vector it replaces. */
 async function writeChunks(args: {
   sql: Sql;
   orgSlug: string;
@@ -929,6 +946,8 @@ async function writeChunks(args: {
   chunks: readonly ContextualChunk[];
   vectors: readonly (readonly number[] | null)[];
   vectorsTable: string;
+  /** Whether the previous release's column is declared at this width. */
+  legacyColumn: boolean;
 }): Promise<'written' | 'released'> {
   return args.sql.begin(async (tx) => {
     if (!(await lockClaimedRow(tx, args.orgSlug, args.documentId))) {
@@ -940,8 +959,8 @@ async function writeChunks(args: {
         `INSERT INTO ${SCHEMA}.chunks
             (document_id, org_slug, chunk_index, chunk_content, content_hash,
              context_header, core_content, prefix_overlap, suffix_overlap,
-             passage_repeat)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             passage_repeat, embedding)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
          ON CONFLICT (document_id, chunk_index) DO UPDATE SET
              chunk_content = EXCLUDED.chunk_content,
              content_hash = EXCLUDED.content_hash,
@@ -949,7 +968,8 @@ async function writeChunks(args: {
              core_content = EXCLUDED.core_content,
              prefix_overlap = EXCLUDED.prefix_overlap,
              suffix_overlap = EXCLUDED.suffix_overlap,
-             passage_repeat = EXCLUDED.passage_repeat
+             passage_repeat = EXCLUDED.passage_repeat,
+             embedding = EXCLUDED.embedding
          RETURNING id::text AS id`,
         [
           args.documentId,
@@ -965,14 +985,16 @@ async function writeChunks(args: {
           chunk.prefixOverlap,
           chunk.suffixOverlap,
           vector === null,
+          args.legacyColumn && vector !== null ? JSON.stringify(vector) : null,
         ],
       );
       const chunkId = stored[0]?.id;
       if (vector === null || chunkId === undefined) continue;
       await tx.unsafe(
-        `INSERT INTO ${args.vectorsTable} (chunk_id, embedding)
+        `INSERT INTO ${args.vectorsTable} AS v (chunk_id, embedding)
          VALUES ($1::bigint, $2::vector)
-         ON CONFLICT (chunk_id) DO UPDATE SET embedding = EXCLUDED.embedding`,
+         ON CONFLICT (chunk_id) DO UPDATE SET embedding = EXCLUDED.embedding
+           WHERE v.embedding <> EXCLUDED.embedding`,
         [chunkId, JSON.stringify(vector)],
       );
     }
@@ -988,8 +1010,10 @@ async function writeChunks(args: {
 }
 
 /** Copy an identical document's chunks, and their vectors of this width —
- * what indexing the document itself would have stored. `null` when the
- * target row is no longer there to receive them. */
+ * what indexing the document itself would have stored. The previous
+ * release's column travels with its chunk: it holds either nothing or the
+ * vector of the text beside it. `null` when the target row is no longer
+ * there to receive them. */
 async function cloneChunks(
   sql: Sql,
   orgSlug: string,
@@ -1004,10 +1028,10 @@ async function cloneChunks(
          INSERT INTO ${SCHEMA}.chunks
              (document_id, org_slug, chunk_index, chunk_content, content_hash,
               context_header, core_content, prefix_overlap, suffix_overlap,
-              passage_repeat)
+              passage_repeat, embedding)
          SELECT $1, $2, chunk_index, chunk_content, content_hash,
                 context_header, core_content, prefix_overlap, suffix_overlap,
-                passage_repeat
+                passage_repeat, embedding
          FROM ${SCHEMA}.chunks
          WHERE document_id = $3 AND org_slug = $2
          ON CONFLICT (document_id, chunk_index) DO NOTHING

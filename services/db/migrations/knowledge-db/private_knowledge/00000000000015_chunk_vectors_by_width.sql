@@ -31,8 +31,12 @@
 -- the previous image keeps reading and writing them. A trigger copies what
 -- it writes there into the table of that width, so a document indexed by
 -- the previous image during the roll is searchable by the new one. The new
--- image never writes the old column. A later migration drops the column,
--- its index, the trigger and `create_chunks_hnsw_index()` together.
+-- image writes the old column as well whenever the column is declared at
+-- the width it is writing (the platform's `legacyColumnWidth`) — the one
+-- width the previous image can read — so what it indexes is searchable by
+-- the previous image during the roll, and after a rollback. A later
+-- migration drops the column, its index, the trigger and
+-- `create_chunks_hnsw_index()` together, with that write.
 --
 -- The existing vectors are copied once, below. That copy and the index
 -- build over it take time in proportion to the corpus (an index over a
@@ -63,11 +67,25 @@ $$;
 
 -- What the previous image writes into `chunks.embedding` during the roll.
 -- Before the copy, so no vector written while the copy runs is missed.
+--
+-- The trigger names no column — neither `UPDATE OF embedding` nor a WHEN
+-- on it — because either makes the column part of the trigger's
+-- definition, and the previous image's first index on a database it has
+-- not pinned yet alters the column's type (`ALTER COLUMN embedding TYPE
+-- vector(<width>)`), which Postgres refuses for such a column. The
+-- function returns at once for a row with no vector, or an unchanged one.
 CREATE OR REPLACE FUNCTION private_knowledge.mirror_legacy_chunk_embedding()
 RETURNS trigger AS $$
 DECLARE
-    w integer := vector_dims(NEW.embedding);
+    w integer;
 BEGIN
+    IF NEW.embedding IS NULL THEN
+        RETURN NULL;
+    END IF;
+    IF TG_OP = 'UPDATE' AND OLD.embedding IS NOT DISTINCT FROM NEW.embedding THEN
+        RETURN NULL;
+    END IF;
+    w := vector_dims(NEW.embedding);
     IF w = ANY (ARRAY[256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096]) THEN
         EXECUTE format(
             'INSERT INTO private_knowledge.chunk_vectors_%s (chunk_id, embedding)
@@ -82,9 +100,8 @@ $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS chunks_mirror_legacy_embedding ON private_knowledge.chunks;
 CREATE TRIGGER chunks_mirror_legacy_embedding
-    AFTER INSERT OR UPDATE OF embedding ON private_knowledge.chunks
+    AFTER INSERT OR UPDATE ON private_knowledge.chunks
     FOR EACH ROW
-    WHEN (NEW.embedding IS NOT NULL)
     EXECUTE FUNCTION private_knowledge.mirror_legacy_chunk_embedding();
 
 -- The existing vectors. A column declared at one width holds that width

@@ -125,6 +125,7 @@ import {
 import {
   assertVectorWidthSupported,
   chunkVectorsTable,
+  legacyColumnWidth,
   EmbeddingDimensionMismatch,
   UnsupportedVectorWidth,
 } from './dimensions';
@@ -2026,6 +2027,9 @@ export class PageIndexer {
   private embedderResolved = false;
   private missingModelLogged = false;
   private indexedAny = false;
+  /** The previous release's column width, once asked (`legacyColumnWidth`);
+   * read once per link. */
+  private legacyWidth: number | null | undefined;
 
   constructor(
     private readonly ctx: ActionCtx,
@@ -2071,6 +2075,16 @@ export class PageIndexer {
 
   private widthContext(): string {
     return `organization "${this.identity.orgSlug}" (website crawl)`;
+  }
+
+  /** Whether a vector of `dimensions` goes into the previous release's
+   * column as well: what the image serving beside this one reads during a
+   * roll, and after a rollback (see `legacyColumnWidth`). */
+  private async writesLegacyColumn(dimensions: number): Promise<boolean> {
+    if (this.legacyWidth === undefined) {
+      this.legacyWidth = await legacyColumnWidth(this.sql, PUBLIC_WEB_SCHEMA);
+    }
+    return this.legacyWidth === dimensions;
   }
 
   /** The table of the width the organization's embedding settings state, or
@@ -2193,8 +2207,22 @@ export class PageIndexer {
       chunks.map((chunk) => chunk.chunk_content),
     );
     if (embedded === null) return;
+    const legacy =
+      this.embedder !== null &&
+      (await this.writesLegacyColumn(this.embedder.dimensions));
     await this.sql.begin(async (tx) => {
       for (const [position, chunk] of chunks.entries()) {
+        const vector = JSON.stringify(embedded[position]);
+        // The previous release's column first: the migrations' trigger
+        // mirrors it into this width's table, and the insert below then
+        // finds the vector there.
+        if (legacy) {
+          await tx.unsafe(
+            `UPDATE ${PUBLIC_WEB_SCHEMA}.chunks SET embedding = $2::vector
+              WHERE id = $1::bigint`,
+            [chunk.id, vector],
+          );
+        }
         // Through the chunk row: a page chunked again meanwhile has new
         // chunks, and a vector for one that is gone is not written.
         await tx.unsafe(
@@ -2203,7 +2231,7 @@ export class PageIndexer {
              FROM ${PUBLIC_WEB_SCHEMA}.chunks c
             WHERE c.id = $1::bigint
            ON CONFLICT (chunk_id) DO NOTHING`,
-          [chunk.id, JSON.stringify(embedded[position])],
+          [chunk.id, vector],
         );
       }
     });
@@ -2262,6 +2290,14 @@ export class PageIndexer {
             this.embedder.dimensions,
             this.widthContext(),
           );
+    // The previous release's column carries the vector too when it is
+    // declared at this width (`legacyColumnWidth`); the migrations' trigger
+    // mirrors it into the width's table, where the insert below then finds
+    // it.
+    const legacy =
+      vectors !== null &&
+      this.embedder !== null &&
+      (await this.writesLegacyColumn(this.embedder.dimensions));
 
     await this.sql.begin(async (tx) => {
       // Chunked again from new text: the old chunks go, and with them their
@@ -2272,11 +2308,14 @@ export class PageIndexer {
         [domain, url],
       );
       for (const [position, chunk] of chunks.entries()) {
+        const vector =
+          embedded === null ? null : JSON.stringify(embedded[position]);
         const stored = await tx.unsafe<{ id: string }[]>(
           `INSERT INTO ${PUBLIC_WEB_SCHEMA}.chunks
               (domain, url, title, content_hash, chunk_index, chunk_content,
-               context_header, core_content, prefix_overlap, suffix_overlap)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+               context_header, core_content, prefix_overlap, suffix_overlap,
+               embedding)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
            RETURNING id::text AS id`,
           [
             domain,
@@ -2289,16 +2328,18 @@ export class PageIndexer {
             chunk.core,
             chunk.prefixOverlap,
             chunk.suffixOverlap,
+            legacy ? vector : null,
           ],
         );
         const chunkId = stored[0]?.id;
-        if (vectors === null || embedded === null || chunkId === undefined) {
+        if (vectors === null || vector === null || chunkId === undefined) {
           continue;
         }
         await tx.unsafe(
           `INSERT INTO ${vectors} (chunk_id, embedding)
-           VALUES ($1::bigint, $2::vector)`,
-          [chunkId, JSON.stringify(embedded[position])],
+           VALUES ($1::bigint, $2::vector)
+           ON CONFLICT (chunk_id) DO NOTHING`,
+          [chunkId, vector],
         );
       }
     });

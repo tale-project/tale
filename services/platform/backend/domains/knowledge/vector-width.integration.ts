@@ -1,6 +1,6 @@
 /**
  * Real-Postgres proof that a knowledge database keeps vectors per width
- * (`chunk_vectors_<width>`, knowledge-db migrations 14 and 15), with the
+ * (`chunk_vectors_<width>`, knowledge-db migrations 15 and 16), with the
  * indexer and the dense leg run over the migrated tables.
  *
  * Two organizations of their own, on the deployment's one knowledge
@@ -9,6 +9,13 @@
  * width used to refuse the second of them. One then moves to the other's
  * width and is embedded again at it, and the embedding save's follow-up
  * puts what it has indexed back in the queue.
+ *
+ * The previous release's column, `chunks.embedding`, stays for one release
+ * while a deployment rolls, read by the previous image alone. The lane
+ * plays that image on the database: it pins the column at the first
+ * organization's width, as that image did on its first index, reads with
+ * that image's statement, and writes as that image writes — and holds that
+ * each image finds what the other indexes at that width.
  *
  * The file row the follow-up moves is held by no document, so the job it
  * queues ends at its liveness check and writes nothing more.
@@ -153,6 +160,72 @@ export async function checkVectorWidths(
     return (hits ?? []).map((hit) => hit.source.ref);
   };
 
+  /** The previous image's first index pinned `chunks.embedding` at its
+   * model's width and built its index; the same, on a database nothing has
+   * pinned yet. Says how the column is declared afterwards. */
+  const pinPreviousColumn = async (width: number) => {
+    const declared = async () =>
+      (
+        await pool.unsafe<{ declared: string }[]>(
+          `SELECT format_type(atttypid, atttypmod) AS declared
+             FROM pg_attribute
+            WHERE attrelid = '${PRIVATE_KNOWLEDGE_SCHEMA}.chunks'::regclass
+              AND attname = 'embedding'`,
+        )
+      )[0]?.declared ?? null;
+    if ((await declared()) === 'vector') {
+      await pool.unsafe(
+        `ALTER TABLE ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks
+           ALTER COLUMN embedding TYPE vector(${width})`,
+      );
+      await pool.unsafe(
+        `SELECT ${PRIVATE_KNOWLEDGE_SCHEMA}.create_chunks_hnsw_index()`,
+      );
+    }
+    return declared();
+  };
+
+  /** A document's chunks: whether each is a repeated passage (never
+   * embedded) and whether it holds a vector in the previous release's
+   * column. */
+  const chunksOf = (org: { slug: string }, ref: string) =>
+    pool.unsafe<{ id: string; repeat: boolean; legacy: boolean }[]>(
+      `SELECT c.id::text AS id, c.passage_repeat AS repeat,
+              c.embedding IS NOT NULL AS legacy
+         FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+         JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+           ON d.id = c.document_id AND d.org_slug = c.org_slug
+        WHERE d.org_slug = $1 AND d.file_id = $2
+        ORDER BY c.chunk_index`,
+      [org.slug, ref],
+    );
+  const inColumn = (chunks: { repeat: boolean; legacy: boolean }[]) =>
+    `${chunks.filter((chunk) => chunk.legacy).length}/${chunks.filter((chunk) => !chunk.repeat).length}`;
+
+  /** The documents the previous image's dense leg finds: its statement,
+   * over the column alone. */
+  const foundByPreviousImage = async (
+    org: { id: string; slug: string },
+    dimensions: number,
+    query: string,
+  ) => {
+    const embedding = await embedderOf(org, dimensions).embed(query);
+    const rows = await pool.unsafe<{ ref: string }[]>(
+      `SELECT d.file_id AS ref
+         FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+         JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+           ON d.id = c.document_id AND d.org_slug = c.org_slug
+        WHERE c.embedding IS NOT NULL
+          AND c.org_slug = $2
+          AND d.status = 'completed'
+          AND NOT c.passage_repeat
+        ORDER BY c.embedding <=> $1::vector
+        LIMIT 5`,
+      [JSON.stringify(embedding), org.slug],
+    );
+    return [...new Set(rows.map((row) => row.ref))];
+  };
+
   const acmeRef = `s3:itest/${acme.slug}/handbook`;
   const globexRef = `s3:itest/${globex.slug}/handbook`;
   const acmeText =
@@ -162,6 +235,9 @@ export async function checkVectorWidths(
   const fileIds: string[] = [];
 
   try {
+    // The previous image pinned the column at the first model's width.
+    const declared = await pinPreviousColumn(NARROW);
+
     // 1. Two widths in one database: each organization's vectors go to the
     //    table of its own width, and each search reads that table alone.
     await index(acme, acmeRef, acmeText, NARROW);
@@ -183,6 +259,32 @@ export async function checkVectorWidths(
       `sameDatabase=${sameDatabase}, acme=${JSON.stringify(acmeHeld)} (want only ${NARROW}), globex=${JSON.stringify(globexHeld)} (want only ${WIDE}), acme finds=${JSON.stringify(acmeFinds)}, globex finds=${JSON.stringify(globexFinds)}, acme at ${WIDE}=${JSON.stringify(acmeAtWide)} (want none)`,
     );
 
+    // The previous image, serving beside this one during a roll and back
+    // after a rollback, reads the column alone: the document indexed at
+    // the column's width is there, and it finds it; the one indexed at
+    // another width holds nothing there (that image refused its model).
+    // What it writes there during the roll reaches this image's table of
+    // that width. Recorded below, once the move has shown the column is
+    // cleared with the chunks it belonged to.
+    const acmeChunks = await chunksOf(acme, acmeRef);
+    const globexChunks = await chunksOf(globex, globexRef);
+    const previousFinds = await foundByPreviousImage(acme, NARROW, acmeText);
+    const firstChunk = acmeChunks[0]?.id ?? '0';
+    const rewritten = await embedderOf(acme, NARROW).embed(
+      'what the previous image wrote during the roll',
+    );
+    await pool.unsafe(
+      `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks SET embedding = $2::vector
+        WHERE id = $1::bigint`,
+      [firstChunk, JSON.stringify(rewritten)],
+    );
+    const [mirrored] = await pool.unsafe<{ same: boolean }[]>(
+      `SELECT v.embedding = $2::vector AS same
+         FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunk_vectors_${NARROW} v
+        WHERE v.chunk_id = $1::bigint`,
+      [firstChunk, JSON.stringify(rewritten)],
+    );
+
     // 2. A move to another width: the same content is embedded again, from
     //    its first chunk, and is found at the new width; a second pass has
     //    nothing left to do.
@@ -200,6 +302,23 @@ export async function checkVectorWidths(
         globexStill.join() === globexRef &&
         again.skipped === 'unchanged',
       `moved: skipped=${moved.skipped ?? 'no'} stored=${moved.chunksStored}/${moved.chunksTotal}, holds=${JSON.stringify(movedHeld)} (want only ${WIDE}), finds=${JSON.stringify(movedFinds)}, globex still finds=${JSON.stringify(globexStill)}, second pass=${again.skipped ?? 'indexed'} (want unchanged)`,
+    );
+
+    const movedChunks = await chunksOf(acme, acmeRef);
+    const allInColumn = (chunks: { repeat: boolean; legacy: boolean }[]) =>
+      chunks.length > 0 &&
+      chunks.every((chunk) => chunk.repeat || chunk.legacy);
+    const noneInColumn = (chunks: { legacy: boolean }[]) =>
+      chunks.length > 0 && chunks.every((chunk) => !chunk.legacy);
+    record(
+      'vector widths: the previous image finds what this one indexes at its column’s width, and this one finds what the previous image writes there',
+      declared === `vector(${NARROW})` &&
+        allInColumn(acmeChunks) &&
+        noneInColumn(globexChunks) &&
+        previousFinds.join() === acmeRef &&
+        (mirrored?.same ?? false) &&
+        noneInColumn(movedChunks),
+      `column declared ${declared ?? 'absent'} (want vector(${NARROW})); indexed at ${NARROW}: ${inColumn(acmeChunks)} chunks in the column (want all), the previous image finds ${JSON.stringify(previousFinds)} (want ${acmeRef}); indexed at ${WIDE}: ${inColumn(globexChunks)} in the column (want none); the previous image's write mirrored into the table: ${mirrored?.same ?? 'no row'} (want true); after the move to ${WIDE}: ${inColumn(movedChunks)} in the column (want none)`,
     );
 
     // 3. The save's follow-up: what is indexed and has no vector of the

@@ -116,6 +116,9 @@ function fakeDb(
      * reads the committed prefix back — how a whole-document run resumes
      * slice after slice. */
     resumable?: boolean;
+    /** The previous release's column as the catalog declares it: `vector`
+     * (never pinned, the default) or `vector(<width>)`. */
+    legacyColumn?: string;
   } = {},
 ): FakeDb {
   const statements: string[] = [];
@@ -129,6 +132,9 @@ function fakeDb(
     params.push(values);
     if (text.includes('FOR KEY SHARE')) {
       return Promise.resolve(released ? [] : [{ id: 'doc-1' }]);
+    }
+    if (text.includes('FROM pg_attribute')) {
+      return Promise.resolve([{ declared: options.legacyColumn ?? 'vector' }]);
     }
     if (text.includes('AS stored')) {
       if (released) return Promise.resolve([]);
@@ -395,16 +401,60 @@ describe('vectors are stored and counted per width [KNOW-R11]', () => {
     );
     expect(chunkWrites.length).toBeGreaterThan(0);
     for (const index of chunkWrites) {
-      // The old column held one width for the whole database.
-      expect(db.statements[index]).not.toMatch(/content_hash,\s*embedding/);
+      // The previous release's column, undeclared here, gets nothing.
+      expect(db.params[index]?.[10]).toBeNull();
       // The vector follows its chunk, in the same transaction.
       expect(db.statements[index + 1]).toContain(
-        `INSERT INTO ${VECTORS} (chunk_id, embedding)`,
+        `INSERT INTO ${VECTORS} AS v (chunk_id, embedding)`,
       );
       expect(db.params[index + 1]?.[0]).toBe(
         `chunk-${String(db.params[index]?.[2])}`,
       );
       expect(db.params[index + 1]?.[1]).toBe(JSON.stringify(vector()));
+    }
+  });
+
+  // The previous release's column stays for one release while a deployment
+  // rolls, and the previous image reads it alone, at the one width it
+  // declared it at. Declared at this width, it is written too, so that
+  // image — beside this one during the roll, and back after a rollback —
+  // finds the document. Declared at another width, it holds nothing of it.
+  it('writes the vector to the previous release’s column too, when it is declared at this width', async () => {
+    const db = fakeDb({ legacyColumn: `vector(${MODEL.dimensions})` });
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const chunkWrites = db.statements.flatMap((statement, index) =>
+      statement.startsWith('INSERT INTO private_knowledge.chunks')
+        ? [index]
+        : [],
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    for (const index of chunkWrites) {
+      expect(db.statements[index]).toContain('passage_repeat, embedding)');
+      expect(db.statements[index]).toContain('embedding = EXCLUDED.embedding');
+      expect(db.params[index]?.[10]).toBe(JSON.stringify(vector()));
+      // The migrations' trigger mirrors the column into the width's table;
+      // the write there replaces a vector that differs and touches nothing
+      // else.
+      expect(db.statements[index + 1]).toContain(
+        'WHERE v.embedding <> EXCLUDED.embedding',
+      );
+    }
+  });
+
+  it('leaves the previous release’s column NULL when it is declared at another width', async () => {
+    const db = fakeDb({ legacyColumn: 'vector(1536)' });
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const chunkWrites = db.statements.filter((statement) =>
+      statement.startsWith('INSERT INTO private_knowledge.chunks'),
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    for (const [index, statement] of db.statements.entries()) {
+      if (!statement.startsWith('INSERT INTO private_knowledge.chunks')) {
+        continue;
+      }
+      expect(db.params[index]?.[10]).toBeNull();
     }
   });
 
@@ -460,6 +510,12 @@ describe('vectors are stored and counted per width [KNOW-R11]', () => {
     expect(copy).toContain('target.chunk_index = source.chunk_index');
     expect(copy).toContain('source.org_slug = $2');
     expect(copy).toContain('target.org_slug = $2');
+    // The previous release's column travels with the chunk it belongs to.
+    const chunkCopy = db.statements.find((statement) =>
+      statement.startsWith('WITH copied AS'),
+    );
+    expect(chunkCopy).toContain('passage_repeat, embedding)');
+    expect(chunkCopy).toMatch(/passage_repeat, embedding\s+FROM/);
   });
 
   // A settings file written before the widths were a list. Refused before

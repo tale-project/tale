@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { KNOWLEDGE_VECTOR_WIDTHS } from '@tale/shared/schemas/knowledge';
+import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -12,6 +13,7 @@ import {
   assertVectorWidthSupported,
   chunkVectorsTable,
   EmbeddingDimensionMismatch,
+  legacyColumnWidth,
   UnsupportedVectorWidth,
 } from './dimensions';
 
@@ -124,5 +126,52 @@ describe('vectors are checked before they are written', () => {
       expect(String(err)).toContain('1536');
       expect(String(err)).toContain('2-dimensional');
     }
+  });
+});
+
+/** A catalog that declares the previous release's column as `declared`, or
+ * has no such column (null). */
+function catalog(declared: string | null): {
+  sql: Pick<Sql, 'unsafe'>;
+  statements: { text: string; params: readonly unknown[] }[];
+} {
+  const statements: { text: string; params: readonly unknown[] }[] = [];
+  const unsafe = (text: string, params: unknown[] = []) => {
+    statements.push({ text, params });
+    return Promise.resolve(declared === null ? [] : [{ declared }]);
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return { sql: { unsafe } as unknown as Pick<Sql, 'unsafe'>, statements };
+}
+
+/**
+ * The previous release's column, `chunks.embedding`, stays for one release
+ * while a deployment rolls, and the previous image reads it alone, at the
+ * one width it declared it at. A vector of that width is written there too;
+ * the width is read from the catalog, where that image recorded it.
+ */
+describe('the previous release’s column is written at the width it is declared at', () => {
+  it('reads the declared width of each corpus’s column', async () => {
+    const { sql, statements } = catalog('vector(1536)');
+
+    await expect(
+      legacyColumnWidth(sql, PRIVATE_KNOWLEDGE_SCHEMA),
+    ).resolves.toBe(1536);
+    expect(statements[0]?.text).toContain('FROM pg_attribute');
+    expect(statements[0]?.params).toEqual([
+      `${PRIVATE_KNOWLEDGE_SCHEMA}.chunks`,
+    ]);
+
+    await expect(legacyColumnWidth(sql, PUBLIC_WEB_SCHEMA)).resolves.toBe(1536);
+    expect(statements[1]?.params).toEqual([`${PUBLIC_WEB_SCHEMA}.chunks`]);
+  });
+
+  it('is null while the column is undeclared, and once it is dropped', async () => {
+    await expect(
+      legacyColumnWidth(catalog('vector').sql, PRIVATE_KNOWLEDGE_SCHEMA),
+    ).resolves.toBeNull();
+    await expect(
+      legacyColumnWidth(catalog(null).sql, PRIVATE_KNOWLEDGE_SCHEMA),
+    ).resolves.toBeNull();
   });
 });

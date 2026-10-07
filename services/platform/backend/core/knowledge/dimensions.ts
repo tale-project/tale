@@ -33,6 +33,7 @@ import {
   isKnowledgeVectorWidth,
   KNOWLEDGE_VECTOR_WIDTHS,
 } from '@tale/shared/schemas/knowledge';
+import type { Sql } from 'postgres';
 
 import type {
   PRIVATE_KNOWLEDGE_SCHEMA,
@@ -119,4 +120,36 @@ export function assertVectorWidth(
   if (vector.length !== dimensions) {
     throw new EmbeddingDimensionMismatch(dimensions, vector.length, context);
   }
+}
+
+/**
+ * The width the previous release's column, `<schema>.chunks.embedding`, is
+ * declared at — null while it is undeclared (`vector`, never pinned), and
+ * once it is dropped.
+ *
+ * That column is what the previous image reads and writes, at the one
+ * width it pinned the column to, and it stays for one release while a
+ * deployment rolls (knowledge-db migrations 15 and 16). A vector of exactly
+ * that width is written there as well, so what this image indexes is found
+ * by the image still serving beside it during the roll, and by it again
+ * after a rollback. A vector of another width is not: the column refuses
+ * it, and the previous image refused that organization's model before.
+ *
+ * Asked of the catalog per document slice and per crawl link, never
+ * remembered for the process: on a database the previous image has not
+ * pinned yet, it may still do so during the roll.
+ */
+export async function legacyColumnWidth(
+  sql: Pick<Sql, 'unsafe'>,
+  schema: CorpusSchema,
+): Promise<number | null> {
+  const rows = await sql.unsafe<{ declared: string }[]>(
+    `SELECT format_type(atttypid, atttypmod) AS declared
+       FROM pg_attribute
+      WHERE attrelid = to_regclass($1::text)
+        AND attname = 'embedding' AND NOT attisdropped`,
+    [`${schema}.chunks`],
+  );
+  const match = /^vector\((\d+)\)$/.exec(rows[0]?.declared ?? '');
+  return match?.[1] === undefined ? null : Number(match[1]);
 }

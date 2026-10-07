@@ -192,14 +192,18 @@ describe('PageIndexer.settle', () => {
 });
 
 /** A corpus double holding one stored page and nothing else; a chunk it
- * stores gets its `chunk_index` as its id. */
-const storedPage = () =>
+ * stores gets its `chunk_index` as its id. `legacyColumn` is the previous
+ * release's column as the catalog declares it; undeclared without. */
+const storedPage = (legacyColumn?: string) =>
   corpus((text, params) => {
     if (text.includes('SELECT content, title')) {
       return [{ content: TEXT.repeat(20), title: 'About' }];
     }
     if (text.startsWith('INSERT INTO public_web.chunks')) {
       return [{ id: `chunk-${String(params[4])}` }];
+    }
+    if (text.includes('FROM pg_attribute') && legacyColumn !== undefined) {
+      return [{ declared: legacyColumn }];
     }
     return undefined;
   });
@@ -230,8 +234,8 @@ describe('PageIndexer.indexPage — where the vectors go [KNOW-R11]', () => {
     );
     expect(chunkWrites.length).toBeGreaterThan(0);
     for (const index of chunkWrites) {
-      // The old column held one width for the whole database.
-      expect(statements[index]?.text).not.toMatch(/chunk_content,\s*embedding/);
+      // The previous release's column, undeclared here, gets nothing.
+      expect(statements[index]?.params[10]).toBeNull();
       // The vector follows its chunk, in the same transaction.
       expect(statements[index + 1]?.text).toContain(
         'INSERT INTO public_web.chunk_vectors_1024 (chunk_id, embedding)',
@@ -240,6 +244,54 @@ describe('PageIndexer.indexPage — where the vectors go [KNOW-R11]', () => {
         `chunk-${String(statements[index]?.params[4])}`,
         JSON.stringify([0.25]),
       ]);
+    }
+  });
+
+  // The previous release's column stays for one release while a deployment
+  // rolls, read by the previous image alone at the width it declared it at.
+  // Declared at this width, each chunk carries its vector there too, so that
+  // image finds the page beside this one, and again after a rollback.
+  it('writes each vector to the previous release’s column too, when it is declared at this width', async () => {
+    vi.mocked(embedderForOrg).mockResolvedValue(
+      model(1024, async (texts) => texts.map(() => [0.25])),
+    );
+    const { sql, statements } = storedPage('vector(1024)');
+
+    await new PageIndexer(ctx, sql, identity).indexPage(
+      'https://ruler.example/about',
+    );
+
+    const chunkWrites = statements.flatMap(({ text }, index) =>
+      text.startsWith('INSERT INTO public_web.chunks') ? [index] : [],
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    for (const index of chunkWrites) {
+      expect(statements[index]?.text).toContain('suffix_overlap, embedding)');
+      expect(statements[index]?.params[10]).toBe(JSON.stringify([0.25]));
+      // The migrations' trigger mirrors the column into the width's table,
+      // where the insert then finds the vector.
+      expect(statements[index + 1]?.text).toContain(
+        'ON CONFLICT (chunk_id) DO NOTHING',
+      );
+    }
+  });
+
+  it('leaves the previous release’s column NULL when it is declared at another width', async () => {
+    vi.mocked(embedderForOrg).mockResolvedValue(
+      model(1024, async (texts) => texts.map(() => [0.25])),
+    );
+    const { sql, statements } = storedPage('vector(1536)');
+
+    await new PageIndexer(ctx, sql, identity).indexPage(
+      'https://ruler.example/about',
+    );
+
+    const chunkWrites = statements.filter(({ text }) =>
+      text.startsWith('INSERT INTO public_web.chunks'),
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    for (const { params } of chunkWrites) {
+      expect(params[10]).toBeNull();
     }
   });
 
@@ -530,13 +582,22 @@ describe('PageIndexer.embedPage [KNOW-R11]', () => {
   const VECTORS = 'public_web.chunk_vectors_1024';
   const URL = 'https://ruler.example/about';
 
-  /** A page whose listed chunks lack a vector of this width. */
-  const pageLacking = (chunks: { id: string; chunk_content: string }[]) =>
-    corpus((text) =>
-      text.startsWith('SELECT c.id::text AS id, c.chunk_content')
-        ? chunks
-        : undefined,
-    );
+  /** A page whose listed chunks lack a vector of this width, on a database
+   * whose previous-release column is declared `legacyColumn` (undeclared
+   * without). */
+  const pageLacking = (
+    chunks: { id: string; chunk_content: string }[],
+    legacyColumn?: string,
+  ) =>
+    corpus((text) => {
+      if (text.startsWith('SELECT c.id::text AS id, c.chunk_content')) {
+        return chunks;
+      }
+      if (text.includes('FROM pg_attribute') && legacyColumn !== undefined) {
+        return [{ declared: legacyColumn }];
+      }
+      return undefined;
+    });
 
   beforeEach(() => {
     vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(settings(1024));
@@ -576,6 +637,45 @@ describe('PageIndexer.embedPage [KNOW-R11]', () => {
     for (const { text } of statements) {
       expect(text).not.toContain('DELETE');
       expect(text).not.toContain('INSERT INTO public_web.chunks');
+      expect(text).not.toContain('UPDATE public_web.chunks');
+    }
+  });
+
+  // The previous release's column, declared at this width, gets the vector
+  // too — through the chunk row, before the width's table, which the
+  // migrations' trigger fills from it.
+  it('writes each vector to the previous release’s column too, when it is declared at this width', async () => {
+    vi.mocked(embedderForOrg).mockResolvedValue(
+      model(
+        1024,
+        vi.fn(async (texts: string[]) => texts.map((_text, index) => [index])),
+      ),
+    );
+    const { sql, statements } = pageLacking(
+      [
+        { id: '11', chunk_content: 'first stored chunk' },
+        { id: '12', chunk_content: 'second stored chunk' },
+      ],
+      'vector(1024)',
+    );
+
+    await new PageIndexer(ctx, sql, identity).embedPage(URL, VECTORS);
+
+    const writes = statements.filter(
+      ({ text }) => text.startsWith('UPDATE') || text.startsWith('INSERT'),
+    );
+    expect(
+      writes.map(({ text, params }) => [text.split(' ')[0], ...params]),
+    ).toEqual([
+      ['UPDATE', '11', JSON.stringify([0])],
+      ['INSERT', '11', JSON.stringify([0])],
+      ['UPDATE', '12', JSON.stringify([1])],
+      ['INSERT', '12', JSON.stringify([1])],
+    ]);
+    for (const { text } of writes) {
+      if (text.startsWith('UPDATE')) {
+        expect(text).toContain('UPDATE public_web.chunks SET embedding');
+      }
     }
   });
 
