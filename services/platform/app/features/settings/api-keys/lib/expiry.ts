@@ -12,7 +12,7 @@ import dayjs from 'dayjs';
  */
 
 /** The longest lifetime a key may be given, in days. */
-export const API_KEY_MAX_EXPIRY_DAYS = 365;
+const API_KEY_MAX_EXPIRY_DAYS = 365;
 
 /** The lifetimes the form offers as one choice each, in days. */
 export const API_KEY_EXPIRY_PRESET_DAYS = [7, 30, 90, 365] as const;
