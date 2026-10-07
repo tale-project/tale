@@ -11,6 +11,10 @@ Ouvre **Paramètres > Compte**. Sous **Profil**, modifie **Nom**, puis clique su
 
 Ton nom est visible par les collègues et ne doit pas dépasser 100 caractères. Ce n’est pas une instruction privée destinée à l’assistant.
 
+## Quand un changement de mot de passe est requis
+
+Si un administrateur définit ou réinitialise ton mot de passe, ou si celui-ci expire selon la politique de rotation de ton organisation, l’écran **Changement de mot de passe requis** s’affiche à la connexion. Saisis un nouveau mot de passe qui respecte les exigences affichées, confirme-le, puis sélectionne **Mettre à jour le mot de passe** pour continuer. Les messages exacts figurent dans [Membres et rôles](/fr/platform/admin/members-and-roles).
+
 ## Protéger la connexion
 
 La section **Mot de passe** propose **Changer le mot de passe**, ou **Définir un mot de passe** si ton compte n’en possède pas encore. Respecte les exigences affichées dans le dialogue. Elles proviennent de la politique de mot de passe de ton organisation. Si tu appartiens à plusieurs organisations, ton mot de passe doit respecter les exigences de chacune d’elles. Changer le mot de passe ferme tes sessions : garde le nouveau à portée de main avant de confirmer. Un mot de passe actuel erroné compte pour le verrouillage temporaire, comme un échec de connexion.

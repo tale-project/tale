@@ -39,7 +39,7 @@ Bleibt die Modellauswahl leer oder lehnt der Anbieter die Anfrage ab, folge der 
 
 ## Personen mit passenden Rechten hinzufügen
 
-Öffne **Einstellungen > Mitglieder** und wähle **Mitglied hinzufügen**. Für ein neues Konto legst du im Formular ein erstes Passwort fest. Ein vorhandenes Konto behält seine Zugangsdaten. Dieser Ablauf versendet keine Einladung per E-Mail. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) erklärt die Felder und die sichere Übergabe der ersten Zugangsdaten.
+Öffne **Einstellungen > Mitglieder** und wähle **Mitglied hinzufügen**. Für ein neues Konto legst du im Formular ein erstes Passwort fest. Ein vorhandenes Konto behält seine Zugangsdaten. Dieser Ablauf versendet keine Einladung per E-Mail. Bei einem neuen Konto sowie nach dem Festlegen oder Zurücksetzen eines Passworts durch einen Administrator muss das Mitglied bei der nächsten Anmeldung ein neues Passwort wählen; ein Zurücksetzen meldet es von allen Sitzungen ab. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) erklärt die Felder und die sichere Übergabe der ersten Zugangsdaten.
 
 <Frame caption="Prüfe die Rolle jedes Mitglieds, bevor du den Zugang übergibst.">
 
