@@ -600,9 +600,41 @@ Choisis `model` dans le catalogue de l’organisation et précise `modelProvider
 
 `task_update_metadata` est une autorisation facultative pour les agents de projet (contrat 3.10.0). Elle permet de modifier la priorité et l’agent assigné à une tâche existante sans lancer d’exécution. La demande indique `taskId`, `priority` et/ou `agentId`, avec la valeur actuelle de chaque champ concerné dans `expected` ; `null` efface une valeur et les champs omis restent inchangés. Construis `expected.assignee` sous la forme `{type, id}` à partir de `assigneeType` et `assigneeId` renvoyés par `task_get`, ou utilise `null` sans assignation ; une priorité absente vaut également `null`. Une valeur périmée entraîne le refus de toute la demande. Le [guide des agents de projet](/fr/platform/projects/project-agents) explique la protection des exécutions actives et des revues en attente. `task_upsert_by_external_ref` continue d’utiliser `priority` uniquement lors de la création d’une tâche.
 
-`task_review` ajoute une permission facultative pour les agents de projet dans le contrat 3.11.0. Elle décide uniquement d’une relecture native en attente attribuée à l’agent relecteur actif, pour une exécution terminée d’un autre agent du même projet. Transmets `taskId`, `expected: {approvalId, runId, evidenceRevision}` depuis le `task_get.pendingReview` actuel, `decision: "approve" | "request_changes"`, un `feedback` non vide et `evidence: {checks, pullRequests}`. Chaque vérification indique son résultat (`passed` ou `failed`) et des précisions ; une Pull Request GitHub fournie indique son URL, le `headSha` exact et l’état de ses contrôles. L’approbation exige la réussite de toutes les vérifications fournies. Les éléments GitHub sont attestés par l’agent ; Tale ne les vérifie pas auprès du service distant.
+`task_review` ajoute une permission facultative pour les agents de projet dans le contrat 3.11.0. L’outil décide uniquement d’une relecture native en attente attribuée à l’agent relecteur actif, pour une exécution terminée d’un autre agent du même projet. Transmets `taskId`, `expected: {approvalId, runId, evidenceRevision}` depuis le `task_get.pendingReview` actuel, `decision: "approve" | "request_changes"`, `feedback` et `evidence: {checks, pullRequests}`. La demande et ses objets imbriqués sont stricts : les champs inconnus sont refusés.
+
+- `checks` exige 1–20 entrées. Chacune exige `name` (1–200 unités de code UTF-16 après suppression des blancs en début et en fin), `outcome` (`passed` ou `failed`) et `details` (1–2 000 unités de code UTF-16 après suppression des blancs en début et en fin).
+- `pullRequests` exige une liste de 0–10 entrées. Chacune exige `url` (au plus 2 048 unités de code UTF-16, exactement `https://github.com/<owner>/<repo>/pull/<positive integer>`, où `<positive integer>` est un entier strictement positif sans zéro initial, sans barre oblique finale, paramètres de requête ni fragment), `headSha` (40 ou 64 caractères hexadécimaux minuscules) et `checks` (`passed`, `failed` ou `pending`).
+- `feedback` exige 1–8 000 unités de code UTF-16 après suppression des blancs en début et en fin.
+- `approve` exige `passed` pour toutes les vérifications et Pull Requests fournies. Une vérification en échec ou une Pull Request avec `failed`/`pending` empêche l’approbation. Utilise `request_changes` si le résultat doit être corrigé, plutôt que d’attester une réussite fictive.
+
+Cet exemple minimal d’arguments ne contient aucune Pull Request. Remplace `taskId` et toutes les valeurs de `expected` par les identifiants et la révision actuels de la tâche ; décris dans le retour et les vérifications le résultat que tu as réellement examiné. Des arguments valides ne prouvent pas le droit de relire et n’enregistrent pas encore de décision.
+
+```json
+{
+  "taskId": "task-id",
+  "expected": {
+    "approvalId": "approval-id",
+    "runId": "implementation-run-id",
+    "evidenceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "decision": "approve",
+  "feedback": "Le résultat relu a réussi le test ciblé.",
+  "evidence": {
+    "checks": [
+      { "name": "Test ciblé", "outcome": "passed", "details": "1 test réussi." }
+    ],
+    "pullRequests": []
+  }
+}
+```
+
+Tale enregistre l’attestation externe du relecteur ; il ne vérifie pas lui-même les commits ni les contrôles actuels sur GitHub.
 
 L’outil vérifie à nouveau la permission actuelle, les droits de l’exécution active qui l’appelle, le relecteur enregistré, l’exécution de réalisation et la révision des éléments locaux. Un résultat périmé exige une nouvelle lecture ; changer l’assignation actuelle ne rend pas le relecteur indépendant. L’approbation passe la tâche à `done` ; `request_changes` la passe à `todo` avec un retour, sans démarrer d’exécution, même si ce retour contient une mention. Les compétences humaines requises et les approbations de workflows restent hors de cet outil. Il n’existe aucun point d’entrée REST public pour une décision d’agent.
+
+La publication du retour d’une relecture native crée un commentaire visible sur la tâche, avec les notifications et l’activité habituelles. Cette publication ne déclenche ni `comment.created` ni les actions liées aux mentions, donc aucune exécution d’agent ou d’automatisation par événement ou mention. Une modification ultérieure autorisée qui ajoute une mention peut déclencher `comment.mentioned`.
+
+Les refus natifs sont des résultats d’outils de l’espace de travail, pas des réponses d’erreur REST reprenant le statut HTTP du domaine : les refus d’arguments et du domaine utilisent `status: "invalid_args"` (les codes du domaine figurent dans `message`), normalement dans une réponse HTTP 200. La vérification préalable des droits de session peut d’abord renvoyer `status: "unavailable"` avec le blocage `code: "run_ended"` si l’exécution appelante est terminée ; un test direct du domaine peut plutôt obtenir `TASK_REVIEW_FORBIDDEN`. Une source absente ou non terminée peut donner `TASK_REVIEW_SOURCE_REQUIRED`, et un changement de dernière exécution, d’assignation ou de révision peut donner `TASK_REVIEW_STALE`, avant que la vérification du travail actif atteigne `TASK_REVIEW_BUSY`. Maintiens ces prérequis valides pour tester le refus d’une tâche occupée ; le travail actif ne suffit pas à déterminer le premier refus.
 
 Depuis le contrat 3.15.0, le `task_get.agentRuns` natif contient un booléen explicite `retryPending`. Seule la dernière exécution en échec d’un agent encore présent peut avoir la valeur `true`, selon les mêmes vérifications de tentative prévue, de refus définitif et de quota restant que la carte de tâche. Laisse cette tentative se poursuivre. `false` n’autorise pas une relance et ne donne pas l’heure de réinitialisation du fournisseur ; si le champ manque sur une ancienne plateforme, cet état est inconnu. Avant toute action, relis la tâche, son responsable, ses exécutions et sa revue, puis respecte les délais du fournisseur et tout `retryAfter` renvoyé lors d’un refus de démarrage. Aucun point d’accès REST public ni texte d’erreur brut n’est ajouté.
 
@@ -695,8 +727,8 @@ Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trig
 | `project.created`                                       | un projet est créé                                                                                                                                               |
 | `task.created`                                          | une tâche est créée — sur un tableau, par l’API ou par un formulaire de collecte                                                                                                   |
 | `task.status_changed`                                   | une personne déplace une tâche vers un autre statut (les déplacements d’un agent n’émettent rien, une automatisation ne peut donc pas se redéclencher elle-même) |
-| `comment.created`                                       | un commentaire arrive sur une tâche                                                                                                                              |
-| `comment.mentioned`                                     | un commentaire de tâche mentionne quelqu’un avec `@`                                                                                                             |
+| `comment.created`                                       | un commentaire est ajouté à une tâche, sauf le retour natif de `task_review` (aucune action par événement ou mention ; notifications et activité conservées) |
+| `comment.mentioned`                                     | une modification ajoute une nouvelle mention avec `@` à un commentaire de tâche |
 
 ### Vérifier le déclencheur et le suspendre
 

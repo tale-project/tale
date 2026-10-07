@@ -74,7 +74,7 @@ L’exécution peut toujours lire les tâches et les connaissances du projet, et
 
 ## Désigner un responsable et un relecteur
 
-**Assigné à** désigne qui réalise le travail : une personne, un agent de projet ou une automatisation disponible dans le projet. **Relecteur** permet de choisir une personne, un agent de projet ou le **Choix par défaut du projet** pour examiner le résultat. Modifier ce choix exige le droit de modifier le projet. Un relecteur humain doit aussi avoir ce droit ; un agent relecteur doit appartenir au même projet et être différent de celui qui a produit le résultat.
+**Assigné à** désigne qui réalise le travail : une personne, un agent de projet ou une automatisation disponible dans le projet. **Relecteur** permet de choisir une personne, un agent de projet ou l’option héritée pour examiner le résultat. Cette option et le bouton qui l’affiche portent le libellé **Choix du projet · personne** pour le choix humain, ou **Choix du projet · …**, avec le nom de l’agent choisi par le projet à la place des points de suspension. Modifier ce choix exige le droit de modifier le projet. Un relecteur humain doit aussi avoir ce droit ; un agent relecteur doit appartenir au même projet et être différent de celui qui a produit le résultat.
 
 Assigner un agent et lancer son exécution sont deux choix distincts. Après l’assignation, clique sur **Démarrer l'agent** ou passe la tâche à **En cours**. Lis [Automatiser les tâches](/fr/platform/projects/task-automation) avant de lancer un travail qui utilise des services connectés ou produit des fichiers.
 
@@ -100,7 +100,7 @@ Le choix d’un agent par défaut s’applique uniquement aux résultats d’une
 
 ### Transférer une relecture en attente {#transfer-review}
 
-Ouvre la tâche et lis **Relecture en cours** sous **Relecteur**. Cette indication désigne qui doit examiner le résultat en attente ; elle peut différer du choix actuel du projet. Choisir un autre relecteur lui transfère aussi cette relecture, sans changer l’assignation du travail ni démarrer d’exécution. Le **Choix par défaut du projet** utilise la sélection actuelle du projet. Si le relecteur ou le résultat a changé depuis le chargement de la tâche, le transfert est refusé ; vérifie l’état actualisé avant de choisir à nouveau.
+Ouvre la tâche et lis **Relecture en cours** sous **Relecteur**. Cette indication désigne qui doit examiner le résultat en attente ; elle peut différer du choix actuel du projet. Choisir un autre relecteur lui transfère aussi cette relecture, sans changer l’assignation du travail ni démarrer d’exécution. Pour reprendre la sélection actuelle du projet, choisis **Choix du projet · personne** ou l’option **Choix du projet · …** affichant le nom de l’agent du projet. Si le relecteur ou le résultat a changé depuis le chargement de la tâche, le transfert est refusé ; vérifie l’état actualisé avant de choisir à nouveau.
 
 Un agent peut uniquement relire un résultat terminé produit par un autre agent de projet. Si tu réassignes la tâche, l’agent à l’origine du résultat reste le même, mais la décision de relecture en attente est bloquée pour l’agent relecteur. Pour conserver la nouvelle assignation et faire examiner ce résultat, transfère explicitement la relecture à une personne autorisée. La politique de relecture de l’organisation continue de s’appliquer.
 
