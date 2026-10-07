@@ -45,10 +45,10 @@ tightens the limit of the person it belongs to, and the reverse.
 ### GOV-R14 · A project's limit caps everything spent in the project, whoever spends it
 
 What a project spent is everything done in it: the chats in its threads (their titles, the
-answers read aloud and the assistant's tool calls included), the turns of its agents and of the
-automations run in it, with the images they make, and the calls made with its own API keys. Its
-limit binds that work on top of the limits of whoever asked for it, a run a schedule started
-included, and binds nothing done outside the project.
+answers read aloud and the assistant's tool calls included), the turns of its agents and the
+agent steps of the automations run in it, with the images they make, and the calls made with its
+own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
+schedule started included, and binds nothing done outside the project.
 
 - **Example**: The Website project is capped at 100 a month and has spent 100. Mia, far from
   her own limit, writes in one of the project's chats → refused, naming the project's limit.
@@ -157,7 +157,10 @@ It counts only in the organization it was granted in.
 - **The usage pages** and their figures (`usage-metrics.ts`).
 - **A project's limit and transcription**: an audio or video file transcribed for a project's
   chat is booked to the person who added it, not to the project, and a project's limit warns
-  no one before it is reached.
+  no one before it is reached. Voice output in a project is checked against its limit but holds
+  nothing while it is made.
+- **An automation's model steps**: an `llm` step is admitted against no limit and booked to no
+  ledger — the organization's, a person's, a key's or a project's.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.
