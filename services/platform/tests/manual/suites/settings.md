@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 119 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 120 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -418,13 +418,29 @@ run.
   the row's **Revoke key** (`settings.apiKeys.revokeKey`) → Toast
   `settings.apiKeys.keyCreated`; the secret is revealed exactly once (gone
   after Done); the row is in the table after reload (columns
-  `settings.apiKeys.columns.name` / `…key` / `…created` / `…lastUsed`);
+  `settings.apiKeys.columns.name` / `…key` / `…expires` / `…created` /
+  `…lastUsed`);
   revoking confirms (`settings.apiKeys.revokeKeyTitle`), toasts
   `settings.apiKeys.keyRevoked`, and the row is gone after reload. The create
   dialog's hint (`settings.apiKeys.form.scopeHint`) says the key belongs to
   the person, not the organization; as a member of two organizations, `GET
   /api/v1/me` with the key and no `X-Organization-Slug` header answers `400
   ORG_SLUG_REQUIRED`, and with the header it lists the role in each.
+- [ ] `SET-F76` · **An API key's expiry date** —
+  `/dashboard/{org}/settings/api/rest` → **Create API key**
+  (`settings.apiKeys.createKey`); read the line under **Expiration**
+  (`settings.apiKeys.form.expiresIn`); choose **Custom date**
+  (`settings.apiKeys.form.expiresOptions.custom`), open **Expiration date**
+  (`settings.apiKeys.form.expiryDate`) and pick a day two weeks out → **Create
+  key**; repeat with **Never** (`settings.apiKeys.form.expiresOptions.never`) →
+  The line names the day a 30-day key expires
+  (`settings.apiKeys.form.expiresOn`) and, for **Never**, that the key works
+  until it is revoked (`settings.apiKeys.form.neverExpiresHint`); the calendar
+  disables today and every day more than one year out; after reload the
+  custom key's **Expires** (`settings.apiKeys.columns.expires`) shows the
+  picked day and the other key's reads **Never**
+  (`settings.apiKeys.neverExpires`); `GET /api/v1/me` with the custom key
+  reports the picked day as the key's `expiresAt`.
 - [ ] `SET-F33` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → copy the endpoint (`settings.mcpEndpoint.copyEndpoint`); read the tool
   inventory; **Copy example request** (`settings.mcpEndpoint.copyExample`) →

@@ -1004,6 +1004,7 @@ apiKeys:
     key: Key
     created: Added
     lastUsed: Last used
+    expires: Expires
   form:
     name: Key name
     namePlaceholder: Enter key name...
@@ -1017,8 +1018,17 @@ apiKeys:
       30days: 30 days
       90days: 90 days
       1year: 1 year
+      custom: Custom date
       never: Never
+    expiresOn: The key expires on {date}.
+    neverExpiresHint: The key works until it is revoked.
+    expiryDate: Expiration date
+    expiryDateHint: Pick a day up to one year from today.
+    expiryDateRequired: Pick an expiration date.
+    expiryDateRange: Pick a day between tomorrow and one year from today.
   neverUsed: Never used
+  neverExpires: Never
+  expired: Expired
   description: Manage API keys for external connectors
   title: API keys
 apiDocs:
