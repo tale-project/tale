@@ -1308,6 +1308,9 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
               code: classifyChatErrorCode(err),
               model: side.modelId,
               raw: reason,
+              ...(err instanceof ChatBudgetExceededError
+                ? { budgetScope: err.data.scope }
+                : {}),
             }),
           });
         } catch (writeErr) {

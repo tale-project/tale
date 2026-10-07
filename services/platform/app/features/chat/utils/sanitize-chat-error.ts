@@ -115,10 +115,16 @@ export function sanitizeChatError(
   // Use the richer "named" message only when there's a name to fill in.
   const namedKey = CHAT_ERROR_I18N_KEY_NAMED[code];
   const useNamed = !!namedKey && (!!provider || !!model);
+  // A project's cap is the project's: Settings > Usage, where the generic
+  // hint sends the member, never lists it.
+  const baseKey =
+    code === 'budget_exceeded' && decoded.budgetScope === 'project'
+      ? 'errorHintProjectBudgetExceeded'
+      : CHAT_ERROR_I18N_KEY[code];
 
   return {
     code,
-    i18nKey: useNamed && namedKey ? namedKey : CHAT_ERROR_I18N_KEY[code],
+    i18nKey: useNamed && namedKey ? namedKey : baseKey,
     params: useNamed ? { provider, model } : undefined,
     triedCount: triedCount != null && triedCount > 1 ? triedCount : undefined,
     rawSummary: summaryLine(decoded.raw),

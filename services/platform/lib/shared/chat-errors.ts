@@ -404,6 +404,9 @@ interface ChatErrorInfo {
   triedCount?: number;
   /** The verbatim provider/SDK error, for the "Technical details" disclosure. */
   raw?: string;
+  /** Whose cap a `budget_exceeded` failure names (the refusal's
+   * `data.scope`): a project's cap is the project's, not the sender's. */
+  budgetScope?: string;
 }
 
 const ENVELOPE_PREFIX = 'TALE_ERR1 ';
@@ -421,6 +424,7 @@ export function encodeChatError(info: ChatErrorInfo): string {
       provider: info.provider,
       model: info.model,
       tried: info.triedCount,
+      scope: info.budgetScope,
     }),
   );
   return `${ENVELOPE_PREFIX}${header}\n${info.raw ?? ''}`;
@@ -463,6 +467,7 @@ export function decodeChatError(error: string | undefined): ChatErrorInfo {
       model: asString(fields.model),
       triedCount: asPositiveInt(fields.tried),
       raw: rawTail.length > 0 ? rawTail : undefined,
+      budgetScope: asString(fields.scope),
     };
   } catch {
     // Malformed header — treat the whole thing as raw text.

@@ -22,6 +22,7 @@ import {
   cancelDeferredJobs,
   unbindJobsWithoutMessage,
 } from '../video_links/service.ts';
+import { ChatBudgetExceededError } from './budget-admission.ts';
 import { runChatTurn } from './service.ts';
 import { appendAssistantErrorMessage, appendMessageRow } from './store.ts';
 import { ChatThreadError, loadOwnedThread } from './threads.ts';
@@ -456,7 +457,7 @@ async function leaveFailureTrace(
   sql: Sql,
   row: DeferredSendRow,
   attachments: readonly DeferredAttachment[],
-  failure: { code: ChatErrorCode; raw: string },
+  failure: { code: ChatErrorCode; raw: string; budgetScope?: string },
 ): Promise<void> {
   await appendMessageRow(sql, {
     organizationId: row.organizationId,
@@ -473,6 +474,9 @@ async function leaveFailureTrace(
       code: failure.code,
       ...(row.modelId !== null ? { model: row.modelId } : {}),
       raw: failure.raw,
+      ...(failure.budgetScope !== undefined
+        ? { budgetScope: failure.budgetScope }
+        : {}),
     }),
   });
 }
@@ -638,6 +642,10 @@ export async function pollDeferredSend(
           // A platform refusal's sentence (a reached budget cap, an unknown
           // model) is its `data.message`, never the serialized payload.
           raw: describeChatError(error, 'The turn could not be started.'),
+          // Whose cap: a project's is named as the project's.
+          ...(error instanceof ChatBudgetExceededError
+            ? { budgetScope: error.data.scope }
+            : {}),
         });
       }
       throw error;
