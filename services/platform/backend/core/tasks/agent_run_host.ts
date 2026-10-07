@@ -594,14 +594,17 @@ export function buildTaskPrompt(
  * (`mentionSource: 'description'`), the description as it reads at this
  * start: a resumed conversation does not re-read the brief, so the edit
  * that named the agent reaches it here, said as an edit and not as a review
- * that sent finished work back. Names `outputDir` explicitly — a resumed
- * conversation happily reuses last turn's path from memory — and, when the
- * start SWEPT the box (settled predecessor), says so and names the staged
+ * that sent finished work back. Every other resumed kick gets the current
+ * description too, including an explicit empty state, so a changed brief
+ * replaces the one the conversation remembers. Names `outputDir` explicitly:
+ * a resumed conversation happily reuses last turn's path from memory. When
+ * the start SWEPT the box (settled predecessor), says so and names the staged
  * read-only copies: the conversation remembers writing files the sweep just
  * removed, and without the pointer it would rediscover (or worse, redo)
- * them. Exported for its unit test. */
+ * them. */
 function buildResumeKickPrompt(args: {
   outputDir: string;
+  description?: string;
   feedback?: string;
   mentionSource?: MentionSource;
   /** Who started the run when no person did; see {@link KickRequester}. */
@@ -617,6 +620,7 @@ function buildResumeKickPrompt(args: {
   boxCleared?: boolean;
 }): string {
   const feedbackText = args.feedback?.trim() ?? '';
+  const descriptionText = args.description ?? '';
   let discussion = args.discussion ?? [];
   const lastEntry = discussion.at(-1);
   if (
@@ -649,6 +653,15 @@ function buildResumeKickPrompt(args: {
   ];
   return [
     'You are continuing the SAME task in the SAME conversation — your previous turn ended, and this is the next one. Do NOT redo work that is already done; pick up from where the conversation left off.',
+    ...(descriptionText.trim() === ''
+      ? [
+          'This task currently has no description. Do not keep following an earlier task description; continue from the current task discussion and feedback below.',
+        ]
+      : args.mentionSource !== 'description'
+        ? [
+            `Current task description:\n${descriptionText}\n\nThis replaces any earlier task description. Act on what remains to be done under it without repeating completed work.`,
+          ]
+        : []),
     ...(discussion.length > 0
       ? [
           [
@@ -709,8 +722,8 @@ const FRESH_KICK_RESTART_NOTE =
  * that lands between the kick and this start (a queued run, a capacity
  * park) names nobody new, fires nothing, and must not be contradicted by
  * the text it replaced. A fresh conversation reads that description as its
- * brief; a resumed one does not re-read the brief, so it gets it as the
- * edit that named the agent. */
+ * brief; every resumed one gets the current description too, phrased as
+ * the edit that named the agent only for a description mention. */
 export function buildKickPrompts(args: {
   brief: {
     title: string;
@@ -754,6 +767,9 @@ export function buildKickPrompts(args: {
         : base,
     resume: buildResumeKickPrompt({
       outputDir: args.outputDir,
+      ...(args.brief.description !== undefined
+        ? { description: args.brief.description }
+        : {}),
       ...(feedback !== undefined ? { feedback } : {}),
       ...(args.mentionSource !== undefined
         ? { mentionSource: args.mentionSource }
