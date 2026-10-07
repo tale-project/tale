@@ -71,7 +71,7 @@ Si la réponse se perd, le manager lit `task_get.reviewDelegation` et le `pendin
 
 Explique les changements attendus dans un commentaire et **mentionne l’agent assigné avec @**. Cette mention est une instruction : un agent actif peut la recevoir pendant son exécution, tandis qu’un agent inactif démarre une reprise de la conversation précédente. Le résultat revient à **En revue**.
 
-Si tu as démarré une exécution, tes mentions continuent de la guider même après que la tâche est passée à l’agent, par exemple parce que ta mention lui a confié une tâche qui t’était attribuée. Quand l’environnement de l’agent redémarre pour prendre en compte un commentaire, comme le font tous les environnements sauf Claude Code, la suite de l’exécution revient à l’auteur du commentaire : elle compte dans ses limites, et ses appels de connecteurs se font en son nom.
+Si tu as démarré une exécution, tes mentions continuent de la guider même après que la tâche est passée à l’agent, par exemple parce que ta mention lui a confié une tâche qui t’était attribuée. Quand l’environnement de l’agent redémarre pour prendre en compte un commentaire, comme le font tous les environnements sauf Claude Code, la suite de l’exécution revient à l’auteur du commentaire : elle compte dans ses limites, et ses appels de connectors se font en son nom.
 
 Un commentaire sans mention conserve une note sans déclencher cette action. Le sélecteur de mentions indique si l’agent ne peut pas répondre, par exemple lorsque l’automatisation des tâches est désactivée ou suspendue, ou lorsque tu peux commenter la tâche sans pouvoir la modifier.
 
@@ -171,6 +171,6 @@ Un admin peut désactiver l’automatisation des tâches pour l’organisation. 
 
 ## Choisir le bon responsable
 
-Assigne une personne lorsque le travail demande un jugement humain ou un accès hors des droits de l’agent. Choisis un agent de projet pour une tâche délimitée utilisant ses fichiers et outils configurés. Une automatisation convient à un processus défini avec des étapes, des déclencheurs ou des approbations pour les opérations des connecteurs. Un Membre ne peut choisir qu’une automatisation conçue pour les tâches, c’est-à-dire l’une de celles listées sous **Automatisations** dans **Assigné à**.
+Assigne une personne lorsque le travail demande un jugement humain ou un accès hors des droits de l’agent. Choisis un agent de projet pour une tâche délimitée utilisant ses fichiers et outils configurés. Une automatisation convient à un processus défini avec des étapes, des déclencheurs ou des approbations pour les opérations des connectors. Un Membre ne peut choisir qu’une automatisation conçue pour les tâches, c’est-à-dire l’une de celles listées sous **Automatisations** dans **Assigné à**.
 
 Pour commencer, suis [Créer ton premier agent](/fr/tutorials/editor/first-agent-end-to-end). Choisis une tâche assez petite pour en vérifier toi-même le résultat.

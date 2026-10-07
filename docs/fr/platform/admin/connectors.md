@@ -1,20 +1,20 @@
 ---
-title: Identifiants des connecteurs
+title: Identifiants des connectors
 description: Connecte les comptes de services, choisis les accès par défaut et renouvelle les autorisations.
 ---
 
-Ajoute des identifiants de connecteur pour que Tale utilise une messagerie, un espace de fichiers ou un outil de suivi. Les propriétaires, admins et développeurs les gèrent dans **Paramètres > Connectors**. Choisis le service et le compte nécessaires ; le [catalogue des connecteurs](/fr/platform/connectors/overview) présente les actions disponibles.
+Ajoute des identifiants de connector pour que Tale utilise une messagerie, un espace de fichiers ou un outil de suivi. Les propriétaires, admins et développeurs les gèrent dans **Paramètres > Connectors**. Choisis le service et le compte nécessaires ; le [catalogue des connectors](/fr/platform/connectors/overview) présente les actions disponibles.
 
 ## Connecter un compte
 
-1. Sélectionne **Ajouter des identifiants**, puis le connecteur. Les connecteurs déjà configurés apparaissent en premier et peuvent recevoir d’autres identifiants.
-2. Vérifie le champ **Nom**. Il est prérempli avec le nom du connecteur, suivi d’un numéro si d’autres identifiants de ce connecteur portent déjà ce nom : `GitHub`, puis `GitHub 2`. Un nom comme `Boîte support` ou `Boutique UE` est plus facile à reconnaître pour la personne qui prépare l’automatisation. Une connexion OAuth n’a pas de champ de nom : Tale la nomme de la même façon une fois l’accès autorisé (un deuxième espace Slack prend le nom de l’espace), et **Modifier les identifiants** permet de la renommer.
+1. Sélectionne **Ajouter des identifiants**, puis le connector. Les connectors déjà configurés apparaissent en premier et peuvent recevoir d’autres identifiants.
+2. Vérifie le champ **Nom**. Il est prérempli avec le nom du connector, suivi d’un numéro si d’autres identifiants de ce connector portent déjà ce nom : `GitHub`, puis `GitHub 2`. Un nom comme `Boîte support` ou `Boutique UE` est plus facile à reconnaître pour la personne qui prépare l’automatisation. Une connexion OAuth n’a pas de champ de nom : Tale la nomme de la même façon une fois l’accès autorisé (un deuxième espace Slack prend le nom de l’espace), et **Modifier les identifiants** permet de la renommer.
 3. Complète la méthode d’authentification proposée. Pour OAuth, sélectionne **Connecter** et autorise l’accès chez le fournisseur. Chaque **Connecter** ajoute de nouveaux identifiants pour le compte autorisé, sans jamais remplacer ceux qui existent. Connecte-toi donc chez le fournisseur avec le compte que tu veux ajouter.
-4. Termine le formulaire, puis vérifie la ligne créée : connecteur, compte ou instance, et statut.
+4. Termine le formulaire, puis vérifie la ligne créée : connector, compte ou instance, et statut.
 
 Slack associe un seul jeu d’identifiants à chaque espace Slack. Si tu autorises à nouveau un espace déjà connecté, Tale renouvelle ses identifiants au lieu d’en ajouter d’autres.
 
-Le connecteur détermine les champs. Utilise les identifiants du compte externe, pas une clé API Tale.
+Le connector détermine les champs. Utilise les identifiants du compte externe, pas une clé API Tale.
 
 | Méthode | Informations nécessaires |
 | --- | --- |
@@ -23,15 +23,15 @@ Le connecteur détermine les champs. Utilise les identifiants du compte externe,
 | Nom d’utilisateur et mot de passe | La paire attendue par le service : connexion et mot de passe d’application, ou identifiant et token propres au fournisseur. |
 | OAuth | Une autorisation dans le navigateur du fournisseur, ensuite conservée par Tale. |
 
-Certains connecteurs demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour GlitchTip, utilise l’origine de l’instance, par exemple `https://app.glitchtip.com` ; une instance auto-hébergée doit aussi être autorisée par la politique des hôtes du connecteur. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
+Certains connectors demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour GlitchTip, utilise l’origine de l’instance, par exemple `https://app.glitchtip.com` ; une instance auto-hébergée doit aussi être autorisée par la politique des hôtes du connector. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
 
 ## Choisir les identifiants par défaut
 
-Le tableau contient une ligne par jeu d’identifiants et se met à jour sans rechargement tant qu’il est ouvert : ce qu’un autre admin ajoute, modifie ou supprime y apparaît aussitôt. Le badge **Par défaut** indique ceux utilisés lorsqu’une action n’en nomme pas. **Définir par défaut**, dans le menu d’une ligne, change ce choix. Chaque connecteur a un seul choix par défaut.
+Le tableau contient une ligne par jeu d’identifiants et se met à jour sans rechargement tant qu’il est ouvert : ce qu’un autre admin ajoute, modifie ou supprime y apparaît aussitôt. Le badge **Par défaut** indique ceux utilisés lorsqu’une action n’en nomme pas. **Définir par défaut**, dans le menu d’une ligne, change ce choix. Chaque connector a un seul choix par défaut.
 
-Sans choix par défaut, un connecteur qui possède plusieurs identifiants peut toujours servir les appels qui les nomment explicitement. Les autres appels ont besoin d’un choix par défaut. Nomme les comptes clairement avant de les utiliser dans des automatisations, pour que leur destination reste compréhensible.
+Sans choix par défaut, un connector qui possède plusieurs identifiants peut toujours servir les appels qui les nomment explicitement. Les autres appels ont besoin d’un choix par défaut. Nomme les comptes clairement avant de les utiliser dans des automatisations, pour que leur destination reste compréhensible.
 
-La synchronisation des boîtes et le triage peuvent examiner tous les identifiants actifs d’un connecteur de messagerie. Une deuxième boîte n’a pas besoin de devenir le choix par défaut pour être trouvée par ces opérations. Quand tu rédiges un nouvel e-mail, le champ **Boîte** liste chaque boîte sous son nom, et l’e-mail part de celle que tu choisis. Les réponses dans cette conversation partent de la même boîte, y compris quand tu relances un envoi qui a échoué.
+La synchronisation des boîtes et le triage peuvent examiner tous les identifiants actifs d’un connector de messagerie. Une deuxième boîte n’a pas besoin de devenir le choix par défaut pour être trouvée par ces opérations. Quand tu rédiges un nouvel e-mail, le champ **Boîte** liste chaque boîte sous son nom, et l’e-mail part de celle que tu choisis. Les réponses dans cette conversation partent de la même boîte, y compris quand tu relances un envoi qui a échoué.
 
 ## Renouveler un secret ou suspendre l’accès
 
@@ -41,17 +41,17 @@ Utilise l’action de remplacement adaptée à la méthode, par exemple **Rempla
 
 <Warning>
 
-Supprimer des identifiants retire l’accès aux automatisations et agents qui en dépendent. Migre d’abord les appelants. Si tu supprimes les identifiants par défaut d’un connecteur, ses plus anciens identifiants actifs restants deviennent le choix par défaut, et la confirmation les nomme avant la suppression. Des identifiants désactivés ou à reconnecter ne prennent jamais le relais : s’il ne reste aucun identifiant actif, le connecteur n’a pas de choix par défaut tant que tu n’en choisis pas. Rouvrir la même ligne ne permet pas d’annuler la suppression.
+Supprimer des identifiants retire l’accès aux automatisations et agents qui en dépendent. Migre d’abord les appelants. Si tu supprimes les identifiants par défaut d’un connector, ses plus anciens identifiants actifs restants deviennent le choix par défaut, et la confirmation les nomme avant la suppression. Des identifiants désactivés ou à reconnecter ne prennent jamais le relais : s’il ne reste aucun identifiant actif, le connector n’a pas de choix par défaut tant que tu n’en choisis pas. Rouvrir la même ligne ne permet pas d’annuler la suppression.
 
 </Warning>
 
 ## Préparer une application OAuth
 
-Les propriétaires et les admins utilisent **Apps OAuth**, en bas de page, pour configurer les applications fournisseur utilisées pendant le consentement. Une application propre à l’organisation remplace celle du déploiement. Si aucune n’existe, le connecteur ne peut pas commencer l’autorisation et la page indique qu’il n’est pas configuré.
+Les propriétaires et les admins utilisent **Apps OAuth**, en bas de page, pour configurer les applications fournisseur utilisées pendant le consentement. Une application propre à l’organisation remplace celle du déploiement. Si aucune n’existe, le connector ne peut pas commencer l’autorisation et la page indique qu’il n’est pas configuré.
 
 Sélectionne **Configurer**, renseigne l’identifiant client et le secret du fournisseur, puis enregistre chez celui-ci les URI de redirection exactes affichées dans le dialogue. Une application Microsoft peut aussi demander l’identifiant du répertoire ou du locataire. Lors d’une modification ultérieure, laisse le champ du secret enregistré vide pour le conserver.
 
-L’application Google Drive sert aussi à l’import dans la base de connaissances. L’entrée OneDrive/SharePoint concerne cet import, sans connecteur distinct. L’opérateur du déploiement configure l’application Slack. Lis le [guide du connecteur](/fr/platform/connectors/overview) concerné avant d’attribuer les permissions fournisseur.
+L’application Google Drive sert aussi à l’import dans la base de connaissances. L’entrée OneDrive/SharePoint concerne cet import, sans connector distinct. L’opérateur du déploiement configure l’application Slack. Lis le [guide du connector](/fr/platform/connectors/overview) concerné avant d’attribuer les permissions fournisseur.
 
 Pour OneDrive/SharePoint, **Utiliser l'app SSO Entra ID** peut copier une inscription SSO existante dans la configuration d’import. Cette copie est ponctuelle : après le renouvellement du secret SSO, refais-la et vérifie l’URI de redirection et les permissions déléguées indiquées dans la confirmation.
 
@@ -63,4 +63,4 @@ Si les identifiants sont supprimés avant la fin de l’autorisation, ou si ton 
 
 Si la connexion ne démarre pas, vérifie l’application OAuth. Si le fournisseur refuse le retour vers Tale, compare son URI de redirection enregistrée à celle que Tale affiche. Si une action échoue après la connexion, vérifie les droits du compte et les permissions requises pour cette action.
 
-Pour les services sans connecteur intégré, consulte [MCP et les intégrations personnalisées](/fr/platform/connectors/mcp-servers). Cette page d’identifiants ne permet pas d’enregistrer n’importe quel serveur MCP sortant.
+Pour les services sans connector intégré, consulte [MCP et les intégrations personnalisées](/fr/platform/connectors/mcp-servers). Cette page d’identifiants ne permet pas d’enregistrer n’importe quel serveur MCP sortant.

@@ -49,4 +49,4 @@ Les rôles applicatifs acceptent plusieurs réplicas. La CLI les met à jour com
 
 Tu peux déplacer la base applicative, la base de connaissances ou les fichiers vers une infrastructure externe. Une organisation peut aussi choisir sa propre base de connaissances et son bucket. Changer une connexion ne transfère pas le contenu existant. Prépare la copie, la bascule, les vérifications et les sauvegardes avec [Résidence des données](/fr/self-hosted/configuration/data-residency).
 
-L’auto-hébergement détermine où Tale fonctionne. Les appels aux fournisseurs, connecteurs, récupérations web et accès réseau des sandbox dépendent toujours de ta configuration. Examine ces destinations avec les emplacements de stockage dans [Durcissement](/fr/self-hosted/operate/security/hardening).
+L’auto-hébergement détermine où Tale fonctionne. Les appels aux fournisseurs, connectors, récupérations web et accès réseau des sandbox dépendent toujours de ta configuration. Examine ces destinations avec les emplacements de stockage dans [Durcissement](/fr/self-hosted/operate/security/hardening).

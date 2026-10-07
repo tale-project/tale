@@ -18,7 +18,7 @@ Commence par les versions affectées et corrigées. Compare-les au runtime en co
 | Solutions de contournement | Les restrictions temporaires possibles si tu ne peux pas déployer le correctif immédiatement. |
 | Identifiant et références | Le document stable à conserver dans les comptes rendus d’incident et de déploiement. |
 
-Un réseau privé ne suffit pas à garantir que l’installation est à l’abri. L’authentification, le comportement des connecteurs et les accès internes peuvent rester pertinents. Détermine la priorité à partir de l’avis et de ta procédure d’incident.
+Un réseau privé ne suffit pas à garantir que l’installation est à l’abri. L’authentification, le comportement des connectors et les accès internes peuvent rester pertinents. Détermine la priorité à partir de l’avis et de ta procédure d’incident.
 
 ## Appliquer et vérifier le correctif
 

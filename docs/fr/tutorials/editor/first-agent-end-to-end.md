@@ -3,13 +3,13 @@ title: Créer ton premier agent
 description: Configure un agent de projet pour une petite tâche de texte, lance-le depuis le tableau et relis son résultat.
 ---
 
-Crée un agent qui résume le message d’un contact et recommande une prochaine action. Cet exercice prend la description de la tâche comme entrée. Tu peux ainsi vérifier tout le parcours avant d’ajouter des connecteurs ou des connaissances partagées : configurer l’agent, lancer une tâche, puis relire le résultat.
+Crée un agent qui résume le message d’un contact et recommande une prochaine action. Cet exercice prend la description de la tâche comme entrée. Tu peux ainsi vérifier tout le parcours avant d’ajouter des connectors ou des connaissances partagées : configurer l’agent, lancer une tâche, puis relire le résultat.
 
 ## Avant de commencer
 
 Il te faut un projet que tu peux modifier, un environnement d’agent disponible avec des identifiants de modèle compatibles et une allocation de sandbox fonctionnelle. Un administrateur gère les [fournisseurs d’IA](/fr/platform/admin/providers) et les [Sandboxes](/fr/platform/admin/sandboxes). Un modèle utilisable dans Chat ne suffit pas à lui seul : l’environnement d’agent choisi doit pouvoir utiliser ses identifiants.
 
-Si la page Agents ou la liste des modèles manque, règle d’abord l’accès ou la configuration. Ce tutoriel ne nécessite ni skills, ni connecteurs, ni outils de plateforme, ni secrets injectés.
+Si la page Agents ou la liste des modèles manque, règle d’abord l’accès ou la configuration. Ce tutoriel ne nécessite ni skills, ni connectors, ni outils de plateforme, ni secrets injectés.
 
 ## Créer l’agent
 
