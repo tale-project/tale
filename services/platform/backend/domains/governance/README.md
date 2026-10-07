@@ -48,14 +48,14 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    (kind `model-api`), and the settlement's resolver reads that stamp. The same subject decides whom a task turn's connector
    calls act for: the connectors bridge (`domains/connectors/bridge-routes.ts`) resolves it on
    every call from the live run on the exec the turn's token names (`scope.connectorCaller`),
-   so a call is booked, audited and run for one person. An automation's `llm` step spends outside
-   any session: its run is its subject, through `resolveAutomationRunAttribution` — the mapping
-   the run's agent turns resolve through too — and `domains/automations/llm-metering.ts` measures
-   that subject before each call and books the call after it. Every lane that measures a run's
-   subject builds it with `loadAttributedBudgetSubject` (`attributed-subject.ts`). A run's
-   `started_by` is parsed only by
-   `parseRunStarter` (`lib/shared/run-starter.ts`); a `split(':')` on a starter anywhere else is
-   a defect.
+   so a call is booked, audited and run for one person. An automation's `llm` step — a
+   subautomation's included, which runs as one step of its parent's run — spends outside any
+   session: its run is its subject, through `resolveAutomationRunAttribution` — the mapping the
+   run's agent turns resolve through too — and `domains/automations/llm-metering.ts` measures that
+   subject before each call and books the call after it. Every lane that measures a run's subject
+   builds it with `loadAttributedBudgetSubject` (`attributed-subject.ts`). A run's `started_by` is
+   parsed only by `parseRunStarter` (`lib/shared/run-starter.ts`); a `split(':')` on a starter
+   anywhere else is a defect.
 7. **Door fields keep their format.** `automation_runs.started_by` stays `user:<id>` /
    `api-key:<userId>` / `trigger:<triggerId>` (the REST contract publishes it on `startedBy`;
    erasure and the trigger fire ledger read it) and `project_agent_runs.started_by` stays a bare

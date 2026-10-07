@@ -480,8 +480,7 @@ const runProperties: Record<string, Json> = {
       '`session_gone`, `deadline`, `ask_expired`, `budget_exceeded`, …) — ' +
       'an `agent` node’s turn, after its in-node retries. ' +
       '`budget_exceeded` — a budget limit refused an `agent` node’s turn ' +
-      'or an `llm` node’s call; the sentence names the limit and when it ' +
-      'resets. Retry on ' +
+      'or an `llm` node’s call, or the turn used up its allowance. Retry on ' +
       '`provider_error`, `provider_unreachable`, `rate_limited`, ' +
       '`turn_crashed`, `session_gone`, `harvest_failed`; alert a person on ' +
       'the rest.',
