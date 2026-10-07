@@ -27,7 +27,7 @@ The rule is the same everywhere: a request counts against the person who asked f
 
 A retry of an agent run continues the run its starter kicked off, so its usage stays with that person. When an integration uses an API key to act for another member, the run counts against the member acted for, and the key's own limit counts it too.
 
-Work in a project also counts toward that project, whoever asked for it: the project's chats, with their titles, the answers read aloud, and the assistant's tool calls; the runs of its agents and the agent steps of automations run in it, with the images they generate; and the calls made with the project's own API keys. A transcription is not counted toward a project.
+Work in a project also counts toward that project, whoever asked for it: the project's chats, with their titles, the answers read aloud, and the assistant's tool calls; the runs of its agents and the agent steps of automations run in it, with the images they generate; and the calls made with the project's own API keys. A run that names no project, of an automation installed in several projects, counts toward each of them; an automation installed in no project counts toward the organization alone. A transcription is not counted toward a project.
 
 An API key an Admin made for a member counts against that member, like the member's own key. A key that belongs to a team, a project, or the organization ([API keys](/platform/admin/api-keys#create-a-key-for-someone-else)) is not a person: what it asks for counts against the key itself. Usage analytics shows it as a row of its own under **Per-user usage**, under the key's name with its team, project, or organization beneath, and never counts it as an active user. A team's key also counts toward its team's usage.
 
