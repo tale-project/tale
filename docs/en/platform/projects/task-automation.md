@@ -61,7 +61,7 @@ The reviewer must be different from the agent that actually produced the result,
 
 ### Delegate a captured review {#delegate-review}
 
-A manager with **Delegate pending agent reviews** can transfer one waiting agent review to another eligible agent in the same project. The recipient must already have **Review other agents’ task results**, the access needed to inspect the work, and independence from the implementation agent. The manager cannot route the review to itself or convert a human or workflow review. This permission is separate from deciding reviews and starts no work.
+A manager with **Delegate pending agent reviews** can transfer one waiting agent review to another eligible agent in the same project. The recipient must already have **Review other agents’ task results**, the access needed to inspect the work, and independence from the implementation agent. The manager cannot route the review to itself or convert a human or workflow review. The implementation agent cannot delegate the review of its own work. This permission is separate from deciding reviews and starts no work.
 
 The manager reads `task_get`, copies the full approval, source-run and captured reviewer IDs and `evidenceRevision`, and calls `task_delegate_review` with that expectation, the recipient’s full `reviewerAgentId`, and a reason. A changed source, evidence, permission or policy refuses the handoff. The implementation assignment, task status and future reviewer settings stay unchanged. If execution is needed, use ordinary admission on the recipient’s own review task, never on the implementation task being judged.
 

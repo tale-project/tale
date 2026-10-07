@@ -819,6 +819,7 @@ export async function checkAgentTaskReviews(
       sql,
       orgId,
       projectId: project,
+      neighborProjectId: neighbor,
       implementerId: author,
       reviewerId: reviewer,
       reviewerToken: token,
