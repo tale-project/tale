@@ -27,9 +27,8 @@ Zum Verwalten von Mitgliedern brauchst du ein Konto mit der Rolle Inhaber oder A
 
 Die Person erscheint in der Mitgliederliste. Tale verschickt in diesem Ablauf weder eine Einladung noch eine E-Mail zum Zurücksetzen des Passworts: Dass du jemanden hinzufügst, ist die Bestätigung der Adresse. Das Konto funktioniert deshalb sofort überall — auch in Anwendungen, bei denen man sich mit dem Tale-Konto anmeldet. Ist die Adresse bereits Mitglied dieser Organisation, zeigt das Formular einen Hinweis und legt keinen zweiten Eintrag an.
 
-Wenn ein Administrator dein Passwort festlegt, erscheint bei deiner nächsten Anmeldung die Seite **Passwortänderung erforderlich**. Dort steht „Ein Administrator hat dein Passwort festgelegt. Wähle ein neues, um fortzufahren.“ Wähle dort ein neues Passwort, bevor du fortfährst. Dieselbe Seite erscheint, wenn dein Passwort gemäß der Rotationsrichtlinie der Organisation abläuft; dann steht dort „Dein Passwort ist gemäß der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren.“
+Ein von einem Administrator festgelegtes oder zurückgesetztes Passwort sowie ein nach der Rotationsrichtlinie abgelaufenes Passwort erfordern die Änderung bei der Anmeldung. Siehe [die Schritte zur Passwortänderung für Mitglieder](/de/platform/member/preferences#wenn-eine-passwortänderung-erforderlich-ist).
 
-Wenn ein Administrator dein Passwort festlegt, erscheint bei deiner nächsten Anmeldung die Seite **Passwortänderung erforderlich**. Dort steht „Ein Administrator hat dein Passwort festgelegt. Wähle ein neues, um fortzufahren.“ Wähle dort ein neues Passwort, bevor du fortfährst. Dieselbe Seite erscheint, wenn dein Passwort gemäß der Rotationsrichtlinie der Organisation abläuft; dann steht dort „Dein Passwort ist gemäß der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren.“
 
 <Tip>
 

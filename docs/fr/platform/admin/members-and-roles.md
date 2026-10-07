@@ -27,9 +27,8 @@ Tu dois avoir le rôle Propriétaire ou Admin pour gérer les membres.
 
 La personne apparaît dans la liste. Ce parcours n’envoie ni invitation ni courriel de réinitialisation du mot de passe : en ajoutant quelqu’un, tu confirmes son adresse. Le compte fonctionne donc partout tout de suite, y compris dans les applications où l’on se connecte avec son compte Tale. Si l’adresse est déjà membre de cette organisation, le formulaire le signale sans créer de doublon.
 
-Lorsqu’un administrateur définit ton mot de passe, l’écran **Changement de mot de passe requis** s’affiche à ta prochaine connexion. Il indique « Ton mot de passe a été défini par un administrateur. Choisis un nouveau mot de passe pour continuer. » Choisis-y un nouveau mot de passe avant de continuer. Le même écran s’affiche lorsque ton mot de passe expire selon la politique de rotation de l’organisation ; il indique alors « Ton mot de passe a expiré selon la politique de rotation de l’organisation. Définis un nouveau mot de passe pour continuer. »
+Un mot de passe défini ou réinitialisé par un administrateur, ou expiré selon la politique de rotation, doit être changé à la connexion. Consulte [les étapes de changement destinées aux membres](/fr/platform/member/preferences#quand-un-changement-de-mot-de-passe-est-requis).
 
-Lorsqu’un administrateur définit ton mot de passe, l’écran **Changement de mot de passe requis** s’affiche à ta prochaine connexion. Il indique « Ton mot de passe a été défini par un administrateur. Choisis un nouveau mot de passe pour continuer. » Choisis-y un nouveau mot de passe avant de continuer. Le même écran s’affiche lorsque ton mot de passe expire selon la politique de rotation de l’organisation ; il indique alors « Ton mot de passe a expiré selon la politique de rotation de l’organisation. Définis un nouveau mot de passe pour continuer. »
 
 <Tip>
 

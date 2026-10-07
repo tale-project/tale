@@ -27,9 +27,8 @@ You need an Owner or Admin account to manage members.
 
 The person appears in the member list. Tale does not send an invitation or password-reset email for this flow: adding someone is your confirmation of their address, so the account works everywhere at once — including applications people sign in to with their Tale account. If the address is already a member of this organization, the form reports that instead of adding a duplicate.
 
-When an administrator sets your password, the **Password change required** screen appears at your next sign-in. It says “An administrator set your password. Choose a new password to continue.” Choose a new password there before you continue. The same screen appears when your password expires under the organization’s rotation policy; it says “Your password has expired per the organization’s rotation policy. Set a new password to continue.”
+A password set or reset by an administrator, or an expired password under the organization's rotation policy, requires the member to complete the change at sign-in. See [the member-facing password-change steps](/platform/member/preferences#when-a-password-change-is-required).
 
-When an administrator sets your password, the **Password change required** screen appears at your next sign-in. It says “An administrator set your password. Choose a new password to continue.” Choose a new password there before you continue. The same screen appears when your password expires under the organization’s rotation policy; it says “Your password has expired per the organization’s rotation policy. Set a new password to continue.”
 
 <Tip>
 

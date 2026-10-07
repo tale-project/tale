@@ -11,6 +11,10 @@ Open **Settings > Account**. Under **Profile**, edit **Name** and click **Save**
 
 The name is visible to teammates and can be at most 100 characters long. It is not a private instruction to the assistant.
 
+## When a password change is required
+
+If an administrator sets or resets your password, or your password expires under the organization's rotation policy, the **Password change required** screen appears when you sign in. Enter a new password that meets the requirements shown on screen, confirm it, and select **Submit** to continue. For the exact messages, see [Members and roles](/platform/admin/members-and-roles).
+
 ## Protect your sign-in
 
 The **Password** section offers **Change password**, or **Set password** for an account that does not yet have one. Follow the password requirements shown in the dialog. They come from your organization's password policy. If you belong to several organizations, your password must meet the requirements of every one of them. Changing the password signs out your sessions, so keep the new password available before confirming. A wrong current password counts toward the same temporary lock as a failed sign-in.
