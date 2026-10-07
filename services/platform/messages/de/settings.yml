@@ -24,7 +24,7 @@ menu:
   branding:
     description: Logo, Farben und der Name, den deine Nutzer sehen.
   connectors:
-    description: Verbinde externe Apps mit deinem Workspace.
+    description: Verbinde externe Apps mit deinem Arbeitsbereich.
   providers:
     description: Eigene API-Schlüssel für OpenAI, Anthropic und andere mitbringen.
   apiKeys:
