@@ -1,7 +1,7 @@
 import type { Sql } from 'postgres';
 
 import { parseTaskRepeat } from '../../../lib/shared/task-repeat.ts';
-import { findOrganizationMember } from '../../auth/membership.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import { isAudienceAdmin } from '../../core/lib/audience.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { wordStartPatterns } from '../../lib/word-match.ts';
@@ -130,7 +130,9 @@ export async function resolveAccessScope(
   includeConversationScoped: boolean;
   archivedProjectIds: string[];
 }> {
-  const member = await findOrganizationMember(sql, organizationId, userId);
+  // A team's or the organization's own API key acts with the role it was
+  // made with; a project's own key, with its project alone (below).
+  const member = await findActingMember(sql, organizationId, userId);
   if (member === null || member.role === 'disabled') {
     return {
       teamIds: [],
@@ -141,17 +143,23 @@ export async function resolveAccessScope(
       archivedProjectIds: [],
     };
   }
-  const auth = await getProjectAuthContext(sql, {
-    organizationId,
-    userId,
-    role: member.role,
-  });
+  const auth = await getProjectAuthContext(
+    sql,
+    { organizationId, userId, role: member.role },
+    undefined,
+    member.apiKeyOwner?.kind === 'project' &&
+      member.apiKeyOwner.projectId !== null
+      ? { projectScope: member.apiKeyOwner.projectId }
+      : {},
+  );
   const projects = await listProjects(sql, auth, { includeArchived: true });
   return {
     teamIds: [...auth.teamIds],
     isAdmin: isAudienceAdmin(member.role),
     projectIds: projects.map((project) => project.id),
-    includeHub: true,
+    // A project's own key reaches its project alone: the organization's
+    // knowledge outside it is not searched for it.
+    includeHub: auth.projectScope === undefined,
     // A person asks here, so conversation-scoped rows are in play: the
     // uploads of the turn's own threads, and — for the one door that also
     // asks for mail (`includeConversationMessages`, the chat tools, which
@@ -863,7 +871,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
     'sandbox/workspace_access:resolveWorkspaceReadAccess': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
       const args = raw as { organizationId: string; userId: string };
-      const member = await findOrganizationMember(
+      const member = await findActingMember(
         sql,
         args.organizationId,
         args.userId,

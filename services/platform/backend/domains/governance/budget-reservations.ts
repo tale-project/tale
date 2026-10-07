@@ -86,7 +86,8 @@ interface HoldRow {
 /**
  * What every other piece of work in flight holds, per bucket the subject is
  * measured in: the organization's, the subject's own, each of their teams'
- * (the holds of that team's CURRENT members, as the team's usage is read)
+ * (the holds of that team's CURRENT members and of the keys it owns, as the
+ * team's usage is read)
  * and the authenticating API key's — a keyed chat turn's, a keyed run's
  * managed turn and a model-endpoint request alike, each op row carrying the
  * key its reservation stamped. A chat turn's hold, a managed turn's
@@ -132,16 +133,26 @@ export async function readInFlightReservations(
         AND NOT (session_id = ${exclude.op?.sessionId ?? ''}
                  AND exec_id = ${exclude.op?.execId ?? ''})
     ),
+    -- Who spends for a team: its current members, and the keys it owns.
+    team_spenders AS (
+      SELECT tm."userId" AS user_id, tm."teamId" AS team_id
+      FROM "teamMember" tm
+      JOIN "team" t ON t."id" = tm."teamId" AND t."organizationId" = ${org}
+      WHERE tm."teamId" = ANY(${subject.userTeamIds}::text[])
+      UNION ALL
+      SELECT o.principal_user_id, o.team_id
+      FROM app.api_key_owners o
+      WHERE o.org_id = ${org} AND o.owner_kind = 'team'
+        AND o.team_id = ANY(${subject.userTeamIds}::text[])
+    ),
     team_holds AS (
-      SELECT tm."teamId" AS "teamId",
+      SELECT ts.team_id AS "teamId",
              sum(h.cost_cents)::float8 AS "costCents",
              sum(h.tokens)::float8 AS "tokens",
              sum(h.requests)::float8 AS "requests"
       FROM holds h
-      JOIN "teamMember" tm ON tm."userId" = h.user_id
-      JOIN "team" t ON t."id" = tm."teamId" AND t."organizationId" = ${org}
-      WHERE tm."teamId" = ANY(${subject.userTeamIds}::text[])
-      GROUP BY tm."teamId"
+      JOIN team_spenders ts ON ts.user_id = h.user_id
+      GROUP BY ts.team_id
     )
     SELECT
       coalesce(sum(cost_cents), 0)::float8 AS "orgCostCents",

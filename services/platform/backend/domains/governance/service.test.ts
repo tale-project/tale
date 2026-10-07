@@ -22,6 +22,8 @@ const { findOrganizationMember, getUserTeamIds, readGovernancePolicyForOrg } =
 
 vi.mock('../../auth/membership.ts', () => ({
   findOrganizationMember,
+  // The acting member is the person's own row here: no API key identity.
+  findActingMember: findOrganizationMember,
   getUserTeamIds,
 }));
 vi.mock('../../lib/org-config.ts', () => ({ readGovernancePolicyForOrg }));

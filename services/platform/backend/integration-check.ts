@@ -65,6 +65,7 @@ import {
 import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import { checkApiKeyOwners } from './domains/api_keys/owners.integration.ts';
 import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
@@ -59112,6 +59113,26 @@ async function checkOrganizationLifecycle(
     `settled=${staleCleanupSettled} dirB=${await exists(dirB)}`,
   );
 
+  // Keys an Owner made for others in A — the organization's own, and one
+  // for the plain member — leave with it; the member's account stays.
+  const mintInA = async (keyOwner: Record<string, string>): Promise<string> => {
+    const response = await post(
+      owner.cookie,
+      `/api/app/api-keys?orgId=${orgA}`,
+      { name: `Life ${keyOwner.kind ?? ''}`, owner: keyOwner },
+    );
+    const parsed = z
+      .object({ id: z.string() })
+      .safeParse(await response.json().catch(() => null));
+    return parsed.success ? parsed.data.id : '';
+  };
+  const orgKeyA = await mintInA({ kind: 'organization', role: 'member' });
+  const memberKeyA = await mintInA({ kind: 'member', userId: plain.userId });
+  const identityA = await sql<{ id: string }[]>`
+    SELECT principal_user_id AS id FROM app.api_key_owners
+    WHERE api_key_id = ${orgKeyA}
+  `;
+
   // The committed delete: rows, audit, cascade, pointers, config tree.
   const deleted = await post(
     owner.cookie,
@@ -59136,6 +59157,27 @@ async function checkOrganizationLifecycle(
     SELECT count(*)::text AS count FROM "session"
     WHERE "activeOrganizationId" = ${orgA}
   `);
+  const boundKeysLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "apikey"
+    WHERE "id" IN (${orgKeyA}, ${memberKeyA})
+  `);
+  const keyIdentitiesLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "user"
+    WHERE "id" = ${identityA[0]?.id ?? ''}
+  `);
+  const plainAccountLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "user" WHERE "id" = ${plain.userId}
+  `);
+  record(
+    'org delete removes the keys made for others there, and the identities of its own keys, not the member',
+    orgKeyA !== '' &&
+      memberKeyA !== '' &&
+      identityA.length === 1 &&
+      boundKeysLeft === 0 &&
+      keyIdentitiesLeft === 0 &&
+      plainAccountLeft === 1,
+    `minted=${orgKeyA !== ''}/${memberKeyA !== ''} keysLeft=${boundKeysLeft} identitiesLeft=${keyIdentitiesLeft} memberAccount=${plainAccountLeft}`,
+  );
   record(
     'org delete commits as one teardown: rows, audit, cascade, config tree',
     deleted.ok &&
@@ -60895,6 +60937,10 @@ async function main(): Promise<void> {
       [
         'checkTeamScopeRetirement',
         () => checkTeamScopeRetirement(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkApiKeyOwners',
+        () => checkApiKeyOwners(sql, baseUrl, authCtx, record),
       ],
       [
         'checkOrphanedOrgRowsBackfill',

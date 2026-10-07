@@ -1074,7 +1074,9 @@ apiKeys:
   keyCreatedDescription:
     Assure-toi de copier ta clé API maintenant. Tu ne pourras
     plus la voir ensuite.
+  keyCreatedForMember: Transmets la clé à {name} par un canal sûr. Une notification l'informe de sa création.
   yourApiKey: Ta clé API
+  newApiKey: Nouvelle clé API
   keyRevoked: Clé API révoquée
   keyRevokeFailed: Échec de la révocation de la clé API
   keyCreateFailed: Échec de la création de la clé API
@@ -1090,6 +1092,17 @@ apiKeys:
     created: Ajouté
     lastUsed: Dernière utilisation
     expires: Expiration
+    owner: Appartient à
+  owner:
+    you: Toi
+    team: Équipe {name}
+    project: Projet {name}
+    organization: Organisation
+    formerMember: Ancien membre
+    deletedTeam: équipe supprimée
+    deletedProject: projet supprimé
+    actsAs: Agit en tant que {role}
+    madeBy: Créée par {name}
   form:
     name: Nom de la clé
     namePlaceholder: Saisis le nom de la clé...
@@ -1111,6 +1124,33 @@ apiKeys:
     expiryDateHint: Choisis un jour, au plus un an à l'avance.
     expiryDateRequired: Choisis une date d'expiration.
     expiryDateRange: Choisis un jour entre demain et dans un an.
+    owner: Appartient à
+    ownerOptions:
+      self: Toi
+      member: Un autre membre
+      team: Une équipe
+      project: Un projet
+      organization: L'organisation
+    ownerHints:
+      member: La clé agit au nom de ce membre, avec son rôle et ses équipes, dans cette organisation uniquement. Ce membre en est informé et peut la révoquer.
+      team: La clé appartient à l'équipe, pas à une personne. Elle agit avec le rôle que tu choisis, voit ce que voit l'équipe et continue de fonctionner si tu pars.
+      project: La clé appartient au projet, pas à une personne. Elle agit avec le rôle que tu choisis et n'atteint que ce projet.
+      organization: La clé appartient à l'organisation, pas à une personne. Elle agit avec le rôle que tu choisis et continue de fonctionner si tu pars.
+    member: Membre
+    memberPlaceholder: Choisis un membre
+    memberSearch: Rechercher des membres...
+    memberEmpty: Aucun membre dont le rôle est inférieur au tien
+    team: Équipe
+    teamPlaceholder: Choisis une équipe
+    teamSearch: Rechercher des équipes...
+    teamEmpty: Aucune équipe
+    project: Projet
+    projectPlaceholder: Choisis un projet
+    projectSearch: Rechercher des projets...
+    projectEmpty: Aucun projet actif
+    role: Agit en tant que
+    roleHint: Le rôle de la clé dans cette organisation. Il ne peut pas dépasser le tien.
+    targetRequired: Choisis à qui appartient la clé.
   neverUsed: Jamais utilisée
   neverExpires: Jamais
   expired: Expirée

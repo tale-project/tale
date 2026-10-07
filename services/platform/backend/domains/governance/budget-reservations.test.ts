@@ -87,7 +87,12 @@ describe('readInFlightReservations', () => {
     expect(read).toContain(
       'SELECT user_id, api_key_id, (coalesce(budget_cents, 0) + image_hold_cents)::float8, coalesce(reserved_tokens, 0)::float8,',
     );
-    expect(read).toContain('JOIN "teamMember" tm ON tm."userId" = h.user_id');
+    // A team's holds are its current members' and its own keys'.
+    expect(read).toContain('FROM "teamMember" tm');
+    expect(read).toContain(
+      "FROM app.api_key_owners o WHERE o.org_id = ? AND o.owner_kind = 'team'",
+    );
+    expect(read).toContain('JOIN team_spenders ts ON ts.user_id = h.user_id');
     expect(statements[0]?.values).toEqual(
       expect.arrayContaining(['org-1', 'user-1', 'key-1', ['team-1']]),
     );

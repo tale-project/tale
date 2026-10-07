@@ -13,7 +13,7 @@ import {
   isImage,
   shouldRagIndexOnUpload,
 } from '../../../lib/shared/file-types.ts';
-import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
+import { findActingMember, isAdminRole } from '../../auth/membership.ts';
 import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
 import { applyCorpusSchema } from '../../core/knowledge/ddl.ts';
 import {
@@ -468,8 +468,11 @@ async function retrievalCallerFor(
   organizationId: string,
   userId: string,
 ): Promise<{ userId: string; isAdmin: boolean } | undefined> {
-  const member = await findOrganizationMember(sql, organizationId, userId);
+  const member = await findActingMember(sql, organizationId, userId);
   if (member === null || member.role === 'disabled') return undefined;
+  // A project's own API key reaches its project alone: no conversation's
+  // mail or attachment is retrievable for it.
+  if (member.apiKeyOwner?.kind === 'project') return undefined;
   return { userId, isAdmin: isAdminRole(member.role) };
 }
 

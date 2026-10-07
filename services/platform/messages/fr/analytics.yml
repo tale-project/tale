@@ -112,10 +112,14 @@ usage:
       title: Utilisation par utilisateur
       user: Utilisateur
       automations: Automatisations (déclencheurs)
+      teamKey: Clé API de l’équipe {name}
+      projectKey: Clé API du projet {name}
+      organizationKey: Clé API de l’organisation
       note: Chaque ligne correspond au membre qui a envoyé le chat ou lancé
-        l’exécution d’agent. Les exécutions démarrées par une planification,
-        un webhook ou un événement partagent la ligne « Automatisations
-        (déclencheurs) ».
+        l’exécution d’agent, ou à une clé API qui appartient à une équipe, à
+        un projet ou à l’organisation plutôt qu’à une personne. Les
+        exécutions démarrées par une planification, un webhook ou un
+        événement partagent la ligne « Automatisations (déclencheurs) ».
       inputTokens: Tokens d'entrée
       outputTokens: Tokens de sortie
       requests: Requêtes

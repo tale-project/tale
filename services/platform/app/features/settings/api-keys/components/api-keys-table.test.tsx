@@ -43,11 +43,14 @@ function makeApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
     start: 'tale_abc',
     prefix: 'tale_',
     suffix: 'wxyz',
-    userId: 'user-1',
     enabled: true,
     expiresAt: null,
-    createdAt: new Date(),
+    createdAt: Date.now(),
     lastRequest: null,
+    owner: { kind: 'user' },
+    role: null,
+    createdBy: null,
+    canRevoke: true,
     ...overrides,
   };
 }

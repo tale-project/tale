@@ -9,6 +9,7 @@ import {
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useApiSettingsAccess } from '@/app/features/settings/model-endpoints/hooks/use-api-settings-access';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { cachedAbility } from '@/app/lib/loader-preload';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -38,6 +39,10 @@ function ApiRestPage() {
   // The parent layout waited for it; a member whose right lapsed still opens
   // this page for the keys they hold.
   const { createApiKeys } = useApiSettingsAccess(organizationId);
+  // Owners and Admins also make keys for a member, a team, a project or the
+  // organization — never acting above their own role.
+  const { data: memberContext } = useCurrentMemberContext(organizationId);
+  const viewer = memberContext?.status === 'ok' ? memberContext : undefined;
 
   // Access is gated by the parent `api` route layout. Section title (not a
   // page title) — the settings rail already names the page.
@@ -67,6 +72,10 @@ function ApiRestPage() {
           apiKeys={apiKeys}
           organizationId={organizationId}
           canCreate={createApiKeys}
+          canCreateForOthers={viewer?.isAdmin === true}
+          {...(viewer !== undefined
+            ? { viewerUserId: viewer.userId, viewerRole: viewer.role }
+            : {})}
           error={error}
           onRetry={() => void refetch()}
         />

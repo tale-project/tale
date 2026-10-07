@@ -27,8 +27,8 @@ vi.mock('../documents/agent-list.ts', () => ({
   ),
 }));
 
-vi.mock('../../auth/membership.ts', () => ({
-  findOrganizationMember: vi.fn(
+vi.mock('../../auth/membership.ts', () => {
+  const findOrganizationMember = vi.fn(
     (_sql: unknown, organizationId: string, userId: string) =>
       Promise.resolve(
         userId === 'u-gone'
@@ -40,8 +40,10 @@ vi.mock('../../auth/membership.ts', () => ({
               role: userId === 'u-disabled' ? 'disabled' : 'member',
             },
       ),
-  ),
-}));
+  );
+  // The acting member is the person's own row here: no API key identity.
+  return { findOrganizationMember, findActingMember: findOrganizationMember };
+});
 
 vi.mock('../projects/service.ts', () => ({
   getProjectAuthContext: vi.fn(

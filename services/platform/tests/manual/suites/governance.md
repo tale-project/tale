@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 82 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 83 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -141,6 +141,18 @@ agent.
   creates a second key in their own session → it joins the select within
   seconds, no reload. `GET /api/app/governance/api-keys` as a non-admin
   answers 403, and no response carries a key secret.
+- [ ] `GOV-F53` · **A team's key spends as the team** — create the Finance
+  team's API key (settings.md SET-F78) and a GOV-F4-style **Team** rule on
+  Finance with a low **Max cost (USD)**; open the GOV-F4b dialog → the **API
+  key** select lists the team's key as **‹name› · Team Finance**
+  (`governance.budgets.apiKeyOwnerTeam`), the organization's key as **The
+  organization** (`governance.budgets.apiKeyOwnerOrganization`). Send REST
+  chat messages with the team's key until the team's cap is reached → the
+  next send answers 429 `BUDGET_EXCEEDED` naming the team's cap, while no
+  member's personal usage under **Settings → Usage** grew; **Usage
+  analytics** lists the key as its own row, **API key of team Finance**
+  (`analytics.usage.users.teamKey`), and the active-user count does not count
+  it. **Delete the rule after**
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the

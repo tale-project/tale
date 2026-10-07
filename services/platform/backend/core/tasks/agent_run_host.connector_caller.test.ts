@@ -189,6 +189,8 @@ const bridgeSql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
     return Promise.resolve([{ startedBy: run.startedBy, agentId: 'alice' }]);
   }
   if (text.includes('FROM app.sandbox_session_ops')) return Promise.resolve([]);
+  // A starter who is no member is no API key's own identity either.
+  if (text.includes('FROM app.api_key_owners')) return Promise.resolve([]);
   if (text.includes('INSERT INTO app.sandbox_tool_calls')) {
     io.toolCalls.push(values);
     return Promise.resolve([]);

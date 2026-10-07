@@ -66,4 +66,8 @@ export type NotificationType =
   // A member hit a usage limit and asked for more credits
   // (`organizations/routes.ts`): one row per owner and admin, who alone can
   // raise the budget. Actionable.
-  | 'usage_credits_requested';
+  | 'usage_credits_requested'
+  // An Owner or Admin made an API key that acts as the member in this
+  // organization (`api_keys/routes.ts`): the member hears of a credential
+  // in their name, and can revoke it. Bell only — nothing waits on them.
+  | 'api_key_created';

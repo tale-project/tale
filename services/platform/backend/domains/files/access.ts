@@ -1,6 +1,6 @@
 import type { Sql } from 'postgres';
 
-import { findOrganizationMember } from '../../auth/membership.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { loadProjectSharedThread } from '../chat/threads.ts';
@@ -220,11 +220,16 @@ export async function viewerForUser(
   organizationId: string,
   userId: string,
 ): Promise<ProjectAuthContext | null> {
-  const member = await findOrganizationMember(sql, organizationId, userId);
+  const member = await findActingMember(sql, organizationId, userId);
   if (member === null || member.role === 'disabled') return null;
-  return getProjectAuthContext(sql, {
-    organizationId,
-    userId,
-    role: member.role,
-  });
+  // A project's own API key reaches its project alone.
+  return getProjectAuthContext(
+    sql,
+    { organizationId, userId, role: member.role },
+    undefined,
+    member.apiKeyOwner?.kind === 'project' &&
+      member.apiKeyOwner.projectId !== null
+      ? { projectScope: member.apiKeyOwner.projectId }
+      : {},
+  );
 }

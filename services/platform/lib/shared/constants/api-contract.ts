@@ -360,5 +360,15 @@
  * manage an agent's tools through a conditional tools-only configuration
  * facet; saved models, instructions and secret grants remain independent.
  * No public REST delegation or agent-verdict endpoint is added. Additive.
+ *
+ * 3.18.0 — 2026-10-07: API keys can belong to a member an Owner or Admin
+ * made them for, or to a team, a project or the organization itself. Such a
+ * key works in its one organization: it needs no `X-Organization-Slug`, and
+ * one naming another organization answers 403 `ORG_FORBIDDEN`. A project's
+ * key reaches its own project, the project list, `/me` and the model
+ * endpoints; any other route answers 403 `API_KEY_SCOPE_FORBIDDEN`.
+ * `GET /api/v1/me` answers `key.owner` (`kind`, `team`, `project`), lists
+ * the bound organization alone, and an empty `user.email` for a key that
+ * is not a person. Additive.
  */
-export const API_CONTRACT_VERSION = '3.17.0';
+export const API_CONTRACT_VERSION = '3.18.0';

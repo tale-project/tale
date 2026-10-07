@@ -7,7 +7,7 @@ import { findConnector } from '../../../lib/connectors/catalog.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { createLiveHost } from '../../../lib/connectors/live-host.ts';
 import { isAutomationSubject } from '../../../lib/shared/constants/usage.ts';
-import { findOrganizationMember } from '../../auth/membership.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import { verifyHostcallToken } from '../../core/connectors/hostcall_token.ts';
 import {
   bridgeConnectorStatusImpl,
@@ -207,7 +207,9 @@ async function resolveBridgeCaller(
     if ('blocker' in person) return person;
     userId = person.userId;
   }
-  const member = await findOrganizationMember(sql, auth.organizationId, userId);
+  // A run a team's or the organization's own key started acts for that
+  // key's identity, which has no member row of its own.
+  const member = await findActingMember(sql, auth.organizationId, userId);
   return member === null || member.role === 'disabled'
     ? { blocker: connectorCallerNotAMemberBlocker() }
     : { userId };

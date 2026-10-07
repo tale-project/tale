@@ -31,7 +31,7 @@ export function ApiKeyRevokeDialog({
   const handleConfirm = useCallback(() => {
     if (isRevoking) return;
 
-    revokeKey(apiKey.id, {
+    revokeKey(apiKey, {
       onSuccess: () => {
         toast({
           title: tSettings('apiKeys.keyRevoked'),
@@ -47,7 +47,7 @@ export function ApiKeyRevokeDialog({
         });
       },
     });
-  }, [isRevoking, revokeKey, apiKey.id, tSettings, onOpenChange, onSuccess]);
+  }, [isRevoking, revokeKey, apiKey, tSettings, onOpenChange, onSuccess]);
 
   return (
     <DeleteDialog

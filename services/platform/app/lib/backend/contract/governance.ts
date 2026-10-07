@@ -60,6 +60,12 @@ export interface OrgApiKeyWire {
   createdAt: number | null;
   expiresAt: number | null;
   status: OrgApiKeyStatus;
+  /** Whose key it is: a person's own (`user`), one made for a member, or a
+   * team's, a project's or the organization's own. Absent from a backend
+   * that predates the owner kinds. */
+  ownerKind?: 'user' | 'member' | 'team' | 'project' | 'organization';
+  teamName?: string | null;
+  projectName?: string | null;
 }
 
 export interface GovernanceContract {
@@ -799,6 +805,13 @@ export interface GovernanceContract {
         tokens: number;
         costCents: number;
         requests: number;
+        /** Set when the row is an API key's own identity, not a person:
+         * the team, project or organization the key belongs to. */
+        apiKey?: {
+          kind: 'team' | 'project' | 'organization';
+          teamName: string | null;
+          projectName: string | null;
+        };
       }>;
     };
   };

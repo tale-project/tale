@@ -84,6 +84,9 @@ budgets:
     weekly: Wöchentlich
     monthly: Monatlich
   apiKeyOwnerUnknown: Inhaber unbekannt
+  apiKeyOwnerTeam: Team {name}
+  apiKeyOwnerProject: Projekt {name}
+  apiKeyOwnerOrganization: Die Organisation
   apiKeyInactive: Dieser Schlüssel kann in dieser Organisation nichts mehr verbrauchen, deshalb begrenzt die Regel nichts. Wähle einen aktiven Schlüssel oder entferne die Regel.
   apiKeyStatus:
     expired: Abgelaufen
