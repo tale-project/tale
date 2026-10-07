@@ -352,5 +352,13 @@
  * source binding, conditional native revision and monotonic source lifecycle
  * ordering protect concurrent native moves; no Tale approval is claimed and
  * captured native agent reviews remain protected. Additive.
+ *
+ * 3.17.0 — 2026-10-07: the project-agent tools vocabulary gains
+ * `task_delegate_review`, an explicit grant to transfer a pending native
+ * agent review with exact source and evidence preconditions. Native task_get
+ * includes its bounded delegation receipt for reconciliation. Tale CLI can
+ * manage an agent's tools through a conditional tools-only configuration
+ * facet; saved models, instructions and secret grants remain independent.
+ * No public REST delegation or agent-verdict endpoint is added. Additive.
  */
-export const API_CONTRACT_VERSION = '3.16.0';
+export const API_CONTRACT_VERSION = '3.17.0';

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.16.0",
+    "version": "3.17.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -38825,7 +38825,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.16.0"
+          "example": "3.17.0"
         }
       },
       "Location": {
@@ -43769,6 +43769,7 @@
                 "task_update_status",
                 "task_update_metadata",
                 "task_review",
+                "task_delegate_review",
                 "task_start_agent",
                 "task_upsert_by_external_ref",
                 "document_find",
@@ -43850,6 +43851,7 @@
                 "task_update_status",
                 "task_update_metadata",
                 "task_review",
+                "task_delegate_review",
                 "task_start_agent",
                 "task_upsert_by_external_ref",
                 "document_find",
