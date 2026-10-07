@@ -5,7 +5,7 @@ description: Prüfe und ändere Knoten, gib Testdaten ein, speichere eine Versio
 
 Im Workflow-Editor änderst du den Ablauf einer Automatisierung und wählst die gespeicherte Version für Live-Läufe. Änderungen brauchen Entwickler-, Admin- oder Inhaberrechte. Speichern, Testen und Bereitstellen sind getrennte Schritte: Die Arbeit an einem Entwurf lässt die bereitgestellte Version bestehen.
 
-Öffne **Automatisierungen** und wähle einen Eintrag. Er öffnet sich im Tab **Editor**. Öffnest du eine Automatisierung im Tab **Automatisierungen** eines Projekts, beginnt der Navigationspfad mit diesem Projekt: Wähle den Projektnamen, um zum Projekt zurückzukehren, oder **Automatisierungen**, um zu seinen Automatisierungen zurückzukehren. Die Navigationsleiste markiert in beiden Fällen **Automatisierungen**. Für einen neuen Ablauf beginne mit [Automatisierungen erstellen oder importieren](/de/platform/automations/catalog).
+Öffne **Automatisierungen** und wähle einen Eintrag. Er öffnet sich im Tab **Editor**. Öffnest du eine Automatisierung im Tab **Automatisierungen** eines Projekts, beginnt der Navigationspfad mit diesem Projekt: Wähle den Projektnamen, um zum Projekt zurückzukehren, oder **Automatisierungen**, um zu seinen Automatisierungen zurückzukehren. Ob du eine Automatisierung in einem Projekt oder in der Liste öffnest, die Navigationsleiste markiert **Automatisierungen**. Für einen neuen Ablauf beginne mit [Automatisierungen erstellen oder importieren](/de/platform/automations/catalog).
 
 | Tab | Wofür du ihn nutzt |
 | --- | --- |
