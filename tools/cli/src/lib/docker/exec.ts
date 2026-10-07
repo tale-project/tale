@@ -1,4 +1,5 @@
 import * as logger from '../../utils/logger';
+import { boundedOutput } from './bounded-output';
 import { exitedWithin } from './exited-within';
 
 export interface ExecResult {
@@ -15,6 +16,8 @@ export async function exec(
     cwd?: string;
     silent?: boolean;
     timeout?: number;
+    /** Combined stdout/stderr bound; requires a finite positive timeout. */
+    maxOutputBytes?: number;
     /** Replace the inherited environment for managed deployment commands. */
     env?: Record<string, string | undefined>;
     /**
@@ -24,7 +27,18 @@ export async function exec(
     stdin?: string;
   } = {},
 ): Promise<ExecResult> {
-  const { cwd, silent = false, timeout, stdin, env } = options;
+  const { cwd, silent = false, timeout, stdin, env, maxOutputBytes } = options;
+  if (
+    maxOutputBytes !== undefined &&
+    (!Number.isSafeInteger(maxOutputBytes) ||
+      maxOutputBytes < 1 ||
+      timeout === undefined ||
+      !Number.isFinite(timeout) ||
+      timeout <= 0)
+  )
+    throw new Error(
+      'Bounded commands require a positive byte limit and timeout.',
+    );
 
   if (!silent) {
     logger.debug(`Executing: ${command} ${args.join(' ')}`);
@@ -37,6 +51,9 @@ export async function exec(
           ...(env === undefined ? {} : { env }),
           stdout: 'pipe',
           stderr: 'pipe',
+          ...(maxOutputBytes === undefined
+            ? {}
+            : { detached: process.platform !== 'win32' }),
         })
       : Bun.spawn([command, ...args], {
           cwd,
@@ -44,8 +61,17 @@ export async function exec(
           stdin: 'pipe',
           stdout: 'pipe',
           stderr: 'pipe',
+          ...(maxOutputBytes === undefined
+            ? {}
+            : { detached: process.platform !== 'win32' }),
         });
 
+  if (maxOutputBytes !== undefined && timeout !== undefined)
+    return boundedOutput(proc as Bun.Subprocess<'pipe', 'pipe', 'pipe'>, {
+      timeout,
+      maxOutputBytes,
+      ...(stdin === undefined ? {} : { stdin }),
+    });
   if (stdin !== undefined) {
     const sink = (proc as Bun.Subprocess<'pipe', 'pipe', 'pipe'>).stdin;
     sink.write(stdin);

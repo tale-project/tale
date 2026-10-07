@@ -1080,7 +1080,7 @@ export async function applyRuntime(
 /** Inspect an already-ready destination without resolving deployment secrets,
  * preparing environment files or admitting a pending rollout. Export callers
  * hold the same outer deployment lock and reuse these runtime custody checks. */
-async function observeReadyState(
+export async function observeReadyState(
   options: Omit<ApplyRuntimeOptions, 'environment' | 'dryRun'>,
   dependencies: RuntimeDependencies = {},
 ) {

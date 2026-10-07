@@ -6,6 +6,17 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Managed deployment acceptance reads the exact Ready receipt, current runtime
+custody and OCI version, canonical-origin health, and complete source-derived
+SQL/TypeScript and knowledge migration inventories without applying state.
+`tools/cli/src/lib/deployment/acceptance*.test.ts` and `source-migrations.test.ts`
+cover drift, missing/extra ledgers, legacy refusal and final-read races;
+`tools/cli/src/lib/docker/bounded-output.test.ts` covers bounded owned subprocess
+settlement. The existing Backend integration job runs the real read-only psql
+proof through `tools/cli/scripts/check-deployment-acceptance.ts` against its
+normally migrated database fixture. Fresh production acceptance remains a
+deployment observation, separate from these tests.
+
 Bun Docker builders, runtimes and the React service generator match the pinned
 workspace/CI version with immutable image digests. All production client builds
 share an awaited Vite helper; real subprocess fixtures prove service cwd, delayed

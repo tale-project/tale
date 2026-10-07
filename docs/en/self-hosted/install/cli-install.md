@@ -282,6 +282,22 @@ Preparation checks each configuration first, with this CLI's own schemas, and on
 
 `deploy verify-bundle` checks the complete file inventory and hashes without a destination. `deploy --bundle --dry-run` checks configuration artifacts and destination preconditions without applying changes. Managed bundle deployment does not accept workspace-only overrides such as `--services`, `--host` or `--override-all`. It is a state-preserving stack rollout with health and provenance checks; the workspace blue-green behavior described above is a separate path.
 
+#### Verify the current deployment
+
+After the exact bundle has completed, collect a fresh acceptance receipt on the deployment host:
+
+```bash
+tale --json deploy accept --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT" \
+  --expected-version "$TALE_RELEASE_VERSION"
+```
+
+Both source commits are required for acceptance; the bundle must have been prepared with `--deployment-ref`. Set `TALE_RELEASE_VERSION` to the independently selected published version, without its `v` prefix. The CLI holds the existing deployment lock and reads the Ready receipt, current containers, pinned images, the canonical origin’s `/api/health`, and all three migration ledgers. Every Tale image’s OCI version and source must agree with the bundle and serving response. An image’s `sourceTag` may be `sha-<source>`; it is reference metadata, not the served version.
+
+The JSON result contains source pins, bundle and Ready hashes, image identities, serving version, and complete source-derived migration IDs with inventory hashes. Application SQL and numbered TypeScript data migrations are both included. Missing, extra, duplicate or unfinished migrations, pending deployment state, version drift and identity changes are refused. Observation has a 120-second deadline and bounded subprocess/health output. Acceptance does not apply configuration, restart containers, run migrations or export credentials; only the existing lock metadata changes.
+
+Older bundles remain deployable, but acceptance requires the migration inventory produced by a compatible CLI. Prepare and complete a reviewed bundle through the normal deployment flow before collecting its acceptance receipt. A receipt proves the observed state at its timestamp; repeat acceptance when fresh evidence is needed.
+
 #### Provision the native identity
 
 `deploy provision [--bundle <directory>]` is the backend-local phase normally invoked by bundle deployment. It reads at most 64 KiB of private JSON from stdin, proves the local account and selected organization, and always signs out before reporting success. Its fields include `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra credentials, and `nativeClients`. Existing-account behavior remains the default. An explicit `identity.bootstrap: "fresh"` permits creation of the initial local account and organization. A bundle binds this choice and the staged configurations before native changes. `deploy provision` refuses workspace flags and `--dry-run`; use read-only bundle/config verification for review. Its optional `--cli-ref` and `--deployment-ref` expectations require `--bundle` and are checked before login.

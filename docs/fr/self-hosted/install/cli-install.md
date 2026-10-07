@@ -282,6 +282,22 @@ La préparation vérifie d’abord chaque configuration avec les schémas propre
 
 `deploy verify-bundle` vérifie l’inventaire complet et les hashes sans contacter la destination. `deploy --bundle --dry-run` vérifie les artefacts de configuration et les préconditions de la destination sans appliquer de changement. Les déploiements gérés refusent les options réservées au workspace comme `--services`, `--host` ou `--override-all`. Ils déploient la stack en préservant son état, avec des contrôles de santé et de provenance. Le comportement blue-green du workspace décrit plus haut est un autre parcours.
 
+#### Vérifier le déploiement actuel
+
+Une fois ce bundle exact entièrement appliqué, recueille une preuve d’acceptation actuelle sur l’hôte du déploiement :
+
+```bash
+tale --json deploy accept --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT" \
+  --expected-version "$TALE_RELEASE_VERSION"
+```
+
+Cette vérification exige les deux commits sources complets ; le bundle doit avoir été préparé avec `--deployment-ref`. Définis `TALE_RELEASE_VERSION` sur la version publiée sélectionnée indépendamment, sans son préfixe `v`. La CLI prend le verrou de déploiement existant et lit le reçu Ready, les conteneurs actuels, les images fixées, `/api/health` de l’origine canonique et les trois registres de migrations. La version OCI et le commit source de chaque image Tale doivent correspondre au bundle et à la version servie. `sourceTag` peut valoir `sha-<source>` : il décrit la référence de l’image, pas la version servie.
+
+Le résultat JSON contient les commits sources, les hashes du bundle et du reçu Ready, les identités des images, la version servie et l’inventaire complet des migrations issues du source, avec ses hashes. Il comprend les migrations SQL de l’application et les migrations de données TypeScript numérotées. Toute migration manquante, supplémentaire, dupliquée ou inachevée, tout déploiement en cours et tout changement de version ou d’identité entraînent un refus. L’observation est limitée à 120 secondes ; les sorties des processus et la réponse de santé ont aussi des limites de taille. Cette vérification n’applique aucune configuration, ne redémarre aucun conteneur, n’exécute aucune migration et n’exporte aucun identifiant. Seules les métadonnées du verrou existant changent.
+
+Les anciens bundles restent déployables, mais cette vérification exige l’inventaire des migrations produit par une CLI compatible. Prépare un bundle vérifié et termine son déploiement par le parcours habituel avant de recueillir son reçu d’acceptation. Le reçu atteste l’état observé à son horodatage ; relance la vérification quand il te faut des preuves actuelles.
+
 #### Configurer l’identité native
 
 `deploy provision [--bundle <directory>]` est la phase locale au backend du déploiement du bundle. Elle lit au maximum 64 KiB de JSON privé sur stdin, vérifie le compte local et l’organisation sélectionnée, puis ferme la session avant d’annoncer le succès. Ses champs comprennent `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, les identifiants Entra optionnels et `nativeClients`. Par défaut, le compte existant reste requis. Un `identity.bootstrap: "fresh"` explicite autorise la création du premier compte local et de l’organisation. Un bundle lie ce choix et les configurations préparées avant toute modification native. `deploy provision` refuse les options de workspace et `--dry-run` ; utilise les vérifications en lecture seule. Les attentes optionnelles `--cli-ref` et `--deployment-ref` exigent `--bundle` et sont contrôlées avant connexion.
