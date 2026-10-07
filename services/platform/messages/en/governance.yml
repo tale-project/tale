@@ -134,6 +134,15 @@ defaultModels:
     policy for this scope. Users receiving this default will fall back to a
     permitted model.
   blocklistConflictWarningTitle: Model is blocked
+  scopeLabels:
+    default: Default
+    team: Team
+    role: Role
+  roleLabels:
+    admin: Admin
+    developer: Developer
+    editor: Editor
+    member: Member
 visionModel:
   title: Vision model
   description:

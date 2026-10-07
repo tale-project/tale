@@ -107,7 +107,7 @@ interface DefaultModelEditorProps {
 const SCOPE_VALUES = ['default', 'team', 'role'] as const;
 
 function isScopeValue(v: string): v is DefaultModelRule['scope'] {
-  return SCOPE_VALUES.includes(v as (typeof SCOPE_VALUES)[number]);
+  return SCOPE_VALUES.some((value) => value === v);
 }
 
 function emptyRule(): DefaultModelRule {
@@ -167,6 +167,22 @@ function RuleDialog({
   organizationId,
 }: RuleDialogProps) {
   const { t } = useT('governance');
+  const scopeOptions = useMemo(
+    () =>
+      SCOPE_VALUES.map((value) => ({
+        value,
+        label: t(`defaultModels.scopeLabels.${value}`),
+      })),
+    [t],
+  );
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(`defaultModels.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const [draft, setDraft] = useState(initialRule);
 
   useEffect(() => {
@@ -360,18 +376,10 @@ function DefaultModelEditorContent({
 }: DefaultModelEditorProps) {
   const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
-  const scopeOptions = useMemo(
-    () =>
-      SCOPE_VALUES.map((value) => ({
-        value,
-        label: t(`defaultModels.scopeLabels.${value}`),
-      })),
-    [t],
-  );
   const roleOptions = useMemo(
     () =>
       ROLE_OPTIONS.map((option) => ({
-        ...option,
+        value: option.value,
         label: t(`defaultModels.roleLabels.${option.value}`),
       })),
     [t],
@@ -560,7 +568,7 @@ function DefaultModelEditorContent({
           return '—';
       }
     },
-    [teamOptions, t],
+    [teamOptions, roleOptions, t],
   );
 
   const resolveModelName = useCallback(
@@ -680,7 +688,7 @@ function DefaultModelEditorContent({
                     rules.map((rule, index) => (
                       <TableRow key={index}>
                         <TableCell className="capitalize">
-                          {rule.scope}
+                          {t(`defaultModels.scopeLabels.${rule.scope}`)}
                         </TableCell>
                         <TableCell>{resolveTarget(rule)}</TableCell>
                         <TableCell>{resolveProviderName(rule)}</TableCell>

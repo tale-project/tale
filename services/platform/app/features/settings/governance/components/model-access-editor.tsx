@@ -114,13 +114,13 @@ interface ModelAccessEditorProps {
 const SCOPE_VALUES = ['default', 'user', 'team', 'role'] as const;
 
 function isScopeValue(v: string): v is ModelAccessRule['scope'] {
-  return SCOPE_VALUES.includes(v as (typeof SCOPE_VALUES)[number]);
+  return SCOPE_VALUES.some((value) => value === v);
 }
 
 const MODE_VALUES = ['allowlist', 'blocklist'] as const;
 
 function isModeValue(v: string): v is ModelAccessConfig['mode'] {
-  return MODE_VALUES.includes(v as (typeof MODE_VALUES)[number]);
+  return MODE_VALUES.some((value) => value === v);
 }
 
 function emptyRule(): ModelAccessRule {
@@ -171,6 +171,22 @@ function RuleDialog({
   mode,
 }: RuleDialogProps) {
   const { t } = useT('governance');
+  const scopeOptions = useMemo(
+    () =>
+      SCOPE_VALUES.map((value) => ({
+        value,
+        label: t(`modelAccess.scopeLabels.${value}`),
+      })),
+    [t],
+  );
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(`modelAccess.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const { t: tCommon } = useT('common');
   const [draft, setDraft] = useState(initialRule);
 
@@ -316,27 +332,11 @@ function RuleDialog({
 function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
   const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
-  const scopeOptions = useMemo(
-    () =>
-      SCOPE_VALUES.map((value) => ({
-        value,
-        label: t(`modelAccess.scopeLabels.${value}`),
-      })),
-    [t],
-  );
   const modeOptions = useMemo(
     () =>
       MODE_VALUES.map((value) => ({
         value,
         label: t(`modelAccess.modeLabels.${value}`),
-      })),
-    [t],
-  );
-  const roleOptions = useMemo(
-    () =>
-      ROLE_OPTIONS.map((option) => ({
-        ...option,
-        label: t(`modelAccess.roleLabels.${option.value}`),
       })),
     [t],
   );

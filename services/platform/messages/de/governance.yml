@@ -134,6 +134,15 @@ defaultModels:
     Modellzugriffsrichtlinie für diesen Geltungsbereich blockiert. Betroffene
     Benutzer weichen auf ein erlaubtes Modell aus.
   blocklistConflictWarningTitle: Modell ist blockiert
+  scopeLabels:
+    default: Standard
+    team: Team
+    role: Rolle
+  roleLabels:
+    admin: Admin
+    developer: Entwickler
+    editor: Editor
+    member: Mitglied
 visionModel:
   title: Modell für Bilder
   description:

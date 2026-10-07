@@ -140,6 +140,15 @@ defaultModels:
     d'accès aux modèles pour cette portée. Les utilisateurs concernés
     basculeront vers un modèle autorisé.
   blocklistConflictWarningTitle: Modèle bloqué
+  scopeLabels:
+    default: Par défaut
+    team: Équipe
+    role: Rôle
+  roleLabels:
+    admin: Admin
+    developer: Développeur
+    editor: Éditeur
+    member: Membre
 visionModel:
   title: Modèle pour les images
   description:
