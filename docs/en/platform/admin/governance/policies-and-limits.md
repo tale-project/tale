@@ -16,7 +16,7 @@ Use **Settings > Governance > Policies & Limits** as an Admin or Owner to contro
 1. Under **Budget rules**, select **Add rule**.
 2. Choose the scope and its target. Use a role for a group such as Editors, a team for a shared workload, a project for everything spent in one project, a user for an individual, an API key for one credential, or the organization for a shared ceiling. The API key list offers every active key that works in the organization, named with whom it belongs to: a member's own key, a key an Admin made for a member, and the keys of a team, a project, or the organization itself. You can cap one person's script or coding tool, or one team's integration.
 3. Select a daily, weekly, or monthly period. Enter at least one positive token, cost, or request limit. Cost is entered in USD; an empty field leaves that dimension uncapped by this rule.
-4. Optionally set **Warning threshold (%)** between 0 and 100 to warn before the cap is reached.
+4. Optionally set **Warning threshold (%)** between 0 and 100 to warn before the cap is reached. A project budget has no warning threshold.
 5. Select **Confirm**, save the pending page changes, and check the saved rule's scope, target, period, and limits.
 
 For example, a monthly role rule can give Editors a USD 50 personal spending limit, while an organization rule caps everyone's combined spend at USD 500. These are example amounts, not recommended defaults.
@@ -30,6 +30,12 @@ Budgets apply to new billable work, including chat, voice output, managed agent 
 Personal limits resolve each dimension from the most specific rule that defines it: user, then team, role, and default. When someone belongs to several teams with a rule, the strictest of those caps applies to them personally. Organization limits apply in addition. A team budget also caps the combined usage of the team's current members, even when a member has a more specific personal rule: a new member's usage in the current period counts at once, and someone who leaves no longer counts. API-key limits independently cap requests authenticated with that key, and those requests' usage counts toward the key; they do not cap unrelated in-app work. A team's, a project's, or the organization's own key is not a person: no user, role, or default rule applies to it. The organization's limits and its API-key rules do, a team's key counts toward, and is held to, its team's budget, and a project's key its project's.
 
 A project budget caps everything spent in one project, whoever spends it: the project's chats, with their titles, the answers read aloud, and the assistant's tool calls; the runs of its agents and of the automations run in it, with the images they generate; and the calls made with the project's own API keys. It applies on top of the limits of whoever asked for the work, including runs a schedule started, and never to work outside the project. Work running in the project holds what it may spend against the project's budget too, so two requests sent at the same moment cannot pass a nearly reached project budget together. A request it refuses names it as the project's limit. Transcribed recordings are not counted toward a project, and a project budget warns no one before it is reached.
+
+<Frame caption="Add budget rule — a monthly cost cap for the Website relaunch project.">
+
+![The Add budget rule dialog with the scope set to Project, Website relaunch chosen as the project, a monthly period, and a maximum cost of 200 USD; the token and request limits are left empty, and no warning threshold is offered for a project.](/images/platform/governance-budget-project-rule.webp)
+
+</Frame>
 
 Managed agent runs count against the person who started them. A run you start from a task, a comment, the REST API, or the MCP endpoint uses your personal and team caps, and a run started with an API key also counts toward that key. Runs that a schedule, a webhook, or an event started have no person behind them: only the organization's limits apply to them, and [Usage analytics](/platform/admin/governance/usage-analytics) lists them under **Automations (triggers)**. [How usage is counted](/platform/admin/governance/usage-attribution) explains the rule for every kind of work.
 

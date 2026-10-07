@@ -285,6 +285,11 @@ async function setDataNotice(page: Page, on: boolean): Promise<void> {
   await expect(toggle).toBeChecked({ checked: on });
 }
 const RELAUNCH_PROJECT = DEMO_PROJECTS[0].name;
+/** The Add budget rule dialog on Policies & Limits. */
+const budgetRuleDialog = (page: Page): Locator =>
+  page.getByRole('dialog', {
+    name: t('governance.budgets.addRuleDialogTitle'),
+  });
 /** The seeded project without agents of its own. */
 const ONBOARDING_PROJECT = DEMO_PROJECTS[1].name;
 
@@ -1779,6 +1784,44 @@ export const SHOTS: readonly Shot[] = [
     // Land the fold ON a section boundary (measured), not mid-row: any height is
     // a cut somewhere, so cut where the page already has a seam.
     viewport: { width: 1440, height: 1530 },
+  },
+  {
+    // A budget rule that caps one project: the Project scope, its picker with
+    // the project chosen, and a monthly cost cap — no warning threshold, as a
+    // project's cap warns no one. Captured before it is confirmed, so the
+    // demo organization's rules stay as seeded.
+    name: 'governance-budget-project-rule',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/policies-limits',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('governance.budgets.addRule') })
+        .first()
+        .click();
+      const dialog = budgetRuleDialog(page);
+      await dialog
+        .getByRole('combobox', { name: t('governance.budgets.scope') })
+        .click();
+      await page
+        .getByRole('option', {
+          name: t('governance.budgets.scopeLabels.project'),
+          exact: true,
+        })
+        .click();
+      await dialog.getByLabel(t('governance.budgets.costLimitUsd')).fill('200');
+      // The project last: its picker keeps focus without a keyboard ring.
+      await dialog
+        .getByRole('button', { name: t('governance.budgets.project') })
+        .click();
+      await page
+        .getByRole('option', { name: RELAUNCH_PROJECT, exact: true })
+        .click();
+    },
+    readyWhen: (page) =>
+      budgetRuleDialog(page)
+        .getByRole('button', { name: t('governance.budgets.project') })
+        .filter({ hasText: RELAUNCH_PROJECT }),
+    capture: (page) => budgetRuleDialog(page),
   },
   {
     // Governance > Policies & Limits — who may share a skill with the whole
