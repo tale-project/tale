@@ -658,6 +658,8 @@ describe('Home panel in Chromium', () => {
       if (link === null) return;
       event.preventDefault();
       opened.push(link.pathname);
+      // Model the router completing navigation before asserting the new active row.
+      renderHome({ threads: chatList(2_000), openThreadId: 'chat-1001' });
     };
     frame().addEventListener('click', capture);
     try {
