@@ -275,6 +275,8 @@ gets the plain canned reply, byte-for-byte):
 | `e2e:empty`            | a stream that ends without a word → the answerless-reply notice    |
 | `e2e:length`           | reasoning, then the output limit before any answer → its notice    |
 | `e2e:stream-error`     | a `200` stream that then reports a `502` → the provider-error UI   |
+| `e2e:gateway-route`    | an upstream named on every chunk, as OpenRouter does → Served by   |
+| `e2e:cloud-region`     | a region in an `x-ms-region` header, as Azure does → Region        |
 
 Connectors are deterministic too: connecting an API-key/token connector
 (Settings → Connectors) runs the connector's real `testConnection`, whose

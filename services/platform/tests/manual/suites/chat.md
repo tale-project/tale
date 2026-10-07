@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 103 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 104 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -30,8 +30,9 @@ message / enabling sharing — there is no static URL for them.)
 Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
 (or mode A's mock, wired per SETUP.md §1.A). In **mode A** any prompt returns the canned reply and the
 keyword triggers (`e2e:reasoning` / `e2e:error` / `e2e:empty` /
-`e2e:length` / `e2e:stream-error`) drive CHAT-F16, CHAT-F17, CHAT-F19,
-CHAT-F57 and CHAT-F58. Rows marked **mode B** need a live provider; CHAT-F25
+`e2e:length` / `e2e:stream-error` / `e2e:gateway-route` /
+`e2e:cloud-region`) drive CHAT-F16, CHAT-F17, CHAT-F19, CHAT-F57, CHAT-F58
+and CHAT-F62. Rows marked **mode B** need a live provider; CHAT-F25
 additionally needs a TTS-capable model,
 CHAT-F26/CHAT-AT7 an available organization audio transcription model, and CHAT-F32–CHAT-F33 a
 successfully indexed document (RAG indexing needs the full Docker stack — it
@@ -129,10 +130,28 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`aria-pressed`); the choice survives a reload of the thread.
 - [ ] `CHAT-F13` · **Message info dialog** — Assistant toolbar → **Show info**
   (`common.actions.showInfo`) → The **Message information** dialog
-  (`chat.messageInfo.title`) opens showing **Model**
-  (`chat.messageInfo.model`), **Token usage** (`chat.messageInfo.tokenUsage`),
-  and **Start → first token** (`chat.messageInfo.timeToFirstToken`); the model
+  (`chat.messageInfo.title`) opens on **Model** (`chat.messageInfo.model`)
+  — the model's name over its id, then **Provider**
+  (`chat.messageInfo.provider`) and **Region** (`chat.messageInfo.region`) —
+  then **Performance** (`chat.messageInfo.performance`) with **Time to first
+  token** (`chat.messageInfo.timeToFirstToken`), **Output speed**
+  (`chat.messageInfo.throughput`) and **Total time**
+  (`chat.messageInfo.duration`) over a bar whose legend's phases add up to the
+  total time, then **Token usage** (`chat.messageInfo.tokenUsage`) with its
+  total beside the heading, and the timestamp and message ID last; the model
   line matches the CHAT-F6 pick.
+- [ ] `CHAT-F62` · **Where a reply ran** — Mode A: send a message containing
+  `e2e:gateway-route` → **Show info** → **Served by**
+  (`chat.messageInfo.servedBy`) reads **Anthropic**, **Region** reads **Not
+  reported** (`chat.messageInfo.regionNotReported`) with its hint
+  (`chat.messageInfo.regionNotReportedHint`), and **Model version**
+  (`chat.messageInfo.modelVersion`) shows the requested id with a date
+  suffix. Then add an **Azure OpenAI** credential whose **Endpoint URL** is
+  the mock gateway (`http://127.0.0.1:4141/v1`) and whose **Model allowlist**
+  names one deployment, pick that deployment and send `e2e:cloud-region` →
+  **Show info** → **Region** reads **Switzerland North**, with no **Served
+  by** row. A reply to a prompt without a trigger shows no **Served by** row
+  and **Region** reads **Not reported**.
 - [ ] `CHAT-F14` · **Fork chat** — Assistant toolbar → **Fork chat**
   (`chat.forkChat`) → A toast **Chat forked successfully**
   (`chat.forkSuccess`); a new thread opens titled **Fork of {title}**
