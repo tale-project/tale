@@ -53,14 +53,18 @@ export async function revokeBoundKeysInTx(
 export type ApiKeyRetirementReason =
   | 'team_deleted'
   | 'project_deleted'
-  | 'member_removed';
+  | 'member_removed'
+  | 'maker_removed';
 
 /**
  * End the keys that lost what they belonged to, inside the caller's own
- * transaction: a deleted team's keys, a deleted project's keys, or the keys
- * made for a member who left the organization. Each gets an
- * `api_key.revoked` audit row from the system, saying why. A person's own
- * keys are theirs and stay — they simply stop working here.
+ * transaction: a deleted team's keys, a deleted project's keys, the keys
+ * made for a member who left the organization, or the keys a member who
+ * left had made for others (`makerUserId`) — a key acts as its member only
+ * while its maker may. Each gets an `api_key.revoked` audit row from the
+ * system, saying why. A person's own keys are theirs and stay — they simply
+ * stop working here — and so do a team's, a project's and the
+ * organization's keys whose maker left.
  */
 export async function retireApiKeysInTx(
   tx: TransactionSql,
@@ -70,6 +74,7 @@ export async function retireApiKeysInTx(
     teamId?: string;
     projectId?: string;
     memberUserId?: string;
+    makerUserId?: string;
   },
 ): Promise<string[]> {
   const targets = await tx<{ apiKeyId: string }[]>`
@@ -80,6 +85,8 @@ export async function retireApiKeysInTx(
         OR (owner_kind = 'project' AND project_id = ${args.projectId ?? null})
         OR (owner_kind = 'member'
             AND principal_user_id = ${args.memberUserId ?? null})
+        OR (owner_kind = 'member'
+            AND created_by = ${args.makerUserId ?? null})
       )
   `;
   const revoked = await revokeBoundKeysInTx(tx, {
@@ -107,27 +114,22 @@ export async function retireApiKeysInTx(
 
 /**
  * Remove every key bound to an organization that is being deleted, with
- * the identities its team, project and organization keys acted as — inside
- * the deletion's own transaction. Members' own keys are theirs and stay.
+ * the identities they authenticated as — inside the deletion's own
+ * transaction. Members' own keys are theirs and stay, and so do the members.
  */
 export async function deleteOrganizationApiKeysInTx(
   tx: TransactionSql,
   organizationId: string,
 ): Promise<void> {
-  const rows = await tx<
-    { apiKeyId: string; principalUserId: string; kind: string }[]
-  >`
+  const rows = await tx<{ apiKeyId: string; keyUserId: string }[]>`
     DELETE FROM app.api_key_owners WHERE org_id = ${organizationId}
-    RETURNING api_key_id AS "apiKeyId", principal_user_id AS "principalUserId",
-              owner_kind AS "kind"
+    RETURNING api_key_id AS "apiKeyId", key_user_id AS "keyUserId"
   `;
   const keyIds = rows.map((row) => row.apiKeyId);
   if (keyIds.length > 0) {
     await tx`DELETE FROM "apikey" WHERE "id" = ANY(${keyIds})`;
   }
-  const identities = rows
-    .filter((row) => row.kind !== 'member')
-    .map((row) => row.principalUserId);
+  const identities = rows.map((row) => row.keyUserId);
   if (identities.length > 0) {
     await tx`DELETE FROM "user" WHERE "id" = ANY(${identities})`;
   }

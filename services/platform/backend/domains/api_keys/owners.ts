@@ -54,6 +54,10 @@ export interface ApiKeyOwner {
   apiKeyId: string;
   organizationId: string;
   kind: ApiKeyOwnerKind;
+  /** The identity the key authenticates as (`apikey.referenceId`) — one of
+   * its own for every kind, so an image that does not read this binding
+   * refuses the key rather than reading it as a person's own. */
+  keyUserId: string;
   /** Who the key acts as: the member, or the key's own identity. */
   principalUserId: string;
   teamId: string | null;
@@ -73,6 +77,7 @@ interface OwnerRow {
   apiKeyId: string;
   organizationId: string;
   kind: string;
+  keyUserId: string;
   principalUserId: string;
   teamId: string | null;
   projectId: string | null;
@@ -92,6 +97,7 @@ function toOwner(row: OwnerRow): ApiKeyOwner | null {
     apiKeyId: row.apiKeyId,
     organizationId: row.organizationId,
     kind: row.kind,
+    keyUserId: row.keyUserId,
     principalUserId: row.principalUserId,
     teamId: row.teamId,
     projectId: row.projectId,
@@ -113,7 +119,8 @@ export async function readApiKeyOwner(
   if (apiKeyId === '') return null;
   const rows = await db<OwnerRow[]>`
     SELECT api_key_id AS "apiKeyId", org_id AS "organizationId",
-           owner_kind AS "kind", principal_user_id AS "principalUserId",
+           owner_kind AS "kind", key_user_id AS "keyUserId",
+           principal_user_id AS "principalUserId",
            team_id AS "teamId", project_id AS "projectId", role, name,
            created_by AS "createdBy", created_at_ms AS "createdAt",
            revoked_at_ms AS "revokedAt", revoked_by AS "revokedBy"
@@ -146,12 +153,13 @@ export async function readKeyIdentity(
 ): Promise<ApiKeyOwner | null> {
   const rows = await db<OwnerRow[]>`
     SELECT api_key_id AS "apiKeyId", org_id AS "organizationId",
-           owner_kind AS "kind", principal_user_id AS "principalUserId",
+           owner_kind AS "kind", key_user_id AS "keyUserId",
+           principal_user_id AS "principalUserId",
            team_id AS "teamId", project_id AS "projectId", role, name,
            created_by AS "createdBy", created_at_ms AS "createdAt",
            revoked_at_ms AS "revokedAt", revoked_by AS "revokedBy"
     FROM app.api_key_owners
-    WHERE principal_user_id = ${userId} AND owner_kind <> 'member'
+    WHERE key_user_id = ${userId} AND owner_kind <> 'member'
     LIMIT 1
   `;
   const row = rows[0];
@@ -159,23 +167,28 @@ export async function readKeyIdentity(
 }
 
 /**
- * The live key whose own identity `userId` is — a team's, a project's or
- * the organization's key — or null when `userId` is a person (or the key
- * was revoked).
+ * The key whose own identity `userId` is — a team's, a project's or the
+ * organization's — while it may still act: not revoked, and its key row
+ * still there, enabled and unexpired. Null when `userId` is a person, or
+ * the key can no longer act — the work it started then acts for nobody.
  */
 export async function readServicePrincipal(
   db: Db,
   userId: string,
 ): Promise<ApiKeyOwner | null> {
   const rows = await db<OwnerRow[]>`
-    SELECT api_key_id AS "apiKeyId", org_id AS "organizationId",
-           owner_kind AS "kind", principal_user_id AS "principalUserId",
-           team_id AS "teamId", project_id AS "projectId", role, name,
-           created_by AS "createdBy", created_at_ms AS "createdAt",
-           revoked_at_ms AS "revokedAt", revoked_by AS "revokedBy"
-    FROM app.api_key_owners
-    WHERE principal_user_id = ${userId} AND owner_kind <> 'member'
-      AND revoked_at_ms IS NULL
+    SELECT o.api_key_id AS "apiKeyId", o.org_id AS "organizationId",
+           o.owner_kind AS "kind", o.key_user_id AS "keyUserId",
+           o.principal_user_id AS "principalUserId",
+           o.team_id AS "teamId", o.project_id AS "projectId", o.role, o.name,
+           o.created_by AS "createdBy", o.created_at_ms AS "createdAt",
+           o.revoked_at_ms AS "revokedAt", o.revoked_by AS "revokedBy"
+    FROM app.api_key_owners o
+    JOIN "apikey" k ON k."id" = o.api_key_id
+    WHERE o.key_user_id = ${userId} AND o.owner_kind <> 'member'
+      AND o.revoked_at_ms IS NULL
+      AND k."enabled" IS NOT FALSE
+      AND (k."expiresAt" IS NULL OR k."expiresAt" > now())
     LIMIT 1
   `;
   const row = rows[0];

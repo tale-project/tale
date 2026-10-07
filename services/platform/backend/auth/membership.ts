@@ -265,11 +265,17 @@ export async function removeMembershipCascade(
   `;
   // The API keys an Owner or Admin made for the member here act as them in
   // this organization alone; they end with the seat (the member's own keys
-  // are theirs and simply stop working here).
+  // are theirs and simply stop working here). So do the keys the member
+  // made for others: a key acts as its member only while its maker may.
   await retireApiKeysInTx(tx, {
     organizationId,
     reason: 'member_removed',
     memberUserId: userId,
+  });
+  await retireApiKeysInTx(tx, {
+    organizationId,
+    reason: 'maker_removed',
+    makerUserId: userId,
   });
   // The workspaces the member's runs with the organization's agents worked
   // in hold what those runs left behind — theirs, and reachable by nobody

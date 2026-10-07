@@ -59129,8 +59129,8 @@ async function checkOrganizationLifecycle(
   const orgKeyA = await mintInA({ kind: 'organization', role: 'member' });
   const memberKeyA = await mintInA({ kind: 'member', userId: plain.userId });
   const identityA = await sql<{ id: string }[]>`
-    SELECT principal_user_id AS id FROM app.api_key_owners
-    WHERE api_key_id = ${orgKeyA}
+    SELECT key_user_id AS id FROM app.api_key_owners
+    WHERE api_key_id IN (${orgKeyA}, ${memberKeyA})
   `;
 
   // The committed delete: rows, audit, cascade, pointers, config tree.
@@ -59163,16 +59163,16 @@ async function checkOrganizationLifecycle(
   `);
   const keyIdentitiesLeft = await count(sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM "user"
-    WHERE "id" = ${identityA[0]?.id ?? ''}
+    WHERE "id" = ANY(${identityA.map((row) => row.id)})
   `);
   const plainAccountLeft = await count(sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM "user" WHERE "id" = ${plain.userId}
   `);
   record(
-    'org delete removes the keys made for others there, and the identities of its own keys, not the member',
+    'org delete removes the keys made for others there, and the identities they authenticated as, not the member',
     orgKeyA !== '' &&
       memberKeyA !== '' &&
-      identityA.length === 1 &&
+      identityA.length === 2 &&
       boundKeysLeft === 0 &&
       keyIdentitiesLeft === 0 &&
       plainAccountLeft === 1,

@@ -26,7 +26,7 @@ interface Statement {
 function fakeTx(answers: {
   targets?: string[];
   revoked?: { apiKeyId: string; kind: string; name: string }[];
-  deleted?: { apiKeyId: string; principalUserId: string; kind: string }[];
+  deleted?: { apiKeyId: string; keyUserId: string }[];
 }): { tx: TransactionSql; statements: Statement[] } {
   const statements: Statement[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -68,7 +68,13 @@ describe('retireApiKeysInTx', () => {
     ).resolves.toEqual(['key-1']);
 
     // Only this organization's live keys of that team are looked for.
-    expect(statements[0]?.values).toEqual(['org-1', 'finance', null, null]);
+    expect(statements[0]?.values).toEqual([
+      'org-1',
+      'finance',
+      null,
+      null,
+      null,
+    ]);
     expect(statements[1]?.values.slice(1)).toEqual([
       'system',
       'org-1',
@@ -107,22 +113,42 @@ describe('retireApiKeysInTx', () => {
       }),
     ).resolves.toEqual([]);
     expect(statements).toHaveLength(1);
-    expect(statements[0]?.values).toEqual(['org-1', null, null, 'mia']);
+    expect(statements[0]?.values).toEqual(['org-1', null, null, 'mia', null]);
     expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('ends the keys a member who left had made for others, saying why [APIKEY-R2]', async () => {
+    // A member's key acts as its member only while its maker may.
+    const { tx, statements } = fakeTx({
+      targets: ['key-2'],
+      revoked: [{ apiKeyId: 'key-2', kind: 'member', name: 'Billing sync' }],
+    });
+    await expect(
+      retireApiKeysInTx(tx, {
+        organizationId: 'org-1',
+        reason: 'maker_removed',
+        makerUserId: 'ada',
+      }),
+    ).resolves.toEqual(['key-2']);
+    expect(statements[0]?.text).toContain(
+      "OR (owner_kind = 'member' AND created_by = ?)",
+    );
+    expect(statements[0]?.values).toEqual(['org-1', null, null, null, 'ada']);
+    expect(vi.mocked(createAuditLog).mock.calls[0]?.[1]).toMatchObject({
+      actorType: 'system',
+      metadata: { reason: 'maker_removed' },
+    });
   });
 });
 
 describe('deleteOrganizationApiKeysInTx', () => {
-  it('removes every bound key, and the identities only of the keys that are not a person [APIKEY-R7]', async () => {
+  it('removes every bound key and the identity each authenticated as, never a member [APIKEY-R7]', async () => {
     const { tx, statements } = fakeTx({
       deleted: [
-        { apiKeyId: 'key-member', principalUserId: 'mia', kind: 'member' },
-        { apiKeyId: 'key-team', principalUserId: 'identity-1', kind: 'team' },
-        {
-          apiKeyId: 'key-org',
-          principalUserId: 'identity-2',
-          kind: 'organization',
-        },
+        // A member's key authenticates as an identity of its own, too.
+        { apiKeyId: 'key-member', keyUserId: 'identity-0' },
+        { apiKeyId: 'key-team', keyUserId: 'identity-1' },
+        { apiKeyId: 'key-org', keyUserId: 'identity-2' },
       ],
     });
     await deleteOrganizationApiKeysInTx(tx, 'org-1');
@@ -132,10 +158,10 @@ describe('deleteOrganizationApiKeysInTx', () => {
         'DELETE FROM "apikey" WHERE "id" = ANY(?)',
         [['key-member', 'key-team', 'key-org']],
       ],
-      // Mia is a person: her account stays.
+      // The members the keys acted as are people: their accounts stay.
       [
         'DELETE FROM "user" WHERE "id" = ANY(?)',
-        [['identity-1', 'identity-2']],
+        [['identity-0', 'identity-1', 'identity-2']],
       ],
     ]);
   });

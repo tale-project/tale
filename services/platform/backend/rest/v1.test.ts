@@ -53,6 +53,8 @@ function fakeSql(
     /** The binding of a key bound to one organization, by key id
      * (`app.api_key_owners`); a key without one is a person's own. */
     keyOwners?: Record<string, object>;
+    /** Member roles by user id; anyone else a member is a `member`. */
+    roles?: Record<string, string>;
   } = {},
 ): {
   sql: Sql;
@@ -117,7 +119,7 @@ function fakeSql(
       return Promise.resolve(org === undefined ? [] : [org]);
     }
     if (text.includes('FROM "member" WHERE "organizationId"')) {
-      const [organizationId] = values;
+      const [organizationId, userId] = values;
       const isMember = memberOf.has(String(organizationId));
       if (world.revokeAfterFirstLookup === organizationId) {
         memberOf.delete(String(organizationId));
@@ -128,12 +130,22 @@ function fakeSql(
               {
                 id: 'm-1',
                 organizationId,
-                userId: 'user-1',
-                role: 'member',
+                userId: userId ?? 'user-1',
+                role: world.roles?.[String(userId)] ?? 'member',
               },
             ]
           : [],
       );
+    }
+    if (text.startsWith('SELECT "email" FROM "user"')) {
+      return Promise.resolve([{ email: `${String(values[0])}@example.com` }]);
+    }
+    // A team's or a project's key: its team or project still exists.
+    if (
+      text.startsWith('SELECT "id" FROM "team" WHERE "id"') ||
+      text.startsWith('SELECT id FROM app.projects WHERE id')
+    ) {
+      return Promise.resolve([{ id: values[0] }]);
     }
     return Promise.resolve([]);
   };
@@ -920,7 +932,9 @@ describe('/api/v1 door — a key bound to one organization', () => {
       apiKeyId: 'key-1',
       organizationId: 'org-1',
       kind,
-      principalUserId: 'user-1',
+      // The session the plugin verified is the key's own identity.
+      keyUserId: 'user-1',
+      principalUserId: kind === 'member' ? 'mia' : 'user-1',
       teamId: kind === 'team' ? 'team-1' : null,
       projectId: kind === 'project' ? 'project-1' : null,
       role: kind === 'member' ? null : 'editor',
@@ -996,10 +1010,11 @@ describe('/api/v1 door — a key bound to one organization', () => {
     expect(own.status).toBe(200);
   });
 
-  it('acts with a member’s live role, and stops once they left [APIKEY-R2]', async () => {
+  it('acts as the member with their live role, and stops once they left [APIKEY-R2]', async () => {
     const { auth } = fakeAuth();
     const staying = fakeSql(new Set(), {
       keyOwners: { 'key-1': binding('member') },
+      roles: { 'admin-1': 'admin' },
     });
     const res = await boundDoor(staying.sql, auth).request(
       'http://localhost/probe',
@@ -1008,13 +1023,15 @@ describe('/api/v1 door — a key bound to one organization', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
       role: 'member',
-      userEmail: 'user@example.com',
+      // The member, not the identity the key authenticated as.
+      userEmail: 'mia@example.com',
       owner: 'member',
     });
 
     const gone = fakeSql(new Set(), {
       memberOf: new Set(['org-2']),
       keyOwners: { 'key-1': binding('member') },
+      roles: { 'admin-1': 'admin' },
     });
     const refused = await boundDoor(gone.sql, auth).request(
       'http://localhost/probe',

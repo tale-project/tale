@@ -282,11 +282,15 @@ describe('createOwnedApiKey — a key for a member', () => {
         role: null,
       },
     });
-    // A server call naming the member: the key is theirs, no identity made.
+    // Minted for an identity of its own, never for Mia: only the binding
+    // says it acts as her, so an image that does not read the binding
+    // refuses it instead of reading it as her own key.
+    const [identity] = statementsMatching(statements, 'INSERT INTO "user"');
+    const keyUser = String(identity?.values[0]);
+    expect(keyUser).not.toBe('mia');
     expect(createApiKey).toHaveBeenCalledWith({
-      body: { name: 'Billing sync', userId: 'mia', expiresIn: 30 * 86_400 },
+      body: { name: 'Billing sync', userId: keyUser, expiresIn: 30 * 86_400 },
     });
-    expect(statementsMatching(statements, 'INSERT INTO "user"')).toEqual([]);
     const [binding] = statementsMatching(
       statements,
       'INSERT INTO app.api_key_owners',
@@ -295,6 +299,7 @@ describe('createOwnedApiKey — a key for a member', () => {
       'key-new',
       ORG,
       'member',
+      keyUser,
       'mia',
       null,
       null,
@@ -331,6 +336,49 @@ describe('createOwnedApiKey — a key for a member', () => {
       actorType: 'user',
       actorId: 'ada',
     });
+  });
+
+  it('makes no key for a member who left, or by a maker demoted, while it was minted', async () => {
+    for (const change of [
+      (members: Record<string, string>) => {
+        delete members.mia;
+      },
+      (members: Record<string, string>) => {
+        members.ada = 'developer';
+      },
+    ]) {
+      const members: Record<string, string> = { ...MEMBERS };
+      const { sql, statements } = fakeSql({ members });
+      const { auth } = fakeAuth(() => {
+        change(members);
+        return Promise.resolve({
+          id: 'key-new',
+          key: 'tale_secretABCD',
+          start: 'tale_s',
+          expiresAt: null,
+        });
+      });
+      await expect(
+        createOwnedApiKey(
+          { sql, auth },
+          {
+            organizationId: ORG,
+            actor: ADMIN,
+            name: 'Sync',
+            owner: { kind: 'member', userId: 'mia' },
+          },
+        ),
+      ).rejects.toMatchObject({ status: expect.any(Number) as number });
+      // The key minted meanwhile is removed again, with its identity.
+      expect(
+        statementsMatching(statements, 'DELETE FROM "apikey"').map(
+          (statement) => statement.values,
+        ),
+      ).toEqual([['key-new']]);
+      expect(
+        statementsMatching(statements, 'INSERT INTO app.api_key_owners'),
+      ).toEqual([]);
+    }
   });
 
   it('keeps the key when the member’s notice cannot be written', async () => {
@@ -394,10 +442,12 @@ describe('createOwnedApiKey — a key that is not a person', () => {
       statements,
       'INSERT INTO app.api_key_owners',
     );
-    expect(binding?.values.slice(0, 7)).toEqual([
+    expect(binding?.values.slice(0, 8)).toEqual([
       'key-new',
       ORG,
       'team',
+      principal,
+      // A key that is not a person acts as the identity it authenticates as.
       principal,
       'finance',
       null,

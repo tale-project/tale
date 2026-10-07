@@ -30,7 +30,10 @@ organization is made by an Owner or Admin of that organization (`API_KEY_OWNER_F
 ### APIKEY-R2 · A key made for a member acts as that member, in this organization only
 
 The key has the member's live role and teams, and stops working when they leave or are disabled
-here. It never works in another organization the member belongs to. The member is told the key
+here — or once whoever made it is no longer an Owner or Admin above them: a key never carries
+more authority than its maker could hand out today, and the keys a maker made end when the maker
+leaves. It authenticates as an identity of its own, so it never works in another organization the
+member belongs to, not even on an image that does not know about it. The member is told the key
 exists, sees it in their list and can end it. Its spend counts toward the member's own limits.
 
 - **Example**: Ada makes "Billing sync" for Mia → Mia gets a notification; the key reads what
@@ -48,8 +51,10 @@ key (`API_KEY_MEMBER_SELF`); one for an admin or the owner, by an admin, is refu
 ### APIKEY-R4 · A team's, a project's or the organization's key acts with the role it was given
 
 Such a key is not a person: it acts as an identity of its own, which no member list, picker or
-e-mail reaches, and it keeps working when the person who made it leaves. Its role is Member,
-Editor or Developer — or Admin for the organization's key alone (`API_KEY_ROLE_FORBIDDEN`).
+e-mail reaches and which can never be made a member (`MEMBER_ADD_FORBIDDEN`), and it keeps working
+when the person who made it leaves. Its role is Member, Editor or Developer — or Admin for the
+organization's key alone (`API_KEY_ROLE_FORBIDDEN`) — on every door it reaches, the MCP tools
+included.
 
 - **Example**: Ada makes the Finance team's key as an Editor → it edits what an editor of the
   Finance team can. She cannot make it an Admin.
@@ -69,8 +74,9 @@ the key acts with, and names whose key it is.
 
 A team's key sees the team's projects, documents and inbox. A project's key reaches its project,
 the project list (which shows that project only), `GET /me` and the model endpoints; any other
-route is refused (`API_KEY_SCOPE_FORBIDDEN`), and it reads no conversation or e-mail. The
-organization's key sees what its role sees across the organization.
+route is refused (`API_KEY_SCOPE_FORBIDDEN`). Through the chat assistant it reads its project's
+files and tasks, and none of the organization's contacts, products, websites, inbox or hub
+documents. The organization's key sees what its role sees across the organization.
 
 - **Example**: The Launch project's key calls `GET /contacts` → 403 `API_KEY_SCOPE_FORBIDDEN`.
 
@@ -78,9 +84,10 @@ organization's key sees what its role sees across the organization.
 
 ### APIKEY-R7 · A key ends when it is revoked or when what it belongs to is gone
 
-Deleting the team or the project, removing the member, or deleting the organization ends its
-keys at once, and each ending is recorded in the audit log, saying why. A revoked key is refused
-on its next request.
+Deleting the team or the project, or removing the member, revokes its keys at once, each recorded
+in the audit log by the system with the reason; the team's delete confirmation says how many keys
+it ends. Deleting the organization deletes its keys with it. A revoked key, or a team's or
+project's key whose team or project is gone, is refused on its next request.
 
 - **Example**: Ada deletes the Finance team → its key is refused from the next call on, and the
   audit log records the revocation by the system.
@@ -127,5 +134,7 @@ an active user.
   old one.
 - **Revoking a key stops what it would start, not what it started**: a run in flight or a REST
   message already accepted finishes and spends as the key.
+- **What a project's key starts in its project**: an agent run or an automation it starts there
+  runs with that agent's or automation's own equipment, which may reach beyond the project.
 - **The live-schema proof**: the binding table's constraints and the cascades are proven against
   Postgres by the `backend:integration` check, not by a test named here.

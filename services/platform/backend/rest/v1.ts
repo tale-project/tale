@@ -315,12 +315,11 @@ export function createRestV1Routes(deps: {
           403,
         );
       }
-      c.set('userId', session.user.id);
-      // A key that is not a person has no address of its own to report.
-      c.set(
-        'userEmail',
-        owner.kind === 'member' ? (session.user.email ?? '') : '',
-      );
+      // The key authenticates as its own identity; it acts as the member a
+      // member's key was made for, or as that identity. A key that is not a
+      // person has no address of its own to report.
+      c.set('userId', bound.userId);
+      c.set('userEmail', bound.email);
       c.set('organizationId', bound.organizationId);
       c.set('orgSlug', bound.orgSlug);
       c.set('role', bound.role);

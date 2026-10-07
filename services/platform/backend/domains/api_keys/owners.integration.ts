@@ -147,18 +147,25 @@ export async function checkApiKeyOwners(
   // ---- the binding table's own rules
   const violation = async (
     kind: string,
-    target: { teamId?: string; projectId?: string; role: string | null },
+    target: {
+      teamId?: string;
+      projectId?: string;
+      role: string | null;
+      /** Acting as someone else than its own identity. */
+      actsAsOther?: boolean;
+    },
   ): Promise<string> => {
+    const keyUser = `itest-identity-${randomUUID()}`;
     try {
       await sql`
         INSERT INTO app.api_key_owners (
-          api_key_id, org_id, owner_kind, principal_user_id, team_id,
-          project_id, role, name, created_by, created_at_ms
+          api_key_id, org_id, owner_kind, key_user_id, principal_user_id,
+          team_id, project_id, role, name, created_by, created_at_ms
         ) VALUES (
-          ${`itest-bad-${randomUUID()}`}, ${orgId}, ${kind},
-          ${`itest-principal-${randomUUID()}`}, ${target.teamId ?? null},
-          ${target.projectId ?? null}, ${target.role}, 'Refused',
-          ${ctx.userId}, ${now}
+          ${`itest-bad-${randomUUID()}`}, ${orgId}, ${kind}, ${keyUser},
+          ${target.actsAsOther === true ? ctx.userId : keyUser},
+          ${target.teamId ?? null}, ${target.projectId ?? null},
+          ${target.role}, 'Refused', ${ctx.userId}, ${now}
         )
       `;
       return 'inserted';
@@ -170,14 +177,16 @@ export async function checkApiKeyOwners(
   };
   const refused = [
     await violation('team', { role: 'member' }),
-    await violation('member', { role: 'member' }),
+    await violation('member', { role: 'member', actsAsOther: true }),
     await violation('project', { projectId: 'p', role: 'admin' }),
     await violation('organization', { teamId: 't', role: 'member' }),
+    // A key that is not a person acts as nobody but its own identity.
+    await violation('organization', { role: 'member', actsAsOther: true }),
   ];
   record(
-    'api key owners: the binding refuses a missing or stray target, a member key with a role, and an admin scoped key',
+    'api key owners: the binding refuses a missing or stray target, a member key with a role, an admin scoped key, and a key that is not a person acting as someone',
     refused.every((code) => code === '23514'),
-    `codes=${refused.join(',')} (want 23514 x4)`,
+    `codes=${refused.join(',')} (want 23514 x5)`,
   );
 
   // ---- the organization's own key: its own identity, in this organization
@@ -194,7 +203,7 @@ export async function checkApiKeyOwners(
     SELECT u."email",
            (SELECT count(*) FROM "member" m WHERE m."userId" = u."id")::int
              AS "memberships"
-    FROM app.api_key_owners o JOIN "user" u ON u."id" = o.principal_user_id
+    FROM app.api_key_owners o JOIN "user" u ON u."id" = o.key_user_id
     WHERE o.api_key_id = ${orgKey.id}
   `;
   record(
@@ -303,6 +312,11 @@ export async function checkApiKeyOwners(
     userId: person.userId,
   });
   const memberMe = await meOf(memberKey.key);
+  const memberKeyUser = await sql<{ keyUserId: string; referenceId: string }[]>`
+    SELECT o.key_user_id AS "keyUserId", k."referenceId"
+    FROM app.api_key_owners o JOIN "apikey" k ON k."id" = o.api_key_id
+    WHERE o.api_key_id = ${memberKey.id}
+  `;
   const notices = await sql<{ count: number }[]>`
     SELECT count(*)::int AS count FROM app.user_notifications
     WHERE user_id = ${person.userId} AND org_id = ${orgId}
@@ -335,6 +349,8 @@ export async function checkApiKeyOwners(
   record(
     'api key owners: a member’s key acts as the member, who is told of it and sees only their own',
     memberMe.status === 200 &&
+      memberKeyUser[0]?.referenceId === memberKeyUser[0]?.keyUserId &&
+      memberKeyUser[0]?.keyUserId !== person.userId &&
       memberMe.me?.user.id === person.userId &&
       memberMe.me.user.email === person.email &&
       memberMe.me.organizations.length === 1 &&
@@ -348,6 +364,43 @@ export async function checkApiKeyOwners(
       stretchCode === 'API_KEY_ORGANIZATION_MANAGED',
     `me=${memberMe.status} owner=${memberMe.me?.key?.owner.kind ?? '?'} notices=${notices[0]?.count ?? 0} sees=${JSON.stringify(personSees.map((key) => key.owner.kind))} endOrgKey=${endOrgKeyAsPerson.status} stretch=${stretch.status}/${stretchCode}`,
   );
+  // A member's key acts as its member only while its maker outranks them:
+  // an admin who made one and is then demoted holds a key that acts for
+  // nobody.
+  const maker = await signUpUser(base, `apikey-maker-${suffix}`);
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${orgId}, ${maker.userId}, 'admin', ${new Date()})
+  `;
+  const makerKeyResponse = await appDoor(
+    'POST',
+    '/api-keys',
+    {
+      name: `By maker ${suffix}`,
+      owner: { kind: 'member', userId: person.userId },
+    },
+    maker.cookie,
+  );
+  const makerKey = createdSchema.safeParse(
+    await makerKeyResponse.json().catch(() => null),
+  );
+  const makerKeySecret = makerKey.success ? makerKey.data.key : '';
+  const beforeDemotion = await rest(makerKeySecret, '/me');
+  await sql`
+    UPDATE "member" SET "role" = 'member'
+    WHERE "organizationId" = ${orgId} AND "userId" = ${maker.userId}
+  `;
+  const afterDemotion = await rest(makerKeySecret, '/me');
+  const afterDemotionCode = await codeOf(afterDemotion);
+  record(
+    'api key owners: a member’s key stops acting once its maker no longer outranks the member',
+    makerKeyResponse.status === 201 &&
+      beforeDemotion.status === 200 &&
+      afterDemotion.status === 403 &&
+      afterDemotionCode === 'ORG_FORBIDDEN',
+    `made=${makerKeyResponse.status} before=${beforeDemotion.status} after=${afterDemotion.status}/${afterDemotionCode}`,
+  );
+
   const removed = await fetch(
     `${base}/api/app/members/${memberRowId}?orgId=${orgId}`,
     { method: 'DELETE', headers: { cookie: ctx.cookie, origin: base } },

@@ -22,6 +22,7 @@ const ROW = {
   apiKeyId: 'key-1',
   organizationId: 'org-1',
   kind: 'team',
+  keyUserId: 'identity-1',
   principalUserId: 'identity-1',
   teamId: 'finance',
   projectId: null,
@@ -60,6 +61,22 @@ describe('readApiKeyOwner', () => {
 });
 
 describe('readServicePrincipal', () => {
+  it('lets a key act only while its key row is live, enabled and unexpired', async () => {
+    const statements: string[] = [];
+    const tag = (strings: TemplateStringsArray) => {
+      statements.push(strings.join('?').replace(/\s+/g, ' '));
+      return Promise.resolve([ROW]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for postgres.js
+    await readServicePrincipal(tag as unknown as Sql, 'identity-1');
+    expect(statements[0]).toContain('JOIN "apikey" k ON k."id" = o.api_key_id');
+    expect(statements[0]).toContain('o.revoked_at_ms IS NULL');
+    expect(statements[0]).toContain('k."enabled" IS NOT FALSE');
+    expect(statements[0]).toContain(
+      '(k."expiresAt" IS NULL OR k."expiresAt" > now())',
+    );
+  });
+
   it('names the key whose identity a user id is, and no one for an unknown kind', async () => {
     await expect(
       readServicePrincipal(fakeSql(ROW), 'identity-1'),

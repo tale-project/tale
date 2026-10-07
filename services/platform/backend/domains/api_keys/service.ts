@@ -232,6 +232,24 @@ async function resolveOwner(
   return { kind: 'organization', role: owner.role };
 }
 
+/** The maker's live role, read where the binding is written: one demoted
+ * while the key was minted makes none. */
+async function liveMakerRole(
+  db: Db,
+  organizationId: string,
+  userId: string,
+): Promise<string> {
+  const maker = await findOrganizationMember(db, organizationId, userId);
+  if (maker === null || !isAdminRole(maker.role)) {
+    throw new ApiKeyError(
+      'API_KEY_OWNER_FORBIDDEN',
+      'Only Owners and Admins make keys for a member, a team, a project or the organization.',
+      403,
+    );
+  }
+  return maker.role;
+}
+
 export interface CreatedOwnedApiKey {
   id: string;
   /** The secret, shown once. */
@@ -285,20 +303,20 @@ export async function createOwnedApiKey(
     args.owner,
   );
 
-  // The identity a key that is not a person acts as. Inserted directly: the
-  // user-create hooks (first-run setup, verification mail) are a person's.
-  const principalUserId = owner.memberUserId ?? generateId(32);
-  if (owner.memberUserId === undefined) {
-    await sql`
-      INSERT INTO "user" ("id", "name", "email", "emailVerified")
-      VALUES (${principalUserId}, ${name},
-              ${servicePrincipalEmail(principalUserId)}, false)
-    `;
-  }
+  // The identity the key authenticates as — one of its own for every kind,
+  // a member's key included: only the binding says whom it acts as, so an
+  // image that does not read the binding refuses the key instead of reading
+  // it as the member's own. Inserted directly: the user-create hooks
+  // (first-run setup, verification mail) are a person's.
+  const keyUserId = generateId(32);
+  const principalUserId = owner.memberUserId ?? keyUserId;
+  await sql`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified")
+    VALUES (${keyUserId}, ${name}, ${servicePrincipalEmail(keyUserId)}, false)
+  `;
   const dropIdentity = async (): Promise<void> => {
-    if (owner.memberUserId !== undefined) return;
     try {
-      await sql`DELETE FROM "user" WHERE "id" = ${principalUserId}`;
+      await sql`DELETE FROM "user" WHERE "id" = ${keyUserId}`;
     } catch (error) {
       console.error(
         '[api-keys] failed to remove the identity of a key that was not made',
@@ -313,7 +331,7 @@ export async function createOwnedApiKey(
     const result: unknown = await auth.api.createApiKey({
       body: {
         name,
-        userId: principalUserId,
+        userId: keyUserId,
         ...(args.expiresIn !== undefined ? { expiresIn: args.expiresIn } : {}),
       },
     });
@@ -334,12 +352,27 @@ export async function createOwnedApiKey(
     const ipParts =
       args.actor.ip !== undefined ? await splitIpForAudit(args.actor.ip) : {};
     await transactSerializable(sql, async (tx) => {
+      // What the key is bound to is checked again in the transaction that
+      // binds it: a member removed, a team or project deleted, or the maker
+      // demoted while the key was minted refuses it, and the catch below
+      // removes the key again.
+      const makerRole = await liveMakerRole(
+        tx,
+        args.organizationId,
+        args.actor.userId,
+      );
+      await resolveOwner(
+        tx,
+        args.organizationId,
+        { ...args.actor, role: makerRole },
+        args.owner,
+      );
       await tx`
         INSERT INTO app.api_key_owners (
-          api_key_id, org_id, owner_kind, principal_user_id, team_id,
-          project_id, role, name, created_by, created_at_ms
+          api_key_id, org_id, owner_kind, key_user_id, principal_user_id,
+          team_id, project_id, role, name, created_by, created_at_ms
         ) VALUES (
-          ${minted.id}, ${args.organizationId}, ${owner.kind},
+          ${minted.id}, ${args.organizationId}, ${owner.kind}, ${keyUserId},
           ${principalUserId}, ${owner.teamId ?? null},
           ${owner.projectId ?? null}, ${owner.role}, ${name},
           ${args.actor.userId}, ${now}

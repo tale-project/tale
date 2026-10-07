@@ -576,6 +576,7 @@ describe('GET /me for a key bound to one organization', () => {
     apiKeyId: 'key-1',
     organizationId: 'org-1',
     kind,
+    keyUserId: 'key-identity-1',
     principalUserId: 'user-1',
     teamId: target.teamId ?? null,
     projectId: target.projectId ?? null,

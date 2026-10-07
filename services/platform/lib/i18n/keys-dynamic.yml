@@ -175,7 +175,7 @@ entries:
   # owners and admins for more usage credits.
   - 'inbox.usageCreditsRequested'
   - 'inbox.usageCreditsRequestedBody'
-  # Keys made for a member (domains/api_keys/routes.ts): an Owner or Admin
+  # Keys made for a member (domains/api_keys/service.ts): an Owner or Admin
   # created an API key that acts as the member in this organization.
   - 'inbox.apiKeyCreatedForYou'
   - 'inbox.apiKeyCreatedForYouBody'

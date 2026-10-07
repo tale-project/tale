@@ -5,13 +5,21 @@
 -- more kinds of key exist, each bound to ONE organization:
 --
 --  - `member`: a key an Owner or Admin made for another member. It acts as
---    that member, with their live role and teams, in this organization only.
+--    that member, with their live role and teams, in this organization only,
+--    for as long as its maker is still an Owner or Admin above them.
 --  - `team`, `project`, `organization`: a key that is not a person. It acts
 --    as an identity of its own — a `"user"` row with no `member` or
 --    `teamMember` row, so no member list, picker, notification fan-out or
 --    identity-provider sync ever sees it — with the role chosen when it was
 --    made: across the organization, with one team's audience, or inside one
 --    project and nowhere else. It keeps working when its maker leaves.
+--
+-- Every key made here is minted for an identity of its own (`key_user_id`,
+-- the plugin's `apikey.referenceId`), a member's key included: the key
+-- authenticates as that identity, and only this table says whom it acts as.
+-- An image that does not read the table finds a user with no membership and
+-- refuses the key — it can never read a member's key as the member's own,
+-- which would work in every organization they belong to.
 --
 -- A key with no row here is a person's own key and behaves as it always did.
 -- The REST door reads the row on every keyed request (`backend/rest/v1.ts`);
@@ -27,10 +35,9 @@
 -- the numbered migrations run, and deletes an expired key on its own.
 --
 -- Rolling-deploy safe: a new table the previous image never reads. Keys the
--- previous image mints during the roll are personal keys, as they were; a
--- key this image makes for a member is, on the previous image, that member's
--- own key until the roll completes, and a key that is not a person is no
--- member there, so the previous image refuses it.
+-- previous image mints during the roll are personal keys, as they were, and
+-- every key this image makes authenticates there as an identity with no
+-- membership, so the previous image refuses it.
 
 CREATE TABLE IF NOT EXISTS app.api_key_owners (
   -- The Better Auth `apikey.id`.
@@ -39,8 +46,11 @@ CREATE TABLE IF NOT EXISTS app.api_key_owners (
   org_id text NOT NULL,
   owner_kind text NOT NULL
     CHECK (owner_kind IN ('member', 'team', 'project', 'organization')),
-  -- Who the key acts as (`apikey.referenceId`): the member, or the key's own
-  -- identity for a team, project or organization key.
+  -- The identity the key authenticates as (`apikey.referenceId`): a `"user"`
+  -- row of its own, with no membership, for every kind.
+  key_user_id text NOT NULL,
+  -- Who the key acts as: the member, or the key's own identity
+  -- (`key_user_id`) for a team, project or organization key.
   principal_user_id text NOT NULL,
   team_id text,
   project_id text,
@@ -63,13 +73,15 @@ CREATE TABLE IF NOT EXISTS app.api_key_owners (
   -- A team's or a project's key sees what a member of a team sees; an admin
   -- role would see every audience in the organization.
   CONSTRAINT api_key_owners_scoped_role
-    CHECK (owner_kind NOT IN ('team', 'project') OR role <> 'admin')
+    CHECK (owner_kind NOT IN ('team', 'project') OR role <> 'admin'),
+  -- A key that is not a person acts as its own identity.
+  CONSTRAINT api_key_owners_own_identity
+    CHECK (owner_kind = 'member' OR principal_user_id = key_user_id)
 );
 
--- A key that is not a person is its own identity: one identity, one key.
-CREATE UNIQUE INDEX IF NOT EXISTS api_key_owners_service_principal
-  ON app.api_key_owners (principal_user_id)
-  WHERE owner_kind <> 'member';
+-- One identity, one key.
+CREATE UNIQUE INDEX IF NOT EXISTS api_key_owners_key_user
+  ON app.api_key_owners (key_user_id);
 
 CREATE INDEX IF NOT EXISTS api_key_owners_org
   ON app.api_key_owners (org_id, owner_kind);

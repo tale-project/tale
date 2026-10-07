@@ -190,6 +190,15 @@ const WEBSITE_HIDDEN_STATUSES = new Set(['deleting', 'error']);
  */
 const WEBSITE_SUMMARY_CAP = 200;
 
+/** What a project's own API key may read through the chat tools: the
+ * subjects its access scope narrows to its project. Contacts, products,
+ * websites and the inbox are the organization's, never one project's. */
+const PROJECT_KEY_READ_SUBJECTS: ReadonlySet<string> = new Set([
+  'documents',
+  'tasks',
+  'projects',
+]);
+
 interface TaskLegRow {
   _id: string;
   title: string;
@@ -814,6 +823,35 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       const projectReadable =
         args.projectId !== undefined &&
         scope.projectIds.includes(args.projectId);
+      // A project's own API key reaches its project alone: its files, and
+      // never the hub's — not even their titles.
+      if (!scope.includeHub) {
+        const projectIds =
+          projectReadable && args.projectId !== undefined
+            ? [args.projectId]
+            : scope.projectIds;
+        if (projectIds.length === 0) {
+          return {
+            documents: [],
+            totalCount: null,
+            hasMore: false,
+            cursor: null,
+            warning: null,
+          };
+        }
+        return listDocumentsForAgent(sql, {
+          organizationId: args.organizationId,
+          teamIds: scope.teamIds,
+          isAdmin: scope.isAdmin,
+          projectIds,
+          ...(args.fileName !== undefined ? { fileName: args.fileName } : {}),
+          ...(args.extension !== undefined
+            ? { extension: args.extension }
+            : {}),
+          ...(args.limit !== undefined ? { limit: args.limit } : {}),
+          ...(args.cursor !== undefined ? { cursor: args.cursor } : {}),
+        });
+      }
       return listDocumentsForAgent(sql, {
         organizationId: args.organizationId,
         teamIds: scope.teamIds,
@@ -867,16 +905,28 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
     // ------------------------------------------------------- role gate
     // Tier-A matrix: an active member reads every chat-tool subject; the
     // disabled role reads nothing. The 0.4 per-subject role matrix ports
-    // with governance.
+    // with governance. A project's own API key reaches its project alone:
+    // the subjects narrowed to the caller's projects (documents, tasks,
+    // projects) stay open to it, the organization-wide ones do not.
     'sandbox/workspace_access:resolveWorkspaceReadAccess': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
-      const args = raw as { organizationId: string; userId: string };
+      const args = raw as {
+        organizationId: string;
+        userId: string;
+        subject?: string;
+      };
       const member = await findActingMember(
         sql,
         args.organizationId,
         args.userId,
       );
-      return { allowed: member !== null && member.role !== 'disabled' };
+      if (member === null || member.role === 'disabled') {
+        return { allowed: false };
+      }
+      if (member.apiKeyOwner?.kind === 'project') {
+        return { allowed: PROJECT_KEY_READ_SUBJECTS.has(args.subject ?? '') };
+      }
+      return { allowed: true };
     },
 
     // ------------------------------------------------------- observability

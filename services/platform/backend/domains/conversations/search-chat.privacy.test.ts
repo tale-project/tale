@@ -395,7 +395,7 @@ function evaluate(world: World, text: string, values: unknown[]): Row[] {
 
 /** `readServicePrincipal`: the live key whose own identity a user id is. */
 const KEY_IDENTITY_READ =
-  'SELECT api_key_id AS "apiKeyId", org_id AS "organizationId", owner_kind AS "kind", principal_user_id AS "principalUserId", team_id AS "teamId", project_id AS "projectId", role, name, created_by AS "createdBy", created_at_ms AS "createdAt", revoked_at_ms AS "revokedAt", revoked_by AS "revokedBy" FROM app.api_key_owners WHERE principal_user_id = ? AND owner_kind <> \'member\' AND revoked_at_ms IS NULL LIMIT 1';
+  'SELECT o.api_key_id AS "apiKeyId", o.org_id AS "organizationId", o.owner_kind AS "kind", o.key_user_id AS "keyUserId", o.principal_user_id AS "principalUserId", o.team_id AS "teamId", o.project_id AS "projectId", o.role, o.name, o.created_by AS "createdBy", o.created_at_ms AS "createdAt", o.revoked_at_ms AS "revokedAt", o.revoked_by AS "revokedBy" FROM app.api_key_owners o JOIN "apikey" k ON k."id" = o.api_key_id WHERE o.key_user_id = ? AND o.owner_kind <> \'member\' AND o.revoked_at_ms IS NULL AND k."enabled" IS NOT FALSE AND (k."expiresAt" IS NULL OR k."expiresAt" > now()) LIMIT 1';
 
 /** `readActingAudience`: a person's teams, UNION the audience of a key that
  * is its own identity — a team's key its team (while the team lives in this
@@ -421,6 +421,7 @@ function answerKeyOwners(world: World, text: string, values: unknown[]): Row[] {
         apiKeyId: key.id,
         organizationId: key.organizationId,
         kind: key.kind,
+        keyUserId: key.principalUserId,
         principalUserId: key.principalUserId,
         teamId: key.teamId,
         projectId: key.projectId,
