@@ -528,9 +528,19 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
         input: effect.input,
       });
     }
+    if (result.kind === 'failed') {
+      // The inner step's cause is the sub-run's, as it would be at the top
+      // level: re-read from the sentence instead, a reached budget
+      // (`budget_exceeded`) read as `node_error`, which counts toward a
+      // schedule's pause.
+      throw new NodeFailure(
+        result.code,
+        `subautomation "${ref}" failed: ${result.message}`,
+      );
+    }
     if (result.kind !== 'done') {
       throw new Error(
-        `subautomation "${ref}" ${result.kind}: ${result.kind === 'failed' ? result.message : 'did not complete'}`,
+        `subautomation "${ref}" ${result.kind}: did not complete`,
       );
     }
     return result.output;
