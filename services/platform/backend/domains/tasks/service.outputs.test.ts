@@ -1,7 +1,12 @@
 import type { TransactionSql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
-import { agentRecordTaskOutputsTrusted, type TaskRow } from './service.ts';
+import { selectTaskOutputsForStaging } from '../../core/tasks/agent_run_host.ts';
+import {
+  agentRecordTaskOutputsTrusted,
+  type TaskOutputEntry,
+  type TaskRow,
+} from './service.ts';
 
 vi.mock('../collab/service.ts', () => ({
   autoSubscribe: vi.fn(),
@@ -85,8 +90,38 @@ describe('agentRecordTaskOutputsTrusted — the producing run rides every entry'
       files: [file],
     });
     expect(writes[0]?.[0]).toEqual([
-      { ...file, runId: 'run-1' },
       { fileId: 's3:other', fileName: 'keep.md', fileType: 'x', fileSize: 2 },
+      { ...file, runId: 'run-1' },
+    ]);
+  });
+
+  it('stages a re-delivered oldest name among 65 retained outputs with its latest provenance', async () => {
+    const outputs = Array.from({ length: 65 }, (_, index) => ({
+      ...file,
+      fileId: `s3:old-${index}`,
+      fileName: `report-${index}.md`,
+      runId: 'run-old',
+    }));
+    const before = structuredClone(outputs);
+    const replacement = { ...file, fileName: 'report-0.md' };
+    const { tx, writes } = fakeTx(outputs);
+    await agentRecordTaskOutputsTrusted(tx, {
+      organizationId: 'org-1',
+      taskId: 't-1',
+      runId: 'run-new',
+      files: [replacement],
+    });
+    const persisted = writes[0]?.[0] as TaskOutputEntry[];
+    expect(persisted).toEqual([
+      ...outputs.slice(1),
+      { ...replacement, runId: 'run-new' },
+    ]);
+    expect(outputs).toEqual(before);
+    const selection = selectTaskOutputsForStaging(persisted);
+    expect(selection.omitted).toBe(1);
+    expect(selection.selected).toEqual([
+      ...outputs.slice(2),
+      { ...replacement, runId: 'run-new' },
     ]);
   });
 

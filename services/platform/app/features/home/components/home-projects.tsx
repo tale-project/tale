@@ -17,6 +17,7 @@ import { useAccentColor } from '@tale/ui/accent-color';
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { DialogErrorBoundary } from '@tale/ui/error-boundaries/dialog-error-boundary';
 import { lazyComponent } from '@tale/ui/lazy-component';
 import { SlidingHighlight } from '@tale/ui/section-nav';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -64,7 +65,7 @@ import {
 } from './home-stream';
 
 /**
- * The dialog New project opens loads the first time it opens, not with Home:
+ * The dialog New project loads on demand, not with Home:
  * it brings the project form and its identity picker. Pointing at the button
  * starts the load, so a click mostly finds it there.
  */
@@ -79,7 +80,7 @@ const ProjectCreateDialog = lazyComponent<
 );
 function warmProjectCreateDialog() {
   loadProjectCreateDialog().catch((error: unknown) => {
-    // Opening the dialog loads it again, and says so if it still fails.
+    // Report the warm-up failure; the dialog boundary handles render failure.
     console.warn('[home] the project dialog did not load ahead', error);
   });
 }
@@ -416,11 +417,13 @@ export function HomeProjects({
         </div>
       </SubPanelDisclosureBody>
       {canCreate && scope === undefined && createOpen && (
-        <ProjectCreateDialog
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          organizationId={organizationId}
-        />
+        <DialogErrorBoundary onError={() => setCreateOpen(false)}>
+          <ProjectCreateDialog
+            open={createOpen}
+            onOpenChange={setCreateOpen}
+            organizationId={organizationId}
+          />
+        </DialogErrorBoundary>
       )}
     </section>
   );

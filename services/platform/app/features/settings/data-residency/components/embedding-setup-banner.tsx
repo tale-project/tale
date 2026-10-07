@@ -1,5 +1,6 @@
 'use client';
 
+import { ErrorBoundaryBase } from '@tale/ui/error-boundaries/error-boundary-base';
 import { lazy, Suspense } from 'react';
 
 import { useProviderCredentials } from '@/app/features/settings/providers/hooks/queries';
@@ -81,8 +82,10 @@ const EmbeddingSetupAlert = lazy(() =>
 function EmbeddingSetupNudge({ organizationId }: { organizationId: string }) {
   if (useEmbeddingSetupNudge(organizationId) !== 'shown') return null;
   return (
-    <Suspense fallback={null}>
-      <EmbeddingSetupAlert organizationId={organizationId} />
-    </Suspense>
+    <ErrorBoundaryBase fallback={() => null}>
+      <Suspense fallback={null}>
+        <EmbeddingSetupAlert organizationId={organizationId} />
+      </Suspense>
+    </ErrorBoundaryBase>
   );
 }

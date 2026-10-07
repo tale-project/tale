@@ -140,6 +140,15 @@ defaultModels:
     d'accès aux modèles pour cette portée. Les utilisateurs concernés
     basculeront vers un modèle autorisé.
   blocklistConflictWarningTitle: Modèle bloqué
+  scopeLabels:
+    default: Par défaut
+    team: Équipe
+    role: Rôle
+  roleLabels:
+    admin: Admin
+    developer: Développeur
+    editor: Éditeur
+    member: Membre
 visionModel:
   title: Modèle pour les images
   description:
@@ -1402,6 +1411,19 @@ modelAccess:
     des modèles qui ne seraient plus autorisés : {rules}. Les utilisateurs
     concernés basculeront vers un autre modèle autorisé.'
   removeDefaultConfirmAction: Enregistrer quand même
+  scopeLabels:
+    default: Par défaut
+    user: Utilisateur
+    team: Équipe
+    role: Rôle
+  roleLabels:
+    admin: Admin
+    developer: Développeur
+    editor: Éditeur
+    member: Membre
+  modeLabels:
+    allowlist: Liste d’autorisation
+    blocklist: Liste de blocage
   modelApi:
     title: Endpoints de modèles pour les clés API
     description: Permets aux propriétaires, aux admins et aux développeurs —

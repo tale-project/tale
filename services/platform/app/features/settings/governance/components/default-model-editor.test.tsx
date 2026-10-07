@@ -1,6 +1,10 @@
+import { AppShell } from '@tale/ui/app-shell';
+import { render as renderWithProviders } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { i18n } from '@/tests/utils/i18n-all-languages';
+import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import { DefaultModelEditor } from './default-model-editor';
 
@@ -93,6 +97,98 @@ function setLoading() {
 }
 
 describe('DefaultModelEditor', () => {
+  it.each(['en', 'de', 'fr'])(
+    'localizes rule scope and role labels (%s)',
+    async (language) => {
+      await i18n.changeLanguage(language);
+      try {
+        setLoaded();
+        state.config = {
+          enabled: true,
+          rules: [
+            {
+              scope: 'role',
+              scopeId: 'developer',
+              providerName: 'openai',
+              modelId: 'openai/gpt-4o',
+            },
+          ],
+        };
+        refreshPolicy();
+        const t = i18n.getFixedT(language, 'governance');
+        // Keep the selected test language: the shared render helper's client
+        // locale bridge would replace it with the detected browser preference.
+        const user = userEvent.setup();
+        renderWithProviders(
+          <AppShell i18n={i18n}>
+            <DefaultModelEditor organizationId="org-1" />
+          </AppShell>,
+        );
+        expect(
+          screen.getByRole('cell', {
+            name: t('defaultModels.scopeLabels.role'),
+          }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole('cell', {
+            name: t('defaultModels.roleLabels.developer'),
+          }),
+        ).toBeInTheDocument();
+        await user.click(
+          screen.getByRole('button', {
+            name: t('defaultModels.editRule', { index: 1 }),
+          }),
+        );
+        const dialog = within(screen.getByRole('dialog'));
+        const scopeSelect = dialog.getByRole('combobox', {
+          name: t('defaultModels.scope'),
+        });
+        expect(scopeSelect).toHaveTextContent(
+          t('defaultModels.scopeLabels.role'),
+        );
+        await user.click(scopeSelect);
+        for (const value of ['default', 'team', 'role']) {
+          expect(
+            i18n.exists(`defaultModels.scopeLabels.${value}`, {
+              lng: language,
+              ns: 'governance',
+            }),
+          ).toBe(true);
+          expect(
+            screen.getByRole('option', {
+              name: t(`defaultModels.scopeLabels.${value}`),
+            }),
+          ).toBeInTheDocument();
+        }
+        await user.keyboard('{Escape}');
+        const roleSelect = dialog.getByRole('combobox', {
+          name: t('defaultModels.role'),
+        });
+        expect(roleSelect).toHaveTextContent(
+          t('defaultModels.roleLabels.developer'),
+        );
+        await user.click(roleSelect);
+        for (const value of ['admin', 'developer', 'editor', 'member']) {
+          expect(
+            i18n.exists(`defaultModels.roleLabels.${value}`, {
+              lng: language,
+              ns: 'governance',
+            }),
+          ).toBe(true);
+          expect(
+            screen.getByRole('option', {
+              name: t(`defaultModels.roleLabels.${value}`),
+            }),
+          ).toBeInTheDocument();
+        }
+        await user.keyboard('{Escape}');
+      } finally {
+        cleanup();
+        await i18n.changeLanguage('en');
+      }
+    },
+  );
+
   describe('loaded state', () => {
     it('renders the real action button (in the a11y tree)', () => {
       setLoaded();

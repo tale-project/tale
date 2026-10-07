@@ -97,6 +97,8 @@ mentions:
     '{tokens} passt zu niemandem in deiner Organisation — es
     wurde keine Benachrichtigung gesendet.'
 errors:
+  documentPreview: Dokumentvorschau
+  errorLoadingDocumentPreview: Die Dokumentvorschau konnte nicht geladen werden. Versuche es erneut.
   generic: Etwas ist schiefgelaufen — versuch es erneut, oder lade die Seite neu, wenn das Problem bleibt.
   failedToCopy: Kopieren in die Zwischenablage fehlgeschlagen
   sessionEnded: Deine Sitzung ist beendet. Melde dich erneut an.

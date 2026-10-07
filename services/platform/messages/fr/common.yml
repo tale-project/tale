@@ -97,6 +97,8 @@ mentions:
     "{tokens} ne correspond à personne dans ta organisation —
     aucune notification n'a été envoyée."
 errors:
+  documentPreview: Aperçu du document
+  errorLoadingDocumentPreview: L'aperçu du document n'a pas pu être chargé. Réessaie.
   generic: Une erreur s'est produite — réessaie, ou recharge la page si le problème persiste.
   failedToCopy: Échec de la copie dans le presse-papiers
   sessionEnded: Ta session a pris fin. Reconnecte-toi.

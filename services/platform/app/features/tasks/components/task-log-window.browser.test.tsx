@@ -326,6 +326,88 @@ describe('task modal log window', () => {
     expect(list.querySelectorAll('[data-index]').length).toBeLessThan(40);
   });
 
+  it.each(['blurred', 'focused'] as const)(
+    'retains the same %s offscreen editor when the discussion crosses the window threshold',
+    async (focus) => {
+      const comments = state.comments.slice(0, 120);
+      state.comments = comments.slice(0, 90);
+      const view = render(<Harness mode="comments" canComment />);
+      const scroller = screen.getByTestId('scrollport');
+      const list = scroller.querySelector('ul');
+      if (list === null) throw new Error('Missing comment list');
+      expect(list.querySelectorAll('[data-index]')).toHaveLength(90);
+      await scrollTo(scroller, listStart(list, scroller));
+      const comment = await screen.findByText('Comment 0 opening line.');
+      const row = comment.closest('li');
+      if (row === null) throw new Error('Missing comment row');
+      await userEvent.click(
+        within(row).getByRole('button', { name: 'actions.edit' }),
+      );
+      const field = within(row).getByRole('textbox');
+      const draft = 'Draft retained across windowing';
+      await userEvent.fill(field, draft);
+      expect(field).toHaveFocus();
+      if (focus === 'blurred') {
+        await userEvent.click(
+          screen.getByRole('button', { name: 'detail.showEarlierComments' }),
+        );
+        expect(field).not.toHaveFocus();
+        expect(row.contains(document.activeElement)).toBe(false);
+      }
+      await scrollTo(
+        scroller,
+        listStart(list, scroller) + list.offsetHeight - scroller.clientHeight,
+      );
+      await waitFor(() => {
+        expect(screen.getByText('Comment 89 opening line.')).toBeVisible();
+        expect(row.getBoundingClientRect().bottom).toBeLessThan(
+          scroller.getBoundingClientRect().top,
+        );
+      });
+      // Allow the shared focus bridge's deferred blur release to finish before
+      // crossing. Otherwise its focus pin could mask missing edit registration.
+      await act(async () => {
+        for (let frame = 0; frame < 3; frame++) {
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          );
+        }
+      });
+      if (focus === 'focused') expect(field).toHaveFocus();
+      else expect(row.contains(document.activeElement)).toBe(false);
+      state.comments = comments;
+      view.rerender(<Harness mode="comments" canComment />);
+      await waitFor(() => {
+        expect(list.querySelectorAll('[data-index]').length).toBeGreaterThan(0);
+        expect(list.querySelectorAll('[data-index]').length).toBeLessThan(40);
+        // A nearby unpinned row must leave the range as well: bounded rows
+        // alone would not prove that the edit is outside the visible window.
+        expect(screen.queryByText('Comment 10 opening line.')).toBeNull();
+        expect(row.getBoundingClientRect().bottom).toBeLessThan(
+          scroller.getBoundingClientRect().top,
+        );
+      });
+      await act(async () => {
+        for (let frame = 0; frame < 3; frame++) {
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          );
+        }
+      });
+      expect(list.querySelectorAll('[data-index]').length).toBeLessThan(40);
+      expect(field).toBeInTheDocument();
+      expect(within(row).getByRole('textbox')).toBe(field);
+      expect(field).toHaveValue(draft);
+      if (focus === 'focused') {
+        expect(field).toHaveFocus();
+        expect(document.activeElement).not.toBe(document.body);
+      } else {
+        expect(field).not.toHaveFocus();
+        expect(row.contains(document.activeElement)).toBe(false);
+      }
+    },
+  );
+
   it('keeps an edit draft mounted after scrolling into older pages and moving focus', async () => {
     render(<Harness mode="comments" canComment leadHeight={0} />);
     const scroller = screen.getByTestId('scrollport');
