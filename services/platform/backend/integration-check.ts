@@ -17836,27 +17836,20 @@ async function checkSsoLogin(
     );
     orgConfig.clearOrgConfigCaches();
     const graceLogin = await loginRound();
-    const anchorAfterFirst = await sql<
-      { graceUntil: number; firstRequiredSignInAt: number | null }[]
-    >`
-      SELECT grace_until_ms::float8 AS "graceUntil",
-        first_required_sign_in_at_ms::float8 AS "firstRequiredSignInAt"
+    const anchorAfterFirst = await sql<{ graceUntil: number }[]>`
+      SELECT grace_until_ms::float8 AS "graceUntil"
       FROM app.two_factor_grace WHERE user_id = ${ssoUserId}
     `;
     const graceAgain = await loginRound();
-    const anchorAfterSecond = await sql<
-      { graceUntil: number; firstRequiredSignInAt: number | null }[]
-    >`
-      SELECT grace_until_ms::float8 AS "graceUntil",
-        first_required_sign_in_at_ms::float8 AS "firstRequiredSignInAt"
+    const anchorAfterSecond = await sql<{ graceUntil: number }[]>`
+      SELECT grace_until_ms::float8 AS "graceUntil"
       FROM app.two_factor_grace WHERE user_id = ${ssoUserId}
     `;
     const inGrace = await fetch(`${base}/api/app/projects?orgId=${orgId}`, {
       headers: { cookie: graceAgain.cookie, origin: base },
     });
     await sql`
-      UPDATE app.two_factor_grace
-      SET first_required_sign_in_at_ms = ${Date.now() - 8 * 24 * 60 * 60 * 1000}
+      UPDATE app.two_factor_grace SET grace_until_ms = ${Date.now() - 1}
       WHERE user_id = ${ssoUserId}
     `;
     const pastGrace = await fetch(`${base}/api/app/projects?orgId=${orgId}`, {
@@ -17877,9 +17870,6 @@ async function checkSsoLogin(
       graceLogin.callbackStatus === 302 &&
         graceLogin.cookie.includes('better-auth.session_token=') &&
         anchorAfterFirst.length === 1 &&
-        anchorAfterFirst[0]?.firstRequiredSignInAt != null &&
-        anchorAfterSecond[0]?.firstRequiredSignInAt ===
-          anchorAfterFirst[0]?.firstRequiredSignInAt &&
         (anchorAfterFirst[0]?.graceUntil ?? 0) > Date.now() &&
         anchorAfterSecond[0]?.graceUntil === anchorAfterFirst[0]?.graceUntil &&
         inGrace.status === 200 &&

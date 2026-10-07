@@ -266,24 +266,14 @@ export async function evaluateTwoFactorEnforcement(
   }
   const now = Date.now();
   const cap = now + policy.gracePeriodDays * 24 * 60 * 60 * 1000;
-  const anchors = await db<
-    {
-      graceUntil: number;
-      firstRequiredSignInAt: number | null;
-    }[]
-  >`
-    SELECT grace_until_ms::float8 AS "graceUntil",
-      first_required_sign_in_at_ms::float8 AS "firstRequiredSignInAt"
+  const anchors = await db<{ graceUntil: number }[]>`
+    SELECT grace_until_ms::float8 AS "graceUntil"
     FROM app.two_factor_grace WHERE user_id = ${userId}
   `;
-  const legacyDeadline = anchors[0]?.graceUntil ?? null;
-  const firstRequiredSignInAt = anchors[0]?.firstRequiredSignInAt ?? null;
-  // New rows derive from the explicit first-required-sign-in anchor. Legacy
-  // rows retain their stored deadline because their original time is unknown.
-  const deadline =
-    firstRequiredSignInAt === null
-      ? (legacyDeadline ?? cap)
-      : firstRequiredSignInAt + policy.gracePeriodDays * 24 * 60 * 60 * 1000;
+  const anchor = anchors[0]?.graceUntil ?? null;
+  // A stored anchor is capped by the CURRENT policy — a shortened grace
+  // takes effect immediately, a lengthened one never resets the clock.
+  const deadline = anchor === null ? cap : Math.min(anchor, cap);
   if (deadline <= now) {
     return {
       decision: 'blocked',
@@ -294,8 +284,7 @@ export async function evaluateTwoFactorEnforcement(
   }
   return {
     decision: 'grace',
-    graceUntilToSet:
-      firstRequiredSignInAt === null && legacyDeadline === null ? cap : null,
+    graceUntilToSet: anchor === null ? cap : null,
     graceDeadline: deadline,
     policy: wire,
   };
@@ -307,10 +296,9 @@ async function setGraceUntilIfAbsent(
   userId: string,
   graceUntil: number,
 ): Promise<void> {
-  const firstRequiredSignInAt = Date.now();
   await db`
-    INSERT INTO app.two_factor_grace (user_id, grace_until_ms, first_required_sign_in_at_ms)
-    VALUES (${userId}, ${graceUntil}, ${firstRequiredSignInAt})
+    INSERT INTO app.two_factor_grace (user_id, grace_until_ms)
+    VALUES (${userId}, ${graceUntil})
     ON CONFLICT (user_id) DO NOTHING
   `;
 }
