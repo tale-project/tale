@@ -190,11 +190,12 @@ export function useNavigationItems(businessId: string): NavigationItems {
       pinned: [
         {
           // Single Settings entry, pinned with the account tiles at the foot
-          // of the rail: configuration is not a place you work in. The index
-          // route redirects to the permission-appropriate landing page (org
-          // settings for admins, account for everyone else) via
-          // getDefaultSettingsRoute; the default active-path matcher lights
-          // it up for every `/settings` sub-route.
+          // of the rail: configuration is not a place you work in. On a
+          // computer the index route redirects to the permission-appropriate
+          // landing page via getDefaultSettingsRoute: Organization for
+          // Owners and Admins, Connectors for Developers, Account for
+          // everyone else. The default active-path matcher lights it up for
+          // every `/settings` sub-route.
           label: tNav('userSettings'),
           to: '/dashboard/$id/settings',
           params: { id: businessId },
