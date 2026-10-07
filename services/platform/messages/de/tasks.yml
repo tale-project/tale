@@ -354,6 +354,7 @@ assignee:
   standardAgentFooter: Bis dieses Projekt eigene Agenten hat, übernimmt der Standard-Agent der Organisation seine Aufgaben.
 activity:
   reviewResponded: "Review entschieden"
+  reviewDelegated: "Review weitergegeben"
   created: Erstellt
   updated: Aktualisiert
   claimed: Übernommen

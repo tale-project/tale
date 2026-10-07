@@ -274,6 +274,7 @@ agents:
     task_update_status: Déplacer des tâches entre colonnes
     task_update_metadata: Modifier la priorité et l'agent assigné aux tâches
     task_review: "Revoir les résultats des tâches d’autres agents"
+    task_delegate_review: "Réattribuer les relectures en attente des agents"
     task_start_agent: Lancer d'autres agents sur des tâches
     task_upsert_by_external_ref: Synchroniser un élément externe vers une tâche
     document_find: Trouver des documents

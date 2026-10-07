@@ -1254,7 +1254,7 @@ describe('configuration-only native plan admission', () => {
       const f = await hotFixture(false);
       const before = structuredClone(f.entries);
       await expect(f.apply()).rejects.toThrow(
-        'managed instructions and automations only',
+        'managed instructions, agent tool grants and automations only',
       );
       expect(f.entries).toEqual(before);
       expect(f.writes).toEqual([]);
@@ -1276,7 +1276,7 @@ describe('configuration-only native plan admission', () => {
       expect(f.writes).toEqual(['branding']);
       const before = await readFile(f.receipt, 'utf8');
       await expect(f.apply()).rejects.toThrow(
-        'managed instructions and automations only',
+        'managed instructions, agent tool grants and automations only',
       );
       expect(f.writes).toEqual(['branding']);
       expect(await readFile(f.receipt, 'utf8')).toBe(before);

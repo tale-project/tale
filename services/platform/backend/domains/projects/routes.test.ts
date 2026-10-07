@@ -35,6 +35,8 @@ const service = vi.hoisted(() => ({
   readProjectInstructionsConfiguration: vi.fn(),
   readAgentInstructionsConfiguration: vi.fn(),
   updateAgentInstructionsConfiguration: vi.fn(),
+  readAgentToolsConfiguration: vi.fn(),
+  updateAgentToolsConfiguration: vi.fn(),
   deleteProject: vi.fn(),
   getProjectAuthContext: vi.fn(),
   assertCanCreateProjects: vi.fn(),
@@ -92,9 +94,9 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
 import { createProjectRoutes } from './routes.ts';
 
 async function send(
-  method: 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'DELETE',
   route: string,
-  body: unknown,
+  body?: unknown,
 ): Promise<Response> {
   return await createProjectRoutes({
     sql: {} as never,
@@ -478,4 +480,63 @@ describe('managed instruction routes', () => {
       ).status,
     ).toBe(400);
   });
+});
+
+describe('managed tool routes [PROJ-R17]', () => {
+  const path = '/p1/agents/a1/configuration/tools';
+  const config = {
+    projectId: 'p1',
+    agentId: 'a1',
+    tools: ['task_get', 'task_review'],
+  };
+  const expectedHash = 'a'.repeat(64);
+
+  it('returns the native narrow view bound to both path identities', async () => {
+    service.readAgentToolsConfiguration.mockResolvedValue({
+      config,
+      hash: expectedHash,
+    });
+    const response = await send('GET', path);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ config, hash: expectedHash });
+    expect(service.readAgentToolsConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      'a1',
+    );
+  });
+
+  it('passes canonical grants and the reviewed preimage to the native writer', async () => {
+    const response = await send('POST', path, {
+      config: { ...config, tools: ['task_review', 'task_get', 'task_review'] },
+      expectedHash,
+    });
+    expect(response.status).toBe(200);
+    expect(service.updateAgentToolsConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      config,
+      expectedHash,
+    );
+    expect(service.updateProjectAgent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { config },
+    { config, expectedHash: null },
+    { config, expectedHash: 'bad-hash' },
+    { config: { ...config, tools: ['unknown_tool'] }, expectedHash },
+    { config: { ...config, projectId: 'other' }, expectedHash },
+    { config: { ...config, agentId: 'other' }, expectedHash },
+    { config: { ...config, secrets: [] }, expectedHash },
+    { config: { ...config, instructions: 'replace text' }, expectedHash },
+    { config, expectedHash, model: 'replace model' },
+  ])(
+    'refuses missing preconditions, path mismatch or unowned fields: %j',
+    async (body) => {
+      expect((await send('POST', path, body)).status).toBe(400);
+      expect(service.updateAgentToolsConfiguration).not.toHaveBeenCalled();
+    },
+  );
 });

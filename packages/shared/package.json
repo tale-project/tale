@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./agent-tool-grants": "./src/agent-tool-grants.ts",
     "./automation-name": "./src/automation-name.ts",
     "./task-limits": "./src/task-limits.ts",
     "./db/retry": "./src/db/retry.ts",

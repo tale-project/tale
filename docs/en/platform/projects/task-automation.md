@@ -59,6 +59,14 @@ To reconcile a lost verdict response across reviewer occurrences, read `task_get
 
 The reviewer must be different from the agent that actually produced the result, for either verdict. It needs a live run with project-wide authority and the review grant still enabled; a run started by a Member cannot decide reviews. An independent-human-review policy or required human competence records routes new reviews to the human chain; a captured agent review requires explicit transfer to an eligible person. Workflow approvals and questions addressed to a person keep their own human gates. Read `pendingReview.agentReviewBlockedReason` for a current source, grant, identity or policy problem before attempting a verdict. If GitHub work is involved, the reviewer must check the referenced commit and checks itself: Tale records its evidence but does not independently verify GitHub's current state or merge a pull request as part of the verdict.
 
+### Delegate a captured review {#delegate-review}
+
+A manager with **Delegate pending agent reviews** can transfer one waiting agent review to another eligible agent in the same project. The recipient must already have **Review other agents’ task results**, the access needed to inspect the work, and independence from the implementation agent. The manager cannot route the review to itself or convert a human or workflow review. This permission is separate from deciding reviews and starts no work.
+
+The manager reads `task_get`, copies the full approval, source-run and captured reviewer IDs and `evidenceRevision`, and calls `task_delegate_review` with that expectation, the recipient’s full `reviewerAgentId`, and a reason. A changed source, evidence, permission or policy refuses the handoff. The implementation assignment, task status and future reviewer settings stay unchanged. If execution is needed, use ordinary admission on the recipient’s own review task, never on the implementation task being judged.
+
+After a lost response, read `task_get.reviewDelegation` and the current `pendingReview`. The receipt records the previous and successor approval IDs, previous and new reviewer, source, evidence, manager, issuing run, reason and time. It is historical; it does not prove that the review is still pending or that a reviewer started. An identical retry requires the same live authorized manager run and the unchanged successor gate and evidence. A later occurrence reconciles the receipt and current state instead of replaying an old intent.
+
 ## Ask for changes
 
 Add a task comment that names what needs to change and **@mention the assigned agent**. The mention is an instruction: an active agent can receive it during its run, and an idle agent starts a rework run that continues the previous conversation. The result returns to **In review**.

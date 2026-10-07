@@ -129,7 +129,7 @@ Docker, Compose, unsupported container-mode failures or selecting HTTPS port `80
 - `-q, --quiet` — suppress container logs during the deploy.
 - `-y, --yes` — auto-accept destructive confirmation prompts (e.g. `--override-all`).
 - `--skip-backup` — skip the automatic pre-deploy volume snapshot.
-- `--configuration-only` — with `--bundle <directory>` (required), apply only hot managed configuration (instructions and automations) to the exact healthy runtime of an already-ready deployment, skipping the pre-deploy snapshot and restart. Use it when only those resources change; runtime and identity inputs must stay unchanged, with no pending runtime rollout.
+- `--configuration-only` — with `--bundle <directory>` (required), apply only hot managed configuration (instructions, agent tool grants and automations) to the exact healthy runtime of an already-ready deployment, skipping the pre-deploy snapshot and restart. Use it when only those resources change; runtime and identity inputs must stay unchanged, with no pending runtime rollout.
 - `--dry-run` — preview what would change without touching anything.
 
 ### Managed deployments
@@ -391,6 +391,10 @@ These resource kinds use the platform’s shared schemas and native permissions:
 | `provider-credential` | Named environment credential metadata                      | Organization |
 | `knowledge-embedding` | Provider, model, dimensions, endpoint and server limits    | Organization |
 | `deployment`          | Instance deployment settings, including sandbox runtime    | Instance     |
+
+Use `agent-tools` to manage only the tool grants of an existing agent. Its `config` requires the exact `projectId`, `agentId` and complete desired `tools` array, for example `["task_find", "task_get", "task_review"]`. Keep every grant you intend to retain; `[]` clears the tool set. The native catalog rejects unknown names and canonicalizes order and duplicates before hashing.
+
+Applying this resource requires editor access to the active project and an agent that the platform does not manage. Members can read the narrow configuration. Changes preserve every other agent field, including instructions, model and exact secret grants. The native hash refuses concurrent tool edits; a changed set also invalidates stale full-agent saves. An equivalent set changes no timestamp or audit row. A runtime without the requested capability refuses the operation. Read back the tools after applying, and retain the pending receipt to recover an interrupted apply.
 
 Retention and DSAR policies require their dedicated native workflows. Pause uploads, synchronization and crawls before changing the embedding model. The CLI checks organization-wide document and website counts; it does not lock ingestion or migrate existing vectors. For an organization with documents or registered websites, a model change requires a separate native indexing migration. A change limited to `minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` or `maxRequestsPerMinute` keeps existing vectors valid, so it skips this check. Instance settings also require the native deployment editor allowlist. Standalone application reports `restartRequired` for boot settings; saving those settings alone does not activate them. Review the plan’s effects before applying.
 
