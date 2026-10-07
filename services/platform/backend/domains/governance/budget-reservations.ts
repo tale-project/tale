@@ -67,6 +67,9 @@ interface HoldRow {
   orgCostCents: number;
   orgTokens: number;
   orgRequests: number;
+  projectCostCents: number;
+  projectTokens: number;
+  projectRequests: number;
   userCostCents: number;
   userTokens: number;
   userRequests: number;
@@ -87,11 +90,12 @@ interface HoldRow {
  * What every other piece of work in flight holds, per bucket the subject is
  * measured in: the organization's, the subject's own, each of their teams'
  * (the holds of that team's CURRENT members and of the keys it owns, as the
- * team's usage is read)
- * and the authenticating API key's — a keyed chat turn's, a keyed run's
+ * team's usage is read), the authenticating API key's — a keyed chat turn's, a keyed run's
  * managed turn and a model-endpoint request alike, each op row carrying the
  * key its reservation stamped, and, for a key that is not a person, every
- * hold of its identity. A chat turn's hold, a managed turn's
+ * hold of its identity — and the subject's project's: a chat turn in one
+ * of its threads, and every op row its reservation stamped with it. A chat
+ * turn's hold, a managed turn's
  * allowance and a model-endpoint request count as one request each; an
  * image generation in flight counts one per image it may make. Costs count
  * as reserved, tokens where the work sized them (a chat turn's round, a
@@ -111,20 +115,24 @@ export async function readInFlightReservations(
   const apiKeyId = subject.apiKeyId ?? null;
   // A key that is not a person: everything its identity holds is the key's.
   const keyIdentity = subject.apiKeyIdentity ?? null;
+  const projectId = subject.projectId ?? null;
   const rows = await sql<HoldRow[]>`
     WITH holds AS (
-      SELECT user_id, api_key_id,
-             reserved_cost_cents::float8 AS cost_cents,
-             reserved_tokens::float8 AS tokens,
+      -- A chat turn belongs to its thread's project.
+      SELECT g.user_id, g.api_key_id, tm.project_id,
+             g.reserved_cost_cents::float8 AS cost_cents,
+             g.reserved_tokens::float8 AS tokens,
              1::float8 AS requests
-      FROM app.generations
-      WHERE org_id = ${org} AND user_id IS NOT NULL
-        AND thread_id <> ${exclude.threadId ?? ''}
+      FROM app.generations g
+      LEFT JOIN app.thread_metadata tm ON tm.thread_id = g.thread_id
+      WHERE g.org_id = ${org} AND g.user_id IS NOT NULL
+        AND g.thread_id <> ${exclude.threadId ?? ''}
       UNION ALL
       -- A managed turn or a model-endpoint request: its gateway allowance
       -- (a subscription turn has none) and the tokens its hold sized, plus
-      -- the image generation it has in flight.
-      SELECT user_id, api_key_id,
+      -- the image generation it has in flight — in the project its
+      -- reservation stamped.
+      SELECT user_id, api_key_id, project_id,
              (coalesce(budget_cents, 0) + image_hold_cents)::float8,
              coalesce(reserved_tokens, 0)::float8,
              ((CASE WHEN budget_cents IS NULL THEN 0 ELSE 1 END)
@@ -176,6 +184,12 @@ export async function readInFlightReservations(
       coalesce(sum(requests) FILTER (
         WHERE api_key_id = ${apiKeyId} OR user_id = ${keyIdentity}), 0)::float8
         AS "keyRequests",
+      coalesce(sum(cost_cents) FILTER (WHERE project_id = ${projectId}), 0)::float8
+        AS "projectCostCents",
+      coalesce(sum(tokens) FILTER (WHERE project_id = ${projectId}), 0)::float8
+        AS "projectTokens",
+      coalesce(sum(requests) FILTER (WHERE project_id = ${projectId}), 0)::float8
+        AS "projectRequests",
       (SELECT json_agg(team_holds) FROM team_holds) AS "teams"
     FROM holds
   `;
@@ -190,6 +204,15 @@ export async function readInFlightReservations(
     user: hold(row?.userCostCents, row?.userTokens, row?.userRequests),
     ...(subject.apiKeyId !== undefined
       ? { apiKey: hold(row?.keyCostCents, row?.keyTokens, row?.keyRequests) }
+      : {}),
+    ...(subject.projectId !== undefined
+      ? {
+          project: hold(
+            row?.projectCostCents,
+            row?.projectTokens,
+            row?.projectRequests,
+          ),
+        }
       : {}),
     teams: Object.fromEntries(
       (row?.teams ?? []).map((team) => [

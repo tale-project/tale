@@ -160,6 +160,86 @@ describe('resolveSessionOpAttribution — workflow-agent', () => {
   });
 });
 
+describe('resolveSessionOpAttribution — the project the work is in [GOV-R14]', () => {
+  it('names the project an agent’s run is in, a schedule’s run included', async () => {
+    for (const startedBy of ['user-1', 'trigger:schedule-1']) {
+      const { sql } = fakeSql([
+        {
+          match: 'FROM app.project_agent_runs r',
+          rows: [{ startedBy, agentId: 'agent-1', projectId: 'project-1' }],
+        },
+      ]);
+      await expect(
+        resolveSessionOpAttribution(sql, TASK_OP),
+      ).resolves.toMatchObject({ projectId: 'project-1' });
+    }
+  });
+
+  it('names the project an automation run is in, whoever started it', async () => {
+    for (const startedBy of ['user:user-2', 'api-key:user-3', 'trigger:t-1']) {
+      const { sql } = fakeSql([
+        {
+          match: 'JOIN app.automation_runs ar',
+          rows: [
+            {
+              startedBy,
+              name: 'invoices/monthly',
+              apiKeyId: null,
+              projectId: 'project-1',
+            },
+          ],
+        },
+      ]);
+      await expect(
+        resolveSessionOpAttribution(sql, WORKFLOW_OP),
+      ).resolves.toMatchObject({ projectId: 'project-1' });
+    }
+  });
+
+  it('names none for a run outside a project, and reads the stamp’s once the run is gone', async () => {
+    const outside = fakeSql([
+      {
+        match: 'JOIN app.automation_runs ar',
+        rows: [
+          {
+            startedBy: 'user:user-2',
+            name: 'invoices/monthly',
+            apiKeyId: null,
+            projectId: null,
+          },
+        ],
+      },
+    ]);
+    await expect(
+      resolveSessionOpAttribution(outside.sql, WORKFLOW_OP),
+    ).resolves.not.toHaveProperty('projectId');
+    const stamped = fakeSql([
+      {
+        match: 'FROM app.sandbox_session_ops',
+        rows: [
+          {
+            userId: 'identity-1',
+            agentSlug: '__direct_api__',
+            apiKeyId: 'key-1',
+            projectId: 'project-1',
+          },
+        ],
+      },
+    ]);
+    await expect(
+      resolveSessionOpAttribution(stamped.sql, {
+        ...TASK_OP,
+        kind: 'model-api',
+      }),
+    ).resolves.toEqual({
+      userId: 'identity-1',
+      agentSlug: '__direct_api__',
+      apiKeyId: 'key-1',
+      projectId: 'project-1',
+    });
+  });
+});
+
 describe('splitModelRef', () => {
   it('splits the connector slug from the catalog id behind the gateway provider', () => {
     expect(splitModelRef('openai/openai/gpt-5')).toEqual({

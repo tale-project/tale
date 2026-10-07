@@ -85,7 +85,7 @@ describe('readInFlightReservations', () => {
     // keyed run's turn and a model-endpoint request alike — with the tokens
     // its hold sized and an image generation it has in flight.
     expect(read).toContain(
-      'SELECT user_id, api_key_id, (coalesce(budget_cents, 0) + image_hold_cents)::float8, coalesce(reserved_tokens, 0)::float8,',
+      'SELECT user_id, api_key_id, project_id, (coalesce(budget_cents, 0) + image_hold_cents)::float8, coalesce(reserved_tokens, 0)::float8,',
     );
     // A team's holds are its current members' and its own keys'.
     expect(read).toContain('FROM "teamMember" tm');
@@ -119,6 +119,48 @@ describe('readInFlightReservations', () => {
       // The user bucket's three filters, and the key bucket's three.
       6,
     );
+  });
+
+  it('holds against a project what its threads’ turns and its stamped ops hold [GOV-R14]', async () => {
+    const { sql, statements } = scriptedSql([
+      {
+        ...NO_HOLDS,
+        projectCostCents: 120,
+        projectTokens: 3_000,
+        projectRequests: 2,
+      },
+    ]);
+    const reservations = await readInFlightReservations(sql, {
+      organizationId: 'org-1',
+      userId: 'user-1',
+      userTeamIds: [],
+      projectId: 'project-1',
+    });
+    expect(reservations.project).toEqual({
+      costCents: 120,
+      tokens: 3_000,
+      requests: 2,
+    });
+    const read = statements[0]?.text ?? '';
+    // A chat turn is in its thread's project; an op in the project its
+    // reservation stamped.
+    expect(read).toContain(
+      'LEFT JOIN app.thread_metadata tm ON tm.thread_id = g.thread_id',
+    );
+    expect(read).toContain(
+      'coalesce(sum(cost_cents) FILTER (WHERE project_id = ?), 0)::float8 AS "projectCostCents"',
+    );
+    expect(statements[0]?.values).toContain('project-1');
+  });
+
+  it('answers no project hold for work outside a project', async () => {
+    const { sql } = scriptedSql([NO_HOLDS]);
+    const reservations = await readInFlightReservations(sql, {
+      organizationId: 'org-1',
+      userId: 'user-1',
+      userTeamIds: [],
+    });
+    expect(reservations).not.toHaveProperty('project');
   });
 
   it('adds an image generation in flight to its turn’s hold, one request per image', async () => {

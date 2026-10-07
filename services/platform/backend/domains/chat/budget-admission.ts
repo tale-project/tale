@@ -11,25 +11,28 @@ import {
   lockBudgetAdmission,
   readInFlightReservations,
 } from '../governance/budget-reservations.ts';
+import { readThreadProjectId } from './threads.ts';
 
 /**
  * The chat lane's budget admission. Every chat turn — the app's send,
  * regenerate and edit, both arena columns, a parked send the worker fires,
  * and a REST send — is measured against the caps that bind its sender
  * before it spends anything: their personal caps, their teams' shared caps,
- * the organization's, and, for a request an API key authenticated, the
- * key's own. The measure counts the booked usage plus what every turn still
- * in flight holds. A turn over a cap is refused with `BUDGET_EXCEEDED`,
- * which names the cap and when its period resets.
+ * the caps of the project the thread belongs to, the organization's, and,
+ * for a request an API key authenticated, the key's own. The measure counts
+ * the booked usage plus what every turn still in flight holds. A turn over
+ * a cap is refused with `BUDGET_EXCEEDED`, which names the cap and when its
+ * period resets.
  */
 
 export interface ChatBudgetRefusal {
   code: 'BUDGET_EXCEEDED';
   message: string;
-  /** Whose bucket is spent: the sender's own, a team's, the
-   * organization's, or the authenticating API key's. */
+  /** Whose bucket is spent: the sender's own, a team's, the thread's
+   * project's, the organization's, or the authenticating API key's. */
   scope: BudgetViolation['scope'];
   teamId?: string;
+  projectId?: string;
   /** Which cap: tokens, cost (cents) or requests. */
   limitCode: BudgetViolation['code'];
   period: BudgetViolation['period'];
@@ -56,6 +59,9 @@ export function toChatBudgetRefusal(
     message: budgetRefusalMessage(violation),
     scope: violation.scope,
     ...(violation.teamId !== undefined ? { teamId: violation.teamId } : {}),
+    ...(violation.projectId !== undefined
+      ? { projectId: violation.projectId }
+      : {}),
     limitCode: violation.code,
     period: violation.period,
     used: violation.used,
@@ -73,11 +79,13 @@ export function budgetRetryAfterSeconds(
   return Math.max(1, Math.ceil((resetsAt - now) / 1000));
 }
 
-/** Who a chat turn spends for. */
+/** Who a chat turn spends for, and the thread it spends in: a thread of a
+ * project spends the project's budget too. */
 export interface ChatTurnSender {
   organizationId: string;
   userId: string;
   apiKeyId?: string;
+  threadId?: string;
 }
 
 /**
@@ -106,10 +114,15 @@ export async function assertChatTurnBudget(
     exclude?: ChatTurnAdmissionExclude;
   },
 ): Promise<void> {
+  const projectId =
+    args.threadId !== undefined
+      ? await readThreadProjectId(sql, args.organizationId, args.threadId)
+      : undefined;
   const subject = await loadBudgetSubject(sql, {
     organizationId: args.organizationId,
     userId: args.userId,
     ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
+    ...(projectId !== undefined ? { projectId } : {}),
   });
   const violation = await findBudgetViolation(sql, subject, {
     reservations: await readInFlightReservations(

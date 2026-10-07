@@ -9,7 +9,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const policy = vi.hoisted(() => ({
-  config: null as null | { enabled: boolean; rules: unknown[] },
+  config: null as null | {
+    enabled: boolean;
+    rules: unknown[];
+    projectRules?: unknown[];
+  },
 }));
 
 vi.mock('../../lib/org-config.ts', () => ({
@@ -35,12 +39,13 @@ type LedgerUsage = {
   org?: Usage;
   teams?: Record<string, Usage>;
   apiKey?: Usage;
+  project?: Usage;
 };
 
 /** A tagged-template `sql` answering the ledger sums by the scope each query
- * names — the caller's `user_id`, a team's members, an `api_key_id`, or the
- * whole org — with the scoped id always the 3rd binding. `queries` records
- * every statement's text. */
+ * names — the caller's `user_id`, a team's members, an `api_key_id`, a
+ * project's own buckets, or the whole org — with the scoped id always the
+ * 3rd binding. `queries` records every statement's text. */
 function recordingLedger(usage: LedgerUsage) {
   const zero: Usage = { totalTokens: 0, costEstimate: 0, requestCount: 0 };
   const queries: string[] = [];
@@ -49,6 +54,7 @@ function recordingLedger(usage: LedgerUsage) {
     const text = strings.join('?');
     queries.push(text);
     bindings.push(values);
+    if (text.includes('app.project_usage')) return [usage.project ?? zero];
     if (text.includes('"teamMember"')) {
       return [usage.teams?.[String(values[2])] ?? zero];
     }
@@ -609,6 +615,27 @@ describe('readBudgetStanding', () => {
     ]);
   });
 
+  it('leaves a project’s cap out of what binds a reader in general', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [{ scope: 'org', period: 'monthly', maxCostCents: 10_000 }],
+      projectRules: [
+        {
+          scope: 'project',
+          scopeId: 'project-1',
+          period: 'monthly',
+          maxCostCents: 1_000,
+        },
+      ],
+    };
+    const standing = await readBudgetStanding(
+      ledger({}),
+      { ...SUBJECT, projectId: 'project-1' },
+      NOW,
+    );
+    expect(standing.map((bucket) => bucket.scope)).toEqual(['org']);
+  });
+
   it('lists periods from the shortest to the longest', async () => {
     policy.config = {
       enabled: true,
@@ -701,6 +728,44 @@ describe('loadBudgetSubject — an API key that is its own identity [APIKEY-R9]'
         userId: 'identity-1',
       }),
     ).resolves.toMatchObject({ userTeamIds: [], impersonal: true });
+  });
+
+  it('spends a project’s key in its own project, whatever project the lane names [GOV-R14]', async () => {
+    const project = identitySql(binding('project'));
+    for (const lane of [{}, { projectId: 'project-2' }]) {
+      await expect(
+        loadBudgetSubject(project.sql, {
+          organizationId: 'org-1',
+          userId: 'identity-1',
+          apiKeyId: 'key-1',
+          ...lane,
+        }),
+      ).resolves.toMatchObject({ impersonal: true, projectId: 'project-1' });
+    }
+    // The organization's key — and a person — spend in the project their
+    // work is in, and in none when it is in none.
+    const organization = identitySql(binding('organization'));
+    await expect(
+      loadBudgetSubject(organization.sql, {
+        organizationId: 'org-1',
+        userId: 'identity-1',
+        projectId: 'project-2',
+      }),
+    ).resolves.toMatchObject({ impersonal: true, projectId: 'project-2' });
+    await expect(
+      loadBudgetSubject(organization.sql, {
+        organizationId: 'org-1',
+        userId: 'identity-1',
+      }),
+    ).resolves.not.toHaveProperty('projectId');
+    const person = identitySql(null);
+    await expect(
+      loadBudgetSubject(person.sql, {
+        organizationId: 'org-1',
+        userId: 'mia',
+        projectId: 'project-2',
+      }),
+    ).resolves.toMatchObject({ userId: 'mia', projectId: 'project-2' });
   });
 
   it('is still the key once it was revoked, never a person', async () => {
@@ -908,6 +973,100 @@ describe('findBudgetViolation', () => {
       used: 10,
       limit: 10,
       resetsAt: Date.UTC(2026, 8, 16),
+    });
+  });
+
+  it('caps everything spent in a project, whoever spends it, and names the project [GOV-R14]', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [{ scope: 'default', period: 'monthly', maxCostCents: 5_000 }],
+      projectRules: [
+        {
+          scope: 'project',
+          scopeId: 'project-1',
+          period: 'monthly',
+          maxCostCents: 1_000,
+        },
+      ],
+    };
+    const usage = {
+      user: { totalTokens: 0, costEstimate: 30, requestCount: 1 },
+      project: { totalTokens: 0, costEstimate: 1_000, requestCount: 40 },
+    };
+    const { sql, queries, bindings } = recordingLedger(usage);
+    // Mia has spent 30 of her own 5000; the project is spent.
+    await expect(
+      findBudgetViolation(
+        sql,
+        { ...SUBJECT, projectId: 'project-1' },
+        { now: NOW },
+      ),
+    ).resolves.toEqual({
+      scope: 'project',
+      projectId: 'project-1',
+      code: 'COST_LIMIT',
+      period: 'monthly',
+      used: 1_000,
+      limit: 1_000,
+      reason: expect.stringContaining('Cost limit reached') as string,
+      resetsAt: Date.UTC(2026, 9, 1),
+    });
+    // The project's own buckets are what its cap reads.
+    const index = queries.findIndex((q) => q.includes('app.project_usage'));
+    expect(bindings[index]).toEqual(['org-1', 'project-1', '2026-09']);
+    // A run a schedule started in the project names nobody, and is held to
+    // the project's cap all the same.
+    await expect(
+      findBudgetViolation(
+        ledger(usage),
+        {
+          organizationId: 'org-1',
+          userId: '__automation__',
+          userTeamIds: [],
+          impersonal: true,
+          projectId: 'project-1',
+        },
+        { now: NOW },
+      ),
+    ).resolves.toMatchObject({ scope: 'project', projectId: 'project-1' });
+    // Work outside the project — or in another one — is not.
+    for (const subject of [SUBJECT, { ...SUBJECT, projectId: 'project-2' }]) {
+      await expect(
+        findBudgetViolation(ledger(usage), subject, { now: NOW }),
+      ).resolves.toBeNull();
+    }
+  });
+
+  it('counts the work in flight in a project toward its cap [GOV-R14]', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [],
+      projectRules: [
+        {
+          scope: 'project',
+          scopeId: 'project-1',
+          period: 'daily',
+          maxCostCents: 100,
+        },
+      ],
+    };
+    const sql = ledger({
+      project: { totalTokens: 0, costEstimate: 70, requestCount: 2 },
+    });
+    const subject = { ...SUBJECT, projectId: 'project-1' };
+    await expect(
+      findBudgetViolation(sql, subject, { now: NOW }),
+    ).resolves.toBeNull();
+    // Another member's turn in the project holds the remaining 30.
+    await expect(
+      findBudgetViolation(sql, subject, {
+        now: NOW,
+        reservations: { project: { costCents: 30, tokens: 0, requests: 1 } },
+      }),
+    ).resolves.toMatchObject({
+      scope: 'project',
+      code: 'COST_LIMIT',
+      used: 100,
     });
   });
 

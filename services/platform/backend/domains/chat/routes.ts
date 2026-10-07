@@ -37,6 +37,7 @@ import {
   assertChatTurnBudget,
   budgetRetryAfterSeconds,
   ChatBudgetExceededError,
+  type ChatBudgetRefusal,
 } from './budget-admission.ts';
 import { bulkUpdateThreads } from './bulk.ts';
 import {
@@ -302,7 +303,7 @@ function budgetErrorResponse<E extends OrgEnv>(
 async function refuseWhenOverBudget<E extends OrgEnv>(
   c: Context<E>,
   sql: Sql,
-  sender: { organizationId: string; userId: string },
+  sender: { organizationId: string; userId: string; threadId?: string },
 ): Promise<Response | null> {
   try {
     await assertChatTurnBudget(sql, sender);
@@ -768,6 +769,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const refused = await refuseWhenOverBudget(c, deps.sql, {
       organizationId,
       userId,
+      threadId: c.req.param('threadId'),
     });
     if (refused !== null) return refused;
     // The answer names the fork POINT beside the sibling: the server may hang
@@ -797,6 +799,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const refused = await refuseWhenOverBudget(c, deps.sql, {
       organizationId,
       userId,
+      threadId: c.req.param('threadId'),
     });
     if (refused !== null) return refused;
     const fork = await branchForRegenerate(
@@ -994,6 +997,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const refused = await refuseWhenOverBudget(c, deps.sql, {
       organizationId,
       userId,
+      threadId: c.req.param('threadId'),
     });
     if (refused !== null) return refused;
     try {
@@ -1214,15 +1218,21 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       await assertChatTurnBudget(deps.sql, {
         organizationId,
         userId,
+        // Both columns are threads of one conversation, in one project.
+        threadId: pair.threadIdA,
         prospectiveRequests: 2,
       });
     } catch (error) {
       if (!(error instanceof ChatBudgetExceededError)) throw error;
+      const { code, message, ...cap } = error.data;
       const refused = {
         status: 'refused' as const,
-        code: error.data.code,
-        reason: error.data.message,
+        code,
+        reason: message,
         persisted: false,
+        // The cap, as the send door names it: whose it is, which, and when
+        // it resets.
+        data: cap,
       };
       return c.json({ a: refused, b: refused });
     }
@@ -1246,6 +1256,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       reason?: string;
       persisted?: boolean;
       code?: string;
+      data?: Omit<ChatBudgetRefusal, 'code' | 'message'>;
     }> => {
       try {
         const outcome = await runChatTurn(deps.sql, {
@@ -1301,6 +1312,16 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           });
         } catch (writeErr) {
           console.error('[arena] could not record side failure', writeErr);
+        }
+        if (err instanceof ChatBudgetExceededError) {
+          const { code: _code, message: _message, ...cap } = err.data;
+          return {
+            status: 'refused',
+            reason,
+            code,
+            persisted: true,
+            data: cap,
+          };
         }
         return { status: 'refused', reason, code, persisted: true };
       }

@@ -17,6 +17,9 @@ import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
  *    automation's name, plus the API key when a keyed door started it; a run
  *    a TRIGGER started names nobody and books under `__automation__`.
  *
+ * Either run names the project it runs in, whoever started it: its spend is
+ * the project's too, which a `project` budget rule measures.
+ *
  * `started_by` is the door (`user:`/`api-key:`/`trigger:`), never copied
  * into the ledger as it is — `parseRunStarter` is the one reader of that
  * format. The op row's own stamp (written by the reservation from this very
@@ -26,6 +29,12 @@ export interface SessionOpAttribution {
   userId: string;
   agentSlug?: string;
   apiKeyId?: string;
+  projectId?: string;
+}
+
+/** The project a run names, when it runs in one. */
+function inProject(projectId: string | null): { projectId?: string } {
+  return projectId !== null ? { projectId } : {};
 }
 
 export async function resolveSessionOpAttribution(
@@ -38,8 +47,11 @@ export async function resolveSessionOpAttribution(
   },
 ): Promise<SessionOpAttribution | null> {
   if (args.kind === 'task-agent') {
-    const rows = await sql<{ startedBy: string; agentId: string }[]>`
-      SELECT r.started_by AS "startedBy", r.agent_id AS "agentId"
+    const rows = await sql<
+      { startedBy: string; agentId: string; projectId: string | null }[]
+    >`
+      SELECT r.started_by AS "startedBy", r.agent_id AS "agentId",
+             r.project_id AS "projectId"
       FROM app.project_agent_runs r
       WHERE r.org_id = ${args.organizationId}
         AND r.session_id = ${args.sessionId} AND r.exec_id = ${args.execId}
@@ -50,21 +62,34 @@ export async function resolveSessionOpAttribution(
     if (row !== undefined) {
       const starter = parseRunStarter(row.startedBy);
       if (starter.kind === 'user' || starter.kind === 'api-key') {
-        return { userId: starter.userId, agentSlug: row.agentId };
+        return {
+          userId: starter.userId,
+          agentSlug: row.agentId,
+          ...inProject(row.projectId),
+        };
       }
       // A run a schedule began (an automation's start step, or an agent
       // that run delegated to) names no person: like every run a trigger
       // starts, it books under the automation subject.
       if (starter.kind === 'trigger') {
-        return { userId: AUTOMATION_SUBJECT_ID, agentSlug: row.agentId };
+        return {
+          userId: AUTOMATION_SUBJECT_ID,
+          agentSlug: row.agentId,
+          ...inProject(row.projectId),
+        };
       }
     }
   } else if (args.kind === 'workflow-agent') {
     const rows = await sql<
-      { startedBy: string; name: string; apiKeyId: string | null }[]
+      {
+        startedBy: string;
+        name: string;
+        apiKeyId: string | null;
+        projectId: string | null;
+      }[]
     >`
       SELECT ar.started_by AS "startedBy", ar.name,
-             ar.api_key_id AS "apiKeyId"
+             ar.api_key_id AS "apiKeyId", ar.project_id AS "projectId"
       FROM app.sandbox_sessions s
       JOIN app.automation_runs ar
         ON ar.org_id = s.org_id AND ar.id = split_part(s.owner_id, ':', 1)
@@ -79,15 +104,24 @@ export async function resolveSessionOpAttribution(
       const starter = parseRunStarter(row.startedBy);
       switch (starter.kind) {
         case 'user':
-          return { userId: starter.userId, agentSlug: row.name };
+          return {
+            userId: starter.userId,
+            agentSlug: row.name,
+            ...inProject(row.projectId),
+          };
         case 'api-key':
           return {
             userId: starter.userId,
             agentSlug: row.name,
             ...(row.apiKeyId !== null ? { apiKeyId: row.apiKeyId } : {}),
+            ...inProject(row.projectId),
           };
         case 'trigger':
-          return { userId: AUTOMATION_SUBJECT_ID, agentSlug: row.name };
+          return {
+            userId: AUTOMATION_SUBJECT_ID,
+            agentSlug: row.name,
+            ...inProject(row.projectId),
+          };
         case 'unknown':
           break;
       }
@@ -98,10 +132,11 @@ export async function resolveSessionOpAttribution(
       userId: string | null;
       agentSlug: string | null;
       apiKeyId: string | null;
+      projectId: string | null;
     }[]
   >`
     SELECT user_id AS "userId", agent_slug AS "agentSlug",
-           api_key_id AS "apiKeyId"
+           api_key_id AS "apiKeyId", project_id AS "projectId"
     FROM app.sandbox_session_ops
     WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
     LIMIT 1
@@ -112,6 +147,7 @@ export async function resolveSessionOpAttribution(
     userId: op.userId,
     ...(op.agentSlug !== null ? { agentSlug: op.agentSlug } : {}),
     ...(op.apiKeyId !== null ? { apiKeyId: op.apiKeyId } : {}),
+    ...inProject(op.projectId),
   };
 }
 

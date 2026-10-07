@@ -90,6 +90,39 @@ describe('collectAllApplicableRules', () => {
     expect(result.length).toBeGreaterThanOrEqual(3); // user + team + role + default
   });
 
+  it('returns a project-scoped rule only for work in that project [GOV-R14]', () => {
+    const projectRules: BudgetRule[] = [
+      {
+        scope: 'project',
+        scopeId: 'project-1',
+        period: 'monthly',
+        maxCostCents: 1_000,
+      },
+    ];
+    expect(
+      collectAllApplicableRules(
+        projectRules,
+        'user-1',
+        [],
+        'member',
+        undefined,
+        'project-1',
+      ),
+    ).toHaveLength(1);
+    for (const projectId of [undefined, 'project-2']) {
+      expect(
+        collectAllApplicableRules(
+          projectRules,
+          'user-1',
+          [],
+          'member',
+          undefined,
+          projectId,
+        ),
+      ).toEqual([]);
+    }
+  });
+
   it('returns empty array when no rules match', () => {
     const result = collectAllApplicableRules(
       [],
@@ -513,6 +546,64 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxCostCents).toBe(5_000);
     expect(result.orgMaxTokens).toBe(50_000_000);
     expect(result.orgMaxCostCents).toBe(100_000);
+  });
+
+  it('resolves a project’s caps as its own bucket, never a personal one [GOV-R14]', () => {
+    const rules: BudgetRule[] = [
+      {
+        scope: 'project',
+        scopeId: 'project-1',
+        period: 'monthly',
+        maxCostCents: 10_000,
+        warningThresholdPercent: 80,
+      },
+      {
+        scope: 'project',
+        scopeId: 'project-1',
+        period: 'monthly',
+        maxCostCents: 6_000,
+        maxRequests: 900,
+      },
+      {
+        scope: 'project',
+        scopeId: 'project-2',
+        period: 'monthly',
+        maxCostCents: 1,
+      },
+      { scope: 'default', period: 'monthly', maxCostCents: 5_000 },
+    ];
+    const inProject = resolveEffectiveLimits(
+      collectAllApplicableRules(
+        rules,
+        'user-1',
+        [],
+        'member',
+        undefined,
+        'project-1',
+      ),
+      'user-1',
+      [],
+      'member',
+      undefined,
+      'project-1',
+    );
+    // The tightest of the project's own rules, field by field.
+    expect(inProject.projectLimits).toEqual({
+      projectId: 'project-1',
+      maxCostCents: 6_000,
+      maxRequests: 900,
+      warningThresholdPercent: 80,
+    });
+    // The person's own cap is still the default's.
+    expect(inProject.maxCostCents).toBe(5_000);
+    // Work in no project is held to no project's cap.
+    const outside = resolveEffectiveLimits(
+      collectAllApplicableRules(rules, 'user-1', [], 'member'),
+      'user-1',
+      [],
+      'member',
+    );
+    expect(outside.projectLimits).toBeUndefined();
   });
 
   it('resolves limits independently across different periods', () => {

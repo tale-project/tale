@@ -236,6 +236,9 @@ export async function settleSessionOpSpend(
       ...(attribution.agentSlug !== undefined
         ? { agentSlug: attribution.agentSlug }
         : {}),
+      ...(attribution.projectId !== undefined
+        ? { projectId: attribution.projectId }
+        : {}),
       ...(ref !== null ? { model: ref.model, provider: ref.provider } : {}),
     });
     return 'settled';

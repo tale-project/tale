@@ -204,6 +204,27 @@ describe('resolveImageTurnContext', () => {
     },
   );
 
+  it('names the project the turn’s run is in [GOV-R14]', async () => {
+    const { sql } = scriptedSql([
+      { match: 'FROM app.project_agent_runs', rows: [{ taskId: 'task_1' }] },
+    ]);
+    mocks.attribution.mockResolvedValue({
+      userId: '__automation__',
+      agentSlug: 'agent_1',
+      projectId: 'project_1',
+    });
+    await expect(
+      resolveImageTurnContext(sql, {
+        organizationId: 'org_1',
+        sessionId: 'pa-alice',
+        kind: 'task-agent',
+        execId: 'exec_1',
+      }),
+    ).resolves.toMatchObject({
+      subject: { userId: '__automation__', projectId: 'project_1' },
+    });
+  });
+
   it('books a run nobody started under the automation sentinel', async () => {
     const { sql } = scriptedSql([
       { match: 'FROM app.project_agent_runs', rows: [{ taskId: 'task_1' }] },
@@ -439,6 +460,22 @@ describe('admitImageGeneration', () => {
     expect(holdWrite(statements)?.values).toContain('__automation__');
   });
 
+  it('holds an image in a project to the project’s caps, whoever the turn is for [GOV-R14]', async () => {
+    for (const subject of [
+      { userId: 'user_starter', projectId: 'project_1' },
+      { userId: '__automation__', projectId: 'project_1' },
+    ]) {
+      mocks.findBudgetViolation.mockClear();
+      const { sql } = opSql();
+      await admitImageGeneration(sql, { ...ADMIT, subject, images: 1 }, deps);
+      expect(mocks.findBudgetViolation).toHaveBeenCalledWith(
+        sql,
+        expect.objectContaining({ projectId: 'project_1' }),
+        expect.anything(),
+      );
+    }
+  });
+
   it.each([
     ['the op is gone', [] as unknown[]],
     ['the op has ended', [opRow({ status: 'completed' })]],
@@ -525,6 +562,22 @@ describe('settleImageGeneration', () => {
       'pa-alice',
       'exec_1',
     ]);
+  });
+
+  it('books an image in a project to the project too [GOV-R14]', async () => {
+    const { sql } = scriptedSql([]);
+    await settleImageGeneration(sql, {
+      ...SETTLE,
+      subject: { ...SETTLE.subject, projectId: 'project_1' },
+      charges: [3.9],
+    });
+    expect(mocks.incrementUsageLedger).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        projectId: 'project_1',
+        costEstimateCents: 3.9,
+      }),
+    );
   });
 
   it("moves the key's cap to the allowance less every image booked or still held", async () => {

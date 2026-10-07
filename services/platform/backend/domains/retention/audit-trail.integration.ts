@@ -91,7 +91,11 @@ const POLICY_FILE = [
 /** The destruction rows a run over the seed must write, in sweep order:
  * the action, the rows it destroyed, and its per-table counts. */
 const EXPECTED_ROWS: [string, number, Record<string, number> | null][] = [
-  ['usage_ledger.retention_deleted', 3, { usageLedger: 2, usageEvents: 1 }],
+  [
+    'usage_ledger.retention_deleted',
+    4,
+    { usageLedger: 2, usageEvents: 1, projectUsage: 1 },
+  ],
   ['message_feedback.retention_deleted', 3, null],
   [
     'notification.retention_deleted',
@@ -379,6 +383,14 @@ async function seedSweep(
     ) VALUES (${orgId}, ${userId}, 'itest-model', 'itest', 1, 1, 2, ${ancient})
   `;
   await sql`
+    INSERT INTO app.project_usage (
+      org_id, project_id, granularity, period_key, input_tokens,
+      output_tokens, total_tokens, cost_estimate_cents, request_count,
+      updated_at_ms
+    ) VALUES (${orgId}, ${`rta-${tag}-project`}, 'daily', ${`rta-${tag}-a`},
+      1, 1, 2, 0, 1, ${ancient})
+  `;
+  await sql`
     INSERT INTO app.message_feedback (
       org_id, thread_id, message_id, user_id, rating, created_at_ms
     ) VALUES
@@ -578,6 +590,7 @@ async function sweepSurvivors(
     SELECT
       ((SELECT count(*) FROM app.usage_ledger WHERE org_id = ${orgId})
       + (SELECT count(*) FROM app.usage_events WHERE org_id = ${orgId})
+      + (SELECT count(*) FROM app.project_usage WHERE org_id = ${orgId})
       + (SELECT count(*) FROM app.message_feedback
          WHERE org_id = ${orgId} AND message_id <> ${`rta-${tag}-fresh`})
       + (SELECT count(*) FROM app.notifications WHERE org_id = ${orgId})

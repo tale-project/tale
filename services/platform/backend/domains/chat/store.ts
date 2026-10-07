@@ -444,6 +444,7 @@ function pgTurnStore(
               ...(admission.apiKeyId !== undefined
                 ? { apiKeyId: admission.apiKeyId }
                 : {}),
+              threadId: setup.threadId,
             },
             admissionExclude,
           );
@@ -631,6 +632,9 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
           : {}),
         model: entry.model,
         provider: entry.provider,
+        ...(entry.projectId !== undefined
+          ? { projectId: entry.projectId }
+          : {}),
       });
     },
   };

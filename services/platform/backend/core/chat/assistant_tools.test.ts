@@ -453,6 +453,8 @@ describe('rag_search', () => {
       connectorName: 'chat-tools',
       connectorOperation: 'rag_search',
     });
+    // A personal thread is in no project.
+    expect(usages[0]).not.toHaveProperty('projectId');
   });
 
   // The embedding model IS set up; its provider key does not resolve —
@@ -999,6 +1001,34 @@ describe('rag_fetch', () => {
       userId: 'user_1',
       access: expect.objectContaining({ projectIds: ['project_1'] }),
     });
+  });
+
+  it('books a tool call in a project’s thread to the project [GOV-R14]', async () => {
+    fetchDocumentByFileIdMock.mockResolvedValueOnce(null);
+    const { ctx, runMutation } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: () => ({
+          teamIds: ['org_org_1'],
+          projectIds: ['project_1'],
+          includeHub: true,
+          userId: 'user_1',
+        }),
+        [FILTER_FN]: () => [],
+      },
+    });
+    const executor = await makeExecutor(ctx, IN_PROJECT);
+    await executor.execute({
+      id: 'call_1',
+      name: 'rag_fetch',
+      input: { ref: 's3:acme/lead-verify.txt' },
+    });
+    expect(callsTo(runMutation, USAGE_FN)).toEqual([
+      expect.objectContaining({
+        connectorName: 'chat-tools',
+        connectorOperation: 'rag_fetch',
+        projectId: 'project_1',
+      }),
+    ]);
   });
 
   it('names a file it cannot read and states its true indexing state', async () => {

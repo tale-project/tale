@@ -12,7 +12,8 @@ content moderation and the usage pages are mostly not covered; see Not yet.
 ## Spending limits
 
 A limit caps tokens, cost or the number of requests over a day, a week or a month. It is set
-for one person, for a team, for a role, for an API key, or as the default for everyone.
+for one person, for a team, for a role, for an API key, for a project, or as the default for
+everyone.
 
 ### GOV-R1 · The most specific limit decides what one person can spend
 
@@ -40,6 +41,18 @@ tightens the limit of the person it belongs to, and the reverse.
 
 - **Example**: Mia's reporting key is capped at 10 a month and has used it up → calls with
   that key are refused, and Mia can still chat in the app.
+
+### GOV-R14 · A project's limit caps everything spent in the project, whoever spends it
+
+What a project spent is everything done in it: the chats in its threads (their titles, the
+answers read aloud and the assistant's tool calls included), the turns of its agents and of the
+automations run in it, with the images they make, and the calls made with its own API keys. Its
+limit binds that work on top of the limits of whoever asked for it, a run a schedule started
+included, and binds nothing done outside the project.
+
+- **Example**: The Website project is capped at 100 a month and has spent 100. Mia, far from
+  her own limit, writes in one of the project's chats → refused, naming the project's limit.
+  She can still chat outside the project.
 
 ### GOV-R4 · Work over a limit is refused, and the refusal names the limit
 
@@ -142,6 +155,9 @@ It counts only in the organization it was granted in.
   (`moderation.ts`).
 - **API keys**: creating, listing and revoking one (`api-keys.ts`).
 - **The usage pages** and their figures (`usage-metrics.ts`).
+- **A project's limit and transcription**: an audio or video file transcribed for a project's
+  chat is booked to the person who added it, not to the project, and a project's limit warns
+  no one before it is reached.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.

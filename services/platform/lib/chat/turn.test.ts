@@ -356,6 +356,19 @@ describe('runTurn — the happy path', () => {
     ]);
   });
 
+  it('books the usage of a turn in a project’s thread to the project [GOV-R14]', async () => {
+    const d = deps();
+    await runTurn(request({ projectId: 'project_1' }), d.deps);
+    expect(d.usage).toEqual([
+      expect.objectContaining({ userId: 'user_1', projectId: 'project_1' }),
+    ]);
+    const outside = deps();
+    await runTurn(request(), outside.deps);
+    expect(outside.usage).toEqual([
+      expect.not.objectContaining({ projectId: expect.anything() }),
+    ]);
+  });
+
   it('hands the open what the turn may spend, for the host to hold against the caps', async () => {
     const { store } = fakeStore();
     const spends: unknown[] = [];

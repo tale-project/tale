@@ -7605,9 +7605,9 @@ curl -H "Authorization: Bearer <api-key>" \\
                 },
                 scope: {
                   type: 'string',
-                  enum: ['user', 'team', 'org', 'apiKey'],
+                  enum: ['user', 'team', 'project', 'org', 'apiKey'],
                   description:
-                    'For BUDGET_EXCEEDED, whose cap is reached: the key holder’s own (`user`), one of their teams’ (`team`), the organization’s (`org`) or this API key’s (`apiKey`)',
+                    'For BUDGET_EXCEEDED, whose cap is reached: the key holder’s own (`user`), one of their teams’ (`team`), the project’s the conversation belongs to (`project`), the organization’s (`org`) or this API key’s (`apiKey`)',
                 },
                 period: {
                   type: 'string',

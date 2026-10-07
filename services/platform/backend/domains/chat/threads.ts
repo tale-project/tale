@@ -201,6 +201,20 @@ export async function projectChatAccess(
   return access.canRead ? 'ok' : 'forbidden';
 }
 
+/** The project a thread belongs to, if any — whose budget its spend
+ * counts toward, whoever spends it. */
+export async function readThreadProjectId(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  threadId: string,
+): Promise<string | undefined> {
+  const rows = await sql<{ projectId: string | null }[]>`
+    SELECT project_id AS "projectId" FROM app.thread_metadata
+    WHERE thread_id = ${threadId} AND org_id = ${organizationId}
+  `;
+  return rows[0]?.projectId ?? undefined;
+}
+
 /** Load a thread the caller OWNS — null when it does not exist, is someone
  * else's, or sits in the trash (indistinguishable by design). */
 export async function loadOwnedThread(

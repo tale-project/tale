@@ -404,4 +404,112 @@ describe('reserveTurnBudget', () => {
       expect.arrayContaining(['__automation__', 'invoices/monthly']),
     );
   });
+
+  describe('in a project [GOV-R14]', () => {
+    function projectStamp(statements: Statement[]): unknown {
+      const upsert = statements.find((s) =>
+        s.text.includes('INSERT INTO app.sandbox_session_ops'),
+      );
+      // `project_id` follows `api_key_id` in the insert's column list.
+      return upsert?.values[7];
+    }
+
+    it('holds an agent’s turn to its run’s project and stamps the project on the op', async () => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 500,
+      });
+      const { sql, statements } = fakeSql([
+        {
+          match: 'FROM app.project_agent_runs r',
+          rows: [
+            { startedBy: 'user-1', agentId: 'agent-1', projectId: 'project-1' },
+          ],
+        },
+      ]);
+      await reserveTurnBudget(sql, ARGS);
+      expect(gate.loadBudgetSubject).toHaveBeenCalledWith(expect.anything(), {
+        organizationId: 'org-1',
+        userId: 'user-1',
+        projectId: 'project-1',
+      });
+      expect(projectStamp(statements)).toBe('project-1');
+    });
+
+    it('holds a run a schedule started to its project’s caps too', async () => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 500,
+      });
+      const { sql, statements } = fakeSql([
+        {
+          match: 'JOIN app.automation_runs ar',
+          rows: [
+            {
+              startedBy: 'trigger:t-1',
+              name: 'invoices/monthly',
+              apiKeyId: null,
+              projectId: 'project-1',
+            },
+          ],
+        },
+      ]);
+      await reserveTurnBudget(sql, {
+        ...ARGS,
+        sessionId: 'wf-run-3',
+        kind: 'workflow-agent',
+      });
+      expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ impersonal: true, projectId: 'project-1' }),
+      );
+      expect(projectStamp(statements)).toBe('project-1');
+    });
+
+    it('stamps a project’s own key’s model request with the key’s project', async () => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 40,
+      });
+      // The key's binding names its project (`loadBudgetSubject`).
+      gate.loadBudgetSubject.mockResolvedValueOnce({
+        organizationId: 'org-1',
+        userId: 'identity-1',
+        userTeamIds: [],
+        userRole: 'member',
+        impersonal: true,
+        apiKeyId: 'key-9',
+        projectId: 'project-1',
+      } as never);
+      const { sql, statements } = fakeSql([]);
+      await reserveTurnBudget(sql, {
+        organizationId: 'org-1',
+        sessionId: 'model-api:key-9',
+        execId: 'req-2',
+        kind: 'model-api',
+        defaultBudgetCents: 40,
+        subject: {
+          userId: 'identity-1',
+          agentSlug: '__direct_api__',
+          apiKeyId: 'key-9',
+        },
+      });
+      expect(projectStamp(statements)).toBe('project-1');
+    });
+
+    it('stamps no project on work outside one', async () => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 500,
+      });
+      const { sql, statements } = fakeSql([
+        {
+          match: 'FROM app.project_agent_runs r',
+          rows: [{ startedBy: 'user-1', agentId: 'agent-1', projectId: null }],
+        },
+      ]);
+      await reserveTurnBudget(sql, ARGS);
+      expect(projectStamp(statements)).toBeNull();
+    });
+  });
 });

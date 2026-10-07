@@ -63,6 +63,22 @@ export interface EffectiveLimits {
    * in force for a member whose personal cap comes from a narrower rule.
    */
   teamLimits: TeamLimits[];
+  /**
+   * The caps of the project the work belongs to — a SHARED bucket like a
+   * team's, measured against everything spent in the project. Undefined
+   * when the work belongs to no project or no `project` rule names it.
+   */
+  projectLimits?: ProjectLimits;
+}
+
+/** One project's caps for the period (tightest per field when several of
+ * its rules name the same period). */
+export interface ProjectLimits {
+  projectId: string;
+  maxTokens?: number;
+  maxCostCents?: number;
+  maxRequests?: number;
+  warningThresholdPercent?: number;
 }
 
 /** One team's shared caps for the period (its own rule values, tightest per
@@ -94,6 +110,9 @@ export function teamLimitsHasCap(limits: TeamLimits): boolean {
  * applies when its `apiKeyId` matches — so a request made WITHOUT an API key
  * (in-app chat, `apiKeyId` undefined) never matches any per-key rule, and a
  * request made WITH key A never matches key B's rule.
+ *
+ * `projectId` is the project the work belongs to; a `project`-scoped rule
+ * applies only to work in that project.
  */
 export function collectAllApplicableRules(
   rules: BudgetRule[],
@@ -101,6 +120,7 @@ export function collectAllApplicableRules(
   userTeamIds: string[],
   userRole?: string,
   apiKeyId?: string,
+  projectId?: string,
 ): BudgetRule[] {
   return rules.filter((r) => {
     switch (r.scope) {
@@ -112,6 +132,8 @@ export function collectAllApplicableRules(
         return userRole != null && r.scopeId === userRole;
       case 'apiKey':
         return apiKeyId != null && r.apiKeyId === apiKeyId;
+      case 'project':
+        return projectId != null && r.scopeId === projectId;
       case 'org':
         return true;
       case 'default':
@@ -149,6 +171,7 @@ export function resolveEffectiveLimits(
   userTeamIds: string[],
   userRole?: string,
   apiKeyId?: string,
+  projectId?: string,
 ): EffectiveLimits {
   const userRules = rules.filter(
     (r) => r.scope === 'user' && r.scopeId === userId,
@@ -252,6 +275,31 @@ export function resolveEffectiveLimits(
   }
   const teamLimits = [...teamLimitsById.values()];
 
+  // The project's caps: a shared bucket of its own, like the org's — never
+  // part of the personal ladder above.
+  const projectRules =
+    projectId != null
+      ? rules.filter((r) => r.scope === 'project' && r.scopeId === projectId)
+      : [];
+  let projectLimits: ProjectLimits | undefined;
+  if (projectId != null && projectRules.length > 0) {
+    projectLimits = { projectId };
+    const projectTokens = minNonNull(projectRules.map((r) => r.maxTokens));
+    const projectCost = minNonNull(projectRules.map((r) => r.maxCostCents));
+    const projectRequests = minNonNull(projectRules.map((r) => r.maxRequests));
+    const projectThreshold = minNonNull(
+      projectRules.map((r) => r.warningThresholdPercent),
+    );
+    if (projectTokens !== undefined) projectLimits.maxTokens = projectTokens;
+    if (projectCost !== undefined) projectLimits.maxCostCents = projectCost;
+    if (projectRequests !== undefined) {
+      projectLimits.maxRequests = projectRequests;
+    }
+    if (projectThreshold !== undefined) {
+      projectLimits.warningThresholdPercent = projectThreshold;
+    }
+  }
+
   return {
     maxTokens,
     maxCostCents,
@@ -266,6 +314,7 @@ export function resolveEffectiveLimits(
     orgWarningThresholdPercent: orgWarningThreshold,
     apiKeyWarningThresholdPercent: apiKeyWarningThreshold,
     teamLimits,
+    ...(projectLimits !== undefined ? { projectLimits } : {}),
   };
 }
 

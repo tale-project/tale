@@ -64,6 +64,8 @@ export interface ImageSubject {
   userId: string;
   agentSlug?: string;
   apiKeyId?: string;
+  /** The project the turn's run is in: the image is its spend too. */
+  projectId?: string;
 }
 
 export type ImageTurnContext =
@@ -83,6 +85,9 @@ function subjectOf(attribution: SessionOpAttribution | null): ImageSubject {
       : {}),
     ...(attribution.apiKeyId !== undefined
       ? { apiKeyId: attribution.apiKeyId }
+      : {}),
+    ...(attribution.projectId !== undefined
+      ? { projectId: attribution.projectId }
       : {}),
   };
 }
@@ -235,6 +240,8 @@ async function budgetSubjectOf(
 ): Promise<OrgBudgetSubject> {
   const apiKey =
     subject.apiKeyId !== undefined ? { apiKeyId: subject.apiKeyId } : {};
+  const project =
+    subject.projectId !== undefined ? { projectId: subject.projectId } : {};
   return subject.userId === '' || isAutomationSubject(subject.userId)
     ? {
         organizationId,
@@ -242,11 +249,13 @@ async function budgetSubjectOf(
         userTeamIds: [],
         impersonal: true,
         ...apiKey,
+        ...project,
       }
     : loadBudgetSubject(sql, {
         organizationId,
         userId: subject.userId,
         ...apiKey,
+        ...project,
       });
 }
 
@@ -468,6 +477,9 @@ export async function settleImageGeneration(
           : {}),
         ...(args.subject.apiKeyId !== undefined
           ? { apiKeyId: args.subject.apiKeyId }
+          : {}),
+        ...(args.subject.projectId !== undefined
+          ? { projectId: args.subject.projectId }
           : {}),
         provider: args.provider,
         model: args.model,

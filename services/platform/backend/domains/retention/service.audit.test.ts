@@ -432,6 +432,7 @@ describe('runRetentionCleanup — the run audit trail', () => {
       orgRun({
         'DELETE FROM app.usage_ledger': ids(2, 'ledger-'),
         'DELETE FROM app.usage_events': ids(1, 'event-'),
+        'DELETE FROM app.project_usage': ids(1, 'project-'),
       }),
     );
 
@@ -446,8 +447,9 @@ describe('runRetentionCleanup — the run audit trail', () => {
       },
       holds: { organization: false, custodians: 2 },
     });
-    // The retired usage events age out on the ledger's clock and are counted
-    // with it, in the ledger delete's transaction.
+    // The retired usage events and the projects' own buckets age out on the
+    // ledger's clock and are counted with it, in the ledger delete's
+    // transaction.
     const ledger = appendOf('usage_ledger.retention_deleted');
     expect(ledger.tx).toBe(
       txOf(fake.statements, 'DELETE FROM app.usage_ledger'),
@@ -455,10 +457,13 @@ describe('runRetentionCleanup — the run audit trail', () => {
     expect(ledger.tx).toBe(
       txOf(fake.statements, 'DELETE FROM app.usage_events'),
     );
+    expect(ledger.tx).toBe(
+      txOf(fake.statements, 'DELETE FROM app.project_usage'),
+    );
     expect(ledger.row.metadata).toEqual({
       category: 'usageLedger',
-      deleted: 3,
-      counts: { usageLedger: 2, usageEvents: 1 },
+      deleted: 4,
+      counts: { usageLedger: 2, usageEvents: 1, projectUsage: 1 },
     });
   });
 

@@ -41,11 +41,12 @@ import {
 } from '../../lib/rate-limit.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
-import { loadOwnedThread } from '../chat/threads.ts';
+import { loadOwnedThread, readThreadProjectId } from '../chat/threads.ts';
 import { deleteOrgBlobRefs, putOrgBlobBytes } from '../files/service.ts';
 import {
   checkOrgBudget,
   loadBudgetSubject,
+  type OrgBudgetSubject,
 } from '../governance/budget-gate.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 
@@ -244,11 +245,7 @@ export async function setThreadVoiceOutputOverride(
  */
 export async function checkTtsBudget(
   sql: Sql | TransactionSql,
-  args: {
-    organizationId: string;
-    userId: string;
-    userTeamIds: string[];
-    userRole?: string;
+  args: OrgBudgetSubject & {
     prospectiveCostCents: number;
     prospectiveRequests: number;
   },
@@ -423,10 +420,17 @@ export async function reserveChunk(
     }
 
     // Measured as the member is now — their teams and their role, so a
-    // role's cap binds voice as it binds chat.
+    // role's cap binds voice as it binds chat — and, in a project's thread,
+    // against the project's caps too: reading its answers aloud is its spend.
+    const projectId = await readThreadProjectId(
+      tx,
+      args.organizationId,
+      args.threadId,
+    );
     const subject = await loadBudgetSubject(tx, {
       organizationId: args.organizationId,
       userId: args.userId,
+      ...(projectId !== undefined ? { projectId } : {}),
     });
     // No lane books a team on a ledger row: a team's usage is its CURRENT
     // members' usage, read through membership by the budget gate — so this
@@ -580,10 +584,16 @@ async function markChunkReadyAndRecordUsage(
     `;
     // Ledger rows for TTS always bucket under the TTS_SLUG sentinel so
     // voice cost surfaces as its own row, never folded into the agent.
+    const projectId = await readThreadProjectId(
+      tx,
+      row.organizationId,
+      row.threadId,
+    );
     await incrementUsageLedger(tx, {
       organizationId: row.organizationId,
       userId: row.userId,
       ...(row.teamId !== null ? { teamId: row.teamId } : {}),
+      ...(projectId !== undefined ? { projectId } : {}),
       agentSlug: TTS_SLUG,
       model: args.modelId,
       provider: args.providerName,

@@ -82,6 +82,12 @@ export async function reserveTurnBudget(
       attribution?.apiKeyId !== undefined
         ? { apiKeyId: attribution.apiKeyId }
         : {};
+    // The project the run is in: its caps bind the turn, a trigger's run
+    // included — it spends the project's budget all the same.
+    const project =
+      attribution?.projectId !== undefined
+        ? { projectId: attribution.projectId }
+        : {};
     // Nobody to measure — an op without a run to attribute, or a run a
     // trigger started — is evaluated against the organization's caps (and
     // the key's, were one involved) alone; a person is measured as they are
@@ -94,11 +100,13 @@ export async function reserveTurnBudget(
             userTeamIds: [],
             impersonal: true,
             ...apiKey,
+            ...project,
           }
         : await loadBudgetSubject(tx, {
             organizationId: args.organizationId,
             userId,
             ...apiKey,
+            ...project,
           });
     // The chat lane's opens take the same budget-admission lock and hold on
     // their generation rows: the allowance counts live chat turns as well
@@ -142,13 +150,14 @@ export async function reserveTurnBudget(
     await tx`
       INSERT INTO app.sandbox_session_ops (
         org_id, session_id, exec_id, kind, status, user_id, agent_slug,
-        api_key_id, model_ref, harness, budget_cents, reserved_tokens,
-        heartbeat_at_ms, started_at_ms
+        api_key_id, project_id, model_ref, harness, budget_cents,
+        reserved_tokens, heartbeat_at_ms, started_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.sessionId}, ${args.execId},
         ${args.kind}, 'running',
         ${userId === '' ? null : userId},
         ${attribution?.agentSlug ?? null}, ${attribution?.apiKeyId ?? null},
+        ${subject.projectId ?? null},
         ${args.modelRef ?? null}, ${args.harness ?? null},
         ${allowance.budgetCents}, ${args.whole?.prospectiveTokens ?? null},
         ${now}, ${now}
@@ -160,6 +169,8 @@ export async function reserveTurnBudget(
           EXCLUDED.agent_slug),
         api_key_id = coalesce(app.sandbox_session_ops.api_key_id,
           EXCLUDED.api_key_id),
+        project_id = coalesce(app.sandbox_session_ops.project_id,
+          EXCLUDED.project_id),
         model_ref = coalesce(EXCLUDED.model_ref,
           app.sandbox_session_ops.model_ref),
         harness = coalesce(EXCLUDED.harness, app.sandbox_session_ops.harness)
