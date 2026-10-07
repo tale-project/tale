@@ -104,14 +104,10 @@ interface DefaultModelEditorProps {
   organizationId: string;
 }
 
-const SCOPE_OPTIONS = [
-  { value: 'default', label: 'Default' },
-  { value: 'team', label: 'Team' },
-  { value: 'role', label: 'Role' },
-];
+const SCOPE_VALUES = ['default', 'team', 'role'] as const;
 
 function isScopeValue(v: string): v is DefaultModelRule['scope'] {
-  return SCOPE_OPTIONS.some((o) => o.value === v);
+  return SCOPE_VALUES.includes(v as (typeof SCOPE_VALUES)[number]);
 }
 
 function emptyRule(): DefaultModelRule {
@@ -272,7 +268,7 @@ function RuleDialog({
       <Stack gap={4}>
         <Select
           label={t('defaultModels.scope')}
-          options={SCOPE_OPTIONS}
+          options={scopeOptions}
           value={draft.scope}
           onValueChange={(value: string) => {
             if (isScopeValue(value)) {
@@ -285,7 +281,7 @@ function RuleDialog({
         {draft.scope === 'role' && (
           <Select
             label={t('defaultModels.role')}
-            options={ROLE_OPTIONS}
+            options={roleOptions}
             value={draft.scopeId ?? ''}
             onValueChange={(value) => updateDraft({ scopeId: value })}
             disabled={cannotManage}
@@ -364,6 +360,22 @@ function DefaultModelEditorContent({
 }: DefaultModelEditorProps) {
   const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
+  const scopeOptions = useMemo(
+    () =>
+      SCOPE_VALUES.map((value) => ({
+        value,
+        label: t(`defaultModels.scopeLabels.${value}`),
+      })),
+    [t],
+  );
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        ...option,
+        label: t(`defaultModels.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const { toast } = useToast();
   const ability = useAbility();
 
@@ -538,7 +550,7 @@ function DefaultModelEditorContent({
         }
         case 'role':
           return (
-            ROLE_OPTIONS.find((o) => o.value === rule.scopeId)?.label ??
+            roleOptions.find((o) => o.value === rule.scopeId)?.label ??
             rule.scopeId ??
             '—'
           );

@@ -1360,6 +1360,19 @@ modelAccess:
     die nicht mehr erlaubt wären: {rules}. Betroffene Benutzer weichen auf ein
     anderes erlaubtes Modell aus.'
   removeDefaultConfirmAction: Trotzdem speichern
+  scopeLabels:
+    default: Standard
+    user: Benutzer
+    team: Team
+    role: Rolle
+  roleLabels:
+    admin: Admin
+    developer: Entwickler
+    editor: Editor
+    member: Mitglied
+  modeLabels:
+    allowlist: Erlaubte Liste
+    blocklist: Blockierte Liste
   modelApi:
     title: Modell-Endpunkte für API-Schlüssel
     description: Erlaube Inhabern, Admins und Entwicklern — und Mitgliedern

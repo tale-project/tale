@@ -111,24 +111,16 @@ interface ModelAccessEditorProps {
   organizationId: string;
 }
 
-const SCOPE_OPTIONS = [
-  { value: 'default', label: 'Default' },
-  { value: 'user', label: 'User' },
-  { value: 'team', label: 'Team' },
-  { value: 'role', label: 'Role' },
-];
+const SCOPE_VALUES = ['default', 'user', 'team', 'role'] as const;
 
 function isScopeValue(v: string): v is ModelAccessRule['scope'] {
-  return SCOPE_OPTIONS.some((o) => o.value === v);
+  return SCOPE_VALUES.includes(v as (typeof SCOPE_VALUES)[number]);
 }
 
-const MODE_OPTIONS = [
-  { value: 'allowlist', label: 'Allowlist' },
-  { value: 'blocklist', label: 'Blocklist' },
-];
+const MODE_VALUES = ['allowlist', 'blocklist'] as const;
 
 function isModeValue(v: string): v is ModelAccessConfig['mode'] {
-  return MODE_OPTIONS.some((o) => o.value === v);
+  return MODE_VALUES.includes(v as (typeof MODE_VALUES)[number]);
 }
 
 function emptyRule(): ModelAccessRule {
@@ -227,7 +219,7 @@ function RuleDialog({
       <Stack gap={4}>
         <Select
           label={t('modelAccess.scope')}
-          options={SCOPE_OPTIONS}
+          options={scopeOptions}
           value={draft.scope}
           onValueChange={(value: string) => {
             if (isScopeValue(value)) {
@@ -240,7 +232,7 @@ function RuleDialog({
         {draft.scope === 'role' && (
           <Select
             label={t('modelAccess.role')}
-            options={ROLE_OPTIONS}
+            options={roleOptions}
             value={draft.scopeId ?? ''}
             onValueChange={(value) => updateDraft({ scopeId: value })}
             disabled={cannotManage}
@@ -324,6 +316,30 @@ function RuleDialog({
 function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
   const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
+  const scopeOptions = useMemo(
+    () =>
+      SCOPE_VALUES.map((value) => ({
+        value,
+        label: t(`modelAccess.scopeLabels.${value}`),
+      })),
+    [t],
+  );
+  const modeOptions = useMemo(
+    () =>
+      MODE_VALUES.map((value) => ({
+        value,
+        label: t(`modelAccess.modeLabels.${value}`),
+      })),
+    [t],
+  );
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        ...option,
+        label: t(`modelAccess.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const { toast } = useToast();
   const ability = useAbility();
 
@@ -642,7 +658,7 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
             <SettingsFieldList className="border-border border-b">
               <SettingsFieldRow label={t('modelAccess.mode')}>
                 <Select
-                  options={MODE_OPTIONS}
+                  options={modeOptions}
                   value={mode}
                   onValueChange={handleModeChange}
                   disabled={cannotManage || isPending}
@@ -724,7 +740,7 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
                     rules.map((rule, index) => (
                       <TableRow key={index}>
                         <TableCell className="capitalize">
-                          {rule.scope}
+                          {t(`modelAccess.scopeLabels.${rule.scope}`)}
                         </TableCell>
                         <TableCell>{resolveTarget(rule)}</TableCell>
                         <TableCell>
