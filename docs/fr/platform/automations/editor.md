@@ -5,7 +5,7 @@ description: Examine et modifie les nœuds, fournis les données de test, puis e
 
 L’éditeur de workflow permet de modifier le comportement d’une automatisation et de choisir sa version active. Il faut les droits Développeur, Admin ou Propriétaire pour apporter des changements. Enregistrer, tester et mettre en service sont des étapes distinctes : modifier un brouillon laisse la version déployée en place.
 
-Ouvre **Automatisations**, puis sélectionne une automatisation. Elle s’ouvre dans l’onglet **Éditeur**. Pour en créer une, consulte [Créer ou importer une automatisation](/fr/platform/automations/catalog).
+Ouvre **Automatisations**, puis sélectionne une automatisation. Elle s’ouvre dans l’onglet **Éditeur**. Une automatisation ouverte depuis l’onglet **Automatisations** d’un projet affiche ce projet au début du fil d’Ariane : choisis le nom du projet pour revenir au projet, ou **Automatisations** pour revenir à ses automatisations. Dans les deux cas, la barre de navigation met **Automatisations** en évidence. Pour en créer une, consulte [Créer ou importer une automatisation](/fr/platform/automations/catalog).
 
 | Onglet | Utilisation |
 | --- | --- |

@@ -16,6 +16,8 @@ Beim Scrollen nach unten wird die Leiste kleiner, rückt etwas nach unten und ze
 
 Ein Bereich öffnet immer seine eigene erste Seite – egal, was du dort zuletzt getan hast. Dieselbe Auswahl führt dich also jedes Mal an dieselbe Stelle: **Start** öffnet einen neuen Chat, **Wissen** die **Dokumente** und **Automatisierungen** die Liste der Automatisierungen. Das gilt auch, wenn du den Bereich wählst, in dem du gerade bist. Ein Beispiel: Öffne in einer Automatisierung den Tab **Läufe**, wechsle zu **Wissen** und wähle dann **Automatisierungen**. Du landest in der Liste der Automatisierungen, nicht auf dem Tab, den du verlassen hast. Auf dem Smartphone öffnet **Start** statt eines neuen Chats die Liste von **Start**. Einen neuen Chat beginnst du auch mit **⌥⌘N** auf dem Mac oder **Alt+Ctrl+N** unter Windows und Linux.
 
+Eine Automatisierung, die du im Tab **Automatisierungen** eines Projekts öffnest, gehört zu **Automatisierungen**: Die Navigationsleiste markiert **Automatisierungen**, und der Navigationspfad über der Automatisierung beginnt mit dem Projekt. Wähle den Projektnamen, um zum Projekt zurückzukehren, oder **Automatisierungen**, um zu seinen Automatisierungen zurückzukehren.
+
 Die **Einstellungen** führen ihre Seiten in einer Seitenleiste neben der Seite auf, und die Kopfzeile nennt die geöffnete Seite; auf dem Smartphone beginnen sie mit einer Liste ihrer Seiten. **Wissen** zeigt seine Seiten als Tabs unter der Kopfzeile.
 
 | Du möchtest … | So gehst du vor |

@@ -174,6 +174,8 @@ describe('the Home nav entry', () => {
       '/dashboard/org-1/chat/thread-1',
       '/dashboard/org-1/projects',
       '/dashboard/org-1/projects/p-1/tasks/board',
+      // The project's Automations tab is the project's own page.
+      '/dashboard/org-1/projects/p-1/automations',
       '/dashboard/org-1/tasks/t-1',
       '/dashboard/org-1/conversations/open',
     ]) {
@@ -185,6 +187,10 @@ describe('the Home nav entry', () => {
       '/dashboard/org-1/settings/account',
       // A shared-chat snapshot is a standalone reading page.
       '/dashboard/org-1/chat/shared/token-1',
+      // An automation opened inside a project is Automations' page.
+      '/dashboard/org-1/projects/p-1/automations/intake',
+      '/dashboard/org-1/projects/p-1/automations/intake/editor',
+      '/dashboard/org-1/projects/p-1/automations/intake/runs/r-1',
     ]) {
       expect(item?.isActivePath?.(path), path).toBe(false);
     }
@@ -247,5 +253,28 @@ describe('the Knowledge nav entry', () => {
 describe('the Automations nav entry', () => {
   it('opens the list', () => {
     expect(automationsItem()?.to).toBe('/dashboard/$id/automations');
+  });
+
+  it('lights up on an automation opened inside a project', () => {
+    const item = automationsItem();
+    for (const path of [
+      '/dashboard/org-1/automations',
+      '/dashboard/org-1/automations/intake/runs',
+      '/dashboard/org-1/projects/p-1/automations/intake',
+      '/dashboard/org-1/projects/p-1/automations/intake/editor',
+      '/dashboard/org-1/projects/p-1/automations/intake/runs/r-1',
+    ]) {
+      expect(item && isItemActive(item, path), path).toBe(true);
+    }
+    for (const path of [
+      // The project's own Automations tab stays Home's.
+      '/dashboard/org-1/projects/p-1/automations',
+      '/dashboard/org-1/projects/p-1/tasks/board',
+      '/dashboard/org-1/documents',
+      '/dashboard/org-1/automationsx',
+      '/dashboard/org-2/projects/p-1/automations/intake',
+    ]) {
+      expect(item && isItemActive(item, path), path).toBe(false);
+    }
   });
 });

@@ -16,6 +16,8 @@ Quand tu fais défiler la page vers le bas, la barre devient plus petite, descen
 
 Une section s’ouvre toujours sur sa première page, quoi que tu y aies fait auparavant : le même choix te mène donc chaque fois au même endroit. **Accueil** ouvre un nouveau chat, **Connaissances** ouvre **Documents** et **Automatisations** ouvre la liste des automatisations. C’est aussi le cas quand tu choisis la section où tu te trouves déjà. Par exemple, ouvre l’onglet **Exécutions** d’une automatisation, passe dans **Connaissances**, puis choisis **Automatisations** : la liste des automatisations s’ouvre, et non l’onglet que tu as quitté. Sur téléphone, **Accueil** ouvre la liste d’**Accueil** plutôt qu’un nouveau chat. Le raccourci **⌥⌘N** sur Mac ou **Alt+Ctrl+N** sous Windows et Linux démarre aussi un nouveau chat.
 
+Une automatisation que tu ouvres depuis l’onglet **Automatisations** d’un projet appartient à **Automatisations** : la barre de navigation met **Automatisations** en évidence, et le fil d’Ariane au-dessus de l’automatisation commence par le projet. Choisis le nom du projet pour revenir au projet, ou **Automatisations** pour revenir à ses automatisations.
+
 **Paramètres** liste ses pages dans un panneau latéral, à côté de la page, et l’en-tête indique la page ouverte ; sur téléphone, Paramètres commence par la liste de ses pages. **Connaissances** présente ses pages sous forme d’onglets sous son en-tête.
 
 | Tu souhaites… | Marche à suivre |

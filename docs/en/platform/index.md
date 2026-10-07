@@ -16,6 +16,8 @@ As you scroll down, the navigation becomes smaller and moves slightly lower, sho
 
 A section always opens on its own first page, whatever you did there last, so the same choice leads to the same place every time: **Home** opens a new chat, **Knowledge** opens **Documents**, and **Automations** opens the automation list. Choosing the section you are already in does the same. For example, open an automation's **Runs** tab, switch to **Knowledge**, then choose **Automations**: the automation list opens, not the tab you left. On a phone, **Home** opens the Home list instead of a new chat. The shortcut **⌥⌘N** on a Mac, or **Alt+Ctrl+N** on Windows or Linux, also starts a new chat.
 
+An automation you open from a project's **Automations** tab belongs to **Automations**: the rail marks **Automations**, and the breadcrumb trail above the automation starts with the project. Choose the project's name to return to the project, or **Automations** to return to its automations.
+
 **Settings** lists its pages in a panel beside the page, and the page header names the page you opened; on a phone, Settings starts from a list of its pages. **Knowledge** shows its pages as tabs under its header.
 
 | You want to… | Do this |

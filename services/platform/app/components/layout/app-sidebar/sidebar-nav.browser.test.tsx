@@ -83,6 +83,7 @@ function renderRail(initialPath: string) {
     '/dashboard/$id/automations/$automationSlug/runs',
     '/dashboard/$id/projects/$projectId/tasks/board',
     '/dashboard/$id/projects/$projectId/automations',
+    '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor',
     '/dashboard/$id/settings',
     '/dashboard/$id/settings/teams',
   ].map((path) =>
@@ -149,6 +150,27 @@ describe('the rail in Chromium', () => {
     expect(location().search).toEqual({ new: true });
   });
 
+  // The owner's report: an automation opened from a project's Automations
+  // tab left the rail on Home, and Automations later reopened it.
+  it('treats an automation opened in a project as Automations', async () => {
+    const { user, router, go } = renderRail(
+      `${ORG}/projects/p-1/automations/intake/editor`,
+    );
+    const location = () => router.state.location;
+
+    await waitFor(() => expect(currentTiles()).toEqual(['Automations']));
+
+    await user.click(await tile('Knowledge'));
+    await waitFor(() => expect(location().pathname).toBe(`${ORG}/documents`));
+    await user.click(await tile('Automations'));
+    await waitFor(() => expect(location().pathname).toBe(`${ORG}/automations`));
+
+    // Clicked from the automation itself, too.
+    await go(`${ORG}/projects/p-1/automations/intake/editor`);
+    await user.click(await tile('Automations'));
+    await waitFor(() => expect(location().pathname).toBe(`${ORG}/automations`));
+  });
+
   it('names exactly one tile as the current page, the one the pill marks', async () => {
     const { go } = renderRail(`${ORG}/chat`);
 
@@ -158,6 +180,7 @@ describe('the rail in Chromium', () => {
       [`${ORG}/automations/intake/runs`, 'Automations'],
       [`${ORG}/projects/p-1/tasks/board`, 'Home'],
       [`${ORG}/projects/p-1/automations`, 'Home'],
+      [`${ORG}/projects/p-1/automations/intake/editor`, 'Automations'],
       [`${ORG}/settings/teams`, 'Settings'],
     ] as const) {
       await go(path);

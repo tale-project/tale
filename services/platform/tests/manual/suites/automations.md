@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 80 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 81 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -620,6 +620,23 @@ output:
       appears. Turn **Enabled** off and **Save** → no run starts at the next
       minute. (Without a runnable harness the agent run itself fails at its
       launch; the start and the coalesced occurrence still show.)
+- [ ] `AUTO-F57` · **An automation opened in a project shows its project** —
+      Bind an automation to exactly one project, open the project, choose its
+      **Automations** tab (`automations.title`) and open the automation, then
+      one of its runs → The URL stays under
+      `/dashboard/{org}/projects/{projectId}/automations/{slug}/…`; the trail
+      reads `<project> / Automations / <automation>` (on the run
+      `… / <automation> / Run`, `automations.runs.breadcrumb`); the project's
+      name opens the project's board and **Automations** its **Automations**
+      tab; only the leaf heading carries `aria-current="page"` in the trail;
+      the rail lights **Automations** (`navigation.automations`) and the pill
+      glides there, not to **Home**; a long project name truncates without
+      hiding the automation's name. Below 768 px the back arrow
+      (`common.aria.back`) returns to the project's **Automations** tab (from
+      a run: to the automation) and the tab bar lights **Automations**. Open
+      the same automation from the organization's list (`AUTO-F4`) → The same
+      trail and rail. Choose **Automations** in the rail → The organization's
+      list. Repeat in DE and FR (**Automatisierungen** / **Automatisations**).
 
 ## Boundary & error tests
 

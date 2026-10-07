@@ -155,6 +155,19 @@ describe('the mobile tab bar', () => {
     });
   });
 
+  it('lights Automations on an automation opened inside a project', () => {
+    currentLocation.pathname =
+      '/dashboard/org-1/projects/p-1/automations/intake/editor';
+    automationSlug = 'intake';
+    render(<MobileBottomNav organizationId="org-1" />);
+    expect(
+      screen.getByRole('button', { name: /^automations/ }),
+    ).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: /^home/ })).not.toHaveAttribute(
+      'aria-current',
+    );
+  });
+
   it('opens the automations list from inside an automation', async () => {
     currentLocation.pathname = '/dashboard/org-1/automations/intake/runs';
     automationSlug = 'intake';

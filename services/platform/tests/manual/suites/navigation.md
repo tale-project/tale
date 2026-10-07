@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 71 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 72 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -68,7 +68,8 @@ loaded, and reads **No teams** for an account in none.
   The main nav holds exactly those three tiles in that order — no Chat,
   Projects or Inbox tile; one highlight pill glides from the tile you left to
   the one you chose; Home stays lit on every Home route (a chat, a project, a
-  task page, the inbox); the rail persists across navigations.
+  task page, the inbox) — but an automation opened inside a project lights
+  **Automations** (`AUTO-F57`); the rail persists across navigations.
 - [ ] `NAV-F2` · **Breadcrumbs** — Open `/dashboard/{org}/projects`, click a
   project row to open it (`/dashboard/{org}/projects/{projectId}`) → The
   adaptive header shows a breadcrumb trail (e.g. **Projects** → project name);
@@ -279,8 +280,8 @@ loaded, and reads **No teams** for an account in none.
   chat (`/dashboard/{org}/chat/shared/{shareToken}`) and a project's
   automation workbench
   (`/dashboard/{org}/projects/{projectId}/automations/{slug}/…`, full width
-  like an automation outside a project, the rail still on **Home**) show no
-  Home panel.
+  like an automation outside a project, the rail on **Automations**,
+  `AUTO-F57`) show no Home panel.
 - [ ] `NAV-F42` · **The Settings panel's header and the page header end on one line** —
   At ≥ 768 px open `/dashboard/{org}/settings/account` and two more settings
   pages, then zoom the browser to 200 % over the place where the panel meets
@@ -618,6 +619,13 @@ loaded, and reads **No teams** for an account in none.
   HTML 503 for a navigation and a direct `offline.html` visit → The green
   connection screen runs its recovery script under the existing CSP and
   recovers when the gateway returns.
+- [ ] `NAV-B19` · **Switching organization from a project's automation** —
+  Open `/dashboard/{org}/projects/{projectId}/automations/{slug}/editor`, then
+  switch to a second organization (`NAV-F5`) → You land on
+  `/dashboard/{otherOrg}/automations` with **Automations** lit, never on a
+  "not found" for the other organization's project. From the project's own
+  **Automations** tab (`/dashboard/{org}/projects/{projectId}/automations`)
+  you land on its **Projects** list instead.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -659,11 +667,12 @@ loaded, and reads **No teams** for an account in none.
 - [ ] `NAV-A8` · **Keep pinch zoom available after focusing a compact field on iOS** → In Safari 10 or later, open a compact field such as an inline rename, focus it and dismiss the keyboard: focus does not enlarge the page automatically, and a manual pinch still enlarges and restores it. Repeat the manual pinch in an installed home-screen app and in another iOS browser or an embedded web view; those contexts retain their original viewport settings and may still zoom on focus. Repeat on Android: manual pinch remains available.
 - [ ] `NAV-A9` · **The rail names the section you are in** → In the
   accessibility tree (or with a screen reader) visit
-  `/dashboard/{org}/websites`, `/dashboard/{org}/automations/{slug}/runs`, a
+  `/dashboard/{org}/websites`, `/dashboard/{org}/automations/{slug}/runs`,
+  `/dashboard/{org}/projects/{projectId}/automations/{slug}/editor`, a
   project's board and `/dashboard/{org}/settings/teams` → Exactly one tile of
   the rail carries `aria-current="page"`: **Knowledge**, **Automations**,
-  **Home**, and **Settings** at the rail's foot — always the tile the pill
-  sits on. Below 768 px the tab bar's buttons say the same. Tab to a tile and
+  **Automations**, **Home**, and **Settings** at the rail's foot — always the
+  tile the pill sits on. Below 768 px the tab bar's buttons say the same. Tab to a tile and
   press Enter → Its section's first page opens, and the tile keeps a visible
   focus ring.
 

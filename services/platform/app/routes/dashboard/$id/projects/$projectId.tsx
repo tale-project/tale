@@ -90,9 +90,10 @@ function ProjectDetailLayout() {
   const navigate = useNavigate();
 
   // Project-scoped automation DETAIL routes live under the AUTOMATIONS chrome
-  // (`AutomationDetailShell` — "Automations / <name>" breadcrumb + its own
-  // tab strip), not inside the project shell — so those child routes render
-  // bare, exactly like the agents layout skips its header on detail pages.
+  // (`AutomationDetailShell` — "<project> / Automations / <name>" breadcrumb
+  // + its own tab strip), not inside the project shell — so those child
+  // routes render bare, exactly like the agents layout skips its header on
+  // detail pages. The rail lights Automations there (`isProjectAutomationPage`).
   // The project-nav Automations tab opens the bound-automations LIST; detail
   // keeps this bare-outlet match so only the list stays under project chrome.
   const isAutomationDetail = useMatch({

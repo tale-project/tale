@@ -32,7 +32,7 @@ what is there, and the page shows the one thing you opened.
   A tile always opens its section's overview — Home a new chat (on a phone, the Home list),
   Knowledge its first tab, Automations the list, Settings its landing page — never the place you
   left, also when you are already in that section. The page's section decides the lit tile and its
-  `aria-current="page"`.
+  `aria-current="page"`: an automation opened inside a project belongs to Automations.
 - **Section panels** — a section with navigation of its own opens it in a panel beside the page,
   one frame for all of them: `SubPanel width="list"` (280px by default, full height, right border), a
   `SubPanelHeader` naming the section in the same `h-13` row as a page header (border included, so
@@ -75,7 +75,9 @@ what is there, and the page shows the one thing you opened.
   verbs — Save/Discard and any entity actions — sit in the strip's trailing slot
   (`AdaptiveHeaderTabActionsSlot`), never in the title row's right half; the title row keeps only
   the name and its identity badges (archived, live). Run/sub-pages keep a plain leaf, keep the strip
-  with the parent tab lit, and link the entity name back up the trail.
+  with the parent tab lit, and link the entity name back up the trail. An automation opened inside a
+  project starts its trail with the project: `<project> / Automations / <name>`, the crumbs leading
+  to the project and to its Automations tab.
 - **Right/secondary panels** (the Home panel, a task's details) slide in and **resize the main
   column** rather than overlay it; main content re-flows to the remaining width.
 - **Main column is centred and width-capped** — e.g. chat is 558px (new) / 768px (conversation). Don't

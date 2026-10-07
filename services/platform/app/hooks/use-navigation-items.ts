@@ -13,7 +13,10 @@ import { useMemo } from 'react';
 import { useCanUseAutomations } from '@/app/features/automations/hooks/use-can-use-automations';
 import { useUnreadConversationCount } from '@/app/features/conversations/hooks/queries';
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
-import { isHomePath } from '@/app/features/home/lib/home-paths';
+import {
+  isHomePath,
+  isProjectAutomationPage,
+} from '@/app/features/home/lib/home-paths';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 
@@ -174,6 +177,12 @@ export function useNavigationItems(businessId: string): NavigationItems {
                 params: { id: businessId },
                 href: `/dashboard/${businessId}/automations`,
                 icon: Workflow,
+                isActivePath: (path: string) =>
+                  isPathMatch(`/dashboard/${businessId}/automations`, path) ||
+                  // An automation opened inside a project wears the
+                  // Automations chrome, so it is Automations' page: the rail
+                  // says so too.
+                  isProjectAutomationPage(path, businessId),
               },
             ]
           : []),

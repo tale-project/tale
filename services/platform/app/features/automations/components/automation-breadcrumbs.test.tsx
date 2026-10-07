@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { AutomationBreadcrumbs } from './automation-breadcrumbs';
 
@@ -14,6 +14,11 @@ const fixtures = vi.hoisted(() => ({
   isPending: false,
   onRun: false,
   automations: [] as unknown[],
+  projectRead: {
+    project: { name: 'Apollo' } as { name: string } | null,
+    isLoading: false,
+  },
+  projectReadArgs: [] as (string | undefined)[],
 }));
 
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -58,6 +63,14 @@ vi.mock('@tanstack/react-router', () => ({
   }),
 }));
 
+// The project the automation is opened in; the project shell already read it.
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProject: (projectId: string | undefined) => {
+    fixtures.projectReadArgs.push(projectId);
+    return fixtures.projectRead;
+  },
+}));
+
 vi.mock('../hooks/queries', () => ({
   useAutomation: () => ({
     data: {
@@ -83,7 +96,18 @@ describe('AutomationBreadcrumbs', () => {
     // Empty listing → the leaf renders the plain name, so the cases that
     // assert exact h1 names stay valid without knowing about the switcher.
     fixtures.automations = [];
+    fixtures.projectRead = { project: { name: 'Apollo' }, isLoading: false };
+    fixtures.projectReadArgs = [];
   });
+
+  /** The trail's ancestor links, in order — the desktop trail only, without
+   *  the phone's back control. */
+  function trailLinks() {
+    const trail = screen.getByRole('list');
+    return within(trail)
+      .getAllByRole('link')
+      .map((link) => [link.textContent, link.getAttribute('href')]);
+  }
 
   it('links Automations back to the org list and heads with the pack name', () => {
     fixtures.presentation = {
@@ -127,10 +151,46 @@ describe('AutomationBreadcrumbs', () => {
     ).toBeVisible();
   });
 
-  it('always returns Automations to the org hub, even from a project-scoped page', () => {
-    fixtures.presentation = undefined;
-    fixtures.isPending = false;
-    fixtures.onRun = false;
+  it('starts the trail at the project an automation is opened in', () => {
+    render(
+      <AutomationBreadcrumbs
+        organizationId="org-1"
+        automationSlug="billing/dunning"
+        projectId={asProjectId('proj-1')}
+      />,
+    );
+
+    // The project leads back to the project, Automations to the project's
+    // own Automations tab — where the automation was opened from.
+    expect(trailLinks()).toEqual([
+      ['Apollo', '/dashboard/org-1/projects/proj-1'],
+      ['Automations', '/dashboard/org-1/projects/proj-1/automations'],
+    ]);
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Dunning' }),
+    ).toBeVisible();
+    expect(fixtures.projectReadArgs).toContain('proj-1');
+  });
+
+  it("returns the phone's back arrow to the project's Automations tab", () => {
+    render(
+      <AutomationBreadcrumbs
+        organizationId="org-1"
+        automationSlug="billing/dunning"
+        projectId={asProjectId('proj-1')}
+      />,
+    );
+
+    const back = screen.getByRole('link', { name: /back/i });
+    expect(back).toHaveClass('md:hidden');
+    expect(back).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/projects/proj-1/automations',
+    );
+  });
+
+  it('falls back to the project list when the project cannot be read', () => {
+    fixtures.projectRead = { project: null, isLoading: false };
 
     render(
       <AutomationBreadcrumbs
@@ -140,10 +200,41 @@ describe('AutomationBreadcrumbs', () => {
       />,
     );
 
-    expect(screen.getByRole('link', { name: 'Automations' })).toHaveAttribute(
-      'href',
-      '/dashboard/org-1/automations',
+    expect(trailLinks()).toEqual([
+      ['Projects', '/dashboard/org-1/projects'],
+      ['Automations', '/dashboard/org-1/projects/proj-1/automations'],
+    ]);
+  });
+
+  it('holds the project crumb as a skeleton while the project loads', () => {
+    fixtures.projectRead = { project: null, isLoading: true };
+
+    render(
+      <AutomationBreadcrumbs
+        organizationId="org-1"
+        automationSlug="billing/dunning"
+        projectId={asProjectId('proj-1')}
+      />,
     );
+
+    expect(trailLinks()).toEqual([
+      ['Automations', '/dashboard/org-1/projects/proj-1/automations'],
+    ]);
+    expect(screen.queryByRole('link', { name: 'Projects' })).toBeNull();
+  });
+
+  it('reads no project outside one', () => {
+    render(
+      <AutomationBreadcrumbs
+        organizationId="org-1"
+        automationSlug="billing/dunning"
+      />,
+    );
+
+    expect(trailLinks()).toEqual([
+      ['Automations', '/dashboard/org-1/automations'],
+    ]);
+    expect(fixtures.projectReadArgs).toEqual([]);
   });
 
   it('on a run, links the automation name back to the automation page', () => {
@@ -188,9 +279,16 @@ describe('AutomationBreadcrumbs', () => {
       />,
     );
 
-    expect(
-      screen.getByRole('link', { name: 'Chase overdue invoices' }),
-    ).toHaveAttribute(
+    expect(trailLinks()).toEqual([
+      ['Apollo', '/dashboard/org-1/projects/proj-1'],
+      ['Automations', '/dashboard/org-1/projects/proj-1/automations'],
+      [
+        'Chase overdue invoices',
+        '/dashboard/org-1/projects/proj-1/automations/billing__dunning/editor',
+      ],
+    ]);
+    // Mobile back follows the immediate parent — the automation.
+    expect(screen.getByRole('link', { name: /back/i })).toHaveAttribute(
       'href',
       '/dashboard/org-1/projects/proj-1/automations/billing__dunning/editor',
     );
@@ -274,6 +372,19 @@ describe('AutomationBreadcrumbs', () => {
       <AutomationBreadcrumbs
         organizationId="org-1"
         automationSlug="billing/dunning"
+      />,
+    );
+    await checkAccessibility(container);
+  });
+
+  it('passes an axe audit inside a project', async () => {
+    fixtures.presentation = { name: 'Chase overdue invoices' };
+
+    const { container } = render(
+      <AutomationBreadcrumbs
+        organizationId="org-1"
+        automationSlug="billing/dunning"
+        projectId={asProjectId('proj-1')}
       />,
     );
     await checkAccessibility(container);

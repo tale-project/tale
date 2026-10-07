@@ -53,8 +53,9 @@ interface AutomationDetailShellProps {
 /**
  * The chrome every automation detail page shares, on the org route AND the
  * project-scoped one: the `PageLayout` scroll shell, the
- * `Automations / <name>` breadcrumb (the name doubling as the sibling
- * switcher), and the tab strip — **Editor**, **General**, **Runs** — exactly the composition a project detail carries. The strip's
+ * `Automations / <name>` breadcrumb — `<project> / Automations / <name>` on
+ * the project-scoped route — with the name doubling as the sibling
+ * switcher, and the tab strip — **Editor**, **General**, **Runs** — exactly the composition a project detail carries. The strip's
  * trailing slot is where the open tab puts its verbs and the Save/Discard
  * cluster, so the header row keeps only the name and the Live badge.
  *
