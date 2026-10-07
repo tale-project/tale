@@ -8,6 +8,7 @@ import {
 } from '../../../lib/shared/schemas/password.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { replicaColour } from '../../lib/instance.ts';
 import { scaffoldNewOrganization } from '../organizations/scaffold.ts';
 import {
   recordPasswordChange,
@@ -49,16 +50,9 @@ const GENERATION_FRESH_MS = 10 * 60_000;
 
 const SINGLETON = 'singleton';
 
-/**
- * This replica's deployment colour, or `null` when it runs outside a colour
- * (dev, the pre-blue-green stateful tier, a bare `docker compose up`). An
- * uncoloured replica obeys every drain, coloured or not: it is the only api
- * there is, so "drain the blue one" can only have meant it.
- */
-export function replicaColour(): string | null {
-  const colour = process.env.TALE_COLOR?.trim();
-  return colour !== undefined && colour !== '' ? colour : null;
-}
+// The colour lives with the rest of the process identity (a run's lease names
+// it too); the drain door keeps answering it from here.
+export { replicaColour };
 
 /** Whether THIS replica should currently refuse new chat turns. */
 export async function isBackendDraining(sql: Sql): Promise<boolean> {

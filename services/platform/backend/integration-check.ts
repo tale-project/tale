@@ -13062,36 +13062,440 @@ async function checkAutomationRunLifecycle(
     `/start=${phantomStart.status} (want 404), webhook-bad=${hookBadProject.status} (want 403), webhook-none=${hookNoProject.status} (want 202)`,
   );
 
-  // ---- #4: concurrent claims of one run get DISTINCT epochs (atomic claim,
-  // no lost update). Insert a still run (no wake, no step job) so only these
-  // claims touch it.
-  const claimRun = await sql<{ id: string }[]>`
-    INSERT INTO app.automation_runs (
-      org_id, name, version, status, mode, started_by, input, checkpoints,
-      wake_at_ms, claim_epoch, started_at_ms
-    ) VALUES (
-      ${orgId}, 'ops/lifecycle', 1, 'queued', 'mock', 'itest:claim',
-      ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
-      ${null}, 0, ${Date.now()}
-    ) RETURNING id
+  // ---- #4: one walker per run. Twelve concurrent claims of one queued run
+  // (a still run: no wake, no step job, so only these claims touch it)
+  // serialize on the row lock: exactly one takes the lease, the others read
+  // it live and are refused.
+  const instance = await import('./lib/instance.ts');
+  const ledger = await import('./domains/automations/node-attempts.ts');
+  const protocol = await import('../lib/engine/core/protocol.ts');
+  /** A run of the lifecycle automation inserted straight into the table, so
+   * nothing but the probe moves it. */
+  const insertProbeRun = async (
+    startedBy: string,
+    fields: {
+      status?: string;
+      mode?: string;
+      claimEpoch?: number;
+      /** A top-level checkpoint key this engine does not know. */
+      future?: string;
+    } = {},
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, input, checkpoints,
+        wake_at_ms, claim_epoch, started_at_ms
+      ) VALUES (
+        ${orgId}, 'ops/lifecycle', 1, ${fields.status ?? 'queued'},
+        ${fields.mode ?? 'mock'}, ${startedBy}, ${sql.json({ who: 'probe' })},
+        ${sql.json({
+          nodes: {},
+          executions: 0,
+          ...(fields.future !== undefined && { future: fields.future }),
+        })},
+        ${null}, ${fields.claimEpoch ?? 0}, ${Date.now()}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const runEvents = async (runId: string, kind: string) =>
+    sql<{ detail: Record<string, unknown> | null }[]>`
+      SELECT detail FROM app.automation_run_events
+      WHERE run_id = ${runId} AND kind = ${kind}
+    `;
+  const stepJobs = async (runId: string): Promise<number> => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'automation.step' AND data->>'runId' = ${runId}
+    `;
+    return Number(rows[0]?.count ?? '0');
+  };
+  /** Stop a probe run that is still live, so no queued job steps it later. */
+  const cancelProbeRun = (runId: string): Promise<unknown> => sql`
+    UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL,
+      lease_owner = NULL, lease_expires_at_ms = NULL
+    WHERE id = ${runId} AND status IN ('queued', 'running', 'waiting')
   `;
-  const claimRunId = claimRun[0]?.id ?? '';
+
+  const claimRunId = await insertProbeRun('itest:claim');
   const claims = await Promise.all(
     Array.from({ length: 12 }, () => store.claimRun(sql, orgId, claimRunId)),
   );
-  const wonEpochs = claims
-    .filter((c) => c.claimed)
-    .map((c) => c.epoch)
-    .sort((a, b) => a - b);
-  const distinctEpochs = new Set(wonEpochs).size === wonEpochs.length;
+  const winners = claims.filter((c) => c.claimed);
+  const refusals = claims.filter((c) => !c.claimed).map((c) => c.status);
+  record(
+    'twelve concurrent claims of one run: exactly one walker wins, the rest read its lease [AUTO-R16]',
+    winners.length === 1 &&
+      winners[0]?.epoch === 1 &&
+      refusals.length === 11 &&
+      refusals.every((status) => status === 'leased'),
+    `won=${winners.length} (want 1) at epoch ${winners[0]?.epoch} (want 1), refused=[${[...new Set(refusals)].join(',')}] (want leased)`,
+  );
+
+  // ---- #4b: the lease itself — a live lease refuses a second claim; a lapsed
+  // one is taken over, counted on the run and recorded; the walker it was
+  // taken from is refused at its next write.
+  const leased = await sql<
+    {
+      owner: string | null;
+      leaseEpoch: number | null;
+      claimEpoch: number;
+      expiresAt: number | null;
+      wakeAt: number | null;
+    }[]
+  >`
+    SELECT lease_owner AS owner, lease_epoch AS "leaseEpoch",
+           claim_epoch AS "claimEpoch",
+           lease_expires_at_ms::float8 AS "expiresAt",
+           wake_at_ms::float8 AS "wakeAt"
+    FROM app.automation_runs WHERE id = ${claimRunId}
+  `;
+  const second = await store.claimRun(sql, orgId, claimRunId);
   await sql`
-    UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL
+    UPDATE app.automation_runs SET lease_expires_at_ms = ${Date.now() - 1}
     WHERE id = ${claimRunId}
   `;
+  const takeover = await store.claimRun(sql, orgId, claimRunId);
+  const resumed = await sql<
+    { resumeCount: number; reason: string | null; owner: string | null }[]
+  >`
+    SELECT resume_count AS "resumeCount", last_resume_reason AS reason,
+           lease_owner AS owner
+    FROM app.automation_runs WHERE id = ${claimRunId}
+  `;
+  const takenOver = await runEvents(claimRunId, 'taken_over');
+  const staleWrite = await store.recordProgress(sql, {
+    organizationId: orgId,
+    runId: claimRunId,
+    epoch: 1,
+    nodeId: 'echo',
+    checkpoint: { status: 'ok', output: 'late', trace: {}, effects: [] },
+    executions: 1,
+  });
+  await cancelProbeRun(claimRunId);
   record(
-    'concurrent automation claimRun yields distinct epochs (no lost update)',
-    wonEpochs.length >= 2 && distinctEpochs && (wonEpochs[0] ?? 0) >= 1,
-    `won=${wonEpochs.length}, distinct=${distinctEpochs}, epochs=[${wonEpochs.join(',')}]`,
+    'a run lease refuses a second walker, and a lapsed one is taken over and recorded [AUTO-R16]',
+    leased[0]?.owner === instance.instanceId() &&
+      leased[0]?.leaseEpoch === leased[0]?.claimEpoch &&
+      leased[0]?.expiresAt !== null &&
+      leased[0]?.expiresAt === leased[0]?.wakeAt &&
+      !second.claimed &&
+      second.status === 'leased' &&
+      takeover.claimed &&
+      takeover.epoch === 2 &&
+      resumed[0]?.resumeCount === 1 &&
+      resumed[0]?.reason === 'lease_expired' &&
+      takenOver.length === 1 &&
+      takenOver[0]?.detail?.previousOwner === instance.instanceId() &&
+      staleWrite.status === 'stale',
+    `owner=${leased[0]?.owner === instance.instanceId() ? 'this process' : String(leased[0]?.owner)}, leaseEpoch=${leased[0]?.leaseEpoch}/${leased[0]?.claimEpoch}, second=${second.status} (want leased), takeover=${takeover.claimed}@${takeover.epoch} (want true@2), resumeCount=${resumed[0]?.resumeCount} (want 1), reason=${resumed[0]?.reason}, takenOverEvents=${takenOver.length} (want 1), staleWrite=${staleWrite.status} (want stale)`,
+  );
+
+  // ---- #4c: a stop beats a finishing walker. Committed first, the stop
+  // wins and the finish lands nothing; raced, exactly one of the two lands
+  // and exactly one terminal audit row says which.
+  const terminalAudits = async (runId: string) => {
+    const rows = await sql<{ action: string }[]>`
+      SELECT action FROM app.audit_logs
+      WHERE org_id = ${orgId} AND resource_id = ${runId}
+        AND action IN ('automation.run.cancelled', 'automation.run.success')
+    `;
+    return rows.map((row) => row.action);
+  };
+  const finishArgs = (runId: string, epoch: number) => ({
+    organizationId: orgId,
+    runId,
+    epoch,
+    status: 'success' as const,
+    output: 'finished',
+    trace: [],
+    effects: [],
+    executions: 1,
+  });
+  const stopFirstId = await insertProbeRun('itest:cancel-wins', {
+    mode: 'live',
+  });
+  const stopFirstClaim = await store.claimRun(sql, orgId, stopFirstId);
+  const stopped = await store.cancelRun(sql, orgId, stopFirstId);
+  const lateFinish = await store.finishRun(
+    sql,
+    finishArgs(stopFirstId, stopFirstClaim.epoch),
+  );
+  const stopFirstAudits = await terminalAudits(stopFirstId);
+  const stopFirstRow = await sql<{ status: string; output: unknown }[]>`
+    SELECT status, output FROM app.automation_runs WHERE id = ${stopFirstId}
+  `;
+  const racedId = await insertProbeRun('itest:cancel-race', { mode: 'live' });
+  const racedClaim = await store.claimRun(sql, orgId, racedId);
+  const [racedCancel, racedFinish] = await Promise.all([
+    store.cancelRun(sql, orgId, racedId),
+    store.finishRun(sql, finishArgs(racedId, racedClaim.epoch)),
+  ]);
+  const racedAudits = await terminalAudits(racedId);
+  const racedRow = await sql<{ status: string }[]>`
+    SELECT status FROM app.automation_runs WHERE id = ${racedId}
+  `;
+  const racedLanded = racedRow[0]?.status ?? '';
+  record(
+    'a stop that commits first wins over a finishing walker: one stop entry, no success entry [AUTO-R17]',
+    stopped.cancelled &&
+      lateFinish.status === 'cancelled' &&
+      stopFirstRow[0]?.status === 'cancelled' &&
+      stopFirstRow[0]?.output === null &&
+      stopFirstAudits.length === 1 &&
+      stopFirstAudits[0] === 'automation.run.cancelled' &&
+      racedAudits.length === 1 &&
+      racedAudits[0] ===
+        `automation.run.${racedLanded === 'cancelled' ? 'cancelled' : 'success'}` &&
+      racedCancel.cancelled === (racedLanded === 'cancelled') &&
+      (racedFinish.status === 'success') === (racedLanded === 'success'),
+    `stop-first: cancelled=${stopped.cancelled}, finish=${lateFinish.status} (want cancelled), row=${stopFirstRow[0]?.status}, audits=[${stopFirstAudits.join(',')}] (want one cancelled); raced: landed=${racedLanded}, cancel=${racedCancel.cancelled}, finish=${racedFinish.status}, audits=[${racedAudits.join(',')}] (want exactly one, matching)`,
+  );
+
+  // ---- #4d: progress merges in the database. Two commits of one claim,
+  // each with its own node, keep both; a key the engine does not know
+  // survives; a superseded walker writes nothing.
+  const mergeId = await insertProbeRun('itest:merge', { future: 'kept' });
+  const mergeClaim = await store.claimRun(sql, orgId, mergeId);
+  const commit = (nodeId: string, epoch: number) =>
+    store.recordProgress(sql, {
+      organizationId: orgId,
+      runId: mergeId,
+      epoch,
+      nodeId,
+      checkpoint: { status: 'ok', output: nodeId, trace: {}, effects: [] },
+      executions: 2,
+    });
+  const merged = await Promise.all([
+    commit('a', mergeClaim.epoch),
+    commit('b', mergeClaim.epoch),
+  ]);
+  const superseded = await commit('c', mergeClaim.epoch - 1);
+  const mergedRow = await sql<
+    {
+      checkpoints: {
+        nodes?: Record<string, unknown>;
+        future?: unknown;
+        executions?: unknown;
+      } | null;
+    }[]
+  >`
+    SELECT checkpoints FROM app.automation_runs WHERE id = ${mergeId}
+  `;
+  const mergedNodes = Object.keys(
+    mergedRow[0]?.checkpoints?.nodes ?? {},
+  ).sort();
+  await cancelProbeRun(mergeId);
+  record(
+    'two progress commits of one walker keep both nodes; a superseded walker writes none',
+    merged.every((result) => result.status === 'running') &&
+      superseded.status === 'stale' &&
+      mergedNodes.join(',') === 'a,b' &&
+      mergedRow[0]?.checkpoints?.future === 'kept' &&
+      mergedRow[0]?.checkpoints?.executions === 2,
+    `commits=[${merged.map((result) => result.status).join(',')}], superseded=${superseded.status} (want stale), nodes=[${mergedNodes.join(',')}] (want a,b), future=${String(mergedRow[0]?.checkpoints?.future)} (want kept)`,
+  );
+
+  // ---- #4e: a stopping process hands on exactly the runs it holds a lease
+  // on — counted, recorded, and stepped by whoever takes the job.
+  const leaseRun = async (
+    startedBy: string,
+    owner: string,
+  ): Promise<string> => {
+    const runId = await insertProbeRun(startedBy, {
+      status: 'running',
+      claimEpoch: 1,
+    });
+    await sql`
+      UPDATE app.automation_runs SET
+        lease_owner = ${owner}, lease_epoch = 1,
+        lease_expires_at_ms = ${Date.now() + 30_000},
+        wake_at_ms = ${Date.now() + 30_000}
+      WHERE id = ${runId}
+    `;
+    return runId;
+  };
+  const ownedId = await leaseRun('itest:release-own', instance.instanceId());
+  const foreignId = await leaseRun(
+    'itest:release-foreign',
+    'another-host:7:0.5.0:blue',
+  );
+  const released = await store.releaseOwnedRunLeases(sql);
+  const releasedRows = await sql<
+    {
+      id: string;
+      owner: string | null;
+      expiresAt: number | null;
+      resumeCount: number;
+      reason: string | null;
+    }[]
+  >`
+    SELECT id, lease_owner AS owner,
+           lease_expires_at_ms::float8 AS "expiresAt",
+           resume_count AS "resumeCount", last_resume_reason AS reason
+    FROM app.automation_runs WHERE id IN (${ownedId}, ${foreignId})
+  `;
+  const ownedRow = releasedRows.find((row) => row.id === ownedId);
+  const foreignRow = releasedRows.find((row) => row.id === foreignId);
+  const handedOff = await runEvents(ownedId, 'handed_off');
+  const ownedSteps = await stepJobs(ownedId);
+  const foreignSteps = await stepJobs(foreignId);
+  const ownedSettled = await waitFor(async () => {
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.automation_runs WHERE id = ${ownedId}
+    `;
+    return rows[0]?.status === 'success';
+  }, 30_000);
+  await cancelProbeRun(foreignId);
+  record(
+    'a stopping process hands on only the runs it holds a lease on, one step each',
+    released >= 1 &&
+      ownedRow?.owner === null &&
+      ownedRow.expiresAt === null &&
+      ownedRow.resumeCount === 1 &&
+      ownedRow.reason === 'shutdown' &&
+      handedOff.length === 1 &&
+      handedOff[0]?.detail?.reason === 'shutdown_release' &&
+      ownedSteps === 1 &&
+      ownedSettled &&
+      foreignRow?.owner === 'another-host:7:0.5.0:blue' &&
+      foreignRow.resumeCount === 0 &&
+      foreignSteps === 0,
+    `released=${released} (want >=1), own: owner=${String(ownedRow?.owner)} resumeCount=${ownedRow?.resumeCount} reason=${ownedRow?.reason} events=${handedOff.length} steps=${ownedSteps} settled=${ownedSettled}; foreign: owner kept=${foreignRow?.owner === 'another-host:7:0.5.0:blue'} resumeCount=${foreignRow?.resumeCount} steps=${foreignSteps}`,
+  );
+
+  // ---- #4f: a run a newer engine stepped is never read by this one; while
+  // the roll is recent its step goes back to the queue, recorded once.
+  const newerId = await insertProbeRun('itest:engine-protocol');
+  await sql`
+    UPDATE app.automation_runs SET
+      engine_protocol = ${protocol.ENGINE_PROTOCOL + 98},
+      claimed_at_ms = ${Date.now() - 60_000}
+    WHERE id = ${newerId}
+  `;
+  const deferred = await store.claimRun(sql, orgId, newerId);
+  const deferredAgain = await store.claimRun(sql, orgId, newerId);
+  const deferredRow = await sql<{ status: string; claimEpoch: number }[]>`
+    SELECT status, claim_epoch AS "claimEpoch"
+    FROM app.automation_runs WHERE id = ${newerId}
+  `;
+  const deferredEvents = await runEvents(newerId, 'engine_deferred');
+  const requeued = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'automation.step' AND data->>'runId' = ${newerId}
+      AND start_after > now()
+  `;
+  await cancelProbeRun(newerId);
+  record(
+    'a run stamped by a newer engine is not claimed; its step is re-queued and the deferral recorded once',
+    deferred.status === 'deferred' &&
+      deferredAgain.status === 'deferred' &&
+      deferredRow[0]?.status === 'queued' &&
+      deferredRow[0]?.claimEpoch === 0 &&
+      deferredEvents.length === 1 &&
+      Number(requeued[0]?.count ?? '0') === 2,
+    `claims=${deferred.status},${deferredAgain.status} (want deferred), row=${deferredRow[0]?.status}@${deferredRow[0]?.claimEpoch} (want queued@0), events=${deferredEvents.length} (want 1), delayed steps=${requeued[0]?.count} (want 2)`,
+  );
+
+  // ---- #4g: the effect ledger. Two walkers racing to begin one call meet
+  // on one row; a superseded walker begins nothing; a finished call is
+  // reused; a person's decision lands with the run row locked first and
+  // wakes the run.
+  const ledgerId = await insertProbeRun('itest:ledger', {
+    status: 'running',
+    mode: 'live',
+    claimEpoch: 2,
+  });
+  const beginArgs = (epoch: number, itemIndex: number) => ({
+    organizationId: orgId,
+    runId: ledgerId,
+    epoch,
+    nodeId: 'send',
+    itemIndex,
+    pass: 0,
+    kind: 'connector' as const,
+    nodeType: 'connector',
+    input: { to: 'mia@example.com', item: itemIndex },
+    recallable: false,
+  });
+  const raced = await Promise.all([
+    ledger.beginNodeAttempt(sql, beginArgs(2, 0)),
+    ledger.beginNodeAttempt(sql, beginArgs(2, 0)),
+  ]);
+  const raceKinds = raced.map((answer) => answer.kind).sort();
+  const staleBegin = await ledger.beginNodeAttempt(sql, beginArgs(1, 1));
+  const goneItem = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automation_node_attempts
+    WHERE run_id = ${ledgerId} AND item_index = 1
+  `;
+  const finishedItem = await ledger.beginNodeAttempt(sql, beginArgs(2, 2));
+  await ledger.finishNodeAttempt(sql, {
+    organizationId: orgId,
+    runId: ledgerId,
+    nodeId: 'send',
+    itemIndex: 2,
+    pass: 0,
+    attempt: finishedItem.kind === 'go' ? finishedItem.attempt : 0,
+    status: 'done',
+    output: { messageId: 'm-2' },
+  });
+  const reused = await ledger.beginNodeAttempt(sql, beginArgs(2, 2));
+  // Park the run on the undecided write, then decide it.
+  await sql`
+    UPDATE app.automation_runs SET status = 'waiting', detail = 'in_doubt:send'
+    WHERE id = ${ledgerId}
+  `;
+  const open = await ledger.readOpenInDoubt(sql, orgId, ledgerId);
+  await sql.begin((tx) =>
+    ledger.resolveInDoubtInTx(tx, {
+      organizationId: orgId,
+      runId: ledgerId,
+      attemptId: open?.attemptId ?? '',
+      resolution: 'skip',
+      actor: 'itest-user',
+    }),
+  );
+  const decidedAudit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_id = ${ledgerId}
+      AND action = 'automation.run.in_doubt_resolved'
+  `;
+  const decidedEvents = await runEvents(ledgerId, 'in_doubt_resolved');
+  const decidedSteps = await stepJobs(ledgerId);
+  let secondDecision = '';
+  try {
+    await sql.begin((tx) =>
+      ledger.resolveInDoubtInTx(tx, {
+        organizationId: orgId,
+        runId: ledgerId,
+        attemptId: open?.attemptId ?? '',
+        resolution: 'retry',
+        actor: 'itest-user',
+      }),
+    );
+  } catch (error) {
+    secondDecision =
+      error instanceof store.AutomationError ? error.code : String(error);
+  }
+  await cancelProbeRun(ledgerId);
+  record(
+    'the effect ledger: one row per call under a race, no begin for a stale walker, a finished call reused, a decision recorded and the run woken',
+    raceKinds.join(',') === 'go,in_doubt' &&
+      staleBegin.kind === 'stale' &&
+      Number(goneItem[0]?.count ?? '1') === 0 &&
+      reused.kind === 'done' &&
+      JSON.stringify(reused.kind === 'done' ? reused.output : null) ===
+        JSON.stringify({ messageId: 'm-2' }) &&
+      open?.itemIndex === 0 &&
+      Number(decidedAudit[0]?.count ?? '0') === 1 &&
+      decidedEvents.length === 1 &&
+      decidedSteps === 1 &&
+      // Refused either way: already decided, or the woken run is no longer
+      // parked on it (the worker may have stepped it meanwhile).
+      ['IN_DOUBT_ALREADY_RESOLVED', 'RUN_NOT_IN_DOUBT'].includes(
+        secondDecision,
+      ),
+    `race=[${raceKinds.join(',')}] (want go,in_doubt), stale=${staleBegin.kind}, staleRows=${goneItem[0]?.count} (want 0), reused=${reused.kind} (want done), open item=${open?.itemIndex} (want 0), audit=${decidedAudit[0]?.count} (want 1), events=${decidedEvents.length}, steps=${decidedSteps} (want 1), second decision=${secondDecision} (want a refusal)`,
   );
 
   // ---- #5: the live-op query identifies an in-flight agent turn (adopt, not

@@ -1,0 +1,426 @@
+// @vitest-environment node
+
+/**
+ * Unit lock for the effect ledger's store half: what a walker learns when it
+ * begins a call that reaches outside the run, how it records the outcome,
+ * and how a person's decision about a write that may already have happened
+ * lands.
+ *
+ * The begin share-locks the run row at the walker's epoch first, so a stale
+ * walker inserts nothing. A fresh call inserts a `started` row and goes. An
+ * earlier attempt decides otherwise: `done` is reused, `failed` replayed, a
+ * `started` row nobody decided is called again only when the call is
+ * re-callable and is in doubt otherwise; a person's retry, skip or fail is
+ * honoured. The outcome is recorded whoever holds the run now. A decision
+ * locks the run row before the attempt and the audit chain, the order the
+ * terminal doors take. The real-Postgres probe races two begins.
+ */
+
+import type { Sql, TransactionSql } from 'postgres';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { createAuditLog } = vi.hoisted(() => ({
+  createAuditLog: vi.fn(async () => 'audit_1'),
+}));
+vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
+vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
+
+import { addJobInTx } from '../../jobs/enqueue.ts';
+import { instanceId } from '../../lib/instance.ts';
+import {
+  type BeginAttemptArgs,
+  beginNodeAttempt,
+  finishNodeAttempt,
+  readOpenInDoubt,
+  resolveInDoubtInTx,
+} from './node-attempts.ts';
+
+interface Statement {
+  text: string;
+  values: unknown[];
+}
+
+type Answer = (text: string) => unknown[] | undefined;
+
+/** Scripted `sql`: the first matching answer wins, anything else is empty. */
+function fakeSql(answer: Answer): { sql: Sql; statements: Statement[] } {
+  const statements: Statement[] = [];
+  const fn = (
+    strings: TemplateStringsArray,
+    ...values: unknown[]
+  ): Promise<unknown[]> => {
+    const text = strings.join('?');
+    statements.push({ text, values });
+    return Promise.resolve(answer(text) ?? []);
+  };
+  fn.unsafe = (text: string): { raw: string } => ({ raw: text });
+  fn.json = (value: unknown): { json: unknown } => ({ json: value });
+  fn.begin = (body: (tx: unknown) => Promise<unknown>): Promise<unknown> =>
+    body(fn);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a scripted tagged template standing in for postgres.js
+  return { sql: fn as unknown as Sql, statements };
+}
+
+const call: BeginAttemptArgs = {
+  organizationId: 'org_1',
+  runId: 'run_1',
+  epoch: 5,
+  nodeId: 'send',
+  itemIndex: 2,
+  pass: 0,
+  kind: 'connector',
+  nodeType: 'connector',
+  input: { to: 'mia@example.com' },
+  recallable: false,
+};
+
+/** A begin whose run fence holds and whose insert meets `existing`. */
+function beginFake(existing: Record<string, unknown> | null, again = 2) {
+  return fakeSql((text) => {
+    if (text.includes('FROM app.automation_runs')) return [{ id: 'run_1' }];
+    if (text.includes('INSERT INTO app.automation_node_attempts')) {
+      return existing === null ? [{ attempt: 1 }] : [];
+    }
+    if (text.includes('FROM app.automation_node_attempts')) {
+      return existing === null ? [] : [existing];
+    }
+    if (text.includes('attempt = attempt + 1')) return [{ attempt: again }];
+    return undefined;
+  });
+}
+
+const attempt = (overrides: Record<string, unknown> = {}) => ({
+  id: 'att_1',
+  attempt: 1,
+  status: 'started',
+  output: null,
+  error: null,
+  failureCode: null,
+  resolution: null,
+  resolvedBy: null,
+  ...overrides,
+});
+
+const statementWith = (statements: Statement[], fragment: string) =>
+  statements.find((s) => s.text.includes(fragment));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('beginNodeAttempt', () => {
+  it('goes for a fresh call: a started row, fenced by the run at the walker’s epoch', async () => {
+    const fake = beginFake(null);
+    await expect(beginNodeAttempt(fake.sql, call)).resolves.toEqual({
+      kind: 'go',
+      attempt: 1,
+    });
+    const [fence, insert] = fake.statements;
+    expect(fence?.text).toContain('FOR SHARE');
+    expect(fence?.text).toContain("AND claim_epoch = ? AND status = 'running'");
+    expect(fence?.values).toEqual(['run_1', 'org_1', 5]);
+    expect(insert?.text).toContain(
+      'ON CONFLICT (run_id, node_id, item_index, pass) DO NOTHING',
+    );
+    expect(insert?.text).toContain("'started'");
+    expect(insert?.values).toEqual(
+      expect.arrayContaining(['send', 2, 0, 'connector', instanceId(), 5]),
+    );
+    expect(insert?.values).toContainEqual({
+      json: JSON.stringify({ to: 'mia@example.com' }),
+    });
+  });
+
+  it('inserts nothing for a walker that no longer holds the run', async () => {
+    const fake = fakeSql(() => undefined);
+    await expect(beginNodeAttempt(fake.sql, call)).resolves.toEqual({
+      kind: 'stale',
+    });
+    expect(
+      statementWith(
+        fake.statements,
+        'INSERT INTO app.automation_node_attempts',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('reuses the output of an attempt that finished, and calls nothing', async () => {
+    const fake = beginFake(
+      attempt({ status: 'done', output: { id: 'inv_9' } }),
+    );
+    await expect(beginNodeAttempt(fake.sql, call)).resolves.toEqual({
+      kind: 'done',
+      output: { id: 'inv_9' },
+    });
+    expect(
+      statementWith(fake.statements, 'FROM app.automation_node_attempts')?.text,
+    ).toContain('FOR UPDATE');
+  });
+
+  it('replays the failure an attempt recorded', async () => {
+    const fake = beginFake(
+      attempt({
+        status: 'failed',
+        error: 'the mailbox refused it',
+        failureCode: 'connector_error',
+      }),
+    );
+    await expect(beginNodeAttempt(fake.sql, call)).resolves.toEqual({
+      kind: 'failed',
+      error: 'the mailbox refused it',
+      failureCode: 'connector_error',
+    });
+  });
+
+  it('is in doubt about a write nobody finished and nobody decided', async () => {
+    const fake = beginFake(attempt({ attempt: 3 }));
+    await expect(beginNodeAttempt(fake.sql, call)).resolves.toEqual({
+      kind: 'in_doubt',
+      attemptId: 'att_1',
+      attempt: 3,
+    });
+    expect(
+      statementWith(fake.statements, 'attempt = attempt + 1'),
+    ).toBeUndefined();
+  });
+
+  it('calls a re-callable call again, as the next attempt of this walker', async () => {
+    const fake = beginFake(attempt(), 2);
+    await expect(
+      beginNodeAttempt(fake.sql, { ...call, kind: 'llm', recallable: true }),
+    ).resolves.toEqual({ kind: 'go', attempt: 2 });
+    const again = statementWith(fake.statements, 'attempt = attempt + 1');
+    expect(again?.text).toContain('resolution = NULL');
+    expect(again?.values).toEqual(
+      expect.arrayContaining([instanceId(), 5, 'att_1']),
+    );
+  });
+
+  it('runs it again when a person chose to', async () => {
+    const fake = beginFake(attempt({ resolution: 'retry' }), 2);
+    await expect(beginNodeAttempt(fake.sql, call)).resolves.toEqual({
+      kind: 'go',
+      attempt: 2,
+    });
+  });
+
+  it('skips it when a person chose to: the attempt is done with no output', async () => {
+    const fake = beginFake(attempt({ resolution: 'skip' }));
+    await expect(beginNodeAttempt(fake.sql, call)).resolves.toEqual({
+      kind: 'skip',
+    });
+    const skipped = statementWith(fake.statements, "status = 'done'");
+    expect(skipped?.text).toContain('output = NULL');
+    expect(skipped?.values).toContain('att_1');
+  });
+
+  it('fails the run when a person chose to, naming them', async () => {
+    const fake = beginFake(
+      attempt({ resolution: 'fail', resolvedBy: 'u_mia' }),
+    );
+    await expect(beginNodeAttempt(fake.sql, call)).resolves.toEqual({
+      kind: 'fail',
+      resolvedBy: 'u_mia',
+    });
+  });
+});
+
+describe('finishNodeAttempt', () => {
+  it('records the outcome of the attempt it began, fenced by nothing but that attempt', async () => {
+    const fake = fakeSql(() => [{ id: 'att_1' }]);
+    await expect(
+      finishNodeAttempt(fake.sql, {
+        organizationId: 'org_1',
+        runId: 'run_1',
+        nodeId: 'send',
+        itemIndex: 2,
+        pass: 0,
+        attempt: 1,
+        status: 'done',
+        output: 'sent',
+      }),
+    ).resolves.toEqual({ recorded: true });
+    const [write] = fake.statements;
+    expect(write?.text).not.toContain('claim_epoch');
+    expect(write?.text).toContain('AND attempt = ?');
+    expect(write?.text).toContain("AND status = 'started'");
+    // A bare string output is stored as a JSON string.
+    expect(write?.values).toContainEqual({ json: '"sent"' });
+  });
+
+  it('records a failure without an output', async () => {
+    const fake = fakeSql(() => []);
+    await expect(
+      finishNodeAttempt(fake.sql, {
+        organizationId: 'org_1',
+        runId: 'run_1',
+        nodeId: 'send',
+        itemIndex: 0,
+        pass: 1,
+        attempt: 2,
+        status: 'failed',
+        output: { ignored: true },
+        error: 'refused',
+        failureCode: 'connector_error',
+      }),
+    ).resolves.toEqual({ recorded: false });
+    const [write] = fake.statements;
+    expect(write?.values.slice(0, 4)).toEqual([
+      'failed',
+      null,
+      'refused',
+      'connector_error',
+    ]);
+  });
+});
+
+describe('readOpenInDoubt', () => {
+  it('reads the undecided write only while the run is parked on it', async () => {
+    const open = {
+      attemptId: 'att_1',
+      nodeId: 'send',
+      itemIndex: 2,
+      pass: 0,
+      attempt: 1,
+      kind: 'connector',
+      nodeType: 'connector',
+      input: { to: 'mia@example.com' },
+      startedAt: 1_000,
+    };
+    const fake = fakeSql(() => [open]);
+    await expect(readOpenInDoubt(fake.sql, 'org_1', 'run_1')).resolves.toEqual(
+      open,
+    );
+    const [read] = fake.statements;
+    expect(read?.text).toContain(
+      "r.status = 'waiting' AND r.detail LIKE 'in_doubt:%'",
+    );
+    expect(read?.text).toContain(
+      "a.status = 'started' AND a.resolution IS NULL",
+    );
+    expect(read?.text).toContain("a.kind = 'connector'");
+
+    const none = fakeSql(() => []);
+    await expect(
+      readOpenInDoubt(none.sql, 'org_1', 'run_1'),
+    ).resolves.toBeNull();
+  });
+});
+
+describe('resolveInDoubtInTx', () => {
+  const decide = (sql: Sql, resolution: 'retry' | 'skip' | 'fail' = 'skip') =>
+    resolveInDoubtInTx(sql as unknown as TransactionSql, {
+      organizationId: 'org_1',
+      runId: 'run_1',
+      attemptId: 'att_1',
+      resolution,
+      actor: 'u_mia',
+    });
+
+  function decisionFake(run: Record<string, unknown> | null, resolved = true) {
+    return fakeSql((text) => {
+      if (text.includes('FROM app.automation_runs')) {
+        return run === null ? [] : [run];
+      }
+      if (text.includes('UPDATE app.automation_node_attempts')) {
+        return resolved ? [{ nodeId: 'send', itemIndex: 2, pass: 0 }] : [];
+      }
+      if (text.includes('UPDATE app.automation_runs')) return [{ id: 'run_1' }];
+      if (text.includes('INSERT INTO app.automation_run_events')) {
+        return [{ id: 'event_1' }];
+      }
+      return undefined;
+    });
+  }
+
+  const inDoubtRun = (mode: 'live' | 'mock') => ({
+    status: 'waiting',
+    detail: 'in_doubt:send',
+    mode,
+    name: 'billing/invoices',
+    version: 4,
+  });
+
+  it('locks the run, then the attempt, then the audit chain, and wakes the run', async () => {
+    const fake = decisionFake(inDoubtRun('live'));
+    await decide(fake.sql, 'retry');
+    const order = fake.statements.map((s) =>
+      s.text.includes('FROM app.automation_runs')
+        ? 'run'
+        : s.text.includes('UPDATE app.automation_node_attempts')
+          ? 'attempt'
+          : s.text.includes('INSERT INTO app.automation_run_events')
+            ? 'event'
+            : s.text.includes('UPDATE app.automation_runs')
+              ? 'wake'
+              : 'other',
+    );
+    expect(order).toEqual(['run', 'attempt', 'event', 'wake']);
+    expect(fake.statements[0]?.text).toContain('FOR UPDATE');
+    expect(fake.statements[1]?.text).toContain(
+      "status = 'started' AND resolution IS NULL",
+    );
+    expect(fake.statements[1]?.values).toEqual(
+      expect.arrayContaining(['retry', 'u_mia', 'att_1', 'run_1', 'org_1']),
+    );
+    expect(createAuditLog).toHaveBeenCalledWith(
+      fake.sql,
+      expect.objectContaining({
+        actorId: 'u_mia',
+        actorType: 'user',
+        action: 'automation.run.in_doubt_resolved',
+        resourceId: 'run_1',
+        resourceName: 'billing/invoices@4',
+        metadata: {
+          nodeId: 'send',
+          itemIndex: 2,
+          pass: 0,
+          resolution: 'retry',
+        },
+      }),
+    );
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'automation.step',
+      { organizationId: 'org_1', runId: 'run_1' },
+      {},
+    );
+  });
+
+  it('writes no audit row for a test run', async () => {
+    const fake = decisionFake(inDoubtRun('mock'));
+    await decide(fake.sql);
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['a run that is not parked', { ...inDoubtRun('live'), status: 'running' }],
+    [
+      'a run parked on something else',
+      { ...inDoubtRun('live'), detail: 'approval:appr_1' },
+    ],
+    ['a run that does not exist', null],
+  ])('refuses a decision about %s', async (_case, run) => {
+    const fake = decisionFake(run);
+    await expect(decide(fake.sql)).rejects.toMatchObject({
+      code: 'RUN_NOT_IN_DOUBT',
+      status: 409,
+    });
+    expect(
+      statementWith(fake.statements, 'UPDATE app.automation_node_attempts'),
+    ).toBeUndefined();
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('refuses a second decision about the same write', async () => {
+    const fake = decisionFake(inDoubtRun('live'), false);
+    await expect(decide(fake.sql)).rejects.toMatchObject({
+      code: 'IN_DOUBT_ALREADY_RESOLVED',
+      status: 409,
+    });
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+});

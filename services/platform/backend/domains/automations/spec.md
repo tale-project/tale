@@ -4,10 +4,10 @@
 
 The rules an automation is held to between the editor and a finished run: who can change one
 and run it live, what a saved version and a deployment guarantee, what a start is refused for,
-what each trigger may start, what a run that ends takes with it, and what a delete leaves
-behind. The workflow document itself, how a run proceeds step by step, agent steps and their
-retries, approvals and questions inside a run, package upload and managed configuration are not
-covered; see Not yet.
+what each trigger may start, what a run that ends takes with it, which server steps a run, and
+what a delete leaves behind. The workflow document itself, how a run proceeds step by step,
+agent steps and their retries, approvals and questions inside a run, package upload and managed
+configuration are not covered; see Not yet.
 
 ## Who can do what
 
@@ -233,6 +233,31 @@ over.
 - **Example**: A live run is waiting for Ada to approve sending an email. Noah stops the run →
   the approval leaves Ada's pending list, recorded as rejected because the run ended.
 
+### AUTO-R17 · A stop and a finishing step never both land; the first recorded wins
+
+A person can stop a run in the same moment its last step finishes. The first of the two to be
+recorded decides how the run ends, and the second changes nothing: the run ends once, with one
+entry for it in the audit log. A stop recorded first wins even though the step did its work;
+what the step did is not undone.
+
+- **Example**: Ada presses Stop in the second the run's last step finishes, and her stop is
+  recorded first → the run reads Stopped, and the audit log has one stop entry and no success
+  entry.
+
+## When a server stops
+
+A deployment can run several servers that step automation runs, and a server can stop at any
+moment: an update, a restart, a crash. These rules say what holds for the runs they step.
+
+### AUTO-R16 · One server at a time steps a run
+
+While a server steps a run, a second request to step it does nothing, whether it is a repeated
+job or a check that took the run for stalled. Only when that server stops answering does
+another one take the run over, and the run records that it was taken over.
+
+- **Example**: Noah's nightly import is on step 3 when a second copy of its step job arrives →
+  the second one does nothing, and step 3 runs once.
+
 ## Deleting an automation
 
 ### AUTO-R15 · Deleting an automation keeps its runs and removes everything else
@@ -252,10 +277,12 @@ the run or let it finish first.
 - **The workflow document**: node types, references between steps, control flow, and limits
   such as the number of repeats and the depth of nested automations
   (`lib/engine/core/validate/`, `lib/engine/core/execute/`, `backend/core/automations/stepper.ts`).
-- **How a run proceeds**: checkpoints and resuming, the sweep that revives a stalled run, agent
+- **How a run proceeds**: checkpoints and resuming, how soon the sweep revives a run whose
+  server stopped answering, what becomes of a step its server was running when it stopped, agent
   steps with their automatic retries and waits for a sandbox
   (`backend/core/automations/stepper.ts`, `checkpoints.ts`, `liveness.ts`, `agent_host.ts`,
-  `agent_retry.ts`, `reattach.ts`, `shim.ts`).
+  `agent_retry.ts`, `reattach.ts`, `shim.ts`, `node-attempts.ts`). `AUTO-R16` covers which
+  server steps a run.
 - **Approvals inside a run**: which step asks, and the credential check before it asks
   (`backend/core/automations/stepper.ts`, `shim.ts`). An approval cannot be decided over the
   API; the contract debt ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records

@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 80 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 81 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -697,6 +697,17 @@ output:
       pending card disappears. On another live task, the Editor can cancel;
       the Member sees the terminal state after reload. Use the task panel:
       Member and Editor seats have no Automations navigation (`AUTO-F53`).
+- [ ] `AUTO-B12` · **Stop beats a finishing step** — Deploy an automation
+      whose last step is an `llm` step asking for a long answer (a few
+      seconds of model time), start a live run, open **Stop the run**
+      (`automations.runs.cancel`) and confirm it
+      (`automations.runs.cancelConfirm.title`) as the answer is about to
+      land; repeat it a few times → each run reads either **Stopped**
+      (`automations.runs.status.cancelled`) or **Succeeded**
+      (`automations.runs.status.success`) and keeps it after a hard reload;
+      Settings › Audit log has exactly one ending entry per run: a cancelled
+      action for a Stopped run, a success action for a Succeeded one, never
+      both. A Stopped run shows no output.
 
 ## Run liveness — chaos recovery (backend, scripted)
 
