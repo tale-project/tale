@@ -125,7 +125,7 @@ Pour une tâche d’agent, changer de statut peut démarrer ou annuler une exéc
 
 ### Suivre le processus d'une source connectée
 
-Une tâche dont la source connectée gère le processus métier peut afficher **Processus de la source** dans ses détails. Choisis l'action de la source, complète ses champs et sélectionne **Envoyer la demande**. La source vérifie ton identité, ton rôle et les règles de transition avant de mettre la tâche à jour. Saisis la note de vérification, la preuve de clôture ou le motif de réouverture requis dans ce formulaire ; une colonne du board ne peut ni porter ces informations ni distinguer deux étapes de source qui apparaissent toutes deux comme **In review**.
+Une tâche dont la source connectée gère le processus métier peut afficher **Processus de la source** dans ses détails. Choisis l'action de la source, complète ses champs et sélectionne **Envoyer la demande**. La source vérifie ton identité, ton rôle et les règles de transition avant de mettre la tâche à jour. Saisis la note de vérification, la preuve de clôture ou le motif de réouverture requis dans ce formulaire ; une colonne du board ne peut ni porter ces informations ni distinguer deux étapes de source qui apparaissent toutes deux comme **En revue**.
 
 Pendant la validation, la tâche affiche l'état en attente et empêche une seconde demande. Le résultat accepté ou le motif du refus reste visible après rechargement. Un refus conserve l'état accepté par la source ; lis l'explication avant de demander une autre action. Une source peut proposer une réouverture soumise à ses règles pour un enregistrement archivé. Ces actions exigent un compte vérifié et actif, ainsi que le droit de travailler sur la tâche.
 
