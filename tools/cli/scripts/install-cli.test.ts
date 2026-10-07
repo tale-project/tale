@@ -280,7 +280,9 @@ async function runPowerShell(
     ],
     {
       env: { ...process.env, ...environment },
-      timeout: 10_000,
+      // A fresh pwsh process can spend over 10 seconds starting on hosted runners;
+      // 30 seconds covers that cold start while still bounding each installer test.
+      timeout: 30_000,
     },
   );
   return { exitCode: run.exitCode, output: `${run.stdout}${run.stderr}` };

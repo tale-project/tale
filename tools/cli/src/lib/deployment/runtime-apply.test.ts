@@ -331,8 +331,69 @@ describePosix('managed source-Compose runtime adoption', () => {
     expect(receipt().phase).toBe('ready');
   });
 
+  test.each(['legacy', 'pending', 'ready'] as const)(
+    'refuses a missing mount of an existing volume during %s admission before mutation',
+    async (phase) => {
+      const run = await create(true);
+      if (phase === 'pending') {
+        run.docker.upFailure = true;
+        await expect(run.apply()).rejects.toThrow('could not complete');
+        run.docker.upFailure = false;
+      } else if (phase === 'ready') {
+        await run.apply();
+      }
+      const platform = run.docker.containers.find(
+        (container) =>
+          (container.Config as { Labels: Record<string, string> }).Labels[
+            'com.docker.compose.service'
+          ] === 'platform',
+      ) as { Mounts: { Name: string }[] };
+      expect(run.docker.volumes).toContain('tale_config-data');
+      platform.Mounts = platform.Mounts.filter(
+        (mount) => mount.Name !== 'tale_config-data',
+      );
+      const volumes = [...run.docker.volumes];
+      const containers = structuredClone(run.docker.containers);
+      const envPath = join(run.fixture.options.stateDirectory, 'src/.env');
+      const secretsPath = join(
+        run.fixture.options.stateDirectory,
+        'secrets.env',
+      );
+      const environment = readFileSync(envPath);
+      const secrets = readFileSync(secretsPath);
+      const receiptPath = join(
+        run.fixture.options.stateDirectory,
+        '.tale/runtime.json',
+      );
+      const receipt = existsSync(receiptPath)
+        ? readFileSync(receiptPath)
+        : null;
+      run.docker.calls = [];
+
+      await expect(run.apply(true)).rejects.toThrow(
+        'Existing runtime mounts differ',
+      );
+      await expect(run.apply()).rejects.toThrow(
+        'Existing runtime mounts differ',
+      );
+      expect(mutations(run.docker)).toEqual([]);
+      expect(run.docker.volumes).toEqual(volumes);
+      expect(run.docker.containers).toEqual(containers);
+      expect(readFileSync(envPath)).toEqual(environment);
+      expect(readFileSync(secretsPath)).toEqual(secrets);
+      expect(
+        existsSync(receiptPath) ? readFileSync(receiptPath) : null,
+      ).toEqual(receipt);
+    },
+  );
+
   test('adopts a release that adds a new named volume to an existing runtime', async () => {
     const run = await create(true);
+    const originalVolumes = [...run.docker.volumes];
+    const originalMounts = run.docker.containers.map((container) => ({
+      name: container.Name,
+      mounts: structuredClone(container.Mounts) as { Name: string }[],
+    }));
     run.fixture.source.volumes['static-assets'] = {};
     run.fixture.source.services.platform.volumes = [
       ...(run.fixture.source.services.platform.volumes as string[]),
@@ -359,7 +420,16 @@ describePosix('managed source-Compose runtime adoption', () => {
     run.docker.calls = [];
 
     expect(await run.apply()).toMatchObject({ existing: true, changed: true });
-    expect(run.docker.volumes).toContain('tale_static-assets');
+    expect(run.docker.volumes).toEqual([
+      ...originalVolumes,
+      'tale_static-assets',
+    ]);
+    for (const original of originalMounts) {
+      const retained = run.docker.containers.find(
+        (container) => container.Name === original.name,
+      ) as { Mounts: (typeof originalMounts)[number]['mounts'] } | undefined;
+      expect(retained?.Mounts).toEqual(expect.arrayContaining(original.mounts));
+    }
     const platform = run.docker.containers.find(
       (container) =>
         (container.Config as { Labels: Record<string, string> }).Labels[

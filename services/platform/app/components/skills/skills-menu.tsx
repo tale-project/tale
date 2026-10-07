@@ -64,6 +64,8 @@ interface SkillsMenuProps {
   /** Field label — same Label chrome as Input/Select. Omit only for unlabeled toolbars. */
   label?: string;
   description?: ReactNode;
+  /** Set when the menu is opened from inside a modal Dialog. */
+  modal?: boolean;
 }
 
 function toggle(
@@ -86,6 +88,7 @@ export function SkillsMenu({
   align = 'end',
   label,
   description,
+  modal,
 }: SkillsMenuProps) {
   // The capability vocabulary lives in the chat namespace; every surface
   // shares it so the labels can never diverge between hosts.
@@ -224,6 +227,7 @@ export function SkillsMenu({
     <DropdownMenu
       align={asField ? 'start' : align}
       disabled={disabled}
+      modal={modal}
       trigger={
         <Button
           variant={variant}

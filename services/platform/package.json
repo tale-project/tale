@@ -149,7 +149,7 @@
     "@vitest/browser-playwright": "4.1.10",
     "axe-core": "4.13.0",
     "postcss-load-config": "6.0.1",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "tree-kill": "1.2.2",
     "vitest-axe": "1.0.0-pre.5"
   },

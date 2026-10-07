@@ -280,6 +280,50 @@ describe('project shell — All projects Tasks mode', () => {
 // An archived project said so only in the Projects list. Every one of its tabs
 // now carries the badge, beside the breadcrumb leaf.
 describe('project shell — archived badge', () => {
+  it.each(['board', 'list'])(
+    'keeps the aggregate %s unbadged when the path project is archived live or on a fresh mount',
+    (view) => {
+      mockLocation.pathname = `/dashboard/org-1/projects/proj-1/tasks/${view}`;
+      mockLocation.search = { projects: 'all' };
+      const { rerender, unmount } = setup([]);
+
+      expect(
+        screen.queryByText('projects.archived.badge'),
+      ).not.toBeInTheDocument();
+
+      mockUseProject.mockReturnValue({
+        project: { _id: 'proj-1', name: 'Apollo', archivedAt: 1789000000000 },
+        isLoading: false,
+      });
+      rerender(<ProjectDetailLayout />);
+      expect(
+        screen.queryByText('projects.archived.badge'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: 'tasks.title' }),
+      ).toBeInTheDocument();
+
+      unmount();
+      setup([], { archivedAt: 1789000000000 });
+      expect(
+        screen.queryByText('projects.archived.badge'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: 'tasks.title' }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it.each(['board', 'list'])(
+    'keeps the archived badge on a single-project %s',
+    (view) => {
+      mockLocation.pathname = `/dashboard/org-1/projects/proj-1/tasks/${view}`;
+      setup([], { archivedAt: 1789000000000 });
+
+      expect(screen.getByText('projects.archived.badge')).toBeInTheDocument();
+    },
+  );
+
   it('badges the breadcrumb when the project is archived', () => {
     setup([], { archivedAt: 1789000000000 });
 

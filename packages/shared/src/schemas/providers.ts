@@ -205,6 +205,16 @@ export type ExecutionConstraints = z.infer<typeof executionConstraintsSchema>;
  */
 const subscriptionImageInputsSchema = z.enum(['forwarded', 'dropped']);
 
+/** Environment-variable name as a credential env key (`ANTHROPIC_API_KEY`). */
+const envKeyNameSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(
+    /^[A-Z][A-Z0-9_]*$/,
+    'must be an environment-variable name (upper-case letters, digits, underscores)',
+  );
+
 const providerAuthMethodSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('api-key') }).strict(),
   z.object({ method: z.literal('env') }).strict(),
@@ -213,6 +223,11 @@ const providerAuthMethodSchema = z.discriminatedUnion('method', [
       method: z.literal('subscription-key'),
       baseUrl: providerBaseUrlSchema.optional(),
       apiFormat: apiFormatSchema.optional(),
+      /** The harness env var the secret is delivered under, when it is not
+       * the harness's default token variable (Anthropic's OAuth token rides
+       * `CLAUDE_CODE_OAUTH_TOKEN`, not the bearer channel). The harness must
+       * list it in its `subscription.tokenVarOverrides`. */
+      targetEnvVar: envKeyNameSchema.optional(),
       imageInputs: subscriptionImageInputsSchema.optional(),
       constraints: executionConstraintsSchema,
     })
@@ -597,16 +612,6 @@ export const modelCatalogFileSchema = z
   .refine(
     (entries) => new Set(entries.map((e) => e.id)).size === entries.length,
     { message: 'model ids must be unique within a catalog file' },
-  );
-
-/** Environment-variable name as a credential env key (`ANTHROPIC_API_KEY`). */
-const envKeyNameSchema = z
-  .string()
-  .min(1)
-  .max(64)
-  .regex(
-    /^[A-Z][A-Z0-9_]*$/,
-    'must be an environment-variable name (upper-case letters, digits, underscores)',
   );
 
 /**
@@ -1179,7 +1184,8 @@ const harnessSubscriptionSchema = z.discriminatedUnion('kind', [
     .object({
       kind: z.literal('env'),
       tokenVar: envKeyNameSchema,
-      /** Other token channels this CLI understands, selected by a broker. */
+      /** Other token channels this CLI understands, selected by a broker or
+       * by a provider's `subscription-key` entry (`targetEnvVar`). */
       tokenVarOverrides: z.array(envKeyNameSchema).min(1).max(16).optional(),
       /** Blanked before delivery, including inherited per-session values. */
       clearEnv: z.array(envKeyNameSchema).min(1).max(16).optional(),

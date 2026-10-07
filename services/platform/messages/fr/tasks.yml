@@ -218,6 +218,7 @@ actions:
   created: Tâche créée
   comment: Commenter
   commentPlaceholder: Écris un commentaire — tape @ pour mentionner une personne ou un agent
+  commentAgentHint: "Mentionne l’agent assigné pour lui donner un retour. S’il travaille, la mention est envoyée à son exécution en cours."
   commentShortcut: '{shortcut} pour envoyer'
   assign: Assigner
   add: Ajouter
@@ -474,7 +475,7 @@ timeline:
   systemActor: Système
   unresolvedWorkflow: Automatisation
   deletedAgent: Agent supprimé
-  viewAgent: Voir l'agent
+  viewMore: "Voir plus"
   viewWorkflow: Voir l'automatisation
 dueDate:
   label: Échéance
