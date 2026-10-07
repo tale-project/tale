@@ -13,7 +13,7 @@ Dein Name ist für Kollegen sichtbar und darf höchstens 100 Zeichen lang sein. 
 
 ## Wenn eine Passwortänderung erforderlich ist
 
-Wenn ein Administrator dein Passwort festlegt oder zurücksetzt oder es gemäß der Rotationsrichtlinie deiner Organisation abläuft, erscheint bei der Anmeldung die Seite **Passwortänderung erforderlich**. Gib ein neues Passwort ein, das die angezeigten Anforderungen erfüllt, bestätige es und wähle **Absenden**, um fortzufahren. Die genauen Meldungen stehen unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
+Wenn ein Administrator dein Passwort festlegt oder zurücksetzt oder es gemäß der Rotationsrichtlinie deiner Organisation abläuft, erscheint bei der Anmeldung die Seite **Passwortänderung erforderlich**. Gib ein neues Passwort ein, das die angezeigten Anforderungen erfüllt, bestätige es und wähle **Passwort aktualisieren**, um fortzufahren. Die genauen Meldungen stehen unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
 
 ## Die Anmeldung absichern
 

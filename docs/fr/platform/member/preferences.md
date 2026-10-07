@@ -13,7 +13,7 @@ Ton nom est visible par les collègues et ne doit pas dépasser 100 caractères.
 
 ## Quand un changement de mot de passe est requis
 
-Si un administrateur définit ou réinitialise ton mot de passe, ou si celui-ci expire selon la politique de rotation de ton organisation, l’écran **Changement de mot de passe requis** s’affiche à la connexion. Saisis un nouveau mot de passe qui respecte les exigences affichées, confirme-le, puis sélectionne **Envoyer** pour continuer. Les messages exacts figurent dans [Membres et rôles](/fr/platform/admin/members-and-roles).
+Si un administrateur définit ou réinitialise ton mot de passe, ou si celui-ci expire selon la politique de rotation de ton organisation, l’écran **Changement de mot de passe requis** s’affiche à la connexion. Saisis un nouveau mot de passe qui respecte les exigences affichées, confirme-le, puis sélectionne **Mettre à jour le mot de passe** pour continuer. Les messages exacts figurent dans [Membres et rôles](/fr/platform/admin/members-and-roles).
 
 ## Protéger la connexion
 

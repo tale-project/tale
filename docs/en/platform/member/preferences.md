@@ -13,7 +13,7 @@ The name is visible to teammates and can be at most 100 characters long. It is n
 
 ## When a password change is required
 
-If an administrator sets or resets your password, or your password expires under the organization's rotation policy, the **Password change required** screen appears when you sign in. Enter a new password that meets the requirements shown on screen, confirm it, and select **Submit** to continue. For the exact messages, see [Members and roles](/platform/admin/members-and-roles).
+If an administrator sets or resets your password, or your password expires under the organization's rotation policy, the **Password change required** screen appears when you sign in. Enter a new password that meets the requirements shown on screen, confirm it, and select **Update password** to continue. For the exact messages, see [Members and roles](/platform/admin/members-and-roles).
 
 ## Protect your sign-in
 
