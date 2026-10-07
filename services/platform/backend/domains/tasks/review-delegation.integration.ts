@@ -519,14 +519,31 @@ export async function checkReviewDelegation(f: Fixture): Promise<void> {
     const ready = latch();
     const releaseFirst = latch();
     const seen = latch();
+    // Attach rejection handling immediately: a failure before the readiness
+    // signal must remain an observed failure, never an unhandled rejection.
     const first = transactSerializable(sql, async (tx) => {
       await (verdictFirst ? verdict(tx) : handoff(tx));
       ready.release();
       await bounded(releaseFirst.ready);
-    });
+    }).then(
+      () => ({ ok: true as const }),
+      (error: unknown) => ({ ok: false as const, error }),
+    );
     let second: Promise<string | null> | undefined;
+    let outcomes:
+      | [Awaited<typeof first>, string | null | undefined]
+      | undefined;
+    let barrierFailed = false;
+    let barrierError: unknown;
     try {
-      await bounded(ready.ready);
+      await bounded(
+        Promise.race([
+          ready.ready,
+          first.then((settledFirst) => {
+            if (!settledFirst.ok) throw settledFirst.error;
+          }),
+        ]),
+      );
       second = refusal(() =>
         transactSerializable(sql, async (tx) => {
           await (verdictFirst
@@ -534,11 +551,40 @@ export async function checkReviewDelegation(f: Fixture): Promise<void> {
             : verdict(observeTaskRead(tx, seen.release)));
         }),
       );
-      await bounded(seen.ready);
+      await bounded(
+        Promise.race([
+          seen.ready,
+          first.then((settledFirst) => {
+            if (!settledFirst.ok) throw settledFirst.error;
+          }),
+          second.then((code) => {
+            if (code !== null)
+              throw new Error(
+                `Delegation race contender failed before observation: ${code}`,
+              );
+          }),
+        ]),
+      );
+    } catch (error) {
+      barrierFailed = true;
+      barrierError = error;
     } finally {
       releaseFirst.release();
+      // Both transactions belong to this fixture. Settle them before the
+      // enclosing lane tears down its rows, including a failed barrier path.
+      try {
+        outcomes = await bounded(Promise.all([first, second]));
+      } catch (error) {
+        if (!barrierFailed) {
+          barrierFailed = true;
+          barrierError = error;
+        }
+      }
     }
-    const outcomes = await bounded(Promise.all([first, second]));
+    if (barrierFailed) throw barrierError;
+    if (outcomes === undefined)
+      throw new Error('Delegation race did not settle');
+    if (!outcomes[0].ok) throw outcomes[0].error;
     const final = await loadTaskOrThrow(sql, source.taskId, orgId);
     const finalGates = await gates(source.taskId);
     report(
