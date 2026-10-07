@@ -133,6 +133,17 @@ describe('selectTaskOutputsForStaging', () => {
     });
   });
 
+  it.each([64, 65])(
+    'selects the newest 64 from %i outputs with the default cap',
+    (count) => {
+      const outputs = Array.from({ length: count }, (_, index) => index);
+      expect(selectTaskOutputsForStaging(outputs)).toEqual({
+        selected: outputs.slice(count - 64),
+        omitted: count - 64,
+      });
+    },
+  );
+
   it('uses the production cap so a large retained history stays bounded', () => {
     const outputs = Array.from(
       { length: MAX_STAGED_TASK_OUTPUTS + 7 },
