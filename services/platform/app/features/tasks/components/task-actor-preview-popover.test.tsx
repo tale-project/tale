@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AbilityContext } from '@/app/context/ability-context';
@@ -108,6 +109,67 @@ describe('TaskActorName', () => {
       await screen.findByText('tasks.agents.detailsTitle'),
     ).toBeInTheDocument();
     expect(screen.getByText('Drafts copy.')).toBeInTheDocument();
+  });
+  it('keeps keyboard focus on View more and restores the trigger on Escape', async () => {
+    const { user } = render(
+      <TaskActorName
+        name="Writer"
+        preview={{
+          kind: 'agent',
+          name: 'Writer',
+          agent: {
+            name: 'Writer',
+            organizationId: 'org_1',
+            projectId: 'project_1',
+            harness: 'codex',
+            model: 'gpt-6.1',
+            modelProvider: 'openai',
+            skills: ['docx'],
+            connectors: [],
+            tools: [],
+            instructions: 'Drafts copy.',
+            managed: false,
+          },
+          viewTo: '/dashboard/$id',
+          viewParams: { id: 'org_1' },
+        }}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Writer' });
+    await user.tab();
+    expect(trigger).toHaveFocus();
+    await screen.findByRole('button', { name: 'tasks.timeline.viewMore' });
+    await user.tab();
+    const viewMore = screen.getByRole('button', {
+      name: 'tasks.timeline.viewMore',
+    });
+    expect(viewMore).toHaveFocus();
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(viewMore).toBeInTheDocument();
+    expect(viewMore).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+      expect(
+        screen.queryByRole('button', { name: 'tasks.timeline.viewMore' }),
+      ).not.toBeInTheDocument();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(
+      screen.queryByRole('button', { name: 'tasks.timeline.viewMore' }),
+    ).not.toBeInTheDocument();
+
+    await user.tab({ shift: true });
+    await user.tab();
+    await screen.findByRole('button', { name: 'tasks.timeline.viewMore' });
+    await user.tab();
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await user.keyboard('{Enter}');
+    expect(
+      await screen.findByText('tasks.agents.detailsTitle'),
+    ).toBeInTheDocument();
   });
 });
 
