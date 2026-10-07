@@ -9,7 +9,8 @@ import { useId, useMemo, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { formatDurationSeconds } from '@/lib/utils/format/duration';
 
-import { humanizeNodeId, type AutomationGraph } from '../lib/graph';
+import type { AutomationGraph } from '../lib/graph';
+import { humanizeNodeId } from '../lib/node-label';
 import type { NodeRunView, RunProjection } from '../lib/run-view';
 import { AgentActivityLine, AgentExecutionLog } from './agent-execution-log';
 import { NodeStatusIcon } from './run-status-badge';

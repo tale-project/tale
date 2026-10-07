@@ -8,7 +8,12 @@
  * lifts author success rates, and hints double as catalog discovery.
  */
 
-import type { Issue } from './types';
+import type {
+  Issue,
+  IssueLocation,
+  IssueParams,
+  RelatedLocation,
+} from './types';
 
 /** Every code the engine can emit, with the invariant it protects. */
 export const CODES = {
@@ -60,6 +65,8 @@ export const CODES = {
     'an unstructured output has no fields — only .output.text exists, and only as text',
   ITEM_WITHOUT_FOREACH: '`item` exists only under forEach',
   INPUT_KEY_UNKNOWN: 'input.<key> should be declared in the inputs schema',
+  TEMPLATE_UNTERMINATED:
+    'a "{{" without its closing "}}" is plain text, not a template',
 
   // Connector contracts.
   CONNECTOR_INPUT_INVALID: 'connector inputs must match their JSON Schema',
@@ -76,11 +83,223 @@ export const CODES = {
 
 export type IssueCode = keyof typeof CODES;
 
+export type IssueFamily =
+  | 'document'
+  | 'node'
+  | 'syntax'
+  | 'reference'
+  | 'type'
+  | 'flow'
+  | 'contract'
+  | 'test'
+  | 'quality';
+
+/** What a code is, for readers that render issues without the English
+ * message: its level, its family, and the params every issue carries. */
+export interface CodeMeta {
+  /** The level the engine emits the code at; `varies` for a code whose
+   * level depends on where it is raised. */
+  level: 'error' | 'warning' | 'varies';
+  family: IssueFamily;
+  /** Every param name an issue of this code carries; a trailing `?` marks
+   * an optional one. */
+  params: readonly string[];
+  /** Params that hold raw parser or schema-validator English — shown as
+   * technical detail, never interpolated into localized text. */
+  technical?: readonly string[];
+}
+
+/** One entry per code — a code without meta is a type error. */
+export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
+  AUTOMATION_NOT_OBJECT: { level: 'error', family: 'document', params: [] },
+  UNKNOWN_TOP_FIELD: {
+    level: 'error',
+    family: 'document',
+    params: ['field', 'allowed'],
+  },
+  VERSION_UNSUPPORTED: {
+    level: 'error',
+    family: 'document',
+    params: ['version'],
+  },
+  VERSION_MISSING: { level: 'warning', family: 'document', params: [] },
+  NAME_INVALID: { level: 'error', family: 'document', params: ['name?'] },
+  INPUTS_SCHEMA_INVALID: {
+    level: 'error',
+    family: 'document',
+    params: ['detail?'],
+    technical: ['detail'],
+  },
+  NODES_MISSING: { level: 'error', family: 'document', params: [] },
+  NODES_TOO_MANY: {
+    level: 'error',
+    family: 'document',
+    params: ['count', 'max'],
+  },
+  SECRET_IN_DOCUMENT: { level: 'error', family: 'document', params: ['kind'] },
+  TESTS_INVALID: { level: 'error', family: 'test', params: ['test?', 'keys?'] },
+  NODE_NOT_OBJECT: { level: 'error', family: 'node', params: ['index'] },
+  NODE_ID_INVALID: { level: 'error', family: 'node', params: ['index', 'id?'] },
+  NODE_ID_DUPLICATE: {
+    level: 'error',
+    family: 'node',
+    params: ['node', 'firstIndex'],
+  },
+  UNKNOWN_NODE_TYPE: {
+    level: 'error',
+    family: 'node',
+    params: ['node?', 'type?', 'suggestion?'],
+  },
+  NODE_UNKNOWN_FIELD: {
+    level: 'error',
+    family: 'node',
+    params: ['node', 'type', 'field', 'allowed'],
+  },
+  NODE_MISSING_FIELD: {
+    level: 'error',
+    family: 'node',
+    params: ['node', 'type', 'field'],
+  },
+  NODE_FIELD_TYPE: {
+    level: 'error',
+    family: 'node',
+    params: ['node', 'field', 'expected'],
+  },
+  CODE_SYNTAX: {
+    level: 'error',
+    family: 'syntax',
+    params: ['node', 'detail'],
+    technical: ['detail'],
+  },
+  CODE_NO_IO: { level: 'error', family: 'node', params: ['node', 'token'] },
+  CODE_NO_RETURN: { level: 'warning', family: 'node', params: ['node'] },
+  OUTPUT_SCHEMA_INVALID: {
+    level: 'error',
+    family: 'node',
+    params: ['node', 'detail?'],
+    technical: ['detail'],
+  },
+  ELSEOF_TARGET_INVALID: {
+    level: 'error',
+    family: 'node',
+    params: ['node', 'target', 'reason'],
+  },
+  REPEAT_MAX_INVALID: {
+    level: 'error',
+    family: 'node',
+    params: ['node', 'value'],
+  },
+  ONERROR_INVALID: {
+    level: 'error',
+    family: 'node',
+    params: ['node', 'value'],
+  },
+  SUBAUTOMATION_REF_INVALID: {
+    level: 'error',
+    family: 'contract',
+    params: ['node', 'ref'],
+  },
+  SUBAUTOMATION_NOT_FOUND: {
+    level: 'error',
+    family: 'contract',
+    params: [
+      'node',
+      'automation',
+      'version?',
+      'suggestion?',
+      'latest?',
+      'known?',
+    ],
+  },
+  SUBAUTOMATION_HAS_AGENT_NODE: {
+    level: 'error',
+    family: 'contract',
+    params: ['node', 'automation', 'childNode'],
+  },
+  SUBAUTOMATION_HAS_WRITE: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'automation', 'childNode', 'childType'],
+  },
+  EXPR_SYNTAX: {
+    level: 'error',
+    family: 'syntax',
+    params: ['node?', 'field', 'expr', 'detail'],
+    technical: ['detail'],
+  },
+  REF_UNKNOWN_NODE: {
+    level: 'error',
+    family: 'reference',
+    params: ['node?', 'field', 'ref', 'suggestion?', 'known'],
+  },
+  REF_SELF: { level: 'error', family: 'reference', params: ['node', 'field'] },
+  REF_NOT_OUTPUT: {
+    level: 'error',
+    family: 'reference',
+    params: ['node?', 'field', 'source', 'member'],
+  },
+  REF_BARE: {
+    level: 'warning',
+    family: 'reference',
+    params: ['node?', 'field', 'source'],
+  },
+  REF_CYCLE: { level: 'error', family: 'reference', params: ['cycle'] },
+  REF_UNSTRUCTURED_PATH: {
+    level: 'error',
+    family: 'type',
+    params: ['node?', 'field', 'source', 'sourceType', 'member'],
+  },
+  ITEM_WITHOUT_FOREACH: {
+    level: 'warning',
+    family: 'reference',
+    params: ['node', 'field', 'names'],
+  },
+  INPUT_KEY_UNKNOWN: {
+    level: 'warning',
+    family: 'reference',
+    params: ['node?', 'field', 'key', 'suggestion?', 'declared'],
+  },
+  TEMPLATE_UNTERMINATED: {
+    level: 'warning',
+    family: 'syntax',
+    params: ['node?', 'field'],
+  },
+  CONNECTOR_INPUT_INVALID: {
+    level: 'error',
+    family: 'contract',
+    params: ['node', 'type', 'property', 'keyword', 'suggestion?', 'detail'],
+    technical: ['detail'],
+  },
+  LLM_MODEL_UNAVAILABLE: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'model'],
+  },
+  OUTPUT_MISSING: { level: 'warning', family: 'quality', params: [] },
+  UNUSED_NODE: {
+    level: 'warning',
+    family: 'quality',
+    params: ['node', 'reason'],
+  },
+};
+
+/** Everything an issue carries besides its level, code and message. `at`
+ * and `params` are required, so no emitter can forget where an issue is or
+ * what its sentence says. */
+export interface IssueExtras {
+  nodeId?: string;
+  path?: string;
+  hint?: string;
+  at: IssueLocation;
+  params: IssueParams;
+  related?: readonly RelatedLocation[];
+}
+
 /** Typo-safe Issue constructors — validators never hand-write codes. */
 export function err(
   code: IssueCode,
   message: string,
-  extras: { nodeId?: string; path?: string; hint?: string } = {},
+  extras: IssueExtras,
 ): Issue {
   return { level: 'error', code, message, ...extras };
 }
@@ -88,7 +307,7 @@ export function err(
 export function warn(
   code: IssueCode,
   message: string,
-  extras: { nodeId?: string; path?: string; hint?: string } = {},
+  extras: IssueExtras,
 ): Issue {
   return { level: 'warning', code, message, ...extras };
 }

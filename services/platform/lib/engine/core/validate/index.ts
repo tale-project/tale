@@ -9,16 +9,22 @@
  * deliberate, reviewed API change.
  *
  * Order: document shape → per-node structure → references and templates →
- * connector/store contracts and document quality. Validation is async end
- * to end: syntax checks ride the CodeRunner and subautomation resolution rides
- * the caller-supplied async store; with no runner installed, syntax checks
- * are skipped silently and re-run once a backend is wired.
+ * connector/store contracts and document quality. Every issue says where it
+ * is (`at`: a JSON Pointer, and the range inside the string for code) and
+ * what its sentence is built from (`params`).
+ *
+ * Syntax is the parser's (`../syntax`): acorn locates every error, and where
+ * a CodeRunner is installed it confirms a rejection before it is reported —
+ * code the runner compiles is valid, merely opaque to the analysis. Without
+ * a runner the parser's verdict stands. Subautomation resolution rides the
+ * caller-supplied async store.
  */
 
 import { isRecord } from '../../../utils/type-utils';
 import { err } from '../errors';
 import type { StoreAdapter } from '../slots';
 import type { Issue } from '../types';
+import { createValidationContext } from './context';
 import { validateContracts } from './contracts';
 import { validateDocument } from './document';
 import { validateNodes } from './nodes';
@@ -45,6 +51,7 @@ export async function validate(
         err(
           'AUTOMATION_NOT_OBJECT',
           'the automation document must be a mapping/object: {version, name, inputs?, nodes, output?}',
+          { at: { pointer: '' }, params: {} },
         ),
       ],
       warnings: [],
@@ -61,6 +68,11 @@ export async function validate(
         '"nodes" must be a non-empty array of node objects',
         {
           path: 'nodes',
+          at: {
+            pointer: '/nodes',
+            ...(doc.nodes === undefined && { subject: 'missing' as const }),
+          },
+          params: {},
         },
       ),
     );
@@ -74,14 +86,17 @@ export async function validate(
         {
           path: 'nodes',
           hint: 'extract cohesive groups into saved automations and call them with subautomation nodes',
+          at: { pointer: '/nodes' },
+          params: { count: doc.nodes.length, max: MAX_NODES },
         },
       ),
     );
   }
 
-  const { validNodes, ids } = await validateNodes(doc.nodes, issues);
-  await validateReferences(doc, validNodes, ids, issues);
-  await validateContracts(doc, validNodes, issues, opts.store);
+  const ctx = createValidationContext(doc, issues, opts.store);
+  const { validNodes, ids } = await validateNodes(ctx);
+  await validateReferences(ctx, validNodes, ids);
+  await validateContracts(ctx, validNodes);
   return split(issues);
 }
 

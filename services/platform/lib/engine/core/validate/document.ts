@@ -11,6 +11,7 @@
 
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
+import { ptr } from '../syntax/pointer';
 import type { Issue } from '../types';
 import { AUTOMATION_NAME_RULE, isValidAutomationName } from './name';
 import { compileSchema } from './schema';
@@ -55,6 +56,8 @@ export function validateDocument(
             k === 'edges' || k === 'connections'
               ? 'remove it — edges are derived automatically from {{ nodes.<id>.output }} references'
               : `allowed fields: ${TOP_FIELDS.join(', ')}`,
+          at: { pointer: ptr(k), subject: 'key' },
+          params: { field: k, allowed: TOP_FIELDS },
         }),
       );
     }
@@ -65,6 +68,8 @@ export function validateDocument(
       warn('VERSION_MISSING', 'document has no "version" field', {
         path: 'version',
         hint: 'add version: 1',
+        at: { pointer: '/version', subject: 'missing' },
+        params: {},
       }),
     );
   } else if (doc.version !== 1) {
@@ -72,7 +77,11 @@ export function validateDocument(
       err(
         'VERSION_UNSUPPORTED',
         `unsupported document version ${JSON.stringify(doc.version)} — this engine supports version 1`,
-        { path: 'version' },
+        {
+          path: 'version',
+          at: { pointer: '/version' },
+          params: { version: JSON.stringify(doc.version) },
+        },
       ),
     );
   }
@@ -85,6 +94,11 @@ export function validateDocument(
       err('NAME_INVALID', `"name" is required — ${AUTOMATION_NAME_RULE}`, {
         path: 'name',
         hint: 'lowercase letters and digits; "-" or "_" between words inside a segment, "/" between segments; at most 200 characters',
+        at: {
+          pointer: '/name',
+          ...(doc.name === undefined && { subject: 'missing' as const }),
+        },
+        params: typeof doc.name === 'string' ? { name: doc.name } : {},
       }),
     );
   }
@@ -94,17 +108,24 @@ export function validateDocument(
       issues.push(
         err('INPUTS_SCHEMA_INVALID', '"inputs" must be a JSON Schema object', {
           path: 'inputs',
+          at: { pointer: '/inputs' },
+          params: {},
         }),
       );
     } else {
       try {
         compileSchema(doc.inputs);
       } catch (e) {
+        const detail = e instanceof Error ? e.message : String(e);
         issues.push(
           err(
             'INPUTS_SCHEMA_INVALID',
-            `"inputs" is not a valid JSON Schema: ${e instanceof Error ? e.message : String(e)}`,
-            { path: 'inputs' },
+            `"inputs" is not a valid JSON Schema: ${detail}`,
+            {
+              path: 'inputs',
+              at: { pointer: '/inputs' },
+              params: { detail },
+            },
           ),
         );
       }
@@ -124,6 +145,8 @@ function validateTests(tests: unknown, issues: Issue[]): void {
         '"tests" must be an array of {name, input, expect?}',
         {
           path: 'tests',
+          at: { pointer: '/tests' },
+          params: {},
         },
       ),
     );
@@ -137,6 +160,8 @@ function validateTests(tests: unknown, issues: Issue[]): void {
           `tests[${i}] must be {name: string, input, expect?}`,
           {
             path: `tests[${i}]`,
+            at: { pointer: ptr('tests', i) },
+            params: { test: i },
           },
         ),
       );
@@ -153,6 +178,8 @@ function validateTests(tests: unknown, issues: Issue[]): void {
           {
             path: `tests[${i}].expect`,
             hint: 'expect supports {output?, effects?: [{connector, input?}]}',
+            at: { pointer: ptr('tests', i, 'expect') },
+            params: { test: i, keys: bad },
           },
         ),
       );
@@ -161,12 +188,17 @@ function validateTests(tests: unknown, issues: Issue[]): void {
 }
 
 function scanForSecrets(doc: Record<string, unknown>, issues: Issue[]): void {
-  const hits: Array<{ path: string; label: string }> = [];
+  const hits: Array<{ path: string; pointer: string; label: string }> = [];
 
-  const scanString = (value: string, path: string, key?: string): void => {
+  const scanString = (
+    value: string,
+    path: string,
+    pointer: string,
+    key?: string,
+  ): void => {
     for (const [re, label] of SECRET_PATTERNS) {
       if (re.test(value)) {
-        hits.push({ path, label });
+        hits.push({ path, pointer, label });
         return;
       }
     }
@@ -175,24 +207,35 @@ function scanForSecrets(doc: Record<string, unknown>, issues: Issue[]): void {
       CREDENTIAL_KEY_RE.test(key) &&
       OPAQUE_VALUE_RE.test(value)
     ) {
-      hits.push({ path, label: `credential-looking value under "${key}"` });
+      hits.push({
+        path,
+        pointer,
+        label: `credential-looking value under "${key}"`,
+      });
     }
   };
 
-  const walk = (value: unknown, path: string, key?: string): void => {
+  const walk = (
+    value: unknown,
+    path: string,
+    pointer: string,
+    key?: string,
+  ): void => {
     if (typeof value === 'string') {
-      scanString(value, path, key);
+      scanString(value, path, pointer, key);
     } else if (Array.isArray(value)) {
-      for (const [i, item] of value.entries()) walk(item, `${path}[${i}]`);
+      for (const [i, item] of value.entries()) {
+        walk(item, `${path}[${i}]`, pointer + ptr(i));
+      }
     } else if (isRecord(value)) {
       for (const [k, item] of Object.entries(value)) {
-        walk(item, path === '' ? k : `${path}.${k}`, k);
+        walk(item, path === '' ? k : `${path}.${k}`, pointer + ptr(k), k);
       }
     }
   };
-  walk(doc, '');
+  walk(doc, '', '');
 
-  for (const { path, label } of hits.slice(0, 5)) {
+  for (const { path, pointer, label } of hits.slice(0, 5)) {
     issues.push(
       err(
         'SECRET_IN_DOCUMENT',
@@ -200,6 +243,9 @@ function scanForSecrets(doc: Record<string, unknown>, issues: Issue[]): void {
         {
           path,
           hint: 'remove it — secrets are configured on the connector and injected at runtime, never stored in automations',
+          // The label names the KIND of credential, never its value.
+          at: { pointer },
+          params: { kind: label },
         },
       ),
     );

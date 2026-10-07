@@ -17,13 +17,16 @@ import type { ErrorObject } from 'ajv';
 
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
-import { nodeTypes, type ConnectorLike, type StoreAdapter } from '../slots';
-import { refsInSource, templateExprsIn, TPL_RE } from '../template';
+import { nodeTypes, type ConnectorLike } from '../slots';
+import { pointerFromAjv, pointerTokens, ptr } from '../syntax/pointer';
+import type { ExprSource } from '../syntax/sources';
+import { exprSegments, tokenizeTemplate } from '../syntax/tokens';
 import type { Issue, NodeDef } from '../types';
+import type { ValidationContext } from './context';
 import { isValidAutomationName } from './name';
-import { exprSourcesOf } from './references';
 import { compileSchema } from './schema';
 import { closestName } from './similar';
+import { analyzable } from './syntax-check';
 
 /** ajv keywords that judge a VALUE — unknowable where the value is still a
  * template; structural keywords (required, additionalProperties) stay. */
@@ -44,10 +47,6 @@ const VALUE_KEYWORDS = new Set([
   'maxItems',
 ]);
 
-/** `nodes.x.output.<field>` — the shape the output-typing rule inspects. */
-const OUTPUT_PATH_RE =
-  /\bnodes\s*\.\s*([A-Za-z_$][\w$]*)\s*\??\.\s*output\s*\??\.\s*([A-Za-z_$][\w$]*)/g;
-
 function parseAutomationRef(
   ref: string,
 ): { name: string; version?: number } | null {
@@ -60,6 +59,7 @@ function parseAutomationRef(
 
 function checkConnectorInput(
   n: NodeDef,
+  base: string,
   input: Record<string, unknown>,
   connector: ConnectorLike,
   issues: Issue[],
@@ -69,7 +69,9 @@ function checkConnectorInput(
   const templatePaths = new Set<string>();
   const collect = (v: unknown, path: string): void => {
     if (typeof v === 'string') {
-      if ([...v.matchAll(TPL_RE)].length > 0) templatePaths.add(path);
+      if (v.includes('{{') && exprSegments(tokenizeTemplate(v)).length > 0) {
+        templatePaths.add(path);
+      }
     } else if (Array.isArray(v)) {
       for (const [i, item] of v.entries()) collect(item, `${path}/${i}`);
     } else if (isRecord(v)) {
@@ -98,16 +100,38 @@ function checkConnectorInput(
       continue;
     }
     const extra = additionalProperty(e);
+    const missing = missingProperty(e);
     const close =
       extra === undefined ? undefined : closestName(extra, schemaProps);
+    const detail = e.message ?? 'is invalid';
+    const valuePointer = pointerFromAjv(base, e.instancePath);
+    const at =
+      missing !== undefined
+        ? {
+            pointer: valuePointer + ptr(missing),
+            subject: 'missing' as const,
+          }
+        : extra !== undefined
+          ? { pointer: valuePointer + ptr(extra), subject: 'key' as const }
+          : { pointer: valuePointer };
     issues.push(
       err(
         'CONNECTOR_INPUT_INVALID',
-        `node "${n.id}" (${n.type}): input${e.instancePath} ${e.message ?? 'is invalid'}${extra === undefined ? '' : ` ("${extra}")`}`,
+        `node "${n.id}" (${n.type}): input${e.instancePath} ${detail}${extra === undefined ? '' : ` ("${extra}")`}`,
         {
           nodeId: n.id,
           path: e.instancePath || undefined,
           hint: `${close === undefined ? '' : `did you mean "${close}"? `}schema: ${JSON.stringify(connector.inputSchema)}`,
+          at,
+          params: {
+            node: n.id,
+            type: n.type,
+            property:
+              missing ?? extra ?? pointerTokens(e.instancePath).at(-1) ?? '',
+            keyword: e.keyword,
+            ...(close !== undefined && { suggestion: close }),
+            detail,
+          },
         },
       ),
     );
@@ -120,12 +144,17 @@ function additionalProperty(e: ErrorObject): string | undefined {
   return typeof name === 'string' ? name : undefined;
 }
 
+function missingProperty(e: ErrorObject): string | undefined {
+  if (e.keyword !== 'required') return undefined;
+  const name: unknown = e.params.missingProperty;
+  return typeof name === 'string' ? name : undefined;
+}
+
 export async function validateContracts(
-  doc: Record<string, unknown>,
+  ctx: ValidationContext,
   validNodes: NodeDef[],
-  issues: Issue[],
-  store: StoreAdapter | undefined,
 ): Promise<void> {
+  const { doc, issues, store } = ctx;
   // Duplicate ids already carry their own error; contract checks run once
   // per id, on the first occurrence.
   const byId = new Map<string, NodeDef>();
@@ -196,9 +225,10 @@ export async function validateContracts(
 
   for (const n of unique) {
     const def = nodeTypes().get(n.type);
+    const base = ptr('nodes', ctx.indexOf(n));
 
     if (def?.connector && isRecord(n.input)) {
-      checkConnectorInput(n, n.input, def.connector, issues);
+      checkConnectorInput(n, `${base}/input`, n.input, def.connector, issues);
     }
 
     // A model nobody serves fails the node on the first live run, and the
@@ -219,6 +249,8 @@ export async function validateContracts(
             nodeId: n.id,
             path: 'model',
             hint: 'pick a model a connected provider serves (Settings → Providers lists them), or connect a provider that serves this one',
+            at: { pointer: `${base}/model` },
+            params: { node: n.id, model: n.model },
           },
         ),
       );
@@ -234,6 +266,8 @@ export async function validateContracts(
             {
               nodeId: n.id,
               hint: 'e.g. "automation": "daily-digest" or "daily-digest@2"',
+              at: { pointer: `${base}/automation` },
+              params: { node: n.id, ref: n.automation },
             },
           ),
         );
@@ -257,6 +291,16 @@ export async function validateContracts(
                 known.length > 0
                   ? `${close === undefined ? '' : `did you mean "${close}"? `}saved automations: ${known.map((w) => w.name).join(', ')}`
                   : 'no automations are saved yet',
+              at: { pointer: `${base}/automation` },
+              params: {
+                node: n.id,
+                automation: parsed.name,
+                ...(parsed.version !== undefined && {
+                  version: parsed.version,
+                }),
+                ...(close !== undefined && { suggestion: close }),
+                known: known.map((w) => w.name),
+              },
             },
           ),
         );
@@ -269,12 +313,28 @@ export async function validateContracts(
                 err(
                   'SUBAUTOMATION_NOT_FOUND',
                   `node "${n.id}": automation "${parsed.name}" has no version ${parsed.version}`,
-                  { nodeId: n.id, hint: `latest version: ${entry.latest}` },
+                  {
+                    nodeId: n.id,
+                    hint: `latest version: ${entry.latest}`,
+                    at: { pointer: `${base}/automation` },
+                    params: {
+                      node: n.id,
+                      automation: parsed.name,
+                      version: parsed.version,
+                      latest: entry.latest,
+                    },
+                  },
                 ),
               );
             }
           } else {
-            checkSubautomationBody(n, parsed.name, got.automation, issues);
+            checkSubautomationBody(
+              n,
+              base,
+              parsed.name,
+              got.automation,
+              issues,
+            );
           }
         } catch (e) {
           console.warn(
@@ -287,40 +347,57 @@ export async function validateContracts(
   }
 
   // Every reference source in the document, node by node plus the output.
-  const allSources: Array<{ src: string; nodeId?: string }> = [];
-  for (const n of unique) {
-    for (const { src } of exprSourcesOf(n))
-      allSources.push({ src, nodeId: n.id });
-  }
-  if (doc.output !== undefined) {
-    for (const e of templateExprsIn(doc.output)) allSources.push({ src: e });
-  }
+  const allSources: ExprSource[] = [
+    ...unique.flatMap((n) => ctx.sources(ctx.indexOf(n))),
+    ...ctx.outputSources(),
+  ];
 
   // The output-typing rule: pathing into an unstructured output beyond
   // `.text` reads a field that will never exist.
-  for (const { src, nodeId } of allSources) {
-    for (const m of src.matchAll(OUTPUT_PATH_RE)) {
-      const target = byId.get(m[1]);
-      if (target === undefined) continue;
-      const targetDef = nodeTypes().get(target.type);
-      if (targetDef === undefined || targetDef.outputKind !== 'unstructured')
-        continue;
-      // An llm node with an outputSchema yields the schema-shaped object.
-      if (target.outputSchema !== undefined) continue;
-      if (m[2] === 'text') continue;
-      issues.push(
-        err(
-          'REF_UNSTRUCTURED_PATH',
-          `${nodeId === undefined ? 'output' : `node "${nodeId}"`}: "nodes.${m[1]}.output.${m[2]}" — node "${target.id}" (${target.type}) returns unstructured text; only .output.text exists`,
-          {
-            nodeId,
-            hint:
-              target.type === 'llm'
-                ? `give "${target.id}" an outputSchema to get structured output, or read nodes.${target.id}.output.text`
-                : `read nodes.${target.id}.output.text, or bridge through an llm node with an outputSchema`,
-          },
-        ),
-      );
+  for (const source of allSources) {
+    const { nodeId, field, pointer } = source;
+    for (const unit of source.units) {
+      if (!analyzable(unit)) continue;
+      for (const site of unit.refs) {
+        const key = site.path.at(0)?.key;
+        if (
+          site.root !== 'nodes' ||
+          site.nodeId === undefined ||
+          site.member !== 'output' ||
+          typeof key !== 'string'
+        ) {
+          continue;
+        }
+        const target = byId.get(site.nodeId);
+        if (target === undefined) continue;
+        const targetDef = nodeTypes().get(target.type);
+        if (targetDef === undefined || targetDef.outputKind !== 'unstructured')
+          continue;
+        // An llm node with an outputSchema yields the schema-shaped object.
+        if (target.outputSchema !== undefined) continue;
+        if (key === 'text') continue;
+        issues.push(
+          err(
+            'REF_UNSTRUCTURED_PATH',
+            `${nodeId === undefined ? 'output' : `node "${nodeId}"`}: "nodes.${site.nodeId}.output.${key}" — node "${target.id}" (${target.type}) returns unstructured text; only .output.text exists`,
+            {
+              nodeId,
+              hint:
+                target.type === 'llm'
+                  ? `give "${target.id}" an outputSchema to get structured output, or read nodes.${target.id}.output.text`
+                  : `read nodes.${target.id}.output.text, or bridge through an llm node with an outputSchema`,
+              at: { pointer, range: site.range },
+              params: {
+                ...(nodeId !== undefined && { node: nodeId }),
+                field,
+                source: target.id,
+                sourceType: target.type,
+                member: key,
+              },
+            },
+          ),
+        );
+      }
     }
   }
 
@@ -332,14 +409,24 @@ export async function validateContracts(
         'automation has no "output" — it will return null',
         {
           hint: 'e.g. "output": "{{ nodes.<id>.output }}"',
+          at: { pointer: '/output', subject: 'missing' },
+          params: {},
         },
       ),
     );
   }
 
+  // Every named read counts, even one in code that does not parse yet — a
+  // node being wired up is not dead.
   const referenced = new Set<string>();
-  for (const { src } of allSources) {
-    for (const r of refsInSource(src)) referenced.add(r);
+  for (const source of allSources) {
+    for (const unit of source.units) {
+      for (const site of unit.refs) {
+        if (site.root === 'nodes' && site.nodeId !== undefined) {
+          referenced.add(site.nodeId);
+        }
+      }
+    }
   }
   // An elseOf partner is structurally load-bearing even when nobody reads it.
   for (const n of unique) {
@@ -360,6 +447,8 @@ export async function validateContracts(
         {
           nodeId: n.id,
           hint: `reference nodes.${n.id}.output somewhere, or remove the node`,
+          at: { pointer: ptr('nodes', ctx.indexOf(n)) },
+          params: { node: n.id, reason: 'unread' },
         },
       ),
     );
@@ -380,6 +469,7 @@ export async function validateContracts(
  */
 function checkSubautomationBody(
   n: NodeDef,
+  base: string,
   name: string,
   body: unknown,
   issues: Issue[],
@@ -396,6 +486,8 @@ function checkSubautomationBody(
           {
             nodeId: n.id,
             hint: 'hoist the agent node into the calling automation and pass its result to the subautomation as input',
+            at: { pointer: `${base}/automation` },
+            params: { node: n.id, automation: name, childNode: subId },
           },
         ),
       );
@@ -409,6 +501,13 @@ function checkSubautomationBody(
           {
             nodeId: n.id,
             hint: `hoist the write into the calling automation, or allow ${sub.type} without approval in the approval policy`,
+            at: { pointer: `${base}/automation` },
+            params: {
+              node: n.id,
+              automation: name,
+              childNode: subId,
+              childType: sub.type,
+            },
           },
         ),
       );

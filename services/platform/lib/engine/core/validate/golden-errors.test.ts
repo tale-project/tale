@@ -2,9 +2,10 @@
  * Golden corpus for validation error text.
  *
  * Error text is public API: agents parse it behaviorally, so the FULL
- * rendered issue list (code, nodeId, path, message, hint) for a battery of
- * small invalid documents is pinned in golden-errors.yml. A diff here means
- * a message changed — review it like any API change.
+ * rendered issue list (code, nodeId, path, message, hint, and the structured
+ * at / params / related twins) for a battery of small invalid documents is
+ * pinned in golden-errors.yml. A diff here means a message or a location
+ * changed — review it like any API change.
  *
  * After an intentional change, regenerate the fixture with:
  *
@@ -22,8 +23,9 @@ import { parse, stringify } from 'yaml';
 
 import { nodeVmRunner } from '../../runners/node-vm';
 import { memoryStore } from '../../selftest/memory-store';
-import type { IssueCode } from '../errors';
+import { CODE_META, CODES, type IssueCode } from '../errors';
 import { registerNodeType, setCodeRunner } from '../slots';
+import { parentPointer, resolvePointer } from '../syntax/pointer';
 import type { Automation, Issue } from '../types';
 import { validate } from './index';
 
@@ -431,6 +433,17 @@ const fixtures: Record<string, unknown> = {
     ],
     output: '{{ nodes.gen.output.text }}',
   }),
+  'template-unterminated': flow({
+    nodes: [
+      {
+        id: 'gen',
+        type: 'llm',
+        model: 'test-model',
+        prompt: 'Hello {{ input.name',
+      },
+    ],
+    output: { greeting: '{{ nodes.gen.output.text }}', note: 'braces {{' },
+  }),
   'input-key-unknown': flow({
     inputs: { type: 'object', properties: { city: { type: 'string' } } },
     nodes: [
@@ -506,6 +519,7 @@ const VALIDATION_CODES: IssueCode[] = [
   'REF_UNSTRUCTURED_PATH',
   'ITEM_WITHOUT_FOREACH',
   'INPUT_KEY_UNKNOWN',
+  'TEMPLATE_UNTERMINATED',
   'CONNECTOR_INPUT_INVALID',
   'LLM_MODEL_UNAVAILABLE',
   'OUTPUT_MISSING',
@@ -525,6 +539,9 @@ function renderIssue(issue: Issue): Record<string, unknown> {
   if (issue.path !== undefined) out.path = issue.path;
   out.message = issue.message;
   if (issue.hint !== undefined) out.hint = issue.hint;
+  if (issue.at !== undefined) out.at = issue.at;
+  if (issue.params !== undefined) out.params = issue.params;
+  if (issue.related !== undefined) out.related = issue.related;
   return out;
 }
 
@@ -565,4 +582,78 @@ it('covers every validation code at least once', async () => {
   }
   const byName = (a: string, b: string) => a.localeCompare(b);
   expect([...emitted].sort(byName)).toEqual([...VALIDATION_CODES].sort(byName));
+});
+
+it('lists every catalog code as a validation code', () => {
+  const byName = (a: string, b: string) => a.localeCompare(b);
+  expect(Object.keys(CODES).sort(byName)).toEqual(
+    [...VALIDATION_CODES].sort(byName),
+  );
+});
+
+/** Whether `pointer` names a member of `doc`, or — for a missing member —
+ * whether its parent exists. */
+function locates(doc: unknown, pointer: string, subject?: string): boolean {
+  if (subject === 'missing') {
+    const parent = parentPointer(pointer);
+    return (
+      !resolvePointer(doc, pointer).found &&
+      parent !== null &&
+      resolvePointer(doc, parent).found
+    );
+  }
+  return resolvePointer(doc, pointer).found;
+}
+
+it('locates every issue in its document and builds it from catalog params', async () => {
+  const problems: string[] = [];
+  for (const [name, doc] of Object.entries(fixtures)) {
+    const { errors, warnings } = await validate(doc, { store });
+    for (const issue of [...errors, ...warnings]) {
+      const label = `${name} ${issue.code}`;
+      const { at, params } = issue;
+      if (at === undefined || params === undefined) {
+        problems.push(`${label}: no at/params`);
+        continue;
+      }
+      if (!locates(doc, at.pointer, at.subject)) {
+        problems.push(
+          `${label}: ${at.pointer} (${at.subject ?? 'value'}) does not resolve`,
+        );
+      }
+      if (at.range !== undefined) {
+        const target = resolvePointer(doc, at.pointer);
+        const [start, end] = at.range;
+        if (
+          !target.found ||
+          typeof target.value !== 'string' ||
+          start < 0 ||
+          start > end ||
+          end > target.value.length
+        ) {
+          problems.push(`${label}: range ${start}-${end} outside the string`);
+        }
+      }
+      for (const rel of issue.related ?? []) {
+        if (!locates(doc, rel.at.pointer, rel.at.subject)) {
+          problems.push(`${label}: related ${rel.at.pointer} does not resolve`);
+        }
+      }
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every emitted code is a catalog code (the coverage test above)
+      const meta = CODE_META[issue.code as IssueCode];
+      if (meta.level !== 'varies' && issue.level !== meta.level) {
+        problems.push(`${label}: level ${issue.level}, catalog ${meta.level}`);
+      }
+      const names = new Set(meta.params.map((p) => p.replace(/\?$/, '')));
+      const required = meta.params.filter((p) => !p.endsWith('?'));
+      for (const key of Object.keys(params)) {
+        if (!names.has(key))
+          problems.push(`${label}: param ${key} not in catalog`);
+      }
+      for (const key of required) {
+        if (!(key in params)) problems.push(`${label}: param ${key} missing`);
+      }
+    }
+  }
+  expect(problems).toEqual([]);
 });

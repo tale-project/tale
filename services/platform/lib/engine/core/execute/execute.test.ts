@@ -542,6 +542,60 @@ describe('agent nodes', () => {
     ]);
   });
 
+  it('a node its files mapping reads runs first, whatever the list order', async () => {
+    const doc = automationDoc(
+      [
+        {
+          id: 'agent_a',
+          type: 'agent',
+          model: 'm',
+          prompt: 'Work in the staged folder.',
+          files: { setup: '{{ nodes.prep.output.folder }}' },
+        },
+        { id: 'prep', type: 'transform', code: "return { folder: 'fld_9' };" },
+      ],
+      { output: '{{ nodes.agent_a.output.status }}' },
+    );
+    const result = await execute(doc, { input: {} });
+    expect(result.status).toBe('success');
+    expect(result.trace.map((t) => t.node)).toEqual(['prep', 'agent_a']);
+    expect(result.effects[0]?.input).toMatchObject({
+      files: { setup: 'fld_9' },
+    });
+  });
+
+  it('a skipped node its files mapping reads skips the agent too', async () => {
+    const doc = automationDoc(
+      [
+        {
+          id: 'agent_a',
+          type: 'agent',
+          model: 'm',
+          prompt: 'Work in the staged folder.',
+          files: { setup: '{{ nodes.prep.output.folder }}' },
+        },
+        {
+          id: 'prep',
+          type: 'transform',
+          when: '{{ input.go }}',
+          code: "return { folder: 'fld_9' };",
+        },
+      ],
+      { output: '{{ nodes.agent_a.output }}' },
+    );
+    const result = await execute(doc, { input: { go: false } });
+    expect(result.status).toBe('success');
+    expect(result.trace).toMatchObject([
+      { node: 'prep', status: 'skipped' },
+      {
+        node: 'agent_a',
+        status: 'skipped',
+        note: 'skipped: reads from skipped node(s) prep',
+      },
+    ]);
+    expect(result.effects).toEqual([]);
+  });
+
   it('mock runs are byte-identical across executions', async () => {
     const doc = automationDoc(
       [{ id: 'a', type: 'agent', model: 'm', prompt: 'stable prompt' }],
