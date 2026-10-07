@@ -82,6 +82,47 @@ export async function checkProjectBudgets(
   const projectThread = await newThread({ projectId });
   const ownThread = await newThread({});
   const opSession = `model-api:itest-project-${suffix}`;
+  // A hidden branch of the project's conversation, as an edit or a
+  // regenerate leaves one: later turns run on it.
+  const [branch] = await sql<{ id: string }[]>`
+    INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${orgId}, ${userId}, 'branch', 'chat', ${now}, ${now})
+    RETURNING id
+  `;
+  const branchThread = branch?.id ?? '';
+  await sql`
+    INSERT INTO app.thread_metadata (
+      thread_id, org_id, user_id, chat_type, status, project_id, hidden,
+      branch_root_id, branch_parent_id, branch_fork_sequence, created_at_ms
+    ) VALUES (
+      ${branchThread}, ${orgId}, ${userId}, 'chat', 'active', ${projectId},
+      true, ${projectThread}, ${projectThread}, 1, ${now}
+    )
+  `;
+  /** Refile the conversation; answers each row's project afterwards. */
+  const refile = async (target: string | null): Promise<(string | null)[]> => {
+    await fetch(
+      `${base}/api/app/chat/threads/${projectThread}/project?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: ctx.cookie,
+          origin: base,
+        },
+        body: JSON.stringify({ projectId: target }),
+      },
+    );
+    const rows = await sql<{ threadId: string; projectId: string | null }[]>`
+      SELECT thread_id AS "threadId", project_id AS "projectId"
+      FROM app.thread_metadata
+      WHERE thread_id = ANY(${[projectThread, branchThread]})
+    `;
+    return [projectThread, branchThread].map(
+      (id) => rows.find((row) => row.threadId === id)?.projectId ?? null,
+    );
+  };
 
   /** The scope a chat send is refused for, or `admitted`. */
   const chatAdmission = async (threadId: string): Promise<string> => {
@@ -204,6 +245,15 @@ export async function checkProjectBudgets(
       userTeamIds: [],
       projectId,
     });
+    // Taken out of the project and filed back: the branch follows each
+    // move, so a turn on it spends where the conversation is.
+    const out = await refile(null);
+    const back = await refile(projectId);
+    record(
+      'project budgets: refiling a conversation moves its hidden branches with it',
+      out.every((id) => id === null) && back.every((id) => id === projectId),
+      `out=${JSON.stringify(out)} (want both null), back=${JSON.stringify(back)} (want both the project)`,
+    );
     record(
       'project budgets: a model request in a project stamps its project, and its hold counts toward the project',
       admitted.allowed &&
@@ -223,7 +273,9 @@ export async function checkProjectBudgets(
     `;
     await sql`
       DELETE FROM app.threads
-      WHERE id = ANY(${[projectThread, ownThread].filter((id) => id !== '')})
+      WHERE id = ANY(${[projectThread, ownThread, branchThread].filter(
+        (id) => id !== '',
+      )})
     `;
     await sql`
       DELETE FROM app.usage_ledger
