@@ -1,5 +1,9 @@
+import { AppShell } from '@tale/ui/app-shell';
+import { cleanup, render as renderWithProviders } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '@/tests/utils/i18n-all-languages';
 import { render, screen, within } from '@/tests/utils/render';
 
 vi.mock('@tale/ui/use-toast', () => ({
@@ -163,6 +167,88 @@ function setLoading() {
 }
 
 describe('BudgetEditor', () => {
+  it.each(['en', 'de', 'fr'])(
+    'localizes role options and table targets (%s) (#4476)',
+    async (language) => {
+      await i18n.changeLanguage(language);
+      try {
+        setLoaded([
+          {
+            scope: 'role',
+            scopeId: 'developer',
+            period: 'monthly',
+            maxTokens: 100,
+          },
+          {
+            scope: 'role',
+            scopeId: 'future-role',
+            period: 'monthly',
+            maxTokens: 100,
+          },
+          { scope: 'role', period: 'monthly', maxTokens: 100 },
+        ]);
+        const t = i18n.getFixedT(language, 'governance');
+        const user = userEvent.setup();
+        renderWithProviders(
+          <AppShell i18n={i18n}>
+            <BudgetEditor organizationId="org-1" />
+          </AppShell>,
+        );
+        expect(
+          screen.getByRole('cell', {
+            name: t('featureFlags.roleLabels.developer'),
+          }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole('cell', { name: 'future-role' }),
+        ).toBeInTheDocument();
+        expect(screen.getByRole('cell', { name: '—' })).toBeInTheDocument();
+        await user.click(
+          screen.getByRole('button', {
+            name: t('budgets.editRuleAriaLabel', { index: 1 }),
+          }),
+        );
+        const dialog = within(await screen.findByRole('dialog'));
+        const roleSelect = dialog.getByRole('combobox', {
+          name: t('budgets.role'),
+        });
+        expect(roleSelect).toHaveTextContent(
+          t('featureFlags.roleLabels.developer'),
+        );
+        await user.click(roleSelect);
+        for (const value of ['admin', 'developer', 'editor', 'member']) {
+          expect(
+            i18n.exists(`featureFlags.roleLabels.${value}`, {
+              lng: language,
+              ns: 'governance',
+            }),
+          ).toBe(true);
+          expect(
+            screen.getByRole('option', {
+              name: t(`featureFlags.roleLabels.${value}`),
+            }),
+          ).toBeInTheDocument();
+        }
+        await user.click(
+          screen.getByRole('option', {
+            name: t('featureFlags.roleLabels.member'),
+          }),
+        );
+        await user.click(
+          dialog.getByRole('button', { name: t('budgets.confirm') }),
+        );
+        expect(
+          screen.getByRole('cell', {
+            name: t('featureFlags.roleLabels.member'),
+          }),
+        ).toBeInTheDocument();
+      } finally {
+        cleanup();
+        await i18n.changeLanguage('en');
+      }
+    },
+  );
+
   describe('loaded state', () => {
     it('renders the empty state when no rules exist', () => {
       setLoaded([]);

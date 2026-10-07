@@ -310,6 +310,14 @@ function RuleDialog({
   const { t } = useT('governance');
   const scopes = useMemo(() => scopeOptions(t), [t]);
   const periods = useMemo(() => periodOptions(t), [t]);
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(`featureFlags.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const [draft, setDraft] = useState(initialRule);
   // Reveal a field's error only once the user has touched it (or has attempted
   // to submit) so a freshly-opened dialog isn't pre-filled with red. Keyed by
@@ -427,7 +435,7 @@ function RuleDialog({
         {draft.scope === 'role' && (
           <Select
             label={t('budgets.role')}
-            options={ROLE_OPTIONS}
+            options={roleOptions}
             value={draft.scopeId ?? ''}
             onValueChange={(value) => updateDraft({ scopeId: value })}
             disabled={cannotManage}
@@ -653,6 +661,15 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
     [members],
   );
 
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(`featureFlags.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
+
   const teamOptions = useMemo(
     () =>
       (teams ?? []).map((team) => ({
@@ -787,7 +804,11 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           );
         }
         case 'role':
-          return rule.scopeId ?? '—';
+          if (!rule.scopeId) return '—';
+          return (
+            roleOptions.find((option) => option.value === rule.scopeId)
+              ?.label ?? rule.scopeId
+          );
         case 'apiKey': {
           if (!rule.apiKeyId) return '—';
           return (
@@ -805,7 +826,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           return '—';
       }
     },
-    [memberOptions, teamOptions, apiKeyById, t],
+    [memberOptions, teamOptions, roleOptions, apiKeyById, t],
   );
 
   const onAddRule = openAddDialog;
