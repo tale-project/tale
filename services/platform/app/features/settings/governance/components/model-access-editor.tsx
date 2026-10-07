@@ -340,6 +340,14 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
       })),
     [t],
   );
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(`modelAccess.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const { toast } = useToast();
   const ability = useAbility();
 
@@ -600,14 +608,19 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
           );
         }
         case 'role':
-          return rule.scopeId ?? '\u2014';
+          return (
+            roleOptions.find((option) => option.value === rule.scopeId)
+              ?.label ??
+            rule.scopeId ??
+            '\u2014'
+          );
         case 'default':
           return t('modelAccess.allUsers');
         default:
           return '\u2014';
       }
     },
-    [memberOptions, teamOptions, t],
+    [memberOptions, teamOptions, roleOptions, t],
   );
 
   const resolveModelNames = useCallback(

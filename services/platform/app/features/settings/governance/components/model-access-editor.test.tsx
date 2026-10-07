@@ -115,6 +115,12 @@ describe('ModelAccessEditor', () => {
           screen.getByRole('cell', { name: t('modelAccess.scopeLabels.role') }),
         ).toBeInTheDocument();
 
+        expect(
+          screen.getByRole('cell', {
+            name: t('modelAccess.roleLabels.developer'),
+          }),
+        ).toBeInTheDocument();
+
         const modeSelect = screen.getByRole('combobox');
         expect(modeSelect).toHaveTextContent(
           t('modelAccess.modeLabels.blocklist'),
