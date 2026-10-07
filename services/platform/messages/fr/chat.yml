@@ -306,34 +306,39 @@ showLess: Voir moins
 scrollToBottom: Défiler vers le bas
 messageInfo:
   title: Informations sur le message
-  description: Détails sur cette réponse IA
   timestamp: Horodatage
   messageId: ID du message
   copyId: Copier l'ID du message
   model: Modèle
+  provider: Fournisseur IA
+  servedBy: Traité par
+  region: Région
+  regionNotReported: Non indiquée
+  regionNotReportedHint: S’affiche quand le fournisseur l’indique ou qu’un endpoint régional la fixe.
+  regionFromEndpoint: Fixée par l’endpoint régional {host}
+  regionGlobal: Mondiale, sans région fixe
+  regions:
+    europe: Europe
+    unitedStates: États-Unis
+  modelVersion: Version du modèle
   tokenUsage: Utilisation des tokens
+  totalTokens: '{count} au total'
   input: Entrée
   output: Sortie
-  total: Total
-  reasoning: Reasoning
-  cached: En cache
-  cachedPercent: '{percent}% en cache'
+  cachedTokens: '{count} en cache ({percent} %)'
+  reasoningTokens: '{count} de Reasoning'
   cost: Coût
   performance: Performance
-  yourWait: Ton attente
-  serverTiming: Serveur
-  youWaited: Envoyer → premiers mots
-  performanceHint: Ton attente part quand tu envoies. Les durées serveur commencent au démarrage de la réponse, donc le premier chiffre peut être plus grand.
-  duration: Début → fin
-  timeToFirstToken: Début → premier token
-  setupBeforeModel: Préparation avant le modèle
-  timeToFirstReasoning: Délai avant le premier Reasoning
-  ttftBreakdown: Décomposition
-  ttftBreakdownHint: Tout est mesuré à partir du moment où le serveur démarre la réponse, pas depuis Envoyer. Préparation avant le modèle correspond à l'attente backend avant le début de la génération.
-  ttftDetailsTitle: Début → premier token — détails
-  ttftDetailsDescription: Décomposition du délai avant le premier token, à partir du démarrage de la réponse sur le serveur.
-  throughput: Débit
+  timeToFirstToken: Délai avant le premier token
+  throughput: Vitesse de sortie
+  duration: Durée totale
   tokensPerSecond: '{value} tok/s'
+  phases:
+    preparing: Préparation
+    waiting: Attente du modèle
+    thinking: Réflexion
+    writing: Rédaction
+  perceivedWait: Sur ton écran, les premiers mots sont apparus {duration} après l’envoi.
   toolCalls: Appels d'outils
   voiceOutput: Sortie vocale
   voice: Voix
