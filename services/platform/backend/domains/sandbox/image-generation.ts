@@ -376,7 +376,10 @@ export async function admitImageGeneration(
         image_hold_cents = ${holdCents},
         image_hold_requests = ${args.images},
         images_admitted = images_admitted + ${args.images},
-        user_id = coalesce(user_id, ${args.subject.userId === '' ? null : args.subject.userId})
+        user_id = coalesce(user_id, ${args.subject.userId === '' ? null : args.subject.userId}),
+        -- A turn whose op its reservation did not stamp (a subscription
+        -- turn's) holds these images in its project all the same.
+        project_id = coalesce(project_id, ${subject.projectId ?? null})
       WHERE id = ${op.id}
     `;
     const admission: ImageAdmission = {

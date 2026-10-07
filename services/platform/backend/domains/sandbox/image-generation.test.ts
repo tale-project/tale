@@ -282,7 +282,16 @@ describe('admitImageGeneration', () => {
     expect(write?.text).toContain('image_hold_requests = ?');
     expect(write?.text).toContain('images_admitted = images_admitted + ?');
     expect(write?.text).toContain('user_id = coalesce(user_id, ?)');
-    expect(write?.values).toEqual([NOW, 75, 3, 3, 'user_starter', 'op_1']);
+    // A turn outside any project holds its images in none.
+    expect(write?.values).toEqual([
+      NOW,
+      75,
+      3,
+      3,
+      'user_starter',
+      null,
+      'op_1',
+    ]);
   });
 
   it('measures the images against what the allowance has left after the model’s live spend', async () => {
@@ -458,6 +467,18 @@ describe('admitImageGeneration', () => {
       }),
     );
     expect(holdWrite(statements)?.values).toContain('__automation__');
+  });
+
+  it('holds the images in the turn’s project, on an op its reservation did not stamp [GOV-R14]', async () => {
+    const { sql, statements } = opSql();
+    await admitImageGeneration(
+      sql,
+      { ...ADMIT, subject: { userId: 'user_starter', projectId: 'project_1' } },
+      deps,
+    );
+    const hold = holdWrite(statements);
+    expect(hold?.text).toContain('project_id = coalesce(project_id, ?)');
+    expect(hold?.values).toContain('project_1');
   });
 
   it('holds an image in a project to the project’s caps, whoever the turn is for [GOV-R14]', async () => {

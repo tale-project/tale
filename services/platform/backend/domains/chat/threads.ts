@@ -538,6 +538,16 @@ export async function moveThreadToProject(
         shared_with_project = ${moved ? false : thread.sharedWithProject}
       WHERE thread_id = ${thread.id}
     `;
+    // The conversation's hidden rows — its edit and regenerate branches and
+    // an arena column — carry its later turns: they move with it, or a turn
+    // on one would keep spending in, and being capped by, the project the
+    // conversation left.
+    const rootId = thread.branchRootId ?? thread.id;
+    await tx`
+      UPDATE app.thread_metadata SET project_id = ${projectId}
+      WHERE org_id = ${auth.organizationId}
+        AND (thread_id = ${rootId} OR branch_root_id = ${rootId})
+    `;
     if (!moved) return;
     const projectName = async (id: string): Promise<string | undefined> => {
       const rows = await tx<{ name: string }[]>`

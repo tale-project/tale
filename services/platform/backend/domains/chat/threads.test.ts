@@ -781,6 +781,25 @@ describe('moveThreadToProject [CHAT-R3]', () => {
     });
   });
 
+  it('moves the conversation’s hidden branches and arena column with it [GOV-R14]', async () => {
+    for (const [row, rootId] of [
+      [OWNED_ROW, 'thread_1'],
+      // A call that names one of the conversation's branches moves its root
+      // lineage all the same.
+      [{ ...OWNED_ROW, id: 'branch_2', branchRootId: 'thread_1' }, 'thread_1'],
+    ] as const) {
+      const { sql, statements } = fakeSql(answering(row));
+      await moveThreadToProject(sql, auth, row.id, 'project_b');
+      const lineage = statements.find((s) =>
+        s.text.includes('OR branch_root_id = ?'),
+      );
+      expect(lineage?.text).toContain(
+        'UPDATE app.thread_metadata SET project_id = ?',
+      );
+      expect(lineage?.values).toEqual(['project_b', 'org_1', rootId, rootId]);
+    }
+  });
+
   it('audits filing an unfiled thread into a project, on that project', async () => {
     const { sql } = fakeSql(
       answering({ ...OWNED_ROW, projectId: null, sharedWithProject: false }),
