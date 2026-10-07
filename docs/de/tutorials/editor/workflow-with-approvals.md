@@ -60,7 +60,7 @@ Existiert der Name bereits, fügt der Upload eine weitere Version hinzu. Wähle 
 
 Klicke im **Editor** auf **Testlauf**. Dieses Beispiel braucht keine Laufzeiteingabe und kann mit einem leeren Objekt laufen. Wechsle zu **Läufe**. Dort sollte ein **Erfolgreich** abgeschlossener Test erscheinen.
 
-Öffne den Lauf und prüfe auf dem Canvas, ob beide Knoten ausgeführt wurden. Wähle `send` und prüfe die aufgelöste Eingabe. Der Empfänger muss `reviewer@example.com` sein, der Betreff `Approval practice` und der Text der Satz aus `draft`. In diesem Modus antwortet ein deterministischer Mock des Connectors. Es wird keine E-Mail gesendet und keine Freigabekarte angezeigt.
+Öffne den Lauf und prüfe auf dem Canvas, ob beide Knoten den Status **Gelaufen** zeigen. Wähle `send` und prüfe die aufgelöste Eingabe. Der Empfänger muss `reviewer@example.com` sein, der Betreff `Approval practice` und der Text der Satz aus `draft`. In diesem Modus antwortet ein deterministischer Mock des Connectors. Es wird keine E-Mail gesendet und keine Freigabekarte angezeigt.
 
 Der Workflow enthält einen Test, der den Effekt `imap-smtp.send` erwartet. Ein erfolgreicher Mock prüft Ablauf und vorgesehenen Aufruf. Er belegt weder gültige Postfach-Zugangsdaten noch die Zustellung.
 
@@ -68,7 +68,7 @@ Der Workflow enthält einen Test, der den Effekt `imap-smtp.send` erwartet. Ein 
 
 Kehre zum **Editor** zurück und klicke auf **v1 live schalten**, um die getestete Version live zu schalten. Lass den Trigger unkonfiguriert; diese Übung startet einmal von Hand.
 
-Wähle **Live ausführen**, lies Bestätigung und Organisationsumfang und bestätige. Wechsle zu **Läufe** und öffne den neuen wartenden Lauf. Die Freigabekarte sollte die ausstehende Entscheidung, `imap-smtp.send`, den Knoten `send` sowie dessen geplante Eingabe zeigen. Empfänger, Betreff und Text müssen dem Mock-Test entsprechen.
+Wähle **Live ausführen**, lies Bestätigung und Organisationsumfang und bestätige. Wechsle zu **Läufe** und öffne den neuen Lauf mit dem Status **Wartet**. Die Freigabekarte sollte den Titel **Wartet auf deine Freigabe: imap-smtp.send**, den Knoten `send` sowie dessen geplante Eingabe unter **Der Schritt würde aufrufen mit** zeigen. Empfänger, Betreff und Text müssen dem Mock-Test entsprechen.
 
 Wartet der Lauf nicht, prüfe Status und Richtlinie, bevor du fortfährst. Ein fehlgeschlagener Connector-Aufruf beweist nicht, dass eine Freigabe angefordert wurde.
 
