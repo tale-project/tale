@@ -47,8 +47,6 @@ function TaskActorPreviewPopover({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const skipNextFocus = useRef(false);
-  const restoringFocus = useRef(false);
-  const restoreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useTaskLogRowActivity(open || detailsOpen);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -74,13 +72,6 @@ function TaskActorPreviewPopover({
     openTimer.current = setTimeout(() => setOpen(true), HOVER_OPEN_MS);
   }, [clearCloseTimer, clearOpenTimer, detailsOpen]);
 
-  const openForFocus = useCallback(() => {
-    if (detailsOpen || restoringFocus.current) return;
-    clearCloseTimer();
-    clearOpenTimer();
-    setOpen(true);
-  }, [clearCloseTimer, clearOpenTimer, detailsOpen]);
-
   const scheduleClose = useCallback(() => {
     clearOpenTimer();
     clearCloseTimer();
@@ -91,7 +82,6 @@ function TaskActorPreviewPopover({
     () => () => {
       clearOpenTimer();
       clearCloseTimer();
-      if (restoreTimer.current !== null) clearTimeout(restoreTimer.current);
     },
     [clearOpenTimer, clearCloseTimer],
   );
@@ -110,14 +100,6 @@ function TaskActorPreviewPopover({
         sideOffset={6}
         contentClassName="w-80 max-w-[calc(100vw-2rem)] p-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
-        onCloseAutoFocus={() => {
-          // Radix returns focus on Escape; do not reopen from that focus event.
-          restoringFocus.current = true;
-          restoreTimer.current = setTimeout(() => {
-            restoringFocus.current = false;
-            restoreTimer.current = null;
-          }, 0);
-        }}
         trigger={
           <button
             ref={triggerRef}
@@ -133,7 +115,7 @@ function TaskActorPreviewPopover({
                 skipNextFocus.current = false;
                 return;
               }
-              openForFocus();
+              scheduleOpen();
             }}
             onBlur={scheduleClose}
           >
@@ -145,7 +127,6 @@ function TaskActorPreviewPopover({
           className="space-y-3 p-4"
           onMouseEnter={clearCloseTimer}
           onMouseLeave={scheduleClose}
-          onFocus={clearCloseTimer}
         >
           <Stack gap={1}>
             <Text as="p" variant="label" className="text-sm">
