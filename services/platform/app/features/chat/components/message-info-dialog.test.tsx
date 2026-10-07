@@ -65,6 +65,13 @@ const MESSAGE: ChatMessageView = {
   ],
 };
 
+/** The same reply without its tool round: the turn-wide timing anchors
+ * describe the model alone only when no tool ran between them. */
+const PLAIN: ChatMessageView = {
+  ...MESSAGE,
+  parts: [{ type: 'text', text: 'The answer.' }],
+};
+
 describe('MessageInfoDialog', () => {
   beforeEach(() => {
     voiceUsage.current = undefined;
@@ -74,7 +81,7 @@ describe('MessageInfoDialog', () => {
   it('renders the recorded facts: model, tokens, cost, timings', async () => {
     const { baseElement } = render(
       <MessageInfoDialog
-        message={MESSAGE}
+        message={PLAIN}
         threadId="t-1"
         open
         onOpenChange={vi.fn()}
@@ -234,7 +241,7 @@ describe('MessageInfoDialog', () => {
     render(
       <MessageInfoDialog
         message={{
-          ...MESSAGE,
+          ...PLAIN,
           usage: {
             ...MESSAGE.usage,
             setupMs: 120,
@@ -251,6 +258,46 @@ describe('MessageInfoDialog', () => {
     expect(legend).toHaveTextContent('Waiting for the model180 ms');
     expect(legend).toHaveTextContent('Thinking150 ms');
     expect(legend).toHaveTextContent('Writing1.55 s');
+  });
+
+  it('never names the time a tool ran as the model waiting or thinking', async () => {
+    // #4493 review 5445512947: setup 0.3 s, a reasoning round that called
+    // a 4 s search, then the answer. The bar read "Waiting for the model"
+    // or "Thinking" across the search, and the output speed counted it.
+    const { baseElement } = render(
+      <MessageInfoDialog
+        message={{
+          ...MESSAGE,
+          parts: [
+            { type: 'reasoning', text: 'Search first.' },
+            ...MESSAGE.parts,
+          ],
+          usage: {
+            ...MESSAGE.usage,
+            setupMs: 300,
+            timeToFirstReasoningMs: 800,
+            timeToFirstTokenMs: 6800,
+            durationMs: 8800,
+            outputTokens: 300,
+          },
+        }}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    const legend = screen.getByRole('list');
+    expect(legend).toHaveTextContent('Preparing300 ms');
+    expect(legend).toHaveTextContent('Model and tools6.50 s');
+    expect(legend).toHaveTextContent('Writing2.00 s');
+    expect(legend).not.toHaveTextContent('Waiting for the model');
+    expect(legend).not.toHaveTextContent('Thinking');
+    expect(screen.queryByText('Output speed')).toBeNull();
+    expect(screen.queryByText(/tok\/s/)).toBeNull();
+    expect(screen.getByText('Time to first token')).toBeInTheDocument();
+    expect(screen.getByText('6.80 s')).toBeInTheDocument();
+
+    await checkAccessibility(baseElement);
   });
 
   it('says when the first words reached the screen, when someone watched', () => {
@@ -276,7 +323,7 @@ describe('MessageInfoDialog', () => {
     render(
       <MessageInfoDialog
         message={{
-          ...MESSAGE,
+          ...PLAIN,
           usage: {
             durationMs: 2410,
             timeToFirstTokenMs: 2410,
