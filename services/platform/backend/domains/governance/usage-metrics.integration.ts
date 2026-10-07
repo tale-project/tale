@@ -28,7 +28,7 @@ export async function checkUsageMetricsBuckets(
       )
       SELECT ${orgId}, ${ctx.userId},
              (${today}::date - day)::text, 'daily', 'key-' || key,
-             'usage-proof', 'usage-model', 'usage-provider', 10, 5, 15, 2, 1, ${now}
+             'usage-proof', 'usage-model', 'usage-provider', 10, 5, 15, 2, 1, ${now}::bigint
       FROM generate_series(0, 89) AS day
       CROSS JOIN generate_series(1, 250) AS key
     `;
@@ -42,11 +42,11 @@ export async function checkUsageMetricsBuckets(
       SELECT ${orgId}, ${ctx.userId}, (${today}::date - day)::text,
              'daily', 'usage-proof', 'usage-model', 'usage-provider',
              CASE WHEN day BETWEEN 90 AND 179 THEN 7 ELSE 999 END,
-             1, ${now}
+             1, ${now}::bigint
       FROM generate_series(90, 180) AS day
       UNION ALL
       SELECT ${orgId}, ${ctx.userId}, (${today}::date + 1)::text,
-             'daily', 'usage-proof', 'usage-model', 'usage-provider', 999, 1, ${now}
+             'daily', 'usage-proof', 'usage-model', 'usage-provider', 999, 1, ${now}::bigint
     `;
     const count = await sql<{ count: number }[]>`
       SELECT count(*)::int AS count FROM app.usage_ledger
@@ -153,7 +153,7 @@ export async function checkUsageMetricsBuckets(
       SELECT ${orgId}, ${ctx.userId}, ${today}, 'daily', 'kind-' || kind,
              'mixed-model', 'mixed-provider',
              CASE WHEN kind = 2 THEN 10 ELSE 0 END,
-             CASE WHEN kind = 3 THEN 100 ELSE 0 END, 1, ${now}
+             CASE WHEN kind = 3 THEN 100 ELSE 0 END, 1, ${now}::bigint
       FROM generate_series(1, 3) AS kind
     `;
     const mixed = await getOrgUsageMetricsPg(sql, orgId, {
@@ -180,7 +180,7 @@ export async function checkUsageMetricsBuckets(
       INSERT INTO app.usage_ledger (
         org_id, user_id, period_key, granularity, request_count, updated_at_ms
       )
-      SELECT ${orgId}, 'bucket-user-' || subject, ${today}, 'daily', 1, ${now}
+      SELECT ${orgId}, 'bucket-user-' || subject, ${today}, 'daily', 1, ${now}::bigint
       FROM generate_series(1, 20001) AS subject
     `;
     const capped = await getOrgUsageMetricsPg(sql, orgId, {
