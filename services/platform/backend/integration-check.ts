@@ -60540,7 +60540,10 @@ async function main(): Promise<void> {
         'checkSessionOpTranscriptMerge',
         () => checkSessionOpTranscriptMerge(sql, authCtx, record),
       ],
-      ['checkExecLimitPark', () => checkExecLimitPark(sql, authCtx, record)],
+      [
+        'checkExecLimitPark',
+        () => checkExecLimitPark(sql, baseUrl, authCtx, record),
+      ],
       [
         'checkTaskRunConnectorCaller',
         () => checkTaskRunConnectorCaller(sql, baseUrl, authCtx, record),

@@ -10,7 +10,10 @@
  *   once, and leaves a run parked on another workspace alone; the next end
  *   wakes the next;
  * - the woken run launches only on its fresh exec, and its launch stamp is
- *   that launch's, so the wait never counts as executed time.
+ *   that launch's, so the wait never counts as executed time;
+ * - the refused exec's op, closed the way the host closes it (cancelled, as
+ *   a room wait), stays out of the external-turn metrics, where the same
+ *   close unmarked counts a cancelled turn.
  *
  * The host's own decision — an `EXEC_LIMIT` start window parks, any other
  * refusal still fails — is the unit test's (`agent_run_host.context_window
@@ -22,7 +25,11 @@
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
+import { z } from 'zod';
 
+import { releaseTurnKey } from '../../core/automations/agent_host.ts';
+import { AWAITING_ROOM_RESULT_STATUS } from '../../core/sandbox/session_constants.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { agentTurnShimHandlers } from './agent-turn-shim.ts';
 
 interface RunState {
@@ -37,7 +44,8 @@ interface RunState {
 
 export async function checkExecLimitPark(
   sql: Sql,
-  ctx: { orgId: string; userId: string },
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
   record: (name: string, ok: boolean, detail: string) => void,
 ): Promise<void> {
   const { orgId, userId } = ctx;
@@ -167,6 +175,28 @@ export async function checkExecLimitPark(
     await release({ organizationId: orgId, agentId, sessionId });
   };
   const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+  /** The external-turn metrics' totals, as the developer page reads them. */
+  const turnMetrics = async (): Promise<
+    { total: number; cancelled: number } | undefined
+  > => {
+    const res = await fetch(
+      `${base}/api/app/sandbox/external-turn-metrics?orgId=${orgId}&periodDays=7`,
+      { headers: { cookie: ctx.cookie, origin: base } },
+    );
+    const body = z
+      .object({ total: z.number(), cancelled: z.number() })
+      .loose()
+      .safeParse(await res.json());
+    return body.success
+      ? { total: body.data.total, cancelled: body.data.cancelled }
+      : undefined;
+  };
+  /** The host's ctx over the same shim, for the key release it runs: these
+   * ops carry no minted key, so it touches only shim mutations and queries. */
+  const shimCtx = createCtxShim(shim);
+  const hostCtx =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused host's ctx; every facility releaseTurnKey touches here is a shim handler
+    shimCtx as unknown as Parameters<typeof releaseTurnKey>[0];
 
   try {
     // Four turns hold every live-exec place of the agent's workspace. A run
@@ -221,6 +251,62 @@ export async function checkExecLimitPark(
         fifthTurns.length === 0 &&
         afterPark === 'active',
       `run=${JSON.stringify(fifth)} (want queued, parked, launchedAt null, a new exec, no error/code, attempt 2) retryJobs=${fifthRetries}/0 turnJobs=${fifthTurns.length}/0 session=${afterPark ?? 'MISSING'}/active`,
+    );
+
+    // The host then closes the refused exec's op as a room wait. A control
+    // op closed the same way but unmarked (the close before) shows what the
+    // mark keeps out: a cancelled turn for every refusal and re-wake.
+    const metricsBefore = await turnMetrics();
+    await releaseTurnKey(hostCtx, {
+      organizationId: orgId,
+      sessionId,
+      execId: fifthExec,
+      status: 'cancelled',
+      agentResultStatus: AWAITING_ROOM_RESULT_STATUS,
+    });
+    const refusedOp = (
+      await sql<
+        { status: string; outcome: string | null; finished: boolean }[]
+      >`
+        SELECT status, agent_result_status AS outcome,
+               finished_at_ms IS NOT NULL AS finished
+        FROM app.sandbox_session_ops
+        WHERE session_id = ${sessionId} AND exec_id = ${fifthExec}
+      `
+    )[0];
+    const metricsAfterRefusal = await turnMetrics();
+    const unmarkedExec = `exec-limit-unmarked-${randomUUID()}`;
+    await sql`
+      INSERT INTO app.sandbox_session_ops (
+        org_id, session_id, exec_id, kind, status, heartbeat_at_ms,
+        started_at_ms
+      ) VALUES (
+        ${orgId}, ${sessionId}, ${unmarkedExec}, 'task-agent', 'running',
+        ${Date.now()}, ${Date.now()}
+      )
+    `;
+    await releaseTurnKey(hostCtx, {
+      organizationId: orgId,
+      sessionId,
+      execId: unmarkedExec,
+      status: 'cancelled',
+    });
+    const metricsAfterUnmarked = await turnMetrics();
+    await sql`
+      DELETE FROM app.sandbox_session_ops
+      WHERE session_id = ${sessionId} AND exec_id = ${unmarkedExec}
+    `;
+    record(
+      'the refused exec closes as a room wait and stays out of the external-turn metrics, where an unmarked close counts a cancelled turn',
+      refusedOp?.status === 'cancelled' &&
+        refusedOp.outcome === AWAITING_ROOM_RESULT_STATUS &&
+        refusedOp.finished &&
+        metricsBefore !== undefined &&
+        metricsAfterRefusal?.total === metricsBefore.total &&
+        metricsAfterRefusal.cancelled === metricsBefore.cancelled &&
+        metricsAfterUnmarked?.total === metricsBefore.total + 1 &&
+        metricsAfterUnmarked.cancelled === metricsBefore.cancelled + 1,
+      `op=${JSON.stringify(refusedOp)} (want cancelled, ${AWAITING_ROOM_RESULT_STATUS}, finished) total/cancelled before=${JSON.stringify(metricsBefore)} afterRefusal=${JSON.stringify(metricsAfterRefusal)} (want unchanged) afterUnmarked=${JSON.stringify(metricsAfterUnmarked)} (want +1/+1)`,
     );
 
     // A second refused run, parked after the fifth.
@@ -303,12 +389,14 @@ export async function checkExecLimitPark(
       WHERE org_id = ${orgId} AND agent_id = ${agentId}
         AND status IN ('queued', 'running')
     `;
-    // Only this lane's own workspace ops are removed: the external-turn
-    // metrics read every op of the organization, and these stand-in turns
-    // are none of its outcomes.
+    // Only this lane's own stand-in turns are removed: the external-turn
+    // metrics read every op of the organization, and these are none of its
+    // outcomes. The refused exec's room-wait op stays, as the host leaves
+    // it — the metrics leave it out (asserted above).
     await sql`
       DELETE FROM app.sandbox_session_ops
       WHERE org_id = ${orgId} AND session_id = ${sessionId}
+        AND agent_result_status IS DISTINCT FROM ${AWAITING_ROOM_RESULT_STATUS}
     `;
     await sql`
       UPDATE app.sandbox_sessions SET status = 'stopped'

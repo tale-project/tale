@@ -13,10 +13,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import {
+  classifyOutcome,
+  NO_OUTCOME_RESULT_STATUSES,
+} from '../../domains/sandbox/external-turn-outcome';
 import { releaseTurnKey } from '../automations/agent_host';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
-import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants';
+import {
+  AWAITING_ROOM_RESULT_STATUS,
+  SANDBOX_DESTROY_PENDING_MESSAGE,
+} from '../sandbox/session_constants';
 
 const io = vi.hoisted(() => ({
   instructions: [] as string[],
@@ -520,13 +527,33 @@ describe('a task agent start', () => {
           m.name === 'tasks/agent_runs:completeTaskAgentRun',
       ),
     ).toBe(false);
-    // The refused exec's key and op row close as cancelled: nothing ran.
+    // The refused exec's key and op row close as cancelled, marked as a
+    // room wait: nothing ran.
     expect(releaseTurnKey).toHaveBeenCalledExactlyOnceWith(ctx, {
       organizationId: 'org-1',
       sessionId: 'pa-alice',
       execId: 'exec-1',
       status: 'cancelled',
+      agentResultStatus: AWAITING_ROOM_RESULT_STATUS,
     });
+  });
+
+  it('closes a refused exec as a room wait, never as a cancelled turn of the external-turn metrics', async () => {
+    io.windows = [refusedExecWindow('EXEC_LIMIT', 'live exec cap 4 reached')];
+    const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
+
+    // The op row as the start finalizes it, read the way the metrics read
+    // it: no outcome, left out before the row cap. Counted as a cancelled
+    // turn, every refusal — and every re-wake into a still-full workspace —
+    // would add one, with a near-zero duration.
+    const closed = vi.mocked(releaseTurnKey).mock.calls[0]?.[1];
+    expect(closed?.status).toBe('cancelled');
+    expect(NO_OUTCOME_RESULT_STATUSES).toContain(closed?.agentResultStatus);
+    expect(
+      classifyOutcome(closed?.agentResultStatus ?? null, closed?.status ?? ''),
+    ).toBe('parked');
   });
 
   it('still fails a start whose exec the runtime refused for any other reason', async () => {

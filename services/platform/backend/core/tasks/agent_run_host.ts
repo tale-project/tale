@@ -96,6 +96,7 @@ import {
   agentWorkTurnDeadlineMs,
   workflowAgentBudgetCents,
 } from '../sandbox/agent_deadline';
+import { AWAITING_ROOM_RESULT_STATUS } from '../sandbox/session_constants';
 import {
   grantedToolsGuidance,
   IMAGE_GENERATION_TOOL,
@@ -1565,7 +1566,10 @@ export async function startTaskAgentTurnImpl(
         // never ran. The park takes the run back to `queued` on a fresh
         // exec, so its next start mints its own and the wait counts as no
         // executed time; the refused exec's key and op row then close as
-        // cancelled (the key revoked, nothing spent).
+        // cancelled (the key revoked, nothing spent), marked as a room wait:
+        // no harness turn ran, so the external-turn metrics must not count
+        // the refusal, or each re-wake into a still-full workspace, as a
+        // cancelled turn — as the automation lane marks its room waits.
         const execRefused = noRoom?.scope === 'session';
         const wakeAfterMs =
           noRoom !== null ? queuedWakeAfterMs(noRoom) : undefined;
@@ -1584,6 +1588,7 @@ export async function startTaskAgentTurnImpl(
             sessionId: args.sessionId,
             execId: args.execId,
             status: 'cancelled',
+            agentResultStatus: AWAITING_ROOM_RESULT_STATUS,
           }).catch((releaseErr: unknown) => {
             console.warn(
               `[task-agent] closing the refused exec ${args.execId} failed:`,
