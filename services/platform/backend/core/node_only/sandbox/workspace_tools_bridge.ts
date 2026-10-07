@@ -215,6 +215,9 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'It names approvalId, runId, reviewer, issuerRunId, feedbackCommentId and ' +
     'evidence; it is historical, not the current task status. Null does not ' +
     'prove that no decision committed. ' +
+    'reviewDelegation is the validated historical handoff into the latest gate, or null. ' +
+    'It names old/new approval and reviewer IDs, source, evidence, manager, issuer, reason and time; ' +
+    'read pendingReview for current ownership. It does not indicate that a reviewer run started. ' +
     'reviewFiles lists attachments and outputs for a captured agent review, ' +
     '50 entries per page; pass reviewFiles.page.continueCursor as ' +
     'reviewFileCursor while page.isDone is false. Each entry names fileId, kind, metadata and an ' +
@@ -295,6 +298,17 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'and no pending review or question. Priority alone preserves those ' +
     'handoffs. Answers {taskId, priority, assigneeType, assigneeId, changed}. ' +
     'Does not change status, reviewer, questions, budgets, or start any run.',
+  task_delegate_review:
+    'Delegate one captured pending agent review to another eligible same-project agent. ' +
+    'Only an explicitly granted live project-agent manager with project-wide authority may call. ' +
+    'Read task_get first, then pass {taskId, reviewerAgentId, expected: {approvalId, runId, ' +
+    'evidenceRevision, reviewer: {kind: "agent", agentId}}, reason} with full native IDs. ' +
+    'The recipient must already have task_review and cannot be the manager or implementation agent. ' +
+    'Human and workflow reviews cannot be converted. Changes only this captured gate; task ownership, ' +
+    'status, future reviewer settings and grants stay unchanged. No run starts. Use task_start_agent ' +
+    'separately on the recipient’s own suitable review task, never the implementation task. ' +
+    'An identical retry is accepted only from the same still-authorized run while the successor ' +
+    'review and evidence remain current. Read task_get again after conflicts; do not overwrite them.',
   task_review:
     'Decide an independent native task review assigned to this project agent. ' +
     'Read task_get first and copy pendingReview.approvalId, runId and evidenceRevision. ' +

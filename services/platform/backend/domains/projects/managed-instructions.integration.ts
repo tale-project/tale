@@ -10,6 +10,7 @@ import {
   readTaskInstructionsConfiguration,
   updateTaskInstructionsConfiguration,
 } from '../tasks/service.ts';
+import { checkManagedAgentTools } from './managed-tools.integration.ts';
 import {
   readProjectInstructionsConfiguration,
   readAgentInstructionsConfiguration,
@@ -257,4 +258,5 @@ export async function checkManagedInstructions(
       `two concurrent transactions: one persisted value, one conflict; attempts=${attempts.join(',')}; no-op retains timestamps/audit; unrelated fields unchanged`,
     );
   }
+  await checkManagedAgentTools(sql, base, ctx, ids, record);
 }

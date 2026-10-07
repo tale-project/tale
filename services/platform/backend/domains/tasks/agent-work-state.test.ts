@@ -17,6 +17,7 @@ import {
   findLiveAutomationRunForTask,
 } from './external-ref.ts';
 import { readTaskReviewDecision } from './review-decision.ts';
+import { readTaskReviewDelegation } from './review-delegation-receipt.ts';
 import { getPendingReviewForTask } from './reviews.ts';
 
 vi.mock('./agent-runs.ts', () => ({ listTaskAgentRunSummaries: vi.fn() }));
@@ -25,6 +26,9 @@ vi.mock('./external-ref.ts', () => ({
   findLatestAutomationRunForTask: vi.fn(),
 }));
 vi.mock('./reviews.ts', () => ({ getPendingReviewForTask: vi.fn() }));
+vi.mock('./review-delegation-receipt.ts', () => ({
+  readTaskReviewDelegation: vi.fn(),
+}));
 vi.mock('./review-decision.ts', () => ({ readTaskReviewDecision: vi.fn() }));
 vi.mock('../automations/store.ts', async (importOriginal) => ({
   // `runWaitingFor` stays the store's own: the park vocabulary is its.
@@ -67,6 +71,7 @@ describe('readTaskWorkState', () => {
     vi.mocked(getPendingAskForRun).mockReset().mockResolvedValue(null);
     vi.mocked(getPendingReviewForTask).mockReset().mockResolvedValue(null);
     vi.mocked(readTaskReviewDecision).mockReset().mockResolvedValue(null);
+    vi.mocked(readTaskReviewDelegation).mockReset().mockResolvedValue(null);
   });
 
   it('reads one run past the page to say whether an older page exists', async () => {

@@ -17,7 +17,7 @@ Create or open a project first. For the project’s sharing and knowledge setup,
 
 <Step title="Create an agent in the project">
 
-Open the project’s **Agents** tab and select **New agent**. Name it for the job, such as “Launch reviewer”. Choose an **Agent type** and **Model** supported by your workspace. When a model has multiple provider entries, choose the intended provider too.
+Open the project’s **Agents** tab and select **New agent**. Name it for the job, such as “Launch reviewer”. Choose an **Agent runtime** and **Model** supported by your workspace. When a model has multiple provider entries, choose the intended provider too.
 
 <Frame caption="Project agents combine a named job with a runtime and model.">
 

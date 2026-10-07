@@ -16,6 +16,7 @@ export function isManagedResource(
   return (
     resource.kind === 'project-instructions' ||
     resource.kind === 'agent-instructions' ||
+    resource.kind === 'agent-tools' ||
     resource.kind === 'task-instructions' ||
     resource.kind === 'automation-definition' ||
     resource.kind === 'automation-deployment' ||
@@ -30,6 +31,8 @@ function resourcePath(resource: ManagedPlatformResource, read = false): string {
       return `/api/app/projects/${encodeURIComponent(projectId)}/configuration/instructions`;
     case 'agent-instructions':
       return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/instructions`;
+    case 'agent-tools':
+      return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/tools`;
     case 'task-instructions':
       return `/api/app/tasks/${encodeURIComponent(resource.config.taskId)}/configuration/instructions?projectId=${encodeURIComponent(projectId)}`;
     default:

@@ -909,17 +909,17 @@ providers:
       Noch keine direkt nutzbaren Anbieter-Zugangsdaten — füge oben einen
       API-Schlüssel oder eine Umgebungsvariable hinzu.
     noCompatibleModel:
-      Eine Laufzeit ohne Modell kann keines der direkt bereitgestellten
+      Eine Agent-Laufzeit ohne Modell kann keines der direkt bereitgestellten
       Modelle ausführen — diese rufen Tools nur über die Responses-API auf,
-      die nur Codex spricht. Erlaube für diese Laufzeiten ein anderes Modell
+      die nur Codex spricht. Erlaube für diese Agent-Laufzeiten ein anderes Modell
       oder führe den Agenten auf Codex aus.
     noModel: Noch kein Modell
     degraded: Zuletzt fehlerhaft
     subscriptionVia: Abo · {provider}
-    subscriptionInert: Abo · {provider} — nicht nutzbar, dieses Harness läuft nur mit verwalteten Zugangsdaten
+    subscriptionInert: Abo · {provider} — nicht nutzbar, diese Agent-Laufzeit läuft nur mit verwalteten Zugangsdaten
     listFailed: Konnte den Agenten-Status nicht laden.
-    healthLoadFailed: Konnte nicht prüfen, welche Laufzeiten fehlschlagen. Daher ist keine als zuletzt fehlerhaft markiert.
-    healthRefreshFailed: Konnte nicht aktualisieren, welche Laufzeiten fehlschlagen. Die Anzeige ist womöglich veraltet.
+    healthLoadFailed: Konnte nicht prüfen, welche Agent-Laufzeiten fehlschlagen. Daher ist keine als zuletzt fehlerhaft markiert.
+    healthRefreshFailed: Konnte nicht aktualisieren, welche Agent-Laufzeiten fehlschlagen. Die Anzeige ist womöglich veraltet.
   apiFormat:
     openai: OpenAI-kompatible API
     anthropic: Anthropic-Messages-API

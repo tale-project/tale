@@ -1,5 +1,6 @@
-// The Playwright webServer chains client build → preview with `&&`, so the
-// chain advances only when the build PROCESS exits. `bun --bun vite build`
+// Client build chains (Docker, workspace scripts and local preview) advance
+// only when the build PROCESS exits. Keep the calling service as the cwd so
+// Vite selects its own config and output paths. `bun --bun vite build`
 // occasionally never exits after a successful build, and the silent hang
 // starves the chain until the webServer timeout with zero tests run.
 // Building through the JS API and exiting explicitly removes the implicit
@@ -8,7 +9,7 @@
 // fires. The exit itself needs Bun ≥ 1.4.1 — earlier Bun ran rolldown's
 // N-API finalizers and cleanup hooks inside `process.exit()`, and the
 // evidence places CI's remaining stalls there (pinned in
-// `.github/actions/setup-turbo/action.yml`). The line logged after `build()`
+// `.github/actions/setup-turbo/action.yml` and Docker images). The line after `build()`
 // resolves puts any future stall on one side of the exit or the other.
 
 import { build } from 'vite';

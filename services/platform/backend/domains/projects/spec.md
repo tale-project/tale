@@ -156,6 +156,21 @@ task is: its running agents are stopped and its reviews closed.
 - **Example**: A project has a task whose agent is running. Ada deletes the project → the run
   is stopped and the task is gone.
 
+## Managed tools
+
+### PROJ-R17 · Managed tool configuration changes only an existing agent's tool grants
+
+An editor who can edit the active project may reconcile a non-managed agent's
+explicit tool set against its current configuration hash. Unknown tools and
+stale hashes are refused. Equivalent sets are a no-op; a change advances the
+agent revision and preserves its instructions, model, skills, connectors and
+exact secret grants. Members may read the visible configuration but cannot
+change it. Reads expose only the project and agent identity, tools and hash.
+
+- **Example**: Ada adds independent review to an existing worker through its
+  managed tools configuration → its other equipment and private secret grants
+  remain unchanged; a concurrent stale full-agent save is refused.
+
 ## Not yet
 
 - **Tasks**: see the tasks spec.

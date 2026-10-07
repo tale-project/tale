@@ -111,7 +111,9 @@ describe('ProjectAgentDialog pending save', () => {
     );
     expect(instructions).toBeDisabled();
     expect(screen.getByRole('textbox', { name: /Name/ })).toBeDisabled();
-    expect(screen.getByRole('combobox', { name: /Agent type/ })).toBeDisabled();
+    expect(
+      screen.getByRole('combobox', { name: /Agent runtime/ }),
+    ).toBeDisabled();
     expect(screen.getByRole('button', { name: /^Model/ })).toBeDisabled();
     expect(screen.getByRole('button', { name: /skills/i })).toBeDisabled();
     await user.type(instructions, 'Later unsaved instructions');
@@ -181,7 +183,7 @@ describe('ProjectAgentDialog create', () => {
     );
 
     await user.type(screen.getByRole('textbox', { name: /Name/ }), 'Analyst');
-    await user.click(screen.getByRole('combobox', { name: /Agent type/ }));
+    await user.click(screen.getByRole('combobox', { name: /Agent runtime/ }));
     await user.click(
       await screen.findByRole('option', { name: 'Claude Code' }),
     );

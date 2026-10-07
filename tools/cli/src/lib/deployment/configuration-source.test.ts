@@ -61,6 +61,14 @@ async function fixture() {
           definitionSha256: valueHash(definition),
         },
       },
+      {
+        kind: 'agent-tools',
+        config: {
+          projectId: 'project-1',
+          agentId: 'agent-1',
+          tools: ['task_review', 'task_get', 'task_review'],
+        },
+      },
     ],
   };
   const source = join(root, 'cycle', 'configuration.json');
@@ -88,6 +96,11 @@ test('captures referenced files as ordinary immutable configuration without reta
     name: 'example/review',
     nodes: [],
     tests: [],
+  });
+  expect(result.configuration.resources[3]?.config).toEqual({
+    projectId: 'project-1',
+    agentId: 'agent-1',
+    tools: ['task_get', 'task_review'],
   });
   await writeFile(join(f.root, 'cycle', 'policy.md'), 'Later source edit');
   expect(result.configuration.resources[0]?.config.instructions).toBe(

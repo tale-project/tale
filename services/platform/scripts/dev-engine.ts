@@ -1154,10 +1154,16 @@ export async function runDevFleet() {
             done: 'Production bundle built',
           },
           () =>
-            runCommand('bun', ['--bun', 'vite', 'build'], {}, platformRoot, {
-              label: 'vite',
-              classifier: viteClassifier,
-            }),
+            runCommand(
+              'bun',
+              ['--bun', '../../packages/ui/bin/build-client.ts'],
+              {},
+              platformRoot,
+              {
+                label: 'vite',
+                classifier: viteClassifier,
+              },
+            ),
         );
       } else {
         infoLine('Reusing existing dist/ (skipping vite build)');

@@ -18,7 +18,7 @@
 # here — the image conformance test walks the registry.
 
 # --- daemon build stage: bundle runnerd to a single Node-target file --------
-FROM oven/bun:1 AS daemon-build
+FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS daemon-build
 WORKDIR /build
 COPY services/sandbox-runtime/daemon/ ./
 RUN bun build --target=node src/main.ts --outfile /runnerd.mjs \
@@ -26,7 +26,7 @@ RUN bun build --target=node src/main.ts --outfile /runnerd.mjs \
 
 # Gemini's system settings must be immutable and root-owned. Derive them
 # from the platform's existing harness interpreter, without a package install.
-FROM oven/bun:1 AS gemini-settings-build
+FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS gemini-settings-build
 WORKDIR /build
 COPY services/platform/lib/harnesses/ services/platform/lib/harnesses/
 COPY configs/platform/system/harnesses/gemini/harness.yml configs/platform/system/harnesses/gemini/harness.yml

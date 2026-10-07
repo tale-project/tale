@@ -145,6 +145,16 @@ Node-version output: only those checkouts resolve and install their production N
 job level. Current composites skip that fallback. Integration evidence verifies and records
 the actual selected version.
 
+Docker Bun builders, runtimes and the React service generator use the same Bun
+version as the root `packageManager` and CI, pinned to official `oven/bun`
+multiarchitecture image digests. Update every flavor together; the CLI toolchain
+guard rejects drift and native image checks execute the runtime version. Client
+builds share `packages/ui/bin/build-client.ts`, which awaits Vite and its plugin
+output before an explicit success exit. Keep each service's working directory;
+SSR and development/watch commands retain their own arguments. The completion
+marker distinguishes a build that resolved from a stalled process exit; it is
+not proof of the cause of a stall before Vite resolves.
+
 Shared checks and native CLI builds use the same Bun download key inputs: the root
 manifest, every declared workspace manifest, lockfile, patches and `bunfig.toml`.
 The independent document-node npm manifest is outside that workspace identity.

@@ -39,11 +39,11 @@ automations:
     title: Aucune exécution
     description: Aucune automatisation n'a tourné sur la période choisie.
 externalTurns:
-  title: Tours de harness
-  description: Fiabilité des tours de harness exécutés dans le bac à sable.
+  title: Tours d'environnement d'agent
+  description: Fiabilité des tours d'environnement d'agent exécutés dans le bac à sable.
   errors:
-    loadFailed: Impossible de charger les métriques des tours de harness.
-    refreshFailed: Impossible d'actualiser les métriques des tours de harness. Les chiffres affichés peuvent être obsolètes.
+    loadFailed: Impossible de charger les métriques des tours d'environnement d'agent.
+    refreshFailed: Impossible d'actualiser les métriques des tours d'environnement d'agent. Les chiffres affichés peuvent être obsolètes.
   cappedNotice: Affichage des 5 000 tours les plus récents de cette période.
     Les tours plus anciens ne sont pas inclus dans ces totaux.
   cards:
@@ -54,12 +54,12 @@ externalTurns:
     cancelled: Arrêtés par l'utilisateur
     recovered: Récupérés
   byHarness:
-    title: Par harness
-    harness: Harness
+    title: Par environnement d'agent
+    harness: Environnement d'agent
     turns: Tours
     successRate: Taux de réussite
     timeouts: Expirations
-    empty: Aucun tour de harness n'a tourné sur la période choisie.
+    empty: Aucun tour d'environnement d'agent n'a tourné sur la période choisie.
 usage:
   title: Métriques d'utilisation
   description: Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.

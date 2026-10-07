@@ -1,7 +1,7 @@
 # Tale Web Dockerfile — Vite SPA, no backend coupling
 ARG VERSION=dev
 
-FROM oven/bun:1.3.12 AS bun-bin
+FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS bun-bin
 
 # ============================================================================
 # Stage 1: workspace deps
@@ -66,7 +66,7 @@ RUN bun --bun scripts/fetch-releases.ts --no-format \
 # read legal markdown from `app/content/legal/` — neither source is available
 # in the runner stage, so these MUST run in the builder. (`bun run build` does
 # the first three; they are spelled out here to interleave seo-compile.)
-RUN bun --bun vite build \
+RUN bun --bun ../../packages/ui/bin/build-client.ts \
     && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr \
     && bun --bun scripts/prerender.ts \
     && bun --bun /app/packages/ui/bin/seo-compile.ts ./scripts/seo.config.ts --out dist-seo \
@@ -76,7 +76,7 @@ WORKDIR /app
 # ============================================================================
 # Stage 3: runtime
 # ============================================================================
-FROM oven/bun:1.3.12-slim AS runner
+FROM oven/bun:1.4.2-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS runner
 
 ARG LOCALE_COOKIE_DOMAIN=
 ENV NODE_ENV=production \

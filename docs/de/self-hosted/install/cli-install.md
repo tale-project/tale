@@ -129,7 +129,7 @@ Fehler bei Docker, Compose, einem nicht unterstützten Container-Modus oder die 
 - `-q, --quiet` — Container-Logs während des Deployments unterdrücken.
 - `-y, --yes` — destruktive Bestätigungsabfragen automatisch akzeptieren (z. B. `--override-all`).
 - `--skip-backup` — den automatischen Pre-Deploy-Snapshot überspringen.
-- `--configuration-only` — wendet nur verwaltete Konfiguration (Anweisungen und Automatisierungen) im laufenden Betrieb auf die exakt passende, gesunde Runtime eines bereits bereiten Deployments an. Erfordert `--bundle <directory>` und überspringt den Snapshot vor dem Deployment sowie den Neustart. Nutze die Option, wenn sich nur diese Ressourcen ändern; Runtime- und Identitätsangaben müssen unverändert bleiben, und es darf kein Runtime-Rollout ausstehen.
+- `--configuration-only` — wendet nur verwaltete Konfiguration (Anweisungen, Tool-Berechtigungen für Agenten und Automatisierungen) im laufenden Betrieb auf die exakt passende, gesunde Runtime eines bereits bereiten Deployments an. Erfordert `--bundle <directory>` und überspringt den Snapshot vor dem Deployment sowie den Neustart. Nutze die Option, wenn sich nur diese Ressourcen ändern; Runtime- und Identitätsangaben müssen unverändert bleiben, und es darf kein Runtime-Rollout ausstehen.
 - `--dry-run` — Vorschau ohne Änderungen.
 
 ### Verwaltete Deployments {#managed-deployments}
@@ -391,6 +391,10 @@ Diese Ressourcenarten nutzen die gemeinsamen Plattform-Schemas und nativen Berec
 | `provider-credential` | Metadaten benannter Umgebungszugangsdaten                 | Organisation    |
 | `knowledge-embedding` | Anbieter, Modell, Dimensionen, Endpunkt und Servergrenzen | Organisation    |
 | `deployment`          | Instanz-Einstellungen einschließlich Sandbox-Runtime      | Instanz         |
+
+Mit `agent-tools` verwaltest du ausschließlich die Tool-Berechtigungen eines vorhandenen Agenten. `config` enthält die exakten Werte für `projectId` und `agentId` sowie das vollständige gewünschte Array `tools`, etwa `["task_find", "task_get", "task_review"]`. Führe jede Berechtigung auf, die erhalten bleiben soll; `[]` entfernt alle Tool-Berechtigungen. Der native Katalog lehnt unbekannte Namen ab und vereinheitlicht Reihenfolge und Duplikate vor der Hash-Berechnung.
+
+Zum Anwenden brauchst du Bearbeitungsrechte für das aktive Projekt. Der Agent darf nicht von der Plattform verwaltet werden. Mitglieder können die begrenzte Konfiguration lesen. Alle anderen Agentenfelder bleiben unverändert, einschließlich Anweisungen, Modell und der exakten Zugriffsrechte auf Secrets. Der native Hash schützt vor konkurrierenden Tool-Änderungen; eine geänderte Auswahl macht auch veraltete vollständige Agentenspeicherungen ungültig. Eine gleichwertige Auswahl ändert weder Zeitstempel noch Audit-Einträge. Fehlt der Runtime die angeforderte Fähigkeit, lehnt sie den Vorgang ab. Lies die Tools nach dem Anwenden zurück und bewahre den ausstehenden Beleg auf, um einen unterbrochenen Vorgang fortzusetzen.
 
 Aufbewahrungs- und DSAR-Richtlinien brauchen ihre eigenen nativen Workflows. Pausiere Uploads, Synchronisation und Crawls, bevor du das Embedding-Modell wechselst. Die CLI prüft die Anzahl der Dokumente und Websites der gesamten Organisation; sie sperrt den Import nicht und migriert keine bestehenden Vektoren. Hat die Organisation Dokumente oder registrierte Websites, braucht ein Modellwechsel eine separate native Indexmigration. Eine Änderung, die nur `minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` oder `maxRequestsPerMinute` betrifft, lässt die vorhandenen Vektoren gültig; für sie entfällt diese Prüfung. Instanz-Einstellungen erfordern zusätzlich die native Freigabeliste für Deployment-Editoren. Bei Boot-Einstellungen meldet der einzelne Konfigurationsaufruf `restartRequired`; Speichern allein aktiviert diese Einstellungen noch nicht. Prüfe die Folgen im Plan vor dem Anwenden.
 

@@ -318,7 +318,7 @@ assignee:
   assignToMe: Mir zuweisen
   agents: Agenten
   agentsInfo:
-    Läuft in einer Sandbox auf dem Harness, das beim Erstellen des Agenten
+    Läuft in einer Sandbox auf der Agent-Laufzeit, die beim Erstellen des Agenten
     gewählt wurde — vorausgerüstet mit seinen Skills, Connectors und
     Anweisungen.
   createAgent: Agent erstellen …
@@ -354,6 +354,7 @@ assignee:
   standardAgentFooter: Bis dieses Projekt eigene Agenten hat, übernimmt der Standard-Agent der Organisation seine Aufgaben.
 activity:
   reviewResponded: "Review entschieden"
+  reviewDelegated: "Review weitergegeben"
   created: Erstellt
   updated: Aktualisiert
   claimed: Übernommen

@@ -3,7 +3,7 @@ title: Delegate a task to an agent
 description: Start an agent on a project task, review its result, request changes, and recover or cancel a run.
 ---
 
-A project agent works on a task and returns a result for review. Choose its assignment, start the work, and keep feedback on the task so the agent and reviewer have the same context. You need to be able to change the task: an Editor or higher can on every task in the project, and a Member on the tasks they created or that are assigned to them. The organization also needs a working provider, compatible harness, and available sandbox capacity.
+A project agent works on a task and returns a result for review. Choose its assignment, start the work, and keep feedback on the task so the agent and reviewer have the same context. You need to be able to change the task: an Editor or higher can on every task in the project, and a Member on the tasks they created or that are assigned to them. The organization also needs a working provider, compatible agent runtime, and available sandbox capacity.
 
 <Frame caption="Agent work uses the same board as human work: start at In progress and review the result at In review.">
 
@@ -58,6 +58,14 @@ If the response is lost, the same manager agent can repeat the guarded call from
 To reconcile a lost verdict response across reviewer occurrences, read `task_get.reviewDecision`. It contains the latest validated native decision receipt, or `null` behind a newer pending, human or workflow review or when the receipt is unavailable. Compare its approval and run IDs with the recorded intent, and read the task’s current state separately. A historical receipt does not describe the current column, and `null` does not prove that a verdict failed to commit. An immediate identical `task_review` replay still requires the same live issuer.
 
 The reviewer must be different from the agent that actually produced the result, for either verdict. It needs a live run with project-wide authority and the review grant still enabled; a run started by a Member cannot decide reviews. An independent-human-review policy or required human competence records routes new reviews to the human chain; a captured agent review requires explicit transfer to an eligible person. Workflow approvals and questions addressed to a person keep their own human gates. Read `pendingReview.agentReviewBlockedReason` for a current source, grant, identity or policy problem before attempting a verdict. If GitHub work is involved, the reviewer must check the referenced commit and checks itself: Tale records its evidence but does not independently verify GitHub's current state or merge a pull request as part of the verdict.
+
+### Delegate a captured review {#delegate-review}
+
+A manager with **Delegate pending agent reviews** can transfer one waiting agent review to another eligible agent in the same project. The recipient must already have **Review other agents’ task results**, the access needed to inspect the work, and independence from the implementation agent. The manager cannot route the review to itself or convert a human or workflow review. This permission is separate from deciding reviews and starts no work.
+
+The manager reads `task_get`, copies the full approval, source-run and captured reviewer IDs and `evidenceRevision`, and calls `task_delegate_review` with that expectation, the recipient’s full `reviewerAgentId`, and a reason. A changed source, evidence, permission or policy refuses the handoff. The implementation assignment, task status and future reviewer settings stay unchanged. If execution is needed, use ordinary admission on the recipient’s own review task, never on the implementation task being judged.
+
+After a lost response, read `task_get.reviewDelegation` and the current `pendingReview`. The receipt records the previous and successor approval IDs, previous and new reviewer, source, evidence, manager, issuing run, reason and time. It is historical; it does not prove that the review is still pending or that a reviewer started. An identical retry requires the same live authorized manager run and the unchanged successor gate and evidence. A later occurrence reconciles the receipt and current state instead of replaying an old intent.
 
 ## Ask for changes
 

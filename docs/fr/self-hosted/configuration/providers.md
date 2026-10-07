@@ -88,7 +88,7 @@ La politique de l’organisation se trouve dans `TALE_CONFIG_DIR/<org>/governanc
 enabled: true
 ```
 
-Fixe le harness, le modèle ou les deux, et remplace les instructions intégrées :
+Fixe l’environnement d’agent, le modèle ou les deux, et remplace les instructions intégrées :
 
 ```yaml
 enabled: true
@@ -167,7 +167,7 @@ auth:
 | `endpointMode: per-credential` | Utilise un endpoint propre à chaque accès à la place de `baseUrl`, comme Azure OpenAI. |
 | `catalog.source` | `static`, `openrouter-api`, `models-endpoint` ou `none`. Les entrées statiques viennent du catalogue de modèles décrit plus haut. |
 | `embedding` | Indique si le fournisseur sert des embeddings : `supported` quand son catalogue fournit une largeur de vecteurs vérifiée, `unsupported` quand il ne propose aucun modèle d’embedding, si bien que **Paramètres > Résidence des données > Modèle d’embedding** le refuse, ou `unknown`, la valeur par défaut, quand un admin saisit le modèle et sa largeur de vecteurs. Ne déclare `unsupported` que si la documentation du fournisseur lui-même l’indique. |
-| `auth` et `constraints` | Méthodes d’accès admises et conditions d’exécution, par exemple un harness sandbox précis. |
+| `auth` et `constraints` | Méthodes d’accès admises et conditions d’exécution, par exemple un environnement d’agent sandbox précis. |
 
 ## Source de clé par variable d’environnement
 

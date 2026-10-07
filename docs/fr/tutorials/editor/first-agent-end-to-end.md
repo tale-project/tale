@@ -7,7 +7,7 @@ Crée un agent qui résume le message d’un contact et recommande une prochaine
 
 ## Avant de commencer
 
-Il te faut un projet que tu peux modifier, un harness d’agent de code disponible avec des identifiants de modèle compatibles et une allocation de sandbox fonctionnelle. Un administrateur gère les [fournisseurs d’IA](/fr/platform/admin/providers) et les [Sandboxes](/fr/platform/admin/sandboxes). Un modèle utilisable dans Chat ne suffit pas à lui seul : le harness choisi doit pouvoir utiliser ses identifiants.
+Il te faut un projet que tu peux modifier, un environnement d’agent disponible avec des identifiants de modèle compatibles et une allocation de sandbox fonctionnelle. Un administrateur gère les [fournisseurs d’IA](/fr/platform/admin/providers) et les [Sandboxes](/fr/platform/admin/sandboxes). Un modèle utilisable dans Chat ne suffit pas à lui seul : l’environnement d’agent choisi doit pouvoir utiliser ses identifiants.
 
 Si la page Agents ou la liste des modèles manque, règle d’abord l’accès ou la configuration. Ce tutoriel ne nécessite ni skills, ni connecteurs, ni outils de plateforme, ni secrets injectés.
 
@@ -15,14 +15,14 @@ Si la page Agents ou la liste des modèles manque, règle d’abord l’accès o
 
 Ouvre l’onglet **Agents** du projet et clique sur **Nouvel agent**.
 
-<Frame caption="Le tableau identifie chaque agent par son harness, son fournisseur et son modèle.">
+<Frame caption="Le tableau identifie chaque agent par son environnement d’agent, son fournisseur et son modèle.">
 
 ![Website relaunch liste Content editor avec Claude Code et Redirect auditor avec Codex, leurs fournisseurs et modèles, à côté de Nouvel agent.](/images/platform/project-agents-models.webp)
 
 </Frame>
 
 1. Dans **Nom**, saisis `Assistant de triage`.
-2. Choisis un **Harness** configuré par ton administrateur.
+2. Choisis un **Environnement d'agent** configuré par ton administrateur.
 3. Sous **Modèle**, cherche par nom de modèle ou identifiant API, puis sélectionne l’entrée du fournisseur voulu. Un même modèle peut être proposé par plusieurs fournisseurs.
 4. Sous **Skills, connectors & outils**, décoche les éventuels skills de documents présélectionnés, et laisse **Secrets** vide pour cet exercice.
 5. Colle les instructions ci-dessous dans **Instructions**, puis clique sur **Créer l'agent**.
@@ -70,6 +70,6 @@ Utilise un commentaire de tâche pour une correction ponctuelle. Modifie les ins
 
 ## Si l’exécution ne démarre pas ou ne se termine pas
 
-Un modèle manquant appelle une vérification du fournisseur et du harness. Une erreur de sandbox nécessite qu’un administrateur vérifie la capacité et l’infrastructure. Une exécution échouée reste consultable : corrige la cause avant de la relancer. Ne redémarre pas plusieurs fois une tâche dont l’exécution est déjà active.
+Un modèle manquant appelle une vérification du fournisseur et de l’environnement d’agent. Une erreur de sandbox nécessite qu’un administrateur vérifie la capacité et l’infrastructure. Une exécution échouée reste consultable : corrige la cause avant de la relancer. Ne redémarre pas plusieurs fois une tâche dont l’exécution est déjà active.
 
 [L’automatisation des tâches](/fr/platform/projects/task-automation) explique les relances, l’annulation, le passage en relecture et les reprises. [Agents de projet](/fr/platform/projects/project-agents) présente l’équipement à ajouter une fois cette première tâche validée.

@@ -227,3 +227,42 @@ export function projectTaskReviewerFromId(
     ? { kind: 'human_default' }
     : { kind: 'agent', agentId };
 }
+
+/** A manager moves only the captured agent gate; configuration and execution
+ * are separate capabilities. Native task, run, approval and agent IDs are UUIDs. */
+const delegationIdSchema = z.uuid();
+const delegationReviewerSchema = z.strictObject({
+  kind: z.literal('agent'),
+  agentId: delegationIdSchema,
+});
+export const taskDelegateReviewInputSchema = z.strictObject({
+  taskId: delegationIdSchema,
+  reviewerAgentId: delegationIdSchema,
+  expected: z.strictObject({
+    approvalId: delegationIdSchema,
+    runId: delegationIdSchema,
+    evidenceRevision: evidenceRevisionSchema,
+    reviewer: delegationReviewerSchema,
+  }),
+  reason: z.string().trim().min(1).max(2000),
+});
+export type TaskDelegateReviewInput = z.infer<
+  typeof taskDelegateReviewInputSchema
+>;
+
+export const taskDelegateReviewReceiptSchema = z.strictObject({
+  taskId: delegationIdSchema,
+  previousApprovalId: delegationIdSchema,
+  approvalId: delegationIdSchema,
+  runId: delegationIdSchema,
+  evidenceRevision: evidenceRevisionSchema,
+  previousReviewer: delegationReviewerSchema,
+  reviewer: delegationReviewerSchema,
+  managerAgentId: delegationIdSchema,
+  issuerRunId: delegationIdSchema,
+  reason: z.string().trim().min(1).max(2000),
+  delegatedAt: z.number().int().nonnegative(),
+});
+export type TaskDelegateReviewReceipt = z.infer<
+  typeof taskDelegateReviewReceiptSchema
+>;

@@ -17,7 +17,7 @@ Crée ou ouvre d’abord un projet. Le guide [utiliser les projets](/fr/tutorial
 
 <Step title="Créer un agent dans le projet">
 
-Ouvre l’onglet **Agents** du projet et sélectionne **Nouvel agent**. Nomme-le selon son travail, par exemple « Relecteur de lancement ». Choisis un **Harness** et un **Modèle** pris en charge par ton espace. Si le même modèle apparaît avec plusieurs fournisseurs, choisis aussi celui que tu souhaites utiliser.
+Ouvre l’onglet **Agents** du projet et sélectionne **Nouvel agent**. Nomme-le selon son travail, par exemple « Relecteur de lancement ». Choisis un **Environnement d'agent** et un **Modèle** pris en charge par ton espace. Si le même modèle apparaît avec plusieurs fournisseurs, choisis aussi celui que tu souhaites utiliser.
 
 <Frame caption="Un agent de projet associe un travail nommé à un environnement d’exécution et un modèle.">
 

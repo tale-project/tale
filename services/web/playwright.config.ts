@@ -27,7 +27,9 @@ export default createPlaywrightConfig({
     // also for SEO. The opt-in requires that output; ordinary local runs use
     // a client-only build, without networked release fetching in this budget.
     command:
-      (process.env.E2E_USE_BUILD === '1' ? '' : 'bun --bun vite build && ') +
+      (process.env.E2E_USE_BUILD === '1'
+        ? ''
+        : 'bun --bun ../../packages/ui/bin/build-client.ts && ') +
       `bun --bun vite preview --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     // Locally reuse an already-running `bun run dev`; in CI boot fresh.
