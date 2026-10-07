@@ -29,6 +29,7 @@ search:
 thisMember: dieses Mitglied
 confirmRemoveMember: '{name} aus dieser Organisation entfernen? Die Person verliert den Zugriff darauf und auf alle zugehörigen Ressourcen.'
 toSend: zum Senden
+enterToSend: Enter zum Senden
 contactInfo:
   title: Kontaktdetails
   contactId: Kontakt-ID

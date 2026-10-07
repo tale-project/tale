@@ -298,6 +298,7 @@ toast:
       title: Deleted
 tables:
   headers:
+    locale: Language
     description: Description
 recurrence:
   label: Repeat

@@ -298,6 +298,7 @@ toast:
       title: Supprimé
 tables:
   headers:
+    locale: Langue
     description: Description
 recurrence:
   label: Répéter

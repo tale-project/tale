@@ -518,7 +518,8 @@ export const Composer = memo(
                     <span className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
                       <EnterKeyIcon className="size-3" />
                     </span>
-                    {tDialogs('toSend')}
+                    <span aria-hidden="true">{tDialogs('toSend')}</span>
+                    <span className="sr-only">{tDialogs('enterToSend')}</span>
                   </span>
                 </Text>
               )}
