@@ -122,8 +122,9 @@ function buildWindowKeys(
   return keys;
 }
 
-/** One daily ledger row as the fold consumes it — the 0.4 doc's fold-relevant
- * fields, host-neutral so the 0.5 backend can feed SQL rows. */
+/** A daily ledger row or SQL aggregate as the fold consumes it. Aggregates
+ * must keep reporting windows and chart buckets separate; periodKey is a
+ * representative daily key inside both. Fields stay host-neutral. */
 export interface UsageLedgerFoldRow {
   userId: string;
   teamId?: string;
@@ -163,8 +164,8 @@ export async function foldOrgUsageMetrics(
 ): Promise<OrgUsageMetrics> {
   const windowKeys = buildWindowKeys(args.granularity, args.periodDays, now);
 
-  // Reporting windows always use daily ledger rows. Chart granularity only
-  // groups the current window after each day has been assigned to a window.
+  // Reporting windows use daily keys. SQL aggregates carry a representative
+  // key after splitting windows and chart buckets; raw rows are grouped here.
   const currentKeySet = new Set(buildWindowKeys('daily', args.periodDays, now));
   const prevKeySet = new Set(
     buildWindowKeys('daily', args.periodDays, now - args.periodDays * DAY_MS),

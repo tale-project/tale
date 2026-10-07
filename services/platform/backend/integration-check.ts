@@ -91,6 +91,7 @@ import {
 import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
+import { checkUsageMetricsBuckets } from './domains/governance/usage-metrics.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
@@ -60549,6 +60550,10 @@ async function main(): Promise<void> {
       [
         'checkTaskExternalStatusProjection',
         () => checkTaskExternalStatusProjection(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkUsageMetricsBuckets',
+        () => checkUsageMetricsBuckets(sql, authCtx, record),
       ],
       [
         'checkProjectTaskMetrics',
