@@ -33,14 +33,14 @@ Kennzeichnungen zeigen Bedingungen und Schleifen wie `when`, `else of`, `for eac
 
 ## Einen Knoten bearbeiten
 
-Wähle einen Kasten, um seine Felder zu öffnen. Auf einem breiten Bildschirm erscheint der Bereich neben dem Canvas; ohne ausgewählten Knoten nutzt der Canvas die ganze Breite. Auf schmaleren Bildschirmen öffnen sich die Felder in einem Dialog über dem Canvas. Ein `transform` hat **Code**, ein `llm` Felder für Prompt, Modell und Ausgabeschema. Ein `agent` ergänzt Harness und Ausstattung. Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch die Validierung warnt, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist. **Eingabe** enthält JSON-Werte und Referenzen für diesen Knoten. Unvollständiges JSON wird gemeldet und ändert den Knoten nicht.
+Wähle einen Kasten, um seine Felder zu öffnen. Auf einem breiten Bildschirm erscheint der Bereich neben dem Canvas; ohne ausgewählten Knoten nutzt der Canvas die ganze Breite. Auf schmaleren Bildschirmen öffnen sich die Felder in einem Dialog über dem Canvas. Ein `transform` hat **Code**, ein `llm` Felder für Prompt, Modell und Ausgabeschema. Ein `agent` ergänzt Agent-Laufzeit und Ausstattung. Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch die Validierung warnt, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist. **Eingabe** enthält JSON-Werte und Referenzen für diesen Knoten. Unvollständiges JSON wird gemeldet und ändert den Knoten nicht.
 
 Öffne **Ablaufsteuerung** für Bedingungen und Wiederholungen. Hat der Knoten welche, ist der Abschnitt schon offen. Mit **Schließen** kehrst du zum Canvas zurück. Auf einem breiten Bildschirm schließt sich der Bereich auch, wenn du auf den leeren Canvas klickst oder Escape außerhalb eines Textfelds drückst. Trigger und Projekteinstellungen der Automatisierung findest du im Tab **Allgemein**. [Automatisierungsgrundlagen](/de/platform/automations/concepts) erklärt Knotentypen und Ausdrücke.
 
 ## Eine Version speichern und testen
 
 1. Ändere die nötigen Felder und klicke auf **Speichern**.
-2. Erkläre die Änderung in der **Versionsnachricht** und wähle **Version speichern**. Eine neue Version entsteht; frühere Fassungen bleiben erhalten. Hat jemand während deiner Bearbeitung eine andere Version gespeichert, lehnt Tale das Speichern ab und fragt nach: **Meine Änderungen verwerfen und neu laden** zeigt die neuere Version, **Trotzdem speichern** legt deine Version darüber an — die neuere bleibt im Versionsverlauf, die aktuelle Version ist dann aber deine.
+2. Erkläre die Änderung in der **Notiz zur Version** und wähle **Version speichern**. Eine neue Version entsteht; frühere Fassungen bleiben erhalten. Hat jemand während deiner Bearbeitung eine andere Version gespeichert, lehnt Tale das Speichern ab und fragt nach: **Meine Änderungen verwerfen und neu laden** zeigt die neuere Version, **Trotzdem speichern** legt deine Version darüber an — die neuere bleibt im Versionsverlauf, die aktuelle Version ist dann aber deine.
 3. Klicke auf **Testlauf**. Hat der Workflow ein Eingabeschema, fülle im Dialog **Eingabe für den Lauf (JSON)** aus. Öffne **Eingabeschema**, um Pflichtfelder und Typen zu prüfen. Ungültiges JSON oder unpassende Werte verhindern den Start.
 4. Starte den Test, wechsle zum Tab **Läufe** und öffne seinen Eintrag. Vergleiche aufgelöste Eingabe, Ausgabe und geplante Aktionen mit dem erwarteten Ergebnis.
 
@@ -73,7 +73,7 @@ Ein Trigger nutzt ebenfalls die bereitgestellte Version. Richte ihn ein, wenn wi
 
 ## Ein Ergebnis untersuchen
 
-**Letzten Lauf anzeigen** legt Laufzustände über den Canvas. Wähle einen Knoten für die Angaben zu diesem Lauf: aufgelöste Eingabe, Ausgabe und Effekte. Häufig findest du so eine falsche Referenz. Vergleiche die Eingabe des fehlgeschlagenen Knotens mit der Ausgabe seiner Quelle.
+**Letzten Lauf einblenden** legt Laufzustände über den Canvas. Wähle einen Knoten für die Angaben zu diesem Lauf: aufgelöste Eingabe, Ausgabe und Effekte. Häufig findest du so eine falsche Referenz. Vergleiche die Eingabe des fehlgeschlagenen Knotens mit der Ausgabe seiner Quelle.
 
 Wechsle zu **Läufe** und öffne den vollständigen Datensatz. Die Tabs bleiben sichtbar; **Läufe** ist aktiv. Mit **Editor** kehrst du zum Workflow zurück. Prüfe Test- oder Live-Modus und bereits ausgeführte Aktionen, bevor du erneut startest. [Ausführungsprotokolle](/de/platform/automations/execution-logs) erklärt Wartezustände, Fehler, automatische Wiederholungen und Abbruch.
 

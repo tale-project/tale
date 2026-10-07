@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { act, fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
-import type { ChatThreadSummary } from '../types';
+import type { ChatProjectSummary, ChatThreadSummary } from '../types';
 
 const navigateMock = vi.hoisted(() => vi.fn());
 
@@ -41,6 +41,7 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   useNavigate: () => navigateMock,
+  useParams: () => ({ id: 'org-1' }),
 }));
 
 const renameMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
@@ -99,12 +100,15 @@ function renderRow(
   thread: ChatThreadSummary,
   variant?: 'default' | 'archived',
   holds?: { orgHeld?: boolean; heldThreadIds?: ReadonlySet<string> },
+  projects: readonly ChatProjectSummary[] = [
+    { id: 'p1', name: 'Website revamp' },
+  ],
 ) {
   return render(
     <ThreadListFrameProvider
       value={{
         organizationId: 'org-1',
-        projects: [{ id: 'p1', name: 'Website revamp' }],
+        projects,
         orgHeld: holds?.orgHeld ?? false,
         heldThreadIds: holds?.heldThreadIds ?? NO_HELD,
       }}
@@ -228,6 +232,27 @@ describe('ThreadRow', () => {
     expect(
       screen.getByRole('menuitem', { name: /Move to project/ }),
     ).toBeInTheDocument();
+  });
+
+  it('leaves a large project catalog untouched until the Move submenu opens', async () => {
+    let namesRead = 0;
+    const projects = Array.from({ length: 100 }, (_, index) => ({
+      id: `project-${index}`,
+      get name() {
+        namesRead += 1;
+        return `Project ${index}`;
+      },
+    }));
+    const { user } = renderRow(THREAD, undefined, undefined, projects);
+
+    expect(namesRead).toBe(0);
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(namesRead).toBe(0);
+    await user.click(screen.getByRole('menuitem', { name: /Move to project/ }));
+    expect(
+      await screen.findByRole('menuitemradio', { name: /Project 99/ }),
+    ).toBeInTheDocument();
+    expect(namesRead).toBeGreaterThan(0);
   });
 
   it('offers the folders and the way out under Move to project', async () => {

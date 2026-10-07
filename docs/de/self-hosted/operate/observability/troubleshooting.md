@@ -75,7 +75,7 @@ Dieser nicht nebenläufige Befehl kann Arbeit blockieren. Stimme ihn mit dem Dat
 
 Prüfe den Chat- oder Lauf-Fehler und die zuständigen API-/Worker-Protokolle. Anbieter-`429`, verweigerte Zugangsdaten, Ausführungs-Timeout, ausstehende Freigabe und unterbrochener Browser-Stream sind verschiedene Zustände. Eine Freigabe braucht eine Entscheidung, keinen Neustart. Hinter einem getrennten Stream kann die Operation weiterlaufen; prüfe ihr gespeichertes Ergebnis vor einer Wiederholung.
 
-Kontrolliere bei Anbieterfehlern Kontingent und Rechte der gewählten Zugangsdaten sowie den Anbieterstatus. Wechsle Modelle nur, wenn der Ersatz erlaubt und für die Aufgabe geeignet ist. Prüfe bei Harness-Fehlern `sandbox`, `sandbox-llm-gateway`, Laufzeit-Image und Sitzungsprotokolle.
+Kontrolliere bei Anbieterfehlern Kontingent und Rechte der gewählten Zugangsdaten sowie den Anbieterstatus. Wechsle Modelle nur, wenn der Ersatz erlaubt und für die Aufgabe geeignet ist. Prüfe bei Agent-Laufzeit-Fehlern `sandbox`, `sandbox-llm-gateway`, Laufzeit-Image und Sitzungsprotokolle.
 
 ## Sandbox-Netzzugriff wird verweigert
 

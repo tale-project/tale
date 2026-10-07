@@ -85,7 +85,8 @@ export function resourceId(resource: PlatformResource): string {
     case 'project-instructions':
       return `project-instructions/${resource.config.projectId}`;
     case 'agent-instructions':
-      return `agent-instructions/${resource.config.projectId}/${resource.config.agentId}`;
+    case 'agent-tools':
+      return `${resource.kind}/${resource.config.projectId}/${resource.config.agentId}`;
     case 'task-instructions':
       return `task-instructions/${resource.config.projectId}/${resource.config.taskId}`;
     case 'automation-definition':

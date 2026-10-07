@@ -1906,6 +1906,23 @@ describe('the Backend integration check', () => {
     // Straight through the script: no turbo cache can replay the verdict.
     expect(run?.run).toContain('bun run backend:integration');
     expect(run?.run).not.toContain('turbo');
+    const acceptance = steps.findIndex(
+      (step) => step.name === 'Verify current deployment acceptance ledgers',
+    );
+    expect(acceptance).toBeGreaterThan(steps.indexOf(run as Step));
+    expect(steps[acceptance]?.run).toBe(
+      'bun tools/cli/scripts/check-deployment-acceptance.ts tale-itest-db',
+    );
+    const scopes = parse(
+      await readFile(join(repository, '.github/ci-scope.yml'), 'utf8'),
+    ) as Record<string, string[]>;
+    for (const path of [
+      'tools/cli/scripts/check-deployment-acceptance.ts',
+      'tools/cli/src/lib/deployment/acceptance-migrations.ts',
+      'tools/cli/src/lib/deployment/migration-model.ts',
+      'tools/cli/src/lib/deployment/source-migrations.ts',
+    ])
+      expect(scopes.integration).toContain(path);
     expect(run?.env?.ITEST_REQUIRE_ALL_LANES).toBe('1');
     expect(run?.env?.ITEST_S3_ENDPOINT).toBeTruthy();
     expect(job?.env?.ITEST_S3_ACCESS_KEY).toBeTruthy();

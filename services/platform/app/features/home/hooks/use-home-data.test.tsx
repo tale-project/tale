@@ -12,6 +12,7 @@ const reads = vi.hoisted(() => ({
   tasks: vi.fn(),
   archived: vi.fn(),
   threads: vi.fn(),
+  projects: vi.fn(),
   retryChats: vi.fn(),
   inboxAvailability: { hasInbox: true, showInbox: true, isLoading: false },
 }));
@@ -48,10 +49,7 @@ vi.mock('@/app/features/chat/data/chat-backend', () => ({
   useArchivedThreads: reads.archived,
   useChatThreads: reads.threads,
   useChatThreadsRetry: () => reads.retryChats,
-  useChatProjects: () => ({
-    status: 'ready',
-    data: [{ id: 'p1', name: 'Website relaunch', key: 'WEB' }],
-  }),
+  useChatProjects: reads.projects,
 }));
 
 vi.mock('@/app/hooks/use-current-user', () => ({
@@ -110,6 +108,10 @@ beforeEach(() => {
   reads.inboxAvailability.hasInbox = true;
   reads.inboxAvailability.showInbox = true;
   reads.threads.mockReset().mockReturnValue(CHATS);
+  reads.projects.mockReset().mockReturnValue({
+    status: 'ready',
+    data: [{ id: 'p1', name: 'Website relaunch', key: 'WEB' }],
+  });
   reads.retryChats.mockReset().mockResolvedValue(undefined);
   reads.archived.mockReset().mockReturnValue({
     status: 'ready',
@@ -179,6 +181,39 @@ describe('useHomeData', () => {
     expect(result.current.threadsById.get('chat-unread')?.title).toBe(
       'Updated title',
     );
+  });
+
+  it('retains Home projections when only the query wrappers change', () => {
+    const projectData = [{ id: 'p1', name: 'Website relaunch', key: 'WEB' }];
+    const assigned = [task({ assigneeId: 'me', reviewerUserId: 'me' })];
+    const noRows: unknown[] = [];
+    reads.projects.mockImplementation(() => ({
+      status: 'ready',
+      data: projectData,
+    }));
+    reads.threads.mockImplementation(() => ({ ...CHATS }));
+    reads.tasks.mockImplementation(() => taskRead(assigned));
+    reads.conversations.mockImplementation(() => ({
+      results: noRows,
+      status: 'Exhausted',
+      unavailable: false,
+    }));
+
+    const { result, rerender } = renderHook(() => useHomeData('org-1'));
+    const previous = result.current;
+    rerender();
+
+    expect(result.current.items).toBe(previous.items);
+    expect(result.current.threadsById).toBe(previous.threadsById);
+    expect(result.current.attention).toBe(previous.attention);
+
+    reads.threads.mockReturnValue({
+      ...CHATS,
+      data: [...CHATS.data, { ...CHATS.data[0], id: 'chat-new' }],
+    });
+    rerender();
+    expect(result.current.items).not.toBe(previous.items);
+    expect(result.current.threadsById.has('chat-new')).toBe(true);
   });
 
   it('keeps the Inbox navigation visible while source discovery has failed', () => {

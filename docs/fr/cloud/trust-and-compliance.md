@@ -19,7 +19,7 @@ Précise l’organisation et le déploiement concernés. Une déclaration de cer
 | --- | --- | --- |
 | Hébergement et maintenance | Exploite le service convenu | Choisit le service et coordonne les changements |
 | Identité et accès | Fournit les comptes, rôles et contrôles SSO | Ajoute les membres et réexamine leurs droits |
-| Fournisseurs et connecteurs | Fournit les contrôles d’intégration | Choisit les services, identifiants et usages autorisés |
+| Fournisseurs et connectors | Fournit les contrôles d’intégration | Choisit les services, identifiants et usages autorisés |
 | Politiques d’utilisation et de contenu | Fournit les règles et les enregistrements | Configure les règles et traite les événements |
 | Demandes de données et conservation | Fournit les procédures prises en charge | Fixe les exigences et autorise les actions |
 

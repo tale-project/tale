@@ -129,6 +129,7 @@ Docker, Compose, unsupported container-mode failures or selecting HTTPS port `80
 - `-q, --quiet` — suppress container logs during the deploy.
 - `-y, --yes` — auto-accept destructive confirmation prompts (e.g. `--override-all`).
 - `--skip-backup` — skip the automatic pre-deploy volume snapshot.
+- `--configuration-only` — with `--bundle <directory>` (required), apply only hot managed configuration (instructions, agent tool grants and automations) to the exact healthy runtime of an already-ready deployment, skipping the pre-deploy snapshot and restart. Use it when only those resources change; runtime and identity inputs must stay unchanged, with no pending runtime rollout.
 - `--dry-run` — preview what would change without touching anything.
 
 ### Managed deployments
@@ -281,9 +282,29 @@ Preparation checks each configuration first, with this CLI's own schemas, and on
 
 `deploy verify-bundle` checks the complete file inventory and hashes without a destination. `deploy --bundle --dry-run` checks configuration artifacts and destination preconditions without applying changes. Managed bundle deployment does not accept workspace-only overrides such as `--services`, `--host` or `--override-all`. It is a state-preserving stack rollout with health and provenance checks; the workspace blue-green behavior described above is a separate path.
 
+#### Verify the current deployment
+
+After the exact bundle has completed, collect a fresh acceptance receipt on the deployment host:
+
+```bash
+tale --json deploy accept --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT" \
+  --expected-version "$TALE_RELEASE_VERSION"
+```
+
+Both source commits are required for acceptance; the bundle must have been prepared with `--deployment-ref`. Set `TALE_RELEASE_VERSION` to the independently selected published version, without its `v` prefix. The CLI holds the existing deployment lock and reads the Ready receipt, current containers, pinned images, and all three migration ledgers. It compares the frontend’s `/api/health` and the API’s `/api/health/ready` at the canonical HTTPS origin with fresh process identities read directly from their captured local containers, then rereads those identities. Missing identities or a different server process are refused even when the version matches. Every Tale image’s OCI version and source must agree with the bundle. An image’s `sourceTag` may be `sha-<source>`; it is reference metadata, not the served version.
+
+The JSON result contains source pins, bundle and Ready hashes, image identities, the canonical origin and both serving process identities, and complete source-derived migration IDs with inventory hashes. Application SQL and numbered TypeScript data migrations are both included. Missing, extra, duplicate or unfinished migrations, pending deployment state, version drift and identity changes are refused. These public process identities correlate a local container with an origin response; they are not credentials or authentication proof.
+
+Docker and HTTPS observations have individual cancellation limits and share a 120-second elapsed budget checked at observation boundaries. Bundle verification, the owned temporary copy and cleanup use the existing size limits (2 GiB total, 256 MiB per file); filesystem waits are not covered by a cancellable whole-command deadline. Use an external process supervisor when a whole-command deadline is required. Acceptance does not apply configuration, restart containers, run migrations or export credentials. It changes lock metadata and creates and removes its private temporary bundle copy.
+
+Older bundles remain deployable, but acceptance requires both a source-derived migration inventory and compatible servers that publish process identities. Prepare and complete a reviewed bundle through the normal deployment flow before collecting its acceptance receipt. A receipt proves the observed state at its timestamp; it does not guarantee later routing or server state. Repeat acceptance when fresh evidence is needed.
+
 #### Provision the native identity
 
 `deploy provision [--bundle <directory>]` is the backend-local phase normally invoked by bundle deployment. It reads at most 64 KiB of private JSON from stdin, proves the local account and selected organization, and always signs out before reporting success. Its fields include `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra credentials, and `nativeClients`. Existing-account behavior remains the default. An explicit `identity.bootstrap: "fresh"` permits creation of the initial local account and organization. A bundle binds this choice and the staged configurations before native changes. `deploy provision` refuses workspace flags and `--dry-run`; use read-only bundle/config verification for review. Its optional `--cli-ref` and `--deployment-ref` expectations require `--bundle` and are checked before login.
+
+Bundle deployment invokes `deploy provision` with internal options for configuration-only updates and retained identity checks; use `tale deploy --bundle <directory> --configuration-only` for this operator workflow.
 
 For an administratively verified fresh operator, explicitly declare `identity.emailVerification: "operator-attested"`. This is an operator assertion of the authenticated account’s email ownership, not proof of mailbox delivery. The backend uses a short-lived native verification token bound to that exact account and email, retaining native hooks without sending email, changing the address or creating another session. It is permitted only with `bootstrap: "fresh"`. Omit it to retain normal native email verification. A previously ready account whose verification changes holds for review.
 
@@ -388,6 +409,10 @@ These resource kinds use the platform’s shared schemas and native permissions:
 | `provider-credential` | Named environment credential metadata                      | Organization |
 | `knowledge-embedding` | Provider, model, dimensions, endpoint and server limits    | Organization |
 | `deployment`          | Instance deployment settings, including sandbox runtime    | Instance     |
+
+Use `agent-tools` to manage only the tool grants of an existing agent. Its `config` requires the exact `projectId`, `agentId` and complete desired `tools` array, for example `["task_find", "task_get", "task_review"]`. Keep every grant you intend to retain; `[]` clears the tool set. The native catalog rejects unknown names and canonicalizes order and duplicates before hashing.
+
+Applying this resource requires editor access to the active project and an agent that the platform does not manage. Members can read the narrow configuration. Changes preserve every other agent field, including instructions, model and exact secret grants. The native hash refuses concurrent tool edits; a changed set also invalidates stale full-agent saves. An equivalent set changes no timestamp or audit row. A runtime without the requested capability refuses the operation. Read back the tools after applying, and retain the pending receipt to recover an interrupted apply.
 
 Retention and DSAR policies require their dedicated native workflows. Pause uploads, synchronization and crawls before changing the embedding model. The CLI checks organization-wide document and website counts; it does not lock ingestion or migrate existing vectors. For an organization with documents or registered websites, a model change requires a separate native indexing migration. A change limited to `minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` or `maxRequestsPerMinute` keeps existing vectors valid, so it skips this check. Instance settings also require the native deployment editor allowlist. Standalone application reports `restartRequired` for boot settings; saving those settings alone does not activate them. Review the plan’s effects before applying.
 

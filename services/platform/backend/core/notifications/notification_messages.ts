@@ -5,7 +5,7 @@
  * no i18n runtime, so this module mirrors the small set of `inbox` strings it
  * needs and interpolates the simple `{name}` placeholders the catalog uses.
  * `INBOX_I18N` is kept honest by `notification_messages.test.ts`, which
- * deep-equals it against `services/platform/messages/{en,de,fr}.yml` —
+ * deep-equals it against `services/platform/messages/{en,de,fr}/inbox.yml` —
  * editing an actionable inbox string there without updating it here fails
  * CI.
  */
@@ -25,7 +25,7 @@ type LocaleStrings = Record<string, string>;
 /**
  * Actionable inbox keys mirrored for server-side email rendering. Kept honest by
  * `notification_messages.test.ts` against the `inbox` namespace subset in
- * messages/{en,de,fr}.json.
+ * messages/{en,de,fr}/inbox.yml.
  *
  * EVERY key an actionable-notification path can emit MUST be listed here (and so
  * mirrored in `INBOX_I18N`) — otherwise the email falls back to the raw key.

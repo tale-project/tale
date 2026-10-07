@@ -107,13 +107,13 @@ Chats rufen einen Anbieter aus dem Backend auf. Coding-Agenten verwenden `sandbo
 
 Beim Start einer neuen Sandbox-Sitzung prüft das Backend Hostname und DNS-Antworten des eigenen Anbieters, bevor es ihn im Gateway einrichtet. Private Ziele erfordern `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1`; Metadatenziele bleiben auch damit gesperrt. Diese Vorprüfung bindet spätere Gateway-Anfragen nicht an dieselbe DNS-Antwort. Anbieterdefinitionen und DNS müssen deshalb unter der Kontrolle vertrauenswürdiger Betreiber bleiben.
 
-Erstelle die betroffenen Backend-Prozesse mit der aktualisierten Umgebung neu. Starte dann eine neue Sandbox-Sitzung mit dem vorgesehenen Anbieter und Modell sowie einer kompatiblen Agenten-Laufzeit. Prüfe mit einer harmlosen Anfrage die vollständige Antwort und den passenden Eintrag im Inferenzserver-Protokoll. Funktioniert der Chat, aber der Agent erreicht sein Modell nicht, prüfe die Protokolle von `sandbox-llm-gateway`. `SANDBOX_EGRESS_ALLOWLIST` steuert allgemeine Webzugriffe der Sandbox, nicht diese separate Modellverbindung.
+Erstelle die betroffenen Backend-Prozesse mit der aktualisierten Umgebung neu. Starte dann eine neue Sandbox-Sitzung mit dem vorgesehenen Anbieter und Modell sowie einer kompatiblen Agent-Laufzeit. Prüfe mit einer harmlosen Anfrage die vollständige Antwort und den passenden Eintrag im Inferenzserver-Protokoll. Funktioniert der Chat, aber der Agent erreicht sein Modell nicht, prüfe die Protokolle von `sandbox-llm-gateway`. `SANDBOX_EGRESS_ALLOWLIST` steuert allgemeine Webzugriffe der Sandbox, nicht diese separate Modellverbindung.
 
 Coding-Agenten richten sich außerdem nach dem Kontextfenster, das der Katalog für das Modell meldet: nach `context_length` oder `context_window` in der Modellliste deines Servers unter `/v1/models`, und nach 128.000 Token, wenn die Liste keines von beiden nennt, ebenso bei einem Anbieter mit `catalog.source: none`. Sorge dafür, dass die Liste den Kontext nennt, den dein Server tatsächlich bereitstellt. Liegt dieses Fenster oder ein niedrigeres [Kontextlimit](/de/platform/admin/governance/policies-and-limits) der Person, die den Lauf gestartet hat, unter 200.000 Token, fasst eine verwaltete Claude-Code-Sitzung ihre Konversation zusammen, bevor der Prompt darüber hinauswächst. Claude Code behandelt jeden Wert unter 100.000 Token wie 100.000. Ein Modell mit weniger Kontext kann also längere Prompts erhalten, als es aufnehmen kann. Setze Claude Code deshalb nur mit Modellen ein, die mindestens so viel Kontext bereitstellen.
 
 Auf einem Modell, das nicht Claude ist, lässt eine verwaltete Claude-Code-Sitzung außerdem die Zuordnungszeile weg, die Claude Code sonst an den Anfang jedes Systemprompts stellt. Diese Zeile ändert sich mit jeder Anfrage, und ein Server, der Prompt-Anfänge zwischenspeichert, müsste sonst bei jedem Schritt die ganze Konversation neu berechnen.
 
-## Wo die Connectoren liegen
+## Wo die Connectors liegen {#wo-die-connectoren-liegen}
 
 Mitgelieferte Definitionen liegen unter `configs/platform/system/providers/<slug>/provider.yml`, ihre statischen Kataloge unter `configs/platform/system/models/<slug>/models.yml`. Anthropic verwendet beispielsweise `providers/anthropic/provider.yml` und `models/anthropic/models.yml`. Die Dateien gehören zum Image und ändern sich mit dessen Version.
 
@@ -167,7 +167,7 @@ auth:
 | `endpointMode: per-credential` | Verwendet statt `baseUrl` einen Endpunkt je Zugangsdaten-Eintrag, etwa bei Azure OpenAI. |
 | `catalog.source` | `static`, `openrouter-api`, `models-endpoint` oder `none`. Statische Einträge stammen aus dem oben beschriebenen Modellkatalog. |
 | `embedding` | Ob der Anbieter Embeddings bedient: `supported`, wenn sein Katalog eine kuratierte Vektorbreite mitliefert; `unsupported`, wenn der Anbieter kein Embedding-Modell anbietet, sodass **Einstellungen > Datenresidenz > Embedding-Modell** ihn ablehnt; oder `unknown`, der Standard, wenn Admins Modell und Vektorbreite selbst eingeben. Deklariere `unsupported` nur, wenn die Dokumentation des Anbieters selbst das sagt. |
-| `auth` und `constraints` | Erlaubte Zugangsmethoden und Ausführungsbedingungen, etwa ein bestimmter Sandbox-Harness. |
+| `auth` und `constraints` | Erlaubte Zugangsmethoden und Ausführungsbedingungen, etwa eine bestimmte Agent-Laufzeit in der Sandbox. |
 
 ## Umgebungsvariable als Schlüsselquelle {#umgebungsvariable-als-schlusselquelle}
 

@@ -139,7 +139,7 @@ function errorData(err: unknown): unknown {
 }
 
 describe('listSkills', () => {
-  it('shows a private skill only to its owner', async () => {
+  it('shows a private skill only to its owner [SKILL-R2]', async () => {
     await seedSkill(
       'acme',
       'alice-drafts',
@@ -235,7 +235,7 @@ describe('listSkills', () => {
     expect(listing.failures[0].message).toContain('skills/broken');
   });
 
-  it('lists each organization separately, in both directions', async () => {
+  it('lists each organization separately, in both directions [SKILL-R4]', async () => {
     await seedSkill(
       'acme',
       'house-voice',
@@ -275,7 +275,7 @@ describe('listSkills', () => {
 });
 
 describe('readSkill', () => {
-  it('reads a member’s own private skill and hides someone else’s', async () => {
+  it('reads a member’s own private skill and hides someone else’s [SKILL-R2]', async () => {
     await seedSkill(
       'acme',
       'alice-drafts',
@@ -348,7 +348,7 @@ describe('readSkill', () => {
 });
 
 describe('saveSkill', () => {
-  it('creates an org skill owned by its author', async () => {
+  it('creates an org skill owned by its author [SKILL-R6]', async () => {
     const saveSkill = await load('saveSkillForViewer');
 
     const { skill: saved } = await saveSkill({
@@ -388,7 +388,7 @@ describe('saveSkill', () => {
     );
   });
 
-  it('refuses to replace an existing bundle when asked to create only', async () => {
+  it('refuses to replace an existing bundle when asked to create only [SKILL-R10]', async () => {
     const saveSkill = await load('saveSkillForViewer');
     await saveSkill({
       orgSlug: 'acme',
@@ -473,7 +473,7 @@ describe('saveSkill', () => {
     expect(second.updatedAt).toBeGreaterThanOrEqual(first.updatedAt);
   });
 
-  it('writes nothing for a save that would store the document already there — same tag, same updatedAt, no history entry', async () => {
+  it('writes nothing for a save that would store the document already there — same tag, same updatedAt, no history entry [SKILL-R12]', async () => {
     const saveSkill = await load('saveSkillForViewer');
     const readSkill = await load('readSkillForViewer');
     const args = {
@@ -559,7 +559,7 @@ describe('saveSkill', () => {
     }
   });
 
-  it('honours If-Match under RFC 9110 strong comparison and names the current tag on a refusal', async () => {
+  it('honours If-Match under RFC 9110 strong comparison and names the current tag on a refusal [SKILL-R11]', async () => {
     const saveSkill = await load('saveSkillForViewer');
     const readSkill = await load('readSkillForViewer');
     const { skill: stored } = await saveSkill({
@@ -792,7 +792,7 @@ describe('saveSkill', () => {
     expect(onDisk.labels).toBeUndefined();
   });
 
-  it('refuses to mint a private skill', async () => {
+  it('refuses to mint a private skill [SKILL-R3]', async () => {
     const saveSkill = await load('saveSkillForViewer');
 
     try {
@@ -810,7 +810,7 @@ describe('saveSkill', () => {
     }
   });
 
-  it('keeps a pre-existing private skill private, and shares it with one flip', async () => {
+  it('keeps a pre-existing private skill private, and shares it with one flip [SKILL-R3]', async () => {
     // A legacy bundle from before the retirement: still its owner's alone.
     await seedSkill(
       'acme',
@@ -869,7 +869,7 @@ describe('saveSkill', () => {
     }
   });
 
-  it('refuses an edit by a member who neither owns it nor administers the org', async () => {
+  it('refuses an edit by a member who neither owns it nor administers the org [SKILL-R5]', async () => {
     await seedSkill(
       'acme',
       'house-voice',
@@ -896,7 +896,7 @@ describe('saveSkill', () => {
     }
   });
 
-  it('lets an admin curate a shared skill they do not own', async () => {
+  it('lets an admin curate a shared skill they do not own [SKILL-R5]', async () => {
     await seedSkill(
       'acme',
       'house-voice',
@@ -958,7 +958,7 @@ describe('saveSkill', () => {
     expect(written).toContain('New body.');
   });
 
-  it('never writes into another organization’s tree', async () => {
+  it('never writes into another organization’s tree [SKILL-R4]', async () => {
     await seedSkill(
       'globex',
       'house-voice',
@@ -1052,7 +1052,7 @@ describe('an organization that reserves organization-wide skills', () => {
     );
   }
 
-  it('refuses creating an organization-wide skill, the default audience included, and writes nothing', async () => {
+  it('refuses creating an organization-wide skill, the default audience included, and writes nothing [SKILL-R7]', async () => {
     const saveSkill = await load('saveSkillForViewer');
     for (const visibility of [undefined, 'org'] as const) {
       expect(
@@ -1071,7 +1071,7 @@ describe('an organization that reserves organization-wide skills', () => {
     await expect(stored('house-voice')).rejects.toThrow();
   });
 
-  it('lets the same member create a skill for their own team', async () => {
+  it('lets the same member create a skill for their own team [SKILL-R8]', async () => {
     const saveSkill = await load('saveSkillForViewer');
     const assertTeamsAssignable = vi.fn(async () => undefined);
     const { skill } = await saveSkill({
@@ -1089,7 +1089,7 @@ describe('an organization that reserves organization-wide skills', () => {
     expect(assertTeamsAssignable).toHaveBeenCalledExactlyOnceWith(['team_red']);
   });
 
-  it('refuses widening their team skill to the organization', async () => {
+  it('refuses widening their team skill to the organization [SKILL-R7]', async () => {
     await seedSkill(
       'acme',
       'red-notes',
@@ -1118,7 +1118,7 @@ describe('an organization that reserves organization-wide skills', () => {
     expect(await stored('red-notes')).toBe(before);
   });
 
-  it('keeps an existing organization-wide skill: no edit in place, an identical save, narrowing and deleting', async () => {
+  it('keeps an existing organization-wide skill: no edit in place, an identical save, narrowing and deleting [SKILL-R8]', async () => {
     const original = skillMd({
       name: 'house-voice',
       description: 'Everyone.',
@@ -1182,7 +1182,7 @@ describe('an organization that reserves organization-wide skills', () => {
     ).toBe(true);
   });
 
-  it('lets a publisher and an admin create, widen and edit organization-wide skills', async () => {
+  it('lets a publisher and an admin create, widen and edit organization-wide skills [SKILL-R7]', async () => {
     const saveSkill = await load('saveSkillForViewer');
     const created = await saveSkill({
       orgSlug: 'acme',
@@ -1245,7 +1245,7 @@ describe('deleteSkill', () => {
     ).toBe(false);
   });
 
-  it('refuses a member who may not edit the skill', async () => {
+  it('refuses a member who may not edit the skill [SKILL-R5]', async () => {
     await seedSkill(
       'acme',
       'house-voice',
@@ -1270,7 +1270,7 @@ describe('deleteSkill', () => {
     }
   });
 
-  it('deletes the owner’s own skill', async () => {
+  it('deletes the owner’s own skill [SKILL-R5]', async () => {
     await seedSkill(
       'acme',
       'alice-drafts',
@@ -1300,7 +1300,7 @@ describe('deleteSkill', () => {
   // whose SKILL.md fails to parse answered SKILL_MALFORMED on the one
   // operation that needs no parsed document — the failure row the library
   // shows was a dead end without filesystem access.
-  it('lets an org admin, and only an org admin, delete a malformed bundle', async () => {
+  it('lets an org admin, and only an org admin, delete a malformed bundle [SKILL-R16]', async () => {
     await seedSkill('acme', 'broken', '# no frontmatter\n');
     const deleteSkill = await load('deleteSkillForViewer');
     const listSkills = await load('listSkillsForViewer');
@@ -1382,7 +1382,7 @@ describe('normalizedBundleFiles', () => {
     return parseSkillMd(doc.content.toString('utf-8'), 'SKILL.md').meta;
   }
 
-  it('attributes a new bundle to its uploader, whatever owner the zip declares', () => {
+  it('attributes a new bundle to its uploader, whatever owner the zip declares [SKILL-R6]', () => {
     const files = normalizedBundleFiles(
       bundleOf(
         skillMd({
@@ -1414,7 +1414,7 @@ describe('normalizedBundleFiles', () => {
     expect(writtenMeta(files).owner).toBe('user_bob');
   });
 
-  it('refuses to mint a private skill, exactly like the editor', () => {
+  it('refuses to mint a private skill, exactly like the editor [SKILL-R3]', () => {
     expect(() =>
       normalizedBundleFiles(
         bundleOf(
@@ -1457,7 +1457,7 @@ describe('normalizedBundleFiles', () => {
     });
   });
 
-  it('keeps the current owner on a replacement, whatever the zip declares', () => {
+  it('keeps the current owner on a replacement, whatever the zip declares [SKILL-R6]', () => {
     const files = normalizedBundleFiles(
       bundleOf(
         skillMd({
@@ -1546,7 +1546,7 @@ describe('prepareBundleWrite', () => {
     expect(files.map((file) => file.path)).toEqual(['SKILL.md']);
   });
 
-  it('refuses with the door’s refusal when a team is not assignable', async () => {
+  it('refuses with the door’s refusal when a team is not assignable [SKILL-R9]', async () => {
     const refusal = new Error('TEAM_ACCESS_DENIED');
     await expect(
       prepareBundleWrite({
@@ -1585,7 +1585,7 @@ describe('prepareBundleWrite', () => {
     ).toEqual(['t-fin']);
   });
 
-  it('refuses a blank-only audience instead of writing an invisible team skill', async () => {
+  it('refuses a blank-only audience instead of writing an invisible team skill [SKILL-R9]', async () => {
     const assertTeamsAssignable = vi.fn(async () => undefined);
     await expect(
       prepareBundleWrite({
@@ -1646,7 +1646,7 @@ describe('prepareBundleWrite', () => {
     expect(assertTeamsAssignable).not.toHaveBeenCalled();
   });
 
-  it('refuses an organization-wide bundle the uploader may not publish, an unmarked one included', async () => {
+  it('refuses an organization-wide bundle the uploader may not publish, an unmarked one included [SKILL-R7]', async () => {
     for (const content of [
       skillMd({ name: 'house-voice', description: 'Ours.' }),
       skillMd({ name: 'house-voice', description: 'Ours.', visibility: 'org' }),
@@ -1685,7 +1685,7 @@ describe('prepareBundleWrite', () => {
     ).rejects.toMatchObject({ data: { code: 'SKILL_PUBLISH_FORBIDDEN' } });
   });
 
-  it('lets a non-publisher upload a team bundle for their own teams', async () => {
+  it('lets a non-publisher upload a team bundle for their own teams [SKILL-R8]', async () => {
     const assertTeamsAssignable = vi.fn(async () => undefined);
     const files = await prepareBundleWrite({
       parsed: bundleOf(teamSkill(['team_red'])),
@@ -1736,7 +1736,7 @@ describe('readSkillBundle', () => {
     ).toBe(doc);
   });
 
-  it('reads a private bundle as absent for everyone but its owner', async () => {
+  it('reads a private bundle as absent for everyone but its owner [SKILL-R2]', async () => {
     await seedSkill(
       'acme',
       'alice-drafts',
@@ -1804,7 +1804,7 @@ describe('team visibility', () => {
     owner: 'user_carol',
   });
 
-  it('resolves a team skill by team overlap, owner, or admin seat', async () => {
+  it('resolves a team skill by team overlap, owner, or admin seat [SKILL-R1]', async () => {
     await seedSkill('acme', 'red-notes', redTeamSkill);
     const readSkill = await load('readSkillForViewer');
 
@@ -1820,7 +1820,7 @@ describe('team visibility', () => {
     ).not.toBeNull();
   });
 
-  it('resolves a team skill for a project by ITS teams, never a member’s', async () => {
+  it('resolves a team skill for a project by ITS teams, never a member’s [SKILL-R1]', async () => {
     await seedSkill('acme', 'red-notes', redTeamSkill);
     const readSkill = await load('readSkillForViewer');
 
@@ -1867,7 +1867,7 @@ describe('team visibility', () => {
     expect(reshared.teams).toBeUndefined();
   });
 
-  it('refuses a team skill that would end up with no teams', async () => {
+  it('refuses a team skill that would end up with no teams [SKILL-R9]', async () => {
     const saveSkill = await load('saveSkillForViewer');
 
     try {
@@ -2014,7 +2014,7 @@ describe('bundle files and assets', () => {
     ).toEqual({ kind: 'no-skill' });
   });
 
-  it('answers a planted symlink as the bundle’s own refusal, naming the entry org-relative', async () => {
+  it('answers a planted symlink as the bundle’s own refusal, naming the entry org-relative [SKILL-R15]', async () => {
     await seedSkill(
       'acme',
       'pdf-notes',
@@ -2049,7 +2049,7 @@ describe('bundle files and assets', () => {
     }
   });
 
-  it('hides assets of a skill the viewer may not see', async () => {
+  it('hides assets of a skill the viewer may not see [SKILL-R2]', async () => {
     await seedSkill(
       'acme',
       'alice-drafts',

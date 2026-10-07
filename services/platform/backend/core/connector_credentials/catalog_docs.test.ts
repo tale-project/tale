@@ -5,9 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import deMessages from '../../../messages/de.yml';
-import enMessages from '../../../messages/en.yml';
-import frMessages from '../../../messages/fr.yml';
+import {
+  deMessages,
+  enMessages,
+  frMessages,
+} from '../../../tests/utils/messages';
 import { listConnectorSummaries } from './connector_catalog';
 
 /**
@@ -55,7 +57,7 @@ const LOCALES = {
   fr: {
     messages: catalogSchema.parse(frMessages),
     instanceAddress:
-      'Certains connecteurs demandent aussi l’adresse de l’instance.',
+      'Certains connectors demandent aussi l’adresse de l’instance.',
   },
 } as const;
 

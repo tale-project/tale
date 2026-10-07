@@ -65,7 +65,7 @@ beforeEach(() => {
 });
 
 describe('resolveModelApiGate', () => {
-  it('stays shut for every member while the organization has not turned it on', async () => {
+  it('stays shut for every member while the organization has not turned it on [MAPI-R1]', async () => {
     policy.config = null;
     await expect(resolveModelApiGate(sql, caller('owner'))).resolves.toEqual({
       kind: 'disabled',
@@ -94,14 +94,14 @@ describe('resolveModelApiGate', () => {
     expect(policy.reads[1]).toEqual({ orgId: 'org-1', strict: true });
   });
 
-  it('keeps the door shut when the policy cannot be read', async () => {
+  it('keeps the door shut when the policy cannot be read [MAPI-R1]', async () => {
     policy.unreadable = true;
     await expect(resolveModelApiGate(sql, caller('owner'))).resolves.toEqual({
       kind: 'unavailable',
     });
   });
 
-  it('opens for owners, admins and developers by role, with the policy', async () => {
+  it('opens for owners, admins and developers by role, with the policy [MAPI-R2]', async () => {
     for (const role of ['owner', 'admin', 'developer', 'Developer']) {
       await expect(resolveModelApiGate(sql, caller(role))).resolves.toEqual({
         kind: 'open',
@@ -111,7 +111,7 @@ describe('resolveModelApiGate', () => {
     expect(grants.holdsCapability).not.toHaveBeenCalled();
   });
 
-  it('refuses any other member without the grant, and admits one who holds it', async () => {
+  it('refuses any other member without the grant, and admits one who holds it [MAPI-R2]', async () => {
     await expect(resolveModelApiGate(sql, caller('member'))).resolves.toEqual({
       kind: 'forbidden',
     });
@@ -132,7 +132,7 @@ describe('resolveModelApiGate', () => {
     });
   });
 
-  it('never admits a disabled seat, whatever it holds', async () => {
+  it('never admits a disabled seat, whatever it holds [MAPI-R2]', async () => {
     grants.holdsCapability.mockResolvedValue(true);
     await expect(mayCallModelApi(sql, caller('disabled'))).resolves.toBe(false);
   });

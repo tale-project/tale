@@ -9,7 +9,7 @@ Ein nutzbarer Arbeitsbereich braucht eine Organisation, einen funktionierenden M
 
 Melde dich auf der richtigen Instanz als Inhaber oder Admin an. Die Ersteinrichtung erstellt das erste Konto und die Organisation. Siehst du deine Organisation bereits im Dashboard, öffne ihre Einstellungen, statt eine weitere anzulegen.
 
-Halte die Anbieter-Zugangsdaten im Passwortmanager bereit. Der Anbieter muss das gewünschte Modell und die vorgesehenen Aufgaben unterstützen. [KI-Anbieter](/de/platform/admin/providers) erklärt Zugangsdaten, Kataloge und Agentenlaufzeiten.
+Halte die Anbieter-Zugangsdaten im Passwortmanager bereit. Der Anbieter muss das gewünschte Modell und die vorgesehenen Aufgaben unterstützen. [KI-Anbieter](/de/platform/admin/providers) erklärt Zugangsdaten, Kataloge und Agent-Laufzeiten.
 
 ## Einen Anbieter verbinden und Chat testen
 
@@ -39,7 +39,7 @@ Bleibt die Modellauswahl leer oder lehnt der Anbieter die Anfrage ab, folge der 
 
 ## Personen mit passenden Rechten hinzufügen
 
-Öffne **Einstellungen > Mitglieder** und wähle **Mitglied hinzufügen**. Für ein neues Konto legst du im Formular ein erstes Passwort fest. Ein vorhandenes Konto behält seine Zugangsdaten. Dieser Ablauf versendet keine Einladung per E-Mail. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) erklärt die Felder und die sichere Übergabe der ersten Zugangsdaten.
+Öffne **Einstellungen > Mitglieder** und wähle **Mitglied hinzufügen**. Für ein neues Konto legst du im Formular ein erstes Passwort fest. Ein vorhandenes Konto behält seine Zugangsdaten. Dieser Ablauf versendet keine Einladung per E-Mail. Bei einem neuen Konto sowie nach dem Festlegen oder Zurücksetzen eines Passworts durch einen Administrator muss das Mitglied bei der nächsten Anmeldung ein neues Passwort wählen; ein Zurücksetzen meldet es von allen Sitzungen ab. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) erklärt die Felder und die sichere Übergabe der ersten Zugangsdaten.
 
 <Frame caption="Prüfe die Rolle jedes Mitglieds, bevor du den Zugang übergibst.">
 

@@ -38,6 +38,7 @@ const OPEN_TASK_STATUSES: TaskStatus[] = [
 const INBOX_PAGE_SIZE = 30;
 
 const NO_PROJECTS: readonly ChatProjectSummary[] = [];
+const NO_THREADS: readonly ChatThreadSummary[] = [];
 
 export interface HomeData {
   readonly items: readonly HomeItem[];
@@ -214,9 +215,12 @@ export function useHomeData(
 
   const projects =
     projectsQuery.status === 'ready' ? projectsQuery.data : NO_PROJECTS;
-  const threadRows = threads.status === 'ready' ? threads.data : undefined;
-  const archivedRows =
-    archivedThreads.status === 'ready' ? archivedThreads.data.rows : undefined;
+  const activeThreadRows =
+    threads.status === 'ready' ? threads.data : NO_THREADS;
+  const archivedThreadRows =
+    includeArchived && archivedThreads.status === 'ready'
+      ? (archivedThreads.data.rows ?? NO_THREADS)
+      : NO_THREADS;
 
   const projectKeys = useMemo(() => {
     const keys = new Map<string, string>();
@@ -228,19 +232,17 @@ export function useHomeData(
 
   const chatItems = useMemo((): HomeChatItem[] => {
     const list: ChatThreadSummary[] = [];
-    if (threadRows !== undefined) {
-      list.push(...threadRows);
-    }
-    if (includeArchived && archivedRows !== undefined) {
+    list.push(...activeThreadRows);
+    if (archivedThreadRows.length > 0) {
       const existingIds = new Set(list.map((t) => t.id));
-      for (const thread of archivedRows) {
+      for (const thread of archivedThreadRows) {
         if (!existingIds.has(thread.id)) {
           list.push(thread);
         }
       }
     }
     return list.map(toHomeChatItem);
-  }, [threadRows, archivedRows, includeArchived]);
+  }, [activeThreadRows, archivedThreadRows]);
 
   const taskItems = useMemo((): HomeTaskItem[] => {
     const seen = new Set<string>();
@@ -347,16 +349,12 @@ export function useHomeData(
 
   const threadsById = useMemo(() => {
     const map = new Map<string, ChatThreadSummary>();
-    if (threadRows !== undefined) {
-      for (const thread of threadRows) map.set(thread.id, thread);
-    }
-    if (includeArchived && archivedRows !== undefined) {
-      for (const thread of archivedRows) {
-        if (!map.has(thread.id)) map.set(thread.id, thread);
-      }
+    for (const thread of activeThreadRows) map.set(thread.id, thread);
+    for (const thread of archivedThreadRows) {
+      if (!map.has(thread.id)) map.set(thread.id, thread);
     }
     return map;
-  }, [threadRows, archivedRows, includeArchived]);
+  }, [activeThreadRows, archivedThreadRows]);
 
   return {
     items,

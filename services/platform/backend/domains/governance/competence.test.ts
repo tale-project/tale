@@ -66,7 +66,7 @@ beforeEach(() => {
   createAuditLog.mockClear();
 });
 
-describe('grantCompetence — the reserved capability namespace', () => {
+describe('grantCompetence — the reserved capability namespace [GOV-R12]', () => {
   it.each([
     'tale:notifications.exports',
     'tale:admin',
@@ -156,7 +156,7 @@ describe('grantCompetence — the reserved capability namespace', () => {
   });
 });
 
-describe('holdsCapability', () => {
+describe('holdsCapability [GOV-R13]', () => {
   const NOW = 1_800_000_000_000;
   const read = async (rows: object[]) => {
     const { sql, queries } = fakeSql((text) =>

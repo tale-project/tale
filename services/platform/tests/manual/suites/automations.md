@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 79 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 80 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -530,6 +530,13 @@ output:
       `automations.detail.deleted.title` with **Open the run history**
       (`automations.detail.deleted.openRuns`). A slug nobody ever saved still
       reads `automations.notFound.title`.
+- [ ] `AUTO-F56` · **The rail forgets a deleted automation** — Open an
+      automation's **Editor**, go back to the list and delete it from its row
+      (`automations.detail.delete.title`), switch to **Knowledge**, then click
+      the **Automations** rail tile → You land on `/dashboard/{org}/automations`
+      (the list), never on `automations.detail.deleted.title`; a second click
+      from elsewhere opens the list again. A run URL of that automation still
+      opens its run history under the deletion banner (`AUTO-F49`).
 - [ ] `AUTO-F50` · **Unserved model warns, never blocks** — Open a built-in
       package whose `llm` node pins a model no connected provider serves and
       select that node → the **Model** field is a picker listing only served

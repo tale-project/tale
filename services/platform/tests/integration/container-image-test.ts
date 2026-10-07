@@ -25,6 +25,7 @@ import {
 import { checkDocumentTools } from './lib/document-tools';
 import { capture, projectRoot, stream } from './lib/exec';
 import { BOLD, GREEN, header, NC, RED, Results, YELLOW } from './lib/log';
+import { checkSshTools } from './lib/ssh-tools';
 
 const PROJECT_ROOT = projectRoot();
 const compose = new Compose(
@@ -155,6 +156,30 @@ async function main(): Promise<number> {
 
   if (r.failed > 0) return 1;
 
+  const { packageManager } = await Bun.file(
+    `${PROJECT_ROOT}/package.json`,
+  ).json();
+  const expectedBun = packageManager.replace('bun@', '');
+  for (const svc of ['platform', 'sandbox', 'sandbox-runtime']) {
+    const image = images.get(svc)!;
+    const bun = await capture([
+      'docker',
+      'run',
+      '--rm',
+      '--network',
+      'none',
+      '--entrypoint',
+      'timeout',
+      image,
+      '10',
+      'bun',
+      '--version',
+    ]);
+    if (bun.exitCode === 0 && bun.stdout.trim() === expectedBun)
+      r.pass(`${svc}: Bun ${expectedBun} matches the workspace toolchain`);
+    else r.fail(`${svc}: Bun runtime does not match ${expectedBun}`);
+  }
+
   // 1. OCI label checks
   header('Checking OCI labels');
   for (const svc of SERVICES) {
@@ -208,6 +233,16 @@ async function main(): Promise<number> {
   const runtimeImage = images.get('sandbox-runtime');
   if (runtimeImage) {
     for (const uid of [65534, 10001] as const) {
+      const ssh = await checkSshTools(runtimeImage, uid);
+      if (ssh.exitCode === 0) {
+        r.pass(
+          `sandbox-runtime: SSH agent and HTTP CONNECT work as uid ${uid}`,
+        );
+      } else {
+        r.fail(
+          `sandbox-runtime: SSH tools failed as uid ${uid}: ${ssh.combined.slice(-1200)}`,
+        );
+      }
       const result = await checkDocumentTools(runtimeImage, uid);
       if (result.exitCode === 0) {
         r.pass(

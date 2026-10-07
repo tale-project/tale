@@ -22,7 +22,7 @@ describe('starter content copy', () => {
     );
   });
 
-  it('never writes a bare @mention that would fire a phantom event', () => {
+  it('never writes a bare @mention that would fire a phantom event [PROVN-R6]', () => {
     for (const text of copy) {
       expect(text).not.toMatch(/@\w/);
     }

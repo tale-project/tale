@@ -767,6 +767,41 @@ export function useComposerModels(
 }
 
 /**
+ * The names the composer's catalog gives a model and its provider
+ * (`Claude Sonnet 4.6`, `OpenRouter`), for the message-info panel. Read from
+ * the catalog this device already holds — the page's last answer, else the
+ * stored one — and never fetched: opening the panel must not cost a request.
+ * A name the catalog does not hold (a model since removed, a catalog never
+ * loaded here) is left out, and the panel shows the id.
+ */
+export function useComposerModelNames(
+  organizationId: string | undefined,
+  modelId: string | undefined,
+  providerSlug: string | undefined,
+): { readonly model?: string; readonly provider?: string } {
+  return useMemo(() => {
+    if (organizationId === undefined || organizationId === '') return {};
+    const catalog = recallComposerCatalog(organizationId);
+    if (catalog === undefined) return {};
+    const sameProvider = catalog.models.filter(
+      (option) => option.providerSlug === providerSlug,
+    );
+    const model =
+      sameProvider.find((option) => option.id === modelId) ??
+      catalog.models.find((option) => option.id === modelId);
+    const provider = sameProvider.find(
+      (option) => option.providerLabel !== undefined,
+    )?.providerLabel;
+    return {
+      ...(model !== undefined && model.label !== model.id
+        ? { model: model.label }
+        : {}),
+      ...(provider !== undefined ? { provider } : {}),
+    };
+  }, [organizationId, modelId, providerSlug]);
+}
+
+/**
  * The user's sticky model pick for this org — a live read plus the save that
  * makes a pick sticky. The read is `undefined` data while the user has never
  * picked; `save` fires and forgets (a lost write costs one re-pick, never a

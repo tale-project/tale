@@ -92,7 +92,7 @@ describe('isOrgWideProject', () => {
   });
 });
 
-describe('hasProjectAccess', () => {
+describe('hasProjectAccess [PROJ-R1] [PROJ-R2]', () => {
   it('grants access to org admins regardless of team membership', () => {
     expect(hasProjectAccess({ teamId: 'team-1' }, [], 'admin')).toBe(true);
     expect(hasProjectAccess({ teamId: 'team-1' }, [], 'owner')).toBe(true);
@@ -129,7 +129,7 @@ describe('hasProjectAccess', () => {
 });
 
 describe('checkProjectAccess', () => {
-  describe('admin users', () => {
+  describe('admin users [PROJ-R1] [PROJ-R13]', () => {
     it('grants full access to org owners', () => {
       const result = checkProjectAccess(null, [], 'owner');
       expect(result).toEqual({
@@ -160,7 +160,7 @@ describe('checkProjectAccess', () => {
     });
   });
 
-  describe('org-wide projects (no team)', () => {
+  describe('org-wide projects (no team) [PROJ-R3]', () => {
     it('grants read+edit to editor in org-wide project', () => {
       const result = checkProjectAccess(null, [], 'editor');
       expect(result).toEqual({
@@ -189,7 +189,7 @@ describe('checkProjectAccess', () => {
     });
   });
 
-  describe('team-scoped projects', () => {
+  describe('team-scoped projects [PROJ-R2] [PROJ-R3]', () => {
     it('grants read+edit to editor in owning team', () => {
       const result = checkProjectAccess(
         { teamId: 'team-1' },

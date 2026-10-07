@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { fireEvent, render, screen } from '@/tests/utils/render';
 
+import { useAssignableActors } from '../hooks/use-actor-directory';
 import type { TaskDoc } from '../lib/display';
 import { TasksList } from './tasks-list';
 
@@ -31,13 +32,13 @@ vi.mock('../hooks/use-actor-directory', () => ({
     currentUserId: null,
     resolveActor: () => null,
   }),
-  useAssignableActors: () => ({
+  useAssignableActors: vi.fn(() => ({
     assignableMembers: [],
     assignableAgents: [],
     agents: [],
     currentUserId: null,
     resolveActor: () => null,
-  }),
+  })),
 }));
 
 vi.mock('../hooks/use-task-status-choreography', async (importOriginal) => ({
@@ -78,6 +79,13 @@ function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
 // An archived row was signalled by `opacity-70` alone, which makes colour the
 // sole carrier of the meaning (WCAG 2.1 AA 1.4.1).
 describe('TasksList archived rows', () => {
+  it('does not load an actor directory for an empty list without an organization scope', () => {
+    vi.mocked(useAssignableActors).mockClear();
+    render(<TasksList tasks={[]} />);
+    expect(useAssignableActors).not.toHaveBeenCalled();
+    expect(screen.getByText('To do')).toBeInTheDocument();
+  });
+
   it('gives an archived row the Archived badge', () => {
     render(<TasksList tasks={[makeTask({ archivedAt: 123 })]} />);
     expect(screen.getByText('Chase the invoice')).toBeInTheDocument();

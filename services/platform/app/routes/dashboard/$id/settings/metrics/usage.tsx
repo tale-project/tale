@@ -6,10 +6,7 @@ import {
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useCallback } from 'react';
 
-import {
-  LazyUsageMetricsPage,
-  loadUsageMetricsPage,
-} from '@/app/features/analytics/lazy-metrics-pages';
+import { UsageMetricsPage } from '@/app/features/analytics/usage/usage-metrics-page';
 import { usageSearchSchema } from '@/app/features/analytics/usage/usage-metrics-search';
 import type {
   UsageGranularity,
@@ -29,9 +26,8 @@ export const Route = createFileRoute('/dashboard/$id/settings/metrics/usage')({
   // cards+chart+tables instead of the skeleton. Bounded query (summary +
   // capped series + top-N), safe to await; never fail the transition on a
   // transient/auth error.
-  loader: ({ context, params, deps }) => {
-    void loadUsageMetricsPage();
-    return ensureOrgSettingsQuery(
+  loader: ({ context, params, deps }) =>
+    ensureOrgSettingsQuery(
       context,
       params.id,
       'governance/queries:getOrgUsageMetrics',
@@ -45,8 +41,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/metrics/usage')({
       },
     ).catch((error: unknown) => {
       console.warn('Failed to preload usage metrics', error);
-    });
-  },
+    }),
   component: UsageRoute,
 });
 
@@ -100,7 +95,7 @@ function UsageRoute() {
     // size floor, wider than the `max-w-3xl` other settings pages
     // standardized on (#2567).
     <SettingsPage fullWidth>
-      <LazyUsageMetricsPage
+      <UsageMetricsPage
         organizationId={organizationId}
         periodDays={periodDays}
         granularity={granularity ?? 'daily'}

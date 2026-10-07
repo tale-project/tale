@@ -11,3 +11,5 @@ docs:
 common:
   aria:
     close: Schliessen
+envEditor:
+  projectSecretBadKey: «{key}» muss mit einem Grossbuchstaben beginnen und darf nur Grossbuchstaben, Ziffern oder Unterstriche enthalten (maximal 64 Zeichen).

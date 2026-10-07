@@ -30,6 +30,7 @@ import {
   CANNED_REASONING_ANSWER,
   CANNED_REPLY,
   CANNED_STREAM_ERROR_MESSAGE,
+  MOCK_SERVING,
   MOCK_TRIGGERS,
 } from './canned';
 import {
@@ -135,7 +136,9 @@ type Scenario =
   | 'error'
   | 'empty'
   | 'length'
-  | 'streamError';
+  | 'streamError'
+  | 'gatewayRoute'
+  | 'cloudRegion';
 
 function userTexts(messages: ParsedMessage[]): string[] {
   return messages
@@ -254,6 +257,8 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   if (last.includes(MOCK_TRIGGERS.empty)) return 'empty';
   if (last.includes(MOCK_TRIGGERS.length)) return 'length';
   if (last.includes(MOCK_TRIGGERS.reasoning)) return 'reasoning';
+  if (last.includes(MOCK_TRIGGERS.gatewayRoute)) return 'gatewayRoute';
+  if (last.includes(MOCK_TRIGGERS.cloudRegion)) return 'cloudRegion';
   // Docs-pipeline phrases come last so an e2e trigger always wins; anything
   // unmatched stays on the spec-pinned canned path. A tool-scripted entry
   // emits its tool call on the first turn and its `reply` on the resume turn
@@ -377,6 +382,8 @@ interface ChatCompletionChunk {
   object: string;
   created: number;
   model: string;
+  /** The upstream a gateway routed the request to (OpenRouter's field). */
+  provider?: string;
   choices: Array<{
     index: number;
     delta: {
@@ -409,8 +416,18 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
   const scenario = pickScenario(body);
   const id = completionId();
   const created = Math.floor(Date.now() / 1000);
-  const model = body.model ?? 'e2e-chat-model';
-  const base = { id, object: 'chat.completion.chunk', created, model };
+  const requested = body.model ?? 'e2e-chat-model';
+  // The serving scenarios report where they served the reply (see
+  // `MOCK_SERVING`): a dated model id, and the upstream or the region.
+  const serves = scenario === 'gatewayRoute' || scenario === 'cloudRegion';
+  const model = serves ? `${requested}${MOCK_SERVING.modelSuffix}` : requested;
+  const base = {
+    id,
+    object: 'chat.completion.chunk',
+    created,
+    model,
+    ...(scenario === 'gatewayRoute' ? { provider: MOCK_SERVING.upstream } : {}),
+  };
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -545,6 +562,9 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache',
       connection: 'keep-alive',
+      ...(scenario === 'cloudRegion'
+        ? { 'x-ms-region': MOCK_SERVING.region }
+        : {}),
     },
   });
 }

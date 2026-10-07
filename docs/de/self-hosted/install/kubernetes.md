@@ -236,7 +236,7 @@ Die drei Rollen teilen sich das Platform-Image: API und Worker schreiben `config
 
 <Warning>
 
-Die Backend-Rollen laufen ohne `NET_ADMIN` und mit `TALE_SKIP_SSRF_FIREWALL=1`. Mit dieser Capability installiert das Image seine iptables-Egress-Sperre, die nur die direkt angebundenen Subnetze des Pods erlaubt und den übrigen privaten Adressraum abweist. In einem Pod-Netz trifft das auch den Cluster-DNS und jede Service-Adresse: Die Rolle scheitert mit `getaddrinfo EAI_AGAIN db` und startet neu, bis du die Capability entfernst. Die NetworkPolicy am Ende der Datei übernimmt die Sperre: Die Rollen erreichen jeden Nachbarn im Namespace, den Cluster-DNS und das öffentliche Internet, aber nie den Cloud-Metadatendienst, die Nodes oder private Netze. Erweitere ihre letzte Regel, wenn deine Modellanbieter oder Konnektoren in einem privaten Bereich liegen.
+Die Backend-Rollen laufen ohne `NET_ADMIN` und mit `TALE_SKIP_SSRF_FIREWALL=1`. Mit dieser Capability installiert das Image seine iptables-Egress-Sperre, die nur die direkt angebundenen Subnetze des Pods erlaubt und den übrigen privaten Adressraum abweist. In einem Pod-Netz trifft das auch den Cluster-DNS und jede Service-Adresse: Die Rolle scheitert mit `getaddrinfo EAI_AGAIN db` und startet neu, bis du die Capability entfernst. Die NetworkPolicy am Ende der Datei übernimmt die Sperre: Die Rollen erreichen jeden Nachbarn im Namespace, den Cluster-DNS und das öffentliche Internet, aber nie den Cloud-Metadatendienst, die Nodes oder private Netze. Erweitere ihre letzte Regel, wenn deine Modellanbieter oder Connectors in einem privaten Bereich liegen.
 
 </Warning>
 

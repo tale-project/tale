@@ -82,30 +82,28 @@ describe('docs prerender SEO suite', () => {
     expect(html ?? '').toMatch(/noindex/i);
   });
 
-  for (const [path, locale] of [
-    ['/', 'en'],
-    ['/de', 'de'],
-    ['/fr', 'fr'],
-  ]) {
-    describe(path, () => {
-      it('prerenders with exactly one h1, lang, and canonical', () => {
-        const html = readHtml(path);
-        expect(html, `missing ${distIndex(path)}`).not.toBeNull();
-        const h1s = (html ?? '').match(/<h1[\s>]/gi) ?? [];
-        expect(h1s.length).toBe(1);
-        expect(html ?? '').toContain(`lang="${locale}"`);
-        expect(html ?? '').toMatch(/rel="canonical"/i);
-      });
-
-      it('declares discovery-page WebSite and BreadcrumbList JSON-LD', () => {
-        const html = readHtml(path);
-        expect(html).not.toBeNull();
-        expect(html ?? '').not.toMatch(/"@type":"Article"/);
-        expect(html ?? '').toMatch(/"@type":"BreadcrumbList"/);
-        expect(html ?? '').toMatch(/"@type":"WebSite"/);
-      });
+  describe('/', () => {
+    it('prerenders with exactly one h1, lang, and canonical', () => {
+      const html = readHtml('/');
+      expect(html, `missing ${distIndex('/')}`).not.toBeNull();
+      const h1s = (html ?? '').match(/<h1[\s>]/gi) ?? [];
+      expect(h1s.length).toBe(1);
+      expect(html ?? '').toMatch(/<html[^>]+lang="en"/i);
+      expect(html ?? '').toMatch(/rel="canonical"/i);
     });
-  }
+
+    it('renders the first guide with its canonical URL and article metadata', () => {
+      const html = readHtml('/');
+      expect(html).not.toBeNull();
+      expect(html ?? '').toMatch(/"@type":"Article"/);
+      expect(html ?? '').toMatch(/"@type":"BreadcrumbList"/);
+      expect(html ?? '').toContain('Send your first message');
+      expect(html ?? '').toMatch(
+        /rel="canonical"[^>]+href="[^"]*\/get-started\/quickstart"/,
+      );
+      expect(html ?? '').not.toMatch(/"@type":"WebSite"/);
+    });
+  });
 
   it('localized platform page keeps locale-prefixed canonical', () => {
     const html = readHtml('/de/platform/chat/basics');

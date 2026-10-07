@@ -8,7 +8,11 @@ import { updateUserName } from './service.ts';
  * field; the server holds the same bound, so the two can never disagree about
  * which name a save accepts.
  */
-describe('updateUserName', () => {
+describe('updateUserName [USER-R6]', () => {
+  it('holds a name to 100 characters', () => {
+    expect(USER_NAME_MAX_LENGTH).toBe(100);
+  });
+
   it('refuses a name one past the shared limit before writing anything', async () => {
     const sql = vi.fn();
     await expect(

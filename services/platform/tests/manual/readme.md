@@ -38,19 +38,19 @@ directory and greppable as one token.
 | [accessibility](suites/accessibility.md) | `A11Y-` | cross-cutting WCAG 2.1 AA sweep | 28 |
 | [approvals](suites/approvals.md) | `APV-` | human-in-the-loop: run approval/ask cards, task review gate, DSAR dual-approval | 22 |
 | [auth](suites/auth.md) | `AUTH-` | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC | 59 |
-| [automations](suites/automations.md) | `AUTO-` | draft→deploy→version automations: list, builder, upload, trigger, runs, bindings | 79 |
-| [chat](suites/chat.md) | `CHAT-` | messages, attachments, tools + approvals, arena, share, reasoning, the chat header and rows | 102 |
+| [automations](suites/automations.md) | `AUTO-` | draft→deploy→version automations: list, builder, upload, trigger, runs, bindings | 80 |
+| [chat](suites/chat.md) | `CHAT-` | messages, attachments, tools + approvals, arena, share, reasoning, the chat header and rows | 104 |
 | [connectors](suites/connectors.md) | `CONN-` | credential table + catalog picker; mailbox (IMAP/SMTP), OAuth, MCP endpoint | 41 |
 | [conversations](suites/conversations.md) | `CONV-` | the shared Inbox: statuses, priority, search, mailbox sync | 63 |
 | [data-residency](suites/data-residency.md) | `DATA-` | BYO knowledge database + object storage, embedding settings | 26 |
 | [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 83 |
-| [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 67 |
+| [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 68 |
 | [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 20 |
 | [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 70 |
 | [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 32 |
 | [origins](suites/origins.md) | `ORIGIN-` | one deployment on several origins: sessions, file links, sign-in doors, an external TLS terminator | 12 |
 | [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 22 |
-| [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads, Home's projects section | 65 |
+| [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads, Home's projects section | 66 |
 | [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, the phone's Home list, mobile save bar, the narrow page column, short viewports | 35 |
 | [settings](suites/settings.md) | `SET-` | account, personalization, usage, org, teams, branding, connectors, API, providers | 121 |
 | [skills](suites/skills.md) | `SKILL-` | skill library: table + facets, create/upload bundles, visibility, equip on agents | 35 |

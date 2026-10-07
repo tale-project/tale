@@ -47,6 +47,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
     }),
   }),
   useAssignableActors: (_organizationId: string, projectId?: string) => ({
+    subjectEntries: [],
     assignableMembers: [
       { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },
     ],

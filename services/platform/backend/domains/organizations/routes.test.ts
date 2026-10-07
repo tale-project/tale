@@ -90,7 +90,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-it('reports self-service creation on an unmanaged backend before dynamic organization matching', async () => {
+it('reports self-service creation on an unmanaged backend before dynamic organization matching [ORG-R1]', async () => {
   const { sql, queries } = database([]);
   const response = await createOrganizationRoutes({
     sql,
@@ -108,7 +108,7 @@ describe('GET /capabilities with a creator list', () => {
       '/capabilities',
     );
 
-  it('answers true for a listed caller without asking the database', async () => {
+  it('answers true for a listed caller without asking the database [ORG-R2]', async () => {
     vi.stubEnv(
       'TALE_ORGANIZATION_CREATORS',
       'Ops@example.test, SAM@example.test',
@@ -120,7 +120,7 @@ describe('GET /capabilities with a creator list', () => {
     expect(queries).toHaveLength(0);
   });
 
-  it('answers false for an unlisted caller once the deployment holds an organization', async () => {
+  it('answers false for an unlisted caller once the deployment holds an organization [ORG-R2]', async () => {
     vi.stubEnv('TALE_ORGANIZATION_CREATORS', 'ops@example.test');
     const { sql, queries } = database(['org-1']);
     const response = await capabilities(sql);
@@ -132,7 +132,7 @@ describe('GET /capabilities with a creator list', () => {
     expect(queries[0]?.text).toContain('FROM "organization"');
   });
 
-  it("lets an unlisted caller create the deployment's first organization", async () => {
+  it("lets an unlisted caller create the deployment's first organization [ORG-R3]", async () => {
     vi.stubEnv('TALE_ORGANIZATION_CREATORS', 'ops@example.test');
     const { sql } = database([]);
     expect(await (await capabilities(sql)).json()).toEqual({
@@ -140,7 +140,7 @@ describe('GET /capabilities with a creator list', () => {
     });
   });
 
-  it('a list that names nobody closes creation to everyone', async () => {
+  it('a list that names nobody closes creation to everyone [ORG-R2]', async () => {
     vi.stubEnv('TALE_ORGANIZATION_CREATORS', '');
     const { sql } = database(['org-1']);
     expect(await (await capabilities(sql)).json()).toEqual({
@@ -149,7 +149,7 @@ describe('GET /capabilities with a creator list', () => {
   });
 });
 
-describe('POST /:id/request-credits', () => {
+describe('POST /:id/request-credits [ORG-R10]', () => {
   it('writes one personal row per owner and admin, none org-wide', async () => {
     const { sql, queries } = database(['user-owner', 'user-admin']);
 
@@ -228,7 +228,7 @@ describe('POST /:id/delete', () => {
     );
   });
 
-  it('answers the mismatch code the service raises, and sends an absent name as empty', async () => {
+  it('answers the mismatch code the service raises, and sends an absent name as empty [ORG-R5]', async () => {
     const { OrganizationError } = await import('./service.ts');
     deleteOrganization.mockRejectedValue(
       new OrganizationError(

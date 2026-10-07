@@ -9,7 +9,7 @@
  */
 
 import type { Category } from '../glossary/types';
-import { wordBoundary } from '../internals/regex';
+import { escapeRegex, wordBoundary } from '../internals/regex';
 import type { Finding } from './types';
 import { createCheck } from './types';
 
@@ -36,17 +36,27 @@ export const terminologyUiLabel = createCheck({
 
     for (const locale of ctx.locales) {
       if (locale.id === 'en') continue;
-      const applicable = enforcedTerms.filter((t) =>
-        glossary.shouldEnforce(t, locale.id),
-      );
+      const applicable = enforcedTerms
+        .filter((t) => glossary.shouldEnforce(t, locale.id))
+        .map((term) => ({
+          term,
+          re: wordBoundary(term.en, 'g'),
+          native: glossary.resolveForm(term, locale.id),
+        }));
       if (applicable.length === 0) continue;
+      // Most prose lines contain no UI label. This exact literal prefilter
+      // skips only those lines; the term loop preserves finding order and
+      // reports every overlap and repeated occurrence as before.
+      const anyTerm = new RegExp(
+        `\\b(?:${applicable.map(({ term }) => escapeRegex(term.en)).join('|')})\\b`,
+      );
       for (const fragment of ctx.scanner.fragments({ locale: locale.id })) {
         if (fragment.disabled?.has('terminology-ui-label')) continue;
-        for (const term of applicable) {
-          const re = wordBoundary(term.en, 'g');
+        if (!anyTerm.test(fragment.text)) continue;
+        for (const { term, re, native } of applicable) {
+          re.lastIndex = 0;
           let m: RegExpExecArray | null;
           while ((m = re.exec(fragment.text)) !== null) {
-            const native = glossary.resolveForm(term, locale.id);
             findings.push({
               file: fragment.pos.file,
               line: fragment.pos.line,

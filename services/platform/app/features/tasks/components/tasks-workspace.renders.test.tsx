@@ -94,6 +94,11 @@ vi.mock('../hooks/use-actor-directory', () => {
   };
   return {
     useActorDirectory: () => directory,
+    useAssignableActors: () => ({
+      ...directory,
+      assignableMembers: directory.members,
+      assignableAgents: directory.agents,
+    }),
     useProvidedActorDirectory: () => undefined,
     ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   };

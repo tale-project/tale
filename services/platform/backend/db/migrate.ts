@@ -1,11 +1,14 @@
 import { readdir, readFile } from 'node:fs/promises';
 
+import { isMigrationFile } from '@tale/shared/db/migration-files';
 import { withRetry } from '@tale/shared/db/retry';
 import type { BetterAuthOptions } from 'better-auth';
 import postgres from 'postgres';
 
 import { resolvePostgresConnection } from './ssl.ts';
 import { isDatabaseUnavailable, ROUTINE_RESTART_MS } from './unavailable.ts';
+
+export { isMigrationFile } from '@tale/shared/db/migration-files';
 
 /**
  * Boot-time migrator for the 0.5 app database.
@@ -154,15 +157,6 @@ export interface DataMigration {
 
 /** The files the migrator applies: `.sql`, and `.ts` data migrations — never
  * a test or a declaration file beside them. */
-export function isMigrationFile(name: string): boolean {
-  if (name.endsWith('.sql')) return true;
-  return (
-    name.endsWith('.ts') &&
-    !name.endsWith('.test.ts') &&
-    !name.endsWith('.d.ts')
-  );
-}
-
 async function listMigrationFiles(): Promise<string[]> {
   const entries = await readdir(MIGRATIONS_DIR);
   return entries.filter(isMigrationFile).sort();

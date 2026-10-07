@@ -28,7 +28,6 @@ export function OrganizationListPanel({
   onAfterAction,
   hideHeader = false,
 }: OrganizationListPanelProps) {
-  const { t: tSettings } = useT('settings');
   const { t: tNav } = useT('navigation');
   const navigate = useNavigate();
   const location = useLocation();
@@ -124,7 +123,7 @@ export function OrganizationListPanel({
             className="hover:bg-muted focus-visible:bg-muted flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors"
           >
             <Plus className="text-muted-foreground size-4 shrink-0" />
-            <span>{tSettings('organization.createOrganization')}</span>
+            <span>{tNav('orgSwitcher.createOrganization')}</span>
           </button>
         </div>
       )}

@@ -21,6 +21,7 @@ export function NotFoundPage() {
   useDocumentMeta({
     title: t('title'),
     description: t('body'),
+    path: '/404',
     noindex: true,
   });
 

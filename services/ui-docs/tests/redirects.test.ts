@@ -1,4 +1,8 @@
-import { isExternalTarget, slugRoute } from '@tale/ui/docs/redirects';
+import {
+  createRedirectMapRoute,
+  isExternalTarget,
+  slugRoute,
+} from '@tale/ui/docs/redirects';
 import { describe, expect, it } from 'vitest';
 
 import { firstNavSlug, flattenNav } from '@/lib/content/nav';
@@ -24,10 +28,28 @@ const isGuidePath = (path: string) =>
   path.startsWith('/docs/') && guides.has(path.slice('/docs/'.length));
 
 describe('ui-docs redirects', () => {
-  it('sends /docs to the first guide in the navigation', () => {
+  it('sends /docs to the first guide in the navigation and serves the root directly', () => {
+    expect(resolveRedirect('/')).toBeNull();
     expect(resolveRedirect('/docs')).toBe(guidePath(firstNavSlug()));
     expect(resolveRedirect('/docs/')).toBe(guidePath(firstNavSlug()));
     expect(resolveRedirect('/docs.md')).toBe(`${guidePath(firstNavSlug())}.md`);
+  });
+
+  it('keeps entry redirects under the mount prefix and preserves queries', () => {
+    const route = createRedirectMapRoute({
+      resolve: resolveRedirect,
+      basePath: '/ui',
+    });
+    for (const path of ['/docs', '/docs/']) {
+      for (const method of ['GET', 'HEAD']) {
+        const url = new URL(`${path}?from=bookmark`, 'https://ui.example.test');
+        const response = route(new Request(url, { method }), url);
+        expect(response?.status).toBe(301);
+        expect(response?.headers.get('location')).toBe(
+          `/ui${guidePath(firstNavSlug())}?from=bookmark`,
+        );
+      }
+    }
   });
 
   it('sends every section folder to a real guide under it', () => {

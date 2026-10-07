@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   runTurn,
   type ModelCall,
+  type ModelStreamChunk,
   type TurnDeps,
   type UsageLedgerEntry,
 } from '../../../lib/chat/turn';
@@ -16,6 +17,8 @@ import {
 import { buildHarnessTable } from '../../../lib/shared/providers/resolve_execution';
 import {
   readEvent,
+  readServedBy,
+  readServedByHeaders,
   readStreamFailure,
   type StreamDecodeState,
 } from './stream_decode';
@@ -940,5 +943,155 @@ describe('streamSse under the stall guard', () => {
     await expect(collect(new Response(stream), guard)).rejects.toBe(abort);
     guard.dispose();
     expect(guard.stalled).toBe(false);
+  });
+});
+
+/**
+ * Where a reply was served is what the provider's own response says: the
+ * upstream OpenRouter names on its chunks, the model id a provider reports,
+ * the inference geography Anthropic echoes, the region Azure names in a
+ * header. Read only after the provider accepted the request, so a refusal
+ * leaves nothing behind.
+ */
+describe('where a reply was served — the decoder and the wire', () => {
+  it('reads OpenRouter’s upstream and the served model off a chunk', () => {
+    expect(
+      readServedBy('openai', {
+        id: 'gen-1',
+        provider: 'Google Vertex',
+        model: 'anthropic/claude-4.6-sonnet-20260217',
+        choices: [{ index: 0, delta: { content: 'Hi' }, finish_reason: null }],
+      }),
+    ).toEqual({
+      provider: 'Google Vertex',
+      model: 'anthropic/claude-4.6-sonnet-20260217',
+    });
+    expect(
+      readServedBy('openai', { choices: [{ index: 0, delta: {} }] }),
+    ).toBeUndefined();
+  });
+
+  it('reads the Anthropic model and inference geography', () => {
+    expect(
+      readServedBy('anthropic', {
+        type: 'message_start',
+        message: {
+          model: 'claude-fable-5-20260115',
+          usage: { input_tokens: 10, inference_geo: 'us' },
+        },
+      }),
+    ).toEqual({ model: 'claude-fable-5-20260115', region: 'us' });
+    expect(
+      readServedBy('anthropic', {
+        type: 'message_delta',
+        usage: { output_tokens: 3, inference_geo: 'global' },
+      }),
+    ).toEqual({ region: 'global' });
+    expect(
+      readServedBy('anthropic', {
+        type: 'content_block_delta',
+        delta: { type: 'text_delta', text: 'Hi' },
+      }),
+    ).toBeUndefined();
+  });
+
+  it('reads the model a Responses API response names', () => {
+    expect(
+      readServedBy('openai-responses', {
+        type: 'response.created',
+        response: { model: 'gpt-6.1-sol-2026-09-01' },
+      }),
+    ).toEqual({ model: 'gpt-6.1-sol-2026-09-01' });
+    expect(
+      readServedBy('openai-responses', {
+        type: 'response.output_text.delta',
+        delta: 'Hi',
+      }),
+    ).toBeUndefined();
+  });
+
+  it('reads the region Azure names in a header', () => {
+    expect(
+      readServedByHeaders(new Headers({ 'x-ms-region': 'Sweden Central' })),
+    ).toEqual({ region: 'Sweden Central' });
+    expect(readServedByHeaders(new Headers())).toBeUndefined();
+  });
+
+  it('reports a served fact once, not on every chunk that repeats it', async () => {
+    const chunk = (content: string) => ({
+      provider: 'Anthropic',
+      model: 'anthropic/claude-4.6-sonnet-20260217',
+      choices: [{ index: 0, delta: { content }, finish_reason: null }],
+    });
+    const chunks = await chunksOf(
+      sseResponse([chunk('Return '), chunk('it '), chunk('today.')]),
+      'openai',
+    );
+    expect(chunks.map((part) => part.text).join('')).toBe('Return it today.');
+    expect(chunks.filter((part) => part.serving !== undefined)).toEqual([
+      expect.objectContaining({
+        text: 'Return ',
+        serving: {
+          provider: 'Anthropic',
+          model: 'anthropic/claude-4.6-sonnet-20260217',
+        },
+      }),
+    ]);
+  });
+
+  it('hands on the header and endpoint facts once the provider accepted', async () => {
+    const response = sseResponse([
+      { choices: [{ index: 0, delta: { content: 'Hi.' } }] },
+    ]);
+    const headers = new Headers(response.headers);
+    headers.set('x-ms-region', 'Switzerland North');
+    const stall = createStallGuard();
+    const chunks = [];
+    try {
+      for await (const chunk of streamProviderAnswer(
+        new Response(response.body, { headers }),
+        'openai',
+        stall,
+        undefined,
+        { endpoint: { host: 'eu.openrouter.ai', region: 'europe' } },
+      )) {
+        chunks.push(chunk);
+      }
+    } finally {
+      stall.dispose();
+    }
+    expect(chunks[0]).toEqual({
+      text: '',
+      serving: {
+        endpoint: { host: 'eu.openrouter.ai', region: 'europe' },
+        region: 'Switzerland North',
+      },
+    });
+  });
+
+  it('names nothing for a request the provider refused', async () => {
+    const stall = createStallGuard();
+    const chunks: ModelStreamChunk[] = [];
+    try {
+      await expect(
+        (async () => {
+          for await (const chunk of streamProviderAnswer(
+            new Response('{"error":"rate limited"}', {
+              status: 429,
+              headers: { 'x-ms-region': 'Sweden Central' },
+            }),
+            'openai',
+            stall,
+            undefined,
+            { endpoint: { host: 'eu.openrouter.ai', region: 'europe' } },
+          )) {
+            chunks.push(chunk);
+          }
+        })(),
+      ).rejects.toThrow(/answered 429/);
+    } finally {
+      stall.dispose();
+    }
+    expect(chunks).toEqual([]);
   });
 });

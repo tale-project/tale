@@ -5,7 +5,7 @@ import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { toast } from '@tale/ui/use-toast';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
@@ -20,12 +20,6 @@ interface ProjectDeleteDialogProps {
   organizationId: string;
   projectId: string;
   projectName: string;
-  /**
-   * Navigate to the projects list after a successful delete. Set to false
-   * when the dialog is launched from the table row (caller is already on
-   * the list page).
-   */
-  navigateOnSuccess?: boolean;
 }
 
 export function ProjectDeleteDialog({
@@ -34,10 +28,13 @@ export function ProjectDeleteDialog({
   organizationId,
   projectId,
   projectName,
-  navigateOnSuccess = false,
 }: ProjectDeleteDialogProps) {
   const { t } = useT('projects');
   const navigate = useNavigate();
+  // The project whose pages are open, if any: the General tab's danger zone
+  // deletes the very project it sits in, the projects list deletes from
+  // outside every project.
+  const openProjectId = useParams({ strict: false }).projectId;
   const { mutateAsync: deleteProject } = useDeleteProject();
   const [cascade, setCascade] = useState(false);
   const [confirmPhrase, setConfirmPhrase] = useState('');
@@ -75,10 +72,14 @@ export function ProjectDeleteDialog({
       });
       toast({ title: t('settings.deleteSuccess'), variant: 'success' });
       onOpenChange(false);
-      if (navigateOnSuccess) {
+      // A deleted project's pages can only say it is gone, so leave them for
+      // the projects list, in place of the page that named it. On the list
+      // itself there is nothing to leave, and moving would drop its filters.
+      if (openProjectId === projectId) {
         void navigate({
           to: '/dashboard/$id/projects',
           params: { id: organizationId },
+          replace: true,
         });
       }
     } catch (error) {

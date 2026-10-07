@@ -1,5 +1,6 @@
 import { initI18n } from './init';
 import { collectRegionalBundles } from './regional-bundles';
+import { attachTopics, type TopicSources } from './topics';
 
 type Bundle = Record<string, Record<string, unknown>>;
 
@@ -25,12 +26,30 @@ export interface PackageMessages {
 }
 
 interface InitServiceParams {
-  /** Base-locale bundles (`en`, `de`, `fr`) loaded statically by the service. */
+  /**
+   * Base-locale bundles loaded statically by the service: `en` always (empty
+   * when its messages come per topic, `topics`), and `de`/`fr` unless they
+   * are in `lazyBundles` or come per topic.
+   */
   bundles: {
     en: Bundle;
-    de: Bundle;
-    fr: Bundle;
+    de?: Bundle;
+    fr?: Bundle;
   } & Record<string, Bundle | undefined>;
+  /**
+   * Base locales the service fetches when a session first needs them, each
+   * answering the service's own bundle for it (`() => import('…/de.yml')`);
+   * the package bundles merge in as they do for the static ones. English is
+   * every locale's fallback, so it is never one of them.
+   */
+  lazyBundles?: Partial<Record<'de' | 'fr', () => Promise<Bundle>>>;
+  /**
+   * The service's messages per topic (`messages/<locale>/<topic>.yml`):
+   * English registered by the modules that read it (the `messageTopics` vite
+   * plugin), every other locale fetched per topic as the session needs it.
+   * The package bundles are in the store from the start, in every locale.
+   */
+  topics?: TopicSources;
   /**
    * Result of `import.meta.glob('…/messages/*-*.json', { eager: true, import: 'default' })`.
    * Vite requires the glob pattern to be a literal at the call site, so each
@@ -102,21 +121,32 @@ function packageBundle(
  */
 export function initServiceI18n({
   bundles,
+  lazyBundles = {},
   regional,
   global,
   packages = [],
+  topics,
 }: InitServiceParams) {
   const regionalBundles = collectRegionalBundles(regional);
 
   const merged: {
     en: Bundle;
-    de: Bundle;
-    fr: Bundle;
+    de?: Bundle;
+    fr?: Bundle;
   } & Record<string, Bundle | undefined> = {
     en: mergeBundles(packageBundle(packages, 'en'), bundles.en),
-    de: mergeBundles(packageBundle(packages, 'de'), bundles.de),
-    fr: mergeBundles(packageBundle(packages, 'fr'), bundles.fr),
   };
+  const lazy: Partial<Record<'de' | 'fr', () => Promise<Bundle>>> = {};
+  for (const base of ['de', 'fr'] as const) {
+    const fetch = lazyBundles[base];
+    const bundle = bundles[base];
+    if (fetch !== undefined) {
+      lazy[base] = () =>
+        fetch().then((own) => mergeBundles(packageBundle(packages, base), own));
+    } else if (bundle !== undefined || topics !== undefined) {
+      merged[base] = mergeBundles(packageBundle(packages, base), bundle);
+    }
+  }
 
   // Layer remaining locales (regional overrides shipped by the service,
   // extra base-locales the service registered, or regional bundles a
@@ -138,8 +168,11 @@ export function initServiceI18n({
   // the service redeclares overrides whatever a package shipped.
   const mergedGlobal = mergeBundles(...packages.map((p) => p.global), global);
 
-  return initI18n({
+  const i18n = initI18n({
     bundles: merged,
     global: mergedGlobal,
+    lazy,
   });
+  if (topics !== undefined) attachTopics(i18n, topics);
+  return i18n;
 }

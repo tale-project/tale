@@ -15,6 +15,38 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 describe('formatCompactAge', () => {
+  it('shares Intl formatters across a large list and its later clock ticks', () => {
+    const { NumberFormat, RelativeTimeFormat, DateTimeFormat } = Intl;
+    const number = vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (
+      ...args
+    ) {
+      return new NumberFormat(...args);
+    });
+    const relative = vi
+      .spyOn(Intl, 'RelativeTimeFormat')
+      .mockImplementation(function (...args) {
+        return new RelativeTimeFormat(...args);
+      });
+    const date = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(function (
+      ...args
+    ) {
+      return new DateTimeFormat(...args);
+    });
+    try {
+      for (let row = 0; row < 1_000; row++) {
+        formatCompactAge(NOW - row * MINUTE, NOW, 'en-AU');
+        formatCompactAge(NOW - row * MINUTE, NOW + MINUTE, 'en-AU');
+      }
+      expect(number).toHaveBeenCalledTimes(3);
+      expect(relative).toHaveBeenCalledTimes(1);
+      expect(date).toHaveBeenCalledTimes(2);
+    } finally {
+      number.mockRestore();
+      relative.mockRestore();
+      date.mockRestore();
+    }
+  });
+
   it('reads as a short age within the week', () => {
     expect(formatCompactAge(NOW - 20_000, NOW, 'en')).toBe('now');
     expect(formatCompactAge(NOW - 5 * MINUTE, NOW, 'en')).toBe('5m');

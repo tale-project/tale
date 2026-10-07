@@ -19,7 +19,7 @@ Kläre, welche Organisation und Installation geprüft werden. Eine Zertifizierun
 | --- | --- | --- |
 | Hosting und Wartung | Betreibt den vereinbarten Dienst | Wählt das Angebot und stimmt Änderungen ab |
 | Identität und Zugriff | Stellt Konten, Rollen und SSO bereit | Fügt Mitglieder hinzu und prüft deren Rechte |
-| Modellanbieter und Konnektoren | Stellt Integrationskontrollen bereit | Wählt Dienste, Zugangsdaten und zulässige Nutzung |
+| Modellanbieter und Connectors | Stellt Integrationskontrollen bereit | Wählt Dienste, Zugangsdaten und zulässige Nutzung |
 | Nutzungs- und Inhaltsrichtlinien | Stellt Regeln und Aufzeichnungen bereit | Konfiguriert Regeln und bearbeitet Ereignisse |
 | Datenanfragen und Aufbewahrung | Stellt die unterstützten Abläufe bereit | Legt Anforderungen fest und genehmigt Aktionen |
 

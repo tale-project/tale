@@ -82,6 +82,7 @@ for (const [mode, executable] of modes) {
         expect(result.stdout).toContain('export-client');
         expect(result.stdout).toContain('provision');
         expect(result.stdout).toContain('verify-bundle');
+        expect(result.stdout).toContain('accept');
       }
     }
   }, 30000);
@@ -100,6 +101,13 @@ for (const [mode, executable] of modes) {
           join(root, 'output'),
         ],
         ['verify-bundle', '--bundle', join(root, 'bundle')],
+        [
+          'accept',
+          '--bundle',
+          join(root, 'bundle'),
+          '--expected-version',
+          '1.2.3',
+        ],
         ['provision', '--bundle', join(root, 'bundle'), '--yes'],
       ]) {
         const result = await run(executable, root, [
@@ -118,6 +126,44 @@ for (const [mode, executable] of modes) {
   );
   // NTFS cannot prove the executable-mode contract of a Linux bundle.
   describePosix(`managed deployment commands (${mode})`, () => {
+    test('accept requires exact source pins and refuses inherited deployment effects', async () => {
+      const { root, bundle } = await fixture();
+      for (const args of [
+        ['--expected-version', '1.2.3'],
+        [
+          '--expected-version',
+          '1.2.3',
+          '--cli-ref',
+          'a'.repeat(40),
+          '--deployment-ref',
+          'c'.repeat(40),
+          '--configuration-only',
+        ],
+        [
+          '--expected-version',
+          '1.2.3',
+          '--cli-ref',
+          'a'.repeat(40),
+          '--deployment-ref',
+          'c'.repeat(40),
+          '--dry-run',
+        ],
+      ]) {
+        const result = await run(executable, root, [
+          '--json',
+          'deploy',
+          'accept',
+          '--bundle',
+          bundle,
+          ...args,
+        ]);
+        expect(result.code).not.toBe(0);
+        expect(result.stderr).toBe('');
+        const refusal = JSON.parse(result.stdout);
+        expect(refusal.ok).toBe(false);
+        expect(result.stdout).toMatch(/requires|not supported/);
+      }
+    }, 30_000);
     test('configuration-only refuses missing custody and partial retained identity flags', async () => {
       const { root, bundle } = await fixture();
       const input = JSON.stringify({

@@ -53,7 +53,12 @@ vi.mock('../hooks/use-actor-directory', () => ({
     resolveActorPreview: () => null,
     resolveAgentRunPreview: (run: { agentSlug: string }) => ({
       kind: 'agent',
-      name: run.agentSlug === 'agent-worker' ? 'Implementer' : run.agentSlug,
+      name:
+        run.agentSlug === 'agent-worker'
+          ? 'Implementer'
+          : run.agentSlug === 'agent-deleted'
+            ? 'Deleted agent'
+            : run.agentSlug,
       viewTo: '/dashboard/$id',
       viewParams: { id: 'org_1' },
     }),
@@ -100,6 +105,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'agentRuns.refused.agent_disabled':
           'agent is not installed or is disabled',
         'timeline.runLabel': 'Agent run',
+        'timeline.deletedAgent': 'Deleted agent',
         'timeline.startedByAgent': 'started by',
         'agentRuns.trigger.automation': 'automation',
         'agentRuns.trigger.delegated': 'delegated',
@@ -160,6 +166,42 @@ describe('TaskTimeline — assignee change activity', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/user-old/)).not.toBeInTheDocument();
     expect(screen.queryByText(/user-new/)).not.toBeInTheDocument();
+  });
+
+  it('labels an assignee whose historical agent was deleted', () => {
+    timelineMocks.runs = [
+      {
+        runId: 'run_old' as string,
+        agentSlug: 'agent-deleted',
+        trigger: 'manual',
+        status: 'failed',
+        startedAt: Date.now(),
+        costCents: 0,
+      },
+    ];
+    timelineMocks.activity = [
+      {
+        _id: 'activity_deleted_agent' as string,
+        actorType: 'user',
+        actorId: 'user-actor',
+        action: 'assignee.changed',
+        fromValue: 'agent-deleted',
+        createdAt: Date.now(),
+      },
+    ];
+
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+
+    expect(
+      screen.getByText(/assignee changed: Deleted agent/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('agent-deleted')).not.toBeInTheDocument();
   });
 });
 

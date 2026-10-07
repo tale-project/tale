@@ -100,7 +100,7 @@ Réunis fichiers, instructions, chats personnels ou partagés et tâches.
 
 <Card title="Agents" icon="bot" href="/fr/platform/agents/concepts">
 
-Configure des agents pour les tâches de projet avec un harness, un modèle et un équipement adaptés.
+Configure des agents pour les tâches de projet avec un environnement d’agent, un modèle et un équipement adaptés.
 
 </Card>
 
@@ -134,7 +134,7 @@ Comprends les capacités, la disponibilité et le choix des modèles.
 
 </Card>
 
-<Card title="Connecteurs" icon="plug" href="/fr/platform/connectors/overview">
+<Card title="Connectors" icon="plug" href="/fr/platform/connectors/overview">
 
 Connecte des services externes et vérifie les actions accessibles aux agents et automatisations.
 

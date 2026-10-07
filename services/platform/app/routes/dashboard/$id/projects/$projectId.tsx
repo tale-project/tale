@@ -368,9 +368,10 @@ function ProjectDetailLayout() {
                           projectId={asProjectId(projectId)}
                           projectName={project.name}
                         />
-                        {project.archivedAt !== undefined && (
-                          <ProjectArchivedBadge className="shrink-0 px-1.5 py-px text-[10px]" />
-                        )}
+                        {!allProjectsMode &&
+                          project.archivedAt !== undefined && (
+                            <ProjectArchivedBadge className="shrink-0 px-1.5 py-px text-[10px]" />
+                          )}
                       </span>
                     ) : (
                       <SkeletonBox>

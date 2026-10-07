@@ -34,7 +34,7 @@ const ADA = {
   displayName: 'Ada Lovelace',
 };
 
-describe('mention directory — a leg that cannot be listed fails loudly', () => {
+describe('mention directory — a leg that cannot be listed fails loudly [COLLAB-R5]', () => {
   it('a failed member listing rejects instead of turning @teammate into text', async () => {
     // The old contract logged and returned a partial directory: the comment
     // posted, but the named teammate got no bell and nothing told the
@@ -110,7 +110,7 @@ describe('mention directory — a leg that cannot be listed fails loudly', () =>
   });
 });
 
-describe('mention directory — an edit names only who it adds', () => {
+describe('mention directory — an edit names only who it adds [COLLAB-R4]', () => {
   const BOB = {
     userId: 'u-bob',
     role: 'member',

@@ -1,0 +1,186 @@
+suffix: Tale
+default:
+  title: La couche d'orchestration pour agents IA
+  description:
+    Modèles d'IA locaux, agents, compétences et automatisations — sur
+    ta propre infrastructure, connectés à tes données
+keywords: IA souveraine, IA locale, plateforme d'IA auto-hébergée, agents IA,
+  automatisations IA, IA sur site, souveraineté des données, infrastructure
+  privée, compétences IA, modèles de langage locaux, IA d'entreprise,
+  confidentialité des données, IA agentique, automatisation des workflows
+chat:
+  title: Chat
+  description: Discute avec l'IA pour obtenir de l'aide sur tes tâches.
+notFound:
+  title: Page introuvable
+  description: La page que tu cherches n'existe pas ou a peut-être été déplacée.
+conversations:
+  title: Conversations
+  description: Consulte et gère les conversations avec les contacts.
+automations:
+  title: Automatisations
+  description: Toutes les automatisations de l’organisation — leurs versions,
+    leurs exécutions et la version en service.
+automation:
+  title: Automatisation
+  description: Consulte et modifie le document de l'automatisation.
+automationConfiguration:
+  title: Configuration de l'automatisation
+  description: Configure les paramètres d'automatisation.
+automationRuns:
+  title: Exécutions d'automatisation
+  description: Consulte l'historique des exécutions d'automatisation.
+documents:
+  title: Documents
+  description: Gère les documents de ta base de connaissances.
+products:
+  title: Produits
+  description: Gère ton catalogue de produits.
+contacts:
+  title: Contacts
+  description: Gère ta base de données de contacts.
+projects:
+  title: Projets
+  description: Espaces de travail partagés pour fichiers, instructions et discussions.
+project:
+  title: Projet
+  description: Un espace de travail partagé pour fichiers, instructions et discussions.
+task:
+  title: Tâche
+  description: Un travail avec un responsable, un statut et sa discussion.
+home:
+  title: Accueil
+  description: Tes chats, tâches et conversations de la boîte de réception, au même endroit.
+websites:
+  title: Sites web
+  description: Gère les sites web pour l'extraction de connaissances.
+knowledgeEntries:
+  title: Entrées de connaissances
+  description: Gère les entrées de connaissances ajoutées par les utilisateurs.
+settings:
+  title: Paramètres
+  description: Gère les paramètres de ton compte et de ton organisation.
+account:
+  title: Compte
+  description: Gère les paramètres de ton compte.
+personalization:
+  title: Personnalisation
+  description: Les instructions permanentes que l’assistant de chat suit pour toi.
+notificationPreferences:
+  title: Notifications
+  description: Choisis les événements qui t'envoient une notification.
+usage:
+  title: Utilisation
+  description: Ce que tu as utilisé des limites qui s'appliquent à toi.
+organization:
+  title: Organisation
+  description: Gère les paramètres de ton organisation.
+teams:
+  title: Équipes
+  description: Gère les équipes au sein de ton organisation.
+members:
+  title: Membres
+  description: Gère les membres de ton organisation.
+people:
+  title: Personnes
+  description: Gère les membres et les équipes de ton organisation.
+agents:
+  title: Agents
+  description: Crée et gère des agents IA pour répondre aux contacts.
+connectors:
+  title: Connectors
+  description: Connecte des services tiers.
+providers:
+  title: Fournisseurs IA
+  description: Connectors de fournisseurs, identifiants et catalogues de modèles.
+skills:
+  title: Skills
+  description: Paquets d'instructions réutilisables pour les agents.
+logs:
+  title: Journaux
+  description: Consulte les journaux système et l'activité.
+branding:
+  title: Branding
+  description: Personnalise l'image de marque de ton organisation.
+createOrganization:
+  title: Créer une organisation
+  description: Crée une nouvelle organisation.
+changelog:
+  title: Nouveautés
+  description: Notes de version pour les récentes mises à jour de Tale.
+login:
+  title: Connexion
+  description: Connecte-toi à ton compte Tale.
+signup:
+  title: Inscription
+  description: Crée un nouveau compte Tale.
+apiDocs:
+  title: Documentation API
+  description: Explore l'API Tale avec la documentation interactive.
+convexDashboard:
+  title: Convex Dashboard
+  description: Gère le backend Convex.
+knowledge:
+  title: Connaissances
+  description: Gère ta base de connaissances pour les agents IA.
+agent:
+  title: Agent
+  description: Configure et teste ton agent IA.
+agentSettings:
+  title: Paramètres de l'agent
+  description: Configure les paramètres généraux de l'agent.
+agentInstructions:
+  title: Instructions
+  description: Configure les instructions de l'agent et les paramètres du modèle.
+agentKnowledge:
+  title: Connaissances de l'agent
+  description: Gère l'accès à la base de connaissances pour ton agent.
+agentTools:
+  title: Outils de l'agent
+  description: Sélectionne et configure les outils disponibles pour ton agent.
+agentWebhook:
+  title: Webhooks de l'agent
+  description: Gère les URL de webhooks pour ton agent.
+agentDelegation:
+  title: Délégation de l'agent
+  description: Configure la délégation de l'agent vers d'autres agents.
+automationTriggers:
+  title: Déclencheurs
+  description: Gère les déclencheurs, planifications et webhooks d'automatisation.
+apiKeys:
+  title: Clés API
+  description: Crée et gère les clés API pour les connectors.
+dataResidency:
+  title: Résidence des données
+  description: Où tes données sont stockées et traitées.
+governance:
+  title: Gouvernance
+  description: Gère les politiques de gouvernance et les prompts système.
+metrics:
+  title: Métriques
+  description: KPIs organisationnels pour l'utilisation, les retours, les
+    automatisations et les projets.
+shared-chat:
+  title: Chat partagé
+  description: Consulte une conversation de chat partagée.
+webdav:
+  title: WebDAV
+  description: Monte les documents Tale comme lecteur réseau.
+mcp:
+  title: MCP
+  description: Connecte des clients MCP à cet espace de travail via MCP.
+modelEndpoints:
+  title: Endpoints de modèles
+  description: Appelle les modèles de l'organisation depuis tes propres outils via des endpoints compatibles OpenAI et Anthropic.
+sandboxes:
+  title: Sandboxes
+  description: Gère les sandboxes distantes de ton organisation.
+enterpriseSso:
+  title: SSO d'entreprise
+  description: Configurer l'authentification unique et le provisionnement SCIM.
+workflow:
+  title: Automatisation
+  description: Consulte et modifie l'automatisation.
+workflowConfiguration:
+  title: Configuration de l'automatisation
+  description: Configure les paramètres de l'automatisation.

@@ -11,7 +11,7 @@ import { forcedResetEligible } from './service.ts';
  * the current one.
  */
 
-describe('forcedResetEligible', () => {
+describe('forcedResetEligible [USER-R2]', () => {
   it('allows a forced reset only for an EXISTING, expired credential', () => {
     expect(forcedResetEligible(true, { expired: true })).toBe(true);
   });

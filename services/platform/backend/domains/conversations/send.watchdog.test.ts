@@ -25,7 +25,7 @@ function capturingSql(
   return fn;
 }
 
-describe('recoverStuckConversationSends', () => {
+describe('recoverStuckConversationSends [CONV-R10]', () => {
   it('fails stranded queued sends with a reason and emits a hint', async () => {
     const queries: string[] = [];
     const sql = capturingSql(

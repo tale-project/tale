@@ -53,7 +53,7 @@ it('passes stamp: false through for the early refusal', async () => {
   );
 });
 
-it('refuses a foreign attachment with ATTACHMENT_NOT_OWNED', async () => {
+it('refuses a foreign attachment with ATTACHMENT_NOT_OWNED [CONV-R11]', async () => {
   vi.mocked(firstForeignUpload).mockResolvedValue('blob-2');
 
   const refusal = await assertOwnedAttachments(sql, scope, FILES).catch(

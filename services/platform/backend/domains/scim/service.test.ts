@@ -102,7 +102,7 @@ const userRow = (id: string, email: string) => ({
   updatedAt: new Date(0),
 });
 
-describe('patchUser — the owner is protected on PATCH exactly as on DELETE', () => {
+describe('patchUser — the owner is protected on PATCH exactly as on DELETE [SCIM-R1]', () => {
   it('refuses active:false on the owner before any write', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith(MEMBER)) return [{ id: 'm-owner', role: 'owner' }];
@@ -183,7 +183,7 @@ describe('patchUser — the userName rewrite contract', () => {
       email,
     });
 
-  it('refuses a collision with the SCIM uniqueness code instead of a unique-index 500', async () => {
+  it('refuses a collision with the SCIM uniqueness code instead of a unique-index 500 [SCIM-R2]', async () => {
     const { sql, queries } = fakeSql(
       singleOrgUser((text) => {
         if (text.startsWith(USER_BY_EMAIL)) {
@@ -199,7 +199,7 @@ describe('patchUser — the userName rewrite contract', () => {
     expect(writes(queries)).toHaveLength(0);
   });
 
-  it('refuses to rewrite the identity of an account that also belongs to another org', async () => {
+  it('refuses to rewrite the identity of an account that also belongs to another org [SCIM-R3]', async () => {
     const { sql, queries } = fakeSql(
       singleOrgUser((text) => {
         if (text.startsWith(MEMBERSHIPS)) {
@@ -234,7 +234,7 @@ describe('patchUser — the userName rewrite contract', () => {
     expect(queries.some((q) => q.text.startsWith(USER_BY_EMAIL))).toBe(false);
   });
 
-  it('maps a lost uniqueness race to the same 409 code', async () => {
+  it('maps a lost uniqueness race to the same 409 code [SCIM-R2]', async () => {
     const { sql } = fakeSql(
       singleOrgUser((text) => {
         if (text.startsWith('UPDATE "user"')) {
@@ -250,7 +250,7 @@ describe('patchUser — the userName rewrite contract', () => {
   });
 });
 
-describe('group writes — every member must belong to the org', () => {
+describe('group writes — every member must belong to the org [SCIM-R5]', () => {
   const team = {
     id: 't-1',
     name: 'Squad',
@@ -345,7 +345,7 @@ describe('group writes — every member must belong to the org', () => {
 // The app's team-name rule on the SCIM door: a displayName another team
 // already reads as (case- and whitespace-insensitively) is a 409
 // `uniqueness`, never a second team the pickers cannot tell apart (E-01).
-describe('group writes — one displayName per organization', () => {
+describe('group writes — one displayName per organization [SCIM-R6]', () => {
   const team = {
     id: 't-1',
     name: 'Squad',
@@ -432,7 +432,7 @@ describe('group writes — one displayName per organization', () => {
   });
 });
 
-describe('deleteGroup', () => {
+describe('deleteGroup [SCIM-R7]', () => {
   it('retires the scopes the group carried in the same transaction and audits the counts', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (
@@ -501,7 +501,7 @@ afterEach(() => {
  * teams are enabled, and a later POST re-attaches the existing user, so a
  * stranded team membership would come straight back into force.
  */
-describe('deprovisionUser — the membership cascade', () => {
+describe('deprovisionUser — the membership cascade [SCIM-R4]', () => {
   it('removes team memberships, sync provenance and preferences with the member row', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith(MEMBER)) return [{ id: 'm-1', role: 'member' }];
@@ -560,7 +560,7 @@ describe('deprovisionUser — the membership cascade', () => {
     );
   });
 
-  it('cascades nothing for a member it refuses to remove', async () => {
+  it('cascades nothing for a member it refuses to remove [SCIM-R1]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith(MEMBER)) return [{ id: 'm-owner', role: 'owner' }];
       return [];

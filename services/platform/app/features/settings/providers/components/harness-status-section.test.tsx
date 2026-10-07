@@ -173,7 +173,7 @@ describe('HarnessStatusSection', () => {
     expect(screen.getByText('Subscription · Z.ai')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Subscription · Nous Portal — not usable, this harness runs managed credentials only',
+        'Subscription · Nous Portal — not usable, this agent runtime runs managed credentials only',
       ),
     ).toBeInTheDocument();
   });

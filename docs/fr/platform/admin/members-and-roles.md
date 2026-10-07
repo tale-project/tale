@@ -27,6 +27,9 @@ Tu dois avoir le rôle Propriétaire ou Admin pour gérer les membres.
 
 La personne apparaît dans la liste. Ce parcours n’envoie ni invitation ni courriel de réinitialisation du mot de passe : en ajoutant quelqu’un, tu confirmes son adresse. Le compte fonctionne donc partout tout de suite, y compris dans les applications où l’on se connecte avec son compte Tale. Si l’adresse est déjà membre de cette organisation, le formulaire le signale sans créer de doublon.
 
+Un mot de passe défini ou réinitialisé par un administrateur, ou expiré selon la politique de rotation, doit être changé à la connexion. Consulte [les étapes de changement destinées aux membres](/fr/platform/member/preferences#quand-un-changement-de-mot-de-passe-est-requis).
+
+
 <Tip>
 
 Ajoute ensuite la personne aux équipes dont elle a besoin. Un rôle seul ne donne pas les accès aux projets d’une équipe ni à sa file de conversations.
@@ -39,8 +42,8 @@ Ajoute ensuite la personne aux équipes dont elle a besoin. Un rôle seul ne don
 | --- | --- | --- |
 | **Propriétaire** | Toutes les tâches du produit et de son administration | Peut aussi transférer la propriété et supprimer l’organisation, ce qui efface également ses sandboxes et leurs fichiers ; la suppression demande de taper le nom de l’organisation avant d’activer le bouton. |
 | **Admin** | Gérer les personnes, les services, les politiques et le travail de l’équipe | Tous les paramètres de l’organisation, sans transfert de propriété. |
-| **Développeur** | Créer des agents, des automatisations et des intégrations | Paramètres techniques des fournisseurs, connecteurs et API ; pas de gestion des membres. |
-| **Éditeur** | Entretenir les contenus et traiter le travail quotidien | Modification du contenu ; pas d’accès à **Automatisations** ; lecture seule des ressources de connecteurs. |
+| **Développeur** | Créer des agents, des automatisations et des intégrations | Paramètres techniques des fournisseurs, connectors et API ; pas de gestion des membres. |
+| **Éditeur** | Entretenir les contenus et traiter le travail quotidien | Modification du contenu ; pas d’accès à **Automatisations** ; lecture seule des ressources de connectors. |
 | **Membre** | Utiliser le chat, lire les ressources partagées et créer des tâches de projet, en confiant les siennes aux agents du projet | Pas d’administration ; peut donner un avis sur les messages. |
 | **Désactivé** | Aucun accès actif | Conserve l’adhésion sans accorder de permissions. |
 
@@ -58,7 +61,7 @@ Seuls les propriétaires et les admins peuvent lire les journaux d’audit. Les 
 
 Dans le menu de la ligne de la personne, sélectionne **Modifier**, puis change le **Rôle**. Sélectionne **Enregistrer** et vérifie le rôle dans la liste. Pour rétablir l’accès d’un membre désactivé, choisis explicitement le rôle à lui attribuer.
 
-Le dialogue permet aussi de changer le nom affiché. Le courriel est en lecture seule. Pour définir un nouveau mot de passe, active **Mettre à jour le mot de passe**, saisis une valeur conforme aux exigences affichées, puis enregistre. Vérifie l’identité de la personne selon la procédure de ton organisation avant de réinitialiser son compte.
+Le dialogue permet aussi de changer le nom affiché. Le courriel est en lecture seule. Pour définir un nouveau mot de passe, active **Mettre à jour le mot de passe**, saisis une valeur conforme aux exigences affichées, puis enregistre. Le membre doit choisir un nouveau mot de passe à sa prochaine connexion ; une réinitialisation le déconnecte de toutes ses sessions. Vérifie l’identité de la personne selon la procédure de ton organisation avant de réinitialiser son compte.
 
 Ce menu ne permet pas de modifier ton propre rôle, d’attribuer Propriétaire dans la liste des rôles, ni de rétrograder le dernier administrateur. Les propriétaires existants et le créateur de l’organisation ont aussi des rôles protégés. Si une modification est refusée, vérifie le compte concerné avant d’essayer un autre rôle.
 

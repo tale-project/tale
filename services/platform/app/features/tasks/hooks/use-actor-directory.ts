@@ -1,17 +1,12 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import {
-  createContext,
-  createElement,
-  useContext,
-  useMemo,
-  type ReactNode,
-} from 'react';
+import { createElement, useMemo, type ReactNode } from 'react';
 
 import {
   useProjectAgents,
   useStandardAgent,
 } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { projectAgentDetails } from '@/app/features/projects/lib/agent-details';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -29,7 +24,13 @@ import {
   isWorkflowSentinel,
   type TaskActivityContext,
   type TaskActorPreview,
+  type TaskActorCatalogEntry,
 } from '../utils/task-actor-preview';
+import {
+  ActorDirectoryScopeProvider,
+  ActorDirectoryScopeValue,
+  useProvidedActorScope,
+} from './actor-directory-scope';
 import { useTaskContractAutomations } from './use-task-subject-contract';
 
 export interface ResolvedActor {
@@ -57,7 +58,7 @@ export interface AssignableActor {
 // Shared frozen instances keep hook results referentially stable across
 // renders when a context has no project (and thus no agents) to draw from.
 const EMPTY_AGENT_LIST: AssignableActor[] = [];
-const EMPTY_CATALOG = new Map<string, { name: string; description?: string }>();
+const EMPTY_CATALOG = new Map<string, TaskActorCatalogEntry>();
 
 /**
  * Resolves task actors (comment authors, activity actors, assignees) — which
@@ -105,6 +106,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
   const previewLabels = useMemo(
     () => ({
       unresolvedWorkflow: t('timeline.unresolvedWorkflow'),
+      deletedAgent: t('timeline.deletedAgent'),
     }),
     [t],
   );
@@ -140,8 +142,17 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
   );
   const agentCatalog = useMemo(() => {
     if (projectAgents.length === 0) return EMPTY_CATALOG;
-    const map = new Map<string, { name: string; description?: string }>();
-    for (const row of projectAgents) map.set(row._id, { name: row.name });
+    const map = new Map<string, TaskActorCatalogEntry>();
+    for (const row of projectAgents) {
+      const instructions = row.instructions?.trim();
+      map.set(row._id, {
+        name: row.name,
+        agent: projectAgentDetails(row),
+        ...(instructions !== undefined && instructions.length > 0
+          ? { description: instructions }
+          : {}),
+      });
+    }
     return map;
   }, [projectAgents]);
   const workflowCatalog = EMPTY_CATALOG;
@@ -331,10 +342,6 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
 
 export type ActorDirectory = ReturnType<typeof useActorDirectory>;
 
-const ActorDirectoryContext = createContext<ActorDirectory | undefined>(
-  undefined,
-);
-
 /**
  * Reads ONE actor directory for everything below it. A row that names people
  * — a comment, a timeline entry, a card, each text run of a markdown body —
@@ -346,18 +353,46 @@ const ActorDirectoryContext = createContext<ActorDirectory | undefined>(
 export function ActorDirectoryProvider({
   organizationId,
   projectId,
+  directory,
   children,
 }: {
   organizationId: string;
   /** Absent where the surface spans projects: no agent resolves then, and
    * project-scoped rows read their own directory. */
   projectId?: string;
+  /** Reuse a directory the owning task body has already read for its controls. */
+  directory?: ActorDirectory;
   children: ReactNode;
+}) {
+  return createElement(
+    ActorDirectoryScopeProvider,
+    {
+      organizationId,
+      projectId,
+      directory,
+      loader: createElement(
+        LoadedActorDirectoryProvider,
+        { organizationId, projectId },
+        children,
+      ),
+    },
+    children,
+  );
+}
+
+function LoadedActorDirectoryProvider({
+  organizationId,
+  projectId,
+  children,
+}: {
+  organizationId: string;
+  projectId?: string;
+  children?: ReactNode;
 }) {
   const directory = useActorDirectory(organizationId, projectId);
   return createElement(
-    ActorDirectoryContext.Provider,
-    { value: directory },
+    ActorDirectoryScopeValue,
+    { organizationId, projectId, directory },
     children,
   );
 }
@@ -372,12 +407,7 @@ export function useProvidedActorDirectory(
   organizationId: string,
   projectId?: string,
 ): ActorDirectory | undefined {
-  const provided = useContext(ActorDirectoryContext);
-  return provided !== undefined &&
-    provided.organizationId === organizationId &&
-    provided.projectId === projectId
-    ? provided
-    : undefined;
+  return useProvidedActorScope(organizationId, projectId)?.directory;
 }
 
 /**
@@ -439,13 +469,24 @@ export function useAssignableActors(
     useStandardAgent(projectId ? organizationId : undefined)?.available ===
     true;
 
-  return {
-    ...directory,
-    assignableMembers,
-    assignableAgents,
-    scopeReady,
-    projectResolved,
-    canAddAgents,
-    standardAgentAvailable,
-  };
+  return useMemo(
+    () => ({
+      ...directory,
+      assignableMembers,
+      assignableAgents,
+      scopeReady,
+      projectResolved,
+      canAddAgents,
+      standardAgentAvailable,
+    }),
+    [
+      directory,
+      assignableMembers,
+      assignableAgents,
+      scopeReady,
+      projectResolved,
+      canAddAgents,
+      standardAgentAvailable,
+    ],
+  );
 }

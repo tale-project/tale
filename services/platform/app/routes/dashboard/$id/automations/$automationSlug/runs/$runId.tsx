@@ -1,9 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import {
-  LazyRunDetail,
-  loadRunDetail,
-} from '@/app/features/automations/components/lazy-automation-pages';
+import { RunDetail } from '@/app/features/automations/components/run-detail';
 import { paramToAutomationSlug } from '@/lib/automations/slug';
 import { seo } from '@/lib/utils/seo';
 
@@ -11,16 +8,13 @@ export const Route = createFileRoute(
   '/dashboard/$id/automations/$automationSlug/runs/$runId',
 )({
   head: () => ({ meta: seo('automationRuns') }),
-  loader: () => {
-    void loadRunDetail();
-  },
   component: AutomationRunPage,
 });
 
 function AutomationRunPage() {
   const { id: organizationId, automationSlug, runId } = Route.useParams();
   return (
-    <LazyRunDetail
+    <RunDetail
       organizationId={organizationId}
       automationSlug={paramToAutomationSlug(automationSlug)}
       // The run id travels as a plain URL segment; the store refuses any id

@@ -3,6 +3,7 @@ import { configurationHashSchema } from '@tale/shared/schemas/configuration';
 import {
   managedProjectInstructionsSchema,
   managedAgentInstructionsSchema,
+  managedAgentToolsSchema,
 } from '@tale/shared/schemas/managed-configuration';
 import {
   createProjectInputSchema,
@@ -57,6 +58,8 @@ import {
   ProjectError,
   readProjectInstructionsConfiguration,
   readAgentInstructionsConfiguration,
+  readAgentToolsConfiguration,
+  updateAgentToolsConfiguration,
   updateAgentInstructionsConfiguration,
   restoreProject,
   searchProjects,
@@ -126,11 +129,17 @@ export function createProjectRoutes(deps: {
       c.get('sessionBundle').user.email,
     );
 
+  const readOptions = (c: Context<OrgEnv>) =>
+    c.req.query('summary') === 'true' ? { summary: true } : {};
+
   app.get('/', async (c) => {
     const auth = await authCtx(c);
     const includeArchived = c.req.query('includeArchived') === 'true';
     return c.json({
-      projects: await listProjects(deps.sql, auth, { includeArchived }),
+      projects: await listProjects(deps.sql, auth, {
+        includeArchived,
+        ...readOptions(c),
+      }),
     });
   });
 
@@ -229,6 +238,55 @@ export function createProjectRoutes(deps: {
     }
   });
 
+  app.get('/:id/agents/:agentId/configuration/tools', async (c) => {
+    try {
+      return c.json(
+        await readAgentToolsConfiguration(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('id'),
+          c.req.param('agentId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/agents/:agentId/configuration/tools', async (c) => {
+    const body = z
+      .strictObject({
+        config: managedAgentToolsSchema,
+        expectedHash: configurationHashSchema,
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.projectId !== c.req.param('id') ||
+      body.data.config.agentId !== c.req.param('agentId')
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        updateAgentToolsConfiguration(
+          tx,
+          auth,
+          body.data.config,
+          body.data.expectedHash,
+        ),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.get('/overview', async (c) => {
     const auth = await authCtx(c);
     const includeArchived = c.req.query('includeArchived') === 'true';
@@ -237,6 +295,7 @@ export function createProjectRoutes(deps: {
     return c.json(
       await listProjectsOverview(deps.sql, auth, {
         includeArchived,
+        ...readOptions(c),
         ...(Number.isFinite(asOf) && asOf > 0 ? { asOf } : {}),
       }),
     );
@@ -244,13 +303,17 @@ export function createProjectRoutes(deps: {
 
   app.get('/sidebar', async (c) => {
     const auth = await authCtx(c);
-    return c.json({ projects: await listSidebarProjects(deps.sql, auth) });
+    return c.json({
+      projects: await listSidebarProjects(deps.sql, auth, 50, readOptions(c)),
+    });
   });
 
   app.get('/search', async (c) => {
     const auth = await authCtx(c);
     const query = c.req.query('q') ?? '';
-    return c.json({ projects: await searchProjects(deps.sql, auth, query) });
+    return c.json({
+      projects: await searchProjects(deps.sql, auth, query, 20, readOptions(c)),
+    });
   });
 
   app.post('/', async (c) => {

@@ -1,8 +1,26 @@
 import { render, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { Markdown } from './markdown';
 import { IncrementalMarkdown } from './streaming/incremental-markdown';
+
+it('does not reparse a large unchanged body on unrelated parent renders', () => {
+  const paragraph = vi.fn(({ children }) => <p>{children}</p>);
+  const components = { p: paragraph };
+  const content = Array.from(
+    { length: 150 },
+    (_, index) => `Paragraph ${index}`,
+  ).join('\n\n');
+  const { rerender, container } = render(
+    <Markdown components={components}>{content}</Markdown>,
+  );
+  expect(paragraph).toHaveBeenCalledTimes(150);
+  rerender(<Markdown components={components}>{content}</Markdown>);
+  expect(paragraph).toHaveBeenCalledTimes(150);
+  rerender(<Markdown components={components}>{'Updated body'}</Markdown>);
+  expect(container).toHaveTextContent('Updated body');
+  expect(paragraph).toHaveBeenCalledTimes(151);
+});
 
 // `remark-math` + `rehype-katex` turn `$…$`/`$$…$$` into KaTeX markup — a
 // `.katex` root, and `.katex-display` for block math. Before the plugins

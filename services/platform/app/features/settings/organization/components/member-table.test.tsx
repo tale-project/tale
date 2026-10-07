@@ -1,4 +1,4 @@
-import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import { toast } from '@tale/ui/use-toast';
 import { Plus } from 'lucide-react';
 import { describe, expect, it, vi } from 'vitest';

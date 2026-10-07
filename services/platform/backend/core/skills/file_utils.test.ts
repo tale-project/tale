@@ -137,7 +137,7 @@ describe('readSkillMdText', () => {
     expect(await readSkillMdText('acme', 'empty')).toBeNull();
   });
 
-  it('refuses a symlinked SKILL.md instead of following it', async () => {
+  it('refuses a symlinked SKILL.md instead of following it [SKILL-R15]', async () => {
     const secret = path.join(configRoot, 'secret.md');
     await writeFile(secret, 'secret\n', 'utf-8');
     await mkdir(path.join(configRoot, 'acme', 'skills', 'sneaky'), {
@@ -151,7 +151,7 @@ describe('readSkillMdText', () => {
     await expect(readSkillMdText('acme', 'sneaky')).rejects.toThrow(/Symlink/);
   });
 
-  it('refuses a bundle directory that symlinks out of the tree', async () => {
+  it('refuses a bundle directory that symlinks out of the tree [SKILL-R15]', async () => {
     const outside = path.join(configRoot, 'outside');
     await mkdir(outside, { recursive: true });
     await writeFile(path.join(outside, 'SKILL.md'), 'x\n', 'utf-8');
@@ -164,7 +164,7 @@ describe('readSkillMdText', () => {
   });
 });
 
-describe('per-organization isolation', () => {
+describe('per-organization isolation [SKILL-R4]', () => {
   it('keeps two orgs’ same-named skills apart, in both directions', async () => {
     await seedSkill(
       'acme',
@@ -243,7 +243,7 @@ describe('writeSkillMdText', () => {
     ).rejects.toThrow();
   });
 
-  it('keeps the superseded version in the domain’s history trail', async () => {
+  it('keeps the superseded version in the domain’s history trail [SKILL-R13]', async () => {
     await writeSkillMdText(
       'acme',
       'write-notes',
@@ -386,7 +386,7 @@ describe('readSkillBundleFiles', () => {
     expect(await readSkillBundleFiles('acme', 'missing')).toBeNull();
   });
 
-  it('refuses a symlink inside the bundle instead of skipping it', async () => {
+  it('refuses a symlink inside the bundle instead of skipping it [SKILL-R15]', async () => {
     await seedSkill(
       'acme',
       'linked',
@@ -523,7 +523,7 @@ describe('writeSkillBundleFiles', () => {
     expect(await listSkillSlugs('acme')).toEqual(['invoice-audit']);
   });
 
-  it('snapshots the superseded SKILL.md into the history trail', async () => {
+  it('snapshots the superseded SKILL.md into the history trail [SKILL-R13]', async () => {
     await writeSkillBundleFiles('acme', 'invoice-audit', [
       { path: 'SKILL.md', content: Buffer.from(md('First.'), 'utf-8') },
     ]);

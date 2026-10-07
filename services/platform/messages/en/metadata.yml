@@ -1,0 +1,184 @@
+suffix: Tale
+default:
+  title: The Orchestration Layer for AI Agents
+  description: Local AI models, agents, skills, and automations — on your own
+    infrastructure, connected to your data
+keywords: sovereign AI, local AI, self-hosted AI platform, AI agents, AI
+  automations, on-premises AI, data sovereignty, private infrastructure, AI
+  skills, local language models, enterprise AI, data privacy, agentic AI,
+  workflow automation
+chat:
+  title: Chat
+  description: Chat with AI to get help with your tasks.
+notFound:
+  title: Page not found
+  description: The page you're looking for doesn't exist or may have been moved.
+conversations:
+  title: Conversations
+  description: View and manage contact conversations.
+automations:
+  title: Automations
+  description: Every automation in the organization — its versions, its runs,
+    and the version that is live.
+automation:
+  title: Automation
+  description: View and edit the automation's document.
+automationConfiguration:
+  title: Automation configuration
+  description: Configure automation settings.
+automationRuns:
+  title: Automation runs
+  description: View the automation's run history.
+documents:
+  title: Documents
+  description: Manage your knowledge base documents.
+products:
+  title: Products
+  description: Manage your product catalog.
+contacts:
+  title: Contacts
+  description: Manage your contact database.
+projects:
+  title: Projects
+  description: Shared workspaces for files, instructions, and chats.
+project:
+  title: Project
+  description: A shared workspace for files, instructions, and chats.
+task:
+  title: Task
+  description: A piece of work with an owner, a status, and its discussion.
+home:
+  title: Home
+  description: Your chats, tasks, and inbox conversations in one place.
+websites:
+  title: Websites
+  description: Manage websites for knowledge extraction.
+knowledgeEntries:
+  title: Knowledge entries
+  description: Manage user-contributed knowledge entries.
+settings:
+  title: Settings
+  description: Manage your account and organization settings.
+account:
+  title: Account
+  description: Manage your account settings.
+personalization:
+  title: Personalization
+  description: Standing instructions the chat assistant follows for you.
+notificationPreferences:
+  title: Notifications
+  description: Choose which events send you a notification.
+usage:
+  title: Usage
+  description: How much you have used of the limits that apply to you.
+organization:
+  title: Organization
+  description: Manage your organization settings.
+teams:
+  title: Teams
+  description: Manage teams within your organization.
+members:
+  title: Members
+  description: Manage the members of your organization.
+people:
+  title: People
+  description: Manage members and teams in your organization.
+agents:
+  title: Agents
+  description: Create and manage AI agents for contact support.
+connectors:
+  title: Connectors
+  description: Connect third-party services.
+providers:
+  title: AI providers
+  description: Provider connectors, credentials, and model catalogs.
+skills:
+  title: Skills
+  description: Reusable instruction bundles for agents.
+logs:
+  title: Logs
+  description: View system logs and activity.
+branding:
+  title: Branding
+  description: Customize your organization branding.
+createOrganization:
+  title: Create organization
+  description: Create a new organization.
+changelog:
+  title: What's new
+  description: Release notes for recent Tale updates.
+login:
+  title: Log in
+  description: Log in to your Tale account.
+signup:
+  title: Sign up
+  description: Create a new Tale account.
+apiDocs:
+  title: API documentation
+  description: Explore the Tale API with interactive documentation.
+convexDashboard:
+  title: Convex Dashboard
+  description: Manage the Convex backend.
+knowledge:
+  title: Knowledge
+  description: Manage your knowledge base for AI agents.
+agent:
+  title: Agent
+  description: Configure and test your AI agent.
+agentSettings:
+  title: Agent settings
+  description: Configure agent general settings.
+agentInstructions:
+  title: Instructions
+  description: Configure agent instructions and model settings.
+agentKnowledge:
+  title: Agent knowledge
+  description: Manage knowledge base access for your agent.
+agentTools:
+  title: Agent tools
+  description: Select and configure tools available to your agent.
+agentWebhook:
+  title: Agent webhooks
+  description: Manage webhook URLs for your agent.
+agentDelegation:
+  title: Agent delegation
+  description: Configure agent delegation to other agents.
+automationTriggers:
+  title: Triggers
+  description: Manage automation triggers, schedules, and webhooks.
+apiKeys:
+  title: API keys
+  description: Create and manage API keys for connectors.
+dataResidency:
+  title: Data residency
+  description: Where your data is stored and processed.
+governance:
+  title: Governance
+  description: Manage governance policies and system prompts.
+metrics:
+  title: Metrics
+  description: Organization-wide metrics for usage, feedback, automations, and projects.
+shared-chat:
+  title: Shared chat
+  description: View a shared chat conversation.
+webdav:
+  title: WebDAV
+  description: Mount Tale documents as a network drive.
+mcp:
+  title: MCP
+  description: Connect MCP clients to this workspace over MCP.
+modelEndpoints:
+  title: Model endpoints
+  description: Call the organization's models from your own tools over OpenAI- and Anthropic-compatible endpoints.
+sandboxes:
+  title: Sandboxes
+  description: Manage your organization's remote sandboxes.
+enterpriseSso:
+  title: Enterprise SSO
+  description: Configure single sign-on and SCIM provisioning.
+workflow:
+  title: Automation
+  description: View and edit automation.
+workflowConfiguration:
+  title: Automation configuration
+  description: Configure automation settings.

@@ -22,14 +22,14 @@ function orgInitial(displayName: string): string {
 }
 
 function useProtocolLabel(protocol: string): string {
-  const { t } = useT('settings');
+  const { t } = useT('auth');
   switch (protocol) {
     case 'saml':
-      return t('enterpriseSso.protocol.saml');
+      return t('sso.protocol.saml');
     case 'oauth2':
-      return t('enterpriseSso.protocol.oauth2');
+      return t('sso.protocol.oauth2');
     default:
-      return t('enterpriseSso.protocol.oidc');
+      return t('sso.protocol.oidc');
   }
 }
 

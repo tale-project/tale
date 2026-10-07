@@ -1,4 +1,4 @@
-import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';

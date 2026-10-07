@@ -59,7 +59,7 @@ Si tu confies à quelqu’un d’autre, une personne ou un agent, une tâche qui
 
 Une dépendance appartient à la tâche qu’elle bloque : un Membre n’enregistre donc de dépendances que pour ses propres tâches, sous **Bloqué par** sur l’une de ses tâches, ou sous **Bloque** sur toute tâche qu’il peut ouvrir, en choisissant l’une de ses tâches comme tâche bloquée. Les paramètres, les agents, les fichiers et le catalogue d’étiquettes du projet restent réservés aux Éditeurs et aux rôles supérieurs ; un Membre choisit parmi les étiquettes que le projet possède déjà. Seuls les propriétaires et les admins peuvent supprimer une tâche ; les autres personnes qui peuvent la modifier l’archivent à la place.
 
-Les automatisations suivent une règle plus stricte, car une automatisation agit en son propre nom, avec les identifiants de connecteurs de l’organisation, et non au nom de la personne qui la démarre. Un Membre ne peut confier une tâche qu’à une automatisation conçue pour les tâches, c’est-à-dire l’une de celles listées sous **Automatisations** dans **Assigné à**, ou à l’automatisation à laquelle la tâche appartient déjà. Ce sont aussi les seules qu’il peut démarrer ou auxquelles il peut demander des modifications. Toutes les autres restent réservées aux Éditeurs et aux rôles supérieurs.
+Les automatisations suivent une règle plus stricte, car une automatisation agit en son propre nom, avec les identifiants de connectors de l’organisation, et non au nom de la personne qui la démarre. Un Membre ne peut confier une tâche qu’à une automatisation conçue pour les tâches, c’est-à-dire l’une de celles listées sous **Automatisations** dans **Assigné à**, ou à l’automatisation à laquelle la tâche appartient déjà. Ce sont aussi les seules qu’il peut démarrer ou auxquelles il peut demander des modifications. Toutes les autres restent réservées aux Éditeurs et aux rôles supérieurs.
 
 ### Exécutions démarrées par un Membre
 
@@ -67,7 +67,7 @@ Une exécution démarrée par une personne qui ne peut pas modifier le projet, p
 
 - Ses outils de plateforme ne modifient que cette tâche et ses sous-tâches : l’agent ne crée de nouvelles tâches que comme sous-tâches de celle-ci, n’utilise que des étiquettes que le projet possède déjà et ne peut pas synchroniser dans le projet des éléments venant d’autres systèmes.
 - Elle ne peut pas enregistrer de documents dans le projet. Les fichiers produits arrivent quand même sur la tâche, sous **Fichiers produits**.
-- L’exécution ne reçoit ni les **Secrets** de l’agent ni le jeton d’un accès GitHub équipé. L’agent apprend quels identifiants ont été retenus et doit le signaler dans son compte rendu si le travail en a besoin ; un Éditeur ou un rôle supérieur doit alors le démarrer. Les connecteurs équipés sur l’agent continuent de fonctionner, au nom de la personne qui a démarré l’exécution.
+- L’exécution ne reçoit ni les **Secrets** de l’agent ni le jeton d’un accès GitHub équipé. L’agent apprend quels identifiants ont été retenus et doit le signaler dans son compte rendu si le travail en a besoin ; un Éditeur ou un rôle supérieur doit alors le démarrer. Les connectors équipés sur l’agent continuent de fonctionner, au nom de la personne qui a démarré l’exécution.
 - Elle travaille dans son propre espace de travail, conservé pour les exécutions de cette personne avec cet agent : les fichiers des exécutions que des Éditeurs ont démarrées n’y sont pas, et ce que cette exécution laisse ne parvient jamais à celles-ci. Les exécutions suivantes de la même personne avec cet agent le retrouvent, jusqu’à ce que Tale le supprime : quand la personne quitte l’organisation ou que l’agent est supprimé, ou dès qu’aucune exécution ne l’a utilisé pendant le nombre de jours fixé par l’organisation sous [**Jours sans utilisation**](/fr/platform/admin/sandboxes#delete-unused-workspaces-automatically).
 
 L’exécution peut toujours lire les tâches et les connaissances du projet, et elle garde ces limites même si un Éditeur la guide ensuite. Une exécution qu’un Éditeur ou un rôle supérieur démarre dispose, sur toute tâche, de l’équipement complet de l’agent. Le commentaire d’un Membre peut changer cela : si l’environnement de l’agent redémarre pour prendre en compte le commentaire, comme le font [tous les environnements sauf Claude Code](/fr/platform/agents/harnesses), la suite de l’exécution compte comme celle du Membre, avec les mêmes limites pour ses outils et ses identifiants.
@@ -122,6 +122,12 @@ Modifie **Statut** dans les détails de la tâche ou déplace sa carte vers une 
 | **Annulé** | Travail abandonné. |
 
 Pour une tâche d’agent, changer de statut peut démarrer ou annuler une exécution. Lis l’indication de l’action avant de déplacer la carte. Un agent remet son résultat à **En revue** ; il ne peut pas le marquer lui-même **Terminé**.
+
+### Suivre le processus d'une source connectée
+
+Une tâche dont la source connectée gère le processus métier peut afficher **Processus de la source** dans ses détails. Choisis l'action de la source, complète ses champs et sélectionne **Envoyer la demande**. La source vérifie ton identité, ton rôle et les règles de transition avant de mettre la tâche à jour. Saisis la note de vérification, la preuve de clôture ou le motif de réouverture requis dans ce formulaire ; une colonne du board ne peut ni porter ces informations ni distinguer deux étapes de source qui apparaissent toutes deux comme **En revue**.
+
+Pendant la validation, la tâche affiche l'état en attente et empêche une seconde demande. Le résultat accepté ou le motif du refus reste visible après rechargement. Un refus conserve l'état accepté par la source ; lis l'explication avant de demander une autre action. Une source peut proposer une réouverture soumise à ses règles pour un enregistrement archivé. Ces actions exigent un compte vérifié et actif, ainsi que le droit de travailler sur la tâche.
 
 ## Garder les décisions avec le travail
 

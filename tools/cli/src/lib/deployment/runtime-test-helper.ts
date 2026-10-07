@@ -1,6 +1,13 @@
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +24,7 @@ import {
   type ComposeDocument,
   type RuntimeDependencies,
 } from './runtime-model';
+import { SOURCE_MIGRATION_ROOTS } from './source-migrations';
 
 export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'tale-managed-runtime-'));
@@ -117,6 +125,15 @@ export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
     '}\n{$DOCS_ORIGIN:https://docs.localhost} {\n respond "docs"\n}\n{$SITE_ORIGIN:https://localhost} {\n # TLS_PLACEHOLDER\n # BACKEND_PLACEHOLDER\n reverse_proxy platform:3000\n}\n';
   writeFileSync(join(repoRoot, 'compose.yml'), stringify(source));
   writeFileSync(join(repoRoot, 'services/proxy/Caddyfile'), caddy);
+  for (const file of [
+    'services/platform/backend/db/migrations/0001_initial.sql',
+    'services/platform/backend/db/migrations/0002_data.ts',
+    'services/db/migrations/knowledge-db/private_knowledge/00000000000001_initial.sql',
+    'services/db/migrations/knowledge-db/public_web/00000000000002_initial.sql',
+  ]) {
+    mkdirSync(join(repoRoot, file, '..'), { recursive: true });
+    writeFileSync(join(repoRoot, file), '// source inventory fixture\n');
+  }
   const git = (...args: string[]) =>
     execFileSync('git', ['-C', repoRoot, ...args], {
       env: {
@@ -157,6 +174,11 @@ export type RuntimeFixture = ReturnType<typeof runtimeFixture>;
 export const REPOSITORY_RUNTIME_SOURCE = [
   'compose.yml',
   'services/proxy/Caddyfile',
+  ...SOURCE_MIGRATION_ROOTS.flatMap((root) =>
+    readdirSync(
+      fileURLToPath(new URL(`../../../../../${root}`, import.meta.url)),
+    ).map((name) => `${root}${name}`),
+  ),
 ] as const;
 
 /**
@@ -164,6 +186,10 @@ export const REPOSITORY_RUNTIME_SOURCE = [
  * release commit carries it: LF, whatever a Windows checkout made of it.
  */
 export function commitRepositorySource(fixture: RuntimeFixture): void {
+  for (const root of SOURCE_MIGRATION_ROOTS) {
+    rmSync(join(fixture.repoRoot, root), { recursive: true, force: true });
+    mkdirSync(join(fixture.repoRoot, root), { recursive: true });
+  }
   for (const file of REPOSITORY_RUNTIME_SOURCE)
     writeFileSync(
       join(fixture.repoRoot, file),

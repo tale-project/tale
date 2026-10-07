@@ -1187,28 +1187,45 @@ describe('staggered refreshes and the hand-out floor', () => {
   it('never refreshes two accounts refreshed together in one pass, over a month of passes', async () => {
     await alignedPool();
     const gateway = service();
-    const refreshedAt: Record<string, string[]> = { early: [], late: [] };
+    const refreshedAt: Record<'early' | 'late', Set<string>> = {
+      early: new Set(),
+      late: new Set(),
+    };
+    const updateAccount = store.updateAccount.bind(store);
+    // Observe the real store's writes rather than cloning both rows again
+    // after every pass. Usage writes keep their refresh time unchanged.
+    store.updateAccount = async (id, change) => {
+      let refreshed: string | null = null;
+      const updated = await updateAccount(id, (row) => {
+        const before = row.lastRefreshedAt;
+        change(row);
+        const at = row.lastRefreshedAt;
+        if (at && at !== ISSUED && at !== before) {
+          refreshed = at;
+        }
+      });
+      if (refreshed && (id === 'early' || id === 'late')) {
+        refreshedAt[id].add(refreshed);
+      }
+      return updated;
+    };
     // A background pass every five minutes for thirty days, each refresh
     // handing out a fresh eight-hour token. Cycles of different lengths
     // meet now and then; the spacing keeps them in different passes.
+    let passes = 0;
     for (let at = Date.parse(ISSUED); at < Date.parse(ISSUED) + 720 * HOUR;) {
       at += 5 * 60 * 1000;
       now = new Date(at);
       anthropic.refreshedExpiresAt = new Date(at + 8 * HOUR).toISOString();
       await gateway.refreshAll();
-      for (const id of ['early', 'late']) {
-        const stored = await store.getAccount(id);
-        const last = stored?.lastRefreshedAt ?? '';
-        if (last !== ISSUED && !refreshedAt[id]?.includes(last)) {
-          refreshedAt[id]?.push(last);
-        }
-      }
+      passes += 1;
     }
-    expect(refreshedAt.early?.length).toBeGreaterThan(50);
-    expect(refreshedAt.late?.length).toBeGreaterThan(50);
+    expect(passes).toBe(8640);
+    expect(refreshedAt.early.size).toBeGreaterThan(50);
+    expect(refreshedAt.late.size).toBeGreaterThan(50);
     // No pass refreshed both: one refresh never cuts the runs of the pool.
-    const both = refreshedAt.early?.filter((at) =>
-      refreshedAt.late?.includes(at),
+    const both = [...refreshedAt.early].filter((at) =>
+      refreshedAt.late.has(at),
     );
     expect(both).toEqual([]);
   });

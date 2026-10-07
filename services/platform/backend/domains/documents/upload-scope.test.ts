@@ -87,7 +87,7 @@ function database(options: {
   return { tx, statements };
 }
 
-describe('document upload scope admission', () => {
+describe('document upload scope admission [DOC-R10]', () => {
   it.each([
     [null, 'p-1'],
     ['p-1', undefined],

@@ -2,10 +2,8 @@ import { PROJECT_ICONS } from '@tale/shared/schemas/projects';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import deMessages from '@/messages/de.yml';
-import enMessages from '@/messages/en.yml';
-import frMessages from '@/messages/fr.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 import { render, screen, within } from '@/tests/utils/render';
 
 import {

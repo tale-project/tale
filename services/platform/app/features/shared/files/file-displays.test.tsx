@@ -24,12 +24,16 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
 // These are composition tests of the chips' wiring — which chip opens the
 // dialog and with what identity — so stub it down to a queryable marker.
 const previewDialogProps: Array<{ fileId?: string; fileName?: string }> = [];
-vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({
-  DocumentPreviewDialog: (props: { fileId?: string; fileName?: string }) => {
-    previewDialogProps.push(props);
-    return <div role="dialog">{props.fileName}</div>;
-  },
-}));
+vi.mock(
+  '@/app/features/documents/components/document-preview-dialog-lazy',
+  () => ({
+    DocumentPreviewDialog: (props: { fileId?: string; fileName?: string }) => {
+      previewDialogProps.push(props);
+      return <div role="dialog">{props.fileName}</div>;
+    },
+    warmDocumentPreviewDialog: () => {},
+  }),
+);
 
 import { FileAttachmentDisplay } from './file-displays';
 

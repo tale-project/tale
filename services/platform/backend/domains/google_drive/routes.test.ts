@@ -78,7 +78,7 @@ describe('Google Drive routes under a spent org budget', () => {
       'external:google-drive-read',
     ],
   ] as const)(
-    '%s charges its own bucket and answers 429 with Retry-After',
+    '%s charges its own bucket and answers 429 with Retry-After [GDRIVE-R8]',
     async (route, body, rule) => {
       const res = await post(route, body);
 

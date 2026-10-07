@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root';
+import { Route as UiRouteImport } from './routes/ui';
 import { Route as RequestDemoRouteImport } from './routes/request-demo';
 import { Route as PricingRouteImport } from './routes/pricing';
 import { Route as HardwarePricingRouteImport } from './routes/hardware-pricing';
@@ -30,6 +31,7 @@ import { Route as PlatformAutomationsRouteImport } from './routes/platform/autom
 import { Route as PlatformAgentsRouteImport } from './routes/platform/agents';
 import { Route as LegalSlugRouteImport } from './routes/legal/$slug';
 import { Route as CompareSlugRouteImport } from './routes/compare/$slug';
+import { Route as LangUiRouteImport } from './routes/$lang/ui';
 import { Route as LangRequestDemoRouteImport } from './routes/$lang/request-demo';
 import { Route as LangPricingRouteImport } from './routes/$lang/pricing';
 import { Route as LangHardwarePricingRouteImport } from './routes/$lang/hardware-pricing';
@@ -49,6 +51,11 @@ import { Route as LangPlatformAgentsRouteImport } from './routes/$lang/platform/
 import { Route as LangLegalSlugRouteImport } from './routes/$lang/legal/$slug';
 import { Route as LangCompareSlugRouteImport } from './routes/$lang/compare/$slug';
 
+const UiRoute = UiRouteImport.update({
+  id: '/ui',
+  path: '/ui',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const RequestDemoRoute = RequestDemoRouteImport.update({
   id: '/request-demo',
   path: '/request-demo',
@@ -154,6 +161,11 @@ const CompareSlugRoute = CompareSlugRouteImport.update({
   path: '/compare/$slug',
   getParentRoute: () => rootRouteImport,
 } as any);
+const LangUiRoute = LangUiRouteImport.update({
+  id: '/ui',
+  path: '/ui',
+  getParentRoute: () => LangRoute,
+} as any);
 const LangRequestDemoRoute = LangRequestDemoRouteImport.update({
   id: '/request-demo',
   path: '/request-demo',
@@ -254,12 +266,14 @@ export interface FileRoutesByFullPath {
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/ui': typeof UiRoute;
   '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/$lang/ui': typeof LangUiRoute;
   '/compare/$slug': typeof CompareSlugRoute;
   '/legal/$slug': typeof LegalSlugRoute;
   '/platform/agents': typeof PlatformAgentsRoute;
@@ -294,12 +308,14 @@ export interface FileRoutesByTo {
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/ui': typeof UiRoute;
   '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/$lang/ui': typeof LangUiRoute;
   '/compare/$slug': typeof CompareSlugRoute;
   '/legal/$slug': typeof LegalSlugRoute;
   '/platform/agents': typeof PlatformAgentsRoute;
@@ -336,12 +352,14 @@ export interface FileRoutesById {
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/ui': typeof UiRoute;
   '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/$lang/ui': typeof LangUiRoute;
   '/compare/$slug': typeof CompareSlugRoute;
   '/legal/$slug': typeof LegalSlugRoute;
   '/platform/agents': typeof PlatformAgentsRoute;
@@ -379,12 +397,14 @@ export interface FileRouteTypes {
     | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
+    | '/ui'
     | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
+    | '/$lang/ui'
     | '/compare/$slug'
     | '/legal/$slug'
     | '/platform/agents'
@@ -419,12 +439,14 @@ export interface FileRouteTypes {
     | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
+    | '/ui'
     | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
+    | '/$lang/ui'
     | '/compare/$slug'
     | '/legal/$slug'
     | '/platform/agents'
@@ -460,12 +482,14 @@ export interface FileRouteTypes {
     | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
+    | '/ui'
     | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
+    | '/$lang/ui'
     | '/compare/$slug'
     | '/legal/$slug'
     | '/platform/agents'
@@ -502,6 +526,7 @@ export interface RootRouteChildren {
   HardwarePricingRoute: typeof HardwarePricingRoute;
   PricingRoute: typeof PricingRoute;
   RequestDemoRoute: typeof RequestDemoRoute;
+  UiRoute: typeof UiRoute;
   CompareSlugRoute: typeof CompareSlugRoute;
   LegalSlugRoute: typeof LegalSlugRoute;
   PlatformAgentsRoute: typeof PlatformAgentsRoute;
@@ -518,6 +543,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/ui': {
+      id: '/ui';
+      path: '/ui';
+      fullPath: '/ui';
+      preLoaderRoute: typeof UiRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/request-demo': {
       id: '/request-demo';
       path: '/request-demo';
@@ -665,6 +697,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompareSlugRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/$lang/ui': {
+      id: '/$lang/ui';
+      path: '/ui';
+      fullPath: '/$lang/ui';
+      preLoaderRoute: typeof LangUiRouteImport;
+      parentRoute: typeof LangRoute;
+    };
     '/$lang/request-demo': {
       id: '/$lang/request-demo';
       path: '/request-demo';
@@ -801,6 +840,7 @@ interface LangRouteChildren {
   LangHardwarePricingRoute: typeof LangHardwarePricingRoute;
   LangPricingRoute: typeof LangPricingRoute;
   LangRequestDemoRoute: typeof LangRequestDemoRoute;
+  LangUiRoute: typeof LangUiRoute;
   LangIndexRoute: typeof LangIndexRoute;
   LangCompareSlugRoute: typeof LangCompareSlugRoute;
   LangLegalSlugRoute: typeof LangLegalSlugRoute;
@@ -823,6 +863,7 @@ const LangRouteChildren: LangRouteChildren = {
   LangHardwarePricingRoute: LangHardwarePricingRoute,
   LangPricingRoute: LangPricingRoute,
   LangRequestDemoRoute: LangRequestDemoRoute,
+  LangUiRoute: LangUiRoute,
   LangIndexRoute: LangIndexRoute,
   LangCompareSlugRoute: LangCompareSlugRoute,
   LangLegalSlugRoute: LangLegalSlugRoute,
@@ -849,6 +890,7 @@ const rootRouteChildren: RootRouteChildren = {
   HardwarePricingRoute: HardwarePricingRoute,
   PricingRoute: PricingRoute,
   RequestDemoRoute: RequestDemoRoute,
+  UiRoute: UiRoute,
   CompareSlugRoute: CompareSlugRoute,
   LegalSlugRoute: LegalSlugRoute,
   PlatformAgentsRoute: PlatformAgentsRoute,

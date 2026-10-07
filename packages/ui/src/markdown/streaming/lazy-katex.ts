@@ -6,7 +6,7 @@ type RehypePlugin = NonNullable<MarkdownOptions['rehypePlugins']>[number];
 /**
  * `rehype-katex` and its stylesheet, loaded the first time a reply may hold
  * math. KaTeX is 85 KB gzip, and the streaming renderer sits in every chat,
- * so it was part of every cold load, the sign-in page's included (#4089),
+ * so it was part of every cold load, the sign-in page's included,
  * for the few replies that carry `$…$`. Until it arrives, `remark-math`'s
  * nodes render as their TeX; then every renderer that asked re-renders with
  * KaTeX, a reply streaming in at that moment included.

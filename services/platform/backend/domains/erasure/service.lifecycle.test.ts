@@ -132,7 +132,7 @@ afterEach(() => {
 });
 
 describe('retryErasure', () => {
-  it('parks a receipt blocked at filing for the second admin under dual approval — no processor enqueued', async () => {
+  it('parks a receipt blocked at filing for the second admin under dual approval — no processor enqueued [ERASE-R3]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
       requireDualApproval: true,
@@ -190,7 +190,7 @@ describe('retryErasure', () => {
     );
   });
 
-  it('re-schedules a receipt blocked at filing behind the cooling-off window', async () => {
+  it('re-schedules a receipt blocked at filing behind the cooling-off window [ERASE-R3]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
       requireDualApproval: false,
@@ -233,7 +233,7 @@ describe('retryErasure', () => {
     ).toBe(false);
   });
 
-  it('re-runs a partial receipt immediately without re-reading the policy', async () => {
+  it('re-runs a partial receipt immediately without re-reading the policy [ERASE-R4]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const fake = fakeSql((text) => {
       if (text.startsWith('SELECT target_user_id'))
@@ -261,7 +261,7 @@ describe('retryErasure', () => {
     );
   });
 
-  it('keeps the fast re-run for a receipt blocked at execution time (schedule stamp present)', async () => {
+  it('keeps the fast re-run for a receipt blocked at execution time (schedule stamp present) [ERASE-R4]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const fake = fakeSql((text) => {
       if (text.startsWith('SELECT target_user_id'))
@@ -284,7 +284,7 @@ describe('retryErasure', () => {
     expect(addJobInTx).toHaveBeenCalledTimes(1);
   });
 
-  it('re-arms with a status compare-and-set — a receipt that settled meanwhile is not enqueued', async () => {
+  it('re-arms with a status compare-and-set — a receipt that settled meanwhile is not enqueued [ERASE-R4]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const fake = fakeSql((text) => {
       if (text.startsWith('SELECT target_user_id'))
@@ -313,7 +313,7 @@ describe('retryErasure', () => {
 });
 
 describe('processErasure', () => {
-  it('audits and hints an execution-time hold block, and clears the start stamp', async () => {
+  it('audits and hints an execution-time hold block, and clears the start stamp [ERASE-R1]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue({
       orgHeld: false,
       userMembershipIds: new Set(['subject']),
@@ -369,7 +369,7 @@ describe('processErasure', () => {
     );
   });
 
-  it('pseudonymises the project-agent runs the subject started and counts the pass on the receipt', async () => {
+  it('pseudonymises the project-agent runs the subject started and counts the pass on the receipt [ERASE-R5]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const fake = fakeSql((text) => {
       if (
@@ -415,7 +415,7 @@ describe('processErasure', () => {
    * store prefixed its starter; the pass used to match only the two
    * prefixed forms and left those runs behind.
    */
-  it('deletes the automation runs the subject started under every starter marker', async () => {
+  it('deletes the automation runs the subject started under every starter marker [ERASE-R5]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const fake = fakeSql((text) => {
       if (
@@ -463,7 +463,7 @@ describe('processErasure', () => {
    * for the settlement — deleting it would orphan the key and drop the spend
    * from the organization's usage — and loses the identity instead.
    */
-  it('deletes the settled model-endpoint request rows of the subject and pseudonymises the ones in flight', async () => {
+  it('deletes the settled model-endpoint request rows of the subject and pseudonymises the ones in flight [ERASE-R5]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const fake = fakeSql((text) => {
       if (
@@ -527,7 +527,7 @@ describe('processErasure', () => {
     expect(settle?.values[2]).toMatchObject({ modelApiRequests: 3 });
   });
 
-  it('holds the model-endpoint requests pass off like any other while a hold binds the subject', async () => {
+  it('holds the model-endpoint requests pass off like any other while a hold binds the subject [ERASE-R1]', async () => {
     // The first hold read (the cascade's gate) passes; every per-pass
     // re-read finds the subject held, so no pass touches a row.
     vi.mocked(loadActiveHolds)
@@ -567,7 +567,7 @@ describe('processErasure', () => {
  * subject excluded, and only what still names the subject afterwards is
  * pseudonymized.
  */
-describe('processErasure — the review pass', () => {
+describe('processErasure — the review pass [ERASE-R6]', () => {
   it('hands a waiting review on through the cleared chain, then pseudonymizes what still names the subject', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const task = {
@@ -737,7 +737,7 @@ describe('processErasure — the review pass', () => {
  * whose card nobody sees, and a hand-over that throws — which must hold
  * back neither the designation's clear nor the pseudonym.
  */
-describe('processErasure — the review pass, off the plain path', () => {
+describe('processErasure — the review pass, off the plain path [ERASE-R6]', () => {
   /** `task-1` is designated to the subject and its review waits on them. */
   function reviewPassSql() {
     return fakeSql((text, values) => {
@@ -855,7 +855,7 @@ describe('processErasure — the review pass, off the plain path', () => {
   });
 });
 
-describe('requestErasure — the hold gate at filing', () => {
+describe('requestErasure — the hold gate at filing [ERASE-R1]', () => {
   it('files a durable blocked receipt that records the org-wide hold', async () => {
     vi.mocked(checkOrganizationRateLimit).mockResolvedValue(undefined as never);
     vi.mocked(loadActiveHolds).mockResolvedValue({
@@ -891,7 +891,7 @@ describe('requestErasure — the hold gate at filing', () => {
   });
 });
 
-describe('getErasureRequest — the blocked receipt re-checks the hold', () => {
+describe('getErasureRequest — the blocked receipt re-checks the hold [ERASE-R2]', () => {
   const blockedRow = (error: string) => ({
     id: 'req-1',
     targetUserId: 'subject',
@@ -968,7 +968,7 @@ describe('getErasureRequest — the blocked receipt re-checks the hold', () => {
   });
 });
 
-describe('requestErasure — the limiter', () => {
+describe('requestErasure — the limiter [ERASE-R8]', () => {
   const args = {
     organizationId: 'org_1',
     actorId: 'admin-1',

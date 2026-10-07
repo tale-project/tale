@@ -5,7 +5,7 @@
 The rules a task write is held to before anything is saved: who can create, change and delete
 a task, what an archived task or project refuses, how long its text can be, how often
 automations can start an agent on it, and what a deleted task leaves behind. Agent runs,
-reviews, repeating tasks and the importers are not covered; see Not yet.
+reviews beyond captured agent handoffs, repeating tasks and the importers are not covered; see Not yet.
 
 ## Who can do what
 
@@ -66,6 +66,8 @@ read-only for everyone.
 Editing its fields, moving it, assigning it, starting its agent, commenting on it and changing
 its dependencies are all refused (`TASK_ARCHIVED`), and nothing is saved. Three things still
 work: restoring it, deleting it, and stopping its running agent.
+An opted-in custom source form may record a guarded reopening request while the
+task stays archived; only the source's accepted projection changes its lifecycle.
 
 - **Example**: Mia archived her task last week. Today she posts a comment on it → refused, and
   no comment appears.
@@ -162,16 +164,137 @@ are deleted afterwards, except a file another task, document or file entry still
 - **Example**: A task is waiting for Noah's review. An admin deletes the task → the review
   leaves Noah's pending list and is recorded as rejected because the task was deleted.
 
+## Accepted custom source status
+
+### TASK-R14 · A source projection must match the task's exact custom reference
+
+The caller must be able to change the task in its active project. The explicit
+external-status API opts a custom task into source-validated lifecycle ownership.
+GitHub and GlitchTip issue imports keep their independent Tale triage and cannot
+use this lane. Source projection changes status and optional archival together;
+title, assignee, discussions and other task fields stay intact.
+
+- **Example**: A quality-system worker sends an accepted result for ticket 7 against
+  the Tale task linked to ticket 8 → refused, and neither task changes.
+
+### TASK-R15 · A source-approved result never claims a native Tale approval
+
+A source validates its own business transitions before projecting them, including
+Done. Tale records the result as external evidence. Leaving a pending human review
+withdraws it, without recording a human approval. A captured native agent review
+refuses projection until it is resolved or explicitly transferred. Entering In
+review through source projection requests no second review and starts no agent.
+The source owns recurrence; projecting completion creates no local repeat copy.
+
+- **Example**: Noah approved ticket 7 in the quality system. Its worker projects
+  Done → the card is Done with source evidence; Tale records no approval by Noah.
+
+### TASK-R16 · A source projection cannot overwrite a newer native lifecycle change
+
+Projection compares the task's lifecycle activity revision in the write
+transaction. Status changes, archives, restores and native source-form requests advance that revision; comments
+and unrelated edits do not. A lost-reply replay writes nothing while its receipt
+is still the latest lifecycle activity. A later native move, even back to the same
+column, must be read and validated at the source before projection can proceed.
+
+- **Example**: Mia moves ticket 7 after the worker reads it. The worker sends its
+  earlier revision → refused with `TASK_STATUS_CONFLICT`, and Mia's move remains.
+
+### TASK-R17 · Older source lifecycle observations cannot replace newer ones
+
+The source supplies a monotonically increasing lifecycle timestamp, including for
+archival changes. An older timestamp, or a different status or archival state at
+the same timestamp, is refused with `TASK_EXTERNAL_STATUS_STALE`. A new content
+revision at the same timestamp may refresh the receipt when lifecycle is unchanged.
+Routine intake refreshes leave the projected source lifecycle alone.
+
+- **Example**: A delayed scan sends ticket 7's open state from before its accepted
+  closure → refused, and the Done card stays Done.
+
+### TASK-R18 · Status readback relays an actor's email only while actively verified
+
+The snapshot carries the current status activity's immutable actor id and origin.
+Later archive or restore activities advance its lifecycle revision without replacing
+the status actor with the person who archived or restored it.
+Its email is present only for an active, verified member of the task's organization.
+An agent, removed or disabled member, or unverified account supplies no address
+that a business system could accept as an authenticated human request.
+
+- **Example**: Mia's account is disabled after her board move. The worker reads
+  its actor → Mia's id remains, but no email can be relayed as a verified request.
+
+### TASK-R19 · Source forms record a verified person's complete intent
+
+The exact custom source declares actions using the maintained field controls.
+Only a native authenticated, active, verified member with task work permission
+can submit; neither a key nor the request body chooses their identity. Declared
+required fields, types, choices and safe patterns are validated before saving.
+The form compares both the native revision and its accepted source revision.
+A request records intent and evidence, even when both stages map to In review;
+it does not change status or approve a review. The source validates all business
+guards and may explain a refusal. A native captured agent review stays protected.
+
+- **Example**: Mia submits a first-verification result with its note. Both stages
+  map to In review → one immutable request reaches the source with Mia's actual
+  session identity and the note; the column changes only after source validation.
+
+### TASK-R20 · A source request and its decision survive replay exactly once
+
+Each submission has an immutable id, body, source binding, actor and activity
+revision. An identical lost-response retry returns the current snapshot; changed
+input under the same id conflicts. Only one request may await validation. Each
+source decision belongs to its exact request and cannot later be contradicted.
+An older accepted fact may be acknowledged under a fresh native CAS after newer
+intent is reconciled; it never replaces or obsoletes a newer visible request.
+
+- **Example**: The source accepts Mia's first verification but its reply is lost.
+  Mia retries → the same decision returns; a later delayed reply cannot replace
+  her newer pending closure request or submit either transition again.
+
+## Captured agent review handoffs
+
+### TASK-R21 · A granted manager delegates only the exact captured agent gate
+
+The live manager needs an explicit project-only routing grant and project-wide
+starter authority, and is never the captured source's implementation agent.
+The recipient must already be an eligible independent agent of the same
+project, distinct from the manager and implementation agent. The captured
+approval, source run, reviewer and evidence must still match. A task of another
+project, human or workflow gates, live work, archived tasks and policy failures
+are refused. The task's implementation owner, status, source, future reviewer
+configuration and permissions stay unchanged. The handoff starts no run.
+
+- **Example**: A manager moves an agent review to an available qualified reviewer
+  → one successor approval preserves the source and task owner; the old approval
+  records its successor and a receipt attributed to the manager agent.
+- **Example**: A verdict wins while a manager holds the old review identity
+  → delegation is refused and no successor gate appears.
+- **Example**: The implementation agent also holds the routing grant and names a
+  reviewer it picked for its own work → refused with
+  `TASK_REVIEWER_NOT_INDEPENDENT`, and the captured reviewer keeps the gate.
+
+### TASK-R22 · A handoff receipt cannot replay a changed review
+
+An identical retry needs the same still-authorized live issuer, the unchanged
+pending successor and current source evidence. A newer handoff, decision or
+source edit refuses the old intent. The native task read exposes the validated
+historical handoff into its latest gate, separately from current pending ownership.
+
+- **Example**: A handoff reply is lost and the same manager retries immediately
+  → the same receipt returns without another approval or activity.
+- **Example**: The recipient decides before that retry → the old handoff refuses;
+  its historical receipt does not claim the review is still pending.
+
 ## Not yet
 
 - **Agent runs**: starting, steering, stopping, retrying and re-attaching a run, and how a run
   moves the card between statuses (`agent-runs.ts`, `run-start.ts`, `reattach.ts`,
   `kick-plan.ts`).
-- **Reviews**: who a review goes to, an agent as reviewer, and what a decision does to the task
+- **Reviews beyond `TASK-R21`–`TASK-R22`**: who a review goes to, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`).
 - **Repeating tasks, date notifications, metrics and board search** (`repeat.ts`,
   `date-notifications.ts`, `metrics.ts`).
-- **Imported and externally referenced tasks** beyond `TASK-R9` (`external-ref.ts`,
+- **Imported and externally referenced tasks** beyond `TASK-R9` and `TASK-R14`–`TASK-R20` (`external-ref.ts`,
   `import-cursors.ts`).
 - **Undecided: can a task with an old, over-long description still be edited?** Some tasks
   hold a description over 20,000, left by an import made before `TASK-R9`. The server checks

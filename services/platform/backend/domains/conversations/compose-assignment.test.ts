@@ -13,7 +13,7 @@ function fakeSql(rows: unknown[]): Sql {
   }) as unknown as Sql;
 }
 
-describe('resolveComposeAssignment', () => {
+describe('resolveComposeAssignment [CONV-R4]', () => {
   test('defaults the assignee to the actor', async () => {
     const result = await resolveComposeAssignment(fakeSql([]), {
       organizationId: 'org_1',

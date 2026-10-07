@@ -16,7 +16,7 @@ import {
 } from '../../../lib/shared/event-types.ts';
 import { assertTriggerValid, AutomationError } from './store.ts';
 
-describe('assertTriggerValid', () => {
+describe('assertTriggerValid [AUTO-R10]', () => {
   it('accepts a valid five-field cron', () => {
     expect(() =>
       assertTriggerValid({ kind: 'schedule', cron: '0 9 * * 1' }),

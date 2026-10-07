@@ -3,6 +3,7 @@ import {
   SiteFooter as SiteFooterShell,
 } from '@tale/marketing-ui/site-footer';
 import { TaleLogo } from '@tale/ui/logo';
+import { useSiteCopyright } from '@tale/ui/use-site-copyright';
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
@@ -60,6 +61,7 @@ function LegalLink({
  * sits in the bottom bar after the theme picker.
  */
 export function SiteFooter() {
+  const copyright = useSiteCopyright();
   const { t } = useT('footer');
   const { t: tNav } = useT('nav');
   const { t: tAddress } = useT('address');
@@ -83,6 +85,13 @@ export function SiteFooter() {
       links: [
         <MarketingExternalLink key="docs" href={DOCS_URL} tone="footer">
           {tNav('resource.docs.label')}
+        </MarketingExternalLink>,
+        <MarketingExternalLink
+          key="uiDocs"
+          href={EXTERNAL_LINKS.uiDocs}
+          tone="footer"
+        >
+          {t('taleUi')}
         </MarketingExternalLink>,
         ...(['comparisons', 'use-cases'] as const).flatMap((category) => {
           if (
@@ -194,7 +203,7 @@ export function SiteFooter() {
         </MarketingLink>
       }
       columns={columns}
-      copyrightLines={[t('copyright', { year: new Date().getFullYear() })]}
+      copyrightLines={[copyright]}
       bottomTrailing={<GithubLink label={t('githubAriaLabel')} />}
       llmsTxtUrl="/llms.txt"
       llmsTxtLabel={t('llmsTxtLabel')}

@@ -9,19 +9,18 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useRecurrenceFormat } from '@tale/ui/use-recurrence-format';
 import { Bot } from 'lucide-react';
-import { memo, useMemo } from 'react';
+import { Fragment, useCallback, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import {
-  ActorDirectoryProvider,
-  useActorDirectory,
-  useProvidedActorDirectory,
-  type ActorDirectory,
-} from '../hooks/use-actor-directory';
+  useTaskActorDirectory,
+  withTaskActorDirectory,
+} from '../hooks/task-actor-directory-context';
 import { useFirstFrameSlice } from '../hooks/use-first-frame-slice';
+import { TaskLogRow, useTaskLogWindow } from '../hooks/use-task-log-window';
 import {
   TASK_ACTIVITY_FIELD,
   TASK_ACTIVITY_LABEL_KEY,
@@ -51,8 +50,7 @@ function formatCents(cents: number): string {
 
 type TimelineItem = ReturnType<typeof mergeTaskTimeline>[number];
 
-/** How many history lines the opening frame renders; the rest follow in an
- *  interruptible background pass right after (see `TaskTimeline`). */
+/** How many history lines the opening frame renders before its background pass. */
 const FIRST_FRAME_LINES = 20;
 
 /** How much of a changed text a timeline line quotes. A description change
@@ -110,51 +108,34 @@ export function timelineItemKey(item: TimelineItem): string {
   return item.kind === 'agentRun' ? `run-${item.run.runId}` : item.entry._id;
 }
 
-interface TaskTimelineEntryProps {
-  item: TimelineItem;
-  runs: ReturnType<typeof useTaskAgentRuns>['runs'];
-  organizationId: string;
-  projectId: string;
-}
-
 /**
  * One line of a task's history: an agent run (who, how it went, how long,
  * what it cost) or an activity entry (who changed what, from → to). Rendered
  * as a quiet single line, so it reads as the event it is between comments.
- * Names come from the actor directory the timeline provides (a directory of
- * its own only outside one), and a line re-renders only when its props do.
  */
-export const TaskTimelineEntry = memo(function TaskTimelineEntry(
-  props: TaskTimelineEntryProps,
-) {
-  const provided = useProvidedActorDirectory(
-    props.organizationId,
-    props.projectId,
-  );
-  return provided !== undefined ? (
-    <TimelineEntryRow {...props} directory={provided} />
-  ) : (
-    <TimelineEntryWithOwnDirectory {...props} />
-  );
-});
+export const TaskTimelineEntry = withTaskActorDirectory(
+  TaskTimelineEntryContent,
+);
 
-function TimelineEntryWithOwnDirectory(props: TaskTimelineEntryProps) {
-  const directory = useActorDirectory(props.organizationId, props.projectId);
-  return <TimelineEntryRow {...props} directory={directory} />;
-}
-
-function TimelineEntryRow({
+function TaskTimelineEntryContent({
   item,
   runs,
-  directory: {
+  organizationId,
+  projectId,
+}: {
+  item: TimelineItem;
+  runs: ReturnType<typeof useTaskAgentRuns>['runs'];
+  organizationId: string;
+  projectId: string;
+}) {
+  const { t } = useT('tasks');
+  const {
     resolveActor,
     resolveAssigneeId,
     resolveActorPreview,
     resolveAgentRunPreview,
     resolveWorkflowRunPreview,
-  },
-}: TaskTimelineEntryProps & { directory: ActorDirectory }) {
-  const { t } = useT('tasks');
+  } = useTaskActorDirectory(organizationId, projectId);
   const { formatRelative, formatDate } = useFormatDate();
   const repeatLabel = useTaskRepeatLabel();
   const { never: repeatNever } = useRecurrenceFormat();
@@ -173,7 +154,7 @@ function TimelineEntryRow({
         ? resolveActor('agent', run.delegatedByAgentId).name
         : undefined;
     return (
-      <div className="flex items-start gap-2 text-sm">
+      <div className="flex items-start gap-2 text-sm [contain-intrinsic-block-size:auto_2rem] [content-visibility:auto]">
         <span
           className="bg-primary/10 text-primary mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full"
           aria-hidden
@@ -261,6 +242,7 @@ function TimelineEntryRow({
     if (field?.kind === 'repeat') return repeatNever;
     return field?.emptyKey ? t(field.emptyKey) : undefined;
   };
+  const historicalAgentIds = new Set(runs.map((run) => run.agentSlug));
   const formatActivityValue = (
     value: string | undefined,
   ): string | undefined => {
@@ -277,7 +259,10 @@ function TimelineEntryRow({
         return key ? t(key) : value;
       }
       case 'person':
-        return resolveAssigneeId(value);
+        return historicalAgentIds.has(value) &&
+          resolveAssigneeId(value) === value
+          ? t('timeline.deletedAgent')
+          : resolveAssigneeId(value);
       case 'reviewer': {
         // Legacy rows stored a bare user id; new rows preserve actor kind.
         let parsed: unknown;
@@ -330,8 +315,7 @@ function TimelineEntryRow({
         return key ? t(key) : value;
       }
       default:
-        // Titles, descriptions, label and file names, task keys: as stored,
-        // quoted to a line's length.
+        // Titles, descriptions, label and file names, task keys: as stored.
         return quoteActivityText(value);
     }
   };
@@ -343,7 +327,7 @@ function TimelineEntryRow({
   const detail = from && to ? `${from} → ${to}` : (to ?? from);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 [contain-intrinsic-block-size:auto_2rem] [content-visibility:auto]">
       <AssigneeAvatar
         assigneeType={entry.actorType}
         assigneeId={entry.actorId}
@@ -367,7 +351,9 @@ function TimelineEntryRow({
   );
 }
 
-export const TaskTimeline = memo(function TaskTimeline({
+export const TaskTimeline = withTaskActorDirectory(TaskTimelineContent);
+
+function TaskTimelineContent({
   taskId,
   organizationId,
   projectId,
@@ -378,14 +364,24 @@ export const TaskTimeline = memo(function TaskTimeline({
 }) {
   const { t } = useT('tasks');
   const { timeline, runs, totalCostCents } = useTaskTimeline(taskId);
-  const provided = useProvidedActorDirectory(organizationId, projectId);
   // The newest lines mount with the task, the older ones right after — a
   // long history sits below the comments, out of the opening screen.
   const shownTimeline = useFirstFrameSlice(timeline, FIRST_FRAME_LINES, taskId);
+  const getItemKey = useCallback(
+    (index: number) => timelineItemKey(shownTimeline[index]),
+    [shownTimeline],
+  );
+  const estimateSize = useCallback(() => 40, []);
+  const window = useTaskLogWindow({
+    count: shownTimeline.length,
+    getItemKey,
+    estimateSize,
+    gap: 12,
+  });
 
   if (timeline.length === 0) return null;
 
-  const section = (
+  return (
     <section>
       <Stack gap={2}>
         <div className="flex items-center justify-between gap-2">
@@ -400,32 +396,52 @@ export const TaskTimeline = memo(function TaskTimeline({
             </Text>
           )}
         </div>
-        <Stack as="ul" gap={3}>
-          {shownTimeline.map((item) => (
-            <li key={timelineItemKey(item)}>
-              <TaskTimelineEntry
-                item={item}
-                runs={runs}
-                organizationId={organizationId}
-                projectId={projectId}
-              />
-            </li>
+        <Stack as="ul" ref={window.listRef} gap={0}>
+          {window.items.map((row) => (
+            <Fragment key={row.key}>
+              {row.paddingBefore > 0 && (
+                <li
+                  aria-hidden
+                  role="presentation"
+                  style={{ height: row.paddingBefore, flexShrink: 0 }}
+                />
+              )}
+              <li
+                data-index={row.index}
+                ref={window.measureElement}
+                onFocusCapture={window.onFocusCapture}
+                onBlurCapture={window.onBlurCapture}
+                aria-posinset={window.virtualized ? row.index + 1 : undefined}
+                aria-setsize={window.virtualized ? timeline.length : undefined}
+                style={
+                  window.virtualized
+                    ? undefined
+                    : {
+                        contentVisibility: 'auto',
+                        containIntrinsicSize: 'auto 40px',
+                      }
+                }
+              >
+                <TaskLogRow rowKey={row.key} setRowActive={window.setRowActive}>
+                  <TaskTimelineEntry
+                    item={shownTimeline[row.index]}
+                    runs={runs}
+                    organizationId={organizationId}
+                    projectId={projectId}
+                  />
+                </TaskLogRow>
+              </li>
+            </Fragment>
           ))}
+          {window.paddingAfter > 0 && (
+            <li
+              aria-hidden
+              role="presentation"
+              style={{ height: window.paddingAfter, flexShrink: 0 }}
+            />
+          )}
         </Stack>
       </Stack>
     </section>
   );
-
-  // Every line names its actor from one directory: the one the task's
-  // surface provides, else one read here for the whole timeline.
-  return provided !== undefined ? (
-    section
-  ) : (
-    <ActorDirectoryProvider
-      organizationId={organizationId}
-      projectId={projectId}
-    >
-      {section}
-    </ActorDirectoryProvider>
-  );
-});
+}

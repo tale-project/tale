@@ -8,6 +8,7 @@ import {
   lookupRedirect,
   normalizeRequestPath,
   parseRedirects,
+  renderRedirectHtml,
   slugRoute,
 } from './redirects';
 
@@ -17,6 +18,28 @@ const pagePath = (locale: string, slug: string) => {
   return route ? `/${locale}/${route}` : `/${locale}`;
 };
 const OPTIONS = { locales: ['en', 'de', 'fr'] as const, pagePath };
+
+describe('renderRedirectHtml', () => {
+  it('keeps the theme script and assets while replacing page metadata and escaping the destination', () => {
+    const template =
+      '<html lang="en"><head><script>applyTheme()</script><script type="module" src="/assets/app.js"></script><!-- seo:start --><title>Old page</title><!-- seo:end --></head><body><div id="root"></div></body></html>';
+    const html = renderRedirectHtml(
+      template,
+      'de',
+      'https://ui.tale.dev/?q="<guide>"&next=$&',
+    );
+    expect(html).toContain('<html lang="de">');
+    expect(html).toContain('<script>applyTheme()</script>');
+    expect(html).toContain('src="/assets/app.js"');
+    expect(html).not.toContain('Old page');
+    expect(html).toContain('<meta name="robots" content="noindex" />');
+    const target =
+      'https://ui.tale.dev/?q=&quot;&lt;guide&gt;&quot;&amp;next=$&amp;';
+    expect(html).toContain(`content="0;url=${target}"`);
+    expect(html).toContain(`<link rel="canonical" href="${target}"`);
+    expect(html).toContain(`<a href="${target}">${target}</a>`);
+  });
+});
 
 describe('parseRedirects', () => {
   it('rejects a file without the expected shape', () => {

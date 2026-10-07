@@ -57,7 +57,7 @@ beforeEach(() => {
 });
 
 describe('settleSessionOpSpend', () => {
-  it('stamps the op and books the ledger under the task run’s starter and agent', async () => {
+  it('stamps the op and books the ledger under the task run’s starter and agent [SBX-R14]', async () => {
     const { sql, statements } = fakeSql([
       {
         match: 'UPDATE app.sandbox_session_ops SET spent_cents',
@@ -101,7 +101,7 @@ describe('settleSessionOpSpend', () => {
     });
   });
 
-  it('attributes a workflow op to the automation run that owns its session', async () => {
+  it('attributes a workflow op to the automation run that owns its session [SBX-R14]', async () => {
     const { sql } = fakeSql([
       {
         match: 'UPDATE app.sandbox_session_ops SET spent_cents',
@@ -144,7 +144,7 @@ describe('settleSessionOpSpend', () => {
     );
   });
 
-  it('books a keyed start to the person and the key', async () => {
+  it('books a keyed start to the person and the key [SBX-R14]', async () => {
     const { sql } = fakeSql([
       {
         match: 'UPDATE app.sandbox_session_ops SET spent_cents',
@@ -178,7 +178,7 @@ describe('settleSessionOpSpend', () => {
     });
   });
 
-  it('books a trigger-started run under the automation sentinel', async () => {
+  it('books a trigger-started run under the automation sentinel [SBX-R14]', async () => {
     const { sql } = fakeSql([
       {
         match: 'UPDATE app.sandbox_session_ops SET spent_cents',
@@ -211,7 +211,7 @@ describe('settleSessionOpSpend', () => {
     });
   });
 
-  it('books nothing twice: a replay finds the fact closed', async () => {
+  it('books nothing twice: a replay finds the fact closed [SBX-R15]', async () => {
     const { sql } = fakeSql([
       // The guarded UPDATE matches no row; the existence probe finds the op.
       { match: 'SELECT id FROM app.sandbox_session_ops', rows: [{ id: 'op' }] },

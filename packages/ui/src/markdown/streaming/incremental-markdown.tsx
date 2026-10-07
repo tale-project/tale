@@ -494,9 +494,12 @@ export function IncrementalMarkdown({
   showCursor,
   'aria-busy': ariaBusy,
 }: IncrementalMarkdownProps) {
+  const settled = revealPosition >= content.length && ariaBusy !== true;
   const splitIndex = useMemo(
-    () => findBlockSplitPoint(content, revealPosition),
-    [content, revealPosition],
+    // Completed messages take one stable parse below. Scanning their entire
+    // history for a streaming boundary cannot affect that render.
+    () => (settled ? 0 : findBlockSplitPoint(content, revealPosition)),
+    [content, revealPosition, settled],
   );
   const katex = useLazyKatex(content);
 
@@ -525,7 +528,7 @@ export function IncrementalMarkdown({
   // `aria-busy` prop (isStreaming || isDraining from the caller), not
   // internal drain state, so the streaming half keeps rendering until the
   // final reveal tick lands.
-  if (revealPosition >= content.length && ariaBusy !== true) {
+  if (settled) {
     return (
       <div className={className} aria-busy={false}>
         {content && (

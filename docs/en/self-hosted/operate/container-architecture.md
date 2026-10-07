@@ -15,7 +15,7 @@ Use service ownership to narrow an incident before changing containers. The pack
 | Jobs, scheduled automations, or ingestion stop progressing | `backend-worker` | Queue state, job errors, credentials, and required stores. |
 | Reads or writes fail across the application | `db` or the external application database | Connectivity, disk space, locks, and database logs. |
 | Files cannot be uploaded or downloaded | `backend-api`, then `object-store` or the external bucket | The resolved organization connection, credentials, public endpoint, and browser CORS. |
-| A harness cannot start or reach its model | `sandbox`, `sandbox-llm-gateway` | Session creation, gateway authentication, model availability, and runtime image. |
+| An agent runtime cannot start or reach its model | `sandbox`, `sandbox-llm-gateway` | Session creation, gateway authentication, model availability, and runtime image. |
 | Sandboxed network access or page rendering fails | `sandbox-egress`, `sandbox` | Target hostname, allowed ports, egress policy, and session logs. |
 | Video transcript retrieval fails | `backend-worker`, `bgutil-provider` | Video access, extractor errors, configured proxy, and browser-session status. |
 
@@ -27,7 +27,7 @@ Use logical service names with `tale logs <service>`. For your own Compose stack
 2. The API checks the session and organization, resolves the chosen model and credential, and executes the interactive turn. It stores progress in the application database.
 3. The browser reads turn progress through the thread's stream endpoint. `/events` carries invalidation hints for refreshed data; it is not the token payload stream.
 4. Knowledge tools access the requesting organization's knowledge connection. Original files are read through its storage configuration.
-5. A turn using a coding harness needs a sandbox session and the model gateway. Queued tasks, workflow agent jobs, and REST chat turns can also depend on workers.
+5. A turn using an agent runtime needs a sandbox session and the model gateway. Queued tasks, workflow agent jobs, and REST chat turns can also depend on workers.
 
 A worker outage therefore has a different scope from an API outage, but it is not safe to declare all chat or agent work unaffected. Check the entry point and execution type that failed. Preserve the original error before retrying a turn that might spend tokens or perform an external action.
 

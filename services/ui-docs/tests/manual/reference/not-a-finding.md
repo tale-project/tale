@@ -25,21 +25,7 @@ next round a false finding.
 
 ## Product quirks
 
-- **Two design languages on one site.** `/` is the marketing language
-  (`@tale/marketing-ui`: stone paper, pill buttons, scroll reveals); everything
-  under `/docs` is the app language (`@tale/ui`: flat background, `h-9`
-  controls, no reveals). The visual break between the two is the point, not a
-  regression — the site documents exactly that split.
-- **The front page's product window is not interactive.** `DemoShell` marks
-  its payload `role="img"` + `inert`, so its fields, tabs and switch cannot be
-  focused or operated. The interactive examples are the **Live example** blocks
-  on the documentation pages.
-- **Sections below the front page's fold are invisible until scrolled to.**
-  `Reveal` (opacity-only, `whileInView`, once) fades them in; a full-page
-  screenshot taken without scrolling shows blank bands. With
-  `prefers-reduced-motion: reduce`, on SSR and on SPA revisits the reveal is
-  skipped (`useSkipEntrance`).
-- **`/docs` has no page of its own.** It redirects (replace) to the first entry
+- **The root renders the first guide; `/docs` has no page of its own.** It redirects (replace) to the first entry
   of `content/nav.json`; a section label in the trail is plain text because a
   section has no index page.
 - **Below `md` the page has two rows of chrome.** The phone bar (menu · logo ·

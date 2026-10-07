@@ -216,7 +216,7 @@ const LONG_COLUMNS = [
   'external_issue AS "externalIssue"',
 ];
 
-describe('a board row carries only what a card shows (#4062)', () => {
+describe('a board row carries only what a card shows', () => {
   it('leaves the long columns out of BOARD_TASK_COLUMNS, and keeps every other task column', () => {
     const all = TASK_COLUMNS.split(',').map((column) => column.trim());
     const board = BOARD_TASK_COLUMNS.split(',').map((column) => column.trim());

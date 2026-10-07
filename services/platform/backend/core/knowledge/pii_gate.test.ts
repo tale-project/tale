@@ -39,7 +39,7 @@ describe('applyPiiPolicyForIndexing', () => {
     warn.mockRestore();
   });
 
-  it('indexes unchanged when the policy is disabled', () => {
+  it('indexes unchanged when the policy is disabled [KNOW-R9]', () => {
     // An organization that has not turned this on gets exactly today's
     // behaviour — this must not become an opt-out.
     const decision = applyPiiPolicyForIndexing(
@@ -49,7 +49,7 @@ describe('applyPiiPolicyForIndexing', () => {
     expect(decision).toEqual({ kind: 'index', text: WITH_PII });
   });
 
-  it('masks under mode mask, so the identifier never reaches the vectors', () => {
+  it('masks under mode mask, so the identifier never reaches the vectors [KNOW-R9]', () => {
     const decision = applyPiiPolicyForIndexing(WITH_PII, policy());
     expect(decision.kind).toBe('index');
     if (decision.kind !== 'index') return;
@@ -58,7 +58,7 @@ describe('applyPiiPolicyForIndexing', () => {
     expect(decision.text).toContain('about the role');
   });
 
-  it('refuses under mode block, naming categories and not the matched text', () => {
+  it('refuses under mode block, naming categories and not the matched text [KNOW-R9]', () => {
     const decision = applyPiiPolicyForIndexing(
       WITH_PII,
       policy({ mode: 'block' }),
@@ -69,7 +69,7 @@ describe('applyPiiPolicyForIndexing', () => {
     expect(JSON.stringify(decision.categoryIds)).not.toContain('ada@');
   });
 
-  it('treats tokenize as mask, because an indexed chunk outlives a restore map', () => {
+  it('treats tokenize as mask, because an indexed chunk outlives a restore map [KNOW-R9]', () => {
     const decision = applyPiiPolicyForIndexing(
       WITH_PII,
       policy({ mode: 'tokenize' }),
@@ -174,7 +174,7 @@ describe('applyPiiPolicyForIndexing', () => {
     });
   });
 
-  it('indexes unscrubbed when the scrubber cannot be built, reporting once', async () => {
+  it('indexes unscrubbed when the scrubber cannot be built, reporting once [KNOW-R9]', async () => {
     // Construction throws only on a programmer error or a missing data tree,
     // and the governance resolver filters the usual trigger (an unknown
     // locale) upstream — so the failure is forced here. What matters is the

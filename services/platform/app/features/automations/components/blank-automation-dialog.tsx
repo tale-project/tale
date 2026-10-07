@@ -539,6 +539,9 @@ export function BlankAutomationDialog({
             onChange={setBinding}
             label={t('blank.equipmentLabel')}
             description={tProjects('agents.equipmentHint')}
+            // The menu is portaled outside this dialog; keep its wheel scroll
+            // independent from the dialog's scroll lock.
+            modal
           />
           <AgentSecretsField
             organizationId={organizationId}

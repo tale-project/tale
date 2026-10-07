@@ -12,17 +12,17 @@ import {
 } from '@tale/ui/searchable-select';
 import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import { EDITOR_ROLES } from '@/backend/core/projects/access';
 import { useT } from '@/lib/i18n/client';
 
 import {
-  useActorDirectory,
-  useAssignableActors,
-  useProvidedActorDirectory,
-  type ActorDirectory,
-} from '../hooks/use-actor-directory';
+  ActorDirectoryBoundary,
+  useSharedActorDirectory,
+  useSharedAssignableActors,
+} from '../hooks/task-actor-directory';
+import type { ActorDirectory } from '../hooks/use-actor-directory';
 import { AssigneeAvatar } from './assignee-avatar';
 
 interface ReviewerPickerProps {
@@ -77,34 +77,39 @@ function describeReviewer(
  * the assignee picker. The name comes from the directory an
  * `ActorDirectoryProvider` provides (the task's) or, without one, the picker's
  * own. */
-export function ReviewerPicker(props: ReviewerPickerProps) {
-  const provided = useProvidedActorDirectory(
-    props.organizationId,
-    props.projectId,
+export const ReviewerPicker = memo(function ReviewerPicker(
+  props: ReviewerPickerProps,
+) {
+  return (
+    <ActorDirectoryBoundary
+      organizationId={props.organizationId}
+      projectId={props.projectId}
+    >
+      <ReviewerPickerTrigger {...props} />
+    </ActorDirectoryBoundary>
   );
-  return provided ? (
-    <ReviewerPickerTrigger {...props} directory={provided} />
-  ) : (
-    <ReviewerPickerOwnDirectory {...props} />
-  );
-}
-
-function ReviewerPickerOwnDirectory(props: ReviewerPickerProps) {
-  const directory = useActorDirectory(props.organizationId, props.projectId);
-  return <ReviewerPickerTrigger {...props} directory={directory} />;
-}
+});
 
 /** The avatar and name a closed picker shows, until its first use mounts
  *  the list. */
-function ReviewerPickerTrigger({
-  directory,
-  ...props
-}: ReviewerPickerProps & {
-  directory: Pick<ActorDirectory, 'resolveActor' | 'currentUserId'>;
-}) {
+function ReviewerPickerTrigger(props: ReviewerPickerProps) {
   const { t } = useT('tasks');
+  const directory = useSharedActorDirectory(
+    props.organizationId,
+    props.projectId,
+  );
   const [engaged, setEngaged] = useState(false);
-  if (engaged) return <ReviewerPickerList {...props} defaultOpen />;
+  if (engaged) {
+    return (
+      <ActorDirectoryBoundary
+        organizationId={props.organizationId}
+        projectId={props.projectId}
+        assignable
+      >
+        <ReviewerPickerList {...props} defaultOpen />
+      </ActorDirectoryBoundary>
+    );
+  }
 
   const {
     reviewer,
@@ -204,7 +209,7 @@ function ReviewerPickerList({
     resolveActor,
     scopeReady,
     agentsLoading,
-  } = useAssignableActors(organizationId, projectId);
+  } = useSharedAssignableActors(organizationId, projectId);
   const [open, setOpen] = useState(defaultOpen);
   const { effective, actorId, resolved, inheritLabel, label } =
     describeReviewer(reviewer, projectReviewer, resolveActor, t);

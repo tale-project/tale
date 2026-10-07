@@ -103,7 +103,7 @@ function askClosure(statements: Statement[]): {
   };
 }
 
-describe('terminal doors close pending asks', () => {
+describe('terminal doors close pending asks [AUTO-R14]', () => {
   beforeEach(() => {
     addTaskComment.mockClear();
   });

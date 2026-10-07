@@ -41,6 +41,7 @@ import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
+import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import type { Id } from '../lib/rows';
 import {
   decryptSecret,
@@ -112,6 +113,9 @@ export type ResolvedProviderCredential =
       readonly credentialId: Id<'providerCredentials'>;
       readonly name: string;
       readonly secret: string;
+      /** The harness env var the provider's auth entry delivers the secret
+       * under; absent means the harness's default token variable. */
+      readonly targetEnvVar?: string;
     }
   | {
       readonly authMethod: 'subscription-broker';
@@ -499,6 +503,24 @@ async function resolveBroker(
 }
 
 /**
+ * The variable the provider's `subscription-key` auth entry names for the
+ * secret, read from the org's providers so a custom provider's entry counts
+ * too. Undefined when the entry names none (a coding-plan key rides the
+ * harness's default token variable).
+ */
+async function subscriptionKeyTargetEnvVar(
+  ctx: ActionCtx,
+  organizationId: string,
+  providerSlug: string,
+): Promise<string | undefined> {
+  const providers = await resolveProvidersForOrgId(ctx, organizationId);
+  const entry = providers
+    .find((provider) => provider.name === providerSlug)
+    ?.auth.find((auth) => auth.method === 'subscription-key');
+  return entry?.method === 'subscription-key' ? entry.targetEnvVar : undefined;
+}
+
+/**
  * Resolve one (org, provider[, credential]) selection to its usable secret
  * material. Internal-only: callers own keeping the result out of logs and
  * client responses.
@@ -532,11 +554,17 @@ export async function resolveProviderCredential(
       // the forced-harness constraints live on the provider's auth entry
       // and are applied by execution resolution, never here.
       if (!row.encryptedData) throw shapeError(row);
+      const targetEnvVar = await subscriptionKeyTargetEnvVar(
+        ctx,
+        row.organizationId,
+        row.providerSlug,
+      );
       return {
         authMethod: 'subscription-key',
         credentialId: row._id,
         name: row.name,
         secret: decryptOrExplain(row, row.encryptedData),
+        ...(targetEnvVar !== undefined && { targetEnvVar }),
       };
     }
     case 'env': {

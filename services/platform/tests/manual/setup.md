@@ -275,6 +275,8 @@ gets the plain canned reply, byte-for-byte):
 | `e2e:empty`            | a stream that ends without a word → the answerless-reply notice    |
 | `e2e:length`           | reasoning, then the output limit before any answer → its notice    |
 | `e2e:stream-error`     | a `200` stream that then reports a `502` → the provider-error UI   |
+| `e2e:gateway-route`    | an upstream named on every chunk, as OpenRouter does → Served by   |
+| `e2e:cloud-region`     | a region in an `x-ms-region` header, as Azure does → Region        |
 
 Connectors are deterministic too: connecting an API-key/token connector
 (Settings → Connectors) runs the connector's real `testConnection`, whose
@@ -304,11 +306,12 @@ contract.
   user icon, `auth.userButton.manageAccount`), NOT Settings → Personalization —
   System/Light/Dark tabs plus a **Language** submenu (`auth.userButton.language`)
   with EN 🇺🇸 / DE 🇩🇪 / FR 🇫🇷 radio options. If visible labels don't match
-  `en.yml`, open that menu and pick **English**, or match the active-locale
-  value of the cited key.
+  the English catalog, open that menu and pick **English**, or match the
+  active-locale value of the cited key.
 - **Labels**: every control referenced in a guide names its i18n key
-  (`<namespace>.<key>`) resolvable from `services/platform/messages/en.yml`. Locate
-  by role + visible name, never by CSS.
+  (`<namespace>.<key>`) resolvable from the English catalog — one file per
+  namespace, `services/platform/messages/en/<namespace>.yml`. Locate by role +
+  visible name, never by CSS.
 - **Persisted writes**: verify by reloading and reading the field back, not by
   the transient success toast.
 

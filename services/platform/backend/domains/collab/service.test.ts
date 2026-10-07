@@ -188,7 +188,7 @@ describe('a task-bound row always carries its project', () => {
   });
 });
 
-describe('a task-bound row is written only for someone who can open the task now (#3631)', () => {
+describe('a task-bound row is written only for someone who can open the task now (#3631) [COLLAB-R1]', () => {
   beforeEach(() => {
     vi.mocked(addJobInTx).mockReset();
   });
@@ -516,7 +516,7 @@ describe('the personal bell hint (wire contract with the web app)', () => {
   });
 });
 
-describe('the reviewer-designation heads-up (task_reviewer_assigned)', () => {
+describe('the reviewer-designation heads-up (task_reviewer_assigned) [COLLAB-R6]', () => {
   /** Like `fakeDb`, but keeps each statement's VALUES so the row written can
    * be pinned (type, keys, params), not only the statement shape. */
   function recordingDb(answer: (text: string) => Row[]): {
@@ -689,7 +689,7 @@ describe('the reviewer-designation heads-up (task_reviewer_assigned)', () => {
   });
 });
 
-describe('the mention bell, per surface', () => {
+describe('the mention bell, per surface [COLLAB-R3]', () => {
   const task = {
     id: 'task-1',
     organizationId: 'org-1',
@@ -785,7 +785,7 @@ describe('the mention bell, per surface', () => {
   });
 });
 
-describe('the paused-schedule notice (automation_failed)', () => {
+describe('the paused-schedule notice (automation_failed) [COLLAB-R9]', () => {
   /** Like `fakeDb`, but the answer also sees the statement's values — the
    * preference read answers per recipient. */
   function fakeDbWithValues(
@@ -994,7 +994,7 @@ describe('the agent-question bell (agent_escalation)', () => {
 
   // A task-bound question is answered on the task, which everyone who can
   // see the project opens.
-  it('asks everyone who can see the project about a task-bound run', async () => {
+  it('asks everyone who can see the project about a task-bound run [COLLAB-R7]', async () => {
     const fake = fakeAskDb([]);
 
     await notifyAgentQuestionAsked(fake.db, {
@@ -1006,7 +1006,7 @@ describe('the agent-question bell (agent_escalation)', () => {
   });
 });
 
-describe('the failed-run notice (agent_run_failed)', () => {
+describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
   interface World {
     /** Unmuted watchers of the task. */
     subscribers: string[];

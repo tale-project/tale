@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { maskPayload, maskSecret } from './masking';
 
-describe('maskSecret', () => {
+describe('maskSecret [CCRED-R1]', () => {
   it('excerpts first4…last2 of a normal-length secret', () => {
     expect(maskSecret('ghp_abcdef1234567890')).toBe('ghp_…90');
   });
@@ -24,7 +24,7 @@ describe('maskSecret', () => {
   });
 });
 
-describe('maskPayload', () => {
+describe('maskPayload [CCRED-R1]', () => {
   it('previews the single token of api-key and bearer credentials', () => {
     expect(
       maskPayload({ authMethod: 'api-key', token: 'tvly-abcdef123456' }),

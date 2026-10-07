@@ -308,7 +308,7 @@ describe('POST /automations/{name}/runs', () => {
     expect(beginRun).not.toHaveBeenCalled();
   });
 
-  it('refuses a LIVE run of a saved version that is not the deployed one', async () => {
+  it('refuses a LIVE run of a saved version that is not the deployed one [AUTO-R5]', async () => {
     const res = await start(SAVED, '{"version": 2}');
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({
@@ -326,7 +326,7 @@ describe('POST /automations/{name}/runs', () => {
     );
   });
 
-  it('lets a MOCK run name any saved version — the builder’s test lane', async () => {
+  it('lets a MOCK run name any saved version — the builder’s test lane [AUTO-R5]', async () => {
     const res = await start(SAVED, '{"mode": "mock", "version": 2}');
     expect(res.status).toBe(202);
     expect(beginRun).toHaveBeenCalledWith(
@@ -335,7 +335,7 @@ describe('POST /automations/{name}/runs', () => {
     );
   });
 
-  it('refuses a live start by a role without the developer capability before charging the lane', async () => {
+  it('refuses a live start by a role without the developer capability before charging the lane [AUTO-R1]', async () => {
     const { app, queries } = mount({ role: 'member' });
     const res = await app.request(
       `http://localhost/api/v1/automations/${SAVED}/runs`,
@@ -387,7 +387,7 @@ describe('Idempotency-Key on a run start', () => {
     expect(beginRun).not.toHaveBeenCalled();
   });
 
-  it('answers the remembered run with duplicate: true', async () => {
+  it('answers the remembered run with duplicate: true [AUTO-R9]', async () => {
     vi.mocked(beginRunIdempotent).mockResolvedValue({
       runId: 'run-first',
       version: 1,
@@ -1144,7 +1144,7 @@ describe('run listings', () => {
   // A deleted automation keeps its runs: the by-name door answers them
   // while any exist and 404s only a name nothing ever bore — it used to
   // say the automation never existed (2026-09-19 evaluation, K8-5).
-  it('answers a deleted automation’s kept runs by name, and 404s a name nothing bore', async () => {
+  it('answers a deleted automation’s kept runs by name, and 404s a name nothing bore [AUTO-R15]', async () => {
     vi.mocked(listRunsPage).mockResolvedValue({
       runs: [runRow],
       isDone: true,
@@ -1445,7 +1445,7 @@ describe('GET /runs/{runId} with ?fields=', () => {
  * the product UI. The read and the catalog carry the same ids.
  */
 describe('project bindings on the wire', () => {
-  it('answers the org-URL 409 with the visible installations', async () => {
+  it('answers the org-URL 409 with the visible installations [AUTO-R7]', async () => {
     vi.mocked(beginRun).mockRejectedValue(
       new AutomationError(
         'AUTOMATION_PROJECT_SCOPE_REQUIRED',
@@ -1509,7 +1509,7 @@ describe('DELETE /automations/{name}', () => {
     expect(deleteAutomationCascade).not.toHaveBeenCalled();
   });
 
-  it('passes the in-flight-run refusal through with its code', async () => {
+  it('passes the in-flight-run refusal through with its code [AUTO-R15]', async () => {
     vi.mocked(deleteAutomationCascade).mockRejectedValueOnce(
       new AutomationError(
         'AUTOMATION_HAS_ACTIVE_RUNS',
@@ -1526,4 +1526,34 @@ describe('DELETE /automations/{name}', () => {
       code: 'AUTOMATION_HAS_ACTIVE_RUNS',
     });
   });
+});
+
+/**
+ * What changes an automation over REST — its trigger, its deletion — is
+ * behind the developer capability, like the live start above: a key whose
+ * holder is an ordinary member is refused before the store is reached.
+ */
+describe('changing an automation over REST', () => {
+  it.each([
+    [
+      'PUT',
+      `/automations/${SAVED}/triggers`,
+      '{"kind": "schedule", "cron": "0 9 * * 1"}',
+    ],
+    ['DELETE', `/automations/${SAVED}/triggers`, undefined],
+    ['DELETE', `/automations/${SAVED}`, undefined],
+  ])(
+    'refuses %s %s for a role without the developer capability, changing nothing [AUTO-R1]',
+    async (method, path, body) => {
+      const res = await mount({ role: 'member' }).app.request(
+        `http://localhost/api/v1${path}`,
+        json(method, body),
+      );
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({ code: 'ROLE_FORBIDDEN' });
+      expect(setTrigger).not.toHaveBeenCalled();
+      expect(deleteTrigger).not.toHaveBeenCalled();
+      expect(deleteAutomationCascade).not.toHaveBeenCalled();
+    },
+  );
 });

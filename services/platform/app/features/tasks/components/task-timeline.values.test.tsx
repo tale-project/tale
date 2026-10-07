@@ -228,6 +228,28 @@ afterEach(async () => {
 });
 
 describe('typed reviewer history', () => {
+  it.each([
+    ['en', 'review delegated'],
+    ['de', 'review weitergegeben'],
+    ['fr', 'relecture réattribuée'],
+    ['de-CH', 'review weitergegeben'],
+  ] as const)(
+    'names a captured handoff in %s without showing its receipt payload',
+    async (locale, label) => {
+      await renderHistory(locale, [
+        wire(
+          'review.delegated',
+          JSON.stringify({ kind: 'agent', agentId: 'agent-reviewer' }),
+          JSON.stringify({ kind: 'agent', agentId: 'another-reviewer' }),
+        ),
+      ]);
+      expect(
+        screen.getByText(new RegExp(label + ': Review agent →')),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/"kind"|"agentId"/)).not.toBeInTheDocument();
+    },
+  );
+
   it('preserves actor kind and the explicit return to the project default', async () => {
     await renderHistory('en', [
       wire(

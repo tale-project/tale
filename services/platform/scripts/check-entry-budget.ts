@@ -8,15 +8,16 @@
  * evaluation, G-08). Editors belong behind a dynamic import; a chunk of
  * theirs back in the preload list fails the build so the regression is
  * caught here, not in the next evaluation. KaTeX (which the streaming
- * markdown renderer loads for the first reply with math) and the flow
- * canvas (the automation editor and run pages) are held to the same rule:
- * both loaded with every page until #4089.
+ * markdown renderer loads for the first reply with math), the flow canvas
+ * and the libraries only some pages use are held to the same rule: each
+ * route's code loads with its route (`ENTRY_ROUTES` in `vite.config.ts`), and
+ * a static import from the entry would bring one back to every page.
  *
  * Usage (from `services/platform`): `bun scripts/check-entry-budget.ts [dist]`
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 /** Vendor chunks that must never be in the cold-load preload set. */
@@ -29,10 +30,43 @@ export const FORBIDDEN_PRELOADS = [
 /**
  * Packages no preloaded chunk may carry, whatever chunk they land in: the
  * charts (recharts has no chunk of its own; its dependencies are the
- * entry's too), the flow canvas and KaTeX. Read from the chunks' source
- * maps, so a static import that pulls one into the entry fails the build.
+ * entry's too), the flow canvas, KaTeX, and what single pages need: zip
+ * files (skill uploads, document previews), the automation engine's schema
+ * validation and YAML (the MCP settings page), cron schedules (automations),
+ * the table library (list pages), the HTML sanitizer (diagrams, previews,
+ * email).
+ * Read from the chunks' source maps, so a static import that pulls one into
+ * the entry fails the build.
  */
-export const FORBIDDEN_PACKAGES = ['recharts', '@xyflow/react', 'katex'];
+export const FORBIDDEN_PACKAGES = [
+  'recharts',
+  '@xyflow/react',
+  'katex',
+  'jszip',
+  'ajv',
+  'yaml',
+  'cron-parser',
+  '@tanstack/table-core',
+  'dompurify',
+];
+
+/**
+ * The service's own catalogs no preloaded chunk may carry, from its root, a
+ * path ending in `/` naming every file under it: a session reads one
+ * language, and German, French and the Swiss overrides load per topic as a
+ * session in them first needs one (`lib/i18n/i18n.ts`). English rides with
+ * the modules that read it, so the largest topics the first pages do not
+ * read stay with the pages that do.
+ */
+export const FORBIDDEN_SOURCES = [
+  'messages/de/',
+  'messages/fr/',
+  'messages/de-CH/',
+  'messages/en/settings.yml',
+  'messages/en/governance.yml',
+  'messages/en/documents.yml',
+  'messages/en/projects.yml',
+];
 
 /**
  * The module scripts and modulepreloads of a built index.html, in document
@@ -65,8 +99,29 @@ export function forbiddenPackagesIn(sources: readonly string[]): string[] {
   );
 }
 
-/** Every preloaded chunk that carries a forbidden package, with the package. */
-export function findForbiddenPackages(dist: string, urls: string[]): string[] {
+/**
+ * The forbidden sources a source map names: its `sources` resolve from the
+ * map's folder, the forbidden paths from the service root.
+ */
+export function forbiddenSourcesIn(
+  sources: readonly string[],
+  mapDir: string,
+  serviceRoot: string,
+): string[] {
+  const named = sources.map((source) => resolve(mapDir, source));
+  return FORBIDDEN_SOURCES.filter((path) => {
+    const forbidden = resolve(serviceRoot, path);
+    return path.endsWith('/')
+      ? named.some((source) => source.startsWith(`${forbidden}/`))
+      : named.includes(forbidden);
+  });
+}
+
+/**
+ * Every preloaded chunk that carries a forbidden package or source, with
+ * what it carries.
+ */
+export function findForbiddenContent(dist: string, urls: string[]): string[] {
   const found: string[] = [];
   for (const url of urls) {
     const mapPath = resolve(dist, `${url}.map`);
@@ -74,7 +129,11 @@ export function findForbiddenPackages(dist: string, urls: string[]): string[] {
     const map = JSON.parse(readFileSync(mapPath, 'utf8')) as {
       sources?: string[];
     };
-    for (const name of forbiddenPackagesIn(map.sources ?? [])) {
+    const sources = map.sources ?? [];
+    for (const name of [
+      ...forbiddenPackagesIn(sources),
+      ...forbiddenSourcesIn(sources, dirname(mapPath), resolve(dist, '..')),
+    ]) {
       found.push(`${url} (${name})`);
     }
   }
@@ -100,7 +159,7 @@ if (import.meta.main) {
   }
   const forbidden = [
     ...findForbiddenPreloads(urls),
-    ...findForbiddenPackages(dist, urls),
+    ...findForbiddenContent(dist, urls),
   ];
   const total = gzipTotal(dist, urls);
   console.log(

@@ -8,7 +8,7 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
-import { Bot, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Bot, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
@@ -23,7 +23,9 @@ import {
   useProjectHarnesses,
   useStandardAgent,
 } from '../hooks/queries';
+import { projectAgentDetails } from '../lib/agent-details';
 import { toModelOptions, type ModelOption } from '../lib/model-options';
+import { ProjectAgentDetailsDialog } from './project-agent-details';
 import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
 import {
   ProjectAgentRowsSkeleton,
@@ -82,6 +84,8 @@ export function ProjectAgentsTab({
   const [deleting, setDeleting] = useState<ProjectAgentRow | undefined>(
     undefined,
   );
+  const [viewingId, setViewingId] = useState<string | undefined>(undefined);
+  const viewing = agents.find((agent) => agent._id === viewingId);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const harnessRoster = rosterQuery.data?.harnesses;
@@ -261,30 +265,40 @@ export function ProjectAgentsTab({
                         )}
                       </Stack>
                     </Row>
-                    {canEdit ? (
-                      <Row gap={1} className="shrink-0">
-                        {/* The standard agent's settings are the
+                    <Row gap={1} className="shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t('agents.rowView')}
+                        onClick={() => setViewingId(agent._id)}
+                      >
+                        <Eye aria-hidden className="size-4" />
+                      </Button>
+                      {canEdit ? (
+                        <>
+                          {/* The standard agent's settings are the
                           organization's: removable here, not editable. */}
-                        {!agent.managed && (
+                          {!agent.managed && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={t('agents.rowEdit')}
+                              onClick={() => openEdit(agent)}
+                            >
+                              <Pencil aria-hidden className="size-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label={t('agents.rowEdit')}
-                            onClick={() => openEdit(agent)}
+                            aria-label={t('agents.rowDelete')}
+                            onClick={() => setDeleting(agent)}
                           >
-                            <Pencil aria-hidden className="size-4" />
+                            <Trash2 aria-hidden className="size-4" />
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={t('agents.rowDelete')}
-                          onClick={() => setDeleting(agent)}
-                        >
-                          <Trash2 aria-hidden className="size-4" />
-                        </Button>
-                      </Row>
-                    ) : null}
+                        </>
+                      ) : null}
+                    </Row>
                   </Row>
                 </li>
               );
@@ -292,6 +306,16 @@ export function ProjectAgentsTab({
           </Stack>
         )}
       </div>
+
+      {viewing ? (
+        <ProjectAgentDetailsDialog
+          agent={projectAgentDetails(viewing)}
+          open
+          onOpenChange={(open) => {
+            if (!open) setViewingId(undefined);
+          }}
+        />
+      ) : null}
 
       <ProjectAgentDialog
         open={dialogOpen}

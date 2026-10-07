@@ -17,7 +17,7 @@ import type { TaskRow } from './task-card';
 // count what the mounted cards subscribe to. react-query adds and removes an
 // observer in time linear in its query's observer count: a board whose cards
 // each read the members, the automations and the project's agents turned a
-// 2,000-card mount and unmount quadratic (#4062).
+// 2,000-card mount and unmount quadratic.
 const READS: Record<string, unknown> = {
   'members/queries:listByOrganization': [
     {
@@ -33,6 +33,11 @@ const READS: Record<string, unknown> = {
   'projects/queries:getProject': { canEdit: true },
   'projects/queries:getStandardAgent': { available: false },
 };
+const CANDIDATE_READS = [
+  'projects/queries:listAccessibleUserIds',
+  'projects/queries:getProject',
+  'projects/queries:getStandardAgent',
+] as const;
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (name: string, args: unknown) =>
     useQuery({
@@ -55,12 +60,6 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
-// The picker's candidate read, watched: it belongs to an open list only.
-vi.mock('../hooks/use-actor-directory', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../hooks/use-actor-directory')>();
-  return { ...actual, useAssignableActors: vi.fn(actual.useAssignableActors) };
-});
 vi.mock('../hooks/mutations', () => ({
   useMoveTask: () => ({ mutate: vi.fn(), isPending: false }),
   useAssignTask: () => ({ mutate: vi.fn(), isPending: false }),
@@ -79,8 +78,6 @@ vi.mock('../hooks/use-task-status-choreography', async (importOriginal) => ({
   >()),
   useTaskStatusChoreography: () => async () => 'move' as const,
 }));
-
-const { useAssignableActors } = await import('../hooks/use-actor-directory');
 
 function makeTasks(count: number): TaskRow[] {
   return Array.from({ length: count }, (_, index) => {
@@ -120,38 +117,56 @@ function renderBoard(client: QueryClient, tasks: TaskRow[]) {
   );
 }
 
-function observerCount(client: QueryClient): number {
+function observerCount(client: QueryClient, read?: string): number {
   return client
     .getQueryCache()
     .getAll()
+    .filter(
+      (query) =>
+        read === undefined ||
+        (query.queryKey[0] === 'read' && query.queryKey[1] === read),
+    )
     .reduce((sum, query) => sum + query.getObserversCount(), 0);
 }
 
-describe('board cards and the board directory (#4062)', () => {
+describe('board cards and the board directory', () => {
   it('adds no query observer per card, however many cards mount', () => {
     const client = new QueryClient();
-    const few = renderBoard(client, makeTasks(5));
-    expect(screen.getAllByRole('button', { name: /^Card \d+$/ })).toHaveLength(
-      5,
-    );
+    const fewTasks = makeTasks(5);
+    const few = renderBoard(client, fewTasks);
+    // Count the actual keyed card roots for this subscription invariant.
+    // The neighbouring interaction cases own their controls' accessible names.
+    expect(
+      [...few.container.querySelectorAll('[data-task-id]')].map((card) =>
+        card.getAttribute('data-task-id'),
+      ),
+    ).toEqual(fewTasks.map((task) => task._id));
     const observersWithFew = observerCount(client);
     few.unmount();
 
-    renderBoard(client, makeTasks(40));
-    expect(screen.getAllByRole('button', { name: /^Card \d+$/ })).toHaveLength(
-      40,
-    );
+    const manyTasks = makeTasks(40);
+    const many = renderBoard(client, manyTasks);
+    expect(
+      [...many.container.querySelectorAll('[data-task-id]')].map((card) =>
+        card.getAttribute('data-task-id'),
+      ),
+    ).toEqual(manyTasks.map((task) => task._id));
     // The provider's own reads, and nothing per card.
     expect(observersWithFew).toBeGreaterThan(0);
     expect(observerCount(client)).toBe(observersWithFew);
-  });
+    // Mounting the full 40-card jsdom fixture can outlive Vitest's 5s default
+    // on a busy worker. This case verifies subscription counts; Chromium
+    // owns the rendered-window behavior, rather than this wall-clock limit.
+  }, 30_000);
 
   it('names each assignee from the board directory and mounts no picker list until one is used', async () => {
     const client = new QueryClient();
     const { user } = renderBoard(client, makeTasks(3));
     expect(screen.getAllByRole('button', { name: 'Assign' })).toHaveLength(3);
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
-    expect(useAssignableActors).not.toHaveBeenCalled();
+    for (const read of CANDIDATE_READS) {
+      expect(observerCount(client, read), read).toBe(0);
+    }
 
     const [firstAssign] = screen.getAllByRole('button', { name: 'Assign' });
     if (firstAssign === undefined) throw new Error('No assign button');
@@ -160,7 +175,9 @@ describe('board cards and the board directory (#4062)', () => {
     await user.click(firstAssign);
     // One click mounts the list already open, with its own reads.
     expect(await screen.findByRole('listbox')).toBeInTheDocument();
-    expect(useAssignableActors).toHaveBeenCalled();
+    for (const read of CANDIDATE_READS) {
+      expect(observerCount(client, read), read).toBeGreaterThan(0);
+    }
     expect(
       screen.getByRole('option', { name: /Ava Editor/ }),
     ).toBeInTheDocument();

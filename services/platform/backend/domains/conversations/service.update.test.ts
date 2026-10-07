@@ -124,7 +124,7 @@ describe('updateConversation (the PATCH door)', () => {
     );
   });
 
-  it('hands every status flip, with the status it left, to the email-body corpus', async () => {
+  it('hands every status flip, with the status it left, to the email-body corpus [CONV-R13]', async () => {
     // A spam verdict releases the conversation's indexed email bodies and
     // lifting it indexes them again (`message-corpus.ts`); the flip's own
     // transaction queues both, so a rolled-back PATCH queues nothing.

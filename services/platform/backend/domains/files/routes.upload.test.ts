@@ -164,7 +164,7 @@ describe('POST /files/upload', () => {
 
   // The door used to answer the bare code, so an uploader could only be told
   // `FILE_SIZE_INVALID`; the sentence written for them now rides beside it.
-  it("answers a refusal with its code and the uploader's sentence", async () => {
+  it("answers a refusal with its code and the uploader's sentence [FILE-R7]", async () => {
     vi.mocked(putOrgBlobBytes).mockRejectedValueOnce(
       new FileError('FILE_SIZE_INVALID', 'Invalid blob size'),
     );
@@ -178,7 +178,7 @@ describe('POST /files/upload', () => {
     });
   });
 
-  it("keeps a fault's message off the wire", async () => {
+  it("keeps a fault's message off the wire [FILE-R7]", async () => {
     vi.mocked(putOrgBlobBytes).mockRejectedValueOnce(
       new FileError(
         'OBJECT_STORE_UNAVAILABLE',

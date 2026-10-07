@@ -388,7 +388,7 @@ describe('static-site build reuse', () => {
           expect(server.command).not.toContain('build');
         } else {
           expect(server.command).toContain(
-            service === 'web' ? 'vite build' : 'scripts/build-client.ts',
+            '../../packages/ui/bin/build-client.ts',
           );
           if (service === 'docs')
             expect(server.command).toContain('scripts/build-search-index.ts');

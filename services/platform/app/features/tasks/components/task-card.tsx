@@ -13,6 +13,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useAssignTask, useUpdateTask } from '../hooks/mutations';
 import {
+  ActorDirectoryProvider,
   type ActorDirectory,
   useActorDirectory,
   useProvidedActorDirectory,
@@ -88,7 +89,15 @@ function TaskCardOwnDirectory(props: TaskCardProps) {
     props.task.organizationId,
     props.task.projectId,
   );
-  return <TaskCardView {...props} directory={directory} />;
+  return (
+    <ActorDirectoryProvider
+      organizationId={props.task.organizationId}
+      projectId={props.task.projectId}
+      directory={directory}
+    >
+      <TaskCardView {...props} directory={directory} />
+    </ActorDirectoryProvider>
+  );
 }
 
 function TaskCardView({

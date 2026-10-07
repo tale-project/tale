@@ -130,7 +130,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('ownsUploadedBlob', () => {
+describe('ownsUploadedBlob [FILE-R5]', () => {
   it('asks without writing when told not to stamp (#4111)', async () => {
     const fake = fakeLedger({ stamped: [{ id: 'i-1' }] });
 
@@ -213,7 +213,7 @@ describe('ownsUploadedBlob', () => {
 });
 
 describe('sweepUploadIntents', () => {
-  it('reclaims the blob of an abandoned intent and drops its row, leaving vouched-for and file-backed refs alone', async () => {
+  it('reclaims the blob of an abandoned intent and drops its row, leaving vouched-for and file-backed refs alone [FILE-R6]', async () => {
     const fake = fakeLedger({
       abandoned: [{ id: 'i-abandoned', s3Ref: 's3:blobs/acme/aaa' }],
     });
@@ -258,7 +258,7 @@ describe('sweepUploadIntents', () => {
     expect(rowDrop?.values).toEqual(['i-abandoned']);
   });
 
-  it('keeps the row of a blob whose delete failed, for the next sweep', async () => {
+  it('keeps the row of a blob whose delete failed, for the next sweep [FILE-R6]', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.mocked(deleteOrgObject).mockRejectedValueOnce(
       new Error('503 slow down'),
