@@ -224,13 +224,13 @@ agents:
   providerLabel: "Fournisseur"
   providerUnpinned: "Non fixé"
   detailsUnavailable: "Non renseigné"
-  detailsSkills: "Compétences"
-  detailsConnectors: "Connecteurs"
+  detailsSkills: "Skills"
+  detailsConnectors: "Connectors"
   detailsTools: "Outils de la plateforme"
   detailsNone: "Aucun"
   detailsMoreCount: "+{count} autres"
   detailsProviderCurrently: "Le fournisseur est déterminé pour les prochaines exécutions et peut changer."
-  detailsStandardSnapshot: "Configuration enregistrée. L’agent standard détermine à nouveau son modèle, ses compétences et ses instructions au démarrage de chaque exécution."
+  detailsStandardSnapshot: "Configuration enregistrée. L’agent standard détermine à nouveau son modèle, ses skills et ses instructions au démarrage de chaque exécution."
   rowEdit: Modifier l'agent
   rowDelete: Supprimer l'agent
   dialogCreateTitle: Nouvel agent
