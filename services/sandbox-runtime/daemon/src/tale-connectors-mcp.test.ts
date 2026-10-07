@@ -18,6 +18,7 @@ let server: ReturnType<typeof Bun.serve>;
 let bridge: ChildProcessWithoutNullStreams;
 const lines: Array<Record<string, unknown>> = [];
 const bodies: unknown[] = [];
+let statusCode = 200;
 const statusCalls: Array<{
   path: string;
   authorization: string | null;
@@ -60,11 +61,27 @@ beforeAll(() => {
           authorization: request.headers.get('authorization'),
           body: await request.text(),
         });
-        return new Response(STATUS_TEXT, {
-          headers: { 'content-type': 'application/json' },
+        return new Response(
+          statusCode === 200
+            ? STATUS_TEXT
+            : JSON.stringify({ status: 'error', message: 'Unauthorized.' }),
+          {
+            status: statusCode,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+      const body = asRecord(await request.json());
+      bodies.push(body);
+      if (body.tool === 'task_get') {
+        return Response.json({ status: 'ok', output: { taskId: 'task_1' } });
+      }
+      if (body.tool !== 'rag_search' && body.tool !== 'generate_image') {
+        return Response.json({
+          status: 'unavailable',
+          blockers: [{ code: 'not_granted' }],
         });
       }
-      bodies.push(await request.json());
       // Slower than the ordinary bound, faster than the long one.
       await Bun.sleep(600);
       return Response.json({ status: 'ok', output: { saved: true } });
@@ -222,5 +239,102 @@ describe('workspace_status through the bridge', () => {
     expect(status?.description).toContain(
       'not proof of what is deployed or of its health',
     );
+  });
+
+  test('routes an exact nested status name through the same authenticated discovery door', async () => {
+    const beforeStatus = statusCalls.length;
+    const beforeExecute = bodies.length;
+    send({
+      id: 12,
+      method: 'tools/call',
+      params: {
+        name: 'workspace_tool',
+        arguments: {
+          tool: 'workspace_status',
+          args: {
+            toolGrants: ['task_create'],
+            organizationId: 'org_forged',
+            platform: { version: '9.9.9' },
+          },
+        },
+      },
+    });
+    const response = await responseTo(12);
+    expect(textOf(response)).toBe(STATUS_TEXT);
+    expect(asRecord(response.result).isError).toBe(false);
+    expect(statusCalls.slice(beforeStatus)).toEqual([
+      {
+        path: '/api/tools/status',
+        authorization: 'Bearer session-key',
+        body: '{}',
+      },
+    ]);
+    expect(bodies.length).toBe(beforeExecute);
+  });
+
+  test('preserves status authentication failures without an execute fallback', async () => {
+    const beforeStatus = statusCalls.length;
+    const beforeExecute = bodies.length;
+    statusCode = 401;
+    try {
+      send({
+        id: 13,
+        method: 'tools/call',
+        params: {
+          name: 'workspace_tool',
+          arguments: { tool: 'workspace_status' },
+        },
+      });
+      const response = await responseTo(13);
+      expect(JSON.parse(textOf(response))).toEqual({
+        status: 'error',
+        message: 'Unauthorized.',
+      });
+      expect(asRecord(response.result).isError).toBe(true);
+      expect(statusCalls.length).toBe(beforeStatus + 1);
+      expect(bodies.length).toBe(beforeExecute);
+    } finally {
+      statusCode = 200;
+    }
+  });
+
+  test('keeps actual task calls and near-miss names on the execution grant gate', async () => {
+    const beforeStatus = statusCalls.length;
+    const calls = [
+      { tool: 'task_get', args: { taskId: 'task_1' } },
+      { tool: 'task_create', args: { title: 'blocked' } },
+      { tool: 'workspace_status ', args: {} },
+    ];
+    for (const [index, args] of calls.entries()) {
+      const id = 20 + index;
+      send({
+        id,
+        method: 'tools/call',
+        params: { name: 'workspace_tool', arguments: args },
+      });
+      const response = await responseTo(id);
+      expect(JSON.parse(textOf(response))).toEqual(
+        index === 0
+          ? { status: 'ok', output: { taskId: 'task_1' } }
+          : { status: 'unavailable', blockers: [{ code: 'not_granted' }] },
+      );
+      expect(bodies.at(-1)).toEqual(args);
+    }
+    expect(statusCalls.length).toBe(beforeStatus);
+  });
+
+  test('still rejects a missing name locally without a discovery or execution request', async () => {
+    const beforeStatus = statusCalls.length;
+    const beforeExecute = bodies.length;
+    send({
+      id: 30,
+      method: 'tools/call',
+      params: { name: 'workspace_tool', arguments: {} },
+    });
+    const response = await responseTo(30);
+    expect(textOf(response)).toBe('"tool" is required.');
+    expect(asRecord(response.result).isError).toBe(true);
+    expect(statusCalls.length).toBe(beforeStatus);
+    expect(bodies.length).toBe(beforeExecute);
   });
 });
