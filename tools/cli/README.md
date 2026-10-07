@@ -131,13 +131,18 @@ After a completed rollout, `tale --json deploy accept --bundle
 "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT"
 --expected-version "$TALE_RELEASE_VERSION"` collects current read-only acceptance.
 It verifies the exact Ready receipt, runtime image custody and OCI release labels,
-the declared origin's serving version, and complete SQL/TypeScript migration
-inventories from the runtime source. It refuses older bundles without that
-inventory, pending operations, missing or extra ledger entries, and changed
-container identities. No application or configuration state is written. The
-existing deployment lock is held for the bounded observation; repeat the command
-when fresh evidence is needed. `sourceTag` is image-reference metadata and may
-be a source SHA tag; OCI labels and the health response establish the version.
+the declared origin's reported version, and complete SQL/TypeScript migration
+inventories from the runtime source. The origin's health names no deployment, so
+its `originHealth` carries `deploymentIdentity: "unproven"`: another installation
+of the same release would pass it, and it never proves exact serving adoption.
+It refuses older bundles without that inventory, pending operations, missing or
+extra ledger entries, and changed container identities. No application or
+configuration state is written; only lock metadata and an owned temporary bundle
+copy change, and the copy is removed. The existing deployment lock is held for
+the observation, and 120 seconds bound the whole command, including bundle
+verification and copying; repeat it when fresh evidence is needed. `sourceTag`
+is image-reference metadata and may be a source SHA tag; OCI labels establish the
+version.
 
 Managed runtime error reporting defaults `SENTRY_ENVIRONMENT` to the deployment's
 retained `name`. To use a canonical reporting label, declare

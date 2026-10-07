@@ -12,7 +12,7 @@ import { assertManagedOptions } from './options';
 export function createAcceptCommand(): Command {
   return new Command('accept')
     .description(
-      'Read current serving, image and migration proof for an exact ready deployment',
+      "Read current runtime, image and migration proof for an exact ready deployment, plus the origin's reported version",
     )
     .option('--bundle <directory>', 'Prepared Tale deployment bundle')
     .option('--cli-ref <sha>', 'Expected full CLI source commit')

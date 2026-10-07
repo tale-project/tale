@@ -90,8 +90,10 @@ function ready(bundle: DeploymentBundle, directory: string) {
 }
 
 /** Observe only: no apply, environment resolution, credential export, migration
- * or application/configuration write. Local lock metadata is the sole host state
- * changed, through the same deployment lock as every maintained deploy command. */
+ * or application/configuration write. Host state changes are the existing lock
+ * metadata, through the same deployment lock as every maintained deploy command,
+ * and the owned private bundle copy removed before returning. The 120-second
+ * deadline also bounds bundle verification, copying and that removal. */
 export async function acceptDeployment(
   options: AcceptDeploymentOptions,
   dependencies: {
@@ -231,7 +233,7 @@ export async function acceptDeployment(
           app,
           knowledge,
         );
-        const serving = await acceptanceHealth(
+        const originHealth = await acceptanceHealth(
           bundle.spec.origin,
           options.expectedVersion,
           remaining(),
@@ -273,10 +275,11 @@ export async function acceptDeployment(
           observedAt: new Date().toISOString(),
           version: options.expectedVersion,
           images: initial.runtime.images,
-          serving,
+          originHealth: { ...originHealth, deploymentIdentity: 'unproven' },
           migrations,
         });
       });
     },
+    remaining,
   );
 }

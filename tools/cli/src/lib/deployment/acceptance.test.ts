@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from 'bun:test';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 import { sha256, stableJson, valueHash } from '../config/releases/identity';
@@ -7,7 +13,8 @@ import type { exec } from '../docker/exec';
 import { acquireLock } from '../state/acquire-lock';
 import { releaseLock } from '../state/release-lock';
 import { acceptDeployment } from './acceptance';
-import { writeDeploymentBundle } from './bundle';
+import { deploymentAcceptanceSchema } from './acceptance-model';
+import { withFrozenDeployment, writeDeploymentBundle } from './bundle';
 import { deploymentSpecSchema } from './model';
 import { applyRuntime } from './runtime-apply';
 import { prepareRuntime } from './runtime-prepare';
@@ -152,6 +159,7 @@ describe.skipIf(process.platform === 'win32')(
         })),
       );
       expect(result.readyReceiptSha256).toBe(sha256(readFileSync(f.ready)));
+      expect(result.originHealth.deploymentIdentity).toBe('unproven');
       expect(f.fetched()).toBe(1);
       expect(
         f.docker.calls.every((c) =>
@@ -261,6 +269,70 @@ describe.skipIf(process.platform === 'win32')(
           acceptDeployment(f.options, f.dependencies),
         ).rejects.toThrow();
       });
+    test('a different installation of the same version proves origin reachability, never serving adoption', async () => {
+      const f = await fixture();
+      // Another installation behind the canonical origin: its health names no deployment.
+      const foreign = (async () =>
+        Response.json({ status: 'ok', version: '1.2.3' })) as typeof fetch;
+      const result = await acceptDeployment(f.options, {
+        ...f.dependencies,
+        fetch: foreign,
+      });
+      expect(result).not.toHaveProperty('serving');
+      expect(result.originHealth).toEqual({
+        status: 'ok',
+        version: '1.2.3',
+        deploymentIdentity: 'unproven',
+      });
+      for (const originHealth of [
+        { status: 'ok', version: '1.2.3' },
+        { status: 'ok', version: '1.2.3', deploymentIdentity: 'proven' },
+      ])
+        expect(
+          deploymentAcceptanceSchema.safeParse({ ...result, originHealth })
+            .success,
+        ).toBe(false);
+    });
+    test('whole deadline bounds bundle preparation before any observation', async () => {
+      const f = await fixture();
+      // A pending marker refuses the first observation, so only a deadline
+      // enforced while verifying and copying the bundle can explain this error.
+      writeFileSync(
+        join(f.f.options.stateDirectory, '.tale/deployment-pending.json'),
+        '{}',
+      );
+      let reads = 0;
+      await expect(
+        acceptDeployment(f.options, {
+          ...f.dependencies,
+          now: () => (reads++ === 0 ? 0 : 120_001),
+        }),
+      ).rejects.toThrow('exceeded its observation deadline');
+      expect(f.docker.calls).toHaveLength(0);
+    });
+    test('removing the private copy stays inside the deadline and still happens', async () => {
+      const f = await fixture();
+      let frozen = '';
+      let spent = false;
+      await expect(
+        withFrozenDeployment(
+          f.bundle,
+          { cliRef: f.options.cliRef, deploymentRef: f.options.deploymentRef },
+          async (directory) => {
+            frozen = directory;
+            spent = true;
+            return 'receipt';
+          },
+          () => {
+            if (spent) throw new Error('deadline spent');
+            return 60_000;
+          },
+        ),
+      ).rejects.toThrow('deadline spent');
+      for (let i = 0; i < 100 && existsSync(frozen); i++) await Bun.sleep(20);
+      expect(frozen).not.toBe('');
+      expect(existsSync(frozen)).toBe(false);
+    });
     test('whole deadline refuses after a slow observation', async () => {
       const f = await fixture();
       let now = 0;

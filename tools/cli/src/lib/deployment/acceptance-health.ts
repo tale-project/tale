@@ -1,8 +1,9 @@
 import { externalDepError } from '../../utils/fail';
 import { acceptanceServingSchema } from './acceptance-model';
 
-/** No redirect, cookies or credentials. The deployment's canonical HTTPS
- * origin must itself serve the selected version. Cancellation covers body reads. */
+/** No redirect, cookies or credentials. The canonical HTTPS origin must itself
+ * report the selected version. The response names no deployment, so it proves
+ * version reachability only. Cancellation covers body reads. */
 export async function acceptanceHealth(
   origin: string,
   expectedVersion: string,

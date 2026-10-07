@@ -16,6 +16,12 @@ export const acceptanceServingSchema = z.strictObject({
   status: z.literal('ok'),
   version: acceptanceVersionSchema,
 });
+/** Public health carries only a process version. Another installation of the
+ * same release can answer the canonical origin, so this records version
+ * reachability and never proves that the origin serves the selected deployment. */
+export const acceptanceOriginHealthSchema = acceptanceServingSchema.extend({
+  deploymentIdentity: z.literal('unproven'),
+});
 export const deploymentAcceptanceSchema = z.strictObject({
   schemaVersion: z.literal(1),
   kind: z.literal('tale-deployment-acceptance'),
@@ -28,7 +34,7 @@ export const deploymentAcceptanceSchema = z.strictObject({
   observedAt: z.iso.datetime(),
   version: acceptanceVersionSchema,
   images: z.array(runtimeImageSchema).min(8).max(20),
-  serving: acceptanceServingSchema,
+  originHealth: acceptanceOriginHealthSchema,
   migrations: z.tuple([
     applicationLedgerSchema.extend({ inventorySha256: sha }),
     privateLedgerSchema.extend({ inventorySha256: sha }),

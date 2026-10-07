@@ -9,8 +9,11 @@ suite alongside the automated ones — they drive the same stack.
 Managed deployment acceptance reads the exact Ready receipt, current runtime
 custody and OCI version, canonical-origin health, and complete source-derived
 SQL/TypeScript and knowledge migration inventories without applying state.
+Origin health is version reachability with an unproven deployment identity,
+never exact serving adoption.
 `tools/cli/src/lib/deployment/acceptance*.test.ts` and `source-migrations.test.ts`
-cover drift, missing/extra ledgers, legacy refusal and final-read races;
+cover drift, missing/extra ledgers, legacy refusal, final-read races, a
+same-version foreign origin and the deadline across bundle preparation/removal;
 `tools/cli/src/lib/docker/bounded-output.test.ts` covers bounded owned subprocess
 settlement. The existing Backend integration job runs the real read-only psql
 proof through `tools/cli/scripts/check-deployment-acceptance.ts` against its
