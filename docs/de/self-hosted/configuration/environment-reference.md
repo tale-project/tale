@@ -155,7 +155,7 @@ Anbieterzugangsdaten können stattdessen eine Variable mit Präfix `TALE_PROVIDE
 
 ## Connector-OAuth-Apps
 
-OAuth-Connectoren (Gmail, Google Drive, Outlook, Teams, Slack, …) lösen ihre Vendor-App zuerst pro Organisation auf: Eine unter **Einstellungen > Connectors > OAuth-Apps** hinterlegte App gewinnt für diese Org. Die Umgebung liefert darunter den deployment-weiten Standard (und ist die einzige Quelle für Slack, dessen Event-Signaturprüfung läuft, bevor eine Org bekannt ist). Pro Connector-Slug:
+OAuth-Connectors (Gmail, Google Drive, Outlook, Teams, Slack, …) lösen ihre Vendor-App zuerst pro Organisation auf: Eine unter **Einstellungen > Connectors > OAuth-Apps** hinterlegte App gewinnt für diese Org. Die Umgebung liefert darunter den deployment-weiten Standard (und ist die einzige Quelle für Slack, dessen Event-Signaturprüfung läuft, bevor eine Org bekannt ist). Pro Connector-Slug:
 
 | Name                                   | Default | Beschreibung                                                                                                   |
 | -------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
@@ -374,7 +374,7 @@ Kubernetes-Pods erhalten nicht automatisch unsichere Sysctls. Der Egress-Proxy b
 
 ## SSH-Zugang zu Repositories {#ssh-repository-access}
 
-Die native Sandbox enthält OpenSSH und `netcat-openbsd`. Gib einen austauschbaren, auf das Repository beschränkten Schlüssel als benanntes Agent-Secret frei und lade ihn im berechtigten Lauf über stdin in `ssh-agent`. Die privaten Bytes bleiben in der Umgebung; schreibe keine Schlüsseldatei und gib sie nie aus. Ein von einem Mitglied gestarteter Lauf erhält keine Agent-Secrets. Git-Commits nutzen den Namen und die E-Mail des Workspace-Eigentümers auch ohne Freigabe eines GitHub-Konnektors.
+Die native Sandbox enthält OpenSSH und `netcat-openbsd`. Gib einen austauschbaren, auf das Repository beschränkten Schlüssel als benanntes Agent-Secret frei und lade ihn im berechtigten Lauf über stdin in `ssh-agent`. Die privaten Bytes bleiben in der Umgebung; schreibe keine Schlüsseldatei und gib sie nie aus. Ein von einem Mitglied gestarteter Lauf erhält keine Agent-Secrets. Git-Commits nutzen den Namen und die E-Mail des Workspace-Eigentümers auch ohne Freigabe eines GitHub-Connectors.
 
 Interne Sitzungen nutzen ihren bestehenden `HTTP_PROXY` für ausgehende Verbindungen. Direktes SSH kann in diesem Netz nicht auf externe DNS-Auflösung bauen. Nutze den HTTP-CONNECT-Tunnel des Proxys und einen erlaubten Port. GitHub unterstützt SSH über `ssh.github.com:443`; prüfe den Host gegen [GitHubs veröffentlichte Fingerabdrücke](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints), wie unter [SSH über Port 443](https://docs.github.com/en/authentication/troubleshooting-ssh/using-ssh-over-the-https-port) beschrieben. Lege eine öffentliche Known-Hosts-Datei mit dem unabhängig geprüften Schlüssel an und konfiguriere den Befehl, nachdem der Agent den privaten Schlüssel geladen hat:
 
@@ -398,7 +398,7 @@ environment["GIT_SSH_COMMAND"] = shlex.join([
 subprocess.run(["git", "ls-remote", "--exit-code", "ssh://git@ssh.github.com:443/org/repository.git", "HEAD"], env=environment, check=True, timeout=30)
 ```
 
-Die Known-Hosts-Datei enthält nur den öffentlichen Hostschlüssel des Anbieters; der private Repository-Schlüssel bleibt in `ssh-agent`. Die bestehende Egress-Richtlinie und der Zugriffsumfang des Repository-Schlüssels gelten weiterhin. Eine weitergehende GitHub-Konnektorfreigabe ist nicht nötig.
+Die Known-Hosts-Datei enthält nur den öffentlichen Hostschlüssel des Anbieters; der private Repository-Schlüssel bleibt in `ssh-agent`. Die bestehende Egress-Richtlinie und der Zugriffsumfang des Repository-Schlüssels gelten weiterhin. Eine weitergehende GitHub-Connector-Freigabe ist nicht nötig.
 
 ## Sandbox-Geräte {#sandbox-devices}
 

@@ -49,4 +49,4 @@ Anwendungsrollen können mehrere Replikate haben. Die CLI aktualisiert sie als g
 
 Anwendungsdatenbank, Wissensdatenbank und Dateispeicher können auf externe Infrastruktur umziehen. Eine Organisation kann außerdem eine eigene Wissensdatenbank und einen eigenen Bucket wählen. Eine geänderte Verbindung überträgt keine vorhandenen Inhalte. Plane Kopie, Umschaltung, Prüfung und Sicherungsumfang anhand von [Datenresidenz](/de/self-hosted/configuration/data-residency).
 
-Selbsthosting bestimmt, wo Tale läuft. Anbieteraufrufe, Konnektoren, Webabrufe und Netzwerkzugriffe der Sandbox hängen weiterhin von deiner Konfiguration ab. Prüfe diese Ziele zusammen mit den Speicherorten unter [Härtung](/de/self-hosted/operate/security/hardening).
+Selbsthosting bestimmt, wo Tale läuft. Anbieteraufrufe, Connectors, Webabrufe und Netzwerkzugriffe der Sandbox hängen weiterhin von deiner Konfiguration ab. Prüfe diese Ziele zusammen mit den Speicherorten unter [Härtung](/de/self-hosted/operate/security/hardening).
