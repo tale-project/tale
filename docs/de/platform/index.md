@@ -100,7 +100,7 @@ Dateien, Anweisungen, persönliche und geteilte Chats sowie Aufgaben zusammenhal
 
 <Card title="Agenten" icon="bot" href="/de/platform/agents/concepts">
 
-Agenten mit passender Agent-Laufzeit, Modell und Ausstattung für Projektaufgaben einrichten.
+Agenten mit einer passenden Agent-Laufzeit, einem passenden Modell und passender Ausstattung für Projektaufgaben einrichten.
 
 </Card>
 
