@@ -194,15 +194,19 @@ describe('BudgetEditor', () => {
             <BudgetEditor organizationId="org-1" />
           </AppShell>,
         );
-        expect(
-          screen.getByRole('cell', {
-            name: t('featureFlags.roleLabels.developer'),
-          }),
-        ).toBeInTheDocument();
-        expect(
-          screen.getByRole('cell', { name: 'future-role' }),
-        ).toBeInTheDocument();
-        expect(screen.getByRole('cell', { name: '—' })).toBeInTheDocument();
+        const targetCell = (index: number) => {
+          const row = screen
+            .getByRole('button', {
+              name: t('budgets.editRuleAriaLabel', { index }),
+            })
+            .closest('tr')!;
+          return within(row).getAllByRole('cell')[1];
+        };
+        expect(targetCell(1).textContent).toBe(
+          t('featureFlags.roleLabels.developer'),
+        );
+        expect(targetCell(2).textContent).toBe('future-role');
+        expect(targetCell(3).textContent).toBe('—');
         await user.click(
           screen.getByRole('button', {
             name: t('budgets.editRuleAriaLabel', { index: 1 }),
@@ -237,11 +241,9 @@ describe('BudgetEditor', () => {
         await user.click(
           dialog.getByRole('button', { name: t('budgets.confirm') }),
         );
-        expect(
-          screen.getByRole('cell', {
-            name: t('featureFlags.roleLabels.member'),
-          }),
-        ).toBeInTheDocument();
+        expect(targetCell(1).textContent).toBe(
+          t('featureFlags.roleLabels.member'),
+        );
       } finally {
         cleanup();
         await i18n.changeLanguage('en');
