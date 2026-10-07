@@ -295,8 +295,11 @@ A published version is not a deployment. Deployments follow their own procedure.
   The workflow test stubs `gh`, so it proves the step's branching, not GitHub's lookup. This is
   a recorded decision: the step treats any failed lookup as a missing release and calls
   `gh release create`, so the draft check is only as reliable as gh's lookup.
-- **A failed Release run after the tag.** Never move the tag. Re-run the Release run's failed
-  jobs (its concurrency never cancels a release), or release the fix as the next version.
+- **A failed Release run after the tag.** Never move the tag. For a transient failure,
+  re-run **all jobs** of the same Release run (its concurrency never cancels a release).
+  The maintained adopter requires the complete publication job matrix from one current
+  attempt; failed-job-only retries omit earlier successes, and mixing attempts is refused.
+  If source must change, fix `main`, validate a new candidate and release the next version.
 
 ## Merging during a release, and the release lease
 

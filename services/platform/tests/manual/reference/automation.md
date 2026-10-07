@@ -6,6 +6,14 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Bun Docker builders, runtimes and the React service generator match the pinned
+workspace/CI version with immutable image digests. All production client builds
+share an awaited Vite helper; real subprocess fixtures prove service cwd, delayed
+plugin output and nonzero build/close failures (`tools/cli/scripts/bun-toolchain.test.ts`,
+`tools/cli/scripts/build-client.test.ts`). Native container smoke/conformance and
+static-site builds cover the runtime upgrade; the intermittent hosted ARM build
+stall still requires hosted observation.
+
 Model access immediate saves roll back on failure (including after the
 affected-defaults confirmation), show one failure toast, remain retryable,
 and reconcile mounted controls with a fresh policy readback. Replaced readbacks

@@ -23,7 +23,11 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/ui/bin/build-client.ts"
+      ]
     },
     "@tale/db#build": {
       "outputs": []

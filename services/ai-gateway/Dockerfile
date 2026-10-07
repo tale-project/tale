@@ -1,7 +1,7 @@
 # AI Gateway Dockerfile — the Vite panel, served by the Bun server that also runs the gateway
 ARG VERSION=dev
 
-FROM oven/bun:1.3.12 AS bun-bin
+FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS bun-bin
 
 # ============================================================================
 # Stage 1: workspace deps
@@ -58,14 +58,14 @@ WORKDIR /app/services/ai-gateway
 # stage carries no `node_modules`, so every import `server.ts` makes —
 # `@tale/ui/server`, the service's own modules, its dependencies — has to
 # be inlined here (the pattern `services/web` and `services/docs` use).
-RUN bun --bun vite build \
+RUN bun --bun ../../packages/ui/bin/build-client.ts \
     && bun build server.ts --target=bun --outfile=server.js --external bun
 WORKDIR /app
 
 # ============================================================================
 # Stage 3: runtime
 # ============================================================================
-FROM oven/bun:1.3.12-slim AS runner
+FROM oven/bun:1.4.2-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS runner
 
 ENV NODE_ENV=production \
     PORT=3004 \

@@ -241,12 +241,14 @@ export default {
       entry: [
         ...Object.values(uiPackage.exports),
         ...Object.values(uiPackage.bin),
+        // Invoked by path from service build scripts, not a published bin.
+        'bin/build-client.ts',
         'src/**/*.stories.{ts,tsx}',
       ],
       // Tailwind's CSS compiler must see public stylesheet imports too.
       project: ['**/*.{ts,tsx,css}'],
       ignoreDependencies: [
-        // Type-only import in src/{pwa,seo/runtime}/vite-plugin.ts. Declared
+        // Build helper and src/{pwa,seo/runtime}/vite-plugin.ts imports. Declared
         // as an optional peer so consumers without a vite-driven service
         // don't have to install it; knip flags optional peers that are
         // referenced, which is exactly the pattern we want here.
