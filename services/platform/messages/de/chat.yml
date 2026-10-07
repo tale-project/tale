@@ -307,34 +307,39 @@ showLess: Weniger anzeigen
 scrollToBottom: Nach unten scrollen
 messageInfo:
   title: Nachrichteninformation
-  description: Details zu dieser KI-Antwort
   timestamp: Zeitstempel
   messageId: Nachrichten-ID
   copyId: Nachrichten-ID kopieren
   model: Modell
+  provider: Anbieter
+  servedBy: Verarbeitet von
+  region: Region
+  regionNotReported: Nicht gemeldet
+  regionNotReportedHint: Erscheint, wenn der Anbieter sie meldet oder ein regionaler Endpoint sie festlegt.
+  regionFromEndpoint: Festgelegt durch den regionalen Endpoint {host}
+  regionGlobal: Global, ohne feste Region
+  regions:
+    europe: Europa
+    unitedStates: USA
+  modelVersion: Modellversion
   tokenUsage: Token-Verbrauch
+  totalTokens: '{count} gesamt'
   input: Eingabe
   output: Ausgabe
-  total: Gesamt
-  reasoning: Reasoning
-  cached: Zwischengespeichert
-  cachedPercent: '{percent}% zwischengespeichert'
+  cachedTokens: '{count} aus dem Cache ({percent} %)'
+  reasoningTokens: '{count} Reasoning'
   cost: Kosten
   performance: Leistung
-  yourWait: Deine Wartezeit
-  serverTiming: Server
-  youWaited: Senden → erstes Wort
-  performanceHint: Deine Wartezeit startet, wenn du sendest. Die Server-Zeiten starten, wenn die Antwort beginnt — die erste Zahl kann deshalb größer sein.
-  duration: Start → fertig
-  timeToFirstToken: Start → erster Token
-  setupBeforeModel: Setup vor dem Modell
-  timeToFirstReasoning: Zeit bis zum ersten Reasoning
-  ttftBreakdown: Aufschlüsselung
-  ttftBreakdownHint: Alles ab dem Start der Antwort auf dem Server gemessen, nicht ab dem Senden. Setup vor dem Modell ist die Backend-Wartezeit, bevor das Modell mit der Generierung beginnt.
-  ttftDetailsTitle: Start → erster Token – Details
-  ttftDetailsDescription: Aufschlüsselung der Wartezeit bis zum ersten Token, ab dem Start der Antwort auf dem Server.
-  throughput: Durchsatz
+  timeToFirstToken: Zeit bis zum ersten Token
+  throughput: Ausgabetempo
+  duration: Gesamtzeit
   tokensPerSecond: '{value} Tok/s'
+  phases:
+    preparing: Vorbereitung
+    waiting: Warten auf das Modell
+    thinking: Denken
+    writing: Schreiben
+  perceivedWait: Auf deinem Bildschirm erschienen die ersten Wörter {duration} nach dem Senden.
   toolCalls: Tool-Aufrufe
   voiceOutput: Sprachausgabe
   voice: Stimme

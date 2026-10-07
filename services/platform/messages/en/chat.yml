@@ -305,34 +305,39 @@ showLess: Show less
 scrollToBottom: Scroll to bottom
 messageInfo:
   title: Message information
-  description: Details about this AI response
   timestamp: Timestamp
   messageId: Message ID
   copyId: Copy message ID
   model: Model
+  provider: Provider
+  servedBy: Served by
+  region: Region
+  regionNotReported: Not reported
+  regionNotReportedHint: Shown when the provider reports it or a regional endpoint sets it.
+  regionFromEndpoint: Set by the regional endpoint {host}
+  regionGlobal: Global, no fixed region
+  regions:
+    europe: Europe
+    unitedStates: United States
+  modelVersion: Model version
   tokenUsage: Token usage
+  totalTokens: '{count} total'
   input: Input
   output: Output
-  total: Total
-  reasoning: Reasoning
-  cached: Cached
-  cachedPercent: '{percent}% cached'
+  cachedTokens: '{count} cached ({percent}%)'
+  reasoningTokens: '{count} reasoning'
   cost: Cost
   performance: Performance
-  yourWait: Your wait
-  serverTiming: Server
-  youWaited: Send → first words
-  performanceHint: Your wait starts when you send. Server times start when the reply begins, so the first number can be larger.
-  duration: Start → done
-  timeToFirstToken: Start → first token
-  setupBeforeModel: Setup before model
-  timeToFirstReasoning: Time to first reasoning
-  ttftBreakdown: Breakdown
-  ttftBreakdownHint: All measured from when the server begins the reply, not from when you send. Setup before model is the backend wait before the model starts generating.
-  ttftDetailsTitle: Start → first token — details
-  ttftDetailsDescription: How the server-side wait before the first token breaks down.
-  throughput: Throughput
+  timeToFirstToken: Time to first token
+  throughput: Output speed
+  duration: Total time
   tokensPerSecond: '{value} tok/s'
+  phases:
+    preparing: Preparing
+    waiting: Waiting for the model
+    thinking: Thinking
+    writing: Writing
+  perceivedWait: On your screen, the first words appeared {duration} after you sent.
   toolCalls: Tool calls
   voiceOutput: Voice output
   voice: Voice
