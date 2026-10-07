@@ -62,6 +62,7 @@ import {
   type GuardrailRefusal,
 } from './guardrails';
 import type { TaskHandover } from './handover';
+import { createServingTally, mergeServedBy } from './serving';
 import {
   type ChatToolExecutor,
   type ToolCallRequest,
@@ -73,6 +74,7 @@ import {
   estimateTokens,
   type ChatMessage,
   type MessagePart,
+  type ServedBy,
   type TurnFinishReason,
   type TurnUsage,
 } from './types';
@@ -160,6 +162,10 @@ export interface ModelStreamChunk {
   readonly toolCalls?: readonly ToolCallRequest[];
   /** Why the model stopped, when the dialect said — on the settle chunk. */
   readonly finishReason?: TurnFinishReason;
+  /** Where the answer is served, when the response said: its headers before
+   * the first byte, its body when a chunk names something new. A chunk
+   * carrying only this carries no answer. */
+  readonly serving?: ServedBy;
 }
 
 export interface ModelCallRequest {
@@ -673,6 +679,8 @@ interface RoundObservation {
   reasoning: string;
   /** The last usage the provider reported on this round. */
   reportedUsage?: TurnUsage;
+  /** Where the round was served, as far as the response said. */
+  servedBy?: ServedBy;
 }
 
 /** How often a stalled stream re-asks the store whether the user hit Stop.
@@ -738,6 +746,8 @@ async function streamWithOutputGuardrails(
   firstReasoningAtMs?: number;
   /** When this round dispatched its model call — the setup boundary. */
   roundStartedAtMs: number;
+  /** Where the round was served, when the response said. */
+  servedBy?: ServedBy;
 }> {
   const transform = createOutputTransform(deps.outputFilters ?? [], {
     ...deps.guardrailOptions,
@@ -751,6 +761,7 @@ async function streamWithOutputGuardrails(
   let finishReason: TurnFinishReason | undefined;
   let firstChunkAtMs: number | undefined;
   let firstReasoningAtMs: number | undefined;
+  let servedBy: ServedBy | undefined;
   let cancelled = false;
   let persistedNonEmpty = false;
   const observed: RoundObservation = round.observed ?? {
@@ -877,6 +888,10 @@ async function streamWithOutputGuardrails(
       if (chunk.reasoning !== undefined) observed.reasoning += chunk.reasoning;
       if (chunk.usage) observed.reportedUsage = chunk.usage;
       if (chunk.usage) reportedUsage = chunk.usage;
+      if (chunk.serving !== undefined) {
+        servedBy = mergeServedBy(servedBy, chunk.serving);
+        observed.servedBy = servedBy;
+      }
       if (chunk.finishReason !== undefined) finishReason = chunk.finishReason;
       if (chunk.toolCalls !== undefined) toolCalls = chunk.toolCalls;
       // Reasoning bypasses the output guardrails: it is display-only, never
@@ -906,6 +921,7 @@ async function streamWithOutputGuardrails(
           firstChunkAtMs,
           firstReasoningAtMs,
           roundStartedAtMs,
+          ...(servedBy !== undefined ? { servedBy } : {}),
         };
       }
       await persistProgress();
@@ -936,6 +952,7 @@ async function streamWithOutputGuardrails(
       firstChunkAtMs,
       firstReasoningAtMs,
       roundStartedAtMs,
+      ...(servedBy !== undefined ? { servedBy } : {}),
     };
   }
 
@@ -949,6 +966,7 @@ async function streamWithOutputGuardrails(
       firstChunkAtMs,
       firstReasoningAtMs,
       roundStartedAtMs,
+      ...(servedBy !== undefined ? { servedBy } : {}),
     };
   }
   // Flush may have just cleared a short tail that never hit minFlushChars.
@@ -967,6 +985,7 @@ async function streamWithOutputGuardrails(
     firstChunkAtMs,
     firstReasoningAtMs,
     roundStartedAtMs,
+    ...(servedBy !== undefined ? { servedBy } : {}),
   };
 }
 
@@ -1353,6 +1372,13 @@ export async function runTurn(
    * a turn that fails still owes what its rounds consumed. */
   const summed: RoundSum = { input: 0, output: 0 };
   let roundsSummed = 0;
+  /** Where the rounds were served, as their responses said — stamped beside
+   * the counts, on a failed reply too. */
+  const serving = createServingTally(request.model.id);
+  const servingStamp = (): { serving?: NonNullable<TurnUsage['serving']> } => {
+    const stamp = serving.stamp();
+    return stamp !== undefined ? { serving: stamp } : {};
+  };
   const addRound = (round: ReturnType<typeof roundUsage>): void => {
     summed.input += round.input;
     summed.output += round.output;
@@ -1509,6 +1535,7 @@ export async function runTurn(
       firstReasoningAtMs ??= streamed.firstReasoningAtMs;
       firstRoundStartedAtMs ??= streamed.roundStartedAtMs;
       addRound(roundUsage(streamed, wire));
+      serving.add(streamed.servedBy);
 
       const calls = streamed.toolCalls ?? [];
       if (
@@ -1695,6 +1722,7 @@ export async function runTurn(
       ...(toolRounds >= MAX_TOOL_ROUNDS ? { stepLimitHit: true } : {}),
       ...(finishReason !== undefined ? { finishReason } : {}),
       ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
+      ...servingStamp(),
     };
 
     // The settled record of the whole turn: earlier rounds' parts, then the
@@ -1822,9 +1850,13 @@ export async function runTurn(
             inFlight.wire,
           ),
         );
+        serving.add(inFlight.observed.servedBy);
       }
       if (roundsSummed > 0) {
-        consumed = summedUsage(summed, request.model.pricing);
+        consumed = {
+          ...summedUsage(summed, request.model.pricing),
+          ...servingStamp(),
+        };
         try {
           await recordUsage(request, consumed, deps);
         } catch (bookingError) {

@@ -2514,3 +2514,122 @@ describe('runTurn — a failed turn books what it consumed', () => {
     expect(calls.finalized.at(-1)).not.toHaveProperty('usage');
   });
 });
+
+describe('runTurn — where the reply was served', () => {
+  /** A model whose rounds report where they were served beside their text;
+   * round N answers with `rounds[N]`. */
+  function servedModel(rounds: readonly ModelStreamChunk[][]): ModelCall {
+    let calls = 0;
+    return async function* stream() {
+      const chunks = rounds[Math.min(calls, rounds.length - 1)] ?? [];
+      calls += 1;
+      for (const chunk of chunks) yield chunk;
+    };
+  }
+
+  it('stamps what the responses said beside the counts', async () => {
+    const d = deps({
+      model: servedModel([
+        [
+          { text: '', serving: { region: 'Switzerland North' } },
+          {
+            text: 'Return it within 30 days.',
+            serving: {
+              region: 'Switzerland North',
+              provider: 'Azure',
+              model: 'claude-fable-5-20260115',
+            },
+          },
+        ],
+      ]),
+    });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome.status).toBe('completed');
+    expect(d.store.finalized.at(-1)?.usage).toMatchObject({
+      serving: {
+        providers: ['Azure'],
+        regions: ['Switzerland North'],
+        models: ['claude-fable-5-20260115'],
+      },
+    });
+    // The ledger books counts only; where the reply ran is the message's.
+    expect(d.usage[0]).not.toHaveProperty('serving');
+  });
+
+  it('leaves out a model id that only repeats the requested one', async () => {
+    const d = deps({
+      model: servedModel([
+        [{ text: 'Hi.', serving: { provider: 'Anthropic', model: MODEL.id } }],
+      ]),
+    });
+    await runTurn(request(), d.deps);
+    expect(d.store.finalized.at(-1)?.usage).toMatchObject({
+      serving: { providers: ['Anthropic'] },
+    });
+    expect(d.store.finalized.at(-1)?.usage).not.toHaveProperty(
+      'serving.models',
+    );
+  });
+
+  it('stamps nothing when no response named anything', async () => {
+    const d = deps();
+    await runTurn(request(), d.deps);
+    expect(d.store.finalized.at(-1)?.usage).not.toHaveProperty('serving');
+  });
+
+  it('lists every upstream a tool loop was routed to, in order', async () => {
+    const executed: ToolCallRequest[] = [];
+    const executor: ChatToolExecutor = {
+      wireTools: [
+        {
+          name: 'rag_search',
+          description: 'Search the knowledge.',
+          parameters: { type: 'object' },
+        },
+      ],
+      execute(call) {
+        executed.push(call);
+        return Promise.resolve({ status: 'ok', results: [] });
+      },
+    };
+    const d = deps({
+      tools: executor,
+      model: servedModel([
+        [
+          { text: '', serving: { provider: 'Google Vertex' } },
+          {
+            text: '',
+            toolCalls: [
+              { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
+            ],
+          },
+        ],
+        [
+          { text: '', serving: { provider: 'Anthropic' } },
+          { text: 'Found it: 30 days.' },
+        ],
+      ]),
+    });
+    await runTurn(request(), d.deps);
+    expect(executed).toHaveLength(1);
+    expect(d.store.finalized.at(-1)?.usage).toMatchObject({
+      serving: { providers: ['Google Vertex', 'Anthropic'] },
+    });
+  });
+
+  it('keeps where a failed round was served on the failed reply', async () => {
+    const d = deps({
+      model: async function* stream(call) {
+        call.onAccepted?.();
+        yield { text: '', serving: { provider: 'Together' } };
+        yield { text: 'Return it ' };
+        throw new Error('The model provider ended the reply with an error');
+      },
+    });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome.status).toBe('refused');
+    expect(d.store.finalized.at(-1)).toMatchObject({
+      usage: { serving: { providers: ['Together'] } },
+    });
+  });
+});
