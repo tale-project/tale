@@ -39,7 +39,7 @@ Si la liste reste vide ou si le fournisseur refuse la requête, suis les étapes
 
 ## Ajouter les personnes avec les bons accès
 
-Ouvre **Paramètres > Membres** et sélectionne **Ajouter un membre**. Pour un nouveau compte, le formulaire définit un mot de passe initial ; un compte existant conserve ses identifiants. Ce parcours n’envoie pas d’invitation par e-mail. [Membres et rôles](/fr/platform/admin/members-and-roles) détaille les champs et la remise sécurisée des premiers identifiants.
+Ouvre **Paramètres > Membres** et sélectionne **Ajouter un membre**. Pour un nouveau compte, le formulaire définit un mot de passe initial ; un compte existant conserve ses identifiants. Ce parcours n’envoie pas d’invitation par e-mail. Le membre doit choisir un nouveau mot de passe à sa prochaine connexion ; une réinitialisation le déconnecte de toutes ses sessions. [Membres et rôles](/fr/platform/admin/members-and-roles) détaille les champs et la remise sécurisée des premiers identifiants.
 
 <Frame caption="Vérifie le rôle de chaque membre avant de lui transmettre l’accès.">
 
