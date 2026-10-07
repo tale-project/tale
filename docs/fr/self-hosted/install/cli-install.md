@@ -129,7 +129,7 @@ Un échec lié à Docker, Compose, à un mode de conteneurs non pris en charge o
 - `-q, --quiet` — masquer les logs des conteneurs pendant le déploiement.
 - `-y, --yes` — accepter automatiquement les confirmations destructives (p. ex. `--override-all`).
 - `--skip-backup` — ignorer le snapshot de volume automatique d'avant déploiement.
-- `--configuration-only` — applique uniquement la configuration gérée à chaud (instructions et automatisations) au runtime sain exact d’un déploiement déjà prêt. Exige `--bundle <directory>` et saute le snapshot préalable au déploiement ainsi que le redémarrage. Utilise cette option quand seules ces ressources changent ; les paramètres du runtime et de l’identité doivent rester inchangés, sans déploiement du runtime en attente.
+- `--configuration-only` — applique uniquement la configuration gérée à chaud (instructions, autorisations d’outils des agents et automatisations) au runtime sain exact d’un déploiement déjà prêt. Exige `--bundle <directory>` et saute le snapshot préalable au déploiement ainsi que le redémarrage. Utilise cette option quand seules ces ressources changent ; les paramètres du runtime et de l’identité doivent rester inchangés, sans déploiement du runtime en attente.
 - `--dry-run` — prévisualiser sans rien modifier.
 
 ### Déploiements gérés {#managed-deployments}
@@ -391,6 +391,10 @@ Ces types de ressources utilisent les schémas partagés et les permissions nati
 | `provider-credential` | Métadonnées d’identifiants nommés issus de l’environnement      | Organisation |
 | `knowledge-embedding` | Fournisseur, modèle, dimensions, endpoint et limites du serveur | Organisation |
 | `deployment`          | Paramètres de l’instance, dont le runtime du sandbox            | Instance     |
+
+Utilise `agent-tools` pour gérer uniquement les autorisations d’outils d’un agent existant. Son objet `config` exige les valeurs exactes de `projectId` et `agentId`, ainsi que le tableau complet des `tools` souhaités, par exemple `["task_find", "task_get", "task_review"]`. Inclus chaque autorisation à conserver ; `[]` retire toutes les autorisations d’outils. Le catalogue natif refuse les noms inconnus et normalise l’ordre et les doublons avant de calculer le hash.
+
+Pour appliquer cette ressource, tu dois pouvoir modifier le projet actif, et l’agent ne doit pas être géré par la plateforme. Les membres peuvent lire cette configuration limitée. Tous les autres champs restent inchangés, y compris les instructions, le modèle et les autorisations exactes d’accès aux secrets. Le hash natif refuse les modifications concurrentes des outils ; une sélection modifiée invalide aussi les enregistrements complets d’agent fondés sur un état périmé. Une sélection équivalente ne change ni horodatage ni entrée d’audit. Si le runtime ne prend pas en charge la capacité demandée, il refuse l’opération. Relis les outils après l’application et conserve le reçu en attente pour reprendre une application interrompue.
 
 Les politiques de conservation et DSAR exigent leurs workflows natifs dédiés. Interromps les envois, la synchronisation et les crawls avant de changer de modèle d’embedding. La CLI vérifie le nombre de documents et de sites web dans toute l’organisation ; elle ne verrouille pas l’import et ne migre pas les vecteurs existants. Pour une organisation avec des documents ou des sites web enregistrés, un changement de modèle exige une migration native distincte de l’index. Une modification limitée à `minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` ou `maxRequestsPerMinute` laisse les vecteurs existants valables et échappe donc à cette vérification. Les paramètres d’instance exigent aussi la liste native des éditeurs autorisés. L’application autonome signale `restartRequired` pour les paramètres de démarrage ; les enregistrer ne les active pas encore. Examine les effets du plan avant de l’appliquer.
 
