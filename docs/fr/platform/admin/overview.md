@@ -27,7 +27,7 @@ Les propriétaires et les admins gèrent les paramètres de l’organisation. Le
 | Filtrer les messages et définir les instructions de l’organisation | [Garde-fous](/fr/platform/admin/governance/guardrails) |
 | Examiner des actions ou des dépenses | [Journaux d’audit](/fr/platform/admin/governance/audit-logs) ou [métriques d’utilisation](/fr/platform/admin/governance/usage-analytics) |
 | Repérer les réponses de chat, tours d’agent ou exécutions d’automatisation qui échouent | [Métriques d’exploitation](/fr/platform/admin/governance/operations-metrics) |
-| Récupérer des données conservées ou empêcher leur suppression | [Corbeille](/fr/platform/admin/governance/trash) ou [gel juridique](/fr/platform/admin/governance/legal-hold) |
+| Récupérer des données conservées ou empêcher leur suppression | [Corbeille](/fr/platform/admin/governance/trash) ou [conservation légale](/fr/platform/admin/governance/legal-hold) |
 | Traiter une demande d’effacement | [Demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests) |
 
 ## Connexion, intégrations et apparence

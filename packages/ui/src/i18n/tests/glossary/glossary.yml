@@ -443,8 +443,10 @@ terms:
     de: Aufbewahrungs-Pflicht
     fr: Conservation légale
     _note: 'Legal-technical compound. DE: both `Aufbewahrungs-Pflicht` and the
-      loanword `Legal Hold` are used; pick one per page. FR: `Legal hold`
-      acceptable as loanword in technical sections.'
+      loanword `Legal Hold` are used; pick one per page. FR: `Conservation
+      légale` in UI strings (audit-log labels and refusal messages included)
+      and guides, `conservation` alone for one hold; not `legal hold`,
+      `conservation juridique` or `gel juridique`.'
   - key: feature_mcpServer
     category: feature
     en: MCP server
