@@ -36,14 +36,16 @@ export function ApiKeyOwnerCell({
           : (owner.name ?? owner.email ?? t('apiKeys.owner.formerMember'));
       break;
     case 'team':
-      label = t('apiKeys.owner.team', {
-        name: owner.teamName ?? t('apiKeys.owner.deletedTeam'),
-      });
+      label =
+        owner.teamName !== null
+          ? t('apiKeys.owner.team', { name: owner.teamName })
+          : t('apiKeys.owner.deletedTeam');
       break;
     case 'project':
-      label = t('apiKeys.owner.project', {
-        name: owner.projectName ?? t('apiKeys.owner.deletedProject'),
-      });
+      label =
+        owner.projectName !== null
+          ? t('apiKeys.owner.project', { name: owner.projectName })
+          : t('apiKeys.owner.deletedProject');
       break;
     case 'organization':
       label = t('apiKeys.owner.organization');

@@ -32,6 +32,7 @@ const { deleteTeam, impactState, toast } = vi.hoisted(() => ({
           documents: { scoped: number; becomeOrgWide: number };
           conversations: { queued: number };
           syncConfigs: { scoped: number };
+          apiKeys: number;
         }
       | undefined,
     isLoading: false,
@@ -66,6 +67,7 @@ const IMPACT = {
   documents: { scoped: 12, becomeOrgWide: 4 },
   conversations: { queued: 1 },
   syncConfigs: { scoped: 0 },
+  apiKeys: 0,
 };
 
 describe('TeamDeleteDialog', () => {
@@ -87,6 +89,23 @@ describe('TeamDeleteDialog', () => {
     // 1 project + 4 documents lose their only team.
     expect(dialog).toHaveTextContent(
       '5 items have no other team and will become visible to everyone in the organization.',
+    );
+  });
+
+  it('warns that the team’s own API keys stop working [APIKEY-R7]', () => {
+    impactState.impact = { ...IMPACT, apiKeys: 2 };
+    render(
+      <TeamDeleteDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        team={makeTeam()}
+        organizationId="org-1"
+      />,
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'Delete team' }),
+    ).toHaveTextContent(
+      '2 API keys belong to this team and will stop working.',
     );
   });
 

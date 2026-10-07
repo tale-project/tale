@@ -295,7 +295,9 @@ export function ApiKeyCreateDialog({
       >
         <FormSection>
           <Text variant="muted">
-            {tSettings('apiKeys.keyCreatedDescription')}
+            {createdOwn
+              ? tSettings('apiKeys.keyCreatedDescription')
+              : tSettings('apiKeys.keyCreatedDescriptionForOthers')}
           </Text>
           {createdFor !== null && (
             <Text variant="muted">
@@ -407,6 +409,17 @@ export function ApiKeyCreateDialog({
                 shouldValidate: true,
               })
             }
+            targetError={
+              formState.errors.memberId?.message ??
+              formState.errors.teamId?.message ??
+              formState.errors.projectId?.message
+            }
+            onTargetClosed={() => {
+              // A picker closed without a choice says why Create stays off.
+              if (owner === 'member') void form.trigger('memberId');
+              if (owner === 'team') void form.trigger('teamId');
+              if (owner === 'project') void form.trigger('projectId');
+            }}
           />
         )}
         <ApiKeyExpiryField

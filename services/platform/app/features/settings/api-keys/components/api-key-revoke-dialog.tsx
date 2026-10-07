@@ -4,6 +4,7 @@ import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { toast } from '@tale/ui/use-toast';
 import { useCallback } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useRevokeApiKey } from '../hooks/use-api-keys';
@@ -25,28 +26,32 @@ export function ApiKeyRevokeDialog({
   onSuccess,
 }: ApiKeyRevokeDialogProps) {
   const { t: tSettings } = useT('settings');
-  const { mutate: revokeKey, isPending: isRevoking } =
+  const { mutateAsync: revokeKey, isPending: isRevoking } =
     useRevokeApiKey(organizationId);
 
   const handleConfirm = useCallback(() => {
     if (isRevoking) return;
 
-    revokeKey(apiKey, {
-      onSuccess: () => {
+    // Reported from the call itself, not from `mutate`'s callbacks, which
+    // are dropped when the row unmounts mid-request: one failure, one toast,
+    // with the refusal's own words.
+    void revokeKey(apiKey).then(
+      () => {
         toast({
           title: tSettings('apiKeys.keyRevoked'),
         });
         onOpenChange(false);
         onSuccess?.();
       },
-      onError: (error) => {
+      (error: unknown) => {
         console.error(error);
         toast({
           title: tSettings('apiKeys.keyRevokeFailed'),
+          description: failureDetail(error),
           variant: 'destructive',
         });
       },
-    });
+    );
   }, [isRevoking, revokeKey, apiKey, tSettings, onOpenChange, onSuccess]);
 
   return (

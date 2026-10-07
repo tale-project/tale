@@ -88,6 +88,10 @@ interface ApiKeyOwnerFieldProps {
   onProjectChange: (projectId: string) => void;
   role: ApiKeyRole;
   onRoleChange: (role: ApiKeyRole) => void;
+  /** Why the chosen owner's picker refuses — nothing picked yet. */
+  targetError?: string;
+  /** A target picker closed: the form checks whether one was picked. */
+  onTargetClosed?: () => void;
 }
 
 /**
@@ -136,16 +140,25 @@ export function ApiKeyOwnerField(props: ApiKeyOwnerFieldProps) {
           viewerRole={props.viewerRole}
           value={props.memberId}
           onChange={props.onMemberChange}
+          error={props.targetError}
+          onClosed={props.onTargetClosed}
         />
       )}
       {choice === 'team' && (
-        <TeamPicker value={props.teamId} onChange={props.onTeamChange} />
+        <TeamPicker
+          value={props.teamId}
+          onChange={props.onTeamChange}
+          error={props.targetError}
+          onClosed={props.onTargetClosed}
+        />
       )}
       {choice === 'project' && (
         <ProjectPicker
           organizationId={props.organizationId}
           value={props.projectId}
           onChange={props.onProjectChange}
+          error={props.targetError}
+          onClosed={props.onTargetClosed}
         />
       )}
       {(choice === 'team' ||
@@ -169,19 +182,39 @@ export function ApiKeyOwnerField(props: ApiKeyOwnerFieldProps) {
 /** The members a key may be made for: active, someone else, and below the
  * maker's role — making a key that acts as someone takes more authority
  * than they hold. */
+/** What every target picker shares: the refusal it shows, and the form's
+ * check when it closes. */
+interface TargetPickerState {
+  error: string | undefined;
+  onClosed: (() => void) | undefined;
+}
+
+/** The picker's refusal, under its trigger, and the check on close. */
+function targetPickerProps({ error, onClosed }: TargetPickerState) {
+  return {
+    error: error !== undefined,
+    ...(error !== undefined ? { description: error } : {}),
+    onOpenChange: (open: boolean) => {
+      if (!open) onClosed?.();
+    },
+  };
+}
+
 function MemberPicker({
   organizationId,
   viewerUserId,
   viewerRole,
   value,
   onChange,
+  error,
+  onClosed,
 }: {
   organizationId: string;
   viewerUserId: string | undefined;
   viewerRole: string | undefined;
   value: string;
   onChange: (userId: string, name: string) => void;
-}) {
+} & TargetPickerState) {
   const { t } = useT('settings');
   const { t: tRoles } = useT('roles');
   const { data: members } = useOrgMembersForPicker(organizationId);
@@ -206,7 +239,13 @@ function MemberPicker({
       label={t('apiKeys.form.member')}
       placeholder={t('apiKeys.form.memberPlaceholder')}
       searchPlaceholder={t('apiKeys.form.memberSearch')}
-      emptyText={t('apiKeys.form.memberEmpty')}
+      // Nobody to offer, or a search that matched nobody.
+      emptyText={
+        options.length === 0
+          ? t('apiKeys.form.memberEmpty')
+          : t('apiKeys.form.memberNoMatch')
+      }
+      {...targetPickerProps({ error, onClosed })}
       required
       value={value || null}
       onValueChange={(userId) =>
@@ -223,10 +262,12 @@ function MemberPicker({
 function TeamPicker({
   value,
   onChange,
+  error,
+  onClosed,
 }: {
   value: string;
   onChange: (teamId: string) => void;
-}) {
+} & TargetPickerState) {
   const { t } = useT('settings');
   const { teams } = useOrgTeams();
   const options = useMemo(
@@ -239,7 +280,12 @@ function TeamPicker({
       label={t('apiKeys.form.team')}
       placeholder={t('apiKeys.form.teamPlaceholder')}
       searchPlaceholder={t('apiKeys.form.teamSearch')}
-      emptyText={t('apiKeys.form.teamEmpty')}
+      emptyText={
+        options.length === 0
+          ? t('apiKeys.form.teamEmpty')
+          : t('apiKeys.form.teamNoMatch')
+      }
+      {...targetPickerProps({ error, onClosed })}
       required
       value={value || null}
       onValueChange={onChange}
@@ -252,11 +298,13 @@ function ProjectPicker({
   organizationId,
   value,
   onChange,
+  error,
+  onClosed,
 }: {
   organizationId: string;
   value: string;
   onChange: (projectId: string) => void;
-}) {
+} & TargetPickerState) {
   const { t } = useT('settings');
   const { projects } = useProjects(organizationId);
   const options = useMemo(
@@ -273,7 +321,12 @@ function ProjectPicker({
       label={t('apiKeys.form.project')}
       placeholder={t('apiKeys.form.projectPlaceholder')}
       searchPlaceholder={t('apiKeys.form.projectSearch')}
-      emptyText={t('apiKeys.form.projectEmpty')}
+      emptyText={
+        options.length === 0
+          ? t('apiKeys.form.projectEmpty')
+          : t('apiKeys.form.projectNoMatch')
+      }
+      {...targetPickerProps({ error, onClosed })}
       required
       value={value || null}
       onValueChange={onChange}

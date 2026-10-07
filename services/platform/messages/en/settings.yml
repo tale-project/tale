@@ -319,6 +319,7 @@ teams:
   deleteImpact:
     summary: 'This team has {members, plural, one {# member} other {# members}}. It is on the audience of {projects, plural, one {# project} other {# projects}}, {folders, plural, one {# folder} other {# folders}} and {documents, plural, one {# document} other {# documents}}, and {conversations, plural, one {# conversation is} other {# conversations are}} in its queue.'
     becomeOrgWide: '{count, plural, one {# item has} other {# items have}} no other team and will become visible to everyone in the organization.'
+    apiKeys: '{count, plural, one {# API key belongs to this team and will stop working.} other {# API keys belong to this team and will stop working.}}'
   description: Create and manage teams within your organization for granular
     access control
 credentials:
@@ -991,6 +992,7 @@ apiKeys:
   createKeySubmit: Create key
   keyCreated: API key created
   keyCreatedDescription: Copy your API key now — it won't be shown again.
+  keyCreatedDescriptionForOthers: "Copy the API key now — it won't be shown again."
   keyCreatedForMember: Hand the key to {name} over a secure channel. A notification tells them it exists.
   yourApiKey: Your API key
   newApiKey: New API key
@@ -1014,8 +1016,8 @@ apiKeys:
     project: Project {name}
     organization: Organization
     formerMember: Former member
-    deletedTeam: deleted team
-    deletedProject: deleted project
+    deletedTeam: Deleted team
+    deletedProject: Deleted project
     actsAs: Acts as {role}
     madeBy: Made by {name}
   form:
@@ -1055,14 +1057,17 @@ apiKeys:
     memberPlaceholder: Choose a member
     memberSearch: Search members...
     memberEmpty: No member whose role is below yours
+    memberNoMatch: No member matches
     team: Team
     teamPlaceholder: Choose a team
     teamSearch: Search teams...
     teamEmpty: No teams
+    teamNoMatch: No team matches
     project: Project
     projectPlaceholder: Choose a project
     projectSearch: Search projects...
     projectEmpty: No active projects
+    projectNoMatch: No project matches
     role: Acts as
     roleHint: The role the key has in this organization. It cannot be above your own.
     targetRequired: Choose whom the key belongs to.

@@ -331,6 +331,7 @@ teams:
   deleteImpact:
     summary: 'Dieses Team hat {members, plural, one {# Mitglied} other {# Mitglieder}}. Es gehört zur Reichweite von {projects, plural, one {# Projekt} other {# Projekten}}, {folders, plural, one {# Ordner} other {# Ordnern}} und {documents, plural, one {# Dokument} other {# Dokumenten}}, und {conversations, plural, one {# Unterhaltung liegt} other {# Unterhaltungen liegen}} in seiner Warteschlange.'
     becomeOrgWide: '{count, plural, one {# Element hat kein weiteres Team und wird} other {# Elemente haben kein weiteres Team und werden}} für alle in der Organisation sichtbar.'
+    apiKeys: '{count, plural, one {# API-Schlüssel gehört diesem Team und funktioniert danach nicht mehr.} other {# API-Schlüssel gehören diesem Team und funktionieren danach nicht mehr.}}'
   description: Teams innerhalb deiner Organisation erstellen und verwalten für
     granulare Zugriffskontrolle
 credentials:
@@ -1044,6 +1045,7 @@ apiKeys:
   createKeySubmit: Schlüssel erstellen
   keyCreated: API-Schlüssel erstellt
   keyCreatedDescription: Kopiere deinen API-Schlüssel jetzt. Er wird nicht erneut angezeigt.
+  keyCreatedDescriptionForOthers: Kopiere den API-Schlüssel jetzt. Er wird nicht erneut angezeigt.
   keyCreatedForMember: Gib den Schlüssel über einen sicheren Kanal an {name} weiter. Eine Benachrichtigung informiert {name} darüber.
   yourApiKey: Dein API-Schlüssel
   newApiKey: Neuer API-Schlüssel
@@ -1067,8 +1069,8 @@ apiKeys:
     project: Projekt {name}
     organization: Organisation
     formerMember: Ehemaliges Mitglied
-    deletedTeam: gelöschtes Team
-    deletedProject: gelöschtes Projekt
+    deletedTeam: Gelöschtes Team
+    deletedProject: Gelöschtes Projekt
     actsAs: Handelt als {role}
     madeBy: Erstellt von {name}
   form:
@@ -1108,14 +1110,17 @@ apiKeys:
     memberPlaceholder: Mitglied auswählen
     memberSearch: Mitglieder suchen...
     memberEmpty: Kein Mitglied mit einer niedrigeren Rolle als deiner
+    memberNoMatch: Kein passendes Mitglied
     team: Team
     teamPlaceholder: Team auswählen
     teamSearch: Teams suchen...
     teamEmpty: Keine Teams
+    teamNoMatch: Kein passendes Team
     project: Projekt
     projectPlaceholder: Projekt auswählen
     projectSearch: Projekte suchen...
     projectEmpty: Keine aktiven Projekte
+    projectNoMatch: Kein passendes Projekt
     role: Handelt als
     roleHint: Die Rolle des Schlüssels in dieser Organisation. Sie kann nicht höher sein als deine eigene.
     targetRequired: Wähle aus, wem der Schlüssel gehört.

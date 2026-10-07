@@ -342,6 +342,7 @@ teams:
   deleteImpact:
     summary: "Cette équipe compte {members, plural, one {# membre} other {# membres}}. Elle fait partie de l'audience de {projects, plural, one {# projet} other {# projets}}, {folders, plural, one {# dossier} other {# dossiers}} et {documents, plural, one {# document} other {# documents}}, et {conversations, plural, one {# conversation est} other {# conversations sont}} dans sa file."
     becomeOrgWide: "{count, plural, one {# élément n'a pas d'autre équipe et deviendra visible} other {# éléments n'ont pas d'autre équipe et deviendront visibles}} pour toute l'organisation."
+    apiKeys: '{count, plural, one {# clé API appartient à cette équipe et cessera de fonctionner.} other {# clés API appartiennent à cette équipe et cesseront de fonctionner.}}'
   description: Crée et gère des équipes au sein de ton organisation pour un
     contrôle d'accès granulaire
 credentials:
@@ -1074,6 +1075,7 @@ apiKeys:
   keyCreatedDescription:
     Assure-toi de copier ta clé API maintenant. Tu ne pourras
     plus la voir ensuite.
+  keyCreatedDescriptionForOthers: Copie la clé API maintenant. Tu ne pourras plus la voir ensuite.
   keyCreatedForMember: Transmets la clé à {name} par un canal sûr. Une notification l'informe de sa création.
   yourApiKey: Ta clé API
   newApiKey: Nouvelle clé API
@@ -1099,8 +1101,8 @@ apiKeys:
     project: Projet {name}
     organization: Organisation
     formerMember: Ancien membre
-    deletedTeam: équipe supprimée
-    deletedProject: projet supprimé
+    deletedTeam: Équipe supprimée
+    deletedProject: Projet supprimé
     actsAs: Agit en tant que {role}
     madeBy: Créée par {name}
   form:
@@ -1140,14 +1142,17 @@ apiKeys:
     memberPlaceholder: Choisis un membre
     memberSearch: Rechercher des membres...
     memberEmpty: Aucun membre dont le rôle est inférieur au tien
+    memberNoMatch: Aucun membre ne correspond
     team: Équipe
     teamPlaceholder: Choisis une équipe
     teamSearch: Rechercher des équipes...
     teamEmpty: Aucune équipe
+    teamNoMatch: Aucune équipe ne correspond
     project: Projet
     projectPlaceholder: Choisis un projet
     projectSearch: Rechercher des projets...
     projectEmpty: Aucun projet actif
+    projectNoMatch: Aucun projet ne correspond
     role: Agit en tant que
     roleHint: Le rôle de la clé dans cette organisation. Il ne peut pas dépasser le tien.
     targetRequired: Choisis à qui appartient la clé.

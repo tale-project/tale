@@ -70,7 +70,7 @@ describe('ApiKeyOwnerCell', () => {
       role: 'developer',
       createdBy: null,
     });
-    expect(screen.getByText('Project deleted project')).toBeInTheDocument();
+    expect(screen.getByText('Deleted project')).toBeInTheDocument();
 
     renderCell({
       owner: { kind: 'organization' },
