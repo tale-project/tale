@@ -430,18 +430,43 @@ export function excelRecords(
   }));
 }
 
+/** Convert a worksheet header cell to its textual column name safely. */
+export function excelHeaderText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean')
+    return String(value);
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object' && value !== null) {
+    const text = (value as { text?: unknown; w?: unknown }).text;
+    if (typeof text === 'string') return text;
+    const formatted = (value as { text?: unknown; w?: unknown }).w;
+    if (typeof formatted === 'string') return formatted;
+  }
+  return '';
+}
+
 /**
  * Parse an Excel file and return its rows with their lines.
  * Dynamically imports xlsx to reduce initial bundle size.
  */
-async function parseExcelFile(file: File): Promise<ExcelRecord[]> {
+async function parseExcelFile(
+  file: File,
+): Promise<{ headers: string[]; records: ExcelRecord[] }> {
   const XLSX = await import('xlsx');
   const buffer = await readFileAsArrayBuffer(file);
   const data = new Uint8Array(buffer);
   const workbook = XLSX.read(data, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
-  return excelRecords(XLSX, worksheet);
+  const headerRows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+    header: 1,
+    range: 0,
+    blankrows: false,
+  });
+  const headers = (headerRows[0] ?? []).map((header) =>
+    excelHeaderText(header).trim().toLowerCase(),
+  );
+  return { headers, records: excelRecords(XLSX, worksheet) };
 }
 
 function isCSVFile(file: File): boolean {
@@ -473,12 +498,10 @@ export async function parseImportFile<T>(
       });
       return result;
     } else if (isExcelFile(file)) {
-      const records = await parseExcelFile(file);
+      const { headers: headerKeys, records } = await parseExcelFile(file);
 
       // Validate the header row (the keys of the first record) so a
       // mismatched schema fails loudly rather than dropping data silently.
-      const headerKeys =
-        records.length > 0 ? Object.keys(records[0].record) : [];
       const missing = detectMissingColumns(headerKeys, options.requiredColumns);
       if (missing.length > 0) {
         return emptyResult([missingColumnsError(missing, headerKeys)]);
