@@ -88,7 +88,7 @@ case "$1 $2" in
     rm -rf "\${volumes:?}/$name"; exit 0 ;;
 esac
 if [ "$1" = run ]; then
-  if fails run; then echo "docker: Error response from daemon: pull access denied for busybox" >&2; exit 125; fi
+  if fails run; then echo "docker: Error response from daemon: No such image: tale-sandbox-runtime:test" >&2; exit 125; fi
   for arg in "$@"; do
     case "$arg" in type=volume,src=*) src="\${arg#type=volume,src=}"; src="\${src%%,*}" ;; esac
   done
@@ -157,6 +157,9 @@ const cfg: SpawnerConfig = {
   maxRequestBodyBytes: 1000,
   session: TEST_SESSION_CONFIG,
 };
+
+/** The sessions' runtime image, which also sets a new volume's mode. */
+const IMAGE = cfg.runtimeImage;
 
 let sequence = 0;
 const nextOrg = () => `org_cache_${++sequence}`;
@@ -271,7 +274,7 @@ describe('per-organization cache volumes', () => {
   test('a volume made ready is not asked about again on the next create', async () => {
     const name = npmCacheVolumeName(cfg, nextOrg());
     const now = 1_000_000;
-    await ensureCacheVolume(name, now);
+    await ensureCacheVolume(name, IMAGE, now);
     expect((await calls()).map((call) => call.split(' ')[0])).toEqual([
       'volume',
       'volume',
@@ -279,25 +282,25 @@ describe('per-organization cache volumes', () => {
     ]);
     expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
     await writeFile(join(root, 'calls.log'), '');
-    await ensureCacheVolume(name, now + 60_000);
+    await ensureCacheVolume(name, IMAGE, now + 60_000);
     expect(await calls()).toEqual([]);
   });
 
   test('past a few minutes it is checked again, without remaking an existing one', async () => {
     const name = npmCacheVolumeName(cfg, nextOrg());
     const now = 2_000_000;
-    await ensureCacheVolume(name, now);
+    await ensureCacheVolume(name, IMAGE, now);
     await writeFile(join(root, 'calls.log'), '');
-    await ensureCacheVolume(name, now + 5 * 60_000);
+    await ensureCacheVolume(name, IMAGE, now + 5 * 60_000);
     expect(await calls()).toEqual([inspectCall(name)]);
   });
 
   test('a clock that went back is checked again', async () => {
     const name = npmCacheVolumeName(cfg, nextOrg());
     const now = 2_500_000;
-    await ensureCacheVolume(name, now);
+    await ensureCacheVolume(name, IMAGE, now);
     await writeFile(join(root, 'calls.log'), '');
-    await ensureCacheVolume(name, now - 1);
+    await ensureCacheVolume(name, IMAGE, now - 1);
     expect(await calls()).toEqual([inspectCall(name)]);
   });
 
@@ -305,10 +308,10 @@ describe('per-organization cache volumes', () => {
     const org = nextOrg();
     const name = npmCacheVolumeName(cfg, org);
     const now = 3_000_000;
-    await ensureCacheVolume(name, now);
+    await ensureCacheVolume(name, IMAGE, now);
     await removeCacheVolumes(cfg, org);
     await writeFile(join(root, 'calls.log'), '');
-    await ensureCacheVolume(name, now + 1_000);
+    await ensureCacheVolume(name, IMAGE, now + 1_000);
     expect((await calls())[0]).toBe(inspectCall(name));
     expect(await calls()).toContain(
       `volume create --label tale.sandbox-cache=1 ${name}`,
@@ -319,9 +322,9 @@ describe('per-organization cache volumes', () => {
     const name = npmCacheVolumeName(cfg, nextOrg());
     const now = 4_000_000;
     await Promise.all([
-      ensureCacheVolume(name, now),
-      ensureCacheVolume(name, now),
-      ensureCacheVolume(name, now),
+      ensureCacheVolume(name, IMAGE, now),
+      ensureCacheVolume(name, IMAGE, now),
+      ensureCacheVolume(name, IMAGE, now),
     ]);
     expect(
       (await calls()).filter((call) => call === inspectCall(name)),
@@ -334,17 +337,13 @@ describe('a cache volume Docker made itself', () => {
     const org = nextOrg();
     const name = npmCacheVolumeName(cfg, org);
     await plantUnlabelled(name);
-    await ensureCacheVolume(name, 5_000_000);
+    await ensureCacheVolume(name, IMAGE, 5_000_000);
     expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
     expect(await calls()).toEqual([
       inspectCall(name),
       `volume rm ${name}`,
       `volume create --label tale.sandbox-cache=1 ${name}`,
-      expect.stringMatching(
-        new RegExp(
-          `^run --rm --user 0:0 --label tale\\.sandbox-staging=1 --mount type=volume,src=${name},dst=/cache busybox:[^\\s@]+@sha256:[a-f0-9]{64} chmod 1777 /cache$`,
-        ),
-      ),
+      `run --rm --pull=never --network none --user 0:0 --entrypoint /bin/chmod --label tale.sandbox-staging=1 --mount type=volume,src=${name},dst=/cache ${IMAGE} 1777 /cache`,
     ]);
     // Labelled, it is the organization's again: its teardown removes it.
     expect(await removeCacheVolumes(cfg, org)).toBe(1);
@@ -356,7 +355,7 @@ describe('a cache volume Docker made itself', () => {
     await plantUnlabelled(name, true);
     const warn = spyOn(console, 'warn').mockImplementation(() => {});
     try {
-      await ensureCacheVolume(name, now);
+      await ensureCacheVolume(name, IMAGE, now);
       expect(await volume(name)).toEqual({ labelled: false, mode: '1777' });
       expect(warn).toHaveBeenCalledTimes(1);
       expect(String(warn.mock.calls[0]?.[0])).toContain(
@@ -367,10 +366,10 @@ describe('a cache volume Docker made itself', () => {
     }
     // Writable, it counts as ready for the window; the next check replaces it.
     await writeFile(join(root, 'calls.log'), '');
-    await ensureCacheVolume(name, now + 60_000);
+    await ensureCacheVolume(name, IMAGE, now + 60_000);
     expect(await calls()).toEqual([]);
     await rm(join(root, 'volumes', name, 'in-use'));
-    await ensureCacheVolume(name, now + 5 * 60_000);
+    await ensureCacheVolume(name, IMAGE, now + 5 * 60_000);
     expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
   });
 
@@ -380,7 +379,7 @@ describe('a cache volume Docker made itself', () => {
     await writeFile(join(root, 'fail-run'), '');
     const warn = spyOn(console, 'warn').mockImplementation(() => {});
     try {
-      await ensureCacheVolume(name, 6_500_000);
+      await ensureCacheVolume(name, IMAGE, 6_500_000);
       expect(warn).toHaveBeenCalledTimes(1);
       expect(String(warn.mock.calls[0]?.[0])).toContain(
         `${name} lacks the tale.sandbox-cache label and could not be replaced`,
@@ -395,7 +394,7 @@ describe('a cache volume Docker made itself', () => {
   test('one another caller made between the inspect and the create is taken only with its label', async () => {
     const labelledName = npmCacheVolumeName(cfg, nextOrg());
     await writeFile(join(root, 'exists-on-create'), 'labelled');
-    await ensureCacheVolume(labelledName, 6_600_000);
+    await ensureCacheVolume(labelledName, IMAGE, 6_600_000);
     expect(await calls()).toEqual([
       inspectCall(labelledName),
       `volume create --label tale.sandbox-cache=1 ${labelledName}`,
@@ -404,11 +403,37 @@ describe('a cache volume Docker made itself', () => {
 
     const name = npmCacheVolumeName(cfg, nextOrg());
     await writeFile(join(root, 'exists-on-create'), 'unlabelled');
-    expect((await rejection(ensureCacheVolume(name, 6_600_000)))?.message).toBe(
+    expect(
+      (await rejection(ensureCacheVolume(name, IMAGE, 6_600_000)))?.message,
+    ).toBe(
       `volume: failed to create cache volume ${name}: Error: volume with name ${name} already exists: volume already exists`,
     );
     // Not taken as ready: the next create replaces it.
-    await ensureCacheVolume(name, 6_600_000);
+    await ensureCacheVolume(name, IMAGE, 6_600_000);
+    expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
+  });
+});
+
+describe('a fresh cache volume whose mode cannot be set', () => {
+  test('is removed again, so the next ensure starts clean instead of trusting its label', async () => {
+    const name = npmCacheVolumeName(cfg, nextOrg());
+    const now = 7_500_000;
+    // The runtime image is not on the host (an image prune on an idle host).
+    await writeFile(join(root, 'fail-run'), '');
+    expect(
+      (await rejection(ensureCacheVolume(name, IMAGE, now)))?.message,
+    ).toBe(
+      `volume: failed to set perms on cache volume ${name}: docker: Error response from daemon: No such image: tale-sandbox-runtime:test`,
+    );
+    expect(await volume(name)).toBeNull();
+    expect(await calls()).toEqual([
+      inspectCall(name),
+      `volume create --label tale.sandbox-cache=1 ${name}`,
+      `run --rm --pull=never --network none --user 0:0 --entrypoint /bin/chmod --label tale.sandbox-staging=1 --mount type=volume,src=${name},dst=/cache ${IMAGE} 1777 /cache`,
+      `volume rm ${name}`,
+    ]);
+    // Not taken as ready: the next ensure makes it with its mode.
+    await ensureCacheVolume(name, IMAGE, now);
     expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
   });
 });
@@ -418,12 +443,14 @@ describe('a cache volume that is not ready yet', () => {
     const name = npmCacheVolumeName(cfg, nextOrg());
     const now = 7_000_000;
     await writeFile(join(root, 'fail-inspect'), '');
-    expect((await rejection(ensureCacheVolume(name, now)))?.message).toBe(
+    expect(
+      (await rejection(ensureCacheVolume(name, IMAGE, now)))?.message,
+    ).toBe(
       `volume: cannot inspect ${name}: Error response from daemon: i/o timeout`,
     );
     expect(await volume(name)).toBeNull();
     await writeFile(join(root, 'calls.log'), '');
-    await ensureCacheVolume(name, now);
+    await ensureCacheVolume(name, IMAGE, now);
     expect((await calls())[0]).toBe(inspectCall(name));
     expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
   });
@@ -434,16 +461,16 @@ describe('a teardown beside an ensure', () => {
     const org = nextOrg();
     const name = npmCacheVolumeName(cfg, org);
     const now = 9_000_000;
-    await ensureCacheVolume(name, now);
+    await ensureCacheVolume(name, IMAGE, now);
     await writeFile(join(root, 'hold-rm'), '');
     const teardown = removeCacheVolumes(cfg, org);
     await held('rm');
     // Past the window, so this one asks the daemon: the volume is still there.
-    await ensureCacheVolume(name, now + 5 * 60_000);
+    await ensureCacheVolume(name, IMAGE, now + 5 * 60_000);
     await rm(join(root, 'holding-rm'));
     expect(await teardown).toBe(1);
     await writeFile(join(root, 'calls.log'), '');
-    await ensureCacheVolume(name, now + 5 * 60_000 + 1_000);
+    await ensureCacheVolume(name, IMAGE, now + 5 * 60_000 + 1_000);
     expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
     expect(await calls()).toContain(
       `volume create --label tale.sandbox-cache=1 ${name}`,
@@ -454,15 +481,15 @@ describe('a teardown beside an ensure', () => {
     const org = nextOrg();
     const name = npmCacheVolumeName(cfg, org);
     const now = 10_000_000;
-    await ensureCacheVolume(name, now);
+    await ensureCacheVolume(name, IMAGE, now);
     await writeFile(join(root, 'hold-inspect'), '');
-    const ensure = ensureCacheVolume(name, now + 5 * 60_000);
+    const ensure = ensureCacheVolume(name, IMAGE, now + 5 * 60_000);
     await held('inspect');
     expect(await removeCacheVolumes(cfg, org)).toBe(1);
     await rm(join(root, 'holding-inspect'));
     await ensure;
     await writeFile(join(root, 'calls.log'), '');
-    await ensureCacheVolume(name, now + 5 * 60_000 + 1_000);
+    await ensureCacheVolume(name, IMAGE, now + 5 * 60_000 + 1_000);
     expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
     expect(await calls()).toContain(
       `volume create --label tale.sandbox-cache=1 ${name}`,

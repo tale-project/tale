@@ -399,10 +399,20 @@ export class DockerSessionBackend implements SessionBackend {
     // keeps deterministic workspace/volume state that a peer may already use.
     if (!dind) {
       const caches = await Promise.allSettled(
-        [pip, npm, bun].map((name) => ensureCacheVolume(name)),
+        [pip, npm, bun].map((name) =>
+          ensureCacheVolume(name, this.cfg.runtimeImage),
+        ),
       );
       const failed = caches.find((result) => result.status === 'rejected');
-      if (failed?.status === 'rejected') throw failed.reason;
+      if (failed?.status === 'rejected') {
+        // A new volume's mode is set with the runtime image: its absence
+        // shows here first, before the session's own run.
+        const reason: unknown = failed.reason;
+        const message =
+          reason instanceof Error ? reason.message : String(reason);
+        if (isDockerMissingImage(message)) this.runtimeImageMissing?.(message);
+        throw reason;
+      }
     }
     // A fresh inner store avoids resuming a SIGKILLed dockerd's dirty overlay.
     const dockerStorageVolume = dind

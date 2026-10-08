@@ -117,7 +117,10 @@ describe('what a session create asks the docker daemon', () => {
 
 // A create whose `docker run` the daemon refuses with `runStderr`; reports
 // what the backend told its runtime-image listener.
-async function refusedRun(runStderr: string): Promise<{
+async function refusedRun(
+  runStderr: string,
+  freshCaches = false,
+): Promise<{
   heard: string[];
   error: string | null;
   run: string[] | null;
@@ -140,9 +143,12 @@ mock.module(spawnPath, () => ({...realSpawn,
       return {...success, exitCode:125, stderr:${JSON.stringify(runStderr)}};
     }
     if (args[0] === 'inspect') return {...success, exitCode:1, stderr:'No such container'};
-    return args[0] === 'volume' && args[1] === 'inspect'
-      ? {...success, stdout:'{"tale.sandbox-cache":"1"}'}
-      : success;
+    if (args[0] === 'volume' && args[1] === 'inspect') {
+      return ${JSON.stringify(freshCaches)}
+        ? {...success, exitCode:1, stderr:'Error response from daemon: get x: no such volume'}
+        : {...success, stdout:'{"tale.sandbox-cache":"1"}'};
+    }
+    return success;
   },
 }));
 console.warn = () => {};
@@ -186,6 +192,17 @@ describe('a create on a host without the runtime image', () => {
     expect(run).toContain('--pull=never');
     expect(error).toContain('No such image');
     expect(heard).toEqual([stderr]);
+  });
+
+  test('a new cache volume’s mode, set with the runtime image, tells the warmup first', async () => {
+    const stderr =
+      'docker: Error response from daemon: No such image: runtime:test.';
+    const { heard, error, run } = await refusedRun(stderr, true);
+    // The chmod of the organization's first cache volume ran the image.
+    expect(run).toEqual(expect.arrayContaining(['--entrypoint', '/bin/chmod']));
+    expect(error).toContain('failed to set perms on cache volume');
+    expect(heard).toHaveLength(1);
+    expect(heard[0]).toContain('No such image');
   });
 
   test('any other refusal is no news for the warmup', async () => {

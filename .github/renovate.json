@@ -1,6 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
   "rangeStrategy": "pin",
   "automerge": false,
   "minimumReleaseAge": "90 days",
@@ -8,57 +11,68 @@
   "prCreation": "not-pending",
   "rebaseWhen": "conflicted",
   "dependencyDashboard": true,
-  "labels": ["dependencies"],
+  "labels": [
+    "dependencies"
+  ],
   "prConcurrentLimit": 5,
   "prHourlyLimit": 2,
-  "schedule": ["before 9am on monday"],
+  "schedule": [
+    "before 9am on monday"
+  ],
   "timezone": "Europe/Zurich",
   "vulnerabilityAlerts": {
     "enabled": true,
     "minimumReleaseAge": null,
     "schedule": [],
     "prCreation": "immediate",
-    "labels": ["dependencies", "security"]
+    "labels": [
+      "dependencies",
+      "security"
+    ]
   },
   "osvVulnerabilityAlerts": true,
-  "customManagers": [
-    {
-      "customType": "regex",
-      "managerFilePatterns": ["/^services/sandbox/src/volume\\.ts$/"],
-      "matchStrings": [
-        "CACHE_PERMISSION_IMAGE\\s*=\\s*'(?<depName>busybox):(?<currentValue>[^'@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})'"
-      ],
-      "datasourceTemplate": "docker",
-      "versioningTemplate": "docker"
-    }
-  ],
   "packageRules": [
     {
       "description": "Patch updates: 30 day stabilization, grouped",
-      "matchUpdateTypes": ["patch", "digest", "pin"],
+      "matchUpdateTypes": [
+        "patch",
+        "digest",
+        "pin"
+      ],
       "minimumReleaseAge": "30 days",
       "groupName": "patch updates"
     },
     {
       "description": "Minor updates: 60 day stabilization, grouped",
-      "matchUpdateTypes": ["minor"],
+      "matchUpdateTypes": [
+        "minor"
+      ],
       "minimumReleaseAge": "60 days",
       "groupName": "minor updates"
     },
     {
       "description": "GitHub Actions: keep SHA-digest pins current (grouped, short stabilization) so the supply-chain pins don't silently age",
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "groupName": "github actions",
       "minimumReleaseAge": "7 days"
     },
     {
       "description": "Disable Convex-related packages (manual upgrades only)",
-      "matchPackageNames": ["convex", "/^convex-/", "/^@convex-dev\\//"],
+      "matchPackageNames": [
+        "convex",
+        "/^convex-/",
+        "/^@convex-dev\\//"
+      ],
       "enabled": false
     },
     {
       "description": "Disable AI SDK packages (manual upgrades only)",
-      "matchPackageNames": ["ai", "/^@ai-sdk\\//"],
+      "matchPackageNames": [
+        "ai",
+        "/^@ai-sdk\\//"
+      ],
       "enabled": false
     },
     {

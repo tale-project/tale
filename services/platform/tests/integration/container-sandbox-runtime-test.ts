@@ -112,6 +112,38 @@ await assertOk(
 );
 
 console.log('');
+console.log("--- the spawner's package-cache chmod ---");
+{
+  // services/sandbox/src/volume.ts makes each new per-organization cache
+  // volume writable with exactly this run of the runtime image: no pull, no
+  // network, coreutils chmod in place of the entrypoint.
+  const { exitCode, combined } = await capture([
+    'docker',
+    'run',
+    '--rm',
+    '--pull=never',
+    '--network',
+    'none',
+    '--user',
+    '0:0',
+    '--entrypoint',
+    '/bin/chmod',
+    '--tmpfs',
+    '/cache',
+    IMAGE,
+    '1777',
+    '/cache',
+  ]);
+  if (exitCode === 0) {
+    pass('the image sets a cache volume mode with /bin/chmod as entrypoint');
+  } else {
+    fail(
+      `the image sets a cache volume mode with /bin/chmod as entrypoint (got: ${combined.slice(0, 200)})`,
+    );
+  }
+}
+
+console.log('');
 console.log('--- default session profile (uid 65534) ---');
 await assertContains('python3 present', 65534, 'Python 3', 'python3 --version');
 await assertContains('node present', 65534, 'v', 'node --version');

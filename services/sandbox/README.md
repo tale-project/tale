@@ -331,6 +331,13 @@ docker build -f services/sandbox/Dockerfile .
 The `agent-light` profile keeps the agent user, coding tools and persistent
 workspace without inner Docker or BuildKit.
 
+The spawner pulls no helper image for sessions: an organization's new package
+cache volumes (pip, npm, bun) are made writable for every session uid (mode
+1777) by a short `--network none` run of `SANDBOX_RUNTIME_IMAGE` itself, with
+`/bin/chmod` as its entrypoint, so an air-gapped host needs nothing beyond the
+runtime image. A volume whose mode could not be set is removed again, and the
+next create makes it afresh.
+
 Reactivating a released session reserves its expected memory growth and checks
 disk headroom. Both create and acquire can return 429 `host_memory` or `host_disk`.
 Docker's metadata filesystem is observed through its existing `/etc/hostname`
