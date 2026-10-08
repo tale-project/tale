@@ -44,8 +44,9 @@ tightens the limit of the person it belongs to, and the reverse.
 
 ### GOV-R14 · A project's limit caps everything spent in the project, whoever spends it
 
-What a project spent is everything done in it: the chats in its threads (their titles, the
-answers read aloud, the recordings transcribed in them and the assistant's tool calls included),
+What a project spent is everything done in it: its chats (their titles, the answers read aloud,
+the recordings transcribed in them, even before a new chat's first message, and the assistant's
+tool calls included),
 the turns of its agents and the agent and `llm` steps of the automations run in it, with the
 images they make, and the calls made with its own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
 schedule started included, and binds nothing done outside the project. A run that names no
@@ -70,7 +71,7 @@ What running work may still cost is set aside against the person's and the organ
 limits, so several things started at the same moment cannot overrun a limit together: a chat
 reply's every round as it starts, an agent's allowance, a voice chunk's estimate, and the
 estimated largest cost of a call Tale makes straight to a model — an automation's `llm` step, a
-chat's title, a rewrite with Improve with AI, a transcription at its whole length. Such a call is
+chat's title, a rewrite with Improve with AI, a transcription at the recording's length. Such a call is
 refused when a limit has too little room for that cost; a chat's title is then made from the first
 message, without a call. With no
 limit set, work gets the deployment's default allowance.
