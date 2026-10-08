@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
+import { RUN_STATUSES } from '../../lib/engine/api/run-statuses.ts';
 import { isValidAutomationName } from '../../lib/engine/core/validate/name.ts';
 import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
@@ -86,16 +87,6 @@ import {
  * Authoring (save/deploy) deliberately has no REST route — 0.4 parity: the
  * builder writes ride the session surface.
  */
-
-/** The run statuses a listing filters on. */
-const RUN_STATUSES = [
-  'queued',
-  'running',
-  'waiting',
-  'success',
-  'failed',
-  'cancelled',
-] as const;
 
 /** The full-row fields a listing omits unless asked (`?include=`). */
 const RUN_INCLUDES = [

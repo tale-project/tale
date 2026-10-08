@@ -7,6 +7,7 @@ import {
   type VersionView,
 } from './dispatch';
 import { DOC_EXAMPLE } from './docs';
+import { ACTIVE_RUN_STATUSES } from './run-statuses';
 import { runAutomationTests } from './tests';
 
 vi.mock('./tests', () => ({ runAutomationTests: vi.fn() }));
@@ -333,6 +334,25 @@ describe('delete_automation', () => {
       code: 'AUTOMATION_HAS_ACTIVE_RUNS',
       hint: expect.stringContaining('cancel_run'),
     });
+  });
+
+  it('names every status a delete waits on in the active-runs hint', async () => {
+    const deleteAutomation = vi.fn(async () => {
+      throw Object.assign(new Error('A run of … is still running'), {
+        code: 'AUTOMATION_HAS_ACTIVE_RUNS',
+        status: 409,
+      });
+    });
+    const result = await dispatch(
+      'delete_automation',
+      { name: NAME, expectedLatestVersion: 7 },
+      { store: store({ deleteAutomation }) },
+    );
+    for (const status of ACTIVE_RUN_STATUSES) {
+      expect(String(Reflect.get(result as object, 'hint'))).toContain(
+        `"${status}"`,
+      );
+    }
   });
 });
 

@@ -49,6 +49,7 @@ import {
 } from './docs';
 import { METHODS } from './methods';
 import { isCodedRefusal, structuredRefusal } from './refusal';
+import { ACTIVE_RUN_STATUSES } from './run-statuses';
 import { runAutomationTests } from './tests';
 
 export { METHODS, type Method } from './methods';
@@ -478,8 +479,7 @@ const HOST_REFUSAL_HINTS: Readonly<Record<string, string>> = {
     'start the name with another segment, for example "ops/<name>"',
   AUTOMATION_DEPLOYMENT_STALE:
     'list_versions shows what is live (deployedVersion); deploy again with expectedDeployedVersion set to it if you still mean to replace it',
-  AUTOMATION_HAS_ACTIVE_RUNS:
-    'cancel_run the runs still going (list_runs with statuses ["queued", "running", "waiting"] shows them), or let them finish, then delete again',
+  AUTOMATION_HAS_ACTIVE_RUNS: `cancel_run the runs still going (list_runs with statuses [${ACTIVE_RUN_STATUSES.map((status) => `"${status}"`).join(', ')}] shows them), or let them finish, then delete again`,
   AUTOMATION_NOT_INSTALLED:
     'list_automations shows the projects each automation is installed in (projectIds)',
   AUTOMATION_PROJECT_UNKNOWN:

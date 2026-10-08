@@ -1,6 +1,7 @@
 import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, test } from 'vitest';
 
+import { RUN_STATUSES } from '../engine/api/run-statuses';
 import { ENGINE_TOOL_ARGS } from './args';
 import { toolJsonSchema } from './json-schema';
 import {
@@ -358,4 +359,15 @@ describe('MCP inventory limits', () => {
       expect(named.filter((word) => !TOOL_NAMES.has(word))).toEqual([]);
     },
   );
+});
+
+describe('the run statuses one door filters on, the other accepts', () => {
+  test('list_runs takes exactly the statuses the REST listing filters on', () => {
+    const schema = toolJsonSchema(ENGINE_TOOL_ARGS.list_runs, 'input');
+    const properties = schema.properties as Record<
+      string,
+      { items?: { enum?: unknown } }
+    >;
+    expect(properties.statuses?.items?.enum).toEqual([...RUN_STATUSES]);
+  });
 });

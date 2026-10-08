@@ -3,6 +3,7 @@ import { taskSubjectContractSchema } from '@tale/shared/schemas/task-contract';
 import { z } from 'zod';
 
 import type { Method } from '../engine/api/methods';
+import { RUN_STATUSES } from '../engine/api/run-statuses';
 import { KNOWLEDGE_QUERY_MAX } from '../knowledge/types';
 import { automationPresentationSchema } from '../shared/schemas/automation_presentation';
 import { MCP_DOC_TOPICS } from './docs/topics';
@@ -172,14 +173,7 @@ function crossField(
 const projectIds = (description: string) =>
   z.array(nonBlank()).max(50).optional().describe(description);
 
-const runStatus = z.enum([
-  'queued',
-  'running',
-  'waiting',
-  'success',
-  'failed',
-  'cancelled',
-]);
+const runStatus = z.enum(RUN_STATUSES);
 
 /** The arguments of every engine method — exhaustive over `Method`. */
 export const ENGINE_TOOL_ARGS = {
