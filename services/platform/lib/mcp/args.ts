@@ -108,20 +108,65 @@ const versionField = (description: string, reader: z.ZodType) =>
       error: 'must be an object, or null to store none',
     })
     .superRefine((value, ctx) => {
-      const checked = reader.safeParse(value);
+      const checked = reader.safeParse(value, { reportInput: true });
       if (checked.success) return;
       for (const issue of checked.error.issues) {
-        ctx.addIssue({
-          code: 'custom',
-          path: issue.path,
-          message: issue.message,
-          params: { code: issue.code },
-        });
+        // Re-raised as the reader's own kind of problem WITHOUT its
+        // sentence, so the call's parse phrases it in the house words like
+        // every other argument's (and splits unknown keys one per issue);
+        // a rule the reader states itself keeps its own sentence.
+        if (issue.code === 'custom') {
+          ctx.addIssue({ ...issue });
+          continue;
+        }
+        // Pushed as is, not through `addIssue`, which would fill a missing
+        // field's absent `input` with the whole object and turn "is
+        // required" into "must be …".
+        const { message: _sentence, ...problem } = issue;
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a finalized issue without its sentence is a raw issue; `input` stays as the reader reported it
+        ctx.issues.push(problem as z.core.$ZodRawIssue);
       }
     })
     .nullable()
     .optional()
     .describe(description);
+
+/** A problem a cross-field rule finds: where, its stable code, and why. */
+interface CrossFieldIssue {
+  readonly path: readonly string[];
+  readonly code: string;
+  readonly message: string;
+}
+
+/**
+ * A rule over several arguments at once, run whatever else the parse found
+ * wrong — zod skips a refinement once a field has failed, and the agent
+ * would learn of this problem only on its next call. It reads the arguments
+ * as sent (any field may still be malformed), and runs whenever they are an
+ * object.
+ */
+function crossField(
+  rule: (args: Readonly<Record<string, unknown>>) => CrossFieldIssue[],
+): z.core.$ZodCheck<unknown> {
+  const check = z.superRefine((value: unknown, ctx) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value))
+      return;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a plain object, checked above
+    for (const issue of rule(value as Record<string, unknown>)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [...issue.path],
+        message: issue.message,
+        params: { code: issue.code },
+      });
+    }
+  });
+  check._zod.def.when = (payload) =>
+    typeof payload.value === 'object' &&
+    payload.value !== null &&
+    !Array.isArray(payload.value);
+  return check;
+}
 
 /** A list of project ids, at most 50. */
 const projectIds = (description: string) =>
@@ -195,27 +240,28 @@ export const ENGINE_TOOL_ARGS = {
         'Which saved version of name to test — the latest when omitted, "deployed" for the live one.',
       ),
     })
-    .superRefine((value, ctx) => {
-      if ((value.automation === undefined) === (value.name === undefined)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: value.automation === undefined ? ['automation'] : ['name'],
-          message:
-            value.automation === undefined
-              ? 'is required unless name is given'
-              : 'cannot be given together with automation',
-          params: { code: 'exactly_one_of' },
-        });
-      }
-      if (value.version !== undefined && value.name === undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['version'],
-          message: 'needs name',
-          params: { code: 'requires' },
-        });
-      }
-    }),
+    .check(
+      crossField((args) => [
+        ...((args.automation === undefined) === (args.name === undefined)
+          ? [
+              args.automation === undefined
+                ? {
+                    path: ['automation'],
+                    code: 'exactly_one_of',
+                    message: 'is required unless name is given',
+                  }
+                : {
+                    path: ['name'],
+                    code: 'exactly_one_of',
+                    message: 'cannot be given together with automation',
+                  },
+            ]
+          : []),
+        ...(args.version !== undefined && args.name === undefined
+          ? [{ path: ['version'], code: 'requires', message: 'needs name' }]
+          : []),
+      ]),
+    ),
   save_automation: z.strictObject({
     automation: automationDocument,
     message: nonBlank()
@@ -353,16 +399,22 @@ export const ENGINE_TOOL_ARGS = {
         'Remove it from these projects (you need edit access to each).',
       ),
     })
-    .superRefine((value, ctx) => {
-      if ((value.add?.length ?? 0) + (value.remove?.length ?? 0) === 0) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['add'],
-          message: 'name at least one project in add or remove',
-          params: { code: 'nothing_to_change' },
-        });
-      }
-    }),
+    .check(
+      crossField((args) => {
+        // A list that is not one has its own issue; it still names something.
+        const named = (list: unknown): number =>
+          list === undefined ? 0 : Array.isArray(list) ? list.length : 1;
+        return named(args.add) + named(args.remove) === 0
+          ? [
+              {
+                path: ['add'],
+                code: 'nothing_to_change',
+                message: 'name at least one project in add or remove',
+              },
+            ]
+          : [];
+      }),
+    ),
   list_triggers: z.strictObject({
     name: automationName(
       "Only this automation's trigger. Omit for every trigger in the organization.",

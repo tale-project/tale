@@ -1072,6 +1072,70 @@ describe('tools/call — arguments are held to the advertised schema [MCP-R7]', 
     ]);
   });
 
+  it('lists a rule across arguments beside the fields that failed, in one answer', async () => {
+    // zod skips a refinement once a field failed: Ada's agent heard of the
+    // missing automation only on its second call.
+    const tested = await invalid('test_automation', { version: 'x', foo: 1 });
+    expect(tested.issues).toEqual([
+      {
+        path: 'automation',
+        code: 'exactly_one_of',
+        message: 'is required unless name is given',
+      },
+      {
+        path: 'foo',
+        code: 'unrecognized_key',
+        message: 'is not an argument this tool takes',
+      },
+      expect.objectContaining({ path: 'version' }),
+      { path: 'version', code: 'requires', message: 'needs name' },
+    ]);
+    const projects = await invalid('set_automation_projects', {
+      name: 'billing/dunning',
+      bogus: true,
+    });
+    expect(projects.issues).toEqual([
+      {
+        path: 'add',
+        code: 'nothing_to_change',
+        message: 'name at least one project in add or remove',
+      },
+      {
+        path: 'bogus',
+        code: 'unrecognized_key',
+        message: 'is not an argument this tool takes',
+      },
+    ]);
+  });
+
+  it('phrases a version field problem in the house words, one unknown key per issue', async () => {
+    const { issues } = await invalid('save_automation', {
+      automation: { name: 'billing/dunning', nodes: [] },
+      settings: { fields: 5, extra: 1, other: 2 },
+    });
+    expect(issues).toEqual([
+      {
+        path: 'settings.extra',
+        code: 'unrecognized_key',
+        message: 'is not a field this object takes',
+      },
+      {
+        path: 'settings.fields',
+        code: 'unrecognized_key',
+        message: 'is not a field this object takes',
+      },
+      { path: 'settings.forms', code: 'invalid_type', message: 'is required' },
+      {
+        path: 'settings.other',
+        code: 'unrecognized_key',
+        message: 'is not a field this object takes',
+      },
+    ]);
+    for (const issue of issues) {
+      expect(issue.message).not.toMatch(/^Invalid input|Unrecognized key/);
+    }
+  });
+
   it('bounds the list it answers', async () => {
     const args = Object.fromEntries(
       Array.from({ length: 80 }, (_, index) => [`extra${index}`, index]),
