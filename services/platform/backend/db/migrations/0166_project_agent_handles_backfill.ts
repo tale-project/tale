@@ -4,8 +4,8 @@
  * Every agent gets the mention handle its name gives (`agentHandleBase`),
  * unique in its project: the agent created first keeps the clean handle and
  * a later one whose name gives the same takes `-02`, `-03` and on. A handle a
- * person of the organization answers to by email, or an automation by its
- * store name, is skipped the same way, so an agent never takes `@ops` from
+ * person of the organization answers to by id or email, or an automation by
+ * its store name, is skipped the same way, so an agent never takes `@ops` from
  * the person whose email starts with it.
  *
  * Every agent also keeps what it answered to until now (`legacy_handles`): its

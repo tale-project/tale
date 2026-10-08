@@ -257,8 +257,10 @@ export function buildMentionHandleIndex(
   };
 }
 
-/** Handles an agent handle must not take: what the organization's people and
- * automations answer to by their primary handles. */
+/** Handles an agent handle must not take: whatever the organization's people
+ * and automations answer to ahead of a stored agent handle — a person's id
+ * and email name, an automation's store name. An agent holding one would
+ * never be reached by it. */
 export function reservedAgentHandles(
   entries: readonly MentionActorEntry[],
 ): Set<string> {
@@ -266,7 +268,7 @@ export function reservedAgentHandles(
   for (const entry of entries) {
     if (entry.kind === 'agent') continue;
     for (const { handle, tier } of entry.handles) {
-      if (tier === MENTION_HANDLE_TIER.primary) reserved.add(handle);
+      if (tier < MENTION_HANDLE_TIER.stored) reserved.add(handle);
     }
   }
   return reserved;

@@ -164,9 +164,18 @@ describe('who a plain handle names [COLLAB-R11]', () => {
 });
 
 describe('reserved agent handles', () => {
-  it('are the store names and email local parts of the organization', () => {
+  it('are the store names, email local parts and ids of the organization', () => {
     expect(
       [...reservedAgentHandles([ada, opsMember, invoiceAutomation])].toSorted(),
-    ).toEqual(['ada', 'invoice-checker', 'ops']);
+    ).toEqual(['ada', 'invoice-checker', 'ops', 'user-ops', 'userada01']);
+  });
+
+  it('keep an email local part that is also the person id', () => {
+    const noah = memberMentionEntry({
+      id: 'noah',
+      name: 'Noah Weber',
+      email: 'noah@example.com',
+    });
+    expect([...reservedAgentHandles([noah])]).toEqual(['noah']);
   });
 });

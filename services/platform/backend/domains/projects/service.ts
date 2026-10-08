@@ -1522,8 +1522,8 @@ async function projectAgentHandleRows(
 }
 
 /**
- * What the organization's people answer to by email and its automations by
- * store name: an agent handle never takes one, so `@ops` keeps reaching the
+ * What the organization's people answer to by id or email and its automations
+ * by store name: an agent handle never takes one, so `@ops` keeps reaching the
  * person whose email starts with it [PROJ-R18]. Every member and every
  * automation counts, not only those of this project, so a later share does
  * not make a handle collide.
