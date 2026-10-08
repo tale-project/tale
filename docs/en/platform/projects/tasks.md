@@ -135,7 +135,7 @@ While the source validates a request, the task shows its pending state and preve
 
 ## Keep decisions with the work
 
-Open the task to add a description, attachments, dates, labels, subtasks, or comments. Use comments for questions, decisions, and feedback that future reviewers need to understand.
+Open the task to add a description, attachments, dates, labels, subtasks, or comments. Use comments for questions, decisions, and feedback that future reviewers need to understand. A task reads the same in the board's dialog and on its own page: the brief first, then the discussion as one conversation with the task's history between the comments, and the comment box at the bottom. It opens at the latest message; scroll up for the brief. [Open your tasks from Home](#open-your-tasks-from-home) describes each part.
 
 Typing `@` in a comment opens the mention picker. A mention of an assigned agent is an instruction: it can steer a running agent or start another run when the agent is idle. A plain comment records the discussion without requesting that agent action.
 
@@ -143,7 +143,7 @@ Mentions in the task description work the same way when you save the task: the p
 
 Use **Subtasks** to split work that has separately checkable results. A subtask names its parent at the top of its details (**Part of …**); click it to go back up. While any of its subtasks is still open, a parent task cannot move to **Done** or **Cancelled**; every other status stays available, **To do** included. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
 
-When you change a field, the task's **Activity** shows its value before and after. A field you clear shows what is left, such as **No due date** or **Unassigned**, rather than its old value alone. Titles, descriptions, labels, and file names appear exactly as they were written, even when the text is a status name such as `done`. Statuses, priorities, dates, and the words for an empty field appear in your language.
+When you change a field, the line it adds to the task's conversation shows its value before and after. A field you clear shows what is left, such as **No due date** or **Unassigned**, rather than its old value alone. Titles, descriptions, labels, and file names appear exactly as they were written, even when the text is a status name such as `done`. Statuses, priorities, dates, and the words for an empty field appear in your language.
 
 ## Repeat a task
 
@@ -210,13 +210,13 @@ Move the task to **Done** when the result meets the requirement. If an agent nee
 
 ## Open your tasks from Home
 
-[Home](/platform#home) lists the open tasks assigned to you and those waiting for your review, from every project you can read; **Tasks** above the list shows only them. A task you open there appears as a page of its own beside the Home panel, not in the board's dialog:
+[Home](/platform#home) lists the open tasks assigned to you and those waiting for your review, from every project you can read; **Tasks** above the list shows only them. A task you open there appears as a page of its own beside the Home panel, laid out like the board's dialog:
 
 - The brief comes first as a card: the description, attachments, and subtasks.
 - The discussion follows like a conversation, oldest first under day labels that stay at the top while you scroll through their day. Your own comments sit on the right, as in a chat; everyone else's, people and agents, read on the left under their name, with an **Agent** label for an agent and the time. A long comment, such as an agent's report, shows its beginning with **Read more** to open the rest in place and **Show less** to fold it again.
 - The task's history sits between the comments as short lines, such as status changes, assignments, and agent runs. Three or more in a row fold into one line, such as **5 updates**, with who made them; select it to see each one.
 - The comment box sits at the bottom. Send with **⌘+Enter** or **Ctrl+Enter**, or with the round send button; **Enter** alone starts a new line. Type `@` to mention an agent or a person, with the same effect as in the board's dialog. Text you have not sent stays in the box for that task, here and in the board's dialog, and the task's row in Home shows **Draft** while you work elsewhere.
-- **Details** beside the discussion holds the status, priority, assignee, reviewer, dates, repeat, labels, and dependencies, together with **Watch** and **Archive**. Organization owners and admins also find **Delete** there: it removes the task with its subtasks, their comments, and their files for good, and stops their running agent runs. **Hide details** at the end of the header folds it away, and **Show details** brings it back. In a window too narrow to keep both side by side, **Show details** opens it as a sheet over the discussion instead — from the side, or from the bottom on a phone.
+- **Details** beside the discussion holds the status, priority, assignee, reviewer, dates, repeat, labels, and dependencies, together with **Watch** and **Archive**. When the task's agent runs have cost anything, **Agent cost** there shows their total. Organization owners and admins also find **Delete** there: it removes the task with its subtasks, their comments, and their files for good, and stops their running agent runs. **Hide details** at the end of the header folds it away, and **Show details** brings it back. In a window too narrow to keep both side by side, **Show details** opens it as a sheet over the discussion instead — from the side, or from the bottom on a phone.
 
 **Board** in the header opens the project's task board. A task you open from the board still appears in its dialog, which shows the same title line; both views edit the same task. **Open as page**, the expand icon beside **Close** in the dialog, opens the task here on its own page, and the browser's Back returns to the board with the dialog open. A description you are still editing is not carried over, so save it first. **Copy link** in the dialog copies the same page link. **Copy link**, the link icon beside **Board**, copies a link to this task page. To copy the task's identifier, such as `WEB-2`, click it in the line under the title; a message confirms each copy.
 
