@@ -187,6 +187,38 @@ export class HostDiskProbe implements HostDiskSource {
   }
 }
 
+/** How often a verified Docker data mount is compared with
+ * /proc/self/mountinfo: a file read, no Docker call. */
+export const MOUNT_RECHECK_MS = 60_000;
+const VERIFY_RETRY_FIRST_MS = 30_000;
+const VERIFY_RETRY_MAX_MS = 10 * 60_000;
+
+/** When to try a failed Docker data verification again: 30 s after the
+ * first failure, doubling with each further one, at most 10 min. */
+export function verificationRetryMs(failures: number): number {
+  return Math.min(
+    VERIFY_RETRY_MAX_MS,
+    VERIFY_RETRY_FIRST_MS * 2 ** Math.max(0, failures - 1),
+  );
+}
+
+/** The Docker CLI gave no usable answer (it failed, timed out or found no
+ * slot): unlike an answer that refutes a mount, this says nothing about the
+ * mount, so its retry does not back off past the first delay. */
+export class DockerUnansweredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DockerUnansweredError';
+  }
+}
+
+/** Decode mountinfo's octal escapes of whitespace and backslashes. */
+export function unescapeMountPath(field: string): string {
+  return field.replace(/\\(040|011|012|134)/g, (_match, octal: string) =>
+    String.fromCharCode(Number.parseInt(octal, 8)),
+  );
+}
+
 export interface DockerDataRootMountDeps {
   docker?: (args: string[]) => Promise<RunDockerResult>;
   readFile?: (path: string) => Promise<string>;
@@ -198,7 +230,13 @@ export interface DockerDataRootMountDeps {
  * the full container identity to verify with the selected daemon. This does
  * not inspect a guessed /var/lib/docker inside our own namespace, add a host
  * mount, or launch a helper. Separately mounted volumes/containerd stores are
- * outside this observation, as are deployments without the verified bind. */
+ * outside this observation, as are deployments without the verified bind.
+ *
+ * A container's binds and its daemon's data-root do not change under a
+ * running process, so a verification stands while the bind's mountinfo line
+ * stays the same (checked every minute, no Docker call) and until the caller
+ * reports the bind unreadable (`invalidate`). A failed verification is
+ * retried after {@link verificationRetryMs}. */
 export class DockerDataRootMount {
   private readonly docker: NonNullable<DockerDataRootMountDeps['docker']>;
   private readonly readFile: NonNullable<DockerDataRootMountDeps['readFile']>;
@@ -206,7 +244,8 @@ export class DockerDataRootMount {
   private cached: { path: string | null; retryAtMs: number } | null = null;
   private discovering: Promise<string | null> | null = null;
   private verifiedMount: string | null = null;
-  private warned: 'unknown' | 'retained' | null = null;
+  private failures = 0;
+  private warned = false;
 
   constructor(deps: DockerDataRootMountDeps = {}) {
     this.docker =
@@ -225,9 +264,22 @@ export class DockerDataRootMount {
     return this.discovering;
   }
 
+  /** The caller could not read the verified bind: a failure like a refuted
+   * verification, so it is verified again only after the retry delay, which
+   * keeps growing while the bind verifies but stays unreadable. */
+  invalidate(): void {
+    if (this.cached?.path === null) return;
+    this.verifiedMount = null;
+    this.failures += 1;
+    this.cached = {
+      path: null,
+      retryAtMs: this.now() + verificationRetryMs(this.failures),
+    };
+  }
+
   private async discover(): Promise<string | null> {
     let path: string | null = null;
-    let ttl = 10 * 60_000;
+    let ttl = MOUNT_RECHECK_MS;
     try {
       const mountinfo = await this.readFile('/proc/self/mountinfo');
       const mounts = mountinfo.split('\n').filter((line) => {
@@ -235,19 +287,21 @@ export class DockerDataRootMount {
         return fields[4] === '/etc/hostname' && fields[3] !== undefined;
       });
       const mount = mounts.length === 1 ? mounts[0] : undefined;
-      if (mount !== this.verifiedMount) this.verifiedMount = null;
-      // mountinfo escapes whitespace/backslashes in path fields as octal.
-      const root = mount
-        ?.split(' ')[3]
-        ?.replace(/\\(040|011|012|134)/g, (_match, octal: string) =>
-          String.fromCharCode(Number.parseInt(octal, 8)),
-        );
+      if (mount !== undefined && mount === this.verifiedMount) {
+        // The bind verified earlier is still the one mounted, and has been
+        // readable since the last check.
+        this.failures = 0;
+        this.cached = { path: '/etc/hostname', retryAtMs: this.now() + ttl };
+        return '/etc/hostname';
+      }
+      this.verifiedMount = null;
+      const root =
+        mount?.split(' ')[3] === undefined
+          ? undefined
+          : unescapeMountPath(mount.split(' ')[3] ?? '');
       const id = root?.match(/\/containers\/([a-f0-9]{64})\/hostname$/)?.[1];
       if (root === undefined || id === undefined)
         throw new Error('no identifiable Docker hostname bind');
-      // A busy/unavailable daemon cannot invalidate an unchanged, previously
-      // verified kernel mount. Keep observing it during metadata retries.
-      if (this.verifiedMount !== null) path = '/etc/hostname';
       const [info, inspect] = await Promise.all([
         this.dockerJson(['info', '--format', '{{json .DockerRootDir}}']),
         this.dockerJson([
@@ -259,8 +313,6 @@ export class DockerDataRootMount {
           id,
         ]),
       ]);
-      path = null;
-      this.verifiedMount = null;
       if (
         typeof info !== 'string' ||
         !info.startsWith('/') ||
@@ -278,16 +330,15 @@ export class DockerDataRootMount {
         );
       path = '/etc/hostname';
       this.verifiedMount = mount ?? null;
-      this.warned = null;
+      this.warned = false;
     } catch (error) {
-      ttl = 30_000;
-      const verdict = path === null ? 'unknown' : 'retained';
-      if (this.warned !== verdict) {
-        this.warned = verdict;
+      this.failures =
+        error instanceof DockerUnansweredError ? 1 : this.failures + 1;
+      ttl = verificationRetryMs(this.failures);
+      if (!this.warned) {
+        this.warned = true;
         console.warn(
-          path === null
-            ? '[sandbox] cannot verify the Docker data-root filesystem; its disk pressure is unknown (workspace admission remains active):'
-            : '[sandbox] Docker data-root metadata is unavailable; continuing to observe its unchanged verified hostname mount:',
+          '[sandbox] cannot verify the Docker data-root filesystem; its disk pressure is unknown (workspace admission remains active):',
           error,
         );
       }
@@ -299,7 +350,7 @@ export class DockerDataRootMount {
   private async dockerJson(args: string[]): Promise<unknown> {
     const result = await this.docker(args);
     if (result.exitCode !== 0)
-      throw new Error(
+      throw new DockerUnansweredError(
         `docker ${args[0]} failed while verifying its data-root (exit ${result.exitCode})`,
       );
     return JSON.parse(result.stdout);

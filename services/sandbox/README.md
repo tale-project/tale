@@ -316,7 +316,11 @@ workspace admission remains active and Docker disk pressure is unavailable.
 An explicit `SANDBOX_DOCKER_DATA_ROOT` read-only mount visible at
 `SANDBOX_DOCKER_DATA_PATH` takes priority. The CLI generates that optional mount;
 raw Compose needs an override. Its source must match DockerRootDir; failed
-verification closes admission. `/health.disks` reports each monitor as ready or
+verification closes admission. Either mount is verified with the daemon once
+per process and again only when its free space cannot be read or its kernel
+mount entry changes; a failed verification is retried after 30 seconds, the
+delay doubling up to 10 minutes while the daemon keeps refuting the mount.
+`/health.disks` reports each monitor as ready or
 unavailable. Separately mounted volumes or containerd stores need their own
 monitoring. These checks do not
 enforce per-session disk quotas; those require a quota-capable storage backend.
