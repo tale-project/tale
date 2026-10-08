@@ -20,6 +20,8 @@ let triggersData: TriggerView[] | undefined;
 let deployedInputs: Record<string, unknown> | undefined;
 /** The projects the automation is installed in. */
 let boundProjectIds: string[] = [];
+/** The runs the trigger started — a webhook's deliveries. */
+let triggerRuns: unknown[] = [];
 
 /** A stored trigger as the read returns it: every field, `overrides` on
  * top of an idle schedule. */
@@ -112,6 +114,11 @@ vi.mock('../hooks/queries', () => ({
     isPending: false,
   }),
   useAutomationProjects: () => ({ data: boundProjectIds, isPending: false }),
+  useAutomationTriggerRuns: () => ({
+    data: triggerRuns,
+    isPending: false,
+    isError: false,
+  }),
 }));
 
 vi.mock('@/app/features/projects/hooks/queries', () => ({
@@ -218,6 +225,7 @@ describe('TriggerEditor', () => {
     triggersError = false;
     deployedInputs = undefined;
     boundProjectIds = [];
+    triggerRuns = [];
     mockSetTrigger.mockResolvedValue({});
     mockStartRun.mockResolvedValue({ runId: 'run-9', version: 2 });
   });
@@ -699,27 +707,80 @@ describe('TriggerEditor', () => {
       screen.getByRole('combobox', { name: 'Trigger type' }),
     );
     await userEvent.click(screen.getByRole('option', { name: 'Webhook' }));
+    // Unsaved, there is no URL yet.
+    expect(
+      screen.getByText('Save to mint the token; the full URL is shown once.'),
+    ).toBeVisible();
     await userEvent.click(saveButton());
 
-    // The minted token appears inside the ready-to-run curl command (the
-    // "copy it now" alert and the persistent endpoint block both show it).
-    const commands = await screen.findAllByText(
-      /curl -X POST .*\/api\/automations\/webhook\/wht_secret_1/,
-    );
-    expect(commands).toHaveLength(2);
+    // The "copy it now" alert holds the URL, whole and copyable, and the
+    // test request uses it.
+    const banner = (
+      await screen.findByRole('heading', { name: 'Webhook URL — copy it now' })
+    ).closest('[data-slot="alert"]');
+    if (!(banner instanceof HTMLElement)) throw new Error('no alert');
+    expect(banner).toHaveTextContent(/shown once and stored only as a hash/);
     expect(
-      screen.getByText(/shown once and stored only as a hash/),
-    ).toBeInTheDocument();
-    const projectCommand = screen.getByText(
-      /\/api\/projects\/<projectId>\/automations\/webhook\/wht_secret_1/,
-    );
-    expect(screen.queryByText(/\?projectId=/)).not.toBeInTheDocument();
-    // Each command is the design system's inline code, whole and wrapping,
-    // selected in one click.
-    for (const command of [...commands, projectCommand]) {
-      expectInlineCode(command);
-      expect(command).toHaveClass('break-all', 'select-all');
-    }
+      within(banner).getByRole('button', {
+        name: /^Webhook endpoint .*\/api\/automations\/webhook\/wht_secret_1$/,
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        /curl --fail-with-body --request POST ".*\/api\/automations\/webhook\/wht_secret_1"/,
+      ),
+    ).toBeVisible();
+    // Never a placeholder project id.
+    expect(screen.queryByText(/<projectId>/)).toBeNull();
+  });
+
+  // A webhook installed in projects answers on each project's door; its
+  // token, once shown, stays hidden, and the deliveries it started are
+  // listed with how the door recognised each.
+  describe('a webhook installed in projects', () => {
+    const WEBHOOK_ROW = row({ kind: 'webhook', hasToken: true });
+
+    it('lists one masked URL per project, the route’s own first', () => {
+      triggersData = [WEBHOOK_ROW];
+      boundProjectIds = ['proj-1', 'proj-2'];
+      renderTrigger('gmail-triage-inbox', true, 2, 'proj-2');
+      const urls = screen.getByRole('list', { name: 'Project URLs' });
+      const items = within(urls).getAllByRole('listitem');
+      expect(items[0]).toHaveTextContent(
+        /^Support.*\/api\/projects\/proj-2\/automations\/webhook\/••••••••$/,
+      );
+      expect(items[1]).toHaveTextContent(/^Document desk/);
+      expect(
+        screen.getByText(
+          'This automation is installed in projects, so it runs only through a project URL.',
+        ),
+      ).toBeVisible();
+      expect(screen.getByText(/curl .*"\$TALE_WEBHOOK_URL"/)).toBeVisible();
+    });
+
+    it('lists the deliveries the webhook started', () => {
+      triggersData = [WEBHOOK_ROW];
+      triggerRuns = [
+        {
+          runId: 'run-3',
+          startedAt: Date.now() - 60_000,
+          status: 'success',
+          deliverySource: 'header',
+          header: 'idempotency-key',
+        },
+      ];
+      renderTrigger('gmail-triage-inbox', true, 2);
+      const deliveries = screen.getByRole('list', {
+        name: 'Recent deliveries',
+      });
+      expect(deliveries).toHaveTextContent('ID from idempotency-key');
+      expect(
+        within(deliveries).getByRole('link', { name: 'View run' }),
+      ).toHaveAttribute(
+        'href',
+        '/dashboard/org-1/automations/gmail-triage-inbox/runs/run-3',
+      );
+    });
   });
 
   // No binding used to draw an ENABLED, empty schedule — indistinguishable
@@ -801,10 +862,10 @@ describe('TriggerEditor', () => {
       // An event trigger saves once it names its event.
       expect(saveButton()).toBeDisabled();
       await userEvent.click(
-        screen.getByRole('combobox', { name: 'Event name' }),
+        screen.getByRole('button', { name: /^Event name/ }),
       );
       await userEvent.click(
-        screen.getByRole('option', { name: 'task.created' }),
+        screen.getByRole('option', { name: /^Task created/ }),
       );
       await userEvent.click(saveButton());
     }

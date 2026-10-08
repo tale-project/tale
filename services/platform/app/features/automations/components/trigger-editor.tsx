@@ -9,11 +9,10 @@ import {
   useRegisterGroupedEditor,
   type EditorController,
 } from '@tale/ui/editor';
-import { InlineCode } from '@tale/ui/inline-code';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
-import { KeyRound, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -54,6 +53,7 @@ import { TriggerHealth } from './trigger-health';
 import { TriggerInputPreview } from './trigger-input-preview';
 import type { TriggerPlace } from './trigger-links';
 import { TriggerRunNow } from './trigger-run-now';
+import { TriggerWebhookPanel } from './trigger-webhook-panel';
 
 const NO_WARNINGS: readonly Issue[] = [];
 
@@ -112,14 +112,10 @@ export function TriggerEditor({
   const { t: tRecurrence } = useT('recurrence');
   const { i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en';
-  // The public webhook endpoint. External callers POST here; the token is the
-  // last path segment and is shown only once (stored as a hash), so a revisit
-  // shows a `<token>` placeholder and points to Rotate. The origin the operator
-  // is browsing IS the deployment origin (dev proxies /api/* to the backend), so it
-  // is the base of the URL an external caller uses.
+  // The origin the operator is browsing IS the deployment origin (dev
+  // proxies /api/* to the backend), so it is the base of the webhook URL an
+  // external caller uses.
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
-  const webhookUrl = (token: string): string =>
-    `${origin}/api/automations/webhook/${token}`;
   // A new trigger reads its schedule in the reader's own zone.
   const [viewerZone] = useState(localTimeZone);
 
@@ -230,7 +226,6 @@ export function TriggerEditor({
   // A draft the store would refuse is the one thing the browser can hold
   // back before the store does; Save waits until it reads.
   const blocked = issue !== null;
-  const canRotate = draft.kind === 'webhook' && stored?.hasToken === true;
   const canRemove = stored !== undefined;
   // A read that failed shows no form at all: an empty form would look like
   // an automation without a trigger, or an armed one.
@@ -386,23 +381,6 @@ export function TriggerEditor({
           <Alert variant="destructive" description={refusal} />
         )}
 
-        {mintedToken !== null && (
-          <Alert
-            variant="warning"
-            icon={KeyRound}
-            title={t('trigger.tokenTitle')}
-            description={
-              <span className="flex flex-col gap-1">
-                <span>{t('trigger.webhookHowto')}</span>
-                <InlineCode className="break-all select-all">
-                  curl -X POST {webhookUrl(mintedToken)}
-                </InlineCode>
-                <span>{t('trigger.tokenHint')}</span>
-              </span>
-            }
-          />
-        )}
-
         {showForm && (
           <div className="flex flex-col gap-4">
             <SettingsToggleRow
@@ -455,46 +433,19 @@ export function TriggerEditor({
                 </>
               }
               webhookDetails={
-                <div className="flex flex-col gap-1">
-                  <Text
-                    as="span"
-                    variant="muted"
-                    className="text-xs font-medium"
-                  >
-                    {t('trigger.webhookEndpointLabel')}
-                  </Text>
-                  <InlineCode className="break-all select-all">
-                    curl -X POST {webhookUrl(mintedToken ?? '<token>')}
-                  </InlineCode>
-                  <Text as="span" variant="muted" className="text-xs">
-                    {t('trigger.webhookHowto')}{' '}
-                    {stored?.hasToken === true
-                      ? t('trigger.hasToken')
-                      : t('trigger.noToken')}
-                  </Text>
-                  <Text as="span" variant="muted" className="text-xs">
-                    {t('trigger.webhookProjectHint')}
-                  </Text>
-                  <InlineCode className="break-all select-all">
-                    curl -X POST{' '}
-                    {`${origin}/api/projects/<projectId>/automations/webhook/${mintedToken ?? '<token>'}`}
-                  </InlineCode>
-                  {canEdit && canRotate && (
-                    <div className="pt-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={KeyRound}
-                        isLoading={setTrigger.isPending}
-                        onClick={() => {
-                          setConfirmRotate(true);
-                        }}
-                      >
-                        {t('trigger.rotate')}
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                <TriggerWebhookPanel
+                  place={place}
+                  origin={origin}
+                  projects={boundProjects}
+                  mintedToken={mintedToken}
+                  hasToken={stored?.kind === 'webhook' && stored.hasToken}
+                  storedWebhook={stored?.kind === 'webhook'}
+                  canEdit={canEdit}
+                  rotating={setTrigger.isPending}
+                  onRotate={() => {
+                    setConfirmRotate(true);
+                  }}
+                />
               }
             />
           </div>

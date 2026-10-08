@@ -177,12 +177,8 @@ trigger:
   tokenHint: Le token est la dernière partie de l’URL, affiché une seule
     fois et conservé uniquement sous forme de hash.
   webhookEndpointLabel: Point de terminaison du webhook
-  webhookHowto: Cette URL s’utilise quand l’automatisation n’est liée à aucun projet.
-  hasToken: Un token est actif — l’URL a besoin du token affiché une seule
-    fois à la création ; renouvelle-le pour générer une nouvelle URL.
   noToken: Enregistre pour créer le token ; l’URL complète s’affiche une
     seule fois.
-  webhookProjectHint: Pour un projet actif auquel l’automatisation est liée, indique son identifiant dans l’URL ci-dessous.
   rotate: Renouveler le token
   revokeConfirm:
     title: Remplacer le webhook ?
@@ -275,6 +271,61 @@ trigger:
     confirm: 'Lancer l’exécution'
     started: 'Exécution lancée.'
     failed: 'Impossible de lancer l’exécution : {error}'
+  webhook:
+    projectUrls: 'URL des projets'
+    orgUnused: 'Cette automatisation est installée dans des projets : elle ne s’exécute que via une URL de projet.'
+    tokenHidden: 'URL du webhook, token masqué'
+    tokenHiddenHint: 'Le token ne s’est affiché qu’une fois, à sa création. Renouvelle-le pour obtenir une nouvelle URL.'
+    sampleTitle: 'Envoyer une requête de test'
+    sampleCopy: 'Copier la requête'
+    sampleHint: 'Envoie un nouvel Idempotency-Key pour chaque événement : en répéter un dans les 24 heures renvoie la première exécution.'
+    sampleEnv: 'Garde l’URL dans TALE_WEBHOOK_URL sur le système émetteur : elle agit comme un mot de passe.'
+    deliveries:
+      title: 'Livraisons récentes'
+      empty: 'Aucune livraison pour l’instant. Envoie une requête de test pour en voir une ici.'
+      loadFailed: 'Impossible de charger les livraisons.'
+      byHeader: 'ID issu de {header}'
+      byBody: 'Sans ID de livraison'
+      refusedNote: 'Les requêtes refusées n’apparaissent pas ; l’expéditeur en voit la raison dans la réponse.'
+  events:
+    search: 'Rechercher un événement'
+    empty: 'Aucun événement ne correspond'
+    group:
+      tasks: 'Tâches'
+      comments: 'Commentaires'
+      conversations: 'Conversations'
+      contacts: 'Contacts'
+      projects: 'Projets'
+    contactCreated:
+      label: 'Contact créé'
+      description: 'Un contact est ajouté via l’API, l’application ou un import.'
+    contactUpdated:
+      label: 'Contact modifié'
+      description: 'Les informations d’un contact changent.'
+    contactDeleted:
+      label: 'Contact supprimé'
+      description: 'Un contact est supprimé.'
+    conversationCreated:
+      label: 'Conversation ouverte'
+      description: 'Une conversation s’ouvre dans la boîte de réception : un e-mail arrive ou une conversation externe est reflétée.'
+    conversationMessageReceived:
+      label: 'Message reçu'
+      description: 'Un message arrive dans une conversation existante.'
+    projectCreated:
+      label: 'Projet créé'
+      description: 'Un projet est créé.'
+    taskCreated:
+      label: 'Tâche créée'
+      description: 'Une tâche est créée sur un tableau, via l’API ou par un import.'
+    taskStatusChanged:
+      label: 'Statut de tâche modifié'
+      description: 'Une personne déplace une tâche vers un autre statut. Les déplacements faits par un agent ne comptent pas.'
+    commentCreated:
+      label: 'Commentaire ajouté'
+      description: 'Un commentaire est publié sur une tâche.'
+    commentMentioned:
+      label: 'Mention dans un commentaire'
+      description: 'Un commentaire de tâche mentionne quelqu’un avec @.'
   issues:
     keyOtherKind: 'Ce réglage appartient à un autre type de déclencheur.'
     schedule:

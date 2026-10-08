@@ -169,6 +169,20 @@ export function useAutomationTriggers(organizationId: string, name: string) {
   });
 }
 
+/** The runs the automation's trigger started, newest first — a webhook's
+ * recent deliveries. A run the trigger starts refreshes it. */
+export function useAutomationTriggerRuns(
+  organizationId: string,
+  name: string,
+  limit: number,
+) {
+  return useBackendQuery('automations/queries:listTriggerRuns', {
+    organizationId,
+    name,
+    limit,
+  });
+}
+
 /** Every node type the engine has registered — see `backend.ts` for why this
  * one call is bound by name. */
 export function useNodeTypeCatalog(organizationId: string) {

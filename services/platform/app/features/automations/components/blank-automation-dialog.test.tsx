@@ -347,6 +347,36 @@ describe('BlankAutomationDialog webhook URL', () => {
     );
   });
 
+  // Created from a project's page, the automation is installed there, and
+  // its webhook answers on the project's door only: the organization's URL
+  // would start nothing.
+  it('shows the project’s URL when the automation is created in a project', async () => {
+    setTrigger.mockResolvedValueOnce({ token: 'wht_once_2' });
+    const { user } = render(
+      <BlankAutomationDialog
+        organizationId="org-1"
+        projectId="proj-7"
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+    await reachTriggerStep(user);
+    await user.click(screen.getByRole('radio', { name: /^Webhook/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(
+      await screen.findByRole('button', {
+        name: /Webhook endpoint .*\/api\/projects\/proj-7\/automations\/webhook\/wht_once_2$/,
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        'Keep the URL in TALE_WEBHOOK_URL in the sending system; it works like a password.',
+      ),
+    ).toBeVisible();
+  });
+
   it('opens the automation straight away for a schedule', async () => {
     const { user } = renderDialog();
     await reachTriggerStep(user);

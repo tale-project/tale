@@ -177,12 +177,8 @@ trigger:
   tokenHint: Der Token ist der letzte Teil der URL, erscheint genau einmal
     und liegt nur als Hash gespeichert.
   webhookEndpointLabel: Webhook-Endpunkt
-  webhookHowto: Diese URL gilt für Automatisierungen, die keinem Projekt zugeordnet sind.
-  hasToken: Ein Token ist aktiv — die URL braucht den beim Anlegen einmalig
-    gezeigten Token; rotiere, um eine neue URL zu erzeugen.
   noToken: Zum Erzeugen des Tokens speichern; die vollständige URL erscheint
     einmal.
-  webhookProjectHint: Für ein aktives Projekt, in dem die Automatisierung eingerichtet ist, setzt du dessen ID in die folgende URL ein.
   rotate: Token rotieren
   revokeConfirm:
     title: Webhook ersetzen?
@@ -275,6 +271,61 @@ trigger:
     confirm: 'Lauf starten'
     started: 'Lauf gestartet.'
     failed: 'Der Lauf konnte nicht starten: {error}'
+  webhook:
+    projectUrls: 'Projekt-URLs'
+    orgUnused: 'Diese Automatisierung ist in Projekten eingerichtet und läuft deshalb nur über eine Projekt-URL.'
+    tokenHidden: 'Webhook-URL, Token verborgen'
+    tokenHiddenHint: 'Der Token wurde nur einmal angezeigt, beim Erzeugen. Rotiere ihn, um eine neue URL zu bekommen.'
+    sampleTitle: 'Testanfrage senden'
+    sampleCopy: 'Anfrage kopieren'
+    sampleHint: 'Sende für jedes Ereignis einen neuen Idempotency-Key: Wiederholst du einen innerhalb von 24 Stunden, kommt der erste Lauf zurück.'
+    sampleEnv: 'Lege die URL im sendenden System in TALE_WEBHOOK_URL ab; sie wirkt wie ein Passwort.'
+    deliveries:
+      title: 'Letzte Zustellungen'
+      empty: 'Noch keine Zustellungen. Sende eine Testanfrage, um hier eine zu sehen.'
+      loadFailed: 'Die Zustellungen konnten nicht geladen werden.'
+      byHeader: 'ID aus {header}'
+      byBody: 'Ohne Zustell-ID'
+      refusedNote: 'Abgelehnte Anfragen stehen nicht in der Liste; der Absender sieht den Grund in der Antwort.'
+  events:
+    search: 'Ereignisse suchen'
+    empty: 'Kein passendes Ereignis'
+    group:
+      tasks: 'Aufgaben'
+      comments: 'Kommentare'
+      conversations: 'Konversationen'
+      contacts: 'Kontakte'
+      projects: 'Projekte'
+    contactCreated:
+      label: 'Kontakt erstellt'
+      description: 'Ein Kontakt wird über die API, die App oder einen Import angelegt.'
+    contactUpdated:
+      label: 'Kontakt geändert'
+      description: 'Die Angaben eines Kontakts ändern sich.'
+    contactDeleted:
+      label: 'Kontakt gelöscht'
+      description: 'Ein Kontakt wird gelöscht.'
+    conversationCreated:
+      label: 'Konversation gestartet'
+      description: 'Eine Konversation öffnet sich in der Inbox: Eine E-Mail trifft ein oder eine externe Konversation wird gespiegelt.'
+    conversationMessageReceived:
+      label: 'Nachricht erhalten'
+      description: 'Eine Nachricht kommt in einer bestehenden Konversation an.'
+    projectCreated:
+      label: 'Projekt erstellt'
+      description: 'Ein Projekt wird erstellt.'
+    taskCreated:
+      label: 'Aufgabe erstellt'
+      description: 'Eine Aufgabe wird auf einem Board, über die API oder durch einen Import erstellt.'
+    taskStatusChanged:
+      label: 'Aufgabenstatus geändert'
+      description: 'Eine Person verschiebt eine Aufgabe in einen anderen Status. Eigene Verschiebungen eines Agenten zählen nicht.'
+    commentCreated:
+      label: 'Kommentar hinzugefügt'
+      description: 'Zu einer Aufgabe wird ein Kommentar geschrieben.'
+    commentMentioned:
+      label: 'In einem Kommentar erwähnt'
+      description: 'Ein Aufgabenkommentar erwähnt jemanden mit @.'
   issues:
     keyOtherKind: 'Diese Einstellung gehört zu einem anderen Trigger-Typ.'
     schedule:

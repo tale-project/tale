@@ -175,10 +175,7 @@ trigger:
   tokenTitle: Webhook URL — copy it now
   tokenHint: The token is the last part of the URL, shown once and stored only as a hash.
   webhookEndpointLabel: Webhook endpoint
-  webhookHowto: Use this URL only when the automation has no project bindings.
-  hasToken: A token is active — the URL needs the token shown once when it was created; rotate to generate a new URL.
   noToken: Save to mint the token; the full URL is shown once.
-  webhookProjectHint: To run in an installed project, use its ID in the URL below. The project must be active.
   rotate: Rotate token
   revokeConfirm:
     title: Replace the webhook?
@@ -271,6 +268,61 @@ trigger:
     confirm: 'Start run'
     started: 'Run started.'
     failed: 'Couldn''t start the run: {error}'
+  webhook:
+    projectUrls: 'Project URLs'
+    orgUnused: 'This automation is installed in projects, so it runs only through a project URL.'
+    tokenHidden: 'Webhook URL, token hidden'
+    tokenHiddenHint: 'The token was shown once, when it was created. Rotate it to get a new URL.'
+    sampleTitle: 'Send a test request'
+    sampleCopy: 'Copy the request'
+    sampleHint: 'Send a new Idempotency-Key for each event: repeating one within 24 hours returns the first run.'
+    sampleEnv: 'Keep the URL in TALE_WEBHOOK_URL in the sending system; it works like a password.'
+    deliveries:
+      title: 'Recent deliveries'
+      empty: 'No deliveries yet. Send a test request to see one here.'
+      loadFailed: 'Couldn''t load the deliveries.'
+      byHeader: 'ID from {header}'
+      byBody: 'No delivery ID'
+      refusedNote: 'Refused requests aren''t listed; the sender sees why in its response.'
+  events:
+    search: 'Search events'
+    empty: 'No events match'
+    group:
+      tasks: 'Tasks'
+      comments: 'Comments'
+      conversations: 'Conversations'
+      contacts: 'Contacts'
+      projects: 'Projects'
+    contactCreated:
+      label: 'Contact created'
+      description: 'A contact is added through the API, the app or an import.'
+    contactUpdated:
+      label: 'Contact updated'
+      description: 'A contact''s details change.'
+    contactDeleted:
+      label: 'Contact deleted'
+      description: 'A contact is deleted.'
+    conversationCreated:
+      label: 'Conversation started'
+      description: 'A conversation opens in Inbox: an email arrives, or an external conversation is mirrored in.'
+    conversationMessageReceived:
+      label: 'Message received'
+      description: 'A message lands on an existing conversation.'
+    projectCreated:
+      label: 'Project created'
+      description: 'A project is created.'
+    taskCreated:
+      label: 'Task created'
+      description: 'A task is created on a board, through the API or by an import.'
+    taskStatusChanged:
+      label: 'Task status changed'
+      description: 'A person moves a task to another status. An agent''s own moves don''t count.'
+    commentCreated:
+      label: 'Comment added'
+      description: 'A comment is posted on a task.'
+    commentMentioned:
+      label: 'Mentioned in a comment'
+      description: 'A task comment mentions someone with @.'
   issues:
     keyOtherKind: 'This setting belongs to a different trigger type.'
     schedule:

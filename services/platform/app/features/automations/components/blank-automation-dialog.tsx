@@ -63,6 +63,7 @@ import { triggerIssueText } from '../lib/trigger-issue-text';
 import { DEFAULT_HARNESS } from './agent-node-fields';
 import { TriggerForm } from './trigger-form';
 import { TriggerInputPreview } from './trigger-input-preview';
+import { webhookBase } from './trigger-webhook-panel';
 
 const NO_WARNINGS: readonly never[] = [];
 
@@ -259,8 +260,10 @@ export function BlankAutomationDialog({
         );
 
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  // Created in a project, the automation is installed there, and its
+  // webhook answers on the project's door only.
   const webhookUrl = (token: string): string =>
-    `${origin}/api/automations/webhook/${token}`;
+    `${webhookBase(origin, projectId)}${token}`;
 
   const openAutomation = (automationSlug: string): void => {
     onOpenChange(false);
@@ -461,7 +464,7 @@ export function BlankAutomationDialog({
             value={webhookUrl(minted.token)}
             mono
             copyAriaLabel={t('blank.copyWebhookUrl')}
-            description={t('trigger.webhookHowto')}
+            description={t('trigger.webhook.sampleEnv')}
           />
         </Stack>
       ) : step === 0 ? (

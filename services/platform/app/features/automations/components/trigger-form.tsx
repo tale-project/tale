@@ -5,16 +5,15 @@ import type {
   TriggerView,
 } from '@tale/shared/schemas/automation-trigger';
 import { Alert } from '@tale/ui/alert';
-import { Field } from '@tale/ui/field';
 import { RadioGroup } from '@tale/ui/radio-group';
 import { Select } from '@tale/ui/select';
 import { useSwapFade } from '@tale/ui/use-swap-fade';
-import { type ReactNode, useId } from 'react';
+import type { ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
 
 import type { TriggerDraft } from '../lib/trigger-draft';
+import { TriggerEventField } from './trigger-event-field';
 import {
   type ScheduleRunState,
   TriggerScheduleField,
@@ -66,7 +65,6 @@ export function TriggerForm({
   after?: ReactNode;
 }) {
   const { t } = useT('automations');
-  const eventId = useId();
   const fadeRef = useSwapFade<HTMLDivElement>(draft.kind, { fromEmpty: false });
   const wizard = surface === 'wizard';
 
@@ -144,22 +142,12 @@ export function TriggerForm({
           />
         )}
         {draft.kind === 'event' && (
-          <Field label={t('trigger.eventLabel')} htmlFor={eventId}>
-            <Select
-              id={eventId}
-              placeholder={t('trigger.eventPlaceholder')}
-              disabled={!canEdit}
-              options={EMITTED_EVENT_TYPES.map((value) => ({
-                value,
-                label: value,
-              }))}
-              value={draft.event}
-              onValueChange={(value) => {
-                // Radix fires a spurious '' on unmount — never un-pick.
-                if (value !== '') onChange({ event: value });
-              }}
-            />
-          </Field>
+          <TriggerEventField
+            value={draft.event}
+            onChange={(event) => onChange({ event })}
+            canEdit={canEdit}
+            modal={wizard}
+          />
         )}
         {draft.kind === 'webhook' &&
           (wizard ? (
