@@ -21,6 +21,7 @@ import {
 } from '../runtime-tier.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
+import { RUNNERD_INCARNATION_ENV } from './runnerd-protocol.ts';
 import {
   SESSION_INSTANCE_LABEL,
   sessionContainerName,
@@ -439,6 +440,11 @@ export function buildDockerSessionRunArgs(
     // required, so deriveRunnerdToken has something to derive from.
     '--env',
     `TALE_RUNNERD_TOKEN=${inp.runnerdToken}`,
+    // The incarnation runnerd names in its answers: the `tale.created` stamp
+    // above, so a runnerd answer can prove this container is the one the
+    // spawner registered without a `docker inspect`.
+    '--env',
+    `${RUNNERD_INCARNATION_ENV}=${inp.createdAtMs}`,
     // DinD signal + tier for the entrypoint (empty when DinD is off).
     ...dindEnv,
     // Transparent egress signal + drop-uid for the entrypoint (empty when off).
