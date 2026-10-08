@@ -15037,13 +15037,17 @@ async function checkMcp(
 
 /**
  * The MCP authoring tools at the editor's parity, on the real schema and the
- * real HTTP door (MCP-R1–R4, R9, R14; AUTO-R27, AUTO-R28; migration 0181): a
- * save carries the version fields it leaves out and records its door, a
- * stale base version or live version refuses as data, a member's agent
- * starts a recorded mock run of any saved version but not a live one, an
- * automation installed only in a team project the member cannot read is
- * "not found" over MCP and REST, installations and deletes go through, and
- * every one of those writes leaves an audit row stamped `via: mcp`.
+ * real HTTP door (MCP-R1–R4, R9, R14, R27; AUTO-R27, AUTO-R28; migration
+ * 0181): a save carries the version fields it leaves out and records its
+ * door, a stale base version or live version refuses as data, a member's
+ * agent starts a recorded mock run of any saved version but not a live one,
+ * a run waiting on a person names its question in get_run and takes the
+ * answer, an automation installed only in a team project the member cannot
+ * read is "not found" over MCP and REST and a developer outside the team
+ * cannot save onto it, installations and deletes go through, every one of
+ * those writes leaves an audit row stamped `via: mcp`, a re-created
+ * automation's history leaves out the deleted one's deploys, and a REST
+ * delete made with a key is audited as the key's.
  */
 async function checkMcpAuthoringParity(
   sql: Sql,
@@ -15316,6 +15320,70 @@ async function checkMcpAuthoringParity(
     `mock=${JSON.stringify(mock.value).slice(0, 120)} row=${JSON.stringify(mockRun[0] ?? null)}, live=${String(liveRefused.value.code)}, page=${JSON.stringify(page.value).slice(0, 80)}`,
   );
 
+  // MCP-R27: a run waiting on a person's answer names the question in
+  // get_run — the askId answer_run_ask needs — and the answer is recorded.
+  // A run of its own name, so the delete below never waits on it.
+  const { toJson } = await import('./db/sql.ts');
+  const askedAt = Date.now();
+  const askRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, detail, checkpoints,
+      started_at_ms
+    ) VALUES (
+      ${orgId}, 'itest-parity/asks', 1, 'waiting', 'live', ${`api-key:${userId}`},
+      'agent:ask_node',
+      ${sql.json(toJson({ nodes: {}, cursor: { node: 'ask_node', agent: { execId: 'exec-parity-ask', input: {}, harness: 'claude-code' } }, executions: {} }))},
+      ${askedAt}
+    ) RETURNING id
+  `;
+  const askRunId = askRun[0]?.id ?? '';
+  const plantedAsk = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_human_asks (
+      org_id, run_id, node_id, session_id, exec_id, question, status,
+      expires_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, ${askRunId}, 'ask_node', 'wf-parity-ask', 'exec-parity-ask',
+      'Send the reminder to Acme today?', 'pending', ${askedAt + 3_600_000},
+      ${askedAt}
+    ) RETURNING id
+  `;
+  const plantedAskId = plantedAsk[0]?.id ?? '';
+  const waitingRun = await tool('get_run', { runId: askRunId });
+  const polled = await tool('get_run', { runId: askRunId, detail: [] });
+  const askShape = z
+    .object({
+      run: z
+        .object({
+          waitingFor: z.literal('ask'),
+          ask: z.object({ askId: z.string(), question: z.string() }).loose(),
+        })
+        .loose(),
+    })
+    .safeParse(waitingRun.value);
+  const answeredAsk = await tool('answer_run_ask', {
+    runId: askRunId,
+    askId: askShape.success ? askShape.data.run.ask.askId : '',
+    answer: 'Yes, send it.',
+  });
+  const askRow = await sql<{ status: string; answer: string | null }[]>`
+    SELECT status, answer FROM app.automation_human_asks
+    WHERE org_id = ${orgId} AND id = ${plantedAskId}
+  `;
+  record(
+    "get_run names a waiting run's question and answer_run_ask answers it (MCP-R27)",
+    !waitingRun.isError &&
+      askShape.success &&
+      askShape.data.run.ask.askId === plantedAskId &&
+      askShape.data.run.ask.question === 'Send the reminder to Acme today?' &&
+      !polled.isError &&
+      !JSON.stringify(polled.value).includes('"input"') &&
+      JSON.stringify(polled.value).includes(plantedAskId) &&
+      !answeredAsk.isError &&
+      askRow[0]?.status === 'answered' &&
+      askRow[0].answer === 'Yes, send it.',
+    `get_run=${JSON.stringify(waitingRun.value).slice(0, 200)}, answer=${JSON.stringify(answeredAsk.value).slice(0, 120)}, row=${JSON.stringify(askRow[0] ?? null)}`,
+  );
+
   // MCP-R9 / AUTO-R27: installed only in a team project the member is not
   // in, the automation is "not found" to them over MCP and REST.
   const now = Date.now();
@@ -15361,6 +15429,43 @@ async function checkMcpAuthoringParity(
       ownerRest === 200 &&
       !ownerRead.isError,
     `install=${JSON.stringify(installed.value).slice(0, 100)}, member get=${String(memberRead.value.code)}, member list hides=${!JSON.stringify(memberList.value).includes(name)}, REST member→${memberRest} owner→${ownerRest}`,
+  );
+
+  // MCP-R9: a developer outside the team cannot add a version to it — the
+  // save is refused as a taken name, create or not, and nothing is written.
+  const { cookie: devCookie, userId: devId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-parity-developer',
+    'developer',
+  );
+  const devKey = await asKeyCreator(sql, { orgId, userId: devId }, () =>
+    mintKey(devCookie, 'itest-mcp-parity-developer'),
+  );
+  const hiddenSave = await tool(
+    'save_automation',
+    { automation: doc, message: 'over a hidden one' },
+    devKey,
+  );
+  const hiddenCreate = await tool(
+    'save_automation',
+    { automation: doc, create: true },
+    devKey,
+  );
+  const afterHidden = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.automations
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  record(
+    'a developer who cannot see an automation cannot save a version onto it (MCP-R9)',
+    hiddenSave.isError &&
+      hiddenSave.value.code === 'AUTOMATION_NAME_TAKEN' &&
+      hiddenCreate.isError &&
+      hiddenCreate.value.code === 'AUTOMATION_NAME_TAKEN' &&
+      !JSON.stringify(hiddenSave.value).includes('"version"') &&
+      afterHidden[0]?.n === 3,
+    `save=${JSON.stringify(hiddenSave.value).slice(0, 160)}, create=${String(hiddenCreate.value.code)}, versions=${afterHidden[0]?.n} (want 3)`,
   );
   const removed = await tool('set_automation_projects', {
     name,
@@ -15439,6 +15544,65 @@ async function checkMcpAuthoringParity(
       viaMcp('automation.project.unbound', 'set_automation_projects') &&
       viaMcp('automation.deleted', 'delete_automation'),
     `removed=${JSON.stringify(removed.value).slice(0, 80)}, notInstalled=${String(notInstalled.value.code)}, deleted=${JSON.stringify(deleted.value).slice(0, 80)}, audit=${JSON.stringify(audit.map((row) => `${row.action}/${row.via ?? '-'}/${row.tool ?? '-'}`))}`,
+  );
+
+  // Created again under the same name, it starts a history of its own: the
+  // deleted automation's deploys are no rollback targets.
+  const recreated = await tool('save_automation', {
+    automation: doc,
+    create: true,
+  });
+  const freshHistory = await tool('list_versions', { name });
+  const freshDeployments = z
+    .object({ deployments: z.array(z.unknown()) })
+    .safeParse(freshHistory.value);
+  record(
+    "a re-created automation's history leaves out the deleted one's deploys",
+    !recreated.isError &&
+      recreated.value.version === 1 &&
+      !freshHistory.isError &&
+      freshDeployments.success &&
+      freshDeployments.data.deployments.length === 0,
+    `recreated=${JSON.stringify(recreated.value).slice(0, 100)}, deployments=${freshDeployments.success ? freshDeployments.data.deployments.length : 'ERR'} (want 0)`,
+  );
+
+  // AUTO-R28: a delete made with a key through the REST API is the key's —
+  // actor type API, the key's id and the request id on the row.
+  const restDelete = await fetch(
+    `${base}/api/v1/automations/itest-parity__dunning`,
+    {
+      method: 'DELETE',
+      headers: {
+        authorization: `Bearer ${ownerKey}`,
+        'x-organization-slug': orgSlug,
+      },
+    },
+  );
+  const restRow = await sql<
+    {
+      actorType: string;
+      via: string | null;
+      apiKeyId: string | null;
+      requestId: string | null;
+    }[]
+  >`
+    SELECT actor_type AS "actorType", metadata->>'via' AS via,
+           metadata->>'apiKeyId' AS "apiKeyId", request_id AS "requestId"
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'automation.deleted'
+      AND resource_type = 'automation' AND resource_id = ${name}
+    ORDER BY ts DESC
+    LIMIT 1
+  `;
+  record(
+    "a REST delete made with a key is audited as the key's (AUTO-R28)",
+    restDelete.status === 204 &&
+      restRow[0]?.actorType === 'api' &&
+      restRow[0].via === 'api-key' &&
+      typeof restRow[0].apiKeyId === 'string' &&
+      restRow[0].apiKeyId !== '' &&
+      restRow[0].requestId !== null,
+    `DELETE → ${restDelete.status} (want 204), row=${JSON.stringify(restRow[0] ?? null)}`,
   );
 
   // The lanes after this one spend the same request and execution budgets.
