@@ -164,11 +164,20 @@ const REFUSALS: [
   ['start_run', { name: SAVED }, bareStore, 'NOT_SUPPORTED'],
   ['start_run', {}, fullStore, 'INVALID_PARAMS'],
   ['start_run', { name: SAVED, version: 'v1' }, fullStore, 'INVALID_PARAMS'],
+  // A host that does not run live starts on the mocks, the latest saved
+  // version unless one is named — an unknown name is AUTOMATION_NOT_FOUND.
   [
     'start_run',
     { name: 'nope' },
     () => fullStore({ startRun: async () => null }),
-    'AUTOMATION_NOT_DEPLOYED',
+    'AUTOMATION_NOT_FOUND',
+  ],
+  ['start_run', { name: SAVED, mode: 'dry' }, fullStore, 'INVALID_PARAMS'],
+  [
+    'start_run',
+    { name: SAVED, mode: 'live' },
+    fullStore,
+    'LIVE_MODE_UNAVAILABLE',
   ],
   ['list_runs', {}, bareStore, 'NOT_SUPPORTED'],
   ['list_runs', { name: 'nope' }, fullStore, 'AUTOMATION_NOT_FOUND'],
@@ -485,7 +494,10 @@ describe('the name-scoped lists refuse an unknown automation', () => {
 
   it('list_runs and list_triggers without a name stay organization-wide', async () => {
     const store = fullStore({ get: async () => null });
-    expect(await dispatch('list_runs', {}, { store })).toEqual({ runs: [] });
+    expect(await dispatch('list_runs', {}, { store })).toEqual({
+      runs: [],
+      nextCursor: null,
+    });
     expect(await dispatch('list_triggers', {}, { store })).toEqual({
       triggers: [],
     });
@@ -507,7 +519,7 @@ describe('the name-scoped lists refuse an unknown automation', () => {
         args?.name === 'retired' ? [kept as never] : [],
     });
     expect(await dispatch('list_runs', { name: 'retired' }, { store })).toEqual(
-      { runs: [kept] },
+      { runs: [kept], nextCursor: null },
     );
     const unknown = await dispatch('list_runs', { name: 'never' }, { store });
     expect(unknown).toMatchObject({ code: 'AUTOMATION_NOT_FOUND' });
@@ -516,12 +528,12 @@ describe('the name-scoped lists refuse an unknown automation', () => {
 
 /**
  * The MCP door's own words after the 2026-09-19 round-K evaluation (K8-4):
- * a live start of an undeployed version names the tool's own remedies
- * (there is no `mode` on start_run — the mock path is run_automation), and
+ * a live start of an undeployed version names the tool's own remedies (its
+ * own `mode: "mock"`, never the REST door's "use mock mode"), and
  * get_catalog narrowed to a core kind says why the list is empty.
  */
 describe('the MCP door’s hints name its own tools', () => {
-  it('start_run on an undeployed version points at run_automation, not a mode', async () => {
+  it('start_run on an undeployed version points at its own mock mode', async () => {
     const store = fullStore({
       startRun: async () => {
         throw Object.assign(
@@ -540,7 +552,7 @@ describe('the MCP door’s hints name its own tools', () => {
     expect(result).toMatchObject({
       code: 'AUTOMATION_VERSION_NOT_DEPLOYED',
       error: expect.stringContaining(`${SAVED}@2`),
-      hint: expect.stringContaining('run_automation'),
+      hint: expect.stringContaining('mode: "mock"'),
     });
     expect(String(Reflect.get(result as object, 'error'))).not.toContain(
       'mock mode',
@@ -588,13 +600,15 @@ describe('save_automation records the save’s own test verdict', () => {
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({ name: DOC_EXAMPLE.automation.name }),
       'why',
-      { testsPassed: false },
+      { testsPassed: false, metadata: {} },
     );
     expect(result).toEqual({
       name: SAVED,
       version: 2,
       testsPassed: false,
       warnings: [],
+      carried: [],
+      baseVersionChecked: false,
     });
   });
 
@@ -612,9 +626,15 @@ describe('save_automation records the save’s own test verdict', () => {
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({ name: DOC_EXAMPLE.automation.name }),
       '',
-      undefined,
+      { metadata: {} },
     );
-    expect(result).toEqual({ name: SAVED, version: 2, warnings: [] });
+    expect(result).toEqual({
+      name: SAVED,
+      version: 2,
+      warnings: [],
+      carried: [],
+      baseVersionChecked: false,
+    });
   });
 });
 

@@ -58,7 +58,7 @@ function context(
   ) => Promise<Response>;
 } {
   const caller = keyCaller(role);
-  const host = { engine, capability };
+  const host = { engine, platform: engine, capability };
   return {
     caller,
     serve: (request, admit) =>
@@ -222,6 +222,7 @@ describe('tools/list', () => {
     'get_automation',
     'list_automations',
     'deploy_automation',
+    'delete_automation',
     'set_trigger',
     'run_deployed',
     // The engine's management half — real schemas.
@@ -229,22 +230,26 @@ describe('tools/list', () => {
     'list_runs',
     'get_run',
     'cancel_run',
+    'answer_run_ask',
     'list_versions',
+    'set_automation_projects',
     'list_triggers',
     'delete_trigger',
+    // The platform's own management read.
+    'get_automation_metrics',
     // The platform capability tools — real schemas, a different backend.
     'search_capabilities',
     'invoke_capability',
     'get_knowledge',
   ];
 
-  /** The four methods that take an automation document declare their call
+  /** The methods that take an automation document declare their call
    * envelope — the document itself stays an open object inside it, since
-   * the engine teaches and validates its grammar in band. */
+   * the engine teaches and validates its grammar in band. (`test_automation`
+   * takes a document OR a saved version's name, so neither is required.) */
   const DOCUMENT_TOOLS = new Set([
     'validate_automation',
     'run_automation',
-    'test_automation',
     'save_automation',
   ]);
 
@@ -404,7 +409,7 @@ describe('tools/call — the engine surface', () => {
       params: { name: 'list_automations', arguments: {} },
     });
     await handleMcpRequest({ ...caller, requestId: 'req-42' }, request, {
-      host: { engine: dispatch, capability: dispatch },
+      host: { engine: dispatch, platform: dispatch, capability: dispatch },
     });
     expect(seen).toEqual([
       {
@@ -618,7 +623,11 @@ describe('tools/call — the engine surface', () => {
         params: { name: 'get_run', arguments: { runId: 'r1' } },
       }),
       {
-        host: { engine: vi.fn().mockRejectedValue(fault), capability: vi.fn() },
+        host: {
+          engine: vi.fn().mockRejectedValue(fault),
+          platform: vi.fn(),
+          capability: vi.fn(),
+        },
       },
     );
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
@@ -993,7 +1002,7 @@ describe('tools/call — the developer gate on persistence tools [MCP-R17]', () 
       error:
         'save_automation is refused for this key: Role "member" lacks the developer-settings capability required to perform this action.',
       code: 'FORBIDDEN_DEVELOPER_SETTINGS',
-      hint: 'saving, deploying, binding or removing a trigger and starting or stopping a live run need a key whose holder has the owner, admin or developer role; reading, validating, mock runs and tests stay open to every member',
+      hint: 'saving, deploying, deleting, installing, binding or removing a trigger and starting or stopping a live run need a key whose holder has the owner, admin or developer role; reading, validating, tests and mock runs (start_run with mode "mock") stay open to every member',
     });
     expect(dispatch).not.toHaveBeenCalled();
   });
@@ -1004,7 +1013,13 @@ describe('tools/call — the developer gate on persistence tools [MCP-R17]', () 
     ['delete_trigger', { name: 'billing/dunning' }],
     ['run_deployed', { name: 'billing/dunning' }],
     ['start_run', { name: 'billing/dunning' }],
+    ['start_run', { name: 'billing/dunning', mode: 'live' }],
     ['cancel_run', { runId: 'r1' }],
+    [
+      'delete_automation',
+      { name: 'billing/dunning', expectedLatestVersion: 3 },
+    ],
+    ['set_automation_projects', { name: 'billing/dunning', add: ['p1'] }],
   ] as const)(
     'refuses %s for a member key as data, without dispatching or charging',
     async (name, args) => {
@@ -1018,7 +1033,10 @@ describe('tools/call — the developer gate on persistence tools [MCP-R17]', () 
           method: 'tools/call',
           params: { name, arguments: args },
         }),
-        { host: { engine: dispatch, capability: dispatch }, charge },
+        {
+          host: { engine: dispatch, platform: dispatch, capability: dispatch },
+          charge,
+        },
       );
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
       const payload = (await response.json()) as Record<string, unknown>;
@@ -1040,6 +1058,58 @@ describe('tools/call — the developer gate on persistence tools [MCP-R17]', () 
       'save_automation is refused for this key: Not a member of organization \\"acme\\".',
     );
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("lets a member's mock start through, charged like any start, while a live one is refused [MCP-R4]", async () => {
+    const dispatch = vi.fn().mockResolvedValue({
+      runId: 'run-7',
+      version: 7,
+      mode: 'mock',
+    });
+    const charge = vi.fn(async () => null);
+    const serve = (mode: 'mock' | 'live', id: number) =>
+      handleMcpRequest(
+        keyCaller('member'),
+        rpc({
+          jsonrpc: '2.0',
+          id,
+          method: 'tools/call',
+          params: {
+            name: 'start_run',
+            arguments: { name: 'billing/dunning', version: 7, mode },
+          },
+        }),
+        {
+          host: { engine: dispatch, platform: dispatch, capability: dispatch },
+          charge,
+        },
+      );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
+    const mock = (await (await serve('mock', 21)).json()) as Record<
+      string,
+      unknown
+    >;
+    expect(isErrorFlag(mock)).toBe(false);
+    expect(dispatch).toHaveBeenCalledWith(keyCaller('member'), 'start_run', {
+      name: 'billing/dunning',
+      version: 7,
+      mode: 'mock',
+    });
+    expect(charge).toHaveBeenCalledWith('rest:execute');
+
+    dispatch.mockClear();
+    charge.mockClear();
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
+    const live = (await (await serve('live', 22)).json()) as Record<
+      string,
+      unknown
+    >;
+    expect(isErrorFlag(live)).toBe(true);
+    expect(JSON.parse(resultText(live))).toMatchObject({
+      code: 'FORBIDDEN_DEVELOPER_SETTINGS',
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(charge).not.toHaveBeenCalled();
   });
 
   it('dispatches save_automation for a developer key', async () => {
@@ -1093,7 +1163,10 @@ describe('tools/call — the execution budget [MCP-R5]', () => {
         method: 'tools/call',
         params: { name, arguments: args },
       }),
-      { host: { engine: dispatch, capability: dispatch }, charge },
+      {
+        host: { engine: dispatch, platform: dispatch, capability: dispatch },
+        charge,
+      },
     );
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
     const payload = (await response.json()) as Record<string, unknown>;

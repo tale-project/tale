@@ -3,10 +3,11 @@
 > **Prefix** `MCP-` · **Suite** [`mcp`](../../../tests/manual/suites/mcp.md) · **Docs** [`automations/assistant`](../../../../../docs/en/platform/automations/assistant.md)
 
 The rules of the door a coding agent uses to work in Tale, `/api/v1/mcp`: whom a call acts as and
-what the key holder's role lets it change, how a refusal or a bad argument reaches the agent, what a
-request and a batch of calls cost, what is kept of a call, and which protocol revisions the endpoint
-speaks. What a call does once it reaches an automation or the capability surface, and the tool
-inventory itself, are not covered; see Not yet.
+what the key holder's role lets it read and change, how an agent's save, deploy and runs meet the
+editor's rules, how a refusal or a bad argument reaches the agent, what a request and a batch of
+calls cost, what is kept of a call, and which protocol revisions the endpoint speaks. The rest of
+what a call does once it reaches an automation, the capability surface, and the tool inventory
+itself are not covered; see Not yet.
 
 ## Who can do what
 
@@ -15,23 +16,93 @@ person's role in it at the time of the request.
 
 | | Owner, admin or developer | Any other member |
 | --- | --- | --- |
-| Save a version, deploy one, set or remove a trigger | yes | no |
+| Save a version, deploy one, delete an automation, set or remove a trigger | yes | no |
+| Install an automation in projects or remove it from them | yes | no |
 | Start or stop a live run | yes | no |
-| Read, validate and test automations, run them on the mocks | yes | yes |
+| Read, validate and test automations, run them on the mocks, start a mock run | yes | yes |
+| Answer a run's question | yes | yes, in a project they can edit |
+
+Reads and runs reach only the automations the app would show the person (MCP-R9).
 
 ### MCP-R17 · Only owners, admins and developers can save, deploy or set a trigger over MCP
 
-Saving a version, deploying one and setting or removing a trigger take the owner, admin or
-developer role, and so do starting a live run (`run_deployed`, `start_run`) and stopping one
-(`cancel_run`), as the [automation rules](../automations/spec.md) (`AUTO-R1`) say. Anyone else's
-agent gets a refusal it can read (`FORBIDDEN_DEVELOPER_SETTINGS`) before anything runs or is
-charged, and nothing is saved, deployed, bound, started or stopped. Reading, validating, testing
-and running on the mocks stay open to every member.
+Saving a version, deploying one, deleting an automation, installing it in projects or removing
+it from them, and setting or removing a trigger take the owner, admin or developer role, and so do
+starting a live run (`run_deployed`, `start_run`) and stopping one (`cancel_run`), as the
+[automation rules](../automations/spec.md) (`AUTO-R1`) say. Anyone else's agent gets a refusal it
+can read (`FORBIDDEN_DEVELOPER_SETTINGS`) before anything runs or is charged, and nothing is
+saved, deployed, deleted, installed, bound, started or stopped. Reading, validating, testing and
+running on the mocks, a mock start included (MCP-R4), stay open to every member.
 
 - **Example**: Mia is an ordinary member. Her coding agent saves a new version of
   `billing/dunning` → refused, and no version is saved; it then lists the automations → they are
   listed.
 - **Example**: Noah is a developer. His agent saves the same version → it is saved.
+
+### MCP-R9 · A member's agent reads only the automations the app would show them
+
+An automation installed only in projects the person cannot read is "not found" on every read over
+MCP — the automation, its versions, its deployments and its trigger — exactly like one that does
+not exist, so the answer never confirms it does. An organization
+automation, and one installed in a project the person can read, read as before; the installations
+a read names are the ones the person can see. The REST API answers the same way (`AUTO-R26`).
+
+- **Example**: Mia, an ordinary member, is not in the HR team. `hr/onboarding` is installed only in
+  a project shared with that team. Her agent asks for it, its versions and its trigger → "not
+  found" each time; it lists the automations → `hr/onboarding` is not among them.
+
+## Saving, deploying and deleting
+
+An agent saves, deploys and deletes through the same store the editor does, with the same rules
+(`AUTO-R3`, `AUTO-R4`, `AUTO-R15`). What it adds is what an agent needs that a person at a screen
+does not: to send only what it changes, and to say which version its change started from.
+
+### MCP-R1 · An agent's save keeps the settings, task contract and presentation it leaves out
+
+A version carries, beside its document, the settings form the task screen shows, the task contract
+and the presentation on the automations list. An agent's save that leaves one of them out keeps
+the latest version's, read when the save lands so no save in between is lost; `null` stores none;
+a value is checked against the schema the app reads it with and stored, or the save is refused
+(`INVALID_ARGUMENTS`) with every problem. The answer's `carried` names what was kept.
+
+- **Example**: Ada's agent saves v6 of `billing/dunning` with one new node and nothing else → v6
+  has v5's settings form and task contract, `carried` names them, and Ada's task screen still
+  shows the form.
+
+### MCP-R2 · A save that started from an older version is refused, naming the latest one
+
+A save that names the version the agent's edit started from (`baseVersion`) is refused
+(`AUTOMATION_VERSION_STALE`) when another version was saved since, with the latest version's
+number under `data.latestVersion` and what to read and merge, and nothing is saved. A save that
+names none appends as before, and its answer says the check was skipped (`baseVersionChecked:
+false`).
+
+- **Example**: Ada's agent read v5. Ben saved v6 in the editor. The agent's save names
+  `baseVersion: 5` → refused with `latestVersion: 6`; it reads v6, merges and saves v7.
+
+### MCP-R3 · A deploy that names the version it replaces is refused when another went live
+
+A deploy may name the version the agent read as live (`expectedDeployedVersion`, `null` for none).
+When another version went live meanwhile it is refused (`AUTOMATION_DEPLOYMENT_STALE`) with the
+version that is live, and nothing changes. Every deploy answers the version that was live before
+(`previousVersion`): deploying it again rolls back.
+
+- **Example**: Ada's agent read v5 as live and deploys v7 naming v5. Ben deployed v6 a minute ago →
+  refused, naming v6, and v6 stays live. Deploying v7 naming v6 succeeds and answers
+  `previousVersion: 6`.
+
+## Running
+
+### MCP-R4 · A mock start runs any saved version for any member; a live one needs a developer
+
+`start_run` starts live by default — the deployed version, with real effects — which takes the
+owner, admin or developer role. With `mode: "mock"` it runs any saved version, the latest when none
+is named, against the deterministic mocks, for any member; the run is recorded and shows in the run
+history as a mock run like one started in the app. Both draw from the run-start budget (MCP-R5).
+
+- **Example**: Mia, an ordinary member, starts v7 of `billing/dunning`, which is not deployed, with
+  `mode: "mock"` → the run starts and appears in the run history as a mock run; the same start with
+  `mode: "live"` → refused, and no run starts.
 
 ## Answers and refusals
 
@@ -129,6 +200,16 @@ counts twice, once in each. Counters are kept 90 days, and an erasure of the per
 - **Example**: Ada's agent calls `get_run` three times in Acme and once in Beta → Acme counts three
   `get_run` calls of Ada's key that day, Beta one, and neither holds the run id she asked for.
 
+### MCP-R14 · Every write over MCP leaves an audit row naming the coding agent
+
+A write a tool call makes — a version saved, a deploy, a delete, a trigger set or removed, an
+installation added or removed, a run stopped, a question answered — leaves its audit row (`AUTO-R27`),
+and every row written during the call says it came through MCP, with the tool, the API key and the
+client's name when the client gave one.
+
+- **Example**: Ada's agent deploys v7 with her key "laptop" → the audit log shows "Automation
+  deployed" by Ada, through MCP (`deploy_automation`, her laptop key).
+
 ## Protocol versions
 
 ### MCP-R16 · A protocol revision it does not speak is answered with the revisions it does
@@ -143,7 +224,9 @@ revisions it speaks under `data.supported`, so a client that speaks several can 
 
 ## Not yet
 
-- What a call does once it reaches an automation (saving, versions, deployment, runs and triggers)
-  is held by the [automations spec](../automations/spec.md); the capability surface's own rules
-  (searching and invoking capabilities, retrieving knowledge) are not covered.
+- What a call does once it reaches an automation beyond the rules above (versions, deployment,
+  runs and triggers) is held by the [automations spec](../automations/spec.md); the capability
+  surface's own rules (searching and invoking capabilities, retrieving knowledge) are not covered.
+- A client of the 2025 protocol revisions names itself only when it connects, not on each call, so
+  a version its agent saves records the door and the key but no client name.
 - The tool inventory and each tool's arguments (`lib/mcp/tools.ts`, `lib/mcp/args.ts`).

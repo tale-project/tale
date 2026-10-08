@@ -292,11 +292,17 @@ function answer(
 
 // ------------------------------------------------------------ the call
 
-/** The two surfaces a tool call reaches, each acting as the caller. The door
+/** The surfaces a tool call reaches, each acting as the caller. The door
  * binds them to the database (`engine-host.ts`). */
 export interface McpHost {
   /** One method of the automation engine's dispatch table. */
   readonly engine: (
+    caller: McpCaller,
+    method: string,
+    params: Record<string, unknown>,
+  ) => Promise<unknown>;
+  /** One of the platform's own tools (`platform-tools.ts`). */
+  readonly platform: (
     caller: McpCaller,
     method: string,
     params: Record<string, unknown>,
@@ -321,6 +327,17 @@ function developerRefusal(caller: McpCaller): string | null {
     return `Role "${caller.role}" lacks the developer-settings capability required to perform this action.`;
   }
   return null;
+}
+
+/** Whether this call takes the developer bar: always for a `developer`
+ * tool; for a `live-developer` one, when the call is live (`mode` absent or
+ * `"live"`). */
+function needsDeveloper(
+  tool: McpToolSpec,
+  args: Record<string, unknown>,
+): boolean {
+  if (tool.role === 'developer') return true;
+  return tool.role === 'live-developer' && args.mode !== 'mock';
 }
 
 export interface ToolCallContext {
@@ -382,7 +399,7 @@ export async function callTool(
       return { kind: 'admission', retryAfterMs: wait.retryAfterMs };
     }
   }
-  if (tool.role === 'developer') {
+  if (needsDeveloper(tool, parsed.data)) {
     const refusal = developerRefusal(caller);
     if (refusal !== null) {
       // The same role refusal the store raises on the live and run tools
@@ -392,7 +409,7 @@ export async function callTool(
         answer: answer(tool, {
           error: `${tool.name} is refused for this key: ${refusal}`,
           code: 'FORBIDDEN_DEVELOPER_SETTINGS',
-          hint: 'saving, deploying, binding or removing a trigger and starting or stopping a live run need a key whose holder has the owner, admin or developer role; reading, validating, mock runs and tests stay open to every member',
+          hint: 'saving, deploying, deleting, installing, binding or removing a trigger and starting or stopping a live run need a key whose holder has the owner, admin or developer role; reading, validating, tests and mock runs (start_run with mode "mock") stay open to every member',
         }),
       };
     }
@@ -408,6 +425,7 @@ export async function callTool(
   }
   const args: Record<string, unknown> = parsed.data;
   const { apiKeyId } = caller.credential;
+  const { clientName } = caller;
   try {
     // Every audit row the call writes, however deep in a domain, names the
     // door, the tool, the key and the client (`request-channel.ts`).
@@ -417,11 +435,9 @@ export async function callTool(
         requestId: context.requestId,
         tool: tool.name,
         ...(apiKeyId === undefined ? {} : { apiKeyId }),
+        ...(clientName === undefined ? {} : { clientName }),
       },
-      () =>
-        tool.kind === 'capability'
-          ? context.host.capability(caller, tool.name, args)
-          : context.host.engine(caller, tool.name, args),
+      () => context.host[tool.kind](caller, tool.name, args),
     );
     return { kind: 'answer', answer: answer(tool, value) };
   } catch (error) {

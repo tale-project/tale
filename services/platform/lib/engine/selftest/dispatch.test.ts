@@ -579,10 +579,21 @@ describe('dispatch — run and trigger management', () => {
     const result = (await dispatch(
       'start_run',
       { name: 'order-report' },
-      { store },
+      { store, allowLive: true },
     )) as { error?: string; hint?: string };
     expect(result.error).toContain('has no version to run');
     expect(result.hint).toContain('deploy_automation');
+  });
+
+  it('start_run on the mocks refuses an automation nothing was saved under', async () => {
+    const store = dispatchStore();
+    const result = (await dispatch(
+      'start_run',
+      { name: 'order-report', mode: 'mock' },
+      { store },
+    )) as { code?: string; hint?: string };
+    expect(result.code).toBe('AUTOMATION_NOT_FOUND');
+    expect(result.hint).toContain('list_automations');
   });
 
   it('get_run and cancel_run answer for an unknown run instead of throwing', async () => {
@@ -766,6 +777,8 @@ describe('automation names are "/"-separated slug paths', () => {
       version: 1,
       testsPassed: true,
       warnings: [],
+      carried: [],
+      baseVersionChecked: false,
     });
 
     const read = (await dispatch(

@@ -17,7 +17,11 @@
 import type { z } from 'zod';
 
 import { METHODS, type Method } from '../engine/api/methods';
-import { CAPABILITY_TOOL_ARGS, ENGINE_TOOL_ARGS } from './args';
+import {
+  CAPABILITY_TOOL_ARGS,
+  ENGINE_TOOL_ARGS,
+  PLATFORM_TOOL_ARGS,
+} from './args';
 import { READ_TOOL_RESULTS } from './results';
 
 /** The three groups the inventory is presented in — the settings page and the
@@ -58,14 +62,17 @@ export interface McpToolSpec {
    * Schema generated from it. */
   readonly args: z.ZodObject;
   readonly annotations: McpToolAnnotations;
-  /** `engine` goes to the automation engine's dispatch table; `capability` goes
-   * to the organization's capability surface. */
-  readonly kind: 'engine' | 'capability';
+  /** `engine` goes to the automation engine's dispatch table; `platform` to
+   * the platform's own reads (`backend/domains/mcp/platform-tools.ts`);
+   * `capability` to the organization's capability surface. */
+  readonly kind: 'engine' | 'platform' | 'capability';
   readonly group: McpToolGroup;
   /** Who may call it, checked before it runs: `developer` takes the owner,
    * admin or developer role (the in-app equivalent's bar); `member` leaves it
-   * to the surface's own rules. A tool a role cannot use stays listed. */
-  readonly role: 'member' | 'developer';
+   * to the surface's own rules; `live-developer` takes the developer bar for
+   * a live call (`mode: "live"`, the default) and leaves a mock one to every
+   * member. A tool a role cannot use stays listed. */
+  readonly role: 'member' | 'developer' | 'live-developer';
   /** The budget a call draws from once its role check passed: `api` only
    * the request the door already charged; `execute` also one execution
    * (`rest:execute`, the REST API's run-start budget). */
@@ -85,11 +92,15 @@ export interface McpToolSpec {
   readonly maxResultChars?: number;
 }
 
-/** Tools that put a version live or decide what starts one: a client asks
- * the person before each call, whatever its permission mode. */
+/** Tools that put a version live, decide what starts one or where it runs,
+ * remove one, or speak for a person: a client asks the person before each
+ * call, whatever its permission mode. */
 const ASK_FIRST_TOOLS: ReadonlySet<string> = new Set([
   'deploy_automation',
+  'delete_automation',
   'set_trigger',
+  'answer_run_ask',
+  'set_automation_projects',
 ]);
 
 /** The tools whose answers run long — the reference, the catalog, an
@@ -136,12 +147,23 @@ function withContract(spec: Omit<McpToolSpec, ContractFields>): McpToolSpec {
 const DEVELOPER_TOOLS: ReadonlySet<string> = new Set([
   'save_automation',
   'deploy_automation',
+  'delete_automation',
   'set_trigger',
   'run_deployed',
-  'start_run',
   'cancel_run',
+  'set_automation_projects',
   'delete_trigger',
 ]);
+
+/** Tools whose live call takes the developer bar and whose mock call is
+ * every member's: a mock start reaches nothing outside Tale, the app's own
+ * rule for its run button. */
+const LIVE_DEVELOPER_TOOLS: ReadonlySet<string> = new Set(['start_run']);
+
+function engineRole(name: Method): McpToolSpec['role'] {
+  if (DEVELOPER_TOOLS.has(name)) return 'developer';
+  return LIVE_DEVELOPER_TOOLS.has(name) ? 'live-developer' : 'member';
+}
 
 /** Tools that execute an automation — a run on the mocks, its tests, the
  * deploy gate's tests, a live run, a capability — and draw from the same
@@ -190,6 +212,23 @@ const EXECUTE_LIVE: McpToolAnnotations = {
   openWorldHint: true,
 };
 
+/** A removal that cannot be undone: every version of an automation. */
+const DELETE: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
+/** An answer in a person's name: the run resumes on it, and a second answer
+ * to the same question is refused. */
+const ANSWER: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false,
+};
+
 /** Execution against the deterministic mocks: a run, but one that reaches
  * nothing outside and leaves nothing behind. */
 const EXECUTE_MOCK: McpToolAnnotations = {
@@ -212,13 +251,16 @@ const METHOD_ANNOTATIONS: Record<Method, McpToolAnnotations> = {
   get_automation: READ,
   list_automations: READ,
   deploy_automation: REPLACE,
+  delete_automation: DELETE,
   set_trigger: REPLACE,
   run_deployed: EXECUTE_LIVE,
   start_run: EXECUTE_LIVE,
   list_runs: READ,
   get_run: READ,
   cancel_run: REPLACE,
+  answer_run_ask: ANSWER,
   list_versions: READ,
+  set_automation_projects: REPLACE,
   list_triggers: READ,
   delete_trigger: REPLACE,
 };
@@ -232,23 +274,33 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
     'Validate an automation document without saving it: its errors and warnings, each with a code, a location and params, plus the flow analysis and the inferred types.',
   run_automation:
     'Run an automation document directly against the deterministic mocks.',
-  test_automation: "Run an automation's own acceptance tests.",
+  test_automation:
+    "Run an automation's own acceptance tests — of a draft (automation), or of a saved version (name, version), whose verdict is then recorded on it.",
   save_automation:
-    'Save an automation document as a new immutable version; the answer lists its warnings.',
-  get_automation: 'Read one saved version (the latest when unversioned).',
+    'Save an automation document as a new immutable version; the answer lists its warnings. Pass baseVersion (the version you read) so a version saved meanwhile is never overwritten. Settings, task contract and presentation you leave out are kept from the latest version (carried names them).',
+  get_automation:
+    'Read one saved version (the latest when unversioned): the document, its settings, task contract and presentation, latestVersion, deployedVersion, who saved it and through which door, its installations and its trigger.',
   list_automations:
     "The organization's automations with their latest and deployed versions and the projects each is installed in (projectIds).",
-  deploy_automation: 'Promote one saved version to be the live version.',
+  deploy_automation:
+    'Promote one saved version to be the live version; an older one rolls back. Pass expectedDeployedVersion so another deploy meanwhile is never replaced; the answer names the previousVersion.',
+  delete_automation:
+    'Delete an automation: every version, its trigger and its installations; the run history stays. expectedLatestVersion must be the latest version you read.',
   set_trigger: 'Bind what starts the automation (schedule/webhook/event).',
   run_deployed:
     'Run the deployed version live and WAIT for the finished result — output, trace and effects in one answer; a run that outlives the wait answers with its runId to poll via get_run. For a project-bound automation, use a host pinned to that project or start_run with projectId.',
   start_run:
-    'Start the deployed version in the background and return a run handle immediately; poll get_run for the result.',
+    'Start a run in the background and return a run handle immediately; poll get_run for the result. mode "live" (default) runs the deployed version for real; mode "mock" runs any saved version against the mocks and is recorded — use it while testing.',
   list_runs:
-    'Recent runs the caller can read, newest first — of one automation or of the current scope.',
+    'Recent runs the caller can read, newest first — of one automation or of the current scope; filter by mode and statuses, and page with nextCursor.',
   get_run: 'One run in full: status, output, trace and effects.',
   cancel_run: 'Stop a run at its next node boundary.',
-  list_versions: "One automation's immutable version history.",
+  answer_run_ask:
+    'Answer the question a waiting run asked a person (get_run shows it); the run resumes on the answer. The answer speaks for the person.',
+  list_versions:
+    "One automation's immutable version history — who saved each version through which door — and when each version went live (deployments).",
+  set_automation_projects:
+    'Install an automation in projects (add) and remove it from others (remove), in one change.',
   list_triggers: 'What starts the automations (never the webhook secret).',
   delete_trigger:
     "Unbind an automation's trigger; its versions and run history stay.",
@@ -271,16 +323,36 @@ const METHOD_GROUPS: Record<Method, Exclude<McpToolGroup, 'capability'>> = {
   get_automation: 'authoring',
   list_automations: 'authoring',
   deploy_automation: 'authoring',
+  delete_automation: 'authoring',
   set_trigger: 'management',
   run_deployed: 'management',
   start_run: 'management',
   list_runs: 'management',
   get_run: 'management',
   cancel_run: 'management',
+  answer_run_ask: 'management',
   list_versions: 'management',
+  set_automation_projects: 'management',
   list_triggers: 'management',
   delete_trigger: 'management',
 };
+
+/** The platform tools — answered by the platform from its own records, not
+ * by the engine's method table. */
+const PLATFORM_TOOLS = [
+  {
+    name: 'get_automation_metrics',
+    description:
+      "The organization's run figures for a window: runs by outcome, success rate, average duration, a per-day series and the busiest automations, each against the window before.",
+    annotations: READ,
+    group: 'management',
+  },
+] as const satisfies ReadonlyArray<{
+  name: keyof typeof PLATFORM_TOOL_ARGS;
+  description: string;
+  annotations: McpToolAnnotations;
+  group: McpToolGroup;
+}>;
 
 /** The capability tools — NOT engine methods. They reach the organization's own
  * capability registry and knowledge base, which is a different surface with a
@@ -314,7 +386,8 @@ const CAPABILITY_TOOL_ANNOTATIONS: Record<
 /**
  * Every tool this endpoint serves, in the order it advertises them: the engine's
  * method table first (authoring, then management, exactly as the engine lists
- * them), then the platform capability tools.
+ * them), then the platform's own management reads, then the capability
+ * tools.
  */
 export const MCP_TOOLS: readonly McpToolSpec[] = [
   ...METHODS.map((name) =>
@@ -325,7 +398,18 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
       annotations: METHOD_ANNOTATIONS[name],
       kind: 'engine',
       group: METHOD_GROUPS[name],
-      role: DEVELOPER_TOOLS.has(name) ? 'developer' : 'member',
+      role: engineRole(name),
+    }),
+  ),
+  ...PLATFORM_TOOLS.map((tool) =>
+    withContract({
+      name: tool.name,
+      description: tool.description,
+      args: PLATFORM_TOOL_ARGS[tool.name],
+      annotations: tool.annotations,
+      kind: 'platform',
+      group: tool.group,
+      role: 'member',
     }),
   ),
   ...CAPABILITY_TOOL_NAMES.map((name) =>

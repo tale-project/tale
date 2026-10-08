@@ -399,6 +399,28 @@
  * A request whose `Origin` the deployment does not accept is logged, and
  * refused with 403 `ORIGIN_FORBIDDEN` where the operator enforces the rule
  * (TALE_MCP_ORIGIN_ENFORCE); clients that send no `Origin` are not judged.
+ * The MCP authoring tools reach the editor's parity: `save_automation` takes
+ * `baseVersion` (a version saved since is refused, `AUTOMATION_VERSION_STALE`
+ * with `data.latestVersion`), `create`, `projectId` and the version's
+ * `settings`, `taskContract` and `presentation` (left out = kept from the
+ * latest version, named in `carried`; null = none), answering `carried` and
+ * `baseVersionChecked`; `get_automation` answers the whole version beside
+ * `meta` and `automation` (`latestVersion`, `deployedVersion`, the three
+ * fields, `createdVia`, `clientName`, `projectIds`, `trigger`); a version
+ * records the door it was saved through (`createdVia`) and the client;
+ * `test_automation` tests a saved version by `name` and records its verdict;
+ * `deploy_automation` takes `expectedDeployedVersion`
+ * (`AUTOMATION_DEPLOYMENT_STALE`) and answers `previousVersion`; `start_run`
+ * takes `mode` — `live`, the default, or `mock`, any saved version and open
+ * to every member; `list_runs` filters by `mode` and `statuses` and pages
+ * with `cursor` / `nextCursor`; `list_versions` answers `createdVia`,
+ * `clientName` and `deployments`. New tools: `delete_automation`,
+ * `set_automation_projects`, `answer_run_ask` (each asking the person first,
+ * like `deploy_automation` and `set_trigger`) and `get_automation_metrics`.
+ * Member reads tighten on MCP and REST alike: an automation installed only in
+ * projects the key holder cannot read is left out of `list_automations` and
+ * `GET /api/v1/automations`, and its reads answer `AUTOMATION_NOT_FOUND`
+ * (REST 404). Every change to an automation's definition is audited.
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
  */

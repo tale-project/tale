@@ -43,6 +43,14 @@ export const INSTRUCTION_FRAGMENTS: readonly InstructionFragment[] = [
     tools: [],
   },
   {
+    text: 'Never overwrite: pass baseVersion (the version you read) to save_automation, and expectedDeployedVersion to deploy_automation; a refusal names the newer version to read and merge. Fields you leave out of a save are kept.',
+    tools: ['save_automation', 'deploy_automation'],
+  },
+  {
+    text: 'Test a saved version with start_run and mode "mock": it runs on the mocks and is recorded for the person to see.',
+    tools: ['start_run'],
+  },
+  {
     text: 'Live means real effects: run_deployed, start_run, deploy_automation and set_trigger act for real; run_automation and test_automation use mocks.',
     tools: [
       'run_deployed',

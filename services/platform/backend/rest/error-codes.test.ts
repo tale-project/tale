@@ -152,9 +152,9 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'AUTOMATION_NAME_RESERVED',
   'AUTOMATION_NAME_TAKEN',
   // The editor's and a coding agent's compare-and-set: `baseVersion` on a
-  // save, `expectedLatestVersion` on a delete, `expectedDeployedVersion` on a
-  // deploy. No REST door saves, deploys or sends an expected version, so
-  // none can answer them.
+  // save, `expectedLatestVersion` on an MCP delete, `expectedDeployedVersion`
+  // on an MCP deploy. No REST door saves, deploys or sends an expected
+  // version, so none can answer them; MCP answers them as tool results.
   'AUTOMATION_DEPLOYMENT_STALE',
   'AUTOMATION_VERSION_STALE',
   // A project id the organization does not have: every REST door resolves
@@ -168,9 +168,11 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // credential admin surface is the app's (`/api/app/provider-credentials`);
   // REST has no credential door.
   'CREDENTIAL_IN_USE',
-  // The MCP dispatch store's own gates — answered as JSON-RPC results.
+  // The MCP dispatch store's own gates — answered as JSON-RPC results —
+  // and the platform tools' refusal of a tool they do not serve.
   'FORBIDDEN_DEVELOPER_SETTINGS',
   'UNAUTHENTICATED',
+  'UNKNOWN_METHOD',
   // The connector bridge and the in-sandbox doors — and Better Auth's
   // status names, which its `APIError` takes as the first argument
   // (`new APIError('CONFLICT', { code })`); the code beside it is what

@@ -150,21 +150,24 @@ Authoring methods:
 - search_catalog       params {query}                 → find capabilities by keywords
 - validate_automation  params {automation}            → static analysis only: {valid, errors, warnings, analysis, types} (see Reading validation results)
 - run_automation       params {automation, input}     → validate + execute against the deterministic mocks with a test input; returns output, per-node trace, effects
-- test_automation      params {automation}            → run the automation's own tests: block
-- save_automation      params {automation, message?}  → save as a new immutable version; answers {name, version, testsPassed?, warnings} — errors refuse the save, warnings never do
-- get_automation       params {name, version?}        → fetch a saved version
+- test_automation      params {automation} or {name, version?} → run the automation's own tests: block — of a draft, or of a saved version (its verdict is recorded on it)
+- save_automation      params {automation, message?, baseVersion?, create?, projectId?, settings?, taskContract?, presentation?} → save as a new immutable version; answers {name, version, testsPassed?, warnings, carried, baseVersionChecked} — errors refuse the save, warnings never do. Pass baseVersion (the version you read): a version saved since refuses the save with latestVersion. settings, taskContract and presentation you leave out are kept from the latest version (carried names them); null stores none
+- get_automation       params {name, version?}        → a saved version: the document (automation), its settings, taskContract and presentation, latestVersion, deployedVersion, who saved it and through which door (createdVia, clientName), its projectIds and trigger
 - list_automations     params {}                      → saved automations with their latest and deployed versions and the projects they are installed in
-- deploy_automation    params {name, version}         → mark the version triggers run
+- deploy_automation    params {name, version, expectedDeployedVersion?} → mark the version triggers run; answers previousVersion — deploy it again to roll back. expectedDeployedVersion (the version you read as live, null for none) refuses the deploy if another went live
+- delete_automation    params {name, expectedLatestVersion} → delete every version, the trigger and the installations; the runs stay
 - set_trigger          params {name, trigger}         → host-managed trigger binding
 - run_deployed         params {name, input, idempotencyKey?} → run the deployed version (live on a deployment) and WAIT for the finished result; a run that outlives the wait answers with its runId to poll. idempotencyKey shares start_run's and the REST door's ledger: a repeat answers the first run with duplicate: true
 (run_automation validates automatically — you rarely need validate_automation.)
 
 Management methods — they read and steer what the host has persisted:
-- start_run            params {name, input?, version?, projectId?} → hand the run to the host and return {runId, version, projectId} IMMEDIATELY; poll get_run (projectId scopes the run to an active project the caller may edit; a project-bound automation requires that explicit scope unless the host already pins it — list_automations shows each automation's projectIds; omit for org-wide)
-- list_runs            params {name?, limit?}         → recent runs the caller can read across every project, newest first; each carries its projectId (null for an organization run)
+- start_run            params {name, input?, mode?, version?, projectId?} → hand the run to the host and return {runId, version, projectId} IMMEDIATELY; poll get_run. mode "live" (default) runs the deployed version for real; mode "mock" runs any saved version (the latest when version is omitted) against the mocks and is recorded — use it while testing (projectId scopes the run to an active project the caller may edit; a project-bound automation requires that explicit scope unless the host already pins it — list_automations shows each automation's projectIds; omit for org-wide)
+- list_runs            params {name?, limit?, mode?, statuses?, cursor?} → recent runs the caller can read across every project, newest first; each carries its projectId (null for an organization run); nextCursor pages to older ones
 - get_run              params {runId}                 → one run in full: status, output, trace, effects, projectId
 - cancel_run           params {runId}                 → stop a run at its next node boundary
-- list_versions        params {name}                  → the immutable version history
+- answer_run_ask       params {runId, askId, answer}  → answer the question a waiting run asked a person; the run resumes on it
+- list_versions        params {name}                  → the immutable version history, and when each version went live (deployments)
+- set_automation_projects params {name, add?, remove?} → install the automation in projects and remove it from others
 - list_triggers        params {name?}                 → what starts the automations (never the webhook secret)
 - delete_trigger       params {name}                  → unbind the trigger; versions and run history stay
 (run_deployed vs start_run: run_deployed answers with the finished result and is

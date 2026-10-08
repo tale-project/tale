@@ -23,7 +23,7 @@ vi.mock('../chat/capabilities.ts', () => ({
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the mocked store and capability surface never touch the handle
 const sql = {} as Sql;
 
-function caller(apiKeyId?: string): McpCaller {
+function caller(apiKeyId?: string, clientName?: string): McpCaller {
   return {
     organizationId: 'org-acme',
     orgSlug: 'acme',
@@ -33,15 +33,18 @@ function caller(apiKeyId?: string): McpCaller {
       kind: 'api-key',
       ...(apiKeyId !== undefined ? { apiKeyId } : {}),
     },
+    ...(clientName !== undefined ? { clientName } : {}),
   };
 }
 
 describe('engineScope', () => {
-  it('records a keyed caller as the api-key door, with the key', () => {
+  it('records a keyed caller as the api-key door, with the key, and reads as the app would show them [MCP-R9]', () => {
     expect(engineScope(caller('key-laptop'))).toEqual({
       organizationId: 'org-acme',
       actor: 'api-key:user-ada',
       apiKeyId: 'key-laptop',
+      via: 'mcp',
+      visibleOnly: true,
     });
   });
 
@@ -49,6 +52,16 @@ describe('engineScope', () => {
     expect(engineScope(caller())).toEqual({
       organizationId: 'org-acme',
       actor: 'api-key:user-ada',
+      via: 'mcp',
+      visibleOnly: true,
+    });
+  });
+
+  it('records the client a request names beside the door', () => {
+    expect(engineScope(caller('key-laptop', 'Claude Code'))).toMatchObject({
+      via: 'mcp',
+      apiKeyId: 'key-laptop',
+      clientName: 'Claude Code',
     });
   });
 });
@@ -68,6 +81,8 @@ describe('mcpHost', () => {
       organizationId: 'org-acme',
       actor: 'api-key:user-ada',
       apiKeyId: 'key-laptop',
+      via: 'mcp',
+      visibleOnly: true,
     });
     expect(dispatch).toHaveBeenCalledWith(
       'start_run',

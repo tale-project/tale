@@ -1282,7 +1282,9 @@ describe('MCP JSON-RPC envelopes validate against their documented schemas', () 
     role: 'developer',
     credential: { kind: 'api-key', apiKeyId: 'key-1' },
   };
-  const options = { host: { engine: vi.fn(), capability: vi.fn() } };
+  const options = {
+    host: { engine: vi.fn(), platform: vi.fn(), capability: vi.fn() },
+  };
   const post = (body: unknown) =>
     new Request('http://localhost/api/v1/mcp', {
       method: 'POST',

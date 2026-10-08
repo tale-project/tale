@@ -13,6 +13,7 @@
 
 import Ajv from 'ajv';
 import Ajv2020 from 'ajv/dist/2020';
+import type { Sql } from 'postgres';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -27,7 +28,13 @@ import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
 import { memoryStore } from '../../../lib/engine/selftest/memory-store';
 import { findMcpTool, MCP_TOOLS } from '../../../lib/mcp/tools';
 import type { McpCaller } from './caller';
+import { dispatchPlatformTool } from './platform-tools';
 import { callTool, listTools, type McpHost } from './tools';
+
+/** A database with no rows: the platform tools answer an organization that
+ * has run nothing yet. */
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double: every query answers no rows
+const emptySql = (() => Promise.resolve([])) as unknown as Sql;
 
 const caller: McpCaller = {
   organizationId: 'org_1',
@@ -114,6 +121,8 @@ beforeAll(async () => {
   runId = (started as { runId: string }).runId;
   host = {
     engine: (_caller, method, params) => engine(method, params),
+    platform: (toolCaller, method, params) =>
+      dispatchPlatformTool(emptySql, toolCaller, method, params),
     capability: async (_caller, method) =>
       method === 'search_capabilities'
         ? { capabilities: [searchHit] }
@@ -138,10 +147,13 @@ function readCalls(): Array<[string, Record<string, unknown>]> {
     ['list_automations', {}],
     ['list_runs', {}],
     ['list_runs', { name: 'order-report', limit: 5 }],
+    ['list_runs', { mode: 'mock', statuses: ['success', 'failed'] }],
     // The run is started in `beforeAll`, after the table is built.
     ['get_run', { runId: STARTED_RUN }],
     ['list_versions', { name: 'order-report' }],
     ['list_triggers', {}],
+    ['get_automation_metrics', {}],
+    ['get_automation_metrics', { periodDays: 30, mode: 'mock' }],
     ['search_capabilities', { query: 'orders' }],
     ['get_knowledge', { query: 'refunds' }],
   ];
@@ -250,9 +262,54 @@ describe('tools/list', () => {
       run_automation: { 'anthropic/maxResultSizeChars': 200_000 },
       get_automation: { 'anthropic/maxResultSizeChars': 200_000 },
       deploy_automation: { 'anthropic/requiresUserInteraction': true },
+      delete_automation: { 'anthropic/requiresUserInteraction': true },
       set_trigger: { 'anthropic/requiresUserInteraction': true },
+      answer_run_ask: { 'anthropic/requiresUserInteraction': true },
+      set_automation_projects: { 'anthropic/requiresUserInteraction': true },
       run_deployed: { 'anthropic/maxResultSizeChars': 200_000 },
       get_run: { 'anthropic/maxResultSizeChars': 250_000 },
     });
+  });
+});
+
+/**
+ * A write a tool call makes, however deep in a domain, runs inside the
+ * call's request channel: every audit row it writes says the door, the
+ * tool, the key and the client (`createAuditLog` merges the channel before
+ * hashing; the definition writers audit every save, deploy, delete,
+ * trigger and installation in the store).
+ */
+describe('a write over MCP names the coding agent', () => {
+  it("Ada's agent saves through Claude Code with her laptop key: the write runs in a channel naming all four [MCP-R14]", async () => {
+    const { currentRequestChannel } = await import('../../lib/request-channel');
+    const seen: unknown[] = [];
+    const tool = findMcpTool('save_automation');
+    if (tool === undefined) throw new Error('no tool');
+    const reply = await callTool(
+      { ...caller, clientName: 'Claude Code' },
+      tool,
+      { automation: DOC_EXAMPLE.automation },
+      {
+        host: {
+          ...host,
+          engine: async () => {
+            seen.push(currentRequestChannel());
+            return { name: 'order-report', version: 3 };
+          },
+        },
+        requestId: 'req-7',
+      },
+    );
+    if (reply.kind !== 'answer') throw new Error('not admitted');
+    expect(reply.answer.result.isError).toBe(false);
+    expect(seen).toEqual([
+      {
+        via: 'mcp',
+        requestId: 'req-7',
+        tool: 'save_automation',
+        apiKeyId: 'key_1',
+        clientName: 'Claude Code',
+      },
+    ]);
   });
 });

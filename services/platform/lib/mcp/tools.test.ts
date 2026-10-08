@@ -36,6 +36,7 @@ describe('MCP tool grouping', () => {
       'get_automation',
       'list_automations',
       'deploy_automation',
+      'delete_automation',
     ]);
     expect(byGroup('management')).toEqual([
       'set_trigger',
@@ -44,9 +45,12 @@ describe('MCP tool grouping', () => {
       'list_runs',
       'get_run',
       'cancel_run',
+      'answer_run_ask',
       'list_versions',
+      'set_automation_projects',
       'list_triggers',
       'delete_trigger',
+      'get_automation_metrics',
     ]);
     expect(byGroup('capability')).toEqual([
       'search_capabilities',
@@ -97,15 +101,19 @@ describe('MCP tool annotations', () => {
     get_automation: { ...READ, idempotentHint: true },
     list_automations: { ...READ, idempotentHint: true },
     deploy_automation: hints(false, true, true, false),
+    delete_automation: hints(false, true, true, false),
     set_trigger: hints(false, true, true, false),
     run_deployed: hints(false, true, false, true),
     start_run: hints(false, true, false, true),
     list_runs: { ...READ, idempotentHint: true },
     get_run: { ...READ, idempotentHint: true },
     cancel_run: hints(false, true, true, false),
+    answer_run_ask: hints(false, false, false, false),
     list_versions: { ...READ, idempotentHint: true },
+    set_automation_projects: hints(false, true, true, false),
     list_triggers: { ...READ, idempotentHint: true },
     delete_trigger: hints(false, true, true, false),
+    get_automation_metrics: { ...READ, idempotentHint: true },
     search_capabilities: { ...READ, idempotentHint: true },
     invoke_capability: hints(false, true, false, true),
     get_knowledge: { ...READ, idempotentHint: true },
@@ -130,6 +138,9 @@ describe('MCP tool annotations', () => {
     const mutating = new Set([
       'save_automation',
       'deploy_automation',
+      'delete_automation',
+      'answer_run_ask',
+      'set_automation_projects',
       'set_trigger',
       'delete_trigger',
       'cancel_run',
@@ -214,12 +225,21 @@ describe('MCP tool roles and budgets', () => {
     ).toEqual([
       'save_automation',
       'deploy_automation',
+      'delete_automation',
       'set_trigger',
       'run_deployed',
-      'start_run',
       'cancel_run',
+      'set_automation_projects',
       'delete_trigger',
     ]);
+  });
+
+  test('a start takes the developer bar only when it is live; a mock start is every member’s [MCP-R4]', () => {
+    expect(
+      MCP_TOOLS.filter((tool) => tool.role === 'live-developer').map(
+        (tool) => tool.name,
+      ),
+    ).toEqual(['start_run']);
   });
 
   test('every tool that executes an automation draws from the execution budget', () => {
@@ -275,12 +295,18 @@ describe('MCP tool answers and client hints', () => {
     }
   });
 
-  test('only deploying and binding a trigger ask the person before every call', () => {
+  test('putting a version live, deleting, installing, binding a trigger and answering for a person ask the person before every call', () => {
     expect(
       MCP_TOOLS.filter((tool) => tool.requiresUserInteraction).map(
         (tool) => tool.name,
       ),
-    ).toEqual(['deploy_automation', 'set_trigger']);
+    ).toEqual([
+      'deploy_automation',
+      'delete_automation',
+      'set_trigger',
+      'answer_run_ask',
+      'set_automation_projects',
+    ]);
     for (const tool of MCP_TOOLS) {
       if (tool.annotations.readOnlyHint) {
         expect(tool.requiresUserInteraction, tool.name).toBe(false);

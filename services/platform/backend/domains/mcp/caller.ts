@@ -32,6 +32,10 @@ export interface McpCaller {
   readonly credential: RestCredential;
   /** The request id the app stamped (`X-Request-Id`), when there is one. */
   readonly requestId?: string;
+  /** The name the caller's client gave itself for this request, through
+   * `displayClientName` — untrusted, display only. Absent on a request
+   * that names none: a legacy client names itself only on `initialize`. */
+  readonly clientName?: string;
 }
 
 /** The caller of one authenticated `/api/v1/mcp` request. */

@@ -43,18 +43,43 @@ export const READ_TOOL_RESULTS = {
   get_automation: z.looseObject({
     meta: z.looseObject({ version: z.number() }),
     automation: z.looseObject({}),
+    name: z.string().optional(),
+    version: z.number().optional(),
+    latestVersion: z.number().optional(),
+    deployedVersion: z.number().nullable().optional(),
+    createdVia: z.string().nullable().optional(),
+    clientName: z.string().nullable().optional(),
+    projectIds: z.array(z.string()).optional(),
   }),
   list_automations: z.looseObject({
     automations: z.array(z.looseObject({ name: z.string() })),
   }),
-  list_runs: z.looseObject({ runs: z.array(runSummary) }),
+  list_runs: z.looseObject({
+    runs: z.array(runSummary),
+    nextCursor: z.string().nullable(),
+  }),
   get_run: z.looseObject({ run: runSummary }),
   list_versions: z.looseObject({
     deployedVersion: z.number().nullable(),
     versions: z.array(z.looseObject({ version: z.number() })),
+    deployments: z
+      .array(
+        z.looseObject({
+          version: z.number(),
+          previousVersion: z.number().nullable(),
+          deployedAt: z.number(),
+        }),
+      )
+      .optional(),
   }),
   list_triggers: z.looseObject({
     triggers: z.array(z.looseObject({ name: z.string(), kind: z.string() })),
+  }),
+  get_automation_metrics: z.looseObject({
+    summary: z.looseObject({ total: z.number(), successRate: z.number() }),
+    previousSummary: z.looseObject({ total: z.number() }),
+    series: z.array(z.looseObject({ dateKey: z.string() })),
+    topAutomations: z.array(z.looseObject({ name: z.string() })),
   }),
   search_capabilities: z.looseObject({
     capabilities: z.array(z.looseObject({ id: z.string() })),

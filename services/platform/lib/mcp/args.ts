@@ -1,7 +1,10 @@
+import { automationSettingsSchema } from '@tale/shared/schemas/automation-settings';
+import { taskSubjectContractSchema } from '@tale/shared/schemas/task-contract';
 import { z } from 'zod';
 
 import type { Method } from '../engine/api/methods';
 import { KNOWLEDGE_QUERY_MAX } from '../knowledge/types';
+import { automationPresentationSchema } from '../shared/schemas/automation_presentation';
 import { triggerArgSchema } from './trigger-args';
 
 /**
@@ -79,6 +82,58 @@ const automationDocument = z
 const knowledgeQuery = (description: string) =>
   nonBlank().max(KNOWLEDGE_QUERY_MAX).describe(description);
 
+/** A saved version, or the one that runs. */
+const versionOrDeployed = (description: string) =>
+  z
+    .union([z.int().min(1), z.literal('deployed')], {
+      error: 'must be a saved version number (1 or more) or "deployed"',
+    })
+    .optional()
+    .describe(description);
+
+/**
+ * One of the version fields a save sends beside the document: an object,
+ * `null` to store none, or left out to keep the latest version's. The value
+ * is checked against the schema the app READS it with (`reader`), so nothing
+ * is stored that a task screen or the automations list later fails to read;
+ * every problem is listed under the field's path. The reader's shape is not
+ * repeated in the advertised schema — a page of form rules no client needs
+ * to see before it sends one.
+ */
+const versionField = (description: string, reader: z.ZodType) =>
+  z
+    .record(z.string(), z.unknown(), {
+      error: 'must be an object, or null to store none',
+    })
+    .superRefine((value, ctx) => {
+      const checked = reader.safeParse(value);
+      if (checked.success) return;
+      for (const issue of checked.error.issues) {
+        ctx.addIssue({
+          code: 'custom',
+          path: issue.path,
+          message: issue.message,
+          params: { code: issue.code },
+        });
+      }
+    })
+    .nullable()
+    .optional()
+    .describe(description);
+
+/** A list of project ids, at most 50. */
+const projectIds = (description: string) =>
+  z.array(nonBlank()).max(50).optional().describe(description);
+
+const runStatus = z.enum([
+  'queued',
+  'running',
+  'waiting',
+  'success',
+  'failed',
+  'cancelled',
+]);
+
 /** The arguments of every engine method — exhaustive over `Method`. */
 export const ENGINE_TOOL_ARGS = {
   get_docs: z.strictObject({}),
@@ -108,29 +163,99 @@ export const ENGINE_TOOL_ARGS = {
       .optional()
       .describe('mock (default) runs against deterministic mocks.'),
   }),
-  test_automation: z.strictObject({ automation: automationDocument }),
+  test_automation: z
+    .strictObject({
+      automation: automationDocument
+        .optional()
+        .describe(
+          'A draft to test — the automation document with its tests: block. Leave it out to test a saved version (name).',
+        ),
+      name: automationName(
+        'A saved automation to test instead of a draft; its verdict is recorded on the version.',
+      ).optional(),
+      version: versionOrDeployed(
+        'Which saved version of name to test — the latest when omitted, "deployed" for the live one.',
+      ),
+    })
+    .superRefine((value, ctx) => {
+      if ((value.automation === undefined) === (value.name === undefined)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: value.automation === undefined ? ['automation'] : ['name'],
+          message:
+            value.automation === undefined
+              ? 'is required unless name is given'
+              : 'cannot be given together with automation',
+          params: { code: 'exactly_one_of' },
+        });
+      }
+      if (value.version !== undefined && value.name === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['version'],
+          message: 'needs name',
+          params: { code: 'requires' },
+        });
+      }
+    }),
   save_automation: z.strictObject({
     automation: automationDocument,
     message: nonBlank()
+      .max(500)
       .optional()
       .describe('Why this version — shown in the version history.'),
+    baseVersion: savedVersion(
+      'The version your edit started from (get_automation answers it). If another version was saved since, the save is refused with the latest version number instead of overwriting it. Always pass it.',
+    ).optional(),
+    create: z
+      .boolean()
+      .optional()
+      .describe(
+        'true: refuse the save when an automation of that name already exists (a new automation, never a new version of someone else’s).',
+      ),
+    projectId: nonBlank()
+      .optional()
+      .describe(
+        'Install a NEW automation in this project with its first version; you need edit access to it. Ignored for an automation that exists.',
+      ),
+    settings: versionField(
+      'The settings form the task screen shows. Leave it out to keep the latest version’s; null stores none.',
+      automationSettingsSchema,
+    ),
+    taskContract: versionField(
+      'The task contract (how tasks start and review this automation). Leave it out to keep the latest version’s; null stores none.',
+      taskSubjectContractSchema,
+    ),
+    presentation: versionField(
+      'The display name, description and icon on the automations list. Leave it out to keep the latest version’s; null stores none on this version, and the list keeps showing the newest earlier one.',
+      automationPresentationSchema,
+    ),
   }),
   get_automation: z.strictObject({
     name: automationName(),
-    version: z
-      .union([z.int().min(1), z.literal('deployed')], {
-        error: 'must be a saved version number (1 or more) or "deployed"',
-      })
-      .optional()
-      .describe(
-        'Read this saved version instead of the latest one; "deployed" reads the version that actually runs (list_automations shows deployedVersion).',
-      ),
+    version: versionOrDeployed(
+      'Read this saved version instead of the latest one; "deployed" reads the version that actually runs (list_automations shows deployedVersion).',
+    ),
   }),
   list_automations: z.strictObject({}),
   deploy_automation: z.strictObject({
     name: automationName(),
     version: savedVersion(
-      'The saved version to promote — list_versions shows them.',
+      'The saved version to promote — list_versions shows them. An older version rolls back.',
+    ),
+    expectedDeployedVersion: z
+      .int({ error: 'must be a whole number, or null' })
+      .min(1)
+      .nullable()
+      .optional()
+      .describe(
+        'The version you read as live (list_versions answers deployedVersion; null while nothing is deployed). If another one is live now, the deploy is refused and nothing changes.',
+      ),
+  }),
+  delete_automation: z.strictObject({
+    name: automationName(),
+    expectedLatestVersion: savedVersion(
+      'The latest version you read (get_automation answers latestVersion). If a version was saved since, the delete is refused and nothing is removed.',
     ),
   }),
   set_trigger: z.strictObject({
@@ -145,8 +270,14 @@ export const ENGINE_TOOL_ARGS = {
   start_run: z.strictObject({
     name: automationName(),
     input: runInput,
+    mode: z
+      .enum(['live', 'mock'])
+      .optional()
+      .describe(
+        'live (default): the deployed version, with real effects — needs the owner, admin or developer role. mock: any saved version against the deterministic mocks, recorded in the run history; any member may start one. Use mock while testing.',
+      ),
     version: savedVersion(
-      'Run this exact version instead of the deployed one. Rarely needed.',
+      'The saved version to run. A live run takes only the deployed one (the default); a mock run takes any, the latest saved when omitted.',
     ).optional(),
     projectId: nonBlank()
       .optional()
@@ -165,10 +296,55 @@ export const ENGINE_TOOL_ARGS = {
       .max(200)
       .optional()
       .describe('How many runs to return (default 50).'),
+    mode: z
+      .enum(['live', 'mock'])
+      .optional()
+      .describe('Only live runs, or only mock runs.'),
+    statuses: z
+      .array(runStatus)
+      .min(1)
+      .optional()
+      .describe('Only runs in one of these statuses.'),
+    cursor: nonBlank()
+      .optional()
+      .describe(
+        'The nextCursor the previous page answered — the next older page. Pass it unchanged, with the same filters.',
+      ),
   }),
   get_run: z.strictObject({ runId }),
   cancel_run: z.strictObject({ runId }),
+  answer_run_ask: z.strictObject({
+    runId,
+    askId: nonBlank().describe(
+      'The question to answer — get_run answers it while the run waits on one (waitingFor: "ask").',
+    ),
+    answer: nonBlank()
+      .max(20_000)
+      .describe(
+        'Your answer, in words — the run resumes on it as the person’s answer.',
+      ),
+  }),
   list_versions: z.strictObject({ name: automationName() }),
+  set_automation_projects: z
+    .strictObject({
+      name: automationName(),
+      add: projectIds(
+        'Install it in these projects (you need edit access to each).',
+      ),
+      remove: projectIds(
+        'Remove it from these projects (you need edit access to each).',
+      ),
+    })
+    .superRefine((value, ctx) => {
+      if ((value.add?.length ?? 0) + (value.remove?.length ?? 0) === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['add'],
+          message: 'name at least one project in add or remove',
+          params: { code: 'nothing_to_change' },
+        });
+      }
+    }),
   list_triggers: z.strictObject({
     name: automationName(
       "Only this automation's trigger. Omit for every trigger in the organization.",
@@ -176,6 +352,25 @@ export const ENGINE_TOOL_ARGS = {
   }),
   delete_trigger: z.strictObject({ name: automationName() }),
 } satisfies Record<Method, z.ZodObject>;
+
+/** The arguments of the platform tools — answered by the platform itself,
+ * not the automation engine. */
+export const PLATFORM_TOOL_ARGS = {
+  get_automation_metrics: z.strictObject({
+    periodDays: z
+      .union([z.literal(7), z.literal(30), z.literal(90)], {
+        error: 'must be 7, 30 or 90',
+      })
+      .optional()
+      .describe(
+        'The window, in days (default 7); compared with the window before it.',
+      ),
+    mode: z
+      .enum(['live', 'mock'])
+      .optional()
+      .describe('Which runs to count: live (the default) or mock.'),
+  }),
+} satisfies Record<string, z.ZodObject>;
 
 /** The arguments of the organization's capability tools. */
 export const CAPABILITY_TOOL_ARGS = {
