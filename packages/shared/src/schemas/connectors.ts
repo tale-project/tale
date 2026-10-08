@@ -49,6 +49,16 @@ const actionNameSchema = z
 
 const displayNameSchema = z.string().min(1).max(200);
 
+/** Locale keys of the per-entry `i18n` channels (`de`, `fr`, `de-CH`) — the
+ * grammar every declared text uses, as in the automation settings forms and
+ * the pack manifest. */
+const LOCALE_RE = /^[a-z]{2}(-[A-Z]{2})?$/;
+
+/** An action named for a person: a short verb phrase in sentence case
+ * ("List issues"), without the connector's name — a surface shows it beside
+ * the connector's display name ("GitHub · List issues"). */
+const actionTitleSchema = z.string().min(1).max(80);
+
 /**
  * The auth methods a connector accepts — discriminated on `method`, MULTIPLE
  * per connector, decoupled from the actions. A credential row references one
@@ -183,6 +193,18 @@ const jsonSchemaObjectSchema = z
 export const connectorActionSchema = z
   .object({
     name: actionNameSchema,
+    /** The action in words, in English. A surface without one shows the
+     * humanized action name instead. */
+    title: actionTitleSchema.optional(),
+    /** Per-locale overrides of `title`. The chain every declared text
+     * follows: the exact tag (`de-CH`), then its base language (`de`), then
+     * the English `title`. */
+    i18n: z
+      .record(
+        z.string().regex(LOCALE_RE),
+        z.object({ title: actionTitleSchema.optional() }).strict(),
+      )
+      .optional(),
     description: z.string().min(1).max(2000),
     /** JSON Schema for the action's `input` — machine-validated. */
     input: jsonSchemaObjectSchema,
@@ -211,6 +233,15 @@ export const connectorSchema = z
   .object({
     name: slugSchema,
     displayName: displayNameSchema,
+    /** Per-locale overrides of `displayName`, for a connector named with
+     * ordinary words ("Tasks") rather than a brand ("GitHub"), which keeps its
+     * name in every language. Same locale chain as an action's `title`. */
+    i18n: z
+      .record(
+        z.string().regex(LOCALE_RE),
+        z.object({ displayName: displayNameSchema.optional() }).strict(),
+      )
+      .optional(),
     description: z.string().min(1).max(2000),
     /** Grouping labels for the catalog (open vocabulary). */
     tags: z.array(z.string().min(1).max(64)).default([]),

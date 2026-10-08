@@ -207,6 +207,62 @@ describe('connectorSchema', () => {
     ).toBe(false);
   });
 
+  it('accepts an action title with per-locale overrides', () => {
+    const github = connectorSchema.parse(GITHUB);
+    const [create] = github.actions;
+    const titled = connectorSchema.parse({
+      ...github,
+      actions: [
+        {
+          ...create,
+          title: 'Create issue',
+          i18n: {
+            de: { title: 'Issue erstellen' },
+            fr: { title: 'Créer une issue' },
+            'de-CH': { title: 'Issue erstellen' },
+          },
+        },
+      ],
+    });
+    expect(titled.actions[0]?.title).toBe('Create issue');
+    expect(titled.actions[0]?.i18n?.fr?.title).toBe('Créer une issue');
+    // Untitled stays valid: a surface falls back to the action name.
+    expect(github.actions[0]?.title).toBeUndefined();
+  });
+
+  it.each([
+    ['a blank title', { title: '' }],
+    [
+      'a locale key outside the tag grammar',
+      { i18n: { german: { title: 'x' } } },
+    ],
+    ['an unknown key inside a locale', { i18n: { de: { label: 'x' } } }],
+    ['a title past 80 characters', { title: 'x'.repeat(81) }],
+  ])('refuses %s on an action', (_case, extra) => {
+    const github = connectorSchema.parse(GITHUB);
+    expect(
+      connectorSchema.safeParse({
+        ...github,
+        actions: [{ ...github.actions[0], ...extra }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts per-locale display names on the connector, and only those', () => {
+    const mailbox = connectorSchema.parse(MAILBOX);
+    const named = connectorSchema.parse({
+      ...mailbox,
+      i18n: { de: { displayName: 'Postfach' }, fr: { displayName: 'Boîte' } },
+    });
+    expect(named.i18n?.de?.displayName).toBe('Postfach');
+    expect(
+      connectorSchema.safeParse({
+        ...mailbox,
+        i18n: { de: { description: 'Ein Postfach' } },
+      }).success,
+    ).toBe(false);
+  });
+
   it('requires a mock on every action', () => {
     const github = connectorSchema.parse(GITHUB);
     const noMock = {
