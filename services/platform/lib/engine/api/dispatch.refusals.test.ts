@@ -431,6 +431,7 @@ describe('a host refusal is lifted whole', () => {
     expect(result).toEqual({
       error: 'The project is archived.',
       code: 'PROJECT_ARCHIVED',
+      hint: expect.stringContaining('list_projects'),
       data: { projectId: 'p1' },
     });
     expect(JSON.stringify(result)).not.toContain('row 42');
@@ -846,6 +847,107 @@ describe('a store fault is thrown on, never answered as a refusal [MCP-R8]', () 
     expect(result).toMatchObject({
       error: 'Project is archived.',
       code: 'PROJECT_ARCHIVED',
+    });
+  });
+});
+
+/**
+ * A refusal a store throws for the newer tools carries a hint too: the
+ * project gates (`ActorAuthError`, `ProjectError` — no hint of their own),
+ * a run that is gone, and a delete that a newer version made stale, whose
+ * remedy is not a save's "merge and save again".
+ */
+describe('every refusal of the newer tools says what to do [MCP-R18]', () => {
+  const thrown = (code: string, status?: number, data?: unknown) =>
+    Object.assign(new Error(`refused: ${code}`), {
+      code,
+      ...(status === undefined ? { name: 'ActorAuthError' } : { status }),
+      ...(data === undefined ? {} : { data }),
+    });
+
+  it.each([
+    ['PROJECT_NOT_FOUND', undefined, 'list_projects'],
+    ['PROJECT_ARCHIVED', undefined, 'list_projects'],
+    ['RBAC_FORBIDDEN', 403, 'list_projects'],
+  ] as const)(
+    'set_automation_projects refused with %s names list_projects',
+    async (code, status, tool) => {
+      const result = await dispatch(
+        'set_automation_projects',
+        { name: SAVED, add: ['p-9'] },
+        {
+          store: fullStore({
+            setAutomationProjects: async () => {
+              throw thrown(code, status);
+            },
+          }),
+        },
+      );
+      expect(result).toMatchObject({
+        code,
+        hint: expect.stringContaining(tool),
+      });
+    },
+  );
+
+  it('answer_run_ask on a run that is gone names where run ids come from', async () => {
+    const result = await dispatch(
+      'answer_run_ask',
+      { runId: 'r-gone', askId: 'a', answer: 'yes' },
+      {
+        store: fullStore({
+          answerAsk: async () => {
+            throw thrown('RUN_NOT_FOUND', 404);
+          },
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      code: 'RUN_NOT_FOUND',
+      hint: expect.stringContaining('list_runs'),
+    });
+  });
+
+  it("Ada's delete from v5 after Ben saved v6 asks her to read v6 and confirm, never to merge", async () => {
+    const result = await dispatch(
+      'delete_automation',
+      { name: SAVED, expectedLatestVersion: 5 },
+      {
+        store: fullStore({
+          deleteAutomation: async () => {
+            throw thrown('AUTOMATION_VERSION_STALE', 409, {
+              latestVersion: 6,
+              expectedLatestVersion: 5,
+            });
+          },
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      code: 'AUTOMATION_VERSION_STALE',
+      data: { latestVersion: 6 },
+      hint: expect.stringContaining('expectedLatestVersion: 6'),
+    });
+    expect(String(Reflect.get(result as object, 'hint'))).not.toMatch(
+      /merge|baseVersion/,
+    );
+    const gone = await dispatch(
+      'delete_automation',
+      { name: SAVED, expectedLatestVersion: 5 },
+      {
+        store: fullStore({
+          deleteAutomation: async () => {
+            throw thrown('AUTOMATION_VERSION_STALE', 409, {
+              latestVersion: null,
+              expectedLatestVersion: 5,
+            });
+          },
+        }),
+      },
+    );
+    expect(gone).toMatchObject({
+      code: 'AUTOMATION_VERSION_STALE',
+      hint: expect.stringContaining('nothing is left to delete'),
     });
   });
 });

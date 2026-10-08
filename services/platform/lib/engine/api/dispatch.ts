@@ -465,6 +465,8 @@ export const DISPATCH_REFUSAL_CODES = [
 ] as const;
 
 const LIST_AUTOMATIONS_HINT = 'list_automations shows the saved ones';
+const RUN_ID_HINT =
+  'start_run returns the runId; list_runs lists the recent ones';
 
 /**
  * What to do about a refusal the HOST raises (its own `AutomationError`
@@ -490,9 +492,17 @@ const HOST_REFUSAL_HINTS: Readonly<Record<string, string>> = {
     'the question was answered or closed already — get_run {runId} shows where the run stands',
   HUMAN_ASK_EXPIRED:
     'the run went on without the answer — get_run {runId} shows where it stands',
+  // The project gates every write that names a project goes through
+  // (set_automation_projects, a save's projectId, answering a project
+  // run's question): `ActorAuthError` / `ProjectError` carry no hint.
+  PROJECT_NOT_FOUND:
+    'list_projects shows the projects you can see; use one of their ids',
+  PROJECT_ARCHIVED:
+    'the project is archived — list_projects shows the active ones; ask the person to restore it in Tale if it is the one they mean',
+  RBAC_FORBIDDEN:
+    'the person cannot edit that project — list_projects marks the ones they can edit; tell them, or ask a project editor',
+  RUN_NOT_FOUND: RUN_ID_HINT,
 };
-const RUN_ID_HINT =
-  'start_run returns the runId; list_runs lists the recent ones';
 const LIST_VERSIONS_HINT =
   'list_versions shows the saved versions of an automation';
 
@@ -822,6 +832,28 @@ function staleSave(
     ...refusal,
     error: `v${latest} of "${name}" was saved after your edit started from v${String(base)}`,
     hint: `get_automation {name: "${name}"} reads v${latest}; merge your change into it and save again with baseVersion: ${latest}`,
+  };
+}
+
+/** A delete refused because a version was saved after the one the agent
+ * read, in the words an agent acts on: it must not delete what it has not
+ * seen, so it reads the newer version and asks again — a save's "merge and
+ * save again" does not apply. */
+function staleDelete(
+  name: string,
+  refusal: ReturnType<typeof refusalFrom>,
+): Record<string, unknown> {
+  const latest: unknown = refusal.data?.latestVersion;
+  if (typeof latest !== 'number') {
+    return {
+      ...refusal,
+      error: `"${name}" has no version any more — it was deleted meanwhile`,
+      hint: 'nothing is left to delete; list_automations shows what exists',
+    };
+  }
+  return {
+    ...refusal,
+    hint: `get_automation {name: "${name}"} reads v${latest}, saved after the version you read; tell the person what changed, then delete again with expectedLatestVersion: ${latest} if they still want it gone`,
   };
 }
 
@@ -1333,7 +1365,11 @@ export async function dispatch(
           note: 'every version, the trigger and the installations are gone; the run history stays',
         };
       } catch (e) {
-        return refusalFrom(e);
+        const refusal = refusalFrom(e);
+        if (refusal.code === 'AUTOMATION_VERSION_STALE') {
+          return staleDelete(name, refusal);
+        }
+        return refusal;
       }
     }
 
