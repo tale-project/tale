@@ -29,6 +29,8 @@ import {
   SKIPPED_PAGE_SQL,
   type WebsitePageState,
 } from '../websites/types';
+import { readOrgEmbeddingConfig } from './connection';
+import { chunkVectorsTable } from './dimensions';
 
 /** How many URLs one scan tracks per domain: discovery stops admitting here,
  * and a longer operator list is truncated (logged, never silent). A bound
@@ -257,18 +259,29 @@ export async function registerUrlList(
 }
 
 /**
- * The organization's domains holding chunks without a vector — pages indexed
- * while it had no embedding model, which a scan embeds once it has one.
+ * The organization's domains holding chunks without a vector of the width
+ * its embedding model states — pages indexed while it had no model, pages
+ * another organization's scan chunked for a model of another width, and all
+ * of them after a move to a model of another width. A scan embeds them. None
+ * without a model: nothing could embed them.
  */
 export async function listVectorlessDomains(
   sql: Sql,
   orgSlug: string,
 ): Promise<string[]> {
+  const config = await readOrgEmbeddingConfig(orgSlug);
+  if (config === null) return [];
+  const vectors = chunkVectorsTable(
+    PUBLIC_WEB_SCHEMA,
+    config.dimensions,
+    `organization "${orgSlug}"`,
+  );
   const rows = await sql.unsafe<{ domain: string }[]>(
     `SELECT DISTINCT c.domain
        FROM ${PUBLIC_WEB_SCHEMA}.chunks c
        JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m ON m.domain = c.domain
-      WHERE m.org_slug = $1 AND c.embedding IS NULL`,
+      WHERE m.org_slug = $1
+        AND NOT EXISTS (SELECT 1 FROM ${vectors} v WHERE v.chunk_id = c.id)`,
     [orgSlug],
   );
   return rows.map((row) => row.domain);
