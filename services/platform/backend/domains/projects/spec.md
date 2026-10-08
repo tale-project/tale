@@ -130,6 +130,15 @@ an automation of the organization answers to it, the agent gets the next free on
 - **Example**: Mia adds an agent named "My Opus Agent #3" → it answers to `@my-opus-agent-3`.
   Noah then adds "My Opus Agent 3" → it answers to `@my-opus-agent-3-02`.
 
+### PROJ-R19 · Renaming an agent gives it the handle of its new name
+
+A rename that changes only upper and lower case or punctuation keeps the handle, and so does
+every other save. The old handle is free for another agent. A mention names the agent itself,
+so what was written about it shows its new name.
+
+- **Example**: Mia renames the agent Research Bot to QA Bot → it answers to `@qa-bot`, and
+  `@research-bot` is free for a new agent.
+
 ## Secrets
 
 ### PROJ-R13 · Only owners and admins can change a project's secrets

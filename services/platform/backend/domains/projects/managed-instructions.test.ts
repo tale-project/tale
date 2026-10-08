@@ -57,6 +57,8 @@ const agent = {
   id: 'agent-a',
   organizationId: 'org-a',
   projectId: 'project-a',
+  name: 'Reviewer',
+  handle: 'reviewer',
   instructions: 'old agent',
   managed: false,
   model: 'test-model',

@@ -21,6 +21,18 @@ import {
 import type { Sql, TransactionSql } from 'postgres';
 
 import { isHarnessSlug } from '../../../lib/harnesses/types.ts';
+import {
+  agentHandleBase,
+  deriveAgentHandles,
+  handleFitsBase,
+  nextAgentHandle,
+} from '../../../lib/shared/agent-handle.ts';
+import {
+  agentLegacyHandleVariants,
+  automationMentionEntry,
+  memberMentionEntry,
+  reservedAgentHandles,
+} from '../../../lib/shared/mention-handles.ts';
 import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import {
@@ -1462,14 +1474,177 @@ export interface ProjectAgentRow {
   createdBy: string;
   createdAt: number;
   updatedAt: number;
+  /** What a person types after `@` to find the agent (`agent-handle.ts`):
+   * made from its current name, unique in the project. An agent the
+   * previous release added carries the handle it will get on the next save
+   * of its project's agents. */
+  handle: string;
 }
+
+/** An agent row as stored: an agent the previous release added has no
+ * handle yet. */
+type StoredProjectAgentRow = Omit<ProjectAgentRow, 'handle'> & {
+  handle: string | null;
+};
 
 const PROJECT_AGENT_COLUMNS = `
   id, org_id AS "organizationId", project_id AS "projectId", name, harness,
   model, model_provider AS "modelProvider", skills, connectors, tools,
   secrets, instructions, managed, created_by AS "createdBy",
-  created_at_ms::float8 AS "createdAt", updated_at_ms::float8 AS "updatedAt"
+  created_at_ms::float8 AS "createdAt", updated_at_ms::float8 AS "updatedAt",
+  handle
 `;
+
+/** Tries at a free handle before a save gives up: each lost race moves to
+ * the next candidate, and a serializable writer that loses reruns whole. */
+const HANDLE_MINT_ATTEMPTS = 5;
+const PROJECT_AGENT_HANDLE_INDEX = 'project_agents_project_handle';
+
+interface AgentHandleSibling {
+  id: string;
+  name: string;
+  handle: string | null;
+  legacyHandles: string[] | null;
+  createdAt: number;
+}
+
+async function projectAgentHandleRows(
+  sql: Sql | TransactionSql,
+  projectId: string,
+): Promise<AgentHandleSibling[]> {
+  return sql<AgentHandleSibling[]>`
+    SELECT id, name, handle, legacy_handles AS "legacyHandles",
+           created_at_ms::float8 AS "createdAt"
+    FROM app.project_agents
+    WHERE project_id = ${projectId}
+    ORDER BY created_at_ms, id
+  `;
+}
+
+/**
+ * What the organization's people answer to by email and its automations by
+ * store name: an agent handle never takes one, so `@ops` keeps reaching the
+ * person whose email starts with it [PROJ-R18]. Every member and every
+ * automation counts, not only those of this project, so a later share does
+ * not make a handle collide.
+ */
+async function reservedHandlesInTx(
+  tx: Sql | TransactionSql,
+  organizationId: string,
+): Promise<Set<string>> {
+  const members = await tx<
+    { userId: string; email: string | null; name: string | null }[]
+  >`
+    SELECT m."userId", u."email", u."name"
+    FROM "member" m JOIN "user" u ON u."id" = m."userId"
+    WHERE m."organizationId" = ${organizationId}
+  `;
+  const automations = await tx<{ name: string }[]>`
+    SELECT DISTINCT name FROM app.automations WHERE org_id = ${organizationId}
+  `;
+  return reservedAgentHandles([
+    ...members.map((member) =>
+      memberMentionEntry({
+        id: member.userId,
+        name: member.name,
+        email: member.email,
+      }),
+    ),
+    ...automations.map((automation) =>
+      automationMentionEntry({ slug: automation.name }),
+    ),
+  ]);
+}
+
+/**
+ * Give the agents of a project that the previous release added (during a
+ * deploy, after migration 0166 ran) their handle and the older forms they
+ * answered to, oldest first, as 0166 did for the rest. Leaves `updated_at_ms`
+ * alone: it is the precondition a full agent save holds. Answers the handles
+ * the project's agents hold afterwards, `except` left out. Called only by a
+ * save that writes anyway.
+ */
+async function healProjectAgentHandles(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    projectId: string;
+    reserved: ReadonlySet<string>;
+    except?: string;
+  },
+): Promise<{ taken: Set<string>; healed: boolean }> {
+  const rows = (await projectAgentHandleRows(tx, args.projectId)).filter(
+    (row) => row.id !== args.except,
+  );
+  const minted = deriveAgentHandles(rows, args.reserved);
+  const fills = rows.flatMap((row) => {
+    const handle = minted.get(row.id);
+    const freeze = row.legacyHandles === null;
+    if (handle === undefined && !freeze) return [];
+    return [
+      {
+        id: row.id,
+        handle: handle ?? '',
+        legacy: freeze
+          ? JSON.stringify(agentLegacyHandleVariants(row.name))
+          : 'null',
+      },
+    ];
+  });
+  if (fills.length > 0) {
+    await tx`
+      UPDATE app.project_agents a SET
+        handle = COALESCE(a.handle, NULLIF(v.handle, '')),
+        legacy_handles = COALESCE(
+          a.legacy_handles,
+          CASE WHEN v.legacy = 'null' THEN NULL ELSE
+            ARRAY(SELECT jsonb_array_elements_text(v.legacy::jsonb))
+          END
+        )
+      FROM unnest(
+        ${fills.map((fill) => fill.id)}::text[],
+        ${fills.map((fill) => fill.handle)}::text[],
+        ${fills.map((fill) => fill.legacy)}::text[]
+      ) AS v(id, handle, legacy)
+      WHERE a.id = v.id AND a.project_id = ${args.projectId}
+        AND (a.handle IS NULL OR a.legacy_handles IS NULL)
+    `;
+  }
+  const taken = new Set<string>();
+  for (const row of rows) {
+    const handle = row.handle ?? minted.get(row.id);
+    if (handle !== undefined) taken.add(handle);
+  }
+  return { taken, healed: fills.length > 0 };
+}
+
+function isHandleConflict(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    error.code === '23505' &&
+    'constraint_name' in error &&
+    error.constraint_name === PROJECT_AGENT_HANDLE_INDEX
+  );
+}
+
+/** Rows read with the handle an agent without one shows until its project's
+ * next save stores it. */
+function withDerivedHandles(
+  rows: StoredProjectAgentRow[],
+  siblings: readonly AgentHandleSibling[] = rows.map((row) => ({
+    ...row,
+    legacyHandles: null,
+  })),
+): ProjectAgentRow[] {
+  const derived = rows.some((row) => row.handle === null)
+    ? deriveAgentHandles(siblings)
+    : new Map<string, string>();
+  return rows.map((row) => ({
+    ...row,
+    handle: row.handle ?? derived.get(row.id) ?? agentHandleBase(row.name),
+  }));
+}
 
 interface ProjectAgentFields {
   name: string;
@@ -1736,11 +1911,12 @@ export async function listProjectAgents(
 ): Promise<ProjectAgentRow[]> {
   const project = await loadProjectOrThrow(sql, projectId);
   assertReadable(project, auth);
-  return sql<ProjectAgentRow[]>`
+  const rows = await sql<StoredProjectAgentRow[]>`
     SELECT ${sql.unsafe(PROJECT_AGENT_COLUMNS)} FROM app.project_agents
     WHERE project_id = ${projectId}
     ORDER BY created_at_ms ASC
   `;
+  return withDerivedHandles(rows);
 }
 
 /** Read one agent only within its named project and the caller's organization. */
@@ -1752,13 +1928,19 @@ export async function getProjectAgent(
 ): Promise<ProjectAgentRow | null> {
   const project = await loadProjectOrThrow(sql, projectId);
   assertReadable(project, auth);
-  const rows = await sql<ProjectAgentRow[]>`
+  const rows = await sql<StoredProjectAgentRow[]>`
     SELECT ${sql.unsafe(PROJECT_AGENT_COLUMNS)} FROM app.project_agents
     WHERE id = ${agentId} AND project_id = ${projectId}
       AND org_id = ${auth.organizationId}
     LIMIT 1
   `;
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (row === undefined) return null;
+  // An agent the previous release added shows the handle its project's
+  // next save gives it, which depends on the agents beside it.
+  const siblings =
+    row.handle === null ? await projectAgentHandleRows(sql, projectId) : [];
+  return withDerivedHandles([row], siblings)[0] ?? null;
 }
 
 export async function readAgentInstructionsConfiguration(
@@ -1954,24 +2136,44 @@ export async function createProjectAgent(
     throw new ProjectError('PROJECT_AGENT_NAME_TAKEN', 'Agent name taken', 409);
   }
 
+  const reserved = await reservedHandlesInTx(tx, auth.organizationId);
+  const { taken } = await healProjectAgentHandles(tx, {
+    organizationId: auth.organizationId,
+    projectId: args.projectId,
+    reserved,
+  });
+  for (const handle of reserved) taken.add(handle);
+  const base = agentHandleBase(fields.name);
   const now = Date.now();
-  const inserted = await tx<{ id: string }[]>`
-    INSERT INTO app.project_agents (
-      org_id, project_id, name, harness, model, model_provider, skills,
-      connectors, tools, secrets, instructions, created_by, created_at_ms,
-      updated_at_ms
-    ) VALUES (
-      ${auth.organizationId}, ${args.projectId}, ${fields.name},
-      ${fields.harness}, ${fields.model}, ${fields.modelProvider ?? null},
-      ${fields.skills}, ${fields.connectors}, ${fields.tools},
-      ${fields.secrets}, ${fields.instructions ?? null}, ${auth.userId},
-      ${now}, ${now}
-    )
-    RETURNING id
-  `;
-  const agentId = inserted[0]?.id;
+  let agentId: string | undefined;
+  let handle = nextAgentHandle(base, taken);
+  for (let attempt = 0; attempt < HANDLE_MINT_ATTEMPTS; attempt++) {
+    // A concurrent save that took the same handle first answers no row here
+    // (or fails this serializable transaction, which then reruns whole).
+    const inserted = await tx<{ id: string }[]>`
+      INSERT INTO app.project_agents (
+        org_id, project_id, name, harness, model, model_provider, skills,
+        connectors, tools, secrets, instructions, created_by, created_at_ms,
+        updated_at_ms, handle, legacy_handles
+      ) VALUES (
+        ${auth.organizationId}, ${args.projectId}, ${fields.name},
+        ${fields.harness}, ${fields.model}, ${fields.modelProvider ?? null},
+        ${fields.skills}, ${fields.connectors}, ${fields.tools},
+        ${fields.secrets}, ${fields.instructions ?? null}, ${auth.userId},
+        ${now}, ${now}, ${handle}, ${[]}::text[]
+      )
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    `;
+    agentId = inserted[0]?.id;
+    if (agentId !== undefined) break;
+    taken.add(handle);
+    handle = nextAgentHandle(base, taken);
+  }
   if (!agentId) {
-    throw new Error('PROJECT_AGENT_CREATE_FAILED: the insert answered no row');
+    throw new Error(
+      'PROJECT_AGENT_CREATE_FAILED: no free handle after repeated conflicts',
+    );
   }
   await tx`
     UPDATE app.projects SET
@@ -1983,6 +2185,7 @@ export async function createProjectAgent(
     projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
       newState: {
         name: fields.name,
+        handle,
         harness: fields.harness,
         model: fields.model,
         skills: fields.skills,
@@ -2015,6 +2218,9 @@ export interface ManagedProjectAgentFields {
  * no edit right is asked here. Two people handing work to the same project
  * at once create one agent — the partial unique index (migration 0146)
  * answers the second insert with nothing, and this answers the first's row.
+ * The standard agent gets a handle as any agent does [PROJ-R18], from the
+ * name the organization's language gives it; it is never renamed, so the
+ * handle stays.
  */
 export async function insertManagedProjectAgent(
   tx: TransactionSql,
@@ -2022,35 +2228,51 @@ export async function insertManagedProjectAgent(
   project: { id: string; name: string },
   fields: ManagedProjectAgentFields,
 ): Promise<{ agentId: string; created: boolean }> {
+  const reserved = await reservedHandlesInTx(tx, auth.organizationId);
+  const { taken } = await healProjectAgentHandles(tx, {
+    organizationId: auth.organizationId,
+    projectId: project.id,
+    reserved,
+  });
+  for (const handle of reserved) taken.add(handle);
+  const base = agentHandleBase(fields.name);
   const now = Date.now();
-  const inserted = await tx<{ id: string }[]>`
-    INSERT INTO app.project_agents (
-      org_id, project_id, name, harness, model, model_provider, skills,
-      connectors, tools, secrets, instructions, managed, created_by,
-      created_at_ms, updated_at_ms
-    ) VALUES (
-      ${auth.organizationId}, ${project.id}, ${fields.name},
-      ${fields.harness}, ${fields.model}, ${fields.modelProvider},
-      ${fields.skills}, ${[]}, ${[]}, ${[]}, ${fields.instructions}, true,
-      ${auth.userId}, ${now}, ${now}
-    )
-    ON CONFLICT (project_id) WHERE managed DO NOTHING
-    RETURNING id
-  `;
-  const agentId = inserted[0]?.id;
-  if (agentId === undefined) {
+  let handle = nextAgentHandle(base, taken);
+  let agentId: string | undefined;
+  for (let attempt = 0; attempt < HANDLE_MINT_ATTEMPTS; attempt++) {
+    // No arbiter: the one-managed-agent index and the handle index both
+    // answer a conflict with no row, told apart below.
+    const inserted = await tx<{ id: string }[]>`
+      INSERT INTO app.project_agents (
+        org_id, project_id, name, harness, model, model_provider, skills,
+        connectors, tools, secrets, instructions, managed, created_by,
+        created_at_ms, updated_at_ms, handle, legacy_handles
+      ) VALUES (
+        ${auth.organizationId}, ${project.id}, ${fields.name},
+        ${fields.harness}, ${fields.model}, ${fields.modelProvider},
+        ${fields.skills}, ${[]}, ${[]}, ${[]}, ${fields.instructions}, true,
+        ${auth.userId}, ${now}, ${now}, ${handle}, ${[]}::text[]
+      )
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    `;
+    agentId = inserted[0]?.id;
+    if (agentId !== undefined) break;
     const standing = await tx<{ id: string }[]>`
       SELECT id FROM app.project_agents
       WHERE project_id = ${project.id} AND managed
       LIMIT 1
     `;
     const existing = standing[0]?.id;
-    if (existing === undefined) {
-      throw new Error(
-        'PROJECT_AGENT_CREATE_FAILED: the standard agent insert answered no row and none stands',
-      );
-    }
-    return { agentId: existing, created: false };
+    if (existing !== undefined) return { agentId: existing, created: false };
+    // No standard agent stands: the handle was taken since it was read.
+    taken.add(handle);
+    handle = nextAgentHandle(base, taken);
+  }
+  if (agentId === undefined) {
+    throw new Error(
+      'PROJECT_AGENT_CREATE_FAILED: the standard agent insert answered no row and none stands',
+    );
   }
   await tx`
     UPDATE app.projects SET
@@ -2062,6 +2284,7 @@ export async function insertManagedProjectAgent(
     projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
       newState: {
         name: fields.name,
+        handle,
         harness: fields.harness,
         model: fields.model,
         skills: fields.skills,
@@ -2147,7 +2370,7 @@ export async function updateProjectAgent(
     expectedUpdatedAt?: number;
   },
 ): Promise<void> {
-  const rows = await tx<ProjectAgentRow[]>`
+  const rows = await tx<StoredProjectAgentRow[]>`
     SELECT ${tx.unsafe(PROJECT_AGENT_COLUMNS)} FROM app.project_agents
     WHERE id = ${args.agentId} LIMIT 1
   `;
@@ -2229,23 +2452,72 @@ export async function updateProjectAgent(
     throw new ProjectError('PROJECT_AGENT_NAME_TAKEN', 'Agent name taken', 409);
   }
 
+  // The handle follows the name [PROJ-R19]: a save whose name no longer
+  // gives the stored handle takes the new name's, freeing the old one. A
+  // rename that changes only case or punctuation keeps it, and so does
+  // every other save. Agents the previous release added get theirs here,
+  // since this save writes anyway.
+  const reserved = await reservedHandlesInTx(tx, auth.organizationId);
+  const { taken } = await healProjectAgentHandles(tx, {
+    organizationId: auth.organizationId,
+    projectId: agent.projectId,
+    // This agent's handle is still stored while the others are filled.
+    reserved:
+      agent.handle === null ? reserved : new Set([...reserved, agent.handle]),
+    except: agent.id,
+  });
+  for (const handle of reserved) taken.add(handle);
+  const base = agentHandleBase(fields.name);
+  const keepsHandle =
+    agent.handle !== null && handleFitsBase(agent.handle, base);
+  let handle =
+    keepsHandle && agent.handle !== null
+      ? agent.handle
+      : nextAgentHandle(base, taken);
+  // What the agent answered to before handles were stored, from the name it
+  // had then; frozen once, never moved by a rename.
+  const legacyHandles = agentLegacyHandleVariants(agent.name);
+
   // updatedAt is also the full-save precondition. A changed row must not
   // reuse a revision when the wall clock stalls or moves backwards.
   const now = Math.max(Date.now(), agent.updatedAt + 1);
-  await tx`
-    UPDATE app.project_agents SET
-      name = ${fields.name}, harness = ${fields.harness},
-      model = ${fields.model}, model_provider = ${fields.modelProvider ?? null},
-      skills = ${fields.skills}, connectors = ${fields.connectors},
-      tools = ${fields.tools}, secrets = ${fields.secrets},
-      instructions = ${fields.instructions ?? null}, updated_at_ms = ${now}
-    WHERE id = ${args.agentId}
-  `;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      // In a savepoint, so a concurrent save that took the same handle
+      // first fails only this write, which moves to the next candidate.
+      await tx.savepoint(
+        (sp) => sp`
+          UPDATE app.project_agents SET
+            name = ${fields.name}, harness = ${fields.harness},
+            model = ${fields.model}, model_provider = ${fields.modelProvider ?? null},
+            skills = ${fields.skills}, connectors = ${fields.connectors},
+            tools = ${fields.tools}, secrets = ${fields.secrets},
+            instructions = ${fields.instructions ?? null},
+            handle = ${handle},
+            legacy_handles = COALESCE(legacy_handles, ${legacyHandles}::text[]),
+            updated_at_ms = ${now}
+          WHERE id = ${args.agentId}
+        `,
+      );
+      break;
+    } catch (error) {
+      if (
+        keepsHandle ||
+        !isHandleConflict(error) ||
+        attempt + 1 >= HANDLE_MINT_ATTEMPTS
+      ) {
+        throw error;
+      }
+      taken.add(handle);
+      handle = nextAgentHandle(base, taken);
+    }
+  }
   await createAuditLog(
     tx,
     projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
       previousState: {
         name: agent.name,
+        handle: agent.handle,
         harness: agent.harness,
         model: agent.model,
         skills: agent.skills,
@@ -2255,6 +2527,7 @@ export async function updateProjectAgent(
       },
       newState: {
         name: fields.name,
+        handle,
         harness: fields.harness,
         model: fields.model,
         skills: fields.skills,
@@ -2273,7 +2546,7 @@ export async function deleteProjectAgent(
   auth: ProjectAuthContext,
   agentId: string,
 ): Promise<void> {
-  const rows = await tx<ProjectAgentRow[]>`
+  const rows = await tx<StoredProjectAgentRow[]>`
     SELECT ${tx.unsafe(PROJECT_AGENT_COLUMNS)} FROM app.project_agents
     WHERE id = ${agentId} LIMIT 1
   `;
