@@ -863,6 +863,38 @@ describe('runTurn — input guardrails', () => {
     });
   });
 
+  it('keeps a refused message from every model, its title’s too, and names the key that sent it [CHAT-R8]', async () => {
+    const d = deps({ inputFilters: [blockingFilter('chat_filter')] });
+    await runTurn(request({ apiKeyId: 'key-1' }), d.deps);
+
+    expect(d.store.appended[0]).toMatchObject({
+      role: 'user',
+      apiKeyId: 'key-1',
+      nameWithoutModel: true,
+    });
+  });
+
+  it('names the key on a message the execution refused, and lets a model name its thread', async () => {
+    const d = deps();
+    await runTurn(
+      request({
+        apiKeyId: 'key-1',
+        credential: {
+          authMethod: 'subscription-key',
+          constraints: { execution: 'sandbox', harness: 'claude-code' },
+        },
+        executionMode: 'direct',
+      }),
+      d.deps,
+    );
+
+    expect(d.store.appended[0]).toMatchObject({
+      role: 'user',
+      apiKeyId: 'key-1',
+    });
+    expect(d.store.appended[0]).not.toHaveProperty('nameWithoutModel');
+  });
+
   it('appends only the refusal on a regenerate — the user row already exists [CHAT-R8]', async () => {
     const d = deps({ inputFilters: [blockingFilter('chat_filter')] });
     await runTurn(request({ appendUserMessage: false }), d.deps);

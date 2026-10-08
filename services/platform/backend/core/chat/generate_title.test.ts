@@ -464,6 +464,32 @@ describe('generateThreadTitleImpl — limits and model access', () => {
   });
 });
 
+describe('generateThreadTitleImpl — a message a guardrail refused', () => {
+  it('names the thread from its own words, and never sends them to a model', async () => {
+    const { ctx, runMutation } = servingCtx();
+    const meter = fakeMeter();
+
+    await generateThreadTitleImpl(
+      ctx,
+      {
+        organizationId: ORG,
+        threadId: THREAD,
+        userId: USER,
+        firstMessage: FIRST_MESSAGE,
+        nameWithoutModel: true,
+      },
+      meter,
+    );
+
+    expect(createBuilderModelMock).not.toHaveBeenCalled();
+    expect(meter.open).not.toHaveBeenCalled();
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ title: deriveFallbackTitle(FIRST_MESSAGE) }),
+    );
+  });
+});
+
 describe('generateThreadTitleImpl — the deadline race', () => {
   beforeEach(() => {
     vi.useFakeTimers();

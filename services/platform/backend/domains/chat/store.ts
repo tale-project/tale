@@ -115,6 +115,9 @@ export async function appendMessageRow(
     /** The API key that sent a user message: naming the thread it opens is
      * the key's spend too. */
     apiKeyId?: string;
+    /** A guardrail refused the user message: the thread it opens is named
+     * from its own words, with no model call. */
+    nameWithoutModel?: boolean;
   },
   slot: SlotClaimOptions = {},
 ): Promise<{ id: string; sequence: number }> {
@@ -199,6 +202,9 @@ export async function appendMessageRow(
           firstMessage,
           ...(message.apiKeyId !== undefined
             ? { apiKeyId: message.apiKeyId }
+            : {}),
+          ...(message.nameWithoutModel === true
+            ? { nameWithoutModel: true }
             : {}),
         });
       }

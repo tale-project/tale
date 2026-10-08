@@ -67,6 +67,18 @@ describe('chat.generate_title', () => {
     );
   });
 
+  it('passes on that a guardrail refused the message, so no model names its thread', async () => {
+    await createTaskList({ sql: SQL })['chat.generate_title']?.({
+      ...PAYLOAD,
+      nameWithoutModel: true,
+    });
+    expect(mocks.generateThreadTitleImpl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ nameWithoutModel: true }),
+      { marker: 'meter' },
+    );
+  });
+
   it('meters naming a thread outside a project under its member alone', async () => {
     await createTaskList({ sql: SQL })['chat.generate_title']?.(PAYLOAD);
     expect(mocks.titleMeter).toHaveBeenCalledWith(SQL, {

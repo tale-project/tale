@@ -358,6 +358,9 @@ export async function generateThreadTitleImpl(
     threadId: string;
     userId: string;
     firstMessage: string;
+    /** A guardrail refused the message: it is never sent to a model, so
+     * the thread is named from its own words. */
+    nameWithoutModel?: boolean;
   },
   meter?: TitleMeter,
 ): Promise<null> {
@@ -369,22 +372,25 @@ export async function generateThreadTitleImpl(
     // used, so letting it run on would be unbilled, unusable provider work.
     const deadline = new AbortController();
     try {
-      const attempt = await Promise.race([
-        generateWithModel(
-          ctx,
-          args.organizationId,
-          args.userId,
-          args.firstMessage,
-          deadline.signal,
-          meter,
-        ),
-        new Promise<string | null>((resolve) => {
-          timeout = setTimeout(() => {
-            deadline.abort();
-            resolve(null);
-          }, TITLE_TIMEOUT_MS);
-        }),
-      ]);
+      const attempt =
+        args.nameWithoutModel === true
+          ? null
+          : await Promise.race([
+              generateWithModel(
+                ctx,
+                args.organizationId,
+                args.userId,
+                args.firstMessage,
+                deadline.signal,
+                meter,
+              ),
+              new Promise<string | null>((resolve) => {
+                timeout = setTimeout(() => {
+                  deadline.abort();
+                  resolve(null);
+                }, TITLE_TIMEOUT_MS);
+              }),
+            ]);
       const title = attempt ?? deriveFallbackTitle(args.firstMessage);
       if (title !== null) {
         await ctx.runMutation(internal.chat.threads.setThreadTitleInternal, {

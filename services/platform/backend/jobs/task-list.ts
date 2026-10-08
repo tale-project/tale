@@ -1031,6 +1031,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           firstMessage: z.string().min(1),
           /** The API key that sent the message, when one did. */
           apiKeyId: z.string().min(1).optional(),
+          /** A guardrail refused the message: no model may see it. */
+          nameWithoutModel: z.boolean().optional(),
         })
         .parse(payload);
       // The REUSED 0.4 naming attempt on the chat shim — one small model

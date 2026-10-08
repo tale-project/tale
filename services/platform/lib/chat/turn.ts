@@ -227,6 +227,12 @@ export interface TurnStore {
     /** Older history was dropped assembling this turn's context — recorded
      * silently on the reply row for telemetry; never rendered. */
     truncation?: { droppedMessages: number };
+    /** The API key that sent a user message: naming the thread it opens is
+     * the key's spend too. */
+    apiKeyId?: string;
+    /** A guardrail refused this user message: a thread it opens is named
+     * from its own words, never by sending them to a model. */
+    nameWithoutModel?: boolean;
   }): Promise<{ id: string; sequence: number }>;
   /** Persist streaming progress: the full cleared text (and reasoning) so
    * far, which doubles as the turn's proof of life. Called once per cleared
@@ -1300,6 +1306,11 @@ export async function runTurn(
         threadId: request.threadId,
         role: 'user',
         parts: userTurnParts(userText, request.attachments),
+        ...(request.apiKeyId !== undefined
+          ? { apiKeyId: request.apiKeyId }
+          : {}),
+        // What a guardrail refused never reaches a model, a title's either.
+        ...(refusal !== undefined ? { nameWithoutModel: true } : {}),
       });
     }
     await deps.store.appendMessage({
