@@ -7,10 +7,13 @@ import { Field } from '@tale/ui/field';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { useId, useMemo, useState } from 'react';
-import { z } from 'zod';
 
 import { useT } from '@/lib/i18n/client';
 
+import {
+  parseJsonText,
+  useJsonInputDraft,
+} from '../hooks/use-json-input-draft';
 import { guidedIssueSource } from '../lib/issue-import';
 import {
   IssueImportFields,
@@ -58,45 +61,31 @@ export function AutomationRunDialog({
     ...(source === 'glitchtip' && { query: 'is:unresolved' }),
     ...request.initialInput,
   }));
-  const schema = useMemo(() => {
-    if (request.schema === undefined) return null;
-    try {
-      // Ajv compiles with new Function, forbidden by the production CSP.
-      // Zod is already used by the app and supports CSP-safe validation.
-      return z.fromJSONSchema(request.schema);
-    } catch {
-      // Author schemas may use keywords the client converter cannot handle.
-      // Do not reject a server-valid schema merely for that reason: the
-      // start endpoint validates the original input with the engine's Ajv.
-      return null;
-    }
-  }, [request.schema]);
+  const { check } = useJsonInputDraft(request.schema);
   const parsed = useMemo(() => {
-    let input: unknown;
-    try {
-      input = source === null ? JSON.parse(text) : values;
-    } catch {
-      return { valid: false as const, error: t('detail.runInput.invalidJson') };
+    let input: unknown = values;
+    if (source === null) {
+      const read = parseJsonText(text);
+      if (!read.ok) {
+        return {
+          valid: false as const,
+          error: t('detail.runInput.invalidJson'),
+        };
+      }
+      input = read.value;
     }
-    const checked = schema?.safeParse(input);
-    if (checked && !checked.success) {
-      const paths = [
-        ...new Set(
-          checked.error.issues.map((issue) =>
-            issue.path.length === 0 ? '$' : issue.path.join('.'),
-          ),
-        ),
-      ]
-        .slice(0, 20)
-        .join(', ');
+    const checked = check(input);
+    if (!checked.valid) {
       return {
         valid: false as const,
-        error: t('detail.runInput.invalid', { paths }),
+        error: t('detail.runInput.invalid', {
+          paths: checked.paths.join(', '),
+        }),
       };
     }
     // Send the original JSON, not a converter's transformed/stripped value.
-    return { valid: true as const, input };
-  }, [schema, text, source, values, t]);
+    return { valid: true as const, input: checked.input };
+  }, [check, text, source, values, t]);
 
   return (
     <ConfirmDialog
