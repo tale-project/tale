@@ -199,7 +199,8 @@ describe('RunInDoubtCard — the write', () => {
       ),
     ).toBeVisible();
     expect(screen.getByText('The step was sending')).toBeVisible();
-    expect(screen.getByText(/Invoice 42/)).toBeVisible();
+    // The input renders in a viewer that loads on first use, so wait for it.
+    expect(await screen.findByText(/Invoice 42/)).toBeVisible();
     expect(screen.getByRole('button', { name: 'Run it again' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Fail the run' })).toBeEnabled();
     // What skipping means is part of the Skip button's description, not a
