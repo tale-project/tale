@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { buildPeriodKeyFromTimestamp } from '../../core/governance/helpers.ts';
 import type { RecordCheck } from '../../integration-lane-helpers.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import {
   assertChatTurnBudget,
   ChatBudgetExceededError,
@@ -297,16 +298,20 @@ export async function checkProjectBudgets(
         ) VALUES (${orgId}, ${automationName}, ${bound}, ${now}, ${userId})
       `;
     }
-    const [run] = await sql<{ id: string }[]>`
-      INSERT INTO app.automation_runs (
-        org_id, name, version, status, mode, started_by, input, checkpoints,
-        wake_at_ms, claim_epoch, started_at_ms
-      ) VALUES (
-        ${orgId}, ${automationName}, 1, 'running', 'live', 'trigger:itest',
-        ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
-        ${null}, 1, ${now}
-      ) RETURNING id
-    `;
+    // A run written as the engine does, under its writer protocol.
+    const [run] = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
+        INSERT INTO app.automation_runs (
+          org_id, name, version, status, mode, started_by, input, checkpoints,
+          wake_at_ms, claim_epoch, started_at_ms
+        ) VALUES (
+          ${orgId}, ${automationName}, 1, 'running', 'live', 'trigger:itest',
+          ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
+          ${null}, 1, ${now}
+        ) RETURNING id
+      `;
+    });
     runId = run?.id ?? '';
     await sql`
       INSERT INTO app.sandbox_sessions (
@@ -371,7 +376,10 @@ export async function checkProjectBudgets(
       DELETE FROM app.sandbox_sessions
       WHERE org_id = ${orgId} AND session_id = ${runSession}
     `;
-    await sql`DELETE FROM app.automation_runs WHERE id = ${runId}`;
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      await fixtureTx`DELETE FROM app.automation_runs WHERE id = ${runId}`;
+    });
     await sql`
       DELETE FROM app.automation_project_bindings
       WHERE org_id = ${orgId} AND automation_name = ${automationName}
