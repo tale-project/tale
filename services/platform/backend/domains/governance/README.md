@@ -57,8 +57,11 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    makes straight to a provider for an `llm` step, a chat title or the Inbox's Improve is a direct
    call (`direct-calls.ts`): it is recorded on an op row (kind `direct-call`) under the subject its
    lane names — holding its worst case while a budget binds, nothing otherwise — and its cost
-   booked under that row's stamp, once. Voice output holds on its pending chunk row instead;
-   transcriptions, embeddings and a video link's download hold nothing yet (spec, Not yet). A run's `started_by` is
+   booked under that row's stamp, once. A transcription is one too — an uploaded recording's,
+   held at its whole length, and a dictation's — priced per audio minute from the catalog
+   (`files/transcription-metering.ts`); a video link's download is refused at the door while a
+   limit is reached (`directCallBlocked`), and the transcription it leads to holds its own. Voice
+   output holds on its pending chunk row instead; embeddings are not counted yet (spec, Not yet). A run's `started_by` is
    parsed only by `parseRunStarter` (`lib/shared/run-starter.ts`); a `split(':')` on a starter
    anywhere else is a defect.
 7. **Door fields keep their format.** `automation_runs.started_by` stays `user:<id>` /
@@ -91,8 +94,8 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    `app.tts_audio_chunks`, → `app.thread_metadata.project_id`) or the projects its reservation
    stamped (`sandbox_session_ops.project_ids` — a managed turn's, a model request's, a direct
    call's). A project's key spends in
-   its project whatever it calls (`loadBudgetSubject`). Transcription and video ingestion name no
-   project.
+   its project whatever it calls (`loadBudgetSubject`). A recording's transcription is in the
+   project of the chat it was added to, and a video link's door check reads that project too.
 
 ## Lanes (the write side)
 
@@ -106,7 +109,7 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 | Automation `llm` step | `resolveAutomationRunAttribution` (`domains/automations/llm-metering.ts`), held and booked as a direct call | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
 | Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above | the run's, as above |
 | Voice output | `domains/tts` (held on its pending chunk row) | the requester | `__tts__` | — | the thread's |
-| Transcription | `domains/files/transcription.ts` | the requester | `__transcription__` | — | — |
+| Transcription (an upload, a video link's audio, a dictation) | `domains/files/transcription-metering.ts`, held and booked as a direct call | the uploader — a retry continues their upload — or `__automation__` for a file nobody added; the dictating member | `__transcription__` | — | the chat's the recording was added to |
 | Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key | a project's key's project |
 | Connector call | `recordConnectorUsage` | the caller | optional | — | the chat's, for the assistant's tools |
 
@@ -139,7 +142,12 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
   Improve calls are held under their member (and key) and pick only models the member may use;
   `domains/tts/service.project-budget.test.ts` — a voice chunk holds its estimate under the
   admission lock and books audio it paid for; `domains/chat/store.test.ts`, `lib/chat/turn.test.ts`
-  — a reply's later rounds raise its hold.
+  — a reply's later rounds raise its hold; `core/file_metadata/transcribe_audio.metering.test.ts`,
+  `domains/files/transcription-metering.test.ts` — an upload's transcription holds its whole length
+  under its uploader and the chat's project, is refused (never retried) at a limit, books the
+  minutes transcribed (a failed attempt's finished chunks too), and a dictation is refused with
+  429 before the provider hears it; `domains/video_links/service.inflight_cap.test.ts` — a video
+  link starts no download at a limit.
 - `domains/model_api/metering.test.ts` — a model-endpoint request reserves under the key holder
   with the key and books the gateway's figure under the person, `__direct_api__` and the key.
 - `domains/sandbox/image-generation.test.ts` — an agent's image is admitted and booked under its

@@ -45,9 +45,9 @@ tightens the limit of the person it belongs to, and the reverse.
 ### GOV-R14 · A project's limit caps everything spent in the project, whoever spends it
 
 What a project spent is everything done in it: the chats in its threads (their titles, the
-answers read aloud and the assistant's tool calls included), the turns of its agents and the
-agent and `llm` steps of the automations run in it, with the images they make, and the calls made
-with its own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
+answers read aloud, the recordings transcribed in them and the assistant's tool calls included),
+the turns of its agents and the agent and `llm` steps of the automations run in it, with the
+images they make, and the calls made with its own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
 schedule started included, and binds nothing done outside the project. A run that names no
 project, of an automation installed in several projects, is each one's work: it counts toward,
 and must fit, every one of their limits, as a member's spend counts toward each of their teams.
@@ -70,8 +70,9 @@ What running work may still cost is set aside against the person's and the organ
 limits, so several things started at the same moment cannot overrun a limit together: a chat
 reply's every round as it starts, an agent's allowance, a voice chunk's estimate, and the
 estimated largest cost of a call Tale makes straight to a model — an automation's `llm` step, a
-chat's title, a rewrite with Improve with AI. Such a call is refused when a limit has too little
-room for that cost; a chat's title is then made from the first message, without a call. With no
+chat's title, a rewrite with Improve with AI, a transcription at its whole length. Such a call is
+refused when a limit has too little room for that cost; a chat's title is then made from the first
+message, without a call. With no
 limit set, work gets the deployment's default allowance.
 
 - **Example**: Two agents are working for Mia and hold most of what is left under her limit.
@@ -161,13 +162,9 @@ It counts only in the organization it was granted in.
   (`moderation.ts`).
 - **API keys**: creating, listing and revoking one (`api-keys.ts`).
 - **The usage pages** and their figures (`usage-metrics.ts`).
-- **A project's limit and transcription**: an audio or video file transcribed for a project's
-  chat is booked to the person who added it, not to the project, and a project's limit warns
-  no one before it is reached.
-- **Transcriptions, embeddings and a video link's download hold nothing while they run**: a
-  transcription is counted once it is done and never checked before it starts; the embeddings
-  that index knowledge and search it are not counted at all; a video link's download is checked
-  against the spend already counted, not against work in flight.
+- **A project's limit warns no one** before it is reached.
+- **Embeddings are not counted**: the embeddings that index knowledge and those a search asks
+  for are neither checked nor booked.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.
