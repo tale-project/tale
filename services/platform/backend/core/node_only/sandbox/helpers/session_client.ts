@@ -1131,15 +1131,18 @@ export async function sessionStageFiles(
       }
     }
     const merged: SessionStageResult = { staged: [], skipped: [] };
+    // An inline file is identified by the digest of its bytes, and the digest
+    // rides the probe too: a runtime that lost its record of what it staged
+    // (every restart of a stopped session) checks the file already on disk
+    // against it instead of having the bytes sent again.
     const identified = options.reuse
-      ? files.map((file) =>
-          file.contentBase64 !== undefined
-            ? {
-                ...file,
-                sourceId: `sha256:${createHash('sha256').update(Buffer.from(file.contentBase64, 'base64')).digest('hex')}`,
-              }
-            : file,
-        )
+      ? files.map((file) => {
+          if (file.contentBase64 === undefined) return file;
+          const sha256 = createHash('sha256')
+            .update(Buffer.from(file.contentBase64, 'base64'))
+            .digest('hex');
+          return { ...file, sha256, sourceId: `sha256:${sha256}` };
+        })
       : files;
     let missing = identified;
     if (
@@ -1150,7 +1153,11 @@ export async function sessionStageFiles(
       try {
         const hits = new Map<string, { path: string; bytes: number }>();
         for (const batch of chunkStageFiles(
-          identified.map(({ path, sourceId }) => ({ path, sourceId })),
+          identified.map(({ path, sourceId, sha256 }) => ({
+            path,
+            sourceId,
+            ...(sha256 !== undefined ? { sha256 } : {}),
+          })),
         )) {
           const probe = await postStageFiles(
             sessionId,
