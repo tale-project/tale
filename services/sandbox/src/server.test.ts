@@ -15,6 +15,7 @@ import {
 } from './auth.ts';
 import { DockerBackend } from './backend/docker/docker-backend.ts';
 import { loadConfig } from './config.ts';
+import { ControlRoutes } from './control-routes.ts';
 import { ImageWarmup } from './image-warmup.ts';
 import { BootAdoption } from './session/boot-adoption.ts';
 import { SessionRoutes } from './session/session-routes.ts';
@@ -215,6 +216,14 @@ describe('session HTTP routes', () => {
       SessionRoutes.prototype,
       'handleExecAttach',
     ).mockImplementation(async () => new Response(''));
+    // The deploy control routes answer from a stub, so a drain reached after
+    // adoption does not latch this module's spawner into draining.
+    const isDeployControl = (url: URL) =>
+      url.pathname === '/v1/drain' || url.pathname === '/v1/drain-status';
+    const control = spyOn(ControlRoutes.prototype, 'handle').mockImplementation(
+      async (_req, url) =>
+        isDeployControl(url) ? Response.json({ draining: true }) : null,
+    );
     const request = (method: string, path: string) => {
       const timestamp = String(Date.now());
       const nonce = crypto.randomUUID();
@@ -248,6 +257,8 @@ describe('session HTTP routes', () => {
         ['GET', '/v1/capacity?organizationId=org-a'],
         ['DELETE', '/v1/organizations/org-a'],
         ['POST', '/v1/devices/device-1/disconnect'],
+        ['POST', '/v1/drain'],
+        ['GET', '/v1/drain-status'],
       ] as const) {
         const answer = await request(method, path);
         expect({ method, path, status: answer.status }).toEqual({
@@ -260,6 +271,9 @@ describe('session HTTP routes', () => {
       }
       expect(get).not.toHaveBeenCalled();
       expect(attach).not.toHaveBeenCalled();
+      expect(control.mock.calls.some(([, url]) => isDeployControl(url))).toBe(
+        false,
+      );
       // The deployment's limits and an unknown path answer as ever.
       expect((await request('GET', '/v1/limits')).status).toBe(200);
       expect(
@@ -273,10 +287,13 @@ describe('session HTTP routes', () => {
           .status,
       ).toBe(200);
       expect(get).toHaveBeenCalledWith('existing');
+      expect((await request('POST', '/v1/drain')).status).toBe(200);
+      expect((await request('GET', '/v1/drain-status')).status).toBe(200);
     } finally {
       adopting.mockRestore();
       get.mockRestore();
       attach.mockRestore();
+      control.mockRestore();
     }
   });
 

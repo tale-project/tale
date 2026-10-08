@@ -298,12 +298,19 @@ const DEVICE_DISCONNECT_RE =
 const ORGANIZATION_RE = /^\/v1\/organizations\/([a-zA-Z0-9_-]{1,128})$/;
 
 /** The calls whose answer depends on what boot adoption fills in — the
- * session registry and the hub's placements — and so wait for it. */
+ * session registry and the hub's placements — and so wait for it. The
+ * deploy's drain and drain status are among them: a drain latched mid-way
+ * stops adoption, leaving every session not yet adopted to answer 404, and
+ * the status counts only the sessions adopted so far, so a deploy would read
+ * the spawner as drained and restart it under running sessions. */
 function dependsOnAdoption(method: string, path: string): boolean {
   return (
     isSessionRoute(method, path) ||
     (method === 'GET' &&
-      (path === '/v1/workspaces' || path === '/v1/capacity')) ||
+      (path === '/v1/workspaces' ||
+        path === '/v1/capacity' ||
+        path === '/v1/drain-status')) ||
+    (method === 'POST' && path === '/v1/drain') ||
     (method === 'DELETE' && ORGANIZATION_RE.test(path)) ||
     (method === 'POST' && DEVICE_DISCONNECT_RE.test(path))
   );
