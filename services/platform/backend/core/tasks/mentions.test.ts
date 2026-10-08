@@ -11,8 +11,8 @@ import {
   cutTaskText,
   descriptionMentionMode,
   editIntroducesMentions,
+  findTaskMentions,
   normalizeMentionText,
-  parseMentionTokens,
   relabelTaskMentions,
   taskMentionPlainText,
 } from './mentions';
@@ -47,25 +47,32 @@ const full = (
   extra: Partial<Parameters<typeof normalizeMentionText>[0]> = {},
 ) => normalizeMentionText({ body, index, cap: 10_000, mode: 'full', ...extra });
 
-describe('parseMentionTokens', () => {
-  it('reads typed handles after whitespace or at the start, lowercased, de-duped', () => {
-    expect(parseMentionTokens('@alice hello @bob @Alice')).toEqual([
+/** The typed handles a text holds, in order. */
+const typedHandles = (body: string) =>
+  findTaskMentions(body).flatMap((occurrence) =>
+    occurrence.type === 'plain' ? [occurrence.handle] : [],
+  );
+
+describe('findTaskMentions', () => {
+  it('reads typed handles after whitespace or at the start, lowercased', () => {
+    expect(typedHandles('@alice hello @bob @Alice')).toEqual([
       'alice',
       'bob',
+      'alice',
     ]);
-    expect(parseMentionTokens('hi @alice.smith and @re-searcher_1')).toEqual([
+    expect(typedHandles('hi @alice.smith and @re-searcher_1')).toEqual([
       'alice.smith',
       're-searcher_1',
     ]);
     expect(
-      parseMentionTokens('请继续 @github/create-pull-requests/pr-creator 再试'),
+      typedHandles('请继续 @github/create-pull-requests/pr-creator 再试'),
     ).toEqual(['github/create-pull-requests/pr-creator']);
   });
 
   it('reads no handle in an email address, in code or in a token', () => {
-    expect(parseMentionTokens('contact me at user@example.com')).toEqual([]);
-    expect(parseMentionTokens('`@alice` and\n\n```\n@bob\n```')).toEqual([]);
-    expect(parseMentionTokens(`${ALICE} please`)).toEqual([]);
+    expect(typedHandles('contact me at user@example.com')).toEqual([]);
+    expect(typedHandles('`@alice` and\n\n```\n@bob\n```')).toEqual([]);
+    expect(typedHandles(`${ALICE} please`)).toEqual([]);
   });
 });
 
@@ -173,7 +180,9 @@ describe('a mention of someone who cannot be mentioned is saved as plain text [C
   it('writes an escaped @ and the name, so it is not read as a handle again', () => {
     const result = full('Ping [@Ada \\*L\\*](mention:user/outsider) now');
     expect(result.text).toBe('Ping \\@Ada \\*L\\* now');
-    expect(parseMentionTokens(result.text)).toEqual([]);
+    expect(findTaskMentions(result.text)).toEqual([]);
+    // Read as plain text, it is `@` and the name.
+    expect(taskMentionPlainText(result.text)).toBe('Ping @Ada \\*L\\* now');
     expect(result.unresolvedMentionTokens).toEqual(['Ada *L*']);
     expect(result.invalidTokens).toEqual([{ type: 'user', id: 'outsider' }]);
   });

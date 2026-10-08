@@ -59,18 +59,6 @@ export function findTaskMentions(body: string): Occurrence[] {
   return findMentions(body, { kinds: MENTION_KINDS });
 }
 
-/**
- * The plain `@handles` of a text (without the `@`), lowercased, de-duped,
- * in order of first appearance. A handle inside code or a link is none.
- */
-export function parseMentionTokens(body: string): string[] {
-  const seen = new Set<string>();
-  for (const occurrence of findTaskMentions(body)) {
-    if (occurrence.type === 'plain') seen.add(occurrence.handle);
-  }
-  return [...seen];
-}
-
 /** How many times each plain handle occurs in a text. */
 function plainHandleCounts(occurrences: readonly Occurrence[]) {
   const counts = new Map<string, number>();
