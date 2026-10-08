@@ -26,6 +26,12 @@ auth:
       - User.Read
 actions:
   - name: list_messages
+    title: List messages
+    i18n:
+      de:
+        title: Nachrichten auflisten
+      fr:
+        title: Lister les messages
     description: List messages from the mailbox, newest first. Draft messages are excluded.
     effects: read
     input:
@@ -164,6 +170,12 @@ actions:
         return { messages, nextLink: j['@odata.nextLink'] || '' };
     exampleInput: { top: 25 }
   - name: get_message
+    title: Get message
+    i18n:
+      de:
+        title: Nachricht abrufen
+      fr:
+        title: Récupérer un message
     description: Fetch a single email message by ID, optionally downloading and storing its file attachments.
     effects: read
     input:
@@ -228,6 +240,12 @@ actions:
         return { message, attachments };
     exampleInput: { messageId: 'AAMkAGI2THk...', includeAttachments: true }
   - name: get_attachments
+    title: Download attachments
+    i18n:
+      de:
+        title: Anhänge herunterladen
+      fr:
+        title: Télécharger les pièces jointes
     description: Download every file attachment on a message and store each one. Returns a fileId and URL per attachment.
     effects: read
     input:
@@ -277,6 +295,12 @@ actions:
         return { attachments };
     exampleInput: { messageId: 'AAMkAGI2THk...' }
   - name: search_messages
+    title: Search messages
+    i18n:
+      de:
+        title: Nachrichten durchsuchen
+      fr:
+        title: Rechercher des messages
     description: Search the mailbox by keyword across subject, body, and sender.
     effects: read
     input:
@@ -323,6 +347,12 @@ actions:
         return { messages: j.value || [], nextLink: j['@odata.nextLink'] || '' };
     exampleInput: { query: 'invoice', top: 25 }
   - name: send_message
+    title: Send email
+    i18n:
+      de:
+        title: E-Mail senden
+      fr:
+        title: Envoyer un e-mail
     description: Send an email message, optionally with file attachments. The message is composed as a draft so its internet message ID can be returned, then sent.
     effects: write
     input:
@@ -394,6 +424,12 @@ actions:
         body: 'This is a test message.',
       }
   - name: get_profile
+    title: Get mailbox address
+    i18n:
+      de:
+        title: Adresse des Postfachs abrufen
+      fr:
+        title: Récupérer l’adresse de la boîte mail
     description: The address of the connected mailbox (the signed-in account's mail address, else its principal name), as the mail sync reads it to tell the mailbox's own mail from a customer's.
     effects: read
     input:
@@ -412,6 +448,12 @@ actions:
         return { emailAddress: String(j.mail || j.userPrincipalName || '') };
     exampleInput: {}
   - name: list_events
+    title: List events
+    i18n:
+      de:
+        title: Termine auflisten
+      fr:
+        title: Lister les événements
     description: List calendar events, earliest start first, optionally within a date range.
     effects: read
     input:
@@ -468,6 +510,12 @@ actions:
         endDateTime: '2025-06-30T23:59:59',
       }
   - name: get_event
+    title: Get event
+    i18n:
+      de:
+        title: Termin abrufen
+      fr:
+        title: Récupérer un événement
     description: Fetch a single calendar event by ID.
     effects: read
     input:
@@ -503,6 +551,12 @@ actions:
         return { event: r.json() };
     exampleInput: { eventId: 'AAMkAGI2TG93...' }
   - name: create_event
+    title: Create event
+    i18n:
+      de:
+        title: Termin erstellen
+      fr:
+        title: Créer un événement
     description: Create a calendar event, optionally with a location and attendees.
     effects: write
     input:
@@ -580,6 +634,12 @@ actions:
         timeZone: 'Europe/Berlin',
       }
   - name: list_contacts
+    title: List contacts
+    i18n:
+      de:
+        title: Kontakte auflisten
+      fr:
+        title: Lister les contacts
     description: List contacts from the default contacts folder, ordered by display name.
     effects: read
     input:
@@ -634,6 +694,12 @@ actions:
         return { contacts: j.value || [], nextLink: j['@odata.nextLink'] || '' };
     exampleInput: { top: 25, search: 'Ada' }
   - name: get_contact
+    title: Get contact
+    i18n:
+      de:
+        title: Kontakt abrufen
+      fr:
+        title: Récupérer un contact
     description: Fetch a single contact by ID.
     effects: read
     input:

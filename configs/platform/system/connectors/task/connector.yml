@@ -5,6 +5,11 @@
 # connect.
 name: task
 displayName: Tasks
+i18n:
+  de:
+    displayName: Aufgaben
+  fr:
+    displayName: Tâches
 description: >-
   Read a task, move its status, write or read its discussion comments, put
   its project agent to work, and keep a scheduled issue import's position
@@ -15,6 +20,12 @@ auth:
   - method: platform
 actions:
   - name: get
+    title: Get task
+    i18n:
+      de:
+        title: Aufgabe abrufen
+      fr:
+        title: Récupérer une tâche
     description: Read one task's title, status, project, and external linkage.
     effects: read
     input:
@@ -39,6 +50,12 @@ actions:
       impl: task.get
     exampleInput: { taskId: 'tsk_1' }
   - name: update_status
+    title: Change task status
+    i18n:
+      de:
+        title: Aufgabenstatus ändern
+      fr:
+        title: Changer le statut de la tâche
     description: >-
       Move a task to a new status. The automation acts as the workflow actor.
       Completing is not on offer — done stays reserved for the human review
@@ -63,6 +80,12 @@ actions:
       impl: task.update_status
     exampleInput: { taskId: 'tsk_1', status: 'in_progress' }
   - name: comment
+    title: Comment on task
+    i18n:
+      de:
+        title: Aufgabe kommentieren
+      fr:
+        title: Commenter la tâche
     description: Post a comment on the task's discussion timeline.
     effects: write
     input:
@@ -91,6 +114,12 @@ actions:
       impl: task.comment
     exampleInput: { taskId: 'tsk_1', body: 'Prepared the return.' }
   - name: list_comments
+    title: List task comments
+    i18n:
+      de:
+        title: Kommentare der Aufgabe auflisten
+      fr:
+        title: Lister les commentaires de la tâche
     description: >-
       Read the task's discussion comments, optionally only those newer than
       the last comment containing a marker (a delivery anchor) and only from
@@ -124,6 +153,12 @@ actions:
       impl: task.list_comments
     exampleInput: { taskId: 'tsk_1', authorTypes: [user], limit: 20 }
   - name: start_agent
+    title: Start project agent
+    i18n:
+      de:
+        title: Projektagenten starten
+      fr:
+        title: Lancer l’agent de projet
     description: >-
       Put the task's project agent to work, or first assign it to the agent
       named by agentId (an agent of the same project), and answer the run it
@@ -176,6 +211,12 @@ actions:
       impl: task.start_agent
     exampleInput: { taskId: 'tsk_1', feedback: 'Scheduled occurrence 2026-09-30 09:00 Europe/Zurich.' }
   - name: upsert
+    title: Import issue as task
+    i18n:
+      de:
+        title: Issue als Aufgabe importieren
+      fr:
+        title: Importer une issue comme tâche
     description: Import an external issue into a project's backlog, reusing its existing task on repeat imports. Keeps local status, assignee, and non-empty description. A title over 200 or a description over 20,000 UTF-16 code units is cut to that length, ending in "…"; a blank title is refused. Returns the title the task carries. Does not start an agent.
     effects: write
     input:
@@ -208,6 +249,12 @@ actions:
       impl: task.upsert
     exampleInput: { projectId: 'proj_mock', externalSystem: github, externalId: 'octocat/demo#1', title: Example issue }
   - name: list_external_issues
+    title: List imported issues
+    i18n:
+      de:
+        title: Importierte Issues auflisten
+      fr:
+        title: Lister les issues importées
     description: List previously imported issue sources for this project and immutable upstream repository/project. Oldest snapshots come first so repeated runs make progress through large boards.
     effects: read
     input:
@@ -230,6 +277,12 @@ actions:
       impl: task.list_external_issues
     exampleInput: { projectId: proj_mock, externalSystem: github, repositoryId: 1 }
   - name: get_import_cursor
+    title: Get import position
+    i18n:
+      de:
+        title: Importposition abrufen
+      fr:
+        title: Récupérer la position de l’import
     description: >-
       Where a scheduled issue import of this project's source resumes: the
       cursor its last saved batch left, so each occurrence imports one bounded
@@ -262,6 +315,12 @@ actions:
       impl: task.get_import_cursor
     exampleInput: { projectId: proj_mock, externalSystem: github, source: example/web }
   - name: save_import_cursor
+    title: Save import position
+    i18n:
+      de:
+        title: Importposition speichern
+      fr:
+        title: Enregistrer la position de l’import
     description: >-
       Record how far a scheduled issue import got: revision is the one
       get_import_cursor answered for this batch, and next the importer's
@@ -290,6 +349,12 @@ actions:
       impl: task.save_import_cursor
     exampleInput: { projectId: proj_mock, externalSystem: github, source: example/web, revision: '1', next: '' }
   - name: upsert_issues
+    title: Import issues as tasks
+    i18n:
+      de:
+        title: Issues als Aufgaben importieren
+      fr:
+        title: Importer des issues comme tâches
     description: Atomically import or refresh a batch of issue snapshots. New tasks require an open source; repeat sync keeps Tale edits and status. Titles and descriptions are cut to 200 and 20,000 UTF-16 code units, ending in "…"; a blank title refuses the batch, naming the item. Returns one result per source with the title its task carries, and taskId null when a closed source has no task.
     effects: write
     input:

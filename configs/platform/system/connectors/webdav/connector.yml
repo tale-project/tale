@@ -5,6 +5,11 @@
 # Basic auth carries a WebDAV app password.
 name: webdav
 displayName: WebDAV Files
+i18n:
+  de:
+    displayName: WebDAV-Dateien
+  fr:
+    displayName: Fichiers WebDAV
 description: >-
   Read, write, and list files in the organization's WebDAV store — the same
   files the /dav endpoint serves.
@@ -14,6 +19,12 @@ auth:
   - method: basic
 actions:
   - name: list
+    title: List folder contents
+    i18n:
+      de:
+        title: Ordnerinhalt auflisten
+      fr:
+        title: Lister le contenu d’un dossier
     description: List the entries directly under a folder path.
     effects: read
     input:
@@ -36,6 +47,12 @@ actions:
       impl: webdav.list
     exampleInput: { path: '/reports' }
   - name: read
+    title: Read file
+    i18n:
+      de:
+        title: Datei lesen
+      fr:
+        title: Lire un fichier
     description: Read a file's contents.
     effects: read
     input:
@@ -51,6 +68,12 @@ actions:
       impl: webdav.read
     exampleInput: { path: '/reports/q3.md' }
   - name: write
+    title: Write file
+    i18n:
+      de:
+        title: Datei schreiben
+      fr:
+        title: Écrire un fichier
     description: Create or overwrite a file with the given contents.
     effects: write
     input:
@@ -69,6 +92,12 @@ actions:
       impl: webdav.write
     exampleInput: { path: '/reports/summary.md', content: '# Summary' }
   - name: delete
+    title: Delete file or folder
+    i18n:
+      de:
+        title: Datei oder Ordner löschen
+      fr:
+        title: Supprimer un fichier ou un dossier
     description: Delete a file or folder.
     effects: write
     input:
