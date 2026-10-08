@@ -3909,6 +3909,91 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect([...stopped]).toEqual(['drain-owned']);
     });
 
+    test('the linger reap lets a session with a live exec end its work, and stops an idle one at once', async () => {
+      const graces = new Map<string, number | undefined>();
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        {
+          ...fakeBackend,
+          async stopSession(id, _stamp, options) {
+            graces.set(id, options?.graceMs);
+            return fakeBackend.stopSession(id);
+          },
+        },
+      );
+      for (const [sessionId, docker] of [
+        ['linger-busy', false],
+        ['linger-busy-docker', true],
+        ['linger-idle', false],
+      ] as const) {
+        expect(
+          (
+            await routes.handleCreate(
+              JSON.stringify({
+                sessionId,
+                organizationId: 'org_linger',
+                profile: 'agent',
+                docker,
+              }),
+            )
+          ).status,
+        ).toBe(201);
+      }
+      const callers = [new AbortController(), new AbortController()];
+      try {
+        for (const [index, sessionId] of [
+          'linger-busy',
+          'linger-busy-docker',
+        ].entries()) {
+          const exec = await routes.handleExec(
+            new Request('http://sandbox/exec', {
+              signal: callers[index]?.signal,
+            }),
+            sessionId,
+            JSON.stringify({ execId: `hang-${sessionId}`, command: ['true'] }),
+          );
+          await exec.body?.getReader().read();
+        }
+        expect(await routes.stopAllSessions()).toBe(3);
+      } finally {
+        for (const caller of callers) caller.abort();
+      }
+      expect(Object.fromEntries(graces)).toEqual({
+        'linger-busy': 5_000,
+        'linger-busy-docker': 20_000,
+        'linger-idle': 0,
+      });
+      expect(routes.sessionIds()).toEqual([]);
+    });
+
+    test('the linger reap joins a stop already under way instead of cutting it short', async () => {
+      const release = Promise.withResolvers<void>();
+      const started = Promise.withResolvers<void>();
+      let stops = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async stopSession(id) {
+          stops += 1;
+          started.resolve();
+          await release.promise;
+          return fakeBackend.stopSession(id);
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'linger-joined', organizationId: 'org_a' }),
+      );
+      fakeHealth.lastActivityAtMs = 0;
+      const sweep = routes.sweepExpired(
+        Date.now() + cfg.session.maxLifetimeMs + 1,
+      );
+      await started.promise;
+      const linger = routes.stopAllSessions();
+      release.resolve();
+      expect(await sweep).toBe(1);
+      expect(await linger).toBe(1);
+      expect(stops).toBe(1);
+    });
+
     test.each(['get', 'pin'])(
       'a %s miss whose endpoint resolves after drain begins cannot adopt a peer',
       async (action) => {

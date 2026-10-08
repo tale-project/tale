@@ -150,6 +150,19 @@ const LIVENESS_PROBE_TIMEOUT_MS = 1_500;
  * again. */
 const ENDED_REAP_BACKOFF_MS = 10 * 60_000;
 
+/** How long a stop lets a session with a live exec end its work before its
+ * compute is killed. runnerd passes the stop on to every exec and exits
+ * within 2 s (a harness writes its transcript, a wrapper restores what it
+ * staged); a Docker-in-sandbox session's supervisor also shuts its inner
+ * engine down, and dockerd waits up to 15 s for its own containers. An idle
+ * session's stop kills at once: it has nothing to end. */
+const BUSY_STOP_GRACE_MS = 5_000;
+const BUSY_DOCKER_STOP_GRACE_MS = 20_000;
+
+/** Busy sessions the linger reap stops at once: each graceful stop holds a
+ * docker CLI slot for up to its grace, and the rest stay for the others. */
+const LINGER_STOP_CONCURRENCY = 4;
+
 /** How long a session that just started keeps part of its planned working
  * set reserved at admission: its turn is still growing toward it while
  * MemAvailable shows only the idle footprint. The reservation shrinks
@@ -464,29 +477,63 @@ export class SessionRoutes {
     return this.registry.list().map((s) => s.sessionId);
   }
 
-  /** Force-stop every non-finished session (compute reclaimed, workspace
-   * preserved). Used by the spawner's max-linger self-reap so a spawner that
-   * lingered past its TTL can shut down without orphaning containers — even if
-   * the deploy died mid-roll. Returns the number stopped. */
+  /** Stop every non-finished session (compute reclaimed, workspace
+   * preserved); one with a live exec gets a grace to end its work first.
+   * Used by the spawner's max-linger self-reap so a spawner that lingered
+   * past its TTL can shut down without orphaning containers — even if the
+   * deploy died mid-roll. Returns the number stopped. */
   async stopAllSessions(): Promise<number> {
     let stopped = 0;
-    for (const s of this.registry.list()) {
-      try {
-        await this.backend.stopSession(s.sessionId, s.createdAtMs);
-        this.forgetReclaimed(s);
-        stopped += 1;
-      } catch (err) {
-        if (err instanceof SessionIncarnationChangedError) {
-          this.forgetReclaimed(s);
-          continue;
+    await forEachLimited(
+      this.registry.list(),
+      LINGER_STOP_CONCURRENCY,
+      async (s) => {
+        // A stop already under way (a sweep's, an idle reclaim's) owns the
+        // incarnation; a second one would cut its grace short.
+        const pending = this.stopping.get(s.sessionId);
+        if (pending !== undefined) {
+          if (await pending) stopped += 1;
+          return;
         }
-        console.warn(
-          `[sandbox.session] linger stop failed for ${s.sessionId}:`,
-          err,
-        );
-      }
-    }
+        const stop = this.backend
+          .stopSession(s.sessionId, s.createdAtMs, {
+            graceMs: this.stopGraceMs(s),
+          })
+          .then(
+            () => {
+              this.forgetReclaimed(s);
+              return true;
+            },
+            (err: unknown) => {
+              if (err instanceof SessionIncarnationChangedError) {
+                this.forgetReclaimed(s);
+                return false;
+              }
+              console.warn(
+                `[sandbox.session] linger stop failed for ${s.sessionId}:`,
+                err,
+              );
+              return false;
+            },
+          )
+          .finally(() => {
+            if (this.stopping.get(s.sessionId) === stop)
+              this.stopping.delete(s.sessionId);
+          });
+        this.stopping.set(s.sessionId, stop);
+        if (await stop) stopped += 1;
+      },
+    );
     return stopped;
+  }
+
+  /** How long a stop of this session lets its work end: a grace while an
+   * exec runs through this replica, none for an idle session. */
+  private stopGraceMs(session: RegistrySession): number {
+    if (session.liveExecs.size === 0) return 0;
+    return (session.docker ?? this.cfg.dockerInContainer)
+      ? BUSY_DOCKER_STOP_GRACE_MS
+      : BUSY_STOP_GRACE_MS;
   }
 
   /** runnerd token for a session: derived from SANDBOX_TOKEN (always set —
