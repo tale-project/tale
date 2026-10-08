@@ -23,6 +23,15 @@ vi.mock('@tanstack/react-router', () => ({
     href?: string;
   }) => <a href={props.to ?? props.href}>{children}</a>,
   useNavigate: () => vi.fn(),
+  useRouter: () => ({
+    buildLocation: ({
+      params,
+    }: {
+      params: { id: string; taskId: string };
+    }) => ({
+      href: `/dashboard/${params.id}/tasks/${params.taskId}`,
+    }),
+  }),
 }));
 
 vi.mock('../hooks/queries', () => ({

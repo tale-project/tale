@@ -1,7 +1,8 @@
 'use node';
 
 /**
- * The out-of-process CodeRunner, bound to ONE sandbox session.
+ * A sandbox session's one-shot program runner, the transport of the
+ * out-of-process CodeRunner.
  *
  * `lib/engine/runners/sandbox-exec.ts` owns the whole wire protocol (program
  * assembly, scope delivery, result extraction); the one thing it leaves to the
@@ -11,26 +12,16 @@
  * exec (`node -e <program>`, output collected, runnerd enforcing the kill on
  * overrun — the spawner reports that as `errorCode: 'TIMEOUT'`).
  *
- * PER-CALL, never global: the runner is handed to the dispatcher through its
- * per-invocation context (`ctx.codeRunner`), so two concurrent invocations
- * from different sessions/orgs can never share a transport — installing a
- * session-bound runner into the process-global `setCodeRunner` slot would be
- * a cross-tenant hazard.
+ * Nothing runs a connector body this way any more (every live body runs on
+ * the in-process runner, see the contract debt ledger); a runner built on it
+ * must stay per call, never installed in the process-global `setCodeRunner`
+ * slot two organizations share.
  */
 
 import { randomUUID } from 'node:crypto';
 
-import type { CodeRunner } from '../../../../lib/engine/core/runner';
-import {
-  createSandboxExecRunner,
-  createSessionTransport,
-  type SandboxProgramRunner,
-} from '../../../../lib/engine/runners/sandbox-exec';
+import type { SandboxProgramRunner } from '../../../../lib/engine/runners/sandbox-exec';
 import { drainSessionExecResilient } from './helpers/session_client';
-
-/** An out-of-process boundary has a real payload ceiling; a connector body's
- * input/secrets/config fit comfortably in a fraction of this. */
-const MAX_SCOPE_BYTES = 256 * 1024;
 
 function fromBase64(b64: string): string {
   return Buffer.from(b64, 'base64').toString('utf8');
@@ -61,13 +52,4 @@ export function sandboxProgramRunnerForSession(
       timedOut: result.errorCode === 'TIMEOUT',
     };
   };
-}
-
-/** The sandbox-exec CodeRunner for one session — hand it to the dispatcher
- * via its per-invocation context. */
-export function codeRunnerForSession(sessionId: string): CodeRunner {
-  return createSandboxExecRunner(
-    createSessionTransport(sandboxProgramRunnerForSession(sessionId)),
-    { maxScopeBytes: MAX_SCOPE_BYTES },
-  );
 }

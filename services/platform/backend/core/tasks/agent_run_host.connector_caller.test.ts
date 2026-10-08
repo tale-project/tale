@@ -368,8 +368,12 @@ describe('a task run of an agent equipped with a connector', () => {
       input: { organizationSlug: 'tale' },
       mode: 'live',
       caller: { kind: 'user', userId: 'user-starter' },
-      execSessionId: 'pa-alice',
     });
+    // Run in the platform process, never as a program in the agent's own
+    // session, whose process list would show the credential.
+    expect(runConnectorAction.mock.calls[0]?.[1]).not.toHaveProperty(
+      'execSessionId',
+    );
     // The forensic row names the member the call ran for.
     expect(io.toolCalls).toHaveLength(1);
     expect(io.toolCalls[0]).toContain('user-starter');
