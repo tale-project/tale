@@ -46,13 +46,13 @@ Tale dispose le canevas à partir des références entre les nœuds : personne 
 
 ### Les liaisons se déduisent, elles ne se déclarent pas
 
-Il n’y a pas de liste de liaisons. Un nœud en lit un autre en le référençant — `{{ nodes.invoice.output.id }}` — et cette référence _est_ la liaison que trace le canvas. L’ordre d’exécution est un tri topologique sur ces liaisons déduites : supprimer une référence retire donc aussi une flèche, et deux nœuds qui se lisent l’un l’autre sont refusés comme une boucle.
+Il n’y a pas de liste de liaisons. Un nœud en lit un autre en le référençant — `{{ nodes.invoice.output.id }}` — et cette référence _est_ la liaison que trace le canevas. L’ordre d’exécution est un tri topologique sur ces liaisons déduites : supprimer une référence retire donc aussi un trait, et deux nœuds qui se lisent l’un l’autre sont refusés comme une boucle.
 
 Les templates utilisent une seule grammaire `{{ }}` d’expressions JavaScript sur `input`, `nodes.<id>.output` et, à l’intérieur d’un nœud qui itère, `item` et `index`.
 
 ### Le contrôle du flux vit sur le nœud
 
-Brancher et répéter sont des champs du nœud plutôt que des types d’étape à part. Le canvas les montre donc comme des badges sur la boîte qu’ils concernent.
+Brancher et répéter sont des champs du nœud plutôt que des types d’étape à part. Le canevas dessine chacun d’eux là où il agit : un `when` devient une condition au-dessus de son nœud, une alternative `elseOf` part de cette condition comme sa branche **Non**, `forEach` et `repeatUntil` placent le nœud dans un cadre, et `onError: continue` lui ajoute une puce.
 
 | Champ                        | Ce qu’il fait                                                                                 |
 | ---------------------------- | --------------------------------------------------------------------------------------------- |
@@ -79,6 +79,12 @@ Quatre types sont intégrés, et chaque action de connector comme chaque capacit
 Une sortie **structurée** possède des champs nommés, accessibles avec `nodes.<id>.output.<field>`. Une sortie **non structurée** contient du texte libre. Référence-la avec `nodes.<id>.output.text` dans une expression textuelle ; ne la traite pas comme un objet possédant d’autres champs.
 
 Un outil sans schéma de sortie produit une sortie non structurée. Pour transformer son texte en données structurées utilisables par les étapes suivantes, ajoute un nœud `llm` avec un `outputSchema`. En cas d’erreur, la validation indique la référence incorrecte et les champs ou contextes autorisés. Corrige-la avant d’enregistrer à nouveau.
+
+## Les chemins qu’une exécution peut prendre {#paths}
+
+Chaque condition, et chaque nœud qui peut échouer pendant que l’exécution continue, ouvre deux possibilités à une exécution. Tale essaie chaque combinaison et garde les différentes façons dont une exécution réussie peut se dérouler ; chacune est un chemin. Un chemin nomme les conditions qui le décident, comme les nœuds qui s’exécutent, ceux qui sont ignorés et ceux qui échouent pendant que l’exécution continue, ainsi que les nœuds qui s’exécutent sur ce chemin. Un nœud qui s’exécute sur chaque chemin s’exécute toujours ; un nœud qui ne s’exécute sur aucun ne peut jamais s’exécuter, et Tale le signale par un avertissement.
+
+Tale liste jusqu’à 32 chemins et compte les autres. Au-delà de 12 conditions et échecs tolérés, les combinaisons sont trop nombreuses pour être parcourues : Tale ne liste alors aucun chemin, mais indique toujours, pour chaque nœud, quand il s’exécute. Tale nomme aussi les nœuds dont l’échec termine l’exécution et ce qui peut faire échouer chacun d’eux. L’éditeur montre les chemins sur le canevas, comme le décrit [Suivre les chemins possibles](/fr/platform/automations/editor#paths) ; un client du [point d’accès MCP](/fr/develop/mcp-endpoint) lit les mêmes chemins dans `analysis.paths`.
 
 ## Ce que Tale vérifie avant une exécution {#checks}
 

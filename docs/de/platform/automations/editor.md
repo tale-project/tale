@@ -1,25 +1,25 @@
 ---
 title: Der Workflow-Editor
-description: Prüfe und ändere Knoten, gib Testdaten ein, speichere eine Version und schalte sie live oder kehre zu einer früheren zurück.
+description: Lies eine Automatisierung im Canvas, folge ihren möglichen Pfaden, ändere Felder einer Node, speichere eine Version und schalte sie live oder kehre zu einer früheren zurück.
 ---
 
-Im Workflow-Editor änderst du den Ablauf einer Automatisierung und wählst die gespeicherte Version für Live-Läufe. Änderungen brauchen Entwickler-, Admin- oder Inhaberrechte. Speichern, Testen und Bereitstellen sind getrennte Schritte: Die Arbeit an einem Entwurf lässt die bereitgestellte Version bestehen.
+Im Workflow-Editor liest du, was eine Automatisierung tut, änderst ihre Felder und wählst die gespeicherte Version für Live-Läufe. Größere Änderungen, etwa neue Nodes, kommen von einem Coding-Agent über MCP. Änderungen brauchen Entwickler-, Admin- oder Inhaberrechte. Speichern, Testen und Bereitstellen sind getrennte Schritte: Die Arbeit an einem Entwurf lässt die bereitgestellte Version bestehen.
 
 Öffne **Automatisierungen** und wähle einen Eintrag. Er öffnet sich im Tab **Editor**. Öffnest du eine Automatisierung im Tab **Automatisierungen** eines Projekts, beginnt der Navigationspfad mit diesem Projekt: Wähle den Projektnamen, um zum Projekt zurückzukehren, oder **Automatisierungen**, um zu seinen Automatisierungen zurückzukehren. Ob du eine Automatisierung in einem Projekt oder in der Liste öffnest, die Navigationsleiste markiert **Automatisierungen**. Für einen neuen Ablauf beginne mit [Automatisierungen erstellen oder importieren](/de/platform/automations/catalog).
 
 | Tab | Wofür du ihn nutzt |
 | --- | --- |
-| **Editor** | Den Workflow ändern, eine gespeicherte Version testen und die Live-Version wählen. |
+| **Editor** | Den Workflow lesen und ändern, eine gespeicherte Version testen und die Live-Version wählen. |
 | **Allgemein** | Festlegen, was die Automatisierung startet und welche Projekte sie nutzen können. |
 | **Läufe** | Die letzten Ausführungen prüfen und den vollständigen Datensatz eines Laufs öffnen. |
 
 Die Auswahl **Version** bleibt auf Desktop und Smartphone rechts neben den Tabs Editor, Allgemein und Läufe. Sie zeigt Versionsnachrichten, Datum, Testergebnisse und die Live-Markierung. Wähle eine Zeile, um diese Version zu öffnen. Am Desktop stehen die Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**; unter **Allgemein** stehen dort nur **Speichern** und **Verwerfen**. Ein Punkt an einem Tab kennzeichnet dessen ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
 
-Auf dem Smartphone startet eine geöffnete Automatisierung mit kompakter Navigation. Die Arbeitsfläche des Editors nutzt die verfügbare Höhe. Lauf- und Bereitstellungsaktionen befinden sich innerhalb der Arbeitsfläche neben den Zoom-Steuerelementen. Wenn du einen Knoten auswählst, öffnen sich seine Felder — mit Speichern und Verwerfen — in einem Bereich am unteren Bildschirmrand.
+Auf dem Smartphone startet eine geöffnete Automatisierung mit kompakter Navigation. Der Canvas des Editors nutzt die verfügbare Höhe, und Lauf- und Bereitstellungsaktionen stehen in einer Leiste am unteren Rand des Canvas. Wenn du eine Node auswählst, öffnen sich ihre Felder — mit Speichern und Verwerfen — in einem Bereich am unteren Bildschirmrand.
 
-<Frame caption="Wähle auf einem breiten Bildschirm einen Knoten, um seine Felder neben dem Canvas zu prüfen.">
+<Frame caption="Wähle auf einem breiten Bildschirm eine Node, um ihre Felder neben dem Canvas zu prüfen.">
 
-![Der Workflow-Editor zeigt verbundene Knoten und die Felder des ausgewählten Knotens neben dem Canvas.](/images/platform/automation-editor-canvas.webp)
+![Der Workflow-Editor zeigt die Nodes von Gmail triage inbox zwischen Start und Ende, eine in Worten formulierte Bedingung über einer Node und die Felder der ausgewählten Node neben dem Canvas.](/images/platform/automation-editor-canvas.webp)
 
 </Frame>
 
@@ -27,25 +27,113 @@ Zum Wechseln musst du nicht zur Liste zurück: Klick im Navigationspfad auf den 
 
 ## Den Canvas lesen
 
-Jeder Kasten ist ein Knoten. Seine Beschriftung nennt Schritt und Typ; **Liest** zeigt verwendete Ausgaben anderer Knoten. Pfeile entstehen aus Referenzen wie `{{ nodes.draft.output.text }}`. Ändere die Referenz, um eine Abhängigkeit zu ändern. Das Zeichnen eines Pfeils erstellt keine Abhängigkeit.
+Tale zeichnet den Canvas aus dem Dokument der Automatisierung und ordnet ihn selbst an: **Start** steht oben, **Ende** unten, und jede Node steht unter den Nodes, die sie liest. So liest sich der Canvas von oben nach unten in der Reihenfolge, in der ein Lauf vorgeht. Niemand platziert einen Kasten, und Zeichnen verbindet nichts. Eine Linie entsteht aus einer Referenz wie `{{ nodes.draft.output.text }}`; um zu ändern, was eine Node liest, änderst du die Referenz.
 
-Kennzeichnungen zeigen Bedingungen und Schleifen wie `when`, `else of`, `for each`, `repeat until` und `continue on error`. Eine Zykluswarnung bedeutet, dass mehrere Knoten voneinander abhängen. Entferne die kreisförmige Referenz, bevor du eine ausführbare Version speicherst.
+### Start und Ende
 
-## Einen Knoten bearbeiten
+**Start** zeigt, was einen Lauf startet und was er erhält. Unter **Startet** steht der Trigger in Worten, etwa ein Zeitplan mit Zeitzone und nächstem Lauf, und ob der Trigger aus ist oder auf eine Live-Version wartet. Danach folgt **Von Hand, über die API oder MCP**, denn diese Starts sind immer möglich. Unter **Eingabe** stehen die Felder der Laufeingabe mit ihrem Typ und der Angabe, ob sie Pflicht sind. Würde der Trigger Läufe mit einer Eingabe starten, die die Automatisierung ablehnt, sagt Start das.
 
-Wähle einen Kasten, um seine Felder zu öffnen. Auf einem breiten Bildschirm erscheint der Bereich neben dem Canvas; ohne ausgewählten Knoten nutzt der Canvas die ganze Breite. Auf schmaleren Bildschirmen öffnen sich die Felder in einem Dialog über dem Canvas. Ein `transform` hat **Code**, ein `llm` Felder für Prompt, Modell und Ausgabeschema. Ein `agent` ergänzt Agent-Laufzeit und Ausstattung. Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch **Probleme** warnt dann, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist. **Eingabe** enthält JSON-Werte und Referenzen für diesen Knoten. Unvollständiges JSON wird gemeldet und ändert den Knoten nicht.
+**Ende** zeigt, was ein erfolgreicher Lauf zurückgibt und wie ein Lauf enden kann. Unter **Gibt zurück** steht die Ausgabe, etwa **Die Ausgabe von Report**, oder ihre Felder mit den Nodes, aus denen sie stammen; ein Feld, das bei manchen Läufen leer bleibt, trägt **kann leer sein**. Unter **Endet** stehen die drei Ausgänge: **Erfolgreich** gibt die Ausgabe zurück, **Fehlgeschlagen** tritt ein, wenn eine der Nodes fehlschlägt, die den Lauf stoppen, und **Gestoppt**, wenn jemand den Lauf stoppt.
 
-Öffne **Ablaufsteuerung** für Bedingungen und Wiederholungen. Hat der Knoten welche, ist der Abschnitt schon offen. Mit **Schließen** kehrst du zum Canvas zurück. Auf einem breiten Bildschirm schließt sich der Bereich auch, wenn du auf den leeren Canvas klickst oder Escape außerhalb eines Textfelds drückst. Trigger und Projekteinstellungen der Automatisierung findest du im Tab **Allgemein**. [Automatisierungsgrundlagen](/de/platform/automations/concepts) erklärt Knotentypen und Ausdrücke.
+### Nodes
+
+Jede Node ist ein Kasten. Die erste Zeile zeigt ihr Symbol und ihren Titel, der aus ihrer ID entsteht: Aus `open_issues` wird **Open issues**. Die nächste Zeile nennt die Art der Node: Connector und Aktion, etwa **GitHub · Issues auflisten**, **Transformation**, **Sprachmodell** oder **Agent** mit ihrem Modell oder die Automatisierung, die sie aufruft. Weiß Tale, was die Node zurückgibt, zeigt eine Zeile die Struktur, etwa `{ issues: object[] }`. Die unterste Zeile sagt, was die Node liest, etwa **Liest Issues und die Laufeingabe (owner, repo)**, oder **Liest keine andere Node**.
+
+Chips und kleine Symbole ergänzen, was die Anordnung nicht zeigen kann. **Läuft bei Fehler weiter** markiert eine Node, deren Fehler der Lauf hinnimmt, und **Läuft nie** eine Node, die keine Kombination von Bedingungen erreicht. Ein Schild markiert eine Node, die Daten in einem verbundenen Dienst ändert; dort kann ein Live-Lauf auf eine Freigabe warten. Eine Sprechblase markiert einen Agent, der eine Frage stellen kann, und eine durchgestrichene Nadel ein Modell ohne festen Anbieter. Zeig auf ein Symbol, um seinen Satz zu lesen; ein Screenreader hört ihn mit dem Kasten. Ein Kasten mit Problemen zeigt ihre Anzahl in seiner ersten Zeile.
+
+### Bedingungen und Zweige
+
+Die Bedingung einer Node (`when`) steht als Pille über ihr und sagt die Bedingung in Worten, etwa „total von Score größer als 1.000 ist“. Die Node darunter läuft nur, wenn die Bedingung zutrifft. Ist eine andere Node ihre Alternative (`elseOf`), teilt sich die Bedingung in zwei Linien: **Ja** führt zur Node links, die läuft, wenn die Bedingung zutrifft, und **Nein** zu ihrer Alternative rechts. Eine Bedingung, die Tale nicht in Worte fassen kann, zeigt den Ausdruck selbst in Codeschrift.
+
+```yaml
+nodes:
+  - id: escalate
+    type: transform
+    when: '{{ nodes.score.output.total > 1000 }}'
+    input: { total: '{{ nodes.score.output.total }}' }
+    code: 'return { text: "Escalate " + input.total };'
+  - id: file
+    type: transform
+    elseOf: escalate
+    input: { total: '{{ nodes.score.output.total }}' }
+    code: 'return { text: "File " + input.total };'
+```
+
+In diesem Ausschnitt lautet die Bedingung über Escalate „total von Score größer als 1.000 ist“, **Ja** führt zu Escalate und **Nein** zu File. Zeig auf eine Bedingung oder auf ihr **Ja** oder **Nein**, um die Pfade hervorzuheben, die durch sie führen.
+
+### Linien, Rahmen und gestrichelte Kästen
+
+Eine durchgezogene Linie bedeutet, dass die untere Node die Ausgabe der oberen liest. Eine gestrichelte Linie bedeutet, dass die untere Node nach der oberen läuft, ohne ihre Ausgabe zu lesen, etwa weil ihre Bedingung sie liest. Eine gepunktete Linie zu Ende verlässt die letzte Node eines Laufs, deren Ausgabe Ende nicht zurückgibt. Die Linien **Ja** und **Nein** haben eigene Farben.
+
+Ein Rahmen um eine Node zeigt, dass sie mehrmals läuft: einmal für jedes Element einer Liste (**Für jedes Element von …**) oder erneut, bis eine Bedingung zutrifft (**Wiederholt sich, bis …, höchstens 5×**). Ein gestrichelter Kasten ist eine Node, die vielleicht nicht läuft; nach einem Lauf ist es eine Node, die nicht gelaufen ist. **Legende** neben den Zoom-Steuerelementen erklärt jede Art von Linie und Kasten.
+
+### Tastatur und Listenansicht
+
+Das Diagramm ist ein einziger Halt in der Tab-Reihenfolge. Springst du mit Tab hinein, landet der Fokus auf Start; die Pfeiltasten folgen den Linien von Kasten zu Kasten und entlang einer Reihe, Pos1 und Ende springen zu Start und Ende, und die Eingabetaste öffnet den Kasten im Fokus. Ein Screenreader liest zu jedem Kasten Titel, Art und was er liest; bei einer Bedingung hört er, über welche Node sie entscheidet.
+
+Mit dem Ansichtsschalter oben links im Canvas wechselst du zwischen **Canvas**, **Liste** und **Quelltext**. **Liste** zeigt dieselben Nodes in der Reihenfolge des Laufs, jede mit dem, was sie liest, und mit ihrer Bedingung in Worten; auch dort öffnet die Eingabetaste eine Node. Ist der Canvas sehr schmal, beginnt er mit **Liste**. Die Adresse behält die Ansicht und die geöffnete Node, sodass ein geteilter Link beides wieder öffnet.
+
+### Wenn eine neue Version eintrifft {#new-versions}
+
+Während du die Automatisierung ansiehst, kann jemand eine neue Version speichern, etwa ein Coding-Agent über MCP. Siehst du die neueste Version an und hast keine ungespeicherten Änderungen, wechselt der Canvas zur neuen: Die Kästen gleiten an ihre neuen Plätze, neue Kästen blenden sich ein, geänderte erhalten einmal einen Ring, und ein Screenreader hört „Jetzt wird v6 angezeigt.“. Die geöffnete Node bleibt offen, solange es sie noch gibt. Hast du ungespeicherte Änderungen, bewegt sich nichts. Ein Hinweis über dem Canvas meldet **Eine neuere Version wurde gespeichert**, und **v6 zeigen und Entwurf verwerfen** wechselt zu ihr.
+
+## Den möglichen Pfaden folgen {#paths}
+
+Die Bedingungen eines Laufs entscheiden, welche Nodes laufen. Die Pfad-Schaltfläche oben rechts im Canvas zählt die Wege, die ein erfolgreicher Lauf nehmen kann, etwa **3 Pfade**, und öffnet **Mögliche Pfade**. Jeder Pfad nennt die Bedingungen, die über ihn entscheiden, etwa „Triage läuft“ oder „Propose schlägt fehl, der Lauf geht weiter“, und wie viele Nodes auf ihm laufen.
+
+Zeig auf einen Pfad oder wechsle mit den Pfeiltasten zu ihm, um ihn im Canvas als Vorschau zu sehen. Klick ihn an oder drück die Eingabetaste, damit er angezeigt bleibt: Nodes abseits des Pfads werden gestrichelt und sagen, warum sie nicht laufen, Ende markiert die Ausgaben, die auf diesem Pfad leer bleiben, und ein Screenreader hört, welcher Pfad angezeigt wird. **Alle zeigen** oder Esc zeigt wieder jede Node. Die Liste bleibt offen, während du Nodes auswählst, damit du einen Pfad mit den Feldern einer Node vergleichen kannst.
+
+Unter **Beendet den Lauf, wenn sie fehlschlägt** nennt die Liste die Nodes, deren Fehler den Lauf stoppt, und was jede von ihnen fehlschlagen lassen kann. Zeig auf eine davon, um alle rot einzukreisen; wähle eine aus, um sie zu öffnen.
+
+Auf dem Smartphone öffnet sich die Liste in einem Bereich am unteren Bildschirmrand. Wählst du einen Pfad, schließt sich der Bereich, und oben im Canvas bleibt eine Pille mit dem Namen des Pfads und **Alle zeigen**. Nimmt jeder Lauf denselben Pfad, sagt die Liste das. Bei mehr als 12 Bedingungen und hingenommenen Fehlern gibt es zu viele Pfade für eine Liste; **Wann sie läuft** sagt trotzdem bei jeder Node, wann sie läuft. Ein Canvas mit einem Zyklus hat keine Pfad-Schaltfläche. [Pfade, die ein Lauf nehmen kann](/de/platform/automations/concepts#paths) erklärt, wie Tale die Pfade ermittelt.
+
+## Eine Node bearbeiten
+
+Wähle einen Kasten, um ihn zu öffnen. Auf einem breiten Bildschirm öffnet sich der Inspektor neben dem Canvas; ohne ausgewählte Node nutzt der Canvas die ganze Breite. Auf schmaleren Bildschirmen öffnet er sich in einem Bereich über dem Canvas. Sein Kopf zeigt den Titel der Node, ihre Art und ihre ID mit **Node-ID kopieren**; darunter stehen die Probleme, die zu ihr gehören. **Wann sie läuft** fasst zusammen, welchen Platz die Node im Ablauf hat: bei jedem Lauf, auf einigen Pfaden oder nie, warum sie übersprungen werden kann und was passiert, wenn sie fehlschlägt, etwa „Schlägt sie fehl, stoppt der Lauf mit ihrem Fehler.“
+
+Danach folgen drei Tabs:
+
+- **Felder** enthält, was du ändern kannst. Ein `transform` hat **Code**, ein `llm` **Prompt**, **System-Prompt**, **Modell** und **Ausgabeschema**, ein `agent` zusätzlich Agent-Laufzeit und Ausstattung. **Eingabe** enthält die JSON-Werte und Referenzen, die die Node erhält.
+- **Struktur** zeigt, was die Node erhält und zurückgibt, woher Tale diese Struktur kennt und welche Nodes ihre Ausgabe lesen. Wähle eine lesende Node, um sie zu öffnen. **Als TypeScript zeigen** zeigt dieselbe Struktur als Typ.
+- **Letzter Lauf** zeigt **Aufgelöste Eingabe**, **Ausgabe** und Effekte der Node in dem Lauf, den der Canvas zeigt. Der Tab erscheint, solange der Canvas einen Lauf zeigt.
+
+Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch **Probleme** warnt dann, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist.
+
+Öffne **Ablaufsteuerung** für Bedingung, Wiederholung und Fehlerbehandlung der Node; nutzt die Node eines davon, ist der Abschnitt schon offen. **Wenn**, **Für jedes** und **Wiederholen bis** nehmen Ausdrücke auf. **Sonst zu** bietet nur Nodes mit einer Bedingung an, und **Keine** entfernt die Alternative. **Maximale Wiederholungen** erscheint mit **Wiederholen bis** und nimmt eine ganze Zahl von 1 bis 20. **Bei Fehler** wählt zwischen **Lauf stoppen** und **Ohne sie weiterlaufen**; geht der Lauf weiter, wird jede Node übersprungen, die die Ausgabe der fehlgeschlagenen Node liest. Unter einer Bedingung, einer Liste oder einer Alternative sagt ein Satz in Worten, was die Einstellung bewirkt.
+
+Mit **Schließen** kehrst du zum Canvas zurück. Auf einem breiten Bildschirm schließt sich der Bereich auch, wenn du auf den leeren Canvas klickst oder außerhalb eines Textfelds Esc drückst. Trigger und Projekteinstellungen der Automatisierung findest du im Tab **Allgemein**. [Automatisierungsgrundlagen](/de/platform/automations/concepts) erklärt Node-Typen und Ausdrücke.
+
+### Code, Prompts und JSON
+
+Code, Prompts, Bedingungen und JSON-Felder sind Code-Editoren. Sie färben die Syntax und jedes `{{ }}`-Template ein und kennen die Automatisierung. Tippst du `{{` in einen Prompt, erscheinen die schließenden Klammern mit dem Cursor dazwischen; nach `nodes.` siehst du nur die Nodes, die vorher laufen, und nach `.output.` die Felder dieser Node mit ihren Typen. Strg+Leertaste öffnet die Vorschläge überall. Zeig auf eine Referenz, um ihren Typ zu sehen, oder drück ⌘K ⌘I (Strg+K Strg+I), damit der Typ an der Cursorposition angezeigt und vorgelesen wird.
+
+Kurz nachdem du aufhörst zu tippen, ist ein Problem genau dort unterstrichen, wo es steht. F8 und Umschalt+F8 springen zum nächsten und vorherigen Problem und lesen es vor; ⌘. (Strg+.) wendet eine vorgeschlagene Korrektur an, etwa den ähnlichsten Node-Namen. In einem mehrzeiligen Feld rückt Tab ein; um es mit der Tastatur zu verlassen, drück Esc und dann Tab. **Editor vergrößern** öffnet ein langes Feld in einem größeren Editor, und **Zurück zum Feld** kehrt mit deiner Änderung und deinem Cursor an derselben Stelle zurück.
+
+Ein JSON-Feld wie **Eingabe** ändert die Node erst, wenn sein Text gültiges JSON der richtigen Art ist. Während du tippst, behält die Node ihren letzten gültigen Wert, und das Feld sagt, was fehlt, etwa „Das muss ein JSON-Objekt in geschweiften Klammern sein.“
+
+### Eingaben bei Start, Ausgabe bei Ende
+
+Wähle **Start**, um zu sehen, was die Automatisierung startet. **Trigger** nennt es in Worten; **In Allgemein ändern** öffnet den Tab **Allgemein**, in dem du den Trigger einstellst. Unter **Felder** zeigt **Eingaben** die Felder der Laufeingabe als Baum, und **Eingabeschema** enthält das JSON-Schema dahinter, das du bearbeiten kannst. **Struktur** zeigt die Eingabe so, wie Tale sie liest, und **Letzter Lauf** die Eingabe des angezeigten Laufs.
+
+Wähle **Ende**, um zu sehen, was ein Lauf zurückgibt. **Wie ein Lauf endet** nennt die drei Ausgänge; unter **Fehlgeschlagen** ist jede Node, deren Fehler den Lauf stoppt, eine Schaltfläche, die sie öffnet. Unter **Felder** enthält **Ausgabe** den JSON-Wert, den ein erfolgreicher Lauf zurückgibt, mit Templates wie `{{ nodes.report.output }}`. **Struktur** zeigt die Struktur der Ausgabe und **Letzter Lauf** die Ausgabe des angezeigten Laufs.
+
+## Den Quelltext lesen
+
+Wähle im Ansichtsschalter **Quelltext**, um das ganze Dokument als YAML zu lesen: eingefärbt, mit Zeilennummern, Einklappen und Suche (⌘F oder Strg+F). Jedes Problem, das die Prüfung gefunden hat, ist in der Zeile unterstrichen, die es betrifft. So hat auch ein Problem in einem Teil ohne eigenes Feld, etwa in einem Test oder im Namen, einen Ort, an dem du es liest. Der Quelltext ist schreibgeschützt: **YAML kopieren** kopiert ihn, und **YAML herunterladen** speichert ihn als Datei, die nach Automatisierung und Version benannt ist, etwa `gmail-triage-inbox-v3.yml`; solange du ungespeicherte Änderungen hast, kommt `-draft` dazu. Um das Dokument zu ändern, nutze die Felder oder deinen Coding-Agent.
+
+## Mit deinem Coding-Agent bearbeiten
+
+Größere Änderungen, etwa neue Nodes oder ein umgebauter Ablauf, kommen von einem Coding-Agent wie Claude Code, Codex oder Cursor, der mit dem MCP-Server von Tale verbunden ist. **Mit deinem Coding-Agent bearbeiten** ist in jeder Ansicht die letzte Schaltfläche oben rechts im Canvas und die Hauptaktion einer Automatisierung, die noch keine Nodes hat. Ihr Dialog zeigt den Namen der Automatisierung, den du dem Agent gibst, **MCP einrichten**, das **Einstellungen > API > MCP** öffnet, und **So verbindest du einen Coding-Agent**, das die Anleitung zum [MCP-Endpoint](/de/develop/mcp-endpoint) öffnet. Der Agent liest die Automatisierung, ändert und prüft sie und speichert eine neue Version, die dann im Canvas erscheint, wie [Wenn eine neue Version eintrifft](#new-versions) beschreibt.
 
 ## Probleme finden und beheben
 
-Während du bearbeitest, prüft Tale den Entwurf so, wie es auch jedes Speichern prüft. Kurz nachdem du aufhörst zu tippen, zeigt die Schaltfläche **Probleme** neben **Speichern**, was die Prüfung gefunden hat: ein rotes Fehlersymbol und ein gelbes Warnsymbol, jeweils mit ihrer Anzahl, oder **Keine Probleme**. Auf dem Smartphone sitzt die Schaltfläche in der Leiste über dem Canvas. Ein Fehler ist etwas, woran ein Lauf scheitern würde, etwa eine Referenz auf einen Knoten, den es nicht gibt. Eine Warnung ist etwas, das schiefgehen kann, etwa das Lesen der Ausgabe eines Knotens, der manchmal übersprungen wird. Ein Knoten mit Problemen zeigt dieselben Zahlen auf seinem Kasten, und ein Feld mit einem Problem erklärt es direkt darunter.
+Während du bearbeitest, prüft Tale den Entwurf so, wie es auch jedes Speichern prüft. Kurz nachdem du aufhörst zu tippen, zeigt die Schaltfläche **Probleme** neben **Speichern**, was die Prüfung gefunden hat: ein rotes Fehlersymbol und ein gelbes Warnsymbol, jeweils mit ihrer Anzahl, oder **Keine Probleme**. Auf dem Smartphone sitzt die Schaltfläche in der Leiste über dem Canvas. Ein Fehler ist etwas, woran ein Lauf scheitern würde, etwa eine Referenz auf eine Node, die es nicht gibt. Eine Warnung ist etwas, das schiefgehen kann, etwa das Lesen der Ausgabe einer Node, die manchmal übersprungen wird. Eine Node, eine Bedingung, Start oder Ende mit Problemen zeigt dieselben Zahlen auf ihrem Kasten, und ein Feld mit einem Problem erklärt es direkt darunter.
 
-Klicke auf **Probleme**, um sie aufzulisten. Auf einem breiten Bildschirm öffnet sich die Liste unter dem Canvas, auf schmaleren Bildschirmen in einem eigenen Bereich. Jeder Eintrag sagt, was falsch ist, wo, warum und wie du es behebst. **Technische Details** zeigt die Meldung der Engine selbst, und der Code neben dem Titel hilft dir bei der Suche oder im Support. **Alle**, **Fehler** und **Warnungen** filtern die Liste, Escape schließt sie.
+Klicke auf **Probleme**, um sie aufzulisten. Auf einem breiten Bildschirm öffnet sich die Liste unter dem Canvas, auf schmaleren Bildschirmen in einem eigenen Bereich. Jeder Eintrag sagt, was falsch ist, wo, warum und wie du es behebst. **Technische Details** zeigt die Meldung der Engine selbst, und der Code neben dem Titel hilft dir bei der Suche oder im Support. **Alle**, **Fehler** und **Warnungen** filtern die Liste, Esc schließt sie.
 
-Wähle einen Eintrag oder drücke darauf die Eingabetaste, um dorthin zu gelangen: Der Knoten öffnet sich, sein Feld erhält den Fokus, und wo das Feld den Text so zeigt, wie er gespeichert ist, ist die Stelle markiert, die das Problem verursacht. Ein Problem ohne eigenes Feld, etwa ein Modell, das deine Organisation nicht bereitstellt, steht unter **Probleme in dieser Node** oben in den Feldern des Knotens. Ein Problem in einem Teil der Automatisierung, den der Editor nicht zeigt, etwa in ihrer Ausgabe oder ihren Tests, sagt, dass es sich hier nicht bearbeiten lässt; ändere diesen Teil über MCP, die API oder ein hochgeladenes Paket.
+Wähle einen Eintrag oder drücke darauf die Eingabetaste, um dorthin zu gelangen: Die Node öffnet sich, ihr Feld erhält den Fokus, und die Stelle, die das Problem verursacht, ist markiert. Ein Problem ohne eigenes Feld, etwa ein Modell, das deine Organisation nicht bereitstellt, steht unter **Probleme in dieser Node** oben in den Feldern der Node. Ein Problem in den Eingaben öffnet **Start**, eines in der Ausgabe öffnet **Ende**, und eines in einem anderen Teil des Dokuments, etwa in einem Test oder im Namen, öffnet **Quelltext** an dieser Zeile. Ein Problem in einer Node, die dein Entwurf nicht mehr hat, sagt „Ändere das mit deinem Coding-Agent.“
 
-Solange Fehler bestehen, ist **Speichern** deaktiviert und nennt den Grund, zum Beispiel „Behebe 1 Fehler, um zu speichern“. Auf dem Smartphone steht **Speichern** unter den Feldern eines Knotens; dort öffnet **Probleme anzeigen** neben diesem Grund die Liste. Warnungen verhindern weder das Speichern noch das Bereitstellen. Kann Tale den Entwurf nicht prüfen, etwa weil die Verbindung abgebrochen ist, zeigt die Schaltfläche **Prüfung fehlgeschlagen**, und du kannst trotzdem speichern: Jedes Speichern wird auf dem Server erneut geprüft. Wird ein Speichern oder Bereitstellen wegen Fehlern abgelehnt, öffnet sich die Liste mit den Problemen des Servers und beginnt beim ersten Fehler.
+Solange Fehler bestehen, ist **Speichern** deaktiviert und nennt den Grund, zum Beispiel „Behebe 1 Fehler, um zu speichern“. Auf dem Smartphone steht **Speichern** unter den Feldern einer Node; dort öffnet **Probleme anzeigen** neben diesem Grund die Liste. Warnungen verhindern weder das Speichern noch das Bereitstellen. Kann Tale den Entwurf nicht prüfen, etwa weil die Verbindung abgebrochen ist, zeigt die Schaltfläche **Prüfung fehlgeschlagen**, und du kannst trotzdem speichern: Jedes Speichern wird auf dem Server erneut geprüft. Wird ein Speichern oder Bereitstellen wegen Fehlern abgelehnt, öffnet sich die Liste mit den Problemen des Servers und beginnt beim ersten Fehler.
 
 Die Prüfung läuft nur für Entwickler, Admins und Inhaber, also die Rollen, die speichern dürfen. [Was Tale vor einem Lauf prüft](/de/platform/automations/concepts#checks) erklärt jede Art von Problem.
 
@@ -53,7 +141,7 @@ Die Prüfung läuft nur für Entwickler, Admins und Inhaber, also die Rollen, di
 
 1. Ändere die nötigen Felder und klicke auf **Speichern**.
 2. Erkläre die Änderung in der **Notiz zur Version** und wähle **Version speichern**. Eine neue Version entsteht; frühere Fassungen bleiben erhalten. Hat jemand während deiner Bearbeitung eine andere Version gespeichert, lehnt Tale das Speichern ab und fragt nach: **Meine Änderungen verwerfen und neu laden** zeigt die neuere Version, **Trotzdem speichern** legt deine Version darüber an — die neuere bleibt im Versionsverlauf, die aktuelle Version ist dann aber deine.
-3. Klicke auf **Testlauf**. Hat der Workflow ein Eingabeschema, fülle im Dialog **Eingabe für den Lauf (JSON)** aus. Öffne **Eingabeschema**, um Pflichtfelder und Typen zu prüfen. Ungültiges JSON oder unpassende Werte verhindern den Start.
+3. Klicke auf **Testlauf**. Hat der Workflow ein Eingabeschema, tippe die Eingabe als JSON in **Eingabe für den Lauf (JSON)**; beim Tippen eines Schlüssels schlägt das Feld die Feldnamen des Schemas vor, und ⌘Enter (Strg+Enter) startet den Lauf. Öffne **Eingabeschema**, um Pflichtfelder und Typen zu sehen. Ungültiges JSON oder unpassende Werte verhindern den Start.
 4. Starte den Test, wechsle zum Tab **Läufe** und öffne seinen Eintrag. Vergleiche aufgelöste Eingabe, Ausgabe und geplante Aktionen mit dem erwarteten Ergebnis.
 
 Braucht ein Workflow `owner` und `repo`, könnte seine Eingabe so aussehen:
@@ -71,7 +159,7 @@ Maßgeblich ist das tatsächliche Schema des Workflows. Ein Zahlenfeld braucht e
 
 <Frame caption="Hat der Workflow Eingaben, gib JSON an und prüfe sein Schema vor dem Teststart.">
 
-![Der Testlauf-Dialog zeigt JSON-Werte für owner und repo und das aufgeklappte Eingabeschema.](/images/platform/automation-run-input.webp)
+![Der Testlauf-Dialog zeigt JSON-Werte für owner und repo im Code-Editor und das aufgeklappte Eingabeschema als Liste von Feldern.](/images/platform/automation-run-input.webp)
 
 </Frame>
 
@@ -85,7 +173,7 @@ Ein Trigger nutzt ebenfalls die bereitgestellte Version. Richte ihn ein, wenn wi
 
 ## Ein Ergebnis untersuchen
 
-**Letzten Lauf einblenden** legt Laufzustände über den Canvas. Wähle einen Knoten für die Angaben zu diesem Lauf: aufgelöste Eingabe, Ausgabe und Effekte. Häufig findest du so eine falsche Referenz. Vergleiche die Eingabe des fehlgeschlagenen Knotens mit der Ausgabe seiner Quelle.
+Sobald die Automatisierung gelaufen ist, zeigt der Canvas ihren letzten Lauf: Die unterste Zeile jeder Node sagt, wie sie endete, etwa **Erfolgreich** oder **Übersprungen**, und jede Bedingung zeigt, wie sie entschieden hat, **Ja** oder **Nein**. Die Augen-Schaltfläche oben rechts im Canvas, **Letzten Lauf ausblenden**, nimmt den Lauf vom Canvas, und **Letzten Lauf einblenden** zeigt ihn wieder. Wähle eine Node und öffne **Letzter Lauf**, um ihre **Aufgelöste Eingabe**, **Ausgabe** und Effekte zu sehen. Häufig findest du so eine falsche Referenz: Vergleiche die Eingabe der fehlgeschlagenen Node mit der Ausgabe der Node, die sie liest.
 
 Wechsle zu **Läufe** und öffne den vollständigen Datensatz. Die Tabs bleiben sichtbar; **Läufe** ist aktiv. Mit **Editor** kehrst du zum Workflow zurück. Prüfe Test- oder Live-Modus und bereits ausgeführte Aktionen, bevor du erneut startest. [Ausführungsprotokolle](/de/platform/automations/execution-logs) erklärt Wartezustände, Fehler, automatische Wiederholungen und Abbruch.
 

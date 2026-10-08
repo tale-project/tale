@@ -464,8 +464,8 @@
     "slug": "platform/automations/assistant",
     "locale": "de",
     "frontmatter": {
-      "title": "Den Weg zur Automation wählen",
-      "description": "Bearbeite Workflows direkt im visuellen Editor oder verbinde einen externen Assistenten über MCP mit Tale."
+      "title": "Den Weg zur Automatisierung wählen",
+      "description": "Ändere Felder einer Automatisierung im Editor, oder lass einen Coding-Agent sie über MCP erstellen und ändern."
     }
   },
   "de:platform/automations/builtin": {
@@ -497,7 +497,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Der Workflow-Editor",
-      "description": "Prüfe und ändere Knoten, gib Testdaten ein, speichere eine Version und schalte sie live oder kehre zu einer früheren zurück."
+      "description": "Lies eine Automatisierung im Canvas, folge ihren möglichen Pfaden, ändere Felder einer Node, speichere eine Version und schalte sie live oder kehre zu einer früheren zurück."
     }
   },
   "de:platform/automations/execution-logs": {
@@ -1617,7 +1617,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Choose how to author an automation",
-      "description": "Use the visual editor for direct changes or connect an external assistant to Tale through MCP."
+      "description": "Change an automation's fields in the editor, or have a coding agent build and change it through MCP."
     }
   },
   "en:platform/automations/builtin": {
@@ -1649,7 +1649,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "The workflow editor",
-      "description": "Inspect and edit nodes, supply test input, save a version, and deploy or roll back an automation."
+      "description": "Read an automation on its canvas, follow its possible paths, edit node fields, save a version, and deploy or roll back."
     }
   },
   "en:platform/automations/execution-logs": {
@@ -2769,7 +2769,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Choisir comment créer une automatisation",
-      "description": "Modifie directement le workflow dans l’éditeur visuel ou connecte un assistant externe à Tale avec MCP."
+      "description": "Modifie les champs d’une automatisation dans l’éditeur, ou fais-la créer et modifier par un agent de code via MCP."
     }
   },
   "fr:platform/automations/builtin": {
@@ -2801,7 +2801,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "L’éditeur de workflow",
-      "description": "Examine et modifie les nœuds, fournis les données de test, puis enregistre, déploie ou rétablis une version."
+      "description": "Lis une automatisation sur son canevas, suis ses chemins possibles, modifie les champs d’un nœud, enregistre une version, puis déploie-la ou rétablis-en une autre."
     }
   },
   "fr:platform/automations/execution-logs": {

@@ -46,13 +46,13 @@ Tale lays out the canvas from the references between nodes, so nobody places a n
 
 ### Edges are derived, not declared
 
-There is no edge list. One node reads another by referencing it — `{{ nodes.invoice.output.id }}` — and that reference _is_ the edge the canvas draws. Execution order is a topological sort over those derived edges, which is why deleting a reference also removes an arrow, and why two nodes that read each other are refused as a cycle.
+There is no edge list. One node reads another by referencing it — `{{ nodes.invoice.output.id }}` — and that reference _is_ the edge the canvas draws. Execution order is a topological sort over those derived edges, which is why deleting a reference also removes a line, and why two nodes that read each other are refused as a cycle.
 
 Templates use a single `{{ }}` JavaScript-expression grammar over `input`, `nodes.<id>.output`, and, inside an iterating node, `item` and `index`.
 
 ### Control flow rides on the node
 
-Branching and looping are fields on a node rather than separate step types, so the canvas shows them as badges on the box they affect.
+Branching and looping are fields on a node rather than separate step types. The canvas draws each one where it acts: a `when` becomes a condition above its node, an `elseOf` alternative hangs from that condition as its **No** branch, `forEach` and `repeatUntil` put the node in a frame, and `onError: continue` adds a chip to the node.
 
 | Field                        | What it does                                                             |
 | ---------------------------- | ------------------------------------------------------------------------ |
@@ -79,6 +79,12 @@ Four types are built in, and every connector action and platform native — know
 A **structured** output has named fields that you can reference with `nodes.<id>.output.<field>`. An **unstructured** output is free text. Reference it through `nodes.<id>.output.text` in a string expression; do not treat it as an object with additional fields.
 
 A tool without an output schema is unstructured. To turn its text into structured data for later steps, use an `llm` node with an `outputSchema`. Validation errors identify the invalid reference and the fields or context that are allowed. Correct that reference before saving again.
+
+## Paths a run can take {#paths}
+
+Each condition, and each node that may fail while the run goes on, gives a run two ways to continue. Tale tries every combination of them and keeps the distinct ways a successful run can go; each one is a path. A path names the conditions that decide it, such as which nodes run, which are skipped and which fail while the run goes on, and the nodes that run on it. A node that runs on every path always runs; a node that runs on none can never run, and Tale warns about it.
+
+Tale lists up to 32 paths and counts the rest. With more than 12 conditions and tolerated failures, the combinations are too many to go through, so Tale lists no path; it still says for each node when it runs. Separately, Tale names the nodes whose failure ends the run and what can make each one fail. The editor shows the paths on the canvas, as [Follow the possible paths](/platform/automations/editor#paths) describes; a client of the [MCP endpoint](/develop/mcp-endpoint) reads the same paths from `analysis.paths`.
 
 ## What Tale checks before a run {#checks}
 
