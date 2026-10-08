@@ -4,9 +4,10 @@
 
 A sandbox is the isolated environment an agent works in, and its workspace is the files it
 keeps between turns. These rules cover who can see and manage workspaces, what an agent in a
-sandbox can reach, how many sandboxes run at once, when a workspace is deleted, and how a
-turn's spend is booked. Connected devices and agent secrets have their own specs. Egress, the
-health checks, image generation and how waiting work resumes are not covered; see Not yet.
+sandbox can reach, how many sandboxes run at once, what is left of a workspace whose sandbox
+disappears, when a workspace is deleted, and how a turn's spend is booked. Connected devices
+and agent secrets have their own specs. Egress, the health checks, image generation and how
+waiting work resumes are not covered; see Not yet.
 
 ## Who can do what
 
@@ -151,6 +152,23 @@ every attempt has failed, its row says so.
 - **Example**: Ada destroys a pinned workspace while the sandbox service is down → the
   workspace stays in the list, now unpinned, and the Destroy is tried again.
 
+## When a sandbox disappears
+
+A sandbox can end without a Destroy, for example when its host restarts or it runs out of
+memory. A pinned workspace gets a new sandbox (`SBX-R10`); this covers the others.
+
+### SBX-R17 · A workspace outlives the sandbox it ran in
+
+When the sandbox of a project agent or an automation run on the Tale server disappears
+without a Destroy, for example because the host restarted or the sandbox ran out of memory, its
+workspace is kept and reads as stopped. The next turn goes on in its files. A start that fails
+after that removes only the sandbox it began, never the files. A crawler's temporary sandbox is
+closed instead, and so is a workspace the sandbox service no longer holds, or one on a
+connected device, which it does not list.
+
+- **Example**: Ada's agent is working on a task when the host restarts → the workspace reads
+  **Stopped**, and the agent's next turn finds its files and goes on with its conversation.
+
 ## Automatic deletion
 
 Tale deletes a workspace on its own in two cases: nobody has used it for a while, or what it
@@ -182,18 +200,6 @@ deletion counts as finished only once the files are confirmed deleted.
   the agent.
 - **Example**: Noah is removed from the organization → the workspaces kept for his runs are
   deleted.
-
-### SBX-R17 · A workspace outlives the sandbox it ran in
-
-When the sandbox of a project agent or an automation run on the Tale server disappears
-without a Destroy, for example because the host restarted or the sandbox ran out of memory, its
-workspace is kept and reads as stopped. The next turn goes on in its files. A start that fails
-after that removes only the sandbox it began, never the files. A crawler's temporary sandbox is
-closed instead, and so is a workspace the sandbox service no longer holds, or one on a
-connected device, which it does not list.
-
-- **Example**: Ada's agent is working on a task when the host restarts → the workspace reads
-  **Stopped**, and the agent's next turn finds its files and goes on with its conversation.
 
 ## What a turn costs
 
