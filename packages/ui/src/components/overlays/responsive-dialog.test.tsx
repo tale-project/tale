@@ -34,7 +34,13 @@ function setViewport(matches: Record<string, boolean>) {
  * A dialog opened from state with no `ResponsiveDialogTrigger` — the task
  * board's card → task detail path. The opener holds focus when `open` flips.
  */
-function StateOpened({ open }: { open: boolean }) {
+function StateOpened({
+  open,
+  preventCloseAutoFocus,
+}: {
+  open: boolean;
+  preventCloseAutoFocus?: boolean;
+}) {
   const contentRef = useRef<HTMLDivElement>(null);
   return (
     <>
@@ -43,6 +49,9 @@ function StateOpened({ open }: { open: boolean }) {
         <ResponsiveDialogContent
           ref={contentRef}
           closeLabel="Close"
+          {...(preventCloseAutoFocus !== undefined && {
+            preventCloseAutoFocus,
+          })}
           onOpenAutoFocus={(event) => {
             // The task modal starts on its container, including the drawer
             // whose default autofocus is disabled to avoid the soft keyboard.
@@ -129,6 +138,21 @@ describe('ResponsiveDialog', () => {
 
     it('returns focus to the opener when a state-opened dialog closes', async () => {
       await expectFocusReturnsToOpener();
+    });
+
+    it('leaves focus alone on close when the host hands the reader on', async () => {
+      const { rerender } = render(
+        <StateOpened open={false} preventCloseAutoFocus />,
+      );
+      const opener = screen.getByRole('button', { name: 'Opener' });
+      opener.focus();
+      rerender(<StateOpened open preventCloseAutoFocus />);
+      await screen.findByRole('dialog');
+      rerender(<StateOpened open={false} preventCloseAutoFocus />);
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      expect(opener).not.toHaveFocus();
     });
 
     it('stays open when the pointer is on a portaled date picker', () => {

@@ -1,10 +1,13 @@
 /**
  * Deploy DRAIN orchestration for the 0.5 Postgres backend tier.
  *
- * Replacing the api cuts its in-flight chat generations. `drainBackend` tells
- * the api to refuse NEW turns and waits for the in-flight ones to finish;
- * `endDrainBackend` clears the flag once the tier is serving again. A drain
- * 503 is refused in the UI — the client does not retry.
+ * Replacing the api cuts its in-flight chat generations, and replacing a
+ * worker cuts the automation steps it is walking. `drainBackend` tells the
+ * backend to refuse NEW turns — the drained workers then start no new job
+ * and hand their automation runs on at their next step — and waits for the
+ * in-flight work to finish; `endDrainBackend` clears the flag once the tier
+ * is serving again. A drain 503 is refused in the UI — the client does not
+ * retry.
  *
  * The drain is AIMED AT ONE COLOUR. On a blue-green flip both colours of the
  * api are up: the new one is already taking traffic while the old one drains,
@@ -34,14 +37,34 @@ import {
 
 export { BACKEND_API_LABEL, backendApiContainer, isBackendTierRunning };
 
-// Plain chat turns are short (seconds–~2 min); 3 min covers the tail without
-// stalling the deploy.
+// Plain chat turns are short (seconds–~2 min), an automation step hands its
+// run on when it ends, and an agent turn's drive window lasts at most 90 s;
+// 3 min covers the tail without stalling the deploy.
 const DRAIN_POLL_MS = 2_000;
 const DRAIN_TIMEOUT_MS = 3 * 60_000;
+
+/** What `inFlight` is made of, as a backend that counts automation work
+ * reports it. An older backend counts chat turns only and sends none. */
+interface DrainBreakdown {
+  generations: number;
+  automationRuns: number;
+  agentDrives: number;
+}
 
 interface DrainStatus {
   draining: boolean;
   inFlight: number;
+  breakdown?: DrainBreakdown;
+}
+
+/** The in-flight work in words, for the log. */
+function describeInFlight(status: DrainStatus | null): string {
+  if (status === null) return 'unknown work';
+  if (status.breakdown === undefined) {
+    return `${status.inFlight} chat turn(s)`;
+  }
+  const { generations, automationRuns, agentDrives } = status.breakdown;
+  return `${generations} chat turn(s), ${automationRuns} automation step(s) and ${agentDrives} agent turn window(s)`;
 }
 
 /**
@@ -58,7 +81,16 @@ async function readDrainStatus(container: string): Promise<DrainStatus | null> {
     if (typeof parsed !== 'object' || parsed === null) return null;
     const o = parsed as Record<string, unknown>;
     if (typeof o.inFlight !== 'number') return null;
-    return { draining: o.draining === true, inFlight: o.inFlight };
+    const { generations, automationRuns, agentDrives } = o;
+    return {
+      draining: o.draining === true,
+      inFlight: o.inFlight,
+      ...(typeof generations === 'number' &&
+      typeof automationRuns === 'number' &&
+      typeof agentDrives === 'number'
+        ? { breakdown: { generations, automationRuns, agentDrives } }
+        : {}),
+    };
   } catch (err) {
     logger.debug(`backend drain-status parse failed: ${String(err)}`);
     return null;
@@ -66,9 +98,10 @@ async function readDrainStatus(container: string): Promise<DrainStatus | null> {
 }
 
 /**
- * Refuse new chat turns and wait (bounded) for in-flight generations before
- * the backend recreate. Never throws — `pollMs`/`timeoutMs` exist only so
- * unit tests can run the loop fast.
+ * Refuse new chat turns, have the drained workers hand their automation runs
+ * on, and wait (bounded) for the in-flight work before the backend recreate.
+ * Never throws — `pollMs`/`timeoutMs` exist only so unit tests can run the
+ * loop fast.
  */
 export async function drainBackend(opts: {
   dryRun: boolean;
@@ -80,7 +113,7 @@ export async function drainBackend(opts: {
   const colour = opts.colour ?? null;
   if (opts.dryRun) {
     logger.info(
-      `[DRY-RUN] Would drain in-flight chat generations on ${colour ? `the ${colour} api` : 'the backend tier'}`,
+      `[DRY-RUN] Would drain in-flight chat turns and automation steps on ${colour ? `the ${colour} api` : 'the backend tier'}`,
     );
     return;
   }
@@ -100,7 +133,7 @@ export async function drainBackend(opts: {
   }
 
   logger.step(
-    `Draining in-flight chat generations on the ${colour ?? 'backend'} api...`,
+    `Draining in-flight chat turns and automation steps on the ${colour ?? 'backend'} api...`,
   );
   const begin = await controlCall('POST', '/api/control/drain', {
     container,
@@ -132,15 +165,16 @@ export async function drainBackend(opts: {
   for (;;) {
     const status = await readDrainStatus(container);
     if (status && status.inFlight === 0) {
-      logger.info('All in-flight chat generations finished.');
+      logger.info('All in-flight chat turns and automation steps finished.');
       return;
     }
     if (Date.now() >= deadline) {
       logger.warn(
-        `Backend still has ${status?.inFlight ?? 'unknown'} generation(s) after ${timeoutMs / 1000}s — recreating anyway; the recovery watchdog will finalize them.`,
+        `Backend still has ${describeInFlight(status)} in flight after ${timeoutMs / 1000}s — recreating anyway; the recovery watchdog and the automation liveness sweep will pick them up.`,
       );
       return;
     }
+    logger.debug(`Drain waiting on ${describeInFlight(status)}.`);
     await Bun.sleep(pollMs);
   }
 }

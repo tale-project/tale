@@ -295,11 +295,38 @@ A published version is not a deployment. Deployments follow their own procedure.
   The workflow test stubs `gh`, so it proves the step's branching, not GitHub's lookup. This is
   a recorded decision: the step treats any failed lookup as a missing release and calls
   `gh release create`, so the draft check is only as reliable as gh's lookup.
-- **A failed Release run after the tag.** Never move the tag. For a transient failure,
-  re-run **all jobs** of the same Release run (its concurrency never cancels a release).
-  The maintained adopter requires the complete publication job matrix from one current
-  attempt; failed-job-only retries omit earlier successes, and mixing attempts is refused.
-  If source must change, fix `main`, validate a new candidate and release the next version.
+- **A failed Release run after the tag.** Never move the tag, and never rebuild a version
+  whose `:X.Y.Z` images are published. The maintained adopter requires the complete
+  publication job matrix from one current attempt; failed-job-only retries omit earlier
+  successes, and mixing attempts is refused. A full re-run builds new images, though:
+  `Build <service> (<arch>)` stamps `org.opencontainers.image.created` with the attempt's
+  time, so every attempt pushes new digests, and `Manifest <service>` then points `:X.Y.Z`
+  and `:latest` at them. So decide by what the registry holds, not by which job failed.
+  Before any retry, look up `:X.Y.Z` for every service in the run's `Build` jobs, as the
+  `Verify manifests are pullable` step of `Create release` does:
+
+  ```bash
+  docker manifest inspect ghcr.io/tale-project/tale/tale-<service>:X.Y.Z
+  ```
+
+  Count a service as missing only on a not-found answer (`manifest unknown`). An
+  authentication, rate-limit or network error proves nothing, so treat that service as
+  published.
+
+  - **No service has `:X.Y.Z`** (typically a failure in `Prepare`, a `Build` job or the
+    `Container test gate`): for a transient failure, re-run **all jobs** of the same Release
+    run (its concurrency never cancels a release). The re-run replaces only the `X.Y.Z-amd64`
+    and `X.Y.Z-arm64` tags, which only the run's own jobs read.
+  - **Any service has `:X.Y.Z`** (typically a failure in `Manifest <service>`,
+    `Create release`, `Trigger CLI build` or `Summary`): re-run no job of that run. A full
+    re-run re-points the published tags, re-running a failed `Manifest` job pushes them again,
+    and the adopter refuses a failed-job-only attempt anyway. Leave the tag, the images and
+    the run as they are; until the next version publishes, `:latest` can name different
+    versions per service.
+
+  For a published version, or a failure that needs a source change, recover forward: fix
+  `main` where needed, then validate a new candidate and release it as the next version
+  (steps 1–5).
 
 ## Merging during a release, and the release lease
 

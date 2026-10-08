@@ -12,6 +12,7 @@
 
 import type { ValidateFunction } from 'ajv';
 
+import { connectorIdempotencyKey, subautomationPathPrefix } from '../protocol';
 import type {
   AgentTurnRequest,
   ConnectorHostCapabilities,
@@ -21,8 +22,9 @@ import type {
 import { agentService, llmService, nodeTypes } from '../slots';
 import { evalCondition, evalTemplates, ExprError, runCode } from '../template';
 import type { Automation, Effect, NodeTrace, RunResult } from '../types';
+import { MAX_SUBAUTOMATION_DEPTH } from '../typing/children';
 import { compileSchema } from '../validate/schema';
-import { refsOf, topoSort } from './controlflow';
+import { maxRepeatsOf, refsOf, topoSort } from './controlflow';
 import {
   cloneData,
   makeScope,
@@ -89,11 +91,12 @@ export interface ExecuteOptions {
   maxNodes?: number;
   /** Subautomation nesting depth (internal; hosts leave it unset). */
   nesting?: number;
+  /** The calling run and the path prefix of a subautomation's own nodes
+   * (internal; hosts leave it unset): a nested call presents the key the
+   * durable stepper gives the same call, `<run>:<parent>[<item>:<pass>]/<id>:…`. */
+  within?: { runId: string; pathPrefix: string };
 }
 
-const MAX_SUBAUTOMATION_DEPTH = 3;
-const DEFAULT_MAX_REPEATS = 5;
-const REPEATS_HARD_CAP = 20;
 const DEFAULT_MAX_NODE_EXECUTIONS = 100;
 
 export async function execute(
@@ -144,7 +147,8 @@ export async function execute(
   const nodeOutputs: Record<string, { output: unknown }> = {};
   const skipped = new Set<string>();
   const whenSkipped = new Set<string>();
-  const runId = newRunId();
+  const runId = opts.within?.runId ?? newRunId();
+  const pathPrefix = opts.within?.pathPrefix ?? '';
   const maxExecutions = opts.maxNodes ?? DEFAULT_MAX_NODE_EXECUTIONS;
   let executions = 0;
 
@@ -200,6 +204,7 @@ export async function execute(
       const runOnce = async (
         extra: Record<string, unknown>,
         record: boolean,
+        pass: number,
       ): Promise<unknown> => {
         executions++;
         if (executions > maxExecutions) {
@@ -366,6 +371,14 @@ export async function execute(
             ...opts,
             input: resolved,
             nesting: depth + 1,
+            within: {
+              runId,
+              pathPrefix: subautomationPathPrefix(
+                `${pathPrefix}${n.id}`,
+                Number(extra.index ?? 0),
+                pass,
+              ),
+            },
           });
           if (sub.status !== 'success') {
             throw new ExprError(
@@ -401,7 +414,12 @@ export async function execute(
                 secrets: {
                   get: (name: string) => secretMap[name] ?? '',
                 },
-                idempotencyKey: `${runId}:${n.id}:${Number(extra.index ?? 0)}`,
+                idempotencyKey: connectorIdempotencyKey(
+                  runId,
+                  `${pathPrefix}${n.id}`,
+                  Number(extra.index ?? 0),
+                  pass,
+                ),
                 endpoint: host.endpoint,
                 config: host.config,
                 http: host.http,
@@ -440,16 +458,13 @@ export async function execute(
         extra: Record<string, unknown>,
         record: boolean,
       ): Promise<unknown> => {
-        if (typeof n.repeatUntil !== 'string') return runOnce(extra, record);
-        const max = Math.min(
-          n.maxRepeats ?? DEFAULT_MAX_REPEATS,
-          REPEATS_HARD_CAP,
-        );
+        if (typeof n.repeatUntil !== 'string') return runOnce(extra, record, 0);
+        const max = maxRepeatsOf(n);
         let out: unknown;
         let iters = 0;
         let done = false;
         for (; iters < max; iters++) {
-          out = await runOnce(extra, record && iters === 0);
+          out = await runOnce(extra, record && iters === 0, iters);
           // The in-flight result is visible BOTH as `output` and as this
           // node's own nodes.<id>.output — authors naturally write either.
           const withSelf = { ...nodeOutputs, [n.id]: { output: out } };

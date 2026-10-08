@@ -2,6 +2,7 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import { Hono, type Context } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { scheduleTriggerInput } from '../../../lib/engine/core/slots.ts';
 import { dueOccurrence } from '../../core/automations/cron.ts';
 import {
   deliveryIdentity,
@@ -359,7 +360,7 @@ export async function scanScheduledTriggers(
             started = await beginRunInTx(tx, {
               organizationId: trigger.organizationId,
               name: trigger.name,
-              input: { trigger: 'schedule', firedAt: due },
+              input: scheduleTriggerInput(due),
               mode: 'live',
               startedBy: `trigger:${trigger.id}`,
             });

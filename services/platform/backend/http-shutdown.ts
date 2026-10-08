@@ -5,10 +5,10 @@ import { endAllEventStreams } from './realtime/sse.ts';
 /**
  * How long `close` may wait for in-flight requests before force-closing the
  * remaining connections. Must land well under the orchestrator's kill grace
- * (compose default: 10s to SIGKILL; backend-api sets no stop_grace_period)
- * so `boss.stop({ graceful: true })`, `sql.end`, and the error-reporting
- * flush still get their turn — a request cut at the deadline is retryable,
- * a SIGKILL mid-job is not.
+ * (backend-api: 30s, backend-worker: 120s — compose.yml and the CLI's
+ * compose services) so the job stop, `sql.end`, and the error-reporting
+ * flush still get their turn (`shutdown-sequence.ts`) — a request cut at
+ * the deadline is retryable, a SIGKILL mid-job is not.
  */
 const FORCE_CLOSE_AFTER_MS = 5_000;
 

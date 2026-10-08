@@ -44,7 +44,8 @@ export const KNOWLEDGE_TOOLS_GUIDANCE =
   '"workspace_tool" MCP tool: rag_search {query} finds the most relevant ' +
   "passages, rag_fetch {ref} reads one hit's full source (a document file " +
   'id or a crawled page URL). Use them when you need organization facts ' +
-  'that are not in your staged files; call workspace_status to see ' +
+  'that are not in your staged files; call the separate workspace_status ' +
+  'MCP tool with {} to see ' +
   'everything granted.';
 
 /**
@@ -71,7 +72,8 @@ export function imageGenerationGuidance(outputDir: string): string {
     "organization's image model and saves them into " +
     `${outputDir}/ — name a file there (no subfolders: only the box's top ` +
     'level is delivered) or a path under /agent/workspace/ — answering ' +
-    'with the saved paths; call workspace_status for the argument details. ' +
+    'with the saved paths; call the separate workspace_status MCP tool ' +
+    'with {} for the argument details. ' +
     'Every image is billed to the organization and counts against this ' +
     `turn's spend allowance, at most ${SANDBOX_TURN_MAX_GENERATED_IMAGES} ` +
     'images a turn — create what the task needs, not variations for their ' +
@@ -178,8 +180,8 @@ export function grantedToolsGuidance(
     'This agent is additionally granted these workspace tools (call them ' +
     'through the "workspace_tool" MCP tool as {tool, args}): ' +
     tools.join(', ') +
-    '. Call workspace_status once for their argument shapes before first ' +
-    'use.' +
+    '. Call the separate workspace_status MCP tool with {} for their ' +
+    'argument shapes.' +
     (hasWrite
       ? ' The write tools change real organization data (tasks, documents) ' +
         'with no further approval — act deliberately and prefer the ' +

@@ -30,6 +30,13 @@ const inventory: MigrationInventory = [
     ids: ['1'],
   },
 ];
+const frontend = {
+  service: 'platform',
+  instance: '11111111-1111-4111-8111-111111111111',
+};
+const headers = {
+  'Tale-Serving-Identity': `v1;service=platform;instance=${frontend.instance}`,
+};
 test('migration hashes use compact sorted JSON and lexical IDs, including numbered TS', () => {
   const accepted = acceptedMigrations(
     inventory,
@@ -91,10 +98,16 @@ for (const [status, body] of [
   test(`health refuses status ${status} or invalid body`, async () => {
     const request = (async (_url: string | URL | Request) =>
       typeof body === 'string'
-        ? new Response(body, { status })
-        : Response.json(body, { status })) as typeof fetch;
+        ? new Response(body, { status, headers })
+        : Response.json(body, { status, headers })) as typeof fetch;
     await expect(
-      acceptanceHealth('https://example.invalid', '1.2.3', 1000, request),
+      acceptanceHealth(
+        'https://example.invalid',
+        '1.2.3',
+        frontend,
+        1000,
+        request,
+      ),
     ).rejects.toThrow('healthy serving version');
   });
 test('health follows no redirects, sends no credentials and validates bounded success', async () => {
@@ -105,11 +118,17 @@ test('health follows no redirects, sends no credentials and validates bounded su
     expect(options?.credentials).toBe('omit');
     expect(options?.signal).toBeInstanceOf(AbortSignal);
     seen = true;
-    return Response.json({ status: 'ok', version: '1.2.3' });
+    return Response.json({ status: 'ok', version: '1.2.3' }, { headers });
   }) as typeof fetch;
   expect(
-    await acceptanceHealth('https://example.invalid', '1.2.3', 1000, request),
-  ).toEqual({ status: 'ok', version: '1.2.3' });
+    await acceptanceHealth(
+      'https://example.invalid',
+      '1.2.3',
+      frontend,
+      1000,
+      request,
+    ),
+  ).toEqual(frontend);
   expect(seen).toBe(true);
 });
 test('health cancels a stalled actual response under its deadline', async () => {
@@ -123,11 +142,17 @@ test('health cancels a stalled actual response under its deadline', async () => 
             controller.enqueue(new TextEncoder().encode('{'));
           },
         }),
+        { headers },
       ),
   });
   try {
     await expect(
-      acceptanceHealth(`http://127.0.0.1:${server.port}`, '1.2.3', 50),
+      acceptanceHealth(
+        `http://127.0.0.1:${server.port}`,
+        '1.2.3',
+        frontend,
+        50,
+      ),
     ).rejects.toThrow('healthy serving version');
   } finally {
     await server.stop(true);

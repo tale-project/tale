@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TooltipProvider } from '../overlays/tooltip';
 import { EditorActions } from './editor-actions';
 import { EditorSaveCancelledError } from './types';
 import type { EditorController, EditorTelemetryEvent } from './types';
@@ -166,5 +168,104 @@ describe('EditorActions — cancelled save', () => {
     expect(
       screen.queryByRole('button', { name: 'actions.saved' }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('EditorActions — invalidReason', () => {
+  const REASON = 'Fix 2 errors to save';
+
+  function renderActions(
+    overrides: Partial<EditorController>,
+    props: { inlineReason?: boolean } = {},
+  ) {
+    return render(
+      <TooltipProvider>
+        <EditorActions
+          controller={makeController({
+            isValid: false,
+            invalidReason: REASON,
+            ...overrides,
+          })}
+          {...props}
+        />
+      </TooltipProvider>,
+    );
+  }
+
+  it('keeps Save reachable and explains why it is off', async () => {
+    renderActions({});
+    const save = screen.getByRole('button', { name: 'actions.save' });
+    // Soft-disabled: focusable, announced as disabled, inert to clicks.
+    expect(save).not.toBeDisabled();
+    expect(save).toHaveAttribute('aria-disabled', 'true');
+    // Discard, then Save: the reason reaches a keyboard user on focus.
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(save).toHaveFocus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(REASON);
+    clickSave();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  function pressSave(): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', {
+      key: 's',
+      metaKey: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(event);
+    return event;
+  }
+
+  it('⌘S keeps the browser from saving the page and shows why Save waits', async () => {
+    const save = vi.fn();
+    renderActions({ save });
+    expect(pressSave().defaultPrevented).toBe(true);
+    expect(screen.getByRole('button', { name: 'actions.save' })).toHaveFocus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(REASON);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('⌘S leaves focus where it is when the reason stands inline', () => {
+    renderActions({}, { inlineReason: true });
+    expect(pressSave().defaultPrevented).toBe(true);
+    expect(document.body).toHaveFocus();
+  });
+
+  it('⌘S with nothing to save is the browser shortcut again', () => {
+    renderActions({ isDirty: false });
+    expect(pressSave().defaultPrevented).toBe(false);
+  });
+
+  it('gives no reason when there is nothing to save', () => {
+    renderActions({ isDirty: false });
+    expect(screen.getByRole('button', { name: 'actions.save' })).toBeDisabled();
+  });
+
+  it('gives no reason while a save or a load is under way', () => {
+    renderActions({ isLoading: true });
+    expect(screen.getByRole('button', { name: 'actions.save' })).toBeDisabled();
+  });
+
+  it('stays a plain disabled Save without a reason', () => {
+    renderActions({ invalidReason: undefined });
+    expect(screen.getByRole('button', { name: 'actions.save' })).toBeDisabled();
+  });
+
+  it('shows the reason inline, describing Save, outside the live region', () => {
+    renderActions({}, { inlineReason: true });
+    const save = screen.getByRole('button', { name: 'actions.save' });
+    expect(save).toBeDisabled();
+    expect(save).toHaveAccessibleDescription(REASON);
+    const line = screen.getByText(REASON);
+    expect(line).toHaveAttribute('aria-live', 'off');
+  });
+
+  it('drops the inline reason once the edits are valid', () => {
+    renderActions({ isValid: true }, { inlineReason: true });
+    expect(screen.queryByText(REASON)).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'actions.save' }),
+    ).not.toHaveAttribute('aria-describedby');
   });
 });

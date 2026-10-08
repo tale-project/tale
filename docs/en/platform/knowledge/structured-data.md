@@ -38,7 +38,7 @@ You need an Editor role or higher to maintain organization records. Open **Knowl
 2. Check **Locale**, which starts as `en`, and set the language appropriate to the contact.
 3. Choose **Save**. The new row appears in Contacts with its details and added date.
 
-The form holds each field to what Tale stores before it saves: a **Name** of up to 300 characters, a **Phone** of up to 50, a **Locale** of up to 20, and an **Email** with at most 64 characters before the `@`. A value past a limit is named under its field, and nothing is saved until you fix it.
+The form holds each field to what Tale stores before it saves: a **Name** of up to 300 characters, a **Phone** of up to 50, a **Locale** of up to 20, and an **Email** with at most 64 characters before the `@`. A value past a limit is named under its field, and nothing is saved until you fix it. **Phone** takes digits, spaces and `+ ( ) . -` only. Another character stays where you typed it, a message under the field says so, and nothing is saved until you remove it.
 
 To see only the contacts in one language, choose **Filter** above the Contacts list and pick the language under **Locale**. A language includes its regional variants: **FR** lists contacts whose locale is `fr`, `fr-CH`, or `fr_CA`. A contact without a locale appears only while no language is picked.
 

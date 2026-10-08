@@ -23,6 +23,9 @@ import '../app/globals.css';
 
 // Connected settings stories supply their own data and mutations. Spy mode
 // preserves the real implementations for stories that do not override them.
+sb.mock(import('../app/features/automations/hooks/mutations.ts'), {
+  spy: true,
+});
 sb.mock(import('../app/features/settings/branding/hooks/mutations.ts'), {
   spy: true,
 });

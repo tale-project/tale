@@ -223,6 +223,25 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
+  it("ends a window early on its caller's signal, leaving the exec running for the next window", async () => {
+    transport.stdout = PI_MID_TOOL;
+    const stop = new AbortController();
+    const started = Date.now();
+    setTimeout(() => stop.abort(), 20);
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'stopping-server',
+      harness: 'pi',
+      windowMs: 60_000,
+      signal: stop.signal,
+    });
+
+    expect(result.kind).toBe('running');
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(transport.cancelled).toEqual([]);
+  });
+
   it('keeps the background ledger when a later window no longer replays its start', async () => {
     transport.stdout = ndjson([
       CLAUDE_INIT,

@@ -285,6 +285,12 @@ editor:
     forEachDescription: S’exécute une fois par élément du tableau que produit l’expression.
     repeatUntil: Répéter jusqu’à
     repeatUntilDescription: Relancer ce nœud jusqu’à ce que l’expression soit vraie.
+    maxRepeats: Répétitions maximales
+    onError: En cas d’erreur
+    output: Sortie
+    type: Type
+    id: Identifiant
+    modelProvider: Fournisseur
 bindings:
   title: Projets
   countBadge: '{count, plural, one {Lié à # projet} other {Lié à # projets}}'
@@ -341,9 +347,9 @@ runs:
     visionModel: 'Les images de cette exécution ont été lues par {model}.'
   approval:
     title: 'En attente de ton approbation : {operation}'
-    node: 'Demandé par le nœud « {node} » — approuver le laisse agir au prochain poll ; rejeter le fait échouer.'
-    pending: "Approuver laisse l'étape en attente agir au prochain poll ; rejeter la fait échouer."
-    approved: "{operation} a été approuvé — l'exécution reprend au prochain poll."
+    node: 'Demandé par le nœud « {node} » — approuver le laisse agir immédiatement ; rejeter le fait échouer.'
+    pending: "Approuver laisse l'étape en attente agir immédiatement ; rejeter la fait échouer."
+    approved: "{operation} a été approuvé — l'exécution reprend immédiatement."
     rejected: "{operation} a été rejeté — l'étape échoue et l'exécution s'arrête."
     input: "L'étape appellerait avec"
     approve: Approuver
@@ -357,6 +363,50 @@ runs:
     answerLabel: Ta réponse
     placeholder: Écris ta réponse — du texte simple suffit.
     submit: Envoyer la réponse & reprendre
+  # Une exécution transmise à un autre serveur — après la mise à jour ou le
+  # redémarrage du sien, ou parce qu’il ne répondait plus.
+  resumed:
+    label: '{count, plural, one {Reprise après un redémarrage} other {Reprise après # redémarrages}}'
+    shutdown: 'Dernière fois le {date} : le serveur qui l’exécutait était mis à jour ou redémarré et l’a transmise.'
+    lease_expired: 'Dernière fois le {date} : le serveur qui l’exécutait ne répondait plus, et un autre a pris le relais.'
+  # Une écriture qui a peut-être déjà atteint son service quand l’exécution a
+  # été interrompue : Tale ne peut pas le savoir, alors une personne décide
+  # de la suite.
+  quarantine:
+    title: "Résultat inconnu"
+    reason: "Suspendue : le résultat du travail précédent est inconnu."
+    body: "Cette exécution a commencé avant la mise à jour. Tale ne peut pas vérifier si le travail précédent s’est arrêté ou a atteint un service externe. L’exécution reste suspendue et ne sera pas relancée automatiquement."
+    missing: "Impossible de charger les détails de la suspension. Recharge-les avant de demander un arrêt."
+    stop: "Demander l’arrêt"
+    requested: "Arrêt demandé. L’exécution reste suspendue jusqu’à confirmation de l’arrêt du travail précédent. Les actions déjà effectuées ne sont pas annulées."
+    confirmTitle: "Demander l’arrêt de cette exécution ?"
+    confirmBody: "Tale demandera l’arrêt des sessions qu’il peut identifier. Cela ne confirme pas l’arrêt du travail précédent et n’annule rien de ce qu’un service externe a reçu. L’exécution restera suspendue."
+    changed: "La suspension a changé. Ferme cette fenêtre et consulte les détails actuels avant de décider."
+    failed: "Impossible d’enregistrer la demande d’arrêt."
+    reload: "Recharger les détails"
+  inDoubt:
+    title: 'Cette étape a peut-être déjà été exécutée : {node}'
+    body: '{item, select, none {L’exécution a été interrompue pendant que cette étape envoyait des données à {connector}.} other {L’exécution a été interrompue pendant que cette étape envoyait l’élément {item} à {connector}.}} Tale ne peut pas savoir si {connector} a reçu cet envoi. Vérifie dans {connector} : s’il l’a reçu, ignore l’étape ; sinon, relance-la.'
+    input: Ce que l’étape envoyait
+    retry: Relancer l’étape
+    retryConfirm:
+      title: Relancer cette étape ?
+      body: 'Si {connector} l’a déjà reçu, l’action aura lieu deux fois.'
+    skip: Ignorer l’étape
+    skipHint: 'Ignorer l’étape : l’exécution continue comme si l’étape n’avait rien renvoyé.'
+    fail: Faire échouer l’exécution
+    failConfirm:
+      title: Faire échouer cette exécution ?
+      body: L’exécution s’arrête ici. Rien de ce qu’elle a déjà fait n’est annulé.
+    resolved:
+      retry: L’étape va être relancée.
+      skip: Étape ignorée — l’exécution continue.
+      fail: L’exécution a échoué.
+    settled: Cette étape n’attend plus de décision.
+    loading: Chargement de l’étape…
+    loadFailed: Impossible de charger cette étape.
+    reload: Réessayer
+    decideFailed: Impossible d’enregistrer ton choix.
   title: Exécutions
   description: Chaque exécution de cette automatisation, la plus récente en premier — essais et exécutions réelles. Ouvre-en une pour ses étapes, ses effets et sa sortie.
   breadcrumb: Exécution
@@ -397,6 +447,7 @@ runs:
     agent: Agent au travail
     room: En attente d’une place de sandbox
     repeat: 'Interrogation — étape {node}'
+    in_doubt: 'En attente d’une décision — l’étape {node} a peut-être déjà été exécutée'
   startedAt: 'Lancée {date}'
   finishedAt: 'Terminée {date}'
   inputTitle: Entrée de l’exécution
@@ -410,12 +461,16 @@ runs:
     mock: Essai
     live: Réel
   status:
+    quarantined: Suspendue
     queued: En file d’attente
     running: En cours
     waiting: En attente
     success: Réussie
     failed: En échec
     cancelled: Arrêtée
+    # Une exécution en cours dont le serveur s’est arrêté, avant qu’un autre
+    # la reprenne.
+    stalled: Interrompue — reprise en cours
   nodeStatus:
     ok: Exécuté
     skipped: Ignoré
@@ -424,6 +479,8 @@ runs:
     pending: Pas encore atteint
     running: En cours
     stopped: Arrêté ici
+    waiting: En attente ici
+    interrupted: Interrompu ici
   effects:
     title: '{count, plural, one {# effet} other {# effets}}'
     description:
@@ -482,3 +539,22 @@ settings:
     removeDescription: '« {name} » est supprimé définitivement du projet — cette action est irréversible.'
     removeConfirm: Supprimer
     removeFailed: Impossible de supprimer le fichier — réessaie.
+problems:
+  title: Problèmes
+  hide: Masquer les problèmes
+  saveBlocked: '{count, plural, one {Corrige # erreur pour enregistrer} many {Corrige # erreurs pour enregistrer} other {Corrige # erreurs pour enregistrer}}'
+  checkingDraft: Vérification de tes modifications…
+  checkFailed: 'Impossible de vérifier ce brouillon, la liste n’est donc peut-être plus à jour. Tu peux quand même enregistrer : chaque enregistrement est vérifié.'
+  refusedSave: L’enregistrement a été refusé
+  refusedDeploy: Cette version a des problèmes qui empêchent sa mise en service. Ils sont listés dans Problèmes.
+  refusedDeployDraft: Cette version a des problèmes qui empêchent sa mise en service. Abandonne ton brouillon pour les voir dans Problèmes.
+  open: Afficher les problèmes
+  notEditableHere: Cette partie de l’automatisation ne se modifie pas ici. Modifie-la via MCP, l’API ou un paquet téléversé.
+  nodeTitle: Problèmes de ce nœud
+  filter:
+    label: Afficher les problèmes
+    all: Tous
+    errors: Erreurs
+    warnings: Avertissements
+  emptyFiltered: '{filter, select, errors {Aucune erreur} warnings {Aucun avertissement} other {Aucun problème}}'
+  fieldPart: '{part} : {message}'

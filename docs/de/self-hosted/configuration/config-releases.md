@@ -131,6 +131,8 @@ Die Ziel-URL bezeichnet den erreichbaren API-Endpunkt; Origin ist die kanonische
 
 Das Deployment erstellt fehlende eigene Skills über den nativen Upload, der nur neue Skills anlegt, und prüft jedes installierte Byte. Vorhandene identische Bytes lassen sich wiederverwenden; abweichende Bytes unter demselben Release-Slug führen zur Ablehnung. Der reine Workflow-Import kann keine Skills schreiben. Vor der Erfolgsmeldung prüft die CLI den bereitgestellten Workflow, Einstellungen, Darstellung, Aufgabenvertrag und Projektbindung.
 
+Der Import antwortet mit den Warnungen zum Workflow. Eine Warnung zur Logik des Workflows selbst, etwa ein Lesezugriff auf eine Node, die übersprungen werden kann, oder eine Node, die nie laufen kann, hält das Deployment nicht auf: Das Ergebnis führt sie unter `importWarnings` auf. Jede andere Warnung, etwa ein Skill, den die Organisation nicht hat, stoppt das Deployment nach dem Import, und die gespeicherte Version wird nicht bereitgestellt. [Was Tale vor einem Lauf prüft](/de/platform/automations/concepts#checks) erklärt jede Warnung.
+
 Führe `verify-native` nach dem Deployment und den Betriebstests aus. Der Befehl importiert nichts und erzeugt weder Version noch Beleg. Auch ein wiederholtes Deployment liest den aktuellen nativen Inhalt, bevor es ein unverändertes Release meldet. Ein gespeicherter Beleg allein beweist keine aktuellen Bytes.
 
 ## Eine unterbrochene Bereitstellung wiederaufnehmen

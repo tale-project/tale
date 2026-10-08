@@ -28,6 +28,8 @@ run:
   missingInput: "Dépose d'abord les fichiers d'entrée — la liste Fichiers de cette tâche est encore vide."
   working: '{name} travaille sur cette tâche.'
   waitingAnswer: '{name} attend ta réponse à une question — dès que tu réponds ci-dessous, ça reprend.'
+  waitingDecision: '{name} attend une décision sur une étape qui a peut-être déjà été exécutée — choisis ci-dessous comment continuer.'
+  waitingDecisionOther: '{name} attend une décision sur une étape qui a peut-être déjà été exécutée.'
   label: Exécution
   details: Détails
   detailsTitle: "{name} — détails de l'exécution"

@@ -686,3 +686,50 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   the resume bug remains open. Paying it down means a sandbox-runtime pin that carries
   the upstream fix, then flipping the flag and restoring the `resume` argv slot (the schema
   holds the two coherent).
+- **An in-doubt step is decided in the app only** — a run parked on `waitingFor: in_doubt` (a
+  write its server was making when it stopped may already have reached the service) is read and
+  decided through `GET`/`POST /api/app/automations/runs/{runId}/in-doubt[/{attemptId}]`
+  (`backend/domains/automations/routes.ts`) and the card on the run page and in the task
+  panel: `/api/v1` and MCP name the wait but offer no door, and the card names a write inside a
+  subautomation by its raw path (`batch[1:0]/send`) (2026-10). Paying it down means
+  `GET {run}/in-doubt` and `POST {run}/in-doubt/{attemptId}` `{resolution, attempt, actor?}` in both
+  scopes of `backend/rest/v1-automations.ts` beside the ask doors (the stop's write gate,
+  `rest:execute` charged, the store's 409s re-coded at the door), an MCP tool, a contract bump,
+  and a readable name for a nested path.
+- **An in-doubt park is silent** — nothing tells anyone that a run waits on an in-doubt step: no
+  bell, no email; the run list and the run's status say it waits for a decision only to someone
+  who opens them, so an unattended scheduled run can wait until somebody does (2026-10). Paying it down
+  means a notification kind with its preferences, emitted in the park's transaction to the
+  run's starter (an organization run's owners when a trigger started it) and marked read when
+  the step is decided.
+- **No shipped connector action is marked `idempotent`** — the connector schema takes
+  `idempotent: true` (`packages/shared/src/schemas/connectors.ts`), and a write so marked is
+  sent again after an interruption instead of waiting for a person; no catalog action declares
+  it yet, so every write cut mid-call parks in doubt, even one whose service dedupes by the
+  idempotency key Tale sends (2026-10). Paying it down means a review of each action's vendor
+  call (does the service honour the key, or a natural key such as a message id), then the flag
+  on the actions that pass, with a test per action.
+- **An erasure leaves the subject's id on decisions in other people's runs** —
+  `app.automation_human_asks.answered_by` and `app.automation_node_attempts.resolved_by` keep
+  the bare user id of whoever answered an agent's question or decided an in-doubt step; the
+  erasure pass deletes only the runs the subject started (`automationRuns` in
+  `backend/domains/erasure/service.ts`), so the id stays on a run someone else started
+  (2026-10). Paying it down means a pass that pseudonymises both columns the way review
+  decisions are, with its breakdown category and a case in the erasure tests.
+- **Legacy execution holds need a proven retirement before release** — migration 0163 preserves
+  pre-protocol queued/running/waiting runs as `quarantined`, fences legacy database writers and
+  keeps their task subjects occupied. An already-admitted legacy external call can still finish;
+  the database cannot establish its outcome. The app and REST stop-request doors record an
+  explicit acknowledgement and request owned session cancellation, but deliberately keep the
+  run, asks and task exclusion on hold (2026-10). Paying this down requires source-bound proof
+  that the old execution is retired, an authorized decision about unknown external effects, and
+  a guarded release contract. Never clear the hold or manufacture node-attempt evidence merely
+  because a stop was requested, a lease expired, or the old containers disappeared.
+- **A run lease compares the clocks of the hosts it spans** — the stepper stamps and checks the
+  30 s lease with its own host's clock (`claimRun`, `heartbeatRun`, `sweepOverdueRuns`), and the
+  read model's `stalled` compares it with the database's. Workers on hosts whose clocks differ by
+  more than about 30 s read each other's live leases as lapsed and take runs over (the epoch
+  fence and the ledger keep that from repeating a write, but every such takeover of a write in
+  flight parks it in doubt), so a multi-host deployment needs synchronised clocks (2026-10).
+  Paying it down means stamping and comparing leases with the database's clock
+  (`clock_timestamp()`) in the claim, heartbeat, progress, park and sweep statements.

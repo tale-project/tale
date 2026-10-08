@@ -32,9 +32,9 @@ export function approvalIdFromDetail(
 /**
  * The human gate of a LIVE run, where the human is already looking: a waiting
  * run's approval rendered as a card with the operation, its input, and the
- * approve/reject decision. Approving lets the parked node act on the
- * stepper's next poll; rejecting fails it. Without this card a live run's
- * write nodes have no reachable decision surface at all.
+ * approve/reject decision. Approving lets the parked node act right away —
+ * the decision wakes the run — and rejecting fails it. Without this card a
+ * live run's write nodes have no reachable decision surface at all.
  *
  * Everything the card shows belongs to ONE approval. A new `approvalId` —
  * the run reaching its next gate, or the panel now showing another task's
