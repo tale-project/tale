@@ -45,9 +45,9 @@ export interface SpawnerConfig {
   // ghcr ref so the daemon matches the deployed version.
   buildkitdImage: string;
   // The pull-through registry mirror image (env SANDBOX_BUILDKITD_MIRROR_IMAGE;
-  // default stock `registry:2`) launched alongside the buildkitd so base-image
-  // pulls resolve by name on the internal net (buildkit can't resolve external
-  // registry names through docker's embedded DNS).
+  // default stock registry 2.8.3, pinned by digest) launched alongside the
+  // buildkitd so base-image pulls resolve by name on the internal net (buildkit
+  // can't resolve external registry names through docker's embedded DNS).
   buildkitdMirrorImage: string;
   // The bounds of each organization's builder (env SANDBOX_BUILDKITD_CPUS and
   // SANDBOX_BUILDKITD_MEMORY): unset, an agent session's CPUs and twice its

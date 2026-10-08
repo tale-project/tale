@@ -308,7 +308,9 @@ describe('loadConfig — shared build cache', () => {
     const cfg = loadConfig(); // runc → DinD off → cache off
     expect(cfg.dockerBuildCache).toBe(false);
     expect(cfg.buildkitdImage).toBe('tale-sandbox-buildkitd:latest');
-    expect(cfg.buildkitdMirrorImage).toBe('registry:2');
+    expect(cfg.buildkitdMirrorImage).toBe(
+      'registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373',
+    );
   });
 
   test('default FOLLOWS DinD: ON when DinD is on (sysbox), no flag needed', () => {

@@ -21,6 +21,7 @@ import { generateStatefulCompose } from '../generators/generate-stateful-compose
 import type { ComposeService, ServiceConfig } from '../types';
 import {
   ALL_SERVICES,
+  BUILDKITD_MIRROR_IMAGE,
   THIRD_PARTY_IMAGES,
   imagePlatform,
   imageRef,
@@ -247,6 +248,35 @@ describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
       expect(service?.cap_drop).toEqual(['ALL']);
       expect([...(service?.cap_add ?? [])].sort()).toEqual(expected);
     }
+  });
+});
+
+describe('buildkitd mirror image parity', () => {
+  // The spawner pulls the pull-through registry mirror itself, so its default
+  // lives in three places: compose.yml, the CLI generator and the spawner's
+  // config. All three name the same version and digest, never a moving tag.
+  const expected = `\${SANDBOX_BUILDKITD_MIRROR_IMAGE:-${BUILDKITD_MIRROR_IMAGE}}`;
+
+  test('the mirror default is pinned by version and digest', () => {
+    expect(BUILDKITD_MIRROR_IMAGE).toMatch(
+      /^registry:\d+\.\d+\.\d+@sha256:[a-f0-9]{64}$/,
+    );
+  });
+
+  test('both compose pipelines and the spawner default to it', () => {
+    expect(
+      compose.services['sandbox']?.environment?.SANDBOX_BUILDKITD_MIRROR_IMAGE,
+    ).toBe(expected);
+    expect(
+      createSandboxService(config).environment?.SANDBOX_BUILDKITD_MIRROR_IMAGE,
+    ).toBe(expected);
+    const spawnerConfig = readFileSync(
+      resolve(repoRoot, 'services/sandbox/src/config.ts'),
+      'utf8',
+    );
+    expect(spawnerConfig.replace(/\s+/g, ' ')).toContain(
+      `process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? '${BUILDKITD_MIRROR_IMAGE}'`,
+    );
   });
 });
 

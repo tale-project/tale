@@ -524,11 +524,14 @@ export function loadConfig(): SpawnerConfig {
     // pinned ghcr ref so the daemon matches the deployed version.
     buildkitdImage:
       process.env.SANDBOX_BUILDKITD_IMAGE ?? 'tale-sandbox-buildkitd:latest',
-    // The pull-through registry mirror image (stock `registry:2`) the spawner
-    // launches alongside the buildkitd so base-image pulls resolve by name on
-    // the internal net. Overridable for a pinned/mirrored ref in fenced deploys.
+    // The pull-through registry mirror image the spawner launches alongside
+    // the buildkitd so base-image pulls resolve by name on the internal net:
+    // stock registry 2.8.3, pinned by digest so every host runs the same
+    // bytes, and the same default as both compose pipelines. Overridable for
+    // a mirrored ref in fenced deploys.
     buildkitdMirrorImage:
-      process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? 'registry:2',
+      process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ??
+      'registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373',
     ...(buildkitdCpus !== undefined ? { buildkitdCpus } : {}),
     buildkitdProvisionTimeoutMs: numEnv(
       'SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS',
