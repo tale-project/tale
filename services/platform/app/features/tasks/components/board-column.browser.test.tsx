@@ -1,9 +1,11 @@
 import '@testing-library/jest-dom/vitest';
+import { useCallback, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 
 import { cleanup, render, screen } from '@/tests/utils/render';
 
+import type { TaskStatus } from '../lib/display';
 import { KanbanBoard } from './kanban-board';
 import type { TaskRow } from './task-card';
 import {
@@ -318,5 +320,82 @@ describe('a long board lane (real Chromium)', () => {
     expect(screen.getByRole('listbox')).toBe(picker);
     expect(input).toHaveFocus();
     expect(input).toHaveValue('Urgent');
+  });
+});
+
+/** The board as the workspace drives it: Done and Cancelled may fold. */
+function FoldingBoard({ tasks }: { tasks: TaskRow[] }) {
+  const [folded, setFolded] = useState<ReadonlySet<TaskStatus>>(new Set());
+  const onLaneCollapsedChange = useCallback(
+    (status: TaskStatus, collapse: boolean) =>
+      setFolded((previous) => {
+        const next = new Set(previous);
+        if (collapse) next.add(status);
+        else next.delete(status);
+        return next;
+      }),
+    [],
+  );
+  return (
+    <div className="h-[600px] w-full">
+      <KanbanBoard
+        tasks={tasks}
+        canWorkTask={() => true}
+        collapsedLanes={folded}
+        onLaneCollapsedChange={onLaneCollapsedChange}
+      />
+    </div>
+  );
+}
+
+describe('a folded lane (real Chromium)', () => {
+  const tasks = [
+    { ...makeTask(0), status: 'in_review' as const },
+    { ...makeTask(1), status: 'done' as const },
+    { ...makeTask(2), status: 'done' as const },
+  ];
+
+  it('folds Done to a rail and back, focus following the toggle', async () => {
+    await page.viewport(1600, 900);
+    render(<FoldingBoard tasks={tasks} />);
+    expect(
+      screen.queryByRole('button', { name: 'Collapse Backlog' }),
+    ).not.toBeInTheDocument();
+
+    screen.getByRole('button', { name: 'Collapse Done' }).focus();
+    await userEvent.keyboard('{Enter}');
+    const rail = await screen.findByRole('button', { name: 'Expand Done' });
+    expect(rail).toHaveFocus();
+    expect(rail).toHaveAttribute('aria-expanded', 'false');
+    expect(rail).toHaveTextContent('2');
+    expect(rail.getBoundingClientRect().width).toBeLessThanOrEqual(44);
+    expect(
+      screen.queryByRole('button', { name: 'Lane task 1' }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.keyboard('{Enter}');
+    const fold = await screen.findByRole('button', { name: 'Collapse Done' });
+    expect(fold).toHaveFocus();
+    expect(
+      screen.getByRole('button', { name: 'Lane task 1' }),
+    ).toBeInTheDocument();
+  });
+
+  it('takes a card dropped on the rail from the keyboard', async () => {
+    await page.viewport(1600, 900);
+    render(<FoldingBoard tasks={tasks} />);
+    screen.getByRole('button', { name: 'Collapse Done' }).click();
+    await screen.findByRole('button', { name: 'Expand Done' });
+
+    screen.getByRole('button', { name: 'Lane task 0' }).focus();
+    await userEvent.keyboard(' ');
+    await nextFrame();
+    await userEvent.keyboard('{ArrowRight}');
+    await nextFrame();
+    await userEvent.keyboard(' ');
+    await expect.poll(() => mutations.move.mock.calls.length).toBe(1);
+    expect(mutations.move).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 'task-0', status: 'done' }),
+    );
   });
 });

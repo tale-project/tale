@@ -46,14 +46,41 @@ function laneIdSet(ids: readonly string[]): ReadonlySet<string> {
  * candidates are that lane's own cards (closest corners among them), the lane
  * surface itself when it has no cards or the pointer sits below its last card.
  * With no pointer at all (the keyboard sensor) or a pointer over no drop
- * target, it falls back to `closestCorners` so keyboard drags keep working.
+ * target, it falls back to `closestCorners` so keyboard drags keep working —
+ * except where that picks a lane while the sensor moved the dragged box onto
+ * another one: a wide card moved onto a narrow folded lane is nearer, by its
+ * corners, to the lane after it.
  *
  * `getColumns` reads the LIVE lane → card-id working copy (it moves mid-drag).
  */
+function keyboardCollision(
+  args: Parameters<CollisionDetection>[0],
+  isLane: (id: string | number) => boolean,
+) {
+  const nearest = closestCorners(args);
+  const winner = nearest[0];
+  if (winner === undefined || !isLane(winner.id)) return nearest;
+  // The sensor places the box's top-left corner on the target it chose.
+  const corner = {
+    x: args.collisionRect.left + 1,
+    y: args.collisionRect.top + 1,
+  };
+  const laneUnder = pointerWithin({ ...args, pointerCoordinates: corner }).find(
+    (collision) => isLane(collision.id),
+  );
+  return laneUnder !== undefined && laneUnder.id !== winner.id
+    ? [laneUnder]
+    : nearest;
+}
+
 export function createBoardCollisionDetection(
   getColumns: () => Record<string, string[]>,
 ): CollisionDetection {
   return (args) => {
+    if (args.pointerCoordinates === null) {
+      const cols = getColumns();
+      return keyboardCollision(args, (id) => Object.hasOwn(cols, String(id)));
+    }
     const under = pointerWithin(args);
     if (under.length === 0) return closestCorners(args);
 

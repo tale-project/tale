@@ -238,6 +238,8 @@ board:
   agentWorking: '{name} arbeitet daran'
   addTask: Aufgabe hinzufügen
   addToLane: 'Aufgabe zu {status} hinzufügen'
+  collapseLane: '{status} einklappen'
+  expandLane: '{status} ausklappen'
   quickAddLabel: Titel der neuen Aufgabe
   quickAdded: '„{title}“ hinzugefügt'
   noTasks: Keine Aufgaben

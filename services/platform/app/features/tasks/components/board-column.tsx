@@ -7,8 +7,8 @@ import { cn } from '@tale/ui/cn';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Plus } from 'lucide-react';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { FoldHorizontal, Plus, UnfoldHorizontal } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -22,6 +22,9 @@ import { useLaneWindowed, WindowedTaskRows } from './windowed-task-rows';
 const CARD_HEIGHT_ESTIMATE = 128;
 /** The lane's `gap-2`, which cards placed by the window no longer get. */
 const CARD_GAP = 8;
+/** A lane's header actions wait for hover or focus, and always show on touch. */
+const LANE_ACTION_CLASS =
+  'text-muted-foreground hover:text-foreground size-7 opacity-0 transition-opacity group-focus-within/lane:opacity-100 group-hover/lane:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-100';
 
 export const BoardColumn = memo(function BoardColumn({
   status,
@@ -35,6 +38,8 @@ export const BoardColumn = memo(function BoardColumn({
   dropHint = null,
   onAddTask,
   quickAdd,
+  collapsed = false,
+  onCollapsedChange,
 }: {
   status: TaskStatus;
   /** The lane's task ids in board order (the drag's working copy). */
@@ -55,6 +60,12 @@ export const BoardColumn = memo(function BoardColumn({
   /** Where the lane's own "Add task" row creates; absent for a viewer who
    * may not create here. */
   quickAdd?: LaneQuickAddConfig;
+  /** Folded to a rail: the lane's name, count and a way to open it again,
+   * still a place to drop a card. */
+  collapsed?: boolean;
+  /** Fold or unfold this lane; absent for a lane that cannot fold. Stable:
+   * the lane is memoized. */
+  onCollapsedChange?: (status: TaskStatus, collapsed: boolean) => void;
 }) {
   const { t } = useT('tasks');
   // Column is itself a drop target so cards can be dropped into an empty lane.
@@ -96,11 +107,78 @@ export const BoardColumn = memo(function BoardColumn({
     />
   );
 
+  const label = t(`status.${status}`);
+
+  // Folding swaps one control for another: the header's fold button for the
+  // rail, and back. Focus follows to the control in its new place, so a
+  // keyboard reader is not dropped at the top of the page.
+  const railButtonRef = useRef<HTMLButtonElement>(null);
+  const foldButtonRef = useRef<HTMLButtonElement>(null);
+  const refocusToggle = useRef(false);
+  const toggleFolded = (fold: boolean) => {
+    refocusToggle.current = true;
+    onCollapsedChange?.(status, fold);
+  };
+  useEffect(() => {
+    if (!refocusToggle.current) return;
+    refocusToggle.current = false;
+    (collapsed ? railButtonRef : foldButtonRef).current?.focus();
+  }, [collapsed]);
+
+  if (collapsed && onCollapsedChange !== undefined) {
+    const active =
+      activeId !== null && taskIds.includes(activeId)
+        ? tasksById.get(activeId)
+        : undefined;
+    return (
+      <section
+        ref={setNodeRef}
+        aria-label={label}
+        data-collapsed=""
+        className={cn(
+          'bg-muted/40 flex w-11 shrink-0 snap-start flex-col rounded-lg',
+          isOver && 'bg-accent/40 ring-border ring-1 ring-inset',
+        )}
+      >
+        {/* The whole rail opens the lane: its glyph, its count and its name
+            standing on end. */}
+        <button
+          ref={railButtonRef}
+          type="button"
+          aria-expanded={false}
+          aria-label={t('board.expandLane', { status: label })}
+          title={t('board.expandLane', { status: label })}
+          onClick={() => toggleFolded(false)}
+          className="text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring flex flex-1 flex-col items-center gap-2 rounded-lg py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
+        >
+          <UnfoldHorizontal aria-hidden className="size-4 shrink-0" />
+          <TaskStatusGlyph status={status} className="size-3.5" />
+          <span className="text-xs tabular-nums">{tasks.length}</span>
+          <span className="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
+            {label}
+          </span>
+        </button>
+        {dropHint !== null && (
+          <span role="status" className="sr-only">
+            {dropHint}
+          </span>
+        )}
+        {/* A card dragged over the rail joins this lane's working copy; it
+            stays mounted, out of sight, so the drag keeps its source. */}
+        {active !== undefined && (
+          <SortableContext items={[active._id]}>
+            <div className="sr-only">{renderCard(active)}</div>
+          </SortableContext>
+        )}
+      </section>
+    );
+  }
+
   return (
     <Stack
       as="section"
       gap={0}
-      aria-label={t(`status.${status}`)}
+      aria-label={label}
       className="group/lane bg-muted/40 w-[80vw] max-w-72 shrink-0 snap-start rounded-lg sm:w-72"
     >
       {/* The lane names its status the way Home and the task header do: the
@@ -111,21 +189,35 @@ export const BoardColumn = memo(function BoardColumn({
           as="span"
           className="text-foreground min-w-0 truncate text-sm font-medium"
         >
-          {t(`status.${status}`)}
+          {label}
         </Text>
         <Text as="span" variant="caption" className="tabular-nums">
           {tasks.length}
         </Text>
-        {onAddTask !== undefined && (
-          <IconButton
-            icon={Plus}
-            size="sm"
-            variant="ghost"
-            aria-label={t('board.addToLane', { status: t(`status.${status}`) })}
-            onClick={() => onAddTask(status)}
-            className="text-muted-foreground hover:text-foreground -mr-1 ml-auto size-7 opacity-0 transition-opacity group-focus-within/lane:opacity-100 group-hover/lane:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-100"
-          />
-        )}
+        <Row gap={0} align="center" className="-mr-1 ml-auto">
+          {onCollapsedChange !== undefined && (
+            <IconButton
+              ref={foldButtonRef}
+              icon={FoldHorizontal}
+              size="sm"
+              variant="ghost"
+              aria-label={t('board.collapseLane', { status: label })}
+              aria-expanded
+              onClick={() => toggleFolded(true)}
+              className={LANE_ACTION_CLASS}
+            />
+          )}
+          {onAddTask !== undefined && (
+            <IconButton
+              icon={Plus}
+              size="sm"
+              variant="ghost"
+              aria-label={t('board.addToLane', { status: label })}
+              onClick={() => onAddTask(status)}
+              className={LANE_ACTION_CLASS}
+            />
+          )}
+        </Row>
       </Row>
       {dropHint !== null && (
         <Text
