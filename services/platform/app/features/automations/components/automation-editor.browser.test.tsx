@@ -15,6 +15,7 @@ import {
   useSearch,
   useNavigate,
 } from '@tanstack/react-router';
+import axe from 'axe-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 
@@ -71,7 +72,10 @@ const { automation, check } = vi.hoisted(() => {
       deployedVersion: 1 as number | undefined,
     },
     /** What the draft check answers: nothing, unless a test plants a problem. */
-    check: { errors: [] as Array<Record<string, unknown> & { id: string }> },
+    check: {
+      errors: [] as Array<Record<string, unknown> & { id: string }>,
+      warnings: [] as Array<Record<string, unknown> & { id: string }>,
+    },
   };
 });
 
@@ -85,6 +89,24 @@ const CODE_PROBLEM = {
   params: { node: 'diff', field: 'code', ref: 'nope', available: ['pulls'] },
 };
 
+/** The `summary` node's input reads a number where text is wanted. */
+const INPUT_WARNING = {
+  id: 'warning|TYPE_MISMATCH|/nodes/2/input/diff|3-26',
+  level: 'warning',
+  code: 'TYPE_MISMATCH',
+  nodeId: 'summary',
+  message: 'node "summary" input.diff: expects string, but it is number',
+  at: { pointer: '/nodes/2/input/diff', range: [3, 26] },
+  params: {
+    node: 'summary',
+    consumer: 'connector-input',
+    property: 'diff',
+    expr: '{{ nodes.diff.output.text }}',
+    expected: 'string',
+    actual: 'number',
+  },
+};
+
 // The check is a server round trip; the page's handling of its answer is
 // what these tests lay out, so the hook answers from `check`.
 vi.mock('../hooks/use-automation-validation', async (importOriginal) => ({
@@ -96,7 +118,7 @@ vi.mock('../hooks/use-automation-validation', async (importOriginal) => ({
     return {
       status: 'ready',
       errors: check.errors,
-      warnings: [],
+      warnings: check.warnings,
       settledFor: hash,
       currentHash: hash,
     };
@@ -194,6 +216,8 @@ vi.mock(
 afterEach(() => {
   cleanup();
   check.errors = [];
+  check.warnings = [];
+  document.documentElement.classList.remove('dark');
 });
 
 const ZOOM_CONTROLS = ['Zoom in', 'Zoom out', 'Reset view'];
@@ -727,6 +751,55 @@ describe('automation editor workbench in Chromium', () => {
     expect([code.selectionStart, code.selectionEnd]).toEqual([0, 6]);
     expect(screen.queryByRole('dialog', { name: 'Problems' })).toBeNull();
   });
+
+  it.each(['light', 'dark'])(
+    'keeps the Problems dock, the node marks and the field messages readable in %s',
+    async (theme) => {
+      check.errors = [CODE_PROBLEM];
+      check.warnings = [INPUT_WARNING];
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      await page.viewport(1280, 800);
+      renderEditorTab();
+      await userEvent.click(
+        await screen.findByRole('button', {
+          name: 'Problems: 1 error and 1 warning',
+        }),
+      );
+      const dock = await screen.findByRole('region', { name: 'Problems' });
+      await selectNode('summary');
+      const input = screen.getByRole('textbox', { name: 'Input' });
+      // A warning describes the field without marking it invalid.
+      expect(input).not.toHaveAttribute('aria-invalid');
+      expect(input).toHaveAccessibleDescription(/Warning:/);
+      // The boxes carry both marks: the one-digit chips are too short for
+      // axe to judge, so @tale/ui's severity test measures their colours.
+      expect(
+        screen.getByRole('button', { name: /^diff/i }),
+      ).toHaveAccessibleName(/\(1 error\)$/);
+      expect(
+        screen.getByRole('button', { name: /^summary/i }),
+      ).toHaveAccessibleName(/\(1 warning\)$/);
+      // Let the dock finish fading in: axe reads colours at rest.
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const inspector = screen.getByRole('region', { name: 'summary' });
+      for (const region of [dock, inspector]) {
+        const result = await axe.run(region, {
+          runOnly: [
+            'color-contrast',
+            'aria-allowed-attr',
+            'aria-valid-attr-value',
+            'button-name',
+            'list',
+            'listitem',
+          ],
+        });
+        expect(result.violations).toEqual([]);
+        expect(result.passes.some((rule) => rule.id === 'color-contrast')).toBe(
+          true,
+        );
+      }
+    },
+  );
 
   it('says why Save waits in a visible line on a phone', async () => {
     check.errors = [CODE_PROBLEM];

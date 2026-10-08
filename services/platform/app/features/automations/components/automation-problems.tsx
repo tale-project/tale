@@ -1,5 +1,6 @@
 'use client';
 
+import { Card } from '@tale/ui/card';
 import { cn } from '@tale/ui/cn';
 import { IconButton } from '@tale/ui/icon-button';
 import {
@@ -227,26 +228,29 @@ export function AutomationProblemsSheet({
           listRef.current?.focus();
         }}
       >
-        <div className="flex flex-col gap-1 pr-8">
-          <ResponsiveDialogTitle className="text-base font-medium">
-            {t('problems.title')}
-          </ResponsiveDialogTitle>
-          <ResponsiveDialogDescription className="text-muted-foreground text-sm tabular-nums">
-            {formatIssueCounts(t, counts)}
-          </ResponsiveDialogDescription>
-        </div>
-        <div className="py-3">
+        {/* One column with its own spacing, so the phone's drawer and the
+            tablet's dialog (which spaces its children itself) lay the sheet
+            out alike; only the list scrolls. */}
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="flex flex-col gap-1 pr-8">
+            <ResponsiveDialogTitle className="text-base font-medium">
+              {t('problems.title')}
+            </ResponsiveDialogTitle>
+            <ResponsiveDialogDescription className="text-muted-foreground text-sm tabular-nums">
+              {formatIssueCounts(t, counts)}
+            </ResponsiveDialogDescription>
+          </div>
           <ProblemsFilterControl value={filter} onChange={setFilter} />
-        </div>
-        <div className="border-border -mx-1 min-h-0 overflow-y-auto rounded-md border">
-          <ProblemsList
-            ref={listRef}
-            items={items}
-            status={status}
-            activeId={activeId}
-            onActivate={onActivate}
-            filter={filter}
-          />
+          <Card padding="none" className="min-h-0 overflow-y-auto">
+            <ProblemsList
+              ref={listRef}
+              items={items}
+              status={status}
+              activeId={activeId}
+              onActivate={onActivate}
+              filter={filter}
+            />
+          </Card>
         </div>
       </ResponsiveDialogContent>
     </ResponsiveDialog>

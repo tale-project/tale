@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { Card } from '@tale/ui/card';
 import { cn } from '@tale/ui/cn';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { Field } from '@tale/ui/field';
@@ -484,7 +485,7 @@ export function NodeFields({
       )}
 
       {nodeIssues.length > 0 && (
-        <div className="border-border rounded-md border">
+        <Card padding="none">
           <p
             id={nodeIssuesTitleId}
             className="text-foreground px-3 pt-2 text-xs font-medium"
@@ -496,7 +497,7 @@ export function NodeFields({
             density="compact"
             aria-labelledby={nodeIssuesTitleId}
           />
-        </div>
+        </Card>
       )}
 
       {declaredFields.map((fieldName) => {

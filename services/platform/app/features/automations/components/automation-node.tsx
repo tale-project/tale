@@ -7,6 +7,7 @@ import {
   flowNodeIssueFrameClass,
   flowNodeIssueText,
 } from '@tale/ui/flow/node-issue-marker';
+import { ISSUE_SEVERITY_ICON_CLASS } from '@tale/ui/issue-severity';
 import type { IssueCounts } from '@tale/ui/issue-summary';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { AlertTriangle } from 'lucide-react';
@@ -163,7 +164,7 @@ export function AutomationNodeBox({
           {agentHasUnpinnedModel(node) && (
             <>
               <AlertTriangle
-                className="size-3.5 text-amber-600 dark:text-amber-500"
+                className={cn('size-3.5', ISSUE_SEVERITY_ICON_CLASS.warning)}
                 aria-hidden="true"
               />
               <span className="sr-only">{t('canvas.unpinnedModel')}</span>
