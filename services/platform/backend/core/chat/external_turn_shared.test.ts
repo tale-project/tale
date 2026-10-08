@@ -62,13 +62,28 @@ const transport = vi.hoisted(() => ({
    * the write itself failing. */
   onEof: 'exit' as 'exit' | 'ignore' | 'fail',
   exitOnEof: undefined as (() => void) | undefined,
+  /** Every session operation in order, as `verb:detail` lines. */
+  sessionOps: [] as string[],
+  deleteFailure: undefined as Error | undefined,
+  deleteSkips: [] as Array<{ path: string; reason: string }>,
 }));
 
 vi.mock('../node_only/sandbox/helpers/session_client', () => ({
   SessionNotFoundError: class SessionNotFoundError extends Error {},
   ExecReplayGapError: transport.Gap,
   ExecStreamProtocolError: class ExecStreamProtocolError extends Error {},
-  sessionStageFiles: async () => ({ staged: [], skipped: [] }),
+  sessionStageFiles: async (
+    _sessionId: string,
+    files: Array<{ path: string }>,
+  ) => {
+    transport.sessionOps.push(`stage:${files.map((f) => f.path).join(',')}`);
+    return { staged: [], skipped: [] };
+  },
+  sessionDeleteFiles: async (_sessionId: string, paths: string[]) => {
+    transport.sessionOps.push(`delete:${paths.join(',')}`);
+    if (transport.deleteFailure !== undefined) throw transport.deleteFailure;
+    return { deleted: paths, skipped: transport.deleteSkips };
+  },
   sessionGetExecCheckpoint: async () => {
     if (transport.checkpointAfterGap !== 'none') {
       await new Promise((resolve) => setTimeout(resolve, 1600));
@@ -120,6 +135,7 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
     opts: { cursor: { lastSeq: number }; resumeSinceSeq?: number },
   ) => {
     if (signal.aborted) throw signal.reason;
+    if (opts.resumeSinceSeq === undefined) transport.sessionOps.push('launch');
     callbacks.onReplayStarted?.();
     if (opts.resumeSinceSeq !== undefined)
       transport.resumedAt.push(opts.resumeSinceSeq);
@@ -175,8 +191,11 @@ const {
   classifyHarnessEnd,
   harnessOutputTail,
   isSpendRefusal,
+  removeStagedSubscription,
   spendRefusalReason,
 } = await import('./external_turn_shared');
+const { SessionNotFoundError } =
+  await import('../node_only/sandbox/helpers/session_client');
 
 /** One NDJSON stream from event objects. */
 function ndjson(lines: Array<Record<string, unknown>>): string {
@@ -250,6 +269,9 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     transport.stdinWrites = [];
     transport.onEof = 'exit';
     transport.exitOnEof = undefined;
+    transport.sessionOps = [];
+    transport.deleteFailure = undefined;
+    transport.deleteSkips = [];
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -1120,6 +1142,93 @@ describe('drainHarnessWindow end-of-turn rules', () => {
   });
 });
 
+/** Where the Gemini harness stages a member's Google sign-in. */
+const GEMINI_CREDENTIAL = '.runtime/home/.gemini/oauth_creds.json';
+
+describe('a staged subscription credential', () => {
+  beforeEach(() => {
+    transport.replayComplete = true;
+    transport.stdout = '';
+    transport.cancelled = [];
+    transport.exitAfterStdout = true;
+    transport.checkpoint = null;
+    transport.sessionOps = [];
+    transport.deleteFailure = undefined;
+    transport.deleteSkips = [];
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  const geminiStart = (stagedFiles: Array<{ path: string; content: string }>) =>
+    ({
+      argv: ['gemini'],
+      env: {},
+      cwd: '/agent/workspace',
+      stagedFiles,
+    }) as const;
+
+  it('is removed before a Gemini turn that runs without it can start', async () => {
+    await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'gemini-managed',
+      harness: 'gemini',
+      start: geminiStart([
+        { path: '.runtime/home/.gemini/settings.json', content: '{}' },
+      ]),
+    });
+    expect(transport.sessionOps).toEqual([
+      `delete:${GEMINI_CREDENTIAL}`,
+      'stage:.runtime/home/.gemini/settings.json',
+      'launch',
+    ]);
+  });
+
+  it('stays for the Gemini turn that stages it', async () => {
+    await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'gemini-subscription',
+      harness: 'gemini',
+      start: geminiStart([
+        { path: GEMINI_CREDENTIAL, content: '{"refresh_token":"member"}' },
+      ]),
+    });
+    expect(transport.sessionOps).toEqual([
+      `stage:${GEMINI_CREDENTIAL}`,
+      'launch',
+    ]);
+  });
+
+  it('is never looked for on a harness that takes its subscription through the environment', async () => {
+    transport.stdout = readFixture('pi', 'shell-turn');
+    await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'claude-turn',
+      harness: 'claude-code',
+      start: { argv: ['claude'], env: {}, cwd: '/agent/workspace' },
+    });
+    await removeStagedSubscription('sandbox', 'codex');
+    expect(transport.sessionOps).toEqual(['launch']);
+  });
+
+  it('is removed at a settle, and a failed removal is logged, never thrown', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    warn.mockClear();
+    await removeStagedSubscription('sandbox', 'gemini');
+    expect(transport.sessionOps).toEqual([`delete:${GEMINI_CREDENTIAL}`]);
+
+    transport.deleteSkips = [{ path: GEMINI_CREDENTIAL, reason: 'EACCES' }];
+    await removeStagedSubscription('sandbox', 'gemini');
+    transport.deleteSkips = [];
+    transport.deleteFailure = new Error('spawner unreachable');
+    await removeStagedSubscription('sandbox', 'gemini');
+    expect(warn).toHaveBeenCalledTimes(2);
+
+    // A session that is gone took the credential with it: nothing to log.
+    transport.deleteFailure = new SessionNotFoundError('sandbox');
+    await removeStagedSubscription('sandbox', 'gemini');
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+});
+
 /** The reason an empty answer settles with — the words a run shows. */
 const EMPTY_ANSWER =
   'The model returned an empty answer, so the agent did nothing this turn.';
@@ -1176,6 +1285,9 @@ describe('classifyHarnessEnd', () => {
     transport.stdinWrites = [];
     transport.onEof = 'exit';
     transport.exitOnEof = undefined;
+    transport.sessionOps = [];
+    transport.deleteFailure = undefined;
+    transport.deleteSkips = [];
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 

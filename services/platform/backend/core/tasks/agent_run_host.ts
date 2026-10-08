@@ -36,6 +36,7 @@ import {
   connectorsBridgeUrlForSessions,
   harnessMountsMcp,
   harnessResumesConversations,
+  removeStagedSubscription,
   resolveHarnessTurnContextWindow,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
@@ -1657,6 +1658,9 @@ export async function startTaskAgentTurnImpl(
               releaseErr,
             );
           });
+          // The refused exec never ran, but its inputs were staged: the
+          // start that gets room stages its credential again.
+          await removeStagedSubscription(args.sessionId, args.harness);
         }
         return null;
       }
@@ -1708,6 +1712,9 @@ export async function driveTaskAgentTurnImpl(
         execId: args.execId,
         status: 'cancelled',
       });
+      if (!heldByAnotherExec(run, args.execId)) {
+        await removeStagedSubscription(args.sessionId, args.harness);
+      }
       await releaseProjectAgentSlotAfterSettle(ctx, args);
       return null;
     }
@@ -2068,6 +2075,20 @@ export function buildSettleComments(args: {
   };
 }
 
+/** Whether a live run has moved on to another exec of the same session (a
+ * steer's restart): that exec staged its own subscription credential, so a
+ * superseded turn must leave the file alone. */
+function heldByAnotherExec(
+  run: { status: string; execId: string } | null,
+  execId: string,
+): boolean {
+  return (
+    run !== null &&
+    run.execId !== execId &&
+    (run.status === 'queued' || run.status === 'running')
+  );
+}
+
 /**
  * Settle exactly once (the session-op finalize claim elects the winner):
  * harvest `/agent/output`, then on success post the agent's report as a task
@@ -2119,6 +2140,9 @@ async function settleTaskAgentTurn(
       execId: args.execId,
       status: 'cancelled',
     });
+    if (!heldByAnotherExec(current, args.execId)) {
+      await removeStagedSubscription(args.sessionId, args.harness);
+    }
     await releaseProjectAgentSlotAfterSettle(ctx, args);
     return;
   }
@@ -2131,6 +2155,9 @@ async function settleTaskAgentTurn(
       ? { usageTotals: result.usageTotals }
       : {}),
   });
+  // The turn is over, whoever won the finalize claim: its staged
+  // subscription credential leaves the session with it.
+  await removeStagedSubscription(args.sessionId, args.harness);
   if (!release.won) {
     // The finalize claim keys on the op row — a start that died BEFORE
     // writing one (model unresolvable, spawner error, staging failure) loses

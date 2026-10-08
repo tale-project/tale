@@ -46,6 +46,7 @@ import {
   ExecStreamProtocolError,
   SessionNotFoundError,
   sessionCancelExec,
+  sessionDeleteFiles,
   sessionGetExecCheckpoint,
   sessionPutExecCheckpoint,
   sessionWriteExecStdin,
@@ -125,6 +126,50 @@ function harnessHoldsStdin(harness: string): boolean {
   if (!isHarnessSlug(harness)) return false;
   const def = loadHarnesses().find((h) => h.slug === harness);
   return def?.exec.stdin.mode === 'ndjson-user-message';
+}
+
+/** The session-relative file a harness's subscription credential is staged
+ * to (the `staged-file` delivery: Gemini's OAuth credentials under the
+ * session HOME), when the harness delivers it that way. */
+function stagedSubscriptionPath(harness: string): string | undefined {
+  if (!isHarnessSlug(harness)) return undefined;
+  const def = loadHarnesses().find((h) => h.slug === harness);
+  return def?.subscription?.kind === 'staged-file'
+    ? def.subscription.path
+    : undefined;
+}
+
+/**
+ * Remove a harness's staged subscription credential from the session. The
+ * file sits in the session HOME every later exec shares — another task's
+ * turn, a member-confined run, a connector call — so a member's refresh
+ * token must leave with the turn that was handed it, and must not be there
+ * for a turn that runs without it. A no-op for a harness that takes its
+ * subscription through the environment. Best-effort: a failure is logged,
+ * and the next turn of the harness that does not stage the credential
+ * removes it again before it starts.
+ */
+export async function removeStagedSubscription(
+  sessionId: string,
+  harness: string,
+): Promise<void> {
+  const path = stagedSubscriptionPath(harness);
+  if (path === undefined) return;
+  try {
+    const removed = await sessionDeleteFiles(sessionId, [path]);
+    for (const skipped of removed.skipped) {
+      console.warn(
+        `[harness-turn] ${sessionId}: the staged subscription credential ${skipped.path} could not be removed: ${skipped.reason}`,
+      );
+    }
+  } catch (err) {
+    // A session that is gone took its HOME, and the credential, with it.
+    if (err instanceof SessionNotFoundError) return;
+    console.warn(
+      `[harness-turn] ${sessionId}: removing the staged subscription credential ${path} failed:`,
+      err,
+    );
+  }
 }
 
 /** Whether a harness mounts MCP servers — and so the platform bridge every
@@ -715,6 +760,21 @@ export async function drainHarnessWindow(args: {
         collectOutput: false,
         timeoutMs: EXTERNAL_TURN_DEADLINE_MS,
       };
+
+  // A turn that runs without the subscription must not find an earlier
+  // turn's staged credential in the session HOME (its settle's removal is
+  // best-effort): take it out before this exec can read it.
+  if (args.start !== undefined) {
+    const credentialPath = stagedSubscriptionPath(args.harness);
+    if (
+      credentialPath !== undefined &&
+      !(args.start.stagedFiles ?? []).some(
+        (file) => file.path === credentialPath,
+      )
+    ) {
+      await removeStagedSubscription(args.sessionId, args.harness);
+    }
+  }
 
   // On the start window we STAGE the exec's input files, then start it; drain
   // windows restore parser state and continue after its acknowledged cursor.

@@ -13,7 +13,10 @@
  *    every other cancel (a Stop, a crash) ends everything;
  *  - the settle's harvest takes the first listing of a turn whose exec
  *    exited on its own, and re-reads an empty box after a reaped linger,
- *    whose processes may still be writing.
+ *    whose processes may still be writing;
+ *  - a Gemini turn's staged subscription credential leaves the session when
+ *    the turn settles or is orphaned, unless a steer moved the run onto a
+ *    newer exec that staged its own.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,6 +38,8 @@ const io = vi.hoisted(() => ({
   terminal: undefined as Record<string, unknown> | undefined,
   /** Every directory the harvest listed, in order. */
   listings: [] as string[],
+  /** Every path set the session was asked to delete, in order. */
+  deletes: [] as string[][],
 }));
 
 vi.mock('../chat/external_turn_shared', async (importActual) => {
@@ -111,7 +116,10 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
       }
       return { state: 'exited', exitCode: 137 };
     },
-    sessionDeleteFiles: async () => undefined,
+    sessionDeleteFiles: async (_sessionId: string, paths: string[]) => {
+      io.deletes.push(paths);
+      return { deleted: paths, skipped: [] };
+    },
     sessionListFiles: async (_sessionId: string, dir: string) => {
       io.listings.push(dir);
       return [];
@@ -250,6 +258,7 @@ beforeEach(() => {
   io.afterDrain = undefined;
   io.terminal = undefined;
   io.listings = [];
+  io.deletes = [];
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -334,6 +343,47 @@ describe('settle harvest', () => {
     expect(
       mutations.some((m) => m.name.endsWith(':completeTaskAgentRun')),
     ).toBe(true);
+  });
+});
+
+describe('a Gemini turn’s staged subscription credential', () => {
+  const GEMINI = { ...KEYS, harness: 'gemini' };
+  const CREDENTIAL = ['.runtime/home/.gemini/oauth_creds.json'];
+
+  it('leaves the session when the turn settles', async () => {
+    io.terminal = {
+      kind: 'terminal',
+      text: 'Done.',
+      timeline: [],
+      ended: { type: 'turn-ended', status: 'completed', finalText: 'Done.' },
+      exited: true,
+    };
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, GEMINI as never);
+
+    expect(io.deletes).toEqual([CREDENTIAL]);
+  });
+
+  it('leaves the session when a Stop orphans the turn', async () => {
+    const run: RunState = { status: 'cancelled', execId: 'exec-old' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, GEMINI as never);
+
+    expect(io.cancels).toEqual(['exec-old']);
+    expect(io.deletes).toEqual([CREDENTIAL]);
+  });
+
+  it('stays for the exec a steer restarted the run onto', async () => {
+    const run: RunState = { status: 'running', execId: 'exec-rotated' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, GEMINI as never);
+
+    expect(io.cancels).toEqual(['exec-old']);
+    expect(io.deletes).toEqual([]);
   });
 });
 

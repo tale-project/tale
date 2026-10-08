@@ -10,6 +10,10 @@
  * workflow went on as if the agent had deliberately changed nothing. A turn
  * that only called a tool — the question tool included, which parks the run
  * instead — still ends as before.
+ *
+ * The same drive also takes a Gemini turn's staged subscription credential
+ * out of the run's session when the turn settles, and leaves it to a newer
+ * exec the run moved on to.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -25,6 +29,8 @@ const io = vi.hoisted(() => ({
   cancelled: [] as string[],
   /** What each settle asked the output harvest for. */
   harvests: [] as Array<Record<string, unknown>>,
+  /** Every path set the session was asked to delete, in order. */
+  deletes: [] as string[][],
 }));
 
 vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
@@ -57,6 +63,10 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
     sessionCancelExec: async (_sessionId: string, execId: string) => {
       io.cancelled.push(execId);
       return true;
+    },
+    sessionDeleteFiles: async (_sessionId: string, paths: string[]) => {
+      io.deletes.push(paths);
+      return { deleted: paths, skipped: [] };
     },
   };
 });
@@ -99,7 +109,9 @@ interface Call {
   args: Record<string, unknown>;
 }
 
-function makeCtx(opts: { pendingAsk?: typeof ASK } = {}) {
+function makeCtx(
+  opts: { pendingAsk?: typeof ASK; cursorExecId?: string } = {},
+) {
   const mutations: Call[] = [];
   const ctx = {
     runQuery: async (ref: unknown) => {
@@ -110,7 +122,7 @@ function makeCtx(opts: { pendingAsk?: typeof ASK } = {}) {
           cursor: {
             node: KEYS.nodeId,
             agent: {
-              execId: KEYS.execId,
+              execId: opts.cursorExecId ?? KEYS.execId,
               sessionId: KEYS.sessionId,
               deadlineAt: KEYS.deadlineAt,
               providerSlug: KEYS.providerSlug,
@@ -171,6 +183,7 @@ beforeEach(() => {
   io.stdout = '';
   io.cancelled = [];
   io.harvests = [];
+  io.deletes = [];
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -328,5 +341,28 @@ describe('an automation agent turn', () => {
       status: 'completed',
       agentResultStatus: 'awaiting_human',
     });
+  });
+});
+
+describe('a Gemini automation turn’s staged subscription credential', () => {
+  const GEMINI = { ...KEYS, harness: 'gemini' };
+  const CREDENTIAL = ['.runtime/home/.gemini/oauth_creds.json'];
+
+  it('leaves the session when the turn settles', async () => {
+    const { ctx, mutations } = makeCtx();
+
+    await driveWorkflowAgentTurnImpl(ctx, GEMINI);
+
+    expect(called(mutations, 'recordAgentTurnSettled')).toHaveLength(1);
+    expect(io.deletes).toEqual([CREDENTIAL]);
+  });
+
+  it('stays for the newer exec the run moved on to', async () => {
+    const { ctx } = makeCtx({ cursorExecId: 'exec-2' });
+
+    await driveWorkflowAgentTurnImpl(ctx, GEMINI);
+
+    expect(io.cancelled).toEqual([KEYS.execId]);
+    expect(io.deletes).toEqual([]);
   });
 });
