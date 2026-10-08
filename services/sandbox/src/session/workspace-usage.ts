@@ -32,7 +32,7 @@ export interface WorkspaceUsageDeps {
 }
 
 /** How long one measurement may take. */
-export const WORKSPACE_USAGE_TIMEOUT_MS = 30_000;
+const WORKSPACE_USAGE_TIMEOUT_MS = 30_000;
 
 async function runDu(paths: string[], signal: AbortSignal): Promise<string> {
   // `-x`: a workspace never spans filesystems, and a mount inside one is not
