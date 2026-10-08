@@ -178,6 +178,38 @@ describe('useLayoutTransition', () => {
     expect(result.current.phase).toBeNull();
   });
 
+  it('starts a relayout that lands mid-transition from the picture on screen, on its own clock', () => {
+    const { result, rerender } = renderHook(
+      ({ picture }) =>
+        useLayoutTransition({ picture, layoutKey: 'doc', enabled: true }),
+      { initialProps: { picture: before() } },
+    );
+    rerender({ picture: after() });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    // Back to the chain while d is still growing in: d leaves, c joins.
+    rerender({ picture: before() });
+    expect(result.current.phase).toBe('exit');
+    expect(result.current.plan?.entering.has('c')).toBe(true);
+    expect(result.current.plan?.leaving.map(({ node }) => node.id)).toEqual([
+      'd',
+    ]);
+    // The first relayout's timers no longer count.
+    act(() => {
+      vi.advanceTimersByTime(FLOW_DURATION.short - 100);
+    });
+    expect(result.current.phase).toBe('exit');
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(result.current.phase).toBe('settle');
+    act(() => {
+      vi.advanceTimersByTime(FLOW_RELAYOUT_SETTLE - FLOW_DURATION.short);
+    });
+    expect(result.current.plan).toBeNull();
+  });
+
   it('plays nothing for a new picture, the first layout or reduced motion', () => {
     const { result, rerender } = renderHook(
       ({ picture, layoutKey, enabled }) =>

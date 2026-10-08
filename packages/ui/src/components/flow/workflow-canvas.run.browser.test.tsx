@@ -351,6 +351,76 @@ describe('WorkflowCanvas run motion', () => {
     }
   });
 
+  it('follows the node a run reaches into view, until the reader moves the view', async () => {
+    await page.viewport(1280, 900);
+    // Report runs from 400 to 900: below the fold of a small frame.
+    const timeline: FlowPlaybackTimeline = {
+      duration: 1_000,
+      spans: [{ nodeId: 'report', start: 400, end: 900, outcome: 'succeeded' }],
+      travels: [],
+      events: [400, 900],
+    };
+    const Small = ({ t }: { t: number }) => (
+      <div data-testid="small" style={{ width: 600, height: 320 }}>
+        <WorkflowCanvas
+          graph={triageFlowGraph()}
+          aria-label="Workflow"
+          layoutKey="follow"
+          fitPolicy="auto"
+          playback={{ timeline, t }}
+        />
+      </div>
+    );
+    const inside = (id: string) => {
+      const frame = screen.getByTestId('small').getBoundingClientRect();
+      const box = node(id)?.getBoundingClientRect();
+      return (
+        box !== undefined &&
+        box.top >= frame.top - 1 &&
+        box.bottom <= frame.bottom + 1
+      );
+    };
+    const opened = async () => {
+      const view = render(<Small t={0} />);
+      await waitFor(() => expect(node('report')).not.toBeNull(), {
+        timeout: 20_000,
+      });
+      await viewportAtRest();
+      expect(inside('report')).toBe(false);
+      return view;
+    };
+    const first = await opened();
+    first.rerender(<Small t={500} />);
+    await waitFor(() => expect(inside('report')).toBe(true));
+    await viewportAtRest();
+    first.unmount();
+
+    // The same run opened again: the reader zooms in on Start, and the run
+    // no longer pulls the view away.
+    const { rerender } = await opened();
+    const pane = document.querySelector('.react-flow__pane');
+    if (pane === null) throw new Error('no pane');
+    const at = node('__start')?.getBoundingClientRect();
+    pane.dispatchEvent(
+      new WheelEvent('wheel', {
+        deltaY: -120,
+        clientX: (at?.left ?? 0) + 20,
+        clientY: (at?.top ?? 0) + 20,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await viewportAtRest();
+    const moved = await viewportAtRest();
+    rerender(<Small t={500} />);
+    await waitFor(() =>
+      expect(node('report')).toHaveAttribute('data-flow-state', 'running'),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(await viewportAtRest()).toBe(moved);
+    expect(inside('report')).toBe(false);
+  });
+
   it('swaps strips at once under reduced motion', async () => {
     await cdp().send('Emulation.setEmulatedMedia', {
       features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
