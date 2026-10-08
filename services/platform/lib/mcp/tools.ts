@@ -136,11 +136,13 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   get_docs: 'The automation grammar and authoring guide, as text.',
   get_catalog: 'Every node type this deployment can execute.',
   search_catalog: 'Search the node-type catalog by keyword.',
-  validate_automation: 'Validate an automation document without saving it.',
+  validate_automation:
+    'Validate an automation document without saving it: its errors and warnings, each with a code, a location and params, plus the flow analysis and the inferred types.',
   run_automation:
     'Run an automation document directly against the deterministic mocks.',
   test_automation: "Run an automation's own acceptance tests.",
-  save_automation: 'Save an automation document as a new immutable version.',
+  save_automation:
+    'Save an automation document as a new immutable version; the answer lists its warnings.',
   get_automation: 'Read one saved version (the latest when unversioned).',
   list_automations:
     "The organization's automations with their latest and deployed versions and the projects each is installed in (projectIds).",

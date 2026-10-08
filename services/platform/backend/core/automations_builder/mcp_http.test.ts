@@ -405,6 +405,51 @@ describe('tools/call — the engine surface', () => {
     expect(isErrorFlag(failedRun.payload)).toBe(false);
   });
 
+  it('hands a validation verdict through whole — issue locations, analysis and types — and never as a failure', async () => {
+    const verdict = {
+      valid: false,
+      errors: [
+        {
+          level: 'error',
+          code: 'FOREACH_NOT_ARRAY',
+          nodeId: 'each',
+          message: 'node "each" forEach: …',
+          at: { pointer: '/nodes/1/forEach' },
+          params: { node: 'each', reason: 'mixed-text', value: 'x {{ y }}' },
+        },
+      ],
+      warnings: [],
+      analysis: {
+        version: 1,
+        nodes: {},
+        paths: {
+          atoms: [],
+          success: [],
+          count: 1,
+          halts: [],
+          truncated: false,
+        },
+        output: { reads: [], maybeEmpty: false },
+      },
+      types: { inputs: {}, nodes: {}, output: { type: 'null' } },
+    };
+    const runAction = vi.fn().mockResolvedValue(verdict);
+    const { payload } = await call(
+      {
+        jsonrpc: '2.0',
+        id: 9,
+        method: 'tools/call',
+        params: {
+          name: 'validate_automation',
+          arguments: { automation: { name: 'x', nodes: [] } },
+        },
+      },
+      runAction,
+    );
+    expect(isErrorFlag(payload)).toBe(false);
+    expect(JSON.parse(resultText(payload))).toEqual(verdict);
+  });
+
   it('reports a thrown call as isError with its message', async () => {
     const runAction = vi
       .fn()
