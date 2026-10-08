@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   cutMentionText,
+  dropPartialMentionToken,
   findMentions,
   type MentionOccurrence,
   mentionPlainText,
@@ -146,5 +147,15 @@ describe('a text read without markdown', () => {
       'see [@docs](https://example.co',
     );
     expect(cutMentionText('short', 30)).toBe('short');
+  });
+
+  it('drops the half token a cut made elsewhere left at the end', () => {
+    expect(dropPartialMentionToken(`Please ${ADA.slice(0, 20)}`)).toBe(
+      'Please',
+    );
+    expect(dropPartialMentionToken(`Please ${ADA}`)).toBe(`Please ${ADA}`);
+    expect(dropPartialMentionToken('see [docs](https://exa')).toBe(
+      'see [docs](https://exa',
+    );
   });
 });

@@ -45,10 +45,13 @@ import {
   taskTitleRefusal,
 } from '../../core/tasks/helpers.ts';
 import {
+  cutTaskText,
   descriptionMentionMode,
   editIntroducesMentions,
+  MENTION_URL_SQL_PATTERN,
   type MentionSource,
   type ResolvedMention,
+  taskMentionPlainText,
 } from '../../core/tasks/mentions.ts';
 import { TASK_PRIORITIES } from '../../core/tasks/metadata.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
@@ -57,7 +60,10 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { prepareSurfaceText } from '../collab/mention-directory.ts';
+import {
+  currentMentionNames,
+  prepareSurfaceText,
+} from '../collab/mention-directory.ts';
 import {
   autoSubscribe,
   dismissReviewerAssignedNotifications,
@@ -1684,7 +1690,9 @@ export async function updateTaskInstructionsConfiguration(
   if (check.invalidTokens.length > 0) {
     throw new TaskError(
       'TASK_DESCRIPTION_INVALID',
-      `The description mentions someone who cannot be mentioned on this task: ${check.invalidTokens.map((ref) => `${ref.type}/${ref.id}`).join(', ')}`,
+      'The description mentions someone who cannot be mentioned on this task.',
+      400,
+      { mentions: check.invalidTokens },
     );
   }
   await updateTaskFields(
@@ -4084,7 +4092,8 @@ export async function listTaskActivity(
   return rows;
 }
 
-/** The head of a description, never cut inside a character. */
+/** The head of a description, never cut inside a character or inside a
+ * mention, whose reader would otherwise show half its address. */
 function quoteDescription(value: string | null): string | null {
   if (value === null || value.length <= ACTIVITY_DESCRIPTION_QUOTE_MAX) {
     return value;
@@ -4092,7 +4101,7 @@ function quoteDescription(value: string | null): string | null {
   const end = ACTIVITY_DESCRIPTION_QUOTE_MAX;
   // A high surrogate at the cut opens a pair the cut would split.
   const code = value.charCodeAt(end - 1);
-  return value.slice(0, code >= 0xd800 && code <= 0xdbff ? end - 1 : end);
+  return cutTaskText(value, code >= 0xd800 && code <= 0xdbff ? end - 1 : end);
 }
 
 // ---------------------------------------------------------------------------
@@ -4118,11 +4127,16 @@ export function taskSearchPatterns(query: string): string[] {
 
 /**
  * A task's own fields hold every token: title, description, external id and
- * `KEY-number`, read together. `t` is the `app.tasks` row.
+ * `KEY-number`, read together. `t` is the `app.tasks` row. A mention in the
+ * description counts by the name it was saved with, never by its address
+ * (`mention:agent/<id>`), so "agent" does not find every task that mentions
+ * one; a mention of someone renamed since is found by the older name only.
  */
 function taskFieldsSearchMatch(sql: Sql, patterns: string[]) {
   return sql`lower(
-    t.title || ' ' || coalesce(t.description, '') || ' ' ||
+    t.title || ' ' ||
+    regexp_replace(coalesce(t.description, ''), ${MENTION_URL_SQL_PATTERN},
+                   ']', 'g') || ' ' ||
     coalesce(t.external_id, '') || ' ' ||
     coalesce(
       (SELECT p.key FROM app.projects p WHERE p.id = t.project_id) || '-' ||
@@ -4132,9 +4146,10 @@ function taskFieldsSearchMatch(sql: Sql, patterns: string[]) {
   ) LIKE ALL(${patterns})`;
 }
 
-/** One discussion comment holds every token; `m` is its `app.messages` row. */
+/** One discussion comment holds every token; `m` is its `app.messages` row.
+ * Its mentions count by name, as in {@link taskFieldsSearchMatch}. */
 function commentSearchMatch(sql: Sql, patterns: string[]) {
-  return sql`lower(coalesce(m.text, '')) LIKE ALL(${patterns})`;
+  return sql`lower(regexp_replace(coalesce(m.text, ''), ${MENTION_URL_SQL_PATTERN}, ']', 'g')) LIKE ALL(${patterns})`;
 }
 
 /**
@@ -4231,6 +4246,9 @@ export async function searchTasks(
   `;
   const seen = new Set(fieldHits.map((hit) => hit.taskId));
 
+  // A snippet reads each mention as the CURRENT name of whoever it names,
+  // and is cut after that, so it never ends in half a mention.
+  let names: Map<string, string> = new Map();
   const toHit = (hit: FieldHit, snippetSource: string): TaskSearchHit => {
     const key = projectKeys.get(hit.projectId) ?? null;
     const row: TaskSearchHit = {
@@ -4238,7 +4256,9 @@ export async function searchTasks(
       projectId: hit.projectId,
       title: hit.title,
       status: hit.status,
-      snippet: snippetSource.trim().slice(0, SEARCH_SNIPPET_MAX),
+      snippet: taskMentionPlainText(snippetSource, names)
+        .trim()
+        .slice(0, SEARCH_SNIPPET_MAX),
       updatedAt: hit.updatedAt,
     };
     if (hit.number !== null) row.number = hit.number;
@@ -4247,6 +4267,13 @@ export async function searchTasks(
     if (archivedProjectIds.has(hit.projectId)) row.projectArchived = true;
     return row;
   };
+  names = await currentMentionNames(
+    sql,
+    auth.organizationId,
+    fieldHits.flatMap((hit) =>
+      hit.description === null ? [] : [hit.description],
+    ),
+  );
   const results: TaskSearchHit[] = fieldHits.map((hit) =>
     toHit(hit, hit.description ?? hit.title),
   );
@@ -4268,6 +4295,11 @@ export async function searchTasks(
                m.created_at_ms DESC
       LIMIT ${SEARCH_MAX_RESULTS}
     `;
+    names = await currentMentionNames(
+      sql,
+      auth.organizationId,
+      commentHits.map((hit) => hit.body),
+    );
     for (const hit of commentHits) {
       if (results.length >= SEARCH_MAX_RESULTS) break;
       if (seen.has(hit.taskId)) continue;

@@ -274,12 +274,10 @@ export function relabelMentionTokens<Kind extends string>(
 const PARTIAL_TOKEN_RE = /\[(?:@(?:[^\]\\\n]|\\.)*(?:\](?:\(([^)\s]*))?)?)?$/u;
 
 /**
- * Cut a text to `max` characters without leaving half a mention token at the
- * end: a token the cut would split is dropped whole.
+ * A text that was cut somewhere, without the half mention token the cut may
+ * have left at its end.
  */
-export function cutMentionText(markdown: string, max: number): string {
-  if (markdown.length <= max) return markdown;
-  const cut = markdown.slice(0, max);
+export function dropPartialMentionToken(cut: string): string {
   const partial = PARTIAL_TOKEN_RE.exec(cut);
   if (partial === null) return cut;
   const destination = partial[1];
@@ -288,4 +286,13 @@ export function cutMentionText(markdown: string, max: number): string {
     'mention:'.startsWith(destination) ||
     destination.startsWith('mention:');
   return mentionLike ? cut.slice(0, partial.index).trimEnd() : cut;
+}
+
+/**
+ * Cut a text to `max` characters without leaving half a mention token at the
+ * end: a token the cut would split is dropped whole.
+ */
+export function cutMentionText(markdown: string, max: number): string {
+  if (markdown.length <= max) return markdown;
+  return dropPartialMentionToken(markdown.slice(0, max));
 }

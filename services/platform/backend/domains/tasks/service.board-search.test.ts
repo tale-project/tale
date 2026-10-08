@@ -26,6 +26,7 @@ vi.mock('../projects/service.ts', async (importOriginal) => ({
   listProjects,
 }));
 
+import { MENTION_URL_SQL_PATTERN } from '../../core/tasks/mentions.ts';
 import {
   BOARD_TASK_COLUMNS,
   listTasksByProject,
@@ -51,8 +52,9 @@ function isFragment(value: unknown): value is Fragment {
 }
 
 /** A `sql` stand-in that inlines nested fragments the way postgres.js does,
- *  so a recorded statement is the one Postgres would see. */
-function recordingSql() {
+ *  so a recorded statement is the one Postgres would see; `answer` gives a
+ *  statement's rows (none by default). */
+function recordingSql(answer: (text: string) => unknown[] = () => []) {
   const statements: { text: string; values: unknown[] }[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     let text = '';
@@ -72,7 +74,7 @@ function recordingSql() {
     text = text.replace(/\s+/g, ' ').trim();
     statements.push({ text, values: flat });
     const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
-    return Object.assign(Promise.resolve([]), fragment);
+    return Object.assign(Promise.resolve(answer(text)), fragment);
   };
   const sql = Object.assign(tag, { unsafe: (text: string) => text });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
@@ -127,7 +129,8 @@ function fieldsLeg(text: string): string {
   return match[0];
 }
 
-const COMMENT_LEG = "lower(coalesce(m.text, '')) LIKE ALL(?)";
+const COMMENT_LEG =
+  "lower(regexp_replace(coalesce(m.text, ''), ?, ']', 'g')) LIKE ALL(?)";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -267,5 +270,56 @@ describe('the palette and the board search alike', () => {
     );
     expect(paletteComments?.text).toContain(COMMENT_LEG);
     expect(paletteFields?.values).toContainEqual(['%needle%']);
+  });
+});
+
+describe('a search reads a mention by its name', () => {
+  it('matches neither leg on a mention address', async () => {
+    const palette = recordingSql();
+    await searchTasks(palette.sql, auth, {
+      query: 'agent',
+      projectId: 'proj-1',
+    });
+    const legs = palette.statements.filter(
+      (statement) =>
+        statement.text.startsWith('SELECT') &&
+        statement.text.includes('LIKE ALL'),
+    );
+    expect(legs).toHaveLength(2);
+    for (const leg of legs) {
+      expect(leg.text).toContain('regexp_replace(');
+      expect(leg.values).toContain(MENTION_URL_SQL_PATTERN);
+    }
+  });
+
+  it('shows the current name of whoever a snippet mentions, and never half a mention', async () => {
+    // Cut as stored, the 600 characters would end inside the mention.
+    const description = `${'x '.repeat(280)}[@Ada Byron](mention:user/u-ada) please check`;
+    const { sql } = recordingSql((text) => {
+      if (text.startsWith('SELECT t.id AS "taskId"')) {
+        return [
+          {
+            taskId: 'task-1',
+            projectId: 'proj-1',
+            title: 'Close the books',
+            status: 'todo',
+            description,
+            updatedAt: 1,
+            number: 1,
+            archivedAt: null,
+          },
+        ];
+      }
+      if (text.includes('FROM "user" u')) {
+        return [{ id: 'u-ada', name: 'Ada Lovelace', email: null }];
+      }
+      return [];
+    });
+    const [hit] = await searchTasks(sql, auth, {
+      query: 'books',
+      projectId: 'proj-1',
+    });
+    expect(hit?.snippet.endsWith('x @Ada Lovelace please check')).toBe(true);
+    expect(hit?.snippet).not.toContain('mention:');
   });
 });

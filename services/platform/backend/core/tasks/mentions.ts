@@ -23,6 +23,7 @@ import {
 } from '@tale/ui/mentions/mention-token';
 import {
   cutMentionText,
+  dropPartialMentionToken,
   findMentions,
   type MentionOccurrence,
   mentionPlainText,
@@ -305,9 +306,23 @@ export function relabelTaskMentions(
   });
 }
 
+/**
+ * A Postgres regular expression matching the address part of a stored
+ * mention, `](mention:agent/<id>)`: a search replaces it with `]`, so a text
+ * is matched by the names its mentions carry and never by `mention`, a kind
+ * or an id.
+ */
+export const MENTION_URL_SQL_PATTERN = String.raw`\]\(mention:[a-z]+/[^)[:space:]]*\)`;
+
 /** Cut a task text without leaving half a mention token at its end. */
 export function cutTaskText(text: string, max: number): string {
   return cutMentionText(text, max);
+}
+
+/** A task text something else cut (a database `left()`), without the half
+ * mention token the cut may have left at its end. */
+export function dropPartialTaskMention(cut: string): string {
+  return dropPartialMentionToken(cut);
 }
 
 /** Whether an edit names someone in a way the text it replaces did not: a
