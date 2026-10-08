@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { createTaskList } from '../../jobs/task-list.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { pgTaskStore } from '../connectors/task-store.ts';
 import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
 import { failAgentRunFromTurn } from './agent-runs.ts';
@@ -201,16 +202,20 @@ export async function checkAgentRunApiKeys(
     );
 
     // ---- an agent a keyed automation run puts to work -------------------
+    // A run written as the engine does, under its writer protocol.
     const insertRun = async (key: string | null): Promise<string> => {
-      const rows = await sql<{ id: string }[]>`
-        INSERT INTO app.automation_runs (org_id, name, version, project_id,
-          status, mode, started_by, api_key_id, input, checkpoints,
-          started_at_ms)
-        VALUES (${orgId}, ${automation}, 1, ${projectId}, 'running', 'live',
-          ${`api-key:${userId}`}, ${key}, ${sql.json({})},
-          ${sql.json({ nodes: {}, executions: 0 })}, ${Date.now()})
-        RETURNING id
-      `;
+      const rows = await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx<{ id: string }[]>`
+          INSERT INTO app.automation_runs (org_id, name, version, project_id,
+            status, mode, started_by, api_key_id, input, checkpoints,
+            started_at_ms)
+          VALUES (${orgId}, ${automation}, 1, ${projectId}, 'running', 'live',
+            ${`api-key:${userId}`}, ${key}, ${sql.json({})},
+            ${sql.json({ nodes: {}, executions: 0 })}, ${Date.now()})
+          RETURNING id
+        `;
+      });
       return rows[0]?.id ?? '';
     };
     const store = pgTaskStore(sql);
@@ -258,10 +263,13 @@ export async function checkAgentRunApiKeys(
     );
   } finally {
     await release();
-    await sql`
-      DELETE FROM app.automation_runs
-      WHERE org_id = ${orgId} AND name = ${automation}
-    `;
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      await fixtureTx`
+        DELETE FROM app.automation_runs
+        WHERE org_id = ${orgId} AND name = ${automation}
+      `;
+    });
     await sql`
       DELETE FROM app.user_notifications
       WHERE org_id = ${orgId}
