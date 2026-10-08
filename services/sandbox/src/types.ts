@@ -110,6 +110,14 @@ export interface SpawnerConfig {
     // sizeLimit of a DinD session's inner Docker store emptyDir (env
     // SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT); unset, the pod-spec default.
     dockerStorageSizeLimit?: string;
+    // Where session Pods may run and how they rank against other Pods (env
+    // SANDBOX_K8S_NODE_SELECTOR and SANDBOX_K8S_TOLERATIONS as JSON,
+    // SANDBOX_K8S_PRIORITY_CLASS), so untrusted sessions can be kept off the
+    // nodes of the database and platform and yield to them under pressure.
+    // Unset, the scheduler places them anywhere at the default priority.
+    nodeSelector?: Readonly<Record<string, string>>;
+    tolerations?: readonly K8sToleration[];
+    priorityClassName?: string;
   };
   maxTimeoutMs: number;
   // Single flat host session root. The sandbox tier is one container that rolls
@@ -150,6 +158,15 @@ export interface SpawnerConfig {
   // session routes + session backends only — the one-shot /v1/execute path
   // never reads these.
   session: SessionConfig;
+}
+
+/** A Pod toleration, as the apiserver accepts it (validated by loadConfig). */
+export interface K8sToleration {
+  key?: string;
+  operator?: 'Equal' | 'Exists';
+  value?: string;
+  effect?: 'NoSchedule' | 'PreferNoSchedule' | 'NoExecute';
+  tolerationSeconds?: number;
 }
 
 export interface HubConfig {

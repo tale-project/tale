@@ -647,11 +647,44 @@ spec:
 | `SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT` | Die Größe des temporären Speichers für das innere Docker einer Agent-Session, die Docker in ihrer Sandbox ausführt, Standard `20Gi`. Wächst eine Session darüber hinaus, räumt Kubernetes ihren Pod (Eviction); bemiss den Wert deshalb nach den größten Images, die deine Agents laden und bauen. |
 | `SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST` / `SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT` | Wie viel Platz auf der Festplatte des Nodes ein Session-Pod anfordert, Standard `256Mi`, und wie viel er dort außerhalb seines temporären Workspaces und Docker-Speichers schreiben darf, Standard `2Gi`. Die Grenze eines Pods rechnet diese Speicher hinzu: `2Gi` für einen Agent, `6Gi` für einen Crawler-Render, `22Gi` mit Docker in der Sandbox. Überschreitet eine Agent-Session ihre Grenze, räumt Kubernetes nur ihren Pod, und die nächste Aufgabe setzt sie mit unversehrtem Workspace fort, statt dass sie den Node füllt, bis Kubernetes die Pods der Plattform räumt. Melden deine Nodes keine Kapazität für Ephemeral Storage, etwa in manchen Rootless-Clustern, setze die Anforderung auf `0`. |
 | `SANDBOX_K8S_CPU_REQUEST` / `SANDBOX_K8S_MEMORY_REQUEST` | Was jeder Session-Pod beim Scheduler anfordert, als Kubernetes-Mengenangaben. Ohne Angabe fordert ein Agent-Pod `250m` und `512Mi` an (`1Gi` mit Docker in der Sandbox), ein Crawler-Render `250m` und `512Mi`; eine Anforderung liegt nie über der Grenze des Pods. Erhöhe die Werte, wenn Agents auf deinen Nodes schwerere Builds ausführen, damit der Scheduler nicht mehr Sessions auf einen Node legt, als er tragen kann. |
+| `SANDBOX_K8S_NODE_SELECTOR` / `SANDBOX_K8S_TOLERATIONS` | Optional. Die Node-Labels, die jeder Session-Pod erfüllen muss, als JSON-Objekt, und die Taints, die er toleriert, als JSON-Array von Pod-Tolerations. Ohne Angabe kann eine Session auf jedem Node laufen; siehe unten. |
+| `SANDBOX_K8S_PRIORITY_CLASS` | Optional. Die PriorityClass jedes Session-Pods. |
 | `SANDBOX_K8S_CACHE_STORAGECLASS` | Die StorageClass der Workspace-Claims; ohne Wert gilt der Cluster-Standard. |
 | `SANDBOX_RUNTIME` / `SANDBOX_RUNTIME_CLASS` | Eine unterstützte Laufzeitstufe und bei Bedarf der Name der installierten RuntimeClass. |
 | `SANDBOX_EGRESS_PROXY` | Der Egress-Service, den die Sitzungen nutzen, Standard `http://sandbox-egress:3128`. |
 
 Der Spawner skaliert horizontal. Jedes Replikat findet eine Sitzung, die es nicht selbst angelegt hat, über den deterministischen Pod-Namen und übernimmt sie; exec, Stopp und Zerstören funktionieren daher über jedes Replikat, das der Service auswählt. `SANDBOX_MAX_SESSIONS` zählt den Namespace, gleichzeitige Aufnahmen auf mehreren Replikaten können den Wert aber kurz überschreiten; eine ResourceQuota liefert die harte Grenze. Der [Kubernetes-Vertrag der Sandbox](https://github.com/tale-project/tale/blob/main/services/sandbox/docs/kubernetes.md) dokumentiert die Pod-Form und die Laufzeitdetails.
+
+### Sessions von den Nodes der Plattform fernhalten
+
+Session-Pods führen den Code aus, den deine Agents schreiben, und mit Docker in der Sandbox laufen sie auf der Stufe `runc` privilegiert. Ohne Platzierungseinstellungen legt der Scheduler sie auf einen beliebigen Node, neben Postgres und die Anwendungsrollen, wo eine ausgelastete Session um dieselbe CPU, denselben Arbeitsspeicher und dieselbe Festplatte konkurriert. Damit Sessions eigene Nodes bekommen, versiehst du diese Nodes mit einem Label und einem Taint:
+
+```bash
+kubectl label node <node> tale.dev/sandbox=true
+kubectl taint node <node> tale.dev/sandbox=true:NoSchedule
+```
+
+Ergänze dann die passenden Einstellungen in der `env` des Spawners in `40-sandbox.yaml`:
+
+```yaml
+            - { name: SANDBOX_K8S_NODE_SELECTOR, value: '{"tale.dev/sandbox":"true"}' }
+            - { name: SANDBOX_K8S_TOLERATIONS, value: '[{"key":"tale.dev/sandbox","operator":"Exists","effect":"NoSchedule"}]' }
+            - { name: SANDBOX_K8S_PRIORITY_CLASS, value: tale-sandbox-session }
+```
+
+Der Taint hält andere Pods von diesen Nodes fern, der Selektor hält die Sessions dort. Die PriorityClass stuft Sessions unter der Plattform ein: Der Scheduler darf eine Session verdrängen, um einen Pod der Plattform unterzubringen, und wenn einem Node Arbeitsspeicher oder Festplatte ausgehen, berücksichtigt das Kubelet die Priorität und räumt Sessions früher. Mit `preemptionPolicy: Never` verdrängt eine Session selbst nie einen anderen Pod. Ein Cluster-Administrator legt die Klasse einmal an; der Spawner braucht dafür keine zusätzliche Berechtigung:
+
+```yaml
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: tale-sandbox-session }
+value: -10
+preemptionPolicy: Never
+globalDefault: false
+description: Tale sandbox sessions yield to the platform.
+```
+
+Die Einstellungen gelten für jeden Session-Pod, auch für Crawler-Renders, und zwar für die Sessions, die der Spawner nach seinem Neustart anlegt; laufende Sessions behalten ihre Platzierung. Ein fehlerhafter Wert verhindert den Start des Spawners. Bei Node-lokalem Speicher bleibt der Workspace-Claim einer gestoppten Session auf ihrem Node; behalte diesen Node im Selektor, sonst lässt sich die Session nicht fortsetzen.
 
 ### Was der Spawner durchsetzt
 

@@ -647,11 +647,44 @@ spec:
 | `SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT` | The size of the inner Docker temporary store of an agent session that runs Docker inside its sandbox, default `20Gi`. A session that outgrows it is evicted, so size it for the largest images your agents pull and build. |
 | `SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST` / `SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT` | How much of the node's disk a session Pod requests, default `256Mi`, and how much it may write there outside its temporary workspace and Docker store, default `2Gi`. A Pod's limit adds those stores: `2Gi` for an agent, `6Gi` for a crawler render, `22Gi` with Docker inside the sandbox. An agent session past its limit is evicted on its own and the next task resumes it with its workspace intact, instead of filling the node until Kubernetes evicts the platform's Pods. On nodes that report no ephemeral-storage capacity, as on some rootless clusters, set the request to `0`. |
 | `SANDBOX_K8S_CPU_REQUEST` / `SANDBOX_K8S_MEMORY_REQUEST` | What every session Pod requests from the scheduler, as Kubernetes quantities. Unset, an agent Pod requests `250m` and `512Mi` (`1Gi` with Docker inside the sandbox) and a crawler render `250m` and `512Mi`; a request never exceeds the Pod's limit. Raise them when agents on your nodes run heavier builds than this, so the scheduler does not place more sessions than a node can hold. |
+| `SANDBOX_K8S_NODE_SELECTOR` / `SANDBOX_K8S_TOLERATIONS` | Optional. The node labels every session Pod must match, as a JSON object, and the taints it tolerates, as a JSON array of Pod tolerations. Unset, sessions can run on any node; see below. |
+| `SANDBOX_K8S_PRIORITY_CLASS` | Optional. The PriorityClass of every session Pod. |
 | `SANDBOX_K8S_CACHE_STORAGECLASS` | The StorageClass for workspace claims; unset uses the cluster default. |
 | `SANDBOX_RUNTIME` / `SANDBOX_RUNTIME_CLASS` | A supported runtime tier and, when needed, the installed RuntimeClass name. |
 | `SANDBOX_EGRESS_PROXY` | The egress Service the sessions use, default `http://sandbox-egress:3128`. |
 
 The spawner scales horizontally. Any replica resolves a session it did not create by its deterministic Pod name and adopts it, so exec, stop, and destroy work through whichever replica the Service picks. `SANDBOX_MAX_SESSIONS` counts the namespace, but simultaneous admissions on several replicas can exceed it briefly; use a ResourceQuota for a hard bound. The [sandbox Kubernetes contract](https://github.com/tale-project/tale/blob/main/services/sandbox/docs/kubernetes.md) documents the Pod shape and runtime details.
+
+### Keep sessions off the platform's nodes
+
+Session Pods run the code your agents write, and with Docker inside the sandbox on the `runc` tier they run privileged. Without placement settings, the scheduler puts them on any node, next to Postgres and the application roles, where a busy session competes for the same CPU, memory, and disk. To give sessions nodes of their own, label and taint those nodes:
+
+```bash
+kubectl label node <node> tale.dev/sandbox=true
+kubectl taint node <node> tale.dev/sandbox=true:NoSchedule
+```
+
+Then add the matching settings to the spawner's `env` in `40-sandbox.yaml`:
+
+```yaml
+            - { name: SANDBOX_K8S_NODE_SELECTOR, value: '{"tale.dev/sandbox":"true"}' }
+            - { name: SANDBOX_K8S_TOLERATIONS, value: '[{"key":"tale.dev/sandbox","operator":"Exists","effect":"NoSchedule"}]' }
+            - { name: SANDBOX_K8S_PRIORITY_CLASS, value: tale-sandbox-session }
+```
+
+The taint keeps other Pods off those nodes, and the selector keeps sessions on them. The PriorityClass ranks sessions below the platform: the scheduler may preempt a session to place a platform Pod, and when a node runs short of memory or disk, the kubelet takes priority into account and evicts sessions sooner. With `preemptionPolicy: Never`, a session never preempts another Pod itself. A cluster administrator creates the class once; the spawner needs no extra permission:
+
+```yaml
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: tale-sandbox-session }
+value: -10
+preemptionPolicy: Never
+globalDefault: false
+description: Tale sandbox sessions yield to the platform.
+```
+
+The settings apply to every session Pod, crawler renders included, for the sessions the spawner creates after its restart; running sessions keep their placement. A malformed value stops the spawner at start. With node-local storage, a stopped session's workspace claim stays on its node, so keep that node inside the selector or the session cannot resume.
 
 ### What the spawner enforces
 

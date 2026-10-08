@@ -111,6 +111,23 @@ request. The memory-backed `/tmp` and `/dev/shm` count against memory
 instead. An evicted agent session's Pod stays `Failed` until its next resume
 removes it and recreates the session on the intact workspace PVC.
 
+**Placement:** `SANDBOX_K8S_NODE_SELECTOR` (a JSON object of node labels),
+`SANDBOX_K8S_TOLERATIONS` (a JSON array of Pod tolerations) and
+`SANDBOX_K8S_PRIORITY_CLASS` set `nodeSelector`, `tolerations` and
+`priorityClassName` on every session Pod, crawler renders included. Unset,
+the fields are omitted, and sessions (privileged under runc DinD) can
+schedule beside the database and platform Pods and starve them. Label and
+taint dedicated nodes, select and tolerate them here, and give sessions a
+PriorityClass below the platform's with `preemptionPolicy: Never`: the
+scheduler may then preempt a session to place a platform Pod, never the
+reverse, and the kubelet ranks sessions first when it evicts. The values are
+held to the apiserver's rules at boot (label keys and values, a toleration's
+operator, effect and `tolerationSeconds`, a DNS-subdomain class name), so a
+typo stops the spawner instead of failing every create. The spawner needs no
+extra RBAC; a cluster administrator creates the PriorityClass once. A
+changed selector reaches new Pods only, and with node-local storage a
+stopped session resumes only on the node that holds its workspace PVC.
+
 ## RBAC (namespaced Role — no cluster scope, no `pods/exec`)
 
 The spawner Deployment's ServiceAccount needs a Role in the sandbox namespace:
@@ -169,6 +186,8 @@ stream. Keep it out so a stray exec call fails closed.
 | `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`                                | optional   | Size of the per-session `/agent` workspace PVC (default `4Gi`) and of a crawler render's workspace `emptyDir`. Bounds deps + temp + outputs. A malformed or zero value fails the spawner at boot. |
 | `SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT`                           | optional   | `sizeLimit` of a DinD agent's inner Docker store `emptyDir` (default `20Gi`); also added to that Pod's ephemeral-storage limit. A malformed or zero value fails the spawner at boot. |
 | `SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST` / `SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT` | optional | The runner's `ephemeral-storage` request (default `256Mi`, clamped to the limit) and its headroom for the writable root filesystem and logs (default `2Gi`); the Pod's limit is the headroom plus its disk-backed `emptyDir` sizes. A malformed value, or a zero limit, fails the spawner at boot. Set the request to `0` on nodes that report no `ephemeral-storage` capacity (a kubelet with `localStorageCapacityIsolation: false`, as on some rootless clusters), where any request leaves the Pod unschedulable. |
+| `SANDBOX_K8S_NODE_SELECTOR` / `SANDBOX_K8S_TOLERATIONS`           | optional   | JSON: an object of node labels every session Pod must match (`{"tale.dev/sandbox":"true"}`) and an array of Pod tolerations (`[{"key":"tale.dev/sandbox","operator":"Exists","effect":"NoSchedule"}]`). Unset ⇒ omitted. Malformed JSON, label or toleration fails the spawner at boot. See **Placement** above. |
+| `SANDBOX_K8S_PRIORITY_CLASS`                                      | optional   | `priorityClassName` of every session Pod. Unset ⇒ omitted (the namespace default priority). An invalid name fails the spawner at boot. |
 | `SANDBOX_K8S_CACHE_STORAGECLASS`                                  | optional   | StorageClass for the workspace PVCs (`ReadWriteOnce`). Unset ⇒ the cluster default. On a multi-node cluster use a class whose volumes can re-bind where a resume Pod schedules.               |
 | `SANDBOX_EGRESS_PROXY`                                            | optional   | The runner's `HTTPS_PROXY`/`HTTP_PROXY` (default `http://sandbox-egress:3128`); also what the transparent-egress sidecar tunnels to.                                                         |
 | `SANDBOX_K8S_SERVER` / `SANDBOX_K8S_TOKEN` / `SANDBOX_K8S_CAFILE` | dev only   | Explicit bearer-token kubeconfig for local Bun dev (kind's client-cert kubeconfig auths as `system:anonymous` under Bun). In-cluster uses the projected SA token automatically.             |

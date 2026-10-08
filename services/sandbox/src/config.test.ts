@@ -32,6 +32,9 @@ const KEYS = [
   'SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST',
   'SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT',
   'SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT',
+  'SANDBOX_K8S_NODE_SELECTOR',
+  'SANDBOX_K8S_TOLERATIONS',
+  'SANDBOX_K8S_PRIORITY_CLASS',
   'SANDBOX_BUILDKITD_CPUS',
   'SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS',
   'SANDBOX_BUILDKITD_MEMORY',
@@ -137,6 +140,96 @@ test('session Pod disk bounds: pod-spec defaults unless set, refused when malfor
     process.env[name] = '0Gi';
     expect(() => loadConfig()).toThrow(`${name} must be above zero`);
     process.env[name] = kept;
+  }
+});
+
+test('session Pod placement: absent by default, read from JSON, refused with a clear error', () => {
+  const k8s = loadConfig().k8s;
+  expect(k8s).not.toHaveProperty('nodeSelector');
+  expect(k8s).not.toHaveProperty('tolerations');
+  expect(k8s).not.toHaveProperty('priorityClassName');
+  process.env.SANDBOX_K8S_NODE_SELECTOR =
+    ' {"tale.dev/sandbox":"true","pool":"sandbox-1"} ';
+  process.env.SANDBOX_K8S_TOLERATIONS = JSON.stringify([
+    { key: 'tale.dev/sandbox', operator: 'Exists', effect: 'NoSchedule' },
+    {
+      key: 'pool',
+      value: 'sandbox',
+      effect: 'NoExecute',
+      tolerationSeconds: 60,
+    },
+    { operator: 'Exists' },
+  ]);
+  process.env.SANDBOX_K8S_PRIORITY_CLASS = ' tale-sandbox-session ';
+  expect(loadConfig().k8s).toMatchObject({
+    nodeSelector: { 'tale.dev/sandbox': 'true', pool: 'sandbox-1' },
+    tolerations: [
+      { key: 'tale.dev/sandbox', operator: 'Exists', effect: 'NoSchedule' },
+      {
+        key: 'pool',
+        value: 'sandbox',
+        effect: 'NoExecute',
+        tolerationSeconds: 60,
+      },
+      { operator: 'Exists' },
+    ],
+    priorityClassName: 'tale-sandbox-session',
+  });
+  // An empty object or array places nothing.
+  process.env.SANDBOX_K8S_NODE_SELECTOR = '{}';
+  process.env.SANDBOX_K8S_TOLERATIONS = '[]';
+  expect(loadConfig().k8s).not.toHaveProperty('nodeSelector');
+  expect(loadConfig().k8s).not.toHaveProperty('tolerations');
+  delete process.env.SANDBOX_K8S_TOLERATIONS;
+
+  const refused: [string, string, RegExp][] = [
+    ['SANDBOX_K8S_NODE_SELECTOR', 'tale.dev/sandbox=true', /not valid JSON/],
+    ['SANDBOX_K8S_NODE_SELECTOR', '["sandbox"]', /JSON object of node labels/],
+    ['SANDBOX_K8S_NODE_SELECTOR', '{"bad key":"x"}', /no Kubernetes label key/],
+    ['SANDBOX_K8S_NODE_SELECTOR', '{"a/b/c":"x"}', /no Kubernetes label key/],
+    ['SANDBOX_K8S_NODE_SELECTOR', '{"pool":true}', /no Kubernetes label value/],
+    ['SANDBOX_K8S_TOLERATIONS', '{"key":"pool"}', /JSON array of tolerations/],
+    ['SANDBOX_K8S_TOLERATIONS', '["pool"]', /\[0\] must be a JSON object/],
+    [
+      'SANDBOX_K8S_TOLERATIONS',
+      '[{"key":"pool","efect":"NoSchedule"}]',
+      /unknown field efect/,
+    ],
+    [
+      'SANDBOX_K8S_TOLERATIONS',
+      '[{"key":"pool","operator":"In"}]',
+      /Equal or Exists/,
+    ],
+    [
+      'SANDBOX_K8S_TOLERATIONS',
+      '[{"key":"pool","effect":"NoRun"}]',
+      /effect must be/,
+    ],
+    [
+      'SANDBOX_K8S_TOLERATIONS',
+      '[{"key":"pool","operator":"Exists","value":"x"}]',
+      /takes no value/,
+    ],
+    ['SANDBOX_K8S_TOLERATIONS', '[{"value":"x"}]', /needs operator Exists/],
+    [
+      'SANDBOX_K8S_TOLERATIONS',
+      '[{"key":"pool","effect":"NoSchedule","tolerationSeconds":60}]',
+      /only to effect NoExecute/,
+    ],
+    [
+      'SANDBOX_K8S_TOLERATIONS',
+      '[{"key":"pool","effect":"NoExecute","tolerationSeconds":1.5}]',
+      /whole number of seconds/,
+    ],
+    ['SANDBOX_K8S_PRIORITY_CLASS', 'Tale_Sessions', /not a PriorityClass name/],
+  ];
+  for (const [name, value, error] of refused) {
+    const kept = process.env[name];
+    process.env[name] = value;
+    expect(() => loadConfig(), `${name}=${value}`).toThrow(error);
+    expect(() => loadConfig(), `${name}=${value}`).toThrow(name);
+    if (kept === undefined) delete process.env[name];
+    else process.env[name] = kept;
   }
 });
 

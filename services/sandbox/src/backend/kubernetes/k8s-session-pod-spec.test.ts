@@ -385,6 +385,44 @@ describe('buildSessionPod', () => {
     });
   });
 
+  test('placement: unset leaves the scheduler free; set, every profile carries it', () => {
+    const free = buildSessionPod(cfg, input).spec;
+    expect(free?.nodeSelector).toBeUndefined();
+    expect(free?.tolerations).toBeUndefined();
+    expect(free?.priorityClassName).toBeUndefined();
+    const placed: SpawnerConfig = {
+      ...cfg,
+      runtimeTier: 'sysbox',
+      dockerInContainer: true,
+      k8s: {
+        ...cfg.k8s,
+        runtimeClassName: 'sysbox-runc',
+        nodeSelector: { 'tale.dev/sandbox': 'true' },
+        tolerations: [
+          { key: 'tale.dev/sandbox', operator: 'Exists', effect: 'NoSchedule' },
+        ],
+        priorityClassName: 'tale-sandbox-session',
+      },
+    };
+    // Agent (DinD here), lightweight agent and crawler render alike.
+    for (const session of [
+      input,
+      { ...input, profile: 'agent-light' as const },
+      { ...input, profile: 'default' as const },
+    ]) {
+      const spec = buildSessionPod(placed, session).spec;
+      expect(spec?.nodeSelector).toEqual({ 'tale.dev/sandbox': 'true' });
+      expect(spec?.tolerations).toEqual([
+        { key: 'tale.dev/sandbox', operator: 'Exists', effect: 'NoSchedule' },
+      ]);
+      expect(spec?.priorityClassName).toBe('tale-sandbox-session');
+    }
+    // Each Pod gets its own copy, so one Pod's object never aliases the config.
+    const spec = buildSessionPod(placed, input).spec;
+    expect(spec?.nodeSelector).not.toBe(placed.k8s.nodeSelector);
+    expect(spec?.tolerations?.[0]).not.toBe(placed.k8s.tolerations?.[0]);
+  });
+
   test('a resume does not re-chown the whole workspace', () => {
     expect(
       buildSessionPod(cfg, input).spec?.securityContext?.fsGroupChangePolicy,

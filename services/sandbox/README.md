@@ -326,6 +326,12 @@ Docker store (`SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT`, 20 GiB). A session past
 its limit is evicted on its own instead of filling the node until the kubelet
 evicts platform Pods; `SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST` and
 `SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT` override the request and that headroom.
+
+Unset, session Pods schedule on any node. `SANDBOX_K8S_NODE_SELECTOR` (a JSON
+object of node labels), `SANDBOX_K8S_TOLERATIONS` (a JSON array of Pod
+tolerations) and `SANDBOX_K8S_PRIORITY_CLASS` place every session Pod,
+crawler renders included, on dedicated nodes and below the platform's
+priority; the spawner refuses to start on a value the apiserver would reject.
 See the [Kubernetes deployment contract](docs/kubernetes.md).
 
 ## Inner Docker networking

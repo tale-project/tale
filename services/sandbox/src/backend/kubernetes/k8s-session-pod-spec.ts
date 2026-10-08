@@ -369,6 +369,21 @@ export function buildSessionPod(
       ...(cfg.k8s.runtimeClassName !== null && {
         runtimeClassName: cfg.k8s.runtimeClassName,
       }),
+      // Operator placement, for every profile: untrusted (under runc DinD,
+      // privileged) sessions kept to their own nodes, and ranked below the
+      // platform when the scheduler preempts or the kubelet evicts. Unset,
+      // the fields are omitted and the scheduler places sessions anywhere.
+      ...(cfg.k8s.nodeSelector !== undefined && {
+        nodeSelector: { ...cfg.k8s.nodeSelector },
+      }),
+      ...(cfg.k8s.tolerations !== undefined && {
+        tolerations: cfg.k8s.tolerations.map((toleration) => ({
+          ...toleration,
+        })),
+      }),
+      ...(cfg.k8s.priorityClassName !== undefined && {
+        priorityClassName: cfg.k8s.priorityClassName,
+      }),
       securityContext: {
         fsGroup: gid,
         // Without it the kubelet re-chowns the whole workspace (repositories,
