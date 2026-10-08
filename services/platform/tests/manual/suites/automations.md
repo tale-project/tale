@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 86 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 87 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -838,3 +838,14 @@ the dev stack (cadence froze after sever, sweep poked once, cadence resumed).
 - [ ] `AUTO-P2` · **Workbench interaction** → Canvas + panels visible < 2 s on
       a seeded pack; node select → inspector update and live run-status overlays
       feel instant (< 100 ms, no layout jank while a run streams)
+- [ ] `AUTO-P3` · **One organization's burst leaves room for another** — With
+      one backend worker at the default `WORKER_CONCURRENCY` (5), set
+      `AUTOMATION_ORG_CONCURRENCY=2` in `.env` and restart the worker. In
+      organization A start ten live runs of an automation whose one step
+      works for about 30 seconds; while they run, start one live run in
+      organization B → B's run reads **Running**
+      (`automations.runs.status.running`) within a few seconds and succeeds
+      while most of A's runs still read **Queued**
+      (`automations.runs.status.queued`); A's run list shows about two
+      **Running** at a time — never five, one per worker slot — and all ten
+      succeed. Remove the setting and restart the worker afterwards.

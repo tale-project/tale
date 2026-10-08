@@ -100,6 +100,23 @@ describe('loadEnv', () => {
     expect(() => loadEnv({ ...BASE, AGENT_START_SLOTS: 'lots' })).toThrow();
   });
 
+  it('limits an organization to eight automation steps at once by default, and 0 lifts it', () => {
+    expect(loadEnv({ ...BASE }).AUTOMATION_ORG_CONCURRENCY).toBe(8);
+    expect(
+      loadEnv({ ...BASE, AUTOMATION_ORG_CONCURRENCY: '0' })
+        .AUTOMATION_ORG_CONCURRENCY,
+    ).toBe(0);
+    expect(
+      loadEnv({ ...BASE, AUTOMATION_ORG_CONCURRENCY: '24' })
+        .AUTOMATION_ORG_CONCURRENCY,
+    ).toBe(24);
+    for (const value of ['-1', '257', '2.5', 'many']) {
+      expect(() =>
+        loadEnv({ ...BASE, AUTOMATION_ORG_CONCURRENCY: value }),
+      ).toThrow();
+    }
+  });
+
   it('passes SENTRY_DSN through and leaves it optional', () => {
     expect(loadEnv({ ...BASE }).SENTRY_DSN).toBeUndefined();
     const env = loadEnv({

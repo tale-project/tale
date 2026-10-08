@@ -520,15 +520,20 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryBackoff: true,
     expireInSeconds: 900,
   },
-  // At-most-once walking: pg-boss expires an ACTIVE job whose handler is
-  // still running and a retry would then claim the run again — claimRun
-  // re-claims a 'running' row unconditionally — so a node body outlasting
-  // the expiry (a subautomation's inline walk under repeatUntil) ran under
-  // TWO walkers until the first one's next commit read 'stale'. A lost or
-  // crashed walker is the per-minute liveness sweep's to re-poke (its
-  // promise lapses in 3 min), never pg-boss's; the expiry only has to
-  // outlast the longest node body a single turn can hold.
-  'automation.step': { retryLimit: 0, expireInSeconds: 21_600 },
+  // At-most-once walking: a lost or crashed walker is the per-minute
+  // liveness sweep's to re-poke once its lease lapses, never pg-boss's —
+  // a retry beside a walker still running would only meet its live lease.
+  // The expiry only has to outlast the longest node body a single turn can
+  // hold (a subautomation's inline walk under repeatUntil). The heartbeat
+  // tells a killed worker's step apart within a minute and a half (30 s,
+  // plus the supervisor's one-minute pass): an organization's walking steps
+  // are counted from the active jobs of its group (`TASK_JOB_GROUP`), and a
+  // dead worker's would otherwise hold its share until the expiry.
+  'automation.step': {
+    retryLimit: 0,
+    expireInSeconds: 21_600,
+    heartbeatSeconds: 30,
+  },
   'automation.poll': { retryLimit: 3, retryDelay: 2, expireInSeconds: 120 },
   'automation.trigger_scan': { retryLimit: 1, expireInSeconds: 120 },
   'automation.liveness': { retryLimit: 1, expireInSeconds: 120 },
@@ -732,7 +737,42 @@ export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
     'task.agent_drive',
     'automation.agent_turn',
     'automation.agent_drive',
+    // A step walks for up to its minute-long budget, or longer inside one
+    // slow node: batched, one long step held the steps of every other run
+    // fetched with it until it handed its run on.
+    'automation.step',
   ]);
+
+/**
+ * The organization a job counts against, for the queues whose jobs are
+ * limited per organization across every worker ({@link queueGroupConcurrency}).
+ * `addJobInTx` stamps it on every job of the queue, so no enqueue site can
+ * leave one out; a job without one (sent by an image before this one) is
+ * not limited.
+ */
+export const TASK_JOB_GROUP: {
+  readonly [K in TaskIdentifier]?: (
+    payload: TaskPayloads[K],
+  ) => string | undefined;
+} = {
+  'automation.step': (payload) => payload.organizationId,
+};
+
+/**
+ * How many jobs of one group a queue runs at once across all workers, or
+ * `undefined` for no limit. Automation steps take the operator's
+ * AUTOMATION_ORG_CONCURRENCY, so one organization's burst of runs cannot
+ * take every worker's step slots while another organization's runs wait
+ * behind it; 0 turns the limit off.
+ */
+export function queueGroupConcurrency(
+  name: string,
+  options: { automationOrgConcurrency?: number | undefined },
+): number | undefined {
+  if (name !== 'automation.step') return undefined;
+  const limit = options.automationOrgConcurrency;
+  return limit !== undefined && limit > 0 ? limit : undefined;
+}
 
 /**
  * The fewest slots a slot queue runs, whatever `WORKER_CONCURRENCY` says. A

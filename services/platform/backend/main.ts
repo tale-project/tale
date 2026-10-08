@@ -30,7 +30,7 @@ import { closeServerGracefully } from './http-shutdown.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
-import { registerSchedules } from './jobs/schedules.ts';
+import { registerSchedules, sweepRunsAtBoot } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
 import {
   BACKEND_SERVER_OPTIONS,
@@ -148,12 +148,14 @@ async function main(): Promise<void> {
       concurrency: env.WORKER_CONCURRENCY,
       agentStartSlots: env.AGENT_START_SLOTS,
       agentDriveSlots: env.AGENT_DRIVE_SLOTS,
+      automationOrgConcurrency: env.AUTOMATION_ORG_CONCURRENCY,
       shouldDefer: shouldDeferJobs(processShutdown, () =>
         isBackendDraining(sql),
       ),
       sql,
     });
     await registerSchedules(boss);
+    await sweepRunsAtBoot(sql);
   }
 
   // The deployment-default BLOB store. S3 is the only blob backend, so an
