@@ -31,6 +31,7 @@ import {
 import { request as httpRequest, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import { serve } from '@hono/node-server';
 import { transactSerializable } from '@tale/shared/db/serializable';
@@ -15170,8 +15171,9 @@ async function checkMcpAuthoringParity(
       JSON.stringify(agentSave.value.carried) ===
         JSON.stringify(['settings', 'taskContract']) &&
       agentSave.value.baseVersionChecked === true &&
-      JSON.stringify(v2?.settings) === JSON.stringify(settings) &&
-      JSON.stringify(v2?.taskContract) === JSON.stringify(taskContract) &&
+      // jsonb stores object keys in its own order, so compare values.
+      isDeepStrictEqual(v2?.settings, settings) &&
+      isDeepStrictEqual(v2?.taskContract, taskContract) &&
       v2?.createdVia === 'mcp' &&
       typeof v2.apiKeyId === 'string' &&
       rows.find((row) => row.version === 1)?.createdVia === 'app',
@@ -15323,7 +15325,7 @@ async function checkMcpAuthoringParity(
       viewed.value.latestVersion === 2 &&
       viewed.value.deployedVersion === 2 &&
       viewed.value.createdVia === 'mcp' &&
-      JSON.stringify(viewed.value.settings) === JSON.stringify(settings) &&
+      isDeepStrictEqual(viewed.value.settings, settings) &&
       deployments.success &&
       deployments.data.deployments.length >= 3,
     `view=${JSON.stringify(viewed.value).slice(0, 200)}, deployments=${deployments.success ? deployments.data.deployments.length : 'ERR'} (want ≥3)`,
@@ -16738,6 +16740,14 @@ async function checkMcpEras(
         clientInfo: { name: 'itest-legacy-script', version: '1.0.0' },
       },
     });
+    // The day's row for a method names the latest client that called it on
+    // this key, and the 2026-07-28 refusals below send `initialize` again
+    // under the modern client: read the legacy one before they do.
+    const legacyInitRow = await sql<{ clientName: string | null }[]>`
+      SELECT client_name AS "clientName" FROM app.mcp_client_activity
+      WHERE org_id = ${orgId} AND user_id = ${userId}
+        AND method = 'initialize'
+    `;
     const saved = await modern('tools/call', {
       name: 'save_automation',
       arguments: {
@@ -16891,13 +16901,8 @@ async function checkMcpEras(
       'MCP: server/discover is counted with the client a 2026-07-28 request names, initialize with the legacy one (MCP-R21, MCP-R26)',
       counted.some(
         (row) => row.method === 'server/discover' && row.clientName === CLIENT,
-      ) &&
-        counted.some(
-          (row) =>
-            row.method === 'initialize' &&
-            row.clientName === 'itest-legacy-script',
-        ),
-      `counted=${JSON.stringify(counted)}`,
+      ) && legacyInitRow[0]?.clientName === 'itest-legacy-script',
+      `counted=${JSON.stringify(counted)}, initialize right after the legacy call=${JSON.stringify(legacyInitRow)}`,
     );
   } finally {
     await sql`
