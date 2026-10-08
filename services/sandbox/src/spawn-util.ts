@@ -61,6 +61,18 @@ function dockerBin(): string {
   return process.env.DOCKER_BIN ?? 'docker';
 }
 
+/** Which daemon runDocker talks to, as a key: an observation remembered
+ * about one daemon (including an isolated test CLI) says nothing about
+ * another. */
+export function dockerTarget(): string {
+  return JSON.stringify([
+    process.env.DOCKER_BIN,
+    process.env.DOCKER_HOST,
+    process.env.DOCKER_CONTEXT,
+    process.env.DOCKER_CONFIG,
+  ]);
+}
+
 /**
  * Drain a Bun process pipe, buffering up to `maxBytes`. Continues to read
  * past the cap (so the writer doesn't block on a full pipe — which would

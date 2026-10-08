@@ -156,7 +156,7 @@ describe('DockerDataRootMount', () => {
     return { state, probe };
   }
 
-  test('verifies the existing hostname bind and shares/caches metadata reads', async () => {
+  test('verifies the existing hostname bind once, sharing the read; while it stays mounted no Docker call follows', async () => {
     const { state, probe } = fixture();
     expect(await Promise.all([probe.read(), probe.read()])).toEqual([
       '/etc/hostname',
@@ -164,14 +164,14 @@ describe('DockerDataRootMount', () => {
     ]);
     expect(state.calls).toHaveLength(2);
     expect(state.calls.find((args) => args[0] === 'inspect')?.at(-1)).toBe(id);
-    await probe.read();
-    expect(state.calls).toHaveLength(2);
-    state.now += 10 * 60_000;
-    expect(await probe.read()).toBe('/etc/hostname');
-    expect(state.calls).toHaveLength(4);
     expect(
       state.calls.every((args) => args[0] === 'info' || args[0] === 'inspect'),
     ).toBe(true);
+    for (const later of [60_000, 10 * 60_000, 24 * 60 * 60_000]) {
+      state.now += later;
+      expect(await probe.read()).toBe('/etc/hostname');
+    }
+    expect(state.calls).toHaveLength(2);
   });
 
   test('recognizes data-root on a dedicated filesystem and escaped mount paths', async () => {
@@ -215,33 +215,64 @@ describe('DockerDataRootMount', () => {
     expect(state.calls).toHaveLength(4);
   });
 
-  test('keeps an unchanged verified mount during a daemon outage, but not a replacement', async () => {
+  test('keeps an unchanged verified mount during a daemon outage, but verifies a replacement', async () => {
     const options = { mounts: mountinfo() };
     const { state, probe } = fixture(options);
     expect(await probe.read()).toBe('/etc/hostname');
     state.now += 10 * 60_000;
     state.fail = true;
     expect(await probe.read()).toBe('/etc/hostname');
-    expect(state.calls).toHaveLength(4);
-    await probe.read();
-    expect(state.calls).toHaveLength(4);
-    state.now += 30_000;
+    expect(state.calls).toHaveLength(2);
     options.mounts = mountinfo().replace('37 25 8:2', '38 25 8:3');
+    state.now += 60_000;
     expect(await probe.read()).toBeNull();
-    expect(state.calls).toHaveLength(6);
+    expect(state.calls).toHaveLength(4);
   });
 
-  test('discards a previous verification when fresh daemon metadata contradicts it', async () => {
+  test('a bind its reader reports unreadable is verified again, after the retry delay, and contradicting metadata discards it', async () => {
     const options = {
       hostnamePath: `/var/lib/docker/containers/${id}/hostname`,
     };
     const { state, probe } = fixture(options);
     expect(await probe.read()).toBe('/etc/hostname');
-    state.now += 10 * 60_000;
+    probe.invalidate();
+    expect(await probe.read()).toBeNull();
+    expect(state.calls).toHaveLength(2);
+    state.now += 30_000;
     options.hostnamePath = '/custom/hostname';
     expect(await probe.read()).toBeNull();
-    state.now += 30_000;
-    state.fail = true;
-    expect(await probe.read()).toBeNull();
+    expect(state.calls).toHaveLength(4);
+  });
+
+  test('a refuted verification backs off from 30 s, doubling to 10 min; an unanswered one is asked again after 30 s', async () => {
+    const refuted = fixture({ dataRoot: '/different-disk' });
+    const verifications = () => refuted.state.calls.length / 2;
+    const gaps: number[] = [];
+    let last = refuted.state.now;
+    expect(await refuted.probe.read()).toBeNull();
+    while (gaps.length < 7) {
+      const before = verifications();
+      refuted.state.now += 1_000;
+      expect(await refuted.probe.read()).toBeNull();
+      if (verifications() > before) {
+        gaps.push(refuted.state.now - last);
+        last = refuted.state.now;
+      }
+    }
+    expect(gaps).toEqual([
+      30_000, 60_000, 120_000, 240_000, 480_000, 600_000, 600_000,
+    ]);
+
+    const unanswered = fixture();
+    unanswered.state.fail = true;
+    expect(await unanswered.probe.read()).toBeNull();
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      unanswered.state.now += 29_999;
+      await unanswered.probe.read();
+      expect(unanswered.state.calls).toHaveLength(2 * (attempt + 1));
+      unanswered.state.now += 1;
+      await unanswered.probe.read();
+      expect(unanswered.state.calls).toHaveLength(2 * (attempt + 2));
+    }
   });
 });
