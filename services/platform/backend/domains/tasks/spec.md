@@ -289,6 +289,21 @@ historical handoff into its latest gate, separately from current pending ownersh
 - **Example**: The recipient decides before that retry → the old handoff refuses;
   its historical receipt does not claim the review is still pending.
 
+## Dates
+
+### TASK-R23 · A start date that has already arrived raises no bell
+
+A task's start date normally rings once, the day it arrives: the hourly sweep sends its
+"starts today" bell. A start that is today or already past when someone writes it — the
+default today of a task made in the app, or a start moved back — was set by someone looking
+at the task, so it is written as already announced and rings nobody. A start still ahead rings
+on its day, also after it is moved.
+
+- **Example**: Lea creates "Ship the pricing page" in the morning; its start date reads today
+  → no "starts today" bell reaches her or the assignee.
+- **Example**: Lea moves the start of "Plan the launch" to next Monday → the bell comes on
+  Monday.
+
 ## Not yet
 
 - **Agent runs**: starting, steering, stopping, retrying and re-attaching a run, and how a run
@@ -296,7 +311,7 @@ historical handoff into its latest gate, separately from current pending ownersh
   `kick-plan.ts`).
 - **Reviews beyond `TASK-R21`–`TASK-R22`**: who a review goes to, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`).
-- **Repeating tasks, date notifications, metrics and board search** (`repeat.ts`,
+- **Repeating tasks, date notifications beyond `TASK-R23`, metrics and board search** (`repeat.ts`,
   `date-notifications.ts`, `metrics.ts`).
 - **Imported and externally referenced tasks** beyond `TASK-R9` and `TASK-R14`–`TASK-R20` (`external-ref.ts`,
   `import-cursors.ts`).
