@@ -151,7 +151,8 @@ async function failNewestRunAndRetry(
 }
 
 /** The queues of an agent's turn and of its automatic retry — the arm and
- * the later checks of a retry that waits for its busy agent. */
+ * the later checks an earlier image queued for a retry that waited for its
+ * busy agent. */
 const HELD_QUEUES = [
   'task.agent_turn',
   'task.agent_retry',
@@ -1317,6 +1318,15 @@ export async function checkDelegatedAgentStartTool(
       title: 'Impl 2',
       agentId: w1,
     });
+    const impl3 = await fx.insertTask({
+      projectId: projectA,
+      title: 'Impl 3',
+      agentId: w1,
+    });
+    const selfTask = await fx.insertTask({
+      projectId: projectA,
+      title: 'Work the manager wants for itself',
+    });
     const blockerTask = await fx.insertTask({
       projectId: projectA,
       title: 'Prerequisite',
@@ -1450,19 +1460,48 @@ export async function checkDelegatedAgentStartTool(
       `comment=${JSON.stringify(commented)} authors=${JSON.stringify(authors)} runs=${describeRuns(impl1RunsAfterComment)}`,
     );
 
-    // ---- one active piece of work per agent workspace -------------------
+    // ---- an agent at work is started on another task too ----------------
     const busy = await dispatch(managerRun.token, 'task_start_agent', {
-      taskId: impl2,
+      taskId: impl3,
     });
     const busyOut = outputOf(busy);
+    const impl3Runs = await runsOf(sql, impl3);
+    const impl1Live = (await runsOf(sql, impl1)).filter(
+      (run) => run.status === 'queued' || run.status === 'running',
+    );
     record(
-      'delegation: an agent already working another task is not started again; the answer names the task it is on',
+      'delegation: an agent already working another task is started on this one too — a run of its own beside the first, its worker claimed when it starts',
       busy.status === 'ok' &&
-        busyOut.started === false &&
-        busyOut.reason === 'agent_busy' &&
-        busyOut.busyTaskId === impl1 &&
-        (await runsOf(sql, impl2)).length === 0,
-      `result=${JSON.stringify(busy)}`,
+        busyOut.started === true &&
+        busyOut.reason === undefined &&
+        busyOut.busyTaskId === undefined &&
+        impl3Runs.length === 1 &&
+        impl3Runs[0]?.id === busyOut.runId &&
+        impl3Runs[0].agentId === w1 &&
+        impl3Runs[0].trigger === 'delegated' &&
+        impl1Live.length === 1,
+      `result=${JSON.stringify(busy)} runs=${describeRuns(impl3Runs)} impl1 live=${describeRuns(impl1Live)}`,
+    );
+
+    // ---- an agent does not start itself on another task ---------------
+    const selfStart = await dispatch(managerRun.token, 'task_start_agent', {
+      taskId: selfTask,
+      agentId: manager,
+    });
+    const selfOut = outputOf(selfStart);
+    record(
+      'delegation: an agent naming itself for another task starts nothing and is told to hand it on (self_start)',
+      selfStart.status === 'ok' &&
+        selfOut.started === false &&
+        selfOut.reason === 'self_start' &&
+        (await runsOf(sql, selfTask)).length === 0 &&
+        (
+          await sql<{ assigneeId: string | null }[]>`
+            SELECT assignee_id AS "assigneeId" FROM app.tasks
+            WHERE id = ${selfTask}
+          `
+        )[0]?.assigneeId === null,
+      `result=${JSON.stringify(selfStart)}`,
     );
 
     // ---- dependencies are checked --------------------------------------
@@ -2114,10 +2153,10 @@ export async function checkDelegatedAgentStartTool(
       .map((out) => (out.started === true ? 'started' : String(out.reason)))
       .sort();
     record(
-      'delegation: two starts racing for one free agent start exactly one run; the other answers agent_busy',
-      raceRuns.length === 1 &&
-        JSON.stringify(raceOutcomes) ===
-          JSON.stringify(['agent_busy', 'started']),
+      'delegation: two starts racing for one free agent on two tasks both start, one run on each task',
+      raceRuns.length === 2 &&
+        new Set(raceRuns.map((run) => run.taskId)).size === 2 &&
+        JSON.stringify(raceOutcomes) === JSON.stringify(['started', 'started']),
       `outcomes=${JSON.stringify(raceOutcomes)} runs=${describeRuns(raceRuns)} raw=${JSON.stringify([raceA, raceB])}`,
     );
 

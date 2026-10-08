@@ -332,6 +332,19 @@ working, and among those to the one that has waited longest.
 - **Example**: Scribe was handed thirty tasks at once and every worker is busy. Ada then starts
   Lector once → the next worker that frees goes to Lector's run, ahead of Scribe's waiting runs.
 
+### TASK-R26 · Automations and agents can start an agent that is busy on another task
+
+A start by an automation step, a schedule or a manager agent is answered `started` while the
+agent works other tasks; when its run waits for a worker (`TASK-R25`) the answer says why. An
+automatic retry starts at once, whatever else the agent is doing. An agent cannot start itself
+on another task (`self_start`).
+
+- **Example**: Scribe works "Changelog". A manager agent starts Scribe on "Press kit" → the
+  answer is `started`, and Scribe works both.
+- **Example**: Every agent worker of Ada's organization is busy. An automation starts Scribe on
+  "Press kit" → the answer is `started` with `waitingReason: org_limit`, and the run starts by
+  itself once a worker frees.
+
 ### TASK-R27 · A task's next run goes back to its worker when that worker is free
 
 There the run continues the task's conversation and finds the files it left. On another worker
@@ -348,8 +361,7 @@ new one can open.
 
 ## Not yet
 
-- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`,
-  `TASK-R25` and `TASK-R27`, and how a run moves the card between statuses (`agent-runs.ts`,
+- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27`, and how a run moves the card between statuses (`agent-runs.ts`,
   `run-start.ts`, `reattach.ts`, `kick-plan.ts`).
 - **Reviews beyond `TASK-R21`–`TASK-R22`**: who a review goes to, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`).

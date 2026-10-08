@@ -11,6 +11,7 @@ import {
   chooseWorker,
   claimAgentWorker,
   parkAgentRunInTx,
+  predictWorkerWait,
   type FamilyWorker,
   type WorkerFacts,
 } from './agent-workers.ts';
@@ -267,7 +268,12 @@ const PARK = "SET status = 'queued'";
 
 function claimSql(
   script: {
-    run?: Partial<typeof RUN_ROW>;
+    /** The run row, with the fields only some reads take. */
+    run?: Partial<typeof RUN_ROW> & {
+      status?: string;
+      parked?: boolean;
+      reason?: string | null;
+    };
     family?: Array<{ sessionId: string; status: string; pinned: boolean }>;
     others?: string[];
     inFlight?: number;
@@ -440,5 +446,48 @@ describe('parking a run that found no room [TASK-R25]', () => {
       s.text.startsWith('UPDATE app.project_agent_runs SET session_id = ?'),
     );
     expect(back?.values[0]).toBe(w(1));
+  });
+});
+
+describe('telling a start whether its run waits [TASK-R26]', () => {
+  const PREDICT = { organizationId: 'org-1', runId: 'run-1' };
+  const QUEUED = { status: 'queued', parked: false, reason: null };
+
+  beforeEach(() => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(null);
+    vi.mocked(sessionIdForAgentRun).mockReset();
+    vi.mocked(sessionIdForAgentRun).mockResolvedValue(w(1));
+  });
+
+  it('says the run waits for a worker when every slot is held, and takes nothing', async () => {
+    const { sql, statements } = claimSql({
+      run: QUEUED,
+      family: [{ sessionId: w(1), status: 'active', pinned: false }],
+      others: [w(1)],
+      inFlight: 2,
+    });
+    await expect(predictWorkerWait(sql, PREDICT)).resolves.toBe('org_limit');
+    for (const write of [AGENT_LOCK, ORG_LOCK, CLAIM, PARK, 'FOR UPDATE']) {
+      expect(statements.some((s) => s.text.includes(write))).toBe(false);
+    }
+  });
+
+  it('says nothing for a run that would find a worker', async () => {
+    const { sql } = claimSql({
+      run: QUEUED,
+      family: [{ sessionId: w(1), status: 'active', pinned: false }],
+      others: [w(1)],
+      inFlight: 1,
+    });
+    await expect(predictWorkerWait(sql, PREDICT)).resolves.toBeNull();
+  });
+
+  it('repeats the reason of a run already parked, and nothing for one at work', async () => {
+    const parked = claimSql({
+      run: { status: 'queued', parked: true, reason: 'host' },
+    });
+    await expect(predictWorkerWait(parked.sql, PREDICT)).resolves.toBe('host');
+    const running = claimSql({ run: { ...QUEUED, status: 'running' } });
+    await expect(predictWorkerWait(running.sql, PREDICT)).resolves.toBeNull();
   });
 });

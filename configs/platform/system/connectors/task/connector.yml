@@ -145,13 +145,15 @@ actions:
       Starts nothing, without failing, when the task's live run already
       carries the work (already_running), an in-place start meets a card
       waiting for a person's review (in_review) or one already Done or
-      Cancelled (closed), the agent is working another task (agent_busy), an
-      open task blocks this one (blocked), or the task took three starts by
-      automations and agents, ordinary automatic retries included, in the last
-      hour (paused). One broker cooldown immediately after the same agent's
-      HTTP 429 adds no start; consecutive cooldowns still count. Honor the
-      returned retryAfter and every other admission check. A step delivered
-      again answers the run its first delivery started.
+      Cancelled (closed), an open task blocks this one (blocked), or the task
+      took three starts by automations and agents, ordinary automatic retries
+      included, in the last hour (paused). One broker cooldown immediately
+      after the same agent's HTTP 429 adds no start; consecutive cooldowns
+      still count. Honor the returned retryAfter and every other admission
+      check. An agent working other tasks is started all the same, in a
+      worker of its own; when every agent worker of the organization is in
+      use the run waits and starts by itself, and waitingReason says why. A
+      step delivered again answers the run its first delivery started.
     effects: write
     input:
       type: object
@@ -169,7 +171,7 @@ actions:
         moveToInProgress:
           type: boolean
           description: Move the card to In progress and park the result at In review (default), or leave it where it is — only under open work (Backlog, To do, In progress).
-    output: '{ started: boolean, runId: string | null, taskId: string, agentId: string, reason?: "already_running" | "in_review" | "closed" | "agent_busy" | "blocked" | "paused", replayed?: boolean, taskStatus?: string, busyTaskId?: string, blockedBy?: string[], retryAfter?: number }'
+    output: '{ started: boolean, runId: string | null, taskId: string, agentId: string, reason?: "already_running" | "in_review" | "closed" | "blocked" | "paused", replayed?: boolean, waitingReason?: "org_limit" | "host" | "destroy_pending" | "exec_limit", taskStatus?: string, blockedBy?: string[], retryAfter?: number }'
     mock: |
       return {
         started: true,

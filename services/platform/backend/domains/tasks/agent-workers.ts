@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
-import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting.ts';
+import {
+  isAgentRunWaitingReason,
+  type AgentRunWaitingReason,
+} from '../../../lib/shared/agent-run-waiting.ts';
 import {
   SANDBOX_SESSION_LIVE_STATUSES,
   TASK_AGENT_OP_KIND,
@@ -268,11 +271,55 @@ async function claimInTx(
   return { ...choice, moved };
 }
 
+/**
+ * Why a run that has not started yet waits for a worker, or will when it
+ * starts, as far as can be told now: its park's reason once it is parked,
+ * else what its claim would decide if it ran now (no worker free and no
+ * slot left, or only a worker being destroyed). Null when it is working or
+ * would find a worker. A read that locks and claims nothing, made after the
+ * start commits: an automation or a manager agent that started the run
+ * learns it is not working yet, while the run's own claim decides when it
+ * starts.
+ */
+export async function predictWorkerWait(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; runId: string },
+): Promise<AgentRunWaitingReason | null> {
+  const runs = await sql<
+    (ClaimedRun & { status: string; parked: boolean; reason: string | null })[]
+  >`
+    SELECT agent_id AS "agentId", task_id AS "taskId",
+           project_id AS "projectId", started_by AS "startedBy",
+           session_id AS "sessionId",
+           session_claimed_at_ms::float8 AS "claimedAt", status,
+           waiting_for_capacity_at_ms IS NOT NULL AS parked,
+           waiting_reason AS reason
+    FROM app.project_agent_runs
+    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+  `;
+  const run = runs[0];
+  if (run === undefined || run.status !== 'queued') return null;
+  if (run.parked) {
+    return isAgentRunWaitingReason(run.reason) ? run.reason : null;
+  }
+  const base =
+    projectAgentWorker(run.agentId, run.sessionId)?.base ?? run.sessionId;
+  const choice = chooseWorker(
+    await readWorkerFacts(sql, {
+      organizationId: args.organizationId,
+      runId: args.runId,
+      base,
+      run,
+    }),
+  );
+  return 'wait' in choice ? choice.wait : null;
+}
+
 /** The family the run works in: the one its kick chose, unless its starter
  * may no longer edit the project — then that member's own, so what a
  * confined run leaves behind never reaches a standing worker. */
 async function runFamilyBase(
-  tx: TransactionSql,
+  tx: Sql | TransactionSql,
   organizationId: string,
   run: ClaimedRun,
 ): Promise<string> {
@@ -288,7 +335,7 @@ async function runFamilyBase(
 }
 
 async function readWorkerFacts(
-  tx: TransactionSql,
+  tx: Sql | TransactionSql,
   args: {
     organizationId: string;
     runId: string;
@@ -411,7 +458,7 @@ async function readWorkerFacts(
  * wakes a worker the organization has no slot for, so a burst of starts
  * opens no more workspaces than can run. */
 async function workerRoom(
-  tx: TransactionSql,
+  tx: Sql | TransactionSql,
   organizationId: string,
   runId: string,
 ): Promise<number> {

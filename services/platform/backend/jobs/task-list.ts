@@ -18,11 +18,7 @@ import {
   startTaskAgentTurnImpl,
   steerTaskAgentTurnImpl,
 } from '../core/tasks/agent_run_host.ts';
-import {
-  AGENT_BUSY_RETRY_MAX_WAITS,
-  planAgentBusyWait,
-  resolveAutoRetryBudget,
-} from '../core/tasks/task_auto_retry.ts';
+import { resolveAutoRetryBudget } from '../core/tasks/task_auto_retry.ts';
 import {
   automationShimHandlers,
   automationShimScheduler,
@@ -83,9 +79,6 @@ import {
 } from '../domains/tasks/agent-workers.ts';
 import {
   admitAutomatedStart,
-  findAgentBusyRun,
-  lockAgentForStart,
-  retireBusyRetry,
   SCHEDULE_REVOKED_BEFORE_LAUNCH,
 } from '../domains/tasks/delegated-start.ts';
 import { TaskError } from '../domains/tasks/errors.ts';
@@ -97,10 +90,7 @@ import {
   runStarterMayEditProject,
   sessionIdForAgentRun,
 } from '../domains/tasks/run-authority.ts';
-import {
-  announceAgentRunFailed,
-  retireAutoRetry,
-} from '../domains/tasks/run-failure-notice.ts';
+import { retireAutoRetry } from '../domains/tasks/run-failure-notice.ts';
 import { readInPlaceRetryState } from '../domains/tasks/run-start.ts';
 import { deferredAgentKickRefusal } from '../domains/tasks/service.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
@@ -118,7 +108,6 @@ import {
 import { createCtxShim } from '../lib/ctx-shim.ts';
 import { createDrainProbe } from '../lib/drain-probe.ts';
 import { processShutdown } from '../lib/shutdown.ts';
-import { addJobInTx } from './enqueue.ts';
 
 /** What the worker hands a handler beside its payload. */
 export interface TaskContext {
@@ -251,19 +240,6 @@ export interface TaskDeps {
  * the boundary.
  */
 /**
- * The key every later check of one failed run's automatic retry carries on
- * the `short` `task.agent_retry_recheck` queue — at most one of them is
- * queued at a time, whichever delivery sent it.
- */
-export function agentRetryRecheckKey(retry: {
-  organizationId: string;
-  taskId: string;
-  expectedRunId: string;
-}): string {
-  return `agent-retry:${retry.organizationId}:${retry.taskId}:${retry.expectedRunId}`;
-}
-
-/**
  * The signal a turn's drive window ends on: the job's own (pg-boss gave up
  * on it) or the process's shutdown. A window ended either way leaves the
  * turn running and hands it to its next window, which another process
@@ -288,7 +264,6 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         agentId: z.string().min(1),
         expectedRunId: z.string().min(1),
         startAfterMs: z.number().optional(),
-        agentBusyWaits: z.number().int().min(0).optional(),
       })
       .parse(payload);
     // The 0.5 port of `kickAutoRetryRun`: every guard re-derived in ONE
@@ -302,27 +277,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     // Attribution stays with the failed run's own starter — the retry
     // continues THEIR kick.
     // A run an automation step or another agent started is retried under
-    // the delegated start's admission too (#3977): the agent row is taken
-    // before the task row, the order every start that holds both keeps,
-    // and the retry starts only into a free workspace. While the agent
-    // works another task there, the retry waits — a later check of itself
-    // on `task.agent_retry_recheck`, at most one queued per failed run,
-    // every guard above re-derived at each check — until the workspace is
-    // free or the wait is over (`planAgentBusyWait`); then it is refused
-    // on the task's timeline and retired on the failed run, and no later
-    // delivery of it starts anything. A person's run, and its retries, are
-    // left as they were.
-    // The arm (`task.agent_retry`) and every check share this handler.
+    // the delegated start's per-task budget too (`admitAutomatedStart`). The
+    // retry is kicked at once, its agent busy on other tasks or not: the run
+    // it starts takes a worker of its own, or waits for one like any start
+    // (`domains/tasks/agent-workers.ts`). The arm (`task.agent_retry`) and a
+    // check an earlier image queued on `task.agent_retry_recheck` share this
+    // handler; such a check now simply kicks.
     const outcome = await deps.sql.begin(async (tx) => {
-      // Written once, at the failed run's kick: read before any lock.
+      // Written once, at the failed run's kick.
       const startedVia = await startedViaOfRun(tx, input.expectedRunId);
-      const lockedAgent =
-        startedVia === undefined
-          ? undefined
-          : await lockAgentForStart(tx, {
-              organizationId: input.organizationId,
-              agentId: input.agentId,
-            });
       const tasks = await tx<
         {
           status: string;
@@ -354,10 +317,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         return 'superseded';
       }
       if (newest.status !== 'failed') return 'not_failed';
-      // Refused for good once (`retireBusyRetry`): every later delivery —
-      // the arm, a check queued before the refusal, the same job again —
-      // stands down, the agent busy or free by now. A newer run is a new
-      // decision and carries no mark.
+      // Refused for good once (`markAutoRetryRetired`, also by an earlier
+      // image that refused a retry whose agent stayed busy): every later
+      // delivery stands down. A newer run is a new decision and carries no
+      // mark.
       if (newest.autoRetryRefusedAt !== undefined) return 'retry_refused';
       // From here on, a refusal is this failed run's last word: nothing
       // starts the task again by itself, so the run is retired and the
@@ -405,23 +368,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         return 'budget_exhausted';
       }
       const agent =
-        lockedAgent !== undefined
-          ? lockedAgent
-          : ((
-              await tx<
-                {
-                  harness: string;
-                  model: string;
-                  modelProvider: string | null;
-                }[]
-              >`
-                SELECT harness, model, model_provider AS "modelProvider"
-                FROM app.project_agents
-                WHERE id = ${input.agentId}
-                  AND org_id = ${input.organizationId}
-                LIMIT 1
-              `
-            )[0] ?? null);
+        (
+          await tx<
+            {
+              harness: string;
+              model: string;
+              modelProvider: string | null;
+            }[]
+          >`
+            SELECT harness, model, model_provider AS "modelProvider"
+            FROM app.project_agents
+            WHERE id = ${input.agentId}
+              AND org_id = ${input.organizationId}
+            LIMIT 1
+          `
+        )[0] ?? null;
       if (!agent) {
         await retire(true);
         return 'agent_gone';
@@ -441,80 +402,25 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // A run an automation step or another agent started stays one when
       // retried: it still counts as automated and may not delegate, and
       // the retry is an automated start the per-task budget admits like
-      // any other (`admitAutomatedStart`) — once its workspace is free,
-      // the order the delegated start judges them in. A person's run
-      // carries no provenance, so its retries are never counted or
-      // refused there.
+      // any other (`admitAutomatedStart`). A person's run carries no
+      // provenance, so its retries are never counted or refused there.
       let sessionId: string | undefined;
       if (startedVia !== undefined) {
-        const taskKeys = {
-          id: input.taskId,
-          organizationId: input.organizationId,
-          projectId: task.projectId,
-        };
-        // The workspace the retry would join: the standing one, or the
-        // member's own for a starter who may no longer edit the project
-        // but still works the task.
+        // The workspace family the retry works in: the standing one, or the
+        // member's own for a starter who may no longer edit the project but
+        // still works the task. Its worker is claimed when it starts.
         sessionId = await sessionIdForAgentRun(tx, {
           organizationId: input.organizationId,
           projectId: task.projectId,
           agentId: input.agentId,
           startedBy: newest.startedBy,
         });
-        const busy = await findAgentBusyRun(tx, {
-          organizationId: input.organizationId,
-          agentId: input.agentId,
-          sessionId,
-          taskId: input.taskId,
-        });
-        if (busy !== null) {
-          const wait = planAgentBusyWait({
-            waits: input.agentBusyWaits ?? 0,
-            failedAt: newest.settledAt,
-            now: Date.now(),
-          });
-          if (!wait.wait) {
-            const retired = await retireBusyRetry(tx, {
-              task: taskKeys,
-              agentId: input.agentId,
-              failedRunId: newest.id,
-            });
-            if (retired) {
-              await announceAgentRunFailed(tx, {
-                organizationId: input.organizationId,
-                runId: newest.id,
-              });
-            }
-            return 'agent_busy';
-          }
-          // In the same transaction as the check that found the agent
-          // busy: the retry is never lost between two checks. Keyed by
-          // the failed run on a `short` queue, so at most one check is
-          // queued for it: a second send — the arm or a check delivered
-          // again, two deliveries at once — finds that one and is
-          // dropped, and the one queued still re-derives everything.
-          const queued = await addJobInTx(
-            tx,
-            'task.agent_retry_recheck',
-            {
-              organizationId: input.organizationId,
-              taskId: input.taskId,
-              agentId: input.agentId,
-              expectedRunId: input.expectedRunId,
-              ...(input.startAfterMs !== undefined
-                ? { startAfterMs: input.startAfterMs }
-                : {}),
-              agentBusyWaits: wait.waits,
-            },
-            {
-              startAfter: new Date(wait.lookAt),
-              singletonKey: agentRetryRecheckKey(input),
-            },
-          );
-          return { busy, waits: wait.waits, queued: queued !== null };
-        }
         const admitted = await admitAutomatedStart(tx, {
-          task: taskKeys,
+          task: {
+            id: input.taskId,
+            organizationId: input.organizationId,
+            projectId: task.projectId,
+          },
           agentId: input.agentId,
         });
         if (!admitted.admitted) {
@@ -568,11 +474,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       }
       return 'kicked';
     });
-    if (typeof outcome === 'object') {
-      console.log(
-        `[task-agent] auto-retry waiting: agent_busy (${outcome.queued ? `check ${outcome.waits} of ${AGENT_BUSY_RETRY_MAX_WAITS} queued` : 'a check is already queued'}: run ${outcome.busy.id} on task ${outcome.busy.taskId})`,
-      );
-    } else if (outcome !== 'kicked') {
+    if (outcome !== 'kicked') {
       console.log(`[task-agent] auto-retry skipped: ${outcome}`);
     }
   };

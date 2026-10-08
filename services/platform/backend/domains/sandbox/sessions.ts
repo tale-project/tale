@@ -145,7 +145,7 @@ async function readQuota(
 }
 
 async function inFlightCount(
-  tx: TransactionSql,
+  tx: Sql | TransactionSql,
   organizationId: string,
   budget: SessionBudget,
 ): Promise<number> {
@@ -162,11 +162,12 @@ async function inFlightCount(
  * The organization's agent-worker budget as a reserve or a resume counts
  * it: the cap (`maxSessionsPerOrg`) and the workers that hold a slot of it
  * now. For a caller that decides before any reserve whether a run may open
- * or wake a worker — the worker claim (`domains/tasks/agent-workers.ts`) —
- * and that holds the organization's admission lock, as the count needs.
+ * or wake a worker — the worker claim (`domains/tasks/agent-workers.ts`),
+ * which holds the organization's admission lock as an exact count needs, or
+ * a start telling its requester whether its run will wait.
  */
 export async function projectSessionRoom(
-  tx: TransactionSql,
+  tx: Sql | TransactionSql,
   organizationId: string,
 ): Promise<{ cap: number; inFlight: number }> {
   const quota = await readQuota(tx, organizationId);
