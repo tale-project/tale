@@ -146,6 +146,10 @@ export function createBackendApiService(
       ...roleEnvironment('api', options),
       PORT: String(BACKEND_API_PORT),
     },
+    // `docker stop` waits this long before SIGKILL: the api closes HTTP/SSE
+    // and stops its job queue inside its 15 s drain (SHUTDOWN_DRAIN_MS) with
+    // room to spare. Mirrored in compose.yml.
+    stop_grace_period: '30s',
     // LIVENESS, not readiness: `/ping` stays 200 while a replica drains, so
     // Docker does not kill a container that is deliberately finishing its
     // in-flight work. `/ready` is the deploy's question (503 once this
@@ -180,7 +184,7 @@ export function createBackendApiService(
 /**
  * The worker role: the job runner (schedules, watchdogs, agent turns). It
  * exposes no HTTP, so the image's baked web healthcheck would read
- * permanently unhealthy — liveness is the worker's own heartbeat plus
+ * permanently unhealthy — liveness is pg-boss's job heartbeat plus
  * at-least-once job recovery.
  */
 export function createBackendWorkerService(
@@ -194,6 +198,11 @@ export function createBackendWorkerService(
       : {}),
     environment: roleEnvironment('worker', options),
     healthcheck: { disable: true },
+    // `docker stop` waits this long before SIGKILL: a stopping worker hands
+    // its automation runs to another one and waits out its other jobs inside
+    // its 90 s drain (SHUTDOWN_DRAIN_MS); the grace stays 15 s above it.
+    // Mirrored in compose.yml.
+    stop_grace_period: '120s',
     // No shared alias: nothing addresses a worker by name — it is reached
     // only through the job queue. Old workers stay up through the api drain
     // so already-claimed jobs can finish; they refuse NEW claims once their

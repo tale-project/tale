@@ -129,6 +129,19 @@ describe('generateColorCompose ↔ graceful-shutdown budget', () => {
   }
 });
 
+describe('generateColorCompose ↔ the backend stop budget', () => {
+  // A stopping backend drains for SHUTDOWN_DRAIN_MS (api 15 s, worker 90 s)
+  // and needs 15 s more to close its stores; a worker that is SIGKILLed
+  // first leaves its automation runs to lapse instead of handing them on.
+  for (const color of COLORS) {
+    test(`${color} gives each backend role room for its drain`, () => {
+      const services = servicesOf(color);
+      expect(services['backend-api']?.stop_grace_period).toBe('30s');
+      expect(services['backend-worker']?.stop_grace_period).toBe('120s');
+    });
+  }
+});
+
 describe('generateColorCompose ↔ the shared config store', () => {
   // Durable state does NOT rotate: both colours mount the same external
   // config volume, the backend read-write and the web tier read-only.

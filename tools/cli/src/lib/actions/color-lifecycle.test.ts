@@ -17,8 +17,12 @@ mock.module('../state/get-current-color', () => ({
   getCurrentColor: getCurrentColorMock,
 }));
 
-const { colorLooksUp, colorPlatformVersion, isUnfinishedColorFlip } =
-  await import('./color-lifecycle');
+const {
+  colorLooksUp,
+  colorPlatformVersion,
+  isUnfinishedColorFlip,
+  removeColorContainers,
+} = await import('./color-lifecycle');
 
 const REPLICAS: ReplicaCounts = {
   platform: 1,
@@ -169,5 +173,47 @@ describe('colorLooksUp', () => {
         : '',
     );
     expect(await colorLooksUp('green', SERVICES, REPLICAS)).toBe(false);
+  });
+});
+
+describe('removeColorContainers', () => {
+  test('stops every container of the colour at once, then removes them', async () => {
+    const events: string[] = [];
+    const releases: Array<() => void> = [];
+    dockerMock.mockImplementation((...args: string[]) => {
+      if (args[0] === 'ps') {
+        return Promise.resolve(
+          ok(
+            [
+              'tale-blue-backend-worker-1\tbackend-worker\t1\trunning\t',
+              'tale-blue-backend-worker-2\tbackend-worker\t2\trunning\t',
+            ].join('\n'),
+          ),
+        );
+      }
+      events.push(`${args[0]} ${args.at(-1)}`);
+      if (args[0] === 'stop') {
+        // A worker takes its whole grace to stop; release them by hand.
+        return new Promise((resolve) => {
+          releases.push(() => resolve(ok()));
+        });
+      }
+      return Promise.resolve(ok());
+    });
+
+    const removal = removeColorContainers('tale-blue');
+    while (releases.length < 2) await Bun.sleep(1);
+    // Both stops are under way before either finished.
+    expect(events).toEqual([
+      'stop tale-blue-backend-worker-1',
+      'stop tale-blue-backend-worker-2',
+    ]);
+    for (const release of releases) release();
+
+    expect(await removal).toBe(2);
+    expect(events.slice(2)).toEqual([
+      'rm tale-blue-backend-worker-1',
+      'rm tale-blue-backend-worker-2',
+    ]);
   });
 });
