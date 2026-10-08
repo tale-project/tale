@@ -38,7 +38,7 @@ import { sessionIdForAgentRun } from './run-authority.ts';
  * for that run's task, so its retry (or a person's Retry) finds the
  * conversation and the unpublished files it left there. Other runs take it
  * only when nothing else is free. */
-export const WORKER_TASK_HOLD_MS = 15 * 60 * 1000;
+const WORKER_TASK_HOLD_MS = 15 * 60 * 1000;
 
 /** A run's working time can reach at most this long after its kick, however
  * long it waited for a worker (`agentRunWorkDeadline`). */

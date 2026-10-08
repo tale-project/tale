@@ -251,7 +251,7 @@ export interface LockedAgent {
  * task first. `projectId` confines it to one project's agents. Null when no
  * such agent exists (nothing is locked then).
  */
-export async function lockAgentForStart(
+async function lockAgentForStart(
   tx: TransactionSql,
   args: { organizationId: string; agentId: string; projectId?: string },
 ): Promise<LockedAgent | null> {
