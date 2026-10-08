@@ -9,6 +9,7 @@ import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { TASK_COMMENT_MAX } from '../core/tasks/helpers.ts';
 import { createAuditLog } from '../domains/audit_logs/service.ts';
+import { legacyRunStopSchema } from '../domains/automations/legacy-quarantine.ts';
 import { readableProjectIds } from '../domains/automations/project-visibility.ts';
 import {
   answerAsk,
@@ -35,6 +36,7 @@ import {
   listRunsPage,
   listTriggers,
   listVersions,
+  requestLegacyRunStopInTx,
   type RunRow,
   setTrigger,
   toRunDetail,
@@ -90,6 +92,7 @@ const RUN_STATUSES = [
   'queued',
   'running',
   'waiting',
+  'quarantined',
   'success',
   'failed',
   'cancelled',
@@ -138,6 +141,7 @@ const RUN_FIELDS = [
   'effects',
   'detail',
   'failureCode',
+  'legacyQuarantine',
   'claimEpoch',
   'chainSeq',
   'startedAt',
@@ -985,6 +989,42 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
   app.post('/runs/:runId/cancel', stopRun);
   app.post('/projects/:id/runs/:runId/cancel', stopRun);
+
+  /** Request owned-session stops for a held legacy run. This records an
+   * acknowledgement; it does not establish termination or clear the hold. */
+  const requestLegacyStop = async (c: Context<RestEnv>) => {
+    const body = await parseBody(c, legacyRunStopSchema);
+    if (body instanceof Response) return body;
+    try {
+      requireDeveloper(c);
+      const runId = c.req.param('runId') ?? '';
+      const projectId = c.req.param('id');
+      const auth =
+        projectId === undefined
+          ? undefined
+          : await restProjectAuth(deps.sql, c);
+      const organizationId = c.get('organizationId');
+      const result = await transactSerializable(deps.sql, async (tx) => {
+        if (projectId !== undefined && auth !== undefined)
+          await loadRestProject(tx, auth, projectId, { write: true });
+        const run = await getRun(tx, organizationId, runId);
+        if (run === null || run.projectId !== (projectId ?? null)) return null;
+        return requestLegacyRunStopInTx(tx, {
+          organizationId,
+          runId,
+          actor: c.get('userId'),
+          request: body,
+        });
+      });
+      return result === null
+        ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
+        : c.json(result);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.post('/runs/:runId/legacy-quarantine', requestLegacyStop);
+  app.post('/projects/:id/runs/:runId/legacy-quarantine', requestLegacyStop);
 
   /**
    * The live question of a run — null when nothing waits on a person.

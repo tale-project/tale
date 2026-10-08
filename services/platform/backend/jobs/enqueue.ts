@@ -2,6 +2,7 @@ import type { Db, PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  physicalTaskQueue,
   TASK_JOB_GROUP,
   TASK_QUEUE_OPTIONS,
   type TaskIdentifier,
@@ -117,7 +118,7 @@ export async function addJobInTx<TName extends TaskIdentifier>(
   // Derived here, not at each call site, so no enqueue of a grouped queue
   // can leave it out and slip past its group's limit.
   const group = options.group ?? TASK_JOB_GROUP[identifier]?.(payload);
-  return requireBoss().send(identifier, payload, {
+  return requireBoss().send(physicalTaskQueue(identifier), payload, {
     db: bossDbInTx(tx),
     ...(options.startAfter !== undefined
       ? { startAfter: options.startAfter }

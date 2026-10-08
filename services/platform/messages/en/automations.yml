@@ -360,6 +360,18 @@ runs:
     lease_expired: 'Last on {date}: the server running it stopped responding, and another one took over.'
   # A write that may already have reached its service when the run was
   # interrupted: Tale cannot tell, so a person decides how to continue.
+  quarantine:
+    title: "Outcome unknown"
+    reason: "On hold: the outcome of earlier work is unknown."
+    body: "This run started before the upgrade. Tale cannot verify whether its earlier work stopped or reached an external service. It stays on hold and will not be replayed automatically."
+    missing: "The hold details could not be loaded. Reload before requesting a stop."
+    stop: "Request stop"
+    requested: "Stop requested. The run stays on hold until its earlier work is confirmed to have stopped. Actions already taken are not undone."
+    confirmTitle: "Request a stop for this run?"
+    confirmBody: "Tale will request a stop for the sessions it can identify. This does not confirm that earlier work has stopped or undo anything an external service received. The run will remain on hold."
+    changed: "The hold changed. Close this dialog and review its current details before deciding."
+    failed: "The stop request could not be saved."
+    reload: "Reload details"
   inDoubt:
     title: 'This step may already have run: {node}'
     body: "{item, select, none {The run was interrupted while this step was sending to {connector}.} other {The run was interrupted while this step was sending item {item} to {connector}.}} Tale can't tell whether {connector} received it. Check {connector}: if it received it, skip the step; if not, run it again."
@@ -435,6 +447,7 @@ runs:
     mock: Test
     live: Live
   status:
+    quarantined: On hold
     queued: Queued
     running: Running
     waiting: Waiting

@@ -381,7 +381,9 @@ describe('pokeParkedRunInTx', () => {
         pokeParkedRunInTx(tx, { organizationId: 'org_1', runId: 'run_1' }),
       ),
     ).resolves.toBe(true);
-    const [poke] = fake.statements;
+    const poke = fake.statements.find((s) =>
+      s.text.includes('UPDATE app.automation_runs'),
+    );
     expect(poke?.text).toContain("AND status = 'waiting'");
     expect(poke?.values[0]).toBeGreaterThanOrEqual(
       before + RUN_CLAIM_PROMISE_MS,
@@ -405,7 +407,9 @@ describe('releaseOwnedRunLeases', () => {
       return [];
     });
     await expect(releaseOwnedRunLeases(fake.sql)).resolves.toBe(2);
-    const release = fake.statements[0];
+    const release = fake.statements.find((s) =>
+      s.text.includes('UPDATE app.automation_runs'),
+    );
     expect(release?.text).toContain('lease_owner = ?');
     expect(release?.text).toContain('lease_epoch = claim_epoch');
     expect(release?.text).toContain("last_resume_reason = 'shutdown'");
@@ -441,7 +445,12 @@ describe('releaseOwnedRunLeases', () => {
     await expect(releaseOwnedRunLeases(fake.sql)).resolves.toBe(1);
     expect(warn).toHaveBeenCalledTimes(1);
     const fallback = fake.statements.at(-1);
-    expect(fallback?.tx).toBe(0);
+    expect(fallback?.tx).toBe(2);
+    const fallbackSetup = fake.statements.at(-2);
+    expect(fallbackSetup?.tx).toBe(2);
+    expect(fallbackSetup?.text).toContain(
+      "set_config('tale.automation_writer_protocol'",
+    );
     expect(fallback?.text).toContain('lease_owner = NULL');
     expect(fallback?.values).toContain(instanceId());
   });

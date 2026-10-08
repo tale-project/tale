@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.19.0",
+    "version": "3.20.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -22542,7 +22542,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Only runs in these statuses — one or more of `queued`, `running`, `waiting`, `success`, `failed`, `cancelled`, comma-separated; any other value answers 400 `INVALID_QUERY`"
+            "description": "Only runs in these statuses — one or more of `queued`, `running`, `waiting`, `quarantined`, `success`, `failed`, `cancelled`, comma-separated; any other value answers 400 `INVALID_QUERY`"
           },
           {
             "name": "include",
@@ -23160,7 +23160,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Only runs in these statuses — one or more of `queued`, `running`, `waiting`, `success`, `failed`, `cancelled`, comma-separated; any other value answers 400 `INVALID_QUERY`"
+            "description": "Only runs in these statuses — one or more of `queued`, `running`, `waiting`, `quarantined`, `success`, `failed`, `cancelled`, comma-separated; any other value answers 400 `INVALID_QUERY`"
           },
           {
             "name": "include",
@@ -23769,7 +23769,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Only runs in these statuses — one or more of `queued`, `running`, `waiting`, `success`, `failed`, `cancelled`, comma-separated; any other value answers 400 `INVALID_QUERY`"
+            "description": "Only runs in these statuses — one or more of `queued`, `running`, `waiting`, `quarantined`, `success`, `failed`, `cancelled`, comma-separated; any other value answers 400 `INVALID_QUERY`"
           },
           {
             "name": "include",
@@ -24067,7 +24067,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Only runs in these statuses — one or more of `queued`, `running`, `waiting`, `success`, `failed`, `cancelled`, comma-separated; any other value answers 400 `INVALID_QUERY`"
+            "description": "Only runs in these statuses — one or more of `queued`, `running`, `waiting`, `quarantined`, `success`, `failed`, `cancelled`, comma-separated; any other value answers 400 `INVALID_QUERY`"
           },
           {
             "name": "include",
@@ -26129,6 +26129,286 @@
         }
       }
     },
+    "/api/v1/runs/{runId}/legacy-quarantine": {
+      "post": {
+        "tags": ["Runs"],
+        "summary": "Request a stop for a quarantined legacy run",
+        "description": "Only a run without a project is visible here. Use its project URL for a project run. Requires the developer capability. Read the current legacyQuarantine first and acknowledge unknown external effects. Records the authenticated caller’s stop request and requests cancellation of owned sessions; it does not prove termination, undo external effects, clear quarantine, or make the task runnable. An identical retry returns the recorded decision without replacing its actor.",
+        "operationId": "requestLegacyRunStop",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyRunStopRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stop request recorded; the run remains quarantined",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["requested", "status", "legacyQuarantine"],
+                  "properties": {
+                    "requested": {
+                      "type": "boolean",
+                      "enum": [true]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["quarantined"]
+                    },
+                    "legacyQuarantine": {
+                      "$ref": "#/components/schemas/LegacyRunQuarantine"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "Requires developer capability; or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "Run no longer quarantined or expected claim epoch or observation changed (`RUN_QUARANTINE_CHANGED`); read the run again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds this operation’s byte cap — 1 MiB unless the description says otherwise (`BODY_TOO_LARGE`); the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/runs/{runId}/cancel": {
       "post": {
         "tags": ["Runs"],
@@ -26306,6 +26586,24 @@
               },
               "Allow": {
                 "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "A quarantined legacy run requires an explicit legacy-quarantine stop request (`RUN_QUARANTINED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -27478,6 +27776,295 @@
         }
       }
     },
+    "/api/v1/projects/{id}/runs/{runId}/legacy-quarantine": {
+      "post": {
+        "tags": ["Runs"],
+        "summary": "Request a stop for a quarantined legacy run",
+        "description": "The run must belong to the URL project, and the key holder must have project read access. Requires the developer capability. The project must be active and writable. Read the current legacyQuarantine first and acknowledge unknown external effects. Records the authenticated caller’s stop request and requests cancellation of owned sessions; it does not prove termination, undo external effects, clear quarantine, or make the task runnable. An identical retry returns the recorded decision without replacing its actor.",
+        "operationId": "requestProjectLegacyRunStop",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyRunStopRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stop request recorded; the run remains quarantined",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["requested", "status", "legacyQuarantine"],
+                  "properties": {
+                    "requested": {
+                      "type": "boolean",
+                      "enum": [true]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["quarantined"]
+                    },
+                    "legacyQuarantine": {
+                      "$ref": "#/components/schemas/LegacyRunQuarantine"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "Requires developer capability and write access to an active project; or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "Run no longer quarantined or expected claim epoch or observation changed (`RUN_QUARANTINE_CHANGED`); read the run again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds this operation’s byte cap — 1 MiB unless the description says otherwise (`BODY_TOO_LARGE`); the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{id}/runs/{runId}/cancel": {
       "post": {
         "tags": ["Runs"],
@@ -27664,6 +28251,24 @@
               },
               "Allow": {
                 "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "A quarantined legacy run requires an explicit legacy-quarantine stop request (`RUN_QUARANTINED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -38825,7 +39430,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.19.0"
+          "example": "3.20.0"
         }
       },
       "Location": {
@@ -39087,6 +39692,8 @@
                   "ROLE_FORBIDDEN",
                   "RUN_ACTIVE",
                   "RUN_NOT_FOUND",
+                  "RUN_QUARANTINED",
+                  "RUN_QUARANTINE_CHANGED",
                   "SETUP_FOLDER_MISSING",
                   "SKILL_EXISTS",
                   "SKILL_FILE_NOT_FOUND",
@@ -39314,6 +39921,8 @@
                   "ROLE_FORBIDDEN",
                   "RUN_ACTIVE",
                   "RUN_NOT_FOUND",
+                  "RUN_QUARANTINED",
+                  "RUN_QUARANTINE_CHANGED",
                   "SETUP_FOLDER_MISSING",
                   "SKILL_EXISTS",
                   "SKILL_FILE_NOT_FOUND",
@@ -39532,6 +40141,8 @@
               "ROLE_FORBIDDEN",
               "RUN_ACTIVE",
               "RUN_NOT_FOUND",
+              "RUN_QUARANTINED",
+              "RUN_QUARANTINE_CHANGED",
               "SETUP_FOLDER_MISSING",
               "SKILL_EXISTS",
               "SKILL_FILE_NOT_FOUND",
@@ -42759,6 +43370,90 @@
           }
         }
       },
+      "LegacyRunQuarantine": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A legacy execution whose external effects or termination cannot be proven. Present on held runs. A recorded stop request does not resolve the hold or establish that work stopped.",
+        "required": [
+          "reason",
+          "observedAt",
+          "claimEpoch",
+          "priorStatus",
+          "resolution"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": ["legacy_execution_unproven"]
+          },
+          "observedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "claimEpoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "priorStatus": {
+            "type": "string",
+            "enum": ["queued", "running", "waiting"]
+          },
+          "resolution": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "actor", "at"],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": ["stop"]
+              },
+              "actor": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "nullable": true
+          }
+        }
+      },
+      "LegacyRunStopRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action",
+          "expectedClaimEpoch",
+          "expectedObservedAt",
+          "acknowledgeUnknownExternalEffects"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["stop"]
+          },
+          "expectedClaimEpoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "expectedObservedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8640000000000000
+          },
+          "acknowledgeUnknownExternalEffects": {
+            "type": "boolean",
+            "enum": [true]
+          }
+        }
+      },
       "RunSummary": {
         "type": "object",
         "description": "One run as a listing reports it — identity, scope, status and timing. The input, output, trace, effects and checkpoints of the full `Run` are inlined only when `include` names them; the single read answers the full row.",
@@ -42800,6 +43495,7 @@
               "queued",
               "running",
               "waiting",
+              "quarantined",
               "success",
               "failed",
               "cancelled"
@@ -42862,6 +43558,9 @@
             "type": "string",
             "enum": ["approval", "ask", "in_doubt", "agent", "room", "repeat"],
             "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `in_doubt` — a write the run was making when its server stopped may or may not have reached its service, and a person must decide how to continue (in the app: run it again, skip it, or fail the run); `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page. \"Runs that need a human\" is `waitingFor` in (`approval`, `ask`, `in_doubt`), never `status=waiting` alone."
+          },
+          "legacyQuarantine": {
+            "$ref": "#/components/schemas/LegacyRunQuarantine"
           },
           "resumeCount": {
             "type": "integer",
@@ -42954,6 +43653,7 @@
               "queued",
               "running",
               "waiting",
+              "quarantined",
               "success",
               "failed",
               "cancelled"
@@ -43024,6 +43724,9 @@
             "type": "string",
             "enum": ["approval", "ask", "in_doubt", "agent", "room", "repeat"],
             "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `in_doubt` — a write the run was making when its server stopped may or may not have reached its service, and a person must decide how to continue (in the app: run it again, skip it, or fail the run); `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
+          },
+          "legacyQuarantine": {
+            "$ref": "#/components/schemas/LegacyRunQuarantine"
           },
           "resumeCount": {
             "type": "integer",
@@ -43100,6 +43803,7 @@
               "queued",
               "running",
               "waiting",
+              "quarantined",
               "success",
               "failed",
               "cancelled"
@@ -43170,6 +43874,9 @@
             "type": "string",
             "enum": ["approval", "ask", "in_doubt", "agent", "room", "repeat"],
             "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `in_doubt` — a write the run was making when its server stopped may or may not have reached its service, and a person must decide how to continue (in the app: run it again, skip it, or fail the run); `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
+          },
+          "legacyQuarantine": {
+            "$ref": "#/components/schemas/LegacyRunQuarantine"
           },
           "resumeCount": {
             "type": "integer",

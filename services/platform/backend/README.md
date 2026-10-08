@@ -188,6 +188,27 @@ you need to retain. It creates users and fixtures; some probes deliberately
 revoke sessions or make storage unavailable. Reusing a previous run's state can
 invalidate the proof.
 
+The automation protocol proofs also require `CREATE DATABASE` on this disposable
+server. They create nonce-named databases, use every real pre-cutover migration
+and the normal boot migrator, and remove only their own databases after closing
+their connections. Missing privileges fail the proof; there is no fallback to an
+existing application database. They exercise old transaction snapshots, the
+actual `app_migrations` relation (including a `tale,public` search path), conditional
+held-task/evidence refusal and the CLI's installed protocol query. The retained
+legacy function fixtures are excluded from production images. Complete released
+start/resume bodies run over their original run/ask SQL, with external sandbox and
+provider ports recording requests only. A resume whose retarget already committed
+can still execute after cutover. A requested session-token expiry does not prove
+gateway-key retirement; these fixtures do not claim real credential cleanup.
+
+Protocol 2 intentionally refuses old automation execution writers during the
+first roll; this is not a claim of uninterrupted old automation compatibility.
+Ordinary old reads and canonical queued inserts remain usable. Existing unfinished
+work is quarantined with unknown outcomes, not cancelled or replayed. The one
+operator stop-request transition preserves the hold and task exclusion; it is
+not a proof of external termination. A complete restore retains both the migration
+ledger and held rows; a missing ledger cannot disable the fence.
+
 `ITEST_LANES=checkWatchdogs,checkDevSeed` runs only the named lanes — to prove one
 lane on the real schema while an unrelated earlier lane truncates the full run. The
 tally names the filter; a filtered run is never full coverage.

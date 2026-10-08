@@ -478,9 +478,11 @@ describe('resolveInDoubtInTx', () => {
             ? 'event'
             : s.text.includes('UPDATE app.automation_runs')
               ? 'wake'
-              : 'other',
+              : s.text.includes("set_config('tale.automation_writer_protocol'")
+                ? 'protocol'
+                : 'other',
     );
-    expect(order).toEqual(['run', 'attempt', 'event', 'wake']);
+    expect(order).toEqual(['run', 'attempt', 'event', 'protocol', 'wake']);
     expect(fake.statements[0]?.text).toContain('FOR UPDATE');
     expect(fake.statements[1]?.text).toContain(
       "AND kind = 'connector' AND status = 'started' AND resolution IS NULL",

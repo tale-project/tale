@@ -2,12 +2,32 @@
  * Central registry mapping task identifiers to payload shapes and queue
  * options. Every enqueue site and every worker handler must go through this
  * map so the identifier/payload contract stays typechecked end to end; each
- * identifier is one pg-boss queue, created at boot with the options below.
+ * logical identifier selects the options below; `physicalTaskQueue` owns
+ * the execution protocol's pg-boss queue name.
  *
  * Delivery is at-least-once: every handler must be idempotent, deriving its
  * idempotency key from durable ids (run id, node id, item index) — never
  * minting one per attempt.
  */
+import { ENGINE_PROTOCOL } from '../../lib/engine/core/protocol.ts';
+
+/** Keep legacy workers off work whose writer protocol they do not obey.
+ * Only these effect-capable queues change physical identity. Callers,
+ * handlers, budgets and policies continue to use their typed logical names.
+ * Already physical names and unrelated queues pass through unchanged. */
+export function physicalTaskQueue(name: string): string {
+  switch (name) {
+    case 'automation.step':
+    case 'automation.poll':
+    case 'automation.agent_turn':
+    case 'automation.agent_drive':
+    case 'automation.ask_resume':
+      return `automation.v${ENGINE_PROTOCOL}.${name.slice('automation.'.length)}`;
+    default:
+      return name;
+  }
+}
+
 export interface TaskPayloads {
   /** Health/latency probe; also used by the integration check. */
   noop: { seq?: number; sentAtMs?: number };

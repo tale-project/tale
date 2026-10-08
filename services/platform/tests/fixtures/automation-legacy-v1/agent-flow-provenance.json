@@ -1,0 +1,620 @@
+{
+  "schemaVersion": 1,
+  "source": "b4931db4b48bdfde37afe1af2a1479e6640a0799",
+  "files": [
+    {
+      "sourcePath": "services/platform/backend/core/automations/agent_host.ts",
+      "rawFile": "agent.raw.txt",
+      "rawSha256": "e212aadfc1061a0bfea1c5d35280582cd8f2c487c9689c0d8f98e7866dda7975",
+      "blob": "595901face218a2876f35a64d0501465be479036",
+      "moduleFile": "agent-flow.ts",
+      "sections": [
+        {
+          "name": "SkillBundleFile",
+          "start": 5162,
+          "end": 5304,
+          "sha256": "b5406dd9c195e40d29704298da879a03950777a2f0eaa231dfcecc9aafa8b66b"
+        },
+        {
+          "name": "AskRow",
+          "start": 8129,
+          "end": 8496,
+          "sha256": "9042d66db52ca758d15b758143f1e164885411fc5d2f66de7966dcb849dcd131"
+        },
+        {
+          "name": "readAskRow",
+          "start": 8498,
+          "end": 9388,
+          "sha256": "211d6a3a4348023bd854253f0fe0b983e4205db95053b9dd0021edac0bd2d3d2"
+        },
+        {
+          "name": "ASK_DEADLINE_MARGIN_MS",
+          "start": 9390,
+          "end": 9671,
+          "sha256": "e67ea93e67f95ff7ab418dbac6dae49261acd2ed1195e4862f46bace888f6c79"
+        },
+        {
+          "name": "ASK_HUMAN_GUIDANCE",
+          "start": 10302,
+          "end": 10972,
+          "sha256": "879e0c340bc70fd56301a34db4f19442cbd74fae2c3378c7ff658c3232c644d0"
+        },
+        {
+          "name": "WORKFLOW_OUTPUT_DIR",
+          "start": 10974,
+          "end": 11077,
+          "sha256": "96d0affd552e8f4a5055318cd33b885fb62c9ed885e5cb53f8b3af993cc91de3"
+        },
+        {
+          "name": "workflowTurnToolScope",
+          "start": 11079,
+          "end": 12197,
+          "sha256": "79400d0f8c176850d30b98b27b6289e58604026150234287c649e98f53a51ec4"
+        },
+        {
+          "name": "RunProjectRef",
+          "start": 12199,
+          "end": 12326,
+          "sha256": "39c11149fffe9d3921a520e4d378f8ec589b5f6d255ff35687676c08b15b8ec9"
+        },
+        {
+          "name": "runProjectGuidance",
+          "start": 12328,
+          "end": 14603,
+          "sha256": "1ac5a3e232d10bf842eab4fbc12ec317bac4995cfb1bae79f892dc87203f1c19"
+        },
+        {
+          "name": "GATEWAY_KEY_RECONCILE_DELAY_MS",
+          "start": 23267,
+          "end": 23501,
+          "sha256": "b19db7a17f19af70e444ec9f2d4f2289aa397865b4797cec5265993454afbd3f"
+        },
+        {
+          "name": "releaseTurnKey",
+          "start": 23503,
+          "end": 27081,
+          "sha256": "59c96b4a590d0bdee1861a03ac8ab415faa3b11b3f9b6274576bf5dfb8ef293b"
+        },
+        {
+          "name": "ensureWorkflowSession",
+          "start": 27083,
+          "end": 27786,
+          "sha256": "b4885e927959cdcfe58e2db7324ac4fbf892ab9af4817ce9e92876af2ccff876"
+        },
+        {
+          "name": "resolveRunSkillViewer",
+          "start": 27788,
+          "end": 28777,
+          "sha256": "2c4b784aeaea000d81d2bb736b29b67f428cd561e3c22dd259a142e5461d9e24"
+        },
+        {
+          "name": "StagedSkill",
+          "start": 29421,
+          "end": 29639,
+          "sha256": "af600436dfac3d5fc4fcde16e502a53a4eef5f01a37680e85300f7c0de109216"
+        },
+        {
+          "name": "stageSkill",
+          "start": 29641,
+          "end": 30918,
+          "sha256": "a5c35c9296a74cb0c0dd402678dc7db86f0344deb6cfdd46602ecd42a28f3620"
+        },
+        {
+          "name": "SKILL_DESCRIPTION_MAX_CHARS",
+          "start": 30920,
+          "end": 31038,
+          "sha256": "e5436adb2caa21596a988d0f84d82b4913715d33b6ab24d594baaf75e8e64c85"
+        },
+        {
+          "name": "equippedSkillLine",
+          "start": 31040,
+          "end": 32657,
+          "sha256": "350508228c268841ac482c79fea40de754bbc3e1cf5964cf9be5cb258732bc2c"
+        },
+        {
+          "name": "stageWorkflowSkills",
+          "start": 32659,
+          "end": 34275,
+          "sha256": "032841c9078ccacacfc0b1ad84ca93dd3b38a851f63cae837cbec7ccc0bd15ec"
+        },
+        {
+          "name": "StagingSource",
+          "start": 34277,
+          "end": 34443,
+          "sha256": "e747d6fcc059e2482b45e069973127c3981f90e9e515a1d44eed4103d999bda4"
+        },
+        {
+          "name": "parseStagingSource",
+          "start": 34445,
+          "end": 35016,
+          "sha256": "c42631e3769497a08614b969b6de147071d76e4d89b7fb3952137ba766b73882"
+        },
+        {
+          "name": "mountNameOf",
+          "start": 35018,
+          "end": 35524,
+          "sha256": "a1044e0ffcf53d4a7ddcf3e41b1fd31d3266fd794972fced6083a0a5fcbf781d"
+        },
+        {
+          "name": "stageWorkflowFiles",
+          "start": 35526,
+          "end": 39569,
+          "sha256": "06a4fa9f690c4b421b7560b530809ead0c2f6dc3b7326f3159c07c510e692c3e"
+        },
+        {
+          "name": "WorkflowTurnAuth",
+          "start": 39570,
+          "end": 40330,
+          "sha256": "6baf0098440a760f55594bd7872048269b0bd780fb0bffb1cdc7c92b171ec7a3"
+        },
+        {
+          "name": "mintWorkflowTurnAuth",
+          "start": 40332,
+          "end": 45700,
+          "sha256": "6fb921d701b78ecb7f169a7c755153350a928dd7f0900b2685e3f1c24a460fae"
+        },
+        {
+          "name": "StartWorkflowAgentTurnArgs",
+          "start": 45702,
+          "end": 47305,
+          "sha256": "0a28c2e64404b4cc4ddb419f37ccb886e93b893c20dc382124f206eaa34e01ab"
+        },
+        {
+          "name": "classifyWorkflowStartFailure",
+          "start": 47307,
+          "end": 49580,
+          "sha256": "27e59df1ee3d8436714c7a591c9907355e3cda6c38e329cbb0ce7a43f954f964"
+        },
+        {
+          "name": "startWorkflowAgentTurnImpl",
+          "start": 49582,
+          "end": 63496,
+          "sha256": "ed4ff4aa2922403e221897a0be7d771904518024ded3ca427f51dc71d69ef6e8"
+        },
+        {
+          "name": "readUndeliveredAnswer",
+          "start": 63498,
+          "end": 64065,
+          "sha256": "23b93eaa7d7e608163169a1523bb684745c28d73f647f8dbe70ba8369804d5ab"
+        },
+        {
+          "name": "AgentCursorState",
+          "start": 64067,
+          "end": 64292,
+          "sha256": "e260ac7f6c85bb27e7307ab3f7140649fcb68243801d25e91bda0258773ec81d"
+        },
+        {
+          "name": "LIVE_RUN_STATUSES",
+          "start": 64294,
+          "end": 64362,
+          "sha256": "e6e1d23bb74848040d8337cf11c32277310a62e1657e941e3dcaa1b966c938d7"
+        },
+        {
+          "name": "isWorkflowTurnLive",
+          "start": 64364,
+          "end": 65084,
+          "sha256": "6da3213fbff4bddb20ea17d35a469641cfe72a71dffd722152e71a283c9d5816"
+        },
+        {
+          "name": "workflowTurnStartRefusal",
+          "start": 65086,
+          "end": 66666,
+          "sha256": "f80fd5c418658a2925d89e128154c997a479ce4c1839dfa6766712f47b9b9c3d"
+        },
+        {
+          "name": "reapRefusedStart",
+          "start": 66668,
+          "end": 67716,
+          "sha256": "23f7375be4aecb3104ade68a3ed207749c5b29c3adb09dea01ceea039f19b146"
+        },
+        {
+          "name": "readCursorState",
+          "start": 67718,
+          "end": 68335,
+          "sha256": "230e69973712985e64dafec7e7f826fecc38dfe5805135527be2a60df74a28b7"
+        },
+        {
+          "name": "resumeWorkflowAgentTurnWithAnswerImpl",
+          "start": 71666,
+          "end": 88326,
+          "sha256": "4d47397234bb7c8c8fc93540e68201939814e7ce78ed118a984a2950cbc91049"
+        },
+        {
+          "name": "readStringArray",
+          "start": 88328,
+          "end": 88713,
+          "sha256": "a2f7a5d4c8cfbca633381ef48a4172c66930df2c51436a4dfc49e55a46e84131"
+        },
+        {
+          "name": "readWorkflowAgentRequest",
+          "start": 88715,
+          "end": 89722,
+          "sha256": "000ec63104b85dbcdf874091d8663ef6834701574b62cf45ac6c17f9af32a116"
+        },
+        {
+          "name": "TurnKeys",
+          "start": 89724,
+          "end": 89935,
+          "sha256": "45054bec6094d2838a5eb02ed3f9f8ed1ebb7a646515cbdd6a55bb85ce71dcc6"
+        },
+        {
+          "name": "liveProgressSink",
+          "start": 89937,
+          "end": 93563,
+          "sha256": "2ebb538cc83660680a75a55bb23dcfd191b95c1f9fbbe75f1c262fef88e7e363"
+        },
+        {
+          "name": "continueOrSettle",
+          "start": 93565,
+          "end": 100314,
+          "sha256": "2f7773709dcb81dffc8269d1c48e5f2a51cf9170793492058ec4f7c35b31c581"
+        },
+        {
+          "name": "settleWorkflowAgentTurn",
+          "start": 100316,
+          "end": 106234,
+          "sha256": "404a0bb471dda840906132bbd08c65e0d824b227eb6474f493006eb8a28e2a8f"
+        }
+      ]
+    },
+    {
+      "sourcePath": "services/platform/backend/domains/automations/shim.ts",
+      "rawFile": "shim.raw.txt",
+      "rawSha256": "40a051f2c43366ec20995692094e54bcc224f8c029b69b7fd4f7f75c61373282",
+      "blob": "cf53ff9c39e156019e5f93d4404b28cb1a7f871b",
+      "moduleFile": "shim-flow.ts",
+      "sections": [
+        {
+          "name": "AskRowRecord",
+          "start": 1611,
+          "end": 2414,
+          "sha256": "da6df4e1779eb5c39544a72264f924c032ea71c21e0ff52080f22d180fc6b996"
+        },
+        {
+          "name": "ASK_ROW_COLUMNS",
+          "start": 2416,
+          "end": 2646,
+          "sha256": "cfa2673e27a3bf121a036dfbb9248536a1d684db05aec7c498e4d10a398a361a"
+        },
+        {
+          "name": "askRowOf",
+          "start": 2648,
+          "end": 3190,
+          "sha256": "8b06e476a3c48a38ceed6fc335b844595c49646b86c6ac67f81935f61c7c992d"
+        },
+        {
+          "name": "automations/queries:readAgentCursor",
+          "start": 13146,
+          "end": 14231,
+          "sha256": "cb00f962ded177f2a7ace1eea5d14dcfcc73abe95554ddcaa28304900eac506a"
+        },
+        {
+          "name": "automations/mutations:recordAgentTurnSettled",
+          "start": 16081,
+          "end": 19056,
+          "sha256": "0fea5e2835b397702dc9c7ddb61f3b0a32ff6a17334ebda7fa0fb2b2d14eaa03"
+        },
+        {
+          "name": "automations/mutations:stampAgentTurnLaunch",
+          "start": 19063,
+          "end": 22155,
+          "sha256": "e4d8ac6b88da8da9edd18ac724fc30fb9cc72538d6cef4320e28a0964219490a"
+        },
+        {
+          "name": "automations/queries:getRunProjectId",
+          "start": 23977,
+          "end": 24493,
+          "sha256": "53aa723a67c436f17361fb3a394650dbe4e2c9144b4d8b29429345fc3209626d"
+        },
+        {
+          "name": "automations/human_asks:listAnsweredAsksForNode",
+          "start": 29944,
+          "end": 30545,
+          "sha256": "2af6ce4dd850952d01ca0d3282f188fae3c3c8a32903d94c0feb8a82849099bf"
+        },
+        {
+          "name": "automations/human_asks:getAskForResume",
+          "start": 30552,
+          "end": 31101,
+          "sha256": "57540349377118f8f4c78028ce715dd8161d3e1057b630d8dba3f66cf75fe986"
+        },
+        {
+          "name": "automations/human_asks:retargetAgentCursor",
+          "start": 31108,
+          "end": 33736,
+          "sha256": "8896847baac50f85c655c3a5ce01bdbe06ea51498306b8788b5ca1164e6a6c82"
+        }
+      ]
+    }
+  ],
+  "reused": [
+    {
+      "sourcePath": "services/platform/lib/chat/untrusted-content.ts",
+      "names": [
+        "escapeForXmlTag"
+      ],
+      "blob": "720cefaf0939a3cfe34d6ad7e5b413ee468c9cc5",
+      "sha256": "1dda751e209e17174b81b5f2001b8e026ab7e68409277f79c736d53b4d22460e"
+    },
+    {
+      "sourcePath": "services/platform/lib/harnesses/projection.ts",
+      "names": [
+        "textTail"
+      ],
+      "blob": "1c21970ba7200dc8e2bca212745de85bc78d3f01",
+      "sha256": "8c6f327a67309f7bc066d3f6996dfe4590c8d8d619d60fb7f4f332aafb4cbe4d"
+    },
+    {
+      "sourcePath": "services/platform/lib/harnesses/timeline.ts",
+      "names": [
+        "mergeTimelineParts"
+      ],
+      "blob": "3993e6ea46aa0f1b233a1ff7e641fa6a4d5f5a99",
+      "sha256": "423268519f3b84bb34555fa11ac0109221f33ab1edcfa540d712641f6d078a56"
+    },
+    {
+      "sourcePath": "services/platform/lib/shared/agent-language.ts",
+      "names": [
+        "agentLanguageGuidance"
+      ],
+      "blob": "06a0297d562b1ad07b9504251c8acb0ba5ce03ae",
+      "sha256": "aa506e01e6207512db57a3ac5361064fb725f2c10259c0a15ef5f23faba2b36d"
+    },
+    {
+      "sourcePath": "services/platform/lib/shared/sanitize-untrusted-field.ts",
+      "names": [
+        "sanitizeUntrustedField"
+      ],
+      "blob": "cc558d35bc086cc1eca052d44aadbc1787f5420b",
+      "sha256": "1a7f23c50163bd6c35df6347600f7826c6afcd02b6d6cbcf4bf426f023bb7d93"
+    },
+    {
+      "sourcePath": "services/platform/lib/skills/parse.ts",
+      "names": [
+        "parseSkillMd"
+      ],
+      "blob": "cb09a11ef5a14e8f8c6171094bb840732e4a1c71",
+      "sha256": "2d6c2bb1797046cdf5c0c9aba1c5721c1d9a79b670618917dcfc95af0f3d60cc"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/chat/external_turn_shared.ts",
+      "names": [
+        "classifyHarnessEnd",
+        "isSpendRefusal",
+        "spendRefusalReason",
+        "SKILLS_DIR"
+      ],
+      "blob": "b36cdf1a50febde0f136b04217825e26c7a9f88b",
+      "sections": [
+        {
+          "name": "SKILLS_DIR",
+          "sha256": "bfbf8a97c25d9dee19ce201e4bd6aa53c9859b3b24e857f1155b392f4276d9cb"
+        },
+        {
+          "name": "spendRefusalReason",
+          "sha256": "81b40de723e161bf7e9ac2758897df155d7e01ff4f345c4534cba41e104cfce1"
+        },
+        {
+          "name": "isSpendRefusal",
+          "sha256": "7d1be08d7e970b2cce02f1caf6fb5382252379837cbc41cf9051c6364882fab9"
+        },
+        {
+          "name": "classifyHarnessEnd",
+          "sha256": "e5ec6c6acaaa58d6208201ab960d0b86aceeaaebe360368c29a502a3ea8592d2"
+        },
+        {
+          "name": "EMPTY_ANSWER_REASON",
+          "sha256": "59a8be1f0cf9ed437beca7f425dc63c7d388e069919e0e50a4ad3c8ed4c2f909"
+        },
+        {
+          "name": "isEmptyAnswer",
+          "sha256": "eeed6dfa2470a0243d30bd58d3a2cc600c3bd4aa9918c8956357db56881a8911"
+        },
+        {
+          "name": "hasWords",
+          "sha256": "50a37bcc55db1514ab814d6a4ae0a836bad617eaacd27d6663333d28427108ee"
+        },
+        {
+          "name": "unreplayableExecResult",
+          "sha256": "e6f91fd097485c6709fe57cc648f060120ace7395afd1c7cd879ea39d0245bf6"
+        }
+      ]
+    },
+    {
+      "sourcePath": "services/platform/backend/core/lib/handler_names.ts",
+      "names": [
+        "internal"
+      ],
+      "blob": "7813dd8dcdeaf3f9f2ce3ec4e3cfa382149cc2f3",
+      "sections": [
+        {
+          "name": "internal",
+          "sha256": "bdadfaab605937d022ea5b1051a81b42af845e8fa88c720547a7a2156c04eccc"
+        }
+      ]
+    },
+    {
+      "sourcePath": "services/platform/backend/core/lib/providers/subscription_vision.ts",
+      "names": [
+        "refuseBlindImageTurn",
+        "visionUnreadableGuidance"
+      ],
+      "blob": "db1f5051a61f36af15abe78b01f1a4e58fe86a96",
+      "sha256": "7e7482641e79f7f5e9196d0e0c6a9e61b1bf171fe6651cd5c35b00f452b2803f"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/node_only/sandbox/capacity_refusal.ts",
+      "names": [
+        "isDestroyPendingRefusal",
+        "sandboxCapacityRefusal"
+      ],
+      "blob": "38b8fd6d484febb325c5eb8ba15088850efff014",
+      "sha256": "c635c6a6a66c1c8286a37c602e82b5a09da3cc76435239c2ace93f8039522ace"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/node_only/sandbox/gateway_key_settlement.ts",
+      "names": [
+        "settleGatewayKey",
+        "settlementPending"
+      ],
+      "blob": "6e87db016b3c956b361f2d13eaf7f10c7246d3bf",
+      "sha256": "3ae6ab4ee33afa44e7786474817171070d5d7a18162ff71d33b8ffcf9ffe0495"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/node_only/sandbox/llm_gateway_admin.ts",
+      "names": [
+        "hashVirtualKey"
+      ],
+      "blob": "9417452265bd2af66c65948839a96b52aad80d03",
+      "sha256": "1c0b33f4ddc0498a2b91337eb28be2125f22f1206a1a82ff305523b4cbfbf6cc"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/node_only/sandbox/managed_stage.ts",
+      "names": [
+        "stageBlobCacheKey"
+      ],
+      "blob": "a8b705ebb265afe14f7648e634e252f9881d1a03",
+      "sha256": "7de971195f409165173a901b3dc055d1c65c71d464eea3aaf239ea0b867a180f"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/node_only/sandbox/turn_budget.ts",
+      "names": [
+        "isTurnBudgetExceededError",
+        "readReserveTurnBudgetResult",
+        "TurnBudgetExceededError"
+      ],
+      "blob": "faf499feff33cd82908c8458f363c6862fa4030e",
+      "sha256": "370c8bc7baaf03ca04bf9dc26af3b51f182ffaf8ba0862f7f3e7d14b5c6ee307"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/provider_credentials/resolve_credential.ts",
+      "names": [
+        "credentialRetryAtMs",
+        "runFailureMessage"
+      ],
+      "blob": "e7210d6b98cca17b313efece5765cdab989f79f1",
+      "sections": [
+        {
+          "name": "credentialRefusalCode",
+          "sha256": "91a3c09c19ff371d2aa6b3db5f20438a98497be3c87f43b8b1ede3c8a0c596ed"
+        },
+        {
+          "name": "credentialRefusalMessage",
+          "sha256": "b7d377506f1ad115853ed39f5a1f58e333f6601b79249d2c510b68ed10b9af31"
+        },
+        {
+          "name": "runFailureMessage",
+          "sha256": "c3ba985b4a07444172256a3c113cfd07a1d7a4b1e51abf650ffa65873b651449"
+        },
+        {
+          "name": "credentialRetryAtMs",
+          "sha256": "9a34004653b08cb71c7363a55b6ca0490ce50e621f0dc3e680514c093ccfa3a5"
+        }
+      ]
+    },
+    {
+      "sourcePath": "services/platform/backend/core/sandbox/agent_deadline.ts",
+      "names": [
+        "agentWorkTurnDeadlineMs",
+        "workflowAgentBudgetCents"
+      ],
+      "blob": "80fdb6aff678559f2ac76ea596bfec32499bfa5d",
+      "sha256": "c59a851581b55181095eb9342a8f62e40b48127319f3082aad5aaeae770a574e"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/sandbox/session_constants.ts",
+      "names": [
+        "AWAITING_ROOM_RESULT_STATUS",
+        "SANDBOX_DESTROY_PENDING_MESSAGE"
+      ],
+      "blob": "10f6252a1efc79bfa6fd74ebb67d09d30299b5c8",
+      "sha256": "b09735d1ac5b197a48f3d1d550cc7d4b8b74ff3af7b988ef4bf18a8314ce4daf"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/sandbox/session_naming.ts",
+      "names": [
+        "sessionIdForWorkflowExecution"
+      ],
+      "blob": "ebd604f9b61d83cc33080db10b3d7eff944749b6",
+      "sha256": "8c5d8b86ced48b05704903573b0a69b47d3d6a124b3047f6756f34633dd41fc4"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/sandbox/tool_names.ts",
+      "names": [
+        "ASK_HUMAN_TOOL",
+        "grantedToolsGuidance",
+        "IMAGE_GENERATION_TOOL",
+        "imageGenerationGuidance",
+        "KNOWLEDGE_READ_TOOLS",
+        "KNOWLEDGE_TOOLS_GUIDANCE",
+        "normalizeToolGrants",
+        "secretsGuidance"
+      ],
+      "blob": "dd48d3a9f326bdaf7271abea0ef125c22bd0dbb8",
+      "sha256": "e5e6b9a9a1794d814063c55c5749270c6052398090ee4fa16e26b4c016ecf53e"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/skills/skill_unavailable_error.ts",
+      "names": [
+        "SkillUnavailableError"
+      ],
+      "blob": "e847516437b7391c877a7655625d2cd54f41f91e",
+      "sha256": "3562c3408f8cc4fa6048d055f0630e33d1baa9783d869c6ade341f2f39b60bba"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/tasks/task_auto_retry.ts",
+      "names": [
+        "isCredentialRotation"
+      ],
+      "blob": "4451abbd074568228354c42a350a55eee1027a2c",
+      "sections": [
+        {
+          "name": "isCredentialRotation",
+          "sha256": "535785ca4fc7f4957cd35c18225da96f1c52bbbfab4981f5a946c7418da230e4"
+        }
+      ]
+    },
+    {
+      "sourcePath": "services/platform/backend/core/automations/agent_retry.ts",
+      "names": [
+        "retryResumePrompt"
+      ],
+      "blob": "7cf30af93a5ae880097e3ba4a520a28f2a190ea8",
+      "sha256": "4bb621f67e3d41a95fe4a7d471080e75d34167541a45f272d155bdbb54d0656f"
+    },
+    {
+      "sourcePath": "services/platform/backend/core/automations/ask_answer_carryover.ts",
+      "names": [
+        "answerResumePrompt",
+        "promptWithAnsweredAsks"
+      ],
+      "blob": "5383c50c17c277ea643c42ed13679032c0b3ebb1",
+      "sha256": "53f70fd9743c7bd8be97326152fc8a37716207d18310e22d626b502e4e153798"
+    },
+    {
+      "sourcePath": "services/platform/backend/db/sql.ts",
+      "names": [
+        "toJson"
+      ],
+      "blob": "f77a28301ae505aa7bc7c8dd10355ad278c54675",
+      "sections": [
+        {
+          "name": "toJson",
+          "sha256": "ce1c046e9f518890e6310bee848da69818243a3556fa5b69ee9ca009d50bf120"
+        }
+      ]
+    },
+    {
+      "sourcePath": "services/platform/lib/shared/handlers/function-refs.ts",
+      "names": [],
+      "sha256": "fd2234020a3da343d9f55f5d78200193824657fb90cc2c3a03b108235234fe75",
+      "blob": "9f8c1caac38a4d7579fdc430c77b1166a65b53ab"
+    },
+    {
+      "sourcePath": "services/platform/backend/lib/ctx-shim.ts",
+      "names": [],
+      "sha256": "72db5ded4fdd87e6c81fc3ac6eef9a6e2479aba2c6f5434d1ada4a221c0d8ab7",
+      "blob": "842344bd788fae09ba2d430e8f85cf7c9d8b7ae4"
+    }
+  ]
+}
