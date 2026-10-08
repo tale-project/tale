@@ -412,5 +412,20 @@
  * `createdBy` naming the agent. Native `knowledge_entry_find` answers each
  * entry's version `id` and `updatedAt` and matches its content as well. No
  * REST operation changes. Additive.
+ *
+ * 3.24.0 — 2026-10-09: agents have mention handles, and mentions are stored
+ * as whom they name. `ProjectAgent.handle` is the agent's handle, made from
+ * its current name, unique in its project (`-02`, `-03` on a clash) and
+ * made again on a rename. A comment body and a task description store each
+ * mention a door resolves as a mention link,
+ * `[@Ada Lovelace](mention:user/<userId>)`, and every read returns that
+ * stored form: observable for a client that read the `@handle` it posted
+ * back out of the text. Plain `@handle`, `@<id>` and the older name forms
+ * still resolve when posted; a mention link naming nobody who can be
+ * mentioned on the task is stored as plain text, and a task mirrored from
+ * GitHub or GlitchTip keeps its `@names` as written. Comment reads carry
+ * `bodyText` and task reads `descriptionText`, the same text with each
+ * mention read as `@` and the current name, and so do the comment events
+ * (`comment.bodyText`). Additive.
  */
-export const API_CONTRACT_VERSION = '3.23.0';
+export const API_CONTRACT_VERSION = '3.24.0';

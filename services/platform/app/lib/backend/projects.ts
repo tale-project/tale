@@ -117,6 +117,8 @@ interface ProjectAgentWire {
   organizationId: string;
   projectId: string;
   name: string;
+  /** Absent on a row an older backend sent, which knew no handles. */
+  handle?: string;
   harness: string;
   model: string;
   modelProvider: string | null;
@@ -139,6 +141,7 @@ function projectAgentView(row: ProjectAgentWire): ProjectAgentItem {
     organizationId: row.organizationId,
     projectId: row.projectId,
     name: row.name,
+    ...(row.handle !== undefined ? { handle: row.handle } : {}),
     harness: row.harness,
     model: row.model,
     ...(row.modelProvider !== null ? { modelProvider: row.modelProvider } : {}),

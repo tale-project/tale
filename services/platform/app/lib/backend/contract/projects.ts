@@ -199,6 +199,9 @@ export interface ProjectsContract {
       skills: string[];
       organizationId: string;
       name: string;
+      /** What a person types after `@` to mention the agent, made from its
+       * current name; absent from an older backend. */
+      handle?: string;
       projectId: string;
       createdBy: string;
       createdAt: number;
