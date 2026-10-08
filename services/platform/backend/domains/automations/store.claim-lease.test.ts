@@ -230,6 +230,29 @@ describe('claimRun — one walker at a time', () => {
     },
   );
 
+  it('takes over a run the sweep found an image without leases had left, and counts it [AUTO-R16]', async () => {
+    // The sweep's poke wrote a fresh promise and turned the old image's
+    // lapsed one into a lapsed lease of the claim the row names.
+    const fake = fakeSql(
+      prior({
+        claimEpoch: 7,
+        leaseEpoch: 7,
+        leaseOwner: null,
+        leaseExpiresAt: NOW - 1,
+        wakeAt: NOW + RUN_CLAIM_PROMISE_MS,
+        engineProtocol: 1,
+        engineVersion: null,
+      }),
+    );
+    await expect(claim(fake.sql)).resolves.toEqual({
+      claimed: true,
+      status: 'running',
+      epoch: 8,
+    });
+    expect(claimWrite(fake.statements)?.values).toContain(true);
+    expect(events(fake.statements)[0]?.values).toContain('taken_over');
+  });
+
   it.each([['success'], ['failed'], ['cancelled']])(
     'never takes a %s run, and says so',
     async (status) => {

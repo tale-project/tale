@@ -9,7 +9,12 @@ import { jsonParam } from '../../db/sql.ts';
 import { instanceId } from '../../lib/instance.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { recordRunEventInTx } from './run-events.ts';
-import { AutomationError, emitRunHint, pokeParkedRunInTx } from './store.ts';
+import {
+  AutomationError,
+  emitRunHint,
+  pokeParkedRunInTx,
+  wakeSettledInDoubtPark,
+} from './store.ts';
 
 /**
  * The effect ledger (`app.automation_node_attempts`, migration 0162): one row
@@ -79,7 +84,10 @@ interface AttemptRow {
  * Begin a call, or learn what an earlier attempt of the same call left. One
  * transaction: the run row is share-locked at the walker's epoch first, so a
  * claim that supersedes this walker either waits for the begin or makes it
- * read `stale` — a stale walker inserts nothing.
+ * read `stale` — a stale walker inserts nothing. So does a walker whose own
+ * lease lapsed or was released, even before anyone took the run over: a
+ * write it began now would only be found open by the walker that takes the
+ * run over next, and parked as in doubt.
  */
 export async function beginNodeAttempt(
   sql: Sql,
@@ -91,6 +99,7 @@ export async function beginNodeAttempt(
       SELECT id FROM app.automation_runs
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND claim_epoch = ${args.epoch} AND status = 'running'
+        AND lease_epoch = ${args.epoch} AND lease_expires_at_ms > ${now}
       FOR SHARE
     `;
     if (!fence[0]) return { kind: 'stale' };
@@ -160,7 +169,9 @@ export async function beginNodeAttempt(
  * Record how a call ended. Not fenced by the claim epoch: what really
  * happened is worth recording whoever holds the run now. Only the attempt
  * that was begun, and only while it is still `started`; answers whether it
- * was.
+ * was. A write recorded after another walker parked the run on it as in
+ * doubt is no longer in doubt, so the run is woken to read its end
+ * (best-effort: the park's poll finds it due as well).
  */
 export async function finishNodeAttempt(
   sql: Sql,
@@ -178,7 +189,7 @@ export async function finishNodeAttempt(
   },
 ): Promise<{ recorded: boolean }> {
   const output = args.status === 'done' ? jsonParam(sql, args.output) : null;
-  const rows = await sql<{ id: string }[]>`
+  const rows = await sql<{ id: string; kind: AttemptKind }[]>`
     UPDATE app.automation_node_attempts SET
       status = ${args.status}, output = ${output},
       error = ${args.error === undefined ? null : truncateRunDetail(args.error)},
@@ -188,9 +199,21 @@ export async function finishNodeAttempt(
       AND node_id = ${args.nodeId} AND item_index = ${args.itemIndex}
       AND pass = ${args.pass} AND attempt = ${args.attempt}
       AND status = 'started'
-    RETURNING id
+    RETURNING id, kind
   `;
-  return { recorded: rows.length > 0 };
+  const recorded = rows[0];
+  if (recorded?.kind === 'connector') {
+    await wakeSettledInDoubtPark(sql, {
+      organizationId: args.organizationId,
+      runId: args.runId,
+    }).catch((error: unknown) =>
+      console.warn(
+        `[automations] could not wake run ${args.runId} after its write in doubt ended; its poll will:`,
+        error,
+      ),
+    );
+  }
+  return { recorded: recorded !== undefined };
 }
 
 /**
@@ -214,7 +237,7 @@ export async function readOpenInDoubt(
       AND a.status = 'started' AND a.resolution IS NULL
       AND a.kind = 'connector'
       AND r.status = 'waiting' AND r.detail LIKE 'in_doubt:%'
-    ORDER BY a.started_at_ms DESC
+    ORDER BY a.started_at_ms DESC, a.id DESC
     LIMIT 1
   `;
   return rows[0] ?? null;
@@ -263,6 +286,9 @@ export async function resolveInDoubtInTx(
       409,
     );
   }
+  // Only the write the run waits on — the one its card shows
+  // (`readOpenInDoubt`) — can be decided: never a model call, and never
+  // another open attempt of the run.
   const resolved = await tx<
     { nodeId: string; itemIndex: number; pass: number }[]
   >`
@@ -271,7 +297,16 @@ export async function resolveInDoubtInTx(
       resolved_at_ms = ${Date.now()}
     WHERE id = ${args.attemptId} AND run_id = ${args.runId}
       AND org_id = ${args.organizationId}
-      AND status = 'started' AND resolution IS NULL
+      AND kind = 'connector' AND status = 'started' AND resolution IS NULL
+      AND id = (
+        SELECT shown.id FROM app.automation_node_attempts shown
+        WHERE shown.run_id = ${args.runId}
+          AND shown.org_id = ${args.organizationId}
+          AND shown.kind = 'connector' AND shown.status = 'started'
+          AND shown.resolution IS NULL
+        ORDER BY shown.started_at_ms DESC, shown.id DESC
+        LIMIT 1
+      )
     RETURNING node_id AS "nodeId", item_index AS "itemIndex", pass
   `;
   const attempt = resolved[0];

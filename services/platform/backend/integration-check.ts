@@ -12719,6 +12719,53 @@ async function checkAutomations(
       return rows[0]?.status === 'success';
     }, 30_000);
 
+    // A running run an image without leases was stepping when its worker
+    // died: claim 3, no lease, its promise lapsed. The sweep turns the
+    // promise into a lapsed lease, and the step it queues takes the run
+    // over and walks it to the end — instead of reading the fresh promise
+    // the poke wrote and refusing the run every sweep, for good.
+    const leaseless = await sql<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, input, checkpoints,
+        wake_at_ms, claim_epoch, claimed_at_ms, started_at_ms
+      ) VALUES (
+        ${orgId}, 'ops/greet', 1, 'running', 'mock', 'itest:leaseless',
+        ${sql.json('{"who":"leaseless"}')}, ${sql.json('{"nodes":{},"executions":0}')},
+        ${Date.now() - 60_000}, 3, ${Date.now() - 300_000},
+        ${Date.now() - 300_000}
+      ) RETURNING id
+    `;
+    const leaselessId = leaseless[0]?.id ?? '';
+    await automationsStore.sweepOverdueRuns(sql);
+    const leaselessSettled = await waitFor(async () => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status FROM app.automation_runs WHERE id = ${leaselessId}
+      `;
+      return rows[0]?.status === 'success';
+    }, 30_000);
+    const leaselessRow = await sql<
+      { resumeCount: number; reason: string | null; claimEpoch: number }[]
+    >`
+      SELECT resume_count AS "resumeCount", last_resume_reason AS reason,
+             claim_epoch AS "claimEpoch"
+      FROM app.automation_runs WHERE id = ${leaselessId}
+    `;
+    const leaselessEvents = await sql<{ kind: string }[]>`
+      SELECT kind FROM app.automation_run_events
+      WHERE run_id = ${leaselessId} AND kind IN ('lease_expired', 'taken_over')
+      ORDER BY kind
+    `;
+    record(
+      'a running run an image without leases left is taken over once the sweep finds its promise lapsed [AUTO-R16]',
+      leaselessSettled &&
+        leaselessRow[0]?.resumeCount === 1 &&
+        leaselessRow[0]?.reason === 'lease_expired' &&
+        (leaselessRow[0]?.claimEpoch ?? 0) >= 4 &&
+        leaselessEvents.map((event) => event.kind).join(',') ===
+          'lease_expired,taken_over',
+      `settled=${leaselessSettled}, resumes=${leaselessRow[0]?.resumeCount} (want 1), reason=${leaselessRow[0]?.reason} (want lease_expired), epoch=${leaselessRow[0]?.claimEpoch} (want ≥4), events=${leaselessEvents.map((event) => event.kind).join(',')} (want lease_expired,taken_over)`,
+    );
+
     // Webhook trigger: token minted once, kept on re-bind, rotated on ask.
     const minted = z.object({ token: z.string() }).safeParse(
       await (
@@ -13406,6 +13453,13 @@ async function checkAutomationRunLifecycle(
     mode: 'live',
     claimEpoch: 2,
   });
+  // The walker at epoch 2 holds a live lease: a begin needs one.
+  await sql`
+    UPDATE app.automation_runs SET
+      lease_epoch = 2, lease_owner = ${instance.instanceId()},
+      lease_expires_at_ms = ${Date.now() + 60_000}
+    WHERE id = ${ledgerId}
+  `;
   const beginArgs = (epoch: number, itemIndex: number) => ({
     organizationId: orgId,
     runId: ledgerId,
@@ -13496,6 +13550,71 @@ async function checkAutomationRunLifecycle(
         secondDecision,
       ),
     `race=[${raceKinds.join(',')}] (want go,in_doubt), stale=${staleBegin.kind}, staleRows=${goneItem[0]?.count} (want 0), reused=${reused.kind} (want done), open item=${open?.itemIndex} (want 0), audit=${decidedAudit[0]?.count} (want 1), events=${decidedEvents.length}, steps=${decidedSteps} (want 1), second decision=${secondDecision} (want a refusal)`,
+  );
+
+  // ---- #4g2: a write that ends after another walker parked the run on it
+  // [AUTO-R19]. The walker making it outlived its lease; the one that took
+  // the run over found the write open and parked the run in doubt; then the
+  // write came back. Nothing is in doubt any more, so its finish wakes the
+  // run at once instead of leaving it to wait for a person. A walker whose
+  // own lease lapsed begins nothing at all.
+  const lateId = await insertProbeRun('itest:late-finish', {
+    status: 'running',
+    mode: 'live',
+    claimEpoch: 5,
+  });
+  await sql`
+    UPDATE app.automation_runs SET
+      lease_epoch = 5, lease_owner = ${instance.instanceId()},
+      lease_expires_at_ms = ${Date.now() + 60_000}
+    WHERE id = ${lateId}
+  `;
+  const lateArgs = { ...beginArgs(5, 0), runId: lateId };
+  const lateBegin = await ledger.beginNodeAttempt(sql, lateArgs);
+  await sql`
+    UPDATE app.automation_runs SET
+      lease_expires_at_ms = ${Date.now() - 1}
+    WHERE id = ${lateId}
+  `;
+  const lapsedBegin = await ledger.beginNodeAttempt(sql, {
+    ...lateArgs,
+    itemIndex: 1,
+  });
+  const parkedUntil = Date.now() + 3_600_000;
+  await sql`
+    UPDATE app.automation_runs SET
+      status = 'waiting', detail = 'in_doubt:send', lease_owner = NULL,
+      lease_expires_at_ms = NULL, wake_at_ms = ${parkedUntil}
+    WHERE id = ${lateId}
+  `;
+  const stepsBeforeFinish = await stepJobs(lateId);
+  const lateFinishWrite = await ledger.finishNodeAttempt(sql, {
+    organizationId: orgId,
+    runId: lateId,
+    nodeId: 'send',
+    itemIndex: 0,
+    pass: 0,
+    attempt: lateBegin.kind === 'go' ? lateBegin.attempt : 0,
+    status: 'done',
+    output: { messageId: 'm-late' },
+  });
+  const stepsAfterFinish = await stepJobs(lateId);
+  const lateWake = await sql<{ wakeAt: number | null }[]>`
+    SELECT wake_at_ms::float8 AS "wakeAt" FROM app.automation_runs
+    WHERE id = ${lateId}
+  `;
+  await cancelProbeRun(lateId);
+  const lateWakeAt = lateWake[0]?.wakeAt ?? null;
+  record(
+    'a write that ends after its run was parked on it wakes the run, and a walker whose lease lapsed begins nothing [AUTO-R19]',
+    lateBegin.kind === 'go' &&
+      lapsedBegin.kind === 'stale' &&
+      lateFinishWrite.recorded &&
+      stepsAfterFinish === stepsBeforeFinish + 1 &&
+      // Woken (a claim's promise), claimed (a lease), or already walked to
+      // its end by a worker — never left at the park's hour-long poll.
+      (lateWakeAt === null || lateWakeAt < parkedUntil),
+    `begin=${lateBegin.kind} (want go), lapsed begin=${lapsedBegin.kind} (want stale), recorded=${lateFinishWrite.recorded}, steps=${stepsBeforeFinish}→${stepsAfterFinish} (want +1), wake=${lateWakeAt} (want before ${parkedUntil})`,
   );
 
   // ---- #4h: what the run read says about a run that moved between servers

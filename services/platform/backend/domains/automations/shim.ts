@@ -822,13 +822,19 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         ) {
           return { retargeted: false };
         }
+        // The exec a turn moved away from is kept beside the new one: a walker
+        // that loaded the cursor before this write parks with the old exec,
+        // and the park keeps this cursor when it sees that (`suspendRun`).
         const patched = {
           ...checkpoints,
           cursor: {
             ...cursor,
             agent: {
               ...cursor.agent,
-              ...(args.toExecId !== undefined ? { execId: args.toExecId } : {}),
+              ...(args.toExecId !== undefined &&
+              args.toExecId !== args.fromExecId
+                ? { execId: args.toExecId, retargetedFrom: args.fromExecId }
+                : {}),
               ...(args.deadlineAt !== undefined
                 ? { deadlineAt: args.deadlineAt }
                 : {}),

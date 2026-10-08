@@ -21,7 +21,12 @@ import {
   boundCheckpointTrace,
   truncateRunDetail,
 } from '../../core/automations/bound_run_payload.ts';
-import type { NodeCheckpoint } from '../../core/automations/checkpoints.ts';
+import {
+  mergeParkedAgentCursor,
+  type NodeCheckpoint,
+  parkedAgentSettled,
+  parksAgentTurn,
+} from '../../core/automations/checkpoints.ts';
 import { wallClockIn } from '../../core/automations/cron.ts';
 import {
   ENGINE_DEFER_MS,
@@ -2535,7 +2540,9 @@ type ClaimDecision =
  * running run is free only once nobody steps it: its lease was released (a
  * hand-off) or lapsed (its walker died) — or, for a run an image without
  * leases claimed last (`lease_epoch` <> `claim_epoch`), once that image's
- * `wake_at_ms` promise lapsed, which its own heartbeat keeps renewing. A live
+ * `wake_at_ms` promise lapsed, which its own heartbeat keeps renewing (the
+ * sweep that finds it lapsed turns it into a lapsed lease first, so the
+ * claim its poke queues takes the run over). A live
  * lease is refused whoever holds it, this process included: a worker runs
  * several walkers, so "it is mine" would let two of them step one run.
  */
@@ -2853,9 +2860,17 @@ export async function recordProgress(
  * that comes back after `resumeInMs`. The walker's lease is released — a
  * parked run has no walker — and the chain sequence moves on, so a poll of
  * an earlier park finds nothing to do. `event` records why the park happened
- * when the run's history should say more than its park string. A park on an
- * approval that a person decided while the walker was on its way here wakes
- * the run at once instead.
+ * when the run's history should say more than its park string. A park on
+ * something that happened while the walker was on its way here wakes the
+ * run at once instead.
+ *
+ * The cursor an agent node parks with is the one its walker loaded, and the
+ * stored one may have moved on since: the turn settled, or a person's answer
+ * moved the turn to a new exec or a later deadline. The step job each of them
+ * queued found the run still held by this walker and did nothing, so the
+ * park keeps what they wrote (`mergeParkedAgentCursor`) — dropping a result
+ * would leave the run waiting for one that already came, until its deadline
+ * failed it.
  */
 export async function suspendRun(
   sql: Sql,
@@ -2872,7 +2887,22 @@ export async function suspendRun(
 ): Promise<{ suspended: boolean }> {
   return sql.begin(async (tx) => {
     const now = Date.now();
-    const cursor = jsonParam(tx, args.cursor);
+    // An agent node's park merges what the stored cursor gained while its
+    // walker was on its way here; the row is locked first, so a settle or a
+    // retarget either landed already or waits for the park.
+    let parkCursor = args.cursor;
+    if (parksAgentTurn(args.cursor)) {
+      const stored = await tx<{ cursor: unknown }[]>`
+        SELECT checkpoints -> 'cursor' AS cursor FROM app.automation_runs
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+          AND claim_epoch = ${args.epoch}
+        FOR UPDATE
+      `;
+      if (stored[0] !== undefined) {
+        parkCursor = mergeParkedAgentCursor(stored[0].cursor, args.cursor);
+      }
+    }
+    const cursor = jsonParam(tx, parkCursor);
     const rows = await tx<{ seq: number }[]>`
       UPDATE app.automation_runs SET
         status = 'waiting', detail = ${truncateRunDetail(args.detail)},
@@ -2896,10 +2926,17 @@ export async function suspendRun(
     `;
     const parked = rows[0];
     if (!parked) return { suspended: false };
-    if (await approvalDecided(tx, args.organizationId, args.detail)) {
-      // Decided between the walker's gate read and this park: the
-      // decision's own wake found the run still walking and did nothing, so
-      // the park wakes the run itself instead of waiting for its poll.
+    if (
+      parkedAgentSettled(parkCursor) ||
+      (await approvalDecided(tx, args.organizationId, args.detail)) ||
+      (args.detail.startsWith('in_doubt:') &&
+        (await inDoubtSettled(tx, args.organizationId, args.runId)))
+    ) {
+      // What the park waits on happened while the walker was on its way
+      // here — a person decided the approval, the agent's turn settled, or
+      // the write in doubt was finished by the walker that was making it.
+      // Its own wake found the run still walking and did nothing, so the
+      // park wakes the run itself instead of waiting for its poll.
       await tx`
         UPDATE app.automation_runs SET
           wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
@@ -2953,21 +2990,34 @@ async function approvalDecided(
   return rows[0]?.decided ?? false;
 }
 
-/** Whether a person has decided about the run's write that may already have
- * happened — the only thing that makes an in-doubt park due. */
-async function inDoubtDecided(
+/**
+ * Whether a park on a write that may already have happened is due: a person
+ * decided about it, or no write of the run is open any more. The second
+ * happens when the walker that was making the write outlived its lease and
+ * recorded how the call ended after another walker had parked the run on it:
+ * the next walker then reads that end instead of anyone being asked.
+ */
+async function inDoubtSettled(
   tx: TransactionSql,
   organizationId: string,
   runId: string,
 ): Promise<boolean> {
-  const rows = await tx<{ decided: boolean }[]>`
-    SELECT EXISTS (
-      SELECT 1 FROM app.automation_node_attempts
-      WHERE run_id = ${runId} AND org_id = ${organizationId}
-        AND status = 'started' AND resolution IS NOT NULL
-    ) AS decided
+  const rows = await tx<{ settled: boolean }[]>`
+    SELECT (
+      EXISTS (
+        SELECT 1 FROM app.automation_node_attempts
+        WHERE run_id = ${runId} AND org_id = ${organizationId}
+          AND status = 'started' AND resolution IS NOT NULL
+      )
+      OR NOT EXISTS (
+        SELECT 1 FROM app.automation_node_attempts
+        WHERE run_id = ${runId} AND org_id = ${organizationId}
+          AND kind = 'connector' AND status = 'started'
+          AND resolution IS NULL
+      )
+    ) AS settled
   `;
-  return rows[0]?.decided ?? false;
+  return rows[0]?.settled ?? false;
 }
 
 /** One hop of a parked run's poll chain (the pg-boss `automation.poll`
@@ -2991,37 +3041,47 @@ export async function pollParkedRun(
           })
         : undefined;
     const agent = cursor?.agent;
-    // A write that may already have happened waits for a person: due only
-    // once they decided (their decision also wakes the run itself; this hop
-    // is the backstop). An agent park is quiet until its settle lands or its
+    // A write that may already have happened waits for a person: due once
+    // they decided, or once nothing is in doubt any more (their decision and
+    // a late finish of the write each wake the run themselves; this hop is
+    // the backstop). An agent park is quiet until its settle lands or its
     // deadline passes; anything else counts as due — the stepper is the
     // arbiter, this hop only a filter. (The approval-park branch returns
     // with the approvals domain.)
     const inDoubt = row.detail?.startsWith('in_doubt:') === true;
     const due = inDoubt
-      ? await inDoubtDecided(tx, args.organizationId, args.runId)
+      ? await inDoubtSettled(tx, args.organizationId, args.runId)
       : agent !== undefined
         ? agent.result !== undefined || Date.now() > (agent.deadlineAt ?? 0)
         : true;
+    // Both writes below are fenced by the park this hop belongs to: the row
+    // was read without a lock, and a decision may have woken it and a walker
+    // claimed it since — its lease's promise is not this hop's to move.
     if (due) {
       // The step job below is the continuation; the promise gives its claim
       // time to happen before the sweep pokes again.
-      await tx`
+      const woken = await tx<{ id: string }[]>`
         UPDATE app.automation_runs SET
           wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
-        WHERE id = ${args.runId}
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+          AND status = 'waiting' AND chain_seq = ${args.seq}
+        RETURNING id
       `;
+      if (!woken[0]) return { due: false, rearmed: false };
       await enqueueStep(tx, args.organizationId, args.runId, 0);
       return { due: true, rearmed: false };
     }
     // A person may take hours to decide, and the decision wakes the run
     // itself: an in-doubt park re-arms only at the backstop interval.
     const next = inDoubt ? { ...args, pollMs: IN_DOUBT_POLL_MS } : args;
-    await tx`
+    const rearmed = await tx<{ id: string }[]>`
       UPDATE app.automation_runs SET
         wake_at_ms = ${Date.now() + next.pollMs}
-      WHERE id = ${args.runId}
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND status = 'waiting' AND chain_seq = ${args.seq}
+      RETURNING id
     `;
+    if (!rearmed[0]) return { due: false, rearmed: false };
     await enqueuePoll(tx, next);
     return { due: false, rearmed: true };
   });
@@ -3234,6 +3294,13 @@ export async function finishRun(
  * re-checks the promise in its own write, so two sweeps that overlap poke a
  * run once. A running run whose lease lapsed — its walker died — is recorded
  * as such and its open views told, so its page can say it is being resumed.
+ *
+ * A running run an image without leases claimed last (`lease_epoch` <>
+ * `claim_epoch`) has only that image's promise, and once the promise lapsed
+ * its walker is gone too. The poke turns the lapsed promise into a lapsed
+ * lease of the claim it names: the step it queues then takes the run over.
+ * Left as it was, that step would read the fresh promise the poke itself
+ * wrote and refuse the run as held — every sweep, for good.
  */
 export async function sweepOverdueRuns(
   sql: Sql,
@@ -3244,9 +3311,10 @@ export async function sweepOverdueRuns(
     { id: string; orgId: string; owner: string | null; leaseExpired: boolean }[]
   >`
     SELECT id, org_id AS "orgId", lease_owner AS "owner",
-           (status = 'running' AND lease_epoch = claim_epoch
-            AND lease_expires_at_ms IS NOT NULL
-            AND lease_expires_at_ms < ${now}) AS "leaseExpired"
+           (status = 'running' AND (
+              lease_epoch IS DISTINCT FROM claim_epoch
+              OR (lease_expires_at_ms IS NOT NULL
+                  AND lease_expires_at_ms < ${now}))) AS "leaseExpired"
     FROM app.automation_runs
     WHERE status IN ('queued', 'running', 'waiting')
       AND wake_at_ms IS NOT NULL AND wake_at_ms < ${now}
@@ -3257,9 +3325,16 @@ export async function sweepOverdueRuns(
   for (const row of rows) {
     const won = await sql.begin(async (tx) => {
       const at = Date.now();
+      // Every right-hand side reads the row as it was before this write.
       const updated = await tx<{ id: string }[]>`
         UPDATE app.automation_runs SET
-          wake_at_ms = ${at + RUN_CLAIM_PROMISE_MS}
+          wake_at_ms = ${at + RUN_CLAIM_PROMISE_MS},
+          lease_epoch = CASE
+            WHEN status = 'running' AND lease_epoch IS DISTINCT FROM claim_epoch
+            THEN claim_epoch ELSE lease_epoch END,
+          lease_expires_at_ms = CASE
+            WHEN status = 'running' AND lease_epoch IS DISTINCT FROM claim_epoch
+            THEN ${at}::bigint ELSE lease_expires_at_ms END
         WHERE id = ${row.id} AND org_id = ${row.orgId}
           AND status IN ('queued', 'running', 'waiting')
           AND wake_at_ms IS NOT NULL AND wake_at_ms < ${at}
@@ -3307,6 +3382,40 @@ export async function pokeParkedRunInTx(
   if (!rows[0]) return false;
   await enqueueStep(tx, args.organizationId, args.runId, 0);
   return true;
+}
+
+/**
+ * Wake a run parked on a write that may already have happened once nothing
+ * is in doubt any more: the walker that was making the write outlived its
+ * lease, another walker parked the run on it, and the first one then
+ * recorded how the call ended. The next walker reads that end — the output,
+ * or the failure — instead of anyone being asked. Its own transaction, after
+ * the finish committed: the write locks the run row alone, the order every
+ * run write takes. Answers whether the run was woken.
+ */
+export async function wakeSettledInDoubtPark(
+  sql: Sql,
+  args: { organizationId: string; runId: string },
+): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      UPDATE app.automation_runs SET
+        wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND status = 'waiting' AND detail LIKE 'in_doubt:%'
+        AND NOT EXISTS (
+          SELECT 1 FROM app.automation_node_attempts
+          WHERE run_id = ${args.runId} AND org_id = ${args.organizationId}
+            AND kind = 'connector' AND status = 'started'
+            AND resolution IS NULL
+        )
+      RETURNING id
+    `;
+    if (!rows[0]) return false;
+    await enqueueStep(tx, args.organizationId, args.runId, 0);
+    await emitRunHint(tx, args.organizationId, args.runId);
+    return true;
+  });
 }
 
 /**

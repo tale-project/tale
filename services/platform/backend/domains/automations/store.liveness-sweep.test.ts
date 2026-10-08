@@ -152,14 +152,55 @@ describe('sweepOverdueRuns', () => {
     ]);
   });
 
-  it('reads a lapsed lease only on a running run whose lease is its own claim’s', async () => {
+  it('reads a lapsed lease only on a running run: its own lease lapsed, or an image without leases held it', async () => {
     const fake = fakeSql(() => []);
     await sweepOverdueRuns(fake.sql, 10);
     const [read] = fake.statements;
-    expect(read?.text).toContain(
-      "status = 'running' AND lease_epoch = claim_epoch",
-    );
+    expect(read?.text).toContain("(status = 'running' AND (");
+    expect(read?.text).toContain('lease_epoch IS DISTINCT FROM claim_epoch');
     expect(read?.values).toContain(10);
+  });
+
+  it('turns the lapsed promise of a run an image without leases stepped into a lapsed lease, so its step takes it over [AUTO-R16]', async () => {
+    // Noah's import was on step 2 under the previous release when its
+    // worker was stopped for the update: the row names claim 7 and no lease.
+    const before = Date.now();
+    const fake = fakeSql((text, values) => {
+      if (text.includes('SELECT id, org_id')) {
+        return [
+          { id: 'run_old', orgId: 'org_1', owner: null, leaseExpired: true },
+        ];
+      }
+      if (text.includes('UPDATE app.automation_runs'))
+        return [{ id: values.find((value) => value === 'run_old') }];
+      if (text.includes('INSERT INTO app.automation_run_events')) {
+        return [{ id: 'event_1' }];
+      }
+      return [];
+    });
+    await expect(sweepOverdueRuns(fake.sql)).resolves.toBe(1);
+    const poke = fake.statements.find((s) =>
+      s.text.includes('UPDATE app.automation_runs'),
+    );
+    // The lease the claim reads is the claim the row names, lapsed now.
+    expect(poke?.text).toContain(
+      "WHEN status = 'running' AND lease_epoch IS DISTINCT FROM claim_epoch",
+    );
+    expect(poke?.text).toContain('THEN claim_epoch ELSE lease_epoch END');
+    expect(poke?.text).toContain('::bigint ELSE lease_expires_at_ms END');
+    const lapsedAt = poke?.values[1];
+    expect(lapsedAt).toBeGreaterThanOrEqual(before);
+    expect(lapsedAt).toBeLessThanOrEqual(Date.now());
+    expect(poke?.values[0]).toBe(Number(lapsedAt) + RUN_CLAIM_PROMISE_MS);
+    expect(eventKinds(fake.statements)).toEqual([
+      { runId: 'run_old', kind: 'lease_expired' },
+    ]);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'automation.step',
+      { organizationId: 'org_1', runId: 'run_old' },
+      {},
+    );
   });
 });
 
@@ -174,9 +215,13 @@ describe('pollParkedRun', () => {
 
   it('wakes a due park with the claim promise, never overdue', async () => {
     const before = Date.now();
-    const fake = fakeSql((text) =>
-      text.includes('FROM app.automation_runs') ? [parked('repeat:poll')] : [],
-    );
+    const fake = fakeSql((text) => {
+      if (text.includes('FROM app.automation_runs')) {
+        return [parked('repeat:poll')];
+      }
+      if (text.includes('UPDATE app.automation_runs')) return [{ id: 'run_1' }];
+      return [];
+    });
     await expect(
       pollParkedRun(fake.sql, {
         organizationId: 'org_1',
@@ -210,7 +255,10 @@ describe('pollParkedRun', () => {
           return [parked('in_doubt:send')];
         }
         if (text.includes('FROM app.automation_node_attempts')) {
-          return [{ decided }];
+          return [{ settled: decided }];
+        }
+        if (text.includes('UPDATE app.automation_runs')) {
+          return [{ id: 'run_1' }];
         }
         return [];
       });
@@ -232,14 +280,79 @@ describe('pollParkedRun', () => {
     },
   );
 
+  it('finds an in-doubt park due once no write of the run is open any more [AUTO-R19]', async () => {
+    // The walker that was sending Mia's invoice outlived its lease and
+    // recorded the send after another walker had parked the run on it.
+    const fake = fakeSql((text) => {
+      if (text.includes('FROM app.automation_runs')) {
+        return [parked('in_doubt:send')];
+      }
+      if (text.includes('FROM app.automation_node_attempts')) {
+        return [{ settled: true }];
+      }
+      if (text.includes('UPDATE app.automation_runs')) return [{ id: 'run_1' }];
+      return [];
+    });
+    await expect(
+      pollParkedRun(fake.sql, {
+        organizationId: 'org_1',
+        runId: 'run_1',
+        seq: 4,
+        pollMs: IN_DOUBT_POLL_MS,
+      }),
+    ).resolves.toEqual({ due: true, rearmed: false });
+    const probe = fake.statements.find((s) =>
+      s.text.includes('FROM app.automation_node_attempts'),
+    );
+    expect(probe?.text).toContain('OR NOT EXISTS (');
+    expect(probe?.text).toContain(
+      "AND kind = 'connector' AND status = 'started'",
+    );
+  });
+
+  it.each([
+    ['due', 'repeat:poll'],
+    ['not due', 'in_doubt:send'],
+  ])(
+    'moves nothing on a run its park no longer holds (%s): a walker claimed it since the read',
+    async (_case, detail) => {
+      // A decision woke Mia's run and a walker claimed it between this hop's
+      // read and its write: the walker's lease promise is not this hop's.
+      const fake = fakeSql((text) => {
+        if (text.includes('FROM app.automation_runs')) return [parked(detail)];
+        if (text.includes('FROM app.automation_node_attempts')) {
+          return [{ settled: false }];
+        }
+        return [];
+      });
+      await expect(
+        pollParkedRun(fake.sql, {
+          organizationId: 'org_1',
+          runId: 'run_1',
+          seq: 4,
+          pollMs: 5_000,
+        }),
+      ).resolves.toEqual({ due: false, rearmed: false });
+      const write = fake.statements.find((s) =>
+        s.text.includes('UPDATE app.automation_runs'),
+      );
+      expect(write?.text).toContain("AND status = 'waiting' AND chain_seq = ?");
+      expect(write?.values).toEqual(
+        expect.arrayContaining(['run_1', 'org_1', 4]),
+      );
+      expect(addJobInTx).not.toHaveBeenCalled();
+    },
+  );
+
   it('re-arms an undecided in-doubt park at the backstop interval, whatever its hop was given', async () => {
     const fake = fakeSql((text) => {
       if (text.includes('FROM app.automation_runs')) {
         return [parked('in_doubt:send')];
       }
       if (text.includes('FROM app.automation_node_attempts')) {
-        return [{ decided: false }];
+        return [{ settled: false }];
       }
+      if (text.includes('UPDATE app.automation_runs')) return [{ id: 'run_1' }];
       return [];
     });
     await pollParkedRun(fake.sql, {

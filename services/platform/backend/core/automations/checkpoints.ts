@@ -158,6 +158,10 @@ export interface AgentCursor {
   /** The refusals in a row of that wait: the next start's delay grows with
    * them (`sandboxRoomRetryAtMs`). */
   roomRefusals?: number;
+  /** The exec this turn ran on before an answer to its question moved it to
+   * `execId` (`retargetAgentCursor`): a walker that loaded the cursor before
+   * the move parks with that exec, and the park keeps this cursor instead. */
+  retargetedFrom?: string;
   result?: AgentTurnResult;
 }
 
@@ -327,6 +331,66 @@ export function parseRunCheckpoints(
       executions: isCount(value.executions) ? value.executions : 0,
     },
   };
+}
+
+/** The agent turn a cursor parks, when it parks one: its node and exec. */
+function parkedAgentTurn(
+  cursor: unknown,
+): { node: unknown; agent: Record<string, unknown> } | null {
+  if (!isPlainObject(cursor) || !isPlainObject(cursor.agent)) return null;
+  if (typeof cursor.agent.execId !== 'string') return null;
+  return { node: cursor.node, agent: cursor.agent };
+}
+
+/** Whether a park writes an agent node's cursor. */
+export function parksAgentTurn(cursor: unknown): boolean {
+  return parkedAgentTurn(cursor) !== null;
+}
+
+/** Whether the cursor a park wrote carries its agent turn's settled result:
+ * the next walker has something to consume, so nothing need wait. */
+export function parkedAgentSettled(cursor: unknown): boolean {
+  return parkedAgentTurn(cursor)?.agent.result !== undefined;
+}
+
+/**
+ * The cursor an agent node's park writes, given the one stored now. The
+ * walker parks with the cursor it loaded, and two writers may have moved
+ * the stored one on while it was on its way: the turn's settle (the result)
+ * and a person's answer to the turn's question (a new exec, or a later
+ * deadline while the question waits). Each queued a step that found the run
+ * held by this walker and did nothing, so what they wrote is kept:
+ *
+ * - the stored cursor whole, when the answer moved the turn off the exec this
+ *   walker loaded (`retargetedFrom`);
+ * - the loaded cursor with the stored result and the later deadline, when
+ *   both name the same exec;
+ * - the loaded cursor otherwise — a new turn this walker kicked, or a cursor
+ *   of another node.
+ */
+export function mergeParkedAgentCursor(
+  stored: unknown,
+  incoming: unknown,
+): unknown {
+  const before = parkedAgentTurn(stored);
+  const next = parkedAgentTurn(incoming);
+  if (before === null || next === null || before.node !== next.node) {
+    return incoming;
+  }
+  if (before.agent.retargetedFrom === next.agent.execId) return stored;
+  if (before.agent.execId !== next.agent.execId) return incoming;
+  const storedDeadline = before.agent.deadlineAt;
+  const incomingDeadline = next.agent.deadlineAt;
+  const agent = {
+    ...next.agent,
+    ...(next.agent.result === undefined &&
+      before.agent.result !== undefined && { result: before.agent.result }),
+    ...(typeof storedDeadline === 'number' &&
+      (typeof incomingDeadline !== 'number' ||
+        storedDeadline > incomingDeadline) && { deadlineAt: storedDeadline }),
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `parkedAgentTurn` read it as a plain object
+  return { ...(incoming as Record<string, unknown>), agent };
 }
 
 /** `nodes.<id>.output` for every finished node — the executor's scope. */

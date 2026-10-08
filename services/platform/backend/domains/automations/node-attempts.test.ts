@@ -119,7 +119,7 @@ describe('beginNodeAttempt', () => {
     const [fence, insert] = fake.statements;
     expect(fence?.text).toContain('FOR SHARE');
     expect(fence?.text).toContain("AND claim_epoch = ? AND status = 'running'");
-    expect(fence?.values).toEqual(['run_1', 'org_1', 5]);
+    expect(fence?.values.slice(0, 4)).toEqual(['run_1', 'org_1', 5, 5]);
     expect(insert?.text).toContain(
       'ON CONFLICT (run_id, node_id, item_index, pass) DO NOTHING',
     );
@@ -137,6 +137,29 @@ describe('beginNodeAttempt', () => {
     await expect(beginNodeAttempt(fake.sql, call)).resolves.toEqual({
       kind: 'stale',
     });
+    expect(
+      statementWith(
+        fake.statements,
+        'INSERT INTO app.automation_node_attempts',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('starts nothing for a walker whose own lease lapsed, before anyone took the run over [AUTO-R19]', async () => {
+    // Ada's walker stalled on a slow database for longer than its lease: a
+    // write it began now would be found open, and parked, by the walker
+    // that takes the run over next.
+    const before = Date.now();
+    const fake = fakeSql(() => undefined);
+    await expect(beginNodeAttempt(fake.sql, call)).resolves.toEqual({
+      kind: 'stale',
+    });
+    const [fence] = fake.statements;
+    expect(fence?.text).toContain(
+      'AND lease_epoch = ? AND lease_expires_at_ms > ?',
+    );
+    expect(fence?.values[3]).toBe(5);
+    expect(fence?.values[4]).toBeGreaterThanOrEqual(before);
     expect(
       statementWith(
         fake.statements,
@@ -275,6 +298,85 @@ describe('finishNodeAttempt', () => {
   });
 });
 
+describe('finishNodeAttempt — a write that ends after its run was parked on it', () => {
+  const finish = (sql: Sql) =>
+    finishNodeAttempt(sql, {
+      organizationId: 'org_1',
+      runId: 'run_1',
+      nodeId: 'send',
+      itemIndex: 2,
+      pass: 0,
+      attempt: 1,
+      status: 'done',
+      output: { id: 'inv_9' },
+    });
+
+  it('wakes the run, so it reads the end instead of waiting for a person [AUTO-R19]', async () => {
+    // Mia's invoice was still being sent when its walker's lease lapsed;
+    // the walker that took the run over parked it on the send. The send
+    // then came back.
+    const fake = fakeSql((text) => {
+      if (text.includes('UPDATE app.automation_node_attempts')) {
+        return [{ id: 'att_1', kind: 'connector' }];
+      }
+      if (text.includes('UPDATE app.automation_runs')) return [{ id: 'run_1' }];
+      return undefined;
+    });
+    await expect(finish(fake.sql)).resolves.toEqual({ recorded: true });
+    const wake = statementWith(fake.statements, 'UPDATE app.automation_runs');
+    expect(wake?.text).toContain(
+      "AND status = 'waiting' AND detail LIKE 'in_doubt:%'",
+    );
+    expect(wake?.text).toContain('AND NOT EXISTS (');
+    expect(wake?.text).toContain(
+      "AND kind = 'connector' AND status = 'started'",
+    );
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'automation.step',
+      { organizationId: 'org_1', runId: 'run_1' },
+      {},
+    );
+  });
+
+  it('leaves a run that is not parked on it alone', async () => {
+    const fake = fakeSql((text) =>
+      text.includes('UPDATE app.automation_node_attempts')
+        ? [{ id: 'att_1', kind: 'connector' }]
+        : undefined,
+    );
+    await expect(finish(fake.sql)).resolves.toEqual({ recorded: true });
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('does not look at the run for a model call', async () => {
+    const fake = fakeSql((text) =>
+      text.includes('UPDATE app.automation_node_attempts')
+        ? [{ id: 'att_1', kind: 'llm' }]
+        : undefined,
+    );
+    await finish(fake.sql);
+    expect(
+      statementWith(fake.statements, 'UPDATE app.automation_runs'),
+    ).toBeUndefined();
+  });
+
+  it('keeps the recorded end when the wake cannot be queued, and says so', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(addJobInTx).mockRejectedValueOnce(new Error('queue closing'));
+    const fake = fakeSql((text) => {
+      if (text.includes('UPDATE app.automation_node_attempts')) {
+        return [{ id: 'att_1', kind: 'connector' }];
+      }
+      if (text.includes('UPDATE app.automation_runs')) return [{ id: 'run_1' }];
+      return undefined;
+    });
+    await expect(finish(fake.sql)).resolves.toEqual({ recorded: true });
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+});
+
 describe('readOpenInDoubt', () => {
   it('reads the undecided write only while the run is parked on it', async () => {
     const open = {
@@ -359,7 +461,7 @@ describe('resolveInDoubtInTx', () => {
     expect(order).toEqual(['run', 'attempt', 'event', 'wake']);
     expect(fake.statements[0]?.text).toContain('FOR UPDATE');
     expect(fake.statements[1]?.text).toContain(
-      "status = 'started' AND resolution IS NULL",
+      "AND kind = 'connector' AND status = 'started' AND resolution IS NULL",
     );
     expect(fake.statements[1]?.values).toEqual(
       expect.arrayContaining(['retry', 'u_mia', 'att_1', 'run_1', 'org_1']),
@@ -412,6 +514,23 @@ describe('resolveInDoubtInTx', () => {
       statementWith(fake.statements, 'UPDATE app.automation_node_attempts'),
     ).toBeUndefined();
     expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('decides only the write the run waits on, the one its card shows [AUTO-R19]', async () => {
+    const fake = decisionFake(inDoubtRun('live'));
+    await decide(fake.sql);
+    const update = statementWith(
+      fake.statements,
+      'UPDATE app.automation_node_attempts',
+    );
+    // The latest open write, the same one `readOpenInDoubt` answers.
+    expect(update?.text).toContain('AND id = (');
+    expect(update?.text).toContain(
+      "shown.kind = 'connector' AND shown.status = 'started'",
+    );
+    expect(update?.text).toContain(
+      'ORDER BY shown.started_at_ms DESC, shown.id DESC',
+    );
   });
 
   it('refuses a second decision about the same write', async () => {

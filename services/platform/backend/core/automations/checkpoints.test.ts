@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseRunCheckpoints, readCheckpoints } from './checkpoints.ts';
+import {
+  mergeParkedAgentCursor,
+  parkedAgentSettled,
+  parseRunCheckpoints,
+  readCheckpoints,
+} from './checkpoints.ts';
 
 const NODE = {
   status: 'ok',
@@ -127,5 +132,45 @@ describe('parseRunCheckpoints', () => {
 
   it('leaves the display reader lenient', () => {
     expect(readCheckpoints('nodes')).toEqual({ nodes: {}, executions: 0 });
+  });
+});
+
+describe('mergeParkedAgentCursor', () => {
+  const turn = (node: string, agent: Record<string, unknown>) => ({
+    node,
+    index: 0,
+    passes: 0,
+    outs: [],
+    agent: { sessionId: 'sess_1', deadlineAt: 1_000, ...agent },
+  });
+
+  it('keeps the later deadline an answer gave the same turn while its question waits', () => {
+    const merged = mergeParkedAgentCursor(
+      turn('review', { execId: 'exec_1', deadlineAt: 5_000 }),
+      turn('review', { execId: 'exec_1', deadlineAt: 1_000 }),
+    );
+    expect(merged).toMatchObject({
+      agent: { execId: 'exec_1', deadlineAt: 5_000 },
+    });
+    expect(parkedAgentSettled(merged)).toBe(false);
+  });
+
+  it('keeps a result the walker already carries', () => {
+    const mine = turn('review', { execId: 'exec_1', result: { text: 'a' } });
+    expect(
+      mergeParkedAgentCursor(
+        turn('review', { execId: 'exec_1', result: { text: 'b' } }),
+        mine,
+      ),
+    ).toEqual(mine);
+  });
+
+  it.each([
+    ['another node', turn('summary', { execId: 'exec_1', result: {} })],
+    ['no agent turn', { node: 'review', index: 0, passes: 0, outs: [] }],
+    ['no stored progress', null],
+  ])('writes the walker’s cursor as it is over %s', (_case, stored) => {
+    const mine = turn('review', { execId: 'exec_1' });
+    expect(mergeParkedAgentCursor(stored, mine)).toBe(mine);
   });
 });
