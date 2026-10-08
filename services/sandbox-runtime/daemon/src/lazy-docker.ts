@@ -418,6 +418,22 @@ function engineEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return env;
 }
 
+/** runnerd's environment: the boot environment with the Node settings the
+ * entrypoint withheld from this root process handed back. The agent uid can
+ * write both the dependency path and the compile cache, so only runnerd (and
+ * the execs it starts at that uid) may load from them. */
+export function runnerEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...boot,
+    NODE_PATH: boot.TALE_RUNNER_NODE_PATH ?? '',
+  };
+  if (boot.TALE_RUNNER_NODE_COMPILE_CACHE)
+    env.NODE_COMPILE_CACHE = boot.TALE_RUNNER_NODE_COMPILE_CACHE;
+  delete env.TALE_RUNNER_NODE_PATH;
+  delete env.TALE_RUNNER_NODE_COMPILE_CACHE;
+  return env;
+}
+
 function startEngineProcess(
   environment: NodeJS.ProcessEnv,
   signal: AbortSignal,
@@ -570,11 +586,7 @@ export async function runLazyDockerSupervisor() {
     }
     if (hasExistingContainers) await proxy.ensureReady();
     if (shuttingDown) return;
-    const runnerEnv: NodeJS.ProcessEnv = {
-      ...boot,
-      NODE_PATH: boot.TALE_RUNNER_NODE_PATH ?? '',
-    };
-    delete runnerEnv.TALE_RUNNER_NODE_PATH;
+    const runnerEnv = runnerEnvironment(boot);
     runner = spawn(
       '/usr/bin/setpriv',
       [

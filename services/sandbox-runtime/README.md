@@ -13,6 +13,15 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 `internal-dockerd` is reserved for the root supervisor's engine child. Any
 other argument exits 65 (there is no per-call language lane).
 
+A session's HOME is `/agent/.runtime/home` on the persistent workspace, and
+`NODE_COMPILE_CACHE` names `.cache/node-compile-cache` under it, created at the
+session's user. Node programs a session starts again (a harness CLI, the
+per-turn helpers, runnerd itself) reuse V8's compiled code across turns and
+resumes instead of compiling their bundles again; the cache is never under the
+exec temp that every container start wipes. The root Docker supervisor starts
+without it, because the agent user can write that directory; runnerd and its
+execs get it back.
+
 ## Repository SSH access
 
 The maintained runtime installs OpenSSH (`ssh`, `ssh-agent`, `ssh-add`) and

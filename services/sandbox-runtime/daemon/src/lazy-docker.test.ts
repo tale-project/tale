@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { runnerEnvironment } from './lazy-docker.ts';
+
 test('Docker activation lifecycle and streams under Node', async () => {
   // Node resolves the executed file's real path. Canonicalize the fixture too so
   // macOS /var -> /private/var cannot hide accidental bundled entrypoint code.
@@ -67,4 +69,23 @@ test('the production bundle explicitly starts the root supervisor', async () => 
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('runnerd gets back the workspace Node settings the root supervisor never loads', () => {
+  const env = runnerEnvironment({
+    PATH: '/usr/bin',
+    TALE_RUNNER_NODE_PATH: '/agent/.runtime/deps/node/lib/node_modules',
+    TALE_RUNNER_NODE_COMPILE_CACHE:
+      '/agent/.runtime/home/.cache/node-compile-cache',
+  });
+  expect(env).toEqual({
+    PATH: '/usr/bin',
+    NODE_PATH: '/agent/.runtime/deps/node/lib/node_modules',
+    NODE_COMPILE_CACHE: '/agent/.runtime/home/.cache/node-compile-cache',
+  });
+  // An entrypoint from before the compile cache leaves runnerd without one.
+  expect(runnerEnvironment({ PATH: '/usr/bin' })).toEqual({
+    PATH: '/usr/bin',
+    NODE_PATH: '',
+  });
 });

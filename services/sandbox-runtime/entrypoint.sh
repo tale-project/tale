@@ -1032,6 +1032,7 @@ if [ "$1" = "daemon" ]; then
     /agent/output \
     /agent/.runtime/home \
     /agent/.runtime/home/.codex \
+    /agent/.runtime/home/.cache/node-compile-cache \
     /agent/.runtime/tmp \
     /agent/.runtime/deps/python \
     /agent/.runtime/deps/node
@@ -1052,6 +1053,12 @@ if [ "$1" = "daemon" ]; then
   # /tmp any install set past ~128 MB died with ENOSPC (e.g. markitdown[pptx]'s
   # 223 MB). /tmp itself stays for small control files such as redsocks.conf.
   export TMPDIR=/agent/.runtime/tmp
+  # V8's compile cache for every Node program the session runs (gemini's
+  # bundled CLI, the per-turn node helpers, runnerd itself), kept in the
+  # persistent HOME and created above at the session uid, so a resume or a
+  # later turn reuses compiled code instead of parsing and compiling again.
+  # Never under TMPDIR, which every container start wipes.
+  export NODE_COMPILE_CACHE=/agent/.runtime/home/.cache/node-compile-cache
   export PIP_TARGET=/agent/.runtime/deps/python
   export PYTHONPATH=/agent/.runtime/deps/python${PYTHONPATH:+:$PYTHONPATH}
   export PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -1094,9 +1101,11 @@ if [ "$1" = "daemon" ]; then
     export TALE_REDSOCKS_STARTED
     setup_shared_buildx_builder
     export TALE_RUNNER_NODE_PATH="$NODE_PATH"
+    export TALE_RUNNER_NODE_COMPILE_CACHE="$NODE_COMPILE_CACHE"
     export PATH="$_runner_path"
-    # The supervisor is root: workspace Node loaders must never run in it.
-    exec /usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_LIBRARY_PATH \
+    # The supervisor is root: workspace Node loaders must never run in it, and
+    # neither may compiled code from the agent-writable compile cache.
+    exec /usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u NODE_COMPILE_CACHE -u LD_PRELOAD -u LD_LIBRARY_PATH \
       /usr/bin/tini -g -- /opt/node/bin/node /usr/local/lib/tale/lazy-docker.mjs
   fi
 
