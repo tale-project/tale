@@ -69,6 +69,50 @@ describe('rankBetween', () => {
     }
   });
 
+  it('keeps a million appends ordered, short and never ending in 0', () => {
+    let key = initialRank();
+    let longest = key.length;
+    for (let i = 0; i < 1_000_000; i += 1) {
+      const next = rankBetween(key, undefined);
+      if (!(next > key) || next.endsWith('0')) {
+        throw new Error(`append ${i}: ${key} -> ${next}`);
+      }
+      key = next;
+      longest = Math.max(longest, key.length);
+    }
+    expect(longest).toBeLessThanOrEqual(16);
+  });
+
+  it('appends after a long key without growing it further', () => {
+    // What the midpoint walk left behind in a busy column.
+    const stored = `${'z'.repeat(5000)}r`;
+    const next = rankBetween(stored, undefined);
+    expect(next > stored).toBe(true);
+    expect(next.length).toBe(stored.length);
+  });
+
+  it('counts with a carry and extends only past all-z keys', () => {
+    expect(rankBetween('i', undefined)).toBe('j');
+    expect(rankBetween('iz', undefined)).toBe('j1');
+    expect(rankBetween('a0z', undefined)).toBe('a11');
+    expect(rankBetween('z', undefined)).toBe('zi');
+    expect(rankBetween('zz', undefined)).toBe('zzi1');
+    expect(rankBetween('zzzz', undefined)).toBe('zzzzi001');
+  });
+
+  it('interleaves appended keys with keys placed between them', () => {
+    const keys = [initialRank()];
+    for (let i = 0; i < 200; i += 1) {
+      keys.push(rankBetween(keys.at(-1), undefined));
+    }
+    for (let i = 0; i < 199; i += 7) {
+      const between = rankBetween(keys[i], keys[i + 1]);
+      expect(between > (keys[i] ?? '')).toBe(true);
+      expect(between < (keys[i + 1] ?? '')).toBe(true);
+    }
+    expect([...keys].sort()).toEqual(keys);
+  });
+
   it('throws when before >= after', () => {
     expect(() => rankBetween('r', 'i')).toThrow();
     expect(() => rankBetween('i', 'i')).toThrow();
