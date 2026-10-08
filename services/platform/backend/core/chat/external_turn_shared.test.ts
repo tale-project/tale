@@ -30,6 +30,7 @@ import {
   ReplayBudget,
 } from '../../../../sandbox-runtime/daemon/src/exec-replay';
 import { readFixture } from '../../../lib/harnesses/test-helpers';
+import type { HarnessExec } from '../../../lib/harnesses/types';
 
 const transport = vi.hoisted(() => ({
   replayComplete: true,
@@ -1158,13 +1159,14 @@ describe('a staged subscription credential', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
-  const geminiStart = (stagedFiles: Array<{ path: string; content: string }>) =>
-    ({
-      argv: ['gemini'],
-      env: {},
-      cwd: '/agent/workspace',
-      stagedFiles,
-    }) as const;
+  const geminiStart = (
+    stagedFiles: Array<{ path: string; content: string }>,
+  ): HarnessExec => ({
+    argv: ['gemini'],
+    env: {},
+    cwd: '/agent/workspace',
+    stagedFiles,
+  });
 
   it('is removed before a Gemini turn that runs without it can start', async () => {
     await drainHarnessWindow({
