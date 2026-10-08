@@ -115,6 +115,7 @@
         "!backend/domains/websites/**",
         "!tests/e2e/**",
         "!tests/manual/**",
+        "$TURBO_ROOT$/configs/platform/custom/automations/**",
         "$TURBO_ROOT$/packages/ui/package.json",
         "$TURBO_ROOT$/packages/ui/src/**",
         "$TURBO_ROOT$/packages/ui/tailwind-preset.ts"
@@ -182,6 +183,7 @@
         "!backend/domains/websites/**",
         "!tests/e2e/**",
         "!tests/manual/**",
+        "$TURBO_ROOT$/configs/platform/custom/automations/**",
         "$TURBO_ROOT$/packages/ui/package.json",
         "$TURBO_ROOT$/packages/ui/src/**",
         "$TURBO_ROOT$/packages/ui/tailwind-preset.ts"
