@@ -19,7 +19,10 @@ import { randomBytes } from 'node:crypto';
 
 import { buildStdinUserMessage } from '../../../lib/harnesses/parsers/claude-stream-json';
 import { isHarnessSlug } from '../../../lib/harnesses/types';
-import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
+import {
+  agentLanguageGuidance,
+  type AgentLanguageContext,
+} from '../../../lib/shared/agent-language';
 import type { TaskCommentBodies } from '../../../lib/shared/schemas/task-comment';
 import {
   liveProgressSink,
@@ -158,6 +161,54 @@ function withheldCredentials(args: {
     ...args.secrets,
     ...(args.connectors.includes('github') ? ['GITHUB_TOKEN'] : []),
   ];
+}
+
+/**
+ * The reads a launching turn builds its instructions and exec from — the
+ * organization's Custom instructions, whether the run is confined (a run a
+ * member started holds none of the agent's credentials), the task's
+ * language, and the serving model's window (so the harness compacts before
+ * the prompt outgrows what the model serves; unknown leaves it to the
+ * harness). None depends on another, so they run together. The credential
+ * env is resolved after them by the caller, as before: only once every read
+ * succeeded and only for a run that is not confined.
+ */
+async function readTurnLaunchContext(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    runId: Id<'projectAgentRuns'>;
+    taskId: Id<'tasks'>;
+    sessionId: string;
+    execId: string;
+    providerSlug: string;
+    modelId: string;
+  },
+): Promise<{
+  mandatoryInstructions: string | undefined;
+  confined: boolean;
+  language: AgentLanguageContext;
+  contextWindow: number | undefined;
+}> {
+  const languageRead: Promise<AgentLanguageContext> = ctx.runQuery(
+    internal.tasks.agent_runs.getAgentLanguageContext,
+    { organizationId: args.organizationId, taskId: args.taskId },
+  );
+  const [mandatoryInstructions, confined, language, contextWindow] =
+    await Promise.all([
+      readMandatoryInstructions(ctx, args.organizationId, '[task-agent]'),
+      isTurnConfined(ctx, args.runId),
+      languageRead,
+      resolveHarnessTurnContextWindow(ctx, {
+        organizationId: args.organizationId,
+        providerSlug: args.providerSlug,
+        modelId: args.modelId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'task-agent',
+      }),
+    ]);
+  return { mandatoryInstructions, confined, language, contextWindow };
 }
 
 interface TurnKeys {
@@ -1445,28 +1496,23 @@ export async function startTaskAgentTurnImpl(
       const toolsGuidance = grantedToolsGuidance(
         normalizeToolGrants(args.tools),
       );
-      const mandatoryInstructions = await readMandatoryInstructions(
-        ctx,
-        args.organizationId,
-        '[task-agent]',
-      );
-      // A run a member started holds none of the agent's credentials.
-      const confined = await isTurnConfined(ctx, args.runId);
+      const { mandatoryInstructions, confined, language, contextWindow } =
+        await readTurnLaunchContext(ctx, {
+          organizationId: args.organizationId,
+          runId: args.runId,
+          taskId: args.taskId,
+          sessionId: args.sessionId,
+          execId: args.execId,
+          providerSlug: resolved.providerSlug,
+          modelId: resolved.modelId,
+        });
       const instructions = [
         // The organization's Custom instructions lead, as on a chat turn.
         ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
         ...(args.instructions !== undefined && args.instructions !== ''
           ? [args.instructions]
           : []),
-        agentLanguageGuidance(
-          await ctx.runQuery(
-            internal.tasks.agent_runs.getAgentLanguageContext,
-            {
-              organizationId: args.organizationId,
-              taskId: args.taskId,
-            },
-          ),
-        ),
+        agentLanguageGuidance(language),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
         `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
         confined ? MEMBER_WORKSPACE_GUIDANCE : STANDING_WORKSPACE_GUIDANCE,
@@ -1491,18 +1537,6 @@ export async function startTaskAgentTurnImpl(
             connectors: args.connectors,
             secrets: args.secrets,
           });
-
-      // The serving model's window, so the harness compacts before the
-      // prompt outgrows what the model serves; unknown leaves it to the
-      // harness.
-      const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
-        organizationId: args.organizationId,
-        providerSlug: resolved.providerSlug,
-        modelId: resolved.modelId,
-        sessionId: args.sessionId,
-        execId: args.execId,
-        kind: 'task-agent',
-      });
 
       // Everything of the exec except the prompt/resume pair, shared by the
       // resume attempt and its same-execId fresh fallback so the two can
@@ -2718,24 +2752,24 @@ export async function steerTaskAgentTurnImpl(
     });
 
     const toolsGuidance = grantedToolsGuidance(normalizeToolGrants(args.tools));
-    const mandatoryInstructions = await readMandatoryInstructions(
-      ctx,
-      args.organizationId,
-      '[task-agent]',
-    );
-    const confined = await isTurnConfined(ctx, args.runId);
+    // Same reads as the fresh start, under the rotated exec.
+    const { mandatoryInstructions, confined, language, contextWindow } =
+      await readTurnLaunchContext(ctx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        taskId: args.taskId,
+        sessionId: args.sessionId,
+        execId,
+        providerSlug: resolved.providerSlug,
+        modelId: resolved.modelId,
+      });
     const instructions = [
       // The organization's Custom instructions lead, as on a chat turn.
       ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
       ...(args.instructions !== undefined && args.instructions !== ''
         ? [args.instructions]
         : []),
-      agentLanguageGuidance(
-        await ctx.runQuery(internal.tasks.agent_runs.getAgentLanguageContext, {
-          organizationId: args.organizationId,
-          taskId: args.taskId,
-        }),
-      ),
+      agentLanguageGuidance(language),
       ...(skillsAddendum !== '' ? [skillsAddendum] : []),
       `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
       confined ? MEMBER_WORKSPACE_GUIDANCE : STANDING_WORKSPACE_GUIDANCE,
@@ -2758,16 +2792,6 @@ export async function steerTaskAgentTurnImpl(
           connectors: args.connectors,
           secrets: args.secrets,
         });
-
-    // Same window resolution as the fresh start, under the rotated exec.
-    const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
-      organizationId: args.organizationId,
-      providerSlug: resolved.providerSlug,
-      modelId: resolved.modelId,
-      sessionId: args.sessionId,
-      execId,
-      kind: 'task-agent',
-    });
     const exec = buildExternalTurnExec({
       harness: args.harness,
       gatewayModel: prepared.execModel,
