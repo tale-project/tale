@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 89 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 90 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -244,6 +244,15 @@ agent.
   message → the reply runs, and **Settings → Usage** shows your requests up
   by one, the reply, never by its searches. Send one more message there →
   it runs. Delete the rule
+- [ ] `GOV-F60` · **A subscription turn is a request at no cost** — with a
+  project agent whose model a provider subscription serves (a Claude or
+  ChatGPT subscription credential), GOV-F4-style give yourself a **User**
+  rule with **Max cost** at your monthly cost under **Settings → Usage**.
+  Start the agent on a task → it runs, and **Usage analytics** books one
+  request for it at $0.00, with its tokens. Change the rule to **Max
+  requests** at your monthly requests and start it again → the run fails
+  at its start with the request limit named, and no subscription account
+  is used. Delete the rule
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the
