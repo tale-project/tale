@@ -87,39 +87,39 @@ nav:
   skipToMain: Zum Hauptinhalt springen
   product:
     hub:
-      label: Platform-Übersicht
+      label: Plattform-Übersicht
       description: So arbeiten Menschen und Agenten gemeinsam an Projekten.
     agents:
       label: Agenten
       description: Delegiere Aufgaben an Agenten mit eigenen Werkzeugen und Laufzeiten.
     chat:
       label: Chats
-      description: Alltag-KI mit Zitationen, Tools und Arena.
+      description: Stelle Fragen, prüfe Quellen und übergib Aufgaben.
     projects:
       label: Projekte
       description: Plane, verteile und prüfe Aufgaben mit deinem Team.
     automations:
       label: Automatisierungen
-      description: Typisierte Workflows mit Triggern und Freigaben.
+      description: Wiederholbare Abläufe mit Auslösern und Freigaben.
     knowledge:
       label: Wissen
-      description: Dokumente, Websites und Datensätze, die Agents zitieren.
+      description: Gemeinsamer Kontext für dein Team und deine Agenten.
     governance:
       label: Richtlinien
-      description: Freigaben, Audit-Trail und Ausgabenkontrolle.
+      description: Prüfe Aktionen und begrenze die Modellnutzung.
   resource:
     compare:
       label: Vergleiche
-      description: Vergleiche Arbeitsräume, Workflows und Agent-Laufzeiten.
+      description: Vergleiche Arbeitsbereiche, Workflows und Agentenlaufzeiten.
     useCases:
       label: Anwendungsfälle
       description: Konkrete Arbeit für dein Team und KI-Agenten.
     hardware:
       label: Hardware
-      description: On-Prem-Appliances, dimensioniert für deine Agent-Last.
+      description: Hardware für lokale KI-Inferenz.
     docs:
-      label: Docs
-      description: Tale installieren, konfigurieren und betreiben.
+      label: Dokumentation
+      description: Einrichtung und Produktreferenz.
     changelog:
       label: Changelog
       description: Was neu ist, neueste zuerst.
@@ -164,10 +164,7 @@ address:
 home:
   hero:
     title: Dein Team und deine Agenten. Gemeinsam am Werk.
-    subtitle:
-      Plane Projekte, delegiere Aufgaben an KI-Agenten und prüfe die
-      Ergebnisse mit deinem Team. Aufgabenbeschreibung, Dateien und Gespräche
-      bleiben bei der Arbeit.
+    subtitle: "Plane die Arbeit, weise Agenten Aufgaben zu und prüfe ihre Ergebnisse. Dein Team teilt Auftrag, Dateien und Gespräch."
     ctaPrimary: Demo anfragen
     ctaSecondary: Tale selbst hosten
     eyebrow: Open-Source-Arbeitsbereich für Projekte
@@ -390,49 +387,24 @@ home:
       deinem Team am nächsten Schritt.
     connect:
       eyebrow: Agents & Connectors
-      title: |-
-        Delegiere Aufgaben
-        an deine Agenten
-      description:
-        Weise Aufgaben spezialisierten Agenten mit eigenen Anweisungen und
-        Werkzeugen zu. Ein entsprechend ausgestatteter Manager-Agent kann
-        startbereite Arbeit delegieren. Agenten arbeiten in persistenten
-        Sandboxes innerhalb der von dir festgelegten Kapazität.
+      title: "Delegiere Arbeit an deine Agenten"
+      description: "Gib Agenten ihre Anweisungen und Werkzeuge. Verfolge die Arbeit in persistenten Sandboxes und prüfe die gelieferten Dateien."
     pool:
       eyebrow: Wissen
-      title: |-
-        Gib Agenten
-        den Projektkontext
-      description:
-        Projektdateien, dauerhafte Anweisungen und gemeinsames Wissen geben
-        der Arbeit eine Grundlage. Prüfe die verwendeten Quellen und nutze den
-        passenden Kontext für die nächste Aufgabe.
+      title: "Gib der Arbeit den nötigen Kontext"
+      description: "Verbinde Projektdateien und gemeinsames Wissen. Prüfe die Quellen, die Agenten verwenden."
     delegate:
       eyebrow: Automatisierungen
-      title: |-
-        Mache wiederkehrende
-        Arbeit wiederholbar
-      description:
-        Verbinde Agentenschritte, Bedingungen und Aktionen zu Workflows für
-        wiederkehrende Aufgaben. Starte sie manuell oder über konfigurierte
-        Auslöser und prüfe die einzelnen Läufe.
+      title: "Wiederhole bewährte Abläufe"
+      description: "Verbinde Agentenschritte, Bedingungen und Aktionen. Prüfe jeden Lauf."
     govern:
       eyebrow: Freigaben & Audit
-      title: |-
-        Prüfe das Ergebnis.
-        Entscheide den nächsten Schritt.
-      description: Prüfe die Ergebnisse mit deinem Team. Lege Prüfregeln und
-        Connector-Genehmigungen fest, sieh dir den Ausführungsverlauf an und
-        verwalte Zugriff und Nutzung für deine wachsende Agentenflotte.
+      title: "Prüfe und genehmige"
+      description: "Prüfe Ergebnisse, genehmige konfigurierte Aktionen und verfolge den Audit-Verlauf."
     arena:
       eyebrow: Chat Arena
-      title: |-
-        Vergleiche Modelle
-        auf derselben Anfrage
-      description:
-        Arena schickt eine Frage an zwei Modelle nebeneinander. Du wählst
-        die passende Antwort — ohne den Thread zu verlassen oder die Frage neu
-        zu tippen.
+      title: "Vergleiche Modellantworten"
+      description: "Stelle zwei Modellen dieselbe Frage in Arena. Wähle die passende Antwort."
     projects:
       eyebrow: Projekte
       title: |-
@@ -472,21 +444,6 @@ home:
   agents:
     title: Deine Agenten, deine Wahl
     subtitle: Nutze deine bevorzugte Laufzeit mit eigenen Zugangsdaten oder per API abgerechneten Modellen.
-  compliance:
-    eyebrow: SICHERHEIT
-    title: Unterstützung für deinen Betrieb
-    independent:
-      title: Unabhängig & transparent
-      description:
-        In der Schweiz ansässig und herstellerneutral — ohne Bindung an
-        einen Cloud- oder Modellanbieter, damit dein Deployment nur dir
-        verpflichtet ist.
-    certified:
-      title: ISO-27001-zertifizierte Leistungen
-      description:
-        Ruler GmbH ist ISO-27001-zertifiziert. Der Geltungsbereich umfasst
-        Tale Enterprise und professionelle Dienstleistungen. Frag uns nach dem
-        Zertifikat und dem Geltungsbereich für deinen Betrieb.
   faq:
     eyebrow: FAQ
     title: Häufig gestellte Fragen
@@ -519,38 +476,17 @@ home:
         jährlicher Zahlung. Speicher über das enthaltene Kontingent hinaus wird
         pro TB/Monat berechnet. Die Community-Edition bleibt für den selbst
         gehosteten Einsatz kostenlos.
-    enterpriseFeatures:
-      q: Gibt es zusätzliche Funktionen im Enterprise-Plan?
-      a:
-        Nein. Alle Produktfunktionen sind auch in der Open-Source-Version verfügbar.
-        Enterprise bietet erweiterten Support und zusätzliche Services.
+
     byoModels:
       q: Muss ich eigene KI-Modelle mitbringen?
       a: Nein. Du kannst eigene Modelle mitbringen, musst es aber nicht. Tale
         unterstützt die meisten großen KI-Anbieter ohne Aufschlag —
         Cloud-Modellnutzung wird zu den Tarifen deines Anbieters abgerechnet und
         ist nicht in den Plänen enthalten.
-    aiProviders:
-      q: Kann ich meinen bevorzugten KI-Anbieter nutzen?
-      a: Ja. Tale unterstützt die großen Cloud-KI-Anbieter ohne Aufschlag — die
-        Nutzung wird zu den Preisen deines Anbieters abgerechnet. Du behältst
-        deinen Anbieter und deine bestehende Abrechnung.
-    hardware:
-      q: Bietet ihr auch Hardware an?
-      a:
-        Ja — Hardware gibt es zur Miete, zum Leasing oder zum Kauf. Erwähne es beim
-        Kontakt, und du bekommst ein Angebot für die passende Konfiguration.
-    ownHardwareModels:
-      q: Kann ich meine eigene Hardware und KI-Modelle nutzen?
-      a: Ja. Betreibe Tale auf deiner eigenen Infrastruktur und verbinde einen
-        lokalen Modellserver wie Ollama oder vLLM über eine unterstützte API.
-        Prüfe die Systemanforderungen und teste das Modell mit der gewählten
-        Agentenlaufzeit, bevor du Aufgaben vergibst.
-    customTraining:
-      q: Bietet ihr individuelles KI-Modelltraining an?
-      a:
-        Ja. Training und Fine-Tuning eigener Modelle sind für Kunden verfügbar. Bring
-        es im Demo-Call zur Sprache, wenn du es brauchst.
+
+
+
+
     whoFor:
       q: Für wen ist Tale gedacht?
       a: Tale ist für Teams, die Arbeit für KI-Agenten organisieren und mit
@@ -677,13 +613,6 @@ pricing:
       yes: Enthalten
       no: Nicht enthalten
   extras:
-    training:
-      title: KI-Schulungen
-      description:
-        Kurse, die deinem Team beibringen, KI produktiv zu bauen und zu
-        betreiben — sieh dir unsere
-      linkLabel: KI-Schulungen
-      suffix: .
     hardware:
       title: Hardware
       prefix: Für Self-Hosting bieten wir
@@ -870,7 +799,21 @@ forms:
   honeypotLabel: Website
   privacyPrefix: Ich bestätige, dass ich die
   privacyLink: Datenschutzerklärung gelesen habe
-  privacyRequired: Du musst die Datenschutzerklärung akzeptieren
+  privacyRequired: Bestätige, dass du die Datenschutzerklärung gelesen hast.
+  validation:
+    nameRequired: Gib deinen Namen ein.
+    nameTooLong: Dein Name darf höchstens 2.000 Zeichen enthalten.
+    emailRequired: Gib deine E-Mail-Adresse ein.
+    emailInvalid: Gib eine gültige E-Mail-Adresse ein.
+    emailTooLong: Die E-Mail-Adresse darf höchstens 2.000 Zeichen enthalten.
+    companyTooLong: Der Firmenname darf höchstens 2.000 Zeichen enthalten.
+    messageRequired: Gib deine Nachricht ein.
+    messageTooShort: Erzähl uns etwas mehr. Verwende mindestens 10 Zeichen.
+    messageTooLong: Deine Nachricht darf höchstens 2.000 Zeichen enthalten.
+    phoneInvalid: Verwende für die Telefonnummer Ziffern, Leerzeichen, +, - oder Klammern.
+    phoneTooShort: Gib eine Telefonnummer mit mindestens 4 Ziffern ein.
+    phoneTooLong: Die Telefonnummer darf höchstens 32 Zeichen enthalten.
+    invalid: Prüfe diese Eingabe und versuche es erneut.
   errors:
     generic: Etwas ist schiefgelaufen. Versuch es erneut.
     rateLimited: Zu viele Anfragen. Warte einen Moment, dann versuch es erneut.
@@ -945,8 +888,7 @@ about:
         welche externen Dienste der Arbeitsbereich erreichen darf.
     beyond:
       title: Mehr als Software
-      body: Wir liefern auch AI-Hardware zum Mieten, Leasen oder Kaufen und
-        bieten KI-Trainings für Teams an, die Agents einführen.
+      body: Wir liefern KI-Hardware zum Mieten, Leasen oder Kaufen für Teams, die Modelle auf ihrer eigenen Infrastruktur betreiben.
   work:
     heading: Wie wir mit Unternehmen arbeiten
     description: Damit Agenten sinnvoll mitarbeiten, braucht es neben Software einen
@@ -1109,23 +1051,6 @@ platformAgents:
         description: Füge Aufgabenbeschreibung und Referenzdateien hinzu und erteile
           Tools für zugängliches Unternehmenswissen. Sage dem Agenten klar,
           welche Quellen er verwenden soll.
-      - id: automations
-        eyebrow: Automatisierungen
-        title: |-
-          Agents in mehrstufiger
-          Arbeit ausführen
-        description: Eine Automatisierung kann einen eigens konfigurierten Agentenschritt
-          in einer Sandbox ausführen, zusammen mit Modellaufrufen, Bedingungen
-          und angebundenen Aktionen.
-      - id: chat
-        eyebrow: Sandbox
-        title: |-
-          Dem Agent in Files
-          und Live zusehen
-        description:
-          Agents, die auf einer Agent-Laufzeit laufen, arbeiten in einer Sandbox —
-          brows den Workspace-Tree, öffne die Datei, die sie gerade geschrieben
-          haben, und schau im Live-Browser zu, wie sie das Ergebnis durchklicken.
   demos:
     knowledge:
       label:
@@ -1139,40 +1064,6 @@ platformAgents:
       sourceType3: website
       source4: returns-playbook.pdf
       sourceType4: pdf
-    automation:
-      label:
-        "Beispieldemo: Ein nächtlicher Workflow erstellt mit einem
-        Agentenschritt einen Release-Bericht, prüft auf Änderungen und
-        veröffentlicht ihn über einen Connector in Slack."
-      trigger: Nachts 02:00
-      llm: Release-Agent
-      condition: Änderungen?
-      branchYes: Ja
-      action: Digest an Slack
-      actionAlt: Überspringen
-      run1: '#311'
-      runTone1: done
-      duration1: 6,1s
-      run2: '#312'
-      runTone2: done
-      duration2: 5,4s
-      run3: '#313'
-      runTone3: running
-      duration3: 0,8s
-    connect:
-      label: 'Animierte Demo: Die Agentenliste dieser Seite — Support-Agent,
-        Docs-Agent, Release-Agent, Research-Agent und Pilot-Agent, jeweils mit
-        Modell.'
-      agent1: Support-Agent
-      model1: Claude Sonnet
-      agent2: Docs-Agent
-      model2: Claude Opus
-      agent3: Release-Agent
-      model3: GPT-5.5
-      agent4: Research-Agent
-      model4: Claude Opus
-      agent5: Pilot-Agent
-      model5: Claude Opus
     projects:
       label: 'Animierte Demo: Projekte so abgegrenzt, dass Support und Platform
         jeweils ihren Agent-Stack und ihre Mitglieder behalten.'
@@ -1188,35 +1079,6 @@ platformAgents:
       project4: Release-Zug
       agents4: 3 Agenten
       members4: '7'
-    sandbox:
-      label:
-        'Animierte Demo: Hermes bearbeitet install_offline.py im Files-Bereich,
-        dann zeigt der Live-Browser die Air-Gap-Install-Checkliste.'
-      prompt: Korrigiere das Offline-Installationsskript und zeige mir die
-        Checkliste im Live-Browser.
-      agent: Hermes
-      model: Claude Sonnet
-      reply: Registry-Pfad korrigiert. Prüfe die Änderungen unter Files und
-        die Checkliste unter Live.
-      file1: install_offline.py
-      file2: registry.json
-      file3: docs/checklist.md
-      file4: Dockerfile
-      activeFile: install_offline.py
-      code1: 'def resolve_registry(path):'
-      code2: '    root = Path(path).expanduser()'
-      code3: '    if not root.exists():'
-      code4: '        raise SystemExit("missing registry")'
-      browserUrl: http://127.0.0.1:8787/checklist
-      browserTitle: Air-Gap-Install-Checkliste
-      previewTitle: "Offline-Installation"
-      previewDescription: "Checkliste zur Vorbereitung"
-      previewItem1: "Lokale Registry"
-      previewDetail1: "Registry-Pfad prüfen"
-      previewItem2: "Abhängigkeiten"
-      previewDetail2: "Benötigte Pakete sammeln"
-      previewItem3: "Installation"
-      previewDetail3: "Ohne Netzwerkzugriff starten"
 platformAutomations:
   eyebrow: Automatisierungen
   title: Was sind Automatisierungen in Tale?
@@ -1320,24 +1182,6 @@ platformAutomations:
           Konfiguriere einen Agentenschritt mit eigener Laufzeit, Modell,
           Anweisungen und Ausstattung. Nutze einen Modellaufruf, wenn eine
           einzelne Antwort genügt.
-      - id: knowledge
-        eyebrow: Wissen
-        title: |-
-          Stelle die benötigten
-          Quellen bereit
-        description:
-          Füge Wissenssuche hinzu oder stelle Referenzdateien bereit, wo der
-          Workflow sie braucht. Gib die Ergebnisse an spätere Schritte weiter
-          und prüfe ihre Ausgaben.
-      - id: projects
-        eyebrow: Projekte
-        title: |-
-          Workflows nach
-          Workspace abgrenzen
-        description:
-          Ordne eine Automatisierung den passenden Projekten zu.
-          Projektzugriff und die pro Schritt erteilten Tools bestimmen, worauf
-          sie zugreifen kann.
   demos:
     automation:
       label:
@@ -1369,19 +1213,6 @@ platformAutomations:
       audit2: 7 Rechnungen ins ERP gebucht
       audit3: 'Lauf #1208 in 41s abgeschlossen'
       budgetValue: CHF 1'240 / 2'500
-    knowledge:
-      label:
-        "Beispieldemo: Referenzquellen, die ein Workflow abrufen oder für
-        einen Agentenschritt bereitstellen kann, darunter Verträge und eine
-        ERP-Feldzuordnung."
-      source1: lieferantenvertraege.pdf
-      sourceType1: pdf
-      source2: ERP-Feldzuordnung
-      sourceType2: entry
-      source3: lieferanten.nordwind.eu
-      sourceType3: website
-      source4: Lieferanten-Datensätze
-      sourceType4: catalog
     connect:
       label:
         "Beispieldemo: Benannte Agenten für Rechnungen, Lieferanten, ERP,
@@ -1491,15 +1322,6 @@ platformChat:
     description: Besprich das Problem im Chat und nutze Projektaufgaben und
       Automatisierungen für die anschließende Arbeit.
     stages:
-      - id: govern
-        eyebrow: Automatisierungen
-        title: |-
-          Connector-Aktionen
-          im Ablauf prüfen
-        description:
-          Soll der nächste Schritt ein externes System ändern, kann ein
-          Connector-Knoten gemäß deiner Richtlinie auf Genehmigung warten. Die
-          Karte gehört zur Ausführung oder ihrer Aufgabe.
       - id: projects
         eyebrow: Projekte
         title: |-
@@ -1509,15 +1331,6 @@ platformChat:
           Nutze Projektchats mit gemeinsamem Kontext und wähle, welche
           Gespräche du mit Projektmitgliedern teilst. Aufgaben, Dateien und
           Anweisungen bleiben im selben Projekt.
-      - id: agents
-        eyebrow: Projektagenten
-        title: |-
-          Die nächste Aufgabe
-          passend zuweisen
-        description:
-          Wähle einen Projektagenten für die Arbeit, die aus deinem Gespräch
-          entsteht. Anweisungen, Laufzeit, Modell und erlaubte Werkzeuge
-          bestimmen, wie er arbeiten kann.
       - id: knowledge
         eyebrow: Wissen
         title: |-
@@ -1542,29 +1355,6 @@ platformChat:
       replyB1: Beginne mit dem Kundenproblem, das die Version löst.
       replyB2: Liste die Änderungen mit einem Link zur jeweiligen Quelle.
       replyB3: Nenne zum Schluss die Angaben zur Einführung aus dem Briefing.
-    govern:
-      label: "Beispieldarstellung: Eine Automatisierung wartet auf Genehmigung,
-        bevor ein Slack-Connector eine Ankündigung veröffentlicht. Die Aktion
-        findet außerhalb des Chats statt."
-      approvalTitle: 'Ankündigung in #customers auf Slack posten?'
-      requester: Ankündigungsablauf · Slack-Connector
-      audit1: Freigegeben von comms@nordwind.eu
-      audit2: 'Ankündigung in #customers gepostet'
-      audit3: Entscheid im Audit-Log festgehalten
-      budgetValue: CHF 862 / 2'000
-    connect:
-      label: "Beispieldarstellung: Projektagenten für Aufgaben, die aus einem
-        Gespräch entstehen."
-      agent1: Comms-Agent
-      model1: Claude Sonnet
-      agent2: Support-Agent
-      model2: Claude Sonnet
-      agent3: Research-Agent
-      model3: GPT-5.5
-      agent4: Docs-Agent
-      model4: Claude Opus
-      agent5: Release-Agent
-      model5: GPT-5.5
     projects:
       label:
         "Beispieldarstellung: Projekte halten zugehörige Chats, Aufgaben,
@@ -1701,14 +1491,6 @@ platformGovernance:
           eine Benachrichtigung vorbereiten. Prüfe Schritte,
           Genehmigungsentscheidungen und protokollierte Auswirkungen in den
           Ausführungsdetails.
-      - id: arena
-        eyebrow: Arena
-        title: |-
-          Formulierungen vergleichen
-          und Richtlinien prüfen
-        description:
-          Lies die Antworten zweier Modelle auf dieselbe Frage. Prüfe beide
-          anhand deiner Richtlinie, bevor du eine davon nutzt.
       - id: agents
         eyebrow: Agenten
         title: |-
@@ -1718,15 +1500,6 @@ platformGovernance:
           Gib jedem Projektagenten gezielt Werkzeuge und Zugangsdaten.
           Verwaltete Modellaufrufe nutzen Tales Gateway-Kontrollen; direkte
           Abonnementzugriffe nehmen einen anderen Weg.
-      - id: knowledge
-        eyebrow: Wissen
-        title: |-
-          Die Quelle hinter
-          der Antwort lesen
-        description:
-          Halte Richtlinien und Betriebsanleitungen als zugängliches Wissen
-          bereit. Verwendet eine Antwort diese Quellen, prüfe, ob sie das
-          Ergebnis stützen.
   demos:
     govern:
       label:
@@ -1757,35 +1530,6 @@ platformGovernance:
       run3: '#100'
       runTone3: running
       duration3: 0,6s
-    arena:
-      label:
-        "Beispieldarstellung: Zwei Modelle entwerfen Antworten auf eine
-        Zugriffsanfrage, die eine Person vergleicht und anhand der Richtlinie
-        prüft."
-      prompt: Ein Contractor will Admin auf der Staging-Org außerhalb der
-        Access-Policy — entwirf die Antwort.
-      modelA: Claude Sonnet
-      modelB: GPT-5.5
-      replyA1: Lehne dauerhaften Admin ab und zitiere die Least-Privilege-Klausel.
-      replyA2: Biete einen zeitlich begrenzten Break-Glass-Grant mit Audit an.
-      replyA3: Leite an Security weiter, falls sie Production brauchen.
-      replyB1: Anerkenne die Deadline, bevor du das Access-Fenster wiederholst.
-      replyB2: Schlage eine Read-only-Rolle plus einen Pair-Engineer als
-        dokumentierten Weg vor.
-      replyB3: Markiere die Anfrage für das wöchentliche Access-Exceptions-Review.
-    knowledge:
-      label:
-        'Animierte Demo: Der Richtlinien-Korpus, den Auditoren öffnen können —
-        AI-Usage-Policy, der Trust-Page-Crawl, ein Datenhandling-Eintrag und das
-        Modell-Risikoregister.'
-      source1: ai-usage-policy.pdf
-      sourceType1: pdf
-      source2: trust.nordwind.eu
-      sourceType2: website
-      source3: Datenhandling-Regeln
-      sourceType3: entry
-      source4: modell-risikoregister.pdf
-      sourceType4: pdf
     connect:
       label: "Beispieldarstellung: Projektagenten mit verschiedenen Aufgaben und
         ausgewählten Modellen; Werkzeuge und Berechtigungen werden gesondert
@@ -1825,39 +1569,6 @@ platformHub:
         description: Konfiguriere Projektagenten mit einer unterstützten Laufzeit, einem
           Modell und Tools. Weise ihnen Aufgaben zu und verfolge den
           Fortschritt mit deinem Team.
-      - id: knowledge
-        eyebrow: Wissen
-        title: |-
-          Gemeinsame Quellen
-          für die Arbeit
-        description:
-          Halte Handbücher, Referenzdateien, Website-Inhalte und kurze Fakten
-          für die Suche bereit. Prüfe die Quellenangaben einer Antwort.
-      - id: automations
-        eyebrow: Automatisierungen
-        title: |-
-          Mehrstufige Arbeit
-          delegieren
-        description:
-          Definiere die Schritte für wiederkehrende Arbeit, richte den
-          Auslöser ein und prüfe die Ergebnisse jedes Laufs. Freigaberegeln
-          für Connector-Aktionen können geschützte Schreibzugriffe anhalten.
-      - id: govern
-        eyebrow: Richtlinien
-        title: |-
-          Angehalten, bis
-          jemand entscheidet
-        description:
-          Ein geschützter Connector-Schreibzugriff kann in einer
-          Automatisierung auf Freigabe warten. Prüfe die geplante Aktion,
-          entscheide und kontrolliere das Ergebnis.
-      - id: arena
-        eyebrow: Arena
-        title: |-
-          Zwei Entwürfe,
-          ein Briefing
-        description: Vergleiche zwei Modellantworten auf denselben Auftrag. Lies beide
-          Entwürfe, bevor du einen davon verwendest.
       - id: projects
         eyebrow: Projekte
         title: Nach Team abgrenzen
@@ -1888,22 +1599,6 @@ platformHub:
           beurteilen kannst. Füge passende Dateien hinzu, weise einen
           eingerichteten Agenten zu, starte ihn und prüfe sein Ergebnis.
   demos:
-    hero:
-      label:
-        "Beispieldemo: Ein Chat erklärt anhand von Quellen, wie Tale
-        Projektaufgaben, Agenten und Reviews im Team verbindet."
-      prompt: Wo treffen sich Agents, Wissen und Freigaben in Tale?
-      routedTitle: Modell ausgewählt
-      routedDetail: Auto hat Claude Sonnet für diesen Überblick gewählt.
-      reply1: Tale ist ein gemeinsamer Projektarbeitsbereich für Menschen und
-        KI-Agenten.
-      reply2: Plane Aufgaben, weise einen Agenten zu und verfolge die Arbeit auf dem
-        Board.
-      reply3: Behalte Projektdateien und Kontext bei der Arbeit
-      reply4: und prüfe die Ergebnisse mit deinem Team.
-      citation1: platform-overview.pdf
-      citation2: Modul-Karte
-      composerModel: Claude Sonnet
     connect:
       label: 'Animierte Demo: Der Hub-Agenten-Sampler — Orchestrator-Agent,
         Support-Agent, Docs-Agent, Invoice-Agent und Policy-Agent, jeweils mit
@@ -1934,61 +1629,6 @@ platformHub:
       project4: Internal Ops
       agents4: 4 Agenten
       members4: '9'
-    knowledge:
-      label: 'Animierte Demo: Die Wissensdemo im Hub indexiert den
-        Platform-Überblick, die Modul-Karte, den Trust-Center-Crawl und eine
-        Onboarding-FAQ.'
-      source1: platform-overview.pdf
-      sourceType1: pdf
-      source2: Modul-Karte
-      sourceType2: entry
-      source3: platform.nordwind.eu
-      sourceType3: website
-      source4: Erste Schritte
-      sourceType4: entry
-    automation:
-      label: 'Animierte Demo: Ein Hub-Sampler-Workflow fasst nächtliche
-        Modul-Aktivität zusammen, prüft offene Freigaben und postet ein
-        Morgen-Briefing nach Slack.'
-      trigger: Wochentags 07:00
-      llm: Orchestrator-Agent
-      condition: Offene Freigaben?
-      branchYes: Ja
-      action: Morgen-Briefing posten
-      actionAlt: Briefing überspringen
-      run1: '#901'
-      runTone1: done
-      duration1: 4.8s
-      run2: '#902'
-      runTone2: pending
-      duration2: —
-      run3: '#903'
-      runTone3: running
-      duration3: 1.4s
-    govern:
-      label: "Beispieldemo: Eine Automatisierung wartet vor dem Veröffentlichen des
-        Morgenberichts auf Freigabe und protokolliert danach Entscheidung und
-        Ergebnis."
-      approvalTitle: 'Morgen-Briefing in #platform veröffentlichen?'
-      requester: 'Hub-Digest · Run #902'
-      audit1: Freigegeben von lead@nordwind.eu
-      audit2: 'Briefing in #platform gepostet'
-      audit3: Digest-Journal aktualisiert
-      budgetValue: CHF 180 / 500
-    arena:
-      label: 'Animierte Demo: Der Hub-Arena-Sampler vergleicht zwei
-        Modul-Überblick-Entwürfe — der stärkere Intro landet auf der
-        Platform-Seite.'
-      prompt: Schreib einen Zwei-Satz-Intro für die Platform-Hub-Seite.
-      modelA: Claude Sonnet
-      modelB: GPT-5.5
-      replyA1: Tale bringt Menschen und KI-Agenten in einem Projektarbeitsbereich
-        zusammen.
-      replyA2: Plane Aufgaben, delegiere Arbeit und prüfe die Ergebnisse gemeinsam.
-      replyA3: Öffne unten ein Modul für die eigene Tour.
-      replyB1: Ein Arbeitsbereich für dein Team, Agentenaufgaben und Projektkontext.
-      replyB2: mit Prüf- und Zugriffsregeln, die dein Team festlegt.
-      replyB3: Starte mit Agenten oder Wissen und ergänze dann Automatisierungen.
 platformKnowledge:
   eyebrow: Wissen
   title: Was ist Wissen in Tale?
@@ -2079,23 +1719,6 @@ platformKnowledge:
         description:
           Abgerufene Passagen landen als Zitat-Karten — Leser öffnen die
           Datei oder Seite, die die Antwort genutzt hat.
-      - id: agents
-        eyebrow: Agenten
-        title: |-
-          Statte Agenten
-          für die Suche aus
-        description: Gib Projektagenten die Tools, die sie zum Abrufen von Wissen
-          brauchen. Die Zugriffsregeln der Quelle bestimmen weiterhin, was ein
-          Lauf lesen kann.
-      - id: arena
-        eyebrow: Arena
-        title: |-
-          Vergleiche Antworten
-          und prüfe die Belege
-        description:
-          Stelle zwei Modellen in Arena dieselbe Frage. Vergleiche ihre
-          Begründungen und prüfe, welche Quellen jede Antwort tatsächlich
-          verwendet.
       - id: projects
         eyebrow: Projekte
         title: |-
@@ -2132,34 +1755,6 @@ platformKnowledge:
       citation1: produkthandbuch-v4.pdf
       citation2: Onboarding-FAQ
       composerModel: Claude Sonnet
-    arena:
-      label:
-        "Beispieldemo: Zwei Modelle beantworten dieselbe Garantiefrage. Die
-        Antworten und ihre Quellenangaben lassen sich vergleichen."
-      prompt: 'Antworte aus dem Handbuch: Wie lange gilt die Akku-Garantie?'
-      modelA: Claude Sonnet
-      modelB: Gemini 2.5
-      replyA1: Zwei Jahre ab Lieferung, laut Handbuch v4, Abschnitt 8.
-      replyA2: Wasserschäden und Fremd-Ladegeräte schließen sie aus.
-      replyA3:
-        Mit Registrierung innerhalb von 90 Tagen verlängert sie sich auf drei
-        Jahre.
-      replyB1: 24 Monate ab Lieferung, mit Registrierung verlängerbar auf 36.
-      replyB2: Das Verlängerungsfenster schließt 90 Tage nach dem Kauf.
-      replyB3: Abschnitt 8 listet die Ausschlüsse — Ladegeräte und Wasserschäden.
-    connect:
-      label: "Beispieldemo: Projektagenten für Produkt-, Dokumentations-, Support-,
-        Recherche- und Richtlinienaufgaben können Wissenstools erhalten."
-      agent1: Produkt-Agent
-      model1: Claude Sonnet
-      agent2: Docs-Agent
-      model2: Claude Opus
-      agent3: Support-Agent
-      model3: Claude Sonnet
-      agent4: Research-Agent
-      model4: GPT-5.5
-      agent5: Policy-Agent
-      model5: Claude Opus
     projects:
       label: 'Animierte Demo: Projekte, die Bibliotheken neben den Agenten und
         Mitgliedern halten, die sie nutzen.'
@@ -2278,41 +1873,7 @@ platformProjects:
           Projektanweisungen gelten für die zugehörigen Chats. Der Assistent
           kann relevante Projektdateien abrufen. Ergänze frühere
           Entscheidungen, die ein neues Gespräch braucht.
-      - id: knowledge
-        eyebrow: Wissen
-        title: |-
-          Dateien, die im
-          Projekt bleiben
-        description:
-          Halte Referenzdateien im Wissen-Tab des Projekts bereit und prüfe
-          ihren Indexierungsstatus. Projektchats können indexierte Inhalte und
-          zugängliches Organisationswissen abrufen.
-      - id: govern
-        eyebrow: Review
-        title: |-
-          Geschützte Workflow-Aktionen
-          prüfen und freigeben
-        description: Nutze Connector-Schritte in Automatisierungen für kontrollierte
-          Schreibaktionen. Wenn ein Schritt eine Freigabe braucht, entscheidet
-          eine prüfende Person, bevor der Workflow die Aktion versucht. Die
-          Entscheidung wird protokolliert.
   demos:
-    projects:
-      label:
-        'Animierte Demo: die Projektliste — jeder geteilte Arbeitsbereich mit
-        seinen Agenten und Mitgliedern.'
-      project1: Website-Relaunch
-      agents1: 3 Agenten
-      members1: '7'
-      project2: Acme-Onboarding
-      agents2: 2 Agenten
-      members2: '5'
-      project3: Pricing-Revamp
-      agents3: 2 Agenten
-      members3: '4'
-      project4: Support-Eskalationen
-      agents4: 1 Agent
-      members4: '6'
     hero:
       label:
         "Beispieldemo: Ein Projektchat nutzt Projektanweisungen und abgerufene
@@ -2333,19 +1894,6 @@ platformProjects:
       citation1: launch-checkliste.pdf
       citation2: Redirect-Map
       composerModel: Claude Opus
-    knowledge:
-      label:
-        "Beispieldemo: Die Referenzdateien des Projekts umfassen
-        Markenrichtlinien, eine Momentaufnahme der Website, die
-        Weiterleitungsübersicht und die Launch-Checkliste."
-      source1: brand-guidelines.pdf
-      sourceType1: pdf
-      source2: website-stand.pdf
-      sourceType2: pdf
-      source3: weiterleitungsplan.pdf
-      sourceType3: pdf
-      source4: launch-checkliste.pdf
-      sourceType4: pdf
     govern:
       label:
         "Beispieldemo: Ein konfigurierter Veröffentlichungsworkflow wartet auf
@@ -2407,6 +1955,35 @@ changelogPage:
   emptyBody: Keine Release Notes für diese Version.
   fetchedAt: Zuletzt aktualisiert am {date}.
 contentPages:
+  comparisons:
+    directoryTitle: Finde deinen Vergleich
+    directoryDescription: Suche ein Produkt, das du kennst, oder grenze die Leitfäden nach deiner Entscheidung ein.
+    searchLabel: Vergleiche durchsuchen
+    searchPlaceholder: Produktname oder Thema
+    filterLabel: Art des Vergleichs
+    resultCount: '{count} von {total} Leitfäden'
+    emptyTitle: Keine passenden Vergleiche
+    emptyDescription: Suche nach einem anderen Produkt oder Thema. Setze Suche und Filter zurück, um alle Leitfäden zu sehen.
+    reset: Alle Vergleiche anzeigen
+    sameBrief: Ein Briefing, zwei Ansätze
+    workspace: Gemeinsamer Projektarbeitsbereich
+    criteriaLabel: Was dieser Leitfaden vergleicht
+    types:
+      all:
+        label: Alle Leitfäden
+        description: Vergleiche den Ablauf, den dein Team braucht, und prüfe auch, wie unterschiedliche Produkte zusammenpassen.
+      direct:
+        label: Teamplattformen
+        description: Vergleiche Produkte, mit denen Menschen und Agenten Arbeit koordinieren, Aufgaben delegieren und Ergebnisse gemeinsam prüfen.
+      adjacent:
+        label: Assistenten & Werkzeuge
+        description: Vergleiche Assistenten, Workflow-Werkzeuge und App-Builder mit einem gemeinsamen Projektarbeitsbereich.
+      framework:
+        label: Frameworks
+        description: Entscheide, ob du einen Arbeitsbereich einsetzen oder eine eigene Agentenanwendung mit Teamoberfläche bauen möchtest.
+      runtime:
+        label: Agent-Laufzeiten
+        description: Unterscheide zwischen einer kompatiblen Agent-Laufzeit und dem Arbeitsbereich, der sie umgibt.
   tableScrollHint: Zum Vergleichen seitlich scrollen
   breadcrumb: Seitenpfad
   reviewed: 'Geprüft am {date}'
@@ -2415,3 +1992,86 @@ contentPages:
   nextTitle: Probiere es mit deinem eigenen Projekt aus
   nextDescription: Bring eine konkrete Aufgabe und die Werkzeuge mit, die dein Team bereits nutzt.
   allUseCases: Alle Anwendungsfälle
+
+pageIllustrations:
+  about:
+    label: "Das Unternehmen hinter Tale: Die Schweizer Ruler GmbH entwickelt den MIT-lizenzierten Arbeitsbereich und bietet ISO-27001-zertifizierte Enterprise- und Beratungsleistungen."
+    team: "Ein unabhängiges Team in der Schweiz"
+    product: "Ein gemeinsamer Arbeitsbereich für Menschen und KI-Agenten"
+    shared: "Zusammen arbeiten"
+    open: "Open Source"
+    services: "Enterprise & Beratung"
+  contact:
+    label: "Besprich dein Projekt oder deine Frage mit dem Tale-Team, auch zu Bereitstellung und Support."
+    heading: "Beginne ein Gespräch"
+    question: "Deine Frage"
+    context: "Dein Projekt, deine Vorgaben und Ziele"
+    deployment: "Bereitstellung"
+    support: "Support"
+    team: "Das Tale-Team"
+    discuss: "Besprecht gemeinsam den nächsten Schritt"
+  demo:
+    label: "Eine Tale-Demo führt von deinem Auftrag über die Arbeit von Team und Agenten zu Ergebnissen und Prüfung."
+    heading: "Deine Aufgabe in Tale"
+    brief: "Bring einen konkreten Auftrag mit"
+    context: "Eine Aufgabe, die dein Team lösen möchte"
+    team: "Dein Team"
+    agent: "Projektagent"
+    review: "Prüfe das Ergebnis"
+    result: "Sieh dir die Dateien an und besprich, wie die Arbeit in deinen Ablauf passt."
+    deliverable: "Dateien & Ergebnisse"
+  pricing:
+    label: "Community und Enterprise bieten dieselben Produktfunktionen. Community ist kostenlos selbst hostbar; Enterprise ergänzt Support und Services. Hosting und Modellnutzung kosten zusätzlich."
+    product: "Ein vollständiges Produkt"
+    features: "Dieselben Funktionen in beiden Editionen"
+    community: "Kostenlos selbst hosten unter MIT"
+    enterprise: "Support und Services für dein Team"
+    hosting: "Hosting"
+    models: "Modellnutzung"
+  hardware:
+    label: "Hardware für lokale Inferenz reicht von einzelnen Knoten über mehrere Knoten bis zu Racks, vor Ort oder im Rechenzentrum."
+    heading: "Infrastruktur für deine Modelle"
+    unit1: "Einzelner Knoten"
+    unit2: "Mehrere Knoten"
+    unit3: "Rack"
+    inference: "Lokale Modellinferenz"
+    location: "Vor Ort oder im Rechenzentrum"
+  changelog:
+    label: "Tale-Releases verbinden Änderungen am Quellcode, Prüfung und veröffentlichte Versionshinweise."
+    heading: "Vom Quellcode zum Release"
+    build: "Änderungen am Quellcode"
+    buildDetail: "Funktionen, Korrekturen und Verbesserungen"
+    check: "Prüfung"
+    checkDetail: "Tests und Release-Prüfungen"
+    release: "Veröffentlichter Release"
+    releaseDetail: "Versionshinweise und Upgrade-Anleitung"
+
+demo:
+  pages:
+    viewFull: "Vollständigen Produktbildschirm ansehen: {page}"
+    viewLabel: "Vollbild ansehen"
+    interfaceLanguage: "Beispielarbeitsbereich · Im Produkt aufgenommen"
+    home:
+      label: "Die Aufgabenansicht von Tale zeigt die Checkliste für den Launch, ihre Beschreibung und die Diskussion."
+      caption: "Die Aufgabe, ihr Kontext und die nächste Entscheidung an einem Ort."
+    hub:
+      label: "Der Tale-Posteingang zeigt Kundengespräche und eine Vorschau ihrer Nachrichten."
+      caption: "Projekte, Chats und Kundengespräche in einem Arbeitsbereich."
+    agents:
+      label: "Der Tab Agenten eines Tale-Projekts zeigt Agenten mit ihren Laufzeitumgebungen, Modellen und zugewiesenen Skills."
+      caption: "Jeder Projektagent hat seine eigene Laufzeitumgebung, sein Modell, seine Anweisungen und seine Ausstattung."
+    chat:
+      label: "Ein Tale-Chat zeigt eine Zusammenfassung von Kundenfeedback mit einer Tabelle der Themen und ihrer Häufigkeit."
+      caption: "Ein echtes Gespräch mit strukturierten Antworten und den Bedienelementen für die weitere Arbeit."
+    projects:
+      label: "Das Aufgabenboard eines Tale-Projekts zeigt Aufgaben, ihren Status und die verantwortliche Person."
+      caption: "Behalte das gesamte Projekt im Blick, von vorgeschlagener Arbeit bis zur Prüfung und zum Abschluss."
+    automations:
+      label: "Ein Tale-Automatisierungslauf zeigt einen abgeschlossenen Workflow, die Ergebnisse seiner Schritte, die Version und den Laufstatus."
+      caption: "Prüfe den Workflow und das Ergebnis jedes Schritts in einem echten Lauf."
+    knowledge:
+      label: "Die Tale-Wissensbibliothek zeigt gemeinsame Einträge zum Onboarding, zur Marke und zum Support."
+      caption: "Bewahre Onboarding-, Marken- und Supportmaterial in einer gemeinsamen Bibliothek auf."
+    governance:
+      label: "Die Tale-Audit-Logs zeigen protokollierte Aktionen und wer sie ausgeführt hat."
+      caption: "Prüfe, wer was geändert hat, kontrolliere die Log-Integrität und exportiere das Prüfprotokoll."

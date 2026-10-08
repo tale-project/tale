@@ -200,24 +200,6 @@ export function PricingCompare({ region }: PricingCompareProps) {
 
     {
       kind: 'span',
-      label: t('extras.training.title'),
-      content: (
-        <>
-          {t('extras.training.description')}{' '}
-          <a
-            href={EXTERNAL_LINKS.aiTraining}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-fg-base font-medium underline underline-offset-4"
-          >
-            {t('extras.training.linkLabel')}
-          </a>
-          {t('extras.training.suffix')}
-        </>
-      ),
-    },
-    {
-      kind: 'span',
       label: t('extras.hardware.title'),
       content: (
         <>

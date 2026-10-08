@@ -76,23 +76,54 @@ bun run docs:screenshots -- --list
 bun run docs:screenshots -- --only chat-composer
 bun run docs:screenshots -- --skip-seed --only chat-document-attachment,project-task-detail
 bun run docs:screenshots -- --grep '^governance-'
+bun run docs:screenshots -- --locales en,de,fr --only home-inbox
 bun run docs:screenshots
 ```
 
 Without `--skip-seed`, the runner checks and creates demo content before taking the selected shots.
 Use `--skip-seed` only after a successful seed, when the persisted entity IDs still exist.
 
-The runner saves reusable authentication and organization IDs in `.state/` (gitignored). These
+The runner saves reusable authentication and organization IDs in `.state/` (gitignored). Set
+`TALE_SCREENSHOT_STATE_DIR` or pass `--state-dir /absolute/path` to keep a capture environment's
+authentication and seeded IDs separate. The CLI path takes precedence over the environment.
+The runner never deletes another state directory. These
 files contain a session and are not documentation assets. Keep them local. When changing databases,
 move the old `.state/` directory aside and bootstrap against the new database; never delete an
 organization or database to repair a screenshot run.
+
+If the isolated platform uses a separate configuration directory, pass that same path explicitly
+with `--config-dir /absolute/path/to/platform/config`. The seeder writes the synthetic provider
+definition and credential binding there through the normal scaffolder. Without this flag it uses
+the existing `tests/e2e/fixtures/config` root. It deliberately does not inherit `TALE_CONFIG_DIR`,
+so running the command from an unrelated deployment shell cannot select that deployment's config.
+
+English remains the default and uses the existing `images/<section>/<shot>.webp` URLs.
+`--locales en,de,fr` captures each scene in its native interface language; German and French
+sources go under `images/<section>/de/` and `images/<section>/fr/`. The manifest records the locale.
+Each browser context starts in the requested language and the preparation locators resolve that
+catalog, so opening a task dialog or run detail does not require a locale-changing reload.
+Synthetic workspace content is shared between languages; user-written task and conversation text
+remains the seeded content. UI labels and locale formatting come from the real application.
+
+To regenerate all localized marketing product screens and their responsive derivatives in order:
+
+```bash
+TALE_SCREENSHOT_STATE_DIR=/absolute/path/to/isolated-capture-state bun run web:screenshots
+bun run web:screenshots -- --state-dir /absolute/path/to/isolated-capture-state --config-dir /absolute/path/to/platform/config --skip-seed
+```
+
+This command captures the homepage task detail and the seven platform screens before running the
+marketing image optimizer. It uses the same fixtures, state, readiness gates, and manifest as docs.
+The orchestrator derives its source list from the marketing registry and forwards capture flags
+before running the optimizer. Use `--only` and `--locales` for a targeted refresh after all required
+sources have been captured. `--list` only enumerates shots and does not run the optimizer.
 
 For each changed image:
 
 1. Open the WebP and verify that the intended controls, data, and state are visible.
 2. Preview the page at normal reading width and on a narrow screen. An image that is technically
    sharp may still be unreadable inside a page.
-3. Check the surrounding steps against the image. Localized pages use English captures with
+3. Check the surrounding steps against the image. Docs pages normally use English captures with
    native captions and alt text; the prose names the actual localized UI controls.
 4. Commit the shot definition, generated WebP, `images/manifest.json`, and all affected locale pages
    together.
@@ -131,12 +162,15 @@ irrelevant state; capture success alone is not visual approval.
   `Helpdesk sync` and mirrors three customer conversations through the REST API. The provider and
   embedding model are configured before document uploads; failed indexing can be retried during
   seeding.
-- Each capture uses a fresh browser context with light theme, English locale, reduced motion, and
+- Each capture uses a fresh browser context with light theme, the selected locale (English by default), reduced motion, and
   a default 1440 × 900 viewport at DPR 2. A shot may declare its own viewport or element crop.
 - Readiness is a UI state, not an arbitrary delay. The attachment detail waits for indexing progress to
   be replaced by the file size; a screenshot must not hide a failed state.
+- Each marketing scene also waits for a translated control from its own route topic, after its
+  data gate. A matching HTML language alone cannot admit a temporarily English table or dialog.
 - Images are encoded as WebP below the pipeline's 190 KB budget. The generated manifest records
-  provenance and dimensions. The docs tests check that every published screenshot is registered.
+  provenance, locale, and dimensions. The docs tests check that every published screenshot is
+  registered and referenced by docs or the marketing screenshot registry.
 
 The mock gateway supplies deterministic answers for visual examples. A successful mock conversation
 proves the interaction and rendering, not a real model's answer quality or a provider's production

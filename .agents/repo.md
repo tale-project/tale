@@ -289,7 +289,9 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   sandbox runtime's `build-gemini-settings.ts` and daemon `file-ops.ts` and
   `exec-replay.ts`, which suites import, plus the daemon modules' shared `protocol.ts`:
   `tsc` and oxlint's type-aware rules type every module the sources import. Its guard is
-  `services/platform/tests/guards/turbo-inputs.guard.test.ts`. The catalog glob explicitly
+  `services/platform/tests/guards/turbo-inputs.guard.test.ts`. The capture-manifest test also
+  imports `services/web/app/content/product-screenshots.ts`; test, lint and typecheck hash
+  that registry through the same guard's reader and static-import tables. The catalog glob explicitly
   excludes nested `.turbo/` output: explicit inputs include otherwise ignored task logs, so
   running a catalog skill must not invalidate the platform test cache. The guard changes logs
   and real catalog/skill source in an isolated Git fixture and checks the actual Turbo hashes.
@@ -305,7 +307,13 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   while unrelated sandbox source and the daemon's production build retain their hashes.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
-  i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
+  i18n catalogs and test framework (test). Its screenshot-manifest test also hashes the marketing
+  source registry at `services/web/app/content/product-screenshots.ts`. Its guard is
+  `services/docs/tests/turbo-inputs.test.ts`.
+- [`services/web/turbo.json`](../services/web/turbo.json) gives `@tale/web`'s product-capture tests
+  the docs capture manifest and registered EN/DE/FR source images. Its guard,
+  `services/web/tests/turbo-inputs.test.ts`, derives the source paths from the registry and verifies
+  their actual Turbo dry-run hashes. A newly registered source must enter the task's input glob.
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) hashes the shared root
   `.github/release-candidate-contract.json` through CLI transit for lint/typecheck/test
   and directly for its source-reading tests. The candidate contract refresh script

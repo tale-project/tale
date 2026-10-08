@@ -23,7 +23,9 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [accessibility](../suites/accessibility.md) | `A11Y-A8` (demo accessible names) | 🔶 partial | `home-demos.spec.ts` (locates every demo by `getByRole('img', { name: … })`) |
 | [accessibility](../suites/accessibility.md) | `A11Y-A1`–`A11Y-A2`, `A11Y-A4`–`A11Y-A6`, `A11Y-B1`–`A11Y-B2` | ⛔ manual-only | — this guide |
 | [forms](../suites/forms.md) | `FORM-F1`, `FORM-F3` (render only) | 🔶 partial | `smoke.spec.ts` (`/contact` and `/request-demo` each render a form + their submit button by label) |
-| [forms](../suites/forms.md) | `FORM-F2`, `FORM-F4`–`FORM-F6`, `FORM-B1`–`FORM-B10` | ⛔ manual-only | — (no spec drives a submit; the endpoint itself has no test) |
+| [forms](../suites/forms.md) | `FORM-F2`–`FORM-F3`, `FORM-F6`, server portions of `FORM-B5`–`FORM-B10` | ⛔ manual-only | live Discord delivery and HTTP endpoint boundaries |
+| [forms](../suites/forms.md) | `FORM-B1`–`FORM-B4`, client `FORM-B7`, localized privacy links, consent error association/focus, success focus and client `FORM-F4` Send another reset/focus/repeat submission in EN/DE/FR | ✅ automated | `form-validation.spec.ts`, `lib/forms/schemas.test.ts` (submissions intercepted; no live delivery) |
+| [navigation](../suites/navigation.md) | Direct comparisons, Platform overview and sole current module, exclusive desktop disclosures bounded at 1024/1440px, rendered scroll contrast over product captures in light/dark at 320/1024px, localized docs/Get started/footer links, mobile route dismissal and Escape at 320/390px in EN/DE/FR | ✅ automated | `navigation.spec.ts`, `lib/docs-url.test.ts`, `app/content/site-content.test.ts` |
 | [locale](../suites/locale.md) | `LOC-F2` (render only) | 🔶 partial | `smoke.spec.ts` (`/de`, `/de/platform`, `/de/pricing` render) |
 | [locale](../suites/locale.md) | `LOC-F3` (render only) | 🔶 partial | `smoke.spec.ts` (`/fr/changelog`, `/fr/contact` render) |
 | [locale](../suites/locale.md) | — | ✅ automated | vitest `lib/i18n/messages.test.ts` (locale files stay key-compatible) |
@@ -37,7 +39,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [navigation](../suites/navigation.md) | `NAV-B1` | 🔶 partial | `smoke.spec.ts` (`/nope-not-a-route` shows the not-found heading + **Back to the homepage** — SPA nav, not the HTTP status) |
 | [navigation](../suites/navigation.md) | `NAV-F3`–`NAV-F8`, `NAV-F10`–`NAV-F11` | ⛔ manual-only | — |
 | [navigation](../suites/navigation.md) | `NAV-B2`–`NAV-B4` | ⛔ manual-only | — |
-| [platform-pages](../suites/platform-pages.md) | `PAGE-F1`–`PAGE-F2` | 🔶 partial | `home-demos.spec.ts` (three main chapters and three supporting capability cards link to every module) + `smoke.spec.ts` (renders) |
+| [platform-pages](../suites/platform-pages.md) | `PAGE-F1`–`PAGE-F2` | 🔶 partial | `product-screenshots.spec.ts` (native Inbox hero in EN/DE/FR at phone/desktop widths) + `home-demos.spec.ts` (two hub tours link to Projects and Agents) |
 | [platform-pages](../suites/platform-pages.md) | `PAGE-F4` | 🔶 partial | `smoke.spec.ts` (each module page renders; heading order on `/platform`) — section stack not asserted |
 | [platform-pages](../suites/platform-pages.md) | `PAGE-F5`–`PAGE-F9` | 🔶 partial | `home-demos.spec.ts` (per-page demo stories under reduced motion, distinct from the homepage scenarios) |
 | [platform-pages](../suites/platform-pages.md) | `PAGE-F11` | 🔶 partial | `changelog.spec.ts` (sticky timeline reachability + `aria-current` on click) |
@@ -64,6 +66,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [seo](../suites/seo.md) | Lighthouse targets (Perf ≥95, SEO 100, a11y ≥95, BP 100, CLS 0) | 🔶 | Local Lighthouse 13.4 on built `start` (2026-07-09): desktop unthrottled `/` **99/100/100/100** CLS≈0; `/pricing` **100/100/100/100**; mobile default throttle `/` Perf **58** (FCP/LCP on Slow 4G), A11y/BP/SEO **100**. Re-run PSI on production after deploy. |
 | [theme](../suites/theme.md) | `THEME-F1`, `THEME-A1`–`THEME-A2` | `packages/ui/src/components/site/theme-switcher.test.tsx`, `theme-switcher.browser.test.tsx` | Theme persistence, radio keyboard selection, active surface alignment at 32/44/52px targets; visual focus remains manual. |
 | [navigation](../suites/navigation.md) | Homepage use-case cards preserve EN/DE/FR routes and open the relevant guide | ✅ | `marketing-content.spec.ts` |
+| [navigation](../suites/navigation.md) | Comparison directory lists every published localized guide; product search, relationship filters, live result counts, empty/reset state and guide navigation work at 320/1440px in EN/DE/FR | ✅ automated | `comparison-discovery.spec.ts`, `app/components/blocks/comparison-hub.test.tsx` |
 | [navigation](../suites/navigation.md) | Interactive preview navigation waits for the client commit under delayed route loading, across prerendered and empty roots; redirects cannot admit unmarked readiness | ✅ automated | `client-page.spec.ts`, `helpers/client-page.ts`; intentional cold-start coverage stays in `scroll-stability.spec.ts` |
 | [accessibility](../suites/accessibility.md) | All connector names remain visible without fake controls; changing reduced motion reveals complete scenes without reloading | ✅ | `motion-and-connectors.spec.ts`, `packages/marketing-ui/src/components/demos/use-demo-timeline.test.tsx`, `packages/marketing-ui/src/components/marketing/reveal.test.tsx` |
 | [theme](../suites/theme.md) | `THEME-F2`–`THEME-F6`, `THEME-B1`, `THEME-A3` | ⛔ manual-only | — |
@@ -91,11 +94,11 @@ and checks runtime configuration, envelope redaction and the disabled default.
 server and a local receiver; it checks escaped runtime HTML, strict CSP, HTTP
 error receipt and zero report traffic when disabled.
 
-| [navigation](../suites/navigation.md) | Homepage has a split task-board hero, three chapters and three capability cards; every module destination works; connector names remain readable; motion preference changes complete mounted demos without replay | ✅ automated | `home-demos.spec.ts`, `motion-and-connectors.spec.ts` |
-| [responsive](../suites/responsive.md) | French homepage and agents sandbox illustrations reserve their final height before normal-motion playback at 320px | ✅ automated | `home-demos.spec.ts` |
+| [navigation](../suites/navigation.md) | Homepage has a split actual-task capture, two chapters and four supporting destinations; every module destination works; connector names remain readable; motion preference changes complete mounted demos without replay | ✅ automated | `home-demos.spec.ts`, `motion-and-connectors.spec.ts` |
+| [responsive](../suites/responsive.md) | French homepage sandbox illustration reserve their final height before normal-motion playback at 320px | ✅ automated | `home-demos.spec.ts` |
 
 | Area | Automated coverage | Manual scope |
 | --- | --- | --- |
 | Unknown localized and nested URLs retain the marketing 404, localized recovery, site chrome and noindex metadata at phone/desktop widths | `tests/e2e/specs/smoke.spec.ts`, `tests/prerender/seo.test.ts` | visual treatment in both themes |
 | `/ui` opens Tale UI through HTTP 301, client navigation and static hosting; footer link and shared footnote appear in EN/DE/FR | `lib/redirects.test.ts`, `tests/e2e/specs/smoke.spec.ts`, `tests/prerender/seo.test.ts` | footer spacing |
-| Agent roster rows and cells plus the Agents & connectors sandbox geometry stay fixed throughout normal playback at 390/1280px | `tests/e2e/specs/motion-and-connectors.spec.ts` | illustration readability and motion feel |
+| The Agents & connectors sandbox geometry stays fixed throughout normal playback at 390/1280px | `tests/e2e/specs/motion-and-connectors.spec.ts` | illustration readability and motion feel |

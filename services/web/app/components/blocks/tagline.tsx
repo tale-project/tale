@@ -1,5 +1,6 @@
 import { Scale, Server, ShieldCheck } from 'lucide-react';
 
+import { TrustCertifications } from '@/app/components/blocks/trust-certifications';
 import {
   CtaPair,
   PageSection,
@@ -22,7 +23,7 @@ export function Tagline() {
   const locale = useCurrentLocale();
 
   return (
-    <PageSection surface="contrast" pad="xl" border="none">
+    <PageSection surface="contrast" pad="lg" border="none">
       <div className="grid items-start gap-12 lg:grid-cols-2 lg:gap-24">
         <Reveal className="flex flex-col gap-8 lg:sticky lg:top-28">
           <SectionHeading
@@ -39,6 +40,10 @@ export function Tagline() {
               href: getSelfHostedQuickstartUrl(locale),
             }}
             secondary={{ label: tNav('pricing'), to: '/pricing' }}
+          />
+          <TrustCertifications
+            variant="line"
+            className="text-fg-muted text-xs leading-relaxed"
           />
         </Reveal>
         <div>

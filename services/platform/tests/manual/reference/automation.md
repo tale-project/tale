@@ -6,6 +6,18 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+The docs screenshot runner's locale selection, stable English paths, isolated
+state directory precedence, invalid argument rejection, and asynchronous native
+label isolation are covered by `tests/docs-screenshots/capture-options.test.ts`
+and `tests/docs-screenshots/i18n.test.ts`. Auth requests wait for the mounted
+login form, existing owners fall back to sign-in, and failures close the page
+in `tests/docs-screenshots/capture-auth.test.ts`. Each marketing source declares
+native route-topic readiness in `tests/docs-screenshots/manifest.test.ts`.
+The marketing orchestrator forwards state/config arguments and runs derivatives
+only after successful capture in `services/web/scripts/capture-product-screenshots.test.ts`.
+Actual captured scene readiness and
+readability remain part of the screenshot runbook's visual review.
+
 Managed deployment acceptance reads the exact Ready receipt, current runtime
 custody and OCI version, canonical-origin health, and complete source-derived
 SQL/TypeScript and knowledge migration inventories without applying state.

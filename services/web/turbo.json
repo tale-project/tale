@@ -2,6 +2,14 @@
   "$schema": "https://turbo.build/schema.v2.json",
   "extends": ["//"],
   "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/docs/public/images/manifest.json",
+        "$TURBO_ROOT$/services/docs/public/images/platform/**/{project-task-detail,home-inbox,project-agents-models,chat-thread-reply,projects-task-board,automation-run-detail,knowledge-entries-list,governance-audit-logs}.webp"
+      ]
+    },
     "build": {
       "outputs": [
         "$TURBO_EXTENDS$",
