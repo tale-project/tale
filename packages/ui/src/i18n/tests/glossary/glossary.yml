@@ -450,15 +450,12 @@ terms:
         - conservations juridiques
         - gel juridique
         - gels juridiques
-        - gel
-        - gels
     _note: 'Legal-technical compound. DE: both `Aufbewahrungs-Pflicht` and the
       loanword `Legal Hold` are used; pick one per page. FR: `Conservation
       légale` in UI strings (audit-log labels and refusal messages included)
-      and guides, `conservation` alone for one hold; `_avoid` lists the names
-      French must not use. A bare `gel` also matches an unrelated freeze
-      (`gel du code`); name such a freeze another way in checked French
-      text.'
+      and guides, `conservation` alone for one hold, never `gel`; `_avoid`
+      lists the names French must not use. A bare `gel` stays off that list
+      because it also names unrelated freezes (`gel du code`).'
   - key: feature_mcpServer
     category: feature
     en: MCP server
