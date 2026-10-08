@@ -61522,6 +61522,23 @@ async function main(): Promise<void> {
     `default=${teamDefault[0]?.def ?? 'NONE'} (want 0), insert=${rawTeamInsert} (want landed), memberCount=${String(teamCount[0]?.memberCount)} (want 0)`,
   );
 
+  // 1a'. Sign-in, the member and user doors and the owner checks all match
+  //      `lower("email")`, which Better Auth's raw-column unique index
+  //      cannot serve. `indexUserEmailLower` in `db/migrate.ts` builds an
+  //      expression index at boot (concurrently, rebuilt when a crashed
+  //      build left it invalid); this proves it exists and is usable.
+  const emailIndex = await sql<{ valid: boolean; def: string }[]>`
+    SELECT i.indisvalid AS valid, pg_get_indexdef(i.indexrelid) AS def
+    FROM pg_index i
+    WHERE i.indexrelid = to_regclass('"user_email_lower_idx"')
+  `;
+  record(
+    'sign-in finds users through a valid index on lower(email)',
+    (emailIndex[0]?.valid ?? false) &&
+      /lower\(\(?email/i.test(emailIndex[0]?.def ?? ''),
+    `index=${emailIndex[0] === undefined ? 'MISSING' : `${emailIndex[0].valid ? 'valid' : 'INVALID'} ${emailIndex[0].def}`}`,
+  );
+
   // 1b. The boot backfill: accounts this deployment provisioned before a
   //     provisioned account counted as a verified one are caught up, and a
   //     directory-provisioned account (no credential row) keeps its

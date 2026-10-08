@@ -98,6 +98,49 @@ async function defaultTeamMemberCount(sql: postgres.Sql): Promise<void> {
 }
 
 /**
+ * Index the case-folded address every sign-in looks its user up by.
+ *
+ * The sign-in hooks (`domains/login_attempts`), the member and user doors
+ * and the owner checks all match `lower("email")`, while Better Auth only
+ * declares a unique index on the raw column — so each of those lookups read
+ * the whole `user` table, which at a million users costs a sequential scan
+ * per sign-in and turns a morning sign-in wave into a queue.
+ *
+ * Built CONCURRENTLY so a live deployment keeps signing people up while a
+ * new image builds it mid-roll, which also means it cannot run inside a
+ * transaction (this boot step runs on the migrator's autocommit session).
+ * A concurrent build that died — a crash, a restart mid-roll — leaves an
+ * INVALID index that `IF NOT EXISTS` would keep forever; it is dropped and
+ * built again. Not a numbered migration for the same reason
+ * `defaultTeamMemberCount` is not: the `.sql` files run before Better Auth's
+ * tables exist.
+ */
+async function indexUserEmailLower(
+  sql: postgres.Sql,
+  log: (message: string) => void,
+): Promise<void> {
+  // Resolved through the search path, like Better Auth's own unqualified
+  // tables: they land in the first schema of it (`tale` on the tale-db
+  // image, `public` on a plain Postgres), and an index lives beside its
+  // table.
+  const existing = await sql<{ valid: boolean }[]>`
+    SELECT i.indisvalid AS valid
+    FROM pg_index i
+    WHERE i.indexrelid = to_regclass('"user_email_lower_idx"')
+  `;
+  if (existing[0]?.valid) return;
+  if (existing[0] !== undefined) {
+    log('[backend] rebuilding an interrupted user e-mail index');
+    await sql`DROP INDEX CONCURRENTLY IF EXISTS "user_email_lower_idx"`;
+  }
+  log('[backend] indexing user e-mail addresses for sign-in');
+  await sql`
+    CREATE INDEX CONCURRENTLY IF NOT EXISTS "user_email_lower_idx"
+    ON "user" (lower("email"))
+  `;
+}
+
+/**
  * Catch up accounts this deployment provisioned before a provisioned account
  * counted as a verified one (`backend/auth/auth.ts`). A `credential` row is
  * the proof: it exists only for an account whose password this instance
@@ -290,6 +333,7 @@ async function migrateOnce(
         await runMigrations();
       }
       await defaultTeamMemberCount(sql);
+      await indexUserEmailLower(sql, log);
       await verifyProvisionedAccounts(sql, log);
     }
   } catch (error) {
