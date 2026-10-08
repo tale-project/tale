@@ -323,6 +323,22 @@ recurrence:
     yearly: '{count, plural, one {Yearly} other {Every # years}}'
     monthDay: 'day {day}'
     dayCount: '{count, plural, one {# day} other {# days}}'
+  schedule:
+    sentence:
+      minutely: '{count, plural, one {Every minute} other {Every # minutes}}'
+      hourly: '{count, plural, one {Every hour} other {Every # hours}}'
+      hourlyAt: '{count, plural, one {Every hour} other {Every # hours}} at {minute, plural, one {# minute} other {# minutes}} past the hour'
+      withTimes: '{rule} at {times}'
+      withWindow: '{rule}, {window}'
+    hoursRange: '{from}–{to}'
+    dayRange: '{first}–{last}'
+    compact:
+      at: '{days} at {times}'
+      timeCount: '{count, plural, one {# time} other {# times}}'
+      minutePast: ':{mm}'
+      hoursRange: '{from}–{to}'
+  occurrences:
+    dateTime: '{date}, {time}'
   editor:
     unit: Unit
     units:

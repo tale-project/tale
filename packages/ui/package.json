@@ -267,6 +267,7 @@
     "./recurrence-editor": "./src/components/forms/recurrence-editor.tsx",
     "./recurrence-format": "./src/lib/recurrence/format.ts",
     "./recurrence-picker": "./src/components/forms/recurrence-picker.tsx",
+    "./recurrence-schedule": "./src/lib/recurrence/schedule.ts",
     "./reorder-list": "./src/components/forms/reorder-list.tsx",
     "./responsive-dialog": "./src/components/overlays/responsive-dialog.tsx",
     "./route-progress-bar": "./src/components/layout/route-progress-bar.tsx",

@@ -72,9 +72,17 @@ format.sentence(rule); // "Every 2 weeks on Tuesday and Thursday"
 format.compact(rule); // { head: 'Every 2 weeks', tail: 'Tue, Thu' }
 format.day({ year: 2026, month: 10, day: 6 }, 2026); // "Tue, Oct 6"
 format.never; // "Never"
+
+format.schedule(scheduleRule); // "Every weekday at 9:00 AM and 5:30 PM"
+format.scheduleCompact(scheduleRule); // { head: 'Weekdays', tail: '9:00 AM, 5:30 PM' }
+format.time('17:30'); // "5:30 PM"
+format.occurrence({ at, timeZone: 'Europe/Zurich' }, 2026); // "Tue, Oct 13, 9:00 AM"
+format.hourCycle; // 12 in English, 24 in German and French
 ```
 
-The hook formats in the language the i18n instance renders. Outside React, `formatRecurrence(rule, t, locale)` and `formatRecurrenceCompact` from `@tale/ui/recurrence-format` take a `t` bound to the `recurrence` namespace. `@tale/ui/recurrence` holds the rule helpers: `normalizeRecurrence` returns a rule with only its own keys and sorted weekdays, `sameRecurrence` compares two rules and ignores extra keys, and `matchRecurrencePreset` names the preset a rule equals.
+The schedule members word a `ScheduleRule` — a repeat rule with times of day, or a grid of every N minutes or hours — in the reader's hour cycle; pass `12` or `24` as their last argument to fix it. `format.occurrence` writes an upcoming start in its schedule's time zone and adds the year when it differs from the one you pass. Wherever a screen names a schedule — a card, a canvas node, an activity line — use these members rather than wording it yourself, so every surface says the same thing.
+
+The hook formats in the language the i18n instance renders. Outside React, `formatRecurrence(rule, t, locale)`, `formatRecurrenceCompact`, `formatSchedule`, `formatScheduleCompact` and `formatOccurrence` from `@tale/ui/recurrence-format` take a `t` bound to the `recurrence` namespace. `@tale/ui/recurrence` holds the rule helpers: `normalizeRecurrence` returns a rule with only its own keys and sorted weekdays, `sameRecurrence` compares two rules and ignores extra keys, and `matchRecurrencePreset` names the preset a rule equals. `@tale/ui/recurrence-schedule` holds the same for schedule rules: `normalizeSchedule`, `sameSchedule`, `schedulePreset`, `matchSchedulePreset`, and `windowStarts`, which names a grid's first and last start inside its hours, or `null` when none falls inside them. Times in a schedule rule are `"HH:MM"` strings on a 24-hour clock; `parseScheduleTime` and `formatScheduleTime` convert them to and from a `TimeOfDay`.
 
 A host may keep keys of its own on a rule, such as a time zone. The picker accepts them in `value`, ignores them when it compares, and always emits a normalized rule, so add them back in `onChange`.
 
