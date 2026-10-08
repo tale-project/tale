@@ -56,6 +56,7 @@ import {
   syncSessionPin,
   teardownSession,
 } from '../domains/sandbox/service.ts';
+import { releaseProjectAgentSessionSlot } from '../domains/sandbox/sessions.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import {
@@ -76,6 +77,10 @@ import {
   agentTurnShimHandlers,
   taskAgentShimScheduler,
 } from '../domains/tasks/agent-turn-shim.ts';
+import {
+  agentRunWorkDeadline,
+  claimAgentWorker,
+} from '../domains/tasks/agent-workers.ts';
 import {
   admitAutomatedStart,
   findAgentBusyRun,
@@ -1383,6 +1388,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           feedback: string | null;
           mentionSource: 'comment' | 'description' | null;
           deadlineAt: number;
+          startedAt: number;
+          launchedAt: number | null;
           status: string;
           execId: string;
           startedVia: string | null;
@@ -1397,7 +1404,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
                r.session_id AS "sessionId", r.harness, r.model,
                r.model_provider AS "modelProvider", r.feedback,
                r.mention_source AS "mentionSource",
-               r.deadline_at_ms::float8 AS "deadlineAt", r.status,
+               r.deadline_at_ms::float8 AS "deadlineAt",
+               r.started_at_ms::float8 AS "startedAt",
+               r.launched_at_ms::float8 AS "launchedAt", r.status,
                r.exec_id AS "execId", r.started_via AS "startedVia",
                r.started_via_automation AS "viaAutomation",
                via_agent.name AS "viaAgentName"
@@ -1459,6 +1468,37 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
         return;
       }
+      // The worker the run starts in: each run of the agent working at the
+      // same time as another works in a sandbox of its own. A run no worker
+      // can take now is parked with its reason and starts on its own when
+      // one frees; every start funnels through this job, so the kick, the
+      // wake, the retry and the recovery all choose here.
+      const claim = await claimAgentWorker(deps.sql, input);
+      if (claim === null) {
+        console.warn(
+          `[task-agent] turn job for ${input.execId} skipped (run no longer queued under it)`,
+        );
+        return;
+      }
+      if ('parked' in claim) {
+        console.warn(
+          `[task-agent] no free worker for ${input.execId} — parked (${claim.parked})`,
+        );
+        return;
+      }
+      if (claim.moved) {
+        // The workspace the run named before may now hold no run: give its
+        // slot back rather than waiting for the watchdog's backstop.
+        await releaseProjectAgentSessionSlot(deps.sql, {
+          organizationId: input.organizationId,
+          agentId: run.agentId,
+        }).catch((error: unknown) => {
+          console.warn(
+            `[task-agent] releasing idle workers after ${input.execId} moved failed:`,
+            error,
+          );
+        });
+      }
       // The kick-time resume plan (reused decision core over PG): does the
       // previous harness conversation continue, is the box swept, which
       // broker accounts rotate out. Every start scheduler funnels through
@@ -1468,7 +1508,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         taskId: run.taskId,
         agentId: run.agentId,
         harness: run.harness,
-        sessionId: run.sessionId,
+        sessionId: claim.sessionId,
       });
       // The REUSED 0.4 turn host on the ctx shim — the whole start: session
       // ensure, staging, key mint, exec, drain, settle choreography.
@@ -1484,9 +1524,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           taskId: run.taskId,
           agentId: run.agentId,
           execId: input.execId,
-          sessionId: run.sessionId,
+          sessionId: claim.sessionId,
           harness: run.harness,
-          deadlineAt: run.deadlineAt,
+          // Waiting for a worker used none of the run's working time.
+          deadlineAt: agentRunWorkDeadline(run, Date.now()),
           model: run.model,
           ...(run.modelProvider !== null
             ? { modelProvider: run.modelProvider }

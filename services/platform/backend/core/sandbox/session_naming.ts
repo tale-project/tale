@@ -56,9 +56,10 @@ export function projectAgentOwnerId(agentId: string): string {
   return agentId;
 }
 
-/** The project agent's STANDING session: the workspace every run a project
- * editor (or an automation) starts shares across tasks, persisting between
- * runs so the agent keeps its working state. */
+/** The first worker of the project agent's STANDING family: the workspaces
+ * of the runs a project editor (or an automation) starts, persisting between
+ * runs so the agent keeps its working state. Each run working at the same
+ * time as another has a worker of its own ({@link workerSessionId}). */
 export function standingSessionIdForProjectAgent(agentId: string): string {
   return `pa-${agentId}`;
 }

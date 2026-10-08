@@ -98,7 +98,7 @@ Three kinds of work are counted separately, each against a limit the organizatio
 
 | Kind of work | Limit unless changed |
 | --- | --- |
-| Project agent sessions | 2 |
+| Agent workers | 2 |
 | Workflow sessions (automation runs) | 2 |
 | Render sessions (website crawling) | 2 |
 
@@ -109,7 +109,7 @@ none, and takes a slot again when it resumes. At the limit, the next start or re
 refused (`QUOTA_EXCEEDED`) before any sandbox is created; the other kinds are not affected.
 The refusal means "no room yet, ask again", not that the work failed.
 
-- **Example**: Ada's organization keeps the limit of 2 project agent sessions, and two agents
+- **Example**: Ada's organization keeps the limit of 2 agent workers, and two agents
   are working. A third agent is started on a task → refused as `QUOTA_EXCEEDED`. An
   automation run can still get its sandbox.
 
@@ -128,6 +128,15 @@ limit, because what frees is an empty workspace, not room.
 Every run of a project agent that works at the same time as another works in a sandbox of its
 own, a worker. One agent working three tasks at once has three workers.
 
+### SBX-R17 · Every agent worker is one sandbox and holds one agent-worker slot
+
+The limit of agent workers counts workers, not agents: one agent working three tasks at once
+holds three slots. A run that would need one more worker than the limit allows waits for a
+slot; a burst of starts opens no more workers than there are slots left.
+
+- **Example**: Ada's organization allows 2 agent workers. Scribe works two tasks → 2 of 2 are
+  in use. Lector is started on a task → its run waits until one of Scribe's workers frees.
+
 ### SBX-R18 · A worker gives its slot back as soon as its own run ends
 
 A worker stops and frees its slot once no run of its own is left: none working in it, and none
@@ -138,6 +147,26 @@ until that process has ended.
 - **Example**: Ada's agent Scribe works "Release notes" in one worker and "Changelog" in
   another. "Release notes" finishes → its worker stops and its slot is free at once, while
   "Changelog" keeps working.
+
+### SBX-R19 · A run takes a free worker before a new one is opened
+
+A starting run takes, in order: its task's previous worker, a worker that is still up, a
+stopped worker (lowest number first), and only then a new one. When the only free worker is
+being destroyed, the run waits for the Destroy (`SBX-R9`) instead of opening a worker beside
+it.
+
+- **Example**: Scribe's workers 1 and 2 are stopped. Ada starts Scribe on a new task → it
+  works in worker 1, and no worker 3 is created.
+
+### SBX-R20 · A member's runs work in that member's own workers
+
+The runs a member starts work in workers kept for that member and the agent, apart from the
+workers of the runs editors start, and stay limited to their own task (`SBX-R7`) in whichever
+of them they work. A run whose starter lost the editor role while it waited moves into that
+member's workers when it starts. An editor's run never lands in a member's worker.
+
+- **Example**: Mia, a member, starts Scribe on two of her tasks → both work at once, each in
+  one of Mia's workers, without Scribe's secrets.
 
 ## Pinning and destroying a workspace
 

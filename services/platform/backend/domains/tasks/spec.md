@@ -4,8 +4,9 @@
 
 The rules a task write is held to before anything is saved: who can create, change and delete
 a task, what an archived task or project refuses, how long its text can be, how often
-automations can start an agent on it, and what a deleted task leaves behind. Agent runs,
-reviews beyond captured agent handoffs, repeating tasks and the importers are not covered; see Not yet.
+automations can start an agent on it, how one agent works several tasks at once, and what a
+deleted task leaves behind. The rest of agent runs, reviews beyond captured agent handoffs,
+repeating tasks and the importers are not covered; see Not yet.
 
 ## Who can do what
 
@@ -304,11 +305,52 @@ on its day, also after it is moved.
 - **Example**: Lea moves the start of "Plan the launch" to next Monday → the bell comes on
   Monday.
 
+## One agent on several tasks
+
+An agent is a configuration; each of its runs works in a worker, a sandbox of its own. The
+organization's limit of agent workers (`SBX-R17`) decides how many work at once.
+
+### TASK-R24 · An agent works each of its running tasks in a worker of its own
+
+Two runs of one agent never share a sandbox: each has its own memory, processes and files, as
+far as the limit of agent workers allows.
+
+- **Example**: Ada starts the agent Scribe on "Release notes" and on "Changelog". The
+  organization allows 2 agent workers → both work at once, each in its own sandbox.
+
+### TASK-R25 · A start that finds no free worker waits and starts on its own
+
+The run waits and says why: every agent worker is in use, the sandbox host is full, the
+workspace it would use is being deleted, or its sandbox is still ending an earlier process.
+It starts by itself as soon as room frees, uses no attempt for the wait, and gets its full
+working time from the moment it starts. It waits at most 12 hours from the start request.
+When several runs wait, a freed worker goes to the run of the agent with the fewest runs
+working, and among those to the one that has waited longest.
+
+- **Example**: Both of Scribe's workers are busy. Ada starts Scribe on a third task → it reads
+  "Waiting for a worker". "Changelog" finishes → the third run starts by itself.
+- **Example**: Scribe was handed thirty tasks at once and every worker is busy. Ada then starts
+  Lector once → the next worker that frees goes to Lector's run, ahead of Scribe's waiting runs.
+
+### TASK-R27 · A task's next run goes back to its worker when that worker is free
+
+There the run continues the task's conversation and finds the files it left. On another worker
+it starts fresh from the task's description, discussion, attachments and deliverables. A
+worker whose run failed or was cancelled is kept for that task for 15 minutes, so a retry finds
+what the run left there; another task's run takes it only when no other worker is free and no
+new one can open.
+
+- **Example**: "Release notes" finished in Scribe's worker 2. Ada asks for changes while
+  worker 2 is free → the run continues there, in the same conversation.
+- **Example**: Scribe's run on "Changelog" fails in worker 1, and its automatic retry is about
+  to start. Ada starts Scribe on "Press kit" → it takes another worker, and the retry continues
+  in worker 1.
+
 ## Not yet
 
-- **Agent runs**: starting, steering, stopping, retrying and re-attaching a run, and how a run
-  moves the card between statuses (`agent-runs.ts`, `run-start.ts`, `reattach.ts`,
-  `kick-plan.ts`).
+- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`,
+  `TASK-R25` and `TASK-R27`, and how a run moves the card between statuses (`agent-runs.ts`,
+  `run-start.ts`, `reattach.ts`, `kick-plan.ts`).
 - **Reviews beyond `TASK-R21`–`TASK-R22`**: who a review goes to, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`).
 - **Repeating tasks, date notifications beyond `TASK-R23`, metrics and board search** (`repeat.ts`,

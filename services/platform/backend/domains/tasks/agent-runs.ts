@@ -66,7 +66,9 @@ import {
  * indicators all key under the task entity.
  */
 
-const TASK_AGENT_RUN_DEADLINE_MS = 12 * 60 * 60 * 1000;
+/** How long a run may wait from its kick, and how long it works once it
+ * has launched (`agentRunWorkDeadline` in `agent-workers.ts`). */
+export const TASK_AGENT_RUN_DEADLINE_MS = 12 * 60 * 60 * 1000;
 
 /**
  * Tell every open view of the task that its run changed. The run card used
@@ -459,11 +461,14 @@ export async function listAgentRunsForTask(
  * re-kick it, or a cancel may land. A start whose exec no longer owns the
  * run must NOT launch — a second spawn double-drives the run, and a spawn
  * under a superseded exec is reaped as an orphan by the next drive window.
+ * The flip also stores the deadline the start works to
+ * (`agentRunWorkDeadline`): a run that waited for a worker gets its full
+ * working time from its launch, and the deadline never moves earlier.
  * Returns whether THIS exec's start won the launch.
  */
 export async function launchAgentRun(
   sql: Sql,
-  args: { runId: string; execId: string },
+  args: { runId: string; execId: string; deadlineAt?: number },
 ): Promise<boolean> {
   const now = Date.now();
   return sql.begin(async (tx) => {
@@ -471,6 +476,7 @@ export async function launchAgentRun(
       UPDATE app.project_agent_runs SET
         status = 'running',
         launched_at_ms = coalesce(launched_at_ms, ${now}),
+        deadline_at_ms = greatest(deadline_at_ms, ${args.deadlineAt ?? null}::bigint),
         updated_at_ms = ${now}
       WHERE id = ${args.runId} AND exec_id = ${args.execId}
         AND status = 'queued'
@@ -638,8 +644,8 @@ export async function failAgentRunFromTurn(
  * failures go through {@link failAgentRunFromTurn}). The turn died
  * without reaching `releaseTurnKey`, so its gateway key is reclaimed here:
  * the winning flip IS the election, so the revoke fires once even when two
- * sweeps race. Scoped to THIS exec — a sibling turn on the same standing
- * `pa-<agentId>` session keeps its own key. Nothing retries a run failed
+ * sweeps race. Scoped to THIS exec — another turn in the same worker (a
+ * steered turn's successor) keeps its own key. Nothing retries a run failed
  * here, so it is announced in the same transaction.
  */
 export async function failAgentRun(
@@ -753,8 +759,8 @@ export async function cancelAgentRunInTx(
     settledAt: now,
   });
   // The active drive may be draining a long window. Enqueue its existing
-  // orphan cleanup immediately; it kills only this exec, preserving sibling
-  // turns in the agent's standing session. This survives process restarts.
+  // orphan cleanup immediately; it kills only this exec, preserving any
+  // other turn in the run's worker. This survives process restarts.
   await addJobInTx(tx, 'task.agent_drive', {
     ...args,
     execId: run.execId,
@@ -1271,8 +1277,8 @@ export interface TaskAgentRunSandboxOp {
 
 /**
  * What a task's agent run is DOING inside the sandbox: the run's own op row
- * (its exec, plus `-`-suffixed derived incarnations) on the agent's STANDING
- * session — never a sibling run's op. Fail-closed null.
+ * (its exec, plus `-`-suffixed derived incarnations) in the run's worker —
+ * never another run's op. Fail-closed null.
  */
 export async function getAgentRunSandboxOp(
   sql: Sql,

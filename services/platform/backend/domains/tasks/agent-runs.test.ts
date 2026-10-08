@@ -609,7 +609,7 @@ describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its d
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('wakes the parked run of the agent with the fewest runs working first, then the oldest park', async () => {
+  it('wakes the parked run of the agent with the fewest runs working first, then the oldest park [TASK-R25]', async () => {
     const { sql, statements } = fakeSql(() => []);
     await wakeOrganizationParkedAgentRun(sql, 'org-1');
     const claim = statements.find((text) => text.startsWith(CLAIM)) ?? '';

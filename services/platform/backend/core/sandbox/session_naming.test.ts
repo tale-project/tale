@@ -112,7 +112,7 @@ describe('agent worker sessions', () => {
     }
   });
 
-  it('never takes a member worker for a standing one', () => {
+  it('never takes a member worker for a standing one [SBX-R20]', () => {
     for (const worker of [1, 2, 3]) {
       expect(
         isStandingProjectAgentSession(

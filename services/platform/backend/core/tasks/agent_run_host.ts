@@ -127,12 +127,14 @@ import {
 import { isValidResumeHandle } from './task_kick_resume';
 import { resolveTaskServing, type TaskServing } from './task_serving';
 
-/** The workspace line of a run in the agent's standing session. */
-const STANDING_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`;
+/** The workspace line of a run in one of the agent's standing workers: each
+ * run working at the same time as another has a worker of its own, and a
+ * worker is reused for later tasks. */
+const STANDING_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) belongs to this worker: other copies of you work other tasks at the same time in workspaces of their own, and this one is reused for later tasks — files already there may belong to earlier tasks. Trust the task brief and its staged inputs over anything found lying around.`;
 
-/** The workspace line of a run a member started: its workspace is the
- * member's own with this agent, kept apart from the standing one. */
-const MEMBER_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) is kept for the runs this member starts with you — files already there may belong to their other tasks. Trust the task brief and its staged inputs over anything found lying around.`;
+/** The workspace line of a run a member started: its worker is one of the
+ * member's own with this agent, kept apart from the standing ones. */
+const MEMBER_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) is kept for the runs this member starts with you; their other runs work in workspaces of their own — files already there may belong to their earlier tasks. Trust the task brief and its staged inputs over anything found lying around.`;
 
 /**
  * Whether the turn is confined to its own task — a run a member started
@@ -225,12 +227,13 @@ interface TurnKeys {
 }
 
 /**
- * Ensure the agent's standing sandbox session exists (AGENT profile), with
- * shared admission and recovery. Unlike the per-run workflow
- * session it is NEVER torn down here — idle stop-and-preserve owns its
- * lifecycle. Returns the live row's `createdAt` — the incarnation stamp the
- * `--resume` binds-check compares — or undefined when this call had to mint
- * a brand-new row (a fresh incarnation holds no prior conversation).
+ * Ensure the run's worker — the sandbox session its turn job claimed —
+ * exists (AGENT profile), with shared admission and recovery. Unlike the
+ * per-run workflow session it is NEVER torn down here — idle
+ * stop-and-preserve owns its lifecycle. Returns the live row's `createdAt` —
+ * the incarnation stamp the `--resume` binds-check compares — or undefined
+ * when this call had to mint a brand-new row (a fresh incarnation holds no
+ * prior conversation).
  */
 async function ensureProjectAgentSession(
   ctx: ActionCtx,
@@ -247,11 +250,11 @@ async function ensureProjectAgentSession(
   });
 }
 
-/** The task's own delivery box inside the agent's STANDING session — the
+/** The task's own delivery box inside the run's worker — the
  * subject-scoped subdir the turn's instructions name, the start sweep
- * clears, and the settle harvests. Scoped per task because the session is
- * per AGENT: without it, concurrent or successive runs of the agent's other
- * tasks would share one box and cross-attach deliverables. */
+ * clears, and the settle harvests. Scoped per task because a worker serves
+ * many tasks one after another: without it, successive runs of the agent's
+ * other tasks would share one box and cross-attach deliverables. */
 function taskOutputDir(taskId: string): string {
   return `${OUTPUT_DIR}/${taskId}`;
 }
@@ -261,7 +264,7 @@ function taskOutputDir(taskId: string): string {
  * or fresh (attachments and outputs may have changed since the last run
  * either way). Without it a rerun asked to "extend the deck" cannot reliably
  * see the deck it is extending — the delivery box may have been swept, and
- * the shared standing workspace holds other tasks' stale files. Outside
+ * the worker's workspace holds other tasks' stale files. Outside
  * `/agent/output` so the box sweep and the settle harvest never touch it. */
 function taskInputsDir(taskId: string): string {
   return `/agent/inputs/${taskId}`;
@@ -269,10 +272,11 @@ function taskInputsDir(taskId: string): string {
 
 /** Whether a LOOSE file at the box root (`/agent/output/` itself — never
  * harvested, contract-violating scratch or legacy junk) is old enough for
- * the start sweep to clear. Age-gated on the agent-turn deadline because
- * the standing session is shared: a concurrent sibling task's live turn may
- * be writing there against instructions, and its files are always younger
- * than its own deadline — hygiene must not race a running turn. Exported
+ * the start sweep to clear. Age-gated on the agent-turn deadline because a
+ * turn may still be writing there against instructions — a steered turn's
+ * predecessor in its kill grace, or a turn an older image started in the
+ * same workspace during a rolling deploy — and its files are always younger
+ * than its own deadline: hygiene must not race a running turn. Exported
  * for its unit test. */
 function isStaleLooseBoxFile(
   entry: { mtimeMs: number },
@@ -308,7 +312,7 @@ export interface StagedTaskInputs {
   omittedOutputs?: number;
 }
 
-/** Keep standing-session starts bounded when a long-lived task has accumulated
+/** Keep worker starts bounded when a long-lived task has accumulated
  * one receipt or deliverable per run. The task's output list remains intact;
  * only the newest entries are mirrored into this turn's read-only inputs. */
 export const MAX_STAGED_TASK_OUTPUTS = 64;
@@ -388,7 +392,7 @@ export function partitionTaskInputSkips(
 }
 
 /**
- * Mirror the task's inputs into the standing session: the user's attachments
+ * Mirror the task's inputs into the run's worker: the user's attachments
  * under `<dir>/attachments/`, the task's current deliverables (earlier runs'
  * harvested outputs) under `<dir>/outputs/`. Re-mirrored from scratch every
  * turn — attachments and outputs may have changed since the last run, and a
@@ -1271,16 +1275,16 @@ export async function startTaskAgentTurnImpl(
         await reapPredecessorExec(args.sessionId, args.predecessorExecId);
       }
 
-      // The STANDING session serves every task of this agent, so the
+      // A worker serves the agent's tasks one after another, so the
       // delivery box is PER TASK — /agent/output/<taskId>/ — and the harvest
-      // reads only that subdir: another task's run (even a CONCURRENT one —
-      // the live-run mutex is per task, not per agent) can never leak its
-      // deliverables here. Before the turn, sweep this task's own subdir
+      // reads only that subdir: another task's run in this worker, earlier
+      // or (in a rolling deploy's overlap) at the same time, can never leak
+      // its deliverables here. Before the turn, sweep this task's own subdir
       // (the settle must attach exactly what THIS run produced) plus STALE
       // loose files at the box root, which are never harvested and would
-      // only accumulate — age-gated, because a concurrent sibling task's
-      // run may be using the root as (contract-violating) scratch and a
-      // live turn's files are always younger than its own deadline. Skipped
+      // only accumulate — age-gated, because another turn may be using the
+      // root as (contract-violating) scratch and a live turn's files are
+      // always younger than its own deadline. Skipped
       // entirely when the scheduler decided the box holds the only copy of
       // a failed predecessor's unpublished work (`sweep: false`). A settled
       // predecessor sweeps even on resume: leftovers are already on
@@ -1453,9 +1457,11 @@ export async function startTaskAgentTurnImpl(
             : {}),
         },
       );
+      // The launch stores the deadline this start works to: the job gave a
+      // run that waited for a worker its full working time from now.
       const launched = await ctx.runMutation(
         internal.tasks.agent_runs.setTaskAgentRunRunning,
-        { runId: args.runId, execId: args.execId },
+        { runId: args.runId, execId: args.execId, deadlineAt: args.deadlineAt },
       );
       if (launched !== true) {
         // The flip is exec-fenced. Between the gate above and here (a cold
@@ -2348,13 +2354,13 @@ async function settleTaskAgentTurn(
 }
 
 /**
- * Free the agent's standing-session slot the moment its run ends — the org's
- * whole agent budget otherwise stays held through the ~30-min idle sweep. A
- * sibling task's live turn keeps the session up (the release mutation checks
- * running ops AND live runs of the agent, so a sibling that is admitted but
- * has no exec yet is not uncounted); the workspace is preserved either way.
- * The run's workspace rides along: the ended exec freed one of its live-exec
- * places, which a run parked on that workspace waits for.
+ * Free the run's worker's slot the moment its run ends — the org's agent
+ * budget otherwise stays held through the ~30-min idle sweep. The release
+ * stops each of the agent's workers that no live run names and no running
+ * op holds (a run that claimed a worker and has no exec yet keeps it); the
+ * workspace is preserved either way, and the agent's other workers keep
+ * working. The run's worker rides along: when it stays up, the agent's next
+ * parked run is woken to take it.
  * Best-effort: a failed release costs latency (the task watchdog's orphan
  * backstop gets it), never the settle.
  */

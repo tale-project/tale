@@ -158,6 +158,24 @@ async function inFlightCount(
   ).length;
 }
 
+/**
+ * The organization's agent-worker budget as a reserve or a resume counts
+ * it: the cap (`maxSessionsPerOrg`) and the workers that hold a slot of it
+ * now. For a caller that decides before any reserve whether a run may open
+ * or wake a worker — the worker claim (`domains/tasks/agent-workers.ts`) —
+ * and that holds the organization's admission lock, as the count needs.
+ */
+export async function projectSessionRoom(
+  tx: TransactionSql,
+  organizationId: string,
+): Promise<{ cap: number; inFlight: number }> {
+  const quota = await readQuota(tx, organizationId);
+  return {
+    cap: sessionCapFor('project', quota),
+    inFlight: await inFlightCount(tx, organizationId, 'project'),
+  };
+}
+
 export interface ReserveSessionArgs {
   organizationId: string;
   sessionId: string;
@@ -749,9 +767,10 @@ export interface SandboxSessionView {
   busy: boolean;
   /** The op the page leads with: a running one, else the latest. */
   currentOp: SandboxCurrentOpView | null;
-  /** Every op still running, oldest first. A project agent runs its tasks
-   * concurrently in the ONE workspace it owns, so the settings page lists
-   * all of them rather than one "current" turn. */
+  /** Every op still running, oldest first. A worker runs one task's turn
+   * at a time, but a steered turn's predecessor in its kill grace, or a turn
+   * an older image started during a rolling deploy, can run beside it, so
+   * the settings page lists all of them rather than one "current" turn. */
   runningOps: SandboxCurrentOpView[];
   totalSpentCents: number;
   /** When the workspace is deleted for being unused, if it stays unused

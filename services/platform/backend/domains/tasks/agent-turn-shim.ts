@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -44,14 +42,13 @@ import {
   type CompleteAgentRunArgs,
 } from './agent-run-completion.ts';
 import {
-  emitTaskRunHint,
   failAgentRunFromTurn,
   isStandardAgentRefusal,
   kickAgentRun,
   launchAgentRun,
   settleAgentRun,
 } from './agent-runs.ts';
-import { releaseRunWorker } from './agent-workers.ts';
+import { parkAgentRunInTx } from './agent-workers.ts';
 import { isTaskRunConfined } from './run-authority.ts';
 import {
   agentRecordTaskOutputsTrusted,
@@ -163,7 +160,13 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'tasks/agent_runs:setTaskAgentRunRunning': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { runId: string; execId: string };
+      const args = raw as {
+        runId: string;
+        execId: string;
+        /** The deadline the start works to; an image that passes none
+         * keeps the kick's. */
+        deadlineAt?: number;
+      };
       // Exec-fenced: a start whose exec the queued-run recovery rotated away
       // (or whose run was cancelled) learns it here and stands down instead
       // of spawning — the host reads the boolean.
@@ -409,56 +412,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
          * wording of its own. */
         reason?: AgentRunWaitingReason;
       };
-      const parked = await sql.begin(async (tx) => {
-        const now = Date.now();
-        const rows = await tx<
-          {
-            organizationId: string;
-            taskId: string;
-            agentId: string;
-            execId: string;
-          }[]
-        >`
-          UPDATE app.project_agent_runs SET
-            status = 'queued',
-            exec_id = ${args.execRefused === true ? randomUUID() : args.execId},
-            launched_at_ms = CASE WHEN ${args.execRefused === true}
-              THEN NULL ELSE launched_at_ms END,
-            waiting_for_capacity_at_ms = ${now},
-            waiting_reason = ${args.reason ?? null},
-            updated_at_ms = ${now}
-          WHERE id = ${args.runId} AND exec_id = ${args.execId}
-            AND status = ${args.execRefused === true ? 'running' : 'queued'}
-          RETURNING org_id AS "organizationId", task_id AS "taskId",
-            agent_id AS "agentId", exec_id AS "execId"
-        `;
-        // The card now reads why the run waits, not "Queued".
-        const row = rows[0];
-        if (row !== undefined) {
-          await emitTaskRunHint(tx, {
-            organizationId: row.organizationId,
-            taskId: row.taskId,
-          });
-          if (args.wakeAfterMs !== undefined && args.wakeAfterMs > 0) {
-            await addJobInTx(
-              tx,
-              'task.agent_park_wake',
-              {
-                organizationId: row.organizationId,
-                runId: args.runId,
-                execId: row.execId,
-              },
-              { startAfter: new Date(Date.now() + args.wakeAfterMs) },
-            );
-          }
-          // A parked run holds no worker: the claim is given back, and the
-          // run names its family's first worker again until a wake claims
-          // one, so a free worker is taken by whichever run starts first and
-          // no parked row carries a worker id it does not hold.
-          await releaseRunWorker(tx, args.runId);
-        }
-        return row;
-      });
+      const parked = await sql.begin((tx) => parkAgentRunInTx(tx, args));
       // A parked run holds no slot: a standing workspace its start resumed
       // before the sandbox host refused the create reads `active` with no
       // compute, where the reconcile would heal it to destroyed. Free it back
