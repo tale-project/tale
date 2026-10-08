@@ -27,7 +27,8 @@
 #   - The session workspace is /agent (host bind / PVC). HOME and the
 #     per-session dependency roots live under /agent/.runtime/ so they survive
 #     every exec and container restart within the session.
-#   - Exec temp is /agent/.runtime/tmp (wiped at every container start).
+#   - Exec temp is /agent/.runtime/tmp (set aside at every container start
+#     and deleted in the background; the Docker spawner moves it out on stop).
 #
 # Exit codes:
 #   65  = bad invocation (unknown dispatch arg)
@@ -822,6 +823,44 @@ setup_shared_buildx_builder() {
 }
 
 # ---------------------------------------------------------------------------
+# Exec temp left by an earlier incarnation. No exec is live at a container
+# (re)start, so whatever the runtime root's `tmp` holds is garbage, and it can
+# be large (runnerd's replay spool, pip and npm staging). Deleting it before
+# runnerd started held the session's readiness for as long as the delete
+# took, so it is renamed aside (one directory entry, whatever the tree holds)
+# and deleted in the background once runnerd is on its way. Both steps run as
+# the profile uid ($DROP): the workspace is the agent's to write, and a root
+# delete through a planted symbolic link could reach anything. `mv` renames a
+# symbolic link itself, never what it names, and the aside name is one that
+# does not exist yet, so the tree is never moved INTO an older leftover.
+# $1 is the runtime root (/agent/.runtime); the tests pass their own.
+# ---------------------------------------------------------------------------
+set_aside_exec_temp() {
+  _rt="${1:-/agent/.runtime}"
+  [ -e "$_rt/tmp" ] || [ -L "$_rt/tmp" ] || return 0
+  _aside="$_rt/tmp.old.$$"
+  while [ -e "$_aside" ] || [ -L "$_aside" ]; do _aside="$_aside.x"; done
+  # A rename that cannot happen falls back to the delete in place.
+  $DROP mv "$_rt/tmp" "$_aside" 2>/dev/null || $DROP rm -rf "$_rt/tmp"
+}
+
+# Delete every aside tree in the background, at the lowest CPU and I/O
+# priority (`ionice -t` runs the delete even where the class cannot be set),
+# after a head start for runnerd ($2 seconds, 2 by default). A delete that a
+# stop cuts short is finished by the next start.
+purge_old_exec_temp() {
+  _rt="${1:-/agent/.runtime}"
+  _delay="${2:-2}"
+  _idle=""
+  command -v ionice >/dev/null 2>&1 && _idle="ionice -c 3 -t"
+  # Word splitting of $DROP and $_idle is intended.
+  (
+    sleep "$_delay"
+    $DROP nice -n 19 $_idle rm -rf "$_rt"/tmp.old.*
+  ) >/dev/null 2>&1 &
+}
+
+# ---------------------------------------------------------------------------
 # K8s transparent-egress native sidecar. The session Pod runs a sidecar
 # container (an initContainer with restartPolicy: Always — K8s 1.28+) with this
 # arg + NET_ADMIN. It installs the OUTPUT REDIRECT into the SHARED pod netns as
@@ -912,8 +951,13 @@ if [ "$1" = "daemon" ]; then
   # Exec temp (TMPDIR below) is wiped like the steer queue: no exec is live at
   # a container (re)start, so anything left there is garbage from a previous
   # incarnation — this keeps the old /tmp lifecycle (temp died with the
-  # container) now that the dir persists on the workspace.
-  $DROP rm -rf /agent/.runtime/tmp
+  # container) now that the dir persists on the workspace. Set aside and
+  # deleted in the background, so a large leftover never delays readiness.
+  # Started here, while PATH still names only the image's binaries: the
+  # background job keeps this PATH, never the workspace dependency dirs added
+  # below, which a root shell must not run from. Tini, as PID 1, reaps it.
+  set_aside_exec_temp /agent/.runtime
+  purge_old_exec_temp /agent/.runtime
   # Every harness state root a harness.yml points at under HOME must exist
   # before the harness starts: Codex refuses to start when CODEX_HOME names
   # a missing directory ("Error finding codex home", exit 1, stderr only),

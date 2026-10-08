@@ -9,6 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   chown,
+  lstat,
   mkdir,
   readdir,
   readFile,
@@ -1043,7 +1044,51 @@ export class DockerSessionBackend implements SessionBackend {
     // The pin belongs to the container that just went away; the resume's
     // create starts unpinned and the platform re-pushes.
     await this.clearPinMarker(sessionId);
+    await this.retireExecTemp(sessionId);
     return existed;
+  }
+
+  /**
+   * A stopped session's exec temp (`/agent/.runtime/tmp`: exec scratch, pip
+   * and npm staging, runnerd's replay spool of up to 256 MiB) is garbage once
+   * its container is gone. Left in place, the next start deleted it before
+   * runnerd came up, delaying the resume by however long that took, and a
+   * session that never resumed kept it for the workspace's whole life. It is
+   * renamed into the trash instead, which deletes it in the background.
+   *
+   * Runs inside the stop, after the container is confirmed gone, so nothing
+   * in the workspace moves meanwhile and the routes' serialization of stop
+   * and resume covers it. The workspace is the agent's to write: a `.runtime`
+   * or `tmp` that is not a plain directory — a planted symbolic link above
+   * all — is left alone. Best effort: it never fails the stop.
+   */
+  private async retireExecTemp(sessionId: string): Promise<void> {
+    const workspace = this.workspaceDir(sessionId);
+    const runtime = join(workspace, '.runtime');
+    const tmp = join(runtime, 'tmp');
+    for (const path of [workspace, runtime, tmp]) {
+      let entry;
+      try {
+        entry = await lstat(path);
+      } catch (err) {
+        if (!(err instanceof Error && 'code' in err && err.code === 'ENOENT')) {
+          console.warn(
+            `[sandbox.session] cannot check ${path}; ${sessionId}'s exec temp stays:`,
+            err,
+          );
+        }
+        return;
+      }
+      if (!entry.isDirectory()) {
+        if (entry.isSymbolicLink()) {
+          console.warn(
+            `[sandbox.session] ${path} is a symbolic link; ${sessionId}'s exec temp stays`,
+          );
+        }
+        return;
+      }
+    }
+    await this.trash.moveIn(tmp, `${sessionWorkspaceDirName(sessionId)}.tmp`);
   }
 
   /** A container that never got going — `created`, `paused` or `restarting`

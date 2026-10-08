@@ -779,9 +779,16 @@ in-place container restart — this _is_ the session-persistence mechanism.
 `TMPDIR=/agent/.runtime/tmp` also lives on the workspace (disk-backed), not the
 `/tmp` tmpfs: pip stages a whole target install set in `$TMPDIR`, and the tmpfs
 is small and memory-backed (charged to the container's memory cgroup), so any
-install past the tmpfs size would die with ENOSPC. The entrypoint wipes the dir
-at container (re)start — no exec is live then — preserving the old /tmp
-lifecycle. `/tmp` remains for small control files such as redsocks.conf.
+install past the tmpfs size would die with ENOSPC. The dir dies with its
+container, preserving the old /tmp lifecycle: a Docker stop renames it into
+the session root's trash once the container is gone (the workspace being the
+agent's, a `.runtime` or `tmp` that is not a plain directory, such as a
+planted symbolic link, is left alone), and the background pass deletes it. At
+every container (re)start — no exec is live then — the entrypoint renames
+whatever is left aside as the profile uid and deletes it in the background at
+idle priority, so a large leftover (the replay spool, a pip staging tree)
+never delays runnerd's readiness. `/tmp` remains for small control files such
+as redsocks.conf.
 
 ## Kubernetes specifics
 
