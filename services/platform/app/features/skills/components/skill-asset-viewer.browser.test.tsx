@@ -60,11 +60,11 @@ const THEMES = {
   dark: { theme: 'dark', resolvedTheme: 'dark', setTheme: () => {} },
 } as const;
 
-// The first highlight loads Shiki's engine, both themes and every eager
+// The first highlight loads Shiki's engine, its theme and every eager
 // grammar: seconds on a busy runner, past `waitFor`'s budget. Pay it here,
 // through the unmocked singleton, so every test starts warm.
 beforeAll(async () => {
-  await shikiHighlight('x', 'ts', 'min-light');
+  await shikiHighlight('x', 'ts');
 }, 30_000);
 
 afterEach(() => {
@@ -298,22 +298,18 @@ describe('SkillAssetViewer typography', () => {
     },
   );
 
-  it.each([
-    ['light', 'min-light'],
-    ['dark', 'min-dark'],
-  ] as const)(
-    'asks the highlighter for the %s theme by its own name',
-    async (theme, shikiTheme) => {
+  it.each(['light', 'dark'] as const)(
+    'colours the %s canvas through the one code palette',
+    async (theme) => {
       asset.text = 'name: demo';
       const { container } = renderViewer('config.yaml', theme);
       await highlightedRows(container);
 
-      expect(highlightCode).toHaveBeenCalledWith(
-        asset.text,
-        'yaml',
-        shikiTheme,
-      );
-      expect(container.querySelector('pre.shiki')).toHaveClass(shikiTheme);
+      expect(highlightCode).toHaveBeenCalledWith(asset.text, 'yaml');
+      expect(container.querySelector('pre.shiki')).toHaveClass('tale-code');
+      expect(
+        container.querySelector('pre.shiki span[style*="var(--code-token-"]'),
+      ).not.toBeNull();
     },
   );
 });
