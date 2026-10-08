@@ -11,10 +11,12 @@
 // A session absent from the store lives on the server, which is also what
 // every session created before devices existed is.
 
-import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
 
+import {
+  flushSnapshotDirectory,
+  writeDurableSnapshot,
+} from '../durable-snapshot.ts';
 import { ID_ALPHABET_RE, ORG_ID_ALPHABET_RE } from '../wire.ts';
 
 export interface Placement {
@@ -201,30 +203,17 @@ export class PlacementStore {
       version: 1,
       placements: Object.fromEntries(placements),
     };
-    await mkdir(dirname(this.file), { recursive: true });
-    const tmp = `${this.file}.${randomUUID()}.tmp`;
-    try {
-      const handle = await open(tmp, 'wx', 0o600);
-      try {
-        await handle.writeFile(JSON.stringify(snapshot));
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-      await rename(tmp, this.file);
-      this.placements = new Map(placements);
-      await this.flushDirectory();
-    } finally {
-      await rm(tmp, { force: true });
-    }
+    await writeDurableSnapshot(
+      this.file,
+      JSON.stringify(snapshot),
+      () => {
+        this.placements = new Map(placements);
+      },
+      () => this.flushDirectory(),
+    );
   }
 
-  private async flushDirectory(): Promise<void> {
-    const directory = await open(dirname(this.file), 'r');
-    try {
-      await directory.sync();
-    } finally {
-      await directory.close();
-    }
+  private flushDirectory(): Promise<void> {
+    return flushSnapshotDirectory(this.file);
   }
 }
