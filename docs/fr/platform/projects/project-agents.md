@@ -25,6 +25,8 @@ Sépare les instructions réutilisables de la tâche. « Repère les preuves ma
 
 Ouvre l’onglet **Agents** du projet et choisis **Nouvel agent**. Donne-lui un **Nom** reconnaissable, puis choisis l’**Environnement d'agent**, son [programme d’exécution](/fr/platform/agents/harnesses). Les noms sont uniques dans le projet, qui accepte jusqu’à 50 agents.
 
+Tale tire du nom un handle de mention, que tu saisis après `@` pour trouver l’agent : « My Opus Agent #3 » devient `@my-opus-agent-3`. Si un autre agent porte déjà ce handle, le plus récent reçoit `-02`, puis `-03`. Le handle figure dans l’onglet **Agents** et sous **Nom** quand tu modifies l’agent. Renommer l’agent change son handle ; les mentions écrites avant continuent de désigner l’agent et affichent son nouveau nom.
+
 Tu peux aussi partir d’une tâche : tant que le projet n’a pas d’agent, **Créer un agent…** sous **Assigné à** ouvre **Nouvel agent** par-dessus la tâche et lui assigne l’agent que tu crées.
 
 </Step>

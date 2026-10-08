@@ -25,6 +25,8 @@ Separate reusable instructions from the task. “Identify missing evidence and r
 
 Open the project’s **Agents** tab and select **New agent**. Give it a recognizable **Name**, then choose **Agent runtime**, the [program that runs its session](/platform/agents/harnesses). Names are unique within the project; a project supports up to 50 agents.
 
+Tale makes a mention handle from the name, which people type after `@` to find the agent: “My Opus Agent #3” becomes `@my-opus-agent-3`. If another agent already has that handle, the newer one gets `-02`, then `-03`. The handle appears on the **Agents** tab and under **Name** when you edit the agent. Renaming the agent changes its handle; mentions written earlier keep naming the agent and show its new name.
+
 You can also start from a task: while the project has no agent, **Create an agent…** under **Assignee** opens **New agent** over the task and assigns the agent you create to it.
 
 </Step>
