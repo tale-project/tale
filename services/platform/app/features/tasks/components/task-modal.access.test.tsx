@@ -128,13 +128,15 @@ vi.mock('@/app/features/shared/files/use-file-upload', () => ({
 }));
 vi.mock('./task-comments', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./task-comments')>()),
-  TaskComments: () => null,
-  TaskCommentComposer: () => null,
+  TaskCommentComposer: ({ variant }: { variant?: string }) => (
+    <div data-testid="task-comment-composer" data-variant={variant} />
+  ),
   TaskCommentComposerSkeleton: () => null,
 }));
-vi.mock('./task-timeline', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./task-timeline')>()),
-  TaskTimeline: () => null,
+vi.mock('./task-conversation', () => ({
+  TaskConversation: ({ taskId }: { taskId: string }) => (
+    <div data-testid="task-conversation" data-task-id={taskId} />
+  ),
 }));
 vi.mock('./task-attachments', () => ({ TaskAttachments: () => null }));
 vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
@@ -252,6 +254,23 @@ describe('TaskModal — an editor, as before', () => {
     ).toBeInTheDocument();
     // Opening the task names both pickers without their candidate reads.
     expect(state.candidateReads).toBe(0);
+  });
+});
+
+describe('TaskModal — the discussion', () => {
+  it('reads as the task page does: one conversation, the composer at its foot', async () => {
+    state.access = { canEdit: true, canCreate: true };
+    openTask(baseTask);
+
+    const conversation = await screen.findByTestId('task-conversation');
+    expect(conversation).toHaveAttribute('data-task-id', baseTask._id);
+    const composer = screen.getByTestId('task-comment-composer');
+    expect(composer).toHaveAttribute('data-variant', 'chat');
+    // The composer answers the thread from under it, as on the page.
+    expect(
+      conversation.compareDocumentPosition(composer) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });
 
