@@ -48,7 +48,7 @@ Wähle im Bereich **Start** unter **Projekte** ein Projekt, auf das du zugreifen
 
 ## Zur Arbeit zurückkehren
 
-Jeder Bereich öffnet seine eigene erste Seite – egal, was du dort zuletzt getan hast. Am Computer ist **Start** die Ausnahme: Dort öffnet sich der Chat, den du zuletzt gelesen hast, und wählst du **Start** erneut, beginnt ein neuer Chat. Die [Navigationsanleitung](/de/platform#navigation) erklärt die Bedienelemente am Computer und auf dem Smartphone.
+Jeder Bereich öffnet seine eigene erste Seite – egal, was du dort zuletzt getan hast. Am Computer öffnet **Start** einen neuen Chat. Die [Navigationsanleitung](/de/platform#navigation) erklärt die Bedienelemente am Computer und auf dem Smartphone.
 
 **Start** zeigt deine Chats zusammen mit den offenen Aufgaben, die dir zugewiesen sind oder auf dein Review warten. Mit **Chats** oder **Aufgaben** über der Liste siehst du nur eine der beiden Arten. Ist die Seitenleiste ausgeblendet, holt **Seitenleiste einblenden** am Anfang der Kopfzeile sie zurück. Beginne für ein neues Thema einen neuen Chat und teile Projektgespräche bewusst, wenn andere sie benötigen.
 

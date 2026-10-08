@@ -10,6 +10,7 @@ import {
 } from '@tale/ui/flow/edge-palette';
 import { FlowCanvas } from '@tale/ui/flow/flow-canvas';
 import { useElkLayout } from '@tale/ui/flow/use-elk-layout';
+import type { IssueCounts } from '@tale/ui/issue-summary';
 import {
   MarkerType,
   Position,
@@ -68,6 +69,8 @@ export interface AutomationCanvasProps {
   /** Id of the inspector region a node button expands. */
   inspectorId: string;
   runStatusByNode?: ReadonlyMap<string, NodeRunStatus>;
+  /** Problems the editor's check found, by node id — marked on each box. */
+  issueCountsByNode?: ReadonlyMap<string, IssueCounts>;
   /**
    * Draw the canvas as a bordered, rounded frame (a run's page, where it sits
    * in the page inset). The Editor tab's edge-to-edge workbench turns it off:
@@ -81,6 +84,7 @@ export interface AutomationCanvasProps {
 }
 
 const EMPTY_STATUSES: ReadonlyMap<string, NodeRunStatus> = new Map();
+const NO_ISSUE_COUNTS: ReadonlyMap<string, IssueCounts> = new Map();
 
 /** Room left between a box brought into view and the frame's edge. */
 const REVEAL_MARGIN = 24;
@@ -111,6 +115,7 @@ function CanvasInner({
   onSelectNode,
   inspectorId,
   runStatusByNode = EMPTY_STATUSES,
+  issueCountsByNode = NO_ISSUE_COUNTS,
   framed = true,
   centerActions,
 }: AutomationCanvasProps) {
@@ -240,6 +245,7 @@ function CanvasInner({
       onFocusNode,
       runStatusByNode,
       incomingByNode,
+      issueCountsByNode,
     }),
     [
       selectedNodeId,
@@ -248,6 +254,7 @@ function CanvasInner({
       onFocusNode,
       runStatusByNode,
       incomingByNode,
+      issueCountsByNode,
     ],
   );
 
@@ -281,8 +288,12 @@ function CanvasInner({
         // once, and a `flex-1` box inside a scrolling column can start at
         // zero — which paints an empty canvas that never re-fits.
         className={cn(
-          'relative h-full min-h-[24rem] flex-1 overflow-hidden',
-          framed && 'border-border rounded-lg border',
+          'relative h-full flex-1 overflow-hidden',
+          // Framed, the canvas sits in a scrolling page and needs a height of
+          // its own. Unframed (the Editor tab), the workbench row already
+          // holds it at 24rem or more, and the Problems dock under it may
+          // take part of that row — the canvas keeps at least 12rem.
+          framed ? 'border-border min-h-[24rem] rounded-lg border' : 'min-h-48',
         )}
         role="group"
         aria-label={t('canvas.ariaLabel')}

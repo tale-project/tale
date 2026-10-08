@@ -79,7 +79,9 @@ export function RunStepDetail({
         // A step still in flight has performed nothing YET — asserting it
         // "changed nothing" would be a verdict on a run still being written.
         emptyMessage={
-          runView.status === 'running'
+          runView.status === 'running' ||
+          runView.status === 'waiting' ||
+          runView.status === 'interrupted'
             ? t('runs.effects.noneYetForNode')
             : t('runs.effects.noneForNode')
         }

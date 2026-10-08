@@ -142,13 +142,16 @@ const RUN_FIELDS = [
   'chainSeq',
   'startedAt',
   'finishedAt',
+  'resumeCount',
+  'stalled',
 ] as const satisfies readonly (keyof RunRow)[];
 // Every key the full read answers must be selectable: a `RunRow` column
 // added without a `RUN_FIELDS` entry fails here, not as a 400 in production.
-// `askPending` is the read's own input to `waitingFor`, stripped before the
-// wire — never a field a caller names.
+// `askPending` is the read's own input to `waitingFor`, and the two resume
+// stamps the read's input to `lastResume`, stripped before the wire — never
+// fields a caller names.
 type RunFieldsMissing = Exclude<
-  keyof Omit<RunRow, 'askPending'>,
+  keyof Omit<RunRow, 'askPending' | 'lastResumeReason' | 'lastResumedAt'>,
   (typeof RUN_FIELDS)[number]
 >;
 const RUN_FIELDS_COMPLETE: [RunFieldsMissing] extends [never] ? true : never =
@@ -162,8 +165,14 @@ const RUN_READ_QUERY = { fields: queryFilter(256).optional() };
 const ASK_ANSWER_MAX = 20_000;
 
 /** What a run read may project: every stored key, plus the wait family
- * the read derives while a run is parked (`waitingFor`). */
-const RUN_READ_FIELDS = [...RUN_FIELDS, 'waitingFor', 'startedVia'] as const;
+ * the read derives while a run is parked (`waitingFor`), and why and when
+ * it was last handed on (`lastResume`). */
+const RUN_READ_FIELDS = [
+  ...RUN_FIELDS,
+  'waitingFor',
+  'startedVia',
+  'lastResume',
+] as const;
 
 /** The query every run listing takes: the page pair, a status set and the
  * full-row fields to inline. */

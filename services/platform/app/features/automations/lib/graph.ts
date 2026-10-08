@@ -11,8 +11,9 @@
  *
  * The reference kind is carried through to the edge, because it is what an
  * author needs to see:
- *  - a DATA reference (input / prompt / system / code / forEach) also
- *    propagates skipping — if the source is skipped, this node is skipped;
+ *  - a DATA reference (input / prompt / system / files / code / forEach)
+ *    also propagates skipping — if the source is skipped, this node is
+ *    skipped;
  *  - a CONTROL reference (when / repeatUntil / elseOf) only orders the two
  *    nodes; it never propagates a skip.
  */
@@ -149,11 +150,9 @@ export function controlFlowBadges(node: NodeDef): ControlFlowBadge[] {
   return badges;
 }
 
-/** Node ids are `^[a-z][a-z0-9_]{0,49}$` — readable, but underscored. One
- * rendering shared by every surface that names a node to a person. */
-export function humanizeNodeId(id: string): string {
-  return id.replaceAll('_', ' ');
-}
+/** The node label lives in `./node-label`, which loads without the parser;
+ * re-exported here for the readers that already hold the graph. */
+export { humanizeNodeId } from './node-label';
 
 /** Everything the canvas needs about one document, derived in one pass. */
 export interface AutomationGraph {

@@ -360,5 +360,25 @@
  * manage an agent's tools through a conditional tools-only configuration
  * facet; saved models, instructions and secret grants remain independent.
  * No public REST delegation or agent-verdict endpoint is added. Additive.
+ *
+ * 3.18.0 — 2026-10-08: a run's `waitingFor` gains `in_doubt` — a write its
+ * server was making when it stopped may already have happened, and a person
+ * decides in the app how to continue (its `detail` reads
+ * `in_doubt:<nodeId>`); `failureCode` gains `engine_incompatible` and
+ * `effect_in_doubt`; runs carry `resumeCount`, `lastResume {reason:
+ * shutdown | lease_expired, at}` and `stalled`. Additive.
+ *
+ * 3.19.0 — 2026-10-08: automation documents are analysed before they run,
+ * and the MCP authoring tools say what the analysis found.
+ * `validate_automation` answers `analysis` (the per-node summary and the
+ * possible paths) and `types` (every value's inferred shape) beside its
+ * issues; every issue carries `at` (a JSON pointer and a range in the
+ * field), `params` (the facts its sentence names) and `related`
+ * (the nodes it involves); `save_automation` answers the saved version's
+ * `warnings`, and a refused save its `warnings` beside its `errors`;
+ * `get_catalog` gives each capability its `outputSchema`. New warning
+ * codes (MAYBE_NULL, UNCAUGHT_FAILURE, UNREACHABLE, TYPE_MISMATCH and the
+ * rest of the analysis) and one more error (ITEM_WITHOUT_FOREACH, a
+ * warning before). No REST operation changes. Additive.
  */
-export const API_CONTRACT_VERSION = '3.17.0';
+export const API_CONTRACT_VERSION = '3.19.0';

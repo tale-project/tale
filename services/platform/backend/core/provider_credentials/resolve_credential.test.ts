@@ -15,6 +15,7 @@ import { safeFetch } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import type { ActionCtx } from '../lib/ctx';
 import { encryptSecret } from '../lib/secret_box';
+import { classifyStartFailure } from '../tasks/start_failure';
 import type { BrokerSelectionResult } from './broker_pool';
 import {
   credentialRefusalCode,
@@ -74,9 +75,13 @@ function ctxServingBroker(endpoint: string) {
       fellBack: false,
     }),
   );
+  const runQuery = vi.fn(async (): Promise<typeof row | null> => ({ ...row }));
   return Object.assign(
-    { runQuery: vi.fn(async () => row), runMutation } as unknown as ActionCtx,
-    { mockRunMutation: runMutation },
+    {
+      runQuery,
+      runMutation,
+    } as unknown as ActionCtx,
+    { mockRunMutation: runMutation, mockRunQuery: runQuery, row },
   );
 }
 
@@ -110,6 +115,155 @@ beforeEach(() => {
   vi.stubEnv('ENCRYPTION_SECRET_HEX', 'test-key-material');
   vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '');
   mockedFetch.mockReset();
+});
+
+describe('opt-in task broker transport', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'],
+    });
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+  });
+  afterEach(() => {
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+  const scope = () => ({
+    deadlineAt: Date.now() + 120_000,
+    assertCurrent: async () => {},
+  });
+  const args = { organizationId: ORG, providerSlug: 'anthropic' };
+
+  it('leaves callers without opt-in and POST brokers single-shot', async () => {
+    mockedFetch.mockResolvedValue({ ...poolResponse(), status: 521 });
+    const ctx = ctxServingBroker('https://broker.example/pool');
+    expect(await caughtCode(resolveProviderCredential(ctx, args))).toBe(
+      'CREDENTIAL_BROKER_FETCH_FAILED',
+    );
+    ctx.row.encryptedData = encryptSecret(
+      JSON.stringify({
+        ...brokerDocument('https://broker.example/pool'),
+        httpMethod: 'POST',
+      }),
+    );
+    expect(
+      await caughtCode(resolveProviderCredential(ctx, args, scope())),
+    ).toBe('CREDENTIAL_BROKER_FETCH_FAILED');
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+    expect(ctx.mockRunMutation).not.toHaveBeenCalled();
+  });
+
+  it.each(['disabled', 'changed', 'deleted'] as const)(
+    'refuses a %s credential before retrying',
+    async (change) => {
+      mockedFetch.mockResolvedValue({ ...poolResponse(), status: 521 });
+      const ctx = ctxServingBroker('https://broker.example/pool');
+      const result = caughtCode(resolveProviderCredential(ctx, args, scope()));
+      await vi.advanceTimersByTimeAsync(1);
+      if (change === 'disabled') ctx.row.status = 'disabled';
+      if (change === 'changed')
+        ctx.row.encryptedData = encryptSecret(
+          JSON.stringify(brokerDocument('https://changed.example/pool')),
+        );
+      if (change === 'deleted') ctx.mockRunQuery.mockResolvedValue(null);
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(await result).toBe(
+        change === 'disabled'
+          ? 'CREDENTIAL_DISABLED'
+          : change === 'deleted'
+            ? 'CREDENTIAL_NONE_CONFIGURED'
+            : 'CREDENTIAL_BROKER_FETCH_FAILED',
+      );
+      expect(mockedFetch).toHaveBeenCalledTimes(1);
+      expect(ctx.mockRunMutation).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses revocation after selection without publishing a token or selecting again', async () => {
+    const ctx = ctxServingBroker('https://broker.example/pool');
+    mockedFetch.mockResolvedValue(poolResponse());
+    ctx.mockRunMutation.mockImplementation(async (_ref, input) => {
+      ctx.row.status = 'disabled';
+      return { hash: input.candidates[0]?.hash ?? null, fellBack: false };
+    });
+    expect(
+      await caughtCode(resolveProviderCredential(ctx, args, scope())),
+    ).toBe('CREDENTIAL_DISABLED');
+    expect(ctx.mockRunMutation).toHaveBeenCalledTimes(1);
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not replay malformed successful responses or pool cooldowns', async () => {
+    const ctx = ctxServingBroker('https://broker.example/pool');
+    mockedFetch.mockResolvedValueOnce({
+      ...poolResponse(),
+      body: 'invalid-json synthetic-secret',
+    });
+    expect(
+      await caughtCode(resolveProviderCredential(ctx, args, scope())),
+    ).toBe('CREDENTIAL_BROKER_FETCH_FAILED');
+    mockedFetch.mockResolvedValueOnce(poolResponse());
+    const retryAtMs = Date.now() + 90_000;
+    ctx.mockRunMutation.mockResolvedValue({
+      hash: null,
+      fellBack: false,
+      retryAtMs,
+    });
+    const failure = await resolveProviderCredential(ctx, args, scope()).catch(
+      (error: unknown) => error,
+    );
+    expect(credentialRetryAtMs(failure)).toBe(retryAtMs);
+    expect(credentialRefusalCode(failure)).toBe('CREDENTIAL_BROKER_EXHAUSTED');
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+    expect(ctx.mockRunMutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an out-of-budget transport Retry-After an ordinary counted failure', async () => {
+    const ctx = ctxServingBroker('https://broker.example/pool');
+    mockedFetch.mockResolvedValue({
+      ...poolResponse(),
+      status: 503,
+      headers: new Headers({ 'retry-after': '300' }),
+    });
+    const failure = await resolveProviderCredential(ctx, args, scope()).catch(
+      (error: unknown) => error,
+    );
+    expect(classifyStartFailure(failure)).toMatchObject({
+      failureCode: 'start_failed',
+    });
+    expect(classifyStartFailure(failure)).not.toHaveProperty('retryAtMs');
+    expect(credentialRetryAtMs(failure)).toBeUndefined();
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    expect(ctx.mockRunMutation).not.toHaveBeenCalled();
+  });
+});
+
+it('recovers a transient broker refusal inside one credential resolution', async () => {
+  vi.useFakeTimers();
+  try {
+    mockedFetch
+      .mockResolvedValueOnce({ ...poolResponse(), status: 521 })
+      .mockResolvedValueOnce(poolResponse());
+    const ctx = ctxServingBroker('https://broker.example/pool');
+    const result = resolveProviderCredential(
+      ctx,
+      { organizationId: ORG, providerSlug: 'anthropic' },
+      { deadlineAt: Date.now() + 60_000, assertCurrent: async () => {} },
+    ).then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error }),
+    );
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    expect(ctx.mockRunMutation).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1_001);
+    expect(await result).toMatchObject({ value: { token: 'tok-a' } });
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+    expect(ctx.mockRunMutation).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 describe('broker account selection boundary', () => {

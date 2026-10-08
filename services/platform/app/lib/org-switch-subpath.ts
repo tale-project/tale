@@ -23,12 +23,19 @@
  *  preserved like `agents/{slug}`. */
 const ENTITY_DETAIL_SECTIONS = new Set(['projects', 'chat']);
 
+/** `projects/<id>/automations/<slug>/…` — an automation's page inside a
+ *  project. It belongs to the Automations section, but the project does not
+ *  exist in the target organization, so it lands on that section's overview. */
+const PROJECT_AUTOMATION_PAGE = /^projects\/[^/?#]+\/automations\/[^/?#]+/;
+
 /**
- * `projects/abc123/tasks` → `projects`; `chat/t_1#mid` → `chat`. Section roots,
+ * `projects/abc123/tasks` → `projects`; `chat/t_1#mid` → `chat`;
+ * `projects/abc123/automations/intake/editor` → `automations`. Section roots,
  * filters, and config subpaths pass through untouched: `projects?archived=true`,
  * `settings/governance?group=security`.
  */
 export function resetCrossOrgDetailSubpath(subpath: string): string {
+  if (PROJECT_AUTOMATION_PAGE.test(subpath)) return 'automations';
   // The section is the first path segment, before any '/', '?' or '#'.
   const section = subpath.split(/[/?#]/, 1)[0];
   if (!ENTITY_DETAIL_SECTIONS.has(section)) return subpath;

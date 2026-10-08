@@ -131,6 +131,8 @@ The target URL is where the API is reachable; the origin is the canonical browse
 
 Deployment creates missing owned skills through native create-only upload and verifies every installed byte. Existing exact bytes can be reused; differing bytes at the release slug cause a refusal. Workflow-only import cannot write skills. Before reporting success, the CLI checks the deployed workflow, settings, presentation, task contract and project binding.
 
+The import answers with the workflow's warnings. A warning about the workflow's own logic, such as a read of a node that may be skipped or a node that can never run, does not stop the deployment: the result lists it under `importWarnings`. Any other warning, such as a skill the organization does not have, stops the deployment after the import, and the saved version is not deployed. [What Tale checks before a run](/platform/automations/concepts#checks) explains each warning.
+
 Run `verify-native` after deployment and operational tests. It imports nothing and creates no version or receipt. A repeat deployment also reads current native content before reporting an unchanged release; a stored receipt alone does not prove current bytes.
 
 ## Recover a stopped deployment

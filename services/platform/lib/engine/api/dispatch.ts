@@ -39,34 +39,14 @@ import { execute, type ExecuteOptions } from '../core/execute';
 import type { StoreAdapter } from '../core/slots';
 import { nodeTypes } from '../core/slots';
 import type { Automation, RunResult } from '../core/types';
-import { validate } from '../core/validate';
+import { connectorOutputShape } from '../core/typing/signature';
+import { validate, type ValidateOptions } from '../core/validate';
 import { searchCatalog } from './catalog-search';
 import { authoringReference } from './docs';
+import { METHODS } from './methods';
 import { runAutomationTests } from './tests';
 
-export const METHODS = [
-  'get_docs',
-  'get_catalog',
-  'search_catalog',
-  'validate_automation',
-  'run_automation',
-  'test_automation',
-  'save_automation',
-  'get_automation',
-  'list_automations',
-  'deploy_automation',
-  'set_trigger',
-  'run_deployed',
-  'start_run',
-  'list_runs',
-  'get_run',
-  'cancel_run',
-  'list_versions',
-  'list_triggers',
-  'delete_trigger',
-] as const;
-
-export type Method = (typeof METHODS)[number];
+export { METHODS, type Method } from './methods';
 
 /** A trigger binding the host persists and acts on. The engine only records
  * it; scheduling and delivery are the host's job. */
@@ -103,11 +83,23 @@ export interface RunSummary {
    * `status` is `failed` and the run failed on a build that records it. */
   failureCode?: string;
   /** What a `waiting` run is parked on — `approval` (a person's decision),
-   * `ask` (a question a person has to answer), `agent` (an agent turn
-   * still running), `room` (an agent turn waiting for sandbox room to
-   * start), `repeat` (a node polling until its condition holds). Only the
-   * first two need a human; present only while waiting. */
-  waitingFor?: 'approval' | 'ask' | 'agent' | 'room' | 'repeat';
+   * `ask` (a question a person has to answer), `in_doubt` (a write the run
+   * was making when its server stopped may already have happened; a person
+   * decides how to continue), `agent` (an agent turn still running), `room`
+   * (an agent turn waiting for sandbox room to start), `repeat` (a node
+   * polling until its condition holds). The first three need a human;
+   * present only while waiting. */
+  waitingFor?: 'approval' | 'ask' | 'in_doubt' | 'agent' | 'room' | 'repeat';
+  /** How often another server took the run over or a stopping one handed
+   * it on; absent while it never was. */
+  resumeCount?: number;
+  /** Why and when the run was last handed on: `shutdown` (its server was
+   * updated or restarted and handed it on) or `lease_expired` (its server
+   * stopped responding and another took over). Absent while it never was. */
+  lastResume?: { reason: 'shutdown' | 'lease_expired'; at: number };
+  /** True while a running run waits for a server to take it over after its
+   * own stopped; absent otherwise. */
+  stalled?: boolean;
   startedAt: number;
   finishedAt?: number;
 }
@@ -519,6 +511,32 @@ function versionParam(
   return { value: n };
 }
 
+const VALIDATION_DETAIL = ['analysis', 'types'] as const;
+
+/**
+ * Read `params.detail` of validate_automation: what to return beside the
+ * issues. Omitted, it is everything — the MCP door never sends it (its
+ * argument schema stays strict), so an agent always gets the analysis and
+ * the types; a host that renders only part of them (the editor) asks for
+ * less.
+ */
+function detailParam(
+  v: unknown,
+):
+  | { value: NonNullable<ValidateOptions['detail']> }
+  | { error: string; code: 'INVALID_PARAMS'; hint: string } {
+  if (v === undefined) return { value: VALIDATION_DETAIL };
+  const known = new Set<unknown>(VALIDATION_DETAIL);
+  if (Array.isArray(v) && v.every((d) => known.has(d))) {
+    return { value: VALIDATION_DETAIL.filter((d) => v.includes(d)) };
+  }
+  return {
+    error: `params.detail must list "analysis" and/or "types" — got ${JSON.stringify(v)}`,
+    code: 'INVALID_PARAMS',
+    hint: 'omit detail to get both, or pass detail: ["analysis"]',
+  };
+}
+
 function paramsObject(params: unknown): Record<string, unknown> {
   return params !== null && typeof params === 'object' && !Array.isArray(params)
     ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the object check above
@@ -573,6 +591,9 @@ export async function dispatch(
           if (t.connector) {
             entry.input_schema = t.connector.inputSchema;
             entry.output = t.connector.outputSignature;
+            // The same signature as a JSON Schema — what validation types
+            // a reference to this node's output against.
+            entry.outputSchema = connectorOutputShape(t.connector);
           }
         }
         node_types.push(entry);
@@ -610,8 +631,19 @@ export async function dispatch(
           hint: 'validate_automation takes {automation: <the automation document>}',
         };
       }
-      const { errors, warnings } = await validate(p.automation, { store });
-      return { valid: errors.length === 0, errors, warnings };
+      const detail = detailParam(p.detail);
+      if ('error' in detail) return detail;
+      const { errors, warnings, analysis, types } = await validate(
+        p.automation,
+        { store, detail: detail.value },
+      );
+      return {
+        valid: errors.length === 0,
+        errors,
+        warnings,
+        ...(analysis !== undefined && { analysis }),
+        ...(types !== undefined && { types }),
+      };
     }
 
     case 'run_automation': {
@@ -691,13 +723,16 @@ export async function dispatch(
           hint: 'save_automation takes {automation: <the automation document>, message?: "why this version"}',
         };
       }
-      const { errors } = await validate(p.automation, { store });
+      // Warnings never refuse a save; they ride along with its answer, so
+      // the author hears about them at the moment the version lands.
+      const { errors, warnings } = await validate(p.automation, { store });
       if (errors.length > 0) {
         return {
           error: 'automation failed validation — fix errors before saving',
           code: 'AUTOMATION_INVALID',
           hint: 'fix what errors lists, then save again — validate_automation checks a document without saving it',
           errors,
+          warnings,
         };
       }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
@@ -718,7 +753,11 @@ export async function dispatch(
           asString(p.message),
           testsPassed === undefined ? undefined : { testsPassed },
         );
-        return testsPassed === undefined ? saved : { ...saved, testsPassed };
+        return {
+          ...saved,
+          ...(testsPassed !== undefined && { testsPassed }),
+          warnings,
+        };
       } catch (e) {
         // The host's own refusals — a name it reserves for its fixed routes,
         // a name another owner holds — are refusals, not protocol errors:

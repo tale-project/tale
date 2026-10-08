@@ -65,8 +65,9 @@ export async function visitRecoveryCandidates<T>(
  * silent while its chain is alive; re-attaching it would start a second
  * chain beside the first, and a third on a later sweep. A running job that
  * started before the window, with the op silent since, belongs to a worker
- * that died with it: drive jobs carry no heartbeat and expire only after
- * twelve hours, so the re-attach must not wait for it.
+ * that died with it: the re-attach does not wait for it. A drive job's
+ * 60-second heartbeat (`jobs/tasks.ts`) has pg-boss fail such a job soon
+ * after its worker dies; its twelve-hour expiry would be far too late.
  */
 export async function driveJobPending(
   sql: Sql,

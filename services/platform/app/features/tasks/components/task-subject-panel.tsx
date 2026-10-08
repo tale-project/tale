@@ -17,6 +17,10 @@ import {
   approvalIdFromDetail,
 } from '@/app/features/automations/components/run-approval-card';
 import { RunAskCard } from '@/app/features/automations/components/run-ask-card';
+import {
+  RunInDoubtCard,
+  inDoubtNodeFromDetail,
+} from '@/app/features/automations/components/run-in-doubt-card';
 import { useRunPendingAsk } from '@/app/features/automations/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
@@ -161,6 +165,11 @@ function TaskSubjectPanelBody({
   // whole story flips to "answer this" while it is pending.
   const pendingAskQuery = useRunPendingAsk(organizationId, run?.runId);
   const pendingAsk = pendingAskQuery.data ?? null;
+  // A write the run was making when its server stopped may already have
+  // reached its service: the run waits for a person to decide how it goes
+  // on, and nothing works on it meanwhile.
+  const inDoubtNode =
+    run?.status === 'waiting' ? inDoubtNodeFromDetail(run.detail) : undefined;
 
   // `hasFiles` is the server-stamped subtree fact (`getTask` and the list
   // queries share one predicate with staging) — a client-side root-only probe
@@ -412,7 +421,11 @@ function TaskSubjectPanelBody({
     state.kind === 'running'
       ? pendingAsk !== null
         ? t('run.waitingAnswer', { name: displayName })
-        : t('run.working', { name: displayName })
+        : inDoubtNode !== undefined
+          ? canEdit
+            ? t('run.waitingDecision', { name: displayName })
+            : t('run.waitingDecisionOther', { name: displayName })
+          : t('run.working', { name: displayName })
       : state.kind === 'review'
         ? pendingReview !== undefined && pendingReview !== null
           ? t('reviewer.pendingFor', {
@@ -454,12 +467,14 @@ function TaskSubjectPanelBody({
         }
       >
         <Row gap={2} align="center">
-          {state.kind === 'running' && pendingAsk === null && (
-            <Loader2
-              className="text-muted-foreground size-4 shrink-0 animate-spin"
-              aria-hidden
-            />
-          )}
+          {state.kind === 'running' &&
+            pendingAsk === null &&
+            inDoubtNode === undefined && (
+              <Loader2
+                className="text-muted-foreground size-4 shrink-0 animate-spin"
+                aria-hidden
+              />
+            )}
           <Text as="p" className="min-w-0 flex-1 text-pretty">
             {stateLine}
           </Text>
@@ -571,6 +586,16 @@ function TaskSubjectPanelBody({
         <RunApprovalCard
           organizationId={organizationId}
           approvalId={approvalId}
+        />
+      )}
+      {/* Deciding moves the run on, like stopping it: only someone who may
+          work the task decides; anyone else reads the state line. */}
+      {canEdit && run !== null && inDoubtNode !== undefined && (
+        <RunInDoubtCard
+          key={run.runId}
+          organizationId={organizationId}
+          runId={run.runId}
+          node={inDoubtNode}
         />
       )}
       {run !== null && (

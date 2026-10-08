@@ -80,6 +80,49 @@ Une sortie **structurée** possède des champs nommés, accessibles avec `nodes.
 
 Un outil sans schéma de sortie produit une sortie non structurée. Pour transformer son texte en données structurées utilisables par les étapes suivantes, ajoute un nœud `llm` avec un `outputSchema`. En cas d’erreur, la validation indique la référence incorrecte et les champs ou contextes autorisés. Corrige-la avant d’enregistrer à nouveau.
 
+## Ce que Tale vérifie avant une exécution {#checks}
+
+Tale vérifie le document entier quand tu l’enregistres, quand tu déploies une version et chaque fois qu’un client appelle `validate_automation`. Une **erreur** décrit ce qui échoue à coup sûr : elle empêche d’enregistrer comme de déployer. Un **avertissement** signale ce qui peut échouer ou ne sert à rien. Il n’empêche jamais d’enregistrer ni de déployer, c’est donc toi qui décides d’agir. Chaque problème nomme son nœud et son champ et, dans un template, une condition ou du code, l’expression exacte.
+
+### Références et noms {#checks-references}
+
+Chaque `nodes.<id>` doit désigner un nœud existant, lire son résultat par `.output` et ne pas fermer une boucle de nœuds qui se lisent l’un l’autre. Une référence à un champ que sa source n’a pas, comme la faute de frappe `nodes.calc.output.cuont`, reçoit un avertissement qui propose le champ le plus proche. Tale signale aussi un nom qu’une expression ne voit pas, comme `item` hors de `forEach` ou un `input` mal orthographié, ainsi qu’un `input.<key>` que `inputs` ne déclare pas.
+
+### Types {#checks-types}
+
+Tale connaît la forme de la plupart des valeurs : l’entrée de l’exécution d’après `inputs`, la sortie d’une capacité d’après sa signature dans le catalogue, celle d’un nœud `llm` d’après son `outputSchema` et celle d’un nœud `transform` d’après l’objet que renvoie son code. Il avertit quand une valeur arrive à un endroit qui attend un autre type, comme un nombre là où une entrée de capacité attend du texte, ou un objet là où `forEach` attend une liste. Il avertit aussi quand une valeur insérée dans du texte peut manquer, car une valeur manquante y fait échouer le nœud.
+
+### Nœuds ignorés et en échec {#checks-skips}
+
+Un nœud est ignoré quand son `when` est faux, quand son partenaire `elseOf` s’exécute ou quand un nœud qu’il lit dans `input`, `prompt`, `system`, `files`, `code` ou `forEach` est ignoré. Un nœud avec `onError: continue` est ignoré quand il échoue. La sortie d’un nœud ignoré vaut `null`, et un nœud qui lit un nœud ignoré dans l’un de ces champs est ignoré lui aussi. Une lecture dans `when` ou `repeatUntil` n’ignore pas le nœud : la condition s’exécute et lit `null`.
+
+Quand une condition ou la `output` de l’automatisation lit un champ d’un nœud qui peut être ignoré, la lecture échoue donc lors des exécutions où ce nœud ne s’est pas exécuté. Il en va de même quand la valeur d’un tel nœud figure dans du texte, comme dans `Summary: {{ nodes.summary.output?.text }}` : `?.` n’y donne aucune valeur, et le texte refuse une valeur manquante. Tale avertit pour chacune de ces lectures, et le précise quand la cause est un échec que `onError: continue` tolère. Protège la lecture avec `?.` et une valeur de repli : `{{ nodes.check.output?.ok ?? false }}` dans une condition, `{{ nodes.summary.output?.text ?? null }}` dans la sortie. Les branches alternatives se rejoignent dans la `output` de l’automatisation, pas dans un nœud qui lit les deux :
+
+```yaml
+output:
+  message: '{{ nodes.summary.output?.text ?? nodes.summary_empty.output?.text }}'
+```
+
+### Nœuds qui ne peuvent jamais s’exécuter {#checks-unreachable}
+
+Certains nœuds ne peuvent jamais s’exécuter : celui dont la condition est toujours fausse, l’alternative d’un nœud qui s’exécute toujours, ou un nœud qui lit deux branches qui ne s’exécutent jamais ensemble. Tale avertit pour chacun d’eux. Un nœud dont personne ne lit la sortie et qui n’a aucun effet est signalé comme inutilisé.
+
+### Conditions et boucles {#checks-conditions}
+
+Une condition qui donne toujours la même réponse ne décide rien. Du texte autour d’un template fait par exemple de `when` une chaîne non vide, qui compte toujours comme vraie. Un `repeatUntil` toujours faux fait tous ses `maxRepeats` passages, et un `repeatUntil` qui ne lit jamais le résultat du passage (`output`) donne la même réponse après chaque passage.
+
+### Itération {#checks-iteration}
+
+`forEach` doit être un seul template qui donne une liste. Du texte brut, du texte autour d’un template ou une constante qui n’est pas une liste est une erreur, car le nœud échoue à chaque exécution. `when` et `forEach` sont lus une seule fois, avant que le nœud ne parcoure ses éléments : `item` et `index` n’y existent donc pas, et les utiliser est aussi une erreur. Un nœud `agent` ne peut pas encore utiliser `forEach` ni `repeatUntil`.
+
+### Automatisations appelées {#checks-called-automations}
+
+Un nœud `subautomation` est vérifié par rapport à la version qu’une exécution appellerait : la version qu’il indique, sinon celle qui est déployée, sinon la plus récente. Cette version doit exister et ne contenir aucun nœud `agent`. Tale avertit quand l’entrée ne correspond pas à ses `inputs`, et quand elle effectue une écriture qu’une approbation pourrait retenir, car une automatisation appelée ne peut pas attendre. Un déclencheur planifié dont l’entrée de départ est refusée par les `inputs` de l’automatisation est signalé aussi.
+
+### Tests {#checks-tests}
+
+L’entrée d’un test doit correspondre à `inputs`, chaque effet attendu doit venir d’un nœud qui l’effectue, et une valeur de sortie attendue doit avoir un type que l’automatisation peut renvoyer. Un test qui enfreint l’une de ces règles ne peut jamais réussir : Tale avertit donc avant que tu ne le lances.
+
 ## Les versions ne changent jamais
 
 Enregistrer crée une version au lieu d’écraser la précédente. Chaque automatisation possède une numérotation commençant à 1 ; chaque version conserve la note de modification de son auteur. Le workflow d’une version existante reste inchangé.
@@ -116,7 +159,7 @@ Le mode **Essai** simule les opérations externes pendant la préparation. Le mo
 
 Une approbation suspend l’exécution au statut `waiting` avant une écriture protégée. Approuver autorise le moteur à tenter l’opération, sans garantir sa réussite. Rejeter empêche l’opération et fait échouer l’exécution. Une question suspend aussi le traitement, mais demande une information plutôt qu’une permission.
 
-Le statut `waiting` peut également indiquer qu’un agent travaille encore, qu’une étape d’agent attend une place de sandbox pour démarrer, ou qu’un nœud vérifie périodiquement une condition. Consulte `waitingFor` : `approval` et `ask` nécessitent une personne ; `agent`, `room` et `repeat` reprennent normalement seuls. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique comment examiner et traiter les demandes humaines.
+Le statut `waiting` peut également indiquer qu’un agent travaille encore, qu’une étape d’agent attend une place de sandbox pour démarrer, ou qu’un nœud vérifie périodiquement une condition. Consulte `waitingFor` : `approval`, `ask` et `in_doubt` nécessitent une personne ; `agent`, `room` et `repeat` reprennent normalement seuls. `in_doubt` signifie qu’une étape envoyait quelque chose à un service externe quand l’exécution a été interrompue, et que Tale ne peut pas savoir si le service l’a reçu. Personne n’est averti : décide sur la page de l’exécution, comme l’explique [Examiner les exécutions et corriger les échecs](/fr/platform/automations/execution-logs). [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique comment examiner et traiter les demandes humaines.
 
 ## Choisir un chat, une tâche ou une automatisation
 

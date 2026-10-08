@@ -105,4 +105,32 @@ describe('addJobInTx', () => {
     expect(calls[0]?.options.heartbeatSeconds).toBeGreaterThanOrEqual(10);
     expect(calls[1]?.options).not.toHaveProperty('heartbeatSeconds');
   });
+
+  // A queue limited per organization counts each job against the group it
+  // was sent with: derived here from the payload, so no enqueue site can
+  // leave it out.
+  it("stamps a grouped queue's jobs with their group, and no other queue's", async () => {
+    const calls = installFakeBoss();
+    const { tx } = createFakeTx();
+    await addJobInTx(tx, 'automation.step', {
+      organizationId: 'org-1',
+      runId: 'run-1',
+    });
+    await addJobInTx(tx, 'automation.poll', {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      seq: 1,
+      pollMs: 1000,
+    });
+    await addJobInTx(
+      tx,
+      'automation.step',
+      { organizationId: 'org-1', runId: 'run-1' },
+      { group: 'org-2' },
+    );
+    expect(calls[0]?.options.group).toEqual({ id: 'org-1' });
+    expect(calls[1]?.options).not.toHaveProperty('group');
+    // A caller's own group wins over the derived one.
+    expect(calls[2]?.options.group).toEqual({ id: 'org-2' });
+  });
 });

@@ -412,3 +412,24 @@ timeField:
 
 siteFooter:
   copyright: © {year} Tale by Ruler GmbH. MIT licensed.
+
+issues:
+  srPrefix:
+    error: 'Error:'
+    warning: 'Warning:'
+    info: 'Note:'
+  summary: '{errors, plural, =0 {{warnings, plural, =0 {No problems} one {# warning} other {# warnings}}} one {# error{warnings, plural, =0 {} one { and # warning} other { and # warnings}}} other {# errors{warnings, plural, =0 {} one { and # warning} other { and # warnings}}}}'
+  none: No problems
+  listLabel: Problems
+  listFailed: Couldn't check for problems. The list may be out of date.
+  buttonLabel: 'Problems: {summary}'
+  buttonLabelChecking: 'Problems: {summary}. Checking…'
+  buttonLabelFailed: "Problems: couldn't check"
+  checking: Checking…
+  checkFailed: Couldn't check
+  announce: '{context}. {summary}'
+  nodeSummary: '({summary})'
+  fixLabel: 'How to fix:'
+  technicalDetails: Technical details
+  learnMore: Learn more
+  goTo: Go to

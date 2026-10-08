@@ -1,11 +1,36 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as XLSX from 'xlsx';
 
 import {
   excelRecords,
+  excelHeaderText,
+  ImportRowRefusal,
+  parseImportFile,
   parseCSVWithMapper,
   type RequiredColumn,
 } from './file-parsing';
+
+class TestFileReader {
+  result: string | ArrayBuffer | null = null;
+  private listeners = new Map<string, ((event: Event) => void)[]>();
+
+  addEventListener(type: string, listener: (event: Event) => void) {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+  }
+
+  readAsArrayBuffer(file: Blob) {
+    void file.arrayBuffer().then((result) => {
+      this.result = result;
+      this.listeners
+        .get('load')
+        ?.forEach((listener) => listener({ target: this } as unknown as Event));
+    });
+  }
+}
+
+// parseImportFile uses the browser FileReader API; this small adapter exercises
+// the same byte path in the server test environment.
+vi.stubGlobal('FileReader', TestFileReader);
 
 type Row = { email: string; name?: string };
 
@@ -129,6 +154,7 @@ describe('parseCSVWithMapper quoted fields (RFC 4180, #3580)', () => {
       ['a', 'b\nc'],
       ['d', 'e'],
     ]);
+    expect(result.rows).toEqual([1, 2]);
   });
 
   it('reads plain rows and one-line quoted commas as before', () => {
@@ -142,6 +168,30 @@ describe('parseCSVWithMapper quoted fields (RFC 4180, #3580)', () => {
       { name: 'Gadget, large', price: '5', stock: '0' },
     ]);
   });
+
+  it.each([true, false])(
+    'preserves physical rows with skipEmptyLines=%s',
+    (skipEmptyLines) => {
+      const indexes: number[] = [];
+      const result = parseCSVWithMapper(
+        '\nOkay,1\n\n \t\nBroken,not-number\n\nLater,2\n',
+        (row, index) => {
+          indexes.push(index);
+          if (row[0] === 'Broken') {
+            throw new ImportRowRefusal('price', 'notNumber');
+          }
+          return row[0];
+        },
+        { skipEmptyLines },
+      );
+      expect(result.data).toEqual(['Okay', 'Later']);
+      expect(result.rows).toEqual([2, 7]);
+      expect(result.rowErrors).toEqual([
+        { row: 5, field: 'price', reason: 'notNumber' },
+      ]);
+      expect(indexes).toEqual(skipEmptyLines ? [0, 1, 2] : [1, 4, 6]);
+    },
+  );
 
   it('reads a quote inside an unquoted cell as a literal character', () => {
     // Only a quote that opens a cell starts a quoted field; the inch mark
@@ -167,6 +217,26 @@ describe('parseCSVWithMapper quoted fields (RFC 4180, #3580)', () => {
       { name: 'Gadget', description: 'x', price: '5', stock: '1' },
     ]);
     expect(result.rows).toEqual([3]);
+  });
+
+  it('keeps spreadsheet rows after an unclosed quote that follows a multi-line cell', () => {
+    // Kettle's cell spans two lines but is one row, so the refused Widget
+    // is row 3 and Gadget row 4.
+    const result = parse(
+      [
+        'name,description,price,stock',
+        'Kettle,"First line\nSecond line",10,1',
+        'Widget,"Best widget,12,3',
+        'Gadget,x,5,1',
+      ].join('\n'),
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.rowErrors).toEqual([{ row: 3, quotes: 'unpaired' }]);
+    expect(result.data.map((record) => record.name)).toEqual([
+      'Kettle',
+      'Gadget',
+    ]);
+    expect(result.rows).toEqual([2, 4]);
   });
 
   it('refuses a row with text after a closing quote', () => {
@@ -195,6 +265,14 @@ describe('parseCSVWithMapper quoted fields (RFC 4180, #3580)', () => {
     expect(result.data).toEqual([]);
     expect(result.errors).toEqual([]);
     expect(result.rowErrors).toEqual([{ row: 1, quotes: 'unpaired' }]);
+  });
+
+  it('refuses the file at the header row after leading blank lines', () => {
+    // Blank lines are rows too, so this header is row 3.
+    const result = parse('\n \r\nname,"description,price,stock\nWidget,x,12,3');
+    expect(result.data).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.rowErrors).toEqual([{ row: 3, quotes: 'unpaired' }]);
   });
 });
 
@@ -229,5 +307,57 @@ describe('excelRecords line numbers', () => {
         line: 2,
       },
     ]);
+  });
+});
+
+describe('Excel header cell conversion', () => {
+  it('accepts primitive, date, and rich-text values without object coercion', () => {
+    expect(excelHeaderText(' Email ')).toBe(' Email ');
+    expect(excelHeaderText(42)).toBe('42');
+    expect(excelHeaderText(false)).toBe('false');
+    expect(excelHeaderText(new Date('2024-01-02T03:04:05.000Z'))).toBe(
+      '2024-01-02T03:04:05.000Z',
+    );
+    expect(excelHeaderText({ text: 'Email address' })).toBe('Email address');
+    expect(excelHeaderText({ w: 'Formatted header' })).toBe('Formatted header');
+    expect(excelHeaderText({ unexpected: 'object' })).toBe('');
+    expect(excelHeaderText(null)).toBe('');
+  });
+});
+
+describe('Excel header validation', () => {
+  it('uses the worksheet header when the first data row has blank cells', async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([
+        ['name', 'price', 'stock'],
+        ['Blank amounts'],
+        ['Full amounts', 12, 3],
+      ]),
+      'Products',
+    );
+    const file = new File(
+      [XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })],
+      'products.xlsx',
+    );
+    const result = await parseImportFile(
+      file,
+      () => null,
+      (record) => record,
+      {
+        requiredColumns: [
+          { label: 'price', aliases: ['price'] },
+          { label: 'stock', aliases: ['stock'] },
+        ],
+      },
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.data).toEqual([
+      { name: 'Blank amounts' },
+      { name: 'Full amounts', price: 12, stock: 3 },
+    ]);
+    expect(result.rows).toEqual([2, 3]);
   });
 });

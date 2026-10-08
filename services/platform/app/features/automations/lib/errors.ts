@@ -1,3 +1,10 @@
+import { failureDetail } from '@/app/lib/backend/adapters';
+import { i18n } from '@/lib/i18n/i18n';
+import {
+  refusalIssuesSchema,
+  type WireAutomationIssue,
+} from '@/lib/shared/schemas/automation-issues';
+
 /**
  * Author-facing message for a refused automation write.
  *
@@ -24,11 +31,53 @@ function errorData(error: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-/** The server's own sentence, or the error's message when it carries none. */
+/**
+ * The server's own sentence. Without one, the failure's words as every
+ * surface reads them (`failureDetail`: a lost connection, a lapsed session),
+ * and for a fault that has none the generic sentence — never the error's
+ * raw message, which for a structured error is its whole payload.
+ */
 export function automationErrorMessage(error: unknown): string {
   const message = errorData(error)?.message;
   if (typeof message === 'string' && message.length > 0) return message;
-  return error instanceof Error ? error.message : String(error);
+  return failureDetail(error) ?? i18n.t('errors.generic', { ns: 'common' });
+}
+
+/** The problems a refused save or deploy listed, split by level. */
+export interface AutomationErrorIssues {
+  errors: WireAutomationIssue[];
+  warnings: WireAutomationIssue[];
+}
+
+/**
+ * The issues a refusal carries (`AUTOMATION_INVALID`: the save or deploy
+ * gate found errors), read through the wire schema. `undefined` when the
+ * error carries none, or carries them in a shape this build does not read —
+ * then the refusal's sentence is all there is to show.
+ */
+export function automationErrorIssues(
+  error: unknown,
+): AutomationErrorIssues | undefined {
+  const data = errorData(error);
+  if (data === undefined) return undefined;
+  if (data.errors === undefined && data.warnings === undefined) {
+    return undefined;
+  }
+  const parsed = refusalIssuesSchema.safeParse({
+    errors: data.errors,
+    warnings: data.warnings,
+  });
+  if (!parsed.success) {
+    console.warn(
+      '[automations] a refusal listed its problems in a shape this app does not read',
+      parsed.error.issues,
+    );
+    return undefined;
+  }
+  const errors = parsed.data.errors ?? [];
+  const warnings = parsed.data.warnings ?? [];
+  if (errors.length === 0 && warnings.length === 0) return undefined;
+  return { errors, warnings };
 }
 
 /** The machine code the store attached, for branching on a refusal kind. */

@@ -64,7 +64,8 @@ describe('assertRoleMayDecideKind [APV-R9]', () => {
 });
 
 /** A `sql` stand-in dispatching on the query text; `begin` runs the callback
- * against the same stand-in so every statement of the decision is logged. */
+ * against the same stand-in so every statement of the decision is logged,
+ * between a `BEGIN` and the `COMMIT` or `ROLLBACK` its outcome would take. */
 function fakeSql(
   answer: (text: string, values: unknown[]) => unknown[],
   log: { text: string; values: unknown[] }[],
@@ -77,7 +78,17 @@ function fakeSql(
   const api = {
     unsafe: (text: string) => text,
     json: (value: unknown) => value,
-    begin: (fn: (tx: unknown) => Promise<unknown>) => fn(sql),
+    begin: async (fn: (tx: unknown) => Promise<unknown>) => {
+      log.push({ text: 'BEGIN', values: [] });
+      try {
+        const result = await fn(sql);
+        log.push({ text: 'COMMIT', values: [] });
+        return result;
+      } catch (error) {
+        log.push({ text: 'ROLLBACK', values: [] });
+        throw error;
+      }
+    },
   };
   const sql = Object.assign(tag, api);
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
@@ -179,6 +190,7 @@ function parkedOperation(status = 'pending'): {
           resourceId: 'run-1:send',
           status,
           metadata: { connector: 'gmail', action: 'send', runId: 'run-1' },
+          runId: 'run-1',
         },
       ];
     }
@@ -208,41 +220,56 @@ const approve = {
 };
 
 /**
- * The decision commits in its own transaction; waking the parked run comes
- * after it. When that wake failed, the door answered 500 for an approval
- * already recorded (audit row, hint and all), the retry met
- * ALREADY_RESOLVED, and the gate admitted the operation anyway (#3706).
+ * The decision and the wake of the run parked behind it commit together. A
+ * wake sent after the commit could fail with the decision already recorded:
+ * the door answered 500, the retry met ALREADY_RESOLVED, and the run waited
+ * for its poll (#3706). Now a wake that cannot be queued takes the decision
+ * down with it, and deciding again works.
  */
-describe('decideApproval — the resume poke after the commit [APV-R11]', () => {
+describe('decideApproval — the decision wakes its run in the same transaction [APV-R11]', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('answers a committed approval as committed when the resume send fails', async () => {
+  it('locks the run before the approval and wakes it before the commit', async () => {
     const { sql, log } = parkedOperation();
-    installBoss(() => Promise.reject(new Error('pg-boss send refused')));
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const send = vi.fn().mockResolvedValue('job-1');
+    installBoss(send);
 
     await expect(decideApproval(sql, approve)).resolves.toBeUndefined();
 
     const texts = log.map((q) => q.text);
-    expect(texts.some((t) => t.includes('UPDATE app.approvals SET'))).toBe(
-      true,
+    const at = (needle: string) => texts.findIndex((t) => t.includes(needle));
+    const runLock = texts.findIndex(
+      (t) => t.includes('FROM app.automation_runs') && t.includes('FOR UPDATE'),
     );
-    expect(texts.some((t) => t.includes('INSERT INTO app.audit_logs'))).toBe(
-      true,
+    const approvalLock = texts.findIndex(
+      (t) => t.includes('FROM app.approvals') && t.includes('FOR UPDATE'),
     );
-    expect(texts.some((t) => t.includes('app_realtime.outbox'))).toBe(true);
-    // The wake was attempted after the decision, not skipped.
-    const decidedAt = texts.findIndex((t) => t.includes('app_realtime.outbox'));
-    const wokenAt = texts.findIndex((t) =>
-      t.includes('UPDATE app.automation_runs'),
+    expect(runLock).toBeGreaterThan(at('BEGIN'));
+    // Run, then approval, then the audit chain: the order a stop takes.
+    expect(approvalLock).toBeGreaterThan(runLock);
+    expect(at('INSERT INTO app.audit_logs')).toBeGreaterThan(approvalLock);
+    // The wake is part of the decision, not a step after it.
+    expect(at('UPDATE app.automation_runs')).toBeGreaterThan(
+      at('UPDATE app.approvals SET'),
     );
-    expect(wokenAt).toBeGreaterThan(decidedAt);
-    expect(logged).toHaveBeenCalledWith(
-      expect.stringContaining('approval appr-1 is decided'),
-      expect.objectContaining({ message: 'pg-boss send refused' }),
+    expect(at('COMMIT')).toBeGreaterThan(at('UPDATE app.automation_runs'));
+    expect(log[runLock]?.values).toEqual(['run-1', 'org-1']);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('records nothing when the wake cannot be queued, so deciding again works', async () => {
+    const { sql, log } = parkedOperation();
+    installBoss(() => Promise.reject(new Error('pg-boss send refused')));
+
+    await expect(decideApproval(sql, approve)).rejects.toThrow(
+      'pg-boss send refused',
     );
+
+    const texts = log.map((q) => q.text);
+    expect(texts.at(-1)).toBe('ROLLBACK');
+    expect(texts).not.toContain('COMMIT');
   });
 
   it('enqueues exactly one step for the run a normal decision wakes', async () => {
@@ -256,7 +283,11 @@ describe('decideApproval — the resume poke after the commit [APV-R11]', () => 
     expect(send).toHaveBeenCalledWith(
       'automation.step',
       { organizationId: 'org-1', runId: 'run-1' },
-      expect.objectContaining({ db: expect.any(Object) }),
+      expect.objectContaining({
+        db: expect.any(Object),
+        // The step counts against its organization's limit.
+        group: { id: 'org-1' },
+      }),
     );
   });
 
@@ -279,5 +310,39 @@ describe('decideApproval — the resume poke after the commit [APV-R11]', () => 
     expect(log.some((q) => q.text.includes('UPDATE app.automation_runs'))).toBe(
       false,
     );
+  });
+});
+
+describe('decideApproval — an approval that belongs to no run', () => {
+  it('locks and wakes no run', async () => {
+    const log: { text: string; values: unknown[] }[] = [];
+    const sql = fakeSql((text) => {
+      if (text.includes('FROM app.approvals')) {
+        return [
+          {
+            resourceType: 'connector_operation',
+            resourceId: 'thread-1:send',
+            status: 'pending',
+            metadata: { connector: 'gmail', action: 'send' },
+            runId: null,
+          },
+        ];
+      }
+      if (text.includes('FROM app.audit_chain_heads')) {
+        return [{ lastHash: '', lastTs: 0 }];
+      }
+      if (text.includes('INSERT INTO app.audit_logs')) {
+        return [{ id: 'audit-1' }];
+      }
+      return [];
+    }, log);
+    const send = vi.fn().mockResolvedValue('job-1');
+    installBoss(send);
+
+    await decideApproval(sql, approve);
+
+    expect(log.some((q) => q.text.includes('app.automation_runs'))).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+    expect(log.at(-1)?.text).toBe('COMMIT');
   });
 });

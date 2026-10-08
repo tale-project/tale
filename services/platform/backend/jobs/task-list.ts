@@ -34,6 +34,7 @@ import { apiTurnPayloadSchema, runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
 import { createPgUsageLedger } from '../domains/chat/store.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
+import { isBackendDraining } from '../domains/control/service.ts';
 import { runTranscribeJob } from '../domains/files/transcription.ts';
 import {
   runGoogleDriveSyncConfigJob,
@@ -106,6 +107,8 @@ import {
   runWebsitesScanDue,
 } from '../domains/websites/service.ts';
 import { createCtxShim } from '../lib/ctx-shim.ts';
+import { createDrainProbe } from '../lib/drain-probe.ts';
+import { processShutdown } from '../lib/shutdown.ts';
 import { addJobInTx } from './enqueue.ts';
 
 /** What the worker hands a handler beside its payload. */
@@ -251,7 +254,23 @@ export function agentRetryRecheckKey(retry: {
   return `agent-retry:${retry.organizationId}:${retry.taskId}:${retry.expectedRunId}`;
 }
 
+/**
+ * The signal a turn's drive window ends on: the job's own (pg-boss gave up
+ * on it) or the process's shutdown. A window ended either way leaves the
+ * turn running and hands it to its next window, which another process
+ * drains.
+ */
+function driveWindowSignal(context: TaskContext | undefined): AbortSignal {
+  return context === undefined
+    ? processShutdown.signal
+    : AbortSignal.any([context.signal, processShutdown.signal]);
+}
+
 export function createTaskList(deps: TaskDeps): BackendTaskList {
+  // Read at most every few seconds, by every walker this process runs: a
+  // walker on a replica a deploy is draining hands its run on at its next
+  // step boundary.
+  const draining = createDrainProbe(() => isBackendDraining(deps.sql));
   const agentRetry: TaskHandler = async (payload) => {
     const input = z
       .object({
@@ -783,13 +802,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
-    'automation.step': async (payload) => {
+    'automation.step': async (payload, context) => {
       const input = z
         .object({ organizationId: z.string().min(1), runId: z.string().min(1) })
         .parse(payload);
       // The REUSED 0.4 stepper on the ctx shim. Claim-fenced and idempotent:
       // a retried job either wins a fresh claim or no-ops. The scheduler seam
-      // lets the agent node's kick schedule its turn as a pg-boss job.
+      // lets the agent node's kick schedule its turn as a pg-boss job. The
+      // walker hands its run on when this process starts shutting down or
+      // its replica is drained, and a step still running at the shutdown
+      // grace (or when pg-boss gives up on the job) is cut.
       const shim = createCtxShim(automationShimHandlers(deps.sql), {
         scheduler: automationShimScheduler(deps.sql),
       });
@@ -797,6 +819,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 stepper; every ctx facility it touches is covered by automationShimHandlers
         shim as unknown as Parameters<typeof stepRunImpl>[0],
         input,
+        {
+          ...(context !== undefined && { signal: context.signal }),
+          draining,
+        },
       );
     },
     'automation.trigger_scan': async () => {
@@ -1270,7 +1296,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       });
     },
 
-    'task.agent_drive': async (payload) => {
+    'task.agent_drive': async (payload, context) => {
       const input = driveSchema.parse(payload);
       // The REUSED 0.4 drive window on the ctx shim: it replays the exec's
       // ring buffer, streams the turn, and runs the settle choreography —
@@ -1283,6 +1309,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by agentTurnShimHandlers
         shim as unknown as Parameters<typeof driveTaskAgentTurnImpl>[0],
         input,
+        { signal: driveWindowSignal(context) },
       );
     },
 
@@ -1313,7 +1340,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       await wakeParkedAgentRun(deps.sql, input);
     },
 
-    'task.agent_turn': async (payload) => {
+    'task.agent_turn': async (payload, context) => {
       const input = z
         .object({
           organizationId: z.string().min(1),
@@ -1470,6 +1497,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
               : {}),
           ...plan,
         },
+        context !== undefined ? { signal: context.signal } : undefined,
       );
     },
     'task.agent_retry': agentRetry,
@@ -1490,6 +1518,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
+    // The start and the answered-ask resume take no shutdown signal: their
+    // windows launch the exec, and cutting one before its launch request is
+    // sent would lose the turn. They finish inside the stop budget, or the
+    // agent watchdog re-attaches the turn as it does after any crash.
     'automation.agent_turn': async (payload) => {
       const input = z
         .looseObject({
@@ -1509,7 +1541,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         input as unknown as Parameters<typeof startWorkflowAgentTurnImpl>[1],
       );
     },
-    'automation.agent_drive': async (payload) => {
+    'automation.agent_drive': async (payload, context) => {
       const input = z
         .object({
           organizationId: z.string().min(1),
@@ -1533,6 +1565,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by automationShimHandlers
         shim as unknown as Parameters<typeof driveWorkflowAgentTurnImpl>[0],
         input,
+        { signal: driveWindowSignal(context) },
       );
     },
     'automation.ask_resume': async (payload) => {
