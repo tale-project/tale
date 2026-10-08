@@ -52,6 +52,7 @@ TALE_DIND_INNER_BIP=""
 # iptables/ip6tables live in /usr/sbin, which the image ENV PATH deliberately
 # drops (keeps sbin tools off the agent PATH); call them by absolute path.
 _IPTABLES=/usr/sbin/iptables
+_REDSOCKS=/usr/sbin/redsocks
 _IP6TABLES=/usr/sbin/ip6tables
 # iproute2 `ip`, used by the SESSION transparent-egress path to add a default
 # route (see _ensure_default_route). Also in /usr/sbin (dropped from PATH).
@@ -360,7 +361,16 @@ _proxy_to_ip() {
     *[!0-9.]*) ;; # has non-digit/dot → a hostname, resolve it
     *) printf '%s' "$_url"; return 0 ;;
   esac
-  _ip="$(getent hosts "$_host" 2>/dev/null | awk 'NR==1{print $1}')"
+  # The egress container can be restarting or its name not yet registered
+  # with Docker's resolver when a session boots; one miss would leave the
+  # session without transparent egress for its whole life. Ask again for a
+  # few seconds before giving up (no wait at all when the first answer comes).
+  _ip=""
+  for _wait in 0 1 2 2; do
+    [ "$_wait" -gt 0 ] && sleep "$_wait"
+    _ip="$(getent hosts "$_host" 2>/dev/null | awk 'NR==1{print $1}')"
+    [ -n "$_ip" ] && break
+  done
   if [ -n "$_ip" ]; then
     printf '%s://%s%s' "$_scheme" "$_ip" "$_rest"
   else
@@ -525,10 +535,28 @@ _install_session_dns_dnat() {
 _launch_session_redsocks() {
   [ "${TALE_REDSOCKS_STARTED:-}" = "1" ] && return 0
   _write_redsocks_conf "${TALE_REDSOCKS_CONF}"
+  # The OUTPUT redirect sends every public connection of the session to
+  # redsocks, so a redsocks that died left the session without transparent
+  # egress until the container was recreated. It is kept running: the loop
+  # restarts it with a growing delay (back to 1 s after a minute's good run),
+  # and runs as the redsocks uid itself, so no root process stays behind.
   setpriv --reuid "${TALE_REDSOCKS_UID}" --regid "${TALE_REDSOCKS_UID}" --init-groups -- \
-    /usr/sbin/redsocks -c "${TALE_REDSOCKS_CONF}" >&2 &
+    /bin/sh -c "${_REDSOCKS_SUPERVISOR}" redsocks-supervisor "${_REDSOCKS}" "${TALE_REDSOCKS_CONF}" >&2 &
   TALE_REDSOCKS_STARTED=1
 }
+
+# The redsocks restart loop _launch_session_redsocks runs: $1 the binary, $2
+# its config. Ends with the container (tini signals the whole group).
+_REDSOCKS_SUPERVISOR='delay=1
+while :; do
+  started=$(date +%s)
+  "$1" -c "$2"
+  status=$?
+  [ $(( $(date +%s) - started )) -ge 60 ] && delay=1
+  echo "[redsocks] exited with status $status; restarting in ${delay}s" >&2
+  sleep "$delay"
+  [ "$delay" -lt 30 ] && delay=$((delay * 2))
+done'
 
 # Install transparent egress for the session's own processes (docker path). Runs
 # as root in the daemon dispatch BEFORE the setpriv drop. Idempotent; safe to call

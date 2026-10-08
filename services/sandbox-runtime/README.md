@@ -276,6 +276,13 @@ Docker logger or Kubernetes node owns rotation. They no longer accumulate in
 unbounded `/var/log/dockerd.log`, `/var/log/redsocks.log` or `/tmp/redsocks.log`
 files. Existing files are left intact; this change does not reclaim old logs.
 
+A session keeps its transparent egress up on its own. At boot the egress
+proxy's name is asked again for up to about five seconds before the session
+gives up on transparent egress (the first answer is used at once), and the
+session's redsocks runs under a restart loop as its own uid: one that exits is
+started again after 1 s, the delay doubling to 30 s and back to 1 s after a
+minute's good run.
+
 ```bash
 # from repo root
 docker build -f services/sandbox-runtime/Dockerfile .
