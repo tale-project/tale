@@ -25,6 +25,8 @@
         "components/button",
         "components/input",
         "components/time-field",
+        "components/code-editor",
+        "components/schema-tree",
         "components/issue-list",
         "components/flow-node-issues",
         "components/field-issues",

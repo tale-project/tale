@@ -41,6 +41,12 @@ The Export icon is decorative because the visible text already names the action.
 
 For a stateful action, name the next action or communicate the current state clearly. A changed glyph alone may be ambiguous; use appropriate state attributes such as `aria-pressed` where the control is a toggle.
 
+## Show a vendor's own icon
+
+<Demo name="foundations/vendor-icon" />
+
+`VendorIcon` from `@tale/ui/vendor-icon` shows the icon a connector or an AI provider ships, from its `iconUrl`, at `size-5` unless you pass a `className`. With no icon, or one that fails to load, it shows Lucide's plug instead. The icon is decoration: its image has an empty alternative text, so put the vendor's name next to it.
+
 ## Reuse custom brand marks
 
 ```tsx

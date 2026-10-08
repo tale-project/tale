@@ -13,6 +13,13 @@
       "description": "Choose an action style, name icon controls, and handle loading or unavailable actions without losing context."
     }
   },
+  "components/code-editor": {
+    "slug": "components/code-editor",
+    "frontmatter": {
+      "title": "Code editor",
+      "description": "Edit code, JSON, YAML and templates with highlighting, completion and inline problems, and leave the field with the keyboard."
+    }
+  },
   "components/data-table": {
     "slug": "components/data-table",
     "frontmatter": {
@@ -74,6 +81,13 @@
     "frontmatter": {
       "title": "Schedule occurrence list",
       "description": "Show the next times a schedule starts, in the schedule's time zone, with the reader's own time and any clock change spelled out."
+    }
+  },
+  "components/schema-tree": {
+    "slug": "components/schema-tree",
+    "frontmatter": {
+      "title": "Schema tree",
+      "description": "Show the fields a value has, with each kind in words, whether it is required, and where it comes from."
     }
   },
   "components/tabs-and-navigation": {

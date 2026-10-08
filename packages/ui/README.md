@@ -14,8 +14,8 @@ and stories live together under `src/components/<family>/`.
 
 | Need | Example imports |
 | --- | --- |
-| Controls and forms | `button`, `icon-button`, `input`, `select`, `checkbox`, `use-form`, `field-shell` |
-| Tables and values | `data-table/data-table`, `data-table/column-builders`, `copyable-field`, `json-viewer` |
+| Controls and forms | `button`, `icon-button`, `input`, `select`, `checkbox`, `use-form`, `field-shell`, `code-editor` |
+| Tables and values | `data-table/data-table`, `data-table/column-builders`, `copyable-field`, `json-viewer`, `schema-tree`, `vendor-icon` |
 | Layout and navigation | `page-layout`, `adaptive-header`, `sub-panel`, `header-breadcrumbs`, `tab-navigation` |
 | Dialogs and feedback | `dialog/form-dialog`, `dialog/delete-dialog`, `toaster`, `use-toast`, `use-retry-focus` |
 | Problems a check found | `issue-list`, `issue-summary`, `issue-severity`, `field-issue-messages`, `issue-focus`, `flow/node-issue-marker` |

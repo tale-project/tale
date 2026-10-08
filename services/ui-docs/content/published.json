@@ -3,6 +3,7 @@
   "slugs": [
     "components/app-shell",
     "components/button",
+    "components/code-editor",
     "components/data-table",
     "components/dialog",
     "components/field-issues",
@@ -12,6 +13,7 @@
     "components/property-list",
     "components/recurrence-picker",
     "components/schedule-occurrence-list",
+    "components/schema-tree",
     "components/tabs-and-navigation",
     "components/time-field",
     "components/toast",

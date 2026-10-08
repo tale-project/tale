@@ -60,6 +60,12 @@ Charts have `chart-1` through `chart-5` plus `chart-success`, `chart-failure`, `
 
 Use labels, shapes, or line patterns as well as color to distinguish meaningful series. Verify legends and tooltips in both themes, including small text and a single low-value data point.
 
+## Colour code
+
+Code has roles of its own: `--code-foreground` and `--code-token-keyword`, `-string`, `-string-expression`, `-constant`, `-function`, `-parameter`, `-comment`, `-punctuation`, `-link`, `-inserted`, `-deleted` and `-changed`, with light and dark values in `globals.css`. Read-only code blocks and the [code editor](/docs/components/code-editor) both read them, so a value has one colour wherever it shows, and a theme switch never highlights code again.
+
+Every token clears 4.5:1 on the page, the code-block surface (`bg-bg-elevated`), a card and the muted surface, and on the editor's template tint; `code-palette.test.ts` checks each pair in both themes. The editor's chrome adds `--code-line-number`, `--code-selection`, `--code-template-tint`, `--code-match` and the problem underlines `--code-squiggle-error`, `-warning` and `-info`, which keep 3:1. Use the roles for code, not for other text.
+
 ## Add a color only when the meaning is missing
 
 First inspect the existing tokens and neighboring components. If a new semantic role is needed, add its token and intended theme treatment centrally. Record which foreground/background pairing it supports and check rest, hover, focus, selected, and error states.
