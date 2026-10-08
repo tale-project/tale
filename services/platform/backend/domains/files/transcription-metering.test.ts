@@ -70,6 +70,25 @@ function rowsSql(rows: unknown[]) {
   return tag as unknown as Sql;
 }
 
+/** The recording's file row, and the chat it names: only the owner's chat
+ * answers the project read, as `thread_metadata.user_id` does. */
+function fileSql(
+  file: Record<string, unknown> | null,
+  thread?: { owner: string; projectId: string | null },
+) {
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    if (strings.join('?').includes('FROM app.thread_metadata')) {
+      return Promise.resolve(
+        thread !== undefined && values[2] === thread.owner
+          ? [{ projectId: thread.projectId }]
+          : [],
+      );
+    }
+    return Promise.resolve(file === null ? [] : [file]);
+  };
+  return tag as unknown as Sql;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.openDirectCall.mockResolvedValue({ allowed: true, lease: LEASE });
@@ -79,16 +98,15 @@ describe('an uploaded recording’s transcription', () => {
   const row = (fields: Record<string, unknown>) => ({
     uploadedBy: 'user-1',
     projectId: null,
+    threadId: null,
     status: 'queued',
-    threadProjectId: null,
-    threadOwner: null,
     ...fields,
   });
 
   it('is its uploader’s spend, in the project its chat was started in [GOV-R14]', async () => {
     // A project's new chat: the composer named the project at registration.
     await expect(
-      uploadTranscriptionSubject(rowsSql([row({ projectId: 'project-1' })]), {
+      uploadTranscriptionSubject(fileSql(row({ projectId: 'project-1' })), {
         organizationId: 'org-1',
         storageId: 's3:org/rec',
       }),
@@ -100,7 +118,10 @@ describe('an uploaded recording’s transcription', () => {
     // Added to a chat the uploader owns: that chat's project.
     await expect(
       uploadTranscriptionSubject(
-        rowsSql([row({ threadProjectId: 'project-2', threadOwner: 'user-1' })]),
+        fileSql(row({ threadId: 'thread-1' }), {
+          owner: 'user-1',
+          projectId: 'project-2',
+        }),
         { organizationId: 'org-1', storageId: 's3:org/rec' },
       ),
     ).resolves.toMatchObject({ projectIds: ['project-2'] });
@@ -109,9 +130,10 @@ describe('an uploaded recording’s transcription', () => {
   it('never takes the project of a chat the uploader does not own', async () => {
     await expect(
       uploadTranscriptionSubject(
-        rowsSql([
-          row({ threadProjectId: 'project-2', threadOwner: 'someone-else' }),
-        ]),
+        fileSql(row({ threadId: 'thread-1' }), {
+          owner: 'someone-else',
+          projectId: 'project-2',
+        }),
         { organizationId: 'org-1', storageId: 's3:org/rec' },
       ),
     ).resolves.toEqual({ userId: 'user-1', agentSlug: '__transcription__' });
@@ -119,20 +141,20 @@ describe('an uploaded recording’s transcription', () => {
 
   it('charges nobody for a recording that was removed, or is gone', async () => {
     await expect(
-      uploadTranscriptionSubject(rowsSql([row({ status: 'skipped' })]), {
+      uploadTranscriptionSubject(fileSql(row({ status: 'skipped' })), {
         organizationId: 'org-1',
         storageId: 's3:org/rec',
       }),
     ).resolves.toBeNull();
     await expect(
-      uploadTranscriptionSubject(rowsSql([]), {
+      uploadTranscriptionSubject(fileSql(null), {
         organizationId: 'org-1',
         storageId: 's3:org/gone',
       }),
     ).resolves.toBeNull();
     // A file nobody uploaded is the organization's.
     await expect(
-      uploadTranscriptionSubject(rowsSql([row({ uploadedBy: null })]), {
+      uploadTranscriptionSubject(fileSql(row({ uploadedBy: null })), {
         organizationId: 'org-1',
         storageId: 's3:org/rec',
       }),

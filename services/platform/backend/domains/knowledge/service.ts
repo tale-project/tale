@@ -97,8 +97,8 @@ import {
   ChatBudgetExceededError,
   toChatBudgetRefusal,
 } from '../chat/budget-admission.ts';
-import { readThreadProjectId } from '../chat/threads.ts';
 import { indexingStateFrom } from '../file_metadata/indexing-state.ts';
+import { fileAttachmentProjectId } from '../files/attachment-project.ts';
 import {
   documentFolderPathFrom,
   folderTreePaths,
@@ -1067,8 +1067,8 @@ async function activeDocumentHoldingRef(
  * Whose spend a file's embedding is: the person who uploaded it; else the
  * creator of the document that holds it — a synced drive's owner, the run
  * an agent wrote it for; else nobody (`__automation__`), as for an emailed
- * attachment. In that document's project, else the project of the chat the
- * file was added to.
+ * attachment. In that document's project, else the project the file was
+ * added in (`fileAttachmentProjectId`).
  */
 async function fileIndexingSubject(
   sql: Sql,
@@ -1077,6 +1077,7 @@ async function fileIndexingSubject(
     storageRef: string;
     documentId: string | null;
     uploadedBy: string | null;
+    projectId: string | null;
     threadId: string | null;
   },
 ): Promise<DirectCallSubject> {
@@ -1093,10 +1094,7 @@ async function fileIndexingSubject(
   `;
   const doc = docs[0];
   const projectId =
-    doc?.projectId ??
-    (file.threadId !== null
-      ? await readThreadProjectId(sql, file.organizationId, file.threadId)
-      : undefined);
+    doc?.projectId ?? (await fileAttachmentProjectId(sql, file));
   return {
     userId: file.uploadedBy ?? doc?.createdBy ?? AUTOMATION_SUBJECT_ID,
     agentSlug: EMBEDDING_SLUG,
@@ -1150,6 +1148,7 @@ export async function indexUploadedFile(
       conversationId: string | null;
       skipRagIndexing: boolean | null;
       uploadedBy: string | null;
+      projectId: string | null;
       threadId: string | null;
     }[]
   >`
@@ -1157,7 +1156,8 @@ export async function indexUploadedFile(
            file_name AS "fileName", content_type AS "contentType",
            document_id AS "documentId", conversation_id AS "conversationId",
            skip_rag_indexing AS "skipRagIndexing",
-           uploaded_by AS "uploadedBy", thread_id AS "threadId"
+           uploaded_by AS "uploadedBy", project_id AS "projectId",
+           thread_id AS "threadId"
     FROM app.file_metadata WHERE id = ${fileId} LIMIT 1
   `;
   const file = rows[0];

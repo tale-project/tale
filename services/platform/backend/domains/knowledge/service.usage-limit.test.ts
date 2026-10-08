@@ -3,7 +3,7 @@
 /**
  * Indexing a file is the spend of whoever the file is for: its uploader,
  * else the creator of the document holding it, in that document's project
- * (or the project of the chat it was added to). A usage limit that binds
+ * (or the project the file was added in). A usage limit that binds
  * them parks the file — `failed` with `usage_limit`, which the hourly pass
  * resumes — before a byte is read, or as soon as a request is refused
  * mid-way; it never fails the job into its retries.
@@ -78,7 +78,20 @@ interface Query {
   values: unknown[];
 }
 
-function fakeSql(log: Query[]): Sql {
+/** The file being indexed, the document holding it (by default a synced
+ * drive's), and the chat it names. */
+function fakeSql(
+  log: Query[],
+  options: {
+    file?: Record<string, unknown>;
+    doc?: { createdBy: string | null; projectId: string | null } | null;
+    thread?: { owner: string; projectId: string | null };
+  } = {},
+): Sql {
+  const doc =
+    options.doc === undefined
+      ? { createdBy: 'drive-owner', projectId: 'p-1' }
+      : options.doc;
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$');
     log.push({ text, values });
@@ -92,12 +105,23 @@ function fakeSql(log: Query[]): Sql {
           documentId: 'doc-1',
           skipRagIndexing: null,
           uploadedBy: null,
+          projectId: null,
           threadId: null,
+          ...options.file,
         },
       ]);
     }
     if (text.includes('AS "createdBy"')) {
-      return Promise.resolve([{ createdBy: 'drive-owner', projectId: 'p-1' }]);
+      return Promise.resolve(doc === null ? [] : [doc]);
+    }
+    if (text.includes('FROM app.thread_metadata')) {
+      // thread_id, org_id, the uploader: only the owner's chat answers.
+      const thread = options.thread;
+      return Promise.resolve(
+        thread !== undefined && values[2] === thread.owner
+          ? [{ projectId: thread.projectId }]
+          : [],
+      );
     }
     if (text.includes('FROM "organization"')) {
       return Promise.resolve([{ slug: 'acme' }]);
@@ -156,6 +180,49 @@ describe('indexUploadedFile at a usage limit', () => {
       expect.objectContaining({ meter: expect.any(Object) }),
     );
   });
+
+  it.each([
+    [
+      'the project named when it was registered in a new chat',
+      { projectId: 'p-new' },
+      undefined,
+      ['p-new'],
+    ],
+    [
+      'the project of the uploader’s own chat',
+      { threadId: 'thread-1' },
+      { owner: 'user-1', projectId: 'p-chat' },
+      ['p-chat'],
+    ],
+    [
+      'no project for a chat the uploader does not own',
+      { threadId: 'thread-1' },
+      { owner: 'someone-else', projectId: 'p-chat' },
+      undefined,
+    ],
+  ])(
+    'indexes a chat attachment as its uploader’s spend, in %s [GOV-R14]',
+    async (_label, file, thread, projectIds) => {
+      vi.mocked(indexWholeDocument).mockResolvedValue({ chunks: 1 } as never);
+      await indexUploadedFile(
+        fakeSql([], {
+          file: { documentId: null, uploadedBy: 'user-1', ...file },
+          doc: null,
+          ...(thread !== undefined ? { thread } : {}),
+        }),
+        'file-1',
+      );
+
+      expect(directCallBlocked).toHaveBeenCalledWith(expect.anything(), {
+        organizationId: 'org-1',
+        subject: {
+          userId: 'user-1',
+          agentSlug: '__embedding__',
+          ...(projectIds !== undefined ? { projectIds } : {}),
+        },
+      });
+    },
+  );
 
   it('parks the file before a byte is read when a limit binds its indexing [GOV-R4] [KNOW-R17]', async () => {
     vi.mocked(directCallBlocked).mockResolvedValueOnce(CAP);
