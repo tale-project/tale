@@ -29,14 +29,20 @@ const {
   runChatTurn,
   isBackendDraining,
   cancelDeferredJobs,
+  validateTurnAttachments,
 } = vi.hoisted(() => ({
   addJobInTx: vi.fn(),
   loadOwnedThread: vi.fn(),
   runChatTurn: vi.fn(),
   isBackendDraining: vi.fn(),
   cancelDeferredJobs: vi.fn(),
+  validateTurnAttachments: vi.fn(),
 }));
 
+vi.mock('../../core/chat/turn_action.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../core/chat/turn_action.ts')>()),
+  validateTurnAttachments,
+}));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
 vi.mock('../video_links/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../video_links/service.ts')>()),
@@ -152,12 +158,70 @@ const TRAY_HINT_VALUES = ['org_1', 'user_1', 'chat_deferred', 'thread_1'];
 
 beforeEach(() => {
   vi.clearAllMocks();
+  validateTurnAttachments.mockResolvedValue(null);
   loadOwnedThread.mockResolvedValue({ id: 'thread_1' });
   isBackendDraining.mockResolvedValue(false);
   cancelDeferredJobs.mockResolvedValue(undefined);
 });
 
 describe('enqueueDeferredSend', () => {
+  it('refuses unreadable attachments before parking or claiming jobs', async () => {
+    validateTurnAttachments.mockResolvedValue('Attachment was not found.');
+    const f = fakeSql(() => [{ id: 'ds_1' }]);
+    await expect(
+      enqueueDeferredSend(f.sql, {
+        ...PARK,
+        userText: 'Summarize',
+        attachments: [
+          {
+            fileId: 'foreign',
+            fileName: 'secret.wav',
+            fileType: 'audio/wav',
+            fileSize: 1,
+          },
+        ],
+      }),
+    ).rejects.toThrow('Attachment was not found.');
+    expect(validateTurnAttachments).toHaveBeenCalledWith(
+      expect.objectContaining({ runQuery: expect.any(Function) }),
+      PARK.organizationId,
+      PARK.userId,
+      [
+        {
+          fileId: 'foreign',
+          fileName: 'secret.wav',
+          fileType: 'audio/wav',
+          fileSize: 1,
+        },
+      ],
+    );
+    expect(f.timeline).toEqual([]);
+  });
+
+  it('parks an attachment admitted by the shared gate without changing its reference', async () => {
+    const attachment = {
+      fileId: 'own',
+      fileName: 'voice.wav',
+      fileType: 'audio/wav',
+      fileSize: 1,
+    };
+    const f = fakeSql(({ text }) =>
+      text.includes('INSERT INTO app.deferred_sends') ? [{ id: 'ds_1' }] : [],
+    );
+    await expect(
+      enqueueDeferredSend(f.sql, {
+        ...PARK,
+        userText: '',
+        attachments: [attachment],
+      }),
+    ).resolves.toEqual({ deferredSendId: 'ds_1' });
+    const insert = f.timeline.find((entry) =>
+      entry.text.includes('INSERT INTO app.deferred_sends'),
+    );
+    expect(insert?.values).toContainEqual({ json: [attachment] });
+    expect(validateTurnAttachments).toHaveBeenCalledTimes(1);
+  });
+
   it('claims the videos inside the park transaction, writes them on the row, and enqueues the poll last', async () => {
     const f = fakeSql(({ text, values }) => {
       if (text.includes('UPDATE app.video_link_jobs')) {
@@ -278,7 +342,7 @@ describe('pollDeferredSend', () => {
 });
 
 describe('pollDeferredSend — settle at user append, trace on failure', () => {
-  function readySql() {
+  function readySql(overrides: Record<string, unknown> = {}) {
     let order = 0;
     let settled = false;
     return fakeSql(({ text }) => {
@@ -288,7 +352,8 @@ describe('pollDeferredSend — settle at user append, trace on failure', () => {
         settled = true;
         return [{ id: 'ds_1' }];
       }
-      if (text.includes('FROM app.deferred_sends')) return [readyRow()];
+      if (text.includes('FROM app.deferred_sends'))
+        return [readyRow(overrides)];
       if (text.includes('UPDATE app.deferred_sends')) return [{ id: 'ds_1' }];
       if (text.includes('INSERT INTO app.messages')) {
         order += 1;
@@ -361,6 +426,31 @@ describe('pollDeferredSend — settle at user append, trace on failure', () => {
     // The trace lands BEFORE the tray row settles: no window with neither.
     const settleAt = settleIndex(f.timeline);
     expect(settleAt).toBeGreaterThan(f.timeline.indexOf(inserts[1]!));
+  });
+
+  it('persists no refused attachment in the pre-flight failure trace', async () => {
+    runChatTurn.mockResolvedValue({
+      status: 'refused',
+      steps: [],
+      step: 'input-guardrails',
+      reason: 'Attachment was not found.',
+    });
+    const f = readySql({
+      attachments: [
+        {
+          fileId: 'foreign',
+          fileName: 'secret.wav',
+          fileType: 'audio/wav',
+          fileSize: 1,
+        },
+      ],
+    });
+    await expect(pollDeferredSend(f.sql, 'ds_1')).resolves.toBe('ran');
+    const inserts = messageInserts(f.timeline);
+    expect(inserts[0]?.values[3]).toEqual({
+      json: [{ type: 'text', text: 'Summarize this' }],
+    });
+    expect(JSON.stringify(inserts)).not.toContain('foreign');
   });
 
   it('leaves no second trace for a guardrail refusal — the pipeline appended its blocked row', async () => {
