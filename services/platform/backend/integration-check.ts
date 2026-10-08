@@ -15634,17 +15634,22 @@ async function checkMcpAuthoringParity(
   // A run of its own name, so the delete below never waits on it.
   const { toJson } = await import('./db/sql.ts');
   const askedAt = Date.now();
-  const askRun = await sql<{ id: string }[]>`
-    INSERT INTO app.automation_runs (
-      org_id, name, version, status, mode, started_by, detail, checkpoints,
-      started_at_ms
-    ) VALUES (
-      ${orgId}, 'itest-parity/asks', 1, 'waiting', 'live', ${`api-key:${userId}`},
-      'agent:ask_node',
-      ${sql.json(toJson({ nodes: {}, cursor: { node: 'ask_node', agent: { execId: 'exec-parity-ask', input: {}, harness: 'claude-code' } }, executions: {} }))},
-      ${askedAt}
-    ) RETURNING id
-  `;
+  // A run row is written only by a writer that speaks the current protocol,
+  // so the fixture marks its transaction as the engine's writers do.
+  const askRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, detail, checkpoints,
+        started_at_ms
+      ) VALUES (
+        ${orgId}, 'itest-parity/asks', 1, 'waiting', 'live', ${`api-key:${userId}`},
+        'agent:ask_node',
+        ${sql.json(toJson({ nodes: {}, cursor: { node: 'ask_node', agent: { execId: 'exec-parity-ask', input: {}, harness: 'claude-code' } }, executions: {} }))},
+        ${askedAt}
+      ) RETURNING id
+    `;
+  });
   const askRunId = askRun[0]?.id ?? '';
   const plantedAsk = await sql<{ id: string }[]>`
     INSERT INTO app.automation_human_asks (
