@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as XLSX from 'xlsx';
 
+import { mergeImportRowErrors } from '@/app/features/shared/import/import-row-errors';
 import {
   ImportRowRefusal,
   parseCSVWithMapper,
@@ -309,6 +310,77 @@ describe('product import column validation (PRODUCT_REQUIRED_COLUMNS)', () => {
 });
 
 describe('product import row accounting', () => {
+  it.each(['csv', 'xlsx'] as const)(
+    'preserves source rows through a SheetJS-generated %s file and server refusals',
+    async (format) => {
+      const sheet = XLSX.utils.aoa_to_sheet([
+        ['name', 'price', 'stock'],
+        ['Okay', 1, 1],
+        [],
+        ['Broken', 'not-number', 2],
+        [],
+        [],
+        ['Later', 3, 4],
+      ]);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, sheet, 'Products');
+      const contents: ArrayBuffer = XLSX.write(workbook, {
+        bookType: format,
+        type: 'array',
+        ...(format === 'csv' ? { blankrows: true } : {}),
+      });
+      const result = await parseImportFile(
+        new File([contents], `products.${format}`),
+        productMappers.csv,
+        productMappers.record,
+        { requiredColumns: PRODUCT_REQUIRED_COLUMNS },
+      );
+      expect(result.errors).toEqual([]);
+      expect(result.data.map((row) => row.name)).toEqual(['Okay', 'Later']);
+      expect(result.rows).toEqual([2, 7]);
+      expect(result.rowErrors).toEqual([
+        { row: 4, field: 'price', reason: 'notNumber' },
+      ]);
+      expect(
+        mergeImportRowErrors(result, [
+          {
+            index: 1,
+            error: 'Already exists',
+            errorCode: 'DUPLICATE_PRODUCT_NAME',
+          },
+        ]),
+      ).toEqual([
+        { row: 4, field: 'price', reason: 'notNumber' },
+        { row: 7, message: 'Already exists' },
+      ]);
+    },
+  );
+  it.each([
+    {
+      label: 'the reported blank-line fixture',
+      csv: 'name,price,stock\nOkay,1,1\n\nBroken,not-number,2',
+      rows: [2],
+      refusedRow: 4,
+    },
+    {
+      label: 'leading, whitespace-only and consecutive blank lines with CRLF',
+      csv: '\r\n \t\r\nname,price,stock\r\nOkay,1,1\r\n\r\n \t\r\nBroken,not-number,2\r\n\r\nLater,3,4\r\n',
+      rows: [4, 9],
+      refusedRow: 7,
+    },
+  ])('preserves physical rows for $label', ({ csv, rows, refusedRow }) => {
+    const result = parseCSVWithMapper(csv, productMappers.csv, {
+      recordMapper: productMappers.record,
+      requiredColumns: PRODUCT_REQUIRED_COLUMNS,
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.rows).toEqual(rows);
+    expect(result.data[0]).toMatchObject({ name: 'Okay', price: 1, stock: 1 });
+    expect(result.rowErrors).toEqual([
+      { row: refusedRow, field: 'price', reason: 'notNumber' },
+    ]);
+  });
+
   // A row of empty cells (a spreadsheet's trailing lines) is not a record
   // the mapper refuses — it is skipped like an empty line.
   it('skips an all-blank row instead of refusing it', () => {
@@ -381,5 +453,35 @@ describe("product import of a spreadsheet's multi-line cell (#3580)", () => {
       },
     ]);
     expect(result.rows).toEqual([2]);
+  });
+
+  it('numbers the rows after a CRLF multi-line cell as spreadsheet rows', async () => {
+    const csv = XLSX.utils.sheet_to_csv(
+      XLSX.utils.aoa_to_sheet([
+        ['name', 'description', 'price', 'stock'],
+        ['Widget', 'First line\r\nSecond line', 12, 3],
+        [],
+        ['Broken', 'x', 'not-number', 1],
+        ['Gadget', 'y', 5, 1],
+      ]),
+      { RS: '\r\n' },
+    );
+    // Row 2 spans two lines and row 3 is blank: each is still one row.
+    expect(csv).toBe(
+      'name,description,price,stock\r\nWidget,"First line\r\nSecond line",12,3\r\n,,,\r\nBroken,x,not-number,1\r\nGadget,y,5,1',
+    );
+    const file = new File([csv], 'products.csv', { type: 'text/csv' });
+    const result = await parseImportFile(
+      file,
+      productMappers.csv,
+      productMappers.record,
+      { requiredColumns: PRODUCT_REQUIRED_COLUMNS },
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.data.map((row) => row.name)).toEqual(['Widget', 'Gadget']);
+    expect(result.rows).toEqual([2, 5]);
+    expect(result.rowErrors).toEqual([
+      { row: 4, field: 'price', reason: 'notNumber' },
+    ]);
   });
 });
