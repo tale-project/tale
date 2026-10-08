@@ -51,8 +51,14 @@ vi.mock('./pii_gate', async (importOriginal) => {
 const MODEL: EmbeddingModel = {
   providerSlug: 'openai',
   model: 'text-embedding-3-small',
-  dimensions: 4,
+  dimensions: 1024,
 };
+
+/** Where this model's vectors go: the table of its width. */
+const VECTORS = `private_knowledge.chunk_vectors_${MODEL.dimensions}`;
+
+/** A vector as wide as the model states. */
+const vector = (): number[] => new Array<number>(MODEL.dimensions).fill(0);
 
 /** An embedder that returns a fixed-width vector per text and counts calls. */
 function stubEmbedder(): Embedder & {
@@ -68,7 +74,7 @@ function stubEmbedder(): Embedder & {
     signals,
     embed: (text: string) => {
       embedded.push(text);
-      return Promise.resolve([0, 0, 0, 1]);
+      return Promise.resolve(vector());
     },
     embedAll: (
       texts: readonly string[],
@@ -76,7 +82,7 @@ function stubEmbedder(): Embedder & {
     ) => {
       embedded.push(...texts);
       signals.push(options?.signal);
-      return Promise.resolve(texts.map(() => [0, 0, 0, 1]));
+      return Promise.resolve(texts.map(() => vector()));
     },
   };
   return embedder as unknown as Embedder & {
@@ -110,6 +116,9 @@ function fakeDb(
      * reads the committed prefix back — how a whole-document run resumes
      * slice after slice. */
     resumable?: boolean;
+    /** The previous release's column as the catalog declares it: `vector`
+     * (never pinned, the default) or `vector(<width>)`. */
+    legacyColumn?: string;
   } = {},
 ): FakeDb {
   const statements: string[] = [];
@@ -124,7 +133,10 @@ function fakeDb(
     if (text.includes('FOR KEY SHARE')) {
       return Promise.resolve(released ? [] : [{ id: 'doc-1' }]);
     }
-    if (text.includes('FROM private_knowledge.documents d')) {
+    if (text.includes('FROM pg_attribute')) {
+      return Promise.resolve([{ declared: options.legacyColumn ?? 'vector' }]);
+    }
+    if (text.includes('AS stored')) {
       if (released) return Promise.resolve([]);
       if (options.resumable) {
         return Promise.resolve(
@@ -159,6 +171,8 @@ function fakeDb(
       typeof values[2] === 'number'
     ) {
       storedChunks = Math.max(storedChunks, values[2] + 1);
+      // The stored chunk's id, which its vector is written under.
+      return Promise.resolve([{ id: `chunk-${values[2]}` }]);
     }
     if (text.includes("SET status = 'completed'")) status = 'completed';
     if (text.includes('WITH copied AS')) {
@@ -352,7 +366,7 @@ describe('unchanged content is not re-embedded', () => {
         statement.includes('content_hash = $2') &&
         statement.includes('completed'),
     );
-    expect(lookup).toContain('AND conversation_id IS NULL');
+    expect(lookup).toContain('AND d.conversation_id IS NULL');
   });
 
   it('looks for a duplicate only inside the same organization [KNOW-R1]', async () => {
@@ -366,6 +380,161 @@ describe('unchanged content is not re-embedded', () => {
         statement.includes('completed'),
     );
     expect(lookup).toContain('org_slug = $1');
+  });
+});
+
+/**
+ * A chunk's vector lives in the table of its width, so what "already
+ * indexed" means depends on the width the organization's model states. An
+ * organization that moved to a model of another width is not refused: its
+ * documents are embedded again at the new width when they are next indexed.
+ */
+describe('vectors are stored and counted per width [KNOW-R11]', () => {
+  it('writes each chunk’s vector to the table of the model’s width, under the stored chunk’s id', async () => {
+    const db = fakeDb();
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const chunkWrites = db.statements.flatMap((statement, index) =>
+      statement.startsWith('INSERT INTO private_knowledge.chunks')
+        ? [index]
+        : [],
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    for (const index of chunkWrites) {
+      // The previous release's column, undeclared here, gets nothing.
+      expect(db.params[index]?.[10]).toBeNull();
+      // The vector follows its chunk, in the same transaction.
+      expect(db.statements[index + 1]).toContain(
+        `INSERT INTO ${VECTORS} AS v (chunk_id, embedding)`,
+      );
+      expect(db.params[index + 1]?.[0]).toBe(
+        `chunk-${String(db.params[index]?.[2])}`,
+      );
+      expect(db.params[index + 1]?.[1]).toBe(JSON.stringify(vector()));
+    }
+  });
+
+  // The previous release's column stays for one release while a deployment
+  // rolls, and the previous image reads it alone, at the one width it
+  // declared it at. Declared at this width, it is written too, so that
+  // image — beside this one during the roll, and back after a rollback —
+  // finds the document. Declared at another width, it holds nothing of it.
+  it('writes the vector to the previous release’s column too, when it is declared at this width', async () => {
+    const db = fakeDb({ legacyColumn: `vector(${MODEL.dimensions})` });
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const chunkWrites = db.statements.flatMap((statement, index) =>
+      statement.startsWith('INSERT INTO private_knowledge.chunks')
+        ? [index]
+        : [],
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    for (const index of chunkWrites) {
+      expect(db.statements[index]).toContain('passage_repeat, embedding)');
+      expect(db.statements[index]).toContain('embedding = EXCLUDED.embedding');
+      expect(db.params[index]?.[10]).toBe(JSON.stringify(vector()));
+      // The migrations' trigger mirrors the column into the width's table;
+      // the write there replaces a vector that differs and touches nothing
+      // else.
+      expect(db.statements[index + 1]).toContain(
+        'WHERE v.embedding <> EXCLUDED.embedding',
+      );
+    }
+  });
+
+  it('leaves the previous release’s column NULL when it is declared at another width', async () => {
+    const db = fakeDb({ legacyColumn: 'vector(1536)' });
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const chunkWrites = db.statements.filter((statement) =>
+      statement.startsWith('INSERT INTO private_knowledge.chunks'),
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    for (const [index, statement] of db.statements.entries()) {
+      if (!statement.startsWith('INSERT INTO private_knowledge.chunks')) {
+        continue;
+      }
+      expect(db.params[index]?.[10]).toBeNull();
+    }
+  });
+
+  it('counts as stored only the chunks that have a vector of this width', async () => {
+    const db = fakeDb();
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const stateRead = db.statements.find((statement) =>
+      statement.includes('AS stored'),
+    );
+    expect(stateRead).toContain(`FROM ${VECTORS} v`);
+    // A repeated passage has no vector at any width and is not a gap.
+    expect(stateRead).toContain('NOT c.passage_repeat');
+  });
+
+  // The move to a model of another width: the row is complete, its content
+  // unchanged, and none of its chunks has a vector of the new width.
+  it('embeds a document again when it was indexed under a model of another width', async () => {
+    const db = fakeDb({
+      stored: {
+        content_hash: computeContentHash(ARGS.text),
+        status: 'completed',
+        stored: 0,
+      },
+    });
+    const embedder = stubEmbedder();
+    const result = await indexDocument({ ...ARGS, sql: db.sql, embedder });
+
+    expect(result.skipped).toBeUndefined();
+    expect(result.chunksWritten).toBe(result.chunksTotal);
+    expect(embedder.embedded.length).toBeGreaterThan(0);
+    // From its first chunk: the chunks of the old width's run are replaced.
+    expect(db.statements.join('\n')).toContain(
+      'DELETE FROM private_knowledge.chunks WHERE document_id = $1',
+    );
+  });
+
+  it('copies an identical document only when it is embedded at this width, vectors included', async () => {
+    const db = fakeDb({ duplicateId: 'doc-original' });
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const lookup = db.statements.find(
+      (statement) =>
+        statement.includes('content_hash = $2') &&
+        statement.includes('completed'),
+    );
+    // A source indexed under another width has no vector to copy: its copy
+    // would be complete on paper and missing from search by meaning.
+    expect(lookup).toContain(`NOT EXISTS (SELECT 1 FROM ${VECTORS} v`);
+    const copy = db.statements.find((statement) =>
+      statement.startsWith(`INSERT INTO ${VECTORS} (chunk_id, embedding)`),
+    );
+    expect(copy).toContain('target.chunk_index = source.chunk_index');
+    expect(copy).toContain('source.org_slug = $2');
+    expect(copy).toContain('target.org_slug = $2');
+    // The previous release's column travels with the chunk it belongs to.
+    const chunkCopy = db.statements.find((statement) =>
+      statement.startsWith('WITH copied AS'),
+    );
+    expect(chunkCopy).toContain('passage_repeat, embedding)');
+    expect(chunkCopy).toMatch(/passage_repeat, embedding\s+FROM/);
+  });
+
+  // A settings file written before the widths were a list. Refused before
+  // the row is claimed and before anything is embedded.
+  it('refuses a width no table stores, claiming and embedding nothing', async () => {
+    const db = fakeDb();
+    const embedAll = vi.fn();
+    const odd = {
+      model: { ...MODEL, dimensions: 1000 },
+      dimensions: 1000,
+      embedAll,
+    } as unknown as Embedder;
+
+    await expect(
+      indexDocument({ ...ARGS, sql: db.sql, embedder: odd }),
+    ).rejects.toThrow(/organization "acme" states a vector width of 1000/);
+
+    expect(embedAll).not.toHaveBeenCalled();
+    expect(db.statements).toEqual([]);
   });
 });
 
@@ -395,11 +564,18 @@ describe('repeated passages are embedded once', () => {
     // flagged so both search legs skip them.
     expect(new Set(embedder.embedded).size).toBe(embedder.embedded.length);
     expect(embedder.embedded.length).toBeLessThan(inserts.length);
-    const repeats = inserts.filter((row) => row[10] === true);
+    // $10 flags the repeat; a repeat has no row in the vectors' table.
+    const repeats = inserts.filter((row) => row[9] === true);
     expect(repeats.length).toBe(inserts.length - embedder.embedded.length);
-    for (const row of repeats) expect(row[5]).toBeNull();
-    for (const row of inserts.filter((first) => first[10] === false)) {
-      expect(row[5]).not.toBeNull();
+    const vectorWrites = db.params.filter((_params, index) =>
+      db.statements[index]?.startsWith(`INSERT INTO ${VECTORS}`),
+    );
+    expect(vectorWrites.length).toBe(embedder.embedded.length);
+    const embeddedChunks = new Set(vectorWrites.map((row) => row[0]));
+    for (const row of inserts) {
+      expect(embeddedChunks.has(`chunk-${String(row[2])}`)).toBe(
+        row[9] === false,
+      );
     }
   });
 });

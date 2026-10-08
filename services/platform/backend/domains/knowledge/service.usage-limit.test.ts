@@ -264,7 +264,7 @@ describe('indexUploadedFile at a usage limit', () => {
     );
   });
 
-  it('parks the file before a byte is read when a limit binds its indexing [GOV-R4] [KNOW-R17]', async () => {
+  it('parks the file before a byte is read when a limit binds its indexing [GOV-R4] [KNOW-R18]', async () => {
     vi.mocked(directCallBlocked).mockResolvedValueOnce(CAP);
     const log: Query[] = [];
     await indexUploadedFile(fakeSql(log), 'file-1');

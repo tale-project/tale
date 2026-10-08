@@ -4,6 +4,7 @@ import {
   beforeEach,
   describe,
   expect,
+  spyOn,
   test,
 } from 'bun:test';
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -84,7 +85,8 @@ if (a[0] === 'ps') {
   if (a.includes('label=tale.buildkitd=1')) {
     const helperOrg = flags('--filter').find(value => value.startsWith('label=tale.org='))?.slice('label=tale.org='.length);
     const withOrg = flag('--format').includes('tale.org');
-    done(Object.values(s.containers).filter(c => !helperOrg || c.labels['tale.org'] === helperOrg).map(c => [c.id, c.name, ...(withOrg ? [c.labels['tale.org'] ?? ''] : [])].join('\t')).join('\n'), 'helpers');
+    const withState = flag('--format').includes('.State');
+    done(Object.values(s.containers).filter(c => !helperOrg || c.labels['tale.org'] === helperOrg).map(c => [c.id, c.name, ...(withOrg ? [c.labels['tale.org'] ?? ''] : []), ...(withState ? [c.running ? 'running' : 'exited'] : [])].join('\t')).join('\n'), 'helpers');
   }
   s.sessionReads++;
   if (s.lateSession && s.sessionReads >= s.lateSession.afterRead) s.sessions = [s.lateSession.session];
@@ -561,6 +563,32 @@ describe('organization build-cache lifecycle', () => {
       expect(Object.keys((await state()).containers).length).toBe(4);
     });
 
+    test('is judged from the helper inventory, its stop time read again only once the retention could have passed', async () => {
+      const org = nextOrg();
+      const now = Date.now();
+      await stoppedFor(org, 2 * DAY, now);
+      const inspects = async () =>
+        (await calls()).filter(([command]) => command === 'inspect').length;
+      await sweepTwice(cfg, now);
+      // The builder's stop time alone: no helper is inspected for a stop.
+      expect(await inspects()).toBe(1);
+      for (const later of [60_000, DAY, 11 * DAY]) {
+        await sweepIdleBuildkitd(cfg, now + later);
+      }
+      expect(await inspects()).toBe(1);
+      expect(Object.keys((await state()).containers).length).toBe(4);
+      // Twelve days on, the fourteen-day retention has passed: the builder is
+      // inspected again, and its helpers and caches go.
+      const log = spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        await sweepIdleBuildkitd(cfg, now + 12 * DAY + 1);
+      } finally {
+        log.mockRestore();
+      }
+      expect(await inspects()).toBeGreaterThan(1);
+      expect(Object.keys((await state()).containers)).toEqual([]);
+    });
+
     test('keeps them while a session of the organization may build', async () => {
       const org = nextOrg();
       const now = Date.now();
@@ -570,6 +598,38 @@ describe('organization build-cache lifecycle', () => {
       await sweepTwice(cfg, now);
       expect((await state()).volumes).toEqual(initial.volumes);
     });
+  });
+
+  test('with the build cache off, an empty helper inventory is read again only hourly', async () => {
+    const off = { ...cfg, dockerBuildCache: false };
+    const org = nextOrg();
+    const initial = seed(org);
+    const helpers = initial.containers;
+    await save({ ...initial, containers: {} });
+    const inventories = async () =>
+      (await calls()).filter(
+        ([command, ...rest]) =>
+          command === 'ps' && rest.includes('label=tale.buildkitd=1'),
+      ).length;
+    const now = Date.now();
+    await sweepIdleBuildkitd(off, now);
+    await sweepIdleBuildkitd(off, now + 60_000);
+    await sweepIdleBuildkitd(off, now + 59 * 60_000);
+    expect(await inventories()).toBe(1);
+    // Helpers a spawner with the cache on left behind are found within the
+    // hour, and stopped once idle.
+    await save({ ...(await state()), containers: helpers });
+    await sweepIdleBuildkitd(off, now + 60 * 60_000);
+    expect(await inventories()).toBe(2);
+    expect(
+      (await sweepIdleBuildkitd(off, now + 60 * 60_000 + 1_001)).stopped,
+    ).toBe(4);
+    // With the cache on, every sweep reads the inventory.
+    await save({ ...(await state()), containers: {} });
+    const before = await inventories();
+    await sweepIdleBuildkitd(cfg, now + 61 * 60_000);
+    await sweepIdleBuildkitd(cfg, now + 62 * 60_000);
+    expect(await inventories()).toBe(before + 2);
   });
 
   describe('a session disk below its floor', () => {
