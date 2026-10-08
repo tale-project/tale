@@ -95,7 +95,10 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    stamped (`sandbox_session_ops.project_ids` — a managed turn's, a model request's, a direct
    call's). A project's key spends in
    its project whatever it calls (`loadBudgetSubject`). A recording's transcription is in the
-   project of the chat it was added to, and a video link's door check reads that project too.
+   project it was added in: the one its upload or its video link named in a project's new chat
+   (`file_metadata.project_id`, `video_link_jobs.project_id`), else the project of the
+   uploader's own chat — a thread id on a file is the uploader's claim, not proof of the project.
+   A video link's door check reads that project too.
 
 ## Lanes (the write side)
 
@@ -109,7 +112,7 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 | Automation `llm` step | `resolveAutomationRunAttribution` (`domains/automations/llm-metering.ts`), held and booked as a direct call | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
 | Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above | the run's, as above |
 | Voice output | `domains/tts` (held on its pending chunk row) | the requester | `__tts__` | — | the thread's |
-| Transcription (an upload, a video link's audio, a dictation) | `domains/files/transcription-metering.ts`, held and booked as a direct call | the uploader — a retry continues their upload — or `__automation__` for a file nobody added; the dictating member | `__transcription__` | — | the chat's the recording was added to |
+| Transcription (an upload, a video link's audio, a dictation) | `domains/files/transcription-metering.ts`, held and booked as a direct call | the uploader — a retry continues their upload — or `__automation__` for a file nobody added; the dictating member | `__transcription__` | — | the one named at registration, else the uploader's own chat's |
 | Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key | a project's key's project |
 | Connector call | `recordConnectorUsage` | the caller | optional | — | the chat's, for the assistant's tools |
 
