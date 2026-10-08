@@ -48,6 +48,8 @@
  * specifies.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
@@ -57,6 +59,7 @@ import {
   INEXACT_NUMBER_MESSAGE,
   parseJsonExact,
 } from '../../../lib/utils/json-exact';
+import { runInRequestChannel } from '../../lib/request-channel';
 import {
   isRecordedMethod,
   type McpCallOutcome,
@@ -299,6 +302,9 @@ export interface McpRequestOptions {
 /** What one request has spent so far — shared by the messages of a batch. */
 interface RequestState {
   toolCalls: number;
+  /** The HTTP request's id — the door's `X-Request-Id`, or one minted here
+   * for a caller that came without (a test, a future door). */
+  readonly requestId: string;
 }
 
 /**
@@ -507,10 +513,21 @@ async function answerMessage(
             });
           }
         }
-        const result: unknown =
-          tool.kind === 'capability'
-            ? await options.host.capability(caller, name, args)
-            : await options.host.engine(caller, name, args);
+        // Every audit row the call writes, however deep in a domain, names
+        // the door, the tool, the key and the client (`request-channel.ts`).
+        const { apiKeyId } = caller.credential;
+        const result: unknown = await runInRequestChannel(
+          {
+            via: 'mcp',
+            requestId: state.requestId,
+            tool: name,
+            ...(apiKeyId === undefined ? {} : { apiKeyId }),
+          },
+          () =>
+            tool.kind === 'capability'
+              ? options.host.capability(caller, name, args)
+              : options.host.engine(caller, name, args),
+        );
         return toolResult(tool, id, result);
       } catch (error) {
         // Only a THROWN failure lands here — a refusal is data and was returned
@@ -591,7 +608,10 @@ export async function handleMcpRequest(
       ),
     );
   }
-  const state: RequestState = { toolCalls: 0 };
+  const state: RequestState = {
+    toolCalls: 0,
+    requestId: caller.requestId ?? randomUUID(),
+  };
   if (Array.isArray(message)) {
     if (message.length === 0) {
       return respond(

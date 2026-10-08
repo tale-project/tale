@@ -18,6 +18,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
+import { currentRequestChannel } from '../../lib/request-channel';
 import type { McpCaller } from './caller';
 import {
   handleMcpRequest,
@@ -344,6 +345,55 @@ describe('tools/call — the engine surface', () => {
     expect(dispatch).toHaveBeenCalledWith(keyCaller(), 'list_automations', {});
     expect(isErrorFlag(payload)).toBe(false);
     expect(JSON.parse(resultText(payload))).toEqual({ automations: [] });
+  });
+
+  it('runs the call in a request channel naming the door, the tool and the key, and nothing outside it', async () => {
+    const seen: unknown[] = [];
+    const dispatch = vi.fn(async () => {
+      seen.push(currentRequestChannel());
+      return { automations: [] };
+    });
+    const { serve, caller } = context(dispatch);
+    const request = rpc({
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/call',
+      params: { name: 'list_automations', arguments: {} },
+    });
+    await handleMcpRequest({ ...caller, requestId: 'req-42' }, request, {
+      host: { engine: dispatch, capability: dispatch },
+    });
+    expect(seen).toEqual([
+      {
+        via: 'mcp',
+        requestId: 'req-42',
+        tool: 'list_automations',
+        apiKeyId: KEY,
+      },
+    ]);
+    expect(currentRequestChannel()).toBeUndefined();
+    // A caller without a request id still gets one, the same for every call
+    // of its request.
+    await serve(
+      rpc([
+        {
+          jsonrpc: '2.0',
+          id: 6,
+          method: 'tools/call',
+          params: { name: 'list_automations', arguments: {} },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 7,
+          method: 'tools/call',
+          params: { name: 'list_automations', arguments: {} },
+        },
+      ]),
+    );
+    const minted = seen.slice(1) as { requestId: string }[];
+    expect(minted).toHaveLength(2);
+    expect(minted[0]?.requestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(minted[1]?.requestId).toBe(minted[0]?.requestId);
   });
 
   it('passes the tool arguments through as engine params', async () => {
