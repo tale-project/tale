@@ -52,6 +52,17 @@ fails (`MENTION_DIRECTORY_UNAVAILABLE`) instead of going through with nobody not
 - **Example**: Noah saves a comment that mentions Mia while the member list cannot be read →
   the save fails, and he can try again.
 
+### COLLAB-R11 · Older text keeps naming whom it named, also after a rename
+
+A mention typed as a handle is looked up by that handle. An agent keeps answering to the names
+it answered to before agents had handles, also after it is renamed, and those older names win
+over another agent's handle. An agent's handle never takes the email name of a person or the
+name of an automation from them. An edited comment keeps naming the people it already named.
+
+- **Example**: Last month Noah wrote "@research.bot please check" for the agent Research Bot.
+  Mia renames it QA Bot and adds a new agent named ResearchBot → Noah's comment still names QA
+  Bot.
+
 ## Reviews
 
 ### COLLAB-R6 · Being named the reviewer of a task notifies that person
