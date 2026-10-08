@@ -46,7 +46,7 @@ export function ReleaseBody({ markdown, className }: ReleaseBodyProps) {
   const cleaned = stripFullChangelogFooter(markdown);
 
   return (
-    <div className={cn(proseClass, className)}>
+    <div data-release-body className={cn(proseClass, className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

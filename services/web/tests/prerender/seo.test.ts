@@ -549,9 +549,9 @@ describe('prerender SEO suite', () => {
     const PRERENDERED_BODIES = prerenderedBodyCount(
       RELEASES.slice(0, RELEASE_DISPLAY_LIMIT),
     );
-    // The prose wrapper ReleaseBody renders — one per rendered body.
-    const BODY_MARKER = /max-w-none text-\[15px\]/g;
-
+    const MARKDOWN_BODY_COUNT = RELEASES.slice(0, PRERENDERED_BODIES).filter(
+      ({ body }) => Boolean(body),
+    ).length;
     for (const url of ['/changelog', '/de/changelog', '/fr/changelog']) {
       it(`${url} lists every release but prerenders a bounded set of bodies`, () => {
         const html = readHtml(url);
@@ -561,9 +561,11 @@ describe('prerender SEO suite', () => {
         expect((found.match(/<article/g) ?? []).length).toBe(
           RELEASE_DISPLAY_LIMIT,
         );
-        expect((found.match(BODY_MARKER) ?? []).length).toBe(
-          PRERENDERED_BODIES,
-        );
+        // Count rendered release bodies independently of typography classes.
+        const document = new JSDOM(found).window.document;
+        expect(
+          document.querySelectorAll('article [data-release-body]'),
+        ).toHaveLength(MARKDOWN_BODY_COUNT);
         // The budget is a bound, never a reason to prerender nothing.
         expect(PRERENDERED_BODIES).toBeGreaterThanOrEqual(1);
       });
