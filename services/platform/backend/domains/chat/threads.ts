@@ -602,7 +602,9 @@ export async function renameThread(
 }
 
 /** Fill an ABSENT title only — the AI-title write; a rename or an explicit
- * birth title is never clobbered (the 0.4 `setThreadTitleInternal` guard). */
+ * birth title is never clobbered (the 0.4 `setThreadTitleInternal` guard).
+ * A comparison's visible column passes its title to the hidden column it is
+ * paired with, which is never named on its own. */
 export async function setThreadTitleIfAbsent(
   sql: Sql,
   organizationId: string,
@@ -613,7 +615,12 @@ export async function setThreadTitleIfAbsent(
   if (trimmed.length === 0) return;
   await sql`
     UPDATE app.threads SET title = ${trimmed}
-    WHERE id = ${threadId} AND org_id = ${organizationId} AND title IS NULL
+    WHERE org_id = ${organizationId} AND title IS NULL
+      AND (id = ${threadId} OR id = (
+        SELECT arena ->> 'partnerThreadId' FROM app.thread_metadata
+        WHERE thread_id = ${threadId} AND org_id = ${organizationId}
+          AND arena ->> 'role' = 'a'
+      ))
   `;
 }
 

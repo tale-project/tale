@@ -346,7 +346,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.picker.ariaLabel`) now reads **Model B**'s name, so
   the next message goes to the model just judged better; reload → the
   picker shows the model saved before the round again (the switch is not
-  saved as the sticky pick)
+  saved as the sticky pick). Started in a new chat, the pair is named once:
+  **Usage analytics** counts one request under `thread-title` for it, and
+  after **B is better** the chat keeps that name
 - [ ] `CHAT-F25` · **Voice output (TTS)** — Toggle the composer's **Voice
   mode** (`chat.voice.voiceModeLabel`, `aria-pressed`; tooltips
   `chat.voice.voiceModeEnable` / `chat.voice.voiceModeDisable`); send (**mode

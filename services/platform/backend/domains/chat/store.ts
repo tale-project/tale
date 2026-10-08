@@ -150,10 +150,15 @@ export async function appendMessageRow(
     WHERE id = ${message.threadId}
   `;
   const meta = await sql<
-    { branchRootId: string | null; chatType: string; userId: string }[]
+    {
+      branchRootId: string | null;
+      chatType: string;
+      userId: string;
+      arenaRole: string | null;
+    }[]
   >`
     SELECT branch_root_id AS "branchRootId", chat_type AS "chatType",
-           user_id AS "userId"
+           user_id AS "userId", arena ->> 'role' AS "arenaRole"
     FROM app.thread_metadata WHERE thread_id = ${message.threadId}
     LIMIT 1
   `;
@@ -178,8 +183,15 @@ export async function appendMessageRow(
   // The thread's first user message names the conversation: fire the AI
   // title generation exactly once — for the opening user message of an
   // untitled thread (a branch copy or an explicitly titled thread keeps
-  // what it has).
-  if (message.role === 'user' && row.order === 0 && meta[0] !== undefined) {
+  // what it has). The hidden column of a model comparison takes the title
+  // its visible partner is given (`setThreadTitleIfAbsent`): naming it too
+  // would pay for a second title nobody reads.
+  if (
+    message.role === 'user' &&
+    row.order === 0 &&
+    meta[0] !== undefined &&
+    meta[0].arenaRole !== 'b'
+  ) {
     const firstMessage = (message.text ?? '').trim();
     if (firstMessage.length > 0) {
       const untitled = await sql<{ id: string }[]>`

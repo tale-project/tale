@@ -494,6 +494,15 @@ export async function settleArenaPair(
         WHERE b.thread_id = ${idB} AND b.org_id = ${args.organizationId}
           AND a.thread_id = ${idA} AND a.org_id = ${args.organizationId}
       `;
+      // And its name, when it has none of its own yet: B is never named on
+      // its own, so it takes the title A was given.
+      await tx`
+        UPDATE app.threads b SET title = a.title
+        FROM app.threads a
+        WHERE b.id = ${idB} AND b.org_id = ${args.organizationId}
+          AND a.id = ${idA} AND a.org_id = ${args.organizationId}
+          AND b.title IS NULL AND a.title IS NOT NULL
+      `;
     } else {
       await tx`
         UPDATE app.thread_metadata SET arena = NULL

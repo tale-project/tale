@@ -53692,6 +53692,90 @@ async function checkArena(
     voteRows.length === 1 && voteRows[0]?.rating === 'negative',
     `rows=${voteRows.length} rating=${voteRows[0]?.rating}`,
   );
+
+  // ---- a comparison started in a new chat is named once ------------------
+  // Its first message lands in both columns while both are untitled: only
+  // the visible column queues a title, and the title it is given names the
+  // hidden column too. A hidden column that wins without one — its partner
+  // renamed meanwhile — takes its partner's.
+  const { setThreadTitleIfAbsent } = await import('./domains/chat/threads.ts');
+  const newPair = async (): Promise<{ a: string; b: string }> => {
+    const thread = z
+      .object({ id: z.string() })
+      .safeParse(
+        await (
+          await post(`/api/app/chat/threads?orgId=${orgId}`, { kind: 'direct' })
+        ).json(),
+      );
+    const a = thread.success ? thread.data.id : '';
+    const pair = z
+      .object({ threadIdB: z.string() })
+      .safeParse(
+        await (
+          await post(
+            `/api/app/chat/threads/${a}/arena/ensure?orgId=${orgId}`,
+            {},
+          )
+        ).json(),
+      );
+    return { a, b: pair.success ? pair.data.threadIdB : '' };
+  };
+  const titleOf = async (threadId: string): Promise<string | null> =>
+    (
+      await sql<{ title: string | null }[]>`
+        SELECT title FROM app.threads WHERE id = ${threadId}
+      `
+    )[0]?.title ?? null;
+  const named = await newPair();
+  for (const threadId of [named.a, named.b]) {
+    await appendMessageRow(sql, {
+      organizationId: orgId,
+      threadId,
+      role: 'user',
+      parts: [{ type: 'text', text: 'Plan the launch' }],
+      text: 'Plan the launch',
+      status: 'complete',
+    });
+  }
+  const titleJobs = await sql<{ threadId: string }[]>`
+    SELECT data ->> 'threadId' AS "threadId" FROM pgboss.job
+    WHERE name = 'chat.generate_title'
+      AND data ->> 'threadId' IN (${named.a}, ${named.b})
+  `;
+  // Whichever lands first — the queued job's title or this one — names
+  // both columns alike.
+  await setThreadTitleIfAbsent(sql, orgId, named.a, 'Launch plan');
+  const namedTitles = [await titleOf(named.a), await titleOf(named.b)];
+
+  const renamed = await newPair();
+  await sql`
+    UPDATE app.threads SET title = 'Renamed launch' WHERE id = ${renamed.a}
+  `;
+  await seedArenaRoundReplies(sql, orgId, renamed.a, renamed.b);
+  const wonByB = z
+    .object({ continueThreadId: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${renamed.a}/arena/settle?orgId=${orgId}`,
+          { verdict: 'b_better' },
+        )
+      ).json(),
+    );
+  const winnerTitle = await titleOf(renamed.b);
+  record(
+    'arena: a comparison in a new chat queues one title, which names both columns; a winning hidden column keeps its partner’s',
+    named.a !== '' &&
+      named.b !== '' &&
+      titleJobs.length === 1 &&
+      titleJobs[0]?.threadId === named.a &&
+      namedTitles[0] !== null &&
+      namedTitles[0] === namedTitles[1] &&
+      wonByB.success &&
+      wonByB.data.continueThreadId === renamed.b &&
+      winnerTitle === 'Renamed launch',
+    `title jobs=${JSON.stringify(titleJobs.map((job) => (job.threadId === named.a ? 'visible' : 'hidden')))} (want ["visible"]), titles=${JSON.stringify(namedTitles)} (want one title, twice), winner=${wonByB.success ? (wonByB.data.continueThreadId === renamed.b ? 'B' : 'A') : 'shape-fail'} titled ${JSON.stringify(winnerTitle)} (want "Renamed launch")`,
+  );
 }
 
 async function checkGovernanceEnforcement(
