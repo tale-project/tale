@@ -53,7 +53,10 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    session: its run is its subject, through `resolveAutomationRunAttribution` — the mapping the
    run's agent turns resolve through too — and `domains/automations/llm-metering.ts` measures that
    subject before each call and books the call after it. Every lane that measures a run's subject
-   builds it with `loadAttributedBudgetSubject` (`attributed-subject.ts`). A run's `started_by` is
+   builds it with `loadAttributedBudgetSubject` (`attributed-subject.ts`). Every call the platform
+   makes straight to a provider — an `llm` step, a chat title, the Inbox's Improve — is a direct
+   call (`direct-calls.ts`): its worst case is held on an op row (kind `direct-call`) under the
+   subject its lane names, and its cost booked under that row's stamp. A run's `started_by` is
    parsed only by `parseRunStarter` (`lib/shared/run-starter.ts`); a `split(':')` on a starter
    anywhere else is a defect.
 7. **Door fields keep their format.** `automation_runs.started_by` stays `user:<id>` /
@@ -82,8 +85,10 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    spends in no project. A `project` budget rule (`projectRules` in the budgets file) is measured
    against its project's buckets, whoever spent: a project cap binds an impersonal subject too,
    and work in several projects must fit each one's cap. A hold in flight counts toward its
-   projects through its thread (`app.generations` → `app.thread_metadata.project_id`) or the
-   projects its reservation stamped (`sandbox_session_ops.project_ids`). A project's key spends in
+   projects through its thread (`app.generations` and a pending voice chunk,
+   `app.tts_audio_chunks`, → `app.thread_metadata.project_id`) or the projects its reservation
+   stamped (`sandbox_session_ops.project_ids` — a managed turn's, a model request's, a direct
+   call's). A project's key spends in
    its project whatever it calls (`loadBudgetSubject`). Transcription and video ingestion name no
    project.
 
@@ -92,12 +97,13 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 | Lane | Resolver | `user_id` | `agent_slug` | `api_key_id` | project |
 | --- | --- | --- | --- | --- | --- |
 | Chat turn (App, REST) | `lib/chat/turn.ts` → `createPgUsageLedger` | the sender / the member acted for | assistant slug | the REST key | the thread's |
-| Chat title | `core/chat/generate_title.ts` → same ledger | the thread's member | `thread-title` | — | the thread's (`chat.generate_title` job) |
+| Chat title | `core/chat/generate_title.ts`, held and booked as a direct call (`domains/chat/title-meter.ts`) | the thread's member | `thread-title` | the key that sent the message | the thread's (`chat.generate_title` job) |
+| Inbox Improve with AI | `domains/conversations/improve.ts`, held and booked as a direct call | the writer | `inbox-improve` | — | — |
 | Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | — | `project_agent_runs.project_id` |
 | Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
-| Automation `llm` step | `resolveAutomationRunAttribution` (`domains/automations/llm-metering.ts`) → `createPgUsageLedger` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
+| Automation `llm` step | `resolveAutomationRunAttribution` (`domains/automations/llm-metering.ts`), held and booked as a direct call | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
 | Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above | the run's, as above |
-| Voice output | `domains/tts` | the requester | `__tts__` | — | the thread's |
+| Voice output | `domains/tts` (held on its pending chunk row) | the requester | `__tts__` | — | the thread's |
 | Transcription | `domains/files/transcription.ts` | the requester | `__transcription__` | — | — |
 | Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key | a project's key's project |
 | Connector call | `recordConnectorUsage` | the caller | optional | — | the chat's, for the assistant's tools |
@@ -120,8 +126,16 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 - `domains/sandbox/turn-budget.test.ts`, `spend-settlement.test.ts` — reservation and settlement
   book the same subject and the key; a trigger run is impersonal.
 - `core/automations/llm_call.test.ts`, `domains/automations/llm-metering.test.ts` — an
-  automation's `llm` step is measured before each call, refused with `budget_exceeded` at a
-  reached cap, and booked under its run's subject after it, an empty reply included.
+  automation's `llm` step is held before each call, refused with `budget_exceeded` when a cap has
+  too little room, and booked under its run's subject after it, an empty reply included.
+- `domains/governance/direct-calls.test.ts` — a direct call holds its worst case whole (nothing
+  while no budget binds), books once under its op row's stamp (a call past its deadline too),
+  and its lost hold lapses; `domains/chat/title-meter.test.ts`, `core/chat/generate_title.test.ts`,
+  `jobs/task-list.generate-title.test.ts`, `domains/conversations/improve.test.ts` — the title and
+  Improve calls are held under their member (and key) and pick only models the member may use;
+  `domains/tts/service.project-budget.test.ts` — a voice chunk holds its estimate under the
+  admission lock and books audio it paid for; `domains/chat/store.test.ts`, `lib/chat/turn.test.ts`
+  — a reply's later rounds raise its hold.
 - `domains/model_api/metering.test.ts` — a model-endpoint request reserves under the key holder
   with the key and books the gateway's figure under the person, `__direct_api__` and the key.
 - `domains/sandbox/image-generation.test.ts` — an agent's image is admitted and booked under its

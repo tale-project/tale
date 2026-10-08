@@ -67,7 +67,11 @@ and when it resets. When several limits are reached, the token limit is named fi
 ### GOV-R5 · Work in progress counts against a limit before it is paid for
 
 What running work may still cost is set aside against the person's and the organization's
-limits, so several things started at the same moment cannot overrun a limit together. With no
+limits, so several things started at the same moment cannot overrun a limit together: a chat
+reply's every round as it starts, an agent's allowance, a voice chunk's estimate, and the
+largest possible cost of a call Tale makes straight to a model — an automation's `llm` step, a
+chat's title, a rewrite with Improve with AI. Such a call is refused when a limit has too little
+room for that cost; a chat's title is then made from the first message, without a call. With no
 limit set, work gets the deployment's default allowance.
 
 - **Example**: Two agents are working for Mia and hold most of what is left under her limit.
@@ -159,11 +163,7 @@ It counts only in the organization it was granted in.
 - **The usage pages** and their figures (`usage-metrics.ts`).
 - **A project's limit and transcription**: an audio or video file transcribed for a project's
   chat is booked to the person who added it, not to the project, and a project's limit warns
-  no one before it is reached. Voice output in a project is checked against its limit but holds
-  nothing while it is made.
-- **An automation's model steps hold nothing while they run**: an `llm` step is checked against
-  the limits before each call and counted after it, but sets nothing aside meanwhile, so steps of
-  runs at the same moment can pass a nearly reached limit together.
+  no one before it is reached.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.

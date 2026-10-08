@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 85 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 86 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -192,6 +192,17 @@ agent.
   scheduled run is refused naming **This project's** request limit: the
   first one counted toward P2 too, not only toward P1. **Delete the rule
   after**
+- [ ] `GOV-F56` · **Improve with AI and a chat's title are held to the
+  budget** — read your monthly requests under **Settings → Usage**, then
+  GOV-F4-style give yourself a **User** rule with **Max requests** one above
+  them. Send the first message of a new chat → the reply comes, and the
+  chat is named from the first words of the message, not by a model: the
+  reply took the last request, so the naming call was refused, and **Usage
+  analytics** books no `thread-title` request for it. In the Inbox, choose
+  **Improve with AI** on a draft → it is refused with **Usage limit
+  reached** (`conversations.editor.improveLimitReached`), its description
+  naming your monthly request limit, in German and French too. **Delete
+  the rule after**
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the
