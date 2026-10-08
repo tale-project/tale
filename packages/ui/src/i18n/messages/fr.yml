@@ -576,3 +576,5 @@ flow:
     label: Nœuds
     reads: Lit {list}
     empty: Aucun nœud pour l'instant
+  paths:
+    showAll: Tout afficher

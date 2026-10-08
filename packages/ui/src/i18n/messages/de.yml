@@ -576,3 +576,5 @@ flow:
     label: Nodes
     reads: Liest {list}
     empty: Noch keine Nodes
+  paths:
+    showAll: Alle zeigen
