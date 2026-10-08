@@ -13,7 +13,6 @@ import { refsOf, type NodeRefs } from '../execute/controlflow';
 import { ptr } from '../syntax/pointer';
 import type { ExprSource, ParseCtx, SourceField } from '../syntax/sources';
 import { exprSegments, isSingleTemplate } from '../syntax/tokens';
-import type { RefSite } from '../syntax/walk';
 import type { Issue, NodeDef } from '../types';
 import type { ChildDocuments } from '../typing/children';
 import type { TypeEnv } from '../typing/expr';
@@ -130,11 +129,6 @@ export function place(source: ExprSource): string {
 /** The `node` param of a finding in a source — absent for the output. */
 export function nodeParam(source: ExprSource): { node?: string } {
   return source.nodeId === undefined ? {} : { node: source.nodeId };
-}
-
-/** The code of a reference site as the author wrote it. */
-export function siteText(source: ExprSource, site: RefSite): string {
-  return source.text.slice(site.range[0], site.range[1]);
 }
 
 /** Whether a template source puts its expressions inside text — where a
