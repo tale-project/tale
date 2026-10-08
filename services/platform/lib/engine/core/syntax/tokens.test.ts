@@ -2,8 +2,9 @@
 
 import vm from 'node:vm';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { MAX_SOURCE_SIZE } from './parse';
 import {
   conditionKind,
   exprSegments,
@@ -127,6 +128,152 @@ describe('tokenizeTemplate — the compatibility matrix', () => {
     expect(seg.parsed).toBe(false);
     const [ok] = exprSegments(tokenizeTemplate('{{ a /* c */ }}'));
     expect(ok.parsed).toBe(true);
+  });
+});
+
+describe('tokenizeTemplate — bounded whitespace recovery', () => {
+  function measured(value: string) {
+    let whitespaceChecks = 0;
+    let longTrimmedCharacters = 0;
+    const test = RegExp.prototype.test;
+    const trimEnd = String.prototype.trimEnd;
+    const testSpy = vi
+      .spyOn(RegExp.prototype, 'test')
+      .mockImplementation(function (this: RegExp, text: string) {
+        if (this.source === '\\s') whitespaceChecks++;
+        return test.call(this, text);
+      });
+    const trimSpy = vi
+      .spyOn(String.prototype, 'trimEnd')
+      .mockImplementation(function (this: string) {
+        if (this.length > MAX_SOURCE_SIZE + 2)
+          longTrimmedCharacters += this.length;
+        return trimEnd.call(this);
+      });
+    try {
+      return {
+        result: tokenizeTemplate(value),
+        counts: () => ({ whitespaceChecks, longTrimmedCharacters }),
+      };
+    } finally {
+      testSpy.mockRestore();
+      trimSpy.mockRestore();
+    }
+  }
+
+  it.each([
+    ['line comment', '{{//}}', ''],
+    ['closed comment', '{{1/*}}', '*/'],
+    ['malformed prefix and closed comment', '{{1+/*}}', '*/'],
+  ])(
+    'scans a shared padding suffix once after %s failures',
+    (_name, prefix, tail) => {
+      for (const count of [16, 64]) {
+        for (const closer of ['', '}}']) {
+          const value =
+            prefix.repeat(count) + tail + ' '.repeat(16384) + closer;
+          const { result, counts } = measured(value);
+          if (prefix === '{{1/*}}' && closer) {
+            // Closing the block comment makes the entire recovered span valid.
+            expect(exprSegments(result)).toEqual([
+              {
+                kind: 'expr',
+                start: 0,
+                end: value.length,
+                exprStart: 2,
+                exprEnd: prefix.length * count + tail.length,
+                source: (prefix.repeat(count) + tail).slice(2),
+                parsed: true,
+              },
+            ]);
+          } else {
+            expect(
+              exprSegments(result).map(({ start, end, source }) => ({
+                start,
+                end,
+                source,
+              })),
+            ).toEqual(legacy(value));
+            expect(
+              exprSegments(result).every((segment) => !segment.parsed),
+            ).toBe(true);
+          }
+          expect(
+            result.segments
+              .map((segment) => value.slice(segment.start, segment.end))
+              .join(''),
+          ).toBe(value);
+          expect(counts().whitespaceChecks).toBeLessThan(value.length * 2);
+          expect(counts().longTrimmedCharacters).toBeLessThan(value.length * 2);
+        }
+      }
+    },
+  );
+
+  it('keeps separate whitespace islands and fresh templates independent', () => {
+    const padding = ' \t'.repeat(8192);
+    const value =
+      '{{//}}'.repeat(32) +
+      padding +
+      '\nseparator ' +
+      '{{1+/*}}'.repeat(32) +
+      '*/' +
+      padding +
+      '}}';
+    for (const input of [
+      value,
+      '{{//}}'.repeat(16) + '\t'.repeat(20000) + '}}',
+      value,
+    ]) {
+      const { result, counts } = measured(input);
+      expect(
+        exprSegments(result).map(({ start, end, source }) => ({
+          start,
+          end,
+          source,
+        })),
+      ).toEqual(legacy(input));
+      expect(exprSegments(result).every((segment) => !segment.parsed)).toBe(
+        true,
+      );
+      expect(
+        result.segments
+          .map((segment) => input.slice(segment.start, segment.end))
+          .join(''),
+      ).toBe(input);
+      expect(counts().whitespaceChecks).toBeLessThan(input.length * 2);
+      expect(counts().longTrimmedCharacters).toBeLessThan(input.length * 2);
+    }
+  });
+
+  it('preserves a valid quoted closer with long padding after failed spans', () => {
+    const prefix = '{{//}}'.repeat(32) + '\n';
+    const expression = "'a}}b' /* trailing comment */";
+    const value =
+      prefix +
+      '{{' +
+      ' '.repeat(20000) +
+      expression +
+      '\t'.repeat(20000) +
+      '}}';
+    const { result, counts } = measured(value);
+    const expressions = exprSegments(result);
+    expect(
+      expressions
+        .slice(0, -1)
+        .map(({ start, end, source }) => ({ start, end, source })),
+    ).toEqual(legacy(prefix));
+    expect(expressions.at(-1)).toEqual({
+      kind: 'expr',
+      start: prefix.length,
+      end: value.length,
+      exprStart: prefix.length + 20002,
+      exprEnd: prefix.length + 20002 + expression.length,
+      source: expression,
+      parsed: true,
+    });
+    expect(counts().whitespaceChecks).toBeLessThan(value.length * 2);
+    expect(counts().longTrimmedCharacters).toBeLessThan(value.length * 4);
   });
 });
 
