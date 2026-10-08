@@ -1315,6 +1315,25 @@ describe('MCP JSON-RPC envelopes validate against their documented schemas', () 
     expect(validate(batch), JSON.stringify(validate.errors)).toBe(true);
   });
 
+  it("a 404 validates in either shape: the 2026-07-28 method error and the door's unknown-organization envelope", async () => {
+    const validate = responseValidator('/api/v1/mcp', 'post', '404');
+    const missingMethod = {
+      jsonrpc: '2.0',
+      id: 3,
+      error: { code: -32601, message: 'Method not found: initialize' },
+    };
+    expect(validate(missingMethod), JSON.stringify(validate.errors)).toBe(true);
+    const unknownOrganization = {
+      error: 'X-Organization-Slug names no organization',
+      code: 'ORG_SLUG_INVALID',
+      requestId: 'req-1',
+      data: { organizations: [{ slug: 'acme', name: 'Acme' }] },
+    };
+    expect(validate(unknownOrganization), JSON.stringify(validate.errors)).toBe(
+      true,
+    );
+  });
+
   it('a parse error, whose id is null, validates against the 400 schema', async () => {
     const validate = responseValidator('/api/v1/mcp', 'post', '400');
     const response = await handleMcpRequest(

@@ -6579,9 +6579,12 @@ export function buildSpec(): Json {
           'The body could not be acted on: not JSON (-32700); not a JSON-RPC 2.0 message, an id that is not a string or an integer, an empty batch, or a batch naming 2026-07-28 (-32600); an `MCP-Protocol-Version` header or a `_meta` revision the endpoint does not speak (-32022, with `data.supported` listing the ones it does and `data.requested`); or, on 2026-07-28, a missing or malformed `params._meta` envelope (-32602) or a header that is missing or does not say what the body says (-32020). Nothing runs',
           jsonRpcError,
         ),
+        // Two shapes: the endpoint's own JSON-RPC error, and the door's
+        // REST envelope for an `X-Organization-Slug` that names no
+        // organization (appended below with the other door refusals).
         '404': jsonResponse(
-          'On 2026-07-28 only: a method that revision does not have — `initialize`, `ping` or one the endpoint does not serve (-32601). The 2025 revisions answer an unknown method with 200',
-          jsonRpcError,
+          'On 2026-07-28 only: a method that revision does not have — `initialize`, `ping` or one the endpoint does not serve (-32601), as a JSON-RPC error. The 2025 revisions answer an unknown method with 200',
+          { oneOf: [jsonRpcError, ref('Error')] },
         ),
         '401': standardErrors['401'],
         '403': errorResponse(
