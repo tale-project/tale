@@ -278,7 +278,7 @@ describe('Excel header validation', () => {
       workbook,
       XLSX.utils.aoa_to_sheet([
         ['name', 'price', 'stock'],
-        ['Blank amounts', '', ''],
+        ['Blank amounts'],
         ['Full amounts', 12, 3],
       ]),
       'Products',
@@ -301,7 +301,7 @@ describe('Excel header validation', () => {
 
     expect(result.errors).toEqual([]);
     expect(result.data).toEqual([
-      { name: 'Blank amounts', price: '', stock: '' },
+      { name: 'Blank amounts' },
       { name: 'Full amounts', price: 12, stock: 3 },
     ]);
     expect(result.rows).toEqual([2, 3]);
