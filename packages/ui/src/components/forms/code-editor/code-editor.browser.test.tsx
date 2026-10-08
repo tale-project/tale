@@ -782,12 +782,16 @@ describe('CodeEditor completion', () => {
     await userEvent.keyboard('nodes.');
     const list = await listbox();
     expect(box).toHaveAttribute('aria-autocomplete', 'list');
+    // The list opens on "nodes" while typing; on a loaded runner the
+    // update after the dot can land a moment later.
+    await waitFor(() =>
+      expect(
+        [...list.querySelectorAll('[role="option"]')].map(
+          (option) => option.querySelector('.cm-completionLabel')?.textContent,
+        ),
+      ).toEqual(['score', 'open issues']),
+    );
     const options = [...list.querySelectorAll('[role="option"]')];
-    expect(
-      options.map(
-        (option) => option.querySelector('.cm-completionLabel')?.textContent,
-      ),
-    ).toEqual(['score', 'open issues']);
     expect(box.getAttribute('aria-activedescendant')).toBe(options[0].id);
     await userEvent.keyboard('{ArrowDown}');
     expect(box.getAttribute('aria-activedescendant')).toBe(options[1].id);
