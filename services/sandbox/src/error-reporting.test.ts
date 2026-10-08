@@ -24,17 +24,23 @@ async function child(script: string, dsn = '') {
 }
 
 describe('sandbox runtime error reporting', () => {
-  test('without a DSN no SDK or process listener starts', async () => {
+  test('without a DSN the SDK is never loaded and no process listener starts', async () => {
     const result = await child(`
       const before = process.listenerCount('uncaughtException');
       const reporting = await import(${JSON.stringify(reporting)});
       reporting.reportSandboxError(new Error('disabled'), 'test');
       await reporting.flushSandboxErrorReporting();
-      console.log(JSON.stringify({enabled: reporting.initSandboxErrorReporting(), added: process.listenerCount('uncaughtException') - before}));
+      const enabled = await reporting.initSandboxErrorReporting();
+      const sdkLoaded = Object.keys(require.cache).some((path) => path.includes('/@sentry/'));
+      console.log(JSON.stringify({enabled, sdkLoaded, added: process.listenerCount('uncaughtException') - before}));
     `);
     expect(result.exit).toBe(0);
     expect(result.stderr).toBe('');
-    expect(JSON.parse(result.stdout)).toEqual({ enabled: false, added: 0 });
+    expect(JSON.parse(result.stdout)).toEqual({
+      enabled: false,
+      sdkLoaded: false,
+      added: 0,
+    });
   });
 
   test('real envelopes preserve outcomes, omit credentials and filter only proven client disconnects', async () => {
@@ -51,7 +57,7 @@ describe('sandbox runtime error reporting', () => {
       const result = await child(
         `
         const reporting = await import(${JSON.stringify(reporting)});
-        reporting.initSandboxErrorReporting();
+        await reporting.initSandboxErrorReporting();
         const {makeSweepTick} = await import(${JSON.stringify(source + '/cleanup.ts')});
         const {sseResponse} = await import(${JSON.stringify(source + '/sse.ts')});
         const server = Bun.serve({port:0,hostname:'127.0.0.1',
@@ -165,7 +171,7 @@ describe('sandbox runtime error reporting', () => {
       const result = await child(
         `
         const reporting = await import(${JSON.stringify(reporting)});
-        reporting.initSandboxErrorReporting();
+        await reporting.initSandboxErrorReporting();
         setTimeout(() => {throw new Error('fatal-boom')}, 0);
       `,
         `http://public@127.0.0.1:${ingest.port}/1`,

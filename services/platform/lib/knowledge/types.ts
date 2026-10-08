@@ -33,13 +33,13 @@ export function corporaFor(
 /**
  * An embedding model, stated in full.
  *
- * `dimensions` is REQUIRED and never inferred from the model name. A corpus
- * stores one vector column of one width; guessing a width that disagrees with
- * what the provider actually returns corrupts every vector written after the
- * guess, and the damage is silent until retrieval quality collapses. Making the
+ * `dimensions` is REQUIRED and never inferred from the model name. A vector
+ * is stored and searched among the vectors of its own width; a width guessed
+ * wrong would send every vector written after the guess to the wrong ones,
+ * and the damage is silent until retrieval quality collapses. Making the
  * operator write the number means a disagreement is caught at configuration
- * time by {@link KnowledgeEmbeddingConfig}, and again at write time by the
- * corpus's pinned dimensions.
+ * time by {@link KnowledgeEmbeddingConfig}, and again at write time: a vector
+ * that is not as wide as stated is not written.
  */
 export interface EmbeddingModel {
   /** The provider the credential belongs to, e.g. `openai`. */
