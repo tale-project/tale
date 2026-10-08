@@ -17,7 +17,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { isAutoRetryableFailure } from './task_auto_retry';
 
-const io = vi.hoisted(() => ({ stdout: '' }));
+const io = vi.hoisted(() => ({
+  stdout: '',
+  checkpoint: null as { seq: number; state: unknown } | null,
+  resumedAt: [] as number[],
+  beforeStdout: undefined as (() => void) | undefined,
+}));
 
 vi.mock('../automations/agent_host', () => ({
   liveProgressSink: () => ({
@@ -35,14 +40,25 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
     >();
   return {
     ...actual,
-    sessionGetExecCheckpoint: async () => null,
-    sessionPutExecCheckpoint: async () => undefined,
+    sessionGetExecCheckpoint: async () => io.checkpoint,
+    sessionPutExecCheckpoint: async (
+      _sessionId: string,
+      _execId: string,
+      checkpoint: { seq: number; state: unknown },
+    ) => {
+      io.checkpoint = JSON.parse(JSON.stringify(checkpoint));
+    },
     drainSessionExecResilient: async (
       _sessionId: string,
       _body: unknown,
       _signal: AbortSignal,
       callbacks: { onStdout?: (chunk: string) => void },
+      options: { cursor: { lastSeq: number }; resumeSinceSeq?: number },
     ) => {
+      if (options.resumeSinceSeq !== undefined)
+        io.resumedAt.push(options.resumeSinceSeq);
+      if (io.stdout !== '') options.cursor.lastSeq++;
+      io.beforeStdout?.();
       callbacks.onStdout?.(io.stdout);
       return {
         status: 'completed',
@@ -59,6 +75,7 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
 });
 
 const { driveTaskAgentTurnImpl } = await import('./agent_run_host');
+const { drainHarnessWindow } = await import('../chat/external_turn_shared');
 
 interface RunState {
   status: string;
@@ -148,6 +165,10 @@ const CODEX_REVOKED = ndjson([
 ]);
 
 beforeEach(() => {
+  io.stdout = '';
+  io.checkpoint = null;
+  io.resumedAt = [];
+  io.beforeStdout = undefined;
   vi.clearAllMocks();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -209,6 +230,62 @@ describe('a brokered task agent turn the vendor answered 401', () => {
 });
 
 describe('a Codex model-capacity failure', () => {
+  it('retains the typed failure after checkpoint restoration without replaying the consumed terminal event', async () => {
+    const message =
+      'Selected model is at capacity. Please try a different model.';
+    io.stdout = ndjson([
+      { type: 'thread.started', thread_id: 'checkpoint-conversation' },
+      { type: 'turn.failed', error: { message } },
+    ]);
+    const keys = { ...KEYS, harness: 'codex' };
+    let now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    // Permit the real five-second checkpoint throttle, without a slow test.
+    io.beforeStdout = () => {
+      now += 6_000;
+    };
+    const first = await drainHarnessWindow(keys).finally(() => {
+      clock.mockRestore();
+      io.beforeStdout = undefined;
+    });
+    expect(first.kind).toBe('terminal');
+    expect(io.checkpoint).toMatchObject({
+      seq: 1,
+      state: { ended: { providerErrorKind: 'model_capacity' } },
+    });
+
+    // The prior worker saved and acknowledged the terminal chunk before
+    // settling the task. The next worker sees only the saved checkpoint.
+    io.stdout = '';
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+      brokerTokenHash: 'healthy-account',
+    });
+    await driveTaskAgentTurnImpl(ctx, keys);
+    expect(io.resumedAt).toEqual([0, 1]);
+    expect(failedMarks(mutations)).toEqual([
+      {
+        name: 'tasks/agent_runs:markTaskAgentRunFailed',
+        args: expect.objectContaining({
+          failureCode: 'model_capacity',
+          error: message,
+          agentSessionId: 'checkpoint-conversation',
+        }),
+      },
+    ]);
+    expect(failedMarks(mutations)[0]?.args).not.toHaveProperty(
+      'apiErrorStatus',
+    );
+    expect(
+      mutations.some(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      ),
+    ).toBe(false);
+  });
+
   it('retains the conversation and original words without an account-rate-limit mutation', async () => {
     const message =
       'Selected model is at capacity. Please try a different model.';
