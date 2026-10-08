@@ -223,7 +223,7 @@ describe('knowledge search when the embedding provider fails', () => {
 });
 
 describe('knowledge search at a usage limit', () => {
-  it('answers the 429 every budget refusal answers, with the cap and its wait [GOV-R4] [KNOW-R17]', async () => {
+  it('answers the 429 every budget refusal answers, with the cap and its wait [GOV-R4] [KNOW-R18]', async () => {
     const resetsAt = Date.now() + 3_600_000;
     vi.mocked(searchKnowledge).mockRejectedValueOnce(
       new EmbeddingBudgetExceeded('Usage limit reached.', resetsAt, {

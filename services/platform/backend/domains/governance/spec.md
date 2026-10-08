@@ -74,7 +74,7 @@ estimated largest cost of a call Tale makes straight to a model — an automatio
 chat's title, a rewrite with Improve with AI, a transcription at the recording's length, each
 embedding request of knowledge indexing and search. Such a call is refused when a limit has too
 little room for that cost; a chat's title is then made from the first message, without a call, and
-indexing waits for the limit (`KNOW-R17`). With no limit set, work gets the deployment's default
+indexing waits for the limit (`KNOW-R18`). With no limit set, work gets the deployment's default
 allowance.
 
 - **Example**: Two agents are working for Mia and hold most of what is left under her limit.

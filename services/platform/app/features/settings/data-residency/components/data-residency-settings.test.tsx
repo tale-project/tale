@@ -1119,6 +1119,57 @@ describe('DataResidencySettings', () => {
     });
   });
 
+  // A knowledge database keeps a table per supported width: a width with no
+  // table would save and then fail every document at index time, so the
+  // form refuses it where it is typed and names the widths that are stored.
+  it('refuses a vector width the knowledge database has no table for', async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'deepseek', name: 'API key' },
+    ];
+    fixtures.embeddingSupport = [
+      { providerSlug: 'deepseek', support: 'unknown' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'deepseek',
+        origin: 'shipped',
+        catalogSource: 'static',
+        models: [{ id: 'deepseek-v4', tags: ['chat'] }],
+      },
+    ];
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'deepseek' }));
+    await user.type(
+      within(section).getByRole('textbox', { name: 'Model' }),
+      'example-embedding',
+    );
+    const width = within(section).getByRole('spinbutton', {
+      name: 'Vector width',
+    });
+    await user.type(width, '1000');
+
+    expect(capture.current?.isValid).toBe(false);
+    // The row's hint names the widths before anything is typed wrong.
+    expect(
+      within(section).getByText(
+        /one of 256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096\./,
+      ),
+    ).toBeInTheDocument();
+
+    await user.clear(width);
+    await user.type(width, '1024');
+    expect(capture.current?.isValid).toBe(true);
+  });
+
   it('refuses a shipped provider whose catalog could not be loaded', async () => {
     fixtures.credentials = [
       { id: 'cred-1', providerSlug: 'vercel-ai-gateway', name: 'Gateway key' },
@@ -1468,14 +1519,14 @@ describe('DataResidencySettings', () => {
     );
     await user.click(screen.getByRole('option', { name: 'zai' }));
 
-    // A tag names one provider's model, so the pick starts over; the width
-    // is the corpus's and stays.
+    // A tag names one provider's model, so the pick starts over — and the
+    // width with it: it is that model's, not the next one's.
     expect(
       within(section).getByRole('combobox', { name: 'Model' }),
     ).toHaveTextContent('Choose a model');
     expect(
       within(section).getByRole('spinbutton', { name: 'Vector width' }),
-    ).toHaveValue(1536);
+    ).toHaveValue(null);
   });
 
   it('leaves the width to the admin when the catalog states none for the pick', async () => {

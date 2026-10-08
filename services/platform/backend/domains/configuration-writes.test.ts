@@ -112,7 +112,7 @@ const provider = providerDefinitionSchema.parse({
 const embedding = {
   providerSlug: 'local-chat',
   model: 'model-a',
-  dimensions: 16,
+  dimensions: 1024,
 };
 
 beforeEach(async () => {

@@ -9,7 +9,7 @@ import {
   parseDindInnerPool,
   subnetsOverlap,
 } from './network-address.ts';
-import { runDocker } from './spawn-util.ts';
+import { dockerTarget, runDocker } from './spawn-util.ts';
 import type { RunDockerResult } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 import { ORG_ID_ALPHABET_RE } from './wire.ts';
@@ -689,12 +689,7 @@ export function retireLegacyBuildkitd(): Promise<{
   stopped: number;
   deferred: boolean;
 }> {
-  const target = JSON.stringify([
-    process.env.DOCKER_BIN,
-    process.env.DOCKER_HOST,
-    process.env.DOCKER_CONTEXT,
-    process.env.DOCKER_CONFIG,
-  ]);
+  const target = dockerTarget();
   let retire = legacyRetirers.get(target);
   if (!retire) {
     retire = createLegacyBuildkitRetirer();
