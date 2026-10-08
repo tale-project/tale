@@ -414,6 +414,22 @@ export interface AutomationsContract {
      * webhook secret: `hasToken` says one exists. */
     returns: TriggerView[];
   };
+  'automations/queries:listTriggerRuns': {
+    kind: 'query';
+    args: { name: string; limit?: number; organizationId: string };
+    /** The runs the bound trigger started, newest first (runs of projects
+     * the member cannot read left out), each with the webhook delivery lane
+     * that started it while the delivery's ledger row lives: a delivery-id
+     * `header` (its name) or the `body`; null for a schedule, an event, or
+     * once the row is gone. */
+    returns: Array<{
+      runId: string;
+      startedAt: number;
+      status: string;
+      deliverySource: 'header' | 'body' | null;
+      header: string | null;
+    }>;
+  };
   'automations/queries:listVersions': {
     kind: 'query';
     args: { organizationId: string; name: string };

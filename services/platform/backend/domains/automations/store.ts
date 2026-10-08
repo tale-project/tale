@@ -1788,7 +1788,7 @@ export async function deleteTrigger(
  * is the one that is a state, not an occurrence: the schedule turned itself
  * off. `missed_occurrences` counts the occurrences a schedule did not start
  * while the platform was not running. */
-export type TriggerSkipReason = (typeof TRIGGER_SKIP_REASONS)[number];
+type TriggerSkipReason = (typeof TRIGGER_SKIP_REASONS)[number];
 
 /** A trigger binding as a reader sees it — never the secret that verifies
  * it — exactly the published read shape (`triggerViewSchema`). The fire
@@ -1876,6 +1876,109 @@ export async function listTriggers(
   `;
   const now = Date.now();
   return rows.map((row) => toTriggerListing(row, now));
+}
+
+/** How many runs the trigger's recent-runs read answers at most. */
+export const TRIGGER_RUNS_MAX = 50;
+
+/** One run a trigger started, newest first — what the trigger panel lists
+ * under a webhook's recent deliveries. */
+export interface TriggerRunListing {
+  runId: string;
+  startedAt: number;
+  status: string;
+  /** How the webhook door recognised the delivery that started the run:
+   * by a delivery-id header or by the body's bytes. Null for a schedule or
+   * an event, and once the delivery's ledger row is gone (a header
+   * identity lives 24 hours, a body identity two minutes, and an expired
+   * one is dropped on the trigger's next delivery). */
+  deliverySource: 'header' | 'body' | null;
+  /** The delivery-id header, with `deliverySource: 'header'`. */
+  header: string | null;
+}
+
+/** A ledger row's lane, `header:<name>` or `body`, as the read answers it. */
+function deliveryLane(
+  source: string | null,
+): Pick<TriggerRunListing, 'deliverySource' | 'header'> {
+  if (source === 'body') return { deliverySource: 'body', header: null };
+  if (source?.startsWith('header:') === true) {
+    return { deliverySource: 'header', header: source.slice('header:'.length) };
+  }
+  return { deliverySource: null, header: null };
+}
+
+/**
+ * The runs the automation's bound trigger started (`started_by =
+ * 'trigger:<id>'`), newest first — whatever kind it had when it started
+ * them — each with the webhook delivery lane that started it while that
+ * delivery's ledger row lives. Empty when no trigger is bound. A run in a
+ * project outside `visibleProjectIds` is left out, as every run read does.
+ *
+ * The runs come off `automation_runs_org_name` (the automation's runs,
+ * newest first, filtered to the trigger's); each run's ledger row off
+ * `automation_webhook_deliveries_expiry`, bounded by the run's own start —
+ * the identity's window outlasts the transaction that claims it and starts
+ * the run.
+ */
+export async function listTriggerRuns(
+  sql: Sql,
+  organizationId: string,
+  args: { name: string; limit?: number; visibleProjectIds?: string[] },
+): Promise<TriggerRunListing[]> {
+  const limit = Math.min(
+    Math.max(Math.trunc(args.limit ?? 10), 1),
+    TRIGGER_RUNS_MAX,
+  );
+  const rows = await sql<
+    {
+      runId: string;
+      startedAt: number;
+      status: string;
+      source: string | null;
+    }[]
+  >`
+    WITH started AS (
+      SELECT r.id, r.started_at_ms, r.status, t.id AS trigger_id
+      FROM app.automation_triggers t
+      JOIN app.automation_runs r
+        ON r.org_id = t.org_id
+       AND r.name = t.name
+       AND r.started_by = 'trigger:' || t.id
+      WHERE t.org_id = ${organizationId} AND t.name = ${args.name}
+        AND (${args.visibleProjectIds === undefined}
+             OR r.project_id IS NULL
+             OR r.project_id = ANY(${args.visibleProjectIds ?? []}::text[]))
+      ORDER BY r.started_at_ms DESC, r.id DESC
+      LIMIT ${limit}
+    )
+    SELECT s.id AS "runId", s.started_at_ms::float8 AS "startedAt", s.status,
+           (SELECT d.source FROM app.automation_webhook_deliveries d
+            WHERE d.trigger_id = s.trigger_id
+              AND d.expires_at_ms >= s.started_at_ms
+              AND d.run_id = s.id
+            ORDER BY d.received_at_ms DESC
+            LIMIT 1) AS source
+    FROM started s
+    ORDER BY s.started_at_ms DESC, s.id DESC
+  `;
+  return rows.map(toTriggerRunListing);
+}
+
+function toTriggerRunListing(row: {
+  runId: string;
+  startedAt: number;
+  status: string;
+  source: string | null;
+}): TriggerRunListing {
+  const lane = deliveryLane(row.source);
+  return {
+    runId: row.runId,
+    startedAt: row.startedAt,
+    status: row.status,
+    deliverySource: lane.deliverySource,
+    header: lane.header,
+  };
 }
 
 // ------------------------------------------------------------------- runs

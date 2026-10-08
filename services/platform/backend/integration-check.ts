@@ -14775,6 +14775,78 @@ async function checkAutomationTriggerDelivery(
     `same delivery id → ${h1.status}/${h2.status} dup=${h2.duplicate} same-run=${h2.runId === h1.runId}; new id → ${h3.status} dup=${h3.duplicate}; same body → ${b1.status}/${b2.status} dup=${b2.duplicate} same-run=${b2.runId === b1.runId}; new body → ${b3.status} dup=${b3.duplicate}; runs started=${hookRuns} (want 4)`,
   );
 
+  // The runs the trigger started, as the trigger panel lists its recent
+  // deliveries: the four new runs first, newest first, each with the lane
+  // the door recognised its delivery by (the GitHub header, or the body),
+  // and the schedule runs the same binding started before as lane-less.
+  const listedRuns = await fetch(
+    `${base}/api/app/automations/${name}/trigger/runs?orgId=${orgId}&limit=10`,
+    { headers: { cookie } },
+  );
+  const triggerRunList = z
+    .object({
+      runs: z.array(
+        z.object({
+          runId: z.string(),
+          startedAt: z.number(),
+          deliverySource: z.enum(['header', 'body']).nullable(),
+          header: z.string().nullable(),
+        }),
+      ),
+    })
+    .safeParse(await listedRuns.json());
+  const listed = triggerRunList.success ? triggerRunList.data.runs : [];
+  const laneOf = (runId: string): string => {
+    const row = listed.find((candidate) => candidate.runId === runId);
+    return row === undefined
+      ? 'missing'
+      : `${row.deliverySource ?? 'none'}${row.header === null ? '' : `:${row.header}`}`;
+  };
+  const newestFirst = listed.every(
+    (row, index) =>
+      index === 0 || (listed[index - 1]?.startedAt ?? 0) >= row.startedAt,
+  );
+  const newest = new Set(listed.slice(0, 4).map((row) => row.runId));
+  // The read's plan, through the store's own query: with sequential scans
+  // priced out, it reaches the runs by an index — no further index needed.
+  let triggerRunsPlan: { 'QUERY PLAN': string }[] = [];
+  await sql.begin(async (tx) => {
+    await tx`SET LOCAL enable_seqscan = off`;
+    const explain = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const prefixed = Object.assign(
+        [`EXPLAIN ${strings[0] ?? ''}`, ...strings.slice(1)],
+        { raw: [`EXPLAIN ${strings.raw[0] ?? ''}`, ...strings.raw.slice(1)] },
+      );
+      return tx<{ 'QUERY PLAN': string }[]>(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template array with its raw strings, as postgres.js reads one
+        prefixed as unknown as TemplateStringsArray,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the store's own parameters, passed through
+        ...(values as never[]),
+      ).then((rows) => {
+        triggerRunsPlan = [...rows];
+        return [];
+      });
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- an EXPLAIN-prefixing tag standing in for the store's sql
+    await store.listTriggerRuns(explain as unknown as Sql, orgId, { name });
+  });
+  const triggerRunsPlanText = triggerRunsPlan
+    .map((row) => row['QUERY PLAN'])
+    .join('\n');
+  record(
+    'the trigger lists the runs it started, newest first, with each delivery’s lane, by index',
+    listedRuns.status === 200 &&
+      newestFirst &&
+      [h1.runId, h3.runId, b1.runId, b3.runId].every((id) => newest.has(id)) &&
+      laneOf(h1.runId) === 'header:x-github-delivery' &&
+      laneOf(h3.runId) === 'header:x-github-delivery' &&
+      laneOf(b1.runId) === 'body' &&
+      laneOf(b3.runId) === 'body' &&
+      listed.slice(4).every((row) => row.deliverySource === null) &&
+      !/Seq Scan on automation_runs/.test(triggerRunsPlanText),
+    `status=${listedRuns.status}, newest-first=${newestFirst}, lanes h1=${laneOf(h1.runId)} h3=${laneOf(h3.runId)} b1=${laneOf(b1.runId)} b3=${laneOf(b3.runId)} (want header:x-github-delivery ×2, body ×2), older=${JSON.stringify(listed.slice(4).map((row) => row.deliverySource))} (want null), plan:\n${triggerRunsPlanText}`,
+  );
+
   // The 256 KB cap counts BYTES: 150k two-byte characters (300 KB) is over
   // it even though it is under the cap in UTF-16 code units.
   const multibyte = await deliver(`"${'é'.repeat(150_000)}"`);

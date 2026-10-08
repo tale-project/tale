@@ -66,6 +66,7 @@ import {
   getRun,
   listAutomationsForApp,
   listRuns,
+  listTriggerRuns,
   listTriggers,
   listVersions,
   saveVersion,
@@ -1040,6 +1041,24 @@ export function createAutomationRoutes(deps: {
         c.get('orgId'),
         nameFrom(c, 'versions'),
       ),
+    });
+  });
+
+  // The runs the bound trigger started, newest first, with the webhook
+  // delivery lane of each while its ledger row lives — the trigger panel's
+  // recent deliveries. A run in a project the member cannot read is left
+  // out, as on every run read.
+  app.get('/:name{.+}/trigger/runs', async (c) => {
+    const limit = Number(c.req.query('limit') ?? Number.NaN);
+    return c.json({
+      runs: await listTriggerRuns(deps.sql, c.get('orgId'), {
+        name: nameFrom(c, 'trigger/runs'),
+        ...(Number.isFinite(limit) ? { limit } : {}),
+        visibleProjectIds: await readableProjectIds(
+          deps.sql,
+          await projectAuth(c),
+        ),
+      }),
     });
   });
 
