@@ -128,7 +128,7 @@ When the button opens a panel, pass that panel's id as `controlsId`: each node t
 
 Viewport moves ease out over the duration tokens: zoom 150 ms, reveal 200 ms, reset 300 ms. Under reduced motion they jump. `framed` draws a bordered frame for a page; on a touch screen one finger then scrolls the page and two move the chart, and the first one-finger drag says so once. Set `touchPolicy` to choose either behaviour yourself.
 
-`topStart`, `topEnd`, `toolbar` and `cornerActions` place your own controls. `legend` adds a **Legend** button that explains the marks your chart uses in your words. `notice` sits above the chart and `empty` replaces it when the graph has no nodes.
+`topStart`, `topEnd`, `toolbar` and `cornerActions` place your own controls. The List view keeps `topStart` and `topEnd` above the list and `toolbar` at its foot, so a phone that opens on the list still reaches them. `legend` adds a **Legend** button that explains the marks your chart uses in your words. `notice` sits above the chart and `empty` replaces it when the graph has no nodes.
 
 ## Lay out without the canvas
 

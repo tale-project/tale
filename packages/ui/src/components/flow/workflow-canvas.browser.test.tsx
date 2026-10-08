@@ -414,7 +414,7 @@ describe('WorkflowCanvas', () => {
     }
   });
 
-  it("keeps the host's corner controls in a controlled List view", async () => {
+  it("keeps the host's corner controls and toolbar in a controlled List view", async () => {
     const onLayout = vi.fn();
     render(
       <WorkflowCanvas
@@ -424,6 +424,7 @@ describe('WorkflowCanvas', () => {
         view="list"
         topStart={<button type="button">Canvas, List or Source</button>}
         topEnd={<button type="button">Paths</button>}
+        toolbar={<button type="button">Save</button>}
         onLayout={onLayout}
       />,
     );
@@ -434,6 +435,8 @@ describe('WorkflowCanvas', () => {
       screen.getByRole('button', { name: 'Canvas, List or Source' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Paths' })).toBeInTheDocument();
+    // The bottom toolbar too: on a phone the list is the default view.
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
     // A controlled view hides the built-in toggle.
     expect(screen.queryByRole('button', { name: 'Show as chart' })).toBeNull();
   });

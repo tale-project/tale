@@ -964,6 +964,15 @@ function WorkflowCanvasInner({
             highlight={primary}
             stoppedAt={failure?.nodeId ?? null}
           />
+          {/* The host's verbs stay with the List view: on a phone, where
+              the list is the default, they are the only way to reach them. */}
+          {toolbar && (
+            <div className="sticky bottom-0 flex justify-center px-3 pt-2 pb-[max(1rem,var(--mobile-nav-clearance-live,0px))]">
+              <div className="ring-border bg-background flex w-max max-w-full items-center gap-2 rounded-lg p-1 shadow-sm ring-1">
+                {toolbar}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div
