@@ -15,7 +15,7 @@
 import { z } from 'zod';
 
 /** Prefix of every environment variable the mock reads. */
-export const MOCK_ENV_PREFIX = 'TALE_LOAD_MOCK_';
+const MOCK_ENV_PREFIX = 'TALE_LOAD_MOCK_';
 
 const rate = z.coerce.number().min(0).max(1);
 const milliseconds = z.coerce.number().min(0);

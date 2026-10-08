@@ -22,20 +22,17 @@ import {
 } from './random.ts';
 import { estimateTokens } from './tokens.ts';
 
-export const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
-export const MAX_EMBEDDING_DIMENSIONS = 8192;
+const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
+const MAX_EMBEDDING_DIMENSIONS = 8192;
 /** Inputs one request may carry, as OpenAI caps them. */
-export const MAX_EMBEDDING_INPUTS = 2048;
+const MAX_EMBEDDING_INPUTS = 2048;
 /** Extra latency per additional input, as a share of the sampled latency. */
 const PER_INPUT_LATENCY_SHARE = 0.01;
 /** Decimal places a float vector keeps on the wire. */
 const FLOAT_SCALE = 1e9;
 
 /** The unit vector of `text` in `dimensions` dimensions. */
-export function embeddingVector(
-  text: string,
-  dimensions: number,
-): Float64Array {
+function embeddingVector(text: string, dimensions: number): Float64Array {
   const digest = createHash('sha256').update(text).digest();
   const random = createRandomFromWords(
     digest.readUInt32LE(0),
@@ -56,7 +53,7 @@ export function embeddingVector(
 }
 
 /** `vector` as packed little-endian float32, base64-encoded. */
-export function encodeBase64(vector: Float64Array): string {
+function encodeBase64(vector: Float64Array): string {
   const bytes = Buffer.allocUnsafe(vector.length * 4);
   for (let i = 0; i < vector.length; i++) {
     bytes.writeFloatLE(vector[i] ?? 0, i * 4);

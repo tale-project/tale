@@ -14,7 +14,7 @@ import { ResponseStream, sendBytes, sendJson } from './http.ts';
 import { lognormalFromMedianP95, randomId } from './random.ts';
 
 /** A valid 1x1 transparent PNG. */
-export const TINY_PNG_BASE64 =
+const TINY_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 /**
@@ -38,7 +38,7 @@ const SPEECH_CHARS_PER_SECOND = 15;
 const MAX_SPEECH_SECONDS = 120;
 
 /** Silent MP3 audio of about `seconds` seconds. */
-export function silentMp3(seconds: number): Buffer {
+function silentMp3(seconds: number): Buffer {
   const frames = Math.max(
     1,
     Math.round(Math.min(seconds, MAX_SPEECH_SECONDS) * MP3_FRAMES_PER_SECOND),

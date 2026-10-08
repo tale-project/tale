@@ -46,13 +46,13 @@ import {
 } from './population.ts';
 
 /** The project every member files load tasks in. */
-export const LOAD_PROJECT_NAME = 'Load test project';
+const LOAD_PROJECT_NAME = 'Load test project';
 
 /** The project the scaffold job's starter content creates. */
-export const STARTER_PROJECT_NAME = 'Getting started';
+const STARTER_PROJECT_NAME = 'Getting started';
 
 /** Name of the env credential the seed connects. */
-export const LOAD_CREDENTIAL_NAME = 'Load test mock';
+const LOAD_CREDENTIAL_NAME = 'Load test mock';
 
 // ---------------------------------------------------------------------------
 // Request bodies (pure; validated against the platform's schemas in tests)

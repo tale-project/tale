@@ -37,16 +37,14 @@ export interface ApiObserver {
 }
 
 /** Statuses that are success for every wrapper. */
-export const SUCCESS_STATUSES: readonly number[] = [
-  200, 201, 202, 203, 204, 206, 304,
-];
+const SUCCESS_STATUSES: readonly number[] = [200, 201, 202, 203, 204, 206, 304];
 
 /**
  * Refusals every wrapper accepts without counting an error: the platform's
  * rate limiters answer 429 on many doors, and a person meeting one waits
  * and tries again — the observer turns it into a back-off.
  */
-export const DEFAULT_REFUSALS: readonly number[] = [429];
+const DEFAULT_REFUSALS: readonly number[] = [429];
 
 export interface CallOptions extends Omit<HttpRequestOptions, 'expect'> {
   /** Non-2xx statuses this call handles as an outcome, not an error. */
@@ -253,7 +251,7 @@ export function asNumber(value: unknown): number | undefined {
     : undefined;
 }
 
-export function asArray(value: unknown): unknown[] {
+function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 

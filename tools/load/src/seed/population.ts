@@ -130,7 +130,7 @@ export function organizationName(runId: string, orgIndex: number): string {
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** User agent of minted sessions, so they are recognisable in the table. */
-export const SESSION_USER_AGENT = 'tale-load';
+const SESSION_USER_AGENT = 'tale-load';
 
 /** Stable id of virtual user `index`'s credential account row. */
 export function accountId(runId: string, index: number): string {

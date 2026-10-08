@@ -146,7 +146,7 @@ const NO_DIRECTIVES: MockDirectives = {};
  * prompt opens with "You are a title generator", or it is a small
  * non-streaming call with a title-sized ceiling and no tools.
  */
-export function isTitleRequest(input: ChatTurnInput): boolean {
+function isTitleRequest(input: ChatTurnInput): boolean {
   if (/^\s*you are a title generator/i.test(input.systemText)) return true;
   return (
     !input.stream &&

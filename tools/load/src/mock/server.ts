@@ -59,7 +59,7 @@ export interface MockServer {
 }
 
 /** A path with any number of leading `/v1` segments removed. */
-export function routeOf(rawUrl: string): string {
+function routeOf(rawUrl: string): string {
   const query = rawUrl.indexOf('?');
   let path = (query === -1 ? rawUrl : rawUrl.slice(0, query)).replace(
     /\/{2,}/g,

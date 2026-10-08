@@ -33,7 +33,7 @@ import { type VirtualUser, forget, remember } from '../user.ts';
 import type { Journey } from './journey.ts';
 
 /** Mock-provider directives a fault-injected message carries. */
-export const FAULT_DIRECTIVES = [
+const FAULT_DIRECTIVES = [
   '[[mock:429]]',
   '[[mock:500]]',
   '[[mock:midstream-error]]',
@@ -60,7 +60,7 @@ const PROVIDER_REFUSAL = /model provider|provider answered|rate limit/i;
  * Send one message on `threadId` and follow the turn to its end. Never
  * throws for a failed turn; returns how it went.
  */
-export async function runTurn(
+async function runTurn(
   vu: VirtualUser,
   threadId: string,
   text: string,

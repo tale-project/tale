@@ -95,7 +95,7 @@ function readToolChoice(value: unknown): ToolChoice {
  * Read a Messages body into the dialect-free turn, or return the reason it
  * cannot be served. `raw` is the body's text, searched for `cache_control`.
  */
-export function readAnthropicTurn(
+function readAnthropicTurn(
   body: Record<string, unknown>,
   raw: string,
 ): ChatTurnInput | string {

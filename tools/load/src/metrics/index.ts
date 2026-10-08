@@ -1,19 +1,11 @@
 /** The metrics layer: histograms, the per-process registry, thresholds. */
 
-export {
-  HIGHEST_TRACKABLE_US,
-  LatencyHistogram,
-  mergeEncoded,
-} from './histogram.ts';
+export { LatencyHistogram } from './histogram.ts';
 export type {
   LatencyHistogramOptions,
   SignificantDigits,
 } from './histogram.ts';
 export {
-  DEFAULT_RETENTION_MS,
-  DEFAULT_WINDOW_MS,
-  ERROR_DETAIL_MAX,
-  ERROR_SAMPLES,
   MetricsRegistry,
   formatSummary,
   mergeSnapshots,
@@ -34,9 +26,7 @@ export type {
   TimingSnapshot,
 } from './registry.ts';
 export {
-  THRESHOLD_STATS,
   evaluateThresholds,
-  formatThresholdResults,
   parseThresholds,
   thresholdsSchema,
 } from './thresholds.ts';
@@ -45,5 +35,4 @@ export type {
   ThresholdOperator,
   ThresholdResult,
   ThresholdStat,
-  ThresholdsFile,
 } from './thresholds.ts';

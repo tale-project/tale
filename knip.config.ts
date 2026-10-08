@@ -309,6 +309,7 @@ export default {
         'src/runner/worker.ts',
         'src/mock/cluster-worker.ts',
         'src/scenario/index.ts',
+        'tests/**/*.test.ts',
       ],
       project: ['src/**/*.ts', 'tests/**/*.ts'],
     },

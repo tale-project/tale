@@ -48,7 +48,7 @@ function closeOnSignal(close: () => Promise<void>): Promise<void> {
  * Prints exactly one `tale-load mock listening on <url>` line once it
  * accepts requests, so a supervisor can wait for it.
  */
-export async function runMockCommand(input: MockOptionsInput): Promise<void> {
+async function runMockCommand(input: MockOptionsInput): Promise<void> {
   const options = parseMockOptions(input);
   if (options.processes > 1) {
     const cluster = await startMockCluster(options);

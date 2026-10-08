@@ -11,7 +11,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 /** Largest request body accepted: a chat with several inlined images. */
-export const MAX_BODY_BYTES = 64 * 1024 * 1024;
+const MAX_BODY_BYTES = 64 * 1024 * 1024;
 
 export class BodyTooLargeError extends Error {
   constructor(limit: number) {

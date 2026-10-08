@@ -27,9 +27,7 @@ import type { Journey } from './journey.ts';
 
 const SUCCESS = [200, 201, 202, 204, 304];
 /** The refusals a hostile request may meet. */
-export const FUZZ_REFUSALS = [
-  400, 401, 403, 404, 405, 409, 413, 414, 415, 422, 429,
-];
+const FUZZ_REFUSALS = [400, 401, 403, 404, 405, 409, 413, 414, 415, 422, 429];
 const SERVER_ERRORS = Array.from({ length: 100 }, (_, i) => 500 + i);
 const FUZZ_EXPECT = [...SUCCESS, ...FUZZ_REFUSALS, ...SERVER_ERRORS];
 
@@ -40,7 +38,7 @@ const enc = encodeURIComponent;
 const EXCERPT_CHARS = 120;
 
 /** What a probe sent, short: the JSON body, the raw body or the query. */
-export function inputExcerpt(
+function inputExcerpt(
   options: Pick<CallOptions, 'json' | 'body' | 'query'>,
 ): string {
   let text: string;

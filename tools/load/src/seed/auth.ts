@@ -115,7 +115,7 @@ function signedIn(
  * honours; a synthetic `X-Forwarded-For` spreads the seed over many
  * addresses where the backend trusts this host as a proxy.
  */
-export async function signIn(
+async function signIn(
   http: SeedHttp,
   plan: PopulationPlan,
   index: number,

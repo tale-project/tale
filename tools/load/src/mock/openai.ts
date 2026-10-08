@@ -105,9 +105,7 @@ function readReasoningEffort(body: Record<string, unknown>): string | null {
  * Read a Chat Completions body into the dialect-free turn, or return the
  * reason it cannot be served.
  */
-export function readOpenAiTurn(
-  body: Record<string, unknown>,
-): ChatTurnInput | string {
+function readOpenAiTurn(body: Record<string, unknown>): ChatTurnInput | string {
   const model = body.model;
   if (typeof model !== 'string' || model.length === 0) {
     return 'you must provide a model parameter';
@@ -209,7 +207,7 @@ export function readOpenAiTurn(
 }
 
 /** The usage object, as Chat Completions reports it. */
-export function openAiUsage(plan: ReplyPlan): Record<string, unknown> {
+function openAiUsage(plan: ReplyPlan): Record<string, unknown> {
   return {
     prompt_tokens: plan.promptTokens,
     completion_tokens: plan.completionTokens,

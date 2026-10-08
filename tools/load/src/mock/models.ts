@@ -24,7 +24,7 @@ export interface MockModel {
   readonly cacheReadPrice?: string;
 }
 
-export const MOCK_MODELS: readonly MockModel[] = [
+const MOCK_MODELS: readonly MockModel[] = [
   {
     id: 'load-chat-fast',
     name: 'Load Chat Fast',
@@ -74,7 +74,7 @@ export const MOCK_MODELS: readonly MockModel[] = [
 ];
 
 /** The reply ceiling of a model the catalog does not know. */
-export const DEFAULT_MAX_OUTPUT_TOKENS = 16_384;
+const DEFAULT_MAX_OUTPUT_TOKENS = 16_384;
 
 const BY_ID = new Map(MOCK_MODELS.map((model) => [model.id, model]));
 

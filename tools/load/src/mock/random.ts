@@ -57,16 +57,6 @@ export function createRandom(seed: number): Random {
   return createRandomFromWords(words(), words(), words(), words());
 }
 
-/** FNV-1a of a string: a stable 32-bit seed from text. */
-export function hashSeed(text: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
-
 export function clamp(value: number, min: number, max: number): number {
   return value < min ? min : value > max ? max : value;
 }

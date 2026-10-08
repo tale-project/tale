@@ -124,13 +124,13 @@ export const metricsSnapshotSchema = z.object({
 });
 
 /** Samples kept per (metric name, error kind). */
-export const ERROR_SAMPLES = 5;
+const ERROR_SAMPLES = 5;
 /** Longest error detail kept, in characters. */
 export const ERROR_DETAIL_MAX = 300;
 /** Default length of one time-series window. */
-export const DEFAULT_WINDOW_MS = 5_000;
+const DEFAULT_WINDOW_MS = 5_000;
 /** Default span of time-series history kept: two hours. */
-export const DEFAULT_RETENTION_MS = 2 * 60 * 60 * 1000;
+const DEFAULT_RETENTION_MS = 2 * 60 * 60 * 1000;
 
 /** Window histograms trade a digit of precision for a sixth of the memory. */
 const WINDOW_DIGITS = 2;

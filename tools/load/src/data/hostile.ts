@@ -54,7 +54,7 @@ export function wellFormed(text: string): string {
 }
 
 /** Ids that name nothing — or try to escape the path they sit in. */
-export const HOSTILE_IDS: readonly string[] = [
+const HOSTILE_IDS: readonly string[] = [
   '00000000-0000-0000-0000-000000000000',
   'not-a-real-id',
   "1' OR '1'='1",
@@ -72,7 +72,7 @@ export function hostileId(random: Random): string {
 }
 
 /** Values in the place of an enum that only takes a fixed few. */
-export const WRONG_ENUMS: readonly unknown[] = [
+const WRONG_ENUMS: readonly unknown[] = [
   'p9',
   'URGENT',
   'flying',
@@ -89,7 +89,7 @@ export function wrongEnum(random: Random): unknown {
 }
 
 /** Bodies that are not the JSON a route expects. */
-export const MALFORMED_BODIES: readonly string[] = [
+const MALFORMED_BODIES: readonly string[] = [
   '{"title":',
   '{"title": "x",}',
   'null',

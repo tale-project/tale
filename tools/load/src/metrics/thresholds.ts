@@ -111,8 +111,6 @@ export const thresholdsSchema = z
     }
   });
 
-export type ThresholdsFile = z.infer<typeof thresholdsSchema>;
-
 /**
  * Validate and flatten a thresholds file. Throws a `ZodError` naming every
  * malformed key and expression at once.

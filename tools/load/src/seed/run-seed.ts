@@ -1,6 +1,6 @@
 /**
- * `runSeed(options)`: build the population a load run drives and write the
- * plan file describing it.
+ * `runSeedWithReport(options)`: build the population a load run drives, write
+ * the plan file describing it, and report what was done.
  *
  * Order of work:
  *
@@ -261,7 +261,8 @@ function checkpointer(
   };
 }
 
-/** {@link runSeed} with the full report (the CLI's exit code reads it). */
+/** Seed the population and write the plan, answering the full report (the
+ * CLI's exit code reads it). */
 export async function runSeedWithReport(
   input: SeedOptionsInput,
   deps: { log?: (line: string) => void } = {},
@@ -527,14 +528,6 @@ export async function runSeedWithReport(
     await http.close();
     if (sql !== null) await sql.end({ timeout: 5 });
   }
-}
-
-/** Seed and return the plan; see the module comment. */
-export async function runSeed(
-  input: SeedOptionsInput,
-  deps: { log?: (line: string) => void } = {},
-): Promise<LoadPlan> {
-  return (await runSeedWithReport(input, deps)).plan;
 }
 
 const seconds = (ms: number | undefined): string =>

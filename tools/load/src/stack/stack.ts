@@ -258,7 +258,7 @@ async function writeState(
   return state;
 }
 
-export async function readState(stateFile: string): Promise<StackState> {
+async function readState(stateFile: string): Promise<StackState> {
   return JSON.parse(await readFile(stateFile, 'utf8')) as StackState;
 }
 

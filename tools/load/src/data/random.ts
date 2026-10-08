@@ -40,7 +40,7 @@ export function pickWeighted<T>(
 }
 
 /** A standard normal draw (Box–Muller; one of the pair is discarded). */
-export function normal(random: Random): number {
+function normal(random: Random): number {
   // 1 - u keeps the logarithm's argument in (0, 1].
   const u = 1 - random();
   const v = random();

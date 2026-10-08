@@ -149,15 +149,6 @@ export function estimateTokens(text: string): number {
   return text.length === 0 ? 0 : scanPieces(text);
 }
 
-/** `text` as its token pieces; joining them gives `text` back. */
-export function tokenize(text: string): string[] {
-  const pieces: string[] = [];
-  scanPieces(text, (start, end) => {
-    pieces.push(text.slice(start, end));
-  });
-  return pieces;
-}
-
 /** The longest prefix of `text` that is at most `maxTokens` tokens. */
 export function truncateToTokens(text: string, maxTokens: number): string {
   if (maxTokens <= 0) return '';

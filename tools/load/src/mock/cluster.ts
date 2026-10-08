@@ -23,7 +23,7 @@ import {
 import { createMockServer } from './server.ts';
 
 /** Environment variable carrying the resolved options to a worker. */
-export const WORKER_OPTIONS_ENV = 'TALE_LOAD_MOCK_WORKER_OPTIONS';
+const WORKER_OPTIONS_ENV = 'TALE_LOAD_MOCK_WORKER_OPTIONS';
 /** How long a scrape waits for workers' snapshots. */
 const SNAPSHOT_TIMEOUT_MS = 1000;
 /** How long a worker may take to start listening. */

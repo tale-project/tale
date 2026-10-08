@@ -59,7 +59,7 @@ function share(value: string): number {
 }
 
 /** `2/8` → shard 2 of 8 (0-based index). */
-export function parseShard(value: string): { index: number; count: number } {
+function parseShard(value: string): { index: number; count: number } {
   const match = /^(\d+)\/(\d+)$/.exec(value.trim());
   const index = Number(match?.[1]);
   const count = Number(match?.[2]);
@@ -70,7 +70,7 @@ export function parseShard(value: string): { index: number; count: number } {
 }
 
 /** `browser=40,chatter=30` (or a JSON object) → persona weights. */
-export function parsePersonas(value: string): PersonaWeights {
+function parsePersonas(value: string): PersonaWeights {
   const trimmed = value.trim();
   const raw: unknown = trimmed.startsWith('{')
     ? JSON.parse(trimmed)

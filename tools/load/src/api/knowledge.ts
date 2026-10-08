@@ -74,7 +74,7 @@ export interface RawDispatcher {
   }>;
 }
 
-export const PRESIGNED_PUT_NAME = 'PUT <object store presigned URL>';
+const PRESIGNED_PUT_NAME = 'PUT <object store presigned URL>';
 
 /**
  * PUT the bytes to a presigned URL — another origin (the object store), so

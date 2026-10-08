@@ -206,11 +206,6 @@ export function parseSeedOptions(input: SeedOptionsInput): SeedOptions {
   return parsed.data;
 }
 
-/** Block organizations a population needs; a partial last block is one. */
-export function blockOrganizationCount(users: number, orgSize: number): number {
-  return Math.ceil(users / orgSize);
-}
-
 /**
  * The run id and password the seed uses: a resumed plan's (an explicit
  * option that disagrees is an error, not a silent override), else the

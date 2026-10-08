@@ -94,7 +94,7 @@ export type Fault =
   | { readonly kind: 'midstream' }
   | { readonly kind: 'stall'; readonly ms: number };
 
-export const NO_FAULT: Fault = { kind: 'none' };
+const NO_FAULT: Fault = { kind: 'none' };
 
 type FaultRates = Pick<
   MockOptions,

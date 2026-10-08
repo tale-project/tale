@@ -67,7 +67,7 @@ export class SeedHttpError extends Error {
 }
 
 /** First value of a header that may be repeated. */
-export function headerValue(
+function headerValue(
   headers: SeedResponse['headers'],
   name: string,
 ): string | undefined {
@@ -204,7 +204,7 @@ export interface RetryOptions {
 const MAX_HINTED_DELAY_MS = 120_000;
 
 /** Whether an error is worth another attempt: transient status or network. */
-export function isRetryable(error: unknown): boolean {
+function isRetryable(error: unknown): boolean {
   if (error instanceof SeedHttpError) return error.retryable;
   // Anything else thrown by undici is a transport fault (reset, timeout,
   // refused), which a restarting or overloaded backend produces.

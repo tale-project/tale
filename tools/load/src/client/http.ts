@@ -136,7 +136,7 @@ const ETAG_BODY_MAX = 256 * 1024;
 const EMPTY_HEADERS: ResponseHeaders = Object.freeze({});
 
 /** The reason a request's deadline aborts it with. */
-export class RequestTimeoutError extends Error {
+class RequestTimeoutError extends Error {
   readonly code = 'TIMEOUT';
 
   constructor(ms: number) {

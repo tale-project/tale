@@ -15,12 +15,12 @@
 import { createHash, type Hash } from 'node:crypto';
 
 /** OpenAI caches prompts from this many tokens on. */
-export const CACHE_MIN_TOKENS = 1024;
+const CACHE_MIN_TOKENS = 1024;
 /** Cache hits come in increments of this many tokens. */
-export const CACHE_BLOCK_TOKENS = 128;
+const CACHE_BLOCK_TOKENS = 128;
 
 /** The cached share of a prefix of `prefixTokens` tokens. */
-export function cachedTokensFor(prefixTokens: number): number {
+function cachedTokensFor(prefixTokens: number): number {
   if (prefixTokens < CACHE_MIN_TOKENS) return 0;
   return Math.floor(prefixTokens / CACHE_BLOCK_TOKENS) * CACHE_BLOCK_TOKENS;
 }
