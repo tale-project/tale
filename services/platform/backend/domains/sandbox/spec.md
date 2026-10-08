@@ -183,6 +183,17 @@ deletion counts as finished only once the files are confirmed deleted.
 - **Example**: Noah is removed from the organization → the workspaces kept for his runs are
   deleted.
 
+### SBX-R17 · A workspace outlives the sandbox it ran in
+
+When the sandbox of a project agent or an automation run disappears without a Destroy, for
+example because the host restarted or the sandbox ran out of memory, its workspace is kept and
+reads as stopped. The next turn goes on in its files. A start that fails after that removes
+only the sandbox it began, never the files. A crawler's temporary sandbox is closed instead,
+and so is a workspace the sandbox service no longer holds.
+
+- **Example**: Ada's agent is working on a task when the host restarts → the workspace reads
+  **Stopped**, and the agent's next turn finds its files and goes on with its conversation.
+
 ## What a turn costs
 
 A turn that reaches its model through Tale's gateway gets a gateway key of its own with an
@@ -231,7 +242,7 @@ request is refused the same way (`budget_exceeded`) and holds nothing either.
   the place in line a waiting start gets, giving a slot back when a turn ends, and waking the
   waiting runs (`sessions.ts`, `idle-release.ts`, `core/node_only/sandbox/capacity_refusal.ts`).
 - **Health checks and repair**: ending a session after its lifetime while sparing a turn that
-  is still working, closing a workspace whose sandbox disappeared, collecting failed starts,
+  is still working, closing a crawler's sandbox that disappeared, collecting failed starts,
   reclaiming the sandboxes of ended runs and crawls, and picking a turn up again after a
   restart (`watchdogs.ts`, `recovery.ts`, `service.ts`, `wait-retention.ts`,
   `retirement-schedule.ts`).

@@ -550,6 +550,16 @@ workspace. Pinned ("always-on") and live-exec sessions are exempt from the
 reaper entirely, except that compute which has already ended is removed (the
 pin's own reconcile recreates a pinned session).
 
+Losing compute is not losing the workspace. When the platform's reconcile finds
+the compute of an unpinned agent session gone without a Destroy — a host
+reboot, a daemon restart, an OOM-killed runnerd, the spawner's own TTL stop —
+it settles the row as `stopped` while the spawner's inventory
+(`GET /v1/workspaces`) lists the workspace, or cannot be read: the next turn
+resumes it in place, same incarnation and harness conversation included. A
+render session, or an agent session whose workspace is gone, settles as
+destroyed. A create that fails after such a loss removes only compute
+(`?keep_workspace=1`, below), never the workspace it would have re-attached.
+
 A pin change succeeds only after runnerd and the backend's durable record
 acknowledge it. Failure returns 503 and keeps the last acknowledged `pinned`
 value visible with `pinSynchronized: false`, so platform reconciliation retries
@@ -683,6 +693,16 @@ The spawner's part:
   defers the destroy. A failed create removes only its own container and
   preserves every workspace and organization marker, including a newly
   created directory. A later explicit destroy performs the workspace cleanup.
+- `DELETE /v1/sessions/:id?if_idle=1&keep_workspace=1` — compute only: it
+  refuses (`{busy:true}`) as `if_idle` does, and otherwise stops the session
+  (`backend.stopSession`) and keeps its workspace, answering
+  `{stopped, busy: false, workspaceKept: true}`. The platform sends it after a
+  failed create of an agent session (`agent_session.ts`) and from the
+  watchdog's collect of such a failed row: the id may name a workspace kept
+  for its next turn, and deleting what nothing owns is this cleanup's. The
+  device hub leaves the placement of a session whose device kept the workspace
+  as it was. A spawner or device older than the flag destroys instead, and its
+  answer carries no `workspaceKept`.
 - `DELETE /v1/organizations/:id` — for an organization the platform deleted:
   destroys every session the backend still holds for it (containers/Pods with
   their workspaces) and every stopped workspace attributed to it, then its

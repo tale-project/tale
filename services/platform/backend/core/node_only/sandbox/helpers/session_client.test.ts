@@ -22,6 +22,7 @@ import {
   sessionIsAlive,
   sessionDestroyWorkspace,
   sessionReadFile,
+  sessionStopIfIdle,
   sessionStageFiles,
   type SessionStageFile,
   SpawnerBusyError,
@@ -1335,6 +1336,58 @@ describe('sessionDestroyWorkspace', () => {
       destroyed: true,
       busy: false,
     });
+  });
+});
+
+describe('sessionStopIfIdle', () => {
+  const calls: Array<{ url: string; method: string | undefined }> = [];
+  function answer(body: unknown, status = 200) {
+    calls.length = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method });
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+  }
+
+  test('asks for an idle-only stop that keeps the workspace [SBX-R17]', async () => {
+    answer({ stopped: true, busy: false, workspaceKept: true });
+    expect(await sessionStopIfIdle('pa-1')).toEqual({
+      stopped: true,
+      busy: false,
+      workspaceKept: true,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe('DELETE');
+    const url = new URL(calls[0]?.url ?? '');
+    expect(url.pathname).toBe('/v1/sessions/pa-1');
+    expect(url.search).toBe('?if_idle=1&keep_workspace=1');
+  });
+
+  test('reads busy, and an older spawner that destroyed instead', async () => {
+    answer({ destroyed: false, busy: true });
+    expect(await sessionStopIfIdle('pa-1')).toEqual({
+      stopped: false,
+      busy: true,
+      workspaceKept: false,
+    });
+    answer({ destroyed: true, busy: false, deletion: 'done' });
+    expect(await sessionStopIfIdle('pa-1')).toEqual({
+      stopped: true,
+      busy: false,
+      workspaceKept: false,
+    });
+  });
+
+  test('throws on a failed stop, so the caller never reads it as done', async () => {
+    answer({ error: 'backend stop failed' }, 502);
+    await expect(sessionStopIfIdle('pa-1')).rejects.toThrow(
+      'sandbox session stop failed (502)',
+    );
   });
 });
 

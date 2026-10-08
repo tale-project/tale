@@ -2,11 +2,13 @@ import postgres, { type Sql, type TransactionSql } from 'postgres';
 
 import {
   SessionDuplicateError,
+  sandboxWorkspaceInventory,
   sessionCreate,
   sessionDestroy,
   sessionIsAlive,
   sessionObserve,
   sessionSetPinned,
+  type SandboxWorkspaceInventory,
   type SessionCreateBody,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -15,6 +17,7 @@ import {
   getSessionBySessionId,
   markRecreatedSessionActive,
   markSessionDestroyed,
+  markSessionStopped,
   setSessionPinned,
   type SessionRow,
 } from './sessions.ts';
@@ -308,6 +311,11 @@ export interface ReconcileSpawner {
   /** POST /v1/sessions — under an id whose workspace the spawner preserved,
    * the create re-attaches that workspace (a resume, not a fresh one). */
   create: (body: SessionCreateBody) => Promise<unknown>;
+  /** GET /v1/workspaces — every workspace the spawner holds, stopped
+   * sessions' preserved data included; `null` from a spawner without the
+   * route. Where absent, an agent session whose compute is gone heals as
+   * destroyed, as a render's always does. */
+  inventory?: () => Promise<SandboxWorkspaceInventory | null>;
 }
 
 const DEFAULT_RECONCILE_SPAWNER: ReconcileSpawner = {
@@ -315,6 +323,7 @@ const DEFAULT_RECONCILE_SPAWNER: ReconcileSpawner = {
   observe: (sessionId, signal) => sessionObserve(sessionId, signal),
   setPinned: sessionSetPinned,
   create: sessionCreate,
+  inventory: sandboxWorkspaceInventory,
 };
 
 /** Queues the recreate of one pinned session gone spawner-side. */
@@ -368,7 +377,8 @@ export type ReconcileOutcome =
   /** Alive spawner-side and unpinned: nothing to do. */
   | 'live'
   /** Gone spawner-side and unpinned (or a pinned render): the row settled
-   * as destroyed. */
+   * — as stopped for an agent session whose workspace the spawner still
+   * holds, as destroyed otherwise. */
   | 'healed'
   /** Alive and pinned: the pin re-asserted spawner-side. Also a gone pinned
    * session whose recreate the spawner answered as a duplicate — back
@@ -400,7 +410,17 @@ export type ReconcileOutcome =
  *   spawner answers 404. Retained unpinned stopped/expired rows may receive
  *   metadata-only repair of a proven stale runtime pin.
  * - Unpinned compute-holding rows: a container gone spawner-side settles
- *   the row as destroyed (phantom heal); `healed` counts only such a row.
+ *   the row (phantom heal); `healed` counts only such a row. An agent
+ *   session (`agent`, `agent-light`: a project agent's or an automation
+ *   run's) whose workspace the spawner still holds — a container lost to a
+ *   host reboot, a daemon restart, the OOM killer or the spawner's own TTL —
+ *   settles as `stopped`: hibernated, its slot freed and its credentials
+ *   reclaimed, and resumed in place by the next turn, which keeps the
+ *   incarnation and so the harness conversation. Settled as destroyed, the
+ *   next turn would open a fresh incarnation beside the kept files. An
+ *   inventory that cannot be read keeps the workspace too; one that lists no
+ *   workspace under the id, and a render session (disposable), settle as
+ *   destroyed.
  * - Pinned: the row is the durable truth. Pin-change jobs deliver the latest
  *   intent; reconciliation restores it after lost compute (a new create
  *   always starts unpinned). A live session has the pin
@@ -548,6 +568,14 @@ async function reconcileLocked(
   if (alive) return 'live';
   const body = row.pinned ? recreateBody(row) : null;
   if (body === null) {
+    if (!row.pinned && (await keepsWorkspace(spawner, row))) {
+      return (await markSessionStopped(sessionSql, {
+        ...args,
+        rowId: row.id,
+      }))
+        ? 'healed'
+        : 'skipped';
+    }
     return (await markSessionDestroyed(sessionSql, args))
       ? 'healed'
       : 'skipped';
@@ -578,6 +606,34 @@ async function reconcileLocked(
   }
   await requirePin(spawner, args.sessionId, created ? 'recreated' : 'repinned');
   return created ? 'recreated' : 'repinned';
+}
+
+/** Does the spawner still hold the workspace of an agent session whose
+ * compute is gone? A render session's workspace is disposable, so never. An
+ * inventory that cannot be read answers yes: settling the row as stopped
+ * frees its slot all the same, and a resume that finds no conversation
+ * falls back to a fresh one, while settling it as destroyed would leave the
+ * files to a fresh incarnation. */
+async function keepsWorkspace(
+  spawner: ReconcileSpawner,
+  row: SessionRow,
+): Promise<boolean> {
+  if (row.profile !== 'agent' && row.profile !== 'agent-light') return false;
+  if (spawner.inventory === undefined) return false;
+  let inventory: SandboxWorkspaceInventory | null;
+  try {
+    inventory = await spawner.inventory();
+  } catch (error) {
+    console.warn(
+      `[sandbox] workspace inventory unavailable while healing ${row.sessionId}; its workspace is kept:`,
+      error,
+    );
+    return true;
+  }
+  if (inventory === null) return true;
+  return inventory.workspaces.some(
+    (workspace) => workspace.sessionId === row.sessionId,
+  );
 }
 
 async function requirePin(

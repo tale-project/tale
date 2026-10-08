@@ -2433,6 +2433,7 @@ export class SessionRoutes {
       ifIdle?: boolean;
       ifStopped?: boolean;
       awaitDeletion?: boolean;
+      keepWorkspace?: boolean;
     } = {},
   ): Promise<Response> {
     // A destroyed session asks for no room any more.
@@ -2451,6 +2452,12 @@ export class SessionRoutes {
     // session goes. Any compute under the id — a container a turn just
     // resumed, before its first exec — or a create in flight means someone
     // came back to it, and the cleanup must leave it alone.
+    //
+    // `?keep_workspace=1` removes the compute alone (`backend.stopSession`)
+    // and keeps the workspace: the platform's cleanup after a failed create
+    // of an agent session, whose id may name a workspace preserved for its
+    // next turn. Deleting a workspace nothing owns is the workspace
+    // cleanup's, through a plain destroy.
     //
     // Either condition also refuses while a create of the id is in flight:
     // the create is laying out the very workspace this would delete. The
@@ -2473,7 +2480,10 @@ export class SessionRoutes {
           this.creating.has(sessionId);
         if (busy) return jsonResponse({ destroyed: false, busy: true }, 200);
       }
-      const outcome = await this.destroyNow(sessionId);
+      const outcome = await this.destroyNow(
+        sessionId,
+        opts.keepWorkspace === true,
+      );
       if (outcome instanceof Response) return outcome;
       destroyed = outcome.destroyed;
     } finally {
@@ -2481,6 +2491,14 @@ export class SessionRoutes {
       if (this.destroySettled.get(sessionId) === settled) {
         this.destroySettled.delete(sessionId);
       }
+    }
+    // Nothing was deleted: the answer says the workspace stays, so a device
+    // hub keeps routing the id to the machine holding it.
+    if (opts.keepWorkspace === true) {
+      return jsonResponse(
+        { stopped: destroyed, busy: false, workspaceKept: true },
+        200,
+      );
     }
     // Out of use is not deleted: `deletion` says how far the workspace's
     // bytes came, on every answer that is not busy — an erasure or a
@@ -2522,9 +2540,11 @@ export class SessionRoutes {
   }
 
   /** The destroy itself: whether it reached anything under the id, or the
-   * 502 a failed backend destroy answers. */
+   * 502 a failed backend destroy answers. `keepWorkspace` stops the session
+   * instead — its compute removed, its workspace kept. */
   private async destroyNow(
     sessionId: string,
+    keepWorkspace = false,
   ): Promise<Response | { destroyed: boolean }> {
     // Delete from the registry BEFORE awaiting the backend so a concurrent
     // destroy of the same id sees an empty cache and can't double-call
@@ -2537,7 +2557,9 @@ export class SessionRoutes {
     // the incarnation and follow the deterministic id onto a later resume.
     this.forgetReclaimMarks(sessionId);
     try {
-      const backendExisted = await this.backend.destroySession(sessionId);
+      const backendExisted = keepWorkspace
+        ? await this.backend.stopSession(sessionId)
+        : await this.backend.destroySession(sessionId);
       this.unregistered.delete(sessionId);
       return { destroyed: had || backendExisted };
     } catch (err) {
@@ -2547,11 +2569,12 @@ export class SessionRoutes {
       // user's data lives on — the "success toast, workspace survives" defect.
       // Restore the registry entry so the session isn't lost, and surface the
       // failure so the caller retries.
-      console.error('[sandbox.session] destroy backend failed:', err);
-      reportSandboxError(err, 'session-destroy');
+      const verb = keepWorkspace ? 'stop' : 'destroy';
+      console.error(`[sandbox.session] ${verb} backend failed:`, err);
+      reportSandboxError(err, `session-${verb}`);
       if (entry !== undefined) this.registry.set(entry);
       return jsonResponse(
-        { destroyed: false, busy: false, error: 'backend destroy failed' },
+        { destroyed: false, busy: false, error: `backend ${verb} failed` },
         502,
       );
     }

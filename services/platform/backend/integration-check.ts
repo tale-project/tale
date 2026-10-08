@@ -57911,6 +57911,8 @@ async function checkWatchdogs(
           : { destroyed: false, busy: true },
       );
     },
+    stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+      Promise.resolve({ stopped: false, busy: true }),
   };
   const tick1 = await sandboxWatchdogs.runSandboxWatchdog(sql, {
     reconcileBatch: 2,
@@ -58080,6 +58082,8 @@ async function checkWatchdogs(
             : { destroyed: true, busy: false },
         );
       },
+      stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+        Promise.resolve({ stopped: false, busy: true }),
     },
   });
   const releaseRows = await sql<
@@ -58172,6 +58176,8 @@ async function checkWatchdogs(
     },
     destroyIfIdle: (): Promise<{ destroyed: boolean; busy: boolean }> =>
       Promise.resolve({ destroyed: false, busy: false }),
+    stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+      Promise.resolve({ stopped: false, busy: false }),
   };
   const orgLaneRows = [
     'wd-org-phantom',
@@ -58252,8 +58258,8 @@ async function checkWatchdogs(
   `;
 
   // Lane 3c: the failed-create collect (#3494). A failed row whose spawner
-  // session is still live is destroyed and stamped by primary key, keeping
-  // `failed`; a failed row whose deterministic id a newer, hibernated
+  // session is still live is removed (an agent session's compute alone, its
+  // workspace kept) and stamped by primary key, keeping `failed`; a failed row whose deterministic id a newer, hibernated
   // incarnation carries is stamped WITHOUT a spawner call, and that
   // incarnation's row and token stay untouched; a busy session and a failure
   // inside the grace wait. The scripted spawner answers busy for every
@@ -58291,6 +58297,17 @@ async function checkWatchdogs(
     )
   `;
   const collectAsked: string[] = [];
+  // These lanes' failed rows are automation runs' agent sessions, whose
+  // leftovers lose their compute alone (`stopIfIdle`); a render's would be
+  // destroyed whole. Both answer the same script.
+  const collectAnswer = (
+    sessionId: string,
+  ): { removed: boolean; busy: boolean } => {
+    collectAsked.push(sessionId);
+    return sessionId === 'wd-collect-live'
+      ? { removed: true, busy: false }
+      : { removed: false, busy: true };
+  };
   const collectSpawner = {
     isAlive: (): Promise<boolean> => Promise.resolve(true),
     setPinned: (): Promise<boolean> => Promise.resolve(true),
@@ -58298,12 +58315,14 @@ async function checkWatchdogs(
     destroyIfIdle: (
       sessionId: string,
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
-      collectAsked.push(sessionId);
-      return Promise.resolve(
-        sessionId === 'wd-collect-live'
-          ? { destroyed: true, busy: false }
-          : { destroyed: false, busy: true },
-      );
+      const { removed, busy } = collectAnswer(sessionId);
+      return Promise.resolve({ destroyed: removed, busy });
+    },
+    stopIfIdle: (
+      sessionId: string,
+    ): Promise<{ stopped: boolean; busy: boolean }> => {
+      const { removed, busy } = collectAnswer(sessionId);
+      return Promise.resolve({ stopped: removed, busy });
     },
   };
   const readCollectRows = () => sql<
@@ -58438,6 +58457,12 @@ async function checkWatchdogs(
       ): Promise<{ destroyed: boolean; busy: boolean }> => {
         refusedAsked.push(sessionId);
         return Promise.resolve({ destroyed: false, busy: true });
+      },
+      stopIfIdle: (
+        sessionId: string,
+      ): Promise<{ stopped: boolean; busy: boolean }> => {
+        refusedAsked.push(sessionId);
+        return Promise.resolve({ stopped: false, busy: true });
       },
     },
   });

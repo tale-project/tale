@@ -430,11 +430,14 @@ async function handleSessionRoutes(
       // — the workspace cleanup's: no-op while ANY compute runs under the id.
       // `?await_deletion=1` — the cleanup's too: wait a bounded time for the
       // workspace's bytes, and answer how far their deletion came.
+      // `?keep_workspace=1` — remove the compute alone and keep the
+      // workspace (the cleanup after a failed create of an agent session).
       // The query string is HMAC-covered (authorize signs pathname + search).
       return getSessionRoutes().handleDestroy(id, {
         ifIdle: url.searchParams.get('if_idle') === '1',
         ifStopped: url.searchParams.get('if_stopped') === '1',
         awaitDeletion: url.searchParams.get('await_deletion') === '1',
+        keepWorkspace: url.searchParams.get('keep_workspace') === '1',
       });
     }
   }
