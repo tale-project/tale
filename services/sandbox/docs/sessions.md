@@ -25,7 +25,10 @@ agent and script nodes within one execution share that session.
 
 > The legacy one-shot `POST /v1/execute` route and the runtime image's one-shot
 > language lane are gone; `HostBackend` owns the
-> host lifecycle (boot/shutdown, `/health`, the legacy-orphan sweep).
+> host lifecycle (boot/shutdown, `/health`, the legacy-orphan sweep). On
+> Docker that sweep's one-shot container listing runs at boot and then
+> hourly; the five-minute host sweep keeps retrying the workspace trash and
+> reaping orphaned DinD volumes.
 
 ## Architecture
 

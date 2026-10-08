@@ -2,13 +2,15 @@
 // now (see docker-session-backend.ts), so this backend no longer executes code:
 // it owns only the spawner's host-level lifecycle — the cross-process host-lock
 // + boot orphan sweep (init), image warm, the /health probe, graceful shutdown,
-// and the periodic legacy one-shot orphan sweep (which finds nothing, since
-// `tale.sandbox=1` one-shot containers are never created anymore).
+// and the periodic orphan sweep, whose legacy one-shot half runs only hourly
+// (it finds nothing, since `tale.sandbox=1` one-shot containers are never
+// created anymore).
 
 import {
   acquireSpawnerLock,
   bootSweep,
   dockerSweepOrphans,
+  LEGACY_SWEEP_INTERVAL_MS,
   releaseSpawnerLock,
 } from '../../cleanup.ts';
 import {
@@ -32,18 +34,43 @@ export function dockerHealth(version: RunDockerResult): HealthResult {
     : { ok: false, error };
 }
 
+export interface DockerBackendDeps {
+  /** The lock + boot sweep `init` runs. */
+  boot?: (cfg: SpawnerConfig) => Promise<void>;
+  sweep?: typeof dockerSweepOrphans;
+  now?: () => number;
+}
+
+async function bootHost(cfg: SpawnerConfig): Promise<void> {
+  // Cross-process lock BEFORE bootSweep — refuses to start if another live
+  // spawner shares this hostSessionRoot, so bootSweep's host-dir sweep can't
+  // delete a peer's in-flight workspace (audit finding R2-B5).
+  await acquireSpawnerLock(cfg);
+  await bootSweep(cfg);
+}
+
 export class DockerBackend implements HostBackend {
   readonly kind = 'docker' as const;
+  private readonly boot: (cfg: SpawnerConfig) => Promise<void>;
+  private readonly sweep: typeof dockerSweepOrphans;
+  private readonly now: () => number;
+  /** When the periodic sweep next runs its legacy one-shot half. */
+  private legacySweepDueAtMs = 0;
 
-  constructor(private readonly cfg: SpawnerConfig) {}
+  constructor(
+    private readonly cfg: SpawnerConfig,
+    deps: DockerBackendDeps = {},
+  ) {
+    this.boot = deps.boot ?? bootHost;
+    this.sweep = deps.sweep ?? dockerSweepOrphans;
+    this.now = deps.now ?? Date.now;
+  }
 
   async init(): Promise<void> {
-    // Cross-process lock BEFORE bootSweep — refuses to start if another live
-    // spawner shares this hostSessionRoot, so bootSweep's host-dir sweep can't
-    // delete a peer's in-flight workspace (audit finding R2-B5). Throwing here
-    // is fatal (server.ts exits 1).
-    await acquireSpawnerLock(this.cfg);
-    await bootSweep(this.cfg);
+    // Throwing here is fatal (server.ts exits 1).
+    await this.boot(this.cfg);
+    // The boot sweep has just listed every one-shot container.
+    this.legacySweepDueAtMs = this.now() + LEGACY_SWEEP_INTERVAL_MS;
   }
 
   async shutdown(): Promise<void> {
@@ -70,6 +97,17 @@ export class DockerBackend implements HostBackend {
   }
 
   async sweepOrphans(opts: SweepOptions): Promise<number> {
-    return dockerSweepOrphans(this.cfg, opts.staleBeforeMs, opts.isLive);
+    // A legacy pass whose `docker ps` failed is due again at the next tick.
+    const legacy = this.now() >= this.legacySweepDueAtMs;
+    const { removed, legacySwept } = await this.sweep(
+      this.cfg,
+      opts.staleBeforeMs,
+      opts.isLive,
+      { legacy },
+    );
+    if (legacySwept) {
+      this.legacySweepDueAtMs = this.now() + LEGACY_SWEEP_INTERVAL_MS;
+    }
+    return removed;
   }
 }

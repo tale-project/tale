@@ -21,11 +21,13 @@ import { join } from 'node:path';
 
 import {
   DIND_VOLUME_MIN_AGE_MS,
+  dockerSweepOrphans,
   makeSweepTick,
   sweepHostSessionDirs,
   sweepOrphanDindVolumes,
 } from './cleanup.ts';
 import type { RunDockerResult } from './spawn-util.ts';
+import type { SpawnerConfig } from './types.ts';
 
 const OLD = new Date('2020-01-01T00:00:00Z');
 // Everything older than "now minus one hour" counts as stale.
@@ -271,6 +273,59 @@ describe('sweepOrphanDindVolumes', () => {
       expect(warn).toHaveBeenCalledTimes(1);
     } finally {
       warn.mockRestore();
+    }
+  });
+});
+
+describe('dockerSweepOrphans', () => {
+  const sweepConfig = () =>
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the sweep reads only the session root
+    ({ hostSessionRoot: root }) as SpawnerConfig;
+
+  test('without the legacy half it lists no containers and keeps one-shot dirs', async () => {
+    await dir('exec-stale');
+    await age('exec-stale');
+    const docker = mock(async (_args: string[]) => dockerResult(''));
+    expect(
+      await dockerSweepOrphans(sweepConfig(), threshold(), () => false, {
+        legacy: false,
+        docker,
+      }),
+    ).toEqual({ removed: 0, legacySwept: false });
+    expect(docker.mock.calls.map(([args]) => args[0])).toEqual(['volume']);
+    expect(await exists('exec-stale')).toBe(true);
+  });
+
+  test('the legacy half lists one-shot containers and, once Docker answered, sweeps their dirs', async () => {
+    const log = spyOn(console, 'log').mockImplementation(() => {});
+    await dir('exec-stale');
+    await age('exec-stale');
+    try {
+      const failing = mock(async (args: string[]) =>
+        dockerResult('', args[0] === 'ps' ? 1 : 0),
+      );
+      expect(
+        await dockerSweepOrphans(sweepConfig(), threshold(), () => false, {
+          legacy: true,
+          docker: failing,
+        }),
+      ).toEqual({ removed: 0, legacySwept: false });
+      expect(await exists('exec-stale')).toBe(true);
+
+      const answering = mock(async (_args: string[]) => dockerResult(''));
+      expect(
+        await dockerSweepOrphans(sweepConfig(), threshold(), () => false, {
+          legacy: true,
+          docker: answering,
+        }),
+      ).toEqual({ removed: 1, legacySwept: true });
+      expect(answering.mock.calls.map(([args]) => args[0])).toEqual([
+        'ps',
+        'volume',
+      ]);
+      expect(await exists('exec-stale')).toBe(false);
+    } finally {
+      log.mockRestore();
     }
   });
 });
