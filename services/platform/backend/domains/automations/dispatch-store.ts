@@ -7,6 +7,7 @@ import type {
   TriggerView,
   VersionSummary,
 } from '../../../lib/engine/api/dispatch.ts';
+import type { TriggerKind } from '../../../lib/engine/core/slots.ts';
 import type { Automation } from '../../../lib/engine/core/types.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import { runStarterUserId } from '../../../lib/shared/run-starter.ts';
@@ -55,6 +56,7 @@ import {
   beginRunIdempotent,
   beginRunIdempotentInTx,
 } from './store.ts';
+import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 /**
  * The engine's `DispatchStore` over the 0.5 automations store — what the
@@ -302,6 +304,22 @@ export function pgAutomationStore(
     deployedVersion: async (name) =>
       (await deployedVersion(sql, organizationId, name)) ?? null,
     modelAvailable: (modelId, nodeType) => modelAvailability(modelId, nodeType),
+    // The enabled triggers of the automation — what the validator checks the
+    // inputs schema against (a schedule's input is known ahead).
+    triggerKinds: async (name) => {
+      const kinds = new Set<TriggerKind>();
+      for (const row of await listTriggers(sql, organizationId, name)) {
+        if (!row.enabled) continue;
+        if (
+          row.kind === 'schedule' ||
+          row.kind === 'webhook' ||
+          row.kind === 'event'
+        ) {
+          kinds.add(row.kind);
+        }
+      }
+      return [...kinds];
+    },
     save: async (automation, message, options) => {
       const name = assertAutomationName(automation.name ?? '');
       // Ownership travels with the scope: a project-scoped authoring caller
@@ -383,6 +401,7 @@ export function pgAutomationStore(
           ? truncateRunDetail(result.error.message)
           : undefined;
       await transactSerializable(sql, async (tx) => {
+        await markAutomationWriterInTx(tx);
         const projectId = await authorizeInlineRun(tx, name, mode);
         const inserted = await tx<{ id: string }[]>`
           INSERT INTO app.automation_runs (

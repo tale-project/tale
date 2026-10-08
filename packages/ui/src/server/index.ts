@@ -47,6 +47,10 @@ import {
   withScriptHashes,
   type SecurityHeadersConfig,
 } from './security-headers';
+import {
+  createServingIdentity,
+  SERVING_IDENTITY_HEADER,
+} from './serving-identity';
 
 // Re-exported so existing callers (`services/web`, `services/docs`) keep
 // importing the config + default from `@tale/ui/server` unchanged. The pure
@@ -71,6 +75,9 @@ export interface ReactServerOptions {
   distDir: string;
   /** Console log prefix (e.g. `web`, `docs`). */
   logPrefix: string;
+  /** Fixed public service name for local-container/origin process correlation.
+   * Optional for library consumers; never populated from request or environment. */
+  servingService?: string;
   /**
    * Cookie scope for the locale cookie. Set in production to share across
    * subdomains (e.g. `.tale.dev`). Falls back to
@@ -253,6 +260,9 @@ export function startReactServer(opts: ReactServerOptions) {
     artifacts,
     reportError,
   } = opts;
+  const servingIdentity = opts.servingService
+    ? createServingIdentity(opts.servingService)
+    : undefined;
   const monitoring = monitoringConfig(opts.monitoring);
   const analytics = createAnalytics(process.env, redirectPrefix);
   const monitoringScript = monitoring
@@ -479,17 +489,23 @@ export function startReactServer(opts: ReactServerOptions) {
       if (analyticsResponse) return finalize(analyticsResponse);
 
       if (url.pathname === '/api/health') {
+        const health = (response: Response) => {
+          if (servingIdentity)
+            response.headers.set(SERVING_IDENTITY_HEADER, servingIdentity);
+          response.headers.set('Cache-Control', 'no-store');
+          return finalize(response);
+        };
         const shuttingDown = Boolean(
           shutdownMarkerPath && existsSync(shutdownMarkerPath),
         );
         if (shuttingDown) {
-          return finalize(
+          return health(
             Response.json({ status: 'shutting_down' }, { status: 503 }),
           );
         }
         const customHealth = buildHealthResponse?.({ shuttingDown });
-        if (customHealth) return finalize(customHealth);
-        return finalize(
+        if (customHealth) return health(customHealth);
+        return health(
           Response.json({
             status: 'ok',
             version: process.env.TALE_VERSION ?? 'dev',

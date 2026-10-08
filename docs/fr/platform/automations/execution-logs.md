@@ -19,12 +19,20 @@ L’onglet **Exécutions** présente les 50 dernières exécutions que tu peux v
 | --- | --- | --- |
 | **En file d’attente** | Acceptée, en attente d’exécution. | Attendre, puis examiner la capacité si rien ne progresse. |
 | **En cours** | Le moteur traite le workflow. | Suivre les nœuds. |
+| **Interrompue — reprise en cours** | Le serveur qui l’exécutait s’est arrêté ; un autre la reprend en une minute et demie environ. | Attendre : rien à faire. |
 | **En attente** | Une décision, une réponse, un agent ou une condition reste attendu. | Lire ce qui manque. |
+| **Suspendue** | Le résultat du travail commencé avant la mise à jour est inconnu. | Consulte les détails de la suspension ; ne suppose pas qu’une relance est sans risque. |
 | **Réussie** | Les nœuds atteints ont terminé et la sortie est produite. | Examiner sortie et effets. |
 | **En échec** | L’exécution s’est terminée sur un échec non traité. | Ouvrir le nœud concerné et lire l’erreur. |
 | **Arrêtée** | L’exécution a été annulée. | Vérifier le travail déjà fait avant de relancer. |
 
-Une approbation ou une question attend une personne ; un agent au travail ou une interrogation répétée peut poursuivre seul. Une décision ou une réponse peut aussi être refusée ou expirer. Utilise la cause affichée, pas le seul statut **En attente**, pour décider d’intervenir. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique les commandes de décision.
+Une approbation, une question ou une étape peut-être déjà exécutée attend une personne ; un agent au travail ou une interrogation répétée peut poursuivre seul. Une décision ou une réponse peut aussi être refusée ou expirer. Utilise la cause affichée, pas le seul statut **En attente**, pour décider d’intervenir. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique les commandes de décision.
+
+## Une exécution suspendue après une mise à jour
+
+**Suspendue** signifie que Tale ne peut pas vérifier le résultat du travail commencé avant la mise à jour. L’exécution ne reprend pas et n’est pas relancée automatiquement ; sa tâche reste réservée. Les points de contrôle et les effets enregistrés restent consultables. L’absence d’effets ne prouve pas qu’un service externe n’a rien reçu.
+
+Laisse l’exécution suspendue pendant tes vérifications. **Demander l’arrêt** demande à Tale d’arrêter les sessions qu’il peut identifier et explique l’incertitude avant ta confirmation. **Arrêt demandé** ne confirme pas l’arrêt du travail : la suspension reste en place jusqu’à confirmation de l’arrêt du travail précédent. La demande n’annule aucune action externe antérieure. Si la suspension change pendant que la fenêtre de confirmation est ouverte, ferme-la et consulte les détails actualisés.
 
 ## Examiner le nœud concerné
 
@@ -44,7 +52,17 @@ Lis cette liste avant de recommencer. Un échec ultérieur n’annule ni un mess
 
 ## Comprendre les reprises et nouvelles tentatives
 
-Le moteur enregistre les nœuds terminés comme points de reprise et continue après eux. Une exécution inachevée dont la continuation a été perdue peut être reprise après un délai. Une nouvelle exécution distincte possède ses propres points de reprise et peut répéter des écritures. Relancer n’est donc pas reprendre l’exécution existante.
+Le moteur enregistre les nœuds terminés comme points de reprise et continue après eux. Une nouvelle exécution distincte possède ses propres points de reprise et peut répéter des écritures. Relancer n’est donc pas reprendre l’exécution existante.
+
+Une exécution peut changer de serveur en cours de route. Un serveur mis à jour ou redémarré transmet ses exécutions à leur prochaine étape : l’étape en cours se termine, puis le serveur suivant continue avec l’étape d’après, ou avec l’élément suivant quand l’étape s’exécute une fois par élément. Une étape qui travaille encore 20 secondes après le début du redémarrage est interrompue et s’exécute à nouveau sur le serveur suivant. Quand un serveur s’arrête sans prévenir, un autre reprend ses exécutions en une minute et demie environ. Les étapes terminées ne s’exécutent pas une seconde fois. L’en-tête de l’exécution indique alors **Reprise après un redémarrage**, ou le nombre de redémarrages, avec l’heure du dernier changement et sa raison : le serveur était mis à jour ou redémarré, ou il ne répondait plus. Tant qu’aucun autre serveur n’a repris l’exécution, son statut indique **Interrompue — reprise en cours**.
+
+Une étape qui envoyait quelque chose à un service externe au moment où son serveur s’est arrêté fait exception : Tale ne peut pas savoir si le service l’a reçu, et ne le renvoie donc pas de lui-même. L’exécution attend, et sa page indique l’étape, le connecteur, ce que l’étape envoyait et, si l’étape s’exécute pour chaque élément, l’élément concerné. Vérifie dans le service, puis choisis comment continuer :
+
+- **Relancer l’étape** envoie une nouvelle fois. Si le service l’avait déjà reçu, l’action a lieu deux fois ; Tale te demande donc de confirmer.
+- **Ignorer l’étape** poursuit l’exécution comme si l’étape n’avait rien renvoyé. Choisis-la quand le service a bien reçu l’envoi.
+- **Faire échouer l’exécution** l’arrête à cet endroit et l’enregistre en échec avec le code `effect_in_doubt`. Ce que l’exécution a déjà fait n’est pas annulé ; Tale te demande donc de confirmer.
+
+Toute personne qui peut arrêter l’exécution peut faire ce choix. L’exécution attend qu’une personne décide ; aucune notification n’est envoyée, et la liste des exécutions indique l’étape attendue.
 
 Un échec d’agent admissible permet jusqu’à trois nouvelles tentatives automatiques après la première. Les points de reprise précédents restent acquis et l’en-tête affiche le compteur. Une tentative qui travaille au moins quinze minutes renouvelle ce budget de tentatives. Un pool d’abonnements peut choisir un autre compte pour la suivante. Si un courtier d’abonnement a actualisé le compte pendant que l’étape travaillait et que le fournisseur refuse l’ancien jeton, la nouvelle tentative reprend avec un nouveau jeton sans consommer l’une des trois tentatives ; une troisième interruption de ce type d’affilée compte comme n’importe quel autre échec. Si l’étape n’a pas pu démarrer parce que tous les comptes du pool étaient en pause après avoir atteint une limite de requêtes, la nouvelle tentative démarre dès que le premier compte redevient disponible, au plus tard une minute après, et poursuit la conversation que la tentative refusée devait reprendre. Cette attente consomme l’une des trois tentatives, sauf si la tentative refusée relançait elle-même un échec dû à une limite de requêtes. Si la tentative échouée avait annoncé sa conversation, la nouvelle tentative reprend cette conversation sur l’espace de travail conservé : l’agent continue là où la coupure l’a surpris au lieu de raisonner depuis le début ; une tentative morte avant de l’annoncer, ou dont la session sandbox a disparu, repart de zéro. Une étape Gemini CLI repart toujours de zéro, parce que cet environnement ne peut pas reprendre une conversation dans laquelle il a appelé un outil ; [Choisir un environnement d’agent](/fr/platform/agents/harnesses) explique cette exception.
 

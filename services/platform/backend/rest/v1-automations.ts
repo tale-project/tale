@@ -9,6 +9,7 @@ import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { TASK_COMMENT_MAX } from '../core/tasks/helpers.ts';
 import { createAuditLog } from '../domains/audit_logs/service.ts';
+import { legacyRunStopSchema } from '../domains/automations/legacy-quarantine.ts';
 import { readableProjectIds } from '../domains/automations/project-visibility.ts';
 import {
   answerAsk,
@@ -35,6 +36,7 @@ import {
   listRunsPage,
   listTriggers,
   listVersions,
+  requestLegacyRunStopInTx,
   type RunRow,
   setTrigger,
   toRunDetail,
@@ -90,6 +92,7 @@ const RUN_STATUSES = [
   'queued',
   'running',
   'waiting',
+  'quarantined',
   'success',
   'failed',
   'cancelled',
@@ -138,17 +141,21 @@ const RUN_FIELDS = [
   'effects',
   'detail',
   'failureCode',
+  'legacyQuarantine',
   'claimEpoch',
   'chainSeq',
   'startedAt',
   'finishedAt',
+  'resumeCount',
+  'stalled',
 ] as const satisfies readonly (keyof RunRow)[];
 // Every key the full read answers must be selectable: a `RunRow` column
 // added without a `RUN_FIELDS` entry fails here, not as a 400 in production.
-// `askPending` is the read's own input to `waitingFor`, stripped before the
-// wire — never a field a caller names.
+// `askPending` is the read's own input to `waitingFor`, and the two resume
+// stamps the read's input to `lastResume`, stripped before the wire — never
+// fields a caller names.
 type RunFieldsMissing = Exclude<
-  keyof Omit<RunRow, 'askPending'>,
+  keyof Omit<RunRow, 'askPending' | 'lastResumeReason' | 'lastResumedAt'>,
   (typeof RUN_FIELDS)[number]
 >;
 const RUN_FIELDS_COMPLETE: [RunFieldsMissing] extends [never] ? true : never =
@@ -162,8 +169,14 @@ const RUN_READ_QUERY = { fields: queryFilter(256).optional() };
 const ASK_ANSWER_MAX = 20_000;
 
 /** What a run read may project: every stored key, plus the wait family
- * the read derives while a run is parked (`waitingFor`). */
-const RUN_READ_FIELDS = [...RUN_FIELDS, 'waitingFor', 'startedVia'] as const;
+ * the read derives while a run is parked (`waitingFor`), and why and when
+ * it was last handed on (`lastResume`). */
+const RUN_READ_FIELDS = [
+  ...RUN_FIELDS,
+  'waitingFor',
+  'startedVia',
+  'lastResume',
+] as const;
 
 /** The query every run listing takes: the page pair, a status set and the
  * full-row fields to inline. */
@@ -976,6 +989,42 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
   app.post('/runs/:runId/cancel', stopRun);
   app.post('/projects/:id/runs/:runId/cancel', stopRun);
+
+  /** Request owned-session stops for a held legacy run. This records an
+   * acknowledgement; it does not establish termination or clear the hold. */
+  const requestLegacyStop = async (c: Context<RestEnv>) => {
+    const body = await parseBody(c, legacyRunStopSchema);
+    if (body instanceof Response) return body;
+    try {
+      requireDeveloper(c);
+      const runId = c.req.param('runId') ?? '';
+      const projectId = c.req.param('id');
+      const auth =
+        projectId === undefined
+          ? undefined
+          : await restProjectAuth(deps.sql, c);
+      const organizationId = c.get('organizationId');
+      const result = await transactSerializable(deps.sql, async (tx) => {
+        if (projectId !== undefined && auth !== undefined)
+          await loadRestProject(tx, auth, projectId, { write: true });
+        const run = await getRun(tx, organizationId, runId);
+        if (run === null || run.projectId !== (projectId ?? null)) return null;
+        return requestLegacyRunStopInTx(tx, {
+          organizationId,
+          runId,
+          actor: c.get('userId'),
+          request: body,
+        });
+      });
+      return result === null
+        ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
+        : c.json(result);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.post('/runs/:runId/legacy-quarantine', requestLegacyStop);
+  app.post('/projects/:id/runs/:runId/legacy-quarantine', requestLegacyStop);
 
   /**
    * The live question of a run — null when nothing waits on a person.

@@ -2,15 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { nodeVmRunner } from '../runners/node-vm';
 import { setCodeRunner } from './runner';
-import {
-  evalCondition,
-  evalTemplates,
-  ExprError,
-  inputKeysInSource,
-  refsInSource,
-  runCode,
-  templateExprsIn,
-} from './template';
+import { evalCondition, evalTemplates, ExprError, runCode } from './template';
 
 beforeEach(() => {
   setCodeRunner(nodeVmRunner());
@@ -18,30 +10,6 @@ beforeEach(() => {
 
 afterEach(() => {
   // Later suites must install their own runner deliberately.
-});
-
-describe('scanners (pure, validation-time)', () => {
-  it('collects template expressions from nested values', () => {
-    expect(
-      templateExprsIn({
-        a: '{{ input.x }}',
-        b: ['plain', 'mixed {{ nodes.first.output.id }} text'],
-        c: { d: 42 },
-      }),
-    ).toEqual(['input.x', 'nodes.first.output.id']);
-  });
-
-  it('derives node references from dot and bracket forms', () => {
-    expect(
-      refsInSource('nodes.alpha.output.x + nodes["beta-2"].output'),
-    ).toEqual(new Set(['alpha', 'beta-2']));
-  });
-
-  it('derives input keys for schema typo-checking', () => {
-    expect(inputKeysInSource('input.city + input.units')).toEqual(
-      new Set(['city', 'units']),
-    );
-  });
 });
 
 describe('evalTemplates — the two authoring rules', () => {
@@ -76,6 +44,28 @@ describe('evalTemplates — the two authoring rules', () => {
     await expect(
       evalTemplates({ a: ['{{ input.n }}'], b: 'x{{ input.n }}' }, scope),
     ).resolves.toEqual({ a: [7], b: 'x7' });
+  });
+
+  it('a "}}" inside the expression does not end the template', async () => {
+    await expect(
+      evalTemplates("{{ {name: input.name, tag: '}}'} }}", scope),
+    ).resolves.toEqual({ name: 'Ada', tag: '}}' });
+    await expect(
+      evalTemplates('{{ nodes.first.output.list.map(x => ({v: x})) }}', scope),
+    ).resolves.toEqual([{ v: 1 }, { v: 2 }]);
+    await expect(
+      evalTemplates("tag={{ '}}' + input.n }}!", scope),
+    ).resolves.toBe('tag=}}7!');
+  });
+
+  it('keeps what the first "}}" rule produced whenever that parsed', async () => {
+    // A third brace after a complete expression stays text, as before.
+    await expect(evalTemplates('{{ input.n }}}', scope)).resolves.toBe('7}');
+    // No closer at all: the braces are plain text.
+    await expect(evalTemplates('{{ input.n }', scope)).resolves.toBe(
+      '{{ input.n }',
+    );
+    await expect(evalTemplates('{{}}', scope)).resolves.toBe('{{}}');
   });
 
   it('wraps evaluation failures as ExprError naming the expression', async () => {
@@ -144,6 +134,26 @@ describe('the scope handed to the runner', () => {
   it('each expression of one string gets its own', async () => {
     await evalTemplates('{{ nodes.a.output }} and {{ nodes.c.output }}', scope);
     expect(Object.keys(seen?.nodes ?? {})).toEqual(['c']);
+  });
+
+  it('a name in a comment, a string or a shadowing local is no reference', async () => {
+    await evalTemplates(
+      "{{ 'nodes.c' + nodes.a.output /* nodes.b */ }}",
+      scope,
+    );
+    expect(Object.keys(seen?.nodes ?? {})).toEqual(['a']);
+    await runCode(
+      '// nodes.b is unused\nconst pick = (nodes) => nodes.c;\nreturn nodes.a.output;',
+      scope,
+    );
+    expect(Object.keys(seen?.nodes ?? {})).toEqual(['a']);
+  });
+
+  it('keeps every node when the source does not parse or reaches the scope indirectly', async () => {
+    await evalTemplates('{{ nodes.a.output + }}', scope);
+    expect(Object.keys(seen?.nodes ?? {})).toEqual(['a', 'b', 'c']);
+    await evalTemplates('{{ arguments[1].c.output }}', scope);
+    expect(Object.keys(seen?.nodes ?? {})).toEqual(['a', 'b', 'c']);
   });
 
   it('conditions and transform bodies are pruned the same way', async () => {

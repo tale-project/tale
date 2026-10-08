@@ -7,7 +7,7 @@ toastSaveFailedTitle: Änderungen konnten nicht gespeichert werden
 systemPrompt:
   title: Benutzerdefinierte Anweisungen
   description:
-    Dieser Text steht in diesem Workspace vor den Anweisungen jedes Agents.
+    Dieser Text steht in diesem Arbeitsbereich vor den Anweisungen jedes Agents.
     Nutzer können ihn nicht überschreiben.
   enabled: Benutzerdefinierte Anweisungen
   instructionsPlaceholder: Verbindliche Anweisungen eingeben...
@@ -1702,7 +1702,7 @@ dsarPolicy:
   invalidCoolingOffHours: Die Karenzzeit muss eine ganze Zahl zwischen 0 und 72 sein.
   invalidDailyLimit: Das tägliche Limit muss eine ganze Zahl zwischen 1 und 50 sein.
   ownerOnlyNotice:
-    Nur der Owner kann diese Richtlinie ändern. Admins können sie
+    Nur der Inhaber kann diese Richtlinie ändern. Admins können sie
     lesen. Jede Lockerung der Schutzmaßnahmen (kürzere Karenzzeit,
     Deaktivieren der Doppelfreigabe, Anheben des täglichen Limits) wird 24
     Stunden lang gestaffelt, damit jeder Admin sie zurücksetzen kann.

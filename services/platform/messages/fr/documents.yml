@@ -194,6 +194,7 @@ deleteFile:
 breadcrumb:
   navigation: Fil d'Ariane
   documents: Documents
+  loadFailed: Le fil d'Ariane de ce dossier n'a pas pu être chargé. Réessaie.
   oneDrive: OneDrive
   googleDrive: Google Drive
 aria:

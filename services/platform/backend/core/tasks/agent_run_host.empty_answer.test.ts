@@ -189,6 +189,7 @@ const KEYS = {
 };
 
 beforeEach(() => {
+  vi.clearAllMocks();
   io.stdout = `${readFixture('claude-code', 'empty-answer-turn')}\n`;
   io.starts = [];
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -196,6 +197,52 @@ beforeEach(() => {
 });
 
 describe('a task agent turn whose model answered nothing', () => {
+  it('keeps a resumed Codex conversation when capacity refuses its first response, without launching fresh', async () => {
+    const message =
+      'Selected model is at capacity. Please try a different model.';
+    io.stdout = `${[
+      { type: 'thread.started', thread_id: CONVERSATION },
+      { type: 'turn.failed', error: { message } },
+    ]
+      .map((event) => JSON.stringify(event))
+      .join('\n')}\n`;
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'codex',
+      model: 'glm',
+      modelProvider: 'local-inference',
+      skills: [],
+      connectors: [],
+      tools: [],
+      secrets: [],
+      resume: CONVERSATION,
+      resumeSessionCreatedAt: 1000,
+      sweep: false,
+    });
+
+    expect(io.starts).toHaveLength(1);
+    expect(io.starts[0]?.argv).toContain('resume');
+    expect(failedMarks(mutations).map((m) => m.args)).toEqual([
+      {
+        runId: 'run-1',
+        execId: 'exec-1',
+        error: message,
+        failureCode: 'model_capacity',
+        agentSessionId: CONVERSATION,
+        sessionCreatedAt: 1000,
+      },
+    ]);
+    expect(
+      mutations.some(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      ),
+    ).toBe(false);
+  });
+
   it('still requires an explicit final report after a long assistant draft', async () => {
     const report = `BEGIN ${'draft '.repeat(20_000)} END`;
     io.stdout = `${[

@@ -1,6 +1,7 @@
 # Authoritative scope for PRs and existing Build service discovery.
 integration:
   - 'services/platform/backend/**'
+  - 'services/platform/tests/fixtures/automation-legacy-v1/**'
   - 'services/platform/lib/**'
   - 'services/platform/messages/**'
   - 'services/platform/sla-targets.ts'
@@ -12,11 +13,14 @@ integration:
   - 'packages/shared/**'
   - 'packages/ui/package.json'
   - 'packages/ui/src/i18n/**'
+  - 'packages/ui/src/server/serving-identity.ts'
   - 'configs/platform/**'
   - 'tools/cli/src/lib/compose/types.ts'
   - 'tools/cli/scripts/check-deployment-acceptance.ts'
   - 'tools/cli/src/lib/deployment/acceptance-migrations.ts'
   - 'tools/cli/src/lib/deployment/migration-model.ts'
+  - 'tools/cli/src/lib/deployment/automation-floor.ts'
+  - 'tools/cli/src/lib/deployment/automation-model.ts'
   - 'tools/cli/src/lib/deployment/source-migrations.ts'
   - 'tools/cli/src/lib/deployment/runtime-command.ts'
   - 'tools/cli/src/lib/deployment/runtime-model.ts'

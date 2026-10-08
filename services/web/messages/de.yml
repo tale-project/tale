@@ -90,7 +90,7 @@ nav:
       label: Platform-Übersicht
       description: So arbeiten Menschen und Agenten gemeinsam an Projekten.
     agents:
-      label: Agents
+      label: Agenten
       description: Delegiere Aufgaben an Agenten mit eigenen Werkzeugen und Laufzeiten.
     chat:
       label: Chats
@@ -105,7 +105,7 @@ nav:
       label: Wissen
       description: Dokumente, Websites und Datensätze, die Agents zitieren.
     governance:
-      label: Governance
+      label: Richtlinien
       description: Freigaben, Audit-Trail und Ausgabenkontrolle.
   resource:
     compare:
@@ -192,11 +192,11 @@ home:
       composerModel: Claude Sonnet
       inputPlaceholder: Frag einfach…
     connect:
-      label: 'Animierte Demo: Die Agents-Liste zeigt Claude Code, Codex, Hermes,
+      label: 'Animierte Demo: Die Agentenliste zeigt Claude Code, Codex, Hermes,
         Support-Agent und OpenClaw als installierte Zeilen mit Modell-Chips.'
-      windowTitle: Agents
-      searchPlaceholder: Agents suchen
-      addLabel: Agents
+      windowTitle: Agenten
+      searchPlaceholder: Agenten suchen
+      addLabel: Agenten
       colName: Name
       colModel: Modell
       colStatus: Status
@@ -313,16 +313,16 @@ home:
       searchPlaceholder: Projekte suchen
       newProject: Neues Projekt
       colName: Name
-      colAgents: Agents
+      colAgents: Agenten
       colMembers: Mitglieder
       project1: Customer Support
       project2: Engineering
       project3: Vertriebs-Recherche
       project4: Ops & Logistik
-      agents1: 3 Agents
-      agents2: 5 Agents
-      agents3: 2 Agents
-      agents4: 4 Agents
+      agents1: 3 Agenten
+      agents2: 5 Agenten
+      agents3: 2 Agenten
+      agents4: 4 Agenten
       members1: '8'
       members2: '14'
       members3: '5'
@@ -1010,7 +1010,7 @@ featureShared:
   relatedHeading: Verwandte Module
   docsHeading: Docs lesen
 platformAgents:
-  eyebrow: Agents
+  eyebrow: Agenten
   title: Was sind Agents in Tale?
   description: Projektagenten bearbeiten Aufgaben gemeinsam mit deinem Team. Gib jedem
     Agenten Anweisungen, eine unterstützte Laufzeit, ein Modell und Tools.
@@ -1160,7 +1160,7 @@ platformAgents:
       runTone3: running
       duration3: 0,8s
     connect:
-      label: 'Animierte Demo: Die Agents-Liste dieser Seite — Support-Agent,
+      label: 'Animierte Demo: Die Agentenliste dieser Seite — Support-Agent,
         Docs-Agent, Release-Agent, Research-Agent und Pilot-Agent, jeweils mit
         Modell.'
       agent1: Support-Agent
@@ -1177,16 +1177,16 @@ platformAgents:
       label: 'Animierte Demo: Projekte so abgegrenzt, dass Support und Platform
         jeweils ihren Agent-Stack und ihre Mitglieder behalten.'
       project1: Support-Desk
-      agents1: 4 Agents
+      agents1: 4 Agenten
       members1: '9'
       project2: Platform Build
-      agents2: 6 Agents
+      agents2: 6 Agenten
       members2: '12'
       project3: Docs & Enablement
-      agents3: 2 Agents
+      agents3: 2 Agenten
       members3: '4'
       project4: Release-Zug
-      agents4: 3 Agents
+      agents4: 3 Agenten
       members4: '7'
     sandbox:
       label:
@@ -1312,7 +1312,7 @@ platformAutomations:
           Connector-Schreibzugriff auf eine Person. Die Freigabe erlaubt den
           Ausführungsversuch, eine Ablehnung verhindert ihn.
       - id: agents
-        eyebrow: Agents
+        eyebrow: Agenten
         title: |-
           Gib einem Agenten
           einen Workflow-Schritt
@@ -1402,16 +1402,16 @@ platformAutomations:
         "Beispieldemo: Projekte organisieren die Aufgaben und Agenten für
         wiederkehrende Workflows."
       project1: Invoice-Ops
-      agents1: 3 Agents
+      agents1: 3 Agenten
       members1: '6'
       project2: Lieferantenaufnahme
-      agents2: 2 Agents
+      agents2: 2 Agenten
       members2: '4'
       project3: Engineering-CI
-      agents3: 4 Agents
+      agents3: 4 Agenten
       members3: '10'
       project4: Nächtliche Reviews
-      agents4: 2 Agents
+      agents4: 2 Agenten
       members4: '5'
 platformChat:
   eyebrow: Chats
@@ -1570,16 +1570,16 @@ platformChat:
         "Beispieldarstellung: Projekte halten zugehörige Chats, Aufgaben,
         Dateien und Agenten zusammen."
       project1: Support-Threads
-      agents1: 3 Agents
+      agents1: 3 Agenten
       members1: '8'
       project2: Engineering-Chat
-      agents2: 5 Agents
+      agents2: 5 Agenten
       members2: '11'
       project3: Comms-Entwürfe
-      agents3: 2 Agents
+      agents3: 2 Agenten
       members3: '4'
       project4: Pilot-War-Room
-      agents4: 3 Agents
+      agents4: 3 Agenten
       members4: '6'
     knowledge:
       label:
@@ -1595,7 +1595,7 @@ platformChat:
       source4: Ton-Guide
       sourceType4: entry
 platformGovernance:
-  eyebrow: Governance
+  eyebrow: Richtlinien
   title: Regeln für dein Team und deine Agenten
   description:
     Steuere Zugriffe, konfiguriere Genehmigungen für Connector-Aktionen und
@@ -1818,7 +1818,7 @@ platformHub:
       gemeinsame Arbeit.
     stages:
       - id: agents
-        eyebrow: Agents
+        eyebrow: Agenten
         title: |-
           Agenten für
           deine Projektaufgaben
@@ -1843,7 +1843,7 @@ platformHub:
           Auslöser ein und prüfe die Ergebnisse jedes Laufs. Freigaberegeln
           für Connector-Aktionen können geschützte Schreibzugriffe anhalten.
       - id: govern
-        eyebrow: Governance
+        eyebrow: Richtlinien
         title: |-
           Angehalten, bis
           jemand entscheidet
@@ -1905,7 +1905,7 @@ platformHub:
       citation2: Modul-Karte
       composerModel: Claude Sonnet
     connect:
-      label: 'Animierte Demo: Der Hub-Agents-Sampler — Orchestrator-Agent,
+      label: 'Animierte Demo: Der Hub-Agenten-Sampler — Orchestrator-Agent,
         Support-Agent, Docs-Agent, Invoice-Agent und Policy-Agent, jeweils mit
         Modell.'
       agent1: Orchestrator-Agent
@@ -1923,16 +1923,16 @@ platformHub:
         'Animierte Demo: Hub-Projekte-Sampler — Platform Core, Kunden-Piloten,
         Partner-Enablement und Internal Ops, jeweils mit eigenem Roster.'
       project1: Platform Core
-      agents1: 6 Agents
+      agents1: 6 Agenten
       members1: '12'
       project2: Kunden-Piloten
-      agents2: 3 Agents
+      agents2: 3 Agenten
       members2: '7'
       project3: Partner-Enablement
-      agents3: 2 Agents
+      agents3: 2 Agenten
       members3: '5'
       project4: Internal Ops
-      agents4: 4 Agents
+      agents4: 4 Agenten
       members4: '9'
     knowledge:
       label: 'Animierte Demo: Die Wissensdemo im Hub indexiert den
@@ -2080,7 +2080,7 @@ platformKnowledge:
           Abgerufene Passagen landen als Zitat-Karten — Leser öffnen die
           Datei oder Seite, die die Antwort genutzt hat.
       - id: agents
-        eyebrow: Agents
+        eyebrow: Agenten
         title: |-
           Statte Agenten
           für die Suche aus
@@ -2161,19 +2161,19 @@ platformKnowledge:
       agent5: Policy-Agent
       model5: Claude Opus
     projects:
-      label: 'Animierte Demo: Projekte, die Bibliotheken neben den Agents und
+      label: 'Animierte Demo: Projekte, die Bibliotheken neben den Agenten und
         Mitgliedern halten, die sie nutzen.'
       project1: Produkt-Korpus
-      agents1: 3 Agents
+      agents1: 3 Agenten
       members1: '7'
       project2: Support-Makros
-      agents2: 2 Agents
+      agents2: 2 Agenten
       members2: '9'
       project3: Policy-Regal
-      agents3: 2 Agents
+      agents3: 2 Agenten
       members3: '5'
       project4: Engineering-Wiki
-      agents4: 4 Agents
+      agents4: 4 Agenten
       members4: '12'
 platformProjects:
   eyebrow: Projekte
@@ -2300,15 +2300,15 @@ platformProjects:
     projects:
       label:
         'Animierte Demo: die Projektliste — jeder geteilte Arbeitsbereich mit
-        seinen Agents und Mitgliedern.'
+        seinen Agenten und Mitgliedern.'
       project1: Website-Relaunch
-      agents1: 3 Agents
+      agents1: 3 Agenten
       members1: '7'
       project2: Acme-Onboarding
-      agents2: 2 Agents
+      agents2: 2 Agenten
       members2: '5'
       project3: Pricing-Revamp
-      agents3: 2 Agents
+      agents3: 2 Agenten
       members3: '4'
       project4: Support-Eskalationen
       agents4: 1 Agent

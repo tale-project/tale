@@ -39,7 +39,7 @@ Pour Entra, utilise un émetteur propre au tenant, comme `https://login.microsof
 Pour Google, choisis **OIDC générique** avec l’émetteur `https://accounts.google.com` ; consulte la [configuration OpenID Connect de Google](https://developers.google.com/identity/openid-connect/openid-connect). L’OIDC standard de Google ne fournit pas les appartenances aux groupes. La connexion Google seule ne permet donc pas de synchroniser les groupes avec les équipes.
 
 <Note>
-L’import de fichiers Microsoft 365 possède son propre parcours de consentement dans les connaissances. N’ajoute pas `Files.Read` ou `Sites.Read.All` aux scopes SSO pour permettre une simple connexion. Configure l’accès à l’import via les [apps OAuth des connecteurs](/fr/platform/admin/connectors).
+L’import de fichiers Microsoft 365 possède son propre parcours de consentement dans les connaissances. N’ajoute pas `Files.Read` ou `Sites.Read.All` aux scopes SSO pour permettre une simple connexion. Configure l’accès à l’import via les [apps OAuth des connectors](/fr/platform/admin/connectors).
 </Note>
 
 ## Connecter un fournisseur SAML

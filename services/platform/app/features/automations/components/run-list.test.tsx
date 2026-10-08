@@ -205,3 +205,30 @@ describe('RunList reasons', () => {
     expect(screen.queryByText(/repeat/)).toBeNull();
   });
 });
+
+describe('RunList interruptions', () => {
+  it('marks a running run whose server stopped as interrupted', () => {
+    renderRuns([
+      run({ id: 'r-stalled', status: 'running', stalled: true }),
+      run({ id: 'r-live', status: 'running' }),
+    ]);
+    expect(screen.getByText('Interrupted — resuming')).toBeVisible();
+    expect(screen.getByText('Running')).toBeVisible();
+  });
+
+  it('says which step may already have run when a write waits for a person', () => {
+    renderRuns([
+      run({
+        status: 'waiting',
+        waitingFor: 'in_doubt',
+        detail: 'in_doubt:send_invoice',
+      }),
+    ]);
+    expect(
+      screen.getByText(
+        'Waiting for a decision — step send_invoice may already have run',
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/in_doubt:/)).toBeNull();
+  });
+});

@@ -150,6 +150,33 @@ describe('POST /api/tools/execute — the turn a token serves', () => {
     dispatchWorkspaceToolImpl.mockResolvedValue({ status: 'ok', output: {} });
   });
 
+  it('keeps discovery out of domain grants without disabling a granted task call [SBX-R6]', async () => {
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: { toolGrants: ['task_get'] },
+    });
+    const refused = await post(
+      JSON.stringify({ tool: 'workspace_status', args: {} }),
+    );
+    expect(await refused.json()).toMatchObject({
+      status: 'unavailable',
+      blockers: [{ code: 'not_granted' }],
+    });
+    expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
+
+    const granted = await post(
+      JSON.stringify({ tool: 'task_get', args: { taskId: 'task_1' } }),
+    );
+    expect(await granted.json()).toEqual({ status: 'ok', output: {} });
+    expect(dispatchWorkspaceToolImpl).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({
+        tool: 'task_get',
+        callArgs: { taskId: 'task_1' },
+      }),
+    );
+  });
+
   it('hands the token scope’s turnOp to the dispatch, never the body’s [SBX-R5]', async () => {
     getSessionTokenByHash.mockResolvedValue({
       ...TOKEN_ROW,

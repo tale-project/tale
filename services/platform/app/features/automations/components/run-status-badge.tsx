@@ -9,6 +9,7 @@ import {
   Clock,
   Loader2,
   MinusCircle,
+  RefreshCw,
   XCircle,
 } from 'lucide-react';
 import type * as React from 'react';
@@ -45,14 +46,35 @@ const RUN_STATUS_STYLE: Record<
   queued: { variant: 'slate', icon: Clock },
   running: { variant: 'blue', icon: RunningIcon },
   waiting: { variant: 'yellow', icon: Clock },
+  quarantined: { variant: 'yellow', icon: Clock },
   success: { variant: 'green', icon: CheckCircle2 },
   failed: { variant: 'destructive', icon: XCircle },
   cancelled: { variant: 'slate', icon: Ban },
 };
 
-/** The state of one run. */
-export function RunBadge({ status }: { status: RunStatus }) {
+/**
+ * The state of one run. A running run whose server stopped reads
+ * "Interrupted — resuming" until another server takes it over: its own word
+ * and a still icon (nothing is working on it yet, so nothing spins), in the
+ * running family's blue — it needs nobody, so it does not outshout a run
+ * that waits for a person, nor match the orange Live badge beside it.
+ */
+export function RunBadge({
+  status,
+  stalled = false,
+}: {
+  status: RunStatus;
+  /** A running run nobody is stepping right now (`Run.stalled`). */
+  stalled?: boolean;
+}) {
   const { t } = useT('automations');
+  if (status === 'running' && stalled) {
+    return (
+      <Badge variant="blue" icon={RefreshCw}>
+        {t('runs.status.stalled')}
+      </Badge>
+    );
+  }
   const { variant, icon } = RUN_STATUS_STYLE[status];
   return (
     <Badge variant={variant} icon={icon}>
@@ -64,8 +86,10 @@ export function RunBadge({ status }: { status: RunStatus }) {
 /**
  * What a run did to one node. `pending` means the run has not reached the node
  * yet; the engine's `not_run` means it finished without ever reaching it;
- * `stopped` means the run was stopped while on it — different facts, so they
- * read differently.
+ * `stopped` means the run was stopped while on it; `waiting` means it waits
+ * there for a person; `interrupted` means its server stopped while on it —
+ * different facts, so they read differently, and only a node something is
+ * working on spins.
  */
 const NODE_STATUS_STYLE: Record<
   NodeRunStatus,
@@ -77,6 +101,8 @@ const NODE_STATUS_STYLE: Record<
   not_run: { variant: 'slate', icon: CircleDashed },
   pending: { variant: 'blue', icon: Clock },
   running: { variant: 'blue', icon: RunningIcon },
+  waiting: { variant: 'yellow', icon: Clock },
+  interrupted: { variant: 'blue', icon: RefreshCw },
   stopped: { variant: 'slate', icon: Ban },
 };
 

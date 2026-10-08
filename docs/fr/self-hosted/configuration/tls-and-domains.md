@@ -97,4 +97,4 @@ Pour un déploiement géré, déclare ces origines dans `additionalOrigins` de l
 
 ### Enregistrer chaque callback fournisseur
 
-Ouvre **Paramètres > SSO d'entreprise** pour copier l’URL de redirection OIDC ou ACS SAML de chaque domaine. Les métadonnées SAML contiennent les entrées ACS configurées. Pour le consentement des connecteurs, utilise les URL par domaine sous **Paramètres > Connectors > Apps OAuth**. Enregistre les URL nécessaires chez chaque fournisseur et teste une nouvelle connexion depuis chaque origine prise en charge.
+Ouvre **Paramètres > SSO d'entreprise** pour copier l’URL de redirection OIDC ou ACS SAML de chaque domaine. Les métadonnées SAML contiennent les entrées ACS configurées. Pour le consentement des connectors, utilise les URL par domaine sous **Paramètres > Connectors > Apps OAuth**. Enregistre les URL nécessaires chez chaque fournisseur et teste une nouvelle connexion depuis chaque origine prise en charge.

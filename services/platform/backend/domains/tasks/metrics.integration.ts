@@ -1,10 +1,11 @@
-/** Real Postgres proof of the project metrics fold's SQL: every source row
- * the page's figures come from, joined and bucketed the way the fold says. */
 import { randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 
+/** Real Postgres proof of the project metrics fold's SQL: every source row
+ * the page's figures come from, joined and bucketed the way the fold says. */
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { getProjectTaskMetrics, type ProjectMetricsDay } from './metrics.ts';
 import { archiveTask, createTask, restoreTask } from './service.ts';
 
@@ -274,13 +275,16 @@ export async function checkProjectTaskMetrics(
     INSERT INTO app.automations (org_id, name, version, document, created_by, created_at_ms)
     VALUES (${orgId}, ${automation}, 1, ${sql.json({ steps: [] })}, ${userId}, ${now})
   `;
-  const runRows = await sql<{ id: string }[]>`
+  const runRows = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (org_id, name, version, project_id, status,
       mode, started_by, started_at_ms, finished_at_ms)
     VALUES (${orgId}, ${automation}, 1, ${projectId}, 'success', 'live',
       ${`user:${userId}`}, ${now - DAY}, ${now - DAY + HOUR})
     RETURNING id
   `;
+  });
   const automationRunId = runRows[0]?.id ?? '';
   await sql`
     INSERT INTO app.automation_human_asks (org_id, run_id, node_id, session_id,
@@ -340,7 +344,10 @@ export async function checkProjectTaskMetrics(
     );
   } finally {
     await sql`DELETE FROM app.automation_human_asks WHERE org_id = ${orgId} AND run_id = ${automationRunId}`;
-    await sql`DELETE FROM app.automation_runs WHERE id = ${automationRunId}`;
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${automationRunId}`;
+    });
     await sql`DELETE FROM app.automations WHERE org_id = ${orgId} AND name = ${automation}`;
     await sql`DELETE FROM app.approvals WHERE org_id = ${orgId} AND resource_id = ${agentTaskId}`;
     await sql`DELETE FROM app.sandbox_session_ops WHERE org_id = ${orgId} AND session_id = ${sessionId}`;

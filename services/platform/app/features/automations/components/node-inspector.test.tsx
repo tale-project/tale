@@ -1,9 +1,20 @@
+import { IssueFocusProvider, useRequestIssueFocus } from '@tale/ui/issue-focus';
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { NodeDef } from '@/lib/engine/core/types';
+import type { WireAutomationIssue } from '@/lib/shared/schemas/automation-issues';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { i18n } from '@/tests/utils/i18n-all-languages';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { coreNodeTypes } from '../hooks/backend';
+import { fieldsWithIssueControl } from '../lib/inspector-fields';
+import {
+  toIssueView,
+  withIssueIds,
+  type AutomationIssueView,
+} from '../lib/issues';
 import { NodeInspector } from './node-inspector';
 
 /**
@@ -513,6 +524,167 @@ describe('NodeInspector', () => {
         onChange={vi.fn()}
         onDeselect={vi.fn()}
       />,
+    );
+    await checkAccessibility(container);
+  });
+});
+
+describe('NodeInspector problems', () => {
+  const doc = { version: 1, name: 'support/reply', nodes: [llmNode] };
+  const t = i18n.getFixedT('en', 'automations');
+  const controlsOf = (node: NodeDef) =>
+    fieldsWithIssueControl(node, llmType?.allowedFields ?? []);
+
+  function views(issues: WireAutomationIssue[]): AutomationIssueView[] {
+    return withIssueIds(issues).map((issue) =>
+      toIssueView(issue, doc, { locale: 'en', t, controlsOf }),
+    );
+  }
+
+  const promptError: WireAutomationIssue = {
+    level: 'error',
+    code: 'REF_UNKNOWN_NODE',
+    message: 'nodes.nope does not exist',
+    at: { pointer: '/nodes/0/prompt', range: [4, 12] },
+    params: {
+      node: 'summary',
+      field: 'prompt',
+      ref: 'nope',
+      available: ['calc'],
+    },
+  };
+
+  /** Asks the page's focus registry to go to a problem, like the list does. */
+  function GoTo({
+    anchor,
+    range,
+  }: {
+    anchor: string;
+    range?: readonly [number, number];
+  }) {
+    const request = useRequestIssueFocus();
+    return (
+      <button type="button" onClick={() => request(anchor, range)}>
+        go to
+      </button>
+    );
+  }
+
+  function inspector(
+    issues: AutomationIssueView[],
+    extra?: ReactNode,
+    node: NodeDef = llmNode,
+  ) {
+    return render(
+      <IssueFocusProvider>
+        {extra}
+        <NodeInspector
+          id="inspector"
+          node={node}
+          nodeType={llmType}
+          readOnly={false}
+          organizationId="org_test"
+          onChange={vi.fn()}
+          issues={issues}
+          nodeIndex={0}
+        />
+      </IssueFocusProvider>,
+    );
+  }
+
+  it("shows a field's problem under its control as a description, never as an alert", () => {
+    const [view] = views([promptError]);
+    inspector(view === undefined ? [] : [view]);
+    const prompt = screen.getByRole('textbox', { name: 'Prompt' });
+    expect(prompt).toHaveAttribute('aria-invalid', 'true');
+    const cause = view?.item.cause;
+    expect(prompt).toHaveAccessibleDescription(
+      expect.stringContaining(typeof cause === 'string' ? cause : 'no cause'),
+    );
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('describes a field with a warning without marking it invalid', () => {
+    inspector(views([{ ...promptError, level: 'warning' }]));
+    const prompt = screen.getByRole('textbox', { name: 'Prompt' });
+    expect(prompt).not.toHaveAttribute('aria-invalid', 'true');
+    expect(prompt).toHaveAccessibleDescription(/Warning:/);
+  });
+
+  it('lists the problems without a box of their own at the top', () => {
+    inspector(
+      views([
+        {
+          level: 'warning',
+          code: 'LLM_MODEL_UNAVAILABLE',
+          message: 'no provider serves the model',
+          at: { pointer: '/nodes/0/model' },
+          params: { node: 'summary', model: 'anthropic/claude-haiku-4-5' },
+        },
+      ]),
+    );
+    const list = screen.getByRole('list', { name: 'Problems in this node' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    // A heading under the inspector's own, as large as the rows it heads.
+    expect(
+      screen.getByRole('heading', { level: 4, name: 'Problems in this node' }),
+    ).toHaveClass('text-sm');
+    // A static list: nothing in it is a "go to" button.
+    expect(within(list).queryByRole('button')).toBeNull();
+  });
+
+  it('opens Control flow when a problem is in it', () => {
+    const plain = { id: 'summary', type: 'llm', prompt: 'Hi' };
+    const { container } = inspector(
+      views([
+        {
+          level: 'error',
+          code: 'ITEM_OUT_OF_SCOPE',
+          message: 'item is not defined in when',
+          at: { pointer: '/nodes/0/when' },
+          params: { node: 'summary', field: 'when' },
+        },
+      ]),
+      undefined,
+      plain,
+    );
+    const details = [...container.querySelectorAll('details')].find((d) =>
+      d.textContent?.includes('Control flow'),
+    );
+    expect(details).toHaveAttribute('open');
+  });
+
+  it('takes the reader to the field and selects the offending text', async () => {
+    const { user } = inspector(
+      views([promptError]),
+      <GoTo anchor="/nodes/0/prompt" range={[4, 12]} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'go to' }));
+    const prompt = screen.getByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Prompt',
+    });
+    expect(prompt).toHaveFocus();
+    expect([prompt.selectionStart, prompt.selectionEnd]).toEqual([4, 12]);
+  });
+
+  it('takes the reader to the node for a problem with the node as a whole', async () => {
+    const { user } = inspector([], <GoTo anchor="/nodes/0" />);
+    await user.click(screen.getByRole('button', { name: 'go to' }));
+    expect(screen.getByText('summary', { selector: 'span' })).toHaveFocus();
+  });
+
+  it('passes an axe audit with problems shown', async () => {
+    const { container } = inspector(
+      views([
+        promptError,
+        {
+          level: 'warning',
+          code: 'LLM_MODEL_UNAVAILABLE',
+          message: 'no provider serves the model',
+          at: { pointer: '/nodes/0/model' },
+          params: { node: 'summary', model: 'anthropic/claude-haiku-4-5' },
+        },
+      ]),
     );
     await checkAccessibility(container);
   });

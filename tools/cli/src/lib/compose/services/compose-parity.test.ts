@@ -402,6 +402,25 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
       graceSeconds(compose.services.sandbox?.stop_grace_period),
     ).toBeGreaterThanOrEqual(30);
   });
+
+  // The backend's own drain (`SHUTDOWN_DRAIN_MS`, defaults in
+  // services/platform/backend/shutdown-sequence.ts): 15 s for the api, 90 s
+  // for a worker, and the container's grace at least 15 s above it. Both
+  // pipelines, so a `docker compose up` worker hands its automation runs on
+  // like a `tale deploy` one instead of being killed mid-step.
+  test('backend api stops inside its grace in both pipelines', () => {
+    const fromCompose = compose.services['backend-api']?.stop_grace_period;
+    const generated = createBackendApiService(config).stop_grace_period;
+    expect(graceSeconds(fromCompose)).toBeGreaterThanOrEqual(30);
+    expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
+  });
+
+  test('backend worker hands its runs on inside its grace in both pipelines', () => {
+    const fromCompose = compose.services['backend-worker']?.stop_grace_period;
+    const generated = createBackendWorkerService(config).stop_grace_period;
+    expect(graceSeconds(fromCompose)).toBeGreaterThanOrEqual(90 + 15);
+    expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
+  });
 });
 
 describe('shared tale-db image is built once', () => {

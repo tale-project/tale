@@ -1151,6 +1151,102 @@ describe('caller modes', () => {
   });
 });
 
+describe('a caller that stops', () => {
+  it('cuts a live body still running and records the call as interrupted', async () => {
+    const audit = auditSink();
+    const stop = new AbortController();
+    // A body that never answers by itself.
+    const impl = vi.fn(() => new Promise<never>(() => {}));
+    const dispose = registerNativeImpl('demo.native_send', impl);
+    try {
+      const pending = executeConnectorAction({
+        connector: 'demo',
+        action: 'native_send',
+        input: { to: 'someone@example.com' },
+        caller: { kind: 'workflow', runId: 'run_1', nodeId: 'send' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          audit,
+          signal: stop.signal,
+        },
+      });
+      await vi.waitFor(() => expect(impl).toHaveBeenCalledTimes(1));
+      stop.abort();
+
+      await expect(pending).rejects.toMatchObject({
+        code: 'INTERRUPTED',
+        message: 'the call was interrupted because its server is shutting down',
+      });
+      expect(audit.records[0]).toMatchObject({
+        outcome: 'error',
+        error: expect.stringContaining('interrupted'),
+      });
+    } finally {
+      dispose();
+    }
+  });
+
+  it('starts no live body once the caller has stopped', async () => {
+    const impl = vi.fn(async () => ({ messageId: 'native-1' }));
+    const dispose = registerNativeImpl('demo.native_send', impl);
+    const stop = new AbortController();
+    stop.abort();
+    try {
+      await expect(
+        executeConnectorAction({
+          connector: 'demo',
+          action: 'native_send',
+          input: { to: 'someone@example.com' },
+          caller: { kind: 'workflow', runId: 'run_1', nodeId: 'send' },
+          ctx: {
+            organizationId: ORG,
+            mode: 'live',
+            credentials: resolver(),
+            signal: stop.signal,
+          },
+        }),
+      ).rejects.toMatchObject({ code: 'INTERRUPTED' });
+      expect(impl).not.toHaveBeenCalled();
+    } finally {
+      dispose();
+    }
+  });
+
+  it("tears down the body's request the moment the caller stops", async () => {
+    const stop = new AbortController();
+    let requestSignal: AbortSignal | undefined;
+    fetchStub.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          requestSignal = init.signal ?? undefined;
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          );
+        }),
+    );
+
+    const pending = executeConnectorAction({
+      connector: 'demo',
+      action: 'echo',
+      input: { message: 'hello' },
+      caller: { kind: 'workflow', runId: 'run_1', nodeId: 'echo' },
+      ctx: {
+        organizationId: ORG,
+        mode: 'live',
+        credentials: resolver(),
+        signal: stop.signal,
+      },
+    });
+    await vi.waitFor(() => expect(fetchStub).toHaveBeenCalledTimes(1));
+    stop.abort();
+
+    await expect(pending).rejects.toMatchObject({ code: 'INTERRUPTED' });
+    expect(requestSignal?.aborted).toBe(true);
+  });
+});
+
 describe('the credential seam', () => {
   it('refuses a live call with no resolver injected', async () => {
     await expect(

@@ -32,9 +32,10 @@ export const FORBIDDEN_PRELOADS = [
  * charts (recharts has no chunk of its own; its dependencies are the
  * entry's too), the flow canvas, KaTeX, and what single pages need: zip
  * files (skill uploads, document previews), the automation engine's schema
- * validation and YAML (the MCP settings page), cron schedules (automations),
- * the table library (list pages), the HTML sanitizer (diagrams, previews,
- * email).
+ * validation and YAML (the MCP settings page), its expression parser and
+ * scope analysis (the automation editor and the run dialogs), cron schedules
+ * (automations), the table library (list pages), the HTML sanitizer
+ * (diagrams, previews, email).
  * Read from the chunks' source maps, so a static import that pulls one into
  * the entry fails the build.
  */
@@ -45,6 +46,8 @@ export const FORBIDDEN_PACKAGES = [
   'jszip',
   'ajv',
   'yaml',
+  'acorn',
+  'periscopic',
   'cron-parser',
   '@tanstack/table-core',
   'dompurify',

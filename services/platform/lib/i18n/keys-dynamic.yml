@@ -297,3 +297,13 @@ entries:
   # app/features/automations/lib/run-view.ts (`runReasonKey`) and rendered by
   # the run list and the run header.
   - 'automations.runs.waiting'
+  # The same runReasonKey projection supplies the held-run list explanation.
+  - 'automations.runs.quarantine.reason'
+
+  # How a validation issue reads: app/features/automations/lib/issue-text.ts
+  # renders `codes.<CODE>.{title,explanation,cause,fix}` from the issue's
+  # engine code, and the phrases its derived params are built from, through
+  # the `t` its caller hands it. lib/i18n/automation-issue-keys.test.ts holds
+  # the catalog to the engine's code list instead (one entry per code, none
+  # left over, and the shape of the phrases).
+  - 'automationIssues'

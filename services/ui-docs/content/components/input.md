@@ -82,3 +82,5 @@ Give `SearchableSelect` a meaningful `label` or `aria-label`, including when you
 `ToggleChipGroup` from `@tale/ui/toggle-chip-group` picks several of a few short options. It is one tab stop; the arrow keys move between chips and Space or Enter toggles one. `minSelected` ignores only turning a chip off when that would leave fewer chips on than the minimum; turning one on always counts. The example therefore always keeps one day. Give abbreviated chips an `aria-label` that contains the visible text, such as **Monday** for **Mo**, and name the group with `aria-label` or `aria-labelledby`.
 
 Both controls also make up the Custom view of the [recurrence picker](/docs/components/recurrence-picker).
+
+For a time of day, use [Time field](/docs/components/time-field) rather than a text input or the browser's own time input: it shows hours and minutes as separate parts in the reader's hour cycle, the arrow keys step them, and a pasted time such as `17:30` replaces the whole value.

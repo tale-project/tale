@@ -214,6 +214,26 @@ export async function runStaticSiteTest(
       r.fail(`${svc}: /api/health expected 200, got ${code}`);
     }
 
+    const processIdentities: Array<string | null> = [];
+    for (let probe = 0; probe < 2; probe++) {
+      const response = await fetch(`http://localhost:${hostPort}/api/health`, {
+        signal: AbortSignal.timeout(10_000),
+        redirect: 'error',
+      });
+      processIdentities.push(response.headers.get('Tale-Serving-Identity'));
+      await response.body?.cancel();
+    }
+    const identity = processIdentities[0];
+    if (
+      identity?.startsWith(`v1;service=${svc};instance=`) &&
+      /^v1;service=[a-z][a-z0-9-]{0,63};instance=[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(
+        identity,
+      ) &&
+      identity === processIdentities[1]
+    )
+      r.pass(`${svc}: stable serving process identity`);
+    else r.fail(`${svc}: missing or changed serving process identity`);
+
     for (const probe of opts.probes ?? []) {
       const url = `http://localhost:${hostPort}${probe.path}`;
       const res = await fetch(url, { redirect: 'manual' }).catch(() => null);

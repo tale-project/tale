@@ -3,7 +3,7 @@ title: Datenspeicher wählen und umziehen
 description: Unterscheide Bereitstellungsstandards und Organisationsspeicher, richte Verbindungen ein und plane den Umzug vorhandener Daten.
 ---
 
-Wähle Speicher für drei Datenarten: Anwendungsdatensätze, durchsuchbares Wissen und Originaldateien. Der Umzug einer Art verschiebt die anderen nicht. Speicherorte bestimmen auch nicht, wo ein Modellanbieter oder Konnektor Anfragen verarbeitet. Beziehe diese Ziele in deine Prüfung der Datenresidenz ein.
+Wähle Speicher für drei Datenarten: Anwendungsdatensätze, durchsuchbares Wissen und Originaldateien. Der Umzug einer Art verschiebt die anderen nicht. Speicherorte bestimmen auch nicht, wo ein Modellanbieter oder Connector Anfragen verarbeitet. Beziehe diese Ziele in deine Prüfung der Datenresidenz ein.
 
 ## Umfang der Änderung wählen
 

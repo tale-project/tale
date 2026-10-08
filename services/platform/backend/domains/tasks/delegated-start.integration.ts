@@ -1,3 +1,11 @@
+import { createHash, randomUUID } from 'node:crypto';
+
+import { transactSerializable } from '@tale/shared/db/serializable';
+import type { Sql } from 'postgres';
+
+import { createTaskList } from '../../jobs/task-list.ts';
+import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
+import { scanScheduledTriggers } from '../automations/triggers.ts';
 /** Real Postgres proof of project agents put to work by a schedule and by
  * another agent (`delegated-start.ts`, migration 0139).
  *
@@ -20,14 +28,7 @@
  * agent workspace under a race; the delegation depth limit; confined runs;
  * a pending review withdrawn but never approved; and the answer's authorship
  * kept on the agent. */
-import { createHash, randomUUID } from 'node:crypto';
-
-import { transactSerializable } from '@tale/shared/db/serializable';
-import type { Sql } from 'postgres';
-
-import { createTaskList } from '../../jobs/task-list.ts';
-import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
-import { scanScheduledTriggers } from '../automations/triggers.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { pgTaskStore } from '../connectors/task-store.ts';
 import {
   deleteProjectAgent,
@@ -1025,7 +1026,9 @@ export async function checkScheduledAgentStarts(
       automation: string,
       startedBy: string,
     ): Promise<string> => {
-      const rows = await sql<{ id: string }[]>`
+      const rows = await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx<{ id: string }[]>`
         INSERT INTO app.automation_runs (org_id, name, version, project_id,
           status, mode, started_by, input, checkpoints, started_at_ms)
         VALUES (${orgId}, ${automation}, 1, ${projectA}, 'running', 'live',
@@ -1033,6 +1036,7 @@ export async function checkScheduledAgentStarts(
           ${Date.now()})
         RETURNING id
       `;
+      });
       return rows[0]?.id ?? '';
     };
     const hookRun = await insertRun(hookName, `trigger:${hook[0]?.id ?? ''}`);
@@ -1159,10 +1163,13 @@ export async function checkScheduledAgentStarts(
       DELETE FROM app.automation_triggers
       WHERE org_id = ${orgId} AND name IN (${name}, ${hookName})
     `;
-    await sql`
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
       DELETE FROM app.automation_runs
       WHERE org_id = ${orgId} AND name IN (${name}, ${hookName})
     `;
+    });
     await sql`
       DELETE FROM app.automation_deployments
       WHERE org_id = ${orgId} AND name IN (${name}, ${hookName})
@@ -2659,7 +2666,10 @@ export async function checkInPlaceCompletionCycle(
     await release();
     for (const name of [todoName, progressName, pickedUpName]) {
       await sql`DELETE FROM app.automation_triggers WHERE org_id = ${orgId} AND name = ${name}`;
-      await sql`DELETE FROM app.automation_runs WHERE org_id = ${orgId} AND name = ${name}`;
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`DELETE FROM app.automation_runs WHERE org_id = ${orgId} AND name = ${name}`;
+      });
       await sql`DELETE FROM app.automation_deployments WHERE org_id = ${orgId} AND name = ${name}`;
       await sql`DELETE FROM app.automation_project_bindings WHERE org_id = ${orgId} AND automation_name = ${name}`;
       await sql`DELETE FROM app.automations WHERE org_id = ${orgId} AND name = ${name}`;

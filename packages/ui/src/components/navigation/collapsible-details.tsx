@@ -23,6 +23,12 @@ interface CollapsibleDetailsProps extends Omit<
    * the element mounts.
    */
   defaultOpen?: boolean;
+  /**
+   * The summary's tab index — `-1` takes the toggle out of the tab order
+   * while a composite widget (a roving list row) owns the one tab stop.
+   * Omitted, the summary keeps its native focusability.
+   */
+  summaryTabIndex?: number;
 }
 
 export const CollapsibleDetails = forwardRef<
@@ -36,6 +42,7 @@ export const CollapsibleDetails = forwardRef<
       variant = 'default',
       className,
       defaultOpen = false,
+      summaryTabIndex,
       open,
       ...props
     },
@@ -52,6 +59,7 @@ export const CollapsibleDetails = forwardRef<
         {...props}
       >
         <summary
+          tabIndex={summaryTabIndex}
           className={cn(
             // `items-start` keeps the chevron on the first line of a multi-line
             // summary (title + meta). `items-center` parked it mid-block.
