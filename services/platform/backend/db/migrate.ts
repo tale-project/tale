@@ -32,6 +32,8 @@ export { isMigrationFile } from '@tale/shared/db/migration-files';
 
 /** Arbitrary-but-fixed app-wide advisory lock key for boot migrations. */
 const MIGRATION_LOCK_KEY = 72_085_001;
+/** Held (never waited for) by the one process building the e-mail index. */
+const EMAIL_INDEX_LOCK_KEY = 72_085_003;
 
 const MIGRATIONS_DIR = new URL('./migrations/', import.meta.url);
 
@@ -109,35 +111,60 @@ async function defaultTeamMemberCount(sql: postgres.Sql): Promise<void> {
  * Built CONCURRENTLY so a live deployment keeps signing people up while a
  * new image builds it mid-roll, which also means it cannot run inside a
  * transaction (this boot step runs on the migrator's autocommit session).
- * A concurrent build that died — a crash, a restart mid-roll — leaves an
- * INVALID index that `IF NOT EXISTS` would keep forever; it is dropped and
- * built again. Not a numbered migration for the same reason
- * `defaultTeamMemberCount` is not: the `.sql` files run before Better Auth's
- * tables exist.
+ * A concurrent build waits for every transaction holding a snapshot, so it
+ * runs only AFTER the migration lock is released: a second booting replica
+ * waits for that lock inside a statement, and a build under the lock would
+ * wait for that very statement — a deadlock. One replica builds, under a
+ * lock nobody waits for; the others skip, so none mistakes the build in
+ * progress (an INVALID index until it completes) for an interrupted one.
+ * A build that died — a crash, a restart mid-roll — leaves an INVALID index
+ * that `IF NOT EXISTS` would keep forever; the next boot drops it and builds
+ * again. A failed build is reported, never fatal: sign-in only runs slower
+ * without the index. Not a numbered migration for the same reason
+ * `defaultTeamMemberCount` is not: the `.sql` files run before Better
+ * Auth's tables exist.
  */
 async function indexUserEmailLower(
   sql: postgres.Sql,
   log: (message: string) => void,
 ): Promise<void> {
-  // Resolved through the search path, like Better Auth's own unqualified
-  // tables: they land in the first schema of it (`tale` on the tale-db
-  // image, `public` on a plain Postgres), and an index lives beside its
-  // table.
-  const existing = await sql<{ valid: boolean }[]>`
-    SELECT i.indisvalid AS valid
-    FROM pg_index i
-    WHERE i.indexrelid = to_regclass('"user_email_lower_idx"')
+  const [claim] = await sql<{ claimed: boolean }[]>`
+    SELECT pg_try_advisory_lock(${EMAIL_INDEX_LOCK_KEY}) AS claimed
   `;
-  if (existing[0]?.valid) return;
-  if (existing[0] !== undefined) {
-    log('[backend] rebuilding an interrupted user e-mail index');
-    await sql`DROP INDEX CONCURRENTLY IF EXISTS "user_email_lower_idx"`;
+  if (!claim?.claimed) return;
+  try {
+    // Resolved through the search path, like Better Auth's own unqualified
+    // tables: they land in the first schema of it (`tale` on the tale-db
+    // image, `public` on a plain Postgres), and an index lives beside its
+    // table.
+    const existing = await sql<{ valid: boolean }[]>`
+      SELECT i.indisvalid AS valid
+      FROM pg_index i
+      WHERE i.indexrelid = to_regclass('"user_email_lower_idx"')
+    `;
+    if (existing[0]?.valid) return;
+    if (existing[0] !== undefined) {
+      log('[backend] rebuilding an interrupted user e-mail index');
+      await sql`DROP INDEX CONCURRENTLY IF EXISTS "user_email_lower_idx"`;
+    }
+    log('[backend] indexing user e-mail addresses for sign-in');
+    await sql`
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS "user_email_lower_idx"
+      ON "user" (lower("email"))
+    `;
+  } catch (error) {
+    if (isDatabaseUnavailable(error, { fromDatabase: true })) throw error;
+    console.warn(
+      '[backend] the user e-mail index was not built; the next boot retries:',
+      error,
+    );
+  } finally {
+    await sql`SELECT pg_advisory_unlock(${EMAIL_INDEX_LOCK_KEY})`.catch(
+      (error: unknown) => {
+        console.warn('[backend] e-mail index unlock failed (ignored):', error);
+      },
+    );
   }
-  log('[backend] indexing user e-mail addresses for sign-in');
-  await sql`
-    CREATE INDEX CONCURRENTLY IF NOT EXISTS "user_email_lower_idx"
-    ON "user" (lower("email"))
-  `;
 }
 
 /**
@@ -333,9 +360,13 @@ async function migrateOnce(
         await runMigrations();
       }
       await defaultTeamMemberCount(sql);
-      await indexUserEmailLower(sql, log);
       await verifyProvisionedAccounts(sql, log);
     }
+    // The e-mail index builds concurrently, which must not happen under
+    // this lock (see `indexUserEmailLower`).
+    await sql`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`;
+    locked = false;
+    if (options.authOptions) await indexUserEmailLower(sql, log);
   } catch (error) {
     failure = error;
     throw error;
