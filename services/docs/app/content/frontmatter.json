@@ -2617,7 +2617,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Conservation légale",
-      "description": "Préserve les données d’une personne ou de l’organisation, regroupe les gels par dossier et examine les demandes de libération."
+      "description": "Préserve les données d’une personne ou de l’organisation, regroupe les conservations par dossier et examine les demandes de libération."
     }
   },
   "fr:platform/admin/governance/operations-metrics": {
