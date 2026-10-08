@@ -128,8 +128,13 @@ occupied until termination is confirmed. A container or Pod with malformed
 ownership labels still contributes to aggregate occupancy; only validated
 organization/session identities appear in that organization's session list.
 Failed or incomplete inventories return 503, never a successful zero count.
-Observations coalesce and cache for five seconds;
-the settings page refreshes every 15 seconds and marks unavailable metrics.
+Observations coalesce and cache for five seconds, each one a single
+`docker ps`; the daemon's totals and kernel, and whether the local endpoint
+describes this host, are read once per ten minutes (an endpoint the CLI
+could not resolve is asked again after 30 seconds). The spawner image sets
+`DOCKER_HOST` to the mounted socket, so it never asks the CLI for its
+context. The settings page and each connected device's status refresh every
+15 seconds; the page marks unavailable metrics.
 
 The platform builds workspace rows by grouping execution history once per
 refresh and projecting only the current and running operations. Historical
