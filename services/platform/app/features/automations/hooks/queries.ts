@@ -127,6 +127,19 @@ export function useRunPendingAsk(
   );
 }
 
+/** The write a run waits on a person about — a call that may already have
+ * reached its service when the run was interrupted; null when nothing of the
+ * kind waits. Reactive: a decision taken anywhere clears it. */
+export function useRunInDoubt(
+  organizationId: string,
+  runId: string | undefined,
+) {
+  return useBackendQuery(
+    'automations/queries:getRunInDoubt',
+    runId === undefined ? 'skip' : { organizationId, runId },
+  );
+}
+
 /** The projects one automation is bound to — empty means org-level. */
 export function useAutomationProjects(organizationId: string, name: string) {
   return useBackendQuery('automations/queries:listAutomationProjects', {

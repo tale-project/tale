@@ -7,7 +7,7 @@ import { render, screen } from '@/tests/utils/render';
 // ---------------------------------------------------------------------------
 // Home on a phone creates nothing: its header holds the title and search, and
 // a new chat starts from the Chats view of the list below. On a desktop the
-// route sends you to the chat, where the Home panel already stands.
+// route sends you to a fresh chat, where the Home panel already stands.
 // ---------------------------------------------------------------------------
 
 const { mobile } = vi.hoisted(() => ({ mobile: { current: true } }));
@@ -17,8 +17,18 @@ vi.mock('@tanstack/react-router', () => ({
     useParams: () => ({ id: 'org-1' }),
     ...config,
   }),
-  Navigate: ({ to }: { to: string }) => (
-    <div data-testid="navigate" data-to={to} />
+  Navigate: ({
+    to,
+    search,
+  }: {
+    to: string;
+    search?: Record<string, unknown>;
+  }) => (
+    <div
+      data-testid="navigate"
+      data-to={to}
+      data-search={search ? JSON.stringify(search) : undefined}
+    />
   ),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
@@ -104,12 +114,16 @@ describe('Home route', () => {
     );
   });
 
-  it('sends a desktop visit to the chat', () => {
+  it('sends a desktop visit to a fresh chat, the page the rail opens', () => {
     mobile.current = false;
     render(<HomeScreen />);
     expect(screen.getByTestId('navigate')).toHaveAttribute(
       'data-to',
       '/dashboard/$id/chat',
+    );
+    expect(screen.getByTestId('navigate')).toHaveAttribute(
+      'data-search',
+      '{"new":true}',
     );
     expect(screen.queryByTestId('navigator')).not.toBeInTheDocument();
   });

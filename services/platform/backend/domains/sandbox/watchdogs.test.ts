@@ -308,7 +308,7 @@ describe('runSandboxWatchdog — fair reconcile', () => {
       'ses-cold-0',
       'ses-active-4',
     ]);
-    expect(stampsOf(statements)[0]?.values[1]).toHaveLength(25);
+    expect(stampsOf(statements)[0]?.values[0]).toHaveLength(25);
   });
 
   it('walks least-recently-visited first, probes with the injected spawner, and stamps every visited row', async () => {
@@ -933,7 +933,7 @@ describe('reconcileOrgSessions — the Sandboxes page mount probe', () => {
     expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
     const stamps = stampsOf(statements);
     expect(stamps).toHaveLength(1);
-    expect(stamps[0]?.values[1]).toEqual(['a', 'b']);
+    expect(stamps[0]?.values[0]).toEqual(['a', 'b']);
   });
 
   it('leaves the sweep tick unscoped (a null scope matches every org)', async () => {

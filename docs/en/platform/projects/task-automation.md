@@ -61,7 +61,7 @@ The reviewer must be different from the agent that actually produced the result,
 
 ### Delegate a captured review {#delegate-review}
 
-A manager with **Delegate pending agent reviews** can transfer one waiting agent review to another eligible agent in the same project. The recipient must already have **Review other agents’ task results**, the access needed to inspect the work, and independence from the implementation agent. The manager cannot route the review to itself or convert a human or workflow review. This permission is separate from deciding reviews and starts no work.
+A manager with **Delegate pending agent reviews** can transfer one waiting agent review to another eligible agent in the same project. The recipient must already have **Review other agents’ task results**, the access needed to inspect the work, and independence from the implementation agent. The manager cannot route the review to itself or convert a human or workflow review. The implementation agent cannot delegate the review of its own work. This permission is separate from deciding reviews and starts no work.
 
 The manager reads `task_get`, copies the full approval, source-run and captured reviewer IDs and `evidenceRevision`, and calls `task_delegate_review` with that expectation, the recipient’s full `reviewerAgentId`, and a reason. A changed source, evidence, permission or policy refuses the handoff. The implementation assignment, task status and future reviewer settings stay unchanged. If execution is needed, use ordinary admission on the recipient’s own review task, never on the implementation task being judged.
 
@@ -122,7 +122,7 @@ Answering an automation's question and deciding a workflow approval stay with pe
 
 | State or symptom | What to do |
 | --- | --- |
-| Waiting for a sandbox slot | Available capacity may be exhausted for the organization or shared infrastructure. Wait for a slot, or ask an admin to inspect [Sandboxes](/platform/admin/sandboxes). |
+| Waiting for a sandbox slot | Available capacity may be exhausted for the organization or shared infrastructure, or the agent's workspace may already be running four of its runs at once; the run then starts as soon as one of them ends. Waiting uses up no automatic retry. Wait for a slot, or ask an admin to inspect [Sandboxes](/platform/admin/sandboxes). |
 | Automatic retry is shown | Tale is retrying a recoverable failure. Read the attempt count and avoid starting another run. |
 | **The agent couldn't finish this task** | No automatic retry follows. The notice says what went wrong and who can fix it, and **Details** beside the run shows what the run itself reported; [When the agent can't finish](#when-the-agent-cant-finish) lists the cases. Resolve the cause, then use **Retry** to continue the conversation. |
 | Reassignment is refused | Cancel the live run before choosing another assignee. |
@@ -132,7 +132,11 @@ Answering an automation's question and deciding a workflow approval stay with pe
 
 Recoverable failures get up to three automatic retries, which start right away except in the cases below. A run that makes sustained progress for at least fifteen minutes receives a fresh retry allowance. This helps long work recover from interruptions; it does not prove the resulting work is correct.
 
+If Codex ends a run because the selected model is at capacity, Tale schedules its automatic retry one minute later. The failed attempt still counts toward the normal retry limit and, for automated starts, the hourly limit. Tale keeps the previous account eligible and does not switch models or pause other agents. The wait does not guarantee that the model will be available. After the retry limit or hourly limit refuses further work, the task can remain **In progress** with a failed run; that column alone does not mean an agent is still working.
+
 An automatic retry continues the work of the person who started the run, so it starts only where that person could start the run now: the project must still be active, and they must still be allowed to change the task. If an admin archives the project, or that person leaves the organization or loses the right to change the task, no further retry starts and the run stays failed. The same applies to a mention that reaches the agent only after its run has ended. Once the project is restored, anyone who can change the task can use **Retry**.
+
+Before a new run starts working, a short connection failure to its subscription broker can recover within that same run. For a run with the agent’s full permissions, Tale makes at most three GET requests, waiting at least five seconds and then ten seconds between them, within a shared 60-second request-and-result budget. Within that resolution, Tale waits at least as long as the broker requests or stops if the wait cannot fit. That transport wait is not carried into a later run; normal retry and hourly-start rules still apply. Database and DNS checks, as well as connection cleanup, can delay the final refusal. These requests add no task start or automatic retry. Tale checks the run and credential again before retrying or returning a token. Member-confined runs, POST brokers, rejected credentials and account cooldowns keep their existing behavior.
 
 An agent served by a subscription broker can lose its token while it works, when the broker refreshes the account. The retry then continues the conversation on a fresh token, and the attempt count does not advance: the retry shows the same count as the run it replaces, or **Resumed after a token refresh** when that run showed none or had worked for at least fifteen minutes, which earned it a fresh retry allowance. After two such interruptions in a row, a further one counts like any other failure.
 

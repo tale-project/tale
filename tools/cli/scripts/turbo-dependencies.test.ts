@@ -269,6 +269,14 @@ describe('dependency-aware Turbo cache', () => {
     tasks = new Map(repository.tasks.map((entry) => [entry.taskId, entry]));
   }, 60_000);
 
+  test('CLI acceptance fixtures hash the actual shared identity producer', () => {
+    expect(
+      getTask(tasks, '@tale/cli#transit').inputs[
+        '../../packages/ui/src/server/serving-identity.ts'
+      ],
+    ).toBeDefined();
+  });
+
   test('client builds and their regression guard hash the shared completion helper', () => {
     for (const service of [
       'platform',

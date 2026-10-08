@@ -33,6 +33,6 @@ Une corbeille vide signifie qu’aucun enregistrement n’est récupérable dans
 
 La corbeille ne présente jamais un chargement échoué comme vide. Si la liste ne peut pas être chargée, une alerte le signale à la place du tableau et propose **Réessayer**, au lieu de l’état vide. Si des enregistrements sont déjà listés mais que les suivants ou une actualisation ne peuvent pas être chargés, une note au-dessus de la liste le signale et propose **Réessayer**. Le décompte sous la liste n’affirme alors plus afficher tous les enregistrements.
 
-## Tenir compte des gels juridiques
+## Tenir compte des conservations légales
 
-Un [gel juridique](/fr/platform/admin/governance/legal-hold) empêche la rétention ou l’effacement de supprimer les données couvertes. Il préserve les données encore présentes, sans récupérer celles déjà supprimées définitivement. Vérifie l’historique des gels et de la rétention pour comprendre pourquoi un enregistrement est arrivé, ou non, dans la corbeille.
+Une [conservation légale](/fr/platform/admin/governance/legal-hold) empêche la rétention ou l’effacement de supprimer les données couvertes. Elle préserve les données encore présentes, sans récupérer celles déjà supprimées définitivement. Vérifie l’historique des conservations et de la rétention pour comprendre pourquoi un enregistrement est arrivé, ou non, dans la corbeille.

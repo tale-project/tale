@@ -205,6 +205,24 @@ describe('drainBackend', () => {
     );
   });
 
+  test('names what it still waits for when a newer backend breaks it down', async () => {
+    arrangeDrainStatus([
+      '{"draining":true,"inFlight":3,"generations":1,"automationRuns":2,"agentDrives":0}',
+    ]);
+    await drainBackend({ dryRun: false, pollMs: 1, timeoutMs: 10 });
+    expect(String(loggerWarnMock.mock.calls[0]?.[0])).toContain(
+      '1 chat turn(s), 2 automation step(s) and 0 agent turn window(s)',
+    );
+  });
+
+  test('still reads the bare count an older backend answers', async () => {
+    arrangeDrainStatus(['{"draining":true,"inFlight":2}']);
+    await drainBackend({ dryRun: false, pollMs: 1, timeoutMs: 10 });
+    expect(String(loggerWarnMock.mock.calls[0]?.[0])).toContain(
+      'still has 2 chat turn(s) in flight',
+    );
+  });
+
   test('treats an unparseable status as unknown, never as zero', async () => {
     arrangeDrainStatus(['not json']);
     await drainBackend({ dryRun: false, pollMs: 1, timeoutMs: 10 });

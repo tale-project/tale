@@ -233,6 +233,47 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
       vi.useRealTimers();
     });
 
+    it('holds a counted model-capacity retry for one minute after settlement without a broker timestamp', async () => {
+      await failAgentRunFromTurn(failed(), {
+        runId: 'run-1',
+        execId: 'exec-1',
+        error: 'Selected model is at capacity. Please try a different model.',
+        failureCode: 'model_capacity',
+      });
+      expect(addJobInTx).toHaveBeenCalledExactlyOnceWith(
+        expect.anything(),
+        'task.agent_retry',
+        {
+          organizationId: 'org-1',
+          taskId: 'task-1',
+          agentId: 'agent-1',
+          expectedRunId: 'run-1',
+          startAfterMs: NOW + 60_000,
+        },
+      );
+    });
+
+    it('starts the model-capacity floor after a terminal-update lock wait, not before it', async () => {
+      const { sql } = fakeSql((text) => {
+        if (!text.startsWith('UPDATE app.project_agent_runs')) return [];
+        vi.setSystemTime(NOW + 90_000);
+        return [
+          { organizationId: 'org-1', taskId: 'task-1', agentId: 'agent-1' },
+        ];
+      });
+      await failAgentRunFromTurn(sql, {
+        runId: 'run-1',
+        execId: 'exec-1',
+        error: 'model capacity',
+        failureCode: 'model_capacity',
+      });
+      expect(addJobInTx).toHaveBeenCalledWith(
+        expect.anything(),
+        'task.agent_retry',
+        expect.objectContaining({ startAfterMs: NOW + 150_000 }),
+      );
+    });
+
     it('arms the retry to start when the first account is back', async () => {
       await failAgentRunFromTurn(failed(), {
         runId: 'run-1',

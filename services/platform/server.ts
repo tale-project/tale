@@ -10,6 +10,10 @@ import {
 } from '@tale/shared/utils/site-urls';
 import { createAnalytics } from '@tale/ui/analytics/server';
 import { createPrecompiledServer, type ArtifactsServer } from '@tale/ui/seo';
+import {
+  createServingIdentity,
+  SERVING_IDENTITY_HEADER,
+} from '@tale/ui/server/serving-identity';
 import { Hono } from 'hono';
 import { NONCE, secureHeaders } from 'hono/secure-headers';
 
@@ -655,6 +659,7 @@ export function createApp(
   opts: CreateAppOptions = {},
 ): Hono {
   const app = new Hono();
+  const servingIdentity = createServingIdentity('platform');
   const analytics = createAnalytics(process.env, env.BASE_PATH);
 
   const makeSecure = (
@@ -849,6 +854,7 @@ export function createApp(
 
   app.get('/api/health', (c) => {
     c.header('Cache-Control', 'no-store');
+    c.header(SERVING_IDENTITY_HEADER, servingIdentity);
     if (existsSync(SHUTDOWN_MARKER)) {
       return c.json({ status: 'shutting_down' }, 503);
     }

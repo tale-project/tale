@@ -462,6 +462,10 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    # Graceful shutdown: close HTTP/SSE and stop the job queue inside the
+    # api's drain (SHUTDOWN_DRAIN_MS, 15s) before SIGKILL. Mirrors the CLI
+    # generator (create-backend-services.ts: 30s).
+    stop_grace_period: 30s
     # Override the image's baked web healthcheck (port 3000) with the api port.
     healthcheck:
       test: ['CMD-SHELL', 'curl -sf http://localhost:3005/ping']
@@ -532,9 +536,15 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    # Graceful shutdown: a stopping worker hands its automation runs to
+    # another one and waits out its other jobs inside its drain
+    # (SHUTDOWN_DRAIN_MS, 90s) before SIGKILL; the grace stays 15s above it.
+    # Mirrors the CLI generator (create-backend-services.ts: 120s).
+    stop_grace_period: 120s
     # The worker exposes no HTTP; the image's baked healthcheck targets the web
     # port and would read permanently unhealthy here, so disable it. Liveness
-    # is the Graphile Worker heartbeat + at-least-once job recovery.
+    # is pg-boss's job heartbeat and at-least-once recovery; a stopping worker
+    # hands its automation runs to another one (SHUTDOWN_DRAIN_MS).
     healthcheck:
       disable: true
     depends_on:

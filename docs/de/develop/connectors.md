@@ -9,7 +9,7 @@ Wenn du ein Konto in der Anwendung verbinden möchtest, nutze [Connector-Zugangs
 
 ## Wie ein Connector deklariert wird
 
-Definitionen liegen unter `configs/platform/system/connectors/<slug>/connector.yml`, zusammen mit dem Symbol des Connectors. Der Verzeichnis-Slug muss `name` entsprechen. Automatisierungen rufen Aktionen mit `<connector>.<action>` auf, etwa `tavily.search`. Anbieter-Connectoren erscheinen in den Einstellungen; interne Connectoren mit Plattformauthentifizierung nicht.
+Definitionen liegen unter `configs/platform/system/connectors/<slug>/connector.yml`, zusammen mit dem Symbol des Connectors. Der Verzeichnis-Slug muss `name` entsprechen. Automatisierungen rufen Aktionen mit `<connector>.<action>` auf, etwa `tavily.search`. Anbieter-Connectors erscheinen in den Einstellungen; interne Connectors mit Plattformauthentifizierung nicht.
 
 Dieser Ausschnitt aus der mitgelieferten Tavily-Definition zeigt Identität und Authentifizierung. Er ist kein vollständiger Connector: Die Aktionsdefinitionen fehlen hier bewusst.
 
@@ -53,6 +53,7 @@ Ein neuer Connector ist ein Quellcodebeitrag. Die Laufzeit liest den Plattformka
 | `mock` | Erforderliches deterministisches JavaScript: gleiche Eingabe, gleiche Ausgabe, kein Netzwerkzugriff |
 | `backend` | Optionale Live-Implementierung: `yaml-js` mit `live` oder `native` mit `impl`-Kennung |
 | `exampleInput` | Optionales kleines, aussagekräftiges Beispiel für Erkennung und Tests |
+| `idempotent` | Optional; nur bei einer Schreibaktion auf `true` setzen, bei der ein zweiter Aufruf mit demselben `ctx.idempotencyKey` nichts mehr ändert. Ein unterbrochener Automatisierungslauf wiederholt sie dann selbst, statt auf eine Entscheidung zu warten |
 
 Ohne Live-Backend läuft ein Connector nur mit Mocks und lehnt echte Aufrufe ab. Schreibaktionen werden nicht ausgeführt, wenn keine Genehmigungsentscheidung ermittelt werden kann. Die [Genehmigungsreferenz](/de/self-hosted/configuration/approvals) erklärt Vorrangregeln und ausstehende Entscheidungen.
 
@@ -85,14 +86,14 @@ Der Connector deklariert Autorisierungs- und Token-URLs sowie angeforderte Berec
 
 | Quelle | Vorrang und Einrichtung |
 | --- | --- |
-| Organisations-App | Hat Vorrang. Ein Administrator hinterlegt Client-ID und Geheimnis unter **Einstellungen > Connectoren > OAuth-Apps** |
+| Organisations-App | Hat Vorrang. Ein Administrator hinterlegt Client-ID und Geheimnis unter **Einstellungen > Connectors > OAuth-Apps** |
 | Deployment-App | Standard ohne Organisations-App: `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` und `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` |
 
 Schreibe den Slug in Umgebungsvariablen groß und ersetze Bindestriche durch Unterstriche. Bei einer Microsoft-App für einen einzelnen Mandanten gehört die Verzeichnis-ID dazu, damit die Autorisierung diesen Mandanten statt `/common` nutzt. Organisationsgeheimnisse werden verschlüsselt und nicht erneut angezeigt.
 
 ### Die Callback-URL exakt registrieren
 
-Alle OAuth-Connectoren der Organisation verwenden diese Redirect-URI:
+Alle OAuth-Connectors der Organisation verwenden diese Redirect-URI:
 
 ```text
 ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback

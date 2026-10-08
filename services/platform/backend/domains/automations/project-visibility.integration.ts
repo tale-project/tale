@@ -1,6 +1,3 @@
-/** Real HTTP sessions and PostgreSQL proof of automation project visibility.
- * Synthetic waiting runs have no jobs, so a worker cannot finish the fixture
- * before a read, answer or cancel. No vendor, harness or browser is involved. */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
@@ -10,6 +7,10 @@ import { getProjectAuthContext } from '../projects/service.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import { readableProjectIds } from './project-visibility.ts';
 import { AutomationError, beginRun, setAutomationProjects } from './store.ts';
+/** Real HTTP sessions and PostgreSQL proof of automation project visibility.
+ * Synthetic waiting runs have no jobs, so a worker cannot finish the fixture
+ * before a read, answer or cancel. No vendor, harness or browser is involved. */
+import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 const responseSchema = z.looseObject({
   error: z.string().optional(),
@@ -143,7 +144,9 @@ export async function checkAutomationProjectVisibility(
   }
   const seedRun = async (projectId: string | null, organizationId = orgId) => {
     const id = randomUUID();
-    await sql`
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
       INSERT INTO app.automation_runs (
         id, org_id, project_id, name, version, status, mode, started_by,
         input, checkpoints, started_at_ms
@@ -154,6 +157,7 @@ export async function checkAutomationProjectVisibility(
         ${sql.json({ nodes: {}, executions: 0 })}, ${projectId === hidden ? now + 1 : now}
       )
     `;
+    });
     return id;
   };
   const seedAsk = async (runId: string, organizationId = orgId) => {

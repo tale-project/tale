@@ -4,6 +4,7 @@ import type { TaskDelegateReviewInput } from '@tale/shared/schemas/task-review';
 import type { TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { queuedOnTask } from './comments.ts';
 import { delegateAgentTaskReview } from './review-delegation.ts';
 import { readTaskReviewSource } from './review-evidence.ts';
 import {
@@ -186,7 +187,8 @@ function fixture() {
     successor,
     state,
     writes,
-    call: (value: unknown = input) => delegateAgentTaskReview(tx, auth, value),
+    call: (value: unknown = input, caller = auth) =>
+      delegateAgentTaskReview(tx, caller, value),
   };
 }
 beforeEach(() => {
@@ -348,6 +350,45 @@ describe('TASK-R21 captured agent review delegation', () => {
       code: 'TASK_REVIEW_FORBIDDEN',
     });
     expect(loadTaskOrThrow).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['still assigned', ids.author],
+    ['since reassigned', randomUUID()],
+  ])(
+    'refuses the captured source implementation agent as the delegating caller (%s)',
+    async (_assignment, assigneeId) => {
+      vi.mocked(loadTaskOrThrow).mockResolvedValue(
+        task({ id: ids.task, assigneeId }),
+      );
+      const f = fixture();
+      await expect(
+        f.call(input, { ...auth, agentId: ids.author }),
+      ).rejects.toMatchObject({
+        code: 'TASK_REVIEWER_NOT_INDEPENDENT',
+        status: 403,
+        message:
+          'The implementation agent cannot delegate the review of its own work',
+      });
+      expect(agentReviewBlockedReason).not.toHaveBeenCalled();
+      expect(handoffPendingTaskReview).not.toHaveBeenCalled();
+      expect(recordActivity).not.toHaveBeenCalled();
+      expect(f.writes).toEqual([]);
+    },
+  );
+  it('refuses a task of another project before it queues or reads the gate', async () => {
+    vi.mocked(loadTaskOrThrow).mockResolvedValue(
+      task({ id: ids.task, assigneeId: ids.author, projectId: 'other' }),
+    );
+    const f = fixture();
+    await expect(f.call()).rejects.toMatchObject({
+      code: 'TASK_REVIEW_FORBIDDEN',
+      status: 403,
+      message: 'The task is outside this project',
+    });
+    expect(queuedOnTask).not.toHaveBeenCalled();
+    expect(readTaskReviewSource).not.toHaveBeenCalled();
+    expect(handoffPendingTaskReview).not.toHaveBeenCalled();
+    expect(f.writes).toEqual([]);
   });
   it('refuses protected live work and asks before any handoff', async () => {
     const f = fixture();

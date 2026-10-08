@@ -105,13 +105,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
                       to: '/dashboard/$id/home',
                       params: { id: organizationId },
                     }
-                  : {
-                      to: item.to,
-                      params: item.params,
-                      ...(item.state !== undefined
-                        ? { state: item.state }
-                        : {}),
-                    },
+                  : { to: item.to, params: item.params },
               );
             },
           };

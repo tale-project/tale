@@ -1,6 +1,10 @@
 import { toast } from '@tale/ui/use-toast';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import {
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
+import { StrictMode, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WRITE_ADAPTERS } from '@/app/lib/backend/adapters';
@@ -26,7 +30,13 @@ function deferredWrite() {
   return { promise, resolve, reject };
 }
 
-function DialogHost({ onClose }: { onClose: () => void }) {
+function DialogHost({
+  onClose,
+  externalOpen,
+}: {
+  onClose: () => void;
+  externalOpen?: boolean;
+}) {
   const [open, setOpen] = useState(true);
   return (
     <>
@@ -34,7 +44,7 @@ function DialogHost({ onClose }: { onClose: () => void }) {
         Reopen product
       </button>
       <ProductCreateDialog
-        isOpen={open}
+        isOpen={externalOpen ?? open}
         organizationId="org-1"
         onClose={() => {
           onClose();
@@ -45,17 +55,19 @@ function DialogHost({ onClose }: { onClose: () => void }) {
   );
 }
 
-function renderDialog() {
+function renderDialog(strict = false) {
   const client = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
   const onClose = vi.fn();
-  const rendered = render(
+  const host = (externalOpen?: boolean) => (
     <QueryClientProvider client={client}>
-      <DialogHost onClose={onClose} />
-    </QueryClientProvider>,
+      <DialogHost onClose={onClose} externalOpen={externalOpen} />
+    </QueryClientProvider>
   );
-  return { ...rendered, client, onClose };
+  const rendered = render(strict ? <StrictMode>{host()}</StrictMode> : host());
+  const setExternalOpen = (open: boolean) => rendered.rerender(host(open));
+  return { ...rendered, client, onClose, setExternalOpen };
 }
 
 async function submitWizard(user: ReturnType<typeof renderDialog>['user']) {
@@ -131,6 +143,42 @@ describe('Product Create pending lifecycle', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps an offline-paused write locked until settlement or an external close', async () => {
+    const pending = deferredWrite();
+    const run = vi.spyOn(adapter, 'run').mockReturnValue(pending.promise);
+    onlineManager.setOnline(false);
+    const { user, client, onClose, setExternalOpen } = renderDialog();
+    try {
+      await submitWizard(user);
+      await waitFor(() =>
+        expect(client.getMutationCache().getAll()[0]?.state.isPaused).toBe(
+          true,
+        ),
+      );
+      expect(run).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled();
+      await user.keyboard('{Escape}');
+      await user.click(screen.getByRole('button', { name: 'Close' }));
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      setExternalOpen(false);
+      setExternalOpen(true);
+      await user.type(
+        screen.getByLabelText('Product name'),
+        'Offline replacement',
+      );
+    } finally {
+      onlineManager.setOnline(true);
+      await act(async () => pending.resolve('product-1'));
+      await waitFor(() => expect(client.isMutating()).toBe(0));
+    }
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Product name')).toHaveValue(
+      'Offline replacement',
+    );
+  });
+
   it('retains a refused draft and allows a repaired submission', async () => {
     const first = deferredWrite();
     const repaired = deferredWrite();
@@ -178,6 +226,64 @@ describe('Product Create pending lifecycle', () => {
     await act(async () => repaired.resolve('product-2'));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(toast).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a newer draft when an externally closed submission succeeds late', async () => {
+    const pending = deferredWrite();
+    vi.spyOn(adapter, 'run').mockReturnValue(pending.promise);
+    const { user, client, onClose, setExternalOpen } = renderDialog();
+    await submitWizard(user);
+    await waitFor(() => expect(client.isMutating()).toBe(1));
+
+    // Parent-driven state changes bypass the dialog's dismissal guard.
+    setExternalOpen(false);
+    setExternalOpen(true);
+    const name = screen.getByLabelText('Product name');
+    expect(name).toHaveValue('');
+    expect(name).toBeEnabled();
+    await user.type(name, 'Newer draft');
+    await user.type(
+      screen.getByLabelText('Description', { exact: false }),
+      'New description',
+    );
+
+    await act(async () => pending.resolve('product-1'));
+    await waitFor(() => expect(client.isMutating()).toBe(0));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(name).toHaveValue('Newer draft');
+    expect(screen.getByLabelText('Description', { exact: false })).toHaveValue(
+      'New description',
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('validates a fresh draft only after blur following a successful create', async () => {
+    const pending = deferredWrite();
+    vi.spyOn(adapter, 'run').mockReturnValue(pending.promise);
+    const { user, onClose } = renderDialog();
+    await submitWizard(user);
+    await act(async () => pending.resolve('product-1'));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('button', { name: 'Reopen product' }));
+    const name = screen.getByLabelText('Product name');
+    await user.type(name, 'Next product');
+    await user.clear(name);
+    expect(name).not.toHaveAttribute('aria-invalid', 'true');
+    await user.tab();
+    await waitFor(() => expect(name).toHaveAttribute('aria-invalid', 'true'));
+  });
+
+  it('closes a healthy submission under StrictMode effect replay', async () => {
+    const pending = deferredWrite();
+    vi.spyOn(adapter, 'run').mockReturnValue(pending.promise);
+    const { user, onClose } = renderDialog(true);
+    await submitWizard(user);
+    await act(async () => pending.resolve('product-1'));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'success' }),
+    );
   });
 
   it('closes and resets exactly once after a healthy success', async () => {

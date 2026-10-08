@@ -330,6 +330,15 @@ export interface ConnectorDispatchContext {
   /** Ceiling for one live body, including the vendor calls it chains. */
   timeoutMs?: number;
   /**
+   * The caller's own stop — an automation turn's, aborted when its server
+   * is shutting down. Every request the live host makes listens to it, and
+   * the body itself is raced against it: once it aborts the call rejects
+   * with `INTERRUPTED` at once. A body running in this process cannot be
+   * stopped from outside, so it may still finish after that; the caller
+   * must treat an interrupted write as one that may have happened.
+   */
+  signal?: AbortSignal;
+  /**
    * Per-invocation CodeRunner override for the LIVE yaml-js path. A caller
    * with a sandbox session hands in the session-bound out-of-process runner
    * here — never through the process-global `setCodeRunner` slot, which two
@@ -477,6 +486,40 @@ function resolveAction(connector: Connector, name: string): ConnectorAction {
     );
   }
   return action;
+}
+
+/**
+ * Run a live body unless the caller has stopped, and stop waiting for it the
+ * moment the caller does: the rejection is `INTERRUPTED`, and the body's own
+ * later outcome is observed and dropped.
+ */
+async function unlessInterrupted<T>(
+  signal: AbortSignal | undefined,
+  where: { connector: string; action: string },
+  body: () => Promise<T>,
+): Promise<T> {
+  const interrupted = () =>
+    new ConnectorError(
+      'INTERRUPTED',
+      'the call was interrupted because its server is shutting down',
+      where,
+    );
+  if (signal === undefined) return body();
+  if (signal.aborted) throw interrupted();
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(interrupted());
+    signal.addEventListener('abort', onAbort, { once: true });
+    body().then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
 }
 
 /**
@@ -817,11 +860,13 @@ export async function executeConnectorAction(
         // oxlint-disable-next-line typescript/no-non-null-assertion
         hostCall: ctx.portableHost!,
       };
-      output = await liveRunner.runBody(
-        buildPortableLiveCode(backend.live),
-        { input, ctx: portableCtx },
-        { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
-        { async: true },
+      output = await unlessInterrupted(ctx.signal, where, () =>
+        liveRunner.runBody(
+          buildPortableLiveCode(backend.live),
+          { input, ctx: portableCtx },
+          { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
+          { async: true },
+        ),
       );
     } else {
       // IN-PROCESS path (native backends always; yaml-js under a
@@ -839,6 +884,7 @@ export async function executeConnectorAction(
           authHeader: credential.authHeader,
         }),
         ...(ctx.blobs !== undefined && { blobs: ctx.blobs }),
+        ...(ctx.signal !== undefined && { signal: ctx.signal }),
       });
 
       const connectorCtx: ConnectorContext = {
@@ -848,19 +894,23 @@ export async function executeConnectorAction(
       };
 
       if (nativeImpl) {
-        output = await nativeImpl(input, {
-          ...connectorCtx,
-          organizationId: ctx.organizationId,
-          credentialId: credential.credentialId,
-          authMethod: credential.authMethod,
-          caller,
-        });
+        output = await unlessInterrupted(ctx.signal, where, () =>
+          nativeImpl(input, {
+            ...connectorCtx,
+            organizationId: ctx.organizationId,
+            credentialId: credential.credentialId,
+            authMethod: credential.authMethod,
+            caller,
+          }),
+        );
       } else if (backend.kind === 'yaml-js') {
-        output = await liveRunner.runBody(
-          backend.live,
-          { input, ctx: connectorCtx },
-          { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
-          { async: true },
+        output = await unlessInterrupted(ctx.signal, where, () =>
+          liveRunner.runBody(
+            backend.live,
+            { input, ctx: connectorCtx },
+            { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
+            { async: true },
+          ),
         );
       }
     }

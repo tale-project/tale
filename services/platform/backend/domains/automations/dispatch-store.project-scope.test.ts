@@ -246,6 +246,44 @@ describe('MCP and engine actor project scope', () => {
     });
   });
 
+  // The MCP and engine reads answer the same read model as REST: an
+  // in-doubt park needs a person, a run that moved between servers says how
+  // often, when and why, and no read names the server.
+  it('answers an in-doubt park and the last move between servers, never the server', async () => {
+    const moved = {
+      ...run,
+      projectId: null,
+      askPending: false,
+      resumeCount: 1,
+      lastResumeReason: 'lease_expired',
+      lastResumedAt: 5,
+    };
+    vi.mocked(getRun).mockResolvedValue({
+      ...moved,
+      status: 'waiting',
+      detail: 'in_doubt:send',
+      stalled: false,
+    } as never);
+    vi.mocked(listRuns).mockResolvedValue([
+      { ...moved, status: 'running', stalled: true },
+    ] as never);
+    const engine = store();
+
+    const detail = await engine.getRun?.('run-1');
+    expect(detail).toMatchObject({
+      waitingFor: 'in_doubt',
+      resumeCount: 1,
+      lastResume: { reason: 'lease_expired', at: 5 },
+    });
+    expect(detail).not.toHaveProperty('stalled');
+    const [summary] = (await engine.listRuns?.({})) ?? [];
+    expect(summary).toMatchObject({ stalled: true, resumeCount: 1 });
+    for (const answer of [detail, summary]) {
+      expect(answer).not.toHaveProperty('lastResumeReason');
+      expect(answer).not.toHaveProperty('lastResumedAt');
+    }
+  });
+
   it('honors pinned project scope on list, detail and cancellation', async () => {
     const engine = store({ scopeProjectId: 'p-1' });
     await engine.listRuns?.({});

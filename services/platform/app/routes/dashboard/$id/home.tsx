@@ -14,8 +14,8 @@ import { seo } from '@/lib/utils/seo';
 /**
  * Home on a phone: the list of everything you work on — chats, your tasks,
  * the inbox — as the screen itself, where a desktop shows it as the panel
- * beside the page. A desktop visit lands on the chat instead, the page the
- * rail's Home opens, so a link to Home works on either. The header holds only
+ * beside the page. A desktop visit lands on a fresh chat instead, the page
+ * the rail's Home opens, so a link to Home works on either. The header holds only
  * search: Home creates nothing, and a new chat starts from the Chats view.
  */
 export const Route = createFileRoute('/dashboard/$id/home')({
@@ -35,6 +35,7 @@ function HomeScreen() {
       <Navigate
         to="/dashboard/$id/chat"
         params={{ id: organizationId }}
+        search={{ new: true }}
         replace
       />
     );
