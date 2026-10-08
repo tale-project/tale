@@ -15882,6 +15882,439 @@ async function checkMcpDiscovery(
   }
 }
 
+/**
+ * The MCP resources, prompts and the Tale skill on the real schema (MCP-R24,
+ * MCP-R25): `initialize` advertises resources and prompts; `resources/list`
+ * names the references, the catalog and the automations a person can see —
+ * a member never sees one installed only in a team project they are not in;
+ * `resources/read` answers each kind of address as its tool does (a
+ * reference as markdown, the catalog's agent section, an automation, its
+ * deployed version and a run), never the webhook token the automation's
+ * trigger holds, and answers a hidden automation and another organization's
+ * as -32002 with `AUTOMATION_NOT_FOUND`; `prompts/get` attaches the
+ * automation it is about, and refuses a member's prompt about the hidden one
+ * and a prompt about a run that does not exist; the skill reads the same as
+ * a resource and as the session download, which refuses a request without a
+ * session; and the reads are counted in `app.mcp_client_activity`.
+ */
+async function checkMcpResourcesPrompts(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
+  const mintKey = async (ownCookie: string, label: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: ownCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name: label }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const ownerKey = await mintKey(cookie, 'itest-mcp-resources');
+  const { cookie: memberCookie, userId: memberId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-resources-member',
+    'member',
+  );
+  const memberKey = await asKeyCreator(sql, { orgId, userId: memberId }, () =>
+    mintKey(memberCookie, 'itest-mcp-resources-member'),
+  );
+  let rpcId = 1200;
+  /** One JSON-RPC request: its HTTP status and the reply's body. */
+  const rpc = async (
+    method: string,
+    params: Record<string, unknown>,
+    key = ownerKey,
+  ): Promise<{ status: number; body: unknown; raw: string }> => {
+    rpcId += 1;
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'x-organization-slug': orgSlug,
+        'mcp-protocol-version': '2025-11-25',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: rpcId, method, params }),
+    });
+    const raw = await res.text();
+    let body: unknown = null;
+    try {
+      body = JSON.parse(raw);
+    } catch (error) {
+      console.warn('[itest] MCP reply is not JSON:', error);
+    }
+    return { status: res.status, body, raw };
+  };
+  const toolValue = async (
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> => {
+    const reply = await rpc('tools/call', { name, arguments: args });
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+        }),
+      })
+      .safeParse(reply.body);
+    if (!parsed.success) return {};
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return value.success ? value.data : {};
+  };
+  const contentsShape = z.object({
+    result: z.object({
+      contents: z
+        .array(
+          z.object({ uri: z.string(), mimeType: z.string(), text: z.string() }),
+        )
+        .length(1),
+    }),
+  });
+  const errorShape = z.object({
+    error: z.object({
+      code: z.number(),
+      data: z.looseObject({ code: z.string().optional() }).optional(),
+    }),
+  });
+  /** One resource read: its text and type, or the error's codes. */
+  const read = async (
+    uri: string,
+    key = ownerKey,
+  ): Promise<{
+    text: string;
+    mimeType: string;
+    rpcCode?: number;
+    code?: string;
+    raw: string;
+  }> => {
+    const reply = await rpc('resources/read', { uri }, key);
+    const ok = contentsShape.safeParse(reply.body);
+    if (ok.success) {
+      const [contents] = ok.data.result.contents;
+      return {
+        text: contents?.text ?? '',
+        mimeType: contents?.mimeType ?? '',
+        raw: reply.raw,
+      };
+    }
+    const refused = errorShape.safeParse(reply.body);
+    return {
+      text: '',
+      mimeType: '',
+      raw: reply.raw,
+      ...(refused.success
+        ? {
+            rpcCode: refused.data.error.code,
+            ...(refused.data.error.data?.code === undefined
+              ? {}
+              : { code: refused.data.error.data.code }),
+          }
+        : {}),
+    };
+  };
+  const name = 'itest-resources/report';
+  const hidden = 'itest-resources/hr';
+  const foreignName = 'itest-resources/foreign';
+  const encoded = (automation: string) =>
+    `tale://automations/${encodeURIComponent(automation)}`;
+  const now = Date.now();
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt", "updatedAt")
+    VALUES (gen_random_uuid(), 'Resources HR', ${orgId}, ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const hrRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, team_id, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Resources HR project', ${teamRows[0]?.id ?? ''},
+            ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const hrProject = hrRows[0]?.id ?? '';
+  const foreignOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${foreignOrgId}, 'Resources Foreign Tenant',
+            ${`resources-foreign-${foreignOrgId.slice(0, 8)}`}, now())
+  `;
+  await sql`
+    INSERT INTO app.automations (
+      org_id, name, version, document, created_by, created_at_ms
+    ) VALUES (
+      ${foreignOrgId}, ${foreignName}, 1,
+      ${sql.json({ version: 1, name: foreignName, nodes: [] })},
+      'itest', ${now}
+    )
+  `;
+  try {
+    // The organization's state: a deployed automation with a webhook
+    // trigger and a mock run, and one installed only in the HR project.
+    const saved = await toolValue('save_automation', {
+      automation: { ...DOC_EXAMPLE.automation, name },
+      message: 'resources lane',
+    });
+    const deployed = await toolValue('deploy_automation', {
+      name,
+      version: 1,
+    });
+    const trigger = await toolValue('set_trigger', {
+      name,
+      trigger: { kind: 'webhook' },
+    });
+    const token = typeof trigger.token === 'string' ? trigger.token : '';
+    const started = await toolValue('start_run', {
+      name,
+      mode: 'mock',
+      input: DOC_EXAMPLE.input,
+    });
+    const runId = typeof started.runId === 'string' ? started.runId : '';
+    await toolValue('save_automation', {
+      automation: { ...DOC_EXAMPLE.automation, name: hidden },
+      message: 'resources lane',
+    });
+    const installed = await toolValue('set_automation_projects', {
+      name: hidden,
+      add: [hrProject],
+    });
+
+    const init = await rpc('initialize', {
+      protocolVersion: '2025-11-25',
+      capabilities: {},
+      clientInfo: { name: 'itest-resources', version: '1.0.0' },
+    });
+    const capabilitiesOk = z
+      .object({
+        result: z.object({
+          capabilities: z.object({
+            resources: z.object({ subscribe: z.literal(false) }),
+            prompts: z.object({ listChanged: z.literal(false) }),
+          }),
+        }),
+      })
+      .safeParse(init.body).success;
+    const listShape = z.object({
+      result: z.object({
+        resources: z.array(z.object({ uri: z.string() })),
+        nextCursor: z.string().optional(),
+      }),
+    });
+    const ownerList = listShape.safeParse(
+      (await rpc('resources/list', {})).body,
+    );
+    const memberList = listShape.safeParse(
+      (await rpc('resources/list', {}, memberKey)).body,
+    );
+    const uris = (list: typeof ownerList): string[] =>
+      list.success ? list.data.result.resources.map((entry) => entry.uri) : [];
+    record(
+      'resources: initialize advertises them, and the list names what the person can see (MCP-R24)',
+      capabilitiesOk &&
+        uris(ownerList).includes('tale://docs/authoring') &&
+        uris(ownerList).includes('tale://catalog/connector') &&
+        uris(ownerList).includes(encoded(name)) &&
+        uris(ownerList).includes(encoded(hidden)) &&
+        !uris(ownerList).includes(encoded(foreignName)) &&
+        uris(memberList).includes(encoded(name)) &&
+        !uris(memberList).includes(encoded(hidden)) &&
+        JSON.stringify(installed.added) === JSON.stringify([hrProject]),
+      `init=${init.status}/${capabilitiesOk}, owner=${uris(ownerList)
+        .filter((uri) => uri.includes('itest-resources'))
+        .join(',')}, member=${uris(memberList)
+        .filter((uri) => uri.includes('itest-resources'))
+        .join(',')}, installed=${JSON.stringify(installed).slice(0, 80)}`,
+    );
+
+    const authoring = await read('tale://docs/authoring');
+    const triggers = await read('tale://docs/triggers');
+    const skill = await read('tale://docs/skill');
+    const agentKind = await read('tale://catalog/agent');
+    const automation = await read(encoded(name));
+    const live = await read(`${encoded(name)}/versions/deployed`);
+    const run = await read(`tale://runs/${encodeURIComponent(runId)}`);
+    const viewShape = z.looseObject({
+      latestVersion: z.literal(1),
+      deployedVersion: z.literal(1),
+    });
+    const parseJson = (text: string): unknown => {
+      try {
+        return JSON.parse(text);
+      } catch (error) {
+        console.warn('[itest] resource text is not JSON:', error);
+        return null;
+      }
+    };
+    record(
+      'resources/read answers each address as its tool does, never a webhook token (MCP-R24)',
+      typeof saved.version === 'number' &&
+        z
+          .object({ deployed: z.object({ version: z.literal(1) }) })
+          .safeParse(deployed).success &&
+        token !== '' &&
+        authoring.mimeType === 'text/markdown' &&
+        authoring.text.startsWith('# Automation authoring reference') &&
+        triggers.text.includes('at most 256 KiB') &&
+        skill.text.startsWith('---\nname: tale\n') &&
+        z
+          .looseObject({ reference: z.string().min(1) })
+          .safeParse(parseJson(agentKind.text)).success &&
+        automation.mimeType === 'application/json' &&
+        viewShape.safeParse(parseJson(automation.text)).success &&
+        viewShape.safeParse(parseJson(live.text)).success &&
+        z
+          .object({ run: z.looseObject({ runId: z.literal(runId) }) })
+          .safeParse(parseJson(run.text)).success &&
+        !automation.raw.includes(token) &&
+        !live.raw.includes(token),
+      `saved=${JSON.stringify(saved).slice(0, 60)}, deployed=${JSON.stringify(deployed).slice(0, 60)}, token=${token !== ''}, authoring=${authoring.mimeType}, triggers=${triggers.text.length}, skill=${skill.text.slice(0, 20)}, agent=${agentKind.text.slice(0, 60)}, automation=${automation.text.slice(0, 80)}, live=${live.rpcCode ?? 'ok'}, run=${run.rpcCode ?? run.text.slice(0, 60)}, tokenLeak=${automation.raw.includes(token) || live.raw.includes(token)}`,
+    );
+
+    const memberHidden = await read(encoded(hidden), memberKey);
+    const ownerHidden = await read(encoded(hidden));
+    const foreign = await read(encoded(foreignName));
+    const unknown = await read('tale://projects/p1');
+    record(
+      "resources/read refuses an automation the person cannot see and another organization's as not found (MCP-R24)",
+      memberHidden.rpcCode === -32002 &&
+        memberHidden.code === 'AUTOMATION_NOT_FOUND' &&
+        ownerHidden.rpcCode === undefined &&
+        foreign.rpcCode === -32002 &&
+        foreign.code === 'AUTOMATION_NOT_FOUND' &&
+        unknown.rpcCode === -32002,
+      `member hidden=${memberHidden.rpcCode}/${memberHidden.code}, owner hidden=${ownerHidden.rpcCode ?? 'ok'}, foreign=${foreign.rpcCode}/${foreign.code}, unknown=${unknown.rpcCode}`,
+    );
+
+    const promptsList = z
+      .object({
+        result: z.object({ prompts: z.array(z.object({ name: z.string() })) }),
+      })
+      .safeParse((await rpc('prompts/list', {})).body);
+    const edit = z
+      .object({
+        result: z.object({
+          messages: z
+            .array(
+              z.object({
+                content: z.looseObject({
+                  type: z.string(),
+                  resource: z.object({ uri: z.string() }).optional(),
+                }),
+              }),
+            )
+            .min(2),
+        }),
+      })
+      .safeParse(
+        (
+          await rpc('prompts/get', {
+            name: 'edit_automation',
+            arguments: { name },
+          })
+        ).body,
+      );
+    const memberTrigger = errorShape.safeParse(
+      (
+        await rpc(
+          'prompts/get',
+          { name: 'add_trigger', arguments: { name: hidden } },
+          memberKey,
+        )
+      ).body,
+    );
+    const missingRun = errorShape.safeParse(
+      (
+        await rpc('prompts/get', {
+          name: 'debug_failed_run',
+          arguments: { runId: 'itest-run-that-never-was' },
+        })
+      ).body,
+    );
+    record(
+      'prompts attach what they are about, read with the caller’s rights (MCP-R24)',
+      promptsList.success &&
+        JSON.stringify(promptsList.data.result.prompts.map((p) => p.name)) ===
+          JSON.stringify([
+            'edit_automation',
+            'debug_failed_run',
+            'add_trigger',
+          ]) &&
+        edit.success &&
+        edit.data.result.messages[1]?.content.resource?.uri === encoded(name) &&
+        memberTrigger.success &&
+        memberTrigger.data.error.code === -32602 &&
+        memberTrigger.data.error.data?.code === 'AUTOMATION_NOT_FOUND' &&
+        missingRun.success &&
+        missingRun.data.error.code === -32602 &&
+        missingRun.data.error.data?.code === 'RUN_NOT_FOUND',
+      `prompts=${promptsList.success ? promptsList.data.result.prompts.map((p) => p.name).join(',') : 'ERR'}, edit=${edit.success ? edit.data.result.messages[1]?.content.resource?.uri : 'ERR'}, member trigger=${memberTrigger.success ? `${memberTrigger.data.error.code}/${memberTrigger.data.error.data?.code}` : 'ERR'}, missing run=${missingRun.success ? `${missingRun.data.error.code}/${missingRun.data.error.data?.code}` : 'ERR'}`,
+    );
+
+    const download = await fetch(`${base}/api/app/mcp/skill`, {
+      headers: { cookie },
+    });
+    const downloaded = await download.text();
+    const anonymous = await fetch(`${base}/api/app/mcp/skill`);
+    const counted = await sql<{ method: string; calls: number }[]>`
+      SELECT method, calls FROM app.mcp_client_activity
+      WHERE org_id = ${orgId} AND user_id = ${userId}
+        AND method IN ('resources/list', 'resources/read', 'prompts/get')
+    `;
+    record(
+      'the Tale skill downloads as SKILL.md for a signed-in person only, the same file the resource serves (MCP-R25), and reads are counted',
+      download.status === 200 &&
+        (download.headers.get('content-disposition') ?? '').includes(
+          'filename="SKILL.md"',
+        ) &&
+        downloaded === skill.text &&
+        anonymous.status === 401 &&
+        ['resources/list', 'resources/read', 'prompts/get'].every((method) =>
+          counted.some((row) => row.method === method && row.calls > 0),
+        ) &&
+        !JSON.stringify(counted).includes('tale://'),
+      `download=${download.status}/${downloaded === skill.text}, anonymous=${anonymous.status}, counted=${JSON.stringify(counted)}`,
+    );
+  } finally {
+    await sql`
+      DELETE FROM app.automation_triggers
+      WHERE org_id = ${orgId} AND name IN (${name}, ${hidden})
+    `;
+    await sql`
+      DELETE FROM app.automation_project_bindings
+      WHERE org_id = ${orgId} AND automation_name IN (${name}, ${hidden})
+    `;
+    await sql`
+      DELETE FROM app.automation_deployments
+      WHERE org_id = ${orgId} AND name IN (${name}, ${hidden})
+    `;
+    await sql`
+      DELETE FROM app.automations
+      WHERE org_id = ${orgId} AND name IN (${name}, ${hidden})
+    `;
+    await sql`DELETE FROM app.automations WHERE org_id = ${foreignOrgId}`;
+    await sql`DELETE FROM "organization" WHERE "id" = ${foreignOrgId}`;
+    await sql`DELETE FROM app.projects WHERE id = ${hrProject} AND org_id = ${orgId}`;
+    await sql`DELETE FROM "team" WHERE "id" = ${teamRows[0]?.id ?? ''}`;
+    // The lanes after this one spend the same request and execution budgets.
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
+  }
+}
+
 /** The retired standalone goal-authoring endpoint no longer accepts work. */
 async function checkRetiredBuilderRoute(
   base: string,
@@ -61909,6 +62342,11 @@ async function main(): Promise<void> {
       [
         'checkMcpDiscovery',
         () => checkMcpDiscovery(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkMcpResourcesPrompts',
+        () =>
+          checkMcpResourcesPrompts(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
       [
         'checkRetiredBuilderRoute',
