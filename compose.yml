@@ -753,7 +753,10 @@ services:
       # `-f`. NOT `nc -z`: tinyproxy logs every connect-and-close at ERROR
       # ("read_request_line: Client … closed socket before read."), which
       # wrote one error line per interval into the log an operator reads to
-      # find real failures.
+      # find real failures. Then one DNS query to dnsmasq on 127.0.0.1 for the
+      # name it answers from its own `--host-record`: nested containers and
+      # BuildKit RUN steps resolve only through it, and busybox `nslookup`
+      # exits non-zero when it does not answer within a second.
       # We intentionally do NOT CONNECT-probe an external host (pypi/npm)
       # — flapping that probe against a transient upstream outage flips
       # the spawner's `depends_on: service_healthy` gate to false and
@@ -764,7 +767,7 @@ services:
       test:
         [
           'CMD-SHELL',
-          "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ || exit 1",
+          "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1 || exit 1",
         ]
       interval: 10s
       timeout: 5s

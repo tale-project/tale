@@ -83,6 +83,42 @@ fi
 echo "[sandbox-egress] config:"
 sed 's/^/  /' /etc/tinyproxy/tinyproxy.conf
 
+# Supervision. This shell (PID 1) runs dnsmasq and tinyproxy in the
+# background and watches both. Either one exiting on its own stops the other
+# and exits non-zero, so the restart policy brings the container back whole:
+# nested containers and BuildKit RUN steps resolve names only through this
+# dnsmasq, so a proxy left serving without it is a silent DNS outage for every
+# session. A trap forwards INT/TERM to both, so `docker stop` gives them a
+# clean shutdown (drained CONNECT tunnels) instead of the SIGKILL that follows
+# the grace period, and the shell then exits with tinyproxy's status. The
+# trap is set before either starts, and the stop path signals both again, so
+# a stop that arrives while they are starting still reaches both. (Not `exec
+# tinyproxy`: that replaces the shell and with it the trap — shell traps do
+# not survive exec — so dnsmasq would never be watched or stopped.)
+#
+# errexit is switched off from here on: when the trap fires mid-`wait`, POSIX
+# `wait` returns 128+signal (143) and `set -e` would exit PID 1 right there —
+# before the forwarded TERM is acted on and before the reaping `wait` — which
+# tears down the pid namespace and SIGKILLs the children anyway.
+set +e
+STOPPING=
+DNSMASQ_PID=
+TINYPROXY_PID=
+NAP_PID=
+trap 'STOPPING=1; kill -TERM $TINYPROXY_PID $DNSMASQ_PID $NAP_PID 2>/dev/null' INT TERM
+
+# Whether a child still runs. /proc answers without signalling it: tinyproxy
+# runs as nobody, and root may signal it only while it holds KILL. `kill -0`
+# stands in where there is no /proc. Once the shell has reaped a child, it is
+# gone from both.
+running() {
+  if [ -d /proc/self ]; then
+    [ -d "/proc/$1" ]
+  else
+    kill -0 "$1" 2>/dev/null
+  fi
+}
+
 # DNS forwarder for the internal sandbox network. The runtime session and its
 # nested DinD containers live on `tale-sandbox-net` (internal-only) and cannot
 # resolve external hostnames — their embedded DNS forwards to public resolvers
@@ -93,36 +129,57 @@ sed 's/^/  /' /etc/tinyproxy/tinyproxy.conf
 # interfaces so the sandbox side can point its resolver here. `--bind-dynamic`
 # also binds interfaces that appear later; `-u root` since :53 is privileged and
 # the entrypoint still runs as root at this point.
+#
+# `--cache-size=4096`: every session, nested container and build step of the
+# fleet resolves through this one forwarder, and dnsmasq's default cache of
+# 150 names evicts entries long before their TTLs run out, sending repeat
+# lookups upstream again; 4096 names take well under 1 MB. `--host-record`
+# gives the health probe a name dnsmasq answers from its own configuration, so
+# the probe proves the forwarder answers on :53 without depending on an
+# upstream resolver (nothing under `.invalid` exists in public DNS).
 echo "[sandbox-egress] starting dnsmasq DNS forwarder on :53 (internal-network external resolution)"
-dnsmasq --keep-in-foreground --bind-dynamic --no-hosts -u root &
+dnsmasq --keep-in-foreground --bind-dynamic --no-hosts -u root \
+  --cache-size=4096 --host-record=sandbox-egress-health.invalid,127.0.0.1 &
 DNSMASQ_PID=$!
 
-# Run tinyproxy in the background and `wait` on it from this shell (PID 1).
 # tinyproxy logs to its stdout, which is the container log, so nothing else
-# needs to run beside it. A trap forwards INT/TERM to tinyproxy and dnsmasq
-# so `docker stop` gives them a clean shutdown (drained CONNECT tunnels)
-# instead of the SIGKILL that follows the grace period. The final `wait`
-# reaps everything before the shell exits and the container goes down. (Not
-# `exec tinyproxy`: that replaces the shell and with it the trap — shell traps
-# do not survive exec — so dnsmasq would never be stopped.) If tinyproxy dies
-# on its own the first `wait` returns and the container exits for the restart
-# policy to act on.
-#
-# errexit is switched off from here on: when the trap fires mid-`wait`, POSIX
-# `wait` returns 128+signal (143) and `set -e` would exit PID 1 right there —
-# before the forwarded TERM is acted on and before the reaping `wait` — which
-# tears down the pid namespace and SIGKILLs the children anyway. The shell
-# still exits with tinyproxy's status (143 on stop, its own code on a crash).
+# needs to run beside it.
 tinyproxy -d -c /etc/tinyproxy/tinyproxy.conf &
 TINYPROXY_PID=$!
-trap 'kill -TERM "$TINYPROXY_PID" "$DNSMASQ_PID" 2>/dev/null || true' INT TERM
 
-set +e
-wait "$TINYPROXY_PID"
+# Check on both every two seconds. The `wait` on the nap is what reaps a child
+# that exited, and a signal interrupts it at once.
+while [ -z "$STOPPING" ] && running "$TINYPROXY_PID" && running "$DNSMASQ_PID"; do
+  sleep 2 &
+  NAP_PID=$!
+  wait "$NAP_PID"
+  NAP_PID=
+done
+
+if [ -n "$STOPPING" ]; then
+  kill -TERM "$TINYPROXY_PID" "$DNSMASQ_PID" 2>/dev/null
+  wait "$TINYPROXY_PID"
+  rc=$?
+  # A second signal interrupts `wait` before tinyproxy has exited; wait on it
+  # again so its shutdown is reaped before the shell exits.
+  wait "$TINYPROXY_PID" 2>/dev/null
+  wait
+  exit "$rc"
+fi
+
+if running "$TINYPROXY_PID"; then
+  DEAD=dnsmasq
+  DEAD_PID=$DNSMASQ_PID
+else
+  DEAD=tinyproxy
+  DEAD_PID=$TINYPROXY_PID
+fi
+wait "$DEAD_PID"
 rc=$?
-# A signal interrupts `wait` before tinyproxy has exited; wait on it again so
-# its clean shutdown (not the trap's delivery) is what we report and reap.
-wait "$TINYPROXY_PID" 2>/dev/null
-kill -TERM "$DNSMASQ_PID" 2>/dev/null
+echo "[sandbox-egress] FATAL: ${DEAD} exited with status ${rc}; stopping the proxy so the container restarts with both"
+kill -TERM "$TINYPROXY_PID" "$DNSMASQ_PID" 2>/dev/null
 wait
+if [ "$rc" -eq 0 ]; then
+  rc=1
+fi
 exit "$rc"

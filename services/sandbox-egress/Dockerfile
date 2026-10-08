@@ -55,8 +55,12 @@ EXPOSE 53/udp
 # from redirecting the probe. NOT `nc -z`: tinyproxy logs every
 # connect-and-close at ERROR ("read_request_line: Client … closed socket
 # before read."), so a TCP probe floods the log with one error per interval.
+# Then one DNS query to dnsmasq on 127.0.0.1 for the name it answers from its
+# own `--host-record` (entrypoint.sh): busybox `nslookup` exits non-zero on no
+# answer within a second or on an error reply, so a forwarder that stopped
+# answering turns the container unhealthy without any upstream lookup.
 # Keep byte-identical to EGRESS_HEALTH_PROBE in the CLI compose generator.
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ || exit 1
+  CMD curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1 || exit 1
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

@@ -53,7 +53,7 @@ The probes translate the Compose health checks:
 | `object-store` | none | `mc ready local` | none |
 | `proxy` | none | `GET /health` on 2020 | none |
 | `sandbox` | `GET /health` on 8003 | `GET /health` on 8003 | none |
-| `sandbox-egress` | none | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/` | none |
+| `sandbox-egress` | none | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1` | none |
 | `sandbox-llm-gateway` | none | `GET /health` on 8080 | none |
 
 Kubernetes has no `depends_on`. A backend role that starts before Postgres answers exits once with `ECONNREFUSED`, and the restart policy heals it.
@@ -505,8 +505,9 @@ spec:
               add: ['NET_ADMIN', 'DAC_OVERRIDE', 'CHOWN', 'SETUID', 'SETGID', 'NET_BIND_SERVICE', 'KILL']
           ports: [{ name: proxy, containerPort: 3128 }]
           readinessProbe:
-            exec: { command: [sh, -c, "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/"] }
+            exec: { command: [sh, -c, "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1"] }
             periodSeconds: 10
+            timeoutSeconds: 5
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 512Mi }

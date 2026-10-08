@@ -310,6 +310,22 @@ describe('egress readiness probe parity (log-flood guard)', () => {
       expect(command).not.toMatch(/nc\s+-z/);
     });
   }
+
+  // Nested containers and BuildKit RUN steps resolve names only through the
+  // proxy's dnsmasq, so the probe asks it too: for a name it answers from its
+  // own configuration, on loopback, never through an upstream resolver.
+  test('the probe asks dnsmasq for the name the entrypoint has it answer itself', () => {
+    const query =
+      /nslookup -type=a -timeout=1 (\S+\.invalid) 127\.0\.0\.1 /.exec(
+        EGRESS_HEALTH_PROBE,
+      );
+    expect(query).not.toBeNull();
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/sandbox-egress/entrypoint.sh'),
+      'utf8',
+    );
+    expect(entrypoint).toContain(`--host-record=${query?.[1]},127.0.0.1`);
+  });
 });
 
 describe('sandbox spawner URL parity', () => {

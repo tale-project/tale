@@ -1,7 +1,8 @@
-// Render the egress proxy's tinyproxy config through its real entrypoint.
-// Paths move into a scratch directory and the daemons it supervises are
-// stubs; the template, the variable handling and envsubst are the real ones
-// (a stand-in that honours envsubst's SHELL-FORMAT where it is missing).
+// Render the egress proxy's tinyproxy config and supervise its daemons
+// through its real entrypoint. Paths move into a scratch directory and the
+// daemons it supervises are stubs; the template, the variable handling, the
+// supervision and envsubst are the real ones (a stand-in that honours
+// envsubst's SHELL-FORMAT where it is missing).
 import { afterAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import {
@@ -28,20 +29,50 @@ writeFileSync(
   join(etc, 'tinyproxy.conf.template'),
   readFileSync(join(egressDir, 'tinyproxy.conf.template'), 'utf8'),
 );
-// The supervised daemons exit at once; tinyproxy first says the open-file
-// limit it was started with. A `tail` records that something ran it: the
-// proxy logs to stdout, so nothing should poll a log file beside it.
-writeFileSync(join(bin, 'dnsmasq'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+// The supervised daemons run until a TERM, note it in `events` and exit 0,
+// as both real daemons do. dnsmasq first records its arguments, tinyproxy the
+// open-file limit it was started with; once dnsmasq is up, tinyproxy asks the
+// entrypoint to stop, as `docker stop` would, unless STUB_TINYPROXY_STAY is
+// set.
+// STUB_<DAEMON>_EXIT makes a daemon exit on its own at once with that status.
+// A `tail` records that something ran it: the proxy logs to stdout, so
+// nothing should poll a log file beside it.
+const events = join(root, 'events');
+const dnsmasqArgs = join(root, 'dnsmasq-args');
+const tinyproxyFiles = join(root, 'tinyproxy-nofile');
+const untilStopped = (name: string) =>
+  `trap 'kill "$nap" 2>/dev/null; echo ${name} stopped >> "${events}"; exit 0' TERM`;
+const idle = 'while :; do sleep 1 & nap=$!; wait "$nap"; done';
+writeFileSync(
+  join(bin, 'dnsmasq'),
+  [
+    '#!/bin/sh',
+    untilStopped('dnsmasq'),
+    `echo "$@" > '${dnsmasqArgs}'`,
+    '[ -z "$STUB_DNSMASQ_EXIT" ] || exit "$STUB_DNSMASQ_EXIT"',
+    idle,
+    '',
+  ].join('\n'),
+  { mode: 0o755 },
+);
+writeFileSync(
+  join(bin, 'tinyproxy'),
+  [
+    '#!/bin/sh',
+    untilStopped('tinyproxy'),
+    `ulimit -n > '${tinyproxyFiles}'`,
+    '[ -z "$STUB_TINYPROXY_EXIT" ] || exit "$STUB_TINYPROXY_EXIT"',
+    `while [ ! -e '${dnsmasqArgs}' ]; do sleep 1; done`,
+    '[ -n "$STUB_TINYPROXY_STAY" ] || kill -TERM "$PPID"',
+    idle,
+    '',
+  ].join('\n'),
+  { mode: 0o755 },
+);
 const tailRuns = join(root, 'tail-runs');
 writeFileSync(join(bin, 'tail'), `#!/bin/sh\necho "$@" >> '${tailRuns}'\n`, {
   mode: 0o755,
 });
-const tinyproxyFiles = join(root, 'tinyproxy-nofile');
-writeFileSync(
-  join(bin, 'tinyproxy'),
-  `#!/bin/sh\nulimit -n > '${tinyproxyFiles}'\nexit 0\n`,
-  { mode: 0o755 },
-);
 const envsubst = Bun.which('envsubst');
 if (envsubst !== null) symlinkSync(envsubst, join(bin, 'envsubst'));
 else
@@ -61,12 +92,22 @@ const entrypoint = readFileSync(
 ).replaceAll('/etc/tinyproxy', etc);
 
 /** Run the entrypoint; `before` runs first in the same shell (a lower
- * open-file limit, say). */
-function boot(maxClients?: string, before = '') {
-  rmSync(join(etc, 'tinyproxy.conf'), { force: true });
-  rmSync(tinyproxyFiles, { force: true });
+ * open-file limit, say), and `stubs` steers the stand-in daemons. */
+function boot(
+  maxClients?: string,
+  before = '',
+  stubs: Record<string, string> = {},
+) {
+  for (const file of [
+    join(etc, 'tinyproxy.conf'),
+    tinyproxyFiles,
+    dnsmasqArgs,
+    events,
+  ])
+    rmSync(file, { force: true });
   const env: Record<string, string | undefined> = {
     ...process.env,
+    ...stubs,
     PATH: `${bin}:/usr/bin:/bin`,
     SANDBOX_EGRESS_ALLOWLIST: '',
   };
@@ -75,6 +116,9 @@ function boot(maxClients?: string, before = '') {
   const result = spawnSync('/bin/sh', ['-c', `${before}\n${entrypoint}`], {
     env,
     encoding: 'utf8',
+    // A supervisor that never notices its daemons would hang the suite; the
+    // TERM at the deadline takes the stop path instead.
+    timeout: 20_000,
   });
   let config: string | null = null;
   try {
@@ -85,6 +129,9 @@ function boot(maxClients?: string, before = '') {
   }
   return { result, config };
 }
+
+const stopped = () =>
+  existsSync(events) ? readFileSync(events, 'utf8').trim().split('\n') : [];
 
 const directive = (config: string | null, name: string) =>
   config
@@ -101,6 +148,45 @@ describe('egress proxy logging', () => {
     expect(directive(config, 'LogFile')).toEqual([]);
     expect(directive(config, 'Syslog')).toEqual([]);
     expect(existsSync(tailRuns)).toBe(false);
+  });
+});
+
+describe('egress proxy supervision', () => {
+  test("a stop request stops both daemons and exits with tinyproxy's status", () => {
+    const { result } = boot();
+    expect(result.status).toBe(0);
+    expect(stopped().sort()).toEqual(['dnsmasq stopped', 'tinyproxy stopped']);
+    expect(result.stdout).not.toContain('FATAL');
+  });
+
+  test('dnsmasq exiting on its own stops tinyproxy and the container with its status', () => {
+    const { result } = boot(undefined, '', {
+      STUB_DNSMASQ_EXIT: '3',
+      STUB_TINYPROXY_STAY: '1',
+    });
+    expect(result.status).toBe(3);
+    expect(result.stdout).toContain(
+      'FATAL: dnsmasq exited with status 3; stopping the proxy so the container restarts with both',
+    );
+    expect(stopped()).toEqual(['tinyproxy stopped']);
+  });
+
+  test('tinyproxy exiting on its own stops dnsmasq and exits non-zero even on status 0', () => {
+    const { result } = boot(undefined, '', { STUB_TINYPROXY_EXIT: '0' });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('FATAL: tinyproxy exited with status 0');
+    expect(stopped()).toEqual(['dnsmasq stopped']);
+  });
+
+  test('dnsmasq caches 4096 names and answers the health probe name itself', () => {
+    const { result } = boot();
+    expect(result.status).toBe(0);
+    const args = readFileSync(dnsmasqArgs, 'utf8').trim().split(' ');
+    expect(args).toContain('--keep-in-foreground');
+    expect(args).toContain('--cache-size=4096');
+    expect(args).toContain(
+      '--host-record=sandbox-egress-health.invalid,127.0.0.1',
+    );
   });
 });
 
