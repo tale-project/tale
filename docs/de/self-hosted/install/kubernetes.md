@@ -686,6 +686,59 @@ description: Tale sandbox sessions yield to the platform.
 
 Die Einstellungen gelten für jeden Session-Pod, auch für Crawler-Renders, und zwar für die Sessions, die der Spawner nach seinem Neustart anlegt; laufende Sessions behalten ihre Platzierung. Ein fehlerhafter Wert verhindert den Start des Spawners. Bei Node-lokalem Speicher bleibt der Workspace-Claim einer gestoppten Session auf ihrem Node; behalte diesen Node im Selektor, sonst lässt sich die Session nicht fortsetzen.
 
+### Sandbox-Images vorab laden
+
+Auf Kubernetes lädt nicht der Spawner die Images, sondern das Kubelet für jeden Pod. Die erste Session auf einem Node lädt deshalb das Runtime-Image, einen Download von etwa 2 GB, innerhalb ihres Startbudgets (`SANDBOX_SESSION_CREATE_TIMEOUT_MS`, standardmäßig 180 Sekunden), und die Image-Garbage-Collection des Kubelets kann das Image wieder entfernen, sobald kein Pod es nutzt. Dieses optionale DaemonSet lädt die Sandbox-Images vor der ersten Session auf jeden Node und hält sie dort: Jeder Init-Container startet ein Image und beendet sich sofort, der Pause-Container hält den Pod am Leben, und solange der Pod besteht, gelten diese Images für das Kubelet als in Gebrauch. Jeder Container fordert 1m CPU und 4 MiB Arbeitsspeicher an.
+
+```yaml
+# 45-sandbox-prepull.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: { name: sandbox-image-prepull, namespace: tale }
+spec:
+  selector: { matchLabels: { app: sandbox-image-prepull } }
+  updateStrategy: { rollingUpdate: { maxUnavailable: 25% } }
+  template:
+    metadata: { labels: { app: sandbox-image-prepull } }
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 0
+      # Setzt du SANDBOX_K8S_NODE_SELECTOR und SANDBOX_K8S_TOLERATIONS, übernimm hier dieselben Werte:
+      # nodeSelector: { tale.dev/sandbox: 'true' }
+      # tolerations: [{ key: tale.dev/sandbox, operator: Exists, effect: NoSchedule }]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: runtime
+          image: ghcr.io/tale-project/tale/tale-sandbox-runtime:${VERSION}
+          command: [sh, -c, 'exit 0']
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 32Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+        - name: egress
+          image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION}
+          command: [sh, -c, 'exit 0']
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 32Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+        - name: gateway
+          image: ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:${VERSION}
+          command: [sh, -c, 'exit 0']
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 32Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 16Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+```
+
+Entscheidend ist das Runtime-Image: Jeder Session-Pod und sein Egress-Sidecar starten daraus. Die Images von Egress und Gateway ersparen einen Download, wenn diese Deployments auf einen anderen Node wechseln; entferne ihre Init-Container, wenn Sessions auf eigenen Nodes laufen, die diese Deployments nie nutzen. Setzt du `SANDBOX_K8S_NODE_SELECTOR` und `SANDBOX_K8S_TOLERATIONS`, gib dem DaemonSet dieselben Werte, damit es genau auf den Session-Nodes läuft.
+
+Die Image-Tags folgen wie in jeder anderen Datei `${VERSION}`. Nimm `45-sandbox-prepull.yaml` deshalb in die Apply-Schleife auf, dann lädt jedes Upgrade das neue Release auf jeden Node. Wendest du die Datei separat an, musst du ihre Tags mit jedem Release anheben; sonst hält sie alte Images auf den Nodes, und die erste Session lädt das neue Image wieder selbst. Wende die Datei bei einem Upgrade zuerst an und warte auf `kubectl -n tale rollout status ds/sandbox-image-prepull`, bevor du den Rest anwendest, damit das neue Runtime-Image bereitliegt, bevor der Spawner Sessions daraus anlegt.
+
 ### Was der Spawner durchsetzt
 
 Beim Start legt der Spawner die NetworkPolicy `tale-sandbox-session-egress` an: Sitzungs-Pods erreichen DNS und die Pods ihres eigenen Namespace und sonst nichts. Der Cloud-Metadatendienst, die Nodes und andere Namespaces bleiben damit auch für einen Prozess unerreichbar, der `HTTP_PROXY` ignoriert. Öffentliche Ziele laufen über `sandbox-egress`. Eine fehlende Berechtigung für `networkpolicies` wird protokolliert und stoppt den Spawner nicht; prüfe, dass die Richtlinie existiert, bevor du Arbeit zulässt.
@@ -738,4 +791,4 @@ Snapshots, Blue-Green-Wechsel und Rollback-Prüfungen der CLI laufen auf Kuberne
 
 ## Geprüfter Umfang
 
-Diese fünf Dateien wurden bis auf die Secret-Werte unverändert auf einem frischen kind-Cluster mit einem Node, Kubernetes 1.36, kube-network-policies, der StorageClass local-path und Tale 0.5.31 angewendet: Start und Migrationen, der öffentliche Zugang, die Einrichtung des ersten Inhabers samt Sandboxes-Karte, eine Agentenaufgabe mit Ergebnis, der Sitzungslebenszyklus einschließlich Leerlaufstopp, Fortsetzung und replikatübergreifendem Zugriff, die Sperrprüfungen oben und ein Rolling Restart der API mit zwei Replikaten. Mehrere Nodes mit `ReadWriteMany`-Konfigurationsspeicher, Docker in Sitzungen auf einer sysbox- oder kata-RuntimeClass, ein Ingress mit `TLS_MODE=external` und hochverfügbare Speicher waren nicht Teil dieses Laufs.
+Diese fünf Dateien wurden bis auf die Secret-Werte unverändert auf einem frischen kind-Cluster mit einem Node, Kubernetes 1.36, kube-network-policies, der StorageClass local-path und Tale 0.5.31 angewendet: Start und Migrationen, der öffentliche Zugang, die Einrichtung des ersten Inhabers samt Sandboxes-Karte, eine Agentenaufgabe mit Ergebnis, der Sitzungslebenszyklus einschließlich Leerlaufstopp, Fortsetzung und replikatübergreifendem Zugriff, die Sperrprüfungen oben und ein Rolling Restart der API mit zwei Replikaten. Mehrere Nodes mit `ReadWriteMany`-Konfigurationsspeicher, Docker in Sitzungen auf einer sysbox- oder kata-RuntimeClass, ein Ingress mit `TLS_MODE=external` und hochverfügbare Speicher waren nicht Teil dieses Laufs. Die Festplattengrenzen und Platzierungseinstellungen der Session-Pods sowie das optionale Pre-Pull-DaemonSet kamen später hinzu und waren ebenfalls nicht Teil davon.

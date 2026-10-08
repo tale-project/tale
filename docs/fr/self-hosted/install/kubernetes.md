@@ -686,6 +686,59 @@ description: Tale sandbox sessions yield to the platform.
 
 Ces paramètres s’appliquent à chaque Pod de session, rendus du crawler compris, pour les sessions que le spawner crée après son redémarrage ; les sessions en cours gardent leur placement. Une valeur mal formée empêche le spawner de démarrer. Avec un stockage local au nœud, le claim de workspace d’une session arrêtée reste sur son nœud : garde ce nœud dans le sélecteur, sinon la session ne peut pas reprendre.
 
+### Précharger les images de la sandbox
+
+Sur Kubernetes, ce n’est pas le spawner qui télécharge les images, mais le kubelet, Pod par Pod. La première session sur un nœud télécharge donc l’image du runtime, environ 2 Go, dans son budget de démarrage (`SANDBOX_SESSION_CREATE_TIMEOUT_MS`, 180 secondes par défaut), et le ramasse-miettes d’images du kubelet peut la supprimer de nouveau dès qu’aucun Pod ne l’utilise. Ce DaemonSet facultatif télécharge les images de la sandbox sur chaque nœud avant la première session et les y garde : chaque conteneur d’initialisation démarre une image et se termine aussitôt, le conteneur pause maintient le Pod en vie, et tant que le Pod existe, le kubelet considère ces images comme utilisées. Chaque conteneur demande 1m de CPU et 4 Mio de mémoire.
+
+```yaml
+# 45-sandbox-prepull.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: { name: sandbox-image-prepull, namespace: tale }
+spec:
+  selector: { matchLabels: { app: sandbox-image-prepull } }
+  updateStrategy: { rollingUpdate: { maxUnavailable: 25% } }
+  template:
+    metadata: { labels: { app: sandbox-image-prepull } }
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 0
+      # Si tu définis SANDBOX_K8S_NODE_SELECTOR et SANDBOX_K8S_TOLERATIONS, reprends ici les mêmes valeurs :
+      # nodeSelector: { tale.dev/sandbox: 'true' }
+      # tolerations: [{ key: tale.dev/sandbox, operator: Exists, effect: NoSchedule }]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: runtime
+          image: ghcr.io/tale-project/tale/tale-sandbox-runtime:${VERSION}
+          command: [sh, -c, 'exit 0']
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 32Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+        - name: egress
+          image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION}
+          command: [sh, -c, 'exit 0']
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 32Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+        - name: gateway
+          image: ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:${VERSION}
+          command: [sh, -c, 'exit 0']
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 32Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 16Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+```
+
+C’est l’image du runtime qui compte : chaque Pod de session et son sidecar de sortie démarrent à partir d’elle. Les images du proxy de sortie et de la passerelle évitent un téléchargement quand ces Deployments changent de nœud ; retire leurs conteneurs d’initialisation si les sessions tournent sur des nœuds dédiés que ces Deployments n’utilisent jamais. Si tu définis `SANDBOX_K8S_NODE_SELECTOR` et `SANDBOX_K8S_TOLERATIONS`, donne les mêmes valeurs au DaemonSet pour qu’il tourne exactement sur les nœuds des sessions.
+
+Les tags des images suivent `${VERSION}` comme dans tous les autres fichiers : ajoute `45-sandbox-prepull.yaml` à la boucle d’application, et chaque mise à niveau télécharge la nouvelle version sur chaque nœud. Si tu appliques le fichier à part, relève ses tags à chaque version ; sinon il garde les anciennes images sur les nœuds et la première session retélécharge la nouvelle. Lors d’une mise à niveau, applique ce fichier en premier et attends `kubectl -n tale rollout status ds/sandbox-image-prepull` avant le reste, pour que la nouvelle image du runtime soit en place avant que le spawner crée des sessions à partir d’elle.
+
 ### Ce que le spawner impose
 
 Au démarrage, le spawner applique la NetworkPolicy `tale-sandbox-session-egress` : les Pods de session peuvent joindre le DNS et les Pods de leur propre namespace, rien d’autre. Le service de métadonnées du cloud, les nœuds et les autres namespaces restent ainsi inaccessibles, même pour un processus qui ignore `HTTP_PROXY`. Les destinations publiques passent par `sandbox-egress`. Une permission `networkpolicies` absente est journalisée sans arrêter le spawner ; vérifie que la politique existe avant d’admettre des traitements.
@@ -738,4 +791,4 @@ Les snapshots, bascules bleu-vert et contrôles de rollback de la CLI ne s’ex�
 
 ## Périmètre vérifié
 
-Ces cinq fichiers ont été appliqués tels quels, à l’exception des valeurs du Secret, sur un cluster kind neuf à un seul nœud, avec Kubernetes 1.36, kube-network-policies, la StorageClass local-path et Tale 0.5.31 : démarrage et migrations, point d’entrée public, création du premier propriétaire et carte Sandboxes, tâche d’agent avec livrable, cycle de vie des sessions avec arrêt sur inactivité, reprise et accès entre réplicas, les sondes de barrière ci-dessus et un redémarrage progressif de l’API à deux réplicas. La planification sur plusieurs nœuds avec un stockage de configuration `ReadWriteMany`, Docker dans les sessions sur une RuntimeClass sysbox ou kata, un Ingress avec `TLS_MODE=external` et des stockages hautement disponibles ne faisaient pas partie de cet essai.
+Ces cinq fichiers ont été appliqués tels quels, à l’exception des valeurs du Secret, sur un cluster kind neuf à un seul nœud, avec Kubernetes 1.36, kube-network-policies, la StorageClass local-path et Tale 0.5.31 : démarrage et migrations, point d’entrée public, création du premier propriétaire et carte Sandboxes, tâche d’agent avec livrable, cycle de vie des sessions avec arrêt sur inactivité, reprise et accès entre réplicas, les sondes de barrière ci-dessus et un redémarrage progressif de l’API à deux réplicas. La planification sur plusieurs nœuds avec un stockage de configuration `ReadWriteMany`, Docker dans les sessions sur une RuntimeClass sysbox ou kata, un Ingress avec `TLS_MODE=external` et des stockages hautement disponibles ne faisaient pas partie de cet essai. Les limites de disque et les réglages de placement des Pods de session, ainsi que le DaemonSet facultatif de préchargement, sont venus plus tard et n’en faisaient pas partie non plus.

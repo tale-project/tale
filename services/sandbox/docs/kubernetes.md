@@ -128,6 +128,17 @@ extra RBAC; a cluster administrator creates the PriorityClass once. A
 changed selector reaches new Pods only, and with node-local storage a
 stopped session resumes only on the node that holds its workspace PVC.
 
+**Image pre-pull:** `warmImage` is a no-op on this backend; the kubelet
+pulls the runtime image per Pod. The first session on a node pulls it
+(about 2 GB compressed) inside its create budget, and kubelet image garbage
+collection can remove it again once no Pod uses it. The
+[Kubernetes install guide](../../../docs/en/self-hosted/install/kubernetes.md)
+ships an optional DaemonSet, `45-sandbox-prepull.yaml`: no-op init
+containers of the runtime, egress and gateway images behind a pause
+container (`1m` / `4Mi` requests), on the same `${VERSION}` tags as the
+rest of the manifests and with the session placement as a commented-out
+selector and toleration.
+
 ## RBAC (namespaced Role — no cluster scope, no `pods/exec`)
 
 The spawner Deployment's ServiceAccount needs a Role in the sandbox namespace:
