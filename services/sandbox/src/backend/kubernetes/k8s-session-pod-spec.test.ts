@@ -622,6 +622,26 @@ describe('buildSessionPod', () => {
       ).toBe(false);
     });
 
+    test('a zero disk request reaches the sidecar too, for nodes that report no ephemeral-storage capacity', () => {
+      const zero: SpawnerConfig = {
+        ...runcCfg,
+        transparentEgress: true,
+        k8s: { ...runcCfg.k8s, ephemeralStorageRequest: '0' },
+      };
+      for (const profile of ['agent', 'default'] as const) {
+        const spec = buildSessionPod(zero, { ...input, profile }).spec;
+        const requests = [
+          ...(spec?.initContainers ?? []),
+          ...(spec?.containers ?? []),
+        ].map((c) => c.resources?.requests?.['ephemeral-storage']);
+        // Explicit zeros: an absent request would default to the limit.
+        expect(requests).toEqual(['0', '0']);
+        expect(
+          spec?.initContainers?.[0]?.resources?.limits?.['ephemeral-storage'],
+        ).toBe('128Mi');
+      }
+    });
+
     test('on but gvisor tier: no sidecar (runsc netstack), falls back to env', () => {
       const pod = buildSessionPod({ ...cfg, transparentEgress: true }, input);
       expect(pod.spec?.initContainers).toBeUndefined();

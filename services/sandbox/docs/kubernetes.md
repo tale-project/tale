@@ -82,7 +82,8 @@ overridable for every Pod by `SANDBOX_K8S_CPU_REQUEST` /
 ~60 MB; the old flat `500m` / `1Gi` capped a node's sessions by CPU they
 never used). The transparent-egress sidecar requests `10m` / `16Mi` / `16Mi`
 of ephemeral storage (limit `250m` / `64Mi` / `128Mi`), so a namespace
-ResourceQuota admits the Pod. The workspace
+ResourceQuota admits the Pod; a zero runner `ephemeral-storage` request zeroes
+the sidecar's too. The workspace
 PVC of an agent session is sized by `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`
 (default `4Gi`); a crawler render, never resumed, gets an `emptyDir` of that
 size instead of a PVC. Under DinD the inner Docker store is an `emptyDir`

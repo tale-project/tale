@@ -270,6 +270,12 @@ export function buildSessionPod(
   // REDIRECT inline (signalled via TALE_TRANSPARENT_EGRESS in the runner env
   // below), exactly like the docker DinD path.
   const transparentEgressSidecar = transparentEgress && !dind;
+  // On a node that reports no ephemeral-storage capacity any request at all
+  // leaves the Pod unschedulable, so a zero runner request zeroes the
+  // sidecar's too. It stays explicit: a container with a limit and no
+  // request is given its limit as the request.
+  const egressEphemeralRequest =
+    memoryBytes(ephemeralRequest) === 0 ? '0' : '16Mi';
   const egressSidecars = transparentEgressSidecar
     ? [
         {
@@ -288,7 +294,7 @@ export function buildSessionPod(
             requests: {
               cpu: '10m',
               memory: '16Mi',
-              'ephemeral-storage': '16Mi',
+              'ephemeral-storage': egressEphemeralRequest,
             },
             limits: {
               cpu: '250m',
