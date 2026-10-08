@@ -8,6 +8,7 @@ import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import type { MentionSource } from '../../core/tasks/mentions.ts';
 import {
   AUTO_RETRY_MAX_ATTEMPTS,
+  MODEL_CAPACITY_RETRY_DELAY_MS,
   isAutoRetryableFailure,
   resolveAutoRetryBudget,
 } from '../../core/tasks/task_auto_retry.ts';
@@ -584,12 +585,17 @@ export async function failAgentRunFromTurn(
       error,
     });
     if (armRetry) {
-      // A cooldown ends a minute after its 429 at the latest, so a wait
-      // stays far inside the stranded-queued-run sweep's window.
+      // Both finite waits stay inside the stranded-queued-run sweep. Sample
+      // model capacity AFTER winning the terminal write and recording the
+      // ledger, so a lock wait cannot consume its floor. Commit/enqueue
+      // latency is not a promise of 60s after commit. This still counts;
+      // it is not a broker 429/free cooldown.
       const startAfterMs =
-        args.retryAtMs !== undefined && args.retryAtMs > now
-          ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
-          : undefined;
+        args.failureCode === 'model_capacity'
+          ? Date.now() + MODEL_CAPACITY_RETRY_DELAY_MS
+          : args.retryAtMs !== undefined && args.retryAtMs > now
+            ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
+            : undefined;
       await addJobInTx(tx, 'task.agent_retry', {
         organizationId: run.organizationId,
         taskId: run.taskId,
