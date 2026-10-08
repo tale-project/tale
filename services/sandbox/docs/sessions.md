@@ -293,12 +293,15 @@ placements, every session route — and the workspace inventory, the capacity re
 teardown, a device disconnect and the deploy's `/v1/drain` and `/v1/drain-status`, whose answers
 depend on them — returns `503 session_unavailable` with `Retry-After: 1`, never a 404 the platform
 would take for a lost session. A restart thus reads to the platform as a few seconds of "not now",
-which its acquire, create and drain wait out, instead of refused connections; `/health`,
-`/v1/limits` and `/v1/devices` answer as before. The drain waits too because a drain latched during
-adoption would stop it part-way, leaving the sessions not yet adopted to answer 404, and the drain
-status would count only the sessions adopted so far, so a deploy would read the spawner as drained
-and restart it under running sessions; the deploy's failed control call leaves its activation
-pending, to be retried.
+which its acquire, create and drain wait out, instead of refused connections; `/v1/limits` and
+`/v1/devices` answer as before. `/health` answers `503 {"status":"starting"}` until then, so
+Docker's healthcheck, a Kubernetes readiness probe and the CLI's runtime wait still read the spawner
+as ready only once it has adopted its sessions: a rollout keeps the previous Pod serving meanwhile,
+and Compose, which routes by network alias whatever the health, still delivers the 503s. The drain
+waits too because a drain latched during adoption would stop it part-way, leaving the sessions not
+yet adopted to answer 404, and the drain status would count only the sessions adopted so far, so a
+deploy would read the spawner as drained and restart it under running sessions; the deploy's failed
+control call leaves its activation pending, to be retried.
 
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity

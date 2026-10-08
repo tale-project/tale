@@ -1,7 +1,8 @@
 // Tale Sandbox Spawner — HTTP entrypoint.
 //
 // Routes:
-//   GET  /health                       — 200 if docker daemon reachable.
+//   GET  /health                       — 200 once boot adoption has run and
+//                                        the docker daemon is reachable.
 //   POST /v1/drain, GET /v1/drain-status — HMAC-auth, in-place rolling-deploy
 //                                        control (control-routes.ts).
 //   POST/GET/DELETE /v1/sessions[...]  — HMAC-auth, persistent session API
@@ -205,6 +206,15 @@ const probeHealth = makeHealthProbe(
 );
 
 async function handleHealth(): Promise<Response> {
+  // Ready means adopted. The listener opens before boot adoption so session
+  // calls meet a 503 rather than a refused connection, but every probe of
+  // this route (Docker's healthcheck, a Kubernetes readiness probe, the CLI's
+  // runtime wait) must still read the spawner as ready only once it has
+  // adopted its sessions: a rollout then keeps the previous Pod serving
+  // meanwhile, and a deploy never drains a spawner part-way through adoption.
+  if (bootAdoption.pending()) {
+    return jsonResponse({ status: 'starting' }, 503);
+  }
   const health = await probeHealth();
   if (!health.ok) {
     return jsonResponse({ status: 'unhealthy', error: health.error }, 503);

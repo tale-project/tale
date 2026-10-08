@@ -274,7 +274,12 @@ describe('session HTTP routes', () => {
       expect(control.mock.calls.some(([, url]) => isDeployControl(url))).toBe(
         false,
       );
-      // The deployment's limits and an unknown path answer as ever.
+      // Health reads not ready, without probing the backend, so probes keep
+      // routing to whatever served before; the deployment's limits and an
+      // unknown path answer as ever.
+      const health = await router(new Request('http://sandbox/health'));
+      expect(health.status).toBe(503);
+      expect(await health.json()).toEqual({ status: 'starting' });
       expect((await request('GET', '/v1/limits')).status).toBe(200);
       expect(
         (await request('GET', '/v1/sessions/existing/screencast')).status,
