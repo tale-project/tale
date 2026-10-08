@@ -87,6 +87,7 @@ export function nameRules(cx: RuleContext, out: Issue[]): void {
         }
         if (node !== undefined && ITERATION_NAMES.has(name)) {
           // The iteration rules own these on a node.
+          if (site.guards.includes('unreachable')) continue;
           if (source.field !== 'when' && source.field !== 'forEach') continue;
           seen.add(name);
           out.push(itemOutOfScope(source.field, node, name, source, site));

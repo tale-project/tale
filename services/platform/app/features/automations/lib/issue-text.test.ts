@@ -370,3 +370,48 @@ describe('issueText — what a person reads', () => {
     expect(issueLevelLabel('warning', context('fr').t)).toBe('Avertissement');
   });
 });
+
+describe('analysis limit diagnostics', () => {
+  for (const locale of LOCALES) {
+    it.each(['CODE_SYNTAX', 'EXPR_SYNTAX'])(
+      `${locale}: renders %s as an analysis refusal`,
+      (code) => {
+        const issue: WireIssue = {
+          level: 'error',
+          code,
+          message: 'code exceeds the analysis size or depth limit',
+          at: { pointer: '/nodes/0/code', range: [0, 1] },
+          params: {
+            node: 'main',
+            detail: 'code exceeds the analysis size or depth limit',
+          },
+        };
+        const text = issueText(issue, context(locale));
+        const titles = {
+          en: ['Code cannot be validated', 'Expression cannot be validated'],
+          de: [
+            'Code lässt sich nicht validieren',
+            'Ausdruck lässt sich nicht validieren',
+          ],
+          fr: [
+            'Le code ne peut pas être validé',
+            'L’expression ne peut pas être validée',
+          ],
+          'de-CH': [
+            'Code lässt sich nicht validieren',
+            'Ausdruck lässt sich nicht validieren',
+          ],
+        };
+        expect(text.title).toBe(titles[locale][code === 'CODE_SYNTAX' ? 0 : 1]);
+        const syntax = issueText(
+          { ...issue, params: { node: 'main', detail: 'Unexpected token' } },
+          context(locale),
+        );
+        for (const part of ['cause', 'fix'] as const) {
+          expect(text[part]).not.toMatch(/parseLimited|\{[a-zA-Z]+\}/);
+          expect(text[part]).not.toEqual(syntax[part]);
+        }
+      },
+    );
+  }
+});
