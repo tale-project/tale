@@ -114,8 +114,8 @@ const editAutomation: McpPromptSpec = {
     ...(name === undefined
       ? [
           {
-            text: 'Create a new Tale automation. Ask me what it should do if I have not said, and pick a name list_automations does not show yet.',
-            tools: ['list_automations'],
+            text: 'Create a new Tale automation. Ask me what it should do if I have not said, pick a name list_automations does not show yet, and save it with save_automation and create: true; AUTOMATION_NAME_TAKEN means the name is in use, perhaps by an automation I cannot see: pick another.',
+            tools: ['list_automations', 'save_automation'],
           },
         ]
       : embedded.has(automationResourceUri(name))
@@ -127,8 +127,8 @@ const editAutomation: McpPromptSpec = {
           ]
         : [
             {
-              text: `There is no saved automation named ${quoted(name)} that I can read. Create it under that name, or check the name with list_automations.`,
-              tools: ['list_automations'],
+              text: `There is no saved automation named ${quoted(name)} that I can read. Create it under that name with save_automation and create: true, or check the name with list_automations; AUTOMATION_NAME_TAKEN means the name is in use by an automation I cannot see: pick another.`,
+              tools: ['save_automation', 'list_automations'],
             },
           ]),
     {

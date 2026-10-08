@@ -27,7 +27,7 @@ Tale runs automations: node graphs that a schedule, a webhook, a platform event 
 
 ## The editing loop
 
-1. Read the automation with get_automation and note its version: it is your baseVersion. For a new one, pick a name list_automations does not show.
+1. Read the automation with get_automation and note its version: it is your baseVersion. For a new one, pick a name list_automations does not show, and save it with create: true.
 2. Edit the document.
 3. Call validate_automation and fix every error. Read the warnings: they name what the organization lacks or a read that may fail.
 4. Run it with run_automation and a realistic input until the output and the effects are right. It runs on the mocks, and nothing leaves Tale.
@@ -62,7 +62,8 @@ A refusal is data, never a crash: {error, code, hint, data}. Branch on code and 
 | Code | What to do |
 | --- | --- |
 | INVALID_ARGUMENTS | Fix every problem in data.issues at once; the tool schema says what it takes. |
-| AUTOMATION_VERSION_STALE | Read data.latestVersion, merge, save again with that baseVersion. |
+| AUTOMATION_VERSION_STALE | On a save: read data.latestVersion, merge, save again with that baseVersion. On a delete: someone saved meanwhile; tell the person what changed, then delete again with expectedLatestVersion set to data.latestVersion. |
+| AUTOMATION_NAME_TAKEN | The name is in use, perhaps by an automation the person cannot see: pick another name. |
 | AUTOMATION_DEPLOYMENT_STALE | Another version went live meanwhile: tell the person and ask again. |
 | AUTOMATION_NOT_FOUND | Check the name with list_automations; it may be one the person cannot see. |
 | FORBIDDEN_DEVELOPER_SETTINGS | The person's role cannot do this. Say so; do not retry. |

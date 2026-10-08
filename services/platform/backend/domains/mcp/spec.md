@@ -46,11 +46,16 @@ An automation installed only in projects the person cannot read is "not found" o
 MCP — the automation, its versions, its deployments and its trigger — exactly like one that does
 not exist, so the answer never confirms it does. An organization
 automation, and one installed in a project the person can read, read as before; the installations
-a read names are the ones the person can see. The REST API answers the same way (`AUTO-R27`).
+a read names are the ones the person can see. The REST API answers the same way (`AUTO-R27`). A
+save that would add a version to such an automation is refused as a name already taken
+(`AUTOMATION_NAME_TAKEN`), whatever `create` says: it would change what the person cannot see,
+and its answer would reveal it.
 
 - **Example**: Mia, an ordinary member, is not in the HR team. `hr/onboarding` is installed only in
   a project shared with that team. Her agent asks for it, its versions and its trigger → "not
   found" each time; it lists the automations → `hr/onboarding` is not among them.
+- **Example**: Noah, a developer outside the HR team, has his agent save `hr/onboarding` without
+  `create` → refused as a taken name, and no version is added; the agent picks another name.
 
 ## Saving, deploying and deleting
 

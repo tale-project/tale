@@ -270,24 +270,56 @@ describe('save', () => {
       metadataMode: 'carry',
       presentation: null,
       origin: { via: 'mcp', apiKeyId: 'key-1', clientName: 'Claude Code' },
+      authorize: expect.any(Function),
     });
   });
 
-  it('installs a new automation only in a project the person may edit', async () => {
-    vi.mocked(saveVersion).mockResolvedValue({ name: NAME, version: 1 });
-    await store().save(doc as never, '', { projectId: 'p-1', metadata: {} });
-    expect(saveVersion).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ projectId: 'p-1' }),
-    );
-    vi.mocked(saveVersion).mockClear();
-    await expect(
-      store().save(doc as never, '', { projectId: 'p-ro', metadata: {} }),
-    ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN' });
-    await expect(
-      store().save(doc as never, '', { projectId: 'p-hidden', metadata: {} }),
-    ).rejects.toMatchObject({ code: 'PROJECT_NOT_FOUND' });
-    expect(saveVersion).not.toHaveBeenCalled();
+  /** The check the store hands the save to run under the name lock, as the
+   * save would run it: `latest` null when the save creates the automation. */
+  const authorizeOf = async (
+    options: Parameters<ReturnType<typeof store>['save']>[2],
+  ): Promise<(latest: number | null) => Promise<void>> => {
+    vi.mocked(saveVersion).mockResolvedValueOnce({ name: NAME, version: 1 });
+    await store().save(doc as never, '', options);
+    const authorize = vi.mocked(saveVersion).mock.calls.at(-1)?.[1].authorize;
+    if (authorize === undefined) throw new Error('no authorize hook');
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the scripted handle the store's own sql answers through
+    return (latest) => authorize({} as never, latest);
+  };
+
+  it('installs a new automation only in a project the person may edit, checked under the name lock', async () => {
+    const creating = async (projectId: string) =>
+      (await authorizeOf({ projectId, metadata: {} }))(null);
+    await expect(creating('p-1')).resolves.toBeUndefined();
+    await expect(creating('p-ro')).rejects.toMatchObject({
+      code: 'RBAC_FORBIDDEN',
+    });
+    await expect(creating('p-hidden')).rejects.toMatchObject({
+      code: 'PROJECT_NOT_FOUND',
+    });
+  });
+
+  it('ignores the project of a save that adds a version, as its description says', async () => {
+    // Ada saves v8 of an automation that exists, naming a project she
+    // cannot edit: the project is not used, so the save is not refused.
+    const adding = await authorizeOf({ projectId: 'p-ro', metadata: {} });
+    await expect(adding(7)).resolves.toBeUndefined();
+  });
+
+  it("refuses Noah's version on top of hr/onboarding, which he cannot see, as a taken name [MCP-R9]", async () => {
+    // Installed only in a project of a team Noah (a developer) is not in:
+    // a version on top would change it unseen and its answer reveal it.
+    vi.mocked(bindingProjectIds).mockResolvedValue(['p-hidden']);
+    const authorize = await authorizeOf({ metadata: {} });
+    await expect(authorize(7)).rejects.toMatchObject({
+      code: 'AUTOMATION_NAME_TAKEN',
+      status: 409,
+    });
+    // A name nobody saved yet is his to create.
+    await expect(authorize(null)).resolves.toBeUndefined();
+    // Installed where she can read, she adds a version as before.
+    vi.mocked(bindingProjectIds).mockResolvedValue(['p-1']);
+    await expect(authorize(7)).resolves.toBeUndefined();
   });
 });
 

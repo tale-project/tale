@@ -140,10 +140,15 @@ describe('save_automation', () => {
       { automation: DOC, create: true },
       { store: store({ save }) },
     );
+    // The name may be one the person cannot see: the hint never steers the
+    // agent into adding a version to it.
     expect(result).toMatchObject({
       code: 'AUTOMATION_NAME_TAKEN',
-      hint: expect.stringContaining('leave create out'),
+      hint: expect.stringContaining('pick another name'),
     });
+    expect(String(Reflect.get(result as object, 'hint'))).not.toContain(
+      'leave create out',
+    );
   });
 });
 

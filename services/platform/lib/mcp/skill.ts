@@ -118,7 +118,7 @@ export const SKILL_SECTIONS: readonly SkillSection[] = [
     heading: 'The editing loop',
     lines: [
       {
-        text: '1. Read the automation with get_automation and note its version: it is your baseVersion. For a new one, pick a name list_automations does not show.',
+        text: '1. Read the automation with get_automation and note its version: it is your baseVersion. For a new one, pick a name list_automations does not show, and save it with create: true.',
         tools: ['get_automation', 'list_automations'],
       },
       { text: '2. Edit the document.', tools: [] },
@@ -215,7 +215,11 @@ export const SKILL_SECTIONS: readonly SkillSection[] = [
         tools: [],
       },
       {
-        text: '| AUTOMATION_VERSION_STALE | Read data.latestVersion, merge, save again with that baseVersion. |',
+        text: '| AUTOMATION_VERSION_STALE | On a save: read data.latestVersion, merge, save again with that baseVersion. On a delete: someone saved meanwhile; tell the person what changed, then delete again with expectedLatestVersion set to data.latestVersion. |',
+        tools: [],
+      },
+      {
+        text: '| AUTOMATION_NAME_TAKEN | The name is in use, perhaps by an automation the person cannot see: pick another name. |',
         tools: [],
       },
       {

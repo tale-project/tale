@@ -247,6 +247,13 @@ export interface SaveVersionArgs {
   /** Declarative ownership is field/value bounded and checked under the
    * same native name lock as every version writer. */
   managed?: { projectId: string; expectedHash: string | null };
+  /** The door's own check of THIS save, run under the name lock once the
+   * latest version is known (null: the save creates the automation) and
+   * before anything is written — so what it decides cannot change before
+   * the insert: a coding agent's save refuses an automation the person
+   * cannot see, and checks the project it installs a NEW one in only when
+   * the save creates it. A refusal it throws leaves nothing written. */
+  authorize?: (tx: TransactionSql, latest: number | null) => Promise<void>;
 }
 
 /** What a save stored, and which version fields it kept from the version
@@ -371,6 +378,7 @@ export async function saveVersion(
     `;
     const latest = heads[0]?.latest ?? null;
     if (latest === null) assertAutomationNameCreatable(name);
+    await args.authorize?.(tx, latest);
     if (args.managed) {
       await assertManagedProject(
         tx,

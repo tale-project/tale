@@ -417,25 +417,57 @@ export function pgAutomationStore(
       // new automation there — a write on the project, so it must be one
       // they may edit, as the REST install requires.
       const projectId = scope.projectId ?? options?.projectId;
-      if (options?.projectId !== undefined) {
-        if (
-          scope.projectId !== undefined &&
-          options.projectId !== scope.projectId
-        ) {
-          throw new ActorAuthError('PROJECT_NOT_FOUND', 'Project not found.');
-        }
-        await writableActorProject(
-          sql,
-          (await viewerOf()).auth,
-          options.projectId,
-        );
+      const named = options?.projectId;
+      if (
+        named !== undefined &&
+        scope.projectId !== undefined &&
+        named !== scope.projectId
+      ) {
+        throw new ActorAuthError('PROJECT_NOT_FOUND', 'Project not found.');
       }
+      // Who saves, and what they can read — resolved before the
+      // transaction, judged inside it under the name lock (`authorize`).
+      const saver =
+        named !== undefined || scope.visibleOnly === true
+          ? await viewerOf()
+          : undefined;
+      const authorize = async (
+        tx: TransactionSql,
+        latest: number | null,
+      ): Promise<void> => {
+        if (saver === undefined) return;
+        if (latest === null) {
+          // Only a save that creates the automation installs it in the
+          // project it names; a version of one that exists ignores it, so
+          // it is not checked there either.
+          if (named !== undefined)
+            await writableActorProject(tx, saver.auth, named);
+          return;
+        }
+        // A version on top of an automation the person cannot see would
+        // change it unseen — and the answer (its version, what it carried)
+        // would reveal it. Refused as the name being taken, the answer a
+        // create of an existing name gets (MCP-R9).
+        if (scope.visibleOnly !== true) return;
+        const bindings = await bindingProjectIds(tx, organizationId, name);
+        if (
+          bindings.length > 0 &&
+          !automationVisible(bindings, saver.readable)
+        ) {
+          throw new AutomationError(
+            'AUTOMATION_NAME_TAKEN',
+            `An automation named "${name}" already exists — pick a different name.`,
+            409,
+          );
+        }
+      };
       const metadata = options?.metadata;
       return saveVersion(sql, {
         organizationId,
         name,
         document: automation,
         actor,
+        authorize,
         ...(message !== undefined && message !== '' ? { message } : {}),
         ...(options?.testsPassed !== undefined
           ? { testsPassed: options.testsPassed }

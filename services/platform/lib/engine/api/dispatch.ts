@@ -474,7 +474,7 @@ const LIST_AUTOMATIONS_HINT = 'list_automations shows the saved ones';
  */
 const HOST_REFUSAL_HINTS: Readonly<Record<string, string>> = {
   AUTOMATION_NAME_TAKEN:
-    'pick another name, or leave create out to add a version to the existing automation (get_automation reads it first)',
+    'the name is in use, perhaps by an automation you cannot see: pick another name. To change one get_automation reads, save without create and with its version as baseVersion',
   AUTOMATION_NAME_RESERVED:
     'start the name with another segment, for example "ops/<name>"',
   AUTOMATION_DEPLOYMENT_STALE:

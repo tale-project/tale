@@ -381,6 +381,71 @@ describe('saveVersion carry mode', () => {
     });
   });
 
+  it('takes chain, name, latest number, latest version, then inserts — in that order, in one transaction [MCP-R1]', async () => {
+    // Ben's save landing between the read of v5 and the insert would be
+    // overwritten by a copy of v5's fields: every step runs under the
+    // name lock the second one takes.
+    const fake = carryStore(5);
+    await saveVersion(fake.sql, carryArgs({}));
+    const step = (statement: Statement): string => {
+      if (statement.text.includes('pg_advisory_xact_lock'))
+        return statement.values.includes('billing/dunning')
+          ? 'name lock'
+          : 'chain lock';
+      if (statement.text.includes('SELECT max(version)')) return 'latest';
+      if (
+        statement.text.includes('FROM app.automations') &&
+        statement.text.includes('ORDER BY')
+      )
+        return 'latest version';
+      if (statement.text.includes('INSERT INTO app.automations'))
+        return 'insert';
+      return 'other';
+    };
+    expect(
+      fake.statements.map(step).filter((name) => name !== 'other'),
+    ).toEqual([
+      'chain lock',
+      'name lock',
+      'latest',
+      'latest version',
+      'insert',
+    ]);
+  });
+
+  it("runs the door's own check under the name lock with the latest version, before anything is written", async () => {
+    const fake = carryStore(5);
+    const seenAt: number[] = [];
+    const authorize = vi.fn(async () => {
+      seenAt.push(fake.statements.length);
+    });
+    await saveVersion(fake.sql, carryArgs({ authorize }));
+    expect(authorize).toHaveBeenCalledWith(expect.anything(), 5);
+    // After the chain, the name lock and the latest number — before the
+    // carried version is read or anything is inserted.
+    expect(seenAt).toEqual([3]);
+    const refused = carryStore(5);
+    await expect(
+      saveVersion(
+        refused.sql,
+        carryArgs({
+          authorize: async () => {
+            throw new AutomationError('AUTOMATION_NAME_TAKEN', 'taken', 409);
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'AUTOMATION_NAME_TAKEN' });
+    expect(
+      refused.statements.some((statement) =>
+        statement.text.includes('INSERT INTO'),
+      ),
+    ).toBe(false);
+    const created = carryStore(null);
+    const onCreate = vi.fn(async () => undefined);
+    await saveVersion(created.sql, carryArgs({ authorize: onCreate }));
+    expect(onCreate).toHaveBeenCalledWith(expect.anything(), null);
+  });
+
   it('carries nothing into a first version', async () => {
     const fake = carryStore(null);
     const saved = await saveVersion(fake.sql, carryArgs({}));
