@@ -420,7 +420,7 @@ const CAPABILITY_TOOL_DESCRIPTIONS: Record<CapabilityToolName, string> = {
   search_capabilities:
     'Search everything this organization can do — its deployed automations, by name and description.',
   invoke_capability:
-    'Invoke one capability by id. An action the organization gates returns a pending-approval result instead of running.',
+    'Invoke one capability by id: a deployed automation, run live as run_deployed runs it. A step the organization gates for approval leaves the run waiting for a person to decide in Tale (get_run shows waitingFor: "approval"); no tool decides an approval, so tell the person instead of retrying.',
   get_knowledge:
     "Retrieve passages from the organization's knowledge — its documents and its crawled web pages.",
 };

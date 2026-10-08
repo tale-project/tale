@@ -105,6 +105,21 @@ history as a mock run like one started in the app. Both draw from the run-start 
   `mode: "mock"` → the run starts and appears in the run history as a mock run; the same start with
   `mode: "live"` → refused, and no run starts.
 
+### MCP-R6 · No tool decides an approval; a gated step waits for a person in Tale
+
+A step the organization gates for approval parks its run whichever door started it. An agent that
+invokes a capability or starts an automation live gets the run, never a decision —
+`invoke_capability` and `run_deployed` answer it still waiting once their wait is over — and
+`get_run` names what it waits for (`waitingFor: "approval"`). No tool, resource or prompt approves
+or rejects it: `answer_run_ask` answers only a question the run asked, and the endpoint never loads
+the code that decides an approval. A person decides in Tale, and the run goes on or stops. Stopping
+the run (`cancel_run`) withdraws the approval it waited for, so nothing it asked for runs.
+
+- **Example**: Ada's agent invokes `automation.billing/refund`, whose refund to the customer the
+  organization gates for approval → the answer is the run, waiting, and `get_run` shows
+  `waitingFor: "approval"`; the agent tells Ada instead of retrying, Ben approves the refund in
+  Tale, and the run finishes.
+
 ## Checking a document
 
 ### MCP-R15 · Validation warns about what a document names that the organization lacks
@@ -319,7 +334,8 @@ deployment of a release. A signed-in person downloads it in the app; an agent re
 
 - What a call does once it reaches an automation beyond the rules above (versions, deployment,
   runs and triggers) is held by the [automations spec](../automations/spec.md); the capability
-  surface's own rules (searching and invoking capabilities, retrieving knowledge) are not covered.
+  surface's own rules (searching and invoking capabilities, retrieving knowledge) are not covered
+  beyond what an approval leaves to a person (MCP-R6).
 - A client of the 2025 protocol revisions names itself only when it connects, not on each call, so
   a version its agent saves records the door and the key but no client name; a 2026-07-28 client
   names itself on every call (MCP-R26).
