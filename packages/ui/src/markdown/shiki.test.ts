@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { CODE_LANGUAGES, codeRoleOfColor } from '../lib/code-roles';
 import {
@@ -43,6 +43,13 @@ describe('resolveShikiTheme', () => {
 });
 
 describe('highlightCode palette', () => {
+  // Shiki stops tokenizing a line after 500 ms and leaves its rest plain.
+  // The first TypeScript highlight compiles the grammar's patterns, which on
+  // a loaded machine can take that long, so a different snippet pays for it.
+  beforeAll(async () => {
+    await highlightCode('let warm = 0; // warm up\nreturn "w";', 'ts');
+  }, 60_000);
+
   // The read-only blocks failed AA with min-light/min-dark (comments 1.69:1).
   // They now colour through the `--code-*` variables, the editor's palette.
   it('colours tokens through the --code-* variables, never a hex value', async () => {

@@ -1,5 +1,5 @@
 import { highlightTree } from '@lezer/highlight';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
   codeRoleOfColor,
@@ -209,6 +209,19 @@ function differences(
 }
 
 describe('editor and read-only colours agree', () => {
+  // Shiki stops tokenizing a line after 500 ms and leaves its rest plain.
+  // The first highlight in a language compiles its grammar's patterns, which
+  // on a loaded machine can take that long, so each grammar is warmed on a
+  // copy of its fixture (another cache key) before the fixtures are compared.
+  beforeAll(async () => {
+    for (const fixture of FIXTURES) {
+      await highlightCode(
+        `${fixture.text}\n`,
+        shikiLanguageFor(fixture.language, fixture.templates ?? false),
+      );
+    }
+  }, 120_000);
+
   it.each(FIXTURES)('$name', async (fixture) => {
     const editor = editorRoles(fixture);
     const readOnly = await readOnlyRoles(fixture);
