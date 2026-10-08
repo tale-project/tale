@@ -15,7 +15,7 @@ import {
   ensureModelPricingOverride,
   mintVirtualKey,
   provisionProviders,
-  shrinkProviderPools,
+  scheduleProviderPoolShrink,
 } from './llm_gateway_admin';
 
 vi.mock('./llm_gateway_admin', async (importOriginal) => {
@@ -32,7 +32,7 @@ vi.mock('./llm_gateway_admin', async (importOriginal) => {
     applyGatewayConfig: vi.fn(async () => {}),
     ensureModelPricingOverride: vi.fn(async () => {}),
     mintVirtualKey: vi.fn(async () => ({ key: 'sk-bf-t', keyId: 'vk-9' })),
-    shrinkProviderPools: vi.fn(async () => {}),
+    scheduleProviderPoolShrink: vi.fn(() => {}),
   };
 });
 vi.mock('../../provider_credentials/resolve_credential', () => ({
@@ -664,12 +664,11 @@ describe('provisionSessionGatewayKey', () => {
       }),
     ).rejects.toThrow('config PUT failed');
     expect(mintVirtualKey).not.toHaveBeenCalled();
-    expect(shrinkProviderPools).not.toHaveBeenCalled();
+    expect(scheduleProviderPoolShrink).not.toHaveBeenCalled();
   });
 
-  it('starts resizing the records no session provisions once the posture is applied, and mints without waiting for it', async () => {
+  it('schedules the resize of the records no session provisions once the posture is applied', async () => {
     mockedResolve.mockResolvedValue(apiKeyResolution());
-    vi.mocked(shrinkProviderPools).mockReturnValueOnce(new Promise(() => {}));
     const result = await provisionSessionGatewayKey(fakeCtx(), {
       organizationId: 'org_1',
       sessionId: 'sess-4',
@@ -677,11 +676,11 @@ describe('provisionSessionGatewayKey', () => {
       budgetCents: 100,
     });
     expect(result.keyId).toBe('vk-9');
-    expect(shrinkProviderPools).toHaveBeenCalledTimes(1);
+    expect(scheduleProviderPoolShrink).toHaveBeenCalledTimes(1);
     expect(
       vi.mocked(applyGatewayConfig).mock.invocationCallOrder[0],
     ).toBeLessThan(
-      vi.mocked(shrinkProviderPools).mock.invocationCallOrder[0] ?? 0,
+      vi.mocked(scheduleProviderPoolShrink).mock.invocationCallOrder[0] ?? 0,
     );
   });
 

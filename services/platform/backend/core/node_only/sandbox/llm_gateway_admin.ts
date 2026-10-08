@@ -1974,24 +1974,28 @@ let providerPoolShrink: Promise<void> | undefined;
  * `__anthropic` sibling of a lane no session rides, an inactive
  * organization's records, a rarely used model — would keep whatever pool it
  * was stored with, up to the gateway's default of 1,000 workers, and the
- * gateway starts those workers again at every boot. Once per process, after
- * the auth posture is applied, this lists every record and writes each one
- * with more workers than its kind's pool back with that pool
+ * gateway starts those workers again at every boot. Once per process (see
+ * scheduleProviderPoolShrink for when), this lists every record and writes
+ * each one with more workers than its kind's pool back with that pool
  * (gatewayProviderPool) and its own config. The gateway is the platform's
  * derived cache, so a record an operator added by hand is sized the same way.
  *
  * The pass must not write an old config over a newer one. A record this
  * process already provisioned is skipped, and a provision of a record waits
  * for the pass's write to it; a record another process may provision is read
- * again right before its write, which leaves only the moment between that
- * read and the write. Never rejects: a failed listing is logged and the next
- * call lists again; a record the gateway refuses, or whose write it fails
- * without the new pool showing when the record is read back, is logged and
- * kept, for the next process to retry. A finished pass logs one line that
- * counts the records it resized, the ones the gateway refused and the ones
- * it could not confirm, so an operator waiting for the pass sees it end even
- * when nothing was resized. Answers the pass so a caller may wait for it; the
- * session provisioning does not.
+ * again right before its write. That leaves the time the gateway takes to
+ * handle the write: it writes the record's keys back as it found them when the
+ * write arrived, and the config the pass read, so a key or config another
+ * process writes to the record meanwhile is undone, and that process's memo
+ * keeps it from writing the record again until it restarts (a key it lost is
+ * written again at its next provision, which lists the keys). Never rejects: a
+ * failed listing is logged and the next call lists again; a record the gateway
+ * refuses, or whose write it fails without the new pool showing when the record
+ * is read back, is logged and kept, for the next process to retry. A finished
+ * pass logs one line that counts the records it resized, the ones the gateway
+ * refused and the ones it could not confirm, so an operator waiting for the
+ * pass sees it end even when nothing was resized. Answers the pass so a caller
+ * may wait for it; the session provisioning does not.
  */
 export function shrinkProviderPools(): Promise<void> {
   providerPoolShrink ??= runProviderPoolShrink().catch((error: unknown) => {
@@ -2002,6 +2006,40 @@ export function shrinkProviderPools(): Promise<void> {
     );
   });
   return providerPoolShrink;
+}
+
+/** How long after the first provision a backend process waits before its
+ * shrink pass, and the most it adds to that at random. A fresh process's
+ * provisions rewrite every record and key they name once, since its memo is
+ * empty, and so do those of every other process a deploy starts in the same
+ * minutes; a key rotated through the environment lands in exactly that
+ * burst. The pass's write to a record undoes a key or config another process
+ * writes to it while the gateway handles the write (see shrinkProviderPools),
+ * so the pass starts after the burst, and at a different moment in each
+ * process. */
+const SHRINK_PASS_DELAY_MS = 2 * 60_000;
+const SHRINK_PASS_JITTER_MS = 3 * 60_000;
+
+/** Whether this process's shrink pass is waiting for its start. */
+let providerPoolShrinkScheduled = false;
+
+/**
+ * Start this process's shrink pass (shrinkProviderPools) two to five minutes
+ * from now, unless it is waiting for that already or has run. Called at every
+ * provision once the auth posture is applied, so a pass whose listing failed
+ * is scheduled again by the next one. The timer never keeps the process
+ * alive.
+ */
+export function scheduleProviderPoolShrink(): void {
+  if (providerPoolShrink !== undefined || providerPoolShrinkScheduled) return;
+  providerPoolShrinkScheduled = true;
+  setTimeout(
+    () => {
+      providerPoolShrinkScheduled = false;
+      void shrinkProviderPools();
+    },
+    SHRINK_PASS_DELAY_MS + Math.floor(Math.random() * SHRINK_PASS_JITTER_MS),
+  ).unref();
 }
 
 /** How long a request-scoped provision trusts the auth posture this process

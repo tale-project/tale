@@ -1211,6 +1211,62 @@ describe('shrinkProviderPools — records no provision rewrites', () => {
     expect(recordWrites(calls)).toHaveLength(1);
   });
 
+  it('starts a scheduled pass two to five minutes later, at a moment drawn at random, and only once', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const calls = stubGateway({ providerRecords: [STALE_CUSTOM] });
+    const mod = await loadModule();
+    const listings = () =>
+      calls.filter((c) => c.url.endsWith('/api/providers')).length;
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      mod.scheduleProviderPoolShrink();
+      mod.scheduleProviderPoolShrink();
+      // 2 minutes, plus half of the 3-minute spread.
+      await vi.advanceTimersByTimeAsync(210_000 - 1);
+      expect(listings()).toBe(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(listings()).toBe(1);
+      await vi.advanceTimersByTimeAsync(600_000);
+      mod.scheduleProviderPoolShrink();
+      await vi.advanceTimersByTimeAsync(600_000);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(listings()).toBe(1);
+    expect(recordWrites(calls).map(([name]) => name)).toEqual([CUSTOM_NAME]);
+  });
+
+  it('schedules the pass again at the next call when its listing failed', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let listings = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        listings += 1;
+        return listings <= 4
+          ? new Response('down', { status: 503 })
+          : Response.json({ providers: [] });
+      }),
+    );
+    const mod = await loadModule();
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      mod.scheduleProviderPoolShrink();
+      await vi.advanceTimersByTimeAsync(130_000);
+      expect(listings).toBe(4);
+      mod.scheduleProviderPoolShrink();
+      await vi.advanceTimersByTimeAsync(120_000 - 1);
+      expect(listings).toBe(4);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(listings).toBe(5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('lists again at the next call when the listing failed, and never rejects', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubGlobal(
