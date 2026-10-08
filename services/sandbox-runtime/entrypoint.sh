@@ -687,6 +687,24 @@ sys.exit('inner dockerd readiness deadline exceeded')
 PY
 }
 
+# A registry mirror is one lowercase `host:port`, nothing dockerd could read as
+# another flag or a second address.
+_valid_registry_mirror() {
+  case "$1" in
+    *[!a-z0-9.:-]* | *:*:*) return 1 ;;
+  esac
+  _mirror_host="${1%:*}"
+  _mirror_port="${1##*:}"
+  [ "${_mirror_host}" != "$1" ] || return 1
+  case "${_mirror_host}" in
+    '' | [!a-z0-9]*) return 1 ;;
+  esac
+  case "${_mirror_port}" in
+    '' | *[!0-9]* | ??????*) return 1 ;;
+  esac
+  [ "${#_mirror_host}" -le 128 ]
+}
+
 # Start an inner dockerd and block until it's ready. Fails closed (exit 1) on
 # any of: fence install failure, a non-remapped userns on the sysbox tier
 # (would mean container-root == host-root), dockerd dying, or a readiness
@@ -722,13 +740,34 @@ start_inner_dockerd() {
   _dns_flags=""
   [ -n "${TALE_EGRESS_IP}" ] && _dns_flags="--dns=${TALE_EGRESS_IP}"
 
+  # With the organization's build network, docker.io pulls go through its
+  # pull-through cache, the registry mirror its BuildKit daemon already uses:
+  # a `docker pull` or `compose pull` reuses layers another session fetched
+  # instead of crossing the egress proxy to Docker Hub again, and dockerd
+  # falls back to Docker Hub when the mirror does not answer. The mirror
+  # speaks plain HTTP on that private network, so it is named insecure and
+  # kept out of the proxy. Reached only from an `internal-dockerd` child, so
+  # the widened NO_PROXY never leaves this engine's process.
+  _mirror_flags=""
+  if [ -n "${TALE_BUILDKITD_ENDPOINT:-}" ] && [ -n "${TALE_DOCKER_HUB_MIRROR:-}" ]; then
+    if _valid_registry_mirror "${TALE_DOCKER_HUB_MIRROR}"; then
+      _mirror_flags="--registry-mirror=http://${TALE_DOCKER_HUB_MIRROR} --insecure-registry=${TALE_DOCKER_HUB_MIRROR}"
+      _no_proxy="${NO_PROXY:-${no_proxy:-}}"
+      NO_PROXY="${_no_proxy:+${_no_proxy},}${TALE_DOCKER_HUB_MIRROR%:*}"
+      no_proxy="${NO_PROXY}"
+      export NO_PROXY no_proxy
+    else
+      echo "[entrypoint] WARN: ignoring a malformed TALE_DOCKER_HUB_MIRROR; docker.io pulls go to Docker Hub" >&2
+    fi
+  fi
+
   # dockerd (and the iptables/modprobe it shells out to) need /usr/sbin on PATH,
   # which the image ENV drops. Scope the widened PATH to dockerd only — runnerd
   # is exec'd later with the unmodified (sbin-free) agent PATH.
   # Nested containers otherwise inherit Docker's unrotated json-file default,
   # independently of the outer session's cap. Apply that same cap here; daemon
   # diagnostics themselves inherit the outer logger instead of a growing file.
-  # shellcheck disable=SC2086 # _dns_flags must word-split: empty, or one --dns flag
+  # shellcheck disable=SC2086 # _dns_flags and _mirror_flags must word-split: empty, or their flags
   PATH="/usr/sbin:/sbin:${PATH}" "${_DOCKERD}" \
     --host="unix://${1:-/var/run/docker.sock}" \
     --data-root=/var/lib/docker \
@@ -740,6 +779,7 @@ start_inner_dockerd() {
     --log-opt=max-file=1 \
     --log-opt=compress=false \
     ${_dns_flags} \
+    ${_mirror_flags} \
     >&2 &
   TALE_DOCKERD_PID=$!
 

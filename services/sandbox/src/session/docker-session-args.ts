@@ -12,7 +12,7 @@
 // into a container-escape primitive. User code is NEVER in argv; it arrives
 // over the runnerd HTTP API after the container is up.
 
-import { buildkitdEndpoint } from '../buildkitd.ts';
+import { buildkitdEndpoint, buildkitdMirrorRef } from '../buildkitd.ts';
 import { ipv4Subnet, parseDindInnerPool } from '../network-address.ts';
 import {
   dindCapabilityOf,
@@ -77,6 +77,8 @@ const NETWORK_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
 // `tcp://host:port` for the shared buildkitd endpoint — the only injection
 // surface a new env value adds, so validate it like every other interpolation.
 const ENDPOINT_RE = /^tcp:\/\/[a-zA-Z0-9_.-]{1,128}:[0-9]{1,5}$/;
+// `host:port` of the organization's docker.io pull-through mirror.
+const MIRROR_RE = /^[a-z0-9][a-z0-9.-]{0,127}:[0-9]{1,5}$/;
 const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
 // Hex token from deriveRunnerdToken (SHA256 → 64 hex chars). The builder
 // validates shape only; the spawner always derives one (SANDBOX_TOKEN is
@@ -313,11 +315,20 @@ export function buildDockerSessionRunArgs(
         );
       }
       for (const subnet of subnets) ipv4Subnet(subnet);
+      // The inner dockerd pulls docker.io images through the same
+      // organization mirror the builder uses, on the same private network.
+      const dockerHubMirror = buildkitdMirrorRef(
+        inp.organizationId,
+        'docker.io',
+      );
+      assertSafe('dockerHubMirror', dockerHubMirror, MIRROR_RE);
       dindEnv.push(
         '--env',
         `TALE_BUILDKITD_ENDPOINT=${inp.buildkitdEndpoint}`,
         '--env',
         `TALE_BUILDKIT_NETWORK_SUBNETS=${JSON.stringify(subnets)}`,
+        '--env',
+        `TALE_DOCKER_HUB_MIRROR=${dockerHubMirror}`,
       );
     }
   }

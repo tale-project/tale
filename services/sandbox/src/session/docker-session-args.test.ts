@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import { buildkitdEndpoint } from '../buildkitd.ts';
+import { buildkitdEndpoint, buildkitdMirrorRef } from '../buildkitd.ts';
 import type { SpawnerConfig } from '../types.ts';
 import { buildDockerSessionRunArgs } from './docker-session-args.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
@@ -495,6 +495,21 @@ describe('buildDockerSessionRunArgs', () => {
       expect(args).toContain(
         `TALE_BUILDKITD_ENDPOINT=${buildkitdEndpoint(goodInput.organizationId)}`,
       );
+    });
+
+    test("shared build cache: names the organization's docker.io mirror for the inner engine", () => {
+      const args = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+      });
+      expect(args).toContain(
+        `TALE_DOCKER_HUB_MIRROR=${buildkitdMirrorRef(goodInput.organizationId, 'docker.io')}`,
+      );
+      expect(
+        buildDockerSessionRunArgs(dindCfg, dindInput).some((a) =>
+          a.startsWith('TALE_DOCKER_HUB_MIRROR='),
+        ),
+      ).toBe(false);
     });
 
     test('planned subnets are sent as validated JSON before delayed network attachment', () => {

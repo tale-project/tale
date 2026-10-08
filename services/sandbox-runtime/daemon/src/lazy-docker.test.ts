@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { runnerEnvironment } from './lazy-docker.ts';
+import { engineEnvironment, runnerEnvironment } from './lazy-docker.ts';
 
 test('Docker activation lifecycle and streams under Node', async () => {
   // Node resolves the executed file's real path. Canonicalize the fixture too so
@@ -88,4 +88,21 @@ test('runnerd gets back the workspace Node settings the root supervisor never lo
     PATH: '/usr/bin',
     NODE_PATH: '',
   });
+});
+
+test("the engine child sees the organization's mirror and nothing from the workspace", () => {
+  const env = engineEnvironment({
+    TALE_BUILDKITD_ENDPOINT: 'tcp://tale-buildkitd-a:1234',
+    TALE_DOCKER_HUB_MIRROR: 'tale-buildkitd-mirror-a-docker-io:5000',
+    NO_PROXY: '127.0.0.1',
+    NODE_COMPILE_CACHE: '/agent/.runtime/home/.cache/node-compile-cache',
+    BUILDX_BUILDER: 'tale-build-a',
+  });
+  expect(env.TALE_DOCKER_HUB_MIRROR).toBe(
+    'tale-buildkitd-mirror-a-docker-io:5000',
+  );
+  expect(env.TALE_BUILDKITD_ENDPOINT).toBe('tcp://tale-buildkitd-a:1234');
+  expect(env.NO_PROXY).toBe('127.0.0.1');
+  expect(env.NODE_COMPILE_CACHE).toBeUndefined();
+  expect(env.BUILDX_BUILDER).toBeUndefined();
 });

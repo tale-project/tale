@@ -248,6 +248,15 @@ case-sensitive organization hash; ownership labels are verified before any
 resource is reused. The daemon and mirrors have no published ports and do not
 join the shared sandbox network.
 
+A session with its organization's build network also starts its inner engine
+with the organization's `docker.io` mirror as registry mirror, reached over
+plain HTTP on that private network and outside the egress proxy. A `docker pull`
+or `docker compose pull` of a Docker Hub image then reuses the layers any
+session of the organization already fetched; when the mirror does not answer,
+the engine pulls from Docker Hub through the egress proxy as before. The engine
+uses registry mirrors for Docker Hub only, so `ghcr.io` and `quay.io` pulls
+go upstream.
+
 Sessions join both their organization's build network and the existing control
 network. The egress proxy joins the private build network under a local alias;
 forwarding rules prevent that proxy and the session's outer interfaces from

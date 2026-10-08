@@ -390,7 +390,7 @@ const NODE = '/opt/node/bin/node';
 const ROOT_PATH = '/opt/node/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 
 /** No workspace executable, loader hook, Docker context or mutable client config runs as root. */
-function engineEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function engineEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
     PATH: ROOT_PATH,
     HOME: '/root',
@@ -408,6 +408,7 @@ function engineEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     'TALE_DIND_INNER_POOL_OVERRIDE',
     'TALE_BUILDKIT_NETWORK_SUBNETS',
     'TALE_BUILDKITD_ENDPOINT',
+    'TALE_DOCKER_HUB_MIRROR',
     'TALE_GATEWAY_URL',
     'TALE_TRANSPARENT_EGRESS',
   ])
