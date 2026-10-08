@@ -533,7 +533,7 @@ function converged(
  * checks the calendar, the ranges and the offset; the pattern adds the
  * seconds, which Zod leaves optional, and the fraction's bound.
  */
-const startedAtSchema = z.iso
+export const startedAtSchema = z.iso
   .datetime({ offset: true })
   .regex(/T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/);
 

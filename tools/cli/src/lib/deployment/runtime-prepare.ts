@@ -29,7 +29,7 @@ import {
 } from './runtime-model';
 import { sourceMigrationInventory } from './source-migrations';
 
-const imageInspectSchema = z.object({
+export const imageInspectSchema = z.object({
   Os: z.string(),
   Architecture: z.string(),
   RepoDigests: z.array(z.string()),
