@@ -32,7 +32,11 @@ What a schedule does on those days is your host's rule; the list only says it. T
 
 ## Show starts that will not happen yet
 
+<Demo name="schedule-occurrence-list/states" />
+
 Set `muted` when the starts are what would happen, not what will: a schedule that is turned off, or an automation with nothing deployed. The rows turn to the muted colour; say why next to the list, and use `label` for a heading such as **Would run at**. When there is no start to show, the list says **No upcoming runs.**, or your own `emptyText`. If your host cannot compute the starts, for example because the schedule is incomplete, show your own message instead of the list.
+
+The example's muted list is an hourly schedule on the day the clocks go back in Zurich: 2:00 AM runs twice, an hour apart, and both runs carry the `repeatedHour` mark with `interval: true`. Below it, a list with no starts.
 
 ## Accessibility
 
