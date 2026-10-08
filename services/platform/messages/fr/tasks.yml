@@ -242,6 +242,7 @@ board:
   addToLane: 'Ajouter une tâche dans {status}'
   collapseLane: 'Replier {status}'
   expandLane: 'Déplier {status}'
+  laneCount: '{count, plural, one {# tâche} other {# tâches}}'
   quickAddLabel: Titre de la nouvelle tâche
   quickAdded: '« {title} » ajoutée'
   noTasks: Aucune tâche

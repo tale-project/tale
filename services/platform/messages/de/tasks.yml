@@ -240,6 +240,7 @@ board:
   addToLane: 'Aufgabe zu {status} hinzufügen'
   collapseLane: '{status} einklappen'
   expandLane: '{status} ausklappen'
+  laneCount: '{count, plural, one {# Aufgabe} other {# Aufgaben}}'
   quickAddLabel: Titel der neuen Aufgabe
   quickAdded: '„{title}“ hinzugefügt'
   noTasks: Keine Aufgaben

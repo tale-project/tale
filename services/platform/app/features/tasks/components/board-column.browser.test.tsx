@@ -397,5 +397,85 @@ describe('a folded lane (real Chromium)', () => {
     expect(mutations.move).toHaveBeenCalledWith(
       expect.objectContaining({ taskId: 'task-0', status: 'done' }),
     );
+    // The card left with the drag; focus stays on the lane that took it.
+    await expect
+      .poll(() => document.activeElement)
+      .toBe(screen.getByRole('button', { name: 'Expand Done' }));
+  });
+
+  it('reads the rail its count', async () => {
+    await page.viewport(1600, 900);
+    render(<FoldingBoard tasks={tasks} />);
+    screen.getByRole('button', { name: 'Collapse Done' }).click();
+    expect(
+      await screen.findByRole('button', { name: 'Expand Done' }),
+    ).toHaveAccessibleDescription('2 tasks');
+  });
+
+  // Done folded between In review and a Cancelled lane holding a card: the
+  // card is nearer by corners than the narrow rail, on any board height.
+  const withCancelled = [
+    ...tasks,
+    { ...makeTask(3), status: 'cancelled' as const },
+  ];
+
+  it.each([600, 1000])(
+    'steps onto the rail, not past it, on a %ipx-tall board',
+    async (height) => {
+      await page.viewport(1600, height);
+      render(<FoldingBoard tasks={withCancelled} />);
+      screen.getByRole('button', { name: 'Collapse Done' }).click();
+      await screen.findByRole('button', { name: 'Expand Done' });
+
+      screen.getByRole('button', { name: 'Lane task 0' }).focus();
+      await userEvent.keyboard(' ');
+      await nextFrame();
+      await userEvent.keyboard('{ArrowRight}');
+      await nextFrame();
+      await userEvent.keyboard(' ');
+      await expect.poll(() => mutations.move.mock.calls.length).toBe(1);
+      expect(mutations.move).toHaveBeenCalledWith(
+        expect.objectContaining({ taskId: 'task-0', status: 'done' }),
+      );
+    },
+  );
+
+  it('walks across two rails, one lane per key', async () => {
+    await page.viewport(1600, 900);
+    render(<FoldingBoard tasks={withCancelled} />);
+    screen.getByRole('button', { name: 'Collapse Done' }).click();
+    screen.getByRole('button', { name: 'Collapse Cancelled' }).click();
+    await screen.findByRole('button', { name: 'Expand Cancelled' });
+
+    screen.getByRole('button', { name: 'Lane task 0' }).focus();
+    await userEvent.keyboard(' ');
+    await nextFrame();
+    await userEvent.keyboard('{ArrowRight}');
+    await nextFrame();
+    await userEvent.keyboard('{ArrowRight}');
+    await nextFrame();
+    await userEvent.keyboard(' ');
+    await expect.poll(() => mutations.move.mock.calls.length).toBe(1);
+    expect(mutations.move).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 'task-0', status: 'cancelled' }),
+    );
+  });
+
+  it('steps back onto the rail from the lane after it', async () => {
+    await page.viewport(1600, 900);
+    render(<FoldingBoard tasks={withCancelled} />);
+    screen.getByRole('button', { name: 'Collapse Done' }).click();
+    await screen.findByRole('button', { name: 'Expand Done' });
+
+    screen.getByRole('button', { name: 'Lane task 3' }).focus();
+    await userEvent.keyboard(' ');
+    await nextFrame();
+    await userEvent.keyboard('{ArrowLeft}');
+    await nextFrame();
+    await userEvent.keyboard(' ');
+    await expect.poll(() => mutations.move.mock.calls.length).toBe(1);
+    expect(mutations.move).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 'task-3', status: 'done' }),
+    );
   });
 });

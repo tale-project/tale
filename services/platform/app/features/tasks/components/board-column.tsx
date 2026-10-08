@@ -8,7 +8,15 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { FoldHorizontal, Plus, UnfoldHorizontal } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -125,6 +133,28 @@ export const BoardColumn = memo(function BoardColumn({
     (collapsed ? railButtonRef : foldButtonRef).current?.focus();
   }, [collapsed]);
 
+  // A card dropped on the rail leaves with the drag, so dnd-kit has no card
+  // to hand focus back to: it stays on the lane that took the card. A drop
+  // that opened a dialog (a run to cancel) keeps that dialog's focus.
+  const heldOnRail = useRef<string | null>(null);
+  useEffect(() => {
+    if (!collapsed) return undefined;
+    if (activeId !== null) {
+      heldOnRail.current = taskIds.includes(activeId) ? activeId : null;
+      return undefined;
+    }
+    const dropped = heldOnRail.current;
+    heldOnRail.current = null;
+    if (dropped === null || !taskIds.includes(dropped)) return undefined;
+    const frame = requestAnimationFrame(() => {
+      if (document.activeElement === document.body) {
+        railButtonRef.current?.focus();
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeId, collapsed, taskIds]);
+  const railCountId = useId();
+
   if (collapsed && onCollapsedChange !== undefined) {
     const active =
       activeId !== null && taskIds.includes(activeId)
@@ -147,13 +177,19 @@ export const BoardColumn = memo(function BoardColumn({
           type="button"
           aria-expanded={false}
           aria-label={t('board.expandLane', { status: label })}
+          aria-describedby={railCountId}
           title={t('board.expandLane', { status: label })}
           onClick={() => toggleFolded(false)}
           className="text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring flex flex-1 flex-col items-center gap-2 rounded-lg py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
         >
           <UnfoldHorizontal aria-hidden className="size-4 shrink-0" />
           <TaskStatusGlyph status={status} className="size-3.5" />
-          <span className="text-xs tabular-nums">{tasks.length}</span>
+          <span aria-hidden className="text-xs tabular-nums">
+            {tasks.length}
+          </span>
+          <span id={railCountId} className="sr-only">
+            {t('board.laneCount', { count: tasks.length })}
+          </span>
           <span className="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
             {label}
           </span>
@@ -164,10 +200,12 @@ export const BoardColumn = memo(function BoardColumn({
           </span>
         )}
         {/* A card dragged over the rail joins this lane's working copy; it
-            stays mounted, out of sight, so the drag keeps its source. */}
+            stays mounted so the drag keeps its source, but takes no layout
+            box: a measured placeholder would win the collision over the rail
+            (and over the next rail) and pin the drop here. */}
         {active !== undefined && (
           <SortableContext items={[active._id]}>
-            <div className="sr-only">{renderCard(active)}</div>
+            <div hidden>{renderCard(active)}</div>
           </SortableContext>
         )}
       </section>

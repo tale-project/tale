@@ -251,6 +251,7 @@ export function TasksPageSkeleton({
   canEdit = false,
   canCreate = false,
   allProjects = false,
+  collapsedLanes,
 }: {
   view: TaskView;
   /** The viewer edits every task: the cards' pickers are live. */
@@ -258,6 +259,8 @@ export function TasksPageSkeleton({
   /** The viewer may create a task here: the create action is there. */
   canCreate?: boolean;
   allProjects?: boolean;
+  /** The board's folded lanes, so the route's fallback matches the board. */
+  collapsedLanes?: ReadonlySet<TaskStatus>;
 }) {
   const { t } = useT('tasks');
   return (
@@ -301,7 +304,11 @@ export function TasksPageSkeleton({
           </Row>
         </Skeletonize>
       </Row>
-      <TasksSkeleton view={view} canEdit={canEdit} />
+      <TasksSkeleton
+        view={view}
+        canEdit={canEdit}
+        collapsedLanes={collapsedLanes}
+      />
     </ContentArea>
   );
 }
