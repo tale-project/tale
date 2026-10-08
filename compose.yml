@@ -726,10 +726,9 @@ services:
     #   NET_ADMIN     — install the iptables OUTPUT REJECT rules for IMDS
     #                   (169.254.169.254) + RFC1918 (the only hostname-
     #                   independent egress fence; fail-closed without it).
-    #   DAC_OVERRIDE  — entrypoint.sh (root) touches/creates the tinyproxy log
-    #                   inside /var/log/tinyproxy, which the image owns by
-    #                   `nobody`; without it the touch fails Permission denied.
-    #   CHOWN         — chown that log file to nobody.
+    #   DAC_OVERRIDE / CHOWN — part of the live-verified set. tinyproxy logs
+    #                   to stdout, so no entrypoint step is known to need them;
+    #                   drop them only once a live boot without them passes.
     #   SETUID/SETGID — tinyproxy drops privileges to nobody after bind.
     #   NET_BIND_SERVICE — dnsmasq binds privileged port 53 to serve external
     #                   DNS to the internal-only sandbox network (dnsmasq checks

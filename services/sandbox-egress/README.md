@@ -53,8 +53,10 @@ bun run --filter @tale/sandbox-egress docker:build
 
 ## Container
 
-Runs as root so the entrypoint can `chown` the log dir and install `iptables`
-rules; `tinyproxy` drops privileges to `nobody` after binding. `docker-entrypoint.sh`
+Runs as root so the entrypoint can install `iptables` rules and dnsmasq can
+bind port 53; `tinyproxy` drops privileges to `nobody` after binding and logs
+to stdout (the container log), so no log file grows in the container's writable
+layer. `docker-entrypoint.sh`
 (PID 1) installs the SSRF firewall, then `exec`s `entrypoint.sh`. That shell renders
 the config, supervises foreground Tinyproxy and DNS, forwards shutdown signals,
 and reaps both children. It tracks the child PID directly, so Tinyproxy needs no

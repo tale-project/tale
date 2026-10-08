@@ -5,6 +5,7 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -18,10 +19,8 @@ import { join, resolve } from 'node:path';
 const root = mkdtempSync(join(tmpdir(), 'tale-egress-config-'));
 const bin = join(root, 'bin');
 const etc = join(root, 'etc');
-const log = join(root, 'log');
 mkdirSync(bin);
 mkdirSync(etc);
-mkdirSync(log);
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 const egressDir = resolve(import.meta.dir, '../../sandbox-egress');
@@ -29,10 +28,14 @@ writeFileSync(
   join(etc, 'tinyproxy.conf.template'),
   readFileSync(join(egressDir, 'tinyproxy.conf.template'), 'utf8'),
 );
-// The supervised daemons and the root-only chown exit at once; tinyproxy
-// first says the open-file limit it was started with.
-for (const name of ['dnsmasq', 'tail', 'chown'])
-  writeFileSync(join(bin, name), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+// The supervised daemons exit at once; tinyproxy first says the open-file
+// limit it was started with. A `tail` records that something ran it: the
+// proxy logs to stdout, so nothing should poll a log file beside it.
+writeFileSync(join(bin, 'dnsmasq'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+const tailRuns = join(root, 'tail-runs');
+writeFileSync(join(bin, 'tail'), `#!/bin/sh\necho "$@" >> '${tailRuns}'\n`, {
+  mode: 0o755,
+});
 const tinyproxyFiles = join(root, 'tinyproxy-nofile');
 writeFileSync(
   join(bin, 'tinyproxy'),
@@ -52,10 +55,10 @@ process.stdout.write(text);
 `,
     { mode: 0o755 },
   );
-const entrypoint = readFileSync(join(egressDir, 'entrypoint.sh'), 'utf8')
-  .replaceAll('/etc/tinyproxy', etc)
-  .replaceAll('/var/log/tinyproxy', log)
-  .replace('\nsleep 1\n', '\n');
+const entrypoint = readFileSync(
+  join(egressDir, 'entrypoint.sh'),
+  'utf8',
+).replaceAll('/etc/tinyproxy', etc);
 
 /** Run the entrypoint; `before` runs first in the same shell (a lower
  * open-file limit, say). */
@@ -88,6 +91,18 @@ const directive = (config: string | null, name: string) =>
     ?.split('\n')
     .filter((line) => line.startsWith(`${name} `))
     .map((line) => line.slice(name.length + 1));
+
+describe('egress proxy logging', () => {
+  test('tinyproxy logs to stdout, the container log, with no log file to poll', () => {
+    const { result, config } = boot();
+    expect(result.status).toBe(0);
+    // With neither directive tinyproxy writes its log to stdout; a LogFile
+    // grows unrotated in the container's writable layer.
+    expect(directive(config, 'LogFile')).toEqual([]);
+    expect(directive(config, 'Syslog')).toEqual([]);
+    expect(existsSync(tailRuns)).toBe(false);
+  });
+});
 
 describe('egress proxy connection limit', () => {
   test('serves 2000 connections at once unless told otherwise', () => {

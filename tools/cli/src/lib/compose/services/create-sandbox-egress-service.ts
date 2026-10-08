@@ -64,13 +64,15 @@ export function createSandboxEgressService(
     },
     // Least privilege: drop the full default cap set, add back only what the
     // container provably needs (verified live against the image). NET_ADMIN
-    // installs the iptables SSRF firewall; DAC_OVERRIDE lets root touch/create
-    // the tinyproxy log in the nobody-owned /var/log/tinyproxy; CHOWN chowns it
-    // to nobody; SETUID/SETGID let tinyproxy drop privileges to nobody after
-    // bind; NET_BIND_SERVICE lets dnsmasq bind privileged port 53 to serve
-    // external DNS to the internal-only sandbox network (dnsmasq requires the
-    // cap explicitly, even as root). KILL lets the root supervisor signal its
-    // nobody child for graceful shutdown. Keep in sync with compose.yml.
+    // installs the iptables SSRF firewall; DAC_OVERRIDE and CHOWN are part of
+    // the live-verified set, though with tinyproxy logging to stdout no
+    // entrypoint step is known to need them (drop them only once a live boot
+    // without them passes); SETUID/SETGID let tinyproxy drop privileges to
+    // nobody after bind; NET_BIND_SERVICE lets dnsmasq bind privileged port 53
+    // to serve external DNS to the internal-only sandbox network (dnsmasq
+    // requires the cap explicitly, even as root). KILL lets the root supervisor
+    // signal its nobody child for graceful shutdown. Keep in sync with
+    // compose.yml.
     cap_drop: ['ALL'],
     cap_add: [
       'NET_ADMIN',
@@ -81,7 +83,7 @@ export function createSandboxEgressService(
       'NET_BIND_SERVICE',
       'KILL',
     ],
-    // tinyproxy + tail = trivial footprint; the cap is here to bound a
+    // tinyproxy + dnsmasq = trivial footprint; the cap is here to bound a
     // misbehaving allowlist-regex DoS that pegs CPU or floods the log.
     // tinyproxy runs a thread and holds two descriptors per connection
     // (SANDBOX_EGRESS_MAX_CLIENTS), and threads count against the pids
