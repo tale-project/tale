@@ -15,7 +15,7 @@ Erstelle einen API-Schlüssel, wenn ein Skript oder Dienst die REST-API von Tale
 
 1. Wähle **API-Schlüssel erstellen**.
 2. Gib unter **Schlüsselname** einen Namen ein, der den aufrufenden Dienst erkennen lässt, etwa `Abrechnungssynchronisation` oder `Dokumentimport`.
-3. Wähle die **Ablaufzeit**: 7, 30 oder 90 Tage, ein Jahr, **Eigenes Datum** oder nie. Voreingestellt sind 30 Tage; unter dem Feld steht, an welchem Tag der Schlüssel abläuft. Mit **Eigenes Datum** wählst du diesen Tag im Kalender **Ablaufdatum**, frühestens morgen und höchstens ein Jahr im Voraus.
+3. Wähle die **Ablaufzeit**: 7, 30 oder 90 Tage, ein Jahr, **Eigenes Datum** oder nie. Voreingestellt sind 30 Tage; unter dem Feld steht, an welchem Tag der Schlüssel abläuft. Mit **Eigenes Datum** wählst du diesen Tag im Kalender **Ablaufdatum**, unter den verfügbaren Tagen. Ein Schlüssel mit Ablaufdatum muss mindestens 24 Stunden und höchstens 365 Tage gültig sein. Nach einer Zeitumstellung kann der früheste verfügbare Tag später als morgen liegen.
 4. Erstelle den Schlüssel und kopiere den geheimen Wert in den vorgesehenen sicheren Schlüsselspeicher des Dienstes, bevor du die Bestätigung schließt.
 
 Der vollständige Wert wird nur einmal angezeigt. Später siehst du in der Tabelle nur ein maskiertes Fragment, das Ablaufdatum, das Erstellungsdatum und die letzte Nutzung. Die Liste enthält deine Schlüssel, nicht die anderer Mitglieder.

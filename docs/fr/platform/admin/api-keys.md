@@ -15,7 +15,7 @@ Crée une clé API lorsqu’un script ou un service doit appeler l’API REST de
 
 1. Sélectionne **Créer une clé API**.
 2. Saisis un **Nom de la clé** qui identifie le logiciel, par exemple `Synchronisation facturation` ou `Import de documents`.
-3. Choisis l’**Expiration** : 7, 30 ou 90 jours, un an, une **Date personnalisée**, ou jamais. La valeur initiale est 30 jours, et le formulaire indique sous le champ le jour où la clé expirera. Avec **Date personnalisée**, choisis ce jour dans le calendrier **Date d'expiration**, entre demain et un an plus tard.
+3. Choisis l’**Expiration** : 7, 30 ou 90 jours, un an, une **Date personnalisée**, ou jamais. La valeur initiale est 30 jours, et le formulaire indique sous le champ le jour où la clé expirera. Avec **Date personnalisée**, choisis ce jour dans le calendrier **Date d'expiration**, parmi les dates disponibles. Une clé avec une date d’expiration doit rester valide au moins 24 heures et au plus 365 jours. Après un changement d’heure, la première date disponible peut être après demain.
 4. Crée la clé et copie sa valeur secrète dans le gestionnaire de secrets prévu pour le logiciel avant de fermer la confirmation.
 
 La valeur complète n’apparaît qu’une fois. Le tableau affiche ensuite un fragment masqué, la date d’expiration, la date de création et la dernière utilisation. Il présente tes clés, pas celles de tes collègues.

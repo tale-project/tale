@@ -16,7 +16,7 @@ import {
   type ApiKeyExpiryChoice,
   customExpiryBounds,
   expiresAtAfter,
-  expiryDays,
+  expirySeconds,
   isApiKeyExpiryChoice,
 } from '../lib/expiry';
 
@@ -41,8 +41,7 @@ interface ApiKeyExpiryFieldProps {
   customDate: number | null;
   onChoiceChange: (choice: ApiKeyExpiryChoice) => void;
   onCustomDateChange: (date: number | null) => void;
-  /** The moment the form opened: the hint and the calendar's bounds count
-   * whole days from it, as the key's lifetime will. */
+  /** The preview's reference time; submission revalidates the date. */
   now: number;
   /** Why the custom date cannot be used, once the field was touched. */
   customDateError?: string;
@@ -76,11 +75,11 @@ export function ApiKeyExpiryField({
     [t],
   );
 
-  const days = expiryDays(choice, customDate, now);
+  const seconds = expirySeconds(choice, customDate, now);
   const expiresOn =
-    typeof days === 'number'
+    typeof seconds === 'number'
       ? t('apiKeys.form.expiresOn', {
-          date: formatDate(new Date(expiresAtAfter(days, now)), 'medium'),
+          date: formatDate(new Date(expiresAtAfter(seconds, now)), 'medium'),
         })
       : undefined;
   const bounds = customExpiryBounds(now);

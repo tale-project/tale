@@ -22,8 +22,7 @@ import {
   type ApiKeyExpiryChoice,
   DEFAULT_API_KEY_EXPIRY,
   DEFAULT_CUSTOM_EXPIRY_DAYS,
-  expiresInSeconds,
-  expiryDays,
+  expirySeconds,
   isCustomExpiryInRange,
 } from '../lib/expiry';
 import { ApiKeyExpiryField } from './api-key-expiry-field';
@@ -63,8 +62,7 @@ export function ApiKeyCreateDialog({
 
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  // The lifetime counts whole days from the moment the form opened: the
-  // date the field shows is the date the key gets.
+  // Hold the preview steady while editing; submission checks the live time.
   const [openedAt, setOpenedAt] = useState(() => Date.now());
   useEffect(() => {
     if (open) setOpenedAt(Date.now());
@@ -97,7 +95,7 @@ export function ApiKeyCreateDialog({
               path: ['expiryDate'],
               message: expiryDateRequiredError,
             });
-          } else if (!isCustomExpiryInRange(data.expiryDate, openedAt)) {
+          } else if (!isCustomExpiryInRange(data.expiryDate, Date.now())) {
             ctx.addIssue({
               code: 'custom',
               path: ['expiryDate'],
@@ -110,7 +108,6 @@ export function ApiKeyCreateDialog({
       nameTooLongError,
       expiryDateRequiredError,
       expiryDateRangeError,
-      openedAt,
     ],
   );
 
@@ -123,18 +120,31 @@ export function ApiKeyCreateDialog({
     },
   });
 
-  const { handleSubmit, register, reset, formState, setValue, watch } = form;
+  const {
+    handleSubmit,
+    register,
+    reset,
+    formState,
+    setValue,
+    setError,
+    watch,
+  } = form;
   const expiry = watch('expiry');
   const expiryDate = watch('expiryDate');
 
   const onSubmit = async (data: ApiKeyFormData) => {
-    const days = expiryDays(data.expiry, data.expiryDate, openedAt);
-    // The schema refuses a custom choice without a date.
-    if (days === undefined) return;
+    const now = Date.now();
+    const seconds = expirySeconds(data.expiry, data.expiryDate, now);
+    // The form may have been left open since the calendar was displayed.
+    if (seconds === undefined) {
+      setOpenedAt(now);
+      setError('expiryDate', { message: expiryDateRangeError });
+      return;
+    }
     try {
       const result = await createKey({
         name: data.name,
-        expiresIn: expiresInSeconds(days),
+        expiresIn: seconds ?? undefined,
       });
 
       setCreatedKey(result.key);
@@ -241,7 +251,7 @@ export function ApiKeyCreateDialog({
       submittingText={tCommon('actions.loading')}
       isSubmitting={isSubmitting}
       isValid={formState.isValid}
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={handleSubmit(onSubmit, () => setOpenedAt(Date.now()))}
     >
       <FormSection>
         {/* A key is the person's, not the organization's — the page lives

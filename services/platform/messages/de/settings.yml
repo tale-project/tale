@@ -1076,9 +1076,9 @@ apiKeys:
     expiresOn: Der Schlüssel läuft am {date} ab.
     neverExpiresHint: Der Schlüssel funktioniert, bis er widerrufen wird.
     expiryDate: Ablaufdatum
-    expiryDateHint: Wähle einen Tag, höchstens ein Jahr im Voraus.
+    expiryDateHint: Wähle einen verfügbaren Tag im Kalender.
     expiryDateRequired: Wähle ein Ablaufdatum.
-    expiryDateRange: Wähle einen Tag zwischen morgen und einem Jahr ab heute.
+    expiryDateRange: Wähle ein Datum im verfügbaren Zeitraum.
   neverUsed: Nie verwendet
   neverExpires: Nie
   expired: Abgelaufen
