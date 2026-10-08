@@ -465,10 +465,17 @@ describe('MessageThread scroll-to-bottom while streaming', () => {
       .toBeNull();
 
     // An upward wheel ends the follow; further growth stays below the fold.
+    // Three more replies: more than the response slack under the anchored
+    // question can absorb, so the growth must lengthen the transcript.
     log.dispatchEvent(new WheelEvent('wheel', { deltaY: -3, bubbles: true }));
     rerender(
       <Harness
-        items={[...grown, extraReply('more-2', 102)]}
+        items={[
+          ...grown,
+          extraReply('more-2', 102),
+          extraReply('more-3', 103),
+          extraReply('more-4', 104),
+        ]}
         threadId="thread-follow"
         intentRef={intentRef}
         isGenerating

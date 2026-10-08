@@ -302,8 +302,6 @@ fallback:
   image: Bild
 loadingConversation: Lädt die Unterhaltung…
 speakOutLoud: Vorlesen
-showMore: Mehr anzeigen
-showLess: Weniger anzeigen
 scrollToBottom: Nach unten scrollen
 messageInfo:
   title: Nachrichteninformation
