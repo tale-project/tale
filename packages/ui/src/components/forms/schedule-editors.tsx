@@ -295,16 +295,38 @@ function windowHint(
   if (starts === null) {
     return { text: t('editor.windowHint.none'), neverFires: true };
   }
+  return { text: startsHint(starts, t, formatTime), neverFires: false };
+}
+
+/** The hint for a window that has starts: its one start, or its first and
+ * last, and whether they fall the next morning. */
+function startsHint(
+  starts: NonNullable<ReturnType<typeof windowStarts>>,
+  t: TFunction,
+  formatTime: (time: TimeOfDay) => string,
+): string {
+  if (sameTime(starts.first, starts.last)) {
+    const time = formatTime(starts.first);
+    return starts.span === 'nextMorning'
+      ? t('editor.windowHint.onceNextMorning', { time })
+      : t('editor.windowHint.once', { time });
+  }
   const words = {
     first: formatTime(starts.first),
     last: formatTime(starts.last),
   };
-  return {
-    text: starts.overnight
-      ? t('editor.windowHint.overnight', words)
-      : t('editor.windowHint.sameDay', words),
-    neverFires: false,
-  };
+  switch (starts.span) {
+    case 'sameDay':
+      return t('editor.windowHint.sameDay', words);
+    case 'overnight':
+      return t('editor.windowHint.overnight', words);
+    case 'nextMorning':
+      return t('editor.windowHint.nextMorning', words);
+    default: {
+      const exhaustive: never = starts.span;
+      return exhaustive;
+    }
+  }
 }
 
 /**

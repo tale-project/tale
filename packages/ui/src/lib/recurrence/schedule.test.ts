@@ -386,7 +386,7 @@ describe('windowStarts', () => {
     ).toEqual({
       first: { hour: 8, minute: 0 },
       last: { hour: 17, minute: 45 },
-      overnight: false,
+      span: 'sameDay',
     });
     expect(
       windowStarts({
@@ -398,7 +398,7 @@ describe('windowStarts', () => {
     ).toEqual({
       first: { hour: 10, minute: 15 },
       last: { hour: 16, minute: 15 },
-      overnight: false,
+      span: 'sameDay',
     });
   });
 
@@ -412,7 +412,74 @@ describe('windowStarts', () => {
     ).toEqual({
       first: { hour: 22, minute: 0 },
       last: { hour: 5, minute: 30 },
-      overnight: true,
+      span: 'overnight',
+    });
+  });
+
+  it('says when every start falls the next morning', () => {
+    expect(
+      windowStarts({
+        frequency: 'hourly',
+        interval: 2,
+        minute: 0,
+        window: { weekdays: [5], hours: { from: '23:00', to: '03:00' } },
+      }),
+    ).toEqual({
+      first: { hour: 0, minute: 0 },
+      last: { hour: 2, minute: 0 },
+      span: 'nextMorning',
+    });
+    // One start, after midnight: first and last are the same time.
+    expect(
+      windowStarts({
+        frequency: 'hourly',
+        interval: 4,
+        minute: 0,
+        window: { weekdays: [5], hours: { from: '21:00', to: '03:00' } },
+      }),
+    ).toEqual({
+      first: { hour: 0, minute: 0 },
+      last: { hour: 0, minute: 0 },
+      span: 'nextMorning',
+    });
+  });
+
+  it('keeps an overnight window with starts only before midnight on its day', () => {
+    expect(
+      windowStarts({
+        frequency: 'hourly',
+        interval: 4,
+        minute: 0,
+        window: { weekdays: [5], hours: { from: '19:00', to: '00:30' } },
+      }),
+    ).toEqual({
+      first: { hour: 20, minute: 0 },
+      last: { hour: 0, minute: 0 },
+      span: 'overnight',
+    });
+    expect(
+      windowStarts({
+        frequency: 'hourly',
+        interval: 6,
+        minute: 0,
+        window: { weekdays: [5], hours: { from: '17:00', to: '00:00' } },
+      }),
+    ).toEqual({
+      first: { hour: 18, minute: 0 },
+      last: { hour: 18, minute: 0 },
+      span: 'sameDay',
+    });
+    expect(
+      windowStarts({
+        frequency: 'hourly',
+        interval: 6,
+        minute: 30,
+        window: { weekdays: [5], hours: { from: '17:00', to: '00:15' } },
+      }),
+    ).toEqual({
+      first: { hour: 18, minute: 30 },
+      last: { hour: 18, minute: 30 },
+      span: 'sameDay',
     });
   });
 
@@ -426,7 +493,7 @@ describe('windowStarts', () => {
     ).toEqual({
       first: { hour: 18, minute: 0 },
       last: { hour: 23, minute: 30 },
-      overnight: false,
+      span: 'sameDay',
     });
   });
 
@@ -452,7 +519,7 @@ describe('windowStarts', () => {
     const allDay = {
       first: { hour: 0, minute: 0 },
       last: { hour: 23, minute: 0 },
-      overnight: false,
+      span: 'sameDay',
     };
     expect(
       windowStarts({ frequency: 'hourly', interval: 1, minute: 0 }),

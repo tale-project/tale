@@ -382,6 +382,9 @@ recurrence:
     windowHint:
       sameDay: 'Each day, the first run starts at {first} and the last at {last}.'
       overnight: 'Runs overnight: the first starts at {first}, the last at {last} the next morning.'
+      nextMorning: 'Runs the next morning: the first starts at {first}, the last at {last}.'
+      once: 'Each day, it runs once, at {time}.'
+      onceNextMorning: 'Each day, it runs once, at {time} the next morning.'
       allDay: The same start and end means all day.
       none: No run falls between these times. Widen the hours or pick a shorter interval.
     onWeekdays: 'On'

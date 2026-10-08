@@ -388,51 +388,43 @@ function startsIn(
   return { first, last };
 }
 
+/** Where a day's starts fall: all on the window's own day, on both sides
+ * of midnight, or all after midnight, on the next day. */
+export type WindowSpan = 'sameDay' | 'overnight' | 'nextMorning';
+
 /**
  * A grid's first and last start in a day of its window, as the editor's
  * hint says them, or null when no start falls inside the hours (the rule
- * would never run). `overnight` is true when the last start falls after
- * midnight, on the next day; a window "18:00 until 00:00" ends the same
- * day. A rule without hours, or with the same start and end, runs all day.
+ * would never run). `span` says where they fall: a window "18:00 until
+ * 00:00" ends the same day, "22:00 until 06:00" every 30 minutes runs
+ * overnight, and "21:00 until 03:00" every 4 hours starts only at 00:00,
+ * the next morning. One start makes `first` and `last` the same time. A
+ * rule without hours, or with the same start and end, runs all day.
  */
 export function windowStarts(
   rule: ScheduleGridRule,
-): { first: TimeOfDay; last: TimeOfDay; overnight: boolean } | null {
+): { first: TimeOfDay; last: TimeOfDay; span: WindowSpan } | null {
   const hours = rule.window?.hours;
   const from = hours ? parseScheduleTime(hours.from) : null;
   const to = hours ? parseScheduleTime(hours.to) : null;
-  if (from === null || to === null || sameTime(from, to)) {
-    const day = startsIn(rule, 0, MINUTES_PER_DAY);
-    return day === null
+  const read = (
+    day: { first: number; last: number } | null,
+    span: WindowSpan,
+  ) =>
+    day === null
       ? null
-      : { first: timeAt(day.first), last: timeAt(day.last), overnight: false };
+      : { first: timeAt(day.first), last: timeAt(day.last), span };
+  if (from === null || to === null || sameTime(from, to)) {
+    return read(startsIn(rule, 0, MINUTES_PER_DAY), 'sameDay');
   }
   const start = minuteOf(from);
   const end = minuteOf(to);
-  if (start < end) {
-    const day = startsIn(rule, start, end);
-    return day === null
-      ? null
-      : { first: timeAt(day.first), last: timeAt(day.last), overnight: false };
-  }
+  if (start < end) return read(startsIn(rule, start, end), 'sameDay');
   const evening = startsIn(rule, start, MINUTES_PER_DAY);
   const morning = startsIn(rule, 0, end);
-  const first = evening?.first ?? morning?.first;
-  if (first === undefined) return null;
-  if (morning !== null) {
-    return {
-      first: timeAt(first),
-      last: timeAt(morning.last),
-      overnight: true,
-    };
-  }
-  return evening === null
-    ? null
-    : {
-        first: timeAt(evening.first),
-        last: timeAt(evening.last),
-        overnight: false,
-      };
+  if (evening === null) return read(morning, 'nextMorning');
+  if (morning === null) return read(evening, 'sameDay');
+  return read({ first: evening.first, last: morning.last }, 'overnight');
 }
 
 /**

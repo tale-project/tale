@@ -478,6 +478,51 @@ describe('RecurrencePicker in time mode', () => {
       ).toBeVisible();
     });
 
+    it('names a window’s one start once, and starts that all fall after midnight', async () => {
+      const { user } = render(
+        <Required
+          initial={{
+            frequency: 'hourly',
+            interval: 6,
+            minute: 0,
+            window: {
+              weekdays: [1, 2, 3, 4, 5],
+              hours: { from: '08:00', to: '13:00' },
+            },
+          }}
+        />,
+      );
+      const dialog = await openPicker(user);
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Custom interval' }),
+      );
+      expect(
+        plain(within(dialog).getByText(/^Each day, it runs once/).textContent),
+      ).toBe('Each day, it runs once, at 12:00 PM.');
+      const from = within(dialog).getByRole('group', { name: 'From' });
+      const until = within(dialog).getByRole('group', { name: 'Until' });
+      // From 9:00 PM until 3:00 AM: every 6 hours starts only at midnight.
+      await user.click(within(from).getByRole('spinbutton', { name: 'Hours' }));
+      await user.keyboard('0900p');
+      await user.click(
+        within(until).getByRole('spinbutton', { name: 'Hours' }),
+      );
+      await user.keyboard('0300a');
+      expect(
+        plain(within(dialog).getByText(/^Each day, it runs once/).textContent),
+      ).toBe('Each day, it runs once, at 12:00 AM the next morning.');
+      // Every 2 hours from 11:00 PM: midnight and 2:00 AM, both after it.
+      await user.click(within(dialog).getByRole('combobox', { name: 'Every' }));
+      await user.click(screen.getByRole('option', { name: '2 hours' }));
+      await user.click(within(from).getByRole('spinbutton', { name: 'Hours' }));
+      await user.keyboard('1100p');
+      expect(
+        plain(within(dialog).getByText(/^Runs the next morning/).textContent),
+      ).toBe(
+        'Runs the next morning: the first starts at 12:00 AM, the last at 2:00 AM.',
+      );
+    });
+
     it('blocks Save, with its reason, while no run falls between the hours', async () => {
       const onChange = vi.fn();
       const { user } = render(

@@ -382,8 +382,11 @@ recurrence:
     windowHint:
       sameDay: 'Jeden Tag startet der erste Lauf um {first}, der letzte um {last}.'
       overnight: 'Läuft über Nacht: Der erste Lauf startet um {first}, der letzte um {last} am nächsten Morgen.'
+      nextMorning: 'Läuft am nächsten Morgen: Der erste Lauf startet um {first}, der letzte um {last}.'
+      once: 'Jeden Tag gibt es nur einen Lauf, um {time}.'
+      onceNextMorning: 'Jeden Tag gibt es nur einen Lauf, um {time} am nächsten Morgen.'
       allDay: 'Gleicher Beginn und gleiches Ende bedeutet: den ganzen Tag.'
-      none: Zwischen diesen Uhrzeiten fällt kein Lauf. Erweitere den Zeitraum oder wähle ein kürzeres Intervall.
+      none: Zwischen diesen Uhrzeiten startet kein Lauf. Erweitere den Zeitraum oder wähle ein kürzeres Intervall.
     onWeekdays: Am
     onDay: Am Tag
     onDate: Am
