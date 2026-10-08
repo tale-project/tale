@@ -39,6 +39,27 @@ import { incrementUsageLedger, recordConnectorUsage } from './service.ts';
 
 const createdSchema = z.object({ id: z.string() });
 
+/** The composer banner's read, as far as these checks look at it. */
+const budgetStatusSchema = z.object({
+  status: z
+    .looseObject({
+      exceeded: z.boolean(),
+      scope: z.string().optional(),
+      projectName: z.string().nullable().optional(),
+      warnings: z
+        .array(
+          z.looseObject({
+            code: z.string(),
+            scope: z.string().optional(),
+            projectId: z.string().optional(),
+            projectName: z.string().nullable().optional(),
+          }),
+        )
+        .nullable(),
+    })
+    .nullable(),
+});
+
 /**
  * A project's budget cap (`GOV-R14`, migration 0155): spend that names a
  * project lands in the project's own buckets beside the ledger; a chat turn
@@ -71,6 +92,7 @@ export async function checkProjectBudgets(
     'governance',
   );
   const budgetsFile = path.join(governanceDir, 'budgets.yml');
+  const projectBudgetsFile = path.join(governanceDir, 'project-budgets.yml');
 
   const [project] = await sql<{ id: string }[]>`
     INSERT INTO app.projects (
@@ -870,9 +892,104 @@ export async function checkProjectBudgets(
         subscriptionBooked[0]?.tokens === 1_500,
       `admitted=${JSON.stringify(subscriptionTurn)} (want allowed at 0 cents), project hold requests ${beforeSubscription.requests} → ${whileSubscription.requests} → ${afterSubscription.requests} (want +1 then back), cost ${beforeSubscription.costCents} → ${whileSubscription.costCents} (want unchanged), booked=${JSON.stringify(subscriptionBooked)} (want one request, 0 cents, 1500 tokens)`,
     );
+
+    // A project's cap is part of the standing of whoever chats in it, named
+    // by the project, and it can warn. Its rules live in a file of their
+    // own; the budgets file's `projectRules` binds only while that file has
+    // never been written.
+    const [monthly] = await sql<{ requests: number }[]>`
+      SELECT request_count::float8 AS requests FROM app.project_usage
+      WHERE org_id = ${orgId} AND project_id = ${projectId}
+        AND granularity = 'monthly'
+        AND period_key = ${buildPeriodKeyFromTimestamp('monthly', Date.now())}
+    `;
+    const usedRequests = monthly?.requests ?? 0;
+    const statusIn = async (withProject: boolean) => {
+      const response = await fetch(
+        `${base}/api/app/governance/my/budget-status?orgId=${orgId}${withProject ? `&projectId=${projectId}` : ''}`,
+        { headers: { cookie: ctx.cookie, origin: base } },
+      );
+      const parsed = budgetStatusSchema.safeParse(
+        await response.json().catch(() => null),
+      );
+      return parsed.success ? parsed.data.status : undefined;
+    };
+    await writeFile(
+      budgetsFile,
+      [
+        'enabled: true',
+        'rules: []',
+        'projectRules:',
+        '  - scope: project',
+        `    scopeId: ${projectId}`,
+        '    period: monthly',
+        `    maxRequests: ${usedRequests}`,
+      ].join('\n'),
+    );
+    clearOrgConfigCaches();
+    const legacyReached = await statusIn(true);
+    const legacyElsewhere = await statusIn(false);
+    await writeFile(
+      projectBudgetsFile,
+      [
+        'rules:',
+        '  - scope: project',
+        `    scopeId: ${projectId}`,
+        '    period: monthly',
+        `    maxRequests: ${usedRequests + 10}`,
+        '    warningThresholdPercent: 1',
+      ].join('\n'),
+    );
+    clearOrgConfigCaches();
+    const warned = await statusIn(true);
+    const saved = await fetch(
+      `${base}/api/app/governance/policies/project_budgets?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: ctx.cookie,
+          origin: base,
+        },
+        body: JSON.stringify({ config: { rules: [] } }),
+      },
+    );
+    clearOrgConfigCaches();
+    const emptied = await statusIn(true);
+    const audited = await sql<{ action: string }[]>`
+      SELECT action FROM app.audit_logs
+      WHERE org_id = ${orgId} AND resource_type = 'governance_policy'
+        AND resource_id = 'project_budgets'
+      ORDER BY ts DESC LIMIT 1
+    `;
+    const projectWarning = warned?.warnings?.find(
+      (warning) => warning.scope === 'project',
+    );
+    record(
+      'project budgets: a project’s cap warns whoever chats in it by name, from a file of its own that outranks the budgets file’s copy [GOV-R6]',
+      usedRequests >= 1 &&
+        legacyReached?.exceeded === true &&
+        legacyReached.scope === 'project' &&
+        legacyReached.projectName === `Budget ${suffix}` &&
+        legacyElsewhere === null &&
+        warned?.exceeded === false &&
+        projectWarning?.code === 'REQUEST_WARNING' &&
+        projectWarning.projectId === projectId &&
+        projectWarning.projectName === `Budget ${suffix}` &&
+        saved.status === 200 &&
+        emptied === null &&
+        audited[0]?.action === 'governance_policy.updated',
+      `project requests=${usedRequests} (want ≥1); budgets-file copy reached: ${JSON.stringify(legacyReached)} (want exceeded, scope project, named); outside the project: ${JSON.stringify(legacyElsewhere)} (want null); own file at a 1% threshold: ${JSON.stringify(warned)} (want a named project REQUEST_WARNING, not exceeded); saved empty → ${saved.status} (want 200), then ${JSON.stringify(emptied)} (want null: the emptied file outranks the copy); audit=${audited[0]?.action ?? 'none'} (want governance_policy.updated)`,
+    );
   } finally {
     await unlink(budgetsFile).catch((error: unknown) => {
       console.warn('[itest] project budgets: budgets file not removed', error);
+    });
+    await unlink(projectBudgetsFile).catch((error: unknown) => {
+      console.warn(
+        '[itest] project budgets: project caps file not removed',
+        error,
+      );
     });
     clearOrgConfigCaches();
     await sql`
