@@ -37,6 +37,7 @@ import {
   getKnowledgePoolForOrg,
   resolveOrgUrl,
 } from '../../core/knowledge/pool.ts';
+import { ITEST_VECTOR_WIDTH } from '../../integration-lane-helpers.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { chatShimHandlers, resolveAccessScope } from '../chat/shim.ts';
 import {
@@ -165,7 +166,7 @@ export async function checkEmailedAttachments(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
         minSimilarity: 0,
       }),
@@ -717,7 +718,7 @@ export async function checkEmailedAttachments(
           {
             providerSlug: 'openai',
             model: 'itest-embed',
-            dimensions: 8,
+            dimensions: ITEST_VECTOR_WIDTH,
             baseUrl: `http://127.0.0.1:${embedPort}/v1`,
           },
           'sk-itest-emailed-attachments',

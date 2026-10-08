@@ -106,7 +106,6 @@ export function DataResidencySettings({
             view={embeddingQuery.data}
             readError={embeddingReadError}
             readOnly={!canWriteOrg}
-            sharedDatabase={knowledgeQuery.data?.configured !== true}
           />
           <OrgStorageSection
             organizationId={organizationId}
