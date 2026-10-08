@@ -9,7 +9,10 @@
         "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-replay.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
-        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts"
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-floor.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-model.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/migration-model.ts"
       ]
     },
     "test": {
@@ -44,7 +47,10 @@
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/playwright-mcp-args.json",
         "$TURBO_ROOT$/services/sandbox/src/config.ts",
-        "$TURBO_ROOT$/.github/ci-scope.yml"
+        "$TURBO_ROOT$/.github/ci-scope.yml",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-floor.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-model.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/migration-model.ts"
       ]
     },
     "test:browser": {
@@ -188,7 +194,10 @@
         "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-replay.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
-        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts"
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-floor.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-model.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/migration-model.ts"
       ]
     },
     "build": {

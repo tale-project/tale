@@ -141,7 +141,7 @@
           if (section !== undefined && home.indexOf(section) === -1) return;
           if (section === 'chat' && match[3] === 'shared') return;
           // A project's automation workbench keeps the full width, like an
-          // automation outside a project (see showsHomePanel).
+          // automation outside a project (see isProjectAutomationPage).
           if (
             section === 'projects' &&
             /\/projects\/[^/]+\/automations\/[^/]+/.test(

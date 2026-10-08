@@ -111,7 +111,17 @@ export async function nativeServer(
           ? 'foreign-automation'
           : manifest.automationName,
         version: 7,
-        warnings: faults.has('warnings') ? ['review required'] : [],
+        warnings: faults.has('warnings')
+          ? ['review required']
+          : faults.has('driftWarning')
+            ? [
+                '[SKILL_NOT_FOUND] the document references the skill "x", which is neither carried by this package nor present in the organization',
+              ]
+            : faults.has('analysisWarning')
+              ? [
+                  'summary [MAYBE_NULL] output: nodes.check.output.ok reads "check", which is skipped when its own "when" is false — building the output then fails, so the run fails',
+                ]
+              : [],
         skills: faults.has('skillWrite')
           ? [{ slug: manifest.skillSlugs[0] }]
           : [],

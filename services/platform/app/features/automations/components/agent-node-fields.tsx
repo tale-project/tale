@@ -54,18 +54,6 @@ const HARNESS_DEFAULT = '__default__';
  * whose scaffolded node never names a harness. */
 export const DEFAULT_HARNESS = 'claude-code';
 
-/** The node fields this component owns — the inspector must NOT also render
- * them through its generic field loop. */
-export const AGENT_EQUIPMENT_FIELDS: readonly string[] = [
-  'model',
-  'modelProvider',
-  'harness',
-  'skills',
-  'connectors',
-  'tools',
-  'secrets',
-];
-
 function readStringArray(node: NodeDef, field: string): string[] {
   const record: Record<string, unknown> = { ...node };
   const value = record[field];

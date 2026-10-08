@@ -23,7 +23,11 @@ tasks and genuine unhandled errors are reported. A verified client abort or a
 closed SSE stream after cancellation is expected and sends no event. Request
 bodies, cookies and credential headers or URL tokens are omitted or masked using
 the same privacy filter as the platform backend. Stack frames and error messages
-are sent unchanged. Unset `SENTRY_DSN` disables reporting.
+are sent unchanged. Unset `SENTRY_DSN` disables reporting, and the spawner
+then never loads the reporting SDK; likewise only `SANDBOX_BACKEND=kubernetes`
+loads the Kubernetes API client. Each would hold 60–100 MiB of memory for
+nothing, and `src/import-footprint.test.ts` keeps both out of a Docker
+spawner's (and a connected device's) boot.
 
 Exec and attach streams bound their pending output to 8 MiB plus at most one
 event (a collected terminal result can be larger). A consumer that stays
@@ -124,8 +128,13 @@ occupied until termination is confirmed. A container or Pod with malformed
 ownership labels still contributes to aggregate occupancy; only validated
 organization/session identities appear in that organization's session list.
 Failed or incomplete inventories return 503, never a successful zero count.
-Observations coalesce and cache for five seconds;
-the settings page refreshes every 15 seconds and marks unavailable metrics.
+Observations coalesce and cache for five seconds, each one a single
+`docker ps`; the daemon's totals and kernel, and whether the local endpoint
+describes this host, are read once per ten minutes (an endpoint the CLI
+could not resolve is asked again after 30 seconds). The spawner image sets
+`DOCKER_HOST` to the mounted socket, so it never asks the CLI for its
+context. The settings page and each connected device's status refresh every
+15 seconds; the page marks unavailable metrics.
 
 The platform builds workspace rows by grouping execution history once per
 refresh and projecting only the current and running operations. Historical
@@ -307,7 +316,11 @@ workspace admission remains active and Docker disk pressure is unavailable.
 An explicit `SANDBOX_DOCKER_DATA_ROOT` read-only mount visible at
 `SANDBOX_DOCKER_DATA_PATH` takes priority. The CLI generates that optional mount;
 raw Compose needs an override. Its source must match DockerRootDir; failed
-verification closes admission. `/health.disks` reports each monitor as ready or
+verification closes admission. Either mount is verified with the daemon once
+per process and again only when its free space cannot be read or its kernel
+mount entry changes; a failed verification is retried after 30 seconds, the
+delay doubling up to 10 minutes while the daemon keeps refuting the mount.
+`/health.disks` reports each monitor as ready or
 unavailable. Separately mounted volumes or containerd stores need their own
 monitoring. These checks do not
 enforce per-session disk quotas; those require a quota-capable storage backend.

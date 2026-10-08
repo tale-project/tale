@@ -101,11 +101,20 @@ refused (`APPROVAL_REQUIRES_DEDICATED_RESPOND`) and the review stays as it was.
 
 ### APV-R11 · An approval is decided once, and its run is woken once
 
-A second decision on the same approval is refused and wakes nothing. A decision that was saved
-stands even when waking the run fails at that moment.
+A second decision on the same approval is refused and wakes nothing. A decision and the wake of
+its run are saved together: when the run cannot be woken at that moment, the decision is not
+saved either, and deciding again works.
 
 - **Example**: Mia and Noah both select **Approve** on the same card → the first decision is
   saved and the run continues once; the second is refused.
+
+### APV-R12 · A decision lets its run continue at once
+
+The run does not wait for a later check, even when the decision lands while the run is still on
+its way to pausing at the card.
+
+- **Example**: Noah approves a card in the moment its run is pausing for it → the run continues
+  right away instead of waiting ten minutes for its next check.
 
 ## Not yet
 

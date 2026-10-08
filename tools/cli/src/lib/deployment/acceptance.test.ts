@@ -196,6 +196,124 @@ describe.skipIf(process.platform === 'win32')(
         ),
       ).toBe(true);
     }, 30_000);
+    test('accepts a third-party registry image when Docker omits Labels', async () => {
+      const f = await fixture();
+      const registry = [...f.docker.imageMetadata].find(([reference]) =>
+        reference.startsWith('registry@'),
+      )![1];
+      registry.Config = {};
+      const result = await acceptDeployment(f.options, f.dependencies);
+      expect(result.version).toBe('1.2.3');
+      expect(result.readyReceiptSha256).toBe(sha256(readFileSync(f.ready)));
+      expect(f.fetched()).toBe(4);
+    });
+    for (const labels of [null, {}, { 'external.annotation': 'value' }])
+      test(`accepts supported third-party Docker labels ${JSON.stringify(labels)}`, async () => {
+        const f = await fixture();
+        const registry = [...f.docker.imageMetadata].find(([reference]) =>
+          reference.startsWith('registry@'),
+        )![1];
+        registry.Config = { Labels: labels };
+        expect(
+          (await acceptDeployment(f.options, f.dependencies)).version,
+        ).toBe('1.2.3');
+      });
+    for (const config of [
+      undefined,
+      null,
+      { Labels: [] },
+      { Labels: 1 },
+      { Labels: { invalid: false } },
+    ])
+      test(`refuses malformed Docker image Config ${JSON.stringify(config)}`, async () => {
+        const f = await fixture();
+        const registry = [...f.docker.imageMetadata].find(([reference]) =>
+          reference.startsWith('registry@'),
+        )![1];
+        registry.Config = config;
+        await expect(
+          acceptDeployment(f.options, f.dependencies),
+        ).rejects.toThrow();
+        expect(f.fetched()).toBe(0);
+      });
+    for (const labels of [
+      undefined,
+      null,
+      {},
+      { 'org.opencontainers.image.version': '1.2.3' },
+      {
+        'org.opencontainers.image.revision': 'wrong-source',
+        'org.opencontainers.image.version': '1.2.3',
+      },
+    ])
+      test(`refuses Tale images without the required source label ${JSON.stringify(labels)}`, async () => {
+        const f = await fixture();
+        const [reference, tale] = [...f.docker.imageMetadata].find(
+          ([candidate]) =>
+            candidate.startsWith('ghcr.io/tale-project/tale/') &&
+            candidate.includes('@'),
+        )!;
+        tale.Config = labels === undefined ? {} : { Labels: labels };
+        await expect(
+          acceptDeployment(f.options, f.dependencies),
+        ).rejects.toThrow('complete source revision');
+        expect(
+          f.docker.calls.some(
+            (call) =>
+              call.args[0] === 'image' &&
+              call.args[1] === 'inspect' &&
+              call.args[2] === reference,
+          ),
+        ).toBe(true);
+        expect(f.fetched()).toBe(0);
+      });
+    test('refuses a Tale image with the right source but no version label', async () => {
+      const f = await fixture();
+      const tale = [...f.docker.imageMetadata].find(
+        ([reference]) =>
+          reference.startsWith('ghcr.io/tale-project/tale/') &&
+          reference.includes('@'),
+      )![1];
+      tale.Config = {
+        Labels: { 'org.opencontainers.image.revision': f.f.revision },
+      };
+      await expect(acceptDeployment(f.options, f.dependencies)).rejects.toThrow(
+        'release version and source',
+      );
+      expect(f.fetched()).toBe(0);
+    });
+    for (const timestamp of [
+      '2026-09-10T00:00:00Z',
+      '2026-09-10T00:00:00.123456789Z',
+      '2026-09-10T00:00:00.123456789+00:00',
+      '2026-09-10T02:00:00+02:00',
+      '2026-09-09T22:00:00-02:00',
+    ])
+      test(`accepts Docker RFC3339Nano timestamp ${timestamp}`, async () => {
+        const f = await fixture();
+        for (const container of f.docker.containers)
+          (container.State as { StartedAt: string }).StartedAt = timestamp;
+        expect(
+          (await acceptDeployment(f.options, f.dependencies)).version,
+        ).toBe('1.2.3');
+      });
+    for (const timestamp of [
+      '2026-02-30T00:00:00Z',
+      '2026-09-10T00:00Z',
+      '2026-09-10T00:00:00.1234567890Z',
+      '2026-09-10T00:00:00+25:00',
+      '2026-09-10T00:00:00+0200',
+      '2026-09-10T00:00:00',
+    ])
+      test(`refuses invalid Docker RFC3339Nano timestamp ${timestamp}`, async () => {
+        const f = await fixture();
+        (f.docker.containers[0]!.State as { StartedAt: string }).StartedAt =
+          timestamp;
+        await expect(
+          acceptDeployment(f.options, f.dependencies),
+        ).rejects.toThrow();
+        expect(f.fetched()).toBe(0);
+      });
     for (const [field, value] of [
       ['cliRef', 'b'.repeat(40)],
       ['deploymentRef', 'b'.repeat(40)],
@@ -277,7 +395,13 @@ describe.skipIf(process.platform === 'win32')(
         'pinned image identity',
       );
     });
-    for (const mutation of ['restart', 'ready', 'ledger', 'topology'] as const)
+    for (const mutation of [
+      'restart',
+      'startedAt',
+      'ready',
+      'ledger',
+      'topology',
+    ] as const)
       test(`refuses ${mutation} changes during observation`, async () => {
         const f = await fixture();
         let queries = 0;
@@ -285,6 +409,10 @@ describe.skipIf(process.platform === 'win32')(
           if (args[0] === 'exec' && ++queries === 3) {
             if (mutation === 'restart')
               f.docker.containers[0]!.RestartCount = 1;
+            if (mutation === 'startedAt')
+              (
+                f.docker.containers[0]!.State as { StartedAt: string }
+              ).StartedAt = '2026-09-10T00:00:01+00:00';
             if (mutation === 'ready')
               writeFileSync(
                 f.ready,

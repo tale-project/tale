@@ -11,6 +11,25 @@ describe('resetCrossOrgDetailSubpath', () => {
     expect(resetCrossOrgDetailSubpath('chat/t_1#mid')).toBe('chat');
   });
 
+  it("lands an automation's page inside a project on the Automations list", () => {
+    // It belongs to Automations, and the project is not in the target org.
+    expect(
+      resetCrossOrgDetailSubpath(
+        'projects/abc/automations/github__triage/editor',
+      ),
+    ).toBe('automations');
+    expect(
+      resetCrossOrgDetailSubpath('projects/abc/automations/x/runs/r1?y=1'),
+    ).toBe('automations');
+    // The project's own Automations tab is the project's page.
+    expect(resetCrossOrgDetailSubpath('projects/abc/automations')).toBe(
+      'projects',
+    );
+    expect(resetCrossOrgDetailSubpath('projects/abc/automations?x=1')).toBe(
+      'projects',
+    );
+  });
+
   it('preserves section roots, filters, and config subpaths', () => {
     expect(resetCrossOrgDetailSubpath('projects')).toBe('projects');
     expect(resetCrossOrgDetailSubpath('projects?archived=true')).toBe(

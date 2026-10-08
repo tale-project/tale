@@ -76,6 +76,12 @@ const REFUSALS: [
 ][] = [
   ['search_catalog', {}, fullStore, 'INVALID_PARAMS'],
   ['validate_automation', {}, fullStore, 'INVALID_PARAMS'],
+  [
+    'validate_automation',
+    { automation: DOC_EXAMPLE.automation, detail: 'all' },
+    fullStore,
+    'INVALID_PARAMS',
+  ],
   ['run_automation', {}, fullStore, 'INVALID_PARAMS'],
   [
     'run_automation',
@@ -203,6 +209,52 @@ describe('every refusal carries a code and a hint', () => {
     expect(result.code).toBe(code);
     expect(DISPATCH_REFUSAL_CODES).toContain(result.code);
     expect(result.hint).toMatch(/\S/);
+  });
+
+  it('a document refusal lists its issues: the save adds the warnings, the deploy gate the errors', async () => {
+    const save = await dispatch(
+      'save_automation',
+      { automation: { name: 'nope', nodes: 'not-a-list' } },
+      { store: fullStore() },
+    );
+    expect(Object.keys(save as object).sort()).toEqual([
+      'code',
+      'error',
+      'errors',
+      'hint',
+      'warnings',
+    ]);
+    expect(save).toMatchObject({
+      warnings: [expect.objectContaining({ code: 'VERSION_MISSING' })],
+    });
+
+    const deploy = await dispatch(
+      'deploy_automation',
+      { name: SAVED, version: 1 },
+      {
+        store: fullStore({
+          get: async () => ({
+            meta: { version: 1 },
+            automation: { name: SAVED, nodes: 'not-a-list' },
+          }),
+        }),
+      },
+    );
+    expect(Object.keys(deploy as object).sort()).toEqual([
+      'code',
+      'error',
+      'errors',
+      'hint',
+    ]);
+    expect(deploy).toMatchObject({
+      errors: [
+        expect.objectContaining({
+          code: 'NODES_MISSING',
+          at: { pointer: '/nodes' },
+          params: {},
+        }),
+      ],
+    });
   });
 
   it('the deploy gate names failing tests, and records the verdict on the version [AUTO-R4]', async () => {
@@ -500,7 +552,12 @@ describe('save_automation records the save’s own test verdict', () => {
       'why',
       { testsPassed: false },
     );
-    expect(result).toEqual({ name: SAVED, version: 2, testsPassed: false });
+    expect(result).toEqual({
+      name: SAVED,
+      version: 2,
+      testsPassed: false,
+      warnings: [],
+    });
   });
 
   it('records no verdict for a document without tests', async () => {
@@ -519,7 +576,7 @@ describe('save_automation records the save’s own test verdict', () => {
       '',
       undefined,
     );
-    expect(result).toEqual({ name: SAVED, version: 2 });
+    expect(result).toEqual({ name: SAVED, version: 2, warnings: [] });
   });
 });
 

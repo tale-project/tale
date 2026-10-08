@@ -1348,6 +1348,11 @@ logs:
       ai.completion: KI-Antwort
       ai.budget_blocked: KI-Budget gesperrt
       automation.trigger.paused: Zeitplan einer Automatisierung pausiert
+      automation.run.success: Automatisierungslauf erfolgreich
+      automation.run.failed: Automatisierungslauf fehlgeschlagen
+      automation.run.cancelled: Automatisierungslauf gestoppt
+      automation.run.deleted: Automatisierungslauf gelöscht
+      automation.run.in_doubt_resolved: Über unterbrochenen Automatisierungsschritt entschieden
       create_connector: Connector erstellt
       delete_connector: Connector gelöscht
       update_credential: Zugangsdaten aktualisiert

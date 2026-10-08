@@ -104,6 +104,9 @@ export interface LiveHostOptions {
   /** Names the action in diagnostics — the host itself is per-invocation. */
   action?: string;
   timeoutMs?: number;
+  /** The caller's own stop: every request this host makes is torn down the
+   * moment it aborts, instead of running on to `timeoutMs`. */
+  signal?: AbortSignal;
   maxResponseBytes?: number;
   maxDownloadBytes?: number;
 }
@@ -307,7 +310,9 @@ export function createLiveHost(
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
     maxDownloadBytes = DEFAULT_MAX_DOWNLOAD_BYTES,
+    signal,
   } = options;
+  const stop = signal !== undefined ? { signal } : {};
 
   // A per-credential endpoint is operator-supplied data: check it against the
   // connector's policy once here so a mis-pointed credential fails with one
@@ -367,6 +372,7 @@ export function createLiveHost(
           timeoutMs,
           maxResponseBytes: maxDownloadBytes,
           allowedHosts: [...connector.allowedHosts],
+          ...stop,
         });
         checkFinalUrl(response.finalUrl);
         const bytes = Buffer.from(await response.body.arrayBuffer());
@@ -383,6 +389,7 @@ export function createLiveHost(
         timeoutMs,
         maxResponseBytes,
         allowedHosts: [...connector.allowedHosts],
+        ...stop,
       });
       checkFinalUrl(response.finalUrl);
       return toConnectorResponse(
@@ -421,6 +428,7 @@ export function createLiveHost(
               timeoutMs,
               maxResponseBytes: maxDownloadBytes,
               allowedHosts: [...connector.allowedHosts],
+              ...stop,
             });
           } catch (error) {
             if (error instanceof ConnectorError) throw error;

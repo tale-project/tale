@@ -1,6 +1,3 @@
-/** Real HTTP/session grants, PostgreSQL rollback and contention for the
- * optional metadata tool. Queued agent work is held by the existing test
- * fixture: no sandbox or provider runs, including in the real-start races. */
 import { createHash, randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
@@ -8,6 +5,10 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { memberSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
 import { AGENT_TOOL_CATALOG } from '../../core/sandbox/tool_names.ts';
+/** Real HTTP/session grants, PostgreSQL rollback and contention for the
+ * optional metadata tool. Queued agent work is held by the existing test
+ * fixture: no sandbox or provider runs, including in the real-start races. */
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { insertSessionToken } from '../sandbox/sessions.ts';
 import { updateAgentTaskMetadata } from './agent-metadata.ts';
 import {
@@ -446,9 +447,12 @@ export async function checkAgentTaskMetadata(
     );
 
     const askedTask = await task('Human question', worker, 'in_progress');
-    const runs = await sql<
-      { id: string }[]
-    >`INSERT INTO app.automation_runs (org_id, project_id, name, version, status, mode, started_by, input, detail, started_at_ms) VALUES (${orgId}, ${project}, ${`itest/metadata-${fx.suffix}`}, 1, 'waiting', 'live', ${editor}, ${sql.json({ task: { id: askedTask } })}, 'agent:triage', ${fx.now}) RETURNING id`;
+    const runs = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<
+        { id: string }[]
+      >`INSERT INTO app.automation_runs (org_id, project_id, name, version, status, mode, started_by, input, detail, started_at_ms) VALUES (${orgId}, ${project}, ${`itest/metadata-${fx.suffix}`}, 1, 'waiting', 'live', ${editor}, ${sql.json({ task: { id: askedTask } })}, 'agent:triage', ${fx.now}) RETURNING id`;
+    });
     const automationId = runs[0]?.id ?? '';
     const asks = await sql<
       { id: string }[]
@@ -672,7 +676,10 @@ export async function checkAgentTaskMetadata(
     await releaseJobs();
     await sql`DELETE FROM app.sandbox_session_tokens WHERE token_hash = ANY(${tokens.map((token) => createHash('sha256').update(token).digest('hex'))})`;
     await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${[...sessions]})`;
-    await sql`DELETE FROM app.automation_runs WHERE org_id = ${orgId} AND name = ${`itest/metadata-${fx.suffix}`}`;
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`DELETE FROM app.automation_runs WHERE org_id = ${orgId} AND name = ${`itest/metadata-${fx.suffix}`}`;
+    });
     await sql`DELETE FROM app.approvals WHERE org_id = ${orgId} AND metadata ->> 'projectId' = ${project}`;
     await sql`DELETE FROM app.projects WHERE id = ANY(${[project, otherProject, foreignProject]})`;
     await fx.teardownUsers();

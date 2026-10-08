@@ -53,6 +53,7 @@ Adding a connector is a source contribution. The runtime reads the platform cata
 | `mock` | Required deterministic JavaScript implementation; same input, same output, no network I/O |
 | `backend` | Optional live implementation: `yaml-js` with `live`, or `native` with an `impl` identifier |
 | `exampleInput` | Optional small, meaningful example for discovery and testing |
+| `idempotent` | Optional; set `true` on a write only when a second call with the same `ctx.idempotencyKey` changes nothing the first did not. An interrupted automation run then repeats the write by itself instead of waiting for a person to decide |
 
 A connector with no live backend can run in mock mode but refuses live execution. Write actions do not run if the platform cannot obtain an approval decision. See the [approval-policy reference](/self-hosted/configuration/approvals) for rule precedence and pending decisions.
 
