@@ -38,7 +38,11 @@ import {
   type ScheduleWindow,
 } from '@tale/shared/schemas/schedule-rule';
 
-import { type CalendarDate, firstRuleDay } from '../../shared/calendar.ts';
+import {
+  type CalendarDate,
+  compareDates,
+  firstRuleDay,
+} from '../../shared/calendar.ts';
 import { type CronSchedule, cronDstClass, parseCron } from '../cron.ts';
 
 /** The month steps that divide a year, so a step from January lands on
@@ -244,18 +248,29 @@ function timeFields(
   return { minute: cronList([...minutes]), hour: cronList([...hours]) };
 }
 
+/** A rule's start date, and the day it is in the rule's zone. */
+export interface ScheduleRuleDates {
+  startDate: CalendarDate;
+  today: CalendarDate;
+}
+
 /**
  * The cron expression a repeat rule is, or null when no single expression
- * says exactly the same: a day rule stepping more than one period (but a
- * monthly one phased from January, given its `startDate`), times that are
- * not every pairing of some minutes and hours, days 29–31 every month,
- * February 29, a window that runs overnight or starts or ends off the
- * hour, and an hourly rule with a window.
+ * says exactly the same: a rule that waits for a start date after `today`
+ * (a cron has no start date, so it would start at once), a day rule
+ * stepping more than one period (but a monthly one phased from January,
+ * given its dates), times that are not every pairing of some minutes and
+ * hours, days 29–31 every month, February 29, a window that runs overnight
+ * or starts or ends off the hour, and an hourly rule with a window. Without
+ * `dates` the rule is read as already started.
  */
 export function scheduleRuleToCron(
   rule: ScheduleRule,
-  startDate?: CalendarDate,
+  dates?: ScheduleRuleDates,
 ): string | null {
+  if (dates !== undefined && compareDates(dates.startDate, dates.today) > 0) {
+    return null;
+  }
   switch (rule.frequency) {
     case 'minutely': {
       const minute = rule.interval === 1 ? '*' : `*/${rule.interval}`;
@@ -296,8 +311,8 @@ export function scheduleRuleToCron(
       if (!MONTH_STEPS.some((step) => step === rule.interval)) {
         return null;
       }
-      if (startDate === undefined) return null;
-      const anchor = firstRuleDay(rule, startDate);
+      if (dates === undefined) return null;
+      const anchor = firstRuleDay(rule, dates.startDate);
       if ((anchor.month - 1) % rule.interval !== 0) return null;
       return `${head} */${rule.interval} *`;
     }

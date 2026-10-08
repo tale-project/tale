@@ -35,6 +35,8 @@ const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const JANUARY: CalendarDate = { year: 2026, month: 1, day: 1 };
+/** A rule started on January 1, read on that day. */
+const SINCE_JANUARY = { startDate: JANUARY, today: JANUARY };
 
 describe('cronToScheduleRule', () => {
   it.each<[string, ScheduleRule]>([
@@ -297,14 +299,64 @@ describe('scheduleRuleToCron', () => {
       monthDay: 5,
       times: ['09:00'],
     };
-    expect(scheduleRuleToCron(quarterly, JANUARY)).toBe('0 9 5 */3 *');
+    const today: CalendarDate = { year: 2026, month: 10, day: 8 };
+    expect(scheduleRuleToCron(quarterly, SINCE_JANUARY)).toBe('0 9 5 */3 *');
     expect(
-      scheduleRuleToCron(quarterly, { year: 2026, month: 4, day: 2 }),
+      scheduleRuleToCron(quarterly, {
+        startDate: { year: 2026, month: 4, day: 2 },
+        today,
+      }),
     ).toBe('0 9 5 */3 *');
     expect(
-      scheduleRuleToCron(quarterly, { year: 2026, month: 10, day: 8 }),
+      scheduleRuleToCron(quarterly, { startDate: today, today }),
     ).toBeNull();
     expect(scheduleRuleToCron(quarterly)).toBeNull();
+  });
+
+  it('has no cron for a rule that waits for a later start date', () => {
+    const today: CalendarDate = { year: 2026, month: 10, day: 8 };
+    const november: CalendarDate = { year: 2026, month: 11, day: 1 };
+    const nine: ScheduleRule = {
+      frequency: 'daily',
+      interval: 1,
+      times: ['09:00'],
+    };
+    const quarterHour: ScheduleRule = { frequency: 'minutely', interval: 15 };
+    expect(scheduleRuleToCron(nine, { startDate: november, today })).toBeNull();
+    expect(
+      scheduleRuleToCron(quarterHour, { startDate: november, today }),
+    ).toBeNull();
+    expect(
+      scheduleRuleToCron(
+        { frequency: 'monthly', interval: 3, monthDay: 5, times: ['09:00'] },
+        { startDate: { year: 2027, month: 1, day: 1 }, today },
+      ),
+    ).toBeNull();
+    // The cron would start at once; the rule waits for November.
+    const asRule: Schedule = {
+      type: 'rule',
+      rule: nine,
+      timezone: 'UTC',
+      startDate: november,
+    };
+    const cron = parseCron('0 9 * * *');
+    const asCron: Schedule = {
+      type: 'cron',
+      cron,
+      timezone: 'UTC',
+      dstClass: cronDstClass(cron),
+    };
+    const after = Date.parse('2026-10-08T12:00Z');
+    expect(occurrencesAfter(asRule, after, 1)).not.toEqual(
+      occurrencesAfter(asCron, after, 1),
+    );
+    // Once that day has come, nothing is lost.
+    expect(
+      scheduleRuleToCron(nine, { startDate: november, today: november }),
+    ).toBe('0 9 * * *');
+    expect(
+      scheduleRuleToCron(nine, { startDate: today, today: november }),
+    ).toBe('0 9 * * *');
   });
 
   it.each<[string, ScheduleRule]>([
@@ -371,7 +423,7 @@ describe('scheduleRuleToCron', () => {
       },
     ],
   ])('has no cron for %s', (_name, rule) => {
-    expect(scheduleRuleToCron(rule, JANUARY)).toBeNull();
+    expect(scheduleRuleToCron(rule, SINCE_JANUARY)).toBeNull();
   });
 });
 
@@ -520,7 +572,7 @@ describe('a rule and its cron start at the same instants', () => {
     let compared = 0;
     for (let i = 0; i < 1000; i += 1) {
       const rule = losslessRule(random);
-      const expression = scheduleRuleToCron(rule, JANUARY);
+      const expression = scheduleRuleToCron(rule, SINCE_JANUARY);
       if (expression === null) {
         mismatches.push(`no cron for ${JSON.stringify(rule)}`);
         continue;
@@ -571,7 +623,7 @@ describe('a rule and its cron start at the same instants', () => {
     const mismatches: string[] = [];
     for (let i = 0; i < 1000; i += 1) {
       const rule = losslessRule(random);
-      const expression = scheduleRuleToCron(rule, JANUARY);
+      const expression = scheduleRuleToCron(rule, SINCE_JANUARY);
       if (expression === null) continue;
       const zone = zones[i % zones.length] ?? 'UTC';
       const cron = parseCron(expression);
