@@ -73,7 +73,10 @@ const { automation, check, saved } = vi.hoisted(() => {
       warnings: [] as Array<Record<string, unknown> & { id: string }>,
     },
     /** Every version a save appends. */
-    saved: vi.fn(async () => ({ name: 'pr-digest', version: 3 })),
+    saved: vi.fn(async (_request: unknown) => ({
+      name: 'pr-digest',
+      version: 3,
+    })),
   };
 });
 
