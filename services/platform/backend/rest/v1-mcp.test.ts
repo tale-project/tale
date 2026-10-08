@@ -92,7 +92,7 @@ describe('POST /api/v1/mcp', () => {
     expect(checkUserRateLimit).not.toHaveBeenCalled();
   });
 
-  it('charges every further call of a batch to the key holder’s request budget', async () => {
+  it('charges every further call of a batch to the key holder’s request budget [MCP-R19]', async () => {
     vi.mocked(checkUserRateLimit)
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new RateLimitExceededError('over', 1500));
@@ -113,7 +113,7 @@ describe('POST /api/v1/mcp', () => {
     expect(engine).toHaveBeenCalledTimes(2);
   });
 
-  it('refuses an Idempotency-Key header and runs nothing', async () => {
+  it('refuses an Idempotency-Key header and runs nothing [MCP-R20]', async () => {
     const response = await post(
       {
         jsonrpc: '2.0',

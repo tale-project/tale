@@ -139,7 +139,7 @@ describe('initialize', () => {
     });
   });
 
-  it('echoes a proposed revision it speaks, and answers the newest otherwise', async () => {
+  it('echoes a proposed revision it speaks, and answers the newest otherwise [MCP-R16]', async () => {
     const older = await call({
       jsonrpc: '2.0',
       id: 1,
@@ -366,7 +366,7 @@ describe('tools/call — the engine surface', () => {
     });
   });
 
-  it('keeps a structured refusal readable and flags it isError', async () => {
+  it('keeps a structured refusal readable and flags it isError [MCP-R18]', async () => {
     const dispatch = vi.fn().mockResolvedValue({
       error: 'durable runs are not supported in this environment',
     });
@@ -386,7 +386,7 @@ describe('tools/call — the engine surface', () => {
     expect(resultText(payload)).toContain('not supported in this environment');
   });
 
-  it('reads a missing resource as a failure, a failed run as data', async () => {
+  it('reads a missing resource as a failure, a failed run as data [MCP-R18]', async () => {
     const missing = await call(
       {
         jsonrpc: '2.0',
@@ -707,7 +707,7 @@ describe('tools/call — arguments are held to the advertised schema', () => {
   });
 });
 
-describe('tools/call — the developer gate on persistence tools', () => {
+describe('tools/call — the developer gate on persistence tools [MCP-R17]', () => {
   it('refuses save_automation for a member key as data, without dispatching', async () => {
     const dispatch = vi.fn();
     const { payload } = await call(saveCall(12), dispatch, 'member');
@@ -880,7 +880,7 @@ describe('protocol errors', () => {
     expect(payload.error).toMatchObject({ code: -32600 });
   });
 
-  it('refuses an MCP-Protocol-Version it never negotiates, accepts one it does', async () => {
+  it('refuses an MCP-Protocol-Version it never negotiates, accepts one it does [MCP-R16]', async () => {
     const { serve } = context();
     const request = (version: string) =>
       new Request('https://app.example.test/api/v1/mcp', {
@@ -1221,7 +1221,7 @@ describe('ids', () => {
  * the HTTP request once, and every further tool call is admitted through the
  * host's hook.
  */
-describe('batch budget', () => {
+describe('batch budget [MCP-R19]', () => {
   const listCall = (id: number) => ({
     jsonrpc: '2.0',
     id,

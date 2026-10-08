@@ -407,7 +407,8 @@ the run or let it finish first.
   `backend/rest/v1-automations.ts`).
 - **Package upload with its carried skills, managed configuration, and the builder and MCP
   doors** (`upload.ts`, `backend/core/automations/upload_impl.ts`, `managed-configuration.ts`,
-  `dispatch-store.ts`, `backend/core/automations_builder/`).
+  `dispatch-store.ts`, `backend/core/automations_builder/`, `backend/domains/mcp/`); the MCP
+  door's own rules are the [MCP spec](../mcp/spec.md).
 - **Undecided: who can stop a run?** The app's own run endpoints let any member stop a run of
   the organization, and an editor of the project stop a run in a project, an archived one
   included (`routes.ts`, `project-visibility.ts`). The API and MCP let only an owner, admin or
