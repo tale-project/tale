@@ -251,10 +251,13 @@ describe('the swap fade between views', () => {
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Custom times' }),
     );
+    // The swap fade is a script animation; the popover's own entrance and
+    // any transition still settling are CSS-driven ones, which a slower
+    // runner may still be playing, so pick the fade by its kind.
     const fades = dialog
       .getAnimations({ subtree: true })
-      .filter((animation) => animation instanceof Animation);
-    expect(fades.length).toBeGreaterThan(0);
+      .filter((animation) => animation.constructor === Animation);
+    expect(fades).toHaveLength(1);
     const effect = fades[0]?.effect;
     expect(effect).toBeInstanceOf(KeyframeEffect);
     const frames = (effect as KeyframeEffect).getKeyframes();
