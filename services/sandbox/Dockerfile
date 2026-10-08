@@ -96,10 +96,15 @@ LABEL org.opencontainers.image.version="${VERSION}" \
 # Bun caps fetch at 256 requests in flight by default, and every live exec
 # and attach stream holds one to its runnerd for its whole life: past 256 the
 # health probes, creates and cancels behind them queue until they time out.
+# DOCKER_HOST names the socket every deployment mounts, the one the CLI's
+# default context resolves to anyway, so the host probes need no
+# `docker context inspect` fork to learn it. An operator's own DOCKER_HOST
+# still wins.
 ENV TALE_VERSION=${VERSION} \
     SANDBOX_PORT=8003 \
     DO_NOT_TRACK=1 \
-    BUN_CONFIG_MAX_HTTP_REQUESTS=1024
+    BUN_CONFIG_MAX_HTTP_REQUESTS=1024 \
+    DOCKER_HOST=unix:///var/run/docker.sock
 
 EXPOSE 8003
 

@@ -99,7 +99,7 @@ beforeEach(() => {
 });
 
 describe('requeueUsageLimitedFiles', () => {
-  it('queues again only the files whose limits have room, asking once per subject [KNOW-R17]', async () => {
+  it('queues again only the files whose limits have room, asking once per subject [KNOW-R18]', async () => {
     vi.mocked(embeddingBlocked).mockImplementation(async (_sql, args) =>
       args.subject.userId === 'mia' ? BLOCKED : null,
     );

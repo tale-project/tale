@@ -14,6 +14,10 @@
  * carries a secret itself.
  */
 
+import {
+  isKnowledgeVectorWidth,
+  KNOWLEDGE_VECTOR_WIDTHS,
+} from '@tale/shared/schemas/knowledge';
 import type { ProviderEmbeddingSupport } from '@tale/shared/schemas/providers';
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
@@ -235,9 +239,12 @@ function formFromView(
   };
 }
 
+/** The widths a knowledge database stores, as the hint and the error name
+ * them — the rule the door applies (`knowledgeEmbeddingWriteSchema`). */
+const VECTOR_WIDTHS = KNOWLEDGE_VECTOR_WIDTHS.join(', ');
+
 function isValidDimensions(value: string): boolean {
-  const n = Number(value);
-  return Number.isInteger(n) && n >= 1 && n <= 16_000;
+  return value.trim() !== '' && isKnowledgeVectorWidth(Number(value));
 }
 
 function isValidBaseUrl(value: string): boolean {
@@ -257,14 +264,11 @@ export function OrgEmbeddingSection({
   view,
   readError,
   readOnly,
-  sharedDatabase,
 }: {
   organizationId: string;
   view: KnowledgeEmbeddingView | undefined;
   readError?: string;
   readOnly: boolean;
-  /** The org runs on the shared deployment DB (no BYO knowledge connection). */
-  sharedDatabase: boolean;
 }) {
   const { t } = useT('settings');
   const { toast } = useToast();
@@ -448,7 +452,10 @@ export function OrgEmbeddingSection({
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               path: ['dimensions'],
-              message: t('dataResidency.orgEmbedding.errors.dimensionsInvalid'),
+              message: t(
+                'dataResidency.orgEmbedding.errors.dimensionsInvalid',
+                { widths: VECTOR_WIDTHS },
+              ),
             });
           }
           if (!isValidBaseUrl(values.baseUrl)) {
@@ -933,12 +940,14 @@ export function OrgEmbeddingSection({
                           });
                           // So does a model tag — it names one provider's
                           // model, so the pick starts over from the new
-                          // provider's catalog. The width stays: on a shared
-                          // database it is the corpus's, not the model's.
+                          // provider's catalog. And the width with it: it
+                          // is that model's, and a pick from the catalog
+                          // states it again.
                           setValue('model', '', { shouldDirty: true });
                           setValue('modelSource', 'catalog', {
                             shouldDirty: true,
                           });
+                          setValue('dimensions', '', { shouldDirty: true });
                         }}
                         options={providerOptions}
                         placeholder={t(
@@ -1030,14 +1039,16 @@ export function OrgEmbeddingSection({
                 </SettingsFieldRow>
                 <SettingsFieldRow
                   label={t('dataResidency.orgEmbedding.dimensions')}
-                  description={t('dataResidency.orgEmbedding.dimensionsHint')}
+                  description={t('dataResidency.orgEmbedding.dimensionsHint', {
+                    widths: VECTOR_WIDTHS,
+                  })}
                   required
                 >
                   <Input
                     aria-label={t('dataResidency.orgEmbedding.dimensions')}
                     type="number"
-                    min={1}
-                    max={16000}
+                    min={KNOWLEDGE_VECTOR_WIDTHS[0]}
+                    max={KNOWLEDGE_VECTOR_WIDTHS.at(-1)}
                     step={1}
                     placeholder="1536"
                     wrapperClassName="w-full"
@@ -1060,11 +1071,6 @@ export function OrgEmbeddingSection({
               </SettingsFieldList>
             </fieldset>
           </form>
-          {sharedDatabase ? (
-            <p className="text-muted-foreground text-xs">
-              {t('dataResidency.orgEmbedding.sharedDbNote')}
-            </p>
-          ) : null}
         </Stack>
       )}
 

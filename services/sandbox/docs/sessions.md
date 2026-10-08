@@ -25,7 +25,10 @@ agent and script nodes within one execution share that session.
 
 > The legacy one-shot `POST /v1/execute` route and the runtime image's one-shot
 > language lane are gone; `HostBackend` owns the
-> host lifecycle (boot/shutdown, `/health`, the legacy-orphan sweep).
+> host lifecycle (boot/shutdown, `/health`, the legacy-orphan sweep). On
+> Docker that sweep's one-shot container listing runs at boot and then
+> hourly; the five-minute host sweep keeps retrying the workspace trash and
+> reaping orphaned DinD volumes.
 
 ## Architecture
 
@@ -102,7 +105,10 @@ until the read returns or the process is gone. While such a read is still out,
 runnerd ends itself by SIGKILL when it exits: `process.exit` would wait for
 the read. A cancel that comes before the shim has named the command's group
 waits for it — the shim does so as soon as it has forked — so the group still
-gets its signal as a whole.
+gets its signal as a whole. A process in the middle of an `execve` has no
+environment yet and reads as empty — a leftover often is right there when a
+round comes — so runnerd reads such a process again, four times ten
+milliseconds apart, before it counts as untagged.
 
 A shim that exits normally has waited for every descendant to end. Its later
 SIGKILL round therefore reads neither the process table nor environments. A
@@ -373,7 +379,13 @@ the one under way, and never waits for it. A release that changes the helpers'
 image makes every organization's helpers drifted, and recreating them takes
 seconds per organization, one organization after another; the sweep goes on
 every minute meanwhile. Organizations adopted while the job runs are
-reconciled by a run right after it.
+reconciled by a run right after it. Each run lists the helpers with their
+state, so an organization whose helpers all stopped costs no inspect; its
+builder's stop time is read once and again only when the cache retention
+could have passed since. With the build cache off (as it is wherever
+sessions run no Docker inside, the `runc` default), a helper list that came
+back empty is read again only hourly, which still finds the helpers a
+deployment that had it on left behind.
 
 ### Capacity and idle reclamation
 
@@ -469,10 +481,15 @@ and reassesses next sweep instead of comparing free bytes across disks.
 
 The Docker observation reuses the spawner's existing `/etc/hostname` bind.
 Its full container identity and source path must agree with the selected
-daemon's container inspection and data-root; discovery uses bounded Docker
-metadata calls, cached for ten minutes (thirty seconds after an unavailable
-observation). A transient metadata failure keeps an already verified mount
-only while its kernel mount entry is unchanged. No helper container or extra host mount is created. If the bind
+daemon's container inspection and data-root, which bounded Docker metadata
+calls verify once per process: the verification stands while the bind's
+kernel mount entry stays unchanged (compared every minute from
+`/proc/self/mountinfo`, no Docker call) and its `statfs` succeeds. A failed
+verification is tried again after thirty seconds, the delay doubling up to
+ten minutes while the daemon keeps refuting the bind; one the daemon could
+not answer is tried again every thirty seconds. An explicit
+`SANDBOX_DOCKER_DATA_PATH` mount is verified the same way, the mount it
+lives on standing for the bind. No helper container or extra host mount is created. If the bind
 cannot be verified, the spawner logs that Docker disk pressure is unknown
 and continues observing the workspace filesystem. This covers Docker's
 metadata filesystem, including local volumes only when they share it;
