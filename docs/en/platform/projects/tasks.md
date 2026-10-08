@@ -135,7 +135,7 @@ While the source validates a request, the task shows its pending state and preve
 
 ## Keep decisions with the work
 
-Open the task to add a description, attachments, dates, labels, subtasks, or comments. Use comments for questions, decisions, and feedback that future reviewers need to understand. A task reads the same in the board's dialog and on its own page: the brief first, then the discussion as one conversation with the task's history between the comments, and the comment box at the bottom. It opens at the latest message; scroll up for the brief. [Open your tasks from Home](#open-your-tasks-from-home) describes each part.
+Open the task to add a description, attachments, dates, labels, subtasks, or comments. Use comments for questions, decisions, and feedback that future reviewers need to understand. A task reads the same in the board's dialog and on its own page: the brief first, then the discussion as one conversation with the task's history between the comments, and the comment box at the bottom. On a larger screen it opens at the latest message; scroll up for the brief. On a phone the dialog scrolls as one column from the brief: the conversation, then the comment box, then the details. [Open your tasks from Home](#open-your-tasks-from-home) describes each part.
 
 Typing `@` in a comment opens the mention picker. A mention of an assigned agent is an instruction: it can steer a running agent or start another run when the agent is idle. A plain comment records the discussion without requesting that agent action.
 
