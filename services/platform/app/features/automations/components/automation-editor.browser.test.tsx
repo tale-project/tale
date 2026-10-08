@@ -37,7 +37,7 @@ import '@/app/globals.css';
  * cuts those controls off first.
  */
 
-const { automation, check } = vi.hoisted(() => {
+const { automation, check, saved } = vi.hoisted(() => {
   const nodes: {
     id: string;
     type: string;
@@ -72,6 +72,8 @@ const { automation, check } = vi.hoisted(() => {
       errors: [] as Array<Record<string, unknown> & { id: string }>,
       warnings: [] as Array<Record<string, unknown> & { id: string }>,
     },
+    /** Every version a save appends. */
+    saved: vi.fn(async () => ({ name: 'pr-digest', version: 3 })),
   };
 });
 
@@ -177,6 +179,7 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
     ],
   }),
   useAutomationRuns: () => ({ data: [] }),
+  useAutomationRun: () => ({ data: undefined }),
   useAutomationProjects: () => ({ data: [] }),
   useAutomationTriggers: () => ({ data: [] }),
   useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
@@ -184,7 +187,7 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
 
 vi.mock('../hooks/mutations', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/mutations')>()),
-  useSaveAutomation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSaveAutomation: () => ({ mutateAsync: saved, isPending: false }),
   useStartAutomationRun: () => ({ mutate: vi.fn(), isPending: false }),
   useDeployAutomation: () => ({ mutate: vi.fn(), isPending: false }),
 }));
@@ -218,6 +221,7 @@ afterEach(() => {
   cleanup();
   check.errors = [];
   check.warnings = [];
+  saved.mockClear();
   document.documentElement.classList.remove('dark');
 });
 
@@ -1034,6 +1038,7 @@ describe('automation editor paths in Chromium', () => {
         const verbs = [
           screen.getByRole('radio', { name: 'Canvas' }),
           screen.getByRole('radio', { name: 'List' }),
+          screen.getByRole('radio', { name: 'Source' }),
           screen.getByRole('button', { name: '2 paths' }),
           screen.getByRole('button', { name: 'Edit with your coding agent' }),
           screen.getByRole('button', { name: 'Test run' }),
@@ -1046,4 +1051,183 @@ describe('automation editor paths in Chromium', () => {
         }
       }),
   );
+});
+
+describe('automation editor code fields, Start, End and Source in Chromium', () => {
+  const MOD = navigator.platform.toLowerCase().includes('mac')
+    ? 'Meta'
+    : 'Control';
+
+  /** The open completion list, once it takes keys (CodeMirror ignores
+   *  them for its first 75 ms). */
+  async function listbox(): Promise<HTMLElement> {
+    const list = await screen.findByRole('listbox', {}, { timeout: 5000 });
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    return list;
+  }
+
+  function optionLabels(list: HTMLElement): (string | null | undefined)[] {
+    return [...list.querySelectorAll('[role="option"]')].map(
+      (option) => option.querySelector('.cm-completionLabel')?.textContent,
+    );
+  }
+
+  /** A box on the canvas by its graph id, clicked by a real pointer. */
+  async function clickBox(id: string) {
+    const canvas = await expectLaidOut();
+    const box = canvas.querySelector<HTMLElement>(
+      `[data-flow-node="${CSS.escape(id)}"]`,
+    );
+    if (box === null) throw new Error(`no ${id} box`);
+    await userEvent.click(box);
+  }
+
+  it('completes only the nodes that run before a code field, and Expand brings an edit back', async () => {
+    await page.viewport(1280, 800);
+    renderEditorTab();
+    await selectNode('summary');
+    const code = await screen.findByRole(
+      'textbox',
+      { name: 'Code' },
+      { timeout: 10_000 },
+    );
+    await userEvent.click(code);
+    await userEvent.keyboard(`{${MOD}>}{End}{/${MOD}}{Enter}nodes.`);
+    const list = await listbox();
+    await vi.waitFor(() =>
+      expect(optionLabels(list)).toEqual(['pulls', 'diff']),
+    );
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+
+    const frame = code.closest<HTMLElement>('[data-code-editor]');
+    if (frame === null) throw new Error('no code editor frame');
+    await userEvent.click(
+      within(frame).getByRole('button', { name: 'Expand editor' }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    const big = await within(dialog).findByRole(
+      'textbox',
+      {},
+      { timeout: 5000 },
+    );
+    await vi.waitFor(() => expect(big).toHaveFocus());
+    await userEvent.keyboard(`{${MOD}>}{End}{/${MOD}}diff`);
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Back to the field' }),
+    );
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await vi.waitFor(() => expect(code).toHaveFocus());
+    expect(code.textContent).toContain('nodes.diff');
+    // The edit is the draft's: Save can act on it.
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('closes the suggestions, then arms leaving, then the node sheet on a phone', async () => {
+    await page.viewport(390, 844);
+    renderEditorTab();
+    await selectNode('diff');
+    const sheet = await screen.findByRole('dialog', { name: 'Diff' });
+    const code = await within(sheet).findByRole(
+      'textbox',
+      { name: 'Code' },
+      { timeout: 10_000 },
+    );
+    await userEvent.click(code);
+    await userEvent.keyboard(`{${MOD}>}{End}{/${MOD}}{Enter}nodes.`);
+    const list = await listbox();
+    await vi.waitFor(() => expect(optionLabels(list)).toEqual(['pulls']));
+    // The list sits inside the sheet.
+    const sheetBox = sheet.getBoundingClientRect();
+    expect(list.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      sheetBox.bottom + 1,
+    );
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+    expect(screen.getByRole('dialog', { name: 'Diff' })).toBeVisible();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('dialog', { name: 'Diff' })).toBeVisible();
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Diff' })).toBeNull(),
+    );
+  });
+
+  it('edits the run input on Start and the output on End, and saves both', async () => {
+    await page.viewport(1280, 800);
+    renderEditorTab();
+    await clickBox('__start');
+    const schema = await screen.findByRole(
+      'textbox',
+      { name: 'Input schema' },
+      { timeout: 10_000 },
+    );
+    await userEvent.click(schema);
+    await userEvent.keyboard(`{${MOD}>}a{/${MOD}}{{}`);
+    await vi.waitFor(() => expect(schema.textContent).toBe('{}'));
+
+    await clickBox('__end');
+    const output = await screen.findByRole(
+      'textbox',
+      { name: 'Output' },
+      { timeout: 10_000 },
+    );
+    await userEvent.click(output);
+    await userEvent.keyboard(`{${MOD}>}a{/${MOD}}42`);
+    await vi.waitFor(() => expect(output.textContent).toBe('42'));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Save version' }),
+    );
+    await vi.waitFor(() => expect(saved).toHaveBeenCalledTimes(1));
+    const [request] = saved.mock.calls[0] ?? [];
+    expect(request).toMatchObject({
+      automation: { inputs: {}, output: 42 },
+    });
+  });
+
+  it('goes to a problem in the document on its line in the Source view', async () => {
+    check.errors = [
+      {
+        id: 'error|NAME_X|/name|',
+        level: 'error',
+        code: 'NAME_X',
+        message: 'the name is odd',
+        at: { pointer: '/name' },
+      },
+    ];
+    await page.viewport(1280, 800);
+    renderEditorTab();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Problems: 1 error' }),
+    );
+    const dock = await screen.findByRole('region', { name: 'Problems' });
+    const row = within(dock).getByRole('button', { name: /Error:/ });
+    await vi.waitFor(() => expect(row).toHaveFocus());
+    await userEvent.keyboard('{Enter}');
+
+    const source = await screen.findByRole(
+      'textbox',
+      { name: 'Source of this automation (YAML)' },
+      { timeout: 10_000 },
+    );
+    expect(screen.getByRole('radio', { name: 'Source' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await vi.waitFor(() => expect(source).toHaveFocus());
+    await vi.waitFor(() =>
+      expect(document.getSelection()?.toString()).toBe('pr-digest'),
+    );
+    expect(source).toHaveAttribute('aria-readonly', 'true');
+    // Line numbers, and the problem marked where it is.
+    const editor = source.closest('.cm-editor');
+    expect(editor?.querySelector('.cm-lineNumbers')).not.toBeNull();
+    await vi.waitFor(() =>
+      expect(editor?.querySelector('.cm-diagnostic-error')?.textContent).toBe(
+        'pr-digest',
+      ),
+    );
+  });
 });
