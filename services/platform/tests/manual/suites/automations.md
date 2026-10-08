@@ -620,7 +620,7 @@ output:
       appears. Turn **Enabled** off and **Save** → no run starts at the next
       minute. (Without a runnable harness the agent run itself fails at its
       launch; the start and the coalesced occurrence still show.)
-- [ ] `AUTO-F57` · **A crashed worker's run reads Interrupted, then
+- [ ] `AUTO-F58` · **A crashed worker's run reads Interrupted, then
       resumes** — With one backend worker, start a live run whose step works for a few
       minutes (an `llm` step asked for a long answer; an agent step parks the
       run as **Waiting** instead), open its run page, and once it reads **Running**
@@ -635,7 +635,7 @@ output:
       finished before the kill shows once in the steps list. Check the badge
       and the header line in the light and the dark theme and at 390 px wide
       (the line wraps, nothing is cut).
-- [ ] `AUTO-F58` · **An interrupted write waits for you** — Deploy an
+- [ ] `AUTO-F59` · **An interrupted write waits for you** — Deploy an
       automation whose live step writes a file to a WebDAV share you can slow
       down (`type: webdav.write`; a large file, or a local share behind a
       throttling proxy), let the approval policy allow WebDAV writes without a
@@ -657,7 +657,7 @@ output:
       (`automations.runs.status.failed`), its detail saying a person chose to
       fail the run at that step because it may already have run — naming the
       step once, never a path such as `batch[1:0]/send`.
-- [ ] `AUTO-F59` · **A deploy hands a run on** — With two backend workers
+- [ ] `AUTO-F60` · **A deploy hands a run on** — With two backend workers
       (`docker compose up -d --scale backend-worker=2`), deploy an automation
       of five steps in a row that each work for about 30 seconds (an `llm`
       step asked for a long answer, for example) and start a live run. While
@@ -674,8 +674,8 @@ output:
       `automations.runs.resumed.shutdown`. Repeat with steps that each work
       for two minutes → the step under way is cut about 20 seconds into the
       stop, runs again on the other worker, and still shows once.
-- [ ] `AUTO-F60` · **An interrupted write is decided from its task** —
-      Interrupt a write as in `AUTO-F58`, this time in the run of an
+- [ ] `AUTO-F61` · **An interrupted write is decided from its task** —
+      Interrupt a write as in `AUTO-F59`, this time in the run of an
       automation that owns a project task, then open that task as a member
       who can work it → the panel reads `tasks.run.waitingDecision` with no
       spinner and shows the card `automations.runs.inDoubt.title`; **Skip
@@ -684,7 +684,7 @@ output:
       `tasks.run.waitingDecisionOther` and shows no card. On the run page
       meanwhile the canvas marks the step
       `automations.runs.nodeStatus.waiting` with a still icon, and on the run
-      of `AUTO-F57`, while it reads `automations.runs.status.stalled`, its
+      of `AUTO-F58`, while it reads `automations.runs.status.stalled`, its
       step reads `automations.runs.nodeStatus.interrupted` — nothing spins on
       a step no server is running.
 
@@ -764,7 +764,7 @@ output:
       pending card disappears. On another live task, the Editor can cancel;
       the Member sees the terminal state after reload. Use the task panel:
       Member and Editor seats have no Automations navigation (`AUTO-F53`).
-- [ ] `AUTO-B12` · **Stop beats a finishing step** — Deploy an automation
+- [ ] `AUTO-B13` · **Stop beats a finishing step** — Deploy an automation
       whose last step is an `llm` step asking for a long answer (a few
       seconds of model time), start a live run, open **Stop the run**
       (`automations.runs.cancel`) and confirm it
@@ -775,7 +775,7 @@ output:
       Settings › Audit log has exactly one ending entry per run: a cancelled
       action for a Stopped run, a success action for a Succeeded one, never
       both. A Stopped run shows no output.
-- [ ] `AUTO-B13` · **Two organizations' approvals on one worker** — With one
+- [ ] `AUTO-B14` · **Two organizations' approvals on one worker** — With one
       backend worker, deploy in each of two organizations an automation whose
       live step writes a file to a WebDAV share (`type: webdav.write`) that
       the approval policy holds for a person, and start a live run in both at
@@ -839,7 +839,7 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       below `md` the Editor's action cluster sits in the floating dock, wraps
       within the viewport width and never covers the bottom navigation.
 - [ ] `AUTO-A6` · **Interrupted badge and in-doubt card** → On the run of
-      `AUTO-F57` and the card of `AUTO-F58`, keyboard only: Tab reaches **Run
+      `AUTO-F58` and the card of `AUTO-F59`, keyboard only: Tab reaches **Run
       it again**, **Skip it** and **Fail the run** in that order with a
       visible focus ring; Enter opens the two confirmations, focus stays
       inside each and Escape returns it to its button; after a choice focus
