@@ -17,7 +17,6 @@ const mocks = vi.hoisted(() => ({
   classifyEmbeddingFailure: vi.fn(),
   getKnowledgePoolForOrg: vi.fn(),
   resolveOrgUrl: vi.fn(),
-  pinDimensions: vi.fn(),
   indexWholeDocument: vi.fn(),
   resolveOrgSlug: vi.fn(),
   readGovernancePolicy: vi.fn(),
@@ -40,12 +39,6 @@ vi.mock('../../core/knowledge/pool.ts', () => ({
   getKnowledgePoolForOrg: mocks.getKnowledgePoolForOrg,
   resolveOrgUrl: mocks.resolveOrgUrl,
 }));
-vi.mock('../../core/knowledge/dimensions.ts', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('../../core/knowledge/dimensions.ts')
-  >()),
-  pinDimensions: mocks.pinDimensions,
-}));
 vi.mock('../../core/knowledge/indexing.ts', () => ({
   indexWholeDocument: mocks.indexWholeDocument,
 }));
@@ -61,7 +54,7 @@ vi.mock('./service.ts', () => ({ knowledgeShimHandlers: () => ({}) }));
 const { indexConversationMessage } = await import('./message-index.ts');
 const { EmbeddingNotConfigured } =
   await import('../../core/knowledge/embedding.ts');
-const { EmbeddingDimensionMismatch } =
+const { EmbeddingDimensionMismatch, UnsupportedVectorWidth } =
   await import('../../core/knowledge/dimensions.ts');
 
 const MESSAGE_ID = '9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a';
@@ -127,7 +120,6 @@ beforeEach(() => {
   mocks.embedderForOrg.mockResolvedValue({ dimensions: 3 });
   mocks.getKnowledgePoolForOrg.mockResolvedValue('pool');
   mocks.resolveOrgUrl.mockResolvedValue('postgres://corpus');
-  mocks.pinDimensions.mockResolvedValue(undefined);
   mocks.readGovernancePolicy.mockResolvedValue(null);
   mocks.classifyEmbeddingFailure.mockReturnValue(null);
   mocks.indexWholeDocument.mockResolvedValue({
@@ -285,8 +277,14 @@ describe('indexConversationMessage', () => {
   it('ends quietly on a refusal every retry would repeat', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { sql } = fakeSql(row());
-    mocks.pinDimensions.mockRejectedValueOnce(
+    mocks.indexWholeDocument.mockRejectedValueOnce(
       new EmbeddingDimensionMismatch(1536, 3, 'the embedding model'),
+    );
+    await expect(indexConversationMessage(sql, MESSAGE_ID)).resolves.toBe(
+      undefined,
+    );
+    mocks.indexWholeDocument.mockRejectedValueOnce(
+      new UnsupportedVectorWidth(1000, 'organization "acme"'),
     );
     await expect(indexConversationMessage(sql, MESSAGE_ID)).resolves.toBe(
       undefined,
