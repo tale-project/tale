@@ -13,7 +13,9 @@ import {
 } from '../backend/types.ts';
 import { reportSandboxError } from '../error-reporting.ts';
 import {
+  belowDiskCritical,
   belowDiskFloor,
+  diskCriticalBytes,
   type HostDiskSource,
   type SessionDiskState,
 } from '../host-disk.ts';
@@ -69,6 +71,7 @@ import {
   validateCreateSession,
   validateExecSession,
 } from './validate-session.ts';
+import type { LargestWorkspaces } from './workspace-usage.ts';
 
 function b64decode(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'));
@@ -162,6 +165,12 @@ const BUSY_DOCKER_STOP_GRACE_MS = 20_000;
 /** Busy sessions the linger reap stops at once: each graceful stop holds a
  * docker CLI slot for up to its grace, and the rest stay for the others. */
 const LINGER_STOP_CONCURRENCY = 4;
+
+/** While the session disk is critical, its largest workspaces are logged at
+ * most this often (each measurement is a bounded `du` of every workspace). */
+const WORKSPACE_USAGE_LOG_MS = 10 * 60_000;
+const WORKSPACES_LOGGED = 3;
+const GIB = 1024 ** 3;
 
 /** How long a session that just started keeps part of its planned working
  * set reserved at admission: its turn is still growing toward it while
@@ -367,6 +376,11 @@ export class SessionRoutes {
   // Until when a create at capacity skips the reclaim walk: the last walk
   // found nothing (RECLAIM_NOTHING_FOR_MS).
   private nothingToReclaimUntilMs = 0;
+  // The session disk's critical state as the last sweep saw it, so each
+  // change is logged once; and the measurement of its largest workspaces.
+  private diskWasCritical = false;
+  private workspaceUsageAtMs = Number.NEGATIVE_INFINITY;
+  private workspaceUsage: Promise<void> | null = null;
   // Settles when the destroy of that id is done (success or failure):
   // destroys of one id run one after another, and a create of the id waits
   // for the one under way instead of racing its workspace removal.
@@ -716,6 +730,86 @@ export class SessionRoutes {
       console.warn('[sandbox.session] session disk unreadable:', error);
       return false;
     }
+  }
+
+  /** Is the disk the workspaces live on below its critical tier (the probe's
+   * last reading)? An unknown disk never is. Each change is logged once. */
+  private diskCritical(): boolean {
+    let disk;
+    try {
+      disk = this.hostDisk.latest();
+    } catch (error) {
+      console.warn('[sandbox.session] session disk unreadable:', error);
+      return false;
+    }
+    const { minFreeDiskBytes, criticalFreeDiskBytes } = this.cfg.session;
+    const critical = belowDiskCritical(
+      disk,
+      minFreeDiskBytes,
+      criticalFreeDiskBytes,
+    );
+    if (critical !== this.diskWasCritical && disk !== null) {
+      this.diskWasCritical = critical;
+      const free = `${(disk.availableBytes / GIB).toFixed(1)} GiB`;
+      const tier = `${(diskCriticalBytes(disk.totalBytes, minFreeDiskBytes, criticalFreeDiskBytes) / GIB).toFixed(1)} GiB`;
+      if (critical) {
+        console.warn(
+          `[sandbox.session] the session disk has ${free} free, below its critical ${tier}: running sessions are about to fail their writes; released Docker-in-sandbox sessions stop now and the largest workspaces are logged (SANDBOX_CRITICAL_FREE_DISK)`,
+        );
+      } else {
+        console.log(
+          `[sandbox.session] the session disk has ${free} free again, above its critical ${tier}`,
+        );
+      }
+    }
+    return critical;
+  }
+
+  /** Log the largest workspaces of a critical session disk: at most every
+   * {@link WORKSPACE_USAGE_LOG_MS}, one measurement at a time, beside the
+   * sweep rather than in its way. */
+  private logLargestWorkspaces(): void {
+    const now = Date.now();
+    if (
+      this.workspaceUsage !== null ||
+      now - this.workspaceUsageAtMs < WORKSPACE_USAGE_LOG_MS
+    )
+      return;
+    const measuring = this.backend.largestWorkspaces?.(WORKSPACES_LOGGED);
+    if (measuring === undefined) return;
+    this.workspaceUsageAtMs = now;
+    this.workspaceUsage = this.sayLargestWorkspaces(measuring).finally(() => {
+      this.workspaceUsage = null;
+    });
+  }
+
+  private async sayLargestWorkspaces(
+    measuring: Promise<LargestWorkspaces>,
+  ): Promise<void> {
+    let usage: LargestWorkspaces;
+    try {
+      usage = await measuring;
+    } catch (error) {
+      console.warn(
+        '[sandbox.session] measuring the largest workspaces failed:',
+        error,
+      );
+      return;
+    }
+    const { largest, measured, total } = usage;
+    if (largest.length === 0) return;
+    const sizes = largest
+      .map(
+        (entry) => `${entry.sessionId} ${(entry.bytes / GIB).toFixed(1)} GiB`,
+      )
+      .join(', ');
+    const partial =
+      measured < total
+        ? ` (${measured} of ${total} workspaces measured in time)`
+        : '';
+    console.warn(
+      `[sandbox.session] the session disk is critical; its largest workspaces: ${sizes}${partial}`,
+    );
   }
 
   /** The disk read now, for upkeep that frees space on it and goes on only
@@ -1565,11 +1659,13 @@ export class SessionRoutes {
    */
   async sweepExpired(nowMs: number = Date.now()): Promise<number> {
     let reaped = 0;
+    const diskCritical = this.diskCritical();
+    if (diskCritical) this.logLargestWorkspaces();
     await forEachLimited(
       this.registry.list(),
       SWEEP_CONCURRENCY,
       async (session) => {
-        if (await this.sweepSession(session, nowMs)) reaped += 1;
+        if (await this.sweepSession(session, nowMs, diskCritical)) reaped += 1;
       },
     );
     // The build helpers follow the sessions just stopped, beside the sweep
@@ -1613,6 +1709,7 @@ export class SessionRoutes {
   private async sweepSession(
     s: RegistrySession,
     nowMs: number,
+    diskCritical = false,
   ): Promise<boolean> {
     if (this.reclaimClaims.has(s.sessionId)) return this.reclaimIdle(s);
     // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
@@ -1690,12 +1787,18 @@ export class SessionRoutes {
       }
       // Released by the platform (its turn or run settled, nothing holds it):
       // a few idle minutes are enough. The stop goes through runnerd's
-      // claim, so a turn that acquires the session meanwhile keeps it.
+      // claim, so a turn that acquires the session meanwhile keeps it. On a
+      // critical session disk a released Docker-in-sandbox session goes at
+      // once: its stop removes its inner image store, the most a stop gives
+      // back, and its resume's re-pull costs less than the writes of every
+      // running session failing.
       if (
         !expired &&
         health.activity?.released === true &&
-        !this.keepsFullIdleWindow(s, health) &&
-        idleForMs > Math.min(this.cfg.session.releasedIdleMs, s.idleTimeoutMs)
+        ((diskCritical && (s.docker ?? this.cfg.dockerInContainer)) ||
+          (!this.keepsFullIdleWindow(s, health) &&
+            idleForMs >
+              Math.min(this.cfg.session.releasedIdleMs, s.idleTimeoutMs)))
       ) {
         return this.reclaimIdle(s);
       }

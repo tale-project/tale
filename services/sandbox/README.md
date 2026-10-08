@@ -101,7 +101,12 @@ cap already-running writers; hard per-volume quotas require operator
 provisioning (docs/docker-in-container.md). Below either observed filesystem's
 floor every create answers 429 `host_disk`, and the build-cache upkeep
 removes the caches of organizations whose helpers are all stopped, the
-longest-stopped first. Creates refused for room wait in a
+longest-stopped first. Below its critical tier (`SANDBOX_CRITICAL_FREE_DISK`,
+a quarter of the floor, at least 1 GiB; `0` turns it off), where running
+sessions' writes are about to fail, the sweep also stops released idle
+Docker-in-sandbox sessions at once, which removes their inner image stores,
+and logs the three largest workspaces at most every ten minutes. Creates
+refused for room wait in a
 first-come line: freed room goes to the oldest waiter still asking, and each
 429 names the create's place (`queue: { position, waiting }`) with a
 `retry-after` for when it comes up (docs/sessions.md). At most 12 Docker CLI processes run at

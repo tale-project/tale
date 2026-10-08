@@ -6,6 +6,7 @@
 // chosen once at boot from `SANDBOX_BACKEND` (see backend/index.ts).
 
 import type { SessionDiskState } from '../host-disk.ts';
+import type { LargestWorkspaces } from '../session/workspace-usage.ts';
 import type { SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile, SandboxSessionState } from '../wire.ts';
 
@@ -357,6 +358,14 @@ export interface SessionBackend {
    * containers/Pods beside them cannot be listed at all.
    */
   listWorkspaces(): Promise<BackendWorkspace[]>;
+  /**
+   * The `limit` largest workspaces this backend holds, measured now, for the
+   * log of a session disk below its critical tier. Bounded in time: what was
+   * measured by the deadline is answered, with how much that was. THROWS
+   * when the workspaces cannot be listed. Absent where the spawner does not
+   * hold the workspaces' disk (Kubernetes).
+   */
+  largestWorkspaces?(limit: number): Promise<LargestWorkspaces>;
   /**
    * The organizations holding resources beyond their sessions' workspaces
    * (Docker: the organization's build helpers, their network and cache

@@ -42,6 +42,7 @@ const KEYS = [
   'SANDBOX_BUILDKITD_CACHE_RETENTION',
   'SANDBOX_PACKAGE_CACHE_RETENTION',
   'SANDBOX_MIN_FREE_DISK',
+  'SANDBOX_CRITICAL_FREE_DISK',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -332,6 +333,17 @@ test('the free space kept on the session disk is optional and validated', () => 
   expect(loadConfig().session.minFreeDiskBytes).toBe(0);
   process.env.SANDBOX_MIN_FREE_DISK = 'plenty';
   expect(() => loadConfig()).toThrow(/SANDBOX_MIN_FREE_DISK/);
+});
+
+test('the critical tier of the session disk is optional and validated', () => {
+  expect(loadConfig().session).not.toHaveProperty('criticalFreeDiskBytes');
+  process.env.SANDBOX_CRITICAL_FREE_DISK = '3g';
+  expect(loadConfig().session.criticalFreeDiskBytes).toBe(3 * 1024 ** 3);
+  // 0 turns the tier off.
+  process.env.SANDBOX_CRITICAL_FREE_DISK = '0';
+  expect(loadConfig().session.criticalFreeDiskBytes).toBe(0);
+  process.env.SANDBOX_CRITICAL_FREE_DISK = 'soon';
+  expect(() => loadConfig()).toThrow(/SANDBOX_CRITICAL_FREE_DISK/);
 });
 
 test('how long stopped build caches are kept is optional and validated', () => {

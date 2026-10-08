@@ -64,6 +64,38 @@ export function belowDiskFloor(
   );
 }
 
+/** The free space below which the session disk is critical: what running
+ * sessions still write there is about to fail, and with it the replay
+ * journal of every running exec. The operator's (0 turns the tier off), else
+ * a quarter of the floor, at least 1 GiB and never above the floor; none
+ * while the floor is off. */
+export function diskCriticalBytes(
+  totalBytes: number,
+  configuredFloorBytes?: number,
+  configuredBytes?: number,
+): number {
+  if (configuredBytes !== undefined) return configuredBytes;
+  if (configuredFloorBytes === 0) return 0;
+  const floor = diskReserveBytes(totalBytes, configuredFloorBytes);
+  return Math.min(floor, Math.max(GIB, Math.floor(floor / 4)));
+}
+
+/** Whether a reading is below the critical tier. An unknown disk, and one
+ * whose reading is a placeholder, never is: the tier acts on what it read. */
+export function belowDiskCritical(
+  disk: HostDisk | null,
+  configuredFloorBytes?: number,
+  configuredBytes?: number,
+): boolean {
+  if (disk === null || disk.unavailable === true) return false;
+  const critical = diskCriticalBytes(
+    disk.totalBytes,
+    configuredFloorBytes,
+    configuredBytes,
+  );
+  return critical > 0 && disk.availableBytes < critical;
+}
+
 /** A reading may be reused this long: disk fills over minutes, not
  * milliseconds, and the probe refreshes it at this pace. */
 const READING_TTL_MS = 5_000;

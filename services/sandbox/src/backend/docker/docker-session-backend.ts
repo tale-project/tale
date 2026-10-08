@@ -73,6 +73,10 @@ import {
   type WorkspaceTrash,
 } from '../../session/workspace-trash.ts';
 import {
+  largestWorkspaces,
+  type LargestWorkspaces,
+} from '../../session/workspace-usage.ts';
+import {
   dockerRm,
   dockerRmSucceeded,
   dockerStop,
@@ -1413,6 +1417,12 @@ export class DockerSessionBackend implements SessionBackend {
    * label, or else the workspace's own marker. `listSessions` THROWS on a
    * failed `docker ps`, so a container that merely could not be listed never
    * reads as inactive. */
+  /** One bounded, lowest-priority `du` over every workspace dir under the
+   * session root (workspace-usage.ts). */
+  largestWorkspaces(limit: number): Promise<LargestWorkspaces> {
+    return largestWorkspaces(this.cfg.hostSessionRoot, { limit });
+  }
+
   async listWorkspaces(): Promise<BackendWorkspace[]> {
     const dirs = await listWorkspaceDirs(this.cfg.hostSessionRoot);
     const containers = new Map(

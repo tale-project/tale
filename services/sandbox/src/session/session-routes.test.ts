@@ -6726,6 +6726,131 @@ describe('disk-aware admission', () => {
       { availableBytes: 8 * GIB, short: false },
     ]);
   });
+
+  /** Two Docker-in-sandbox sessions, one of them released by its platform
+   * and active a moment ago. */
+  async function releasedDockerSessions(routes: SessionRoutes): Promise<void> {
+    for (const id of ['dind-released', 'dind-held'])
+      expect((await create(routes, id)).status).toBe(201);
+    const ticket: unknown = await (
+      await routes.handleActivity('dind-released', 'ticket')
+    ).json();
+    await routes.handleActivity(
+      'dind-released',
+      'release',
+      JSON.stringify(ticket),
+    );
+    fakeHealth.lastActivityAtMs = Date.now();
+  }
+
+  test('below its critical tier, the sweep stops a released Docker-in-sandbox session at once and logs the largest workspaces at most every ten minutes', async () => {
+    let available = 50;
+    const measured: number[] = [];
+    const warnings: string[] = [];
+    const warn = spyOn(console, 'warn').mockImplementation(
+      (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '));
+      },
+    );
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      {
+        ...fakeBackend,
+        async largestWorkspaces(limit) {
+          measured.push(limit);
+          return {
+            largest: [
+              { sessionId: 'big', bytes: 12 * GIB },
+              { sessionId: 'dind-held', bytes: 3 * GIB },
+            ],
+            measured: 2,
+            total: 3,
+          };
+        },
+      },
+      undefined,
+      undefined,
+      disk(() => available),
+    );
+    try {
+      await releasedDockerSessions(routes);
+      // Below the 5 GiB floor, above the 1.25 GiB tier: the released session
+      // keeps its full idle window, and nothing is measured.
+      available = 4;
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(measured).toEqual([]);
+      available = 1;
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(stopped.has('dind-released')).toBe(true);
+      // Held by its turn: never stopped for the disk.
+      expect(stopped.has('dind-held')).toBe(false);
+      expect(reclaimRequests).toHaveLength(1);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(measured).toEqual([3]);
+      expect(
+        warnings.filter((line) => line.includes('below its critical 1.3 GiB')),
+      ).toHaveLength(1);
+      expect(warnings).toContain(
+        '[sandbox.session] the session disk is critical; its largest workspaces: big 12.0 GiB, dind-held 3.0 GiB (2 of 3 workspaces measured in time)',
+      );
+      // Still critical a sweep later: said and measured once.
+      expect(await routes.sweepExpired()).toBe(0);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(measured).toEqual([3]);
+      expect(
+        warnings.filter((line) => line.includes('below its critical')),
+      ).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('an unknown disk, or a critical tier of 0, stops nothing for the disk', async () => {
+    const off = {
+      ...cfg,
+      dockerInContainer: true,
+      session: { ...cfg.session, criticalFreeDiskBytes: 0 },
+    };
+    let measured = 0;
+    const backend = {
+      ...fakeBackend,
+      async largestWorkspaces() {
+        measured += 1;
+        return { largest: [], measured: 0, total: 0 };
+      },
+    };
+    let available: number | null = 50;
+    const reading = () =>
+      available === null
+        ? null
+        : { totalBytes: 100 * GIB, availableBytes: available * GIB };
+    const source = {
+      latest: reading,
+      read: () => Promise.resolve(reading()),
+    };
+    for (const [routes, after] of [
+      [new SessionRoutes(off, backend, undefined, undefined, source), 1],
+      [
+        new SessionRoutes(
+          { ...cfg, dockerInContainer: true },
+          backend,
+          undefined,
+          undefined,
+          source,
+        ),
+        null,
+      ],
+    ] as const) {
+      available = 50;
+      await releasedDockerSessions(routes);
+      available = after;
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(stopped.has('dind-released')).toBe(false);
+      await routes.handleDestroy('dind-released');
+      await routes.handleDestroy('dind-held');
+    }
+    expect(measured).toBe(0);
+  });
 });
 
 describe('settlesWithin', () => {
