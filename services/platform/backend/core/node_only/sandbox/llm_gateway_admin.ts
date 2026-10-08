@@ -173,7 +173,9 @@ const STANDARD_PROVIDER_CONCURRENCY = 512;
  * to its caller. A sandbox host sizes itself to at most 256 sessions, so 64
  * workers cover one organization's burst on one model, and a hundred such
  * records park 6,400 workers instead of 100,000. A request past the pool
- * waits in the queue rather than failing. Operator-tunable
+ * waits in the queue, and one past the queue waits for room in it
+ * (applyGatewayConfig keeps the gateway from dropping it), rather than
+ * failing. Operator-tunable
  * (`SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY`). */
 const CUSTOM_PROVIDER_CONCURRENCY = 64;
 
@@ -1701,6 +1703,9 @@ let gatewayConfigAppliedAt: number | undefined;
  *     anonymous (it shares the gateway's single port on the sandbox network).
  *     The gateway hashes the stored password itself and compares with bcrypt;
  *     managementHeaders() sends the plaintext as Basic.
+ *   - `client_config.drop_excess_requests` off → a request that finds a
+ *     provider record's queue full waits for room in it instead of being
+ *     refused (see gatewayProviderPool).
  *
  * GET-merge-PUT: `PUT /api/config` reads several client_config fields
  * directly from the payload, so the FULL current client_config is sent with
@@ -1770,6 +1775,7 @@ async function verifyGatewayConfig(): Promise<void> {
     cfg.auth_config?.is_enabled === true &&
     current.enforce_auth_on_inference === true &&
     current.disable_content_logging === true &&
+    current.drop_excess_requests !== true &&
     typeof current.log_retention_days === 'number' &&
     current.log_retention_days >= 1
   ) {
@@ -1795,6 +1801,13 @@ async function verifyGatewayConfig(): Promise<void> {
     // erasure. Tale never reads that log: spend is read from each virtual
     // key's usage, which the governance plugin keeps without content.
     disable_content_logging: true,
+    // With it on, the gateway answers a request that finds a provider
+    // record's queue full with a 503 "request dropped: queue is full". Each
+    // record's pool and queue are sized for the load one record carries
+    // (gatewayProviderPool), so a burst past them must wait for room — the
+    // gateway's default, until the caller hangs up — never fail an agent's
+    // call outright.
+    drop_excess_requests: false,
   };
   // The gateway (Bifrost >= v1.6.9) enforces an admin-password strength policy
   // (>=12 chars, an upper, a lower, a digit and a non-alphanumeric special

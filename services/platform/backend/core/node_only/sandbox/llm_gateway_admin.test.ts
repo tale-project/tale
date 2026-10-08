@@ -1834,6 +1834,7 @@ describe('applyGatewayConfig', () => {
         max_request_body_size_mb: 100,
         enforce_auth_on_inference: true,
         disable_content_logging: true,
+        drop_excess_requests: false,
       },
       // First-time bootstrap (GET reports auth not yet enabled): the plaintext
       // password is sent to establish it — the gateway hashes it on store. A
@@ -1930,6 +1931,29 @@ describe('applyGatewayConfig — a request-scoped key reuses a recent apply', ()
     await mod.applyGatewayConfig();
     await mod.applyGatewayConfig();
     expect(calls.map((call) => call.method)).toEqual(['GET', 'GET']);
+  });
+
+  it('turns off a gateway’s dropping of requests its full queue cannot take, so a burst past a record’s pool waits instead of failing', async () => {
+    const calls = stubGateway({
+      authEnabled: true,
+      clientConfig: {
+        log_retention_days: 30,
+        enforce_auth_on_inference: true,
+        disable_content_logging: true,
+        drop_excess_requests: true,
+      },
+    });
+    const mod = await loadModule();
+    await mod.applyGatewayConfig();
+    const put = calls.find(
+      (c) => c.method === 'PUT' && c.url.endsWith('/api/config'),
+    );
+    expect(put?.body?.client_config).toEqual({
+      log_retention_days: 30,
+      enforce_auth_on_inference: true,
+      disable_content_logging: true,
+      drop_excess_requests: false,
+    });
   });
 
   it('shares a concurrent auth verification, without caching a later sandbox create', async () => {
