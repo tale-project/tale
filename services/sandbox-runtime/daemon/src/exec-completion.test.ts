@@ -17,6 +17,10 @@ const request = {
   stderrMaxBytes: 1_000_000,
 };
 let previousRoot: string | undefined;
+/** The reaper's bound for ending a leftover: the SIGKILL round comes
+ * exec-manager's SIGKILL_GRACE_MS after the SIGTERM round, and reads the
+ * process table within process-reaper's SCAN_DEADLINE_MS — with a margin. */
+const REAP_BOUND_MS = 5_000 + 2_000 + 1_000;
 
 beforeAll(() => {
   previousRoot = process.env.TALE_WORKSPACE_ROOT;
@@ -29,8 +33,8 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-async function waitFor(ready: () => boolean): Promise<void> {
-  const deadline = performance.now() + 5_000;
+async function waitFor(ready: () => boolean, withinMs = 5_000): Promise<void> {
+  const deadline = performance.now() + withinMs;
   while (!ready()) {
     if (performance.now() > deadline) throw new Error('barrier not reached');
     await Bun.sleep(5);
@@ -184,7 +188,11 @@ test.skipIf(process.platform !== 'linux')(
       expect(alive(survivor)).toBe(true);
       expect(manager.cancel('completion-peer')).toBe(true);
       await peer;
-      await waitFor(() => !running(survivor));
+      // The session's last exec ended: what the finished one left is reaped.
+      // The SIGTERM round can miss a leftover in the middle of an execve (its
+      // environment reads empty then, so it carries no tag); the SIGKILL
+      // round that follows is the reaper's bound.
+      await waitFor(() => !running(survivor), REAP_BOUND_MS);
     } finally {
       release.resolve();
       drain.mockRestore();

@@ -55,7 +55,6 @@ import {
 
 import { retrieve, type CorpusReader } from '../../../lib/knowledge/retrieve';
 import {
-  PRIVATE_KNOWLEDGE_SCHEMA,
   corporaFor,
   type KnowledgeHit,
   type KnowledgeQuery,
@@ -65,9 +64,9 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { readOrgEmbeddingConfig } from './connection';
 import { DocumentCorpusReader, WebCorpusReader } from './corpus';
-import { pinDimensions } from './dimensions';
+import { assertVectorWidthSupported } from './dimensions';
 import { embedderForOrg, type EmbeddingMeter } from './embedding';
-import { getKnowledgePoolForOrg, resolveOrgUrl } from './pool';
+import { getKnowledgePoolForOrg } from './pool';
 
 /** Which organization a search runs for. Both identifiers are required: one
  * addresses the credential, the other addresses the corpus. */
@@ -212,9 +211,8 @@ async function bindOrg(
   readers: CorpusReader[];
   embedder: Awaited<ReturnType<typeof embedderForOrg>>;
 }> {
-  const [sql, dbUrl, embedder] = await Promise.all([
+  const [sql, embedder] = await Promise.all([
     getKnowledgePoolForOrg(org.orgSlug),
-    resolveOrgUrl(org.orgSlug),
     embedderForOrg(ctx, {
       organizationId: org.organizationId,
       orgSlug: org.orgSlug,
@@ -223,15 +221,12 @@ async function bindOrg(
     }),
   ]);
 
-  // The corpus must already store vectors of this width, or the query vector
-  // would be compared against embeddings from a different model.
-  await pinDimensions({
-    sql,
-    dbUrl,
-    schema: PRIVATE_KNOWLEDGE_SCHEMA,
-    dimensions: embedder.dimensions,
-    context: `organization "${org.orgSlug}"`,
-  });
+  // The dense leg searches the table of this width alone. A width with no
+  // table is refused here, before the query is embedded.
+  assertVectorWidthSupported(
+    embedder.dimensions,
+    `organization "${org.orgSlug}"`,
+  );
 
   const wanted = new Set<string>(corporaFor(org.corpus ?? 'all'));
   const readers: CorpusReader[] = [];

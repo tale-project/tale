@@ -535,7 +535,7 @@ describe('rag_search', () => {
     expect(result.results?.map((entry) => entry.kind)).toEqual(['contact']);
   });
 
-  it('meters the query as the turn’s spend, and says a usage limit stopped it — never as nothing found [GOV-R4] [KNOW-R17]', async () => {
+  it('meters the query as the turn’s spend, and says a usage limit stopped it — never as nothing found [GOV-R4] [KNOW-R18]', async () => {
     const { EmbeddingBudgetExceeded } = await import('../knowledge/embedding');
     searchKnowledgeMock.mockRejectedValueOnce(
       new EmbeddingBudgetExceeded(
@@ -571,7 +571,7 @@ describe('rag_search', () => {
     expect(result.message).not.toContain('No matches');
   });
 
-  it('says the email bodies went unsearched when a usage limit stopped a conversation search [KNOW-R17]', async () => {
+  it('says the email bodies went unsearched when a usage limit stopped a conversation search [KNOW-R18]', async () => {
     const { EmbeddingBudgetExceeded } = await import('../knowledge/embedding');
     searchKnowledgeMock.mockRejectedValueOnce(
       new EmbeddingBudgetExceeded('Usage limit reached.'),

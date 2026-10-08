@@ -47,7 +47,9 @@ function recorder(rows: unknown[] = []): {
 }
 
 const LEG = { query: 'parental leave', limit: 30 };
-const EMBEDDING = [0.1, 0.2, 0.3];
+/** A query vector 1024 wide — the width decides which table the dense leg
+ * reads. */
+const EMBEDDING = new Array<number>(1024).fill(0.1);
 
 /** Statements that actually query the corpus — the capability probes, the
  * dense leg's scope count and its SET LOCALs are not, and would otherwise
@@ -160,6 +162,82 @@ describe('the dense leg runs exactly for a small scope', () => {
     for (const statement of corpusStatements(sent)) {
       expect(statement.text).toContain('NOT c.passage_repeat');
     }
+  });
+});
+
+describe('the dense leg searches the vectors of the query’s own width [KNOW-R11]', () => {
+  const ofWidth = (width: number) => new Array<number>(width).fill(0.1);
+
+  it('reads the documents’ vectors from the table of that width, count and ranking alike', async () => {
+    const { sql, sent } = recorder();
+    await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: ofWidth(1024),
+    });
+    const dense = sent.filter((entry) => entry.text.includes('.chunks'));
+    expect(dense.length).toBe(2);
+    for (const statement of dense) {
+      expect(statement.text).toContain(
+        'FROM private_knowledge.chunk_vectors_1024 v',
+      );
+      expect(statement.text).toContain('c.id = v.chunk_id');
+      // The old column held one width for the whole database.
+      expect(statement.text).not.toContain('c.embedding');
+    }
+  });
+
+  // Two organizations on one database with models of different widths: each
+  // search stays in its own table, so the vectors never meet.
+  it('keeps organizations of different widths apart in one database', async () => {
+    const acme = recorder();
+    const globex = recorder();
+    await new DocumentCorpusReader(acme.sql, 'acme').dense({
+      ...LEG,
+      embedding: ofWidth(1536),
+    });
+    await new DocumentCorpusReader(globex.sql, 'globex').dense({
+      ...LEG,
+      embedding: ofWidth(1024),
+    });
+    const tables = (sent: readonly Recorded[]) =>
+      corpusStatements(sent)[0]?.text.match(/chunk_vectors_\d+/g);
+    expect(new Set(tables(acme.sent))).toEqual(new Set(['chunk_vectors_1536']));
+    expect(new Set(tables(globex.sent))).toEqual(
+      new Set(['chunk_vectors_1024']),
+    );
+  });
+
+  it('reads a site’s vectors from the table of that width, still through the membership', async () => {
+    const { sql, sent } = recorder();
+    await new WebCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: ofWidth(768),
+    });
+    const dense = sent.filter((entry) => entry.text.includes('.chunks'));
+    expect(dense.length).toBe(2);
+    for (const statement of dense) {
+      expect(statement.text).toContain('public_web.chunk_vectors_768 v');
+      expect(statement.text).toContain('website_org_memberships');
+      expect(statement.params).toContain('acme');
+      expect(statement.text).not.toContain('c.embedding');
+    }
+  });
+
+  it('sends nothing for a width no table stores', async () => {
+    const { sql, sent } = recorder();
+    await expect(
+      new DocumentCorpusReader(sql, 'acme').dense({
+        ...LEG,
+        embedding: ofWidth(3),
+      }),
+    ).rejects.toThrow(/vector width of 3/);
+    await expect(
+      new WebCorpusReader(sql, 'acme').dense({
+        ...LEG,
+        embedding: ofWidth(3),
+      }),
+    ).rejects.toThrow(/vector width of 3/);
+    expect(sent.filter((entry) => entry.text.includes('chunk'))).toEqual([]);
   });
 });
 

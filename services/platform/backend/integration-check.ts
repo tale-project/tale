@@ -101,6 +101,7 @@ import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.int
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
 import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
+import { checkVectorWidths } from './domains/knowledge/vector-width.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import {
   checkConcurrentEntryCreation,
@@ -167,6 +168,7 @@ import {
   errorText,
   fullCoverageBlockers,
   isSkippedCheck,
+  ITEST_VECTOR_WIDTH,
   itestObjectStore,
   recordSkip,
   requestedLanes,
@@ -8779,7 +8781,7 @@ async function checkKnowledge(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -9026,9 +9028,11 @@ async function checkKnowledge(
     >`
       SELECT count(*)::text AS total,
              count(*) FILTER (WHERE c.passage_repeat)::text AS repeats,
-             count(*) FILTER (WHERE c.embedding IS NOT NULL)::text AS embedded
+             count(v.chunk_id)::text AS embedded
       FROM private_knowledge.chunks c
       JOIN private_knowledge.documents d ON d.id = c.document_id
+      LEFT JOIN private_knowledge.${dupPool(`chunk_vectors_${ITEST_VECTOR_WIDTH}`)} v
+        ON v.chunk_id = c.id
       WHERE d.org_slug = ${orgSlug} AND d.file_id = ${dup.storageRef}
     `;
     const dupTotal = Number(dupChunks[0]?.total ?? '0');
@@ -9642,7 +9646,7 @@ async function checkIndexingReleaseRace(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -9961,7 +9965,7 @@ async function checkEmbeddingCredentialRefusal(
       JSON.stringify({
         providerSlug,
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -10211,7 +10215,7 @@ async function checkCorpusPurgeConsistency(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -10910,15 +10914,20 @@ async function checkCorpusPurgeConsistency(
 }
 
 /** OpenAI-shaped embeddings response for a raw request body — deterministic
- * 8-dim vectors from character statistics; base64 Float32 when asked (the
- * OpenAI SDK's default decode path). */
+ * vectors from eight character statistics, repeated to the width the request
+ * asks for (`dimensions`; the fixtures' width without one — repeating a
+ * vector changes none of its cosines); base64 Float32 when asked (the OpenAI
+ * SDK's default decode path). */
 function fakeEmbeddingsPayload(rawBody: string): string {
   const parsed = z
     .object({
       input: z.union([z.string(), z.array(z.string())]),
       encoding_format: z.string().optional(),
+      dimensions: z.number().int().positive().optional(),
     })
     .safeParse(JSON.parse(rawBody || '{}'));
+  const width =
+    (parsed.success ? parsed.data.dimensions : undefined) ?? ITEST_VECTOR_WIDTH;
   const inputs = parsed.success
     ? Array.isArray(parsed.data.input)
       ? parsed.data.input
@@ -10927,13 +10936,17 @@ function fakeEmbeddingsPayload(rawBody: string): string {
   const wantsBase64 =
     parsed.success && parsed.data.encoding_format === 'base64';
   const data = inputs.map((text, index) => {
-    const vector = Array.from({ length: 8 }, (_, i) => {
+    const statistics = Array.from({ length: 8 }, (_, i) => {
       let acc = 0;
       for (let j = i; j < text.length; j += 8) {
         acc += text.charCodeAt(j) % 97;
       }
       return (acc % 1000) / 1000 + 0.001;
     });
+    const vector = Array.from(
+      { length: width },
+      (_, i) => statistics[i % statistics.length] ?? 0,
+    );
     const embedding = wantsBase64
       ? Buffer.from(new Float32Array(vector).buffer).toString('base64')
       : vector;
@@ -11301,7 +11314,7 @@ async function checkChat(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: aiBase,
       }),
     );
@@ -17997,7 +18010,7 @@ async function checkRestResources(
       JSON.stringify({
         providerSlug: 'restchat',
         model: 'rest-chat-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: aiBase,
       }),
     );
@@ -61565,6 +61578,14 @@ async function main(): Promise<void> {
       ['checkSlackInbound', () => checkSlackInbound(sql, baseUrl, authCtx)],
       ['checkRecoverySweeps', () => checkRecoverySweeps(sql, authCtx)],
       ['checkRagStatusHintScope', () => checkRagStatusHintScope(sql, record)],
+      [
+        'checkVectorWidths',
+        () =>
+          checkVectorWidths(sql, {
+            record,
+            embeddingsPayload: fakeEmbeddingsPayload,
+          }),
+      ],
       ['checkRagWatchdogBatch', () => checkRagWatchdogBatch(sql, record)],
       [
         'checkPolicySweeps',
