@@ -385,11 +385,17 @@ export async function currentMentionNames(
     for (const agent of agents) names.set(`agent:${agent.id}`, agent.name);
   }
   if (refs.automation.size > 0) {
+    // The newest presentation any version carries, as the automation list
+    // reads it (`listAutomations`).
     const automations = await sql<{ name: string; presentation: unknown }[]>`
-      SELECT DISTINCT ON (name) name, presentation
+      SELECT name,
+             (array_agg(presentation ORDER BY version DESC)
+                FILTER (WHERE presentation IS NOT NULL
+                          AND jsonb_typeof(presentation) <> 'null'))[1]
+               AS presentation
       FROM app.automations
       WHERE org_id = ${organizationId} AND name = ANY(${[...refs.automation]})
-      ORDER BY name, version DESC
+      GROUP BY name
     `;
     for (const automation of automations) {
       names.set(
