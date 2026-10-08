@@ -840,8 +840,13 @@ set_aside_exec_temp() {
   [ -e "$_rt/tmp" ] || [ -L "$_rt/tmp" ] || return 0
   _aside="$_rt/tmp.old.$$"
   while [ -e "$_aside" ] || [ -L "$_aside" ]; do _aside="$_aside.x"; done
-  # A rename that cannot happen falls back to the delete in place.
-  $DROP mv "$_rt/tmp" "$_aside" 2>/dev/null || $DROP rm -rf "$_rt/tmp"
+  # A rename that cannot happen falls back to the delete in place, and a tree
+  # neither can clear (an entry the profile uid may not remove) is left for
+  # the execs to use as it is: never a reason to fail the boot, which would
+  # fail every later start of the session too.
+  if ! { $DROP mv "$_rt/tmp" "$_aside" 2>/dev/null || $DROP rm -rf "$_rt/tmp"; }; then
+    echo "[entrypoint] WARN: could not clear the previous exec temp at $_rt/tmp; this session uses it as it is" >&2
+  fi
 }
 
 # Delete every aside tree in the background, at the lowest CPU and I/O
@@ -976,8 +981,10 @@ if [ "$1" = "daemon" ]; then
   # Stale per-exec steer queues (mid-turn message injection): a container
   # (re)start means no exec is live, so leftover steer/consumed files are
   # garbage from a previous incarnation — drop them. The platform re-queues
-  # anything it hadn't reconciled.
-  $DROP rm -rf /agent/.runtime/tale/steer
+  # anything it hadn't reconciled. Queues are per exec, so one that cannot be
+  # removed is read by no later exec and must not fail the boot.
+  $DROP rm -rf /agent/.runtime/tale/steer ||
+    echo "[entrypoint] WARN: could not clear the stale steer queues under /agent/.runtime/tale/steer" >&2
   # Inline pip/npm installs land in the writable, on-PYTHONPATH/NODE_PATH
   # dependency directories shared by executions in this session.
   export HOME=/agent/.runtime/home

@@ -145,3 +145,18 @@ describe('exec temp at a session start', () => {
     expect(purge).toBeLessThan(workspacePath);
   });
 });
+
+describe('a leftover exec temp nothing can clear', () => {
+  test('warns and lets the boot go on instead of failing every later start', () => {
+    const root = runtimeRoot();
+    // Every privileged step refuses, as for a tree holding an entry the
+    // profile uid may not move or remove.
+    const r = run(
+      `refuse() { return 1; }\nDROP=refuse\nset_aside_exec_temp ${JSON.stringify(root)}\necho booted`,
+    );
+
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('could not clear the previous exec temp');
+    expect(existsSync(join(root, 'tmp', 'runnerd-spool'))).toBe(true);
+  });
+});
