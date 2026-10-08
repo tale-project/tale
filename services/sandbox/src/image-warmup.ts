@@ -18,7 +18,7 @@ export interface RuntimeImageStatus {
  * a host cut off from its registry is asked again every ten minutes, and one
  * that just lost the image (an `image prune` on an idle host) gets it back
  * within the first. */
-export const IMAGE_RETRY_DELAYS_MS: readonly number[] = [
+const IMAGE_RETRY_DELAYS_MS: readonly number[] = [
   30_000, 60_000, 120_000, 300_000, 600_000,
 ];
 
