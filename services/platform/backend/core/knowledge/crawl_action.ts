@@ -122,7 +122,13 @@ import {
   CRAWLER_PRODUCT_TOKEN,
   crawlerRequestHeaders,
 } from './crawler_identity';
-import { EmbeddingDimensionMismatch, pinDimensions } from './dimensions';
+import {
+  assertVectorWidthSupported,
+  chunkVectorsTable,
+  legacyColumnWidth,
+  EmbeddingDimensionMismatch,
+  UnsupportedVectorWidth,
+} from './dimensions';
 import {
   classifyEmbeddingFailure,
   Embedder,
@@ -1675,11 +1681,12 @@ export async function fetchAndStorePage(
  * What storing a page means for its chunks: `changed` text (or text whose
  * chunks are missing or were cut from other text — an earlier scan died
  * between storing the page and indexing it) is re-chunked and re-embedded;
- * `vectorless` text is unchanged but was chunked without vectors (no
- * embedding model at the time), so it is embedded once a model can do it;
- * `unchanged` text is left as it is.
+ * `unchanged` text keeps its chunks. Whether those chunks have their vectors
+ * is not decided here: vectors are kept per width, so it depends on the
+ * organization scanning, and the indexer embeds what is missing for it at
+ * the end of each link (`PageIndexer.embedVectorless`).
  */
-export type StoreOutcome = 'changed' | 'vectorless' | 'unchanged';
+export type StoreOutcome = 'changed' | 'unchanged';
 
 /**
  * Store one page's extracted text, title, and paragraph hashes; report what
@@ -1729,12 +1736,9 @@ export async function storePageText(
   });
 
   if (unchanged) {
-    const [chunks] = await sql.unsafe<
-      { present: boolean; current: boolean; vectorless: boolean }[]
-    >(
+    const [chunks] = await sql.unsafe<{ present: boolean; current: boolean }[]>(
       `SELECT count(*) > 0 AS present,
-              coalesce(bool_and(content_hash = $3), false) AS current,
-              coalesce(bool_or(embedding IS NULL), false) AS vectorless
+              coalesce(bool_and(content_hash = $3), false) AS current
          FROM ${PUBLIC_WEB_SCHEMA}.chunks
         WHERE domain = $1 AND url = $2`,
       [domain, page.url, contentHash],
@@ -1745,7 +1749,7 @@ export async function storePageText(
     if (chunks === undefined || !chunks.present || !chunks.current) {
       return 'changed';
     }
-    return chunks.vectorless ? 'vectorless' : 'unchanged';
+    return 'unchanged';
   }
   return 'changed';
 }
@@ -1979,14 +1983,16 @@ async function recordPageFailure(
 /**
  * A failure of the organization's embedding model — a rejected credential,
  * an exhausted balance, an outage, a model whose vectors the corpus cannot
- * hold — ends the scan as any error does, but under a reason that says so
+ * hold (a width with no table, or vectors of another width than stated) —
+ * ends the scan as any error does, but under a reason that says so
  * and names its class: the row used to carry the provider's bare words
  * ("401 User not found.") and the page could only answer that the last scan
  * did not finish. Any other error is handed back as it is.
  */
 function embeddingScanFailure(error: unknown): unknown {
   const failureClass =
-    error instanceof EmbeddingDimensionMismatch
+    error instanceof EmbeddingDimensionMismatch ||
+    error instanceof UnsupportedVectorWidth
       ? 'dimension'
       : classifyEmbeddingFailure(error);
   if (failureClass === null) return error;
@@ -2005,17 +2011,25 @@ function embeddingScanFailure(error: unknown): unknown {
  * The embedding model is resolved lazily on the first page (a scan where
  * nothing changed never touches the provider) and the boilerplate ledger is
  * re-read per page, so each page is filtered against every paragraph hash
- * stored so far. Without an embedding model the chunks are stored with NULL
+ * stored so far. Without an embedding model the chunks are stored without
  * vectors: the site's own content search reads them, knowledge search does
  * not run until a model is configured, and the first scan after that embeds
- * them even though their text has not changed (`vectorless`). Exported for
- * tests only.
+ * them even though their text has not changed ({@link embedVectorless}).
+ *
+ * Vectors are kept per width (`chunk_vectors_<width>`), and a site's chunks
+ * are shared by every organization that registered its domain. So "without
+ * vectors" is asked for the width of the organization scanning: its scan
+ * embeds the chunks that have no vector of ITS width and leaves the other
+ * widths' vectors alone. Exported for tests only.
  */
 export class PageIndexer {
   private embedder: Embedder | null = null;
   private embedderResolved = false;
   private missingModelLogged = false;
   private indexedAny = false;
+  /** The previous release's column width, once asked (`legacyColumnWidth`);
+   * read once per link. */
+  private legacyWidth: number | null | undefined;
 
   constructor(
     private readonly ctx: ActionCtx,
@@ -2046,20 +2060,49 @@ export class PageIndexer {
       }
     }
     if (this.embedder) {
-      const dbUrl = await resolveOrgUrl(orgSlug);
+      // A width with no table ends the scan here, before a page is embedded.
       try {
-        await pinDimensions({
-          sql: this.sql,
-          dbUrl,
-          schema: PUBLIC_WEB_SCHEMA,
-          dimensions: this.embedder.dimensions,
-          context: `organization "${orgSlug}" (website crawl)`,
-        });
+        assertVectorWidthSupported(
+          this.embedder.dimensions,
+          this.widthContext(),
+        );
       } catch (error) {
         throw embeddingScanFailure(error);
       }
     }
     return this.embedder;
+  }
+
+  private widthContext(): string {
+    return `organization "${this.identity.orgSlug}" (website crawl)`;
+  }
+
+  /** Whether a vector of `dimensions` goes into the previous release's
+   * column as well: what the image serving beside this one reads during a
+   * roll, and after a rollback (see `legacyColumnWidth`). */
+  private async writesLegacyColumn(dimensions: number): Promise<boolean> {
+    if (this.legacyWidth === undefined) {
+      this.legacyWidth = await legacyColumnWidth(this.sql, PUBLIC_WEB_SCHEMA);
+    }
+    return this.legacyWidth === dimensions;
+  }
+
+  /** The table of the width the organization's embedding settings state, or
+   * null without a model — read from the settings alone, so asking does not
+   * resolve the model's credential. */
+  private async statedVectorsTable(): Promise<string | null> {
+    try {
+      const config = await readOrgEmbeddingConfig(this.identity.orgSlug);
+      return config === null
+        ? null
+        : chunkVectorsTable(
+            PUBLIC_WEB_SCHEMA,
+            config.dimensions,
+            this.widthContext(),
+          );
+    } catch (error) {
+      throw embeddingScanFailure(error);
+    }
   }
 
   /** The chunks' vectors, or null without an embedding model. */
@@ -2074,44 +2117,58 @@ export class PageIndexer {
   }
 
   /**
-   * Embed the site's pages whose chunks still lack vectors, from their
-   * stored text, until `deadline`: pages stored while the organization had
-   * no embedding model. A scan that was running when an admin saved one
-   * used to keep them so — each was done for that scan — until its next
-   * interval, up to thirty days. The model is looked for again when this
-   * link found none: it may have been saved since. Returns how many such
-   * pages are left for a later link; none when there is no model.
+   * Embed the site's pages whose chunks have no vector of this
+   * organization's width, from their stored text, until `deadline`: pages
+   * stored while the organization had no embedding model, pages another
+   * organization's scan chunked for a model of another width, and every
+   * page of the site after the organization moved to a model of another
+   * width. A scan that was running when an admin saved a model used to keep
+   * its pages without vectors — each was done for that scan — until its
+   * next interval, up to thirty days. The model is looked for again when
+   * this link found none: it may have been saved since. A link whose pages
+   * all have their vectors resolves no model. Returns how many such pages
+   * are left for a later link; none when there is no model.
    */
   async embedVectorless(deadline: number): Promise<number> {
     const { domain } = this.identity;
-    const vectorless = (limit: number) =>
+    const stated = await this.statedVectorsTable();
+    if (stated === null) return 0;
+    const vectorless = (vectors: string, limit: number) =>
       this.sql.unsafe<{ url: string }[]>(
         `SELECT DISTINCT c.url
            FROM ${PUBLIC_WEB_SCHEMA}.chunks c
            JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
              ON u.domain = c.domain AND u.url = c.url
-          WHERE c.domain = $1 AND c.embedding IS NULL
+          WHERE c.domain = $1
+            AND NOT EXISTS (SELECT 1 FROM ${vectors} v WHERE v.chunk_id = c.id)
             AND u.status = 'active' AND u.content IS NOT NULL
           ORDER BY c.url
           LIMIT $2`,
         [domain, limit],
       );
-    if ((await vectorless(1)).length === 0) return 0;
+    if ((await vectorless(stated, 1)).length === 0) return 0;
     if (this.embedderResolved && this.embedder === null) {
       this.embedderResolved = false;
     }
-    if ((await this.resolveEmbedder()) === null) return 0;
-    // Once each: a page this pass indexed has vectors or no chunks left.
+    const embedder = await this.resolveEmbedder();
+    if (embedder === null) return 0;
+    // The model as it resolved, should the settings have changed meanwhile.
+    const vectors = chunkVectorsTable(
+      PUBLIC_WEB_SCHEMA,
+      embedder.dimensions,
+      this.widthContext(),
+    );
+    // Once each: a page this pass embedded has its vectors.
     const done = new Set<string>();
     while (Date.now() < deadline) {
-      const batch = (await vectorless(EMBED_BATCH_PAGES + done.size)).filter(
-        (row) => !done.has(row.url),
-      );
+      const batch = (
+        await vectorless(vectors, EMBED_BATCH_PAGES + done.size)
+      ).filter((row) => !done.has(row.url));
       if (batch.length === 0) break;
       for (const { url } of batch) {
         if (Date.now() >= deadline) break;
         done.add(url);
-        await this.indexPage(url);
+        await this.embedPage(url, vectors);
       }
     }
     const [left] = await this.sql.unsafe<{ n: string }[]>(
@@ -2119,20 +2176,70 @@ export class PageIndexer {
          FROM ${PUBLIC_WEB_SCHEMA}.chunks c
          JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
            ON u.domain = c.domain AND u.url = c.url
-        WHERE c.domain = $1 AND c.embedding IS NULL
+        WHERE c.domain = $1
+          AND NOT EXISTS (SELECT 1 FROM ${vectors} v WHERE v.chunk_id = c.id)
           AND u.status = 'active' AND u.content IS NOT NULL`,
       [domain],
     );
     return Number(left?.n ?? '0');
   }
 
-  /** Index a page if its store outcome calls for it: changed text always,
-   * text chunked without vectors once a model can embed it. */
+  /**
+   * Give a page's stored chunks their vectors of this width, leaving the
+   * chunks — and the vectors other organizations hold for them at other
+   * widths — as they are. The text embedded is the stored chunk's own, which
+   * is what the page's indexing embedded too.
+   */
+  async embedPage(url: string, vectors: string): Promise<void> {
+    const { domain } = this.identity;
+    const chunks = await this.sql.unsafe<
+      { id: string; chunk_content: string }[]
+    >(
+      `SELECT c.id::text AS id, c.chunk_content
+         FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+        WHERE c.domain = $1 AND c.url = $2
+          AND NOT EXISTS (SELECT 1 FROM ${vectors} v WHERE v.chunk_id = c.id)
+        ORDER BY c.chunk_index`,
+      [domain, url],
+    );
+    if (chunks.length === 0) return;
+    const embedded = await this.embed(
+      chunks.map((chunk) => chunk.chunk_content),
+    );
+    if (embedded === null) return;
+    const legacy =
+      this.embedder !== null &&
+      (await this.writesLegacyColumn(this.embedder.dimensions));
+    await this.sql.begin(async (tx) => {
+      for (const [position, chunk] of chunks.entries()) {
+        const vector = JSON.stringify(embedded[position]);
+        // The previous release's column first: the migrations' trigger
+        // mirrors it into this width's table, and the insert below then
+        // finds the vector there.
+        if (legacy) {
+          await tx.unsafe(
+            `UPDATE ${PUBLIC_WEB_SCHEMA}.chunks SET embedding = $2::vector
+              WHERE id = $1::bigint`,
+            [chunk.id, vector],
+          );
+        }
+        // Through the chunk row: a page chunked again meanwhile has new
+        // chunks, and a vector for one that is gone is not written.
+        await tx.unsafe(
+          `INSERT INTO ${vectors} (chunk_id, embedding)
+           SELECT c.id, $2::vector
+             FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+            WHERE c.id = $1::bigint
+           ON CONFLICT (chunk_id) DO NOTHING`,
+          [chunk.id, vector],
+        );
+      }
+    });
+  }
+
+  /** Index a page whose text changed; unchanged text keeps its chunks. */
   async settle(url: string, outcome: StoreOutcome): Promise<void> {
     if (outcome === 'unchanged') return;
-    if (outcome === 'vectorless' && (await this.resolveEmbedder()) === null) {
-      return;
-    }
     await this.indexPage(url);
   }
 
@@ -2170,20 +2277,46 @@ export class PageIndexer {
       );
       return;
     }
-    const vectors = await this.embed(chunks.map((chunk) => chunk.embedText));
+    const embedded = await this.embed(chunks.map((chunk) => chunk.embedText));
     const contentHash = computeContentHash(row.content);
+    // With a model, each chunk is stored with its vector in the table of the
+    // model's width — in the transaction below, as a statement of its own:
+    // the BM25 index (pg_search) is not safe under an INSERT in a CTE.
+    const vectors =
+      embedded === null || this.embedder === null
+        ? null
+        : chunkVectorsTable(
+            PUBLIC_WEB_SCHEMA,
+            this.embedder.dimensions,
+            this.widthContext(),
+          );
+    // The previous release's column carries the vector too when it is
+    // declared at this width (`legacyColumnWidth`); the migrations' trigger
+    // mirrors it into the width's table, where the insert below then finds
+    // it.
+    const legacy =
+      vectors !== null &&
+      this.embedder !== null &&
+      (await this.writesLegacyColumn(this.embedder.dimensions));
 
     await this.sql.begin(async (tx) => {
+      // Chunked again from new text: the old chunks go, and with them their
+      // vectors of every width. Another organization's scan embeds the new
+      // chunks for its own width (`embedVectorless`).
       await tx.unsafe(
         `DELETE FROM ${PUBLIC_WEB_SCHEMA}.chunks WHERE domain = $1 AND url = $2`,
         [domain, url],
       );
       for (const [position, chunk] of chunks.entries()) {
-        await tx.unsafe(
+        const vector =
+          embedded === null ? null : JSON.stringify(embedded[position]);
+        const stored = await tx.unsafe<{ id: string }[]>(
           `INSERT INTO ${PUBLIC_WEB_SCHEMA}.chunks
               (domain, url, title, content_hash, chunk_index, chunk_content,
-               embedding, context_header, core_content, prefix_overlap, suffix_overlap)
-           VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8, $9, $10, $11)`,
+               context_header, core_content, prefix_overlap, suffix_overlap,
+               embedding)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
+           RETURNING id::text AS id`,
           [
             domain,
             url,
@@ -2191,12 +2324,22 @@ export class PageIndexer {
             contentHash,
             chunk.index,
             chunk.embedText,
-            vectors ? JSON.stringify(vectors[position]) : null,
             chunk.header,
             chunk.core,
             chunk.prefixOverlap,
             chunk.suffixOverlap,
+            legacy ? vector : null,
           ],
+        );
+        const chunkId = stored[0]?.id;
+        if (vectors === null || vector === null || chunkId === undefined) {
+          continue;
+        }
+        await tx.unsafe(
+          `INSERT INTO ${vectors} (chunk_id, embedding)
+           VALUES ($1::bigint, $2::vector)
+           ON CONFLICT (chunk_id) DO NOTHING`,
+          [chunkId, vector],
         );
       }
     });
