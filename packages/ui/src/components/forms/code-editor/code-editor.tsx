@@ -30,7 +30,7 @@ import {
 } from 'react';
 
 import { useIsMac } from '../../../hooks/use-is-mac';
-import { useMediaQuery } from '../../../hooks/use-media-query';
+import { usePrefersReducedMotion } from '../../../hooks/use-prefers-reduced-motion';
 import { useT } from '../../../i18n/client';
 import { cn } from '../../../lib/cn';
 import {
@@ -188,7 +188,7 @@ const CodeEditorBase = forwardRef<CodeEditorHandle, CodeEditorProps>(
     } = props;
     const { t } = useT('codeEditor');
     const isMac = useIsMac();
-    const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+    const reducedMotion = usePrefersReducedMotion();
     const baseId = useId();
     const keyboardHintId = `${baseId}-keyboard`;
     const submitHintId = `${baseId}-submit`;
