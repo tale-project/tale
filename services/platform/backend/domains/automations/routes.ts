@@ -165,9 +165,15 @@ const projectsSchema = z.object({
 
 const answerSchema = z.object({ answer: z.string().min(1).max(20_000) });
 
-/** A person's choice about a write that may already have happened. */
+/** A person's choice about a write that may already have happened, and the
+ * attempt of it the choice is about: a write run again keeps its row and
+ * takes the next number, so a choice about an earlier attempt is refused
+ * (409) instead of deciding a later one. The ledger's `attempt` is an int. */
 const inDoubtResolutionSchema = z
-  .object({ resolution: z.enum(['retry', 'skip', 'fail']) })
+  .object({
+    resolution: z.enum(['retry', 'skip', 'fail']),
+    attempt: z.number().int().min(1).max(2_147_483_647),
+  })
   .strict();
 
 const uploadSchema = z.object({
@@ -617,6 +623,7 @@ export function createAutomationRoutes(deps: {
           organizationId: c.get('orgId'),
           runId,
           attemptId: c.req.param('attemptId'),
+          attempt: body.data.attempt,
           resolution: body.data.resolution,
           actor,
         }),

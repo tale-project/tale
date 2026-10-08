@@ -5,9 +5,10 @@
  * run was interrupted. Reading it follows the run's read rule — a hidden run
  * answers like one with nothing waiting. Deciding it is a WRITE with the
  * stop's gate: a hidden or missing run is not found, a read-only member is
- * refused, a body that is not one of the three choices is the domain's 400,
- * and the store's refusals (the run no longer waits, the step was already
- * decided) keep their 409.
+ * refused, a body that is not one of the three choices about one attempt
+ * of the write is the domain's 400, and the store's refusals (the run no
+ * longer waits, the step was already decided — or the choice is about an
+ * earlier attempt of it) keep their 409.
  */
 
 import type { Context } from 'hono';
@@ -172,14 +173,17 @@ describe('POST /runs/:runId/in-doubt/:attemptId', () => {
   it.each(['retry', 'skip', 'fail'] as const)(
     'records %s as the deciding member, in one transaction',
     async (resolution) => {
-      const res = await decide({ resolution });
+      const res = await decide({ resolution, attempt: 2 });
 
       expect(res.status).toBe(200);
       await expect(res.json()).resolves.toEqual({ ok: true });
+      // The attempt the choice is about reaches the locked update, which
+      // refuses an earlier attempt of the same write [AUTO-R19].
       expect(resolveInDoubtInTx).toHaveBeenCalledWith(tx, {
         organizationId: 'o1',
         runId: 'run_1',
         attemptId: 'attempt_1',
+        attempt: 2,
         resolution,
         actor: 'u1',
       });
@@ -188,8 +192,16 @@ describe('POST /runs/:runId/in-doubt/:attemptId', () => {
 
   it.each([
     ['an empty body', {}],
-    ['an unknown choice', { resolution: 'undo' }],
-    ['an extra key', { resolution: 'skip', note: 'x' }],
+    ['an unknown choice', { resolution: 'undo', attempt: 1 }],
+    ['an extra key', { resolution: 'skip', attempt: 1, note: 'x' }],
+    ['a choice that names no attempt', { resolution: 'skip' }],
+    ['attempt 0', { resolution: 'skip', attempt: 0 }],
+    ['a fractional attempt', { resolution: 'skip', attempt: 1.5 }],
+    ['an attempt as text', { resolution: 'skip', attempt: '1' }],
+    [
+      'an attempt past the ledger int',
+      { resolution: 'skip', attempt: 2 ** 31 },
+    ],
   ])('refuses %s with the domain 400', async (_label, body) => {
     const res = await decide(body);
     expect(res.status).toBe(400);
@@ -199,7 +211,7 @@ describe('POST /runs/:runId/in-doubt/:attemptId', () => {
 
   it('answers a missing run as not found', async () => {
     getRun.mockResolvedValue(null);
-    const res = await decide({ resolution: 'skip' });
+    const res = await decide({ resolution: 'skip', attempt: 1 });
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toMatchObject({ error: 'RUN_NOT_FOUND' });
     expect(resolveInDoubtInTx).not.toHaveBeenCalled();
@@ -208,7 +220,7 @@ describe('POST /runs/:runId/in-doubt/:attemptId', () => {
   it('answers a run in a project the member cannot read as not found', async () => {
     access.control = 'hidden';
     getRun.mockResolvedValue({ id: 'run_1', projectId: 'p-hidden' });
-    const res = await decide({ resolution: 'skip' });
+    const res = await decide({ resolution: 'skip', attempt: 1 });
     expect(res.status).toBe(404);
     expect(resolveInDoubtInTx).not.toHaveBeenCalled();
   });
@@ -216,7 +228,7 @@ describe('POST /runs/:runId/in-doubt/:attemptId', () => {
   it('refuses a member who may read the run but not write its project', async () => {
     access.control = 'forbidden';
     getRun.mockResolvedValue({ id: 'run_1', projectId: 'p-readonly' });
-    const res = await decide({ resolution: 'retry' });
+    const res = await decide({ resolution: 'retry', attempt: 1 });
     expect(res.status).toBe(403);
     await expect(res.json()).resolves.toMatchObject({
       error: 'RBAC_FORBIDDEN',
@@ -239,7 +251,7 @@ describe('POST /runs/:runId/in-doubt/:attemptId', () => {
       resolveInDoubtInTx.mockRejectedValue(
         new AutomationError(code, message, 409),
       );
-      const res = await decide({ resolution: 'skip' });
+      const res = await decide({ resolution: 'skip', attempt: 1 });
       expect(res.status).toBe(409);
       await expect(res.json()).resolves.toEqual({ error: code, message });
     },

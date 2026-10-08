@@ -322,7 +322,7 @@ describe('RunInDoubtCard — the decision', () => {
     expect(resolved.closest('[tabindex="-1"]')).toHaveFocus();
     expect(screen.queryByRole('button', { name: 'Run it again' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Fail the run' })).toBeNull();
-    expect(decisions()).toEqual([{ resolution: 'skip' }]);
+    expect(decisions()).toEqual([{ resolution: 'skip', attempt: 1 }]);
   });
 
   it('asks before running the step again, and sends nothing on Cancel', async () => {
@@ -354,7 +354,7 @@ describe('RunInDoubtCard — the decision', () => {
     await waitFor(() =>
       expect(resolved.closest('[tabindex="-1"]')).toHaveFocus(),
     );
-    expect(decisions()).toEqual([{ resolution: 'retry' }]);
+    expect(decisions()).toEqual([{ resolution: 'retry', attempt: 1 }]);
   });
 
   it('works from the keyboard, and Escape hands focus back to the action', async () => {
@@ -379,7 +379,7 @@ describe('RunInDoubtCard — the decision', () => {
     await waitFor(() =>
       expect(resolved.closest('[tabindex="-1"]')).toHaveFocus(),
     );
-    expect(decisions()).toEqual([{ resolution: 'skip' }]);
+    expect(decisions()).toEqual([{ resolution: 'skip', attempt: 1 }]);
   });
 
   it('asks before failing the run', async () => {
@@ -400,7 +400,7 @@ describe('RunInDoubtCard — the decision', () => {
     );
 
     expect(await screen.findByText('The run was failed.')).toBeVisible();
-    expect(decisions()).toEqual([{ resolution: 'fail' }]);
+    expect(decisions()).toEqual([{ resolution: 'fail', attempt: 1 }]);
   });
 
   it('reports a failed write once, without its payload, and the same press retries it', async () => {
@@ -513,5 +513,73 @@ describe('RunInDoubtCard — the decision', () => {
       await screen.findByRole('button', { name: 'Skip it' }),
     ).toBeEnabled();
     expect(screen.queryByText('Running the step again.')).toBeNull();
+  });
+
+  it('withdraws an open question once the write it asks about is interrupted again [AUTO-R19]', async () => {
+    // Mia opened Run it again about attempt 1. Meanwhile Noah ran the step
+    // again from another tab, and its server stopped mid-call once more:
+    // the run now waits on attempt 2 of the same write.
+    let attempt = 1;
+    door.read = () =>
+      answerWith(200, { inDoubt: attemptRow('attempt-a', { attempt }) });
+    door.decide = () => answerWith(200, { ok: true });
+    const { user, client } = renderCard();
+
+    const retry = await screen.findByRole('button', { name: 'Run it again' });
+    await user.click(retry);
+    expect(
+      await screen.findByRole('dialog', { name: 'Run this step again?' }),
+    ).toBeVisible();
+
+    attempt = 2;
+    await client.invalidateQueries();
+
+    // Her question was about attempt 1: it is withdrawn, never turned into
+    // a choice about attempt 2, and focus goes back to the action.
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(retry).toHaveFocus());
+    expect(decisions()).toEqual([]);
+
+    // Asked again, the choice is about the attempt that waits now.
+    await user.click(screen.getByRole('button', { name: 'Run it again' }));
+    const again = await screen.findByRole('dialog', {
+      name: 'Run this step again?',
+    });
+    await user.click(
+      within(again).getByRole('button', { name: 'Run it again' }),
+    );
+    expect(await screen.findByText('Running the step again.')).toBeVisible();
+    expect(decisions()).toEqual([{ resolution: 'retry', attempt: 2 }]);
+  });
+
+  it('does not ask again unasked when the same write waits again', async () => {
+    // The read lost the write for a moment (a walker re-parked the run on
+    // it): the open question goes, and stays gone when the write is back.
+    let waiting = true;
+    door.read = () =>
+      answerWith(200, { inDoubt: waiting ? attemptRow('attempt-a') : null });
+    const { user, client } = renderCard();
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Fail the run' }),
+    );
+    expect(
+      await screen.findByRole('dialog', { name: 'Fail this run?' }),
+    ).toBeVisible();
+
+    waiting = false;
+    await client.invalidateQueries();
+    expect(
+      await screen.findByText('This step no longer waits for a decision.'),
+    ).toBeVisible();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    waiting = true;
+    await client.invalidateQueries();
+    expect(
+      await screen.findByRole('button', { name: 'Fail the run' }),
+    ).toBeEnabled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(decisions()).toEqual([]);
   });
 });

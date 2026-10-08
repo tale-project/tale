@@ -256,6 +256,10 @@ export async function resolveInDoubtInTx(
     organizationId: string;
     runId: string;
     attemptId: string;
+    /** The attempt the person decided about, as their card read it. A write
+     * run again keeps its row and takes the next number, so a decision
+     * about an earlier attempt never decides a later one. */
+    attempt: number;
     resolution: AttemptResolution;
     /** The user who decided. */
     actor: string;
@@ -287,15 +291,19 @@ export async function resolveInDoubtInTx(
     );
   }
   // Only the write the run waits on — the one its card shows
-  // (`readOpenInDoubt`) — can be decided: never a model call, and never
-  // another open attempt of the run.
+  // (`readOpenInDoubt`) — can be decided: never a model call, never
+  // another open attempt of the run, and never a later attempt of the same
+  // write. A decision about attempt 1 that arrives after Run it again
+  // re-parked the run on attempt 2 is refused like a decided one: it must
+  // not send the write once more, skip it or fail the run unasked.
   const resolved = await tx<
     { nodeId: string; itemIndex: number; pass: number }[]
   >`
     UPDATE app.automation_node_attempts SET
       resolution = ${args.resolution}, resolved_by = ${args.actor},
       resolved_at_ms = ${Date.now()}
-    WHERE id = ${args.attemptId} AND run_id = ${args.runId}
+    WHERE id = ${args.attemptId} AND attempt = ${args.attempt}
+      AND run_id = ${args.runId}
       AND org_id = ${args.organizationId}
       AND kind = 'connector' AND status = 'started' AND resolution IS NULL
       AND id = (
