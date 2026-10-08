@@ -46099,6 +46099,7 @@ async function checkChatDeferredAuto(
 
   // ---- a live fake provider (catalog + streaming completions) -------------
   const AUTO_ANSWER = 'Deferred answer done.';
+  const capturedPrompts: string[] = [];
   const autoServer = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk: unknown) => {
@@ -46123,6 +46124,7 @@ async function checkChatDeferredAuto(
         return;
       }
       if (url.endsWith('/chat/completions')) {
+        capturedPrompts.push(body);
         res.setHeader('content-type', 'text/event-stream');
         const sse = (payload: unknown): string =>
           `data: ${JSON.stringify(payload)}\n\n`;
@@ -46336,6 +46338,209 @@ async function checkChatDeferredAuto(
         `${base}/api/app/connector-credentials/${connectorCredential.data.credentialId}?orgId=${orgId}`,
         { method: 'DELETE', headers: { cookie, origin: base } },
       );
+    }
+
+    // Real-PG attachment boundary: deny new parks, sanitize already-parked
+    // failures, and rebuild legacy poisoned history under the CURRENT reader.
+    const { pollDeferredSend } =
+      await import('./domains/chat/deferred-sends.ts');
+    const { runChatTurn } = await import('./domains/chat/service.ts');
+    const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+    const { userTurnParts } = await import('../lib/chat/turn.ts');
+    const { toJson } = await import('./db/sql.ts');
+    const foreignOrg = randomUUID();
+    const foreignUser = randomUUID();
+    await sql`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (${foreignOrg}, 'Attachment boundary tenant', ${`boundary-${foreignOrg}`}, now())
+    `;
+    await sql`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt", "updatedAt")
+      VALUES (${foreignUser}, ${`boundary-${foreignUser}@door.test`}, 'Attachment owner', true, now(), now())
+    `;
+    const boundaryThreads: string[] = [];
+    try {
+      for (const fileOrg of [orgId, foreignOrg]) {
+        const sentinel = `PRIVATE_TRANSCRIPT_${randomUUID()}`;
+        const ref = `s3:boundary-${randomUUID()}`;
+        const attachments = [
+          {
+            fileId: ref,
+            fileName: 'private.wav',
+            fileType: 'audio/wav',
+            fileSize: 10,
+          },
+        ];
+        await sql`
+          INSERT INTO app.file_metadata (org_id, storage_ref, file_name, content_type, size,
+            uploaded_by, transcript, transcription_status, created_at_ms)
+          VALUES (${fileOrg}, ${ref}, 'private.wav', 'audio/wav', 10,
+            ${foreignUser}, ${sentinel}, 'completed', ${Date.now()})
+        `;
+        const created = z.object({ id: z.string() }).parse(
+          await (
+            await post(`/api/app/chat/threads?orgId=${orgId}`, {
+              title: 'Attachment boundary',
+            })
+          ).json(),
+        );
+        const threadId = created.id;
+        boundaryThreads.push(threadId);
+        const startPrompt = capturedPrompts.length;
+        const park = await post(
+          `/api/app/chat/threads/${threadId}/deferred-sends?orgId=${orgId}`,
+          {
+            text: 'Summarize',
+            modelId: 'auto-pick-model',
+            attachments,
+          },
+        );
+        const unexpectedParks = await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.deferred_sends WHERE thread_id = ${threadId}
+        `;
+        record(
+          'attachment boundary: unreadable audio is refused at parking',
+          park.status === 400 && unexpectedParks[0]?.count === '0',
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} status=${park.status} rows=${unexpectedParks[0]?.count}`,
+        );
+        // Remove only this fixture's unexpected park on the baseline so the
+        // worker cannot race the deliberate legacy row below.
+        await sql`DELETE FROM app.deferred_sends WHERE thread_id = ${threadId}`;
+        const legacy = await sql<{ id: string }[]>`
+          INSERT INTO app.deferred_sends (org_id, user_id, thread_id, user_text,
+            attachments, model_id, status, created_at_ms, waiting_since_ms)
+          VALUES (${orgId}, ${userId}, ${threadId}, 'Legacy parked send',
+            ${sql.json(toJson(attachments))}, 'auto-pick-model', 'waiting', ${Date.now()}, ${Date.now()})
+          RETURNING id
+        `;
+        await pollDeferredSend(sql, legacy[0]?.id ?? '');
+        const trace = await sql<{ parts: unknown }[]>`
+          SELECT parts FROM app.messages WHERE thread_id = ${threadId} AND role = 'user'
+        `;
+        record(
+          'attachment boundary: refused legacy park leaves no attachment parts',
+          trace.length === 1 && !JSON.stringify(trace).includes(ref),
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} userRows=${trace.length} containsRef=${JSON.stringify(trace).includes(ref)}`,
+        );
+        const metaQuery =
+          chatShimHandlers(sql)[
+            'file_metadata/internal_queries:getByStorageId'
+          ];
+        if (!metaQuery) throw new Error('metadata handler missing');
+        record(
+          'attachment boundary: metadata refuses an unreadable transcript',
+          (await metaQuery({
+            organizationId: orgId,
+            userId,
+            storageId: ref,
+          })) === null,
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'}`,
+        );
+        const next = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Next turn',
+        });
+        // Existing persisted poison must also be harmless, independently of
+        // the new trace fix. The last row is a user row for regenerate.
+        await appendMessageRow(sql, {
+          organizationId: orgId,
+          threadId,
+          role: 'user',
+          parts: userTurnParts('Legacy attachment', attachments),
+          text: 'Legacy attachment',
+        });
+        const regenerated = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: '',
+          resend: true,
+        });
+        const later = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Read prior history',
+        });
+        const prompts = capturedPrompts.slice(startPrompt);
+        record(
+          'attachment boundary: next turn, regenerate and legacy history never expose foreign audio',
+          next.status === 'completed' &&
+            regenerated.status === 'completed' &&
+            later.status === 'completed' &&
+            prompts.length >= 3 &&
+            prompts.every(
+              (prompt) => !prompt.includes(sentinel) && !prompt.includes(ref),
+            ),
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} outcomes=${next.status},${regenerated.status},${later.status} calls=${prompts.length} leaked=${prompts.some((prompt) => prompt.includes(sentinel))}`,
+        );
+        await sql`DELETE FROM app.messages WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.threads WHERE id = ${threadId}`;
+        await sql`DELETE FROM app.file_metadata WHERE storage_ref = ${ref}`;
+      }
+      const ownRef = `s3:boundary-own-${randomUUID()}`;
+      const ownSentinel = `OWN_TRANSCRIPT_${randomUUID()}`;
+      const ownThread = z.object({ id: z.string() }).parse(
+        await (
+          await post(`/api/app/chat/threads?orgId=${orgId}`, {
+            title: 'Readable audio control',
+          })
+        ).json(),
+      );
+      boundaryThreads.push(ownThread.id);
+      await sql`
+        INSERT INTO app.file_metadata (org_id, storage_ref, file_name, content_type, size,
+          uploaded_by, transcript, transcription_status, created_at_ms)
+        VALUES (${orgId}, ${ownRef}, 'own.wav', 'audio/wav', 10,
+          ${userId}, ${ownSentinel}, 'completed', ${Date.now()})
+      `;
+      try {
+        const beforeOwn = capturedPrompts.length;
+        const ownOutcome = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId: ownThread.id,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Summarize my audio',
+          attachments: [
+            {
+              fileId: ownRef,
+              fileName: 'own.wav',
+              fileType: 'audio/wav',
+              fileSize: 10,
+            },
+          ],
+        });
+        record(
+          'attachment boundary: own completed audio still reaches the model',
+          ownOutcome.status === 'completed' &&
+            capturedPrompts
+              .slice(beforeOwn)
+              .some((prompt) => prompt.includes(ownSentinel)),
+          `outcome=${ownOutcome.status} calls=${capturedPrompts.length - beforeOwn}`,
+        );
+      } finally {
+        await sql`DELETE FROM app.file_metadata WHERE storage_ref = ${ownRef}`;
+      }
+    } finally {
+      for (const threadId of boundaryThreads) {
+        await sql`DELETE FROM app.deferred_sends WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.generations WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.messages WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.threads WHERE id = ${threadId}`;
+      }
+      await sql`DELETE FROM app.file_metadata WHERE uploaded_by = ${foreignUser}`;
+      await sql`DELETE FROM "user" WHERE "id" = ${foreignUser}`;
+      await sql`DELETE FROM "organization" WHERE "id" = ${foreignOrg}`;
     }
 
     // ---- deferred sends ---------------------------------------------------
