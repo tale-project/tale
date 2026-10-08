@@ -25,13 +25,14 @@ import {
 } from '../files/transcription-metering.ts';
 import { settleSessionOpSpend } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
+import { loadBudgetSubject, readBudgetStanding } from './budget-gate.ts';
 import { readInFlightReservations } from './budget-reservations.ts';
 import {
   openDirectCall,
   releaseStaleDirectCalls,
   settleDirectCall,
 } from './direct-calls.ts';
-import { incrementUsageLedger } from './service.ts';
+import { incrementUsageLedger, recordConnectorUsage } from './service.ts';
 
 const createdSchema = z.object({ id: z.string() });
 
@@ -272,6 +273,96 @@ export async function checkProjectBudgets(
         ) &&
         ledgerRows[0]?.count === '3',
       `buckets=${JSON.stringify(buckets)} (want 3 at 60 cents, 15 tokens), ledger rows=${ledgerRows[0]?.count} (want 3)`,
+    );
+
+    // A connector call is counted as one, never as a model request: its
+    // ledger rows carry none, the project's buckets take nothing from it,
+    // and a request cap reads past a connector row booked with a request
+    // before that rule. A personal request cap is set for the reading
+    // alone, then the project's rule stands alone again.
+    await writeFile(
+      budgetsFile,
+      [
+        'enabled: true',
+        'rules:',
+        '  - scope: default',
+        '    period: monthly',
+        '    maxRequests: 1000000',
+        'projectRules:',
+        '  - scope: project',
+        `    scopeId: ${projectId}`,
+        '    period: monthly',
+        '    maxCostCents: 100',
+      ].join('\n'),
+    );
+    clearOrgConfigCaches();
+    const memberSubject = await loadBudgetSubject(sql, {
+      organizationId: orgId,
+      userId,
+    });
+    const requestsRead = async () =>
+      (await readBudgetStanding(sql, memberSubject)).find(
+        (standing) => standing.scope === 'user',
+      )?.usage.requestCount ?? -1;
+    const requestsBefore = await requestsRead();
+    await recordConnectorUsage(sql, {
+      organizationId: orgId,
+      userId,
+      agentSlug,
+      connectorName: 'itest-connector',
+      connectorOperation: 'list',
+      costEstimateCents: 0,
+      timestamp: now,
+      projectIds: [projectId],
+    });
+    await incrementUsageLedger(sql, {
+      organizationId: orgId,
+      userId,
+      inputTokens: 0,
+      outputTokens: 0,
+      costEstimateCents: 0,
+      timestamp: now,
+      agentSlug,
+      connectorName: 'itest-connector',
+      connectorOperation: 'legacy',
+      connectorCallCount: 1,
+      requestCount: 1,
+    });
+    const requestsAfter = await requestsRead();
+    const connectorRows = await sql<{ requests: number; calls: number }[]>`
+      SELECT request_count::float8 AS requests,
+             connector_call_count::float8 AS calls
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND connector_name = 'itest-connector'
+        AND connector_operation = 'list'
+    `;
+    const projectAfter = await sql<{ requests: number }[]>`
+      SELECT coalesce(sum(request_count), 0)::float8 AS requests
+      FROM app.project_usage
+      WHERE org_id = ${orgId} AND project_id = ${projectId}
+        AND granularity = 'monthly'
+    `;
+    await writeFile(
+      budgetsFile,
+      [
+        'enabled: true',
+        'rules: []',
+        'projectRules:',
+        '  - scope: project',
+        `    scopeId: ${projectId}`,
+        '    period: monthly',
+        '    maxCostCents: 100',
+      ].join('\n'),
+    );
+    clearOrgConfigCaches();
+    record(
+      'project budgets: a connector call is counted as one, never as a model request [GOV-R15]',
+      connectorRows.length === 3 &&
+        connectorRows.every((row) => row.requests === 0 && row.calls === 1) &&
+        projectAfter[0]?.requests === 1 &&
+        requestsBefore >= 0 &&
+        requestsAfter === requestsBefore,
+      `connector rows=${JSON.stringify(connectorRows)} (want 3 at 0 requests, 1 call), project requests=${projectAfter[0]?.requests} (want 1, the model call's), member requests ${requestsBefore} → ${requestsAfter} (want unchanged)`,
     );
 
     // Another of the project's turns holds the remaining 40.

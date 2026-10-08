@@ -334,6 +334,8 @@ async function sendMessageViaConnectorInTx(
       ...(inReplyTo !== undefined ? { inReplyTo } : {}),
       ...(references !== undefined ? { references } : {}),
       ...(replyFrom ? { from: replyFrom } : {}),
+      // The delivery is the sender's connector call.
+      sentBy: { userId: args.actor.userId },
       ...(args.attachments?.length
         ? {
             attachments: args.attachments.map((att) => ({
@@ -994,6 +996,8 @@ export async function retrySendMessage(
       ...(references ? { references } : {}),
       ...(replyFrom ? { from: replyFrom } : {}),
       ...(attachments ? { attachments } : {}),
+      // A retry is a new delivery: the connector call of whoever retried.
+      sentBy: { userId: args.actor.userId },
     });
     await emitHintInTx(tx, {
       orgId: args.organizationId,
@@ -1285,6 +1289,11 @@ export async function runSendMessageJob(
         ? { credentialRef: payload.credentialId }
         : {}),
       caller: { kind: 'system', reason: 'conversation email reply' },
+      // Counted as the sender's connector call; a job queued before the
+      // sender was recorded counts as nobody's.
+      ...(payload.sentBy !== undefined
+        ? { spender: { userId: payload.sentBy.userId } }
+        : {}),
     });
     if (result.status !== 'ok') {
       throw new Error(result.message);

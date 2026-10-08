@@ -220,6 +220,22 @@ export interface ConnectorAuditSink {
   record(entry: ConnectorInvocationRecord): Promise<void>;
 }
 
+/** One live call that ran — its body reached the outside world, whatever
+ * came back — as the usage ledger counts it. */
+export interface ConnectorUsageRecord {
+  organizationId: string;
+  connector: string;
+  action: string;
+  caller: ConnectorCaller;
+  outcome: 'ok' | 'error';
+}
+
+/** Where live calls are counted. Best-effort: a sink that fails is logged,
+ * and never fails the call it counts. */
+export interface ConnectorUsageSink {
+  record(entry: ConnectorUsageRecord): Promise<void>;
+}
+
 // ------------------------------------------------------------------- callers
 
 /**
@@ -300,6 +316,8 @@ export interface ConnectorDispatchContext {
   credentials?: CredentialResolver;
   approvals?: ApprovalGate;
   audit?: ConnectorAuditSink;
+  /** Counts every live call whose body ran, ok or not. */
+  usage?: ConnectorUsageSink;
   /** Supplying a sink is what gives a live body `ctx.files`. */
   blobs?: ConnectorBlobSink;
   /**
@@ -569,6 +587,23 @@ export async function executeConnectorAction(
     }
   };
 
+  /** Count a live call whose body ran. A failure to count is logged: the
+   * call happened, and its outcome stands. */
+  const meter = async (outcome: ConnectorUsageRecord['outcome']) => {
+    if (!ctx.usage) return;
+    try {
+      await ctx.usage.record({
+        organizationId: ctx.organizationId,
+        connector: connector.name,
+        action: action.name,
+        caller,
+        outcome,
+      });
+    } catch (cause) {
+      console.warn(`[connectors] ${nodeType}: usage record failed`, cause);
+    }
+  };
+
   if (mode === 'mock') {
     // Deterministic, no IO of any kind: no credential is resolved, no host is
     // built, and the body runs against `input` alone.
@@ -831,6 +866,8 @@ export async function executeConnectorAction(
     }
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
+    // The body ran: counted before the record, which may itself fail.
+    await meter('error');
     await record('error', {
       credentialId: credential.credentialId,
       error: message,
@@ -853,6 +890,7 @@ export async function executeConnectorAction(
     );
   }
 
+  await meter('ok');
   await record('ok', { credentialId: credential.credentialId });
   return {
     status: 'ok',

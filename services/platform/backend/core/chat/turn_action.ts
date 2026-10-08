@@ -989,6 +989,7 @@ export function chatToolContextForTurn(args: {
   userId: string;
   threadIds: readonly string[];
   projectId: string | null;
+  apiKeyId?: string;
   embeddingMeter?: EmbeddingMeter;
 }): ChatToolContext {
   return {
@@ -996,6 +997,7 @@ export function chatToolContextForTurn(args: {
     userId: args.userId,
     threadIds: args.threadIds,
     projectId: args.projectId,
+    ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
     ...(args.embeddingMeter !== undefined
       ? { embeddingMeter: args.embeddingMeter }
       : {}),
@@ -1323,8 +1325,9 @@ export async function executeTurn(
         userId: args.userId,
         threadIds: lineage.threadIds,
         projectId: threadProjectId,
-        // A search's query embedding is the turn's spend: its member, the
-        // key that sent the message, the thread's project.
+        // A tool call is the turn's: its member, the key that sent the
+        // message, the thread's project — its search's embedding too.
+        ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
         ...(overrides.meterEmbeddings !== undefined
           ? {
               embeddingMeter: overrides.meterEmbeddings({

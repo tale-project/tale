@@ -686,6 +686,118 @@ describe('live yaml-js backend', () => {
   });
 });
 
+describe('usage of live calls', () => {
+  function usageSink(fail = false) {
+    const records: unknown[] = [];
+    return {
+      records,
+      record: vi.fn(async (entry: unknown) => {
+        if (fail) throw new Error('ledger down');
+        records.push(entry);
+      }),
+    };
+  }
+
+  it('counts a live call whose body ran, once, with its caller [GOV-R15]', async () => {
+    const usage = usageSink();
+    await executeConnectorAction({
+      connector: 'demo',
+      action: 'echo',
+      input: { message: 'hello' },
+      credentialRef: 'primary',
+      caller: { kind: 'workflow', runId: 'run_1', nodeId: 'n1' },
+      ctx: {
+        organizationId: ORG,
+        mode: 'live',
+        credentials: resolver(),
+        usage,
+      },
+    });
+    expect(usage.records).toEqual([
+      {
+        organizationId: ORG,
+        connector: 'demo',
+        action: 'echo',
+        caller: { kind: 'workflow', runId: 'run_1', nodeId: 'n1' },
+        outcome: 'ok',
+      },
+    ]);
+  });
+
+  it('counts a live body that failed: the vendor was reached all the same', async () => {
+    const usage = usageSink();
+    await expect(
+      executeConnectorAction({
+        connector: 'demo',
+        action: 'explode',
+        input: {},
+        caller: { kind: 'system', reason: 'test' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          audit: auditSink(),
+          usage,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'LIVE_BODY_FAILED' });
+    expect(usage.records).toEqual([
+      expect.objectContaining({ action: 'explode', outcome: 'error' }),
+    ]);
+  });
+
+  it('counts nothing that never ran: a mock, or a live call refused before its body', async () => {
+    const usage = usageSink();
+    await executeConnectorAction({
+      connector: 'demo',
+      action: 'echo',
+      input: { message: 'hello' },
+      caller: { kind: 'user', userId: 'u1' },
+      ctx: { organizationId: ORG, usage },
+    });
+    await expect(
+      executeConnectorAction({
+        connector: 'demo',
+        action: 'mock_only',
+        input: {},
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          usage,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'NO_LIVE_BACKEND' });
+    expect(usage.record).not.toHaveBeenCalled();
+  });
+
+  it('never fails a call it could not count', async () => {
+    const usage = usageSink(true);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await executeConnectorAction({
+      connector: 'demo',
+      action: 'echo',
+      input: { message: 'hello' },
+      credentialRef: 'primary',
+      caller: { kind: 'user', userId: 'u1' },
+      ctx: {
+        organizationId: ORG,
+        mode: 'live',
+        credentials: resolver(),
+        usage,
+      },
+    });
+    expect(result.status).toBe('ok');
+    expect(usage.record).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('usage record failed'),
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
+});
+
 describe('native backends', () => {
   it('fails loudly when the declared native impl is not registered', async () => {
     const promise = executeConnectorAction({

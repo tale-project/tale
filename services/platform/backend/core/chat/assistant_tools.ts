@@ -93,6 +93,9 @@ export interface ChatToolContext {
    * argument can narrow inside this boundary, never move it.
    */
   readonly projectId: string | null;
+  /** The API key that sent the turn's message, whose spend a tool call
+   * is too. */
+  readonly apiKeyId?: string;
   /**
    * Where a search's query embedding is held and booked — the turn's own
    * spend: its member, the API key that sent the message, the thread's
@@ -813,11 +816,12 @@ export function createChatToolExecutor(
           organizationId: who.organizationId,
           userId: who.userId,
           agentSlug: CHAT_ASSISTANT_SLUG,
+          ...(who.apiKeyId !== undefined ? { apiKeyId: who.apiKeyId } : {}),
           connectorName: 'chat-tools',
           connectorOperation: tool,
           costEstimateCents: 0,
           timestamp: Date.now(),
-          ...(who.projectId !== null ? { projectId: who.projectId } : {}),
+          ...(who.projectId !== null ? { projectIds: [who.projectId] } : {}),
         },
       );
     } catch (error) {

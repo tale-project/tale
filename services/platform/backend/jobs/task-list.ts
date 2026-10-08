@@ -1140,6 +1140,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
               }),
             )
             .optional(),
+          sentBy: z.object({ userId: z.string().min(1) }).optional(),
         })
         .parse(payload);
       const { runSendMessageJob } =

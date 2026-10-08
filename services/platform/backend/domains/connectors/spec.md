@@ -12,7 +12,9 @@ Not yet.
 
 ### CONN-R1 · An agent's connector call acts for the person who started its run
 
-For a run started over the API with a key, that is the member the start named.
+For a run started over the API with a key, that is the member the start named. The call is
+counted as theirs too, under the agent, as a connector call and never a model request
+(`GOV-R15`).
 
 - **Example**: Mia starts an agent on her task, and the agent reads a ticket through a
   connector → the call is made as Mia.

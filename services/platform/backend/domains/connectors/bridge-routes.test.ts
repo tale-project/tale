@@ -297,6 +297,8 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
         connector: 'glitchtip',
         action: 'list_import_issues',
         caller: { kind: 'user', userId: 'user_starter' },
+        // The call is counted as the run's: its starter, under its agent.
+        spender: { userId: 'user_starter', agentSlug: 'agent_1' },
         execSessionId: 'pa-agent_1',
       });
       expect(toolCalls).toHaveLength(1);
@@ -324,6 +326,8 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     expect(runConnectorAction.mock.calls[0]?.[1]).toMatchObject({
       caller: { kind: 'user', userId: 'user_1' },
     });
+    // Counted as its own user's: no run names anyone else.
+    expect(runConnectorAction.mock.calls[0]?.[1]).not.toHaveProperty('spender');
     // A user-keyed token has no run to read.
     expect(
       queries.some((text) => text.includes('app.project_agent_runs')),
