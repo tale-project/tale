@@ -1,0 +1,57 @@
+title: Knowledge entries
+entityLabelOne: knowledge entry
+searchPlaceholder: Search knowledge entries
+refreshFailed: "Couldn't load the latest knowledge entries. What's listed may be incomplete or out of date."
+addButton: Add entry
+addEntry: Add knowledge entry
+addDescription: Name a topic, then write the knowledge so it makes sense on its own.
+editEntry: Edit knowledge entry
+editDialog:
+  newerVersion: A newer version was published while you were editing. Your draft is still here; save it to replace that version, or cancel and discard it.
+adding: Adding...
+saving: Saving...
+topic: Topic
+topicPlaceholder: e.g. Store opening hours
+content: Content
+contentPlaceholder:
+  Write the knowledge so it makes sense on its own, e.g. "Our
+  store is open Monday to Friday from 9 am to 5 pm."
+headers:
+  topic: Topic
+  content: Content
+  source: Source
+  updated: Updated
+source:
+  api: API
+  chat: Chat
+  manual: Manual
+validation:
+  topicRequired: Topic is required
+  topicTooLong: Topic must be 120 characters or fewer
+  contentRequired: Content is required
+  contentTooLong: Content must be 8000 characters or fewer
+toast:
+  addSuccess: Knowledge entry added
+  addError: Couldn't add knowledge entry
+  addErrorDuplicate: An entry for this topic already exists
+  updateSuccess: Knowledge entry updated
+  updateError: Couldn't update knowledge entry
+  deleteError: Couldn't delete knowledge entry
+delete:
+  title: Delete knowledge entry
+  confirmation: Delete {name}?
+  warning: Agents will no longer be able to find it in the knowledge base.
+viewDialog:
+  title: Knowledge entry details
+  updated: Updated
+  entryId: Version ID
+  entryIdHint: A new ID is issued on every edit. The topic identifies the
+    entry across versions, as does its document ID.
+  history: Version history
+  versionCount: '{count, plural, one {# previous version} other {# previous versions}}'
+  superseded: Superseded
+  supersededOn: Replaced on {date}
+  historyLoading: Loading version history…
+  historyEmpty: No earlier versions yet — each edit keeps the text it replaces here.
+  historyLoadFailed: "Couldn't load the version history."
+  historyRefreshFailed: "Couldn't refresh the version history. The versions shown may be out of date."

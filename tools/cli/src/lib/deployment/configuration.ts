@@ -75,7 +75,7 @@ export async function provisionDeploymentConfiguration(
       )
     )
       throw preconditionError(
-        'Configuration-only deployment may change managed instructions and automations only. Use a full deployment for other native configuration.',
+        'Configuration-only deployment may change managed instructions, agent tool grants and automations only. Use a full deployment for other native configuration.',
       );
   }
   const result = await applyPlatformConfiguration(

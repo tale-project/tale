@@ -1,0 +1,7 @@
+# Legal-hold badges, shown wherever held content appears (chats, files,
+# documents); the governance settings keep the rest of legal hold.
+held: Sous conservation légale
+releasePending: Libération en attente
+releaseApproved: Libération approuvée
+releaseEffective: Effective au prochain nettoyage
+blockedByHold: Bloqué par conservation légale

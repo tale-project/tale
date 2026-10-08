@@ -17,7 +17,7 @@ Open the agent’s edit dialog and review the combination, rather than checking 
 
 | Check | Why it matters | Where to resolve a problem |
 | --- | --- | --- |
-| Harness, model and provider | The credential must support that execution path. | [AI providers](/platform/admin/providers). |
+| Agent runtime, model and provider | The credential must support that execution path. | [AI providers](/platform/admin/providers). |
 | Skills and their sharing | The project’s team scope determines which bundles can be equipped. | [Skill library](/platform/workspace/skills) and project access. |
 | Connectors and platform tools | They grant access to services and supported data operations. | [Connector credentials](/platform/admin/connectors) and the agent’s equipment. |
 | Secrets | The running session can read the granted values. | The agent’s **Secrets** controls, available to Owners and Admins. |

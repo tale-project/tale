@@ -85,7 +85,7 @@ describe('requeueEmbeddingBlockedDocuments', () => {
     emitHintInTx.mockResolvedValue(undefined);
   });
 
-  it('re-queues each blocked document and reports the count', async () => {
+  it('re-queues each blocked document and reports the count [KNOW-R10]', async () => {
     const { sql } = fakeSql([doc('f1'), doc('f2')]);
 
     const out = await requeueEmbeddingBlockedDocuments(sql, {
@@ -101,7 +101,7 @@ describe('requeueEmbeddingBlockedDocuments', () => {
     ]);
   });
 
-  it('selects on the error CODE, not merely on failed status', async () => {
+  it('selects on the error CODE, not merely on failed status [KNOW-R10]', async () => {
     const { sql, statements, values } = fakeSql([]);
 
     await requeueEmbeddingBlockedDocuments(sql, { organizationId: 'org-1' });
@@ -122,7 +122,7 @@ describe('requeueEmbeddingBlockedDocuments', () => {
     expect(values[0]).not.toContain(RAG_ERROR_SECRET_DETECTED);
   });
 
-  it('scopes to the organization and respects the skip flag', async () => {
+  it('scopes to the organization and respects the skip flag [KNOW-R10]', async () => {
     const { sql, statements, values } = fakeSql([]);
 
     await requeueEmbeddingBlockedDocuments(sql, { organizationId: 'org-1' });

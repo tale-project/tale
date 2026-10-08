@@ -129,6 +129,7 @@ Un échec lié à Docker, Compose, à un mode de conteneurs non pris en charge o
 - `-q, --quiet` — masquer les logs des conteneurs pendant le déploiement.
 - `-y, --yes` — accepter automatiquement les confirmations destructives (p. ex. `--override-all`).
 - `--skip-backup` — ignorer le snapshot de volume automatique d'avant déploiement.
+- `--configuration-only` — applique uniquement la configuration gérée à chaud (instructions, autorisations d’outils des agents et automatisations) au runtime sain exact d’un déploiement déjà prêt. Exige `--bundle <directory>` et saute le snapshot préalable au déploiement ainsi que le redémarrage. Utilise cette option quand seules ces ressources changent ; les paramètres du runtime et de l’identité doivent rester inchangés, sans déploiement du runtime en attente.
 - `--dry-run` — prévisualiser sans rien modifier.
 
 ### Déploiements gérés {#managed-deployments}
@@ -229,11 +230,11 @@ Déclare `additionalOrigins` lorsque la même instance doit aussi répondre sur 
 }
 ```
 
-La CLI écrit la liste dans la variable `ADDITIONAL_SITE_URLS` du runtime et la gère elle-même : une entrée de `environment` ne peut donc pas la définir. Chaque origine est un point d’entrée complet, avec ses propres sessions, liens de fichiers, accès de connexion et callbacks de connecteurs. Avec `tlsMode: "letsencrypt"`, le proxy obtient un certificat pour chaque origine, et les noms d’hôte locaux ou les adresses IP sont refusés. Avec `tlsMode: "external"`, ton proxy TLS doit transmettre l’en-tête `Host` d’origine de chaque origine et envoyer `X-Forwarded-Proto: https` depuis une adresse à laquelle le proxy de Tale fait confiance. Si cette plage est plus étroite que les plages d’adresses privées, définis `TRUSTED_PROXIES` par une référence dans `environment`.
+La CLI écrit la liste dans la variable `ADDITIONAL_SITE_URLS` du runtime et la gère elle-même : une entrée de `environment` ne peut donc pas la définir. Chaque origine est un point d’entrée complet, avec ses propres sessions, liens de fichiers, accès de connexion et callbacks de connectors. Avec `tlsMode: "letsencrypt"`, le proxy obtient un certificat pour chaque origine, et les noms d’hôte locaux ou les adresses IP sont refusés. Avec `tlsMode: "external"`, ton proxy TLS doit transmettre l’en-tête `Host` d’origine de chaque origine et envoyer `X-Forwarded-Proto: https` depuis une adresse à laquelle le proxy de Tale fait confiance. Si cette plage est plus étroite que les plages d’adresses privées, définis `TRUSTED_PROXIES` par une référence dans `environment`.
 
 L’identité native reste sur `origin` : les liaisons du compte et de l’organisation, les journaux des clients, l’émetteur OIDC, les passkeys et les liens envoyés par e-mail n’utilisent que celle-ci. Une entrée peut être égale à `identity.migrateOriginFrom` pour que l’ancien nom d’hôte continue de répondre pendant une migration.
 
-La préparation refuse une révision du runtime dont le proxy ne peut pas faire confiance à un terminateur TLS externe, avec le message `Runtime does not serve additional origins`. Ajouter, modifier ou retirer la liste recrée les services qui la lisent. Une fois la déclaration retirée, le bundle appliqué suivant supprime aussi la variable. Enregistre les URL de callback de chaque origine auprès de tes fournisseurs d’identité et de connecteurs, et prépare le DNS et les certificats avec [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains#plusieurs-domaines-a-la-fois).
+La préparation refuse une révision du runtime dont le proxy ne peut pas faire confiance à un terminateur TLS externe, avec le message `Runtime does not serve additional origins`. Ajouter, modifier ou retirer la liste recrée les services qui la lisent. Une fois la déclaration retirée, le bundle appliqué suivant supprime aussi la variable. Enregistre les URL de callback de chaque origine auprès de tes fournisseurs d’identité et de connectors, et prépare le DNS et les certificats avec [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains#plusieurs-domaines-a-la-fois).
 
 #### Désigner qui peut créer des organisations {#managed-organization-creators}
 
@@ -281,9 +282,29 @@ La préparation vérifie d’abord chaque configuration avec les schémas propre
 
 `deploy verify-bundle` vérifie l’inventaire complet et les hashes sans contacter la destination. `deploy --bundle --dry-run` vérifie les artefacts de configuration et les préconditions de la destination sans appliquer de changement. Les déploiements gérés refusent les options réservées au workspace comme `--services`, `--host` ou `--override-all`. Ils déploient la stack en préservant son état, avec des contrôles de santé et de provenance. Le comportement blue-green du workspace décrit plus haut est un autre parcours.
 
+#### Vérifier le déploiement actuel
+
+Une fois ce bundle exact entièrement appliqué, recueille une preuve d’acceptation actuelle sur l’hôte du déploiement :
+
+```bash
+tale --json deploy accept --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT" \
+  --expected-version "$TALE_RELEASE_VERSION"
+```
+
+Cette vérification exige les deux commits sources complets ; le bundle doit avoir été préparé avec `--deployment-ref`. Définis `TALE_RELEASE_VERSION` sur la version publiée sélectionnée indépendamment, sans son préfixe `v`. La CLI prend le verrou de déploiement existant et lit le reçu Ready, les conteneurs actuels, les images fixées et les trois registres de migrations. Elle compare `/api/health` du frontend et `/api/health/ready` de l’API à l’origine HTTPS canonique avec les identités de processus lues directement dans les conteneurs locaux capturés, puis relit ces identités. Une identité absente ou un autre processus serveur entraîne un refus, même à version égale. La version OCI et le commit source de chaque image Tale doivent correspondre au bundle. `sourceTag` peut valoir `sha-<source>` : il décrit la référence de l’image, pas la version servie.
+
+Le résultat JSON contient les commits sources, les hashes du bundle et du reçu Ready, les identités des images, l’origine canonique, les deux identités de processus serveur et l’inventaire complet des migrations issues du source, avec ses hashes. Il comprend les migrations SQL de l’application et les migrations de données TypeScript numérotées. Toute migration manquante, supplémentaire, dupliquée ou inachevée, tout déploiement en cours et tout changement de version ou d’identité entraînent un refus. Ces identités publiques relient un conteneur local à une réponse de l’origine ; ce ne sont ni des identifiants d’accès ni une preuve d’authentification.
+
+Les observations Docker et HTTPS ont chacune une limite d’annulation et partagent un budget de 120 secondes écoulées, vérifié aux limites des observations. La vérification du bundle, sa copie temporaire privée et son nettoyage respectent les limites de taille existantes (2 GiB au total, 256 MiB par fichier) ; les attentes du système de fichiers ne sont pas couvertes par un délai annulable pour toute la commande. Utilise un superviseur de processus externe si tu as besoin d’un délai global. Cette vérification n’applique aucune configuration, ne redémarre aucun conteneur, n’exécute aucune migration et n’exporte aucun identifiant d’accès. Elle modifie les métadonnées du verrou, crée sa copie temporaire privée du bundle, puis la supprime.
+
+Les anciens bundles restent déployables, mais cette vérification exige un inventaire des migrations issu du source et des serveurs compatibles qui publient leur identité de processus. Prépare un bundle vérifié et termine son déploiement par le parcours habituel avant de recueillir son reçu d’acceptation. Le reçu atteste l’état observé à son horodatage ; il ne garantit pas le routage ni l’état ultérieur des serveurs. Relance la vérification quand il te faut des preuves actuelles.
+
 #### Configurer l’identité native
 
 `deploy provision [--bundle <directory>]` est la phase locale au backend du déploiement du bundle. Elle lit au maximum 64 KiB de JSON privé sur stdin, vérifie le compte local et l’organisation sélectionnée, puis ferme la session avant d’annoncer le succès. Ses champs comprennent `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, les identifiants Entra optionnels et `nativeClients`. Par défaut, le compte existant reste requis. Un `identity.bootstrap: "fresh"` explicite autorise la création du premier compte local et de l’organisation. Un bundle lie ce choix et les configurations préparées avant toute modification native. `deploy provision` refuse les options de workspace et `--dry-run` ; utilise les vérifications en lecture seule. Les attentes optionnelles `--cli-ref` et `--deployment-ref` exigent `--bundle` et sont contrôlées avant connexion.
+
+Le déploiement du bundle appelle `deploy provision` avec des options internes pour les mises à jour de configuration seules et la vérification des identités conservées ; utilise `tale deploy --bundle <directory> --configuration-only` pour ce parcours opérateur.
 
 Pour un nouvel opérateur vérifié administrativement, déclare explicitement `identity.emailVerification: "operator-attested"`. Tu attestes ainsi la possession de l’adresse du compte authentifié ; ce n’est pas une preuve de livraison dans la boîte mail. Le backend utilise un jeton natif bref lié à ce compte et à cette adresse exacte, en conservant les hooks natifs. Il n’envoie aucun email, ne change pas l’adresse et ne crée pas d’autre session. Cette option exige `bootstrap: "fresh"`. Sans elle, la vérification native habituelle reste inchangée. Une dérive du statut vérifié d’un compte précédemment prêt bloque pour examen.
 
@@ -388,6 +409,10 @@ Ces types de ressources utilisent les schémas partagés et les permissions nati
 | `provider-credential` | Métadonnées d’identifiants nommés issus de l’environnement      | Organisation |
 | `knowledge-embedding` | Fournisseur, modèle, dimensions, endpoint et limites du serveur | Organisation |
 | `deployment`          | Paramètres de l’instance, dont le runtime du sandbox            | Instance     |
+
+Utilise `agent-tools` pour gérer uniquement les autorisations d’outils d’un agent existant. Son objet `config` exige les valeurs exactes de `projectId` et `agentId`, ainsi que le tableau complet des `tools` souhaités, par exemple `["task_find", "task_get", "task_review"]`. Inclus chaque autorisation à conserver ; `[]` retire toutes les autorisations d’outils. Le catalogue natif refuse les noms inconnus et normalise l’ordre et les doublons avant de calculer le hash.
+
+Pour appliquer cette ressource, tu dois pouvoir modifier le projet actif, et l’agent ne doit pas être géré par la plateforme. Les membres peuvent lire cette configuration limitée. Tous les autres champs restent inchangés, y compris les instructions, le modèle et les autorisations exactes d’accès aux secrets. Le hash natif refuse les modifications concurrentes des outils ; une sélection modifiée invalide aussi les enregistrements complets d’agent fondés sur un état périmé. Une sélection équivalente ne change ni horodatage ni entrée d’audit. Si le runtime ne prend pas en charge la capacité demandée, il refuse l’opération. Relis les outils après l’application et conserve le reçu en attente pour reprendre une application interrompue.
 
 Les politiques de conservation et DSAR exigent leurs workflows natifs dédiés. Interromps les envois, la synchronisation et les crawls avant de changer de modèle d’embedding. La CLI vérifie le nombre de documents et de sites web dans toute l’organisation ; elle ne verrouille pas l’import et ne migre pas les vecteurs existants. Pour une organisation avec des documents ou des sites web enregistrés, un changement de modèle exige une migration native distincte de l’index. Une modification limitée à `minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` ou `maxRequestsPerMinute` laisse les vecteurs existants valables et échappe donc à cette vérification. Les paramètres d’instance exigent aussi la liste native des éditeurs autorisés. L’application autonome signale `restartRequired` pour les paramètres de démarrage ; les enregistrer ne les active pas encore. Examine les effets du plan avant de l’appliquer.
 

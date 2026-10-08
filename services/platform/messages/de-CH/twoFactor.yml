@@ -1,0 +1,4 @@
+setup:
+  qrInstructions: Scanne den QR-Code mit einer Authenticator-App (Google
+    Authenticator, 1Password, Authy) und gib anschliessend den 6-stelligen
+    Code unten ein.

@@ -1,0 +1,1797 @@
+policyReadFailed: "Impossible de charger la politique enregistrée. La modification sera disponible après un chargement réussi."
+policyReadRetry: Réessayer
+policyReadRetrying: Rechargement de la politique en cours
+title: Gouvernance
+toastSavedTitle: Modifications enregistrées
+toastSaveFailedTitle: Échec de l'enregistrement des modifications
+systemPrompt:
+  title: Instructions personnalisées
+  description:
+    Ce texte arrive avant les instructions de chaque agent dans cet espace de
+    travail. Les utilisateurs ne peuvent pas le remplacer.
+  enabled: Instructions personnalisées
+  instructionsPlaceholder: Saisir les instructions obligatoires...
+  charLimitExceeded: Limite de caractères dépassée
+  saveFailed: Échec de l'enregistrement des instructions personnalisées
+budgets:
+  title: Règles de budget
+  description:
+    Définis des limites de tokens, de coûts et de requêtes par portée
+    et période de facturation.
+  addRule: Ajouter une règle
+  addRuleDialogTitle: Ajouter une règle de budget
+  editRuleDialogTitle: Modifier la règle de budget
+  scope: Portée
+  target: Cible
+  period: Période
+  tokenLimit: Tokens maximum
+  tokenLimitHelp: Total tokens d'entrée + sortie. 1M de tokens ~ 750K mots.
+  costLimitUsd: Coût maximum (USD)
+  costLimitHelp: Plafond de dépenses en USD. GPT-4o ~ 10 $/1M de tokens.
+  maxCost: Coût maximum
+  maxRequests: Requêtes maximum
+  maxRequestsHelp: Total de requêtes IA par période. Laisse vide pour aucune limite.
+  warningThreshold: Seuil d'alerte (%)
+  warningThresholdHelp: Alerte lorsque l'utilisation dépasse ce pourcentage de la limite.
+  orgScopeTarget: Organisation entière
+  allUsers: Tous les utilisateurs
+  overrideHint: "Les portées plus spécifiques remplacent les plus larges :
+    utilisateur > équipe > rôle > défaut. Les limites de l'organisation
+    s'appliquent toujours comme plafond supplémentaire."
+  noRulesTitle: Aucune règle de budget configurée
+  noRulesDescription: Ajoute une règle pour commencer à appliquer les limites.
+  editRuleAriaLabel: Modifier la règle {index}
+  removeRuleAriaLabel: Supprimer la règle {index}
+  removeRuleConfirmTitle: Supprimer la règle de budget ?
+  removeRuleConfirmDescription:
+    Cette règle ne fera plus appliquer de limite de
+    budget. Tu peux la recréer à tout moment.
+  removeRuleConfirmAction: Supprimer
+  actions: Actions
+  confirm: Confirmer
+  role: Rôle
+  user: Utilisateur
+  team: Équipe
+  selectUser: Sélectionner un utilisateur...
+  searchUsers: Rechercher des utilisateurs
+  noUsersFound: Aucun utilisateur trouvé
+  selectUserAriaLabel: Sélectionner un utilisateur
+  selectTeam: Sélectionner une équipe...
+  searchTeams: Rechercher des équipes
+  noTeamsFound: Aucune équipe trouvée
+  selectTeamAriaLabel: Sélectionner une équipe
+  apiKey: Clé API
+  selectApiKey: Sélectionner une clé API...
+  searchApiKeys: Rechercher des clés API
+  noApiKeysFound: Aucune clé API trouvée
+  selectApiKeyAriaLabel: Sélectionner une clé API
+  saved: Les règles de budget ont été mises à jour
+  saveFailed: Échec de l'enregistrement des règles de budget
+  targetRequired: Sélectionnez une cible pour cette portée, sinon la règle ne
+    s'appliquera jamais.
+  limitRequired:
+    Définissez au moins une limite (jetons, coût ou requêtes) pour
+    que la règle puisse s'appliquer.
+  invalidTokenLimit: La limite de jetons doit être supérieure à zéro.
+  invalidCostLimit: La limite de coût doit être supérieure à zéro.
+  invalidMaxRequests: La limite de requêtes doit être supérieure à zéro.
+  invalidWarningThreshold: Le seuil d'alerte doit être compris entre 0 et 100.
+  scopeLabels:
+    default: Par défaut
+    user: Utilisateur
+    team: Équipe
+    role: Rôle
+    apiKey: Clé API
+    org: Organisation
+  periodLabels:
+    daily: Quotidienne
+    weekly: Hebdomadaire
+    monthly: Mensuelle
+  apiKeyOwnerUnknown: Propriétaire inconnu
+  apiKeyInactive: Cette clé ne peut plus rien dépenser dans cette organisation, la règle ne limite donc rien. Choisis une clé active ou supprime la règle.
+  apiKeyStatus:
+    expired: Expirée
+    disabled: Désactivée
+    revoked: Révoquée
+    unavailable: Indisponible
+    holder_left: Ancien membre
+    unknown: Clé inconnue
+defaultModels:
+  title: Modèles par défaut
+  description:
+    Définis les modèles par défaut pour des groupes d'utilisateurs ou
+    des rôles spécifiques.
+  saved: La configuration des modèles par défaut a été mise à jour
+  saveFailed: Échec de l'enregistrement de la configuration des modèles par défaut
+  addRule: Ajouter une règle
+  addRuleTitle: Ajouter une règle de modèle par défaut
+  editRuleTitle: Modifier la règle de modèle par défaut
+  editRule: Modifier la règle {index}
+  removeRule: Supprimer la règle {index}
+  removeRuleConfirmTitle: Supprimer la règle de modèle par défaut ?
+  removeRuleConfirmDescription:
+    Cette règle n'assignera plus de modèle par défaut
+    aux utilisateurs correspondants. Tu peux la recréer à tout moment.
+  removeRuleConfirmAction: Supprimer
+  scope: Portée
+  target: Cible
+  provider: Fournisseur
+  model: Modèle
+  role: Rôle
+  actions: Actions
+  noRulesTitle: Aucune règle configurée
+  noRulesDescription: Ajoute une règle pour définir les modèles par défaut par périmètre.
+  allUsers: Tous les utilisateurs
+  selectProvider: Sélectionner un fournisseur...
+  selectModel: Sélectionner un modèle...
+  selectTeam: Sélectionner une équipe...
+  searchProviders: Rechercher des fournisseurs
+  searchModels: Rechercher des modèles
+  searchTeams: Rechercher des équipes
+  noProvidersFound: Aucun fournisseur trouvé
+  noModelsFound: Aucun modèle trouvé
+  noTeamsFound: Aucune équipe trouvée
+  confirm: Confirmer
+  allowlistConflictWarning: Ce modèle n'est actuellement pas autorisé par la
+    politique d'accès aux modèles pour cette portée. Les utilisateurs
+    concernés basculeront vers un modèle autorisé.
+  allowlistConflictWarningTitle: Modèle absent de la liste d'autorisation
+  blocklistConflictWarning: Ce modèle est actuellement bloqué par la politique
+    d'accès aux modèles pour cette portée. Les utilisateurs concernés
+    basculeront vers un modèle autorisé.
+  blocklistConflictWarningTitle: Modèle bloqué
+  scopeLabels:
+    default: Par défaut
+    team: Équipe
+    role: Rôle
+  roleLabels:
+    admin: Admin
+    developer: Développeur
+    editor: Éditeur
+    member: Membre
+visionModel:
+  title: Modèle pour les images
+  description:
+    Quand le modèle d'un agent ne voit pas les images, c'est ce modèle qui
+    les lit pour lui — via la passerelle, donc aucune clé de fournisseur
+    n'entre dans le sandbox. Un modèle qui lit déjà les images ne s'en sert
+    jamais.
+  label: Modèle qui lit les images
+  labelHint:
+    Automatique convient à la plupart des organisations. Fixe-en un quand tu
+    veux que ce choix cesse de suivre le catalogue du fournisseur.
+  automaticLabel: Automatique
+  automaticHint: Tale choisit parmi les modèles que tes accès atteignent.
+  resolved:
+    pinned: 'Les images sont lues par {model}.'
+    preferred: 'Les images sont lues par {model}, le choix recommandé.'
+    cheapest:
+      "Les images sont lues par {model} — le modèle le moins cher que tes
+      accès atteignent, aucun des modèles recommandés n'étant disponible."
+  resolvedNone:
+    Aucun modèle que tes accès atteignent ne lit les images ; les agents sur
+    un modèle texte seul ne peuvent donc pas non plus. Ajoute un accès à un
+    fournisseur qui sert un modèle capable de lire les images.
+  searchModels: Rechercher des modèles
+  noModelsFound: Aucun modèle capable de lire les images
+  saveFailed: Échec de l'enregistrement du modèle pour les images
+imageGeneration:
+  title: Génération d'images
+  description:
+    Permet aux agents de projet qui traitent des tâches et aux nœuds agent
+    des automatisations de créer des images, facturées à ton organisation.
+    Désactivée tant que tu ne l'actives pas. Le chat ne crée jamais
+    d'images.
+  enabledLabel: Laisser les agents générer des images
+  label: Modèle d'images
+  labelHint:
+    Automatique utilise le premier modèle d'images recommandé que tes accès
+    fournisseurs atteignent. Un modèle fixé reste sélectionné jusqu'à ce que
+    tu le changes, même s'il devient indisponible.
+  automaticLabel: Automatique
+  automaticHint: Tale choisit parmi les modèles d'images recommandés que tes accès atteignent.
+  currentModel:
+    pinned: 'Les agents génèrent actuellement les images avec {model}.'
+    preferred: 'Les agents génèrent actuellement les images avec {model}, le choix recommandé.'
+  draftHint: Enregistre pour appliquer cette sélection.
+  noAvailable:
+    "Aucun des modèles d'images recommandés n'est disponible : les agents
+    n'ont donc pas d'outil pour les images. Ajoute un accès OpenRouter ou
+    OpenAI dans Fournisseurs IA, ou choisis un des modèles proposés."
+  unavailable:
+    "Le modèle d'images enregistré est indisponible : les agents n'ont donc
+    pas d'outil pour les images. Choisis un autre modèle ou Automatique, ou
+    vérifie son accès fournisseur et les modèles qu'il autorise. Tale ne
+    passera pas à un autre modèle tant que cette sélection est enregistrée."
+  invalidPolicy:
+    "La configuration enregistrée de la génération d'images est invalide :
+    les agents n'ont donc pas d'outil pour les images. Désactive puis
+    réactive la génération d'images, ou choisis un modèle et enregistre,
+    pour la corriger."
+  policyUnavailable:
+    La configuration enregistrée de la génération d'images n'a pas pu être
+    lue. Réessaie avant de la modifier. Les agents n'ont pas d'outil pour
+    les images tant qu'elle reste illisible.
+  resolutionFailed:
+    Tale n'a pas pu vérifier le modèle d'images. Vérifie la connexion au
+    fournisseur et réessaie.
+  loadFailed: Impossible de charger les réglages de la génération d'images. Réessaie de les charger.
+  invalidSelection: Configuration enregistrée invalide
+  unknownSelection: Impossible de lire la sélection enregistrée
+  savedUnavailable: La sélection enregistrée est actuellement indisponible
+  providersLink: Fournisseurs IA
+  retry: Réessayer
+  searchModels: Rechercher des modèles d'images
+  noModelsFound: Aucun modèle d'images correspondant
+  saveFailed: Impossible d'enregistrer les réglages de la génération d'images
+  remoteUpdate:
+    Ce réglage a changé dans une autre session. Abandonne tes modifications
+    pour charger la sélection enregistrée, ou enregistre pour la remplacer.
+transcriptionModel:
+  title: Modèle de transcription audio
+  description:
+    Ce modèle transcrit les pièces jointes audio et vidéo. Il prend aussi
+    en charge la saisie vocale quand la reconnaissance vocale du navigateur
+    est indisponible. La reconnaissance vocale du navigateur utilise son
+    propre modèle.
+  label: Modèle qui transcrit l'audio
+  labelHint: Automatique choisit un modèle disponible. Un modèle fixé reste
+    sélectionné jusqu'à ce que tu le changes, même s'il devient indisponible.
+  automaticLabel: Automatique
+  automaticHint: Tale choisit parmi les modèles de transcription audio disponibles.
+  currentModel: "L'audio est actuellement transcrit par {model}."
+  draftHint: Enregistre pour appliquer cette sélection.
+  noAvailable:
+    Aucun modèle de transcription audio n'est disponible. Ajoute ou active
+    un accès compatible dans Fournisseurs IA, puis vérifie les modèles
+    autorisés pour cet accès.
+  unavailable:
+    Le modèle enregistré est indisponible. Choisis un autre modèle ou
+    Automatique, ou vérifie son accès fournisseur et les modèles qu'il autorise.
+    Tale ne passera pas à un autre modèle tant que cette sélection est
+    enregistrée.
+  invalidPolicy:
+    La configuration enregistrée du modèle audio est invalide. Choisis un
+    modèle ou Automatique et enregistre pour la corriger.
+  policyUnavailable:
+    La configuration enregistrée du modèle audio n'a pas pu être lue.
+    Réessaie avant de la modifier. Tale ne peut pas supposer le mode
+    Automatique tant que la configuration est inaccessible.
+  resolutionFailed:
+    Tale n'a pas pu vérifier le modèle de transcription audio. Vérifie la
+    connexion au fournisseur et réessaie.
+  loadFailed: Impossible de charger les réglages du modèle audio. Réessaie de les charger.
+  invalidSelection: Configuration enregistrée invalide
+  unknownSelection: Impossible de lire la sélection enregistrée
+  savedUnavailable: La sélection enregistrée est actuellement indisponible
+  providersLink: Fournisseurs IA
+  retry: Réessayer
+  searchModels: Rechercher des modèles audio
+  noModelsFound: Aucun modèle audio correspondant
+  saveFailed: Impossible d'enregistrer le modèle de transcription audio
+  remoteUpdate:
+    Ce réglage a changé dans une autre session. Abandonne tes modifications
+    pour charger la sélection enregistrée, ou enregistre pour la remplacer.
+uploadPolicy:
+  title: Politique de téléversement
+  description:
+    Configure les types de fichiers autorisés, la taille maximale et
+    les limites de volume.
+  enabled: Activer la politique de téléversement
+  allowedExtensions: Extensions de fichiers autorisées
+  blockedExtensions: Extensions de fichiers bloquées
+  conflictingExtensions:
+    "Ces extensions sont à la fois autorisées et bloquées :
+    {extensions}. Retire-les de l'une des listes."
+  allowedMimeTypes: Types MIME autorisés
+  maxFileSize: Taille maximale de fichier
+  maxVolumePerUser: Volume total maximum par utilisateur
+  invalidMaxFileSize: La taille maximale de fichier doit être zéro ou un nombre positif.
+  invalidMaxVolume: Le volume total maximum doit être zéro ou un nombre positif.
+  extensionPlaceholder: pdf, png, csv
+  mimeTypePlaceholder: image/*, application/pdf
+  mbUnit: Mo
+  gbUnit: Go
+  saveFailed: Échec de l'enregistrement de la politique de téléversement
+retentionPolicy:
+  title: Politique de rétention
+  description:
+    Configure la durée de conservation de chaque type de données avant
+    suppression.
+  saved: La politique de rétention a été mise à jour
+  saveFailed: Échec de l'enregistrement de la politique de rétention
+  save: Enregistrer les modifications
+  reset: Réinitialiser aux valeurs par défaut
+  unsavedHint: Tu as des modifications non enregistrées.
+  summary:
+    disabled: Désactivé
+  drawer:
+    title: Modifier la politique de rétention
+    description:
+      Configure la durée de conservation de chaque type de données avant
+      suppression.
+  enabled: Activé
+  retentionDays: Jours de rétention
+  retentionHours: Heures de rétention
+  envDisabled: La rétention est actuellement désactivée par l'opérateur
+    (TALE_RETENTION_DISABLED=true). Le nettoyage ne s'exécutera pas tant que
+    la variable d'environnement n'est pas retirée.
+  envBoundHint: 'Liaison env : {min}{minApplied} / {max}{maxApplied}'
+  boundHelper: L'opérateur limite cette valeur à {min}-{max} {unit}.
+  allowedRange: 'Autorisé : {min}–{max} {unit}.'
+  errors:
+    belowFloor: En dessous du plancher de l'opérateur (min {bound} {unit}).
+    exceedsCeiling: Au-dessus du plafond de l'opérateur (max {bound} {unit}).
+  diff:
+    title: Confirmer les modifications de rétention
+    description: Vérifie les modifications avant d'enregistrer. Le nettoyage
+      applique la nouvelle politique à sa prochaine exécution.
+    confirmLabel: Enregistrer les modifications
+    noChanges: Aucune modification à enregistrer.
+  deletionGrace:
+    label: Période de grâce (jours)
+    helper:
+      0 = Pass A supprime immédiatement (pas de fenêtre corbeille). >0 garde
+      les lignes visibles dans la corbeille admin pendant ce nombre de jours
+      avant que Pass B ne les supprime physiquement.
+  timeline:
+    ariaLabel: Visualisation du cycle de vie de suppression
+    activeLabel: Actif
+    activeSub: Visible, entièrement accessible
+    trashedLabel: Corbeille / Expiré
+    trashedSub: Grâce de {days} jour(s), restaurable
+    skipTrashLabel: Sauté
+    skipTrashSub: graceDays = 0
+    permanentLabel: Supprimé définitivement
+    permanentSub: Ligne + descendants effacés
+    graceConnector: après la fenêtre de rétention
+    noGraceConnector: pas de fenêtre de grâce
+    cascadeConnector: suppression en cascade
+  pendingChange:
+    loadFailed: Impossible de charger le changement de rétention en attente.
+    refreshFailed: Impossible d'actualiser le changement de rétention en attente. Les informations précédemment chargées ne sont peut-être plus à jour.
+    title: Une réduction de rétention est en attente.
+    applyIn: s'applique dans {days} jour(s).
+    cancel: Annuler
+    cancelFailedToast: Échec de l'annulation du changement de rétention en attente.
+  boundsProposal:
+    title: L'opérateur a proposé des modifications des limites de rétention.
+    firstApplyTitle: Les limites de rétention de l'opérateur nécessitent ton
+      approbation initiale.
+    summary:
+      "{tightened} modification(s) sur {total} resserrent la rétention. À
+      examiner avant d'appliquer."
+    firstApplyDescription: Aucune limite n'a encore été appliquée pour cette
+      organisation. Examine la configuration de l'opérateur et clique sur
+      Appliquer pour activer la rétention.
+    applyLabel: Appliquer
+    applyingLabel: Application en cours…
+    rejectLabel: Refuser
+    rejectingLabel: Refus en cours…
+    detailsLabel: Voir les détails
+    detailsTitle: Modifications de limites proposées
+    detailsDescription:
+      Vérifie les limites de rétention proposées par l'opérateur
+      avant d'appliquer ou de refuser.
+    detailsEmpty: Aucune modification détaillée enregistrée.
+    diffHeading: Modifications des limites
+    impactHeading: Impact sur tes valeurs enregistrées
+    diffRow: '{category} : {field} {from} → {to} ({direction})'
+    impactRow: '{category} : {current} sera limité à {clamped}'
+    appliedToast: Proposition de limites appliquée. Le nettoyage utilisera les
+      nouvelles limites à la prochaine exécution.
+    rejectedToast:
+      Proposition de limites refusée. Le nettoyage continue avec les
+      limites précédentes.
+    applyFailedToast: Échec de l'application de la proposition de limites.
+    rejectFailedToast: Échec du refus de la proposition de limites.
+  promptTemplates:
+    title: Modèles de prompt
+    description:
+      Prompts enregistrés à tous les niveaux de visibilité (personnel,
+      équipe, global).
+  messageFeedback:
+    title: Feedback de messages
+    description: Pouces/commentaires laissés sur les messages d'agent. Les
+      commentaires en texte libre peuvent contenir du contenu utilisateur
+      cité.
+  contacts:
+    title: Contacts
+    description: 'Fiches CRM par organisation : nom, email, adresse, locale, métadonnées.'
+  externalConversations:
+    title: Conversations externes
+    description:
+      Boîte de réception de canal contact de haut niveau (connectors
+      email/chat). Cascade vers les corps de messages.
+  chatFilterEvents:
+    title: Événements chat-filter
+    description:
+      Télémétrie des déclencheurs de filtre de contenu (PII, profanité,
+      règles personnalisées). Chaque événement contient le filtre, les
+      catégories, la direction et les comptages, jamais le texte détecté.
+      La page Garde-fous et la Santé de l'assistant n'affichent que les
+      événements encore conservés.
+    placeholder: ex. 90
+    helper: Les lignes de télémétrie de filtre plus anciennes seront supprimées.
+  notifications:
+    title: Notifications
+    description: Notifications in-app (mentions, résultats d'agent, alertes
+      système). Peuvent référencer du contenu de chats, documents ou
+      exécutions d'automatisation.
+    placeholder: ex. 30
+    helper: Les notifications plus anciennes seront supprimées.
+  chatHistory:
+    title: Historique de chat
+    description:
+      Supprime automatiquement les conversations avec les agents (threads
+      de chat) plus anciennes que la période de rétention. Le contenu des
+      messages dans le composant agent est archivé. La suppression est
+      irréversible.
+    placeholder: ex. 90
+    helper:
+      Les conversations plus anciennes (selon la dernière mise à jour) seront
+      supprimées.
+  documents:
+    title: Rétention des documents
+    description:
+      Supprime automatiquement les documents qui dépassent la période de
+      rétention. À utiliser avec précaution — les documents supprimés ne
+      peuvent pas être récupérés.
+    placeholder: ex. 90
+    helper: Les documents plus anciens seront supprimés.
+  userTemp:
+    title: Nettoyage des fichiers temporaires utilisateur
+    description: Supprime automatiquement les fichiers téléversés par les
+      utilisateurs mais jamais enregistrés dans un document (ex. pièces
+      jointes de chat, téléversements interrompus).
+    placeholder: ex. 24
+    helper: Les fichiers temporaires plus anciens seront supprimés.
+  agentTemp:
+    title: Nettoyage des fichiers temporaires d'agent
+    description:
+      Supprime automatiquement les fichiers générés par les agents mais
+      jamais enregistrés dans un document (ex. résultats intermédiaires,
+      fichiers de connaissances).
+    placeholder: ex. 24
+    helper: Les fichiers temporaires plus anciens seront supprimés.
+  workflowLogs:
+    title: Journaux des exécutions d'automatisation
+    description: Supprime automatiquement les enregistrements d'exécution
+      d'automatisation plus anciens que la période de rétention. Inclut les blobs de
+      stockage de variables/sorties par exécution.
+    placeholder: ex. 30
+    helper: Les exécutions d'automatisation plus anciennes seront supprimées.
+  auditLogs:
+    title: Journaux d'audit
+    description: "Supprime automatiquement les entrées du journal d'audit plus
+      anciennes que la période de rétention. Remarque : les journaux d'audit
+      sont des enregistrements historiques immuables utilisés pour la
+      conformité ; garde une rétention suffisamment longue pour satisfaire tes
+      exigences d'audit ou de conformité."
+    placeholder: ex. 90
+    helper: Les entrées du journal d'audit plus anciennes seront supprimées.
+  usageLedger:
+    title: Registre d'utilisation
+    description:
+      "Supprime automatiquement les lignes du registre d'utilisation des
+      tokens plus anciennes que la période de rétention. Attention :
+      raccourcir cette rétention tronque les analyses historiques (les budgets
+      et les rapports s'appuient sur ces lignes)."
+    placeholder: ex. 365
+    helper: Les lignes du registre d'utilisation plus anciennes seront supprimées.
+  loginAttempts:
+    title: Tentatives de connexion
+    description: "Supprime automatiquement les enregistrements de suivi des
+      connexions échouées (loginAttempts, compteurs de blocage par heure) plus
+      anciens que la période de rétention. Remarque : ces tables s'appliquent
+      à l'ensemble du déploiement — la valeur la plus stricte (la plus courte)
+      parmi toutes les organisations est utilisée."
+    placeholder: ex. 90
+    helper: Les enregistrements de tentatives de connexion plus anciens seront supprimés.
+passwordPolicy:
+  title: Politique de mot de passe
+  description:
+    Configure la longueur minimale du mot de passe, les exigences de
+    types de caractères et la rotation.
+  minLength: Longueur minimale
+  minLengthHint: Nombre minimum de caractères requis pour les nouveaux mots de passe.
+  requireUpper: Exiger une lettre majuscule
+  requireLower: Exiger une lettre minuscule
+  requireDigit: Exiger un chiffre
+  requireSpecial: Exiger un caractère spécial
+  rotationEnabled: Activer la rotation des mots de passe
+  rotationDays: Période de rotation (jours)
+  rotationDaysHint:
+    Les utilisateurs devront changer leur mot de passe après ce
+    nombre de jours. La période de grâce commence lorsque la rotation est
+    activée pour la première fois, les utilisateurs existants ne sont donc pas
+    forcés de changer immédiatement.
+  invalidMinLength: La longueur minimale doit être un entier entre 6 et 128.
+  invalidRotationDays: La période de rotation doit être un entier entre 1 et 3650.
+  saveFailed: Échec de l'enregistrement de la politique de mot de passe
+twoFactorPolicy:
+  title: Authentification à double facteur
+  description: Exiger que tous les utilisateurs authentifiés par mot de passe
+    activent un second facteur (TOTP) après une période de grâce.
+  enforced: Exiger l'authentification à double facteur
+  policyDisabledHint:
+    L'authentification à double facteur reste facultative pour
+    tous les utilisateurs tant que cette politique est désactivée.
+  gracePeriodDays: Période de grâce (jours)
+  gracePeriodDaysHint:
+    Nombre de jours dont dispose chaque utilisateur à partir de
+    sa première connexion soumise à la politique avant que l'inscription ne
+    devienne obligatoire. Règle sur 0 pour une application immédiate.
+  exemptSsoUsers: Exempter les utilisateurs SSO uniquement
+  exemptSsoUsersHint: Les utilisateurs dont le seul compte est une identité
+    fédérée (p. ex. Microsoft Entra ID) s'appuient sur le MFA du fournisseur
+    d'identité.
+  invalidGrace: La période de grâce doit être un entier compris entre 0 et 30.
+  confirmEnforceTitle: Exiger l'authentification à double facteur ?
+  confirmEnforceDescription:
+    Chaque membre qui se connecte par mot de passe sera redirigé vers
+    l'inscription au double facteur (les utilisateurs SSO restent exemptés
+    tant que l'exemption est active). Passé la période de grâce, les
+    membres sont déconnectés jusqu'à ce qu'ils terminent l'inscription.
+  confirmEnforceCta: Exiger le double facteur
+  saved: La politique de double facteur a été mise à jour
+  saveFailed: Échec de l'enregistrement de la politique de double facteur
+loginPolicy:
+  title: Limites de tentatives de connexion
+  description: Verrouille les comptes après des échecs de connexion répétés et
+    augmente le délai entre les tentatives.
+  enabled: Activer les limites de tentatives de connexion
+  maxAttempts: Échecs avant verrouillage
+  maxAttemptsHint: Nombre de tentatives consécutives de mot de passe incorrect
+    avant le verrouillage temporaire du compte.
+  backoffSchedule: Calendrier de temporisation (secondes)
+  backoffScheduleHint:
+    "Délais d'attente séparés par des virgules appliqués après
+    chaque verrouillage, en secondes. La dernière entrée est réutilisée pour
+    les échecs suivants. Par défaut : 1, 10, 60, 600."
+  trustedProxies: Proxys de confiance
+  trustedProxiesHint: "Liste séparée par des virgules d'adresses IP / CIDR /
+    mots-clés (loopback, uniquelocal, linklocal) pour les proxys inverses
+    devant ce déploiement. Utilisé pour récupérer l'IP réelle du client à
+    partir de X-Forwarded-For. Par défaut : loopback, uniquelocal."
+  invalidAttempts: Le seuil d'échecs doit être un entier entre 1 et 50.
+  invalidSchedule:
+    Le calendrier de temporisation doit être une liste de nombres
+    non négatifs séparés par des virgules.
+  invalidProxies:
+    Les proxys de confiance doivent être une liste séparée par des
+    virgules d'adresses IP, CIDR ou mots-clés (max. 32).
+  saveFailed: Échec de l'enregistrement de la politique de connexion
+sessionIdleTimeout:
+  title: Délai d'inactivité de session
+  description:
+    Déconnecte les membres après une période d'inactivité. Cela peut
+    uniquement raccourcir la limite définie pour le déploiement, jamais
+    l'allonger.
+  enabled: Activer le délai d'inactivité de session
+  minutes: Délai d'inactivité (minutes)
+  minutesHint:
+    "Minutes d'inactivité avant la déconnexion d'un membre. Plafonné
+    par le SESSION_IDLE_TIMEOUT_MINUTES du déploiement lorsqu'il est défini.
+    Par défaut : 30."
+  invalid: Le délai d'inactivité doit être un entier entre 1 et 1440 minutes.
+  saveFailed: Échec de l'enregistrement du délai d'inactivité de session
+featureFlags:
+  title: Contrôle des fonctionnalités
+  description: Plafonne la fenêtre de contexte des réponses IA par utilisateur, équipe ou rôle.
+  maxContextTokens: Tokens de contexte maximum
+  maxContextTokensHint:
+    Nombre maximum de tokens de contexte pour les réponses IA.
+    Laisse vide pour aucune limite.
+  invalidMaxContextTokens: Les tokens de contexte maximum doivent être d'au moins {min}.
+  scope: Portée
+  target: Cible
+  allUsers: Tous les utilisateurs
+  addRule: Ajouter une règle
+  editRule: Modifier la règle
+  deleteRule: Supprimer la règle
+  removeRuleConfirmTitle: Supprimer la règle de contrôle de fonctionnalités ?
+  removeRuleConfirmDescription:
+    Cette règle ne s'appliquera plus aux utilisateurs
+    correspondants. Tu peux la recréer à tout moment.
+  removeRuleConfirmAction: Supprimer
+  noRulesTitle: Aucune règle de contrôle de fonctionnalités configurée
+  noRulesDescription: Ajoute une règle pour plafonner les tokens de contexte par utilisateur, équipe ou rôle.
+  saved: Le contrôle des fonctionnalités a été mis à jour
+  saveFailed: Échec de l'enregistrement du contrôle des fonctionnalités
+  actions: Actions
+  role: Rôle
+  scopeLabels:
+    default: Par défaut
+    user: Utilisateur
+    team: Équipe
+    role: Rôle
+  roleLabels:
+    admin: Admin
+    developer: Développeur
+    editor: Éditeur
+    member: Membre
+  searchUsers: Rechercher des utilisateurs
+  noUsersFound: Aucun utilisateur trouvé
+  selectUser: Sélectionner un utilisateur...
+  searchTeams: Rechercher des équipes
+  noTeamsFound: Aucune équipe trouvée
+  selectTeam: Sélectionner une équipe...
+voiceOutput:
+  title: Sortie vocale
+  description:
+    Lorsqu'elle est désactivée, aucun membre de cette organisation ne
+    peut utiliser la sortie vocale. La préférence personnelle et les
+    remplacements par chat n'ont alors aucun effet.
+  enabledLabel: Sortie vocale activée pour cette organisation
+  saved: Politique de sortie vocale mise à jour
+  saveFailed: Échec de l'enregistrement de la politique de sortie vocale
+skillSharing:
+  title: Partage des skills
+  description: Choisis qui peut partager un skill avec toute l'organisation.
+    Chacun peut toujours partager un skill avec ses propres équipes, et un
+    réglage plus strict ne restreint aucun skill déjà partagé avec
+    l'organisation.
+  label: Partager les skills avec l'organisation
+  labelHint: Les propriétaires et les admins le peuvent toujours. Pour
+    l'autoriser à un autre membre, attribue-lui « Publier des skills pour
+    l'organisation » sous Compétences.
+  modes:
+    everyone: Tous les membres
+    editors: Éditeurs et au-delà
+    admins: Propriétaires et admins uniquement
+  saveFailed: Échec de l'enregistrement de la politique de partage des skills
+dataNotice:
+  title: Avis de confidentialité
+  description:
+    Affiche une courte note sous le champ de message du chat pour tous les
+    membres de cette organisation, par exemple pour rappeler de ne pas
+    partager de données sensibles. L'avis reste désactivé tant que tu ne
+    l'actives pas.
+  enabledLabel: Afficher l'avis de confidentialité dans le chat
+  textsHint:
+    Chaque membre voit le texte de sa langue. Pour une langue laissée vide,
+    le texte anglais s'affiche, ou l'avis par défaut si l'anglais est vide
+    lui aussi.
+  charLimitExceeded: Utilise {max} caractères au maximum
+  languagesLabel: Langues de l'avis
+  textLabel: Texte de l'avis ({language})
+  saveFailed: Échec de l'enregistrement de l'avis de confidentialité
+personalization:
+  enabledLabel: Activé pour cette organisation
+  saved: Politique de personnalisation mise à jour
+  saveFailed: Échec de la mise à jour de la politique de personnalisation
+  customInstructions:
+    title: Valeur par défaut des instructions personnalisées
+    description:
+      Lorsqu'activées, les instructions personnalisées sont activées par
+      défaut pour tous les membres de cette organisation. Les membres qui s'y
+      opposent explicitement conservent leur choix.
+pii:
+  title: Protection des DCP
+  description:
+    Détecte et masque ou bloque les données personnelles avant de les
+    envoyer aux modèles d'IA.
+  enableLabel: Activer la protection des DCP
+  saved: La configuration des DCP a été mise à jour
+  saveFailed: Échec de l'enregistrement de la configuration des DCP
+guardrailsOverview:
+  title: Vue d'ensemble des guardrails
+  description: Les couches de filtrage s'exécutent dans cet ordre pour chaque message.
+  statusCards:
+    on: Actif
+    off: Inactif
+    notConfigured: Non configuré
+    contentSafety:
+      title: Sécurité du contenu
+      description: Listes de mots et motifs regex fournis par l'admin.
+      summary: '{count} catégories · {targets}'
+    pii:
+      title: Détection DCP
+      description: Motifs intégrés pour emails, téléphones, identifiants, etc.
+      summary: 'Mode : {mode}'
+    moderation:
+      title: Fournisseur de modération
+      description: Classifieur externe (OpenAI / Azure / Perspective / personnalisé).
+      summary: '{value}'
+  filterNames:
+    pii: DCP
+    chatFilter: Sécurité du contenu
+    moderation: Modération
+  recentEvents:
+    title: Événements récents
+    description:
+      Les 50 dernières détections / blocages / erreurs du fournisseur
+      pour cette organisation. Le texte correspondant brut n'est jamais
+      stocké.
+    filterPii: DCP
+    filterChatFilter: Sécurité du contenu
+    filterModeration: Modération
+    kindDetected: Détecté
+    kindBlocked: Bloqué
+    kindStepError: Erreur d'étape
+    kindCircuitOpen: Circuit ouvert
+    columnTime: Heure
+    columnFilter: Filtre
+    columnDirection: Direction
+    columnKind: Type
+    columnCategories: Catégories
+    columnMatches: Correspondances
+    empty:
+      title: Aucun événement pour le moment
+      description:
+        Les détections des modes flag / mask / block apparaîtront ici dès
+        que le trafic de chat commencera.
+    viewEventAria: Voir l'événement {id}
+  eventDetails:
+    title: Détails de l'événement
+    description: Métadonnées complètes d'un événement guardrails. Le texte
+      correspondant brut n'est jamais stocké.
+    filter: Filtre
+    direction: Direction
+    kind: Type
+    categories: Catégories
+    matches: Correspondances
+    truncated: Tronqué
+    truncatedValue: Oui — le message a dépassé la limite de longueur d'analyse
+    errorClass: Classe d'erreur
+    httpStatus: Statut HTTP
+    duration: Durée
+    durationValue: '{ms} ms'
+    attempt: Tentative
+    sanitizationRun: Exécution de sanitization
+    sanitizationRunCopyLabel: ID d'exécution de sanitization
+    thread: Thread
+    threadCopyLabel: ID du fil
+    message: Message
+    messageCopyLabel: ID du message
+    agent: Agent
+    actorType: Type d'acteur
+    timestamp: Horodatage
+    categoryDeleted: (supprimé)
+    copied: '{label} copié'
+    copyFailed: Échec de la copie
+    close: Fermer
+contentSafety:
+  title: Sécurité du contenu
+  description: Listes de mots et regex personnalisés appliqués aux messages du
+    chat. Les trois modes (block / mask / flag) s'exécutent dans l'ordre et se
+    combinent en un seul événement d'audit par message.
+  cannotManage: Tu as besoin de droits admin pour modifier la politique de
+    sécurité du contenu.
+  enabled: Activé
+  enableLabel: Activer la sécurité du contenu
+  applyTo: Appliquer à
+  applyToDescription: Input filtre les messages utilisateur avant le modèle.
+    Output filtre la réponse de l'assistant ; peut ajouter de la latence par
+    chunk.
+  userInput: Entrée utilisateur
+  modelOutput: Sortie modèle
+  maskReplacement: Remplacement du masque
+  categoriesTitle: Catégories
+  categoriesDescription:
+    Chaque catégorie a son propre mode. block l'emporte sur
+    mask, qui l'emporte sur flag en cas de correspondances multiples.
+  categoriesEmpty: Aucune catégorie configurée. Ajoutes-en une pour commencer le filtrage.
+  addCategory: Ajouter une catégorie
+  editCategory: Modifier la catégorie
+  categorySheetDescription:
+    Configure une catégorie de sécurité du contenu, son
+    mode d'application et sa liste de mots.
+  categoryEditorDescription: block l'emporte sur mask, qui l'emporte sur flag
+    quand plusieurs catégories correspondent au même message.
+  categoryLabel: Libellé
+  categoryLabelPlaceholder: p. ex. Discours haineux
+  categoryMode: Mode
+  categoryModeDescription: Block refuse le message. Mask remplace les
+    correspondances par le substitut configuré. Flag enregistre la détection
+    mais laisse passer le message.
+  modeBlock: Bloquer
+  modeMask: Masquer
+  modeFlag: Signaler
+  wordsCount: Mots ({count})
+  wordsDescription:
+    Un mot ou une expression par ligne. Non sensible à la casse.
+    Pour les textes CJK/Thaï/Lao, la correspondance de sous-chaîne est
+    utilisée automatiquement ; les autres scripts utilisent des limites de
+    mots Unicode.
+  importTxt: Importer .txt
+  exportTxt: Exporter .txt
+  columnLabel: Libellé
+  columnMode: Mode
+  columnEnabled: Activé
+  columnWords: Mots
+  columnPatterns: Motifs
+  enableAria: Activer {label}
+  editAria: Modifier {label}
+  deleteAria: Supprimer {label}
+  newCategoryDefault: Nouvelle catégorie
+  deleteConfirmTitle: Supprimer la catégorie ?
+  deleteConfirmAction: Supprimer
+  deleteConfirm:
+    Supprimer la catégorie « {label} » ? Cela retire ses {words} mots
+    et {patterns} motifs.
+  importReplaceConfirm:
+    Remplacer {existing} mots existants par {incoming} mots
+    issus de « {filename} » ?
+  wordsPlaceholder: |-
+    interdit
+    forbidden
+    verboten
+  saved: Sécurité du contenu enregistrée
+  saveFailed: Échec de l'enregistrement
+moderationProvider:
+  title: Fournisseur de modération
+  description:
+    Classifie les messages de chat avec une API de modération externe
+    (OpenAI, Azure, Perspective ou personnalisée).
+  cannotManage: Tu as besoin de droits admin pour configurer le fournisseur de modération.
+  enabled: Activé
+  enableLabel: Activer le fournisseur de modération
+  applyTo: Appliquer à
+  userInput: Entrée utilisateur
+  modelOutput: Sortie modèle
+  failBehavior: Comportement en cas d'échec
+  failBehaviorDescription:
+    'Quoi faire quand le fournisseur time out, échoue ou
+    que le circuit breaker est ouvert. Valeur par défaut en entrée : fail-open
+    (laisser passer) ; en sortie : fail-closed (bloquer la réponse), puisque
+    la sortie non revue du modèle présente un risque plus élevé.'
+  input: Entrée
+  output: Sortie
+  failOpen: Fail open (laisser passer)
+  failClosed: Fail closed (bloquer)
+  provider: Fournisseur
+  providerDescription: Choisis un preset intégré — URL, headers, template de
+    requête et parseur de réponse sont pré-remplis. La clé API elle-même est
+    saisie (et chiffrée) dans la section « Clé API » ci-dessous, jamais dans
+    la config de policy. Choisis Custom JSONPath pour toute autre API HTTPS de
+    modération à connecter.
+  presetCustomJsonPath: JSONPath personnalisé
+  presetCustomJsonPathActive: JSONPath personnalisé
+  presetApplied: Preset appliqué
+  presetAppliedMappings: '{count} correspondances de catégories par défaut
+    ajoutées (toutes en mode flag — à ajuster ci-dessous).'
+  customJsonPathHint:
+    Ouvre « Endpoint » ci-dessous, renseigne ton URL HTTPS, le
+    template de corps de requête et le JSONPath des catégories. Le commutateur
+    ne persistera pas tant que ces champs ne sont pas définis.
+  enableNeedsEndpoint:
+    Définis d'abord un endpoint. Ouvre « Endpoint » ci-dessous
+    et ajoute l'URL de l'API de modération — l'activation ne persistera pas
+    tant qu'il n'est pas configuré.
+  apiKey: Clé API
+  apiKeyDescription:
+    Collée ici, chiffrée avec AES-256-GCM côté serveur et stockée
+    dans `governanceSecrets`. La valeur en clair remplace
+    `{secretPlaceholder}` dans les headers de ton endpoint au moment de la
+    requête. Utilise la valeur complète pour les headers de type Authorization
+    (p. ex. 'Bearer sk-…') ; la clé brute pour `Ocp-Apim-Subscription-Key`
+    d'Azure.
+  apiKeyPlaceholder: Bearer sk-... ou clé API brute
+  apiKeySaved: Clé API enregistrée
+  apiKeyLoading: Chargement…
+  apiKeyNotConfigured: Non configuré
+  replaceKey: Remplacer
+  setKey: Définir la clé
+  endpoint: Endpoint
+  endpointDescription: URL HTTPS, headers, template de requête et timeout pour l'appel externe.
+  endpointUrlLabel: URL
+  endpointHeadersLabel: Headers
+  endpointTimeoutLabel: Timeout
+  endpointUrlNotSet: Non défini
+  endpointTimeoutValue: '{ms} ms'
+  editEndpointTitle: Modifier l'endpoint
+  editEndpointDescription:
+    URL, headers et template de requête sont validés côté
+    serveur. Les placeholders {textPlaceholder} et {directionPlaceholder} sont
+    JSON-safe ; {secretPlaceholder} n'est autorisé que dans les valeurs de
+    headers.
+  endpointUrlField: URL de l'endpoint
+  endpointUrlFieldDescription: URL HTTPS complète de l'API de modération (HTTP
+    autorisé pour les mocks internes / localhost). Seul cet hôte est contacté
+    — les redirections vers d'autres hôtes sont rejetées pour des raisons de
+    sécurité SSRF.
+  endpointUrlPlaceholder: https://api.example.com/v1/moderate
+  headersTitle: Headers
+  headerNameAria: Nom du header
+  headerNamePlaceholder: Authorization
+  headerValueAria: Valeur du header
+  headerValuePlaceholder: Bearer {secretPlaceholder}
+  removeHeaderAria: Supprimer le header
+  addHeader: Ajouter un header
+  requestTemplateLabel: Template de corps de requête
+  requestTemplateDescription: JSON avec les placeholders {textPlaceholder} et
+    optionnellement {directionPlaceholder}. La substitution est JSON-safe ;
+    les secrets ne sont PAS autorisés dans le corps, seulement dans les
+    headers.
+  timeoutLabel: Timeout (ms)
+  parseResponseLabel: Parser la réponse du fournisseur
+  parseResponseDescription: Dis-nous à quoi ressemble la réponse JSON du
+    fournisseur pour qu'on extraie les catégories signalées. Si tu n'es pas
+    sûr·e, lance le fournisseur une fois dans un terminal (curl) et reporte la
+    forme de la réponse dans tes choix ci-dessous.
+  shapeStepTitle: 1. Choisir la forme de la réponse
+  shapeStepDescription: Quel format le fournisseur utilise-t-il pour ses flags de catégorie ?
+  shapeRecordBool: Objet de booléens
+  shapeRecordScore: Objet de scores
+  shapeArray: Tableau de noms
+  pathStepTitle: 2. Chemin vers les catégories
+  pathStepRequired: '*requis'
+  pathStepDescription:
+    Où la forme ci-dessus se trouve dans la réponse. Le signe
+    dollar est la racine ; les points parcourent les objets ; les nombres
+    entre crochets indexent les tableaux.
+  pathExampleTitle: 'Exemple de corps de réponse correspondant à ce chemin :'
+  pathExampleExplanation: Le chemin sélectionne la partie en gras.
+  showAdvanced: Afficher les options avancées (chemin global « flagged »)
+  flaggedPathLabel: Chemin global « flagged »
+  flaggedPathOptional: (optionnel)
+  flaggedPathDescription:
+    Certains fournisseurs renvoient aussi un booléen unique
+    au niveau supérieur — p. ex. $.results[0].flagged d'OpenAI. Si défini,
+    `false` ici court-circuite la vérification des catégories et le message
+    passe. Laisse vide pour les fournisseurs qui n'ont pas ce champ.
+  categoryMappings: Correspondances de catégories
+  categoryMappingsDescription: Mappe les catégories du fournisseur (p. ex.
+    `hate/threatening` d'OpenAI) vers un libellé interne, un mode
+    d'application et un seuil de score optionnel. block l'emporte sur mask,
+    qui l'emporte sur flag.
+  mappingsEmpty: Aucune correspondance de catégorie configurée. Ajoutes-en une
+    pour appliquer les verdicts de ce fournisseur.
+  mappingsWarning:
+    Aucune correspondance de catégorie configurée. Le fournisseur
+    est appelé pour chaque message mais rien ne sera jamais flaggé, masqué ou
+    bloqué — seules les catégories mappées produisent des événements. Ajoute
+    au moins une correspondance ci-dessous, ou réapplique un preset pour
+    initialiser des valeurs par défaut.
+  mappingColumnProviderCategory: Catégorie fournisseur
+  mappingColumnInternalLabel: Libellé interne
+  mappingColumnMode: Mode
+  mappingColumnThreshold: Seuil
+  mappingColumnEnabled: Activé
+  yes: Oui
+  no: Non
+  addMapping: Ajouter une correspondance
+  editMappingAria: Modifier le mappage pour {category}
+  editMappingTitle: Modifier la correspondance
+  addMappingTitle: Ajouter une correspondance
+  deleteMappingConfirmTitle: Supprimer la correspondance ?
+  deleteMappingConfirmDescription: Cette correspondance ne s'appliquera plus
+    lorsque le fournisseur renverra cette catégorie.
+  deleteMappingConfirmAction: Supprimer
+  mappingDialogDescription:
+    block l'emporte sur mask, qui l'emporte sur flag quand
+    plusieurs correspondances se déclenchent.
+  providerCategoryLabel: Catégorie fournisseur
+  providerCategoryDescription: La clé exacte de catégorie renvoyée par le
+    fournisseur (p. ex. `hate`, `hate/threatening`, `violence`).
+  providerCategoryPlaceholder: hate
+  internalLabelLabel: Libellé interne
+  internalLabelDescription: Nom lisible affiché dans le journal d'audit et les tableaux de bord.
+  internalLabelPlaceholder: Discours haineux
+  modeLabel: Mode
+  modeBlock: Bloquer
+  modeMask: Mask (équivalent flag)
+  modeFlag: Signaler
+  scoreThresholdLabel: Seuil de score
+  scoreThresholdDescription:
+    Optionnel. Quand le fournisseur renvoie des scores,
+    la correspondance ne se déclenche que si le score de la catégorie atteint
+    ou dépasse cette valeur.
+  scoreThresholdPlaceholder: 0,5
+  testConnection: Tester la connexion
+  testConnectionDescription: Envoie un message d'exemple via le vrai chemin du
+    fournisseur. Vérifie la clé API, l'URL de l'endpoint, le template de
+    requête, le parseur de réponse et les correspondances de catégories en un
+    seul aller-retour. Aucun message de chat n'est enregistré — cet appel
+    contourne le fil et le pipeline d'audit.
+  testPlaceholder: Écris un message d'exemple à envoyer via le fournisseur…
+  testDefaultText: Je veux tuer tout le monde dans ce bâtiment
+  testing: Test en cours…
+  runTest: Lancer le test
+  testPass: Appel réussi — aucune catégorie correspondante
+  testFlagged: Appel réussi — flaggé
+  testBlocked: Appel réussi — bloquerait
+  testModified: Appel réussi — masquerait
+  testNotConfigured: Non configuré
+  testStepError: Erreur d'étape ({errorClass})
+  testResultHttpStatus: Statut HTTP
+  testResultDuration: Durée
+  testResultDurationValue: '{ms} ms'
+  testResultMatched: Correspond
+  testResultMatchCount: Nombre de correspondances
+  testResultCircuit: Circuit
+  testResultCircuitOpened: Ouvert par cet échec
+  saved: Fournisseur de modération enregistré
+  saveFailed: Échec de l'enregistrement
+  presetAzure: Utiliser Azure Content Safety
+  presetAzureActive: Azure Content Safety
+  presetAzureNote: Remplace le sous-domaine par le nom de ta propre ressource Azure.
+  presetOpenai: Utiliser OpenAI Moderation
+  presetOpenaiActive: OpenAI Moderation
+  presetPerspective: Utiliser Perspective API
+  presetPerspectiveActive: Perspective API
+  presetPerspectiveNote: Perspective s'authentifie via un paramètre de requête
+    URL, pas un header. Après avoir appliqué le preset, ouvre « Endpoint » et
+    ajoute ?key=TA_CLE_PERSPECTIVE à l'URL. (Le champ de clé API chiffrée
+    ci-dessous n'est pas utilisé par Perspective.)
+groups:
+  contentAndModels: Modèles
+  policiesAndLimits: Politiques et limites
+  securityAndMonitoring: Sécurité
+  competences: Compétences
+  legalHold: Conservation légale
+  trash: Corbeille
+  guardrails: Garde-fous
+  logs: Journaux
+  dataSubjectRequests: Personnes concernées
+competences:
+  title: Compétences
+  description: Permets à un membre une seule action bien délimitée sans rôle d'admin, ou enregistre une qualification exigée par ta politique de relecture. Chaque attribution et chaque révocation est auditée, et retirer un membre révoque ses attributions.
+  accessDenied: Seuls les propriétaires et les admins de l'organisation peuvent gérer les compétences.
+  formerMember: Ancien membre
+  grantedBy: par {name}
+  revokedBy: Révoquée par {name}
+  revokedBySystem: Remplacée par une nouvelle attribution après son expiration
+  columns:
+    member: Membre
+    competence: Compétence
+    status: Statut
+    granted: Attribuée
+    evidence: Justificatif
+    actions: Actions
+  status:
+    active: Active
+    expired: Expirée
+    revoked: Révoquée
+  statusDetail:
+    until: 'Jusqu''au {date}'
+    noExpiry: Sans expiration
+  capabilities:
+    modelsApi:
+      label: Appeler les modèles par l'API
+      description: Utiliser les modèles de l'organisation depuis ses propres outils avec une clé API personnelle, via les endpoints compatibles OpenAI et Anthropic, une fois que la politique d'accès aux modèles les active. Les propriétaires, les admins et les développeurs le peuvent sans cette compétence.
+    notificationsExport:
+      label: Exporter les notifications
+      description: Lire par l'API REST les notifications qu'un autre membre peut voir, pour les refléter dans une autre application.
+    restActAs:
+      label: Agir pour un autre membre
+      description: Nommer, dans un appel d'API, le membre pour qui une question reçoit une réponse ou une relecture est décidée, pour que l'enregistrement indique cette personne plutôt que la clé.
+    skillsPublish:
+      label: Publier des skills pour l'organisation
+      description: Partager un skill avec toute l'organisation, même quand la politique de partage des skills le réserve aux éditeurs ou aux admins.
+  empty:
+    title: Aucune compétence attribuée
+    description: Attribue à un membre une capacité de la plateforme ou une qualification. Elle ne s'applique que dans cette organisation.
+  actions:
+    grant: Attribuer une compétence
+    revoke: Révoquer
+    revokeFor: Révoquer {competence} pour {member}
+  grantDialog:
+    title: Attribuer une compétence
+    description: Le membre la détient dans cette organisation jusqu'à son expiration ou jusqu'à ce qu'un admin la révoque.
+    memberLabel: Membre
+    memberPlaceholder: Choisis un membre
+    memberSearch: Rechercher des membres
+    memberEmpty: Aucun membre trouvé
+    competenceLabel: Compétence
+    competencePlaceholder: Choisis une compétence
+    capabilitiesGroup: Capacités de la plateforme
+    qualificationsGroup: Ton organisation
+    qualificationOption: Qualification
+    qualificationOptionDescription: Un nom exigé par ta politique de relecture
+    qualificationLabel: Nom de la qualification
+    qualificationDescription: Le nom utilisé par ta politique de relecture, par exemple tax-reviewer.
+    expiryLabel: Expire
+    expiryOptions:
+      never: Jamais
+      30days: Dans 30 jours
+      90days: Dans 90 jours
+      1year: Dans 1 an
+    evidenceLabel: Justificatif
+    evidenceDescription: Pourquoi ce membre la détient, par exemple un certificat, un ticket ou le système qu'elle sert. Il reste dans le registre.
+    submit: Attribuer
+    validation:
+      memberRequired: Choisis un membre.
+      competenceRequired: Choisis une compétence.
+      qualificationRequired: Saisis un nom de qualification.
+      qualificationTooLong: Utilise au plus 120 caractères.
+      qualificationReserved: 'Les noms qui commencent par "tale:" sont réservés aux capacités de la plateforme.'
+      evidenceTooLong: Utilise au plus 2 000 caractères.
+  revokeDialog:
+    title: Révoquer la compétence ?
+    description: '{member} perd "{competence}" dans cette organisation immédiatement. L''attribution reste dans le registre comme historique.'
+    confirm: Révoquer
+  toasts:
+    granted: Compétence attribuée
+    revoked: Compétence révoquée
+    revokeFailed: Impossible de révoquer la compétence
+  errors:
+    generic: Impossible d'enregistrer la modification. Réessaie.
+    alreadyGranted: Ce membre détient déjà cette compétence. Révoque l'attribution en cours avant de l'attribuer à nouveau.
+    notMember: Cette personne n'est pas membre de l'organisation.
+    forbidden: Seuls les propriétaires et les admins de l'organisation peuvent attribuer ou révoquer des compétences.
+    capabilityUnknown: Ce n'est pas une capacité de la plateforme.
+    expiryInPast: L'expiration doit être dans le futur.
+    evidenceTooLong: Le justificatif peut contenir au plus 2 000 caractères.
+    invalid: Un nom de compétence compte de 1 à 120 caractères.
+    notFound: Cette attribution n'existe plus.
+    alreadyRevoked: Cette attribution a déjà été révoquée.
+trash:
+  title: Corbeille
+  description:
+    Récupère les enregistrements supprimés par la rétention avant leur
+    suppression définitive à la fin de la fenêtre de grâce.
+  accessDenied: Réservé aux administrateurs.
+  empty:
+    Rien dans la corbeille. La rétention y déplacera les lignes expirées une
+    fois leur fenêtre de grâce ouverte.
+  filterTitle: Catégorie
+  column:
+    type: Type
+    name: Nom
+    owner: Propriétaire
+    status: Statut
+    statusChangedAt: Mis à la corbeille
+    actions: Actions
+  status:
+    trashed: Mis à la corbeille
+    expired: Expiré
+  tab:
+    thread: Historique de chat
+    document: Documents
+    fileMetadata: Fichiers temporaires
+    promptTemplate: Modèles de prompt
+    messageFeedback: Retours sur messages
+    contact: Contacts
+    externalConversation: Conversations externes
+    messageMetadata: Métadonnées de message
+    workflowExecution: Exécutions d'automatisation
+    workflowTriggerLog: Logs de déclencheur d'automatisation
+    usageLedger: Registre d'utilisation
+    auditLog: Logs d'audit
+    chatFilterEvent: Événements de filtre de chat
+    chatThread: Chats
+    memoryAudit: Audit de mémoire
+  restore:
+    label: Restaurer
+    confirm: Restaurer
+    trashedTitle: Restaurer l'enregistrement ?
+    trashedDescription: Réactiver cet enregistrement. Il reviendra dans sa liste source.
+    expiredTitle: Restaurer un enregistrement supprimé par la rétention ?
+    expiredDescription: Cet enregistrement a été supprimé par la politique de
+      rétention. Le restaurer outrepasse cette politique et le réactive.
+      Audité.
+    expiredPhraseLabel: Tape "restore" pour confirmer
+    restoredToast: Restauré.
+    failedToast: Échec de la restauration
+    failedDescription: Échec de la restauration de cet enregistrement.
+  emptyTitle: La corbeille est vide
+  entityLabelOne: enregistrement
+  entityLabel: enregistrements
+  refreshFailed: Impossible de charger les derniers enregistrements. La liste est peut-être incomplète ou obsolète.
+  loadFailed: Impossible de charger les enregistrements de la corbeille.
+legalHold:
+  targetTypes:
+    thread: Thread
+    document: Document
+    execution: Exécution
+    userMembership: Utilisateur
+    org: Organisation
+  filters:
+    allTargets: Tous les types de cible
+    allStatuses: Tous les statuts
+    active: Active
+    released: Libérée
+    open: Ouvert
+    closed: Fermé
+    pending: En attente
+    approved: Approuvée
+    rejected: Rejetée
+    effected: Effective
+  sections:
+    activeHolds:
+      title: Conservations actives
+      description:
+        Entités actuellement protégées du nettoyage et de la suppression.
+        Place des conservations au niveau utilisateur (custodian) ou
+        organisation.
+      empty:
+        title: Aucune conservation active
+        description:
+          Place une conservation custodian sur un utilisateur précis, ou une
+          conservation à l'échelle de l'organisation depuis l'action
+          ci-dessus.
+    releaseRequests:
+      title: Demandes de libération
+      description:
+        Les demandes en attente requièrent l'approbation d'un autre admin.
+        Les demandes approuvées attendent ensuite la fin du cooldown.
+      pendingHeader: Approbation en attente
+      approvedHeader: Approuvées (cooldown en cours)
+      empty:
+        title: Aucune demande de libération
+        description: Les demandes déposées apparaissent ici pour double contrôle.
+    matters:
+      title: Dossiers
+      description:
+        Grouper les conservations par dossier. La fermeture d'un dossier
+        dépose des demandes de libération pour chaque conservation liée
+        (toujours soumises au double contrôle).
+      empty:
+        title: Aucun dossier
+        description:
+          Crée un dossier pour grouper les conservations par numéro d'affaire
+          ou périmètre eDiscovery.
+    history:
+      title: Historique des libérations
+      entityLabel: libérations
+      entityLabelOne: libération
+      description: Audit en lecture seule des demandes effectives et rejetées.
+      empty:
+        title: Aucune demande terminée
+        description: Les libérations effectives et rejetées apparaissent ici.
+  columns:
+    type: Type
+    target: Cible
+    reason: Raison
+    matter: Dossier
+    placedBy: Posée par
+    placedAt: Posée le
+    actions: Actions
+    status: Statut
+    name: Nom
+    caseNumber: N° d'affaire
+    linkedHolds: Conservations liées
+    createdAt: Créé
+    requestedBy: Demandé par
+    requestedAt: Demandé
+    approvedBy: Approuvé par
+    effectiveAt: Effective
+    rejectReason: Motif de rejet
+    legacy: (héritage)
+  actions:
+    placeHold: Placer une conservation
+    requestRelease: Demander la libération
+    approve: Approuver
+    reject: Rejeter
+    createMatter: Créer un dossier
+    editMatter: Modifier
+    closeMatter: Fermer le dossier
+  dialogs:
+    placeHold:
+      title: Placer une conservation légale
+      description:
+        Préserver le contenu pour litige, audit ou eDiscovery. Place une
+        conservation custodian sur un utilisateur précis, ou une conservation
+        à l'échelle de l'organisation. Une raison est obligatoire et
+        enregistrée dans le journal d'audit.
+      targetTypeLabel: Type de cible
+      userPickerLabel: Utilisateur
+      userPickerPlaceholder: Recherche par nom ou email
+      userPickerEmpty: Aucun utilisateur correspondant.
+      userPickerFailed: Impossible de charger les utilisateurs.
+      orgWarning: Les conservations à l'échelle de l'organisation gèlent TOUTE
+        rétention pour chaque entité de ce tenant. C'est une action délibérée,
+        enregistrée dans l'audit — vérifie le contexte du dossier avant de
+        continuer.
+      orgConfirmLabel: Tape {phrase} pour confirmer
+      orgConfirmDescription: Obligatoire pour les conservations à l'échelle de
+        l'organisation. Le bouton de soumission reste désactivé jusqu'à
+        correspondance exacte.
+      reasonLabel: Raison
+      reasonPlaceholder: 'ex. Hold litige Acme c. Co. (dossier #2026-04)'
+      matterLabel: Dossier
+      matterPlaceholder: Choisir ou créer un dossier
+      matterPickerFailed: Impossible de charger les dossiers.
+      matterCreateNew: Créer un nouveau dossier…
+      submit: Placer la conservation
+    requestRelease:
+      title: Demander la libération
+      description:
+        Le dépôt d'une demande déclenche le double contrôle. Un autre admin
+        doit approuver, et la libération ne prend effet qu'après le cooldown.
+      reasonLabel: Raison
+      submit: Déposer la demande
+    approveRelease:
+      title: Approuver la libération
+      description:
+        L'approbation libérera la conservation après le cooldown configuré.
+        Il s'agit de la deuxième signature admin sur deux.
+      submit: Approuver
+      selfApproveBlocked:
+        Un autre admin doit approuver. L'auto-approbation est
+        bloquée sauf si le déploiement est en mode mono-admin.
+    rejectRelease:
+      title: Rejeter la libération
+      description: Le rejet clôt la demande sans libérer la conservation.
+      reasonLabel: Motif de rejet
+      submit: Rejeter
+    upsertMatter:
+      createTitle: Créer un dossier
+      editTitle: Modifier le dossier
+      description:
+        Grouper les conservations connexes sous un dossier. À sa fermeture
+        ultérieure, des demandes de libération seront déposées pour chaque
+        conservation liée.
+      nameLabel: Nom
+      namePlaceholder: ex. Acme c. Co. (2026-04)
+      caseNumberLabel: Numéro d'affaire
+      descriptionLabel: Description
+      submitCreate: Créer le dossier
+      submitEdit: Enregistrer
+    closeMatter:
+      title: Fermer le dossier
+      description:
+        La fermeture déposera des demandes de libération pour {count}
+        conservation(s) liée(s) active(s). Chaque libération reste soumise au
+        double contrôle.
+      reasonLabel: Motif de libération
+      reasonPlaceholder: ex. Dossier clos ; conservation plus requise.
+      submit: Fermer le dossier
+  toasts:
+    placedTitle: Conservation placée
+    placedDescription: Le {targetType} est désormais protégé du nettoyage et de la suppression.
+    releaseRequestedTitle: Demande déposée
+    releaseRequestedDescription: En attente d'approbation par un autre admin.
+    releaseApprovedTitle: Libération approuvée
+    releaseRejectedTitle: Libération rejetée
+    matterCreatedTitle: Dossier créé
+    matterUpdatedTitle: Dossier mis à jour
+    matterClosedTitle: Dossier fermé
+    matterClosedDescription: '{count} demande(s) de libération déposée(s).'
+  countdown:
+    ready: Prêt
+    soon: Moins d'une minute
+    minutesSeconds: '{minutes}m {seconds}s'
+    hoursMinutes: '{hours}h {minutes}m'
+    daysHours: '{days}j {hours}h'
+  errors:
+    generic:
+      title: Une erreur est survenue
+      description: Réessaie. Si le problème persiste, contacte l'administration.
+    unauthenticated: Connexion requise.
+    forbidden: Tu n'as pas la permission de faire cela.
+    validation: Vérifie les champs du formulaire.
+    notFound: Introuvable.
+    alreadyActive: Une conservation active existe déjà sur cette cible.
+    matterNotFound: Ce dossier n'existe pas dans cette organisation.
+    targetNotInOrg: Cette cible n'appartient pas à cette organisation.
+    targetOrgMismatch: Une conservation à l'échelle de l'org doit cibler l'org elle-même.
+    alreadyReleased: Cette conservation a déjà été libérée.
+    releaseAlreadyPending: Une demande de libération est déjà en attente pour cette conservation.
+    releaseNotPending: La demande de libération n'est plus en attente.
+    selfApprovalBlocked: Un autre admin doit approuver. Définis
+      TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true pour autoriser l'auto-approbation
+      en mono-admin.
+    approvalTooSoon: Approbation possible dans {countdown}.
+    requesterNoLongerAdmin: Le demandeur d'origine n'est plus admin de l'org.
+      Rejette la demande et fais déposer une nouvelle par un admin actuel.
+    bulkTooLarge: Au maximum 200 entrées par lot.
+modelAccess:
+  title: Accès aux modèles
+  description:
+    Contrôle quels modèles d'IA sont disponibles pour les utilisateurs,
+    équipes et rôles.
+  enabled: Activer la politique d'accès aux modèles
+  mode: Mode
+  addRule: Ajouter une règle
+  editRule: Modifier la règle
+  deleteRule: Supprimer la règle
+  removeRuleConfirmTitle: Supprimer la règle d'accès ?
+  removeRuleConfirmDescription:
+    Cette règle ne s'appliquera plus aux utilisateurs
+    correspondants. Tu peux la recréer à tout moment.
+  removeRuleConfirmAction: Supprimer
+  noRulesTitle: Aucune règle d'accès configurée
+  noRulesDescription: Tous les modèles sont disponibles pour tous les utilisateurs.
+  scope: Portée
+  target: Cible
+  actions: Actions
+  allowedModels: Modèles autorisés
+  blockedModels: Modèles bloqués
+  allUsers: Tous les utilisateurs
+  role: Rôle
+  user: Utilisateur
+  team: Équipe
+  selectUser: Sélectionner un utilisateur
+  selectTeam: Sélectionner une équipe
+  selectModels: Sélectionner des modèles
+  searchUsers: Rechercher des utilisateurs
+  searchTeams: Rechercher des équipes
+  noUsersFound: Aucun utilisateur trouvé
+  noTeamsFound: Aucune équipe trouvée
+  confirm: Confirmer
+  saved: La politique d'accès aux modèles a été mise à jour
+  saveFailed: Échec de l'enregistrement de la politique d'accès aux modèles
+  removeDefaultConfirmTitle: Révoquer l'accès à un modèle par défaut actif ?
+  removeDefaultConfirmBody:
+    'Les règles de modèle par défaut suivantes utilisent
+    des modèles qui ne seraient plus autorisés : {rules}. Les utilisateurs
+    concernés basculeront vers un autre modèle autorisé.'
+  removeDefaultConfirmAction: Enregistrer quand même
+  scopeLabels:
+    default: Par défaut
+    user: Utilisateur
+    team: Équipe
+    role: Rôle
+  roleLabels:
+    admin: Admin
+    developer: Développeur
+    editor: Éditeur
+    member: Membre
+  modeLabels:
+    allowlist: Liste d’autorisation
+    blocklist: Liste de blocage
+  modelApi:
+    title: Endpoints de modèles pour les clés API
+    description: Permets aux propriétaires, aux admins et aux développeurs —
+      et aux membres qui ont la compétence « Appeler les modèles par l'API »
+      — d'utiliser les modèles que cette politique autorise depuis leurs
+      propres outils, avec une clé API personnelle, via des endpoints
+      compatibles OpenAI et Anthropic. Les appels sont décomptés des budgets
+      et passent par les garde-fous d'entrée ; les réponses des modèles ne
+      sont pas filtrées.
+    enabled: Activer les endpoints de modèles pour les clés API
+dataSubjectRequests:
+  title: Demandes de personnes concernées
+  entityLabel: demandes
+  entityLabelOne: demande
+  description: Reçus d'effacement RGPD art. 17. Dépose de nouvelles demandes,
+    surveille les délais et accorde des prolongations art. 12(3) lorsque les
+    dossiers complexes l'exigent.
+  accessDenied: Réservé aux administrateurs.
+  filters:
+    statusTitle: Statut
+  sections:
+    requestsList:
+      title: Demandes
+      empty:
+        title: Aucune demande d'effacement
+        description:
+          Dépose une demande depuis l'action ci-dessus pour enregistrer un
+          reçu art. 17.
+  columns:
+    status: Statut
+    sla: Délai
+    target: Personne concernée
+    reasonCode: Motif
+    requestedBy: Déposée par
+    requestedAt: Déposée
+  status:
+    pending: En attente
+    pendingCoolingOff:
+      En attente · plus que {hours, plural, one {# h} other {# h}}
+      avant exécution
+    pendingAwaitingApproval: En attente d'approbation
+    running: En cours
+    done: Terminé
+    partial: Partiel
+    failed: Échoué
+    blocked: Bloqué
+    cancelled: Annulé
+  slaBadge:
+    daysLeft: il reste {days}j
+    daysLeftOne: il reste 1j
+    overdue: En retard de {days}j
+    terminal: —
+  reasonCodes:
+    consent_withdrawn:
+      label: Consentement retiré
+    no_longer_necessary:
+      label: Plus nécessaire
+    unlawful_processing:
+      label: Traitement illicite
+    legal_obligation:
+      label: Obligation légale
+    objection:
+      label: Opposition de la personne
+    child:
+      label: Personne mineure
+    contract_termination:
+      label: Fin de contrat
+  actions:
+    fileRequest: Déposer une demande
+    extendDeadline: Prolonger le délai
+    retry: Réessayer
+    cancel: Annuler la demande
+  approval:
+    description: Un autre admin doit approuver cette demande avant le début du délai d'attente.
+    capturedPolicy: L'exigence d'approbation a été fixée au dépôt de la demande ; un changement ultérieur de la règle ne s'y applique pas.
+    approve: Approuver la demande
+    reject: Rejeter la demande
+    approveDescription: Approuve cette demande d'effacement et lance le délai d'attente configuré. Sans délai, l'effacement peut commencer immédiatement.
+    rejectDescription: Rejette cette demande d'effacement. La demande sera annulée et aucun effacement ne sera exécuté.
+    saved: Décision enregistrée
+  drawer:
+    description: Détail du reçu avec piste d'audit.
+    headerTitle: Reçu d'effacement
+    subjectSection: Personne concernée et demande
+    countersSection: Compteurs
+    auditSection: Piste d'audit
+    auditEmpty: Aucune entrée d'audit pour le moment.
+    reasonNarrative: Motif détaillé
+    slaDeadline: Échéance
+    extensionGrantedTitle: Prolongation accordée par {name}
+    threadsErased: Conversations effacées
+    threadsSkippedByHold: Conversations ignorées (rétention)
+    threadsBlockedByHold: Conversations bloquées (rétention)
+    documentsBlockedByHold: Documents bloqués (rétention)
+    ragDocumentsRemoved: Documents retirés du RAG
+    documentsErased: Documents effacés
+    documentsSkippedByHold: Documents ignorés (rétention)
+    wfExecutionsErased: Exécutions d'automatisation effacées
+    startedAt: Démarré
+    completedAt: Terminé
+    errorMessage: Erreur
+    errorState:
+      title: Impossible de charger cette demande
+      description: Le reçu a peut-être été supprimé ou tu n'as pas les droits requis.
+      retry: Réessayer
+    coolingOffBanner:
+      title: Délai de réflexion en cours
+      description: Cette demande est en attente d'un délai de réflexion avant
+        l'exécution de la cascade. Tout admin peut l'annuler avant
+        l'expiration.
+    cancelledBlock:
+      title: Annulée
+      attribution: Annulée par {name}
+    fullBreakdownTitle: Détail complet par catégorie de données
+    fullBreakdownEntry: '{rows, plural, =0 {0 effacé} one {# effacé} other {#
+      effacés}}{skippedByHold, plural, =0 {} other { · # ignoré(s)
+      (rétention)}}'
+    fullBreakdownNoData:
+      Aucune donnée dans {count, plural, one {# autre catégorie}
+      other {# autres catégories}}.
+  auditActions:
+    gdpr_erasure_requested: Déposée
+    gdpr_erasure_denied: Refusée
+    gdpr_erasure_blocked_by_hold: Bloquée par rétention légale
+    gdpr_erasure_executed: Exécutée
+    gdpr_erasure_watchdog_failed: Délai dépassé (watchdog)
+    gdpr_erasure_late_finalize_dropped: Finalisation tardive ignorée
+    gdpr_erasure_cascade_attempts_exhausted: Tentatives de cascade épuisées
+    gdpr_erasure_extended: Échéance prolongée
+    gdpr_erasure_retried: Réessayée
+    gdpr_erasure_rejected: Rejetée
+    gdpr_erasure_cancelled: Annulée
+  categories:
+    userMemories: Mémoires personnelles
+    userPreferences: Préférences utilisateur
+    messageFeedback: Retours sur messages
+    fileMetadata: Fichiers déposés en chat
+    usageLedger: Journal de consommation de tokens
+    twoFactorAttempts: Tentatives 2FA
+    policyAcknowledgements: Accusés de réception de politiques
+    onedrive: Configurations de synchronisation OneDrive
+    googleDriveSync: Configurations de synchronisation Google Drive
+    userCloudAuthorizations: Autorisations d'importation cloud
+    loginAttempts: Tentatives de connexion et verrouillages
+    notifications: Notifications de sécurité
+    wfExecutions: Exécutions d'automatisation
+    promptTemplates: Prompts personnels
+    sandboxWorkspaces: Espaces de travail de sandbox
+  legalHoldBlock:
+    title: Effacement bloqué par une rétention légale
+    orgHeld: Une rétention organisationnelle préserve toutes les entités de ce
+      tenant. Lève-la avant de réessayer.
+    userCustodianHeld: La personne est sous rétention de garde. Lève-la avant de réessayer.
+    generic: Une rétention légale active préserve les données de la personne.
+    released: La rétention a été levée — choisis Réessayer pour poursuivre l'effacement.
+    threadsCount: '{count, plural, =1 {# conversation préservée} other {#
+      conversations préservées}}.'
+    documentsCount:
+      '{count, plural, =1 {# document préservé} other {# documents
+      préservés}}.'
+    openLegalHold: Ouvrir les paramètres de rétention légale
+    openLegalHoldAria: Ouvrir les paramètres de rétention légale
+  dialogs:
+    fileRequest:
+      title: Déposer une demande d'effacement
+      description:
+        Enregistre un reçu art. 17 pour la personne choisie et exécute la
+        cascade de manière asynchrone. La vérification d'identité incombe à
+        l'admin déposant — confirme l'identité via le processus de ton
+        organisation avant de continuer.
+      userPickerLabel: Personne concernée
+      userPickerPlaceholder: Recherche par nom ou email
+      userPickerEmpty: Aucun membre correspondant.
+      userPickerFailed: Impossible de charger les membres.
+      reasonCodeLabel: Fondement légal
+      reasonCodeDescription: RGPD art. 17(1)(a)–(f) plus le motif opérationnel de fin de contrat.
+      reasonLabel: Motif détaillé
+      reasonPlaceholder:
+        'ex. Personne a retiré son consentement le 2026-05-08 —
+        ticket RH #4711'
+      confirmLabel: Tape {phrase} pour confirmer
+      confirmDescription:
+        Requis pour chaque demande d'effacement. Le bouton d'envoi
+        reste désactivé tant que la phrase ne correspond pas exactement.
+      submit: Déposer la demande
+    extendDeadline:
+      title: Prolonger le délai art. 12(3)
+      description:
+        Ajoute jusqu'à 60 jours à la fenêtre de réponse. La prolongation
+        elle-même doit être communiquée à la personne dans le mois initial,
+        avec motifs (art. 12(3)). Chaque demande ne peut être prolongée qu'une
+        seule fois.
+      extraDaysLabel: Jours supplémentaires ({min}–{max})
+      extraDaysDescription: Jours entiers ajoutés au délai initial de 30 jours.
+      extraDaysError: Saisis un nombre entier entre {min} et {max}.
+      extensionReasonLabel: Motif de prolongation
+      extensionReasonPlaceholder:
+        ex. Revue juridique transfrontalière — le conseil
+        demande deux semaines de plus
+      submit: Accorder la prolongation
+    retry:
+      title: Réessayer l'effacement
+      description:
+        Réexécute la cascade pour cette demande. À utiliser après avoir
+        levé une rétention bloquante ou corrigé la cause de l'échec précédent.
+      confirm: Réessayer
+    cancel:
+      title: Annuler la demande d'effacement
+      description:
+        Annule cette demande avant son exécution. Le reçu reste comme trace
+        de l'annulation, mais aucune donnée n'est supprimée. L'annulation
+        n'est possible que pendant le délai de réflexion.
+      reasonLabel: Motif d'annulation
+      reasonPlaceholder: ex. La personne a retiré sa demande — vérifié via ticket RH n° 4712
+      confirm: Annuler la demande
+  toasts:
+    filedTitle: Demande d'effacement déposée
+    filedDescription: La cascade est en cours. Ouvre le reçu pour suivre la progression.
+    extendedTitle: Délai prolongé
+    extendedDescription:
+      '{days, plural, =1 {# jour} other {# jours}} ajoutés à la
+      fenêtre de réponse.'
+    retryTitle: Nouvelle tentative d'effacement lancée
+    retryDescription: La cascade a été reprogrammée.
+    cancelledTitle: Demande d'effacement annulée
+    cancelledDescription: La demande ne sera pas exécutée. Le reçu est conservé pour l'audit.
+  errors:
+    generic:
+      title: Quelque chose s'est mal passé
+      description: Réessaie. Contacte ton administrateur si le problème persiste.
+    unauthenticated: Connexion requise.
+    forbidden: Tu n'as pas la permission.
+    validation: Vérifie les champs du formulaire.
+    notFound: Introuvable.
+    alreadyPending: Une demande d'effacement est déjà ouverte pour cette personne — en attente, en cours, bloquée par une rétention légale ou partiellement exécutée. Relance-la (ou annule-la tant qu'elle est encore en attente) au lieu d'en déposer une nouvelle.
+    legalHoldBlocked: Une rétention légale active préserve les données de cette personne.
+    notRetriable: Cette demande n'est pas dans un état qui permet une nouvelle tentative.
+    notExtendable: Cette demande est dans un état terminal et ne peut pas être prolongée.
+    alreadyExtended: Cette demande a déjà été prolongée une fois. Art. 12(3)
+      n'autorise qu'une seule prolongation.
+    deadlineLapsed: Le délai initial art. 12(3) est déjà dépassé ; aucune
+      prolongation rétroactive n'est possible.
+    reasonTooShort: Saisis un motif d'au moins 10 caractères.
+    notCancellable:
+      Seules les demandes en attente dans la fenêtre de réflexion
+      peuvent être annulées.
+    cannotCancelAfterCooldown: Le délai de réflexion est expiré ; le processeur a déjà été lancé.
+    rateLimited:
+      Tu as atteint la limite quotidienne de demandes d'effacement pour
+      ton compte. Réessaie plus tard.
+    dualApprovalRequired:
+      "Approbation à double signature requise : la personne qui
+      dépose la demande ne peut pas l'approuver elle-même."
+dsarPolicy:
+  title: Gouvernance des demandes des personnes concernées
+  description: Délai de réflexion, approbation à double signature et limite
+    quotidienne par admin pour les demandes d'effacement RGPD art. 17.
+  coolingOffHours:
+    label: Délai de réflexion (heures)
+    description:
+      "Heures entre le dépôt d'une demande et l'exécution effective de la
+      cascade. Tout admin peut annuler dans cette fenêtre. 0 = exécution
+      immédiate. Plage : 0–72."
+  requireDualApproval:
+    label: Exiger une approbation à double signature
+    description:
+      Lorsque activé, chaque demande déposée doit être approuvée par un
+      second admin (la personne qui dépose ne peut pas approuver sa propre
+      demande) avant le démarrage du délai de réflexion. Recommandé pour les
+      déploiements à enjeux élevés avec deux admins ou plus.
+  dailyLimitPerAdmin:
+    label: Limite quotidienne par admin
+    description:
+      "Nombre maximal de demandes d'effacement qu'un admin peut déposer
+      par jour. Limite l'impact d'identifiants admin compromis. Plage : 1–50."
+  saved: Gouvernance des demandes mise à jour.
+  saveFailed: Impossible d'enregistrer la politique. Réessaie.
+  invalidCoolingOffHours: Le délai de réflexion doit être un nombre entier entre 0 et 72.
+  invalidDailyLimit: La limite quotidienne doit être un nombre entier entre 1 et 50.
+  ownerOnlyNotice: Seul le propriétaire de l'organisation peut modifier cette
+    politique. Les admins peuvent la lire. Tout assouplissement (réduction du
+    délai de réflexion, désactivation de la double approbation ou augmentation
+    de la limite quotidienne) est différé pendant 24 heures pour qu'un admin
+    puisse l'annuler.
+  loosenProposedTitle: Modification mise en attente — fenêtre de revue de 24h démarrée
+  loosenProposedDescription:
+    Les modifications d'assouplissement prennent effet
+    après un délai de grâce de 24 heures. Tout admin peut les annuler avant.
+  loosenCancelledTitle: Modification en attente annulée.
+  pendingFieldLocked: Verrouillé pendant la fenêtre de revue
+  pendingBanner:
+    title: Assouplissement de politique en attente
+    description:
+      Proposé par {name}. Tout admin peut l'annuler avant qu'il ne prenne
+      effet.
+    cancel: Annuler la modification en attente
+errors:
+  saveForbidden: Vous n'avez pas l'autorisation de modifier ce paramètre.
+conversationRouting:
+  title: Routage des conversations
+  description: 'Achemine les nouvelles conversations vers une équipe ou une personne selon leur point d''arrivée : une boîte, l''adresse à laquelle elles ont été envoyées ou une app API. Les règles s''appliquent automatiquement dès qu''une conversation arrive.'
+  addRule: Ajouter une règle
+  editRule: Modifier la règle
+  deleteRule: Supprimer la règle
+  sentTo: Envoyé à
+  addressPlaceholder: facturation@votreentreprise.com
+  invalidAddress: Saisis une adresse e-mail valide
+  assignedTo: Assigné à
+  actions: Actions
+  noRulesTitle: Aucune règle de routage
+  noRulesDescription: 'Ajoute une règle pour assigner automatiquement les nouvelles conversations selon la boîte ou l''app API par laquelle elles arrivent, ou l''adresse à laquelle elles ont été envoyées.'
+  removeRuleConfirmTitle: Supprimer la règle de routage ?
+  removeRuleConfirmDescription: 'Les nouvelles conversations que cette règle vise ne seront plus assignées automatiquement.'
+  removeRuleConfirmAction: Supprimer
+  confirm: Enregistrer la règle
+  saved: Règles de routage mises à jour
+  saveFailed: Échec de l'enregistrement des règles de routage
+  routeTo: Assigner à
+  routeToPlaceholder: Sélectionner une équipe ou une personne
+  peopleSection: Personnes
+  teamsSection: Équipes
+  searchAssignees: Rechercher des personnes et des équipes
+  noAssignees: Aucune personne ou équipe trouvée
+  removePerson: Retirer la personne
+  removeTeam: Retirer l'équipe
+  handoffAddRuleDescription: 'Les nouvelles conversations comme celle-ci seront assignées automatiquement. Ces règles vivent ici sous Routage des conversations — tu ouvres cette page à tout moment depuis Paramètres.'
+  backToConversation: Retour à la conversation
+  arrivesOn: Arrive par
+  anyMailbox: N'importe quelle boîte
+  mailboxesSection: Boîtes
+  apiSection: Apps API
+  apiSource: 'API : {source}'
+  sentToHint: 'Obligatoire pour « N''importe quelle boîte », facultative pour une boîte précise. Une règle pour support@ couvre aussi support+facturation@, et une règle pour l''adresse étiquetée l''emporte.'
+  anyAddress: N'importe quelle adresse
+  removedMailbox: Boîte supprimée
+  duplicateRule: Une règle existe déjà pour cette boîte et cette adresse
+  precedence: 'La règle la plus précise l''emporte : une boîte avec son adresse exacte, puis une boîte avec l''adresse de base, puis une adresse sur n''importe quelle boîte, enfin une boîte seule.'
+standardAgent:
+  title: Agent standard
+  description: L'agent que Tale fournit dans chaque projet qui n'en a pas, pour que toute personne qui peut ouvrir le projet puisse lui confier une tâche, membres compris.
+  enabledLabel: Fournir un agent standard
+  harnessLabel: Environnement d'agent
+  harnessHint: Automatique utilise Claude Code, ou l'environnement d'agent auquel un modèle d'abonnement est lié.
+  modelLabel: Modèle
+  modelHint: Automatique choisit un modèle recommandé que la personne qui lance la tâche peut utiliser. Un modèle choisi reste en vigueur jusqu'à ce que tu le changes, même s'il devient indisponible.
+  automaticLabel: Automatique
+  automaticHarnessHint: Laisse Tale choisir l'environnement d'agent.
+  automaticModelHint: Laisse Tale choisir un modèle pour chaque personne.
+  instructionsLabel: Instructions
+  instructionsHint: Ce que l'agent standard garde toujours en tête. Laisse ce champ vide pour utiliser les instructions intégrées.
+  instructionsPlaceholder: Instructions intégrées
+  current: Pour toi, il fonctionne avec {harness} et {model}.
+  refusal:
+    switchedOff: L'agent standard est désactivé.
+    unreadable: Les réglages enregistrés sont illisibles. Réessaie, ou enregistre-les à nouveau pour les réparer.
+    harnessInvalid: L'environnement d'agent choisi n'est pas disponible, l'agent standard ne peut donc pas démarrer. Choisis un autre environnement d'agent ou Automatique.
+    noModel: Aucun modèle que tu peux utiliser ne peut faire fonctionner l'agent standard. Ajoute un accès dans Fournisseurs IA, ou vérifie l'accès aux modèles.
+    pinUnavailable: Le modèle choisi ne t'est pas accessible, l'agent standard ne peut donc pas démarrer pour toi. Choisis un autre modèle ou Automatique. Tale ne passe pas à un autre modèle tant que ce choix est enregistré.
+  invalidPolicy: Les réglages enregistrés de l'agent standard ne sont pas valides. Enregistre-les à nouveau pour les réparer.
+  savedUnavailable: La sélection enregistrée est actuellement indisponible
+  searchHarnesses: Rechercher un environnement d'agent
+  noHarnessesFound: Aucun environnement d'agent correspondant
+  searchModels: Rechercher un modèle
+  noModelsFound: Aucun modèle correspondant
+  draftHint: Enregistre pour appliquer ces réglages.
+  saveFailed: Impossible d'enregistrer les réglages de l'agent standard
+  loadFailed: Impossible de charger les réglages de l'agent standard. Réessaie de les charger.
+  remoteUpdate: Ces réglages ont changé dans une autre session. Abandonne tes modifications pour les charger, ou enregistre pour les remplacer.
+  offNote: Tant que ce réglage est désactivé, les projets sans agents propres ne proposent aucun agent, et les tâches déjà confiées à un agent standard ne peuvent pas démarrer.
+  providersLink: Fournisseurs IA
+  retry: Réessayer

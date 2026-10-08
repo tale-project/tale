@@ -18,6 +18,11 @@ import {
   resolveTurnSampling,
   type ReasoningEffort,
 } from '../../../lib/chat/effort';
+import {
+  mergeServedBy,
+  regionalEndpoint,
+  sameServedBy,
+} from '../../../lib/chat/serving';
 import { CHAT_TOOL_DOCS, type ToolCallRequest } from '../../../lib/chat/tools';
 import { runTurn, userTurnParts } from '../../../lib/chat/turn';
 import type {
@@ -32,6 +37,7 @@ import {
   messageText,
   type ChatMessage,
   type MessagePart,
+  type ServedBy,
   type TurnFinishReason,
   type TurnUsage,
 } from '../../../lib/chat/types';
@@ -78,6 +84,8 @@ import {
 import { resolveProjectContext } from './project_context';
 import {
   readEvent,
+  readServedBy,
+  readServedByHeaders,
   readStreamFailure,
   type StreamDecodeState,
   type StreamDialect,
@@ -250,6 +258,9 @@ export async function* streamSse(
   let buffer = '';
   let lastUsage: TurnUsage | undefined;
   let lastFinishReason: TurnFinishReason | undefined;
+  /** Where the answer is served, as the body has said so far — reported
+   * when it changes, not on every chunk that repeats it. */
+  let served: ServedBy | undefined;
   const stalled = stall === undefined ? undefined : rejectOnAbort(stall.signal);
 
   while (true) {
@@ -323,14 +334,23 @@ export async function* streamSse(
       );
       if (usage) lastUsage = usage;
       if (finishReason !== undefined) lastFinishReason = finishReason;
+      const said = mergeServedBy(served, readServedBy(dialect, event));
+      const serving = sameServedBy(said, served) ? undefined : said;
+      served = said;
       // A usage frame is yielded the moment it arrives, not only on the
       // settle chunk below: a stream cut by a cancel never reaches the
       // settle, and the counts it had already reported must survive.
-      if (text.length > 0 || reasoning !== undefined || usage !== undefined) {
+      if (
+        text.length > 0 ||
+        reasoning !== undefined ||
+        usage !== undefined ||
+        serving !== undefined
+      ) {
         yield {
           text,
           ...(reasoning !== undefined ? { reasoning } : {}),
           ...(usage !== undefined ? { usage } : {}),
+          ...(serving !== undefined ? { serving } : {}),
         };
       }
     }
@@ -571,8 +591,17 @@ export function createDirectModelCall(
         { cause: error },
       );
     }
+    // A documented regional endpoint says where the request is processed
+    // before any response does.
+    const endpoint = regionalEndpoint(base.url);
     try {
-      yield* streamProviderAnswer(response, dialect, stall, request.onAccepted);
+      yield* streamProviderAnswer(
+        response,
+        dialect,
+        stall,
+        request.onAccepted,
+        endpoint !== undefined ? { endpoint } : undefined,
+      );
     } finally {
       stall.dispose();
     }
@@ -594,6 +623,9 @@ export async function* streamProviderAnswer(
   dialect: StreamDialect,
   stall: StallGuard,
   onAccepted?: () => void,
+  /** What the host knows about where the request went — the regional
+   * endpoint it was sent to. */
+  requestServedBy?: ServedBy,
 ): AsyncGenerator<ModelStreamChunk> {
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
@@ -609,6 +641,15 @@ export async function* streamProviderAnswer(
   // Headers count as the first sign of life; the body's bytes take over.
   stall.touch();
   onAccepted?.();
+  // Where the request went and what the headers say about where it is
+  // served ride ahead of the body, so a round that fails mid-stream still
+  // knows them. Only now, after the provider accepted the request: a chunk
+  // tells the pipeline the round consumed its prompt.
+  const serving = mergeServedBy(
+    requestServedBy,
+    readServedByHeaders(response.headers),
+  );
+  if (serving !== undefined) yield { text: '', serving };
   yield* streamSse(response, dialect, stall);
 }
 

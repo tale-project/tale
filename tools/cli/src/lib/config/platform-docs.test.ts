@@ -280,6 +280,29 @@ function installPage(locale: string): string {
 /** Published operator examples are executable declarations, including files
  * checked out with Windows line endings. No target credentials are needed. */
 describe('documented general platform configuration', () => {
+  test('CLI README tools example names one native agent and valid grants', () => {
+    const source = readFileSync(resolve(CLI_ROOT, 'README.md'), 'utf8');
+    const example = [
+      ...source.matchAll(/```json[^\r\n]*\r?\n([\s\S]*?)\r?\n```/g),
+    ]
+      .map((match) => JSON.parse(match[1]))
+      .find((value) =>
+        value.resources?.some(
+          (resource: { kind?: string }) => resource.kind === 'agent-tools',
+        ),
+      );
+    const parsed = parsePlatformConfiguration(example);
+    expect(parsed.resources).toEqual([
+      {
+        kind: 'agent-tools',
+        config: {
+          projectId: '11111111-1111-4111-8111-111111111111',
+          agentId: '22222222-2222-4222-8222-222222222222',
+          tools: ['task_find', 'task_get', 'task_review'],
+        },
+      },
+    ]);
+  });
   for (const locale of LOCALES) {
     for (const newline of ['\n', '\r\n']) {
       test(`${locale} JSON examples with ${JSON.stringify(newline)}`, () => {

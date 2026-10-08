@@ -104,14 +104,10 @@ interface DefaultModelEditorProps {
   organizationId: string;
 }
 
-const SCOPE_OPTIONS = [
-  { value: 'default', label: 'Default' },
-  { value: 'team', label: 'Team' },
-  { value: 'role', label: 'Role' },
-];
+const SCOPE_VALUES = ['default', 'team', 'role'] as const;
 
 function isScopeValue(v: string): v is DefaultModelRule['scope'] {
-  return SCOPE_OPTIONS.some((o) => o.value === v);
+  return SCOPE_VALUES.some((value) => value === v);
 }
 
 function emptyRule(): DefaultModelRule {
@@ -171,6 +167,22 @@ function RuleDialog({
   organizationId,
 }: RuleDialogProps) {
   const { t } = useT('governance');
+  const scopeOptions = useMemo(
+    () =>
+      SCOPE_VALUES.map((value) => ({
+        value,
+        label: t(`defaultModels.scopeLabels.${value}`),
+      })),
+    [t],
+  );
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(`defaultModels.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const [draft, setDraft] = useState(initialRule);
 
   useEffect(() => {
@@ -272,7 +284,7 @@ function RuleDialog({
       <Stack gap={4}>
         <Select
           label={t('defaultModels.scope')}
-          options={SCOPE_OPTIONS}
+          options={scopeOptions}
           value={draft.scope}
           onValueChange={(value: string) => {
             if (isScopeValue(value)) {
@@ -285,7 +297,7 @@ function RuleDialog({
         {draft.scope === 'role' && (
           <Select
             label={t('defaultModels.role')}
-            options={ROLE_OPTIONS}
+            options={roleOptions}
             value={draft.scopeId ?? ''}
             onValueChange={(value) => updateDraft({ scopeId: value })}
             disabled={cannotManage}
@@ -364,6 +376,14 @@ function DefaultModelEditorContent({
 }: DefaultModelEditorProps) {
   const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(`defaultModels.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const { toast } = useToast();
   const ability = useAbility();
 
@@ -538,7 +558,7 @@ function DefaultModelEditorContent({
         }
         case 'role':
           return (
-            ROLE_OPTIONS.find((o) => o.value === rule.scopeId)?.label ??
+            roleOptions.find((o) => o.value === rule.scopeId)?.label ??
             rule.scopeId ??
             '—'
           );
@@ -548,7 +568,7 @@ function DefaultModelEditorContent({
           return '—';
       }
     },
-    [teamOptions, t],
+    [teamOptions, roleOptions, t],
   );
 
   const resolveModelName = useCallback(
@@ -668,7 +688,7 @@ function DefaultModelEditorContent({
                     rules.map((rule, index) => (
                       <TableRow key={index}>
                         <TableCell className="capitalize">
-                          {rule.scope}
+                          {t(`defaultModels.scopeLabels.${rule.scope}`)}
                         </TableCell>
                         <TableCell>{resolveTarget(rule)}</TableCell>
                         <TableCell>{resolveProviderName(rule)}</TableCell>

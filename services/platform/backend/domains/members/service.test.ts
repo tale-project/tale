@@ -131,7 +131,7 @@ const AUDIT_WRITES = [
 ];
 
 describe('revokePasskeyForMember', () => {
-  it('deletes the passkey, the sessions and writes the audit row on the one tx', async () => {
+  it('deletes the passkey, the sessions and writes the audit row on the one tx [MEMBER-R8]', async () => {
     const { tx, statements } = createRecordingTx({ callerRole: 'admin' });
     await revokePasskeyForMember(
       tx,
@@ -154,7 +154,7 @@ describe('revokePasskeyForMember', () => {
     expect(passkeyDelete?.values).toEqual(['pk-1', TARGET_USER_ID]);
   });
 
-  it('surfaces an audit failure AFTER the deletes were issued on the same tx (rollback covers them)', async () => {
+  it('surfaces an audit failure AFTER the deletes were issued on the same tx (rollback covers them) [MEMBER-R8]', async () => {
     const { tx, statements } = createRecordingTx({
       callerRole: 'admin',
       auditFails: true,
@@ -175,7 +175,7 @@ describe('revokePasskeyForMember', () => {
     );
   });
 
-  it('refuses a non-admin caller and an unknown passkey before any write', async () => {
+  it('refuses a non-admin caller and an unknown passkey before any write [MEMBER-R6]', async () => {
     const stranger = createRecordingTx({ callerRole: 'member' });
     await expect(
       revokePasskeyForMember(
@@ -206,7 +206,7 @@ describe('revokePasskeyForMember', () => {
 });
 
 describe('resetTwoFactorForMember', () => {
-  it('clears enrolment, flag, counters and sessions, then audits — all on the one tx', async () => {
+  it('clears enrolment, flag, counters and sessions, then audits — all on the one tx [MEMBER-R8]', async () => {
     const { tx, statements } = createRecordingTx({ callerRole: 'owner' });
     await resetTwoFactorForMember(
       tx,
@@ -229,7 +229,7 @@ describe('resetTwoFactorForMember', () => {
     }
   });
 
-  it('surfaces an audit failure after the reset statements were issued on the same tx', async () => {
+  it('surfaces an audit failure after the reset statements were issued on the same tx [MEMBER-R8]', async () => {
     const { tx, statements } = createRecordingTx({
       callerRole: 'admin',
       auditFails: true,
@@ -244,7 +244,7 @@ describe('resetTwoFactorForMember', () => {
     expect(writes.some((t) => t.startsWith('UPDATE "user"'))).toBe(true);
   });
 
-  it('lets only a DIFFERENT owner reset an owner, and never a self-target', async () => {
+  it('lets only a DIFFERENT owner reset an owner, and never a self-target [MEMBER-R7]', async () => {
     const adminOnOwner = createRecordingTx({
       callerRole: 'admin',
       targetRole: 'owner',

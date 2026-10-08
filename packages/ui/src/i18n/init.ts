@@ -5,6 +5,7 @@ import { initReactI18next } from 'react-i18next';
 import { defaultLocale } from './config';
 import { detectInitialLocale } from './detect-locale';
 import { memoizeLanguageHierarchy } from './language-hierarchy';
+import { registerLocaleLoader } from './load-locale';
 
 type Bundle = Record<string, Record<string, unknown>>;
 
@@ -17,10 +18,16 @@ interface InitParams {
    */
   bundles: {
     en: Bundle;
-    de: Bundle;
-    fr: Bundle;
+    de?: Bundle;
+    fr?: Bundle;
   } & Record<string, Bundle | undefined>;
   global?: Bundle;
+  /**
+   * Base locales fetched when first needed instead of up front: each
+   * answers its bundle, which lands merged with `global` like the others.
+   * `loadLocale` fetches one; `LocaleSync` does before switching to it.
+   */
+  lazy?: Partial<Record<'de' | 'fr', () => Promise<Bundle>>>;
 }
 
 function mergeWithGlobal(locale: Bundle, global: Bundle): Bundle {
@@ -39,14 +46,14 @@ const BASE_LOCALES = new Set(['en', 'de', 'fr']);
  * `services/docs/lib/i18n/i18n.ts` so each app keeps its own typed
  * message namespaces while sharing this glue code.
  */
-export function initI18n({ bundles, global = {} }: InitParams) {
+export function initI18n({ bundles, global = {}, lazy = {} }: InitParams) {
   const merge = (locale: Bundle): Bundle => mergeWithGlobal(locale, global);
 
-  const resources: Record<string, Bundle> = {
-    en: merge(bundles.en),
-    de: merge(bundles.de),
-    fr: merge(bundles.fr),
-  };
+  const resources: Record<string, Bundle> = { en: merge(bundles.en) };
+  for (const base of ['de', 'fr'] as const) {
+    const bundle = bundles[base];
+    if (bundle !== undefined) resources[base] = merge(bundle);
+  }
   const fallbackLng: Record<string, string[]> = {
     default: [defaultLocale],
   };
@@ -79,10 +86,20 @@ export function initI18n({ bundles, global = {} }: InitParams) {
       react: {
         useSuspense: false,
       },
+      // The ICU plugin memoizes each message under the language asked for, a
+      // fallback's included: a language whose messages land after its first
+      // read (`lazy`) would keep answering the fallback. Its memo starts over
+      // whenever a bundle lands.
+      i18nFormat: { bindI18nStore: 'added' },
     });
   // `init` builds the instance's services synchronously, so the language
   // utilities exist by now.
   memoizeLanguageHierarchy(i18n);
+  for (const [locale, fetch] of Object.entries(lazy)) {
+    if (fetch !== undefined) {
+      registerLocaleLoader(i18n, locale, () => fetch().then(merge));
+    }
+  }
 
   return i18n;
 }

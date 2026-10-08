@@ -12,6 +12,7 @@ const reads = vi.hoisted(() => ({
   tasks: vi.fn(),
   archived: vi.fn(),
   threads: vi.fn(),
+  projects: vi.fn(),
   retryChats: vi.fn(),
   inboxAvailability: { hasInbox: true, showInbox: true, isLoading: false },
 }));
@@ -48,10 +49,7 @@ vi.mock('@/app/features/chat/data/chat-backend', () => ({
   useArchivedThreads: reads.archived,
   useChatThreads: reads.threads,
   useChatThreadsRetry: () => reads.retryChats,
-  useChatProjects: () => ({
-    status: 'ready',
-    data: [{ id: 'p1', name: 'Website relaunch', key: 'WEB' }],
-  }),
+  useChatProjects: reads.projects,
 }));
 
 vi.mock('@/app/hooks/use-current-user', () => ({
@@ -110,6 +108,10 @@ beforeEach(() => {
   reads.inboxAvailability.hasInbox = true;
   reads.inboxAvailability.showInbox = true;
   reads.threads.mockReset().mockReturnValue(CHATS);
+  reads.projects.mockReset().mockReturnValue({
+    status: 'ready',
+    data: [{ id: 'p1', name: 'Website relaunch', key: 'WEB' }],
+  });
   reads.retryChats.mockReset().mockResolvedValue(undefined);
   reads.archived.mockReset().mockReturnValue({
     status: 'ready',
@@ -152,6 +154,68 @@ beforeEach(() => {
 });
 
 describe('useHomeData', () => {
+  it('retains chat rows and their lookup when only read envelopes change', () => {
+    const archived = [{ ...CHATS.data[0], id: 'archived', archived: true }];
+    reads.threads.mockImplementation(() => ({ ...CHATS }));
+    reads.archived.mockImplementation(() => ({
+      status: 'ready',
+      data: { rows: archived, nextCursor: null },
+    }));
+    const { result, rerender } = renderHook(() =>
+      useHomeData('org-1', { includeArchivedChats: true }),
+    );
+    const chats = result.current.items.filter((item) => item.kind === 'chat');
+    const lookup = result.current.threadsById;
+    rerender();
+    const next = result.current.items.filter((item) => item.kind === 'chat');
+    expect(next).toHaveLength(3);
+    for (const [index, chat] of chats.entries()) expect(next[index]).toBe(chat);
+    expect(result.current.threadsById).toBe(lookup);
+
+    reads.threads.mockReturnValue({
+      ...CHATS,
+      data: CHATS.data.map((chat) => ({ ...chat, title: 'Updated title' })),
+    });
+    rerender();
+    expect(result.current.threadsById).not.toBe(lookup);
+    expect(result.current.threadsById.get('chat-unread')?.title).toBe(
+      'Updated title',
+    );
+  });
+
+  it('retains Home projections when only the query wrappers change', () => {
+    const projectData = [{ id: 'p1', name: 'Website relaunch', key: 'WEB' }];
+    const assigned = [task({ assigneeId: 'me', reviewerUserId: 'me' })];
+    const noRows: unknown[] = [];
+    reads.projects.mockImplementation(() => ({
+      status: 'ready',
+      data: projectData,
+    }));
+    reads.threads.mockImplementation(() => ({ ...CHATS }));
+    reads.tasks.mockImplementation(() => taskRead(assigned));
+    reads.conversations.mockImplementation(() => ({
+      results: noRows,
+      status: 'Exhausted',
+      unavailable: false,
+    }));
+
+    const { result, rerender } = renderHook(() => useHomeData('org-1'));
+    const previous = result.current;
+    rerender();
+
+    expect(result.current.items).toBe(previous.items);
+    expect(result.current.threadsById).toBe(previous.threadsById);
+    expect(result.current.attention).toBe(previous.attention);
+
+    reads.threads.mockReturnValue({
+      ...CHATS,
+      data: [...CHATS.data, { ...CHATS.data[0], id: 'chat-new' }],
+    });
+    rerender();
+    expect(result.current.items).not.toBe(previous.items);
+    expect(result.current.threadsById.has('chat-new')).toBe(true);
+  });
+
   it('keeps the Inbox navigation visible while source discovery has failed', () => {
     reads.inboxAvailability.hasInbox = false;
     reads.inboxAvailability.showInbox = true;

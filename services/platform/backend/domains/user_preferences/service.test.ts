@@ -43,7 +43,7 @@ function fakeSql(answer: (statement: Statement) => unknown[] | undefined): {
 
 const SCOPE = { userId: 'user_1', orgId: 'org_1' };
 
-describe('upsertCustomInstructions length boundary', () => {
+describe('upsertCustomInstructions length boundary [PREF-R1]', () => {
   it.each(['', 'a'.repeat(3200), 'a'.repeat(3199) + '\r\n'])(
     'stores text within the normalized 3200-character budget (%#)',
     async (text) => {
@@ -106,11 +106,11 @@ beforeEach(() => {
 });
 
 describe('effectiveCustomInstructions', () => {
-  it('is OFF with neither a preference row nor a policy', () => {
+  it('is OFF with neither a preference row nor a policy [PREF-R2]', () => {
     expect(effectiveCustomInstructions(null, null)).toBeNull();
   });
 
-  it('follows the org default when the person has not chosen', () => {
+  it('follows the org default when the person has not chosen [PREF-R2]', () => {
     const preferences = { customInstructions: 'Be terse.' };
     expect(effectiveCustomInstructions(preferences, { enabled: true })).toBe(
       'Be terse.',
@@ -121,7 +121,7 @@ describe('effectiveCustomInstructions', () => {
     expect(effectiveCustomInstructions(preferences, null)).toBeNull();
   });
 
-  it('lets the person’s explicit choice beat the org default either way', () => {
+  it('lets the person’s explicit choice beat the org default either way [PREF-R2]', () => {
     expect(
       effectiveCustomInstructions(
         { customInstructions: 'Be terse.', customInstructionsEnabled: false },
@@ -142,7 +142,7 @@ describe('effectiveCustomInstructions', () => {
     ).toBe('Be terse.');
   });
 
-  it('reads blank text as none even while the feature is on, and trims the rest', () => {
+  it('reads blank text as none even while the feature is on, and trims the rest [PREF-R3]', () => {
     expect(
       effectiveCustomInstructions(
         { customInstructions: '  \n', customInstructionsEnabled: true },

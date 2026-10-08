@@ -3,7 +3,7 @@ title: Développeur
 description: Crée des automatisations et connecte Tale à tes clients, scripts et services externes.
 ---
 
-En tant que Développeur, tu configures les connexions techniques et automatisations qui soutiennent le travail de l’équipe. Tu peux modifier les contenus et accéder aux réglages techniques : fournisseurs, connecteurs et identifiants API. La gestion des membres reste réservée aux Propriétaires et Admins.
+En tant que Développeur, tu configures les connexions techniques et automatisations qui soutiennent le travail de l’équipe. Tu peux modifier les contenus et accéder aux réglages techniques : fournisseurs, connectors et identifiants API. La gestion des membres reste réservée aux Propriétaires et Admins.
 
 ## Choisir une connexion ou un processus
 
@@ -37,4 +37,4 @@ Pars d’un workflow vide ou importe un paquet, puis teste et déploie une versi
 
 ## Partir d’une connexion concrète
 
-Pour les requêtes entrantes, commence par la [référence API](/fr/develop/api-reference) ou les [webhooks](/fr/develop/webhooks). Pour un agent qui appelle un autre système, privilégie un connecteur pris en charge. Des identifiants directs dans une sandbox demandent un périmètre soigneusement limité. [Agents de projet](/fr/platform/projects/project-agents) explique l’équipement. Les fichiers de déploiement et variables d’environnement figurent dans la [configuration auto-hébergée](/fr/self-hosted/configuration/environment-reference).
+Pour les requêtes entrantes, commence par la [référence API](/fr/develop/api-reference) ou les [webhooks](/fr/develop/webhooks). Pour un agent qui appelle un autre système, privilégie un connector pris en charge. Des identifiants directs dans une sandbox demandent un périmètre soigneusement limité. [Agents de projet](/fr/platform/projects/project-agents) explique l’équipement. Les fichiers de déploiement et variables d’environnement figurent dans la [configuration auto-hébergée](/fr/self-hosted/configuration/environment-reference).

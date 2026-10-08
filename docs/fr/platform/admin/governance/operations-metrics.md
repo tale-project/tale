@@ -3,7 +3,7 @@ title: Métriques d’exploitation
 description: Surveille les réponses de chat en échec ou bloquées, le travail des agents dans la sandbox, l’issue des exécutions d’automatisation et l’avancement d’un projet sous Paramètres > Métriques.
 ---
 
-À côté de [Utilisation](/fr/platform/admin/governance/usage-analytics) et [Retours](/fr/platform/admin/governance/feedback-analytics), **Paramètres > Métriques** propose aux admins et aux propriétaires quatre autres tableaux de bord. **Santé de l'assistant** montre si les réponses de l’assistant échouent ou sont bloquées, **Tours de harness** si les agents mènent leur travail à terme dans la sandbox, **Automatisations** comment se terminent les exécutions réelles et **Projets** comment avancent les tâches d’un projet. Chaque tableau recalcule ses chiffres pour la période choisie à partir des enregistrements que Tale conserve encore.
+À côté de [Utilisation](/fr/platform/admin/governance/usage-analytics) et [Retours](/fr/platform/admin/governance/feedback-analytics), **Paramètres > Métriques** propose aux admins et aux propriétaires quatre autres tableaux de bord. **Santé de l'assistant** montre si les réponses de l’assistant échouent ou sont bloquées, **Tours d'environnement d'agent** si les agents mènent leur travail à terme dans la sandbox, **Automatisations** comment se terminent les exécutions réelles et **Projets** comment avancent les tâches d’un projet. Chaque tableau recalcule ses chiffres pour la période choisie à partir des enregistrements que Tale conserve encore.
 
 <Frame caption="Paramètres > Métriques > Santé de l’assistant : les compteurs et les taux, le graphique quotidien des résultats et la répartition par agent et par modèle.">
 
@@ -23,13 +23,13 @@ Sous **Erreurs**, **Par type d'erreur** regroupe les échecs, par exemple **Limi
 
 **Garde-fous** détaille les événements par type et par filtre, et trace chaque jour les détections, les blocages et les erreurs de filtre. Ces événements proviennent des filtres configurés dans [Garde-fous](/fr/platform/admin/governance/guardrails) et ne couvrent que ceux que la conservation garde encore.
 
-## Suivre les tours de harness
+## Suivre les tours d’environnement d’agent {#suivre-les-tours-de-harness}
 
-Un tour de harness est une étape de travail qu’un harness, comme Claude Code ou Codex, accomplit dans la sandbox : un [agent de projet](/fr/platform/projects/project-agents) qui travaille sur une tâche, ou une étape d’agent dans une automatisation. **Tours de harness** montre si ces tours vont à leur terme. Choisis 7, 30 ou 90 jours ; la page s’ouvre sur 30 jours.
+Un tour d’environnement d’agent est une étape de travail qu’un environnement d’agent, comme Claude Code ou Codex, accomplit dans la sandbox : un [agent de projet](/fr/platform/projects/project-agents) qui travaille sur une tâche, ou une étape d’agent dans une automatisation. **Tours d'environnement d'agent** montre si ces tours vont à leur terme. Choisis 7, 30 ou 90 jours ; la page s’ouvre sur 30 jours.
 
-Les cartes indiquent les **Tours au total**, le **Taux de réussite**, le **Taux d'expiration**, la **Durée p95**, dans laquelle 95 % des tours se sont terminés, et, sous **Arrêtés par l'utilisateur**, les tours qu’une personne a interrompus. **Par harness** reprend les tours, le taux de réussite et les expirations pour chaque harness : si le taux d’expiration augmente, tu vois de quel harness il vient. [Choisir un environnement d’agent](/fr/platform/agents/harnesses) explique comment chaque harness fonctionne, et [Gérer la capacité des sandboxes](/fr/platform/admin/sandboxes) où leur capacité se règle.
+Les cartes indiquent les **Tours au total**, le **Taux de réussite**, le **Taux d'expiration**, la **Durée p95**, dans laquelle 95 % des tours se sont terminés, et, sous **Arrêtés par l'utilisateur**, les tours qu’une personne a interrompus. **Par environnement d'agent** reprend les tours, le taux de réussite et les expirations pour chaque environnement d’agent : si le taux d’expiration augmente, tu vois de quel environnement d’agent il vient. [Choisir un environnement d’agent](/fr/platform/agents/harnesses) explique comment chaque environnement d’agent fonctionne, et [Gérer la capacité des sandboxes](/fr/platform/admin/sandboxes) où leur capacité se règle.
 
-Si les chiffres ne peuvent pas être chargés, la page le signale et propose **Réessayer** au lieu d’afficher zéro tour ou un tableau **Par harness** vide ; la période choisie reste en place. Si une actualisation échoue, les chiffres déjà affichés restent, avec une note indiquant qu’ils ne sont peut-être plus à jour.
+Si les chiffres ne peuvent pas être chargés, la page le signale et propose **Réessayer** au lieu d’afficher zéro tour ou un tableau **Par environnement d'agent** vide ; la période choisie reste en place. Si une actualisation échoue, les chiffres déjà affichés restent, avec une note indiquant qu’ils ne sont peut-être plus à jour.
 
 ## Suivre les exécutions d’automatisation
 
@@ -55,5 +55,5 @@ Si le taux d’intervention augmente alors que le nombre d’exécutions reste s
 ## Bien lire les chiffres
 
 - Chaque tableau de bord s’appuie sur les enregistrements que Tale conserve. Les règles de conservation et les suppressions raccourcissent l’historique : une période vide peut signifier que les enregistrements ont disparu, et non qu’il ne s’est rien passé.
-- Une période chargée peut dépasser ce qu’un seul passage lit : Santé de l’assistant, Tours de harness, Automatisations et Projets comptent chacun au plus les 5 000 enregistrements les plus récents d’un même type sur la période. Si Tale affiche un avis sur l’activité récente, réduis la période avant de conclure.
+- Une période chargée peut dépasser ce qu’un seul passage lit : Santé de l’assistant, Tours d’environnement d’agent, Automatisations et Projets comptent chacun au plus les 5 000 enregistrements les plus récents d’un même type sur la période. Si Tale affiche un avis sur l’activité récente, réduis la période avant de conclure.
 - Les coûts sont l’usage enregistré par l’application, pas la facture d’un fournisseur ; l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics) explique la différence.

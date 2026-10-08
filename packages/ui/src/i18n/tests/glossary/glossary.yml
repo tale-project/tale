@@ -42,6 +42,12 @@ _categories:
   abbreviation: Shorthand forms used in tooltips and tight UI (e.g., z. B., p.
     ex.). `_note` carries the expansion.
 terms:
+  - key: agent_runtime
+    category: feature
+    en: Agent runtime
+    de: Agent-Laufzeit
+    fr: Environnement d'agent
+    _note: "The program running an agent session (Claude Code, Codex, Gemini CLI, Hermes, OpenClaw and peers). Plurals: Agent runtimes, Agent-Laufzeiten, Environnements d'agent. Use this term in runtime selectors and prose; do not use Agent type or Harness. Technical identifiers such as harness remain unchanged. de-CH inherits de."
   - key: brand_tale
     category: brand
     en: Tale
@@ -436,9 +442,19 @@ terms:
     en: Legal hold
     de: Aufbewahrungs-Pflicht
     fr: Conservation légale
+    _avoid:
+      fr:
+        - legal hold
+        - legal holds
+        - conservation juridique
+        - conservations juridiques
+        - gel juridique
+        - gels juridiques
     _note: 'Legal-technical compound. DE: both `Aufbewahrungs-Pflicht` and the
-      loanword `Legal Hold` are used; pick one per page. FR: `Legal hold`
-      acceptable as loanword in technical sections.'
+      loanword `Legal Hold` are used; pick one per page. FR: `Conservation
+      légale` in UI strings (audit-log labels and refusal messages included)
+      and guides, `conservation` alone for one hold; `_avoid` lists the names
+      French must not use.'
   - key: feature_mcpServer
     category: feature
     en: MCP server

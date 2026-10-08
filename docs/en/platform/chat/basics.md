@@ -23,7 +23,7 @@ While the reply streams, the send control becomes a stop control. Stopping keeps
 
 ## Choose a model when the choice matters
 
-The model picker starts on **Auto** when several usable models are available. Auto selects a model for each message from your organization’s available models; organization rules can set a default or restrict the choices. The details under a reply identify the model that actually answered.
+The model picker starts on **Auto** when several usable models are available. Auto selects a model for each message from your organization’s available models; organization rules can set a default or restrict the choices. The [details under a reply](#reply-details) identify the model that actually answered.
 
 Pick a named model when you need consistent comparisons or know which model the work requires. Your choice stays selected until you change it, including which provider serves the model when two providers offer the same one. If that model supports adjustable reasoning, the picker also offers an effort setting. More reasoning can take longer; it is not a substitute for checking the answer.
 
@@ -58,6 +58,15 @@ Above the reply, the timeline shows search and reading steps. A failed step expl
 **Sources** below the answer lists documents and pages the assistant loaded. Open a source and check that it supports the relevant claim. A citation establishes which material was used, not that every conclusion is correct. A reply without a retrieval step may rely on the model’s prior knowledge.
 
 The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, accessible tasks, and the Inbox conversations you can see, including the text of the emails they received and of their attachments. A task can be named by its key, such as `DOCS-12`, as the board shows it. It can fetch the details behind a result and read a public web page. Chat does not run code, change connected systems, create images, produce file deliverables, or use [skills](/platform/workspace/skills); assign that work to a [project task](/platform/projects/tasks). Any member can create one in a project they can open and hand it to one of the project's agents; [Turn a chat into a task](#create-task-from-chat) shows how to start it from the conversation. A project agent working on the task can create images when an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images).
+
+## See how a reply was produced {#reply-details}
+
+Select **Show info** under a reply to open **Message information**. It names the model that answered and its **Provider**, shows how long the reply took and how many tokens it used, and says where it ran when that is known.
+
+- **Time to first token** is how long the model took to start its answer, **Output speed** how fast it wrote in tokens per second, and **Total time** how long the whole reply took. The bar beneath divides that time into preparing, waiting for the model, thinking, and writing. The server measures from when it began the reply, so the wait until the first words reached your screen, shown below the bar, can be longer.
+- **Served by** names the company that ran the model when your provider passes requests on. OpenRouter, for example, can serve the same Claude model through Anthropic, Amazon Bedrock, or Google Vertex.
+- **Region** says where the reply was processed, but only when the provider reported it, as Azure OpenAI does (for example, Switzerland North), or when the request went to a regional endpoint whose provider commits to processing in one region, such as `eu.openrouter.ai` or `eu.api.openai.com`. Otherwise it reads **Not reported**: Tale does not infer a location from a provider's name or headquarters. On Azure, a Global deployment can process a request in any region, whatever region the response names; a Data Zone deployment processes within its data zone, such as the EU, and a Regional deployment within its geography.
+- **Model version** appears when the provider reports a more specific model than the one requested, such as a dated release behind an alias or the model behind an Azure deployment name.
 
 ## Turn a chat into a task {#create-task-from-chat}
 

@@ -23,7 +23,7 @@ import {
   nonRootImageUser,
   sleep,
 } from './lib/docker';
-import { projectRoot } from './lib/exec';
+import { capture, projectRoot } from './lib/exec';
 import { CYAN, GREEN, header, NC, RED, Results, YELLOW } from './lib/log';
 
 interface StaticSiteProbe {
@@ -146,6 +146,25 @@ export async function runStaticSiteTest(
       r.fail(`${svc}: no HEALTHCHECK instruction`);
     }
 
+    const { packageManager } = await Bun.file(`${root}/package.json`).json();
+    const expectedBun = packageManager.replace('bun@', '');
+    const bun = await capture([
+      'docker',
+      'run',
+      '--rm',
+      '--network',
+      'none',
+      '--entrypoint',
+      'timeout',
+      image,
+      '10',
+      'bun',
+      '--version',
+    ]);
+    if (bun.exitCode === 0 && bun.stdout.trim() === expectedBun)
+      r.pass(`${svc}: Bun ${expectedBun} matches the workspace toolchain`);
+    else r.fail(`${svc}: Bun runtime does not match ${expectedBun}`);
+
     const sizeMb = metadata.sizeMb;
     if (sizeMb <= sizeBudgetMb) {
       r.pass(`${svc}: ${sizeMb} MB ≤ ${sizeBudgetMb} MB budget`);
@@ -194,6 +213,26 @@ export async function runStaticSiteTest(
     } else {
       r.fail(`${svc}: /api/health expected 200, got ${code}`);
     }
+
+    const processIdentities: Array<string | null> = [];
+    for (let probe = 0; probe < 2; probe++) {
+      const response = await fetch(`http://localhost:${hostPort}/api/health`, {
+        signal: AbortSignal.timeout(10_000),
+        redirect: 'error',
+      });
+      processIdentities.push(response.headers.get('Tale-Serving-Identity'));
+      await response.body?.cancel();
+    }
+    const identity = processIdentities[0];
+    if (
+      identity?.startsWith(`v1;service=${svc};instance=`) &&
+      /^v1;service=[a-z][a-z0-9-]{0,63};instance=[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(
+        identity,
+      ) &&
+      identity === processIdentities[1]
+    )
+      r.pass(`${svc}: stable serving process identity`);
+    else r.fail(`${svc}: missing or changed serving process identity`);
 
     for (const probe of opts.probes ?? []) {
       const url = `http://localhost:${hostPort}${probe.path}`;

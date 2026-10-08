@@ -48,7 +48,7 @@ function mockCtx({
   };
 }
 
-describe('resolveEmailConversationTarget', () => {
+describe('resolveEmailConversationTarget [CONV-R5]', () => {
   it('resolves via in-reply-to against stored messages', async () => {
     const ctx = mockCtx({ messageConversationId: CONV_ID });
     const target = await resolveEmailConversationTarget(

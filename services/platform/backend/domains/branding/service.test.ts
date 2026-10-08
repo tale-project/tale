@@ -47,7 +47,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('saveBrandingImage — SVG active-content intake gate', () => {
+describe('saveBrandingImage — SVG active-content intake gate [BRAND-R1]', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
@@ -151,7 +151,7 @@ describe('image writes record their reference on the branding config', () => {
   // the reference used to be staged in the form and written only by the
   // header's Save, so a reload before that Save showed the default again
   // (SET-F29).
-  it('names the stored file on save and forgets it on delete', async () => {
+  it('names the stored file on save and forgets it on delete [BRAND-R2]', async () => {
     const configDir = await mkdtemp(join(tmpdir(), 'tale-branding-svc-'));
     try {
       vi.stubEnv('TALE_CONFIG_DIR', configDir);
@@ -210,7 +210,7 @@ describe('saveBranding — the audit row', () => {
   // A branding change is an organization-wide change every member sees;
   // the row names what changed, and a save that re-sent the stored values
   // leaves none.
-  it('records the fields that changed, and nothing for a save that changed nothing', async () => {
+  it('records the fields that changed, and nothing for a save that changed nothing [BRAND-R4]', async () => {
     const configDir = await mkdtemp(join(tmpdir(), 'tale-branding-svc-'));
     try {
       vi.stubEnv('TALE_CONFIG_DIR', configDir);
@@ -268,7 +268,7 @@ describe('saveBranding — the audit row', () => {
     }
   });
 
-  it('refuses a stale expected hash before touching the file or the log', async () => {
+  it('refuses a stale expected hash before touching the file or the log [BRAND-R3]', async () => {
     const configDir = await mkdtemp(join(tmpdir(), 'tale-branding-svc-'));
     try {
       vi.stubEnv('TALE_CONFIG_DIR', configDir);
@@ -300,7 +300,7 @@ describe('saveBranding — the audit row', () => {
 });
 
 describe('changedBrandingFields', () => {
-  it('names added, removed and changed keys, sorted', () => {
+  it('names added, removed and changed keys, sorted [BRAND-R4]', () => {
     expect(
       changedBrandingFields(
         { accentColor: '#1', logoFilename: 'a.svg', faviconDarkFilename: 'x' },

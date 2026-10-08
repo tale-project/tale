@@ -60,7 +60,6 @@ interface DocumentRowActionsProps {
   teamIds?: string[];
   /** The folder the row sits in — the move dialog opens on it. */
   currentFolderId?: string;
-  onFolderDeleted?: () => void;
   parentFolderTeamId?: string;
   /** Gates the "Reindex" action — terminal `unsupported` files (no text
    *  extractor exists) never get a retry affordance, on the row menu any
@@ -85,7 +84,6 @@ export function DocumentRowActions({
   sourceProvider,
   teamIds,
   currentFolderId,
-  onFolderDeleted,
   parentFolderTeamId,
   ragStatus,
   record,
@@ -93,7 +91,7 @@ export function DocumentRowActions({
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
-  const { t: tGovernance } = useT('governance');
+  const { t: tLegalHold } = useT('legalHold');
   const ability = useAbility();
   const canWrite = ability.can('write', 'knowledgeWrite');
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -156,10 +154,7 @@ export function DocumentRowActions({
 
   const handleDeleteFolderConfirm = useCallback(() => {
     void deleteFolder({ folderId: documentId }).then(
-      () => {
-        dialogs.setOpen.deleteFolder(false);
-        onFolderDeleted?.();
-      },
+      () => dialogs.setOpen.deleteFolder(false),
       (error: unknown) => {
         console.error('Failed to delete folder:', error);
         // `AppError.message` is the serialized payload by design; the
@@ -176,7 +171,7 @@ export function DocumentRowActions({
         });
       },
     );
-  }, [deleteFolder, documentId, dialogs.setOpen, tDocuments, onFolderDeleted]);
+  }, [deleteFolder, documentId, dialogs.setOpen, tDocuments]);
 
   const handleDeleteClick = useCallback(() => {
     if (itemType === 'folder') {
@@ -314,7 +309,7 @@ export function DocumentRowActions({
       {
         key: 'delete',
         label: isHeld
-          ? tGovernance('legalHold.badges.blockedByHold')
+          ? tLegalHold('blockedByHold')
           : isRecordProtected
             ? tDocuments('record.blockedByRecord')
             : deleteLabel,
@@ -328,7 +323,7 @@ export function DocumentRowActions({
     [
       tDocuments,
       tCommon,
-      tGovernance,
+      tLegalHold,
       documentId,
       onView,
       deleteLabel,

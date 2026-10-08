@@ -3,7 +3,7 @@ title: Déléguer une tâche à un agent
 description: Lance un agent, examine son résultat, demande des modifications et reprends ou annule une exécution.
 ---
 
-Un agent de projet travaille sur une tâche et remet son résultat pour relecture. Assigne le travail, démarre l’exécution et garde les retours sur la tâche pour que l’agent et le relecteur partagent le même contexte. Il te faut le droit de modifier la tâche : un Éditeur ou un rôle supérieur l’a sur toutes les tâches du projet, un Membre sur celles qu’il a créées ou qui lui sont attribuées. Il faut aussi un fournisseur fonctionnel, un harness compatible et de la capacité de sandbox.
+Un agent de projet travaille sur une tâche et remet son résultat pour relecture. Assigne le travail, démarre l’exécution et garde les retours sur la tâche pour que l’agent et le relecteur partagent le même contexte. Il te faut le droit de modifier la tâche : un Éditeur ou un rôle supérieur l’a sur toutes les tâches du projet, un Membre sur celles qu’il a créées ou qui lui sont attribuées. Il faut aussi un fournisseur fonctionnel, un environnement d’agent compatible et de la capacité de sandbox.
 
 <Frame caption="Le travail des agents utilise le même tableau que le travail humain : il démarre à En cours et attend sa validation à En revue.">
 
@@ -59,11 +59,19 @@ Pour retrouver une décision après une réponse perdue lors d’une occurrence 
 
 Pour les deux décisions, le relecteur doit être différent de l’agent qui a effectivement produit le résultat. Il lui faut une exécution active avec des droits sur tout le projet et la permission de relecture toujours accordée ; une exécution démarrée par un Membre ne peut pas décider d’une relecture. Une politique d’indépendance humaine ou des justificatifs de compétences requis orientent les nouvelles relectures vers la chaîne humaine ; une relecture déjà attribuée à un agent exige un transfert explicite à une personne autorisée. Les approbations de workflows et les questions adressées à une personne conservent leurs décisions humaines. Avant une décision, lis `pendingReview.agentReviewBlockedReason` pour connaître un problème actuel de source, de permission, d’identité ou de politique. Si le travail concerne GitHub, le relecteur doit vérifier lui-même le commit cité et ses contrôles : Tale enregistre ses éléments, mais ne vérifie pas indépendamment l’état actuel de GitHub et ne fusionne pas de Pull Request avec cette décision.
 
+### Réattribuer une relecture enregistrée {#delegate-review}
+
+Avec **Réattribuer les relectures en attente des agents**, un manager peut confier une relecture en attente à un autre agent admissible du même projet. Le destinataire doit déjà disposer de **Revoir les résultats des tâches d’autres agents**, de l’accès nécessaire au travail et être indépendant de l’agent qui l’a réalisé. Le manager ne peut pas se désigner lui-même ni convertir une relecture humaine ou liée à un workflow. L’agent qui a réalisé le travail ne peut pas en réattribuer la relecture. Cette permission est distincte de celle qui permet de rendre une décision et ne lance aucun travail.
+
+Le manager lit `task_get`, reprend les identifiants complets de l’approbation, de l’exécution source et du relecteur enregistré ainsi que `evidenceRevision`, puis appelle `task_delegate_review` avec ces valeurs attendues, le `reviewerAgentId` complet du destinataire et un motif. Une modification de la source, des éléments examinés, des permissions ou de la politique bloque le transfert. L’attribution de la tâche, son état et les réglages des futurs relecteurs restent inchangés. Si une exécution est nécessaire, le démarrage normal se fait sur la propre tâche de relecture du destinataire, jamais sur la tâche d’implémentation examinée.
+
+Si la réponse se perd, le manager lit `task_get.reviewDelegation` et le `pendingReview` actuel. Le reçu indique les identifiants de l’ancienne et de la nouvelle approbation, les deux relecteurs, la source, les éléments examinés, le manager, l’exécution émettrice, le motif et la date. Il décrit une opération passée et ne prouve ni que la relecture reste en attente ni qu’un relecteur a démarré. Une répétition identique exige la même exécution active et autorisée du manager, ainsi qu’une approbation suivante et des éléments inchangés. Une occurrence ultérieure rapproche le reçu de l’état actuel au lieu de répéter une ancienne intention.
+
 ## Demander des modifications
 
 Explique les changements attendus dans un commentaire et **mentionne l’agent assigné avec @**. Cette mention est une instruction : un agent actif peut la recevoir pendant son exécution, tandis qu’un agent inactif démarre une reprise de la conversation précédente. Le résultat revient à **En revue**.
 
-Si tu as démarré une exécution, tes mentions continuent de la guider même après que la tâche est passée à l’agent, par exemple parce que ta mention lui a confié une tâche qui t’était attribuée. Quand l’environnement de l’agent redémarre pour prendre en compte un commentaire, comme le font tous les environnements sauf Claude Code, la suite de l’exécution revient à l’auteur du commentaire : elle compte dans ses limites, et ses appels de connecteurs se font en son nom.
+Si tu as démarré une exécution, tes mentions continuent de la guider même après que la tâche est passée à l’agent, par exemple parce que ta mention lui a confié une tâche qui t’était attribuée. Quand l’environnement de l’agent redémarre pour prendre en compte un commentaire, comme le font tous les environnements sauf Claude Code, la suite de l’exécution revient à l’auteur du commentaire : elle compte dans ses limites, et ses appels de connectors se font en son nom.
 
 Un commentaire sans mention conserve une note sans déclencher cette action. Le sélecteur de mentions indique si l’agent ne peut pas répondre, par exemple lorsque l’automatisation des tâches est désactivée ou suspendue, ou lorsque tu peux commenter la tâche sans pouvoir la modifier.
 
@@ -114,7 +122,7 @@ Les questions d’une automatisation et les approbations de workflows restent l�
 
 | État ou symptôme | Action |
 | --- | --- |
-| Attente d’une place de sandbox | La capacité de l’organisation ou de l’infrastructure partagée peut être épuisée. Attends une place ou demande à un admin d’examiner [Sandboxes](/fr/platform/admin/sandboxes). |
+| Attente d’une place de sandbox | La capacité de l’organisation ou de l’infrastructure partagée peut être épuisée, ou l’espace de travail de l’agent exécute peut-être déjà quatre de ses exécutions à la fois ; l’exécution démarre alors dès que l’une d’elles se termine. L’attente ne consomme aucune nouvelle tentative automatique. Attends une place ou demande à un admin d’examiner [Sandboxes](/fr/platform/admin/sandboxes). |
 | Nouvelle tentative automatique affichée | Tale reprend après un échec récupérable. Surveille le compteur sans lancer une autre exécution. |
 | **L’agent n’a pas pu terminer cette tâche** | Aucune nouvelle tentative automatique ne suit. L’avis indique ce qui s’est passé et qui peut y remédier, et **Détails**, à côté de l’exécution, montre ce que l’exécution elle-même a signalé ; [Quand l’agent ne peut pas terminer](#quand-lagent-ne-peut-pas-terminer) détaille les cas. Corrige la cause, puis utilise **Relancer** pour continuer la conversation. |
 | Réassignation refusée | Annule l’exécution active avant de choisir un autre responsable. |
@@ -163,6 +171,6 @@ Un admin peut désactiver l’automatisation des tâches pour l’organisation. 
 
 ## Choisir le bon responsable
 
-Assigne une personne lorsque le travail demande un jugement humain ou un accès hors des droits de l’agent. Choisis un agent de projet pour une tâche délimitée utilisant ses fichiers et outils configurés. Une automatisation convient à un processus défini avec des étapes, des déclencheurs ou des approbations pour les opérations des connecteurs. Un Membre ne peut choisir qu’une automatisation conçue pour les tâches, c’est-à-dire l’une de celles listées sous **Automatisations** dans **Assigné à**.
+Assigne une personne lorsque le travail demande un jugement humain ou un accès hors des droits de l’agent. Choisis un agent de projet pour une tâche délimitée utilisant ses fichiers et outils configurés. Une automatisation convient à un processus défini avec des étapes, des déclencheurs ou des approbations pour les opérations des connectors. Un Membre ne peut choisir qu’une automatisation conçue pour les tâches, c’est-à-dire l’une de celles listées sous **Automatisations** dans **Assigné à**.
 
 Pour commencer, suis [Créer ton premier agent](/fr/tutorials/editor/first-agent-end-to-end). Choisis une tâche assez petite pour en vérifier toi-même le résultat.

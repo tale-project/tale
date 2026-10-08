@@ -24,7 +24,7 @@ function policy(rules: unknown) {
 }
 
 describe('resolveApprovalRequirement', () => {
-  it('lets a platform-internal write run and stops an outbound one', () => {
+  it('lets a platform-internal write run and stops an outbound one [APV-R1]', () => {
     expect(resolveApprovalRequirement({ ...platformWrite, policy: null })).toBe(
       'allow',
     );
@@ -33,7 +33,7 @@ describe('resolveApprovalRequirement', () => {
     );
   });
 
-  it('treats an empty policy exactly like no policy', () => {
+  it('treats an empty policy exactly like no policy [APV-R1]', () => {
     const empty = policy([]);
     expect(
       resolveApprovalRequirement({ ...platformWrite, policy: empty }),
@@ -43,7 +43,7 @@ describe('resolveApprovalRequirement', () => {
     ).toBe('require');
   });
 
-  it('an org can tighten one internal connector', () => {
+  it('an org can tighten one internal connector [APV-R2]', () => {
     const strict = policy([
       { connector: 'task', decision: 'require_approval' },
     ]);
@@ -61,7 +61,7 @@ describe('resolveApprovalRequirement', () => {
     ).toBe('allow');
   });
 
-  it('an org can loosen one outbound action', () => {
+  it('an org can loosen one outbound action [APV-R2]', () => {
     const loose = policy([
       { action: 'imap-smtp.send', decision: 'auto_approve' },
     ]);
@@ -79,7 +79,7 @@ describe('resolveApprovalRequirement', () => {
     ).toBe('require');
   });
 
-  it('an action rule beats a connector rule for the same operation', () => {
+  it('an action rule beats a connector rule for the same operation [APV-R3]', () => {
     const mixed = policy([
       { connector: 'github', decision: 'auto_approve' },
       { action: 'github.create_release', decision: 'require_approval' },
@@ -102,7 +102,7 @@ describe('resolveApprovalRequirement', () => {
     ).toBe('require');
   });
 
-  it('the later of two rules at the same specificity wins', () => {
+  it('the later of two rules at the same specificity wins [APV-R3]', () => {
     const rewritten = policy([
       { connector: 'slack', decision: 'auto_approve' },
       { connector: 'slack', decision: 'require_approval' },

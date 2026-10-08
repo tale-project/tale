@@ -1203,13 +1203,12 @@ async function mintWorkflowTurnAuth(
           ? credential.endpointUrl
           : undefined) ?? args.apiBaseUrl,
       bridgeToken,
-      ...(credential.authMethod === 'subscription-broker'
-        ? {
-            targetEnvVar: credential.targetEnvVar,
-            ...(credential.accountId !== undefined
-              ? { accountId: credential.accountId }
-              : {}),
-          }
+      ...(credential.targetEnvVar !== undefined
+        ? { targetEnvVar: credential.targetEnvVar }
+        : {}),
+      ...(credential.authMethod === 'subscription-broker' &&
+      credential.accountId !== undefined
+        ? { accountId: credential.accountId }
         : {}),
     },
     tokenHash: hashVirtualKey(bridgeToken),

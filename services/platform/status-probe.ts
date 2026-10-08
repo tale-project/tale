@@ -261,8 +261,8 @@ export function renderStatusJson(feed: StatusFeed): string {
 // inside the application tier — and the public surface stays free of stack
 // names (no Postgres, no S3, no bucket vendor).
 // Locale picked from Accept-Language prefix: de → German, fr → French,
-// else English. Matches the locale bundles already shipped at
-// services/platform/messages/{en,de,fr}.json.
+// else English. Matches the locales the app's catalogs ship in
+// (services/platform/messages/{en,de,fr}/).
 // ---------------------------------------------------------------------------
 
 type ComponentLabels = Record<ComponentId, string>;

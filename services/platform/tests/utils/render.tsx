@@ -4,7 +4,7 @@ import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement, ReactNode } from 'react';
 
-import { i18n } from '../../lib/i18n/i18n';
+import { i18n } from './i18n-all-languages';
 
 interface WrapperProps {
   children: ReactNode;

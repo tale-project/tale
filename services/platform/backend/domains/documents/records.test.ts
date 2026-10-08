@@ -27,7 +27,7 @@ function codeOf(run: () => void): { code: string; status: number } | null {
   }
 }
 
-describe('assertReviewerNotSubmitter (submit-side self-designation)', () => {
+describe('assertReviewerNotSubmitter (submit-side self-designation) [DOC-R2]', () => {
   it('admits a reviewer who is somebody else', () => {
     expect(
       codeOf(() => assertReviewerNotSubmitter('u_bob', 'u_ann')),
@@ -42,7 +42,7 @@ describe('assertReviewerNotSubmitter (submit-side self-designation)', () => {
   });
 });
 
-describe('assertReviewResponder (respond-side designee rule)', () => {
+describe('assertReviewResponder (respond-side designee rule) [DOC-R3]', () => {
   const minted = { requestedFor: 'u_bob', requestedBy: 'u_ann' };
 
   it('admits the designated reviewer', () => {
@@ -70,7 +70,7 @@ describe('assertReviewResponder (respond-side designee rule)', () => {
     ).toEqual({ code: 'REVIEW_NOT_ASSIGNED', status: 403 });
   });
 
-  it('refuses the submitter even where an older row designated them', () => {
+  it('refuses the submitter even where an older row designated them [DOC-R2]', () => {
     // Self-designation is refused at submit today; a row minted before that
     // rule still must not become a self-approval.
     expect(
@@ -95,7 +95,7 @@ describe('assertReviewResponder (respond-side designee rule)', () => {
   });
 });
 
-describe('pendingReviewEchoes (re-submit while in review)', () => {
+describe('pendingReviewEchoes (re-submit while in review) [DOC-R4]', () => {
   const standing = {
     metadata: { requestedFor: 'u_bob', requestedBy: 'u_ann', version: 1 },
   };

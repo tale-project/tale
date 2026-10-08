@@ -1,0 +1,560 @@
+sourceStatus:
+  heading: Source workflow
+  explanation: Choose an action and provide its details. The connected source validates your permissions and every transition before updating this task.
+  submit: Send request
+  pending: The source is validating your request.
+  accepted: The source accepted your request.
+  refused: The source refused your request.
+  invalidFields: Check the required fields and their format.
+  submitFailed: Couldn't send the request. Try again.
+  loadFailed: Couldn't load source actions.
+  retry: Retry
+sourceIssue:
+  heading: '{provider} issue'
+  state:
+    open: Open at source
+    closed: Closed at source
+    resolved: Resolved at source
+    ignored: Ignored at source
+  unavailable: The source issue is no longer available to this connection. Its last known details are retained; the Tale task stays unchanged.
+  synced: 'Source checked {date}'
+  independentStatus: Source status is separate from this task. Review and complete the task in Tale.
+  description: Source description
+run:
+  started: '{name} has started — it takes this task from here.'
+  alreadyRunning: '{name} is already working on this task.'
+  notStarted: '{name} could not start — check that it is deployed.'
+  cancelled: The run was cancelled.
+  missingInput: Add the input files first — this task's Files list is still empty.
+  working: '{name} is working on this task.'
+  waitingAnswer: '{name} paused with a question — it continues as soon as you answer below.'
+  label: Run
+  details: Details
+  detailsTitle: '{name} — run details'
+  detailsTitleLive: '{name} — progress'
+  openFull: Open the full run
+subject:
+  runLoadError: "Couldn't load the workflow state. Try again to see the available actions."
+  ready: 'Ready to start — {name} takes it from here.'
+  start: Start
+  startAgain: Start again
+  waitingInput: Waiting for input files — upload them below, then press Start.
+  stalled: This task is In progress but nothing is working on it — start it again.
+  review: 'The {name} output is ready for review.'
+  reviewWaitingOn: 'The {name} output is ready for review — waiting on {reviewer}.'
+  approve: Approve
+  approveConfirmTitle: 'Approve the output of {name}?'
+  approved: Approved — the task is done.
+  requestChanges: Request changes
+  requestChangesDialog: 'Your feedback is added as a comment on this task and {name} starts again from it.'
+  requestChangesLabel: What should change
+  requestChangesPlaceholder: 'e.g. The summary still cites last period — replace those figures before the next run.'
+  requestChangesSend: Send back
+  requestChangesSent: 'Sent back to {name} — the rerun picks up your comments.'
+  cancel: Cancel run
+  cancelConfirmTitle: Cancel this run?
+  cancelConfirmBody: 'The {name} run working this task stops; the task parks at Cancelled and can be started again.'
+  cancelConfirmMove: A run is still working this task — moving it out of In progress cancels that run. It can be started again afterwards.
+agentRun:
+  automationDisabled: 'Task automation is turned off. Ask an organization admin to enable it.'
+  automationUnavailable: 'Task automation is unavailable. Ask an organization admin to check its policy.'
+  previousRun: 'Previous run by {name}'
+  label: Run
+  started: The agent is on it — it reports back to this task for review.
+  alreadyRunning: This task's agent is already running.
+  notStarted: The agent run could not start.
+  agentMissing: The assigned agent no longer exists. Assign another agent to run this task.
+  noAgentAssignee: No agent is assigned to this task. Assign one to start a run.
+  cancelled: The agent run was cancelled.
+  cancelFailed: The agent run could not be cancelled.
+  start: Start agent
+  willStart: Dropping here starts the agent run.
+  willCancel: Dropping here cancels the agent's live run.
+  # One short word per state — the strip sits in the narrow property panel
+  # next to a "Run" label, an agent avatar, and the task's own Status chip,
+  # so anything longer truncates and repeats what the panel already says.
+  status:
+    queued: Queued
+    running: Working…
+    settled: Finished
+    failed: Failed
+    cancelled: Cancelled
+  # Replaces "Queued" while the org's sandbox budget is full — the run
+  # starts by itself the moment a slot frees.
+  waitingForSlot: Waiting for a sandbox slot
+  # Caption under the status line while a machine-kicked retry runs — the
+  # user must be able to tell the platform's retry from their own.
+  autoRetrying: 'Auto-retry {n} of {max}'
+  # Replaces the caption when the broker refreshed the account's token
+  # under the run and the platform resumed it — no attempt spent yet.
+  resumedAfterTokenRefresh: Resumed after a token refresh
+  retry: Retry
+  cancel: Cancel run
+  notStartedYet: The agent waits until you start it.
+  failureTitle: The agent couldn't finish this task
+  reported: What the run reported
+  logReadFailed: The agent log could not be loaded. Try again.
+  runReadFailed: The agent run could not be loaded. Try again.
+  failure:
+    budget: A usage limit stopped this run. Ask an Admin to raise it, then start the agent again.
+    setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.
+    input: An attachment on this task is no longer in storage — Details names it. Remove it from the task or upload it again, then start the agent again.
+    time_limit: The run reached its time limit before the agent finished. Start the agent again, or split the task into smaller ones.
+    capacity: The run waited too long for a free sandbox. Start the agent again when fewer agents are busy.
+    model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
+    start: The run couldn't start. Try again — if it fails again, show an Admin what the run reported under Details.
+    interrupted: The run was interrupted before the agent finished. Start the agent again.
+    unknown: The run failed. Start the agent again — if it fails again, show an Admin what the run reported under Details.
+  standardAgent:
+    switchedOff: The organization's standard agent is switched off. Ask an Admin to switch it on under Governance.
+    noModel: No model you can use can run the standard agent. Ask an Admin to set up an AI provider or to give you access to a model.
+    pinUnavailable: The model chosen for the standard agent isn't one you can use. Ask an Admin to choose another under Governance.
+    harnessInvalid: The agent runtime chosen for the standard agent isn't available. Ask an Admin to choose another under Governance.
+    unreadable: The standard agent's settings can't be read. Ask an Admin to check them under Governance.
+    notNeeded: This project has agents of its own. Assign one of them instead.
+automation:
+  hint: 'Operated by {name} — it drives this task through its steps.'
+  chipReady: Ready to start
+  chipWaiting: Waiting for files
+  will:
+    start: 'Starts the {name} run.'
+    request_changes: 'Sends it back to {name} with your comments.'
+    cancel: 'Cancels the running {name} run first.'
+outcome:
+  title: Outcome
+  pending: Not ready yet
+  untitled: Untitled
+  open: 'Open {name}'
+inputFiles:
+  title: Files
+  titleWithCount: 'Files ({count})'
+  more: '+{count} more'
+  showLess: Show fewer
+  open: 'Open {name}'
+  empty: 'No files yet — drop the documents {name} should work from.'
+  untitled: Untitled
+  uploading: Uploading…
+  dropHint: Drop files here, or click to browse
+  uploadFailed: Couldn't finish the upload — try again.
+  uploadFailedDetail: '{name}: {reason}'
+  remove: 'Delete {name}'
+  removeTitle: Delete this file?
+  removeDescription: This deletes "{name}" from the project permanently — it can't be undone.
+  removeConfirm: Delete
+  removeFailed: Couldn't delete the file — try again.
+template:
+  blank: Blank task
+  nameLabel: Name
+  invalidName: 'Must match the pattern {pattern}.'
+  created: Task created — upload its input files, then press Start.
+  exists: A task for this subject already exists.
+  setupMissing: 'The {folder} folder is missing — create it in the project first.'
+  setupIntro: 'Set up {name} for this project first. These values are saved as
+    files in the {folder} folder, and every run reads them from there.'
+  settingsOpen: Settings
+attachments:
+  label: Attachments
+  add: Add attachments
+  remove: Remove attachment
+  uploading: Uploading…
+  emptyHint: Add images or documents
+  dropHint: Drop or paste images or documents, or click to browse
+outputs:
+  label: Deliverables
+title: Tasks
+status:
+  backlog: Backlog
+  todo: To do
+  in_progress: In progress
+  in_review: In review
+  done: Done
+  cancelled: Cancelled
+priority:
+  p0: Urgent
+  p1: High
+  p2: Medium
+  p3: Low
+  none: No priority
+fields:
+  title: Title
+  description: Description
+  assignee: Assignee
+  reviewer: Reviewer
+  priority: Priority
+  labels: Labels
+  status: Status
+  project: Project
+  unassigned: Unassigned
+  author: Author
+  created: Created
+labels:
+  add: Add label…
+  manage: Manage labels
+  manageTitle: Project labels
+  manageDescription: Labels for this project. Create or attach them from the task picker; rename and delete them here.
+  empty: No labels yet.
+  emptyHint: Type a name above to create one.
+  createNamed: 'Create "{name}"'
+  createHeading: New label
+  namePlaceholder: Label name
+  rename: Rename
+  deleteConfirmTitle: Delete this label?
+  deleteConfirmDescription: Removes "{label}" from the project and from every task that uses it.
+  errors:
+    TASK_LABEL_NAME_TAKEN: A label with that name already exists.
+    TASK_LABEL_UNKNOWN: That label isn't in this project — pick one it already has. Editors and higher roles add new labels in the picker.
+    TASK_LABELS_INVALID: Invalid label name.
+    TASK_LABEL_IN_USE: That label is still on a task.
+    createFailed: Couldn't create the label.
+    renameFailed: Couldn't rename the label.
+    deleteFailed: Couldn't delete the label.
+actions:
+  create: Create task
+  createAndStart: Create and start agent
+  createOnly: Create only
+  created: Task created
+  comment: Comment
+  commentPlaceholder: Write a comment — type @ to mention a person or an agent
+  commentAgentHint: "Mention the assigned agent for feedback. If it is working, the mention goes to its current run."
+  commentShortcut: '{shortcut} to send'
+  assign: Assign
+  add: Add
+  archive: Archive
+  restore: Restore
+  delete: Delete
+searchPlaceholder: Search tasks
+views:
+  board: Board
+  list: List
+board:
+  noTasks: No tasks
+list:
+  showArchived: Show archived
+# A board read that failed once its retries gave up (#3747): what did not
+# load and what the reader sees meanwhile — never an empty board. Each
+# alert carries Try again (common.actions.tryAgain) for that read alone.
+read:
+  tasksFailed: Couldn't load the tasks, so none are shown. Your search and filters stay as they are.
+  tasksStale: Couldn't refresh the tasks. They are shown as they were last loaded.
+  dependenciesFailed: Couldn't load the dependencies, so blocked tasks may not be marked as blocked.
+  activityFailed: Couldn't load agent and review activity. Running agents, open questions and pending reviews may not be marked.
+  activityFailedReviewFilter: 'Couldn''t load agent and review activity. Running agents, open questions and pending reviews may not be marked, and "Needs my review" may leave out tasks that wait on you.'
+  retrying: Trying again…
+  # The board's read stops at its cap; the search narrows the read itself,
+  # so it reaches every task. {count} is the number of tasks shown.
+  truncated: 'Showing the first {count, plural, one {# task} other {# tasks}}. Search to find the others.'
+# A keyboard drag on the Board or List: the title's instructions (they
+# name the keys the title handles), then the live announcements. {task} is
+# `KEY-12, Title` on pickup and `KEY-12` after it (the title when the
+# project has no key); {status} is a `status.*` label. A drop names where
+# the task was released, not a status change: a workflow can still refuse it.
+drag:
+  instructions: Enter opens the task. Space picks it up; then the arrow keys move it, Space drops it and Escape cancels.
+  pickedUp: 'Picked up {task}. Status {status}, position {position} of {total}. Move it with the arrow keys, drop it with Space or cancel with Escape.'
+  over: 'Status {status}, position {position} of {total}.'
+  noTarget: Not over a status. Dropping here changes nothing.
+  dropped: 'Dropped {task} in status {status}, position {position} of {total}.'
+  droppedInPlace: 'Dropped {task} where it started, in status {status}, position {position} of {total}.'
+  droppedOutside: 'Dropped {task} outside the statuses. It stays in status {status}, position {position} of {total}.'
+  cancelled: 'Cancelled moving {task}. It stays in status {status}, position {position} of {total}.'
+  gone: The task is no longer here, so it was not moved.
+archived:
+  badge: Archived
+archive:
+  confirmTitle: Archive task?
+  confirmDescription:
+    The task leaves the board and list. Turn on Show archived in the
+    filters to restore it later.
+  restoreDescription: The task returns to the board and list.
+  success: Task archived
+  error: Couldn't archive task
+  restoreSuccess: Task restored
+  restoreError: Couldn't restore task
+delete:
+  confirmTitle: "Delete task?"
+  confirmDescription: "Deletes this task and its subtasks with their comments and files, and stops their running agent runs. This can't be undone."
+  success: Task deleted
+  error: "Couldn't delete task"
+detail:
+  overview: Overview
+  comments: Comments
+  commentCount: '{count, plural, one {# comment} other {# comments}}'
+  noComments: No comments yet.
+  conversation: Conversation
+  conversationEmpty: No comments yet — start the conversation below.
+  details: Details
+  showDetails: Show details
+  hideDetails: Hide details
+  openBoard: Board
+  copyLink: Copy link
+  linkCopied: Link copied
+  copyKey: 'Copy {key}'
+  keyCopied: '{key} copied'
+  showEarlierComments: Show earlier comments
+  activity: Activity
+  subtasks: Subtasks
+  addSubtask: Add a subtask…
+  addDescription: Add a description…
+  noDescription: No description.
+  moreFields: More fields
+  parentCloseGuard: Finish all subtasks before closing this task.
+  dependencies: Dependencies
+  blockedBy: Blocked by
+  blocks: Blocks
+  blocked: Blocked
+  noDependencies: None
+  linkTask: Link a task…
+  dependencyCycle: That would create a circular dependency.
+  removeDependency: Remove dependency
+  partOf: Part of {task}
+  subtask: Subtask
+  notFound: We couldn't find that task. It may have been deleted.
+comment:
+  edited: edited
+  deleteConfirm: Delete this comment?
+assignee:
+  unassigned: Unassigned
+  assignToMe: Assign to me
+  agents: Agents
+  agentsInfo:
+    Runs in a sandbox on the agent runtime chosen when the agent was created,
+    pre-equipped with its skills, connectors, and instructions.
+  createAgent: Create an agent…
+  createAgentHint:
+    None in this project yet — an agent picks up assigned tasks and works
+    them for you.
+  automations: Automations
+  automationsInfo:
+    Hand the task to a deployed automation — its workflow then drives the
+    board's status verbs.
+  handoffConfirmTitle: Reassign this task?
+  handoffConfirm:
+    'This task is worked by {name}. Reassigning detaches its workflow from
+    the board verbs — you can hand it back any time.'
+  handoffConfirmLiveRun:
+    '{name} is working this task right now — reassigning cancels the live
+    run first.'
+  liveRunGuard: This task has a live run — cancel it before reassigning.
+  handoffConfirmAction: Reassign
+  unassign: Unassign
+  you: You
+  search: Search people
+  liveAgentsOnly: Only this project's agents appear here — create them on
+    the project's Agents tab.
+  noAgentsReader: This project has no agents yet — ask an Editor or Admin to add one on the project's Agents tab.
+  liveAgentsOnlyReader: Only this project's agents appear here — Editors and Admins add them on the project's Agents tab.
+  standardAgent: Standard agent
+  standardAgentHint: The organization's agent for projects without their own
+  standardAgentFooter: Until this project has agents of its own, the organization's standard agent takes its tasks.
+activity:
+  reviewResponded: "Review decided"
+  reviewDelegated: "Review delegated"
+  created: Created
+  updated: Updated
+  claimed: Claimed
+  archived: Archived
+  restored: Restored
+  reordered: Reordered
+  statusChanged: Status changed
+  externalStatusProjected: Source status synchronized
+  externalStatusRequested: Source transition requested
+  assigneeChanged: Assignee changed
+  titleChanged: Title changed
+  descriptionChanged: Description changed
+  priorityChanged: Priority changed
+  labelsChanged: Labels changed
+  attachmentsChanged: Attachments changed
+  startDateChanged: Start date changed
+  dueDateChanged: Due date changed
+  reviewerChanged: Reviewer changed
+  commentAdded: Comment added
+  dependencyAdded: Dependency added
+  dependencyRemoved: Dependency removed
+  agentRunRefused: Run refused
+  repeatChanged: Repeat changed
+  repeatNext: Next task created
+  empty:
+    startDate: No start date
+    dueDate: No due date
+    description: No description
+    labels: No labels
+    attachments: No attachments
+review:
+  decisionApproved: "Approved"
+  decisionChangesRequested: "Changes requested"
+  decisionUnavailable: "Review decision unavailable"
+  needsReview: Needs review
+  waitingOn: 'Waiting on {name}'
+  waitingOnYou: Waiting on you
+  filterTitle: Review
+  needsMyReview: Needs my review
+  independentReviewerRequired: Your organization requires an independent
+    reviewer — someone else must approve this work.
+  competenceRequired: Approving this review requires a competence you don't
+    hold. Ask an org admin to grant it.
+reviewer:
+  none: No reviewer
+  assignToMe: Review it myself
+  search: "Search people and agents"
+  editorsOnly: Only members who can edit this project can be the reviewer.
+  projectDefaultLabel: "Project default"
+  projectDefault: "Project default · {reviewer}"
+  projectDefaultHuman: "Project default · person"
+  independentAgent: "Choose a different agent from the one that did the work."
+  agentReview: "Reviews the result from its own review task."
+  routingHint: "People need edit access. Agents need the task review permission and must not review their own work."
+  pendingFor: "Current review: {reviewer}"
+  transferHint: "Choosing a reviewer also transfers this pending review."
+  agentUnavailable: "This reviewer agent is unavailable. Choose another reviewer."
+  agentPermissionRequired: "This agent needs the task review permission before it can decide."
+  saveError: "Couldn't change the reviewer"
+  loadError: "Couldn't load the current review. Try again before changing it."
+  stale: "The reviewer or result changed. Check the current review and choose again."
+  handoffRequired: "Transfer the pending review explicitly before changing its owner."
+  busy: "Wait for the active run or open question to finish before transferring review."
+  sourceRequired: "This result has no supported implementation run to review."
+  sourceChanged: "This review no longer matches the implementation run or assignee. Restore the implementation assignee if it changed, or transfer the review to an eligible person."
+  humanPolicy: "Organization policy requires a person for this review. Transfer it to an eligible member."
+  policyUnavailable: "Review policy could not be read. Restore valid organization policy before deciding."
+  notIndependent: "Choose an agent that did not produce this result."
+  agentRequired: "The assigned reviewer agent must decide this review."
+  invalid: "Choose an eligible project member or an agent in this project."
+watch:
+  watch: Watch
+  unwatch: Unwatch
+errors:
+  PROJECT_ARCHIVED: This project is archived. Restore it to change its tasks.
+  TASK_TITLE_INVALID: A title needs 1 to {max} characters. Most emoji count as 2.
+  TASK_DESCRIPTION_INVALID: This description is too long to save. It can have up to {max} characters, and most emoji count as 2.
+runFailure:
+  title: Agent couldn't start this task
+  description: '{agent} could not start: {reason}. The task status is unchanged.'
+agentRuns:
+  working: Agent is working…
+  needsAnswer: Waiting for your answer
+  totalCost: '{amount} total'
+  status:
+    queued: Queued
+    running: Running
+    completed: Completed
+    settled: Finished
+    failed: Failed
+    cancelled: Cancelled
+    timed_out: Timed out
+  trigger:
+    assignment: assignment
+    mention: mention
+    revision: revision
+    sla_escalation: escalation
+    unblock: unblocked
+    decomposition: decomposition
+    manual: manual
+    auto_retry: auto retry
+    automation: automation
+    delegated: delegated
+  refused:
+    agent_busy: agent is working on another task
+    agent_disabled: agent is not installed or is disabled
+    agent_not_found: agent not found or misconfigured
+    automation_disabled: task automation is off
+    budget_paused: monthly budget exhausted
+    task_circuit_breaker: agent runs are paused on this task
+  detail:
+    openAria: Open {status} details for {agent}
+    runningTitle: '{agent} — live run'
+    failedTitle: '{agent} — run failed'
+    completedTitle: '{agent} — run details'
+    noLiveDetail: No live transcript is available for this run.
+timeline:
+  runLabel: Agent run
+  startedByAgent: started by
+  systemActor: System
+  unresolvedWorkflow: Automation
+  deletedAgent: Deleted agent
+  viewMore: "View more"
+  viewWorkflow: View automation
+dueDate:
+  label: Due date
+  overdue: Overdue
+  due: Due {date}
+startDate:
+  label: Start date
+  afterDue: Start date must be on or before the due date.
+repeat:
+  label: Repeat
+  indicator: 'Repeats: {rule}'
+  nextTask: 'Next task: {task}'
+  openNextTask: Open next task
+  nextCreated: Next task created
+  nextDueDates: Next due dates
+  noDueDateHint: No due date yet. Picking a repeat sets it to the first matching day.
+  becomesDue: 'This task becomes due on {date}.'
+  noDueDateSaved: 'No due date: its next task is dated from the day this one closes.'
+  dateOutOfRange: Upcoming dates are outside the supported calendar range. Choose an earlier date.
+  dueDateSet: 'This task is now due on {date}.'
+  ruleOnDue: '{rule}, next task on the due date'
+  withParent: 'With {parent}'
+  onDue:
+    label: Create the next task on the due date
+    description: 'Even if this one is still open on {date}.'
+    descriptionNow: This one is already due, so the next task is created right away.
+  mode:
+    close: The next task is created when this one is done or cancelled.
+    dueDate: The next task is created on the due date, or sooner if this one is done or cancelled first.
+  reason:
+    closed: Reopen this task to change how it repeats.
+    continued: 'This series continues on {task}. Change the repeat there.'
+    continuedUnnamed: This series continues on its next task. Change the repeat there.
+    stopped: This series has stopped.
+    nextDeleted: Its next task was deleted. This task cannot repeat again.
+    automation: An automation runs this task, so it doesn't repeat.
+    subtask: 'This subtask comes back with {parent}: each time {parent} repeats, its next task gets a fresh copy of it.'
+    notOpen: Only open tasks repeat.
+  stop:
+    action: Stop repeating
+    altText: 'You can also stop the repeat later: open the task and choose "Stop repeating" under "Repeat".'
+    done: Repeat stopped
+    removed: The next task was removed.
+    kept: '{task} was already changed, so it stays — it just won''t repeat.'
+    keptUnnamed: The next task was already changed, so it stays — it just won't repeat.
+mentionPreview:
+  willRespond: '{slug} will respond'
+  willQueue: '{slug} will respond (queued — at its concurrency limit)'
+  packDisabled: "{slug} won't respond — task automation is off"
+  breakerPaused: "{slug} won't respond — agent runs are paused on this task"
+  budgetPaused: "{slug} won't respond — monthly budget exhausted"
+  agentNotLive: "{slug} won't respond — agent is not installed or is disabled"
+  notPermitted: "{slug} won't respond — you can't start agents on this task"
+  standardAgentUnavailable: "{slug} won't respond — it isn't available to you"
+mentionPicker:
+  title: Mention a member, agent, or automation
+  empty: No matches
+metrics:
+  title: Project metrics
+  description: Delivery, intervention, and cost metrics for this project's tasks.
+  cappedNotice: Showing the most recent 5,000 rows of each source in this window — older activity in the period is not counted.
+  noData: No data
+  noFlowDescription: No tasks were open at the end of any day in this period.
+  noThroughputDescription: No tasks were created or completed in this period.
+  noCycleTimeDescription: No task went from In progress to Done in this period.
+  noCompletionsDescription: No tasks were completed in this period.
+  noCostDescription: No agent runs started in this period.
+  completed: Completed ({days}d)
+  completedDetail: '{agent} by agents · {human} by humans'
+  cycleTime: Avg cycle time
+  created: '{count} created'
+  intervention: Intervention rate
+  interventionDetail: '{changes} changes requested · {escalations} escalations'
+  cost: Spend ({days}d)
+  costDetail: '{runs} runs · {failed} failed'
+  cumulativeFlow: Cumulative flow (end of day)
+  throughput: Throughput
+  createdLabel: Created
+  completedLabel: Completed
+  cycleTimeTrend: Cycle time trend
+  cycleHoursLabel: Avg cycle time (h)
+  agentVsHuman: Agent vs. human completions
+  agentLabel: Agents
+  humanLabel: Humans
+  costTrend: Daily spend
+  costLabel: Spend

@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
+import { useLocalesLoaded } from '@tale/ui/i18n/load-locale';
 import { Stack } from '@tale/ui/layout';
 import { LocaleTabs } from '@tale/ui/locale-tabs';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -84,9 +85,11 @@ function DataNoticePolicyEditorContent({
   const { t } = useT('governance');
   const { t: tGlobal } = useT('global');
   const [editingLocale, setEditingLocale] = useState<NoticeLocale>('en');
-  // The platform default in each language, for the placeholders: the bundles
-  // for every shipped language are loaded, so a fixed-language `t` resolves.
+  // The platform default in each language, for the placeholders: a
+  // fixed-language `t` reads its language's messages, which load on first
+  // use, so the placeholders wait for them.
   const { i18n } = useTranslation();
+  const noticeLocalesLoaded = useLocalesLoaded(NOTICE_LOCALES);
   const ability = useAbility();
 
   const { data: policy, isLoading } = useGovernancePolicy(
@@ -255,7 +258,11 @@ function DataNoticePolicyEditorContent({
                         // The tab strip names the language; the text spans
                         // the section rather than the 20rem control column.
                         wideControl
-                        placeholder={placeholderFor(field)}
+                        placeholder={
+                          noticeLocalesLoaded
+                            ? placeholderFor(field)
+                            : undefined
+                        }
                         errorMessage={errors[field]?.message}
                         counterMax={DATA_NOTICE_MAX_CHARS}
                         {...register(field)}

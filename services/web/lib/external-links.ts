@@ -5,6 +5,7 @@
  */
 
 export const EXTERNAL_LINKS = {
+  uiDocs: 'https://ui.tale.dev',
   softwareTerms: '/files/Service_Agreement_Template.pdf',
   hardwareTerms: '/files/Hardware_Agreement_Template.pdf',
   aiTraining:

@@ -139,7 +139,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('syncOneConfigWith — folder gone at the source', () => {
+describe('syncOneConfigWith — folder gone at the source [ODRIVE-R5]', () => {
   it('a failed listing whose folder is not found prunes the owned mirrors and reports sourceDeleted', async () => {
     const getFileMetadata = vi.fn().mockResolvedValue({
       success: false,

@@ -24,7 +24,7 @@ const policy = (
   ...overrides,
 });
 
-describe('computeLockedUntil', () => {
+describe('computeLockedUntil [LOGIN-R1]', () => {
   it('returns null below the threshold', () => {
     expect(computeLockedUntil(0, NOW, policy())).toBeNull();
     expect(computeLockedUntil(4, NOW, policy())).toBeNull();
@@ -59,19 +59,19 @@ describe('selectStrictestPolicy', () => {
     );
   });
 
-  it('prefers the lower lockout threshold', () => {
+  it('prefers the lower lockout threshold [LOGIN-R2]', () => {
     const a = policy({ maxAttemptsBeforeLockout: 5 });
     const b = policy({ maxAttemptsBeforeLockout: 3 });
     expect(selectStrictestPolicy([a, b])).toBe(b);
   });
 
-  it('breaks threshold ties by longer first-backoff', () => {
+  it('breaks threshold ties by longer first-backoff [LOGIN-R2]', () => {
     const a = policy({ backoffSchedule: [1_000, 10_000] });
     const b = policy({ backoffSchedule: [5_000, 10_000] });
     expect(selectStrictestPolicy([a, b])).toBe(b);
   });
 
-  it('skips disabled policies', () => {
+  it('skips disabled policies [LOGIN-R2]', () => {
     const disabled = policy({ enabled: false, maxAttemptsBeforeLockout: 1 });
     const enabled = policy({ maxAttemptsBeforeLockout: 5 });
     expect(selectStrictestPolicy([disabled, enabled])).toBe(enabled);

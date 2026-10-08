@@ -12,23 +12,46 @@ const WEEK_MS = 7 * DAY_MS;
 /** The longest delay `setTimeout` keeps; a longer one fires at once. */
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
-/** Building an `Intl` formatter costs far more than using one, and a Home
- * list formats an age for every row it renders — so each locale's formatter
- * is built once and kept. */
-const formatters = new Map<
+/** Intl constructors are much more expensive than formatting. Home rows
+ * share the small set of formatters for their locale, across minute ticks. */
+const ageFormatters = new Map<
   string,
-  Intl.RelativeTimeFormat | Intl.NumberFormat | Intl.DateTimeFormat
+  {
+    now: Intl.RelativeTimeFormat;
+    minute: Intl.NumberFormat;
+    hour: Intl.NumberFormat;
+    day: Intl.NumberFormat;
+    date: Intl.DateTimeFormat;
+    dateWithYear: Intl.DateTimeFormat;
+  }
 >();
 
-function formatter<
-  F extends Intl.RelativeTimeFormat | Intl.NumberFormat | Intl.DateTimeFormat,
->(key: string, build: () => F): F {
-  const known = formatters.get(key);
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- each key is only ever stored by the builder of its own formatter type
-  if (known !== undefined) return known as F;
-  const built = build();
-  formatters.set(key, built);
-  return built;
+function formattersFor(locale: string) {
+  const cached = ageFormatters.get(locale);
+  if (cached !== undefined) return cached;
+  const unit = (name: 'minute' | 'hour' | 'day') =>
+    new Intl.NumberFormat(locale, {
+      style: 'unit',
+      unit: name,
+      unitDisplay: 'narrow',
+    });
+  const formatters = {
+    now: new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }),
+    minute: unit('minute'),
+    hour: unit('hour'),
+    day: unit('day'),
+    date: new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }),
+    dateWithYear: new Intl.DateTimeFormat(locale, {
+      day: 'numeric',
+      month: 'short',
+      year: '2-digit',
+    }),
+  };
+  // A reader can switch locales; keep the process cache bounded even when a
+  // host feeds arbitrary supported locale tags into this pure formatter.
+  if (ageFormatters.size >= 8) ageFormatters.clear();
+  ageFormatters.set(locale, formatters);
+  return formatters;
 }
 
 /**
@@ -43,36 +66,17 @@ export function formatCompactAge(
   locale: string,
 ): string {
   const diff = Math.max(0, now - timestamp);
+  const formatters = formattersFor(locale);
   if (diff < MINUTE_MS) {
-    return formatter(
-      `relative|${locale}`,
-      () => new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }),
-    ).format(0, 'second');
+    return formatters.now.format(0, 'second');
   }
-  const unit = (value: number, name: 'minute' | 'hour' | 'day') =>
-    formatter(
-      `unit|${name}|${locale}`,
-      () =>
-        new Intl.NumberFormat(locale, {
-          style: 'unit',
-          unit: name,
-          unitDisplay: 'narrow',
-        }),
-    ).format(value);
-  if (diff < HOUR_MS) return unit(Math.floor(diff / MINUTE_MS), 'minute');
-  if (diff < DAY_MS) return unit(Math.floor(diff / HOUR_MS), 'hour');
-  if (diff < WEEK_MS) return unit(Math.floor(diff / DAY_MS), 'day');
+  if (diff < HOUR_MS)
+    return formatters.minute.format(Math.floor(diff / MINUTE_MS));
+  if (diff < DAY_MS) return formatters.hour.format(Math.floor(diff / HOUR_MS));
+  if (diff < WEEK_MS) return formatters.day.format(Math.floor(diff / DAY_MS));
   const date = new Date(timestamp);
   const sameYear = date.getFullYear() === new Date(now).getFullYear();
-  return formatter(
-    `date|${sameYear ? 'year' : 'other'}|${locale}`,
-    () =>
-      new Intl.DateTimeFormat(locale, {
-        day: 'numeric',
-        month: 'short',
-        ...(sameYear ? {} : { year: '2-digit' }),
-      }),
-  ).format(date);
+  return (sameYear ? formatters.date : formatters.dateWithYear).format(date);
 }
 
 /**

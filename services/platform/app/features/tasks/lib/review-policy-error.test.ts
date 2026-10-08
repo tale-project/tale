@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { i18n } from '@/lib/i18n/i18n';
 import { AppError } from '@/lib/shared/errors/app-error';
+import { i18n } from '@/tests/utils/i18n-all-languages';
 
 import { reviewPolicyErrorMessage } from './review-policy-error';
 

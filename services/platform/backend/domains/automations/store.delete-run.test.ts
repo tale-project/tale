@@ -22,7 +22,11 @@ vi.mock('../audit_logs/service.ts', async (importOriginal) => ({
 
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { auditChainQueueKey, createAuditLog } from '../audit_logs/service.ts';
-import { automationTombstone, deleteRunInTx } from './store.ts';
+import {
+  automationTombstone,
+  deleteAutomationCascade,
+  deleteRunInTx,
+} from './store.ts';
 
 interface Statement {
   text: string;
@@ -177,5 +181,81 @@ describe('automationTombstone', () => {
     await expect(
       automationTombstone(sql, 'org-1', 'orders/process'),
     ).resolves.toBeNull();
+  });
+});
+
+/**
+ * Deleting an automation: refused while one of its runs is unfinished (the
+ * stepper still needs the versions the delete would remove); otherwise the
+ * versions, the deployment, the trigger and the project installs go, a
+ * tombstone stays for the run pages, and no run is removed.
+ */
+describe('deleteAutomationCascade [AUTO-R15]', () => {
+  function fakeAutomation(unfinishedRun: string | null) {
+    const statements: Statement[] = [];
+    const tag = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      statements.push({ text, values });
+      if (text.startsWith('SELECT status FROM app.automation_runs')) {
+        return unfinishedRun === null ? [] : [{ status: unfinishedRun }];
+      }
+      return [];
+    };
+    const sql = Object.assign(tag, {
+      begin: (callback: (tx: typeof tag) => Promise<unknown>) => callback(tag),
+    }) as unknown as Sql;
+    return { sql, statements };
+  }
+
+  const automation = {
+    organizationId: 'org-1',
+    name: 'orders/process',
+    actor: 'user-1',
+  };
+
+  it.each(['queued', 'running', 'waiting'])(
+    'refuses while a run is still %s, and removes nothing',
+    async (status) => {
+      const { sql, statements } = fakeAutomation(status);
+      await expect(
+        deleteAutomationCascade(sql, automation),
+      ).rejects.toMatchObject({
+        code: 'AUTOMATION_HAS_ACTIVE_RUNS',
+        status: 409,
+      });
+      expect(statements.some((s) => /^(DELETE|INSERT)/.test(s.text))).toBe(
+        false,
+      );
+    },
+  );
+
+  it('removes the versions, the deployment, the trigger and the project installs, leaves a tombstone, and keeps every run', async () => {
+    const { sql, statements } = fakeAutomation(null);
+    await deleteAutomationCascade(sql, automation);
+    // The whole list: nothing deletes from `app.automation_runs`.
+    expect(
+      statements
+        .filter((s) => s.text.startsWith('DELETE FROM'))
+        .map((s) => s.text.split(' WHERE')[0]),
+    ).toEqual([
+      'DELETE FROM app.automations',
+      'DELETE FROM app.automation_deployments',
+      'DELETE FROM app.automation_triggers',
+      'DELETE FROM app.automation_project_bindings',
+    ]);
+    for (const removal of statements.filter((s) =>
+      s.text.startsWith('DELETE FROM'),
+    )) {
+      expect(removal.values).toEqual(['org-1', 'orders/process']);
+    }
+    const tombstone = statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.automation_tombstones'),
+    );
+    expect(tombstone?.values).toEqual([
+      'org-1',
+      'orders/process',
+      'user-1',
+      expect.any(Number),
+    ]);
   });
 });

@@ -1,10 +1,12 @@
 import { z } from 'zod';
 
+import { AGENT_TOOL_CATALOG, normalizeToolGrants } from '../agent-tool-grants';
 import { isValidAutomationName } from '../automation-name';
 import { TASK_DESCRIPTION_MAX } from '../task-limits';
 import { configurationHashSchema } from './configuration';
 import {
   PROJECT_AGENT_INSTRUCTIONS_MAX,
+  PROJECT_AGENT_BINDINGS_MAX,
   PROJECT_INSTRUCTIONS_MAX_CHARS,
 } from './projects';
 
@@ -31,6 +33,14 @@ export const managedAgentInstructionsSchema = z.strictObject({
   ...project,
   agentId: identity,
   instructions: z.string().trim().max(PROJECT_AGENT_INSTRUCTIONS_MAX),
+});
+export const managedAgentToolsSchema = z.strictObject({
+  ...project,
+  agentId: identity,
+  tools: z
+    .array(z.enum(AGENT_TOOL_CATALOG.map((tool) => tool.name)))
+    .max(PROJECT_AGENT_BINDINGS_MAX)
+    .transform((tools) => normalizeToolGrants(tools)),
 });
 export const managedTaskInstructionsSchema = z.strictObject({
   ...project,
@@ -70,6 +80,10 @@ export const managedPlatformResourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('agent-instructions'),
     config: managedAgentInstructionsSchema,
+  }),
+  z.strictObject({
+    kind: z.literal('agent-tools'),
+    config: managedAgentToolsSchema,
   }),
   z.strictObject({
     kind: z.literal('task-instructions'),

@@ -15,7 +15,7 @@ import { unequipDeletedSkill } from './unequip.ts';
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
 const tx = {} as TransactionSql;
 
-describe('unequipDeletedSkill', () => {
+describe('unequipDeletedSkill [SKILL-R16]', () => {
   it('detaches the slug from every agent in one transaction and audits the delete with them', async () => {
     detachSkillFromAgents.mockResolvedValueOnce([
       { id: 'agent-1', name: 'Reviewer', projectId: 'project-1' },

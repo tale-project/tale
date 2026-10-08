@@ -3,8 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { updateAgentTaskMetadata } from '../tasks/agent-metadata.ts';
 import { reviewAgentTask } from '../tasks/agent-review.ts';
+import { delegateAgentTaskReview } from '../tasks/review-delegation.ts';
 import { sandboxToolShimHandlers } from './shim.ts';
 
+vi.mock('../tasks/review-delegation.ts', () => ({
+  delegateAgentTaskReview: vi
+    .fn()
+    .mockResolvedValue({ approvalId: 'successor' }),
+}));
 vi.mock('../tasks/agent-review.ts', () => ({
   reviewAgentTask: vi.fn().mockResolvedValue({ decision: 'approve' }),
 }));
@@ -28,7 +34,7 @@ function fixture(
     starter?: string;
     revokedSchedule?: boolean;
   } = {},
-  lane: 'metadata' | 'review' = 'metadata',
+  lane: 'metadata' | 'review' | 'delegation' = 'metadata',
 ) {
   let inTransaction = false;
   const reads: { text: string; values: unknown[]; inTransaction: boolean }[] =
@@ -94,7 +100,9 @@ function fixture(
   const handler = sandboxToolShimHandlers(runner as unknown as Sql)[
     lane === 'metadata'
       ? 'tasks/internal_mutations:agentUpdateTaskMetadata'
-      : 'tasks/internal_mutations:agentReviewTask'
+      : lane === 'review'
+        ? 'tasks/internal_mutations:agentReviewTask'
+        : 'tasks/internal_mutations:agentDelegateTaskReview'
   ];
   if (handler === undefined) throw new Error('Missing metadata handler');
   const patch = {
@@ -224,4 +232,42 @@ describe('review session authority', () => {
       expect(reviewAgentTask).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('captured review delegation session authority', () => {
+  it('derives manager and project from the live token binding inside the transaction', async () => {
+    const f = fixture({}, 'delegation');
+    expect(await f.call()).toEqual({ approvalId: 'successor' });
+    expect(delegateAgentTaskReview).toHaveBeenCalledWith(
+      f.tx,
+      {
+        organizationId: 'org',
+        projectId: 'project',
+        agentId: 'manager',
+        sessionId: 'pa-manager',
+        execId: 'issuer-exec',
+      },
+      f.patch,
+    );
+    expect(f.reads.every((row) => row.inTransaction)).toBe(true);
+  });
+  it.each([
+    { ownerType: 'user' },
+    { ownerType: 'workflow_run' },
+    { ended: true },
+    { missingAgent: true },
+    { missingProject: true },
+    { runAgent: 'other' },
+    { runProject: 'other' },
+    { memberWorkspace: true },
+    { role: 'member' },
+    { role: null },
+    { role: 'disabled' },
+    { starter: 'trigger:schedule', revokedSchedule: true },
+  ])('refuses lost starter/session authority %j', async (options) => {
+    await expect(fixture(options, 'delegation').call()).rejects.toMatchObject({
+      data: { code: 'TASK_REVIEW_FORBIDDEN' },
+    });
+    expect(delegateAgentTaskReview).not.toHaveBeenCalled();
+  });
 });

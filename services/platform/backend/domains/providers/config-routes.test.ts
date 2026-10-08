@@ -168,7 +168,7 @@ describe('native custom provider definition HTTP door', () => {
     ).toEqual({ config: null, hash: null });
   });
 
-  it('rejects non-admin writes, malformed JSON and unknown fields without echoing submitted content', async () => {
+  it('rejects non-admin writes, malformed JSON and unknown fields without echoing submitted content [PROV-R1] [PROV-R2]', async () => {
     caller.role = 'member';
     expect((await put({ config: definition, expectedHash: null })).status).toBe(
       403,
@@ -264,7 +264,7 @@ describe('native custom provider definition HTTP door', () => {
     ).toBe(404);
   });
 
-  it('deletes a definition behind the role gate and the in-use refusal, archiving its preimage', async () => {
+  it('deletes a definition behind the role gate and the in-use refusal, archiving its preimage [PROV-R1] [PROV-R3] [PROV-R4]', async () => {
     expect((await put({ config: definition, expectedHash: null })).status).toBe(
       200,
     );

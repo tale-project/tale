@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react';
+import type { ComponentProps, ElementType, MouseEvent, ReactNode } from 'react';
 import { vi } from 'vitest';
 
 /**
@@ -21,34 +21,41 @@ import { vi } from 'vitest';
  */
 export function createRouterStub(pathname = '/') {
   const navigate = vi.fn();
+  const Link = ({
+    to,
+    children,
+    onClick,
+    activeOptions: _activeOptions,
+    _asChild: Anchor = 'a',
+    preload: _preload,
+    ...rest
+  }: {
+    to: string;
+    children: ReactNode;
+    onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
+    activeOptions?: unknown;
+    _asChild?: ElementType;
+    preload?: unknown;
+  } & Record<string, unknown>) => (
+    <Anchor
+      href={to}
+      // The real `Link` intercepts the click; without this jsdom logs
+      // "Not implemented: navigation to another Document" on every row test.
+      onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+        event.preventDefault();
+        onClick?.(event);
+      }}
+      {...rest}
+    >
+      {children}
+    </Anchor>
+  );
   return {
-    Link: ({
-      to,
-      children,
-      onClick,
-      activeOptions: _activeOptions,
-      preload: _preload,
-      ...rest
-    }: {
-      to: string;
-      children: ReactNode;
-      onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
-      activeOptions?: unknown;
-      preload?: unknown;
-    } & Record<string, unknown>) => (
-      <a
-        href={to}
-        // The real `Link` intercepts the click; without this jsdom logs
-        // "Not implemented: navigation to another Document" on every row test.
-        onClick={(event) => {
-          event.preventDefault();
-          onClick?.(event);
-        }}
-        {...rest}
-      >
-        {children}
-      </a>
-    ),
+    Link,
+    createLink:
+      (Anchor: ElementType) => (props: ComponentProps<typeof Link>) => (
+        <Link {...props} _asChild={Anchor} />
+      ),
     useNavigate: () => navigate,
     useRouterState: ({
       select,

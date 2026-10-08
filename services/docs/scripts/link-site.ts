@@ -24,6 +24,7 @@ import {
 } from '@tale/ui/docs/links';
 import { slugRoute } from '@tale/ui/docs/redirects';
 
+import { firstNavSlug } from '../lib/content/nav';
 import { docPath } from '../lib/content/paths';
 import { docsNearMissIndex } from '../lib/near-miss';
 import { buildRedirectPathMap, resolveRedirect } from '../lib/redirects';
@@ -78,7 +79,7 @@ function split(pathname: string): { locale: string; route: string } {
 
 /** The content file behind a page, relative to the content root. */
 function pageFile(locale: string, route: string): string | undefined {
-  const slugs = route === '' ? ['index'] : [route, `${route}/index`];
+  const slugs = route === '' ? [firstNavSlug()] : [route, `${route}/index`];
   for (const slug of slugs) {
     for (const extension of ['.md', '.mdx']) {
       const file = `/${locale}/${slug}${extension}`;
@@ -115,6 +116,10 @@ export function answerDocsPath(pathname: string): AddressAnswer {
     return { kind: 'file' };
   }
   const markdown = pathname.endsWith('.md');
+  if (markdown) {
+    const target = resolveRedirect(pathname, PATHS);
+    if (target !== null) return { kind: 'redirect', to: target };
+  }
   const { locale, route } = split(
     markdown ? pathname.replace(/\.md$/, '').replace(/\/index$/, '') : pathname,
   );

@@ -9,7 +9,6 @@ import { RoutedMarkdown } from '@tale/ui/markdown/routed-markdown';
 import {
   buildArticleJsonLd,
   buildBreadcrumbListJsonLd,
-  buildWebSiteJsonLd,
 } from '@tale/ui/seo/builders/json-ld';
 import { pageAsMarkdown } from '@tale/ui/seo/builders/page-as-markdown';
 import { resolveFullTitle } from '@tale/ui/seo/document-meta';
@@ -19,7 +18,7 @@ import { DocsImage } from '@/app/components/docs/docs-image';
 import { DocsVideo } from '@/app/components/docs/docs-video';
 import { docEditUrl } from '@/lib/content/edit-url';
 import { getDocPage } from '@/lib/content/loader';
-import { navGroupTrail } from '@/lib/content/nav';
+import { firstNavSlug, navGroupTrail } from '@/lib/content/nav';
 import { navNeighbours } from '@/lib/content/nav-sections';
 import { docMarkdownUrl, docPath, docUrl, SITE_URL } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
@@ -50,7 +49,6 @@ function buildBreadcrumbs(
   slug: string,
   translateGroup: (key: string) => string,
 ): { label: string; slug?: string }[] {
-  if (slug === 'index') return [];
   const parts = slug.split('/').filter((p) => p !== 'index');
   const groups = navGroupTrail(slug);
   return parts.map((part, i) => {
@@ -141,7 +139,7 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
   // its own leaf rather than a separator pointing at nothing.
   const trail = useMemo<DocsCrumb[]>(
     () => [
-      { label: t('home'), href: docPath(locale, 'index') },
+      { label: t('home'), href: docPath(locale, firstNavSlug()) },
       ...breadcrumbs.map((crumb) => ({
         label: crumb.label,
         href: crumb.slug ? docPath(locale, crumb.slug) : undefined,
@@ -204,23 +202,15 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
         inLanguage: locale,
       }),
       buildBreadcrumbListJsonLd([
-        { name: 'Docs', url: docUrl(locale, 'index') },
+        { name: 'Docs', url: docUrl(locale, firstNavSlug()) },
         ...breadcrumbs.map((c) => ({
           name: c.label,
           url: c.slug ? docUrl(locale, c.slug) : url,
         })),
       ]),
     ];
-    if (slug === 'index') {
-      nodes.push(
-        buildWebSiteJsonLd({
-          name: doc.frontmatter.title,
-          url,
-        }),
-      );
-    }
     return nodes;
-  }, [doc, url, breadcrumbs, locale, slug]);
+  }, [doc, url, breadcrumbs, locale]);
 
   useDocumentMeta({
     title: buildMetaTitle(breadcrumbs, tSeo('siteTitle')),

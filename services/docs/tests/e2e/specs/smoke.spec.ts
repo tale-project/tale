@@ -25,17 +25,60 @@ const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url), {
 const PHONE = { width: 393, height: 852 };
 
 test.describe('docs smoke', () => {
-  test('landing renders with a search affordance and no console errors', async ({
+  test('the root renders the first guide with search and no console errors', async ({
     page,
   }) => {
     const errors = collectConsoleErrors(page);
     await page.goto('/');
     await expectPageRenders(page);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Send your first message',
+    );
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      'href',
+      /\/get-started\/quickstart$/,
+    );
+    await expect(page.locator('footer')).toContainText(
+      t('siteFooter.copyright').replace(
+        '{year}',
+        String(new Date().getFullYear()),
+      ),
+    );
     await expect(
       page.getByRole('button', { name: t('docs.openSearch') }).first(),
     ).toBeVisible();
     expect(errors).toEqual([]);
   });
+
+  for (const locale of ['de', 'fr']) {
+    const { t: tLocale } = createI18n(
+      new URL(`../../../messages/${locale}.yml`, import.meta.url),
+      {
+        packages: [
+          new URL(
+            `../../../../../packages/ui/src/i18n/messages/${locale}.yml`,
+            import.meta.url,
+          ),
+        ],
+      },
+    );
+    test(`the ${locale} root opens its first guide`, async ({ page }) => {
+      await page.goto(`/${locale}`);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(page.locator('html')).toHaveAttribute('lang', locale);
+      await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+        'href',
+        new RegExp(`/${locale}/get-started/quickstart$`),
+      );
+      await expect(page.locator('article')).toBeVisible();
+      await expect(page.locator('footer')).toContainText(
+        tLocale('siteFooter.copyright').replace(
+          '{year}',
+          String(new Date().getFullYear()),
+        ),
+      );
+    });
+  }
 
   test('the rail is the labelled navigation landmark', async ({ page }) => {
     await page.goto('/self-hosted/install/quickstart');
@@ -162,7 +205,7 @@ test.describe('docs smoke', () => {
     await menu.click();
     await page
       .getByRole('dialog')
-      .locator('a[href="/get-started/quickstart"]')
+      .getByRole('link', { name: 'Send your first message', exact: true })
       .click();
     await expect(page.getByRole('dialog')).toBeHidden();
     await expect(page).toHaveURL(/\/get-started\/quickstart$/);

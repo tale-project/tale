@@ -16,7 +16,7 @@ guide ([search.md](search.md)).
 
 | Surface        | Route                                                                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Landing        | `{base}/` — discovery page; see [home](home.md)                                                                                                                                 |
+| Landing        | `{base}/` — first guide in the shared frame; see [home](home.md)                                                                                                                                 |
 | Content page   | any slug, e.g. `{base}/self-hosted/install/quickstart`                                                                                    |
 | Nested group   | `{base}/platform/chat/…` (sub-groups inside **Platform**)                                                                                 |
 | Unknown URL    | `{base}/nope-not-a-page` → styled 404                                                                                                     |
@@ -63,10 +63,10 @@ this guide focuses on **behaviour**, not link rot.
   **only** row that does — and is scrolled into view within the rail.
 - [ ] `NAV-F4` · **Breadcrumbs** — On a nested page, read the `<nav
   aria-label>` = **Breadcrumbs** (`docs.breadcrumbs`) in the header strip →
-  Trail = **Home** (`docs.home`, links to `{base}/`) → group labels → current
+  Trail = **Home** (`docs.home`, links to the locale's first guide) → group labels → current
   page (marked `aria-current="page"`, not a link, and **not** a heading — the
   page's only `<h1>` is the article title below); clicking a crumb navigates there.
-  The locale-root discovery page has its own marketing header, without an article trail.
+  The locale-root first guide has the same frame and article trail as its deep URL.
   Below 1024 px only the immediate parent precedes the current page; at any
   width a long trail truncates its crumbs with an ellipsis (Home keeps its
   width) and never runs past the strip or pushes the page actions away.

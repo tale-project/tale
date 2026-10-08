@@ -71,6 +71,14 @@ function declaration() {
         },
       },
       {
+        kind: 'agent-tools',
+        config: {
+          projectId: 'project-1',
+          agentId: 'agent-1',
+          tools: ['task_review', 'task_get', 'task_review'],
+        },
+      },
+      {
         kind: 'task-instructions',
         config: {
           projectId: 'project-1',
@@ -90,9 +98,11 @@ function native(resources: PlatformResource[]) {
         ? null
         : {
             ...resource.config,
-            ...('description' in resource.config
-              ? { description: 'before' }
-              : { instructions: 'before' }),
+            ...(resource.kind === 'agent-tools'
+              ? { tools: ['task_get'] }
+              : 'description' in resource.config
+                ? { description: 'before' }
+                : { instructions: 'before' }),
           },
     ]),
   );
@@ -112,17 +122,21 @@ function native(resources: PlatformResource[]) {
           ? (new URL(path, 'https://example.invalid').searchParams.get(
               'kind',
             ) ??
-            (path.startsWith('/api/app/tasks/')
-              ? 'task-instructions'
-              : path.includes('/agents/')
-                ? 'agent-instructions'
-                : 'project-instructions'))
+            (path.endsWith('/configuration/tools')
+              ? 'agent-tools'
+              : path.startsWith('/api/app/tasks/')
+                ? 'task-instructions'
+                : path.includes('/agents/')
+                  ? 'agent-instructions'
+                  : 'project-instructions'))
           : ((body?.resource as PlatformResource | undefined)?.kind ??
-            (path.startsWith('/api/app/tasks/')
-              ? 'task-instructions'
-              : path.includes('/agents/')
-                ? 'agent-instructions'
-                : 'project-instructions'));
+            (path.endsWith('/configuration/tools')
+              ? 'agent-tools'
+              : path.startsWith('/api/app/tasks/')
+                ? 'task-instructions'
+                : path.includes('/agents/')
+                  ? 'agent-instructions'
+                  : 'project-instructions'));
       const selected = resources.find((resource) => resource.kind === kind);
       if (!selected) throw new Error('unknown native resource');
       const key = resourceId(selected);
@@ -181,6 +195,7 @@ function native(resources: PlatformResource[]) {
 
 describe('managed native configuration', () => {
   test.each([
+    'agent-tools',
     'automation-definition',
     'automation-deployment',
     'automation-schedule',
@@ -203,6 +218,7 @@ describe('managed native configuration', () => {
       expect(api.writes.map(({ kind }) => kind)).toEqual([
         'project-instructions',
         'agent-instructions',
+        'agent-tools',
         'task-instructions',
         'automation-definition',
         'automation-deployment',
@@ -217,8 +233,8 @@ describe('managed native configuration', () => {
       );
       expect(result.unchanged).toBe(true);
       expect(api.writes).toHaveLength(before);
-      for (const { body } of api.writes.filter(({ kind }) =>
-        kind.endsWith('instructions'),
+      for (const { body } of api.writes.filter(
+        ({ kind }) => kind.endsWith('instructions') || kind === 'agent-tools',
       )) {
         expect(Object.keys(body).sort()).toEqual(['config', 'expectedHash']);
         expect(body).not.toHaveProperty('status');
@@ -333,5 +349,107 @@ test('CLI cache inputs include both native JSON identity modules used by the par
         ]),
       },
     },
+  });
+});
+
+describe('managed tool preimages', () => {
+  const resource = {
+    kind: 'agent-tools' as const,
+    config: {
+      projectId: 'project-1',
+      agentId: 'agent-1',
+      tools: ['task_get', 'task_review'],
+    },
+  };
+
+  test('canonical grant sets have one source identity and hash', () => {
+    const parsed = parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [
+        {
+          ...resource,
+          config: {
+            ...resource.config,
+            tools: ['task_review', 'task_get', 'task_review'],
+          },
+        },
+      ],
+    });
+    expect(parsed.resources).toEqual([resource]);
+    expect(resourceId(resource)).toBe('agent-tools/project-1/agent-1');
+    const nativeHash = managedConfigurationHash(resource.config);
+    if (nativeHash === null) throw new Error('Expected an existing resource');
+    expect(valueHash(parsed.resources[0]!.config)).toBe(nativeHash);
+    expect(() =>
+      parsePlatformConfiguration({
+        schemaVersion: 1,
+        resources: [resource, resource],
+      }),
+    ).toThrow();
+  });
+
+  test.each([
+    { ...resource.config, projectId: 'other-project' },
+    { ...resource.config, agentId: 'other-agent' },
+    { ...resource.config, tools: ['future_unknown_grant'] },
+    { ...resource.config, tools: ['task_review', 'task_get'] },
+    { ...resource.config, secrets: ['PRIVATE_TOKEN'] },
+    null,
+  ])(
+    'rejects inconsistent, noncanonical or unowned native readback: %j',
+    async (config) => {
+      const client = {
+        request: async () => ({
+          config,
+          hash: config === null ? null : valueHash(config),
+        }),
+      } as unknown as PlatformConfigurationClient;
+      await expect(readManagedResource(client, resource)).rejects.toThrow();
+    },
+  );
+
+  test('refuses a tool edit after planning before any source resource is written', async () => {
+    const configuration = declaration();
+    const api = native(configuration.resources);
+    const plan = await planPlatformConfiguration(configuration, api.client);
+    api.state.set(resourceId(resource), {
+      ...resource.config,
+      tools: ['task_find', 'task_get'],
+    });
+    const directory = await mkdtemp(join(tmpdir(), 'managed-tools-'));
+    roots.push(directory);
+    await expect(
+      applyPlatformConfiguration(
+        configuration,
+        plan,
+        api.client,
+        join(directory, 'receipt.json'),
+      ),
+    ).rejects.toThrow('changed since planning');
+    expect(api.writes).toEqual([]);
+  });
+
+  test('fails closed when the selected runtime lacks the native tools facet', async () => {
+    const configuration = declaration();
+    const api = native(configuration.resources);
+    const supported = api.client.request;
+    api.client.request = async (...args) => {
+      if (args[0].endsWith('/configuration/tools'))
+        throw new Error('404 unsupported native configuration facet');
+      return supported(...args);
+    };
+    await expect(
+      planPlatformConfiguration(configuration, api.client),
+    ).rejects.toThrow('unsupported native configuration facet');
+    expect(api.writes).toEqual([]);
+  });
+
+  test('rejects a native hash that does not describe the returned tools', async () => {
+    const client = {
+      request: async () => ({ config: resource.config, hash: '0'.repeat(64) }),
+    } as unknown as PlatformConfigurationClient;
+    await expect(readManagedResource(client, resource)).rejects.toThrow(
+      'native identity or hash',
+    );
   });
 });

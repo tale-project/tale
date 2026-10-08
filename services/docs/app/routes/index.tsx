@@ -1,6 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { HomePage } from '@/app/pages/home-page';
+import { DocsPage } from '@/app/pages/docs-page';
+import { ensureDocBody } from '@/lib/content/loader';
+import { firstNavSlug } from '@/lib/content/nav';
+import { docPath } from '@/lib/content/paths';
+
 export const Route = createFileRoute('/')({
-  component: () => <HomePage locale="en" />,
+  loader: async () => {
+    const slug = firstNavSlug();
+    await ensureDocBody('en', slug);
+    return { analyticsPath: docPath('en', slug) };
+  },
+  component: () => <DocsPage locale="en" slug={firstNavSlug()} />,
 });

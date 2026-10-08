@@ -15,6 +15,7 @@ import {
   CANNED_ERROR_MESSAGE,
   CANNED_REPLY,
   CANNED_STREAM_ERROR_MESSAGE,
+  MOCK_SERVING,
   MOCK_TRIGGERS,
 } from '../overrides/canned';
 import { DOCS_REPLIES } from '../overrides/docs-replies';
@@ -145,6 +146,50 @@ describe('chat/completions override', () => {
     expect(last?.choices).toMatchObject([{ finish_reason: 'error' }]);
     // The stream ends on the failure: no [DONE] after it.
     expect(text).not.toContain('[DONE]');
+  });
+
+  test('gateway-route trigger names its upstream on every chunk, the way OpenRouter does', async () => {
+    const res = await post('/v1/chat/completions', {
+      model: 'anthropic/claude-sonnet-4.6',
+      stream: true,
+      messages: [{ role: 'user', content: `${MOCK_TRIGGERS.gatewayRoute} hi` }],
+    });
+    expect(res.headers.get('x-ms-region')).toBeNull();
+    const chunks = events(await res.text());
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(chunk).toMatchObject({
+        provider: MOCK_SERVING.upstream,
+        model: `anthropic/claude-sonnet-4.6${MOCK_SERVING.modelSuffix}`,
+      });
+    }
+  });
+
+  test('cloud-region trigger names its region in a header, the way Azure does', async () => {
+    const res = await post('/v1/chat/completions', {
+      model: 'gpt-4o-ch',
+      stream: true,
+      messages: [{ role: 'user', content: `${MOCK_TRIGGERS.cloudRegion} hi` }],
+    });
+    expect(res.headers.get('x-ms-region')).toBe(MOCK_SERVING.region);
+    const chunks = events(await res.text());
+    expect(chunks[0]).toMatchObject({
+      model: `gpt-4o-ch${MOCK_SERVING.modelSuffix}`,
+    });
+    expect(chunks[0]).not.toHaveProperty('provider');
+  });
+
+  test('a plain stream names no upstream and no region', async () => {
+    const res = await post('/v1/chat/completions', {
+      model: 'm',
+      stream: true,
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect(res.headers.get('x-ms-region')).toBeNull();
+    for (const chunk of events(await res.text())) {
+      expect(chunk).not.toHaveProperty('provider');
+      expect(chunk.model).toBe('m');
+    }
   });
 
   test('docs phrase streams its scripted reply (reasoning first)', async () => {

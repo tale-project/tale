@@ -1,0 +1,28 @@
+modeLabel: Mode
+modeTokenize: Tokenize
+modeMask: Mask
+modeBlock: Block
+modeTokenizeDesc: Replace PII with indexed tokens before sending; restore the
+  original details in the response.
+modeMaskDesc: Replace PII with generic placeholders. One-way — the original
+  details are not recoverable.
+modeBlockDesc:
+  Reject the message outright when PII is detected. The user sees a
+  block notice instead of a reply.
+patternsTitle: Detection patterns
+patternsDescription: Pick which types of personal data the detector should look for.
+customPatternsTitle: Custom regex rules
+customPatternsDescription: Define additional patterns the built-ins do not
+  cover. Each rule needs a name, a regular expression and the replacement text
+  used in mask mode.
+customPatternNameLabel: Name
+customPatternNamePlaceholder: e.g. Employee ID
+customPatternRegexLabel: Pattern
+customPatternRegexPlaceholder: e.g. EMP-\d{6}
+customPatternReplacementLabel: Replacement
+customPatternReplacementPlaceholder: e.g. [EMPLOYEE_ID]
+customPatternInvalidRegex: This regular expression is not valid.
+addCustomPattern: Add custom pattern
+removeCustomPattern: Remove
+saveCustomPattern: Save pattern
+cancelCustomPattern: Cancel

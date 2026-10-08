@@ -205,7 +205,7 @@ docker compose ps
 docker compose logs --tail=100 backend-api backend-worker
 ```
 
-Confirm healthy services, successful backend migrations, and worker progress. Open the public URL, follow [First administrator](/self-hosted/install/first-admin), configure a provider and embedding model, and test a controlled chat, file upload/download, and knowledge query. If harnesses are required, verify a sandbox session too.
+Confirm healthy services, successful backend migrations, and worker progress. Open the public URL, follow [First administrator](/self-hosted/install/first-admin), configure a provider and embedding model, and test a controlled chat, file upload/download, and knowledge query. If agent runtimes are required, verify a sandbox session too.
 
 Database migrations run at backend boot. Your deployment procedure must keep compatible versions serving during that work, stop on migration failures, drain active work before replacement, and retain a recovery record. The CLI's blue-green coordination, pending-flip recovery, automatic snapshots, and rollback checks do not happen merely because you copied its service layout.
 

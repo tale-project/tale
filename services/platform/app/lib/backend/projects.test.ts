@@ -99,7 +99,7 @@ describe('project read adapters', () => {
 
     const projects = (await row?.queryFn()) as Record<string, unknown>[];
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/app/projects?includeArchived=false&orgId=org-1',
+      '/api/app/projects?includeArchived=false&summary=true&orgId=org-1',
       expect.anything(),
     );
     const view = projects[0];
@@ -144,11 +144,60 @@ describe('project read adapters', () => {
       overdueTruncated: boolean;
     };
     expect(window.fetch).toHaveBeenCalledWith(
-      '/api/app/projects/overview?includeArchived=true&asOf=5000&orgId=org-1',
+      '/api/app/projects/overview?includeArchived=true&summary=true&asOf=5000&orgId=org-1',
       expect.anything(),
     );
     expect(result.projects[0]?.overdueTaskCount).toBe(4);
     expect(result.projects[0]?.openTaskCount).toBe(2);
+  });
+
+  it('keeps instructions in detail while metadata caches omit an older server response body', async () => {
+    const instructions = 'Retained project instructions. '.repeat(600);
+    const project = wireProject({
+      instructions,
+      description: 'Keep this card description',
+      overdueTaskCount: 4,
+    });
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation((url) =>
+        Promise.resolve(
+          jsonResponse(
+            200,
+            typeof url === 'string' && url.includes('/projects/p1?')
+              ? { project }
+              : { projects: [project], overdueTruncated: false },
+          ),
+        ),
+      );
+    for (const name of [
+      'projects/queries:listProjects',
+      'projects/queries:listProjectsOverview',
+      'projects/queries:listSidebarProjects',
+      'projects/queries:searchProjects',
+      'projects/search:searchProjects',
+    ]) {
+      const adapter = projectReadAdapters[name]?.(
+        { organizationId: 'org-1', query: 'Apollo' },
+        {},
+      );
+      const result: unknown = await adapter?.queryFn();
+      expect(result).not.toBeNull();
+      expect(JSON.stringify(result)).not.toContain(instructions);
+      expect(fetchSpy.mock.calls.at(-1)?.[0]).toContain('summary=true');
+      if (name === 'projects/queries:listProjects')
+        expect(result).toEqual([
+          expect.objectContaining({ description: project.description }),
+        ]);
+    }
+    const detail = projectReadAdapters['projects/queries:getProject']?.(
+      { organizationId: 'org-1', projectId: 'p1' },
+      {},
+    );
+    await expect(detail?.queryFn()).resolves.toMatchObject({ instructions });
+    expect(fetchSpy.mock.calls.at(-1)?.[0]).toBe(
+      '/api/app/projects/p1?orgId=org-1',
+    );
   });
 
   it('maps a 404/403 project detail to null — the 0.4 not-found answer', async () => {

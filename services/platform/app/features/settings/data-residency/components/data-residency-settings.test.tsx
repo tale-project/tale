@@ -412,7 +412,7 @@ describe('DataResidencySettings', () => {
       ),
     ).toBeInTheDocument();
 
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 
   it('saves the org knowledge connection through the header controller, keeping the stored password', async () => {
@@ -1538,7 +1538,7 @@ describe('DataResidencySettings', () => {
       within(orgSection).getByRole('switch', { name: 'External S3' }),
     ).toBeChecked();
 
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 
   it('shows the org storage default state when nothing is configured', () => {
@@ -1599,7 +1599,7 @@ describe('DataResidencySettings', () => {
       within(knowledgeSection).getByRole('textbox', { name: 'Host' }),
     ).toHaveAttribute('readonly');
 
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 
   it('saves the org storage connection and omits blank optional fields', async () => {

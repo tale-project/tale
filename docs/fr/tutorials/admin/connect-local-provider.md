@@ -20,7 +20,7 @@ Ollama, LM Studio et vLLM peuvent exposer des API compatibles, mais cela dépend
 2. Sélectionne la définition de fournisseur préparée par l’opérateur, ou choisis **Fournisseur personnalisé** pour en définir un toi-même ; un fournisseur que tu as défini porte le badge **Personnalisé**.
 3. Donne un nom utile à cet accès et choisis une méthode d’authentification proposée.
 4. Saisis le vrai jeton du serveur ou la référence de variable d’environnement fournie. Si le serveur ignore l’authentification, conviens de la valeur de remplacement avec son opérateur ; ne réutilise pas un autre secret.
-5. Vérifie la **Liste de modèles autorisés**, puis enregistre. Définis cet accès par défaut pour le fournisseur si les appels ordinaires doivent l’utiliser.
+5. Vérifie le champ **Modèles autorisés**, puis enregistre. Définis cet accès par défaut pour le fournisseur si les appels ordinaires doivent l’utiliser.
 
 <Frame caption="L’accès fournisseur appartient à l’organisation ; sa valeur par défaut et sa liste de modèles influencent la sélection.">
 

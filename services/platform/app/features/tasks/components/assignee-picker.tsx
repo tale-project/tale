@@ -15,7 +15,7 @@ import { toast } from '@tale/ui/use-toast';
 import { useTriggerTooltipGuard } from '@tale/ui/use-trigger-tooltip-guard';
 import { CircleHelp, Plus, UserX } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
 import { ProjectAgentCreateDialog } from '@/app/features/projects/components/project-agent-create-dialog';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
@@ -24,11 +24,10 @@ import { useT } from '@/lib/i18n/client';
 
 import { useCancelTaskAgentRun } from '../hooks/mutations';
 import {
-  type ActorDirectory,
-  useActorDirectory,
-  useAssignableActors,
-  useProvidedActorDirectory,
-} from '../hooks/use-actor-directory';
+  ActorDirectoryBoundary,
+  useSharedActorDirectory,
+  useSharedAssignableActors,
+} from '../hooks/task-actor-directory';
 import {
   taskSubjectEntries,
   useTaskContractAutomations,
@@ -98,37 +97,42 @@ interface AssigneePickerProps {
  * Until its first use the picker is only the avatar: the list, its candidate
  * reads, the handoff guard and their writes mount when it is first opened and
  * stay mounted from then on. Every card and row of a board carries one, and
- * mounting them all closed cost a 2,000-task board seconds (#4062). The name
+ * mounting them all closed cost a 2,000-task board seconds. The name
  * comes from the directory an `ActorDirectoryProvider` provides (the board's,
  * the task's) or, without one, from the picker's own.
  */
-export function AssigneePicker(props: AssigneePickerProps) {
-  const provided = useProvidedActorDirectory(
+export const AssigneePicker = memo(function AssigneePicker(
+  props: AssigneePickerProps,
+) {
+  return (
+    <ActorDirectoryBoundary
+      organizationId={props.organizationId}
+      projectId={props.projectId}
+    >
+      <AssigneePickerTrigger {...props} />
+    </ActorDirectoryBoundary>
+  );
+});
+
+/** The avatar a closed picker shows, until its first use mounts the list. */
+function AssigneePickerTrigger(props: AssigneePickerProps) {
+  const { t } = useT('tasks');
+  const directory = useSharedActorDirectory(
     props.organizationId,
     props.projectId,
   );
-  return provided ? (
-    <AssigneePickerTrigger {...props} directory={provided} />
-  ) : (
-    <AssigneePickerOwnDirectory {...props} />
-  );
-}
-
-function AssigneePickerOwnDirectory(props: AssigneePickerProps) {
-  const directory = useActorDirectory(props.organizationId, props.projectId);
-  return <AssigneePickerTrigger {...props} directory={directory} />;
-}
-
-/** The avatar a closed picker shows, until its first use mounts the list. */
-function AssigneePickerTrigger({
-  directory,
-  ...props
-}: AssigneePickerProps & {
-  directory: Pick<ActorDirectory, 'resolveActor' | 'currentUserId'>;
-}) {
-  const { t } = useT('tasks');
   const [engaged, setEngaged] = useState(false);
-  if (engaged) return <AssigneePickerList {...props} defaultOpen />;
+  if (engaged) {
+    return (
+      <ActorDirectoryBoundary
+        organizationId={props.organizationId}
+        projectId={props.projectId}
+        assignable
+      >
+        <AssigneePickerList {...props} defaultOpen />
+      </ActorDirectoryBoundary>
+    );
+  }
 
   const {
     assigneeType,
@@ -227,7 +231,7 @@ function AssigneePickerList({
     canAddAgents,
     projectResolved,
     standardAgentAvailable,
-  } = useAssignableActors(organizationId, projectId);
+  } = useSharedAssignableActors(organizationId, projectId);
   // Settled on "this project has no agent", so neither the create row nor
   // the reader's note flashes over a list or a role that is still loading.
   // A project the read could not return stays silent: who may add to it is

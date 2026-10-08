@@ -1,0 +1,75 @@
+title: Home
+newChat: New chat
+panel:
+  hide: Hide sidebar
+  show: Show sidebar
+views:
+  label: Show
+  all: All
+  chats: Chats
+  tasks: Tasks
+  inbox: Inbox
+groups:
+  pinned: Pinned
+  today: Today
+  yesterday: Yesterday
+  thisWeek: Previous 7 days
+  earlier: Earlier
+  searchPlaceholderAll: Search all...
+  searchPlaceholderChats: Search chats...
+  searchPlaceholderTasks: Search tasks...
+  newChatInProject: 'New chat in {project}'
+projects:
+  title: Projects
+  newProject: New project
+  allProjects: All projects
+  actions: 'Actions for {project}'
+  empty: No projects yet
+scope:
+  open: Open project
+  emptyChatsTitle: No chats in this project
+  emptyChatsHint: Chats filed in this project show up here.
+  emptyTasksTitle: No open tasks assigned to you in this project
+  emptyTasksHint: Tasks assigned to you in this project show up here.
+inbox:
+  statusLabel: '{status}, conversation status'
+  compose: New email
+  clearSelection: Clear selection
+  status:
+    open: Open
+    closed: Closed
+    spam: Spam
+    archived: Archived
+row:
+  untitledChat: Untitled chat
+  chat: Chat
+  draft: Draft
+  unread: Unread
+  generating: Writing a reply…
+  awaitingReview: Waiting for your review
+empty:
+  all:
+    title: Nothing here yet
+    hint: Start a chat, or pick up a task from a project.
+  chats:
+    title: No chats yet
+    hint: Your conversations with the assistant show up here.
+  tasks:
+    title: Nothing assigned to you
+    hint: Open tasks assigned to you in any project show up here.
+  inbox:
+    title: No conversations
+    hint: Customer conversations for this status show up here.
+    filtered: No conversation matches the search or filters.
+# A read that gave up (#4093): one line per kind the view lists, joined
+# when more than one failed, above the rows that did load.
+failed:
+  chats: Couldn't load your chats.
+  tasks: Couldn't load your tasks.
+  conversations: Couldn't load the customer conversations.
+  retrying: Trying again…
+aria:
+  panel: Home
+  stream: Your chats, tasks and conversations
+  inbox: Inbox conversations
+  attention: '{count, plural, one {# item needs you} other {# items need you}}'

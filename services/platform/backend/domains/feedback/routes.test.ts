@@ -61,7 +61,7 @@ async function vote(body: Record<string, unknown>): Promise<Response> {
   });
 }
 
-describe('feedback route — the vote key is server-owned', () => {
+describe('feedback route — the vote key is server-owned [FDBK-R2]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     submitMessageFeedback.mockResolvedValue(undefined);

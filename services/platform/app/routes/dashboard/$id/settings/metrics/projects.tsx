@@ -15,13 +15,10 @@ import { BarChart3 } from 'lucide-react';
 import { useCallback, useEffect } from 'react';
 import { z } from 'zod';
 
-import {
-  LazyProjectMetricsPage,
-  loadProjectMetricsPage,
-} from '@/app/features/analytics/lazy-metrics-pages';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { ProjectMetricsPage } from '@/app/features/tasks/components/project-metrics-page';
 import { useT } from '@/lib/i18n/client';
 
 const searchSchema = metricsPeriodSearchSchema.extend({
@@ -32,9 +29,6 @@ export const Route = createFileRoute(
   '/dashboard/$id/settings/metrics/projects',
 )({
   validateSearch: searchSchema,
-  loader: () => {
-    void loadProjectMetricsPage();
-  },
   component: ProjectsMetricsRoute,
 });
 
@@ -130,7 +124,7 @@ function ProjectsMetricsRoute() {
     return (
       <SettingsPage fullWidth>
         <Skeletonize loading={projectsLoading}>
-          <LazyProjectMetricsPage
+          <ProjectMetricsPage
             scopeControl={scopeSelect}
             organizationId={organizationId}
             projectId={selectedProjectId}

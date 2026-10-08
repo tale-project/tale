@@ -17,7 +17,7 @@ Dockerfiles use the repository root as their build context. Open the relevant Do
 | `tale-db` | `services/db/` | PostgreSQL with the supplied search/vector extensions, based on ParadeDB. Both application and knowledge database services use it. |
 | `tale-proxy` | `services/proxy/` | Caddy configuration and proxy startup. |
 | `tale-sandbox` | `services/sandbox/` | Sandbox orchestration, including Bun and the Docker CLI. |
-| `tale-sandbox-runtime` | `services/sandbox-runtime/` | Python-based execution environment with coding harnesses, Node, Bun, browsers and document tools. |
+| `tale-sandbox-runtime` | `services/sandbox-runtime/` | Python-based execution environment with agent runtimes, Node, Bun, browsers and document tools. |
 | `tale-sandbox-egress` | `services/sandbox-egress/` | Alpine-based outbound proxy and DNS support. |
 | `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | BuildKit with the sandbox’s networking and startup configuration. |
 | `tale-sandbox-llm-gateway` | `services/sandbox-llm-gateway/` | Model gateway built from Bifrost. |

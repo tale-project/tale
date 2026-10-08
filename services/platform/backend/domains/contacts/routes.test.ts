@@ -69,26 +69,29 @@ describe('contact file import validation', () => {
     'ui-eval-r2-data-no-at',
     '',
     'a'.repeat(65) + '@example.test',
-  ])('refuses an invalid imported email as a row error: %s', async (email) => {
-    const response = await upload([good, { ...good, email }]);
-    expect(response.status).toBe(200);
-    expect(bulkCreateContacts).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ organizationId: 'o1' }),
-      [good],
-    );
-    const body = (await response.json()) as {
-      failed: number;
-      errors: { index: number; errorCode: string }[];
-    };
-    expect(body.failed).toBe(1);
-    expect(body.errors).toEqual([
-      expect.objectContaining({ index: 1, errorCode: 'INVALID_BODY' }),
-    ]);
-  });
+  ])(
+    'refuses an invalid imported email as a row error: %s [CONTACT-R8]',
+    async (email) => {
+      const response = await upload([good, { ...good, email }]);
+      expect(response.status).toBe(200);
+      expect(bulkCreateContacts).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ organizationId: 'o1' }),
+        [good],
+      );
+      const body = (await response.json()) as {
+        failed: number;
+        errors: { index: number; errorCode: string }[];
+      };
+      expect(body.failed).toBe(1);
+      expect(body.errors).toEqual([
+        expect.objectContaining({ index: 1, errorCode: 'INVALID_BODY' }),
+      ]);
+    },
+  );
 
   it.each(['not a locale', 'en-123', 'de!'])(
-    'refuses an invalid imported locale as a row error: %s',
+    'refuses an invalid imported locale as a row error: %s [CONTACT-R5] [CONTACT-R8]',
     async (locale) => {
       const response = await upload([good, { ...good, locale }]);
       expect(response.status).toBe(200);
@@ -117,7 +120,7 @@ describe('contact file import validation', () => {
     },
   );
 
-  it('applies the same locale rule to a manually entered contact', async () => {
+  it('applies the same locale rule to a manually entered contact [CONTACT-R5]', async () => {
     const response = await app.request('/?orgId=o1', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -128,7 +131,7 @@ describe('contact file import validation', () => {
 
   // Regression: the refusal carried only `invalid body`, so the import
   // dialog could not say which row or column was wrong.
-  it('names the row and column of a refused import', async () => {
+  it('names the row and column of a refused import [CONTACT-R8]', async () => {
     const response = await upload([good, { ...good, email: 'not-an-email' }]);
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
@@ -157,7 +160,11 @@ describe('contact file import validation', () => {
 
   // The import dialog refuses a longer file before sending it, reading the
   // same constant; this pins the door's half of that agreement.
-  it('takes a file of CONTACT_IMPORT_ROWS_MAX rows and refuses one more by name', async () => {
+  it('holds an import to 1,000 rows [CONTACT-R7]', () => {
+    expect(CONTACT_IMPORT_ROWS_MAX).toBe(1_000);
+  });
+
+  it('takes a file of CONTACT_IMPORT_ROWS_MAX rows and refuses one more by name [CONTACT-R7]', async () => {
     const rows = (count: number) =>
       Array.from({ length: count }, (_, i) => ({
         ...good,

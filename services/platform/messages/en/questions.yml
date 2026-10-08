@@ -1,0 +1,17 @@
+# The progressive clarifying-question flow — one question at a time, on the
+# card of an automation run that stopped to ask a person something.
+regionLabel: Question progress
+progress: Question {current} of {total}
+# Injected by the client, never authored by the model, so it is always
+# present and always in the reader's language.
+otherOption: Other…
+otherLabel: Your answer
+otherPlaceholder: Answer in your own words
+back: Back
+next: Next
+submit: Send answers
+submitOne: Send answer
+# WCAG 3.2.2 — picking an option moves the flow on, so say so beforehand.
+autoAdvanceHint: Picking an answer moves to the next question.
+multiSelectHint: Pick as many as apply.
+recommended: Recommended

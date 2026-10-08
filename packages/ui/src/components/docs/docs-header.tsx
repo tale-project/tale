@@ -1,9 +1,9 @@
 import { cn } from '@tale/ui/cn';
 import { HEADER_CRUMB_LINK_CLASS } from '@tale/ui/header-breadcrumbs';
 import { useT } from '@tale/ui/i18n/client';
-import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
+import { DocsAncestorLink } from './docs-ancestor-link';
 import type { DocsCrumb } from './docs-nav';
 
 /**
@@ -44,13 +44,13 @@ function DocsBreadcrumbTrail({ crumbs }: { crumbs: readonly DocsCrumb[] }) {
             )}
           >
             {crumb.href ? (
-              <Link
+              <DocsAncestorLink
                 to={crumb.href}
                 activeOptions={{ exact: true }}
                 className={cn(HEADER_CRUMB_LINK_CLASS, 'min-w-0 truncate')}
               >
                 {crumb.label}
-              </Link>
+              </DocsAncestorLink>
             ) : (
               <span className="min-w-0 truncate">{crumb.label}</span>
             )}

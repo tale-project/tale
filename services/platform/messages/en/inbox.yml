@@ -1,0 +1,76 @@
+taskAssigned: Task assigned to you
+taskAssignedBody: You were assigned "{title}".
+taskStatusChanged: Task status changed
+taskStatusChangedBody: '"{title}" moved from {from} to {to}.'
+taskCommented: New comment
+taskCommentedBody: New comment on "{title}".
+mention: You were mentioned
+mentionBody: You were mentioned on "{title}".
+taskAssignedByBody: '{actor} assigned you to "{title}".'
+taskUnassigned: No longer yours
+taskUnassignedBody: You were removed as the assignee of "{title}".
+taskUnassignedByBody: '{actor} took "{title}" off your plate.'
+taskStatusChangedByBody: '{actor} moved "{title}" from {from} to {to}.'
+taskCommentedByBody: '{actor} commented on "{title}".'
+mentionByBody: '{actor} mentioned you on "{title}".'
+taskReviewRequested: Review requested
+taskReviewRequestedBody: '{agentSlug} finished "{taskTitle}" — set it to Done to approve, or comment to send it back.'
+taskReviewRequestedBodyNoAgent: Agent work on "{taskTitle}" is ready for review — set the task to Done to approve, or comment to send it back.
+taskReviewRequestedByBody: '{actor} asked you to review "{taskTitle}" — set it to Done to approve, or comment to send it back.'
+taskReviewRequestedBodyHuman: '"{taskTitle}" is ready for your review — set it to Done to approve, or comment to send it back.'
+taskReviewerAssigned: You're the reviewer
+taskReviewerAssignedBody: 'You''re now the reviewer on "{taskTitle}".'
+taskReviewerAssignedByBody: '{actor} made you the reviewer on "{taskTitle}".'
+documentReviewRequested: Document review requested
+documentReviewRequestedBody: '{requestedByName} sent "{documentTitle}" (v{version}) for your review.'
+documentReviewRequestedBodyNoActor: '"{documentTitle}" (v{version}) is waiting for your review.'
+documentReviewApproved: Document approved
+documentReviewApprovedBody: '"{documentTitle}" v{version} was approved.'
+documentReviewChangesRequested: Changes requested
+documentReviewChangesRequestedBody: 'Changes were requested on "{documentTitle}": {feedback}'
+taskSlaEscalated: Overdue task escalated
+taskSlaEscalatedBody: '"{title}" is significantly overdue and needs attention.'
+taskDueSoon: Due soon
+taskDueSoonBody: '"{title}" is due soon.'
+taskStartReached: Start date reached
+taskStartReachedBody: '"{title}" starts today.'
+taskReviewReminder: Review reminder
+taskReviewReminderBody: Agent work on "{title}" is still waiting for your review.
+taskReviewEscalated: Review overdue
+taskReviewEscalatedBody: A review on "{title}" has been waiting for over a day.
+humanInputEscalated: Automation waiting on input
+humanInputEscalatedBody: An automation has been waiting on human input for {ageHours} hours.
+conversationInboundMessage: New conversation message
+conversationInboundMessageBody: 'From {sender}: "{subject}" — open your Inbox to reply.'
+conversationAssigned: Conversation assigned to you
+conversationAssignedBody: You were assigned the conversation "{subject}" — open your Inbox to reply.
+conversationAssignedByBody:
+  '{actor} assigned you the conversation "{subject}" —
+  open your Inbox to reply.'
+agentEscalation: Agent escalation
+agentEscalationBody: '{agent} escalated: {reason}'
+agentQuestionAsked: Agent needs your answer
+agentQuestionAskedBody: '{name} paused with a question on "{title}": {question}'
+agentQuestionAskedNoTaskBody: '{name} paused with a question: {question}'
+cloudSyncFailed: Cloud sync failing
+cloudSyncFailedBody: 'Syncing "{itemName}" from {provider} has been failing for over an hour ({reason}). Tale keeps retrying every 15 minutes.'
+cloudSyncNeedsReauth: Cloud sync needs reconnecting
+cloudSyncNeedsReauthBody: 'Tale can no longer access {provider} with your account, so "{itemName}" stopped syncing. Reconnect {provider} from Documents to resume.'
+usageCreditsRequested: Usage credits requested
+usageCreditsRequestedBody: '{name} reached a usage limit and asked for more credits.'
+automationTriggerPaused: Schedule paused
+automationTriggerPausedBody: '"{name}" failed {failures} runs in a row ({code}), so its schedule is paused. Fix the automation, then turn its trigger back on.'
+agentRunFailed: Agent run failed
+agentRunFailedBody: 'The agent couldn''t finish "{title}". Open the task to see why and start it again.'
+agentRunFailedBudgetBody: 'A usage limit stopped the agent on "{title}". Once an Admin raises it, start the agent again.'
+agentRunFailedSetupBody: 'The agent on "{title}" is missing something it needs. An Editor or Admin can fix it on the project''s Agents tab.'
+agentRunFailedInputBody: 'An attachment on "{title}" is no longer in storage. Remove it from the task or upload it again, then start the agent again.'
+email:
+  cta: Open in Tale
+  footer: You received this email because you have notifications enabled in Tale.
+conversationTeamAssigned: Conversation queued to your team
+conversationTeamAssignedBody: The conversation "{subject}" was queued to your
+  team — open your Inbox to reply.
+conversationTeamAssignedByBody:
+  '{actor} queued the conversation "{subject}" to
+  your team — open your Inbox to reply.'

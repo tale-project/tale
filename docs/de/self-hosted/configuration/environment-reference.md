@@ -53,7 +53,7 @@ Eine Änderung von `TOTP_CLIENT_NAME` oder `TOTP_ENVIRONMENT` gilt für neu erze
 | `ENCRYPTION_SECRET_HEX` | Beispielwert in der Datei | Verschlüsselungsschlüssel mit 32 Byte als Hex-Wert; erzeuge ihn mit `openssl rand -hex 32`. Bewahre den zu vorhandenen Geheimnissen passenden Wert auf. Ein Austausch migriert keine verschlüsselten Daten. Stelle den passenden Schlüssel wieder her oder erfasse betroffene Geheimnisse über ihren vorgesehenen Ablauf neu. |
 | `INSTANCE_SECRET`       | Beispielwert in der Datei | **Pflicht.** Das Root-Secret der Instanz: 64 Hex-Zeichen, `tale init` erzeugt es (von Hand: `openssl rand -hex 32`). Beim Boot leitet Tale daraus den WebDAV-App-Passwort-HMAC-Schlüssel (`WEBDAV_APP_PASSWORD_HMAC_KEY`) ab, sofern du den nicht selbst setzt; auch die kurzlebigen Tokens, mit denen Sandbox-Sessions Blobs holen, signiert ein Unterschlüssel derselben Ableitung. Halte ihn über Deploys stabil: Eine Rotation leitet den Schlüssel neu ab und macht jedes WebDAV-App-Passwort ungültig. |
 | `SANDBOX_TOKEN`         | Beispielwert in der Datei | **Pflicht.** Gemeinsames HMAC-Secret zwischen Backend und Sandbox-Spawner: Das Backend signiert damit jeden Spawner-Aufruf, der Spawner weist unsignierte ab. Ohne das Secret startet der Spawner nicht — er hält den Docker-Socket des Hosts, es gibt also keinen unsignierten Modus. `tale init` und `bun run dev` erzeugen es; ein Stack, den du selbst zusammenstellst, setzt es vor dem ersten Boot (`openssl rand -hex 32`). Eine Rotation heißt: Backend und Spawner zusammen neu starten — sie müssen übereinstimmen. |
-| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | nicht gesetzt | **Für Sandbox-Harness-Aufrufe erforderlich.** Das Backend nutzt dieses Verwaltungsgeheimnis, um Sitzungsschlüssel am Gateway bereitzustellen. Gib dem Gateway denselben Wert: Solange es kein Admin-Konto hat, legt es eines nur für einen Aufrufer an, der dieses Geheimnis vorweist — so übernimmt das Backend das Gateway bei der ersten Verwendung. Das Image des Gateways nimmt diesen Wert immer als Setup-Token (`BIFROST_SETUP_TOKEN`) und ersetzt ein am Container gesetztes. Danach bleibt der Passwort-Hash in `llm-gateway-data`. Bewahre das passende Geheimnis auf oder nutze die unterstützte Wiederherstellung bzw. Rotation des Gateways. Lösche dessen Zustand nicht als gewöhnlichen Reparaturschritt. Der Benutzername ist standardmäßig `admin` (`SANDBOX_LLM_GATEWAY_ADMIN_USERNAME`). |
+| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | nicht gesetzt | **Für Sandbox-Agent-Laufzeit-Aufrufe erforderlich.** Das Backend nutzt dieses Verwaltungsgeheimnis, um Sitzungsschlüssel am Gateway bereitzustellen. Gib dem Gateway denselben Wert: Solange es kein Admin-Konto hat, legt es eines nur für einen Aufrufer an, der dieses Geheimnis vorweist — so übernimmt das Backend das Gateway bei der ersten Verwendung. Das Image des Gateways nimmt diesen Wert immer als Setup-Token (`BIFROST_SETUP_TOKEN`) und ersetzt ein am Container gesetztes. Danach bleibt der Passwort-Hash in `llm-gateway-data`. Bewahre das passende Geheimnis auf oder nutze die unterstützte Wiederherstellung bzw. Rotation des Gateways. Lösche dessen Zustand nicht als gewöhnlichen Reparaturschritt. Der Benutzername ist standardmäßig `admin` (`SANDBOX_LLM_GATEWAY_ADMIN_USERNAME`). |
 
 Ersetze die unsicheren Beispielwerte aus `.env.example`, bevor du die Instanz für andere zugänglich machst.
 
@@ -155,7 +155,7 @@ Anbieterzugangsdaten können stattdessen eine Variable mit Präfix `TALE_PROVIDE
 
 ## Connector-OAuth-Apps
 
-OAuth-Connectoren (Gmail, Google Drive, Outlook, Teams, Slack, …) lösen ihre Vendor-App zuerst pro Organisation auf: Eine unter **Einstellungen > Connectors > OAuth-Apps** hinterlegte App gewinnt für diese Org. Die Umgebung liefert darunter den deployment-weiten Standard (und ist die einzige Quelle für Slack, dessen Event-Signaturprüfung läuft, bevor eine Org bekannt ist). Pro Connector-Slug:
+OAuth-Connectors (Gmail, Google Drive, Outlook, Teams, Slack, …) lösen ihre Vendor-App zuerst pro Organisation auf: Eine unter **Einstellungen > Connectors > OAuth-Apps** hinterlegte App gewinnt für diese Org. Die Umgebung liefert darunter den deployment-weiten Standard (und ist die einzige Quelle für Slack, dessen Event-Signaturprüfung läuft, bevor eine Org bekannt ist). Pro Connector-Slug:
 
 | Name                                   | Default | Beschreibung                                                                                                   |
 | -------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
@@ -257,7 +257,7 @@ Der Sandbox-Spawner liest die folgenden Einstellungen. Übergib sie seiner Umgeb
 | `SANDBOX_AGENT_CPUS` | `2` | CPU-Grenze je Agent-Session. Berücksichtige bei der Session-Anzahl gleichzeitig laufende Builds und andere Aufgaben auf dem Host. |
 | `SANDBOX_AGENT_MEMORY` | `4g`; `8g` mit Docker in der Sandbox | Speichergrenze je Agent-Session, die auch für ihren inneren Docker-Daemon und dessen Container gilt. Ein expliziter Wert ersetzt beide Standardwerte und gilt für neu erstellte Sessions. |
 | `SANDBOX_AGENT_PROFILE` | `agent` | Wird von Backend-API und Worker gelesen. Profil für neue Agenten- und Workflow-Arbeitsbereiche: `agent` unterstützt inneres Docker; `agent-light` behält Coding-Werkzeuge und den persistenten Arbeitsbereich, ohne Docker oder Build-Cache-Helfer zu starten. Bestehende Arbeitsbereiche behalten ihr gespeichertes Profil. |
-| `TALE_SANDBOX_CLAUDE_EFFORT` | nicht gesetzt (übernimmt den Harness-Standard) | Wird von Backend-API und Worker gelesen. Denktiefe von Claude Code: `low`, `medium`, `high` oder `max`. Niedrigere Werte lassen die automatische Ultrathink-Anweisung weg und setzen den Wert pro Ausführung; adaptives Denken bleibt aktiv. Andere Harnesses und fremde Modelle bleiben unverändert. Vergleiche repräsentative Aufgaben, bevor du den Wert senkst; kürzere Läufe sind nicht garantiert. |
+| `TALE_SANDBOX_CLAUDE_EFFORT` | nicht gesetzt (übernimmt den Agent-Laufzeit-Standard) | Wird von Backend-API und Worker gelesen. Denktiefe von Claude Code: `low`, `medium`, `high` oder `max`. Niedrigere Werte lassen die automatische Ultrathink-Anweisung weg und setzen den Wert pro Ausführung; adaptives Denken bleibt aktiv. Andere Agent-Laufzeiten und fremde Modelle bleiben unverändert. Vergleiche repräsentative Aufgaben, bevor du den Wert senkst; kürzere Läufe sind nicht garantiert. |
 | `SANDBOX_SESSION_CREATE_TIMEOUT_MS` | `180000` | Gesamtbudget für den Sitzungsstart, einschließlich optionalem Build-Cache, Container- oder Pod-Start, Daemon-Bereitschaft und Umgebungsübergabe. Ein abgebrochener Request bricht seine Sitzungsstartarbeiten ab; die Bereinigung stoppt Compute und erhält den Arbeitsbereich. Die gemeinsame Cache-Vorbereitung hat eine eigene begrenzte Laufzeit. |
 | `SANDBOX_DOCKER_DATA_ROOT` | nicht gesetzt | Optionaler Host-Pfad, der Dockers `DockerRootDir` entspricht. Die CLI bindet ihn schreibgeschützt in den Sandbox-Dienst ein. Bei direktem Compose ist der unten gezeigte Mount erforderlich. |
 | `SANDBOX_DOCKER_DATA_PATH` | `/var/lib/tale-sandbox/docker-data`, wenn der Root-Pfad gesetzt ist | Pfad dieses schreibgeschützten Mounts im Spawner. Die Zulassung prüft dieses Dateisystem zusätzlich zum Arbeitsbereich. Ein konfigurierter Mount, der nicht verifiziert oder gelesen werden kann, blockiert die Zulassung. |
@@ -300,7 +300,7 @@ Eine bereits aktive Generation wird nicht erneut angerechnet. Ein Workflow ohne 
 
 Bei voller Kapazität kann der Spawner eine freigegebene, nicht angepinnte Session im Leerlauf schon vor Ablauf des Leerlauffensters stoppen, um neue Arbeit zuzulassen, zuerst die am längsten untätige. Der Daemon muss bestätigen, dass keine Arbeit läuft; beschäftigte Sessions und Sessions mit unbekanntem Zustand bleiben geschützt. Das dauerhafte Arbeitsverzeichnis oder Volume bleibt beim Stoppen erhalten. Lässt sich keine Session sicher freigeben, blockiert die Kapazitätsgrenze weiterhin neue Starts. Dasselbe gilt, wenn der freie Speicher des Hosts unter `SANDBOX_MIN_FREE_MEMORY` fallen würde. Solange der Datenträger mit den Arbeitsverzeichnissen der Sessions unter `SANDBOX_MIN_FREE_DISK` liegt, wartet neue Arbeit, ohne dass Sessions im Leerlauf gestoppt werden: Eine gestoppte Session behält ihr Arbeitsverzeichnis.
 
-Datensätze im Harness-Protokoll, einschließlich unvollständiger Zeilen, sind auf 8 MiB begrenzt. Zu große oder unvollständige Ausgaben führen zu einem ausdrücklichen Fehler; eine begrenzte Fortschrittsvorschau gilt nie als vollständiges strukturiertes Ergebnis. Vollständige Endantworten bleiben getrennt von dieser Vorschau erhalten.
+Datensätze im Agent-Laufzeit-Protokoll, einschließlich unvollständiger Zeilen, sind auf 8 MiB begrenzt. Zu große oder unvollständige Ausgaben führen zu einem ausdrücklichen Fehler; eine begrenzte Fortschrittsvorschau gilt nie als vollständiges strukturiertes Ergebnis. Vollständige Endantworten bleiben getrennt von dieser Vorschau erhalten.
 
 Auch die Wiederaufnahme einer freigegebenen, noch laufenden Session prüft die Speicherreserve und reserviert vorab den erwarteten Arbeitsspeicher. Gleichzeitige Wiederaufnahmen teilen sich diese Berechnung. Eine Antwort „beschäftigt“ lässt sich erneut versuchen; sie löscht weder das Arbeitsverzeichnis noch unterbricht sie bereits belegte Sessions. Diese Reservierungen begrenzen nicht den späteren Speicherzuwachs aktiver Werkzeuge oder der Builder einer Organisation.
 
@@ -371,6 +371,34 @@ Der Egress-Proxy erlaubt DNS-Anfragen an die geprüften Nameserver-IP-Adressen a
 Halte `sandbox`, `sandbox-egress` und `SANDBOX_RUNTIME_IMAGE` beim Upgrade auf demselben Release. Bevor der Spawner unter Docker das Build-Netzwerk einer Organisation anschließt, prüft er den Weiterleitungsschutz der Session. Compose und generierte Docker-Session-Container deaktivieren IPv6 mit `net.ipv6.conf.all.disable_ipv6=1` und `net.ipv6.conf.default.disable_ipv6=1`. Übernimm beide Werte in eigene Docker-Definitionen.
 
 Kubernetes-Pods erhalten nicht automatisch unsichere Sysctls. Der Egress-Proxy braucht eine funktionierende IPv6-Firewall oder deaktiviertes IPv6 in seinem Netzwerk-Namespace. Ist die IPv6-Firewall nicht verfügbar, versucht der Entrypoint IPv6 dort zu deaktivieren und prüft danach den Standardwert und jede Schnittstelle. Ein schreibgeschütztes `/proc/sys` oder fehlende Schreibrechte können das verhindern; ohne Schutz für weiterhin aktives IPv6 startet der Proxy nicht. Konfiguriere den Egress-Pod vor dem Deployment mit den Netzwerkeinstellungen, die dein Cluster erlaubt.
+
+## SSH-Zugang zu Repositories {#ssh-repository-access}
+
+Die native Sandbox enthält OpenSSH und `netcat-openbsd`. Gib einen austauschbaren, auf das Repository beschränkten Schlüssel als benanntes Agent-Secret frei und lade ihn im berechtigten Lauf über stdin in `ssh-agent`. Die privaten Bytes bleiben in der Umgebung; schreibe keine Schlüsseldatei und gib sie nie aus. Ein von einem Mitglied gestarteter Lauf erhält keine Agent-Secrets. Git-Commits nutzen den Namen und die E-Mail des Workspace-Eigentümers auch ohne Freigabe eines GitHub-Connectors.
+
+Interne Sitzungen nutzen ihren bestehenden `HTTP_PROXY` für ausgehende Verbindungen. Direktes SSH kann in diesem Netz nicht auf externe DNS-Auflösung bauen. Nutze den HTTP-CONNECT-Tunnel des Proxys und einen erlaubten Port. GitHub unterstützt SSH über `ssh.github.com:443`; prüfe den Host gegen [GitHubs veröffentlichte Fingerabdrücke](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints), wie unter [SSH über Port 443](https://docs.github.com/en/authentication/troubleshooting-ssh/using-ssh-over-the-https-port) beschrieben. Lege eine öffentliche Known-Hosts-Datei mit dem unabhängig geprüften Schlüssel an und konfiguriere den Befehl, nachdem der Agent den privaten Schlüssel geladen hat:
+
+```python
+import os
+import shlex
+import subprocess
+from urllib.parse import urlsplit
+
+proxy = urlsplit(os.environ["HTTP_PROXY"])
+if proxy.scheme != "http" or not proxy.hostname or not proxy.port or proxy.username or proxy.password:
+    raise ValueError("Expected the existing unauthenticated HTTP egress proxy")
+connect = shlex.join(["nc", "-X", "connect", "-x", f"{proxy.hostname}:{proxy.port}", "%h", "%p"])
+environment = os.environ.copy()
+environment["GIT_SSH_COMMAND"] = shlex.join([
+    "ssh", "-o", f"ProxyCommand={connect}", "-o", "StrictHostKeyChecking=yes",
+    "-o", "UserKnownHostsFile=/tmp/repository-known-hosts",
+    "-o", "GlobalKnownHostsFile=/dev/null", "-o", "BatchMode=yes",
+    "-o", "ConnectTimeout=20",
+])
+subprocess.run(["git", "ls-remote", "--exit-code", "ssh://git@ssh.github.com:443/org/repository.git", "HEAD"], env=environment, check=True, timeout=30)
+```
+
+Die Known-Hosts-Datei enthält nur den öffentlichen Hostschlüssel des Anbieters; der private Repository-Schlüssel bleibt in `ssh-agent`. Die bestehende Egress-Richtlinie und der Zugriffsumfang des Repository-Schlüssels gelten weiterhin. Eine weitergehende GitHub-Connector-Freigabe ist nicht nötig.
 
 ## Sandbox-Geräte {#sandbox-devices}
 

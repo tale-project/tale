@@ -1,9 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import {
-  LazyRunDetail,
-  loadRunDetail,
-} from '@/app/features/automations/components/lazy-automation-pages';
+import { RunDetail } from '@/app/features/automations/components/run-detail';
 import { paramToAutomationSlug } from '@/lib/automations/slug';
 import { seo } from '@/lib/utils/seo';
 
@@ -13,16 +10,13 @@ export const Route = createFileRoute(
   head: () => ({
     meta: seo('automationRuns'),
   }),
-  loader: () => {
-    void loadRunDetail();
-  },
   component: ProjectAutomationRunPage,
 });
 
 function ProjectAutomationRunPage() {
   const { id: organizationId, automationSlug, runId } = Route.useParams();
   return (
-    <LazyRunDetail
+    <RunDetail
       organizationId={organizationId}
       automationSlug={paramToAutomationSlug(automationSlug)}
       // The path param is a raw string; the query narrows/validates it.

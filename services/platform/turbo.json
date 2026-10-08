@@ -26,6 +26,7 @@
         "$TURBO_ROOT$/docs/*/platform/admin/connectors.md",
         "$TURBO_ROOT$/docs/*/platform/connectors/overview.md",
         "$TURBO_ROOT$/docs/*/platform/projects/tasks.md",
+        "$TURBO_ROOT$/docs/en/platform/**",
         "$TURBO_ROOT$/knip.config.ts",
         "$TURBO_ROOT$/packages/shared/src/automation-name.ts",
         "$TURBO_ROOT$/packages/ui/package.json",

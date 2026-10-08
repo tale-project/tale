@@ -2,7 +2,7 @@
 
 import * as columnBuilders from '@tale/ui/data-table/column-builders';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 

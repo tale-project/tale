@@ -17,6 +17,8 @@ import {
   readAgentInstructionsConfiguration,
   updateProjectInstructions,
   updateAgentInstructionsConfiguration,
+  readAgentToolsConfiguration,
+  updateAgentToolsConfiguration,
 } from './service.ts';
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
@@ -153,6 +155,180 @@ function hash(value: unknown) {
 
 beforeEach(() => vi.clearAllMocks());
 afterEach(() => vi.restoreAllMocks());
+
+describe('tools-only managed agent configuration [PROJ-R17]', () => {
+  const toolsConfig = {
+    projectId: project.id,
+    agentId: agent.id,
+    tools: ['task_get'],
+  };
+  const desired = {
+    ...toolsConfig,
+    tools: ['task_review', 'task_get', 'task_review'],
+  };
+  const valid = () => database({ agent: { tools: toolsConfig.tools } });
+
+  it('reads only identity and canonical tools without exposing credentials or other equipment', async () => {
+    const db = database({
+      agent: { tools: ['task_review', 'task_get', 'task_review'] },
+    });
+    const canonical = { ...toolsConfig, tools: ['task_get', 'task_review'] };
+    expect(
+      await readAgentToolsConfiguration(db.tx, auth, project.id, agent.id),
+    ).toEqual({
+      config: canonical,
+      hash: hash(canonical),
+    });
+    expect(db.writes()).toEqual([]);
+  });
+
+  it.each(['owner', 'admin', 'editor'])(
+    'lets %s reconcile tools without replacing any unrelated fields',
+    async (role) => {
+      const db = valid();
+      await updateAgentToolsConfiguration(
+        db.tx,
+        { ...auth, role },
+        desired,
+        hash(toolsConfig),
+      );
+      expect(db.writes()).toHaveLength(1);
+      expect(db.writes()[0]!.text).toMatch(
+        /^UPDATE app.project_agents SET tools = \?, updated_at_ms = \? WHERE id = \? AND project_id = \? AND org_id = \?$/,
+      );
+      expect(db.writes()[0]!.values[0]).toEqual(['task_get', 'task_review']);
+      expect(createAuditLog).toHaveBeenCalledTimes(1);
+      expect(emitHintInTx).toHaveBeenCalledTimes(1);
+      expect(
+        JSON.stringify(vi.mocked(createAuditLog).mock.calls),
+      ).not.toContain('PRIVATE_TOKEN');
+    },
+  );
+
+  it.each([0, 1, 100])(
+    'advances the full-save revision monotonically at wall time %i',
+    async (now) => {
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      const db = valid();
+      await updateAgentToolsConfiguration(
+        db.tx,
+        auth,
+        desired,
+        hash(toolsConfig),
+      );
+      expect(db.writes()[0]!.values[1]).toBe(
+        Math.max(now, agent.updatedAt + 1),
+      );
+    },
+  );
+
+  it('keeps canonical no-ops quiet but still rejects stale preimages', async () => {
+    const db = valid();
+    await updateAgentToolsConfiguration(
+      db.tx,
+      auth,
+      { ...toolsConfig, tools: ['task_get', 'task_get'] },
+      hash(toolsConfig),
+    );
+    expect(db.writes()).toEqual([]);
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalled();
+    await expect(
+      updateAgentToolsConfiguration(db.tx, auth, toolsConfig, '0'.repeat(64)),
+    ).rejects.toMatchObject({ code: 'CONFIG_VERSION_CONFLICT' });
+    expect(db.writes()).toEqual([]);
+  });
+
+  it('allows member read access but never grants tool writes', async () => {
+    const db = valid();
+    const member = { ...auth, role: 'member' };
+    await expect(
+      readAgentToolsConfiguration(db.tx, member, project.id, agent.id),
+    ).resolves.toMatchObject({ config: toolsConfig });
+    await expect(
+      updateAgentToolsConfiguration(db.tx, member, desired, hash(toolsConfig)),
+    ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN', status: 403 });
+    expect(db.writes()).toEqual([]);
+  });
+
+  it('refuses foreign and missing identities on reads and writes', async () => {
+    const db = valid();
+    for (const [caller, selected] of [
+      [{ ...auth, organizationId: 'org-b' }, toolsConfig],
+      [auth, { ...toolsConfig, projectId: 'other-project' }],
+      [auth, { ...toolsConfig, agentId: 'missing' }],
+    ] as const) {
+      await expect(
+        readAgentToolsConfiguration(
+          db.tx,
+          caller,
+          selected.projectId,
+          selected.agentId,
+        ),
+      ).rejects.toMatchObject({ status: 404 });
+      await expect(
+        updateAgentToolsConfiguration(
+          db.tx,
+          caller,
+          selected,
+          hash(toolsConfig),
+        ),
+      ).rejects.toMatchObject({ status: 404 });
+    }
+    expect(db.writes()).toEqual([]);
+  });
+
+  it('retains managed-agent and archived-project refusals even for equal writes', async () => {
+    for (const [db, code] of [
+      [
+        database({ agent: { tools: toolsConfig.tools, managed: true } }),
+        'PROJECT_AGENT_MANAGED',
+      ],
+      [
+        database({
+          agent: { tools: toolsConfig.tools },
+          project: { archivedAt: 1 as never },
+        }),
+        'PROJECT_ARCHIVED',
+      ],
+    ] as const) {
+      await expect(
+        updateAgentToolsConfiguration(
+          db.tx,
+          auth,
+          toolsConfig,
+          hash(toolsConfig),
+        ),
+      ).rejects.toMatchObject({ code });
+      expect(db.writes()).toEqual([]);
+    }
+  });
+
+  it('refuses unknown incoming or stored grants instead of silently dropping them', async () => {
+    const db = valid();
+    await expect(
+      updateAgentToolsConfiguration(
+        db.tx,
+        auth,
+        { ...desired, tools: ['unknown_tool'] },
+        hash(toolsConfig),
+      ),
+    ).rejects.toMatchObject({ code: 'PROJECT_AGENT_TOOL_UNKNOWN' });
+    const future = database({ agent: { tools: ['future_tool'] } });
+    await expect(
+      readAgentToolsConfiguration(future.tx, auth, project.id, agent.id),
+    ).rejects.toMatchObject({ code: 'PROJECT_AGENT_TOOL_UNKNOWN' });
+    await expect(
+      updateAgentToolsConfiguration(
+        future.tx,
+        auth,
+        { ...toolsConfig, tools: [] },
+        hash({ ...toolsConfig, tools: ['future_tool'] }),
+      ),
+    ).rejects.toMatchObject({ code: 'PROJECT_AGENT_TOOL_UNKNOWN' });
+    expect([...db.writes(), ...future.writes()]).toEqual([]);
+  });
+});
 
 describe('managed instruction adoption and preconditions', () => {
   it.each([agent.updatedAt, agent.updatedAt - 1, agent.updatedAt + 100])(

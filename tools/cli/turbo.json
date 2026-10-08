@@ -28,7 +28,8 @@
         "$TURBO_ROOT$/services/platform/backend/lib/org-config.ts",
         "$TURBO_ROOT$/services/platform/tests/integration/lib/docker.ts",
         "$TURBO_ROOT$/services/platform/tests/integration/lib/exec.ts",
-        "$TURBO_ROOT$/.github/release-candidate-contract.json"
+        "$TURBO_ROOT$/.github/release-candidate-contract.json",
+        "$TURBO_ROOT$/packages/ui/src/server/serving-identity.ts"
       ]
     },
     "build": {
@@ -49,6 +50,8 @@
         "$TURBO_ROOT$/configs/platform/custom/skills/*/turbo.json",
         "$TURBO_ROOT$/services/web/playwright.config.ts",
         "$TURBO_ROOT$/services/docs/playwright.config.ts",
+        "$TURBO_ROOT$/services/ui-docs/playwright.config.ts",
+        "$TURBO_ROOT$/services/platform/scripts/dev-engine.ts",
         "$TURBO_ROOT$/services/platform/vitest.ui.config.ts",
         "$TURBO_ROOT$/services/platform/postcss.config.mjs",
         "$TURBO_ROOT$/packages/ui/src/vite/yaml.ts",
@@ -96,6 +99,8 @@
         "$TURBO_ROOT$/.github/workflows/release.yml",
         "$TURBO_ROOT$/compose.yml",
         "$TURBO_ROOT$/services/proxy/Caddyfile",
+        "$TURBO_ROOT$/services/platform/backend/db/migrations/**",
+        "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",
         "$TURBO_ROOT$/services/proxy/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/platform/Dockerfile",
         "$TURBO_ROOT$/services/platform/docker-entrypoint.sh",
@@ -130,7 +135,10 @@
         "$TURBO_ROOT$/.github/actions/ci-scope/action.yml",
         "$TURBO_ROOT$/.github/actions/ci-ready/action.yml",
         "$TURBO_ROOT$/.gitattributes",
-        "$TURBO_ROOT$/.github/release-candidate-contract.json"
+        "$TURBO_ROOT$/.github/release-candidate-contract.json",
+        "$TURBO_ROOT$/packages/ui/bin/build-client.ts",
+        "$TURBO_ROOT$/tools/plop/templates/service/react/Dockerfile.hbs",
+        "$TURBO_ROOT$/tools/plop/templates/service/react/package.json.hbs"
       ],
       "dependsOn": ["generate", "transit"]
     },

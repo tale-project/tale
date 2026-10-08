@@ -1,0 +1,84 @@
+email: E-mail
+phone: Téléphone
+creditCard: Carte bancaire
+cvc: Cryptogramme
+iban: IBAN
+ipAddress: Adresse IP
+macAddress: Adresse MAC
+jwt: JWT
+ssn: SSN
+dateOfBirth: Date de naissance
+address: Adresse
+nationalId: Identifiant national
+de-personalausweis: CNI allemande
+at-passport: Passeport AT
+fr-nir: NIR
+fr-passport: Passeport FR
+it-codice-fiscale: Code fiscal
+it-passport: Passeport IT
+nl-bsn: BSN
+nl-passport: Passeport NL
+es-dni: DNI
+es-nie: NIE
+es-passport: Passeport ES
+pt-nif: NIF
+br-cpf: CPF
+pt-passport: Passeport PT
+se-personnummer: Personnummer
+se-passport: Passeport SE
+pl-pesel: PESEL
+pl-passport: Passeport PL
+uk-nino: Numéro NI
+ca-sin: NAS canadien
+ie-pps: Numéro PPS
+ca-passport: Passeport CA
+ru-snils: SNILS
+ru-inn-individual: INN
+ru-passport: Passeport RU
+ua-inn: ID fiscal
+jp-my-number: My Number
+jp-passport: Passeport JP
+cn-resident-id: CNI chinoise
+cn-passport: Passeport CN
+tw-id: CNI taïwanaise
+kr-rrn: RRN coréen
+kr-passport: Passeport KR
+sa-national-id: CNI saoudienne
+eg-national-id: CNI égyptienne
+il-teudat-zehut: CNI israélienne
+tr-tckn: TC Kimlik
+gr-amka: AMKA
+in-aadhaar: Aadhaar
+in-pan: PAN
+in-passport: Passeport IN
+id-nik: NIK
+th-national-id: CNI thaïlandaise
+cz-birth-number: N° de naissance
+fi-hetu: HETU
+dk-cpr: CPR
+no-fodselsnummer: N° personnel
+ro-cnp: CNP
+ir-national-id: CNI iranienne
+pk-cnic: CNIC
+lt-personal-code: Code personnel
+ch-ahv: AVS
+ch-uid: IDE
+de-steuer-id: ID fiscal DE
+us-passport: Passeport US
+uk-nhs: Numéro NHS
+au-tfn: TFN
+au-medicare: Medicare
+nz-ird: Numéro IRD
+za-id: CNI sud-africaine
+hk-hkid: HKID
+sg-nric: NRIC
+fr-siret: SIRET
+be-nrn: RRN belge
+it-piva: Partita IVA
+se-orgnr: N° Org. SE
+ar-cuil: CUIL/CUIT
+mx-curp: CURP
+mx-rfc: RFC
+cl-rut: RUT chilien
+co-cc: Cédula
+_unknown: Sensible

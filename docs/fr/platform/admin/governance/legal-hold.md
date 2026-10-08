@@ -1,9 +1,9 @@
 ---
-title: Conservation juridique
+title: Conservation légale
 description: Préserve les données d’une personne ou de l’organisation, regroupe les gels par dossier et examine les demandes de libération.
 ---
 
-Une conservation juridique préserve les données couvertes pendant qu’un dossier est ouvert. Les admins et propriétaires gèrent ces gels dans **Paramètres > Gouvernance > Conservation légale**. Place le gel tant que les données existent : il ne récupère pas les enregistrements déjà supprimés définitivement.
+Une conservation légale préserve les données couvertes pendant qu’un dossier est ouvert. Les admins et propriétaires gèrent ces conservations dans **Paramètres > Gouvernance > Conservation légale**. Place la conservation tant que les données existent : elle ne récupère pas les enregistrements déjà supprimés définitivement.
 
 <Frame caption="Gouvernance > Conservation légale — le tableau des conservations actives avec l’action Placer une conservation légale, au-dessus de la file à double contrôle des demandes de levée.">
 

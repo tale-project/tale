@@ -16,8 +16,8 @@ import {
 import { i18n } from '@/lib/i18n/i18n';
 import { defineAbilityFor } from '@/lib/permissions/ability';
 import { organizationNameSchema } from '@/lib/shared/schemas/organizations';
-import enMessages from '@/messages/en.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { enMessages } from '@/tests/utils/messages';
 import {
   fireEvent,
   render,

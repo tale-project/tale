@@ -90,7 +90,7 @@ function useHomeRowTone(active: boolean): {
  * focus report that keeps it mounted while focus is inside it — inside its
  * menu too, whose portaled focus events still bubble to the row.
  */
-function usePlacementProps(
+export function usePlacementProps(
   placement: HomeRowPlacement | undefined,
   key: string,
   ownRef?: (node: HTMLLIElement | null) => void,

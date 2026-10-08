@@ -214,6 +214,7 @@ const LEGACY_DEFAULT_DISPLAY_NAME = 'Enterprise SSO';
 export function EnterpriseSsoForm({ organizationId, config }: Props) {
   const { t } = useT('settings');
   const { t: tNav } = useT('navigation');
+  const { t: tAuth } = useT('auth');
   const { toast } = useToast();
   const ability = useAbility();
 
@@ -884,19 +885,19 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                       options={[
                         {
                           value: 'entra-id',
-                          label: t('enterpriseSso.protocol.entra'),
+                          label: tAuth('sso.protocol.entra'),
                         },
                         {
                           value: 'generic-oidc',
-                          label: t('enterpriseSso.protocol.oidc'),
+                          label: tAuth('sso.protocol.oidc'),
                         },
                         {
                           value: 'oauth2',
-                          label: t('enterpriseSso.protocol.oauth2'),
+                          label: tAuth('sso.protocol.oauth2'),
                         },
                         {
                           value: 'saml',
-                          label: t('enterpriseSso.protocol.saml'),
+                          label: tAuth('sso.protocol.saml'),
                         },
                       ]}
                     />

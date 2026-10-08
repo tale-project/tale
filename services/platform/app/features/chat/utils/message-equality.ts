@@ -81,6 +81,28 @@ function sameParts(
   return true;
 }
 
+function sameList(
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined,
+): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function sameServing(
+  a: ChatMessageUsage['serving'],
+  b: ChatMessageUsage['serving'],
+): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+  return (
+    sameList(a.providers, b.providers) &&
+    sameList(a.regions, b.regions) &&
+    sameList(a.models, b.models)
+  );
+}
+
 function sameUsage(
   a: ChatMessageUsage | undefined,
   b: ChatMessageUsage | undefined,
@@ -95,7 +117,8 @@ function sameUsage(
     a.cachedInputTokens === b.cachedInputTokens &&
     a.durationMs === b.durationMs &&
     a.timeToFirstTokenMs === b.timeToFirstTokenMs &&
-    a.perceivedWaitMs === b.perceivedWaitMs
+    a.perceivedWaitMs === b.perceivedWaitMs &&
+    sameServing(a.serving, b.serving)
   );
 }
 

@@ -22,13 +22,19 @@ async function documentFixture(
       initialRoot === 'prerendered'
         ? '<main><h1>Prerendered startup probe</h1></main>'
         : '';
-    // Keep the real app modules and styles, served by the preview origin.
+    // Keep real preview modules and styles on the fixture's own origin.
     for (const element of dom.window.document.querySelectorAll(
       'script[src], link[href]',
     )) {
       const attribute = element.tagName === 'SCRIPT' ? 'src' : 'href';
       const value = element.getAttribute(attribute);
-      if (value) element.setAttribute(attribute, new URL(value, baseURL).href);
+      if (value) {
+        const asset = new URL(value, baseURL);
+        element.setAttribute(
+          attribute,
+          `${asset.pathname}${asset.search}${asset.hash}`,
+        );
+      }
     }
     html = dom.serialize();
   } finally {
@@ -36,7 +42,7 @@ async function documentFixture(
   }
 
   const compressed = gzipSync(html);
-  const server = createServer((request, response) => {
+  const server = createServer(async (request, response) => {
     response.setHeader('Connection', 'close');
     if (request.url === '/redirect') {
       response.writeHead(302, { Location: '/' });
@@ -44,12 +50,19 @@ async function documentFixture(
       return;
     }
     if (request.url !== '/') {
-      // A reused local dev server can leave inline relative imports (e.g.
-      // React Refresh); keep those assets on the actual app origin too.
-      response.writeHead(302, {
-        Location: new URL(request.url ?? '/', baseURL).href,
+      // Proxy the preview's modules through the fixture origin. A module
+      // imported from a 127.0.0.1 fixture cannot be fetched from the preview
+      // port under Chromium's cross-origin module rules, even though both are
+      // loopback addresses. Keeping the bytes on one origin preserves the
+      // startup gate this test is meant to exercise.
+      const upstream = await fetch(new URL(request.url ?? '/', baseURL));
+      const body = Buffer.from(await upstream.arrayBuffer());
+      const contentType = upstream.headers.get('content-type');
+      response.writeHead(upstream.status, {
+        ...(contentType ? { 'Content-Type': contentType } : {}),
+        'Content-Length': body.byteLength,
       });
-      response.end();
+      response.end(body);
       return;
     }
     response.writeHead(203, {
@@ -66,11 +79,6 @@ async function documentFixture(
     throw new Error('Document fixture has no TCP address');
   }
   const url = `http://127.0.0.1:${address.port}`;
-  // Only this owned fixture may load modules from the other loopback origin.
-  // Ordinary app contexts retain their normal browser permission policy.
-  await page.context().grantPermissions(['local-network-access'], {
-    origin: url,
-  });
   return {
     url,
     close: () =>

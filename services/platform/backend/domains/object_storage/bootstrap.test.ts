@@ -126,13 +126,13 @@ afterEach(async () => {
 });
 
 describe('ensureDefaultObjectStore', () => {
-  it('skips, without writing anything, when the environment declares no store', async () => {
+  it('skips, without writing anything, when the environment declares no store [OBJ-R1]', async () => {
     const result = await ensureDefaultObjectStore(fakeSql(), {});
     expect(result.status).toBe('skipped');
     expect(calls).toHaveLength(0);
   });
 
-  it('seeds the pair and stamps it env-managed on a fresh deployment', async () => {
+  it('seeds the pair and stamps it env-managed on a fresh deployment [OBJ-R1]', async () => {
     const result = await ensureDefaultObjectStore(fakeSql(), ENV);
     expect(result.status).toBe('seeded');
     await expect(readConnection()).resolves.toMatchObject({
@@ -161,7 +161,7 @@ describe('ensureDefaultObjectStore', () => {
     expect(calls.map((c) => c.method)).toEqual(['HEAD']);
   });
 
-  it('rewrites the credentials when the environment rotates them', async () => {
+  it('rewrites the credentials when the environment rotates them [OBJ-R1]', async () => {
     await ensureDefaultObjectStore(fakeSql(), ENV);
 
     const result = await ensureDefaultObjectStore(fakeSql(), {
@@ -177,7 +177,7 @@ describe('ensureDefaultObjectStore', () => {
     });
   });
 
-  it('repoints the store when the environment names a different bucket', async () => {
+  it('repoints the store when the environment names a different bucket [OBJ-R1]', async () => {
     await ensureDefaultObjectStore(fakeSql(), ENV);
 
     const result = await ensureDefaultObjectStore(fakeSql(), {
@@ -193,7 +193,7 @@ describe('ensureDefaultObjectStore', () => {
     });
   });
 
-  it('never touches a file the operator claimed', async () => {
+  it('never touches a file the operator claimed [OBJ-R1]', async () => {
     await writeExisting({
       region: 'us-east-1',
       endpoint: 'https://minio.corp.example',
@@ -253,7 +253,7 @@ describe('ensureDefaultObjectStore', () => {
     });
   });
 
-  describe('the bucket probe', () => {
+  describe('the bucket probe [OBJ-R2]', () => {
     it('creates the bucket only when it is really absent', async () => {
       stubS3(404, 200);
       const result = await ensureDefaultObjectStore(fakeSql(), ENV);

@@ -75,7 +75,7 @@ Cette commande non concurrente peut bloquer du travail. Coordonne-la avec l’ex
 
 Lis l’erreur du chat ou de l’exécution et les journaux API/worker correspondants. Un `429` fournisseur, un refus d’identifiants, un timeout, une attente d’approbation et une déconnexion du flux navigateur sont des états différents. Une approbation attend une décision, pas un redémarrage. Un flux coupé peut masquer une opération toujours active ; lis son résultat enregistré avant de relancer.
 
-Pour un échec fournisseur, vérifie quota et permissions des identifiants choisis, ainsi que l’état du fournisseur. Ne change de modèle que si le remplacement est autorisé et adapté. Pour un échec de harness, examine `sandbox`, `sandbox-llm-gateway`, l’image d’exécution et les journaux de session.
+Pour un échec fournisseur, vérifie quota et permissions des identifiants choisis, ainsi que l’état du fournisseur. Ne change de modèle que si le remplacement est autorisé et adapté. Pour un échec d’environnement d’agent, examine `sandbox`, `sandbox-llm-gateway`, l’image d’exécution et les journaux de session.
 
 ## L’accès réseau de la sandbox est refusé
 

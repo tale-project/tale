@@ -253,7 +253,21 @@ describe('filters narrow the search', () => {
     }
   });
 
-  it('caps the limit and floors it at one', async () => {
+  it('returns ten hits when the caller names no limit [KNOW-R13]', async () => {
+    const many = Array.from({ length: 200 }, (_v, i) =>
+      hit(`d${i}`, 'documents', 1 - i / 1000),
+    );
+    const result = await retrieve(
+      {
+        readers: [stubReader({ keyword: [], dense: many })],
+        embedder,
+      },
+      { query: 'q' },
+    );
+    expect(result.hits.length).toBe(10);
+  });
+
+  it('caps the limit and floors it at one [KNOW-R13]', async () => {
     const many = Array.from({ length: 200 }, (_v, i) =>
       hit(`d${i}`, 'documents', 1 - i / 1000),
     );

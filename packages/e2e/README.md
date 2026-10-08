@@ -55,6 +55,9 @@ const { t } = createI18n(
 // t('common.actions.delete') resolves the shared label, unless the service overrides it.
 ```
 
+A catalog split into topic files (`messages/en/<topic>.yml`, one namespace each, as the platform
+keeps it) is passed as its directory: `new URL('../../../messages/en/', import.meta.url)`.
+
 For a marketing service, add its `@tale/marketing-ui` catalogs after the UI catalogs, matching
 the package order in `initServiceI18n`. The [platform helper](../../services/platform/tests/e2e/helpers/i18n.ts)
 shows this setup for an app service.

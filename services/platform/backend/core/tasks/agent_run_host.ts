@@ -56,10 +56,13 @@ import {
   isDestroyPendingRefusal,
   queuedWakeAfterMs,
   sandboxCapacityRefusal,
+  type CapacityRefusal,
 } from '../node_only/sandbox/capacity_refusal';
 import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
+  isSessionExecLimitResult,
+  SessionExecLimitError,
   sessionCancelExec,
   sessionDeleteFiles,
   sessionExecStatus,
@@ -93,6 +96,7 @@ import {
   agentWorkTurnDeadlineMs,
   workflowAgentBudgetCents,
 } from '../sandbox/agent_deadline';
+import { AWAITING_ROOM_RESULT_STATUS } from '../sandbox/session_constants';
 import {
   grantedToolsGuidance,
   IMAGE_GENERATION_TOOL,
@@ -243,6 +247,30 @@ export interface StagedTaskInputs {
   dir: string;
   attachments: string[];
   outputs: string[];
+  /** Number of older task outputs retained on the task but omitted from this
+   * turn's mirror. Long-lived coordinator tasks can accumulate one receipt
+   * per pass, so staging the complete history would eventually make every
+   * new run depend on hundreds of blob fetches. */
+  omittedOutputs?: number;
+}
+
+/** Keep standing-session starts bounded when a long-lived task has accumulated
+ * one receipt or deliverable per run. The task's output list remains intact;
+ * only the newest entries are mirrored into this turn's read-only inputs. */
+export const MAX_STAGED_TASK_OUTPUTS = 64;
+
+export function selectTaskOutputsForStaging<T>(
+  outputs: ReadonlyArray<T>,
+  maxOutputs = MAX_STAGED_TASK_OUTPUTS,
+): { selected: T[]; omitted: number } {
+  if (maxOutputs <= 0) return { selected: [], omitted: outputs.length };
+  if (outputs.length <= maxOutputs) {
+    return { selected: [...outputs], omitted: 0 };
+  }
+  return {
+    selected: outputs.slice(-maxOutputs),
+    omitted: outputs.length - maxOutputs,
+  };
 }
 
 /** One planned input, keyed by the path the daemon's skip report names:
@@ -328,12 +356,25 @@ async function stageTaskInputs(
   },
 ): Promise<StagedTaskInputs> {
   const dir = taskInputsDir(args.taskId);
-  const staged: StagedTaskInputs = { dir, attachments: [], outputs: [] };
+  const outputSelection = selectTaskOutputsForStaging(args.outputs);
+  const staged: StagedTaskInputs = {
+    dir,
+    attachments: [],
+    outputs: [],
+    ...(outputSelection.omitted > 0
+      ? { omittedOutputs: outputSelection.omitted }
+      : {}),
+  };
+  if (outputSelection.omitted > 0) {
+    console.warn(
+      `[task-agent] omitted ${outputSelection.omitted} older deliverables from task ${args.taskId} input staging; keeping the newest ${outputSelection.selected.length} to bound start latency`,
+    );
+  }
   const toStage: SessionStageFile[] = [];
   const planned = new Map<string, PlannedTaskInput>();
   for (const [kind, files] of [
     ['attachments', args.attachments],
-    ['outputs', args.outputs],
+    ['outputs', outputSelection.selected],
   ] as const) {
     const taken = new Set<string>();
     for (const file of files) {
@@ -480,6 +521,11 @@ export function buildTaskPrompt(
           `- ${inputs.dir}/attachments/ — files the user attached to the task: ${inputs.attachments.join(', ')}`,
         ]
       : []),
+    ...(inputs !== undefined && (inputs.omittedOutputs ?? 0) > 0
+      ? [
+          `- ${inputs.dir}/outputs/ contains the newest ${inputs.outputs.length} deliverables; ${inputs.omittedOutputs} older retained deliverables were left on the task and omitted from this turn to keep input staging bounded.`,
+        ]
+      : []),
     ...(inputs !== undefined && inputs.outputs.length > 0
       ? [
           `- ${inputs.dir}/outputs/ — the task's current deliverables, produced by earlier runs: ${inputs.outputs.join(', ')}`,
@@ -552,14 +598,17 @@ export function buildTaskPrompt(
  * (`mentionSource: 'description'`), the description as it reads at this
  * start: a resumed conversation does not re-read the brief, so the edit
  * that named the agent reaches it here, said as an edit and not as a review
- * that sent finished work back. Names `outputDir` explicitly — a resumed
- * conversation happily reuses last turn's path from memory — and, when the
- * start SWEPT the box (settled predecessor), says so and names the staged
+ * that sent finished work back. Every other resumed kick gets the current
+ * description too, including an explicit empty state, so a changed brief
+ * replaces the one the conversation remembers. Names `outputDir` explicitly:
+ * a resumed conversation happily reuses last turn's path from memory. When
+ * the start SWEPT the box (settled predecessor), says so and names the staged
  * read-only copies: the conversation remembers writing files the sweep just
  * removed, and without the pointer it would rediscover (or worse, redo)
- * them. Exported for its unit test. */
+ * them. */
 function buildResumeKickPrompt(args: {
   outputDir: string;
+  description?: string;
   feedback?: string;
   mentionSource?: MentionSource;
   /** Who started the run when no person did; see {@link KickRequester}. */
@@ -575,6 +624,7 @@ function buildResumeKickPrompt(args: {
   boxCleared?: boolean;
 }): string {
   const feedbackText = args.feedback?.trim() ?? '';
+  const descriptionText = args.description ?? '';
   let discussion = args.discussion ?? [];
   const lastEntry = discussion.at(-1);
   if (
@@ -594,6 +644,11 @@ function buildResumeKickPrompt(args: {
           `- ${inputs.dir}/attachments/ — files the user attached to the task: ${inputs.attachments.join(', ')}`,
         ]
       : []),
+    ...(inputs !== undefined && (inputs.omittedOutputs ?? 0) > 0
+      ? [
+          `- ${inputs.dir}/outputs/ contains the newest ${inputs.outputs.length} deliverables; ${inputs.omittedOutputs} older retained deliverables were left on the task and omitted from this turn to keep input staging bounded.`,
+        ]
+      : []),
     ...(inputs !== undefined && inputs.outputs.length > 0
       ? [
           `- ${inputs.dir}/outputs/ — the task's current deliverables, produced by earlier runs: ${inputs.outputs.join(', ')}`,
@@ -602,6 +657,15 @@ function buildResumeKickPrompt(args: {
   ];
   return [
     'You are continuing the SAME task in the SAME conversation — your previous turn ended, and this is the next one. Do NOT redo work that is already done; pick up from where the conversation left off.',
+    ...(descriptionText.trim() === ''
+      ? [
+          'This task currently has no description. Do not keep following an earlier task description; continue from the current task discussion and feedback below.',
+        ]
+      : args.mentionSource !== 'description'
+        ? [
+            `Current task description:\n${descriptionText}\n\nThis replaces any earlier task description. Act on what remains to be done under it without repeating completed work.`,
+          ]
+        : []),
     ...(discussion.length > 0
       ? [
           [
@@ -662,8 +726,8 @@ const FRESH_KICK_RESTART_NOTE =
  * that lands between the kick and this start (a queued run, a capacity
  * park) names nobody new, fires nothing, and must not be contradicted by
  * the text it replaced. A fresh conversation reads that description as its
- * brief; a resumed one does not re-read the brief, so it gets it as the
- * edit that named the agent. */
+ * brief; every resumed one gets the current description too, phrased as
+ * the edit that named the agent only for a description mention. */
 export function buildKickPrompts(args: {
   brief: {
     title: string;
@@ -707,6 +771,9 @@ export function buildKickPrompts(args: {
         : base,
     resume: buildResumeKickPrompt({
       outputDir: args.outputDir,
+      ...(args.brief.description !== undefined
+        ? { description: args.brief.description }
+        : {}),
       ...(feedback !== undefined ? { feedback } : {}),
       ...(args.mentionSource !== undefined
         ? { mentionSource: args.mentionSource }
@@ -881,13 +948,12 @@ async function mintTurnServing(
           ? credential.endpointUrl
           : undefined) ?? resolved.apiBaseUrl,
       bridgeToken,
-      ...(credential.authMethod === 'subscription-broker'
-        ? {
-            targetEnvVar: credential.targetEnvVar,
-            ...(credential.accountId !== undefined
-              ? { accountId: credential.accountId }
-              : {}),
-          }
+      ...(credential.targetEnvVar !== undefined
+        ? { targetEnvVar: credential.targetEnvVar }
+        : {}),
+      ...(credential.authMethod === 'subscription-broker' &&
+      credential.accountId !== undefined
+        ? { accountId: credential.accountId }
         : {}),
     },
     execModel: resolved.modelId,
@@ -1452,6 +1518,7 @@ export async function startTaskAgentTurnImpl(
         onText: progress.onText,
         onTimeline: progress.onTimeline,
       });
+      throwIfExecPlacesTaken(window, args);
       if (resume !== undefined && isResumeLaunchFailure(window, resume)) {
         // A dead handle does not throw: the CLI launches, emits one error
         // result (echoing the id back), and exits — a terminal, errored
@@ -1486,26 +1553,40 @@ export async function startTaskAgentTurnImpl(
             onText: progress.onText,
             onTimeline: progress.onTimeline,
           });
+          throwIfExecPlacesTaken(window, args);
         }
       }
       await progress.flush();
       await continueOrSettle(ctx, keys, window, resume);
     } catch (err) {
       // No room is not a failure: the organization's session budget is
-      // spent, or the sandbox host is at capacity or short of memory. Park
+      // spent, the sandbox host is at capacity or short of memory, or the
+      // workspace's runtime already runs its maximum of live execs. Park
       // the run and let the next slot release (or the watchdog backstop,
       // every two minutes) restart it — or, when the host keeps a line and
-      // said when the run's place comes up, a wake at that moment. A
-      // workspace an administrator is destroying parks the run too: the
-      // Destroy's settle is a release edge, and the run starts afresh after
-      // it. Everything else settles as a failure with the REAL reason.
+      // said when the run's place comes up, a wake at that moment; a run
+      // whose exec found no live-exec place wakes when another turn of its
+      // workspace ends. A workspace an administrator is destroying parks
+      // the run too: the Destroy's settle is a release edge, and the run
+      // starts afresh after it. Everything else settles as a failure with
+      // the REAL reason.
       const noRoom = sandboxCapacityRefusal(err);
       if (noRoom !== null || isDestroyPendingRefusal(err)) {
         console.warn(
           noRoom === null
             ? `[task-agent] the sandbox workspace for ${args.execId} is being destroyed — parking the run until the Destroy settles`
-            : `[task-agent] no ${noRoom.scope === 'host' ? 'sandbox host capacity' : 'session slot'} for ${args.execId} — parking the run until one frees`,
+            : `[task-agent] no ${capacityShortOf(noRoom.scope)} for ${args.execId} — parking the run until one frees`,
         );
+        // The runtime refuses an exec only after the launch: the run reads
+        // `running`, with a key minted and an op row open for an exec that
+        // never ran. The park takes the run back to `queued` on a fresh
+        // exec, so its next start mints its own and the wait counts as no
+        // executed time; the refused exec's key and op row then close as
+        // cancelled (the key revoked, nothing spent), marked as a room wait:
+        // no harness turn ran, so the external-turn metrics must not count
+        // the refusal, or each re-wake into a still-full workspace, as a
+        // cancelled turn — as the automation lane marks its room waits.
+        const execRefused = noRoom?.scope === 'session';
         const wakeAfterMs =
           noRoom !== null ? queuedWakeAfterMs(noRoom) : undefined;
         await ctx.runMutation(
@@ -1514,8 +1595,23 @@ export async function startTaskAgentTurnImpl(
             runId: args.runId,
             execId: args.execId,
             ...(wakeAfterMs !== undefined ? { wakeAfterMs } : {}),
+            ...(execRefused ? { execRefused: true } : {}),
           },
         );
+        if (execRefused) {
+          await releaseTurnKey(ctx, {
+            organizationId: args.organizationId,
+            sessionId: args.sessionId,
+            execId: args.execId,
+            status: 'cancelled',
+            agentResultStatus: AWAITING_ROOM_RESULT_STATUS,
+          }).catch((releaseErr: unknown) => {
+            console.warn(
+              `[task-agent] closing the refused exec ${args.execId} failed:`,
+              releaseErr,
+            );
+          });
+        }
         return null;
       }
       console.error('[task-agent] turn start failed:', err);
@@ -1628,6 +1724,24 @@ export async function driveTaskAgentTurnImpl(
  * carries content and settles normally — and from an empty answer: the
  * conversation launched cleanly (the pinned CLI announces the resumed id
  * itself) and only its model said nothing. Exported for its unit test. */
+/** What a parked start waits for, as its log line names it. */
+function capacityShortOf(scope: CapacityRefusal['scope']): string {
+  if (scope === 'host') return 'sandbox host capacity';
+  if (scope === 'session') return 'free live-exec place in its workspace';
+  return 'session slot';
+}
+
+/** Raise a start window the workspace's runtime refused for want of a
+ * live-exec place (`EXEC_LIMIT`) as the capacity refusal it is: the exec
+ * never ran, so there is no harness end to settle, only room to wait for. */
+function throwIfExecPlacesTaken(
+  window: Awaited<ReturnType<typeof drainHarnessWindow>>,
+  keys: Pick<TurnKeys, 'sessionId' | 'execId'>,
+): void {
+  if (window.kind === 'terminal' && isSessionExecLimitResult(window.execResult))
+    throw new SessionExecLimitError(keys.sessionId, keys.execId);
+}
+
 function isResumeLaunchFailure(
   window: Awaited<ReturnType<typeof drainHarnessWindow>>,
   attemptedResume?: string,
@@ -2112,17 +2226,23 @@ async function settleTaskAgentTurn(
  * sibling task's live turn keeps the session up (the release mutation checks
  * running ops AND live runs of the agent, so a sibling that is admitted but
  * has no exec yet is not uncounted); the workspace is preserved either way.
+ * The run's workspace rides along: the ended exec freed one of its live-exec
+ * places, which a run parked on that workspace waits for.
  * Best-effort: a failed release costs latency (the task watchdog's orphan
  * backstop gets it), never the settle.
  */
 async function releaseProjectAgentSlotAfterSettle(
   ctx: ActionCtx,
-  args: Pick<TurnKeys, 'organizationId' | 'agentId'>,
+  args: Pick<TurnKeys, 'organizationId' | 'agentId' | 'sessionId'>,
 ): Promise<void> {
   try {
     await ctx.runMutation(
       internal.sandbox.session_mutations.releaseProjectAgentSessionSlot,
-      { organizationId: args.organizationId, agentId: args.agentId },
+      {
+        organizationId: args.organizationId,
+        agentId: args.agentId,
+        sessionId: args.sessionId,
+      },
     );
   } catch (err) {
     console.warn('[task-agent] session-slot release failed:', err);

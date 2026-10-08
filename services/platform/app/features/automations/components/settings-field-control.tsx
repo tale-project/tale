@@ -8,6 +8,7 @@ import { Checkbox } from '@tale/ui/checkbox';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Input } from '@tale/ui/input';
 import { Select } from '@tale/ui/select';
+import { Textarea } from '@tale/ui/textarea';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -41,6 +42,8 @@ export function SettingsFieldControl({
   issue,
   disabled,
   onChange,
+  multiline = false,
+  maxLength,
 }: {
   form: SettingsForm;
   field: SettingsField;
@@ -48,6 +51,8 @@ export function SettingsFieldControl({
   issue: SettingsFieldIssue | null;
   disabled: boolean;
   onChange: (value: string) => void;
+  multiline?: boolean;
+  maxLength?: number;
 }) {
   const { t } = useT('automations');
   const localized = useLocalized();
@@ -92,6 +97,22 @@ export function SettingsFieldControl({
       />
     );
   }
+  if (field.type === 'text' && multiline) {
+    return (
+      <Textarea
+        id={id}
+        label={text.label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={text.placeholder}
+        description={text.help}
+        errorMessage={errorMessage}
+        required={field.required === true}
+        disabled={disabled}
+        maxLength={maxLength}
+      />
+    );
+  }
   return (
     <Input
       id={id}
@@ -106,6 +127,7 @@ export function SettingsFieldControl({
       {...(errorMessage !== undefined && { errorMessage })}
       required={field.required === true}
       disabled={disabled}
+      maxLength={maxLength}
     />
   );
 }

@@ -63,7 +63,7 @@ beforeEach(() => {
   });
 });
 
-describe('agentModelRefusal', () => {
+describe('agentModelRefusal [PROJ-R9]', () => {
   it('accepts a listed pair, and a listed id without a provider', async () => {
     await expect(
       agentModelRefusal(sql, {
@@ -193,7 +193,7 @@ describe('agentEquipmentRefusal', () => {
     expect(composer.listProjectCapabilities).not.toHaveBeenCalled();
   });
 
-  it('accepts what the project can see and refuses the rest by name', async () => {
+  it('accepts what the project can see and refuses the rest by name [PROJ-R9]', async () => {
     await expect(
       agentEquipmentRefusal(sql, {
         ...org,

@@ -28,6 +28,17 @@ describe('ErrorDisplayCompact', () => {
     });
   });
 
+  it('keeps the page description for consumers that do not override it', () => {
+    render(
+      <ErrorDisplayCompact error={new Error('Test error')} reset={() => {}} />,
+    );
+    expect(
+      screen.getByText(
+        'Something went wrong while loading this page. Try again or go to another section.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   describe('contact support link', () => {
     it('points at tale.dev/contact by default', () => {
       render(

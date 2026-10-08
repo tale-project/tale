@@ -112,7 +112,7 @@ const refusedAsMemberRun = {
   blockers: [expect.objectContaining({ code: 'member_run' })],
 };
 
-describe('a run a member started, confined to its own task', () => {
+describe('a run a member started, confined to its own task [SBX-R7]', () => {
   it('changes its own task and the subtasks under it', async () => {
     const { ctx, writes } = createCtx('task-own');
     for (const taskId of ['task-own', 'task-own-sub']) {
@@ -223,7 +223,7 @@ describe('a run a member started, confined to its own task', () => {
   });
 });
 
-describe('a run an editor started keeps the agent’s reach', () => {
+describe('a run an editor started keeps the agent’s reach [SBX-R7]', () => {
   it('changes any task on the board and mints the labels it names', async () => {
     const { ctx, runMutation } = createCtx();
     expect(

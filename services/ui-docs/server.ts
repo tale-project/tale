@@ -39,6 +39,7 @@ startReactServer({
   port: Number(process.env.PORT ?? 3003),
   distDir: resolve(import.meta.dir, 'dist'),
   logPrefix: 'ui-docs',
+  servingService: 'ui-docs',
   redirectPrefix: BASE_PATH,
   // One English tree — `app/routes/` has no locale segment and the
   // prerenderer writes no `/de` or `/fr` artifact. Path negotiation would

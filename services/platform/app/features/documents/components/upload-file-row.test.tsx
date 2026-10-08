@@ -4,11 +4,11 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { formatBytes } from '@/lib/utils/format/number';
+import { checkAccessibility } from '@/tests/utils/a11y';
 // Mock useT against the real en.json so tests match on rendered prose.
 // Resolves ICU placeholders like {fileName} so `aria-label="Remove foo.pdf"`
 // still works after the refactor that introduced translation calls.
-import enMessages from '@/messages/en.yml';
-import { checkAccessibility } from '@/tests/utils/a11y';
+import { enMessages } from '@/tests/utils/messages';
 
 const localeState = { locale: 'en' };
 

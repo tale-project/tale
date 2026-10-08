@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AbilityContext } from '@/app/context/ability-context';
@@ -29,6 +30,15 @@ vi.mock('@tale/ui/i18n/client', () => ({
   }),
 }));
 
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProjectHarnesses: () => ({ data: { harnesses: [], models: [] } }),
+  useProjectCapabilityCatalog: () => ({ data: { skills: [], connectors: [] } }),
+}));
+
+vi.mock('@/app/features/projects/hooks/use-unpinned-serving-preview', () => ({
+  useUnpinnedServingPreview: () => ({ data: undefined }),
+}));
+
 describe('TaskActorName', () => {
   it('renders a plain name when no preview is available', () => {
     render(<TaskActorName preview={null} name="Israel" />);
@@ -36,21 +46,130 @@ describe('TaskActorName', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('renders a preview trigger for agent actors', () => {
+  it('renders a deleted agent as plain historical text', () => {
     render(
       <TaskActorName
-        name="Writer"
+        name="Deleted agent"
         preview={{
           kind: 'agent',
-          name: 'Writer',
-          description: 'Drafts copy.',
+          name: 'Deleted agent',
           viewTo: '/dashboard/$id',
           viewParams: { id: 'org_1' },
         }}
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Writer' })).toBeInTheDocument();
+    expect(screen.getByText('Deleted agent')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('renders a preview trigger and its details for agent actors', async () => {
+    const { user } = render(
+      <TaskActorName
+        name="Writer"
+        preview={{
+          kind: 'agent',
+          name: 'Writer',
+          agent: {
+            name: 'Writer',
+            organizationId: 'org_1',
+            projectId: 'project_1',
+            harness: 'codex',
+            model: 'gpt-6.1',
+            modelProvider: 'openai',
+            skills: ['docx'],
+            connectors: [],
+            tools: [],
+            instructions: 'Drafts copy.',
+            managed: false,
+          },
+          viewTo: '/dashboard/$id',
+          viewParams: { id: 'org_1' },
+        }}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Writer' });
+    expect(trigger).toBeInTheDocument();
+    await user.hover(trigger);
+    expect(
+      await screen.findByText('tasks.agents.providerLabel'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('gpt-6.1')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'tasks.timeline.viewMore' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('tasks.timeline.viewAgent'),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'tasks.timeline.viewMore' }),
+    );
+    expect(
+      await screen.findByText('tasks.agents.detailsTitle'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Drafts copy.')).toBeInTheDocument();
+  });
+  it('keeps keyboard focus on View more and restores the trigger on Escape', async () => {
+    const { user } = render(
+      <TaskActorName
+        name="Writer"
+        preview={{
+          kind: 'agent',
+          name: 'Writer',
+          agent: {
+            name: 'Writer',
+            organizationId: 'org_1',
+            projectId: 'project_1',
+            harness: 'codex',
+            model: 'gpt-6.1',
+            modelProvider: 'openai',
+            skills: ['docx'],
+            connectors: [],
+            tools: [],
+            instructions: 'Drafts copy.',
+            managed: false,
+          },
+          viewTo: '/dashboard/$id',
+          viewParams: { id: 'org_1' },
+        }}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Writer' });
+    await user.tab();
+    expect(trigger).toHaveFocus();
+    await screen.findByRole('button', { name: 'tasks.timeline.viewMore' });
+    await user.tab();
+    const viewMore = screen.getByRole('button', {
+      name: 'tasks.timeline.viewMore',
+    });
+    expect(viewMore).toHaveFocus();
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(viewMore).toBeInTheDocument();
+    expect(viewMore).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+      expect(
+        screen.queryByRole('button', { name: 'tasks.timeline.viewMore' }),
+      ).not.toBeInTheDocument();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(
+      screen.queryByRole('button', { name: 'tasks.timeline.viewMore' }),
+    ).not.toBeInTheDocument();
+
+    await user.tab({ shift: true });
+    await user.tab();
+    await screen.findByRole('button', { name: 'tasks.timeline.viewMore' });
+    await user.tab();
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await user.keyboard('{Enter}');
+    expect(
+      await screen.findByText('tasks.agents.detailsTitle'),
+    ).toBeInTheDocument();
   });
 });
 

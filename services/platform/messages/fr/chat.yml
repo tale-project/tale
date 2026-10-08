@@ -1,0 +1,591 @@
+imagePreview: Aperçu de l'image
+previousImage: Image précédente
+nextImage: Image suivante
+imageCounter: '{current} sur {total}'
+newChat: Nouveau chat
+moreActions: Plus d'actions
+pinProject: Épingler le projet
+unpinProject: Détacher le projet
+pinChat: Épingler le chat
+unpinChat: Détacher le chat
+newResponse: Nouvelle réponse
+archive: Archiver
+unarchive: Désarchiver
+archiveSuccess: Chat archivé
+archiveFailed: Impossible d'archiver le chat
+unarchiveSuccess: Chat désarchivé
+unarchiveFailed: Impossible de désarchiver le chat
+archivedBanner: Archivé
+archived:
+  title: Archivés
+  empty: Aucune conversation archivée
+markAsRead: Marquer comme lu
+markAsUnread: Marquer comme non lu
+readOnlyShared: Partagé avec le projet — lecture seule
+createTask:
+  button: Créer une tâche depuis le chat
+  projectTitle: Créer une tâche à partir de ce chat
+  projectDescription: Choisis le projet auquel la tâche appartient. Dans un projet avec un agent, l’agent peut s’y mettre tout de suite et livrer les fichiers.
+  projectLabel: Projet
+  projectPlaceholder: Choisir un projet
+  projectEmpty: Aucun projet ne correspond
+  noProjects: Il n’y a encore aucun projet où créer la tâche. Demande à un éditeur ou à un admin d’en créer un.
+  continue: Continuer
+  fromChat: 'Depuis le chat : {title}'
+  fromChatUntitled: Depuis le chat
+  created: Tâche créée dans {project}
+  openTask: Ouvrir la tâche
+  openTaskAltText: Ouvrir la tâche que tu viens de créer sur le tableau de son projet
+  readFailed: 'Tale n’a pas pu lire cette conversation : la tâche ne peut pas encore reprendre ta demande et tes fichiers. Réessaie, ou crée la tâche depuis le tableau du projet.'
+  headerButton: Créer une tâche
+  withAgents: Avec un agent
+  withoutAgents: Sans agent pour l’instant
+  agentCount: '{count, plural, one {# agent} other {# agents}}'
+  noAgentEditor: Tu peux en ajouter un dans la tâche
+  noAgentReader: Un éditeur ou un admin peut en ajouter un
+  standardAgent: Agent standard
+taskTray:
+  label: Tâches issues de ce chat
+  working: L’agent travaille
+  waitingForSlot: En attente d’une place de sandbox
+  retrying: Nouvelle tentative…
+  failed: L’agent n’a pas pu la terminer
+  ready: Prête pour la revue
+  readyWithFiles: '{count, plural, one {Prête pour la revue · # fichier} other {Prête pour la revue · # fichiers}}'
+  notStarted: En attente de démarrage
+  open: Ouvrir
+  openAria: 'Ouvrir la tâche {title}'
+  more: '{count, plural, one {et # autre tâche} other {et # autres tâches}}'
+export:
+  button: Exporter
+  title: Exporter le chat
+  description: Sélectionne les messages et télécharge-les dans le format de ton choix.
+  selectAll: Tout sélectionner
+  deselectAll: Tout désélectionner
+  messagesCount: '{count, plural, one {# sur {total} message sélectionné} other {# sur {total} messages sélectionnés}}'
+  downloadPdf: Imprimer en PDF
+  downloadMarkdown: Télécharger en Markdown
+  noMessages: Aucun message à exporter
+  you: Toi
+  assistant: Assistant
+moveToProject: Déplacer vers un projet…
+removeFromProject: Retirer du projet
+removeFromProjectFailed: Échec du retrait du chat du projet
+deleteChat: Supprimer le chat
+deleteConfirmation: Supprimer « {title} » ?
+deletePermanentMessage: Déplacer le chat vers la corbeille. Tu peux le restaurer pendant la période de grâce de l'organisation ; ensuite la rétention supprime définitivement le chat et ses messages.
+deleteFailed: Échec de la suppression du chat
+editMessage: Modifier le message
+editSend: Envoyer
+tryAgain: Réessayer
+regenerateFailed: Impossible de régénérer la réponse
+forkChat: Dupliquer le chat
+forkSuccess: Chat dupliqué
+forkFailed: Échec de la duplication du chat
+forkOf: Fork de {title}
+branchNavigator:
+  previous: Branche précédente
+  next: Branche suivante
+feedback:
+  thumbsUp: Utile
+  thumbsDown: Pas utile
+  commentPlaceholder: Que pourrait-on améliorer ?
+  submitComment: Soumettre
+pinned: Épinglé
+pinFailed: Échec de l'épinglage
+welcomeEmpty: Sur quoi travaillons-nous ?
+starters:
+  email: M’aider à rédiger un email clair et professionnel
+  summarize: Résumer un long document en points clés
+  brainstorm: Trouver des idées pour résoudre un problème
+  explain: Expliquer simplement un sujet complexe
+quote:
+  button: Citer
+  label: Citation
+  remove: Supprimer la citation
+toast:
+  budgetExceeded: Limite d'utilisation atteinte
+  modelAccessDenied: Modèle non disponible
+  piiBlocked: Message bloqué par la politique de protection des données personnelles
+  policyViolation: Message bloqué par la politique de contenu
+  sendFailed: Échec de l'envoi du message
+modelSelector:
+  label: Sélectionner un modèle
+  auto: Auto
+  autoDescription: Tale choisit le meilleur modèle pour chaque message — équilibre qualité, vitesse et coût.
+  noModelsAvailable: Aucun modèle disponible
+  subscriptionsTasksOnly:
+    Les abonnements des fournisseurs {providers} ne fonctionnent que dans
+    les tâches et les automatisations. Pour discuter avec leurs modèles,
+    ajoute des identifiants par clé API ou variable d'environnement.
+  viewProvider: Voir les paramètres du fournisseur
+  viewInfo: Détails du modèle
+  info:
+    provider: Fournisseur
+    type: Type
+    contextWindow: Contexte
+    maxOutput: Sortie max.
+    inputCost: Coût d'entrée
+    outputCost: Coût de sortie
+    reasoning: Raisonnement
+    promptCaching: Mise en cache des prompts
+    tools: Outils
+    vision: Vision
+    supported: Pris en charge
+    notSupported: Non pris en charge
+    reasoningEffort: Niveaux d'effort
+    reasoningBudget: Budget de tokens
+    cachingExplicit: Points de rupture manuels
+    cachingAuto: Automatique
+  tags:
+    chat: Chat
+    embedding: Embedding
+    imageEdit: Édition d'images
+    imageGeneration: Génération d'images
+    textToSpeech: Synthèse vocale
+    transcription: Transcription
+    vision: Vision
+voice:
+  voiceModeDisable: Arrêter la lecture à voix haute
+  voiceModeEnable: Lire les réponses à voix haute
+  voiceModeLabel: Mode vocal
+  voiceOutputAnnounceBlocked: Lecture vocale bloquée — active la lecture pour écouter
+  voiceOutputAnnounceError: Échec de la sortie vocale
+  voiceOutputAnnounceSpeaking: Lecture vocale en cours
+  voiceOutputAnnounceStopped: Lecture vocale arrêtée
+  voiceOutputBlocked: Lecture vocale bloquée — clique pour lire
+  voiceOutputError: Échec de la sortie vocale
+  voiceOutputErrorAuthExpired: Session expirée — reconnecte-toi pour continuer la lecture vocale
+  voiceOutputErrorBudget: Budget vocal épuisé pour cette période
+  voiceOutputErrorChunkLimit: Limite vocale atteinte pour cette réponse
+  voiceOutputErrorConfig: Fournisseur vocal indisponible — demande à une personne admin d'ajouter un modèle de synthèse vocale
+  voiceOutputErrorDecode: Lecture audio impossible — clique pour réessayer
+  voiceOutputErrorForbidden: Fournisseur vocal bloqué par la politique d'hôte
+  voiceOutputErrorInvalidResponse: Fournisseur vocal a renvoyé un audio invalide — clique pour réessayer
+  voiceOutputErrorMessageCharLimit: Réponse trop longue pour la voix — arrêt ici
+  voiceOutputErrorNetwork: Échec de la requête vocale — vérifie ta connexion et réessaie
+  voiceOutputErrorOpenSettings: Ouvrir les paramètres
+  voiceOutputErrorQueueOverflow: La synthèse vocale prend du retard — mise en pause des phrases suivantes
+  voiceOutputErrorRateLimited: Limite vocale atteinte — nouvelle tentative en cours
+  voiceOutputErrorTransient: Service vocal indisponible — nouvelle tentative en cours
+  voiceOutputLoading: Préparation de la voix…
+  voiceOutputPlay: Lire la sortie vocale
+  voiceOutputSpeaking: Lecture en cours
+  voiceOutputStop: Arrêter la sortie vocale
+  voiceOutputStopped: Arrêté
+  voiceOutputThreadSaveFailed: Impossible d'enregistrer le paramètre vocal pour ce chat
+notFound: Ce chat n'est pas disponible.
+placeholder: Pose une question…
+generationIncomplete: Le modèle n'a renvoyé aucune réponse. Réessaie ou choisis un autre modèle.
+generationIncompleteFiltered: Le filtre de contenu du fournisseur du modèle a retenu cette réponse. Essaie de reformuler ton message.
+generationIncompleteLength: Le modèle a épuisé sa limite de tokens en sortie avant d'écrire une réponse. Essaie un effort de raisonnement plus faible, une demande plus courte ou un autre modèle.
+generationIncompleteWithTools: La réponse n'a pas pu être terminée après l'exécution de {tools}. Réessaie.
+stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un message pour continuer.
+send: Envoyer le message
+stopGenerating: Arrêter la génération
+stoppingGeneration: Arrêt en cours…
+invalidFiles: Fichiers invalides
+fileSizeExceededMultiple: '{names} dépasse(nt) la limite de taille de fichier de {maxSize} Mo.'
+audioDurationExceeded: "{names} : l'audio dépasse la limite de {maxHours}
+  heures. Découpe-le en segments plus courts."
+fileTypeNotAllowed: '{names} : type de fichier non autorisé par la politique de téléversement.'
+fileTypeUnsupported: '{names} : type de fichier non pris en charge.'
+fileUploaded: Fichier téléversé
+uploadedSuccessfully: '{filename} téléversé'
+uploadFailed: Échec du téléversement
+failedToUpload: Échec du téléversement de {filename}
+failedToUploadReason: 'Échec du téléversement de {filename} : {reason}'
+tooManyFiles: Trop de fichiers
+tooManyFilesDescription: Tu peux joindre jusqu'à {max} fichiers par message.
+  {rejected} {rejected, plural, one {fichier n'a pas été ajouté} other
+  {fichiers n'ont pas été ajoutés}}.
+totalSizeExceeded: Pièces jointes trop volumineuses
+totalSizeExceededDescription: La taille totale des pièces jointes ne peut pas
+  dépasser {maxSize} Mo. Retire certains fichiers et réessaie.
+duplicateFile: Fichier en double
+duplicateFileDescription: '{filename} est déjà joint.'
+viewImage: Afficher l'image
+removeAttachment: Retirer la pièce jointe
+uploadingFile: Téléversement…
+cancelUpload: Annuler le téléversement
+modelCannotSeeImages: Ce modèle ne peut pas voir les images — il ne reçoit que leurs noms de fichier.
+noModelCanSeeImages: Aucun des modèles disponibles ne peut voir les images — ils ne reçoivent que les noms de fichier.
+fileTypes:
+  image: IMG
+transcription:
+  transcribing: Transcription en cours…
+  transcribed: Transcrit
+  couldNotTranscribe: Transcription impossible
+  viewTranscript: Voir la transcription
+  previewSubtitle: '{seconds}s transcrites'
+  retry: Réessayer
+  noModel: Aucun modèle compatible n'est disponible pour transcrire les fichiers audio.
+  pinnedUnavailable: Le modèle de transcription audio sélectionné n'est pas disponible.
+  policyInvalid: Le paramètre du modèle de transcription audio est invalide.
+  temporarilyUnavailable: La disponibilité de la transcription audio n'a pas pu être vérifiée. Réessaie dans un instant.
+  askAdmin: Demande à un admin de vérifier les paramètres de transcription.
+  configureProviders: Configurer les fournisseurs d'IA
+  configureModel: Vérifier le modèle de transcription
+  uploadBlocked: 'Audio/vidéo non importé : {names}.'
+indexing: Indexation en cours…
+indexingFailed: Échec de l'indexation
+indexingFailedDescription: "{filename} n'a pas pu être indexé pour la
+  recherche."
+indexingUnsupported: Format non pris en charge
+indexingUnsupportedDescription: '{filename} ne peut pas être indexé — aucun
+  extracteur de texte pour ce type de fichier.'
+deferredSend:
+  waiting: En file — part dès que les pièces jointes sont prêtes
+  sending: Envoi…
+  cancel: Annuler le message en attente
+videoLink:
+  statuses:
+    queued: En file d'attente
+    retrying: Nouvelle tentative…
+    attemptNumber: Tentative {n}
+    fetching_metadata: Lecture des infos vidéo…
+    fetching_captions: Récupération des sous-titres…
+    extracting_audio: Extraction de l'audio…
+    transcribing_handoff: Transcription en cours…
+    indexing: Indexation en cours…
+    completed: Prêt
+    failed: Échec
+    skipped: Annulé
+  errors:
+    generic: Impossible d'analyser cette vidéo
+    privateOrAgeGated: Vidéo privée ou à accès restreint
+    authRequired: La plateforme vidéo exige d'être connecté — impossible d'analyser cette vidéo
+    unavailable: La vidéo n'est plus disponible
+    geoblocked: Vidéo non disponible dans cette région
+    unsupported: Ce site n'est pas pris en charge
+    transient: Problème temporaire — réessaie
+    botDetection: La plateforme vidéo a bloqué l'accès automatisé — réessaie plus tard ou utilise une autre plateforme
+    rateLimited: La plateforme vidéo limite les requêtes — attends quelques minutes et réessaie
+    forbidden: La plateforme vidéo a refusé l'accès (403) — réessaie plus tard
+    liveStream: Les directs ne sont pas pris en charge
+    premiere: Vidéo en première/à venir non encore disponible
+    memberOnly: Réservé aux membres
+    jsRuntimeMissing: Le traitement vidéo n'est pas entièrement configuré — contacte ton administrateur
+    binaryNotInstalled: Le traitement vidéo n'est pas encore activé — contacte ton administrateur
+    retryCooldown: Cette vidéo vient d'être limitée — attends quelques minutes avant de réessayer
+    timeout: Récupération trop longue — réessaie
+    outputValidationFailed: Impossible de valider le fichier vidéo téléchargé
+    videoTooLong: La vidéo dépasse la limite de 4 heures
+    whisperFailed: Échec de la transcription
+    invalidUrl: URL invalide
+    unsupportedProtocol: Seuls les liens https:// sont acceptés
+    credentialedUrl: Les liens avec identifiants intégrés ne sont pas acceptés
+    ipLiteral: Les liens vers une IP brute ou localhost ne sont pas acceptés
+    playlist: Les listes de lecture ne sont pas prises en charge — colle un lien vidéo unique
+    dnsResolutionFailed: Impossible de résoudre l'hôte
+    privateIpResolved: Ce lien pointe vers une adresse privée/interne
+    inFlightCap: Trop de vidéos en cours de traitement — attends qu'une se termine
+    budgetExceeded: Limite d'usage atteinte — contacte ton administrateur
+    notFound: Lien vidéo introuvable — il a peut-être été supprimé
+    notUploader: Seule la personne qui a ajouté cette vidéo peut la modifier
+    notRetryable: Nouvelle tentative impossible pour le moment — la vidéo est peut-être déjà en cours de traitement
+    threadNotFound: Ce chat n'est plus disponible
+  actions:
+    removeLink: Retirer
+    retry: Réessayer
+  chip:
+    fallbackTitle: Lien vidéo
+    ariaLabel: 'Pièce jointe vidéo : {title}'
+    failedSendBlockedTooltip: Une vidéo a échoué — réessaie-la ou retire la vignette avant d'envoyer
+  toast:
+    ingestFailedTitle: Impossible d'ajouter cette vidéo
+    retryFailedTitle: Impossible de réessayer cette vidéo
+    removeFailedTitle: Impossible de retirer cette vidéo
+    removeFailedDescription: Elle est toujours jointe à ton message — réessaie de la retirer
+fallback:
+  image: Image
+loadingConversation: Chargement de la conversation…
+speakOutLoud: Lire à voix haute
+showMore: Voir plus
+showLess: Voir moins
+scrollToBottom: Défiler vers le bas
+messageInfo:
+  title: Informations sur le message
+  timestamp: Horodatage
+  messageId: ID du message
+  copyId: Copier l'ID du message
+  model: Modèle
+  provider: Fournisseur IA
+  servedBy: Traité par
+  region: Région
+  regionNotReported: Non indiquée
+  regionNotReportedHint: S’affiche quand le fournisseur l’indique ou qu’un endpoint régional la fixe.
+  regionFromEndpoint: Fixée par l’endpoint régional {host}
+  regionGlobal: Mondiale, sans région fixe
+  regions:
+    europe: Europe
+    unitedStates: États-Unis
+  modelVersion: Version du modèle
+  tokenUsage: Utilisation des tokens
+  totalTokens: '{count} au total'
+  input: Entrée
+  output: Sortie
+  cachedTokens: '{count} en cache ({percent} %)'
+  reasoningTokens: '{count} de Reasoning'
+  cost: Coût
+  performance: Performance
+  timeToFirstToken: Délai avant le premier token
+  throughput: Vitesse de sortie
+  duration: Durée totale
+  tokensPerSecond: '{value} tok/s'
+  phases:
+    preparing: Préparation
+    waiting: Attente du modèle
+    thinking: Réflexion
+    writing: Rédaction
+  perceivedWait: Sur ton écran, les premiers mots sont apparus {duration} après l’envoi.
+  toolCalls: Appels d'outils
+  voiceOutput: Sortie vocale
+  voice: Voix
+  voiceCharacters: Caractères
+  blockedReason: Bloqué
+  error: Erreur
+  noMetadata: L'utilisation des tokens et les informations sur le modèle ne sont pas disponibles pour ce message.
+history:
+  untitled: Chat sans titre
+  noProjects: Aucun projet — crées-en un dans le panneau ci-dessus.
+  legalHold:
+    heading: Sous conservation légale
+    body: Conservé pour conformité — ne peut pas être supprimé, archivé ou renommé.
+    reasonLabel: Motif
+    matterLabel: Affaire
+    placedByLabel: Placé par
+    placedAtLabel: Placé le
+  generating: Génération de la réponse
+  renameChat: Renommer
+  renameEmpty: Saisis un titre de chat.
+  renameTooLong: Utilise 500 caractères au maximum.
+  loadMore: Charger plus
+  toast:
+    moveFailed: Échec du déplacement du chat
+    renameFailed: Impossible de renommer le chat. Réessaie.
+searchPalette:
+  title: Rechercher dans les chats
+  placeholder: Rechercher dans les chats
+  loading: Chargement des chats…
+  noResults: Aucun résultat
+  empty: Commence à taper pour rechercher
+  emptyHint: Recherche par titre, message ou participant
+aria:
+  messageHistory: Historique des messages
+  chatRegion: Chat
+  chatInput: Saisie du message
+  skipToComposer: Aller au champ de message
+  threadActions: Actions de la conversation
+dictation:
+  start: Démarrer la dictée
+  stop: Arrêter la dictée
+  level: Niveau du microphone
+  notSupported: La reconnaissance vocale n'est pas prise en charge par ce navigateur
+  transcribing: Transcription…
+  transcriptionFailedShort: Échec de la transcription
+  retry: Réessayer
+  discard: Supprimer l'enregistrement
+  permissionDenied: Accès au microphone refusé. Autorise-le dans les paramètres de ton navigateur.
+  serviceUnavailable: La dictée est indisponible pour le moment. Le navigateur ne parvient pas à joindre son service vocal ; vérifie la connexion et réessaie.
+citations:
+  source: Source {number}
+  page: Page {page}
+  relevance: 'Pertinence : {score}%'
+  viewDocument: Voir dans le document
+  visitPage: Visiter la page
+share:
+  button: Partager
+  title: Partager le chat
+  snapshotHint: Seuls les messages jusqu'à ce point seront partagés.
+  snapshotHintShared: Les messages ultérieurs ne sont pas inclus.
+  accessPickerLabel: Qui peut consulter ce chat
+  keepPrivate: Garder privé
+  keepPrivateDescription: Seul toi y as accès
+  organizationLink: Partager avec l'organisation
+  organizationLinkDescription: Toute personne de ton organisation disposant du lien peut consulter ce chat
+  createLink: Créer le lien de partage
+  includeNewer: Inclure les messages plus récents
+  creatingLink: Création du lien…
+  retry: Réessayer
+  statusFailed: Impossible de charger l'état du partage. Ce chat est peut-être encore partagé avec ton organisation.
+  copyLink: Copier le lien
+  copied: Lien copié
+  preview: Aperçu
+  notShareable: Ce chat ne peut pas être partagé.
+  cannotShareArena: Les chats en mode arène ne peuvent pas être partagés.
+  shareFailed: Échec du partage du chat
+  sharedIndicator: Partagé
+  unshare: Arrêter le partage
+  unshared: Partage arrêté
+  unshareFailed: Échec de l'arrêt du partage
+  sharedChat: Chat partagé
+  byline: Partagé par {name} le {date}
+  notFound: Ce chat partagé n'est plus disponible.
+arena:
+  label: Mode Arène
+  enable: Activer le mode Arène
+  disable: Désactiver le mode Arène
+  modelA: Modèle A
+  modelB: Modèle B
+  modelALabel: Modèle A
+  modelBLabel: Modèle B
+  selectModel: Sélectionner un modèle
+  vs: vs
+  verdictLabel: Choisis un verdict
+  aBetter: A est meilleur
+  bBetter: B est meilleur
+  tie: Égalité
+  bothBad: Les deux sont mauvais
+  verdictRecorded: Verdict enregistré
+  verdictError: Échec de l'enregistrement du verdict
+  busy: Les deux réponses doivent d'abord se terminer
+  oneSided: Les deux colonnes doivent avoir terminé leur réponse à ce tour avant un verdict
+  exitWithoutVerdict: Quitter sans verdict
+  startFailed: Impossible de démarrer le mode Arène
+  unsharable: Une conversation partagée ne peut pas passer en mode Arène
+backendUnavailable:
+  title: Le chat n’est pas encore connecté
+  description: Le service de chat ne répond pas, aucune conversation ne peut donc être chargée. Rien de ce que tu as écrit n’est perdu.
+providerSetup:
+  title: Aucun fournisseur d’IA n’est encore connecté
+  descriptionAdmin: Connecte un fournisseur IA pour commencer à discuter.
+  descriptionMember: Demande à ton administrateur d'espace de travail de
+    connecter un fournisseur IA.
+  action: Ouvrir les fournisseurs d’IA
+skills:
+  label: Skills
+  labelWithCount: Skills ({count})
+  sectionSkills: Skills
+  sectionConnectors: Connectors
+  sectionTools: Outils de la plateforme
+  emptySkills: Aucun skill dans cette organisation pour l’instant.
+  unavailableOption: '"{slug}" (indisponible)'
+  emptyConnectors: Aucun connector activé pour l’instant — ajoutes-en un
+    dans Paramètres → Connectors.
+  emptyTools: Aucun outil de la plateforme disponible.
+generation:
+  regionLabel: État de la réponse
+  queued: En file d’attente — démarrage imminent
+  streaming: Rédaction de la réponse…
+  waitingApproval: En attente de ton approbation
+  waitingOn: En attente de {detail}
+parts:
+  toolCall: '{tool} appelé'
+  toolResult: Résultat de {tool}
+  toolResultFailed: Échec
+  approvalPending: Approbation demandée
+  approvalApproved: Approuvé
+  approvalRejected: Refusé
+errorGeneratingDescription: Une erreur est survenue lors de la génération de la réponse. Réessaie.
+errorHintAuthError: La clé API est invalide ou n'a pas accès à ce modèle.
+  Contacte ton administrateur.
+errorHintContentFilter: Le message a été signalé par le filtre de contenu.
+  Essaie de reformuler ton message.
+errorHintContextLength: La conversation est trop longue pour la fenêtre de
+  contexte du modèle. Essaie de démarrer un nouveau chat.
+errorHintCreditExhausted: Le plafond de crédits du fournisseur d'IA a été
+  dépassé. Contacte ton administrateur pour ajouter des crédits.
+errorHintMissingApiKey: Aucune clé API configurée pour ce workspace.
+errorHintModelNotFound: Le modèle sélectionné est introuvable ou indisponible.
+  Contacte ton administrateur.
+errorHintOutputCapTooHigh:
+  Le plafond de tokens en sortie de ce modèle ne laisse
+  pas de place pour le prompt (ou dépasse ce que le modèle prend en charge).
+  Réessaie — Tale efface automatiquement un plafond mis en cache incorrect —
+  ou demande à ton administrateur de le baisser.
+errorHintProviderError: Le fournisseur d'IA rencontre temporairement des problèmes. Réessaie dans un instant.
+errorHintRateLimited: Trop de requêtes. Patiente un moment, puis réessaie.
+errorHintModelNotEntitled: Le forfait du fournisseur n'inclut pas ce modèle.
+  Choisis un autre modèle ou demande à ton administrateur d'étendre le forfait.
+errorHintTokenLimit: La limite de tokens en sortie du modèle a été dépassée.
+  Essaie une requête plus courte ou demande à ton administrateur d'ajuster les
+  paramètres du modèle.
+errorHintBudgetExceeded: Une limite d'utilisation qui s'applique à toi a été atteinte. Tu peux voir dans Paramètres > Utilisation quand elle sera réinitialisée, et ton administrateur peut l'augmenter.
+errorHintToolFailure: L'agent a rencontré une erreur lors de l'accès aux
+  données. Essaie de reformuler ta demande ou de demander un ensemble de
+  données plus restreint.
+errorHintUnsupportedParameter: Le modèle a rejeté l'un des paramètres de la
+  requête. Cela indique généralement une mauvaise configuration du fournisseur
+  ou du modèle — vérifie les paramètres du modèle ou ouvre les détails
+  ci-dessous.
+errorHintProviderUnreachable: Le fournisseur d'IA est injoignable. Il est
+  peut-être hors ligne ou mal configuré. Réessaie ou contacte ton
+  administrateur.
+errorHintCreditExhaustedNamed: "{provider} n'a plus de crédits. Contacte ton
+  administrateur pour ajouter des crédits ou changer de fournisseur."
+errorHintAuthErrorNamed: La clé API de {provider} est invalide ou expirée.
+  Contacte ton administrateur pour la mettre à jour.
+errorHintProviderUnreachableNamed: '{provider} est injoignable. Le fournisseur
+  est peut-être hors ligne ou mal configuré. Réessaie ou contacte ton
+  administrateur.'
+errorHintModelNotFoundNamed: Le modèle sélectionné est introuvable chez
+  {provider}. Il a peut-être été renommé ou supprimé.
+errorHintRateLimitedNamed: Limite de débit atteinte chez {provider}. Patiente un moment, puis réessaie.
+errorHintModelNotEntitledNamed: Le forfait chez {provider} n'inclut pas ce
+  modèle. Choisis un autre modèle ou demande à ton administrateur d'étendre le forfait.
+
+errorGenerating: Impossible de générer une réponse. Réessaie.
+errorTriedModels: "{count} modèles ont été essayés avant d'abandonner."
+errorDetailsSummary: Détails techniques
+retryGeneration: Réessayer
+askAdminProviderKey: "Demande à un administrateur d'ajouter un fournisseur IA."
+openProviderSettings: Ouvrir les paramètres du fournisseur
+generationStopped: Génération arrêtée
+blockedNotice:
+  body: Cette réponse a été bloquée par la politique de contenu de ton organisation.
+effort:
+  label: Effort de raisonnement
+  default: Par défaut
+  low: Faible
+  medium: Moyen
+  high: Élevé
+  extra: Extra
+  max: Maximal
+  description: "Plus d'effort donne des réponses plus approfondies — elles prennent plus de temps et consomment tes limites plus vite."
+  maxHint: Peut consommer beaucoup de tokens et durer longtemps — réserve-le aux tâches les plus difficiles.
+  toolsLockedHint: "Ce modèle ne peut pas combiner les outils du chat avec un niveau d'effort — chaque message part avec l'effort par défaut."
+picker:
+  ariaLabel: Choisir le modèle et l'effort
+  searchPlaceholder: Rechercher
+  searchEmpty: Aucun résultat
+  sectionModel: Modèle
+thinking:
+  label: Réflexion
+  done: A réfléchi pendant {seconds}s
+  reading: Lecture de {hostname}
+  searchingKnowledgeBase: Recherche de "{query}" dans l'espace de travail
+  readingDocument: Lecture de {name}
+  readingDocumentUnnamed: Lecture d'un document
+  readingTask: Lecture de la tâche {name}
+  listing:
+    generic: Liste de l'espace de travail
+    tasks: Liste des tâches
+    projects: Liste des projets
+    contacts: Liste des contacts
+    products: Liste des produits
+    documents: Liste des documents
+    websites: Liste des sites web
+    knowledgeEntries: Liste des entrées de connaissances
+    conversations: Liste des conversations
+    mailAttachments: Liste des pièces jointes
+  seconds: '{seconds}s'
+  summaryReasoningOnly: A montré son raisonnement
+sources:
+  label: Sources
+  showAll: Afficher les {count} sources
+  hide: Masquer les sources
+
+budgetExceededDetail: "Limite de {type} atteinte pour {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}} ({used} / {limit}). Contacte ton administrateur."
+budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Contacte ton administrateur."
+budgetRemaining: "Encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
+budgetRemainingOrg: "Organisation : encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
+budgetRemainingTeam: "Équipe {team} : encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
+budgetLimitReached: "Limite d'utilisation atteinte · se réinitialise {period, select, daily {chaque jour} weekly {chaque semaine} other {chaque mois}}"
+budgetRequestCredits: Demander plus de crédits
+budgetRequestCreditsSent: Demande envoyée à tes admins
+budgetWarningDismiss: Fermer
+budgetWarningTypeTokens: token
+budgetWarningTypeCost: coût
+budgetWarningTypeRequests: requête
+budgetViewUsage: Voir l'utilisation

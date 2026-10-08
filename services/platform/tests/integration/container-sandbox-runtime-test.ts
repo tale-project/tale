@@ -294,6 +294,9 @@ NODEEOF`,
   )?.[1];
   if (!nodeVersion) throw new Error('Missing exact Node image pin');
   probes.unshift({ slug: 'node', binary: 'node', version: nodeVersion });
+  const bunVersion = dockerfile.match(/FROM oven\/bun:([\d.]+)@sha256:/)?.[1];
+  if (!bunVersion) throw new Error('Missing exact Bun image pin');
+  probes.unshift({ slug: 'bun', binary: 'bun', version: bunVersion });
   const probeScript = String.raw`
 import json, os, re, signal, subprocess, sys, time
 

@@ -122,8 +122,9 @@ function buildWindowKeys(
   return keys;
 }
 
-/** One ledger row as the fold consumes it — the 0.4 doc's fold-relevant
- * fields, host-neutral so the 0.5 backend can feed SQL rows. */
+/** A daily ledger row or SQL aggregate as the fold consumes it. Aggregates
+ * must keep reporting windows and chart buckets separate; periodKey is a
+ * representative daily key inside both. Fields stay host-neutral. */
 export interface UsageLedgerFoldRow {
   userId: string;
   teamId?: string;
@@ -146,17 +147,9 @@ export function scanStartKeyFor(
   args: Pick<GetOrgUsageMetricsArgs, 'granularity' | 'periodDays'>,
   now: number,
 ): string {
-  const seen = new Set<string>();
-  let first: string | null = null;
-  for (let i = args.periodDays * 2 - 1; i >= args.periodDays; i--) {
-    const key = buildPeriodKeyFromTimestamp(args.granularity, now - i * DAY_MS);
-    if (!seen.has(key)) {
-      seen.add(key);
-      first ??= key;
-    }
-  }
-  return (
-    first ?? buildWindowKeys(args.granularity, args.periodDays, now)[0] ?? ''
+  return buildPeriodKeyFromTimestamp(
+    'daily',
+    now - (args.periodDays * 2 - 1) * DAY_MS,
   );
 }
 
@@ -171,23 +164,12 @@ export async function foldOrgUsageMetrics(
 ): Promise<OrgUsageMetrics> {
   const windowKeys = buildWindowKeys(args.granularity, args.periodDays, now);
 
-  // Prior equal-length window keys, for period-over-period deltas. We widen the
-  // ledger scan back to this window's start and bucket those rows separately.
-  const prevKeys: string[] = [];
-  {
-    const seen = new Set<string>();
-    for (let i = args.periodDays * 2 - 1; i >= args.periodDays; i--) {
-      const key = buildPeriodKeyFromTimestamp(
-        args.granularity,
-        now - i * DAY_MS,
-      );
-      if (!seen.has(key)) {
-        seen.add(key);
-        prevKeys.push(key);
-      }
-    }
-  }
-  const prevKeySet = new Set(prevKeys);
+  // Reporting windows use daily keys. SQL aggregates carry a representative
+  // key after splitting windows and chart buckets; raw rows are grouped here.
+  const currentKeySet = new Set(buildWindowKeys('daily', args.periodDays, now));
+  const prevKeySet = new Set(
+    buildWindowKeys('daily', args.periodDays, now - args.periodDays * DAY_MS),
+  );
 
   let prevTotalRequests = 0;
   let prevTotalTokens = 0;
@@ -247,8 +229,7 @@ export async function foldOrgUsageMetrics(
     // member's spend (or the automation bucket's) and fold onto one row.
     const subjectId = usageLedgerSubject(row.userId);
 
-    const seriesPoint = seriesMap.get(row.periodKey);
-    if (!seriesPoint) {
+    if (!currentKeySet.has(row.periodKey)) {
       // Rows outside the current window but inside the prior one feed deltas.
       if (prevKeySet.has(row.periodKey)) {
         prevTotalRequests += row.requestCount;
@@ -260,6 +241,13 @@ export async function foldOrgUsageMetrics(
       }
       continue;
     }
+
+    const chartKey = buildPeriodKeyFromTimestamp(
+      args.granularity,
+      Date.parse(`${row.periodKey}T00:00:00Z`),
+    );
+    const seriesPoint = seriesMap.get(chartKey);
+    if (!seriesPoint) continue;
 
     seriesPoint.requests += row.requestCount;
     seriesPoint.inputTokens += row.inputTokens;

@@ -11,7 +11,6 @@ import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
-import { i18n } from '@/lib/i18n/i18n';
 import { MEMBER_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import type { DocumentSyncHealth } from '@/types/documents';
 
@@ -257,7 +256,20 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{ breadcrumb: FolderWire[] }>(
           `/folders/${encodeURIComponent(folderId)}/breadcrumb`,
           { orgId },
-        ).then((body) => body.breadcrumb.map(folderView)),
+        ).then(
+          (body) => body.breadcrumb.map(folderView),
+          (error: unknown) => {
+            // 0.4 answers no trail for a folder that is gone or out of reach
+            // — what the documents page reads as "leave it for the root".
+            if (
+              error instanceof BackendApiError &&
+              (error.status === 404 || error.status === 403)
+            ) {
+              return [];
+            }
+            throw error;
+          },
+        ),
     };
   },
   'file_metadata/queries:getByStorageIds': (args, ctx) => {
@@ -723,21 +735,25 @@ export const documentActionQueryAdapters: Record<string, ActionQueryAdapter> = {
   },
 };
 
+/** The code of the offline comparison lane's refusal. */
+export const COMPARISON_OFFLINE = 'COMPARISON_OFFLINE';
+
 export const documentWriteAdapters: Record<string, WriteAdapter> = {
   /**
    * Document comparison is OFFLINE in 0.4 too — the action runs its gates
    * and then refuses, and the comparison view shows the refusal's words.
    * Answering it here keeps that behaviour after cutover instead of leaving
-   * the button on a lane that will not exist. No server words it, so the
-   * refusal carries the person's own language.
+   * the button on a lane that will not exist. No server words it: the
+   * comparison hook (`useDocumentComparison`) puts the refusal in the
+   * person's own language, beside the documents' other words.
    */
   'documents/compare_documents:compareDocuments': {
     run: () =>
       Promise.reject(
         new BackendApiError(
           400,
-          i18n.t('history.compareOffline', { ns: 'documents' }),
-          'COMPARISON_OFFLINE',
+          'Document comparison is offline.',
+          COMPARISON_OFFLINE,
         ),
       ),
   },

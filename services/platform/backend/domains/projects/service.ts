@@ -192,6 +192,16 @@ const PROJECT_COLUMNS = `
   pinned_at_ms::float8 AS "pinnedAt"
 `;
 
+/** Metadata reads keep the nullable wire slot while skipping retained bodies. */
+const PROJECT_SUMMARY_COLUMNS = PROJECT_COLUMNS.replace(
+  ' instructions,',
+  ' NULL AS instructions,',
+);
+
+interface ProjectReadOptions {
+  summary?: boolean;
+}
+
 /** Project access input — the audience the matrix decides on. The whole row
  * goes in: `teamIds` decides, and a row that carries only the legacy pair (a
  * fixture, or a mid-rollout write of the previous image read raw) still
@@ -1468,6 +1478,24 @@ function validateProjectAgentInstructions(
   return value;
 }
 
+/** Narrow grant validation shared by full saves and tools-only configuration.
+ * Unknown stored grants also fail closed when an older runtime reads a newer
+ * configuration; normalization must never silently erase that authority. */
+function validateProjectAgentTools(tools: readonly string[]): string[] {
+  if (tools.length > PROJECT_AGENT_BINDINGS_MAX)
+    throw new ProjectError(
+      'too_many_bindings',
+      `An agent may be equipped with at most ${PROJECT_AGENT_BINDINGS_MAX} tools.`,
+    );
+  const unknownTools = unknownToolGrants(tools);
+  if (unknownTools.length > 0)
+    throw new ProjectError(
+      'PROJECT_AGENT_TOOL_UNKNOWN',
+      `Unknown tools: ${unknownTools.join(', ')}. The grantable tools are: ${AGENT_TOOL_GRANT_NAMES.join(', ')}.`,
+    );
+  return normalizeToolGrants(tools);
+}
+
 function validateProjectAgentFields(args: {
   name: string;
   harness: string;
@@ -1519,16 +1547,7 @@ function validateProjectAgentFields(args: {
     );
   }
   const instructions = validateProjectAgentInstructions(args.instructions);
-  // A grant the catalog does not carry is refused by name — it used to be
-  // dropped in silence, so a caller that sent `["bash", "web_search"]` got
-  // a 201 and an agent with no tools at all.
-  const unknownTools = unknownToolGrants(args.tools ?? []);
-  if (unknownTools.length > 0) {
-    throw new ProjectError(
-      'PROJECT_AGENT_TOOL_UNKNOWN',
-      `Unknown tools: ${unknownTools.join(', ')}. The grantable tools are: ${AGENT_TOOL_GRANT_NAMES.join(', ')}.`,
-    );
-  }
+  const tools = validateProjectAgentTools(args.tools ?? []);
   return {
     name,
     harness: args.harness,
@@ -1539,7 +1558,7 @@ function validateProjectAgentFields(args: {
         : modelProvider,
     skills: [...new Set(args.skills.filter((s) => s.length > 0))],
     connectors: [...new Set(args.connectors.filter((c) => c.length > 0))],
-    tools: normalizeToolGrants(args.tools ?? []),
+    tools,
     secrets: [...new Set((args.secrets ?? []).filter((s) => s.length > 0))],
     instructions:
       instructions !== undefined && instructions.length > 0
@@ -1787,6 +1806,81 @@ export async function updateAgentInstructionsConfiguration(
         projectAgentId: config.agentId,
         previousLength: agent.instructions?.length ?? 0,
         newLength: instructions.length,
+      },
+    }),
+  );
+  await hintProject(tx, auth.organizationId, config.projectId);
+}
+
+export async function readAgentToolsConfiguration(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  agentId: string,
+) {
+  const agent = await getProjectAgent(sql, auth, projectId, agentId);
+  if (!agent)
+    throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
+  const config = {
+    projectId,
+    agentId,
+    tools: validateProjectAgentTools(agent.tools),
+  };
+  return { config, hash: managedConfigurationHash(config) };
+}
+
+/** Adopt only tool grants. A serializable caller protects the tools preimage;
+ * updatedAt also invalidates concurrent full saves. Credentials and every
+ * other agent field retain their exact stored bytes, even when unavailable. */
+export async function updateAgentToolsConfiguration(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  config: { projectId: string; agentId: string; tools: string[] },
+  expectedHash: string,
+): Promise<void> {
+  const project = await loadProjectOrThrow(tx, config.projectId);
+  assertAgentWritable(project, auth);
+  const agent = await getProjectAgent(
+    tx,
+    auth,
+    config.projectId,
+    config.agentId,
+  );
+  if (!agent)
+    throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
+  if (agent.managed)
+    throw new ProjectError(
+      'PROJECT_AGENT_MANAGED',
+      'Managed agent configuration is read-only',
+      409,
+    );
+  const tools = validateProjectAgentTools(config.tools);
+  const previousTools = validateProjectAgentTools(agent.tools);
+  const previous = {
+    projectId: config.projectId,
+    agentId: config.agentId,
+    tools: previousTools,
+  };
+  assertExpectedHash(managedConfigurationHash(previous), expectedHash);
+  if (
+    tools.length === previousTools.length &&
+    tools.every((tool, index) => tool === previousTools[index])
+  )
+    return;
+  await tx`
+    UPDATE app.project_agents SET tools = ${tools},
+      updated_at_ms = ${Math.max(Date.now(), agent.updatedAt + 1)}
+    WHERE id = ${config.agentId} AND project_id = ${config.projectId}
+      AND org_id = ${auth.organizationId}
+  `;
+  await createAuditLog(
+    tx,
+    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
+      metadata: {
+        op: 'update',
+        projectAgentId: config.agentId,
+        previousTools,
+        tools,
       },
     }),
   );
@@ -2223,11 +2317,11 @@ function visibilityClause(sql: Sql | TransactionSql, auth: ProjectAuthContext) {
 export async function listProjects(
   sql: Sql,
   auth: ProjectAuthContext,
-  options: { includeArchived?: boolean } = {},
+  options: ProjectReadOptions & { includeArchived?: boolean } = {},
 ): Promise<ProjectListRow[]> {
   const includeArchived = options.includeArchived ?? false;
   const rows = await sql<ProjectRow[]>`
-    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND (${includeArchived} OR archived_at_ms IS NULL)
       AND ${visibilityClause(sql, auth)}
@@ -2250,7 +2344,10 @@ export interface ProjectOverviewRow extends ProjectListRow {
 export async function listProjectsOverview(
   sql: Sql,
   auth: ProjectAuthContext,
-  options: { includeArchived?: boolean; asOf?: number } = {},
+  options: ProjectReadOptions & {
+    includeArchived?: boolean;
+    asOf?: number;
+  } = {},
 ): Promise<{ projects: ProjectOverviewRow[]; overdueTruncated: boolean }> {
   const projects = await listProjects(sql, auth, options);
   const asOf = options.asOf ?? Date.now();
@@ -2295,6 +2392,7 @@ export async function searchProjects(
   auth: ProjectAuthContext,
   query: string,
   limit = 20,
+  options: ProjectReadOptions = {},
 ): Promise<ProjectRow[]> {
   const term = `%${query.trim()}%`;
   if (query.trim().length === 0) {
@@ -2304,7 +2402,7 @@ export async function searchProjects(
   // carries `archived_at_ms`, so the caller labels the row from what it gets.
   // Archived rows sort last so they cannot fill the capped page.
   return sql<ProjectRow[]>`
-    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND name ILIKE ${term}
       AND ${visibilityClause(sql, auth)}
@@ -2321,9 +2419,10 @@ export async function listSidebarProjects(
   sql: Sql,
   auth: ProjectAuthContext,
   limit = 50,
+  options: ProjectReadOptions = {},
 ): Promise<ProjectRow[]> {
   return sql<ProjectRow[]>`
-    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND archived_at_ms IS NULL
       AND ${visibilityClause(sql, auth)}

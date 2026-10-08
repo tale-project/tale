@@ -146,7 +146,7 @@ function DashboardLayout() {
   }, [memberContext]);
   const { t } = useT('accessDenied');
   const { t: tNotFound } = useT('common');
-  const { t: tSettings } = useT('settings');
+  const { t: tNav } = useT('navigation');
 
   // Session-active-org guard: if the session's activeOrganizationId doesn't
   // match the route, silently sync it to the route (user is already verified
@@ -386,12 +386,10 @@ function DashboardLayout() {
                                 <VStack gap={3} align="center">
                                   <Spinner
                                     size="lg"
-                                    label={tSettings(
-                                      'organization.switchingLabel',
-                                    )}
+                                    label={tNav('orgSwitcher.switchingLabel')}
                                   />
                                   <Text variant="muted" className="text-sm">
-                                    {tSettings('organization.switching')}
+                                    {tNav('orgSwitcher.switching')}
                                   </Text>
                                 </VStack>
                               </FullPageCenter>

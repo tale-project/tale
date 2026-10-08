@@ -6,7 +6,10 @@ import { cleanup, render, screen } from '@/tests/utils/render';
 
 import type { TaskRow } from './task-card';
 import { TasksList } from './tasks-list';
-import { WINDOWED_LANE_MIN_CARDS } from './windowed-task-rows';
+import {
+  UNWINDOWED_LANE_MAX_CARDS,
+  WINDOWED_LANE_MIN_CARDS,
+} from './windowed-task-rows';
 
 import '@/app/globals.css';
 
@@ -41,6 +44,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
     resolveActor: () => null,
   }),
   useAssignableActors: () => ({
+    subjectEntries: [],
     assignableMembers: [],
     assignableAgents: [],
     agents: [],
@@ -157,6 +161,56 @@ describe('a long list section (real Chromium)', () => {
     expect(titles(/^List task \d+$/).length).toBeLessThan(15);
   });
 
+  it('updates group origins after status moves preserve the total scroll height', async () => {
+    await page.viewport(1280, 900);
+    const canWorkTask = () => true;
+    const { rerender } = render(
+      <div className="h-[600px] w-full">
+        <TasksList tasks={[...todo, ...done]} canWorkTask={canWorkTask} />
+      </div>,
+    );
+    const list = scroller();
+    list.scrollTop = list.scrollHeight;
+    const finalRowIsInView = () => {
+      const row = screen.queryByRole('button', {
+        name: `Done task ${LONG - 1}`,
+      });
+      if (row === null) return false;
+      const viewport = list.getBoundingClientRect();
+      const bounds = row.getBoundingClientRect();
+      return bounds.top >= viewport.top && bounds.bottom <= viewport.bottom + 1;
+    };
+    await expect.poll(finalRowIsInView).toBe(true);
+    await nextFrame();
+    await nextFrame();
+    const previousHeight = list.scrollHeight;
+    const previousTop = list.scrollTop;
+    // Moving enough equally sized rows to outrun overscan changes each
+    // section's origin while leaving their aggregate height unchanged.
+    const movedCount = 60;
+    const updatedTodo = todo.map((task, index): TaskRow =>
+      index < movedCount ? { ...task, status: 'done' } : task,
+    );
+    rerender(
+      <div className="h-[600px] w-full">
+        <TasksList
+          tasks={[...updatedTodo, ...done]}
+          canWorkTask={canWorkTask}
+        />
+      </div>,
+    );
+    await expect
+      .element(page.getByRole('button', { name: `To do ${LONG - movedCount}` }))
+      .toBeInTheDocument();
+    await expect
+      .element(page.getByRole('button', { name: `Done ${LONG + movedCount}` }))
+      .toBeInTheDocument();
+    await expect.poll(() => list.scrollHeight).toBe(previousHeight);
+    await expect.poll(finalRowIsInView).toBe(true);
+    expect(list.scrollTop).toBe(previousTop);
+    expect(list.querySelectorAll('[data-index]').length).toBeLessThan(90);
+  });
+
   it('walks every row in order with Tab, past the first window', async () => {
     await page.viewport(1280, 900);
     render(
@@ -234,5 +288,41 @@ describe('a long list section (real Chromium)', () => {
       </div>,
     );
     expect(titles(/^List task \d+$/)).toHaveLength(WINDOWED_LANE_MIN_CARDS);
+  });
+
+  it('retains focused rows and windowing through the lane threshold buffer', async () => {
+    await page.viewport(1280, 900);
+    const { rerender } = render(
+      <div className="h-[600px] w-full">
+        <TasksList tasks={todo.slice(0, WINDOWED_LANE_MIN_CARDS + 1)} />
+      </div>,
+    );
+    const first = screen.getByRole('button', { name: 'List task 0' });
+    first.focus();
+    expect(titles(/^List task \d+$/).length).toBeLessThan(
+      WINDOWED_LANE_MIN_CARDS,
+    );
+
+    rerender(
+      <div className="h-[600px] w-full">
+        <TasksList tasks={todo.slice(0, WINDOWED_LANE_MIN_CARDS)} />
+      </div>,
+    );
+    expect(first).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'List task 0' })).toBe(first);
+    expect(titles(/^List task \d+$/).length).toBeLessThan(
+      WINDOWED_LANE_MIN_CARDS,
+    );
+
+    rerender(
+      <div className="h-[600px] w-full">
+        <TasksList tasks={todo.slice(0, UNWINDOWED_LANE_MAX_CARDS - 1)} />
+      </div>,
+    );
+    expect(titles(/^List task \d+$/)).toHaveLength(
+      UNWINDOWED_LANE_MAX_CARDS - 1,
+    );
+    expect(screen.getByRole('button', { name: 'List task 0' })).toBe(first);
+    expect(first).toHaveFocus();
   });
 });

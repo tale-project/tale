@@ -11,6 +11,10 @@ Die Kontoeinstellungen bestimmen, welchen Namen deine Kollegen sehen und wie du 
 
 Dein Name ist für Kollegen sichtbar und darf höchstens 100 Zeichen lang sein. Er ist keine persönliche Anweisung an den Assistenten.
 
+## Wenn eine Passwortänderung erforderlich ist
+
+Wenn ein Administrator dein Passwort festlegt oder zurücksetzt oder es gemäß der Rotationsrichtlinie deiner Organisation abläuft, erscheint bei der Anmeldung die Seite **Passwortänderung erforderlich**. Gib ein neues Passwort ein, das die angezeigten Anforderungen erfüllt, bestätige es und wähle **Passwort aktualisieren**, um fortzufahren. Die genauen Meldungen stehen unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
+
 ## Die Anmeldung absichern
 
 Unter **Passwort** findest du **Passwort ändern** oder **Passwort festlegen**, falls dein Konto noch keines hat. Beachte die Anforderungen im Dialog. Sie stammen aus der Passwort-Richtlinie deiner Organisation. Gehörst du mehreren Organisationen an, muss dein Passwort die Anforderungen aller dieser Organisationen erfüllen. Eine Passwortänderung beendet deine Sitzungen. Halte das neue Passwort deshalb bereit, bevor du bestätigst. Ein falsches aktuelles Passwort zählt wie eine fehlgeschlagene Anmeldung zur vorübergehenden Sperre.

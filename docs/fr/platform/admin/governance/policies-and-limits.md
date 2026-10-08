@@ -57,7 +57,7 @@ Dans la règle de rétention, choisis **Modifier** et configure les catégories 
 
 Vérifie les bornes minimales et maximales du déploiement avant de modifier une durée. Les changements qui demandent une revue ou un délai apparaissent comme propositions ou changements en attente. Lis leur date d’effet sans supposer une application immédiate.
 
-Le délai de grâce est la fenêtre de récupération des enregistrements supprimés provisoirement pris en charge. Une valeur positive laisse du temps pour les restaurer dans la [Corbeille](/fr/platform/admin/governance/trash) ; zéro permet un nettoyage définitif immédiat. Toutes les catégories ne sont pas restaurables. Une [conservation juridique](/fr/platform/admin/governance/legal-hold) protège les données couvertes du nettoyage.
+Le délai de grâce est la fenêtre de récupération des enregistrements supprimés provisoirement pris en charge. Une valeur positive laisse du temps pour les restaurer dans la [Corbeille](/fr/platform/admin/governance/trash) ; zéro permet un nettoyage définitif immédiat. Toutes les catégories ne sont pas restaurables. Une [conservation légale](/fr/platform/admin/governance/legal-hold) protège les données couvertes du nettoyage.
 
 Pour les déploiements autohébergés, la [configuration de rétention](/fr/self-hosted/configuration/retention) explique les contrôles opérateur et le comportement par catégorie. Ne déduis pas une garantie d’archivage d’une règle désactivée ou d’une durée affichée seule.
 
@@ -126,4 +126,4 @@ Les règles s’appliquent à l’arrivée d’une nouvelle conversation. Elles 
 
 ## Configurer les limites de connexion séparément
 
-Les exigences de mot de passe, limites de tentatives, délais d’inactivité de session et [règles de double facteur](/fr/platform/admin/two-factor-authentication) se trouvent dans **Paramètres > Gouvernance > Sécurité**. Le délai d’inactivité de l’organisation peut renforcer celui du déploiement. Avec l’authentification par en-têtes de confiance, coordonne l’expiration avec le proxy ou l’IdP, qui peut authentifier le membre à nouveau.
+Active **Activer la rotation des mots de passe** et définis la **Période de rotation (jours)** pour obliger les membres à changer leur mot de passe à l’expiration de cette période. L’écran **Changement de mot de passe requis** s’affiche alors et demande au membre de définir un nouveau mot de passe avant de continuer. Les exigences de mot de passe, limites de tentatives, délais d’inactivité de session et [règles de double facteur](/fr/platform/admin/two-factor-authentication) se trouvent dans **Paramètres > Gouvernance > Sécurité**. Le délai d’inactivité de l’organisation peut renforcer celui du déploiement. Avec l’authentification par en-têtes de confiance, coordonne l’expiration avec le proxy ou l’IdP, qui peut authentifier le membre à nouveau.

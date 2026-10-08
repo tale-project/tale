@@ -137,7 +137,34 @@ describe('POST /api/tools/execute — the turn a token serves', () => {
     dispatchWorkspaceToolImpl.mockResolvedValue({ status: 'ok', output: {} });
   });
 
-  it('hands the token scope’s turnOp to the dispatch, never the body’s', async () => {
+  it('keeps discovery out of domain grants without disabling a granted task call [SBX-R6]', async () => {
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: { toolGrants: ['task_get'] },
+    });
+    const refused = await post(
+      JSON.stringify({ tool: 'workspace_status', args: {} }),
+    );
+    expect(await refused.json()).toMatchObject({
+      status: 'unavailable',
+      blockers: [{ code: 'not_granted' }],
+    });
+    expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
+
+    const granted = await post(
+      JSON.stringify({ tool: 'task_get', args: { taskId: 'task_1' } }),
+    );
+    expect(await granted.json()).toEqual({ status: 'ok', output: {} });
+    expect(dispatchWorkspaceToolImpl).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({
+        tool: 'task_get',
+        callArgs: { taskId: 'task_1' },
+      }),
+    );
+  });
+
+  it('hands the token scope’s turnOp to the dispatch, never the body’s [SBX-R5]', async () => {
     getSessionTokenByHash.mockResolvedValue({
       ...TOKEN_ROW,
       scope: {
@@ -177,7 +204,7 @@ describe('POST /api/tools/execute — the turn a token serves', () => {
     expect(call).not.toHaveProperty('turn');
   });
 
-  it('refuses generate_image when the token was not granted it', async () => {
+  it('refuses generate_image when the token was not granted it [SBX-R6]', async () => {
     getSessionTokenByHash.mockResolvedValue(TOKEN_ROW);
     const res = await post(
       JSON.stringify({ tool: 'generate_image', args: { prompt: 'a cat' } }),
@@ -185,6 +212,43 @@ describe('POST /api/tools/execute — the turn a token serves', () => {
     expect(await res.json()).toMatchObject({
       status: 'unavailable',
       blockers: [{ code: 'not_granted' }],
+    });
+    expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
+  });
+
+  it('acts as the organization, session and person the token names, whatever the body claims [SBX-R5]', async () => {
+    getSessionTokenByHash.mockResolvedValue(TOKEN_ROW);
+    const res = await post(
+      JSON.stringify({
+        tool: 'document_find',
+        args: {},
+        organizationId: 'org_forged',
+        sessionId: 'sess_forged',
+        userId: 'user_forged',
+        toolGrants: ['task_create'],
+      }),
+    );
+    expect(res.status).toBe(200);
+    const [, call] = dispatchWorkspaceToolImpl.mock.calls[0] as [
+      unknown,
+      Record<string, unknown>,
+    ];
+    expect(call).toEqual({
+      organizationId: 'org_1',
+      sessionId: 'sess_1',
+      userId: 'user_1',
+      tool: 'document_find',
+      callArgs: {},
+    });
+  });
+
+  it('refuses a tool call without a live session token and dispatches nothing [SBX-R5]', async () => {
+    getSessionTokenByHash.mockResolvedValue(null);
+    const res = await post(JSON.stringify({ tool: 'document_find', args: {} }));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({
+      status: 'error',
+      message: 'Unauthorized.',
     });
     expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
   });
@@ -227,7 +291,7 @@ describe('POST /api/tools/status — the serving platform version', () => {
     vi.unstubAllEnvs();
   });
 
-  it('adds the release beside the granted tools, which it lists unchanged', async () => {
+  it('adds the release beside the granted tools, which it lists unchanged [SBX-R6]', async () => {
     const grants = ['document_find', 'task_create'];
     getSessionTokenByHash.mockResolvedValue({
       ...TOKEN_ROW,
@@ -261,7 +325,7 @@ describe('POST /api/tools/status — the serving platform version', () => {
     }
   });
 
-  it('refuses a caller without a live session token and discloses nothing', async () => {
+  it('refuses a caller without a live session token and discloses nothing [SBX-R5]', async () => {
     getSessionTokenByHash.mockResolvedValue(null);
     for (const authorization of [
       undefined,
@@ -286,7 +350,7 @@ describe('POST /api/tools/status — the serving platform version', () => {
     expect(workspaceToolStatusImpl).not.toHaveBeenCalled();
   });
 
-  it('reports its own build and grants, whatever the request claims', async () => {
+  it('reports its own build and grants, whatever the request claims [SBX-R5]', async () => {
     const baseline = await (await postStatus()).json();
     expect(baseline).toEqual({
       ...listGrantedTools(['document_find']),

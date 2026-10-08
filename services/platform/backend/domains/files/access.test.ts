@@ -48,7 +48,7 @@ function probes(
 }
 
 describe('decideFileRead — the files domain read gate', () => {
-  it('denies a row from another organization, even to its uploader', async () => {
+  it('denies a row from another organization, even to its uploader [FILE-R3]', async () => {
     const p = probes({
       documentReadable: true,
       threadReadable: true,
@@ -64,7 +64,7 @@ describe('decideFileRead — the files domain read gate', () => {
     expect(p.calls).toEqual([]);
   });
 
-  it('lets the uploader read their own (still unbound) upload without consulting any parent', async () => {
+  it('lets the uploader read their own (still unbound) upload without consulting any parent [FILE-R2]', async () => {
     const p = probes();
     await expect(
       decideFileRead(viewer, row({ uploadedBy: viewer.userId }), p),
@@ -72,14 +72,14 @@ describe('decideFileRead — the files domain read gate', () => {
     expect(p.calls).toEqual([]);
   });
 
-  it('denies a bare ref: an unbound row someone else uploaded grants nothing', async () => {
+  it('denies a bare ref: an unbound row someone else uploaded grants nothing [FILE-R2]', async () => {
     const p = probes();
     await expect(decideFileRead(viewer, row(), p)).resolves.toBe(false);
     // Only the task binding is a possible grant for an unbound row.
     expect(p.calls).toEqual(['taskReadable']);
   });
 
-  it('answers a document-bound row with the document ACL alone', async () => {
+  it('answers a document-bound row with the document ACL alone [FILE-R1]', async () => {
     const granted = probes({ documentReadable: true, threadReadable: true });
     await expect(
       decideFileRead(
@@ -107,7 +107,7 @@ describe('decideFileRead — the files domain read gate', () => {
     expect(refused.calls).toEqual(['documentReadable']);
   });
 
-  it('grants a thread-bound row through the thread, else falls through to the other bindings', async () => {
+  it('grants a thread-bound row through the thread, else falls through to the other bindings [FILE-R1]', async () => {
     const viaThread = probes({ threadReadable: true });
     await expect(
       decideFileRead(viewer, row({ threadId: 'thread-1' }), viaThread),
@@ -121,7 +121,7 @@ describe('decideFileRead — the files domain read gate', () => {
     expect(viaTask.calls).toEqual(['threadReadable', 'taskReadable']);
   });
 
-  it('grants a conversation-bound mail attachment through the inbox predicate', async () => {
+  it('grants a conversation-bound mail attachment through the inbox predicate [FILE-R1]', async () => {
     const p = probes({ conversationReadable: true });
     await expect(
       decideFileRead(viewer, row({ conversationId: 'conv-1' }), p),
@@ -129,7 +129,7 @@ describe('decideFileRead — the files domain read gate', () => {
     expect(p.calls).toEqual(['conversationReadable']);
   });
 
-  it('grants a task deliverable to a reader of a task that lists it', async () => {
+  it('grants a task deliverable to a reader of a task that lists it [FILE-R1]', async () => {
     const p = probes({ taskReadable: true });
     await expect(
       decideFileRead(viewer, row({ uploadedBy: null }), p),
@@ -137,7 +137,7 @@ describe('decideFileRead — the files domain read gate', () => {
     expect(p.calls).toEqual(['taskReadable']);
   });
 
-  it('propagates a probe failure instead of failing open', async () => {
+  it('propagates a probe failure instead of failing open [FILE-R4]', async () => {
     const p = probes();
     p.taskReadable = vi.fn().mockRejectedValue(new Error('db down'));
     await expect(decideFileRead(viewer, row(), p)).rejects.toThrow('db down');

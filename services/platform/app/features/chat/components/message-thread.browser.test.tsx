@@ -13,6 +13,10 @@ import { page, userEvent } from 'vitest/browser';
 
 import { cleanup, render, screen } from '@/tests/utils/render';
 
+import {
+  useActivePlaybackWriter,
+  VoiceOutputProvider,
+} from '../hooks/voice-output-context';
 import { toSettledItems } from '../lib/thread-view-core';
 import type { ChatMessageItem, ChatMessageView } from '../types';
 import {
@@ -41,6 +45,42 @@ vi.mock('@/app/features/shared/files/use-file-url', () => ({
   useFileUrl: () => ({ data: null }),
   useFileUrls: () => ({ data: [] }),
 }));
+
+// Observe the player's mounted lifetime while the real provider owns the
+// playback channel, without making network audio requests in a layout test.
+const voicePlayer = vi.hoisted(() => ({ unmounted: vi.fn() }));
+vi.mock('./voice-output-indicator', async () => {
+  const { useEffect } = await import('react');
+  return {
+    VoiceOutputIndicator: function VoiceOutputIndicator({
+      messageId,
+    }: {
+      messageId: string;
+    }) {
+      useEffect(() => () => voicePlayer.unmounted(messageId), [messageId]);
+      return <div data-testid={`voice-player-${messageId}`} />;
+    },
+  };
+});
+
+function PlaybackControls() {
+  const playback = useActivePlaybackWriter();
+  return (
+    <div>
+      <button onClick={() => playback.set({ messageId: 'a0', chunkIndex: 0 })}>
+        Start older playback
+      </button>
+      <button
+        onClick={() => playback.set({ messageId: 'a0', chunkIndex: null })}
+      >
+        Wait for the next voice chunk
+      </button>
+      <button onClick={() => playback.clearIfOwner('a0')}>
+        Stop older playback
+      </button>
+    </div>
+  );
+}
 
 const VIEWPORT = { width: 900, height: 600 } as const;
 const PARAGRAPH =
@@ -107,11 +147,15 @@ function Harness({
   threadId,
   intentRef,
   isGenerating,
+  onEditSubmit,
+  forceVoicePillMessageId,
 }: {
   items: readonly ChatMessageItem[];
   threadId: string;
   intentRef: MutableRefObject<boolean | 'smooth'>;
   isGenerating: boolean;
+  onEditSubmit?: (message: ChatMessageView, text: string) => Promise<boolean>;
+  forceVoicePillMessageId?: string;
 }) {
   return (
     <div
@@ -128,6 +172,8 @@ function Harness({
         threadRootId={threadId}
         isGenerating={isGenerating}
         scrollIntentRef={intentRef}
+        onEditSubmit={onEditSubmit}
+        forceVoicePillMessageId={forceVoicePillMessageId}
       />
     </div>
   );
@@ -496,6 +542,190 @@ function rowsInView(log: HTMLElement): HTMLElement[] {
 }
 
 describe('MessageThread long thread', () => {
+  it('lands a new send while dormant history wakes during its glide', async () => {
+    const intentRef: MutableRefObject<boolean | 'smooth'> = { current: false };
+    const items = toSettledItems(conversation(120));
+    const { rerender } = render(
+      <Harness
+        items={items}
+        threadId="thread-long-send"
+        intentRef={intentRef}
+        isGenerating={false}
+      />,
+    );
+    const log = scroller();
+    await nextFrame();
+    const first = rowsOf(log)[0]!;
+    expect(isDormant(first)).toBe(true);
+
+    log.dispatchEvent(new WheelEvent('wheel', { deltaY: -3, bubbles: true }));
+    log.scrollTop = 0;
+    log.dispatchEvent(new Event('scroll'));
+    await expect.poll(() => isDormant(first)).toBe(false);
+    expect(rowsOf(log).some(isDormant)).toBe(true);
+
+    // Sending from old history crosses dormant rows whose rich bodies can
+    // change height as they wake. The live last-user anchor must still land.
+    intentRef.current = 'smooth';
+    rerender(
+      <Harness
+        items={[
+          ...items,
+          ...pendingRows(
+            'A question after reading history.',
+            'thread-long-send',
+          ),
+        ]}
+        threadId="thread-long-send"
+        intentRef={intentRef}
+        isGenerating
+      />,
+    );
+    await expect
+      .poll(() => Math.abs(log.scrollTop - snapTarget(log)), {
+        timeout: 3000,
+        interval: 50,
+      })
+      .toBeLessThanOrEqual(2);
+    // Keep checking after landing: a later wake/resize must not leave the
+    // pending user message above or below its intended reading position.
+    await nextFrame();
+    await nextFrame();
+    expect(Math.abs(log.scrollTop - snapTarget(log))).toBeLessThanOrEqual(2);
+    expect(intentRef.current).toBe(false);
+    expect(first.isConnected).toBe(true);
+    expect(first).toHaveTextContent('Question 1:');
+  });
+
+  it('keeps an awakened older player mounted while playback and focus move', async () => {
+    const { unmount } = render(
+      <VoiceOutputProvider threadId="thread-long-playback">
+        <PlaybackControls />
+        <Harness
+          items={toSettledItems(conversation(300))}
+          threadId="thread-long-playback"
+          intentRef={{ current: false }}
+          isGenerating={false}
+          forceVoicePillMessageId="a0"
+        />
+      </VoiceOutputProvider>,
+    );
+    const log = scroller();
+    await nextFrame();
+    log.dispatchEvent(new WheelEvent('wheel', { deltaY: -3, bubbles: true }));
+    log.scrollTop = 0;
+    log.dispatchEvent(new Event('scroll'));
+    await expect
+      .poll(() => screen.queryByTestId('voice-player-a0'))
+      .not.toBeNull();
+    const player = screen.getByTestId('voice-player-a0');
+    voicePlayer.unmounted.mockClear();
+    await page.getByRole('button', { name: 'Start older playback' }).click();
+
+    const middle = rowsOf(log)[300]!;
+    middle.tabIndex = -1;
+    middle.focus();
+    await nextFrame();
+    log.scrollTop = log.scrollHeight;
+    log.dispatchEvent(new Event('scroll'));
+    await nextFrame();
+    expect(player.isConnected).toBe(true);
+    expect(document.activeElement).toBe(middle);
+    expect(voicePlayer.unmounted).not.toHaveBeenCalledWith('a0');
+
+    // A null chunk means waiting for another chunk, not loss of the owner.
+    await page
+      .getByRole('button', { name: 'Wait for the next voice chunk' })
+      .click();
+    await nextFrame();
+    expect(player.isConnected).toBe(true);
+    expect(voicePlayer.unmounted).not.toHaveBeenCalledWith('a0');
+    await page.getByRole('button', { name: 'Stop older playback' }).click();
+    await nextFrame();
+    // Awake history remains present when stopped, just as when playing.
+    expect(player.isConnected).toBe(true);
+    expect(voicePlayer.unmounted).not.toHaveBeenCalledWith('a0');
+    unmount();
+    expect(voicePlayer.unmounted).toHaveBeenCalledWith('a0');
+  });
+
+  it('keeps an older edit draft after focus and scroll leave its awake row', async () => {
+    render(
+      <Harness
+        items={toSettledItems(conversation(300))}
+        threadId="thread-long-edit"
+        intentRef={{ current: false }}
+        isGenerating={false}
+        onEditSubmit={async () => false}
+      />,
+    );
+    const log = scroller();
+    await nextFrame();
+    log.dispatchEvent(new WheelEvent('wheel', { deltaY: -3, bubbles: true }));
+    log.scrollTop = 0;
+    log.dispatchEvent(new Event('scroll'));
+    const first = rowsOf(log)[0]!;
+    await expect.poll(() => isDormant(first)).toBe(false);
+    await page.getByTestId('message-edit-button').first().click();
+    const editor = screen.getByRole('textbox');
+    await page.elementLocator(editor).fill('An unsaved older-message draft.');
+
+    const middle = rowsOf(log)[300]!;
+    middle.tabIndex = -1;
+    middle.focus();
+    await nextFrame();
+    log.scrollTop = log.scrollHeight;
+    log.dispatchEvent(new Event('scroll'));
+    await nextFrame();
+    expect(editor.isConnected).toBe(true);
+    expect(editor).toHaveValue('An unsaved older-message draft.');
+    expect(document.activeElement).toBe(middle);
+    expect(isDormant(first)).toBe(false);
+  });
+
+  it('keeps a draft and focus when a send moves the edited row out of the eager tail', async () => {
+    const items = toSettledItems(conversation(12));
+    const intentRef: MutableRefObject<boolean | 'smooth'> = { current: false };
+    const onEditSubmit = async () => false;
+    const harness = (messages: readonly ChatMessageItem[]) => (
+      <Harness
+        items={messages}
+        threadId="thread-eager-tail-draft"
+        intentRef={intentRef}
+        isGenerating={false}
+        onEditSubmit={onEditSubmit}
+      />
+    );
+    const { rerender } = render(harness(items));
+    const log = scroller();
+    await nextFrame();
+    log.dispatchEvent(new WheelEvent('wheel', { deltaY: -3, bubbles: true }));
+    log.scrollTop = 0;
+    await page.getByTestId('message-edit-button').first().click();
+    const editor = screen.getByRole('textbox');
+    await page.elementLocator(editor).fill('Draft from before tail deferral.');
+    const first = editor.closest('li')!;
+    const last = rowsOf(log).at(-1)!;
+    last.tabIndex = -1;
+    last.focus();
+    await nextFrame();
+
+    // Twenty-four rows were eager; appending a turn marks the first two as
+    // deferred. Already-awake controls and drafts must keep their identity.
+    rerender(harness(toSettledItems(conversation(13))));
+    await nextFrame();
+    expect(first.isConnected).toBe(true);
+    expect(isDormant(first)).toBe(false);
+    expect(editor).toHaveValue('Draft from before tail deferral.');
+    expect(document.activeElement).toBe(last);
+
+    rerender(harness(items));
+    await nextFrame();
+    expect(first.isConnected).toBe(true);
+    expect(editor).toHaveValue('Draft from before tail deferral.');
+    expect(document.activeElement).toBe(last);
+  });
+
   it('opens on its last turn in full, the history dormant', async () => {
     const intentRef: MutableRefObject<boolean | 'smooth'> = { current: false };
     render(

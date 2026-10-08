@@ -37,15 +37,15 @@ Les imports de connaissances utilisent l’[indexation des documents](/fr/platfo
 
 Choisis **Ajouter des identifiants**, recherche le service et ouvre sa carte. Les connectors déjà configurés apparaissent en premier, mais tu peux ajouter un autre compte pour le même service. Le formulaire demande l’authentification prise en charge.
 
-<Frame caption="Ajouter des identifiants s’ouvre sur le catalogue — les connecteurs livrés, ceux qui ont déjà un identifiant en premier.">
+<Frame caption="Ajouter des identifiants s’ouvre sur le catalogue — les connectors livrés, ceux qui ont déjà un identifiant en premier.">
 
-![La boîte de dialogue Ajouter des identifiants par-dessus la table de Paramètres > Connectors, qui liste les connecteurs livrés sous forme de cartes avec leurs catégories et leur nombre d’actions, un champ de recherche en haut et le connecteur Tavily déjà configuré en tête de liste.](/images/platform/connectors-add-credential.webp)
+![La boîte de dialogue Ajouter des identifiants par-dessus la table de Paramètres > Connectors, qui liste les connectors livrés sous forme de cartes avec leurs catégories et leur nombre d’actions, un champ de recherche en haut et le connector Tavily déjà configuré en tête de liste.](/images/platform/connectors-add-credential.webp)
 
 </Frame>
 
-Le champ **Nom** est prérempli avec le nom du connecteur. Si tu ajoutes plusieurs comptes pour le même service, remplace-le par un nom qui indique l’usage, par exemple `Boîte support` ou `Bot de publication`. Utilise ceux du service externe, pas une clé API Tale. Pour OAuth, connecte-toi chez le fournisseur avec le compte à ajouter et termine le consentement. Chaque connexion ajoute de nouveaux identifiants, nommés d’après le connecteur puis numérotés (`Gmail`, puis `Gmail 2`) ; Slack en garde un seul jeu par espace. Renomme les nouveaux identifiants pour distinguer les comptes. Si le parcours ne démarre pas, un administrateur doit peut-être configurer l’app OAuth d’abord.
+Le champ **Nom** est prérempli avec le nom du connector. Si tu ajoutes plusieurs comptes pour le même service, remplace-le par un nom qui indique l’usage, par exemple `Boîte support` ou `Bot de publication`. Utilise ceux du service externe, pas une clé API Tale. Pour OAuth, connecte-toi chez le fournisseur avec le compte à ajouter et termine le consentement. Chaque connexion ajoute de nouveaux identifiants, nommés d’après le connector puis numérotés (`Gmail`, puis `Gmail 2`) ; Slack en garde un seul jeu par espace. Renomme les nouveaux identifiants pour distinguer les comptes. Si le parcours ne démarre pas, un administrateur doit peut-être configurer l’app OAuth d’abord.
 
-Confluence, GlitchTip et Shopify demandent une **URL de l'instance** pour chaque compte. Utilise l’origine du site Atlassian, l’origine de l’instance GlitchTip comme `https://app.glitchtip.com` ou l’adresse `myshopify.com` de la boutique, pas une page quelconque ni le domaine destiné aux clients. Une instance GlitchTip auto-hébergée doit aussi être autorisée par la politique des hôtes du connecteur. [Identifiants des connectors](/fr/platform/admin/connectors) explique les champs, la reconnexion et le renouvellement des secrets.
+Confluence, GlitchTip et Shopify demandent une **URL de l'instance** pour chaque compte. Utilise l’origine du site Atlassian, l’origine de l’instance GlitchTip comme `https://app.glitchtip.com` ou l’adresse `myshopify.com` de la boutique, pas une page quelconque ni le domaine destiné aux clients. Une instance GlitchTip auto-hébergée doit aussi être autorisée par la politique des hôtes du connector. [Identifiants des connectors](/fr/platform/admin/connectors) explique les champs, la reconnexion et le renouvellement des secrets.
 
 ## Déterminer le compte utilisé
 
@@ -65,6 +65,6 @@ Ajouter des identifiants n’ajoute pas librement des outils à l’assistant de
 
 ## Si le service manque
 
-Un agent de projet peut appeler un service depuis sa sandbox si son harness dispose des outils adaptés et d’un secret explicitement accordé. Un nœud `transform` transforme uniquement des données et ne peut pas appeler une API externe. Vérifie les permissions et les effets attendus avant de choisir une intégration directe.
+Un agent de projet peut appeler un service depuis sa sandbox si son environnement d’agent dispose des outils adaptés et d’un secret explicitement accordé. Un nœud `transform` transforme uniquement des données et ne peut pas appeler une API externe. Vérifie les permissions et les effets attendus avant de choisir une intégration directe.
 
 Si l’application externe doit appeler Tale, utilise l’[API REST](/fr/develop/api-reference) ou le [point d’accès MCP](/fr/develop/mcp-endpoint). [MCP et intégrations personnalisées](/fr/platform/connectors/mcp-servers) explique la distinction.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { SettingsPageTitleProvider } from './settings-page-title';
 import { SettingsSection } from './settings-section';
@@ -116,7 +116,7 @@ describe('SettingsSection', () => {
           <button type="button">Save</button>
         </SettingsSection>,
       );
-      await waitFor(() => checkAccessibility(container));
+      await checkAccessibility(container);
     });
 
     it('passes axe audit with description and action', async () => {
@@ -129,7 +129,7 @@ describe('SettingsSection', () => {
           <button type="button">Save</button>
         </SettingsSection>,
       );
-      await waitFor(() => checkAccessibility(container));
+      await checkAccessibility(container);
     });
   });
 });

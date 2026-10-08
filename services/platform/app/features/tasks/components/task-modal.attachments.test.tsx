@@ -69,9 +69,13 @@ vi.mock('../hooks/use-actor-directory', () => ({
     resolveActor: () => ({ name: 'Teammate' }),
   }),
   useAssignableActors: () => ({
+    subjectEntries: [],
     assignableMembers: [],
     assignableAgents: [],
     agents: [],
+    members: [],
+    automations: [],
+    resolveActor: () => ({ name: 'Teammate' }),
   }),
 }));
 vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({

@@ -19,6 +19,25 @@ function app(sql: Sql) {
 }
 
 describe('browser readiness', () => {
+  it('publishes a fresh server identity independently of version or deployment names', async () => {
+    const query = vi.fn().mockResolvedValue([{ '?column?': 1 }]);
+    const first = app(query as unknown as Sql);
+    const second = app(query as unknown as Sql);
+    const identity = (await first.request('/api/health/ready')).headers.get(
+      'Tale-Serving-Identity',
+    );
+    expect(identity).toMatch(/^v1;service=backend-api;instance=[a-f0-9-]{36}$/);
+    expect(
+      (await first.request('/api/health/ready')).headers.get(
+        'Tale-Serving-Identity',
+      ),
+    ).toBe(identity);
+    expect(
+      (await second.request('/api/health/ready')).headers.get(
+        'Tale-Serving-Identity',
+      ),
+    ).not.toBe(identity);
+  });
   it('bounds a hung database and shares concurrent checks without caching recovery', async () => {
     vi.useFakeTimers();
     let settle: ((rows: unknown[]) => void) | undefined;

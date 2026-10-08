@@ -102,7 +102,7 @@ describe('app automation acceptance gate', () => {
       );
     },
   );
-  it('refuses an untested stored version whose declared tests fail and records the verdict', async () => {
+  it('refuses an untested stored version whose declared tests fail and records the verdict [AUTO-R4]', async () => {
     io.document = document(3);
     const result = await post('/double/deploy', { version: 2 });
     expect(result.status).toBe(409);
@@ -136,7 +136,7 @@ describe('app automation acceptance gate', () => {
     expect(result.status).toBe(400);
     expect(io.save).not.toHaveBeenCalled();
   });
-  it('forwards the version the draft started from and hands back a stale refusal with its detail', async () => {
+  it('forwards the version the draft started from and hands back a stale refusal with its detail [AUTO-R3]', async () => {
     const result = await post('/double/save', {
       document: document(2),
       baseVersion: 5,

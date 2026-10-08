@@ -13,7 +13,11 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { renderRedirectHtml } from '@tale/ui/docs/redirects';
+
+import { EXTERNAL_LINKS } from '../lib/external-links';
 import { SUPPORTED_LOCALES, type SupportedLocale } from '../lib/i18n/locales';
+import { UI_DOCS_ENTRY_PATHS } from '../lib/redirects';
 import { marketingRoutesForLocale } from '../lib/seo/marketing-routes';
 import { enumerateLegalRoutes } from './legal-routes';
 
@@ -68,6 +72,12 @@ function collectRoutes(legalUrls: PrerenderRoute[]): PrerenderRoute[] {
 async function main(): Promise<void> {
   const started = Date.now();
   const template = await Bun.file(resolve(DIST, 'index.html')).text();
+  for (const path of UI_DOCS_ENTRY_PATHS) {
+    await Bun.write(
+      resolve(DIST, path.slice(1), 'index.html'),
+      renderRedirectHtml(template, 'en', EXTERNAL_LINKS.uiDocs),
+    );
+  }
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const mod = (await import(pathToFileURL(SSR_BUNDLE).href)) as {
     render: (url: string) => Promise<{ html: string; head: string }>;

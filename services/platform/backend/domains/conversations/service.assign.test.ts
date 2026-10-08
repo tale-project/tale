@@ -23,6 +23,7 @@ vi.mock('../../realtime/outbox.ts', () => ({
 import {
   assertAssignableMember,
   assignConversation,
+  assignConversationTeam,
   ConversationError,
 } from './service.ts';
 
@@ -60,7 +61,7 @@ function scriptedSql(script: unknown[][]): { sql: Sql; queries: string[] } {
 
 const admin = { userId: 'user_admin', email: 'admin@door.test', role: 'admin' };
 
-describe('assertAssignableMember', () => {
+describe('assertAssignableMember [CONV-R4]', () => {
   it('refuses a user with no member row in the org', async () => {
     const { sql } = scriptedSql([[]]);
     await expect(
@@ -90,7 +91,7 @@ describe('assertAssignableMember', () => {
   });
 });
 
-describe('assignConversation', () => {
+describe('assignConversation [CONV-R4]', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('refuses a non-member assignee before writing anything', async () => {
@@ -158,4 +159,31 @@ describe('assignConversation', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
     expect(queries).toHaveLength(0);
   });
+
+  // An editor may change a conversation and still may not hand it on: every
+  // role below admin is refused, for a person and for a team alike.
+  it.each(['developer', 'editor', 'member'])(
+    'refuses a %s who assigns a person or a team, before reading anything',
+    async (role) => {
+      const { sql, queries } = scriptedSql([]);
+      const actor = { userId: 'user_other', role };
+      await expect(
+        assignConversation(sql, {
+          organizationId: ORG,
+          conversationId: 'conv_1',
+          assigneeUserId: 'user_m',
+          actor,
+        }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+      await expect(
+        assignConversationTeam(sql, {
+          organizationId: ORG,
+          conversationId: 'conv_1',
+          assigneeTeamId: 'team_1',
+          actor,
+        }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+      expect(queries).toHaveLength(0);
+    },
+  );
 });

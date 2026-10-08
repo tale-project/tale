@@ -61,7 +61,7 @@ function createRecordingTx(existing: { id: string }[]): {
 const writes = (statements: Statement[]): Statement[] =>
   statements.filter((s) => /^(INSERT|UPDATE|DELETE)\b/.test(s.text));
 
-describe('setCredentialPassword', () => {
+describe('setCredentialPassword [USER-R5]', () => {
   it('creates the one credential row for a user without a password', async () => {
     const { tx, statements } = createRecordingTx([]);
     await setCredentialPassword(tx, USER_ID, HASH);
@@ -124,7 +124,7 @@ describe('forcedResetCredentialPassword', () => {
     return { sql: tag as unknown as Sql, statements };
   }
 
-  it('rotates EVERY credential row of the user — keyed by (user, provider), never by one row id', async () => {
+  it('rotates EVERY credential row of the user — keyed by (user, provider), never by one row id [USER-R5]', async () => {
     const { sql, statements } = createRecordingSql([
       { password: 'hashed:temp-pass' },
     ]);
@@ -140,7 +140,7 @@ describe('forcedResetCredentialPassword', () => {
     expect(updates[0]?.values).toContain('hashed:new-pass');
   });
 
-  it('refuses the password the credential already carries, before any write', async () => {
+  it('refuses the password the credential already carries, before any write [USER-R4]', async () => {
     const { sql, statements } = createRecordingSql([
       { password: 'hashed:same-pass' },
     ]);

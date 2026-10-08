@@ -269,6 +269,48 @@ describe('dependency-aware Turbo cache', () => {
     tasks = new Map(repository.tasks.map((entry) => [entry.taskId, entry]));
   }, 60_000);
 
+  test('CLI acceptance fixtures hash the actual shared identity producer', () => {
+    expect(
+      getTask(tasks, '@tale/cli#transit').inputs[
+        '../../packages/ui/src/server/serving-identity.ts'
+      ],
+    ).toBeDefined();
+  });
+
+  test('client builds and their regression guard hash the shared completion helper', () => {
+    for (const service of [
+      'platform',
+      'web',
+      'docs',
+      'ui-docs',
+      'ai-gateway',
+    ]) {
+      expect(
+        getTask(tasks, `@tale/${service}#build`).inputs[
+          '../../packages/ui/bin/build-client.ts'
+        ],
+        service,
+      ).toBeDefined();
+    }
+    const inputs = getTask(tasks, '@tale/cli#test').inputs;
+    for (const file of [
+      'packages/ui/bin/build-client.ts',
+      'services/ui-docs/playwright.config.ts',
+      'services/platform/scripts/dev-engine.ts',
+      'tools/plop/templates/service/react/Dockerfile.hbs',
+      'tools/plop/templates/service/react/package.json.hbs',
+    ]) {
+      expect(
+        inputs[
+          relative(join(ROOT, 'tools/cli'), join(ROOT, file))
+            .split(sep)
+            .join('/')
+        ],
+        file,
+      ).toBeDefined();
+    }
+  });
+
   test('every root compiler configuration participates in the global hash', async () => {
     const files = (await readdir(ROOT)).filter((name) =>
       /^tsconfig.*\.json$/.test(name),

@@ -130,7 +130,7 @@ afterEach(() => {
 });
 
 describe('sweepOrgPhase2 — custodian holds', () => {
-  it('filters held creators and owners in SQL on every pass, keeping creator-less rows as candidates', async () => {
+  it('filters held creators and owners in SQL on every pass, keeping creator-less rows as candidates [RETAIN-R1]', async () => {
     const fake = fakeSweep({ documentsPassB: [] });
 
     await sweepOrgPhase2(fake.sql, org, {
@@ -169,7 +169,7 @@ describe('sweepOrgPhase2 — custodian holds', () => {
     }
   });
 
-  it('retires the knowledge-entry chains of the documents the expiry flip hides, in the same transaction', async () => {
+  it('retires the knowledge-entry chains of the documents the expiry flip hides, in the same transaction [RETAIN-R9]', async () => {
     // Pass A has no source filter: a knowledge entry's backing document
     // (lifecycle NULL, created by the entry author) is a candidate like any
     // other. Hiding it must retire its chain at once, or the entry stays
@@ -257,7 +257,7 @@ describe('sweepOrgPhase2 — sandbox provenance ledgers', () => {
   };
   const DAY_MS = 24 * 60 * 60 * 1000;
 
-  it('deletes aged rows of both ledgers under the audit window, skipping held actors in SQL', async () => {
+  it('deletes aged rows of both ledgers under the audit window, skipping held actors in SQL [RETAIN-R1]', async () => {
     const fake = fakeSweep({ documentsPassB: [] });
     const before = Date.now();
 
@@ -287,7 +287,7 @@ describe('sweepOrgPhase2 — sandbox provenance ledgers', () => {
     expect(credentials?.values.slice(0, 2)).toEqual(['org_1', cutoff]);
   });
 
-  it('leaves both ledgers alone when the audit-log category is off', async () => {
+  it('leaves both ledgers alone when the audit-log category is off [RETAIN-R3]', async () => {
     const fake = fakeSweep({ documentsPassB: [] });
 
     await sweepOrgPhase2(
@@ -302,7 +302,7 @@ describe('sweepOrgPhase2 — sandbox provenance ledgers', () => {
   });
 });
 
-describe('sweepOrgPhase2 — audit-log prefix walk under a custodian hold', () => {
+describe('sweepOrgPhase2 — audit-log prefix walk under a custodian hold [RETAIN-R1]', () => {
   // The chain is prefix-only: the walk deletes oldest-first and stops at the
   // first row a held custodian owns. A custodian owns a row when they acted
   // (actor_id) AND when they were acted upon (resource_type 'user',

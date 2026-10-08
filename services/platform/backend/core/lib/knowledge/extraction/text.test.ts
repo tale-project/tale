@@ -29,7 +29,7 @@ describe('extractTextFromTextBytes', () => {
     warn.mockRestore();
   });
 
-  it('refuses binary bytes as a terminal not_text extraction error', async () => {
+  it('refuses binary bytes as a terminal not_text extraction error [KNOW-R7]', async () => {
     const bytes = Uint8Array.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0xff]);
     await expect(extractTextFromTextBytes(bytes, 'tool.txt')).rejects.toThrow(
       ExtractionError,

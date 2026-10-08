@@ -200,7 +200,7 @@ describe('runSandboxWatchdog — expiry spares a live turn', () => {
   // The regression: every unpinned session past its TTL expired whatever
   // ran in it, so a turn still working when the window lapsed had its model
   // key revoked mid-turn and its slot handed to a parked run.
-  it('keeps a session past its TTL while one of its running ops signed its lease inside the recovery window', async () => {
+  it('keeps a session past its TTL while one of its running ops signed its lease inside the recovery window [SBX-R10]', async () => {
     const { sql, statements } = fakeSql({});
 
     const result = await runSandboxWatchdog(sql, { skipReconcile: true });

@@ -5,7 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
 import {
+  RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
+  RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
+  RAG_ERROR_EMBEDDING_UPSTREAM,
   RAG_ERROR_EMPTY,
+  RAG_ERROR_IMAGE_NO_VISION,
   RAG_ERROR_INDEXER_ERROR,
   RAG_ERROR_MALFORMED,
   RAG_ERROR_NOT_TEXT,
@@ -135,7 +139,7 @@ beforeEach(() => {
 });
 
 describe('indexUploadedFile — one stable code per failure', () => {
-  it('lands a file no extractor reads on `unsupported` with `unsupported_type` before any work', async () => {
+  it('lands a file no extractor reads on `unsupported` with `unsupported_type` before any work [KNOW-R7]', async () => {
     const log: Query[] = [];
     await indexUploadedFile(fakeSql(log, 'standup.loop'), 'file-1');
     const write = lastStatusWrite(log);
@@ -150,7 +154,7 @@ describe('indexUploadedFile — one stable code per failure', () => {
     expect(indexWholeDocument).not.toHaveBeenCalled();
   });
 
-  it('lands an empty file on the terminal `unsupported` with `empty`, never `failed`', async () => {
+  it('lands an empty file on the terminal `unsupported` with `empty`, never `failed` [KNOW-R7]', async () => {
     vi.mocked(indexWholeDocument).mockResolvedValue(skipped('empty'));
     const log: Query[] = [];
     await expect(indexUploadedFile(fakeSql(log), 'file-1')).resolves.toBe(
@@ -166,7 +170,7 @@ describe('indexUploadedFile — one stable code per failure', () => {
     ['secret-detected', RAG_ERROR_SECRET_DETECTED],
     ['pii-blocked', RAG_ERROR_PII_BLOCKED],
   ] as const)(
-    'keeps a %s policy refusal on `failed` with its code (a retry is meaningful)',
+    'keeps a %s policy refusal on `failed` with its code (a retry is meaningful) [KNOW-R8] [KNOW-R9]',
     async (kind, code) => {
       vi.mocked(indexWholeDocument).mockResolvedValue(skipped(kind));
       const log: Query[] = [];
@@ -181,7 +185,7 @@ describe('indexUploadedFile — one stable code per failure', () => {
     ['not_text', RAG_ERROR_NOT_TEXT],
     ['malformed', RAG_ERROR_MALFORMED],
   ] as const)(
-    'lands an extractor’s %s refusal on `unsupported` with its code and does NOT rethrow',
+    'lands an extractor’s %s refusal on `unsupported` with its code and does NOT rethrow [KNOW-R7]',
     async (code, wire) => {
       vi.mocked(indexWholeDocument).mockRejectedValue(
         new ExtractionError(code, `The file cannot be read (${code}).`),
@@ -257,6 +261,37 @@ describe('indexUploadedFile — one stable code per failure', () => {
       '[knowledge] indexing failed',
       expect.objectContaining({ fileId: 'file-1' }),
     );
+  });
+});
+
+// The suites above and beside this one name each code by its constant. The
+// domain spec and the API reference print the words, so the words are held
+// here: a renamed code fails this instead of leaving both out of date.
+describe('the indexing codes, as the domain spec prints them', () => {
+  it('spells each code a rule states [KNOW-R7] [KNOW-R8] [KNOW-R9] [KNOW-R10] [KNOW-R12]', () => {
+    expect({
+      RAG_ERROR_UNSUPPORTED_TYPE,
+      RAG_ERROR_IMAGE_NO_VISION,
+      RAG_ERROR_EMPTY,
+      RAG_ERROR_NOT_TEXT,
+      RAG_ERROR_MALFORMED,
+      RAG_ERROR_SECRET_DETECTED,
+      RAG_ERROR_PII_BLOCKED,
+      RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
+      RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
+      RAG_ERROR_EMBEDDING_UPSTREAM,
+    }).toEqual({
+      RAG_ERROR_UNSUPPORTED_TYPE: 'unsupported_type',
+      RAG_ERROR_IMAGE_NO_VISION: 'image_no_vision',
+      RAG_ERROR_EMPTY: 'empty',
+      RAG_ERROR_NOT_TEXT: 'not_text',
+      RAG_ERROR_MALFORMED: 'malformed',
+      RAG_ERROR_SECRET_DETECTED: 'secret_detected',
+      RAG_ERROR_PII_BLOCKED: 'pii_blocked',
+      RAG_ERROR_EMBEDDING_NOT_CONFIGURED: 'embedding_not_configured',
+      RAG_ERROR_EMBEDDING_PROVIDER_REFUSED: 'embedding_provider_refused',
+      RAG_ERROR_EMBEDDING_UPSTREAM: 'embedding_upstream',
+    });
   });
 });
 

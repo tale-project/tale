@@ -1,5 +1,5 @@
-import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
+import { useIsMobile } from '@tale/ui/use-is-mobile';
 import type { ReactNode } from 'react';
 
 interface ConversationListPanelProps {
@@ -13,15 +13,13 @@ export function ConversationListPanel({
   overlay,
   hidden,
 }: ConversationListPanelProps) {
+  const isMobile = useIsMobile();
+  // Home already owns the desktop inbox. Keeping a CSS-hidden list mounted
+  // still loads row directories, menus and observers for every conversation.
+  if (!isMobile || hidden) return null;
+
   return (
-    <div
-      className={cn(
-        // Phones only: on desktop the Home panel beside the page lists the
-        // conversations, so the inbox page is its reading pane alone.
-        'border-border relative flex w-full flex-col border-r md:hidden',
-        hidden ? 'hidden' : 'flex',
-      )}
-    >
+    <div className="border-border relative flex w-full flex-col border-r md:hidden">
       <Stack
         gap={0}
         className="mobile-nav-clearance min-h-0 flex-1 overflow-y-auto pb-[calc(var(--mobile-floating-actions-pad,0px)+var(--mobile-nav-content-pad,0px))]"

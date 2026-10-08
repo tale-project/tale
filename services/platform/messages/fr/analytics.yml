@@ -1,0 +1,340 @@
+aria:
+  filterBy: Filtrer par {name}
+automations:
+  title: Métriques des automatisations
+  errors:
+    loadFailed: Impossible de charger les métriques des automatisations.
+    refreshFailed: Impossible d'actualiser les métriques des automatisations. Les chiffres affichés peuvent être obsolètes.
+  description: Nombre d'exécutions, taux de réussite et durée moyenne sur l'ensemble de tes automatisations.
+  cappedNotice: Affiche les 5 000 dernières exécutions de la période. Les plus
+    anciennes ne comptent pas dans ces totaux.
+  cards:
+    totalRuns: Exécutions
+    successRate: Taux de réussite
+    avgDuration: Durée moyenne
+    failedRuns: Exécutions échouées
+  chart:
+    trendTitle: Exécutions au fil du temps
+    trendTooltip: Nombre d'exécutions sur la période choisie
+    statusTitle: Répartition des statuts
+    statusTooltip: Répartition des résultats d'exécution
+    totalLabel: Exécutions
+    noData: Aucune donnée
+    noDataDescription: Lance une automatisation pour voir ses résultats ici.
+    success: Réussies
+    failed: Échouées
+    running: En cours
+    waiting: En attente
+    queued: En file
+    cancelled: Annulées
+  table:
+    title: Automatisations les plus actives
+    automation: Automatisation
+    runs: Exécutions
+    successRate: Taux de réussite
+    avgDuration: Durée moyenne
+    failed: Échecs
+    lastRun: Dernière exécution
+  empty:
+    title: Aucune exécution
+    description: Aucune automatisation n'a tourné sur la période choisie.
+externalTurns:
+  title: Tours d'environnement d'agent
+  description: Fiabilité des tours d'environnement d'agent exécutés dans le bac à sable.
+  errors:
+    loadFailed: Impossible de charger les métriques des tours d'environnement d'agent.
+    refreshFailed: Impossible d'actualiser les métriques des tours d'environnement d'agent. Les chiffres affichés peuvent être obsolètes.
+  cappedNotice: Affichage des 5 000 tours les plus récents de cette période.
+    Les tours plus anciens ne sont pas inclus dans ces totaux.
+  cards:
+    total: Tours au total
+    successRate: Taux de réussite
+    timeoutRate: Taux d'expiration
+    durationP95: Durée p95
+    cancelled: Arrêtés par l'utilisateur
+    recovered: Récupérés
+  byHarness:
+    title: Par environnement d'agent
+    harness: Environnement d'agent
+    turns: Tours
+    successRate: Taux de réussite
+    timeouts: Expirations
+    empty: Aucun tour d'environnement d'agent n'a tourné sur la période choisie.
+usage:
+  title: Métriques d'utilisation
+  description: Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.
+  cappedNotice:
+    Les résultats sont limités car la plage temporelle contient trop
+    d'enregistrements. Réduis la plage pour obtenir des données complètes.
+  activeUsersTooltip: Utilisateurs ayant effectué des requêtes IA durant cette période.
+  directApi: Appel API direct
+  connector: Connector
+  transcription: Transcription
+  tts: Sortie vocale
+  granularity:
+    label: Granularité
+    daily: Quotidien
+    weekly: Hebdomadaire
+    monthly: Mensuel
+  metric:
+    label: Métrique
+    requests: Requêtes
+    tokens: Tokens
+    cost: Coût
+  cards:
+    totalRequests: Requêtes totales
+    totalTokens: Tokens totaux
+    totalCost: Coût total
+    activeUsers: Utilisateurs actifs
+  chart:
+    inputTokens: Entrée
+    outputTokens: Sortie
+  tables:
+    topAgents:
+      title: Principaux assistants
+      agent: Assistant
+      requests: Requêtes
+      tokens: Tokens
+      cost: Coût
+    topModels:
+      title: Principaux modèles
+      model: Modèle
+      requests: Requêtes
+      tokens: Tokens
+      cost: Coût
+    topVoiceModels:
+      title: Principaux modèles vocaux
+      model: Modèle
+      requests: Requêtes
+      characters: Caractères
+      cost: Coût
+    users:
+      title: Utilisation par utilisateur
+      user: Utilisateur
+      automations: Automatisations (déclencheurs)
+      note: Chaque ligne correspond au membre qui a envoyé le chat ou lancé
+        l’exécution d’agent. Les exécutions démarrées par une planification,
+        un webhook ou un événement partagent la ligne « Automatisations
+        (déclencheurs) ».
+      inputTokens: Tokens d'entrée
+      outputTokens: Tokens de sortie
+      requests: Requêtes
+      cost: Coût
+  filterChips:
+    agent: 'Assistant : {value}'
+    model: 'Modèle : {value}'
+    provider: 'Fournisseur : {value}'
+    clear: Réinitialiser les filtres
+  empty:
+    title: Aucune utilisation pour l'instant
+    description: Aucune utilisation IA n'a été enregistrée pour la période sélectionnée.
+  emptyModels:
+    title: Aucune utilisation de modèle
+    description:
+      Aucun appel LLM n'a été enregistré pour la période sélectionnée.
+      L'utilisation des connectors et des transcriptions est affichée dans
+      Top assistants.
+  emptyVoiceModels:
+    title: Aucune utilisation vocale
+    description: Aucune synthèse TTS n'a été enregistrée pour la période sélectionnée.
+  errors:
+    loadFailed: Impossible de charger les métriques d'utilisation.
+    refreshFailed: Impossible d'actualiser les métriques d'utilisation. Les chiffres affichés ne sont peut-être plus à jour.
+feedback:
+  title: Métriques des retours
+  description:
+    Évaluations pouce levé/baissé et verdicts d'arène sur les réponses
+    de l'assistant.
+  commentsOnly: Commentaires uniquement
+  errors:
+    loadFailed: Impossible de charger les métriques de retour
+    unauthorized: Tu n'as pas accès à cette page
+  kind:
+    label: Type
+    all: Tous les types
+    message: Évaluations de messages
+    arena: Verdicts d'arène
+  cards:
+    sentiment: Sentiment
+    sentimentAriaLabel: '{pct} utile, {helpful} sur {total}'
+    sentimentCapped: Sentiment indisponible avec des résultats partiels
+    sentimentDenominator: '{helpful} / {total}'
+    helpful: Utile
+    notHelpful: Pas utile
+  arena:
+    title: Verdicts d'arène
+    cells:
+      decisive: Tranché
+      tie: Égalité
+      bothBad: Les deux mauvais
+      sameModel: Même modèle
+  tables:
+    topAgents:
+      title: Top assistants par retour
+      agent: Assistant
+      helpful: Utile
+      notHelpful: Pas utile
+      sentiment: Sentiment
+      unattributed: Non attribué
+      emptyTitle: Aucun retour d'assistant
+      emptyDescription: La répartition par assistant apparaît ici dès que les
+        utilisateurs évaluent des réponses.
+    topModels:
+      title: Top modèles par retour
+      model: Modèle
+      helpful: Utile
+      notHelpful: Pas utile
+      sentiment: Sentiment
+      emptyTitle: Aucun retour sur les modèles
+      emptyDescription: La répartition par modèle apparaît ici dès que les
+        utilisateurs évaluent des réponses dont le modèle a été enregistré.
+    topMatchups:
+      title: Top duels de modèles
+      matchup: Duel
+      vs: vs
+      score: Score
+      ties: Égalités
+      bothBad: Les deux mauvais
+      total: Verdicts
+      emptyTitle: Aucun duel de modèles
+      emptyDescription:
+        Les confrontations directes par paire apparaissent ici dès que
+        les utilisateurs comparent deux modèles en mode arène.
+  filterChips:
+    agent: 'Assistant : {value}'
+    model: 'Modèle : {value}'
+    provider: 'Fournisseur : {value}'
+    clear: Effacer les filtres
+  empty:
+    title: Aucun retour collecté pour le moment
+    description: Quand les utilisateurs cliquent sur pouce levé/baissé ou
+      choisissent un gagnant en mode arène, cela apparaît ici.
+  periodEmpty:
+    title: Aucun retour sur cette période
+    description: Essaie d'élargir la période.
+    expand: Tout l'historique
+  filterEmpty:
+    title: Aucun retour ne correspond aux filtres
+    description: Essaie de retirer ou d'assouplir les filtres actifs.
+    clear: Effacer les filtres
+  cappedNotice:
+    title: Résultats partiels affichés
+    description:
+      Ton organisation a plus de 50 000 entrées dans la fenêtre choisie.
+      Réduis la fenêtre pour des chiffres exacts.
+  recent:
+    title: Retours récents
+    entityLabel: retours
+    entityLabelOne: retour
+    emptyTitle: Aucun retour sur cette période
+    emptyDescription: Ajuste la période ou les filtres pour en voir davantage.
+    noComment: (aucun commentaire)
+    loadingComment: Chargement du commentaire complet…
+    commentLoadFailed: Impossible de charger le commentaire complet.
+    helpfulAria: Utile
+    notHelpfulAria: Pas utile
+    types:
+      message: Chat
+      arena: Arena
+    columns:
+      time: Heure
+      user: Utilisateur
+      type: Type
+      rating: Évaluation
+      agent: Assistant
+      model: Modèle
+      comment: Commentaire
+    expanded:
+      comment: Commentaire
+      arena: Pairing d'arène
+      attribution: Attribution
+  sentimentTrend: Sentiment au fil du temps
+chatHealth:
+  chart:
+    trendTitle: Réponses au fil du temps
+    trendTooltip: Réponses de l'assistant par jour, par résultat
+    ok: Réussies
+    errors: Erreurs
+    blocked: Bloquées
+    noData: Aucune donnée
+    noDataDescription: Discute avec un assistant pour voir ses réponses ici.
+  breakdown:
+    title: Répartition
+  guardrails:
+    title: Garde-fous
+    byKind: Par type
+    byFilter: Par filtre
+    eventsTooltip: '{count} événements'
+    chart:
+      title: Événements guardrails au fil du temps
+      tooltip: Détections, blocages et erreurs de filtre par jour
+      detected: Détectés
+      blocked: Bloqués
+      errors: Erreurs
+      noData: Aucun événement guardrails
+      noDataDescription:
+        Les détections des modes signaler / masquer / bloquer apparaissent
+        ici dès que le chat tourne.
+  title: Santé de l'assistant
+  description: Taux d'erreur, réponses bloquées et activité des garde-fous
+    sur les réponses d'assistant de ton organisation.
+  cards:
+    blockedRate: Taux de blocage
+    blockedRateDetail: '{blocked} sur {total} réponses'
+    guardrailEvents: Événements guardrails
+    guardrailEventsDetail: '{blocked} bloquées'
+    errorRate: Taux d'erreur
+    errorRateDetail: '{errors} sur {total} réponses'
+    messages: Réponses de l'assistant
+  routing:
+    byAgent: Par agent
+    byModel: Par modèle
+    unattributed: Non attribué
+    turnsTooltip: '{count} réponses'
+  cappedNotice:
+    title: Activité récente affichée
+    description:
+      Cette fenêtre contient plus de réponses qu'un seul passage ne peut
+      analyser. Les chiffres couvrent les réponses les plus récentes ; réduis
+      la fenêtre pour une couverture complète.
+  periodEmpty:
+    title: Aucune activité dans cette fenêtre
+    description:
+      Aucune réponse de l'assistant n'a été enregistrée dans la période
+      choisie. Essaie une fenêtre plus longue.
+  empty:
+    title: Aucune activité pour le moment
+    description:
+      Dès que ton équipe échange avec les assistants, les métriques de
+      temps de réponse, d'erreurs et de routage apparaissent ici.
+  errors:
+    loadFailed: Impossible de charger les métriques
+    unauthorized: Tu n'as pas accès à ces métriques
+  errorType:
+    missing_api_key: Clé API manquante
+    credit_exhausted: Crédits épuisés
+    model_not_entitled: Modèle hors forfait
+    auth_error: Erreur d'authentification
+    model_not_found: Modèle introuvable
+    unsupported_parameter: Paramètre non pris en charge
+    output_cap_too_high: Limite de sortie trop élevée
+    token_limit: Limite de tokens
+    rate_limited: Limite de débit
+    content_filter: Filtre de contenu
+    context_length: Longueur du contexte
+    tool_failure: Échec d'outil
+    provider_unreachable: Fournisseur injoignable
+    provider_error: Erreur du fournisseur
+    thread_busy: Chat occupé
+    budget_exceeded: Limite d'utilisation atteinte
+    generic: Autre
+  errorBreakdown:
+    title: Erreurs
+    byType: Par type d'erreur
+    recentTitle: Erreurs récentes
+    noRecent: Aucune erreur récente dans cette fenêtre
+    columns:
+      time: Heure
+      type: Type
+      model: Modèle
+      agent: Agent
