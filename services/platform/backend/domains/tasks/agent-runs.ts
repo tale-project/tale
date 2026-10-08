@@ -169,6 +169,9 @@ export interface KickAgentRunArgs {
   model: string;
   modelProvider?: string;
   startedBy: string;
+  /** The API key the run was started with: its turns are the key's spend
+   * too. An auto-retry and a delegated start carry their predecessor's. */
+  apiKeyId?: string;
   trigger?: TaskAgentRunTrigger;
   /** Who put the agent to work when no person pressed Start: an automation
    * step or another agent's run (`delegated-start.ts`). An `automation` or
@@ -315,7 +318,7 @@ export async function kickAgentRun(
       auto_retry_attempt, started_by, started_at_ms, deadline_at_ms,
       updated_at_ms, started_via, started_via_run_id, started_via_node_id,
       started_via_automation, started_via_agent_id, in_place,
-      in_place_retry_status, in_place_retry_activity_id
+      in_place_retry_status, in_place_retry_activity_id, api_key_id
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionId},
@@ -330,7 +333,7 @@ export async function kickAgentRun(
       ${via?.kind === 'automation' ? via.automation : null},
       ${via?.kind === 'agent' ? via.agentId : null},
       ${inPlace}, ${retryState?.status ?? null},
-      ${retryState?.activityId ?? null}
+      ${retryState?.activityId ?? null}, ${args.apiKeyId ?? null}
     )
     ON CONFLICT (task_id) WHERE status IN ('queued', 'running') DO NOTHING
     RETURNING id

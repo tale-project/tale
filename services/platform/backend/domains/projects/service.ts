@@ -132,6 +132,9 @@ export interface ProjectAuthContext {
   /** The one project a project's API key may reach: every other project is
    * not found for it, whatever its audience (`domains/api_keys/owners.ts`). */
   projectScope?: string;
+  /** The API key the caller came with: the work it starts — an agent's run,
+   * an automation's — is the key's spend too. */
+  apiKeyId?: string;
 }
 
 /** Resolve the caller's role + team ids for project access checks. */
@@ -139,7 +142,7 @@ export async function getProjectAuthContext(
   sql: Sql | TransactionSql,
   member: { organizationId: string; userId: string; role: string },
   email?: string,
-  options: { projectScope?: string } = {},
+  options: { projectScope?: string; apiKeyId?: string } = {},
 ): Promise<ProjectAuthContext> {
   const teamIds = await getUserTeamIds(
     sql,
@@ -156,6 +159,7 @@ export async function getProjectAuthContext(
     role: member.role,
     teamIds,
     ...(projectScope !== undefined ? { projectScope } : {}),
+    ...(options.apiKeyId !== undefined ? { apiKeyId: options.apiKeyId } : {}),
   };
 }
 

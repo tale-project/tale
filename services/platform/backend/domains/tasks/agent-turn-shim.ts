@@ -245,17 +245,23 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         /** The person whose steer restarts the turn; absent from a steer
          * queued before it was carried. */
         startedBy?: string;
+        /** The API key they wrote with; absent when they wrote without one. */
+        apiKeyId?: string;
       };
       // The SINGLE-WINNER claim: guarded on (running, fromExecId), so two
       // concurrent steers cannot both rotate — the loser re-reads and sees
       // the new incarnation. The superseded chain orphans itself because
       // every settle mark is exec-guarded. The restarted turn is booked to
-      // the person who steered it: spend follows the run's starter.
+      // the person who steered it, and to the key they wrote with or none:
+      // spend follows the run's starter.
       const execId = `${args.fromExecId}-2`;
+      const startedBy = args.startedBy ?? null;
       const rows = await sql<{ id: string }[]>`
         UPDATE app.project_agent_runs SET
           exec_id = ${execId},
-          started_by = coalesce(${args.startedBy ?? null}, started_by),
+          started_by = coalesce(${startedBy}, started_by),
+          api_key_id = CASE WHEN ${startedBy}::text IS NULL THEN api_key_id
+                            ELSE ${args.apiKeyId ?? null} END,
           updated_at_ms = ${Date.now()}
         WHERE id = ${args.runId} AND status = 'running'
           AND exec_id = ${args.fromExecId}
@@ -270,6 +276,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         organizationId: string;
         taskId: string;
         authorId: string;
+        /** The API key the text was written with. */
+        apiKeyId?: string;
         feedback: string;
         mentionSource?: MentionSource;
       };
@@ -346,6 +354,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                   mentionSource: 'comment' as const,
                 }),
             startedBy: args.authorId,
+            ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
           });
         } catch (error) {
           // The organization's standard agent no longer starts for the

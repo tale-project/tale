@@ -2409,6 +2409,7 @@ async function kickAssignedAgentRun(
       ? { modelProvider: agent.modelProvider }
       : {}),
     startedBy: auth.userId,
+    ...(auth.apiKeyId !== undefined ? { apiKeyId: auth.apiKeyId } : {}),
     trigger: 'manual',
   });
 }
@@ -4555,6 +4556,9 @@ export async function dispatchMentionedProjectAgent(
       mentionSource: args.source,
       author,
       authorId: args.authorId,
+      ...(args.auth.apiKeyId !== undefined
+        ? { authorApiKeyId: args.auth.apiKeyId }
+        : {}),
       attempt: 0,
     });
     return;
@@ -4637,6 +4641,9 @@ export async function dispatchMentionedProjectAgent(
           ? { modelProvider: agent.modelProvider }
           : {}),
         startedBy: args.auth.userId,
+        ...(args.auth.apiKeyId !== undefined
+          ? { apiKeyId: args.auth.apiKeyId }
+          : {}),
         trigger: 'mention',
         mentionSource: args.source,
         ...(args.source === 'comment' ? { feedback: args.text } : {}),
@@ -4727,6 +4734,7 @@ export async function startTaskAgentRunManual(
       ? { modelProvider: agent.modelProvider }
       : {}),
     startedBy: auth.userId,
+    ...(auth.apiKeyId !== undefined ? { apiKeyId: auth.apiKeyId } : {}),
     trigger: 'manual',
   });
   if (kicked.reused) {

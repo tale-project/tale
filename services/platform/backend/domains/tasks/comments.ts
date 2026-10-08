@@ -832,6 +832,9 @@ async function maybeTriggerOwningAutomation(
       taskId: args.task.id,
       workflowSlug: mentioned.id,
       startedByUserId: args.auth.userId,
+      ...(args.auth.apiKeyId !== undefined
+        ? { apiKeyId: args.auth.apiKeyId }
+        : {}),
     },
     {
       singletonKey: `task.start_workflow:${args.auth.organizationId}:${args.task.id}:${mentioned.id}`,

@@ -1268,6 +1268,7 @@ export function readPageLimit(
  * own key reaches that project alone. */
 export async function restProjectAuth(sql: Sql, c: Context<RestEnv>) {
   const owner = c.get('apiKeyOwner');
+  const apiKeyId = restApiKeyId(c);
   return getProjectAuthContext(
     sql,
     {
@@ -1276,9 +1277,14 @@ export async function restProjectAuth(sql: Sql, c: Context<RestEnv>) {
       role: c.get('role'),
     },
     undefined,
-    owner?.kind === 'project' && owner.projectId !== null
-      ? { projectScope: owner.projectId }
-      : {},
+    {
+      ...(owner?.kind === 'project' && owner.projectId !== null
+        ? { projectScope: owner.projectId }
+        : {}),
+      // What the caller starts — an agent's run from a start, a comment or
+      // a review — is the key's spend too.
+      ...(apiKeyId !== undefined ? { apiKeyId } : {}),
+    },
   );
 }
 

@@ -402,6 +402,22 @@ describe('kickAgentRun — one live run per task is the schema’s rule', () => 
     expect(vi.mocked(addJobInTx).mock.calls[0]?.[3]).toEqual({});
   });
 
+  it('stores the API key the run was started with, and none without one [SBX-R14]', async () => {
+    const { tx, calls } = fakeTx((text) =>
+      text.startsWith('INSERT INTO app.project_agent_runs')
+        ? [{ id: 'run-new' }]
+        : [],
+    );
+    await kickAgentRun(tx, { ...kick, apiKeyId: 'key-1' });
+    await kickAgentRun(tx, kick);
+    const inserts = calls.filter((call) =>
+      call.text.startsWith('INSERT INTO app.project_agent_runs'),
+    );
+    expect(inserts[0]?.text).toContain('api_key_id');
+    expect(inserts[0]?.values.at(-1)).toBe('key-1');
+    expect(inserts[1]?.values.at(-1)).toBeNull();
+  });
+
   it('queues a retry at once but holds its start until a cooling broker has an account back', async () => {
     const { tx } = fakeTx((text) =>
       text.startsWith('INSERT INTO app.project_agent_runs')

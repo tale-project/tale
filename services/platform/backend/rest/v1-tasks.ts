@@ -861,6 +861,9 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       }
       const limited = await chargeLane(deps.sql, c, 'rest:execute');
       if (limited) return limited;
+      const keyId = restApiKeyId(c);
+      // The person's access, the key's spend: a run the decision starts —
+      // an agent a relayed comment names — books to the key too.
       const actorAuth = await getProjectAuthContext(
         deps.sql,
         {
@@ -869,6 +872,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           role: actor.role,
         },
         actor.email,
+        keyId !== undefined ? { apiKeyId: keyId } : {},
       );
       const result = await transactSerializable(deps.sql, async (tx) => {
         // The PERSON's access decides, not the key's: a relayed decision
@@ -913,7 +917,6 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           body: body.comment ?? '',
         });
         await updateTaskStatus(tx, actorAuth, task.id, 'in_progress');
-        const keyId = restApiKeyId(c);
         const started = await startWorkflowForTaskInTx(tx, {
           organizationId: auth.organizationId,
           task: { ...task, status: 'in_progress' },
