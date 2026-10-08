@@ -49,6 +49,8 @@ export interface FakeWorld {
   /** Every ledger begin the stepper asked for, in order. */
   begins: Array<Record<string, unknown>>;
   suspended: Array<Record<string, unknown>>;
+  /** Every hand-off to the next turn, in order. */
+  continued: Array<Record<string, unknown>>;
   finished: Array<Record<string, unknown>>;
   progress: Array<Record<string, unknown>>;
   /** Every saved-automation lookup, in order. */
@@ -103,6 +105,7 @@ export function fakeStepperWorld(options: {
     connectorCalls: [],
     begins: [],
     suspended: [],
+    continued: [],
     finished: [],
     progress: [],
     lookups: [],
@@ -250,8 +253,9 @@ export function fakeStepperWorld(options: {
         return { suspended: true };
       }
       if (name.endsWith(':continueRun')) {
+        world.continued.push(clone(args));
         world.run.status = 'queued';
-        return {};
+        return { scheduled: true };
       }
       if (name.endsWith(':finishRun')) {
         world.finished.push(clone(args));

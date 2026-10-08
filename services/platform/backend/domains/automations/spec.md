@@ -4,8 +4,9 @@
 
 The rules an automation is held to between the editor and a finished run: who can change one
 and run it live, what a saved version and a deployment guarantee, what a start is refused for,
-what each trigger may start, what a run that ends takes with it, which server steps a run, what
-a run says once it moved to another and what a resumed run never repeats, whose approval policy
+what each trigger may start, what a run that ends takes with it, which server steps a run, how a
+restart hands a run on, what a run says once it moved to another and what a resumed run never
+repeats, whose approval policy
 a run's steps ask, and what a delete leaves behind. The workflow document itself, how a run
 proceeds step by step, agent steps and their retries, the rest of approvals and questions inside
 a run, package upload and managed configuration are not covered; see Not yet.
@@ -295,6 +296,18 @@ had already finished.
   unreadable → the run fails, saying its progress could not be read by this version of Tale, and
   neither step runs again.
 
+### AUTO-R22 · A restart hands a run on; steps it finished never run again
+
+When a server is updated or restarted, a run it is stepping is handed on at its next step: the
+step under way finishes, and another server continues the run from the step after it, or from
+the next item of a list. A step still working 20 seconds into the shutdown is cut and runs again
+on the next server; it is not recorded as failed, and a write it may already have sent waits for
+a person instead (`AUTO-R19`). A step or an item the run had finished never runs again.
+
+- **Example**: Noah's nightly import is on step 3 of 5 when its server is restarted for an
+  update → step 3 finishes, another server runs steps 4 and 5, and no step shows twice in the
+  run's log.
+
 ## Approvals inside a run
 
 ### AUTO-R21 · Each run asks its own organization's approval policy
@@ -327,12 +340,12 @@ the run or let it finish first.
   such as the number of repeats and the depth of nested automations
   (`lib/engine/core/validate/`, `lib/engine/core/execute/`, `backend/core/automations/stepper.ts`).
 - **How a run proceeds**: checkpoints and resuming, how soon the sweep revives a run whose
-  server stopped answering, what becomes of a step its server was running when it stopped, agent
+  server stopped answering, what becomes of a step its server was running when it crashed, agent
   steps with their automatic retries and waits for a sandbox
   (`backend/core/automations/stepper.ts`, `checkpoints.ts`, `liveness.ts`, `agent_host.ts`,
   `agent_retry.ts`, `reattach.ts`, `shim.ts`, `node-attempts.ts`). `AUTO-R16` covers which
-  server steps a run, `AUTO-R18` what a run says once it moved to another, and `AUTO-R19` and
-  `AUTO-R20` what a resumed run never repeats.
+  server steps a run, `AUTO-R22` how a restart hands it on, `AUTO-R18` what a run says once it
+  moved to another, and `AUTO-R19` and `AUTO-R20` what a resumed run never repeats.
 - **Approvals inside a run**: which step asks, and the credential check before it asks
   (`backend/core/automations/stepper.ts`, `shim.ts`); `AUTO-R21` covers whose policy decides.
   An approval cannot be decided over the API; the contract debt ledger in

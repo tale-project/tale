@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 85 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 86 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -655,6 +655,22 @@ output:
       `automations.runs.inDoubt.failConfirm.title`) → **Failed**
       (`automations.runs.status.failed`), its detail saying the step was
       failed by a person and may already have run.
+- [ ] `AUTO-F59` · **A deploy hands a run on** — With two backend workers
+      (`docker compose up -d --scale backend-worker=2`), deploy an automation
+      of five steps in a row that each work for about 30 seconds (an `llm`
+      step asked for a long answer, for example) and start a live run. While
+      its third step works, find the worker stepping it — the first segment
+      of the run's `lease_owner` (`SELECT lease_owner FROM
+      app.automation_runs WHERE id = '{runId}'` in the app database) is that
+      container's hostname — and stop it gracefully (`docker stop`, not
+      `kill`) → the third step finishes, the other worker continues with the
+      fourth within seconds and the badge never reads
+      `automations.runs.status.stalled`; the run succeeds, each step shows
+      once in the steps list and the effects, and the header shows
+      `automations.runs.resumed.label` followed by
+      `automations.runs.resumed.shutdown`. Repeat with steps that each work
+      for two minutes → the step under way is cut about 20 seconds into the
+      stop, runs again on the other worker, and still shows once.
 
 ## Boundary & error tests
 

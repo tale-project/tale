@@ -51,3 +51,11 @@ export const ENGINE_DEFER_WINDOW_MS = 10 * 60_000;
  * that may already have happened. The decision itself wakes the run; this
  * only catches a wake that was lost. */
 export const IN_DOUBT_POLL_MS = 60 * 60_000;
+
+/** How many forEach items a walker may finish before it saves the loop's
+ * cursor, and how long it may go without saving it. Between two saves a
+ * walker that dies takes at most this much finished loop work with it: a
+ * resumed run continues from the last saved item, and the effect ledger
+ * answers the writes of the items it walks again. */
+export const FOREACH_CURSOR_COMMIT_ITEMS = 10;
+export const FOREACH_CURSOR_COMMIT_MS = 10_000;

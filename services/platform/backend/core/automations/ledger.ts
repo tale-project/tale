@@ -155,17 +155,25 @@ function failureSentence(error: unknown): string {
  * stays `started`, which a later walker treats as "may have happened" — the
  * cautious reading — so a failed record is logged rather than allowed to
  * replace what the call itself did.
+ *
+ * `signal` is the turn's. A call cut by it was interrupted, not failed: its
+ * attempt stays `started`, so the next walker calls a model again and asks
+ * a person about a write that may already have reached its service — where
+ * a recorded failure would replay as the step's own failure. Once it has
+ * aborted, no call begins.
  */
 export async function callThroughLedger(
   ledger: RunLedger,
   call: LedgerCall,
   make: () => Promise<unknown>,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const address: CallAddress = {
     nodeId: call.nodeId,
     itemIndex: call.itemIndex,
     pass: call.pass,
   };
+  signal?.throwIfAborted();
   const begun = await ledger.begin(call);
   switch (begun.kind) {
     case 'done':
@@ -201,6 +209,7 @@ export async function callThroughLedger(
   try {
     output = await make();
   } catch (error) {
+    if (signal?.aborted === true) throw error;
     await ledger
       .finish({
         ...address,

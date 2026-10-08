@@ -27,6 +27,7 @@ import type {
   Automation,
 } from '../../../lib/engine/core/types';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
+import { processShutdown, type ShutdownState } from '../../lib/shutdown';
 import { harnessResumesConversations } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
@@ -75,7 +76,12 @@ import {
   StaleClaim,
   type RunLedger,
 } from './ledger';
-import { IN_DOUBT_POLL_MS, RUN_HEARTBEAT_INTERVAL_MS } from './liveness';
+import {
+  FOREACH_CURSOR_COMMIT_ITEMS,
+  FOREACH_CURSOR_COMMIT_MS,
+  IN_DOUBT_POLL_MS,
+  RUN_HEARTBEAT_INTERVAL_MS,
+} from './liveness';
 import { automationLlmCall, type AutomationLlmCall } from './llm_call';
 
 /**
@@ -317,14 +323,28 @@ interface RunSink {
     resumeInMs: number;
     event?: { kind: 'in_doubt'; detail: Record<string, unknown> };
   }): Promise<'suspended' | 'continue' | 'cancelled'>;
-  /** Whether this turn should stop and let a fresh invocation continue. */
+  /** Whether this turn should stop and let a fresh invocation continue: its
+   * budget is spent, or its server is stopping. */
   shouldHandOff(): boolean;
-  /** Hand the run to the scheduler. */
-  handOff(): Promise<void>;
+  /** Hand the run to the scheduler — with a note when its server is
+   * stopping, so the run is counted and shown as resumed after a restart. */
+  handOff(note?: HandOffNote): Promise<void>;
   /** Whether `wait` can actually park the run. False for the inline sink: a
    * step that would have to park (an agent turn, an approval) refuses BEFORE
    * it spends anything, instead of discovering `continue` after the kick. */
   canPark: boolean;
+}
+
+/** Why a walker handed its run on before it was done, when the reason is its
+ * server stopping (the store's `RunHandoff`). A hand-off because the turn's
+ * budget ran out carries none. */
+interface HandOffNote {
+  reason: 'shutdown';
+  /** The node the walker was in, and its forEach item. */
+  nodeId?: string;
+  itemIndex?: number;
+  /** The node's body was cut off mid-call rather than finished. */
+  interrupted?: boolean;
 }
 
 const inlineSink: RunSink = {
@@ -384,6 +404,30 @@ interface RunContext {
   /** Where a live run begins and records every call that reaches outside it
    * (`ledger.ts`); a mock run's records nothing. */
   ledger: RunLedger;
+  /** Aborted when a step body still running must stop: its server is
+   * shutting down and the grace for finishing a step ran out, or the job
+   * running this turn was given up on. Every call outside the run listens
+   * to it, and an error raised once it aborted is an interruption, never a
+   * failure of the step. */
+  signal: AbortSignal;
+  /** Whether this turn should hand the run on at its next step boundary
+   * instead of walking on: its server is stopping, or its replica is being
+   * drained for a deploy. */
+  yielding: () => boolean;
+  /** Whether its server is stopping. Only that hands a run on before the
+   * turn's first step: a drained worker hands a step job over before it
+   * reaches a walker, and a drain read a few seconds stale must not bounce a
+   * run back and forth without a step. */
+  shuttingDown: () => boolean;
+}
+
+/** The note a hand-off carries when the walker is yielding to a stopping
+ * server, and none when its budget simply ran out. */
+function yieldNote(
+  run: RunContext,
+  where: Omit<HandOffNote, 'reason'> = {},
+): HandOffNote | undefined {
+  return run.yielding() ? { reason: 'shutdown', ...where } : undefined;
 }
 
 /** A resolved template destined for prompt text: strings pass through,
@@ -498,6 +542,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
           }
           return 'text' in reply ? { text: reply.text } : reply.data;
         },
+        run.signal,
       );
     }
     return node.outputSchema !== undefined
@@ -646,6 +691,10 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
           args.itemIndex,
           args.pass,
         ),
+        // In-process only: the door hands it to the live host, so a call
+        // still running when the server stops is cut instead of holding the
+        // walker past its grace.
+        signal: run.signal,
       },
     );
     if (result.status !== 'ok') {
@@ -676,6 +725,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
           recallable: nodeIdempotent(node.type),
         },
         async () => (await dispatch()).output,
+        run.signal,
       );
     } catch (error) {
       // A person failed the run here because nobody could tell whether the
@@ -746,10 +796,15 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
     // this turn, otherwise its effect and its checkpoint could straddle the
     // ceiling the hand-off exists to avoid. A turn always advances at least one
     // node, so a budget that is already spent slows a run down instead of
-    // livelocking it.
+    // livelocking it — unless its server is stopping: a turn claimed then
+    // hands on before its first node, and the next server walks it.
     const resuming = checkpoints.cursor?.node === node.id;
-    if (stepped > 0 && !resuming && sink.shouldHandOff()) {
-      await sink.handOff();
+    if (
+      (stepped > 0 || run.shuttingDown()) &&
+      !resuming &&
+      sink.shouldHandOff()
+    ) {
+      await sink.handOff(yieldNote(run));
       return { kind: 'handed-off' };
     }
     stepped++;
@@ -925,6 +980,10 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
   let passes = 0;
   let outs: unknown[] = [];
   let pins: Record<string, number> | undefined;
+  // Whether `index`/`passes`/`outs` hold this node's real place yet: an
+  // interruption before they do must not save a cursor that would send a
+  // half-done loop back to its first item.
+  let placed = false;
   const cursorHere = (): NodeCursor => ({
     node: node.id,
     index,
@@ -1063,6 +1122,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         ? { ...checkpoints.cursor, outs: [...checkpoints.cursor.outs] }
         : { node: node.id, index: 0, passes: 0, outs: [] };
     ({ index, passes, outs, pins } = cursor);
+    placed = true;
 
     // A subautomation node fixes the versions it walks the first time it
     // runs, and records them before any of its own steps acts: a deploy
@@ -1098,6 +1158,11 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       REPEATS_HARD_CAP,
     );
     let single: unknown;
+    // Where the loop's cursor was last saved: a long loop saves it every few
+    // items, so a walker that dies mid-loop leaves the items it finished
+    // behind it rather than all of them.
+    let savedIndex = index;
+    let savedAt = Date.now();
 
     for (;;) {
       if (items !== null && index >= items.length) break;
@@ -1172,8 +1237,24 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         });
         if (status === 'cancelled') return { kind: 'cancelled' };
         checkpoints.cursor = cursorHere();
-        await sink.handOff();
+        await sink.handOff(
+          yieldNote(run, { nodeId: node.id, itemIndex: index }),
+        );
         return { kind: 'handed-off' };
+      }
+      if (
+        sink.canPark &&
+        (index - savedIndex >= FOREACH_CURSOR_COMMIT_ITEMS ||
+          Date.now() - savedAt >= FOREACH_CURSOR_COMMIT_MS)
+      ) {
+        const status = await sink.commit({
+          cursor: cursorHere(),
+          executions: checkpoints.executions,
+        });
+        if (status === 'cancelled') return { kind: 'cancelled' };
+        checkpoints.cursor = { ...cursorHere(), outs: [...outs] };
+        savedIndex = index;
+        savedAt = Date.now();
       }
     }
 
@@ -1213,6 +1294,38 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       if (waited === 'cancelled') return { kind: 'cancelled' };
       checkpoints.cursor = cursor;
       return { kind: 'suspended' };
+    }
+    // The step was cut because its server is stopping: it did not fail, and
+    // it is not recorded as done. The run is handed on where it stands — a
+    // loop at the item it was on — and the next server runs the step again;
+    // the effect ledger keeps a write that may already have reached its
+    // service from being repeated blindly. Inside a subautomation the
+    // calling node hands the run on. A person's decision to fail the run is
+    // carried out whatever the server is doing.
+    if (run.signal.aborted && !(error instanceof RunStopFailure)) {
+      if (!sink.canPark) throw error;
+      if (
+        placed &&
+        (typeof node.forEach === 'string' ||
+          typeof node.repeatUntil === 'string')
+      ) {
+        const status = await sink.commit({
+          cursor: cursorHere(),
+          executions: checkpoints.executions,
+        });
+        if (status === 'cancelled') return { kind: 'cancelled' };
+        checkpoints.cursor = cursorHere();
+      }
+      console.warn(
+        `[automations] run ${run.runId}: ${path} was interrupted (${error instanceof Error ? error.message : String(error)}) — handing the run on`,
+      );
+      await sink.handOff({
+        reason: 'shutdown',
+        nodeId: node.id,
+        itemIndex: index,
+        interrupted: true,
+      });
+      return { kind: 'handed-off' };
     }
     // A failure that knows what to do next says so in the one sentence the
     // run detail and the trace show — `message — hint`, never a JSON blob.
@@ -1651,6 +1764,40 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
 
 // ------------------------------------------------------------------- action
 
+/** What a stepper turn listens to besides its run. */
+export interface StepRunOptions {
+  /** The job's own signal: aborted when the job is given up on. */
+  signal?: AbortSignal;
+  /** The process's shutdown state; {@link processShutdown} unless a test
+   * brings its own. */
+  shutdown?: ShutdownState;
+  /** Whether this replica is being drained for a deploy (a cached read —
+   * `lib/drain-probe.ts`); never, unless the worker passes its probe. */
+  draining?: () => boolean;
+}
+
+/** The turns this process is stepping right now, so a stopping process can
+ * wait for them to hand their runs on before it releases what is left. */
+const liveTurns = new Set<Promise<unknown>>();
+
+/**
+ * Wait, at most `timeoutMs`, for every turn this process is stepping to end
+ * — once shutdown has begun, each hands its run on at its next step boundary
+ * or when its step is cut. Answers how many are still going.
+ */
+export async function settleLiveTurns(timeoutMs: number): Promise<number> {
+  if (liveTurns.size === 0) return 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    Promise.allSettled(liveTurns),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, timeoutMs);
+    }),
+  ]);
+  clearTimeout(timer);
+  return liveTurns.size;
+}
+
 /**
  * Execute one turn of a run: claim it, step it until it finishes, waits, or
  * runs out of budget, and leave the row in a state the next turn can read.
@@ -1665,6 +1812,21 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
 export async function stepRunImpl(
   ctx: ActionCtx,
   args: { organizationId: string; runId: Id<'automationRuns'> },
+  options: StepRunOptions = {},
+): Promise<{ status: string }> {
+  const turn = stepRunTurn(ctx, args, options);
+  liveTurns.add(turn);
+  const forget = () => {
+    liveTurns.delete(turn);
+  };
+  void turn.then(forget, forget);
+  return await turn;
+}
+
+async function stepRunTurn(
+  ctx: ActionCtx,
+  args: { organizationId: string; runId: Id<'automationRuns'> },
+  options: StepRunOptions,
 ): Promise<{ status: string }> {
   // The engine's sandbox seam for untrusted JavaScript (templates, transform
   // bodies). The bundled backend is deterministic and data-only; a deployment
@@ -1701,7 +1863,7 @@ export async function stepRunImpl(
   }, RUN_HEARTBEAT_INTERVAL_MS);
 
   try {
-    return await stepClaimedRun(ctx, args, epoch);
+    return await stepClaimedRun(ctx, args, epoch, options);
   } finally {
     beating = false;
     clearInterval(heartbeat);
@@ -1713,6 +1875,7 @@ async function stepClaimedRun(
   ctx: ActionCtx,
   args: { organizationId: string; runId: Id<'automationRuns'> },
   epoch: number,
+  options: StepRunOptions,
 ): Promise<{ status: string }> {
   {
     const loaded = await ctx.runQuery(
@@ -1774,6 +1937,12 @@ async function stepClaimedRun(
       return { status: failed.status };
     }
     const checkpoints = parsed.checkpoints;
+    const shutdown = options.shutdown ?? processShutdown;
+    const draining = options.draining ?? (() => false);
+    const signal =
+      options.signal === undefined
+        ? shutdown.interrupt
+        : AbortSignal.any([options.signal, shutdown.interrupt]);
     const run: RunContext = {
       ctx,
       organizationId: args.organizationId,
@@ -1785,7 +1954,7 @@ async function stepClaimedRun(
       // and the run's own organization, and travels with this run alone —
       // a worker stepping two organizations' runs at once never lets one
       // run's turn replace the other's gate.
-      llm: automationLlmCall(ctx, args.organizationId),
+      llm: automationLlmCall(ctx, args.organizationId, { signal }),
       agent: (agentHostFactory ?? automationAgentHost)(
         ctx,
         args.organizationId,
@@ -1801,6 +1970,9 @@ async function stepClaimedRun(
               epoch,
             })
           : passThroughLedger,
+      signal,
+      yielding: () => shutdown.shuttingDown || draining(),
+      shuttingDown: () => shutdown.shuttingDown,
     };
 
     const sink = durableSink(
@@ -1809,6 +1981,7 @@ async function stepClaimedRun(
       args.runId,
       run.deadline,
       epoch,
+      run.yielding,
     );
     const order = (topoSort(automation.nodes) ?? automation.nodes).map(
       (node) => node.id,
@@ -1894,6 +2067,7 @@ function durableSink(
   runId: Id<'automationRuns'>,
   deadline: number,
   epoch: number,
+  yielding: () => boolean,
 ): RunSink {
   return {
     async commit(args) {
@@ -1932,15 +2106,16 @@ function durableSink(
       return result.suspended ? 'suspended' : 'cancelled';
     },
     shouldHandOff() {
-      return Date.now() >= deadline;
+      return Date.now() >= deadline || yielding();
     },
     canPark: true,
-    async handOff() {
+    async handOff(note) {
       await ctx.runMutation(internal.automations.mutations.continueRun, {
         organizationId,
         runId,
         epoch,
         resumeInMs: 0,
+        ...(note !== undefined && { handoff: note }),
       });
     },
   };

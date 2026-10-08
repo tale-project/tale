@@ -459,8 +459,15 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'task.agent_steer': { retryLimit: 0, expireInSeconds: 300 },
   // The drive window is long (a turn can run for hours) and the recovery
   // sweep re-enqueues on its own cadence, so no pg-boss retry on top: a
-  // second drive of the same exec would replay the ring buffer twice.
-  'task.agent_drive': { retryLimit: 0, expireInSeconds: 43_200 },
+  // second drive of the same exec would replay the ring buffer twice. The
+  // heartbeat fails the job of a worker that was killed within a minute, so
+  // the sweep stops reading it as a drive on its way and re-attaches the
+  // turn (`driveJobPending`).
+  'task.agent_drive': {
+    retryLimit: 0,
+    expireInSeconds: 43_200,
+    heartbeatSeconds: 60,
+  },
   // The start is idempotent per task — its own live-run guard refuses a
   // second run on a task that holds one — so a transient failure is safe
   // to retry.
@@ -533,8 +540,13 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'task.agent_park_wake': { retryLimit: 1, expireInSeconds: 300 },
   'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   // Same posture as task.agent_drive: the window is long and a second drive
-  // of the same exec would replay the ring buffer twice, so no pg-boss retry.
-  'automation.agent_drive': { retryLimit: 0, expireInSeconds: 43_200 },
+  // of the same exec would replay the ring buffer twice, so no pg-boss retry;
+  // the heartbeat lets a killed worker's drive be re-attached within a minute.
+  'automation.agent_drive': {
+    retryLimit: 0,
+    expireInSeconds: 43_200,
+    heartbeatSeconds: 60,
+  },
   'chat.generate_title': { retryLimit: 0, expireInSeconds: 60 },
   // 'short' + the per-send singletonKey (see deferred-sends.ts) collapses the
   // poll self-chain to at most one queued hop, so the recovery sweep can

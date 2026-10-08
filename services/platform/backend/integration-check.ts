@@ -30118,10 +30118,12 @@ async function checkControlDrain(
       `
     )[0]?.startedAt ?? now,
   );
+  // Read as the breakdown's `generations`: `inFlight` also counts the
+  // automation steps and agent drives other lanes may be running meanwhile.
   const inFlightWith = async (
     startedAt: number,
     heartbeatAt: number,
-  ): Promise<z.ZodSafeParseResult<{ inFlight: number }>> => {
+  ): Promise<z.ZodSafeParseResult<{ generations: number }>> => {
     await sql`
       INSERT INTO app.generations (thread_id, org_id, message_id,
                                    started_at_ms, heartbeat_at_ms,
@@ -30133,7 +30135,7 @@ async function checkControlDrain(
         updated_at_ms = ${heartbeatAt}
     `;
     return z
-      .object({ inFlight: z.number() })
+      .object({ generations: z.number() })
       .loose()
       .safeParse(
         await (await control('/drain-status', { bearer: token })).json(),
@@ -30335,17 +30337,17 @@ async function checkControlDrain(
       refusedBody.data.status === 'refused' &&
       appended[0]?.count === '0' &&
       withFresh.success &&
-      withFresh.data.inFlight === 1 &&
+      withFresh.data.generations === 1 &&
       withStale.success &&
-      withStale.data.inFlight === 0 &&
+      withStale.data.generations === 0 &&
       withPostDrain.success &&
-      withPostDrain.data.inFlight === 0 &&
+      withPostDrain.data.generations === 0 &&
       ended.status === 200 &&
       statusEnded.success &&
       !statusEnded.data.draining &&
       statusExpired.success &&
       !statusExpired.data.draining,
-    `auth=${noBearer.status}/${wrongBearer.status}/gone=${doorGone.status} (want 401/401/404), begin=${began.success} draining=${statusDraining.success ? statusDraining.data.draining : 'ERR'}, send=${refusedSend.status} (want 503) body=${refusedBody.success ? refusedBody.data.status : 'ERR'} appended=${appended[0]?.count} (want 0), inFlight fresh=${withFresh.success ? withFresh.data.inFlight : 'ERR'}/stale=${withStale.success ? withStale.data.inFlight : 'ERR'}/started-after-drain=${withPostDrain.success ? withPostDrain.data.inFlight : 'ERR'} (want 1/0/0), end=${ended.status} → draining=${statusEnded.success ? statusEnded.data.draining : 'ERR'}, expired=${statusExpired.success ? statusExpired.data.draining : 'ERR'} (want false)`,
+    `auth=${noBearer.status}/${wrongBearer.status}/gone=${doorGone.status} (want 401/401/404), begin=${began.success} draining=${statusDraining.success ? statusDraining.data.draining : 'ERR'}, send=${refusedSend.status} (want 503) body=${refusedBody.success ? refusedBody.data.status : 'ERR'} appended=${appended[0]?.count} (want 0), generations fresh=${withFresh.success ? withFresh.data.generations : 'ERR'}/stale=${withStale.success ? withStale.data.generations : 'ERR'}/started-after-drain=${withPostDrain.success ? withPostDrain.data.generations : 'ERR'} (want 1/0/0), end=${ended.status} → draining=${statusEnded.success ? statusEnded.data.draining : 'ERR'}, expired=${statusExpired.success ? statusExpired.data.draining : 'ERR'} (want false)`,
   );
 }
 

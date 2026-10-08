@@ -57,6 +57,16 @@ describe('loadEnv', () => {
     ).toThrow();
   });
 
+  it('bounds the shutdown drain, and leaves it to the role when unset', () => {
+    expect(loadEnv(BASE).SHUTDOWN_DRAIN_MS).toBeUndefined();
+    expect(
+      loadEnv({ ...BASE, SHUTDOWN_DRAIN_MS: '45000' }).SHUTDOWN_DRAIN_MS,
+    ).toBe(45_000);
+    for (const value of ['999', '600001', '1.5', 'soon']) {
+      expect(() => loadEnv({ ...BASE, SHUTDOWN_DRAIN_MS: value })).toThrow();
+    }
+  });
+
   it('applies defaults for port, role, and concurrency', () => {
     const env = loadEnv({ ...BASE });
     expect(env.PORT).toBe(3005);

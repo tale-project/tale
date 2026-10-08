@@ -35,3 +35,14 @@ describe('run-walker and turn lanes never retry through pg-boss', () => {
     ).toBeGreaterThanOrEqual(6 * 3600);
   });
 });
+
+describe('agent turn drive windows', () => {
+  it.each(['automation.agent_drive', 'task.agent_drive'] as const)(
+    '%s carries a heartbeat, so a killed worker drive is re-attached within minutes, not after its expiry',
+    (lane) => {
+      const { heartbeatSeconds, expireInSeconds } = TASK_QUEUE_OPTIONS[lane];
+      expect(heartbeatSeconds).toBe(60);
+      expect(expireInSeconds).toBeGreaterThan(heartbeatSeconds ?? 0);
+    },
+  );
+});

@@ -19,8 +19,10 @@ import {
  * Deploy DRAIN control plane — the 0.5 twin of `convex/control/drain.ts`.
  * `tale deploy` replaces the backend on a version change, killing every
  * in-flight chat generation. Before that the CLI begins a drain (the chat
- * doors then refuse NEW turns), polls until `inFlight` reaches 0, replaces,
- * and ends the drain. A drain 503 is refused in the UI — the client does
+ * doors then refuse NEW turns, the drained workers start no new job and
+ * their automation walkers hand their runs on), polls until `inFlight` —
+ * chat turns, automation steps and agent drive windows — reaches 0,
+ * replaces, and ends the drain. A drain 503 is refused in the UI — the client does
  * not retry. Best-effort by
  * design on the CLI side; on this side the flag is a singleton row with a
  * hard expiry so a deploy that dies mid-drain cannot refuse chats forever.
@@ -109,6 +111,77 @@ async function countActiveGenerations(sql: Sql): Promise<number> {
   return Number(rows[0]?.count ?? '0');
 }
 
+/** The work a drain waits for besides chat turns. */
+export interface AutomationWork {
+  /** Automation runs a walker on the drained colour is stepping: running,
+   * under a live lease whose owner names that colour (any colour when the
+   * drain names none). */
+  automationRuns: number;
+  /** Agent-turn drive windows that were already running when the drain
+   * began. The job queue knows no colour, so they are counted on every
+   * colour; each lasts at most 90 s, and a drained worker hands the turn's
+   * next window to the live colour. */
+  agentDrives: number;
+}
+
+/**
+ * The automation work an active drain waits for — none when no drain is
+ * active. A walker on the drained colour hands its run on at its next step
+ * boundary (the stepper's drain probe), so its run leaves the count within
+ * one step.
+ */
+export async function countAutomationWork(sql: Sql): Promise<AutomationWork> {
+  const now = Date.now();
+  const drains = await sql<
+    { startedAt: number | null; colour: string | null }[]
+  >`
+    SELECT drain_started_at_ms::float8 AS "startedAt",
+           draining_colour AS colour
+    FROM app.backend_control
+    WHERE key = ${SINGLETON}
+      AND draining
+      AND (drain_expires_at_ms IS NULL OR drain_expires_at_ms > ${now})
+  `;
+  const drain = drains[0];
+  if (!drain) return { automationRuns: 0, agentDrives: 0 };
+  // The colour is the lease owner's last segment (`lib/instance.ts`).
+  const runs = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.automation_runs
+    WHERE status = 'running'
+      AND lease_epoch = claim_epoch
+      AND lease_expires_at_ms > ${now}
+      AND (${drain.colour}::text IS NULL
+        OR substring(lease_owner from '[^:]*$') = ${drain.colour}::text)
+  `;
+  const drives = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM pgboss.job
+    WHERE name IN ('automation.agent_drive', 'task.agent_drive')
+      AND state = 'active'
+      AND started_on <= to_timestamp(${drain.startedAt ?? now} / 1000.0)
+  `;
+  return {
+    automationRuns: runs[0]?.count ?? 0,
+    agentDrives: drives[0]?.count ?? 0,
+  };
+}
+
+/** What a drain is waiting for: `inFlight` is everything, which is all an
+ * older CLI reads; the rest is its breakdown. */
+export interface DrainWork extends AutomationWork {
+  inFlight: number;
+  generations: number;
+}
+
+async function countDrainWork(sql: Sql): Promise<DrainWork> {
+  const generations = await countActiveGenerations(sql);
+  const automation = await countAutomationWork(sql);
+  return {
+    inFlight: generations + automation.automationRuns + automation.agentDrives,
+    generations,
+    ...automation,
+  };
+}
+
 /**
  * Begin a drain. `colour` aims it at one deployment colour; omitted, it
  * drains every replica (an older CLI, and the tiers that roll in place).
@@ -116,7 +189,7 @@ async function countActiveGenerations(sql: Sql): Promise<number> {
 export async function beginDrain(
   sql: Sql,
   colour?: string | null,
-): Promise<{ inFlight: number; drainingColour: string | null }> {
+): Promise<DrainWork & { drainingColour: string | null }> {
   const now = Date.now();
   const target = colour ?? null;
   await sql`
@@ -132,7 +205,7 @@ export async function beginDrain(
       draining_colour = ${target}, updated_at_ms = ${now}
   `;
   return {
-    inFlight: await countActiveGenerations(sql),
+    ...(await countDrainWork(sql)),
     drainingColour: target,
   };
 }
@@ -147,16 +220,17 @@ export async function endDrain(sql: Sql): Promise<void> {
   `;
 }
 
-export async function drainStatus(sql: Sql): Promise<{
-  draining: boolean;
-  inFlight: number;
-  colour: string | null;
-}> {
+export async function drainStatus(sql: Sql): Promise<
+  DrainWork & {
+    draining: boolean;
+    colour: string | null;
+  }
+> {
   return {
     // What THIS replica reports about itself: the CLI polls the container it
     // is draining, so "am I draining" is the honest answer to give it.
     draining: await isBackendDraining(sql),
-    inFlight: await countActiveGenerations(sql),
+    ...(await countDrainWork(sql)),
     colour: replicaColour(),
   };
 }
