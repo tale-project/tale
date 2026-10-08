@@ -216,9 +216,11 @@ export const ENGINE_TOOL_ARGS = {
     automation: automationDocument,
     input: runInput,
     mode: z
-      .enum(['mock', 'live'])
+      .enum(['mock'])
       .optional()
-      .describe('mock (default) runs against deterministic mocks.'),
+      .describe(
+        'Always "mock" here: the document runs against deterministic mocks, and nothing leaves Tale. To run it for real, save and deploy it, then run_deployed or start_run.',
+      ),
   }),
   test_automation: z
     .strictObject({

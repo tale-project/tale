@@ -1136,6 +1136,18 @@ describe('tools/call — arguments are held to the advertised schema [MCP-R7]', 
     }
   });
 
+  it('refuses run_automation in live mode by its arguments, before it spends an execution', async () => {
+    // The endpoint never runs an unsaved document live: the schema says so,
+    // and the agent learns it without a wasted execution token.
+    const { issues } = await invalid('run_automation', {
+      automation: { name: 'x', nodes: [] },
+      mode: 'live',
+    });
+    expect(issues).toEqual([
+      { path: 'mode', code: 'invalid_value', message: 'must be "mock"' },
+    ]);
+  });
+
   it('bounds the list it answers', async () => {
     const args = Object.fromEntries(
       Array.from({ length: 80 }, (_, index) => [`extra${index}`, index]),

@@ -420,7 +420,8 @@
  * `get_run` names the question a run waiting on a person asked under
  * `run.ask` (`askId`, `question`, `nodeId`, `expiresAt`), which
  * `answer_run_ask` answers, and takes `detail` (`input`, `output`, `trace`,
- * `effects`; `[]` answers the status alone, for polling).
+ * `effects`; `[]` answers the status alone, for polling); `run_automation`
+ * advertises only `mode: "mock"`, the one it ever ran here.
  * Member reads tighten on MCP and REST alike: an automation installed only in
  * projects the key holder cannot read is left out of `list_automations` and
  * `GET /api/v1/automations`, and its reads answer `AUTOMATION_NOT_FOUND`
