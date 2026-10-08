@@ -57,6 +57,74 @@ export function AutomationBreadcrumbs({
    *  organization's. */
   projectId?: string;
 }) {
+  // Only a page opened inside a project reads the project; an automation
+  // opened from the organization's list needs no project read at all.
+  return projectId !== undefined ? (
+    <ProjectAutomationBreadcrumbs
+      organizationId={organizationId}
+      automationSlug={automationSlug}
+      projectId={projectId}
+    />
+  ) : (
+    <AutomationTrail
+      organizationId={organizationId}
+      automationSlug={automationSlug}
+    />
+  );
+}
+
+function ProjectAutomationBreadcrumbs({
+  organizationId,
+  automationSlug,
+  projectId,
+}: {
+  organizationId: string;
+  automationSlug: string;
+  projectId: string;
+}) {
+  // The project the automation is opened in; the project shell's loader
+  // already read it, so it is usually there on the first frame.
+  const projectRead = useProject(asProjectId(projectId));
+  // The read ANSWERED without a project: it is gone, or out of this person's
+  // reach. Its Automations tab would only say the project was not found, so
+  // the trail is the organization's, as for an automation opened outside a
+  // project. A read that failed is not that: the project trail stays, and
+  // the tab it leads to names the failure and offers a retry.
+  const projectGone =
+    !projectRead.isLoading &&
+    projectRead.project === null &&
+    !projectRead.unavailable;
+  return (
+    <AutomationTrail
+      organizationId={organizationId}
+      automationSlug={automationSlug}
+      projectId={projectId}
+      {...(!projectGone && {
+        projectTrail: {
+          project: projectRead.project,
+          isLoading: projectRead.isLoading,
+        },
+      })}
+    />
+  );
+}
+
+function AutomationTrail({
+  organizationId,
+  automationSlug,
+  projectId,
+  projectTrail,
+}: {
+  organizationId: string;
+  automationSlug: string;
+  /** The project route the page was opened under, if any. */
+  projectId?: string;
+  /** Present when the trail starts at that project: the project's read. */
+  projectTrail?: {
+    project: ReturnType<typeof useProject>['project'];
+    isLoading: boolean;
+  };
+}) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { locale } = useLocale();
@@ -67,24 +135,7 @@ export function AutomationBreadcrumbs({
     locale,
   );
   const slugParam = automationSlugToParam(automationSlug);
-
-  // The project the automation is opened in; the project shell's loader
-  // already read it, so it is usually there on the first frame. Outside a
-  // project the read is skipped.
-  const projectRead = useProject(
-    projectId !== undefined ? asProjectId(projectId) : undefined,
-  );
-  // The read ANSWERED without a project: it is gone, or out of this person's
-  // reach. Its Automations tab would only say the project was not found, so
-  // the trail is the organization's, as for an automation opened outside a
-  // project. A read that failed is not that: the project trail stays, and
-  // the tab it leads to names the failure and offers a retry.
-  const projectGone =
-    projectId !== undefined &&
-    !projectRead.isLoading &&
-    projectRead.project === null &&
-    !projectRead.unavailable;
-  const trailProjectId = projectGone ? undefined : projectId;
+  const trailProjectId = projectTrail !== undefined ? projectId : undefined;
 
   // Either shell can host a run under this slug; the trail only cares that
   // we ARE on a run, so the name crumb can point back at the automation.
@@ -182,7 +233,7 @@ export function AutomationBreadcrumbs({
     <HeaderBreadcrumbs
       ariaLabel={tCommon('aria.breadcrumb')}
       crumbs={[
-        ...(trailProjectId !== undefined
+        ...(trailProjectId !== undefined && projectTrail !== undefined
           ? [
               {
                 key: 'project',
@@ -190,8 +241,8 @@ export function AutomationBreadcrumbs({
                   <ProjectCrumb
                     organizationId={organizationId}
                     projectId={trailProjectId}
-                    project={projectRead.project}
-                    isLoading={projectRead.isLoading}
+                    project={projectTrail.project}
+                    isLoading={projectTrail.isLoading}
                   />
                 ),
               },

@@ -319,11 +319,9 @@ describe('AutomationBreadcrumbs', () => {
     expect(trailLinks()).toEqual([
       ['Automations', '/dashboard/org-1/automations'],
     ]);
-    // Asked with no project, the read is skipped.
-    expect(fixtures.projectReadArgs.length).toBeGreaterThan(0);
-    expect(
-      fixtures.projectReadArgs.every((projectId) => projectId === undefined),
-    ).toBe(true);
+    // Outside a project the project read is never mounted, so a page opened
+    // from the organization's list needs no query for it at all.
+    expect(fixtures.projectReadArgs).toEqual([]);
   });
 
   it('on a run, links the automation name back to the automation page', () => {
