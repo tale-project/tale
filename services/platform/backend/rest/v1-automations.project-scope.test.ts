@@ -346,7 +346,7 @@ describe('project automation REST scope', () => {
 });
 
 describe('organization run scope', () => {
-  it('leaves out a definition installed only in projects the key holder cannot read [AUTO-R2] [AUTO-R26]', async () => {
+  it('leaves out a definition installed only in projects the key holder cannot read [AUTO-R2] [AUTO-R27]', async () => {
     const definition = {
       latestVersion: 1,
       deployedVersion: 1,
@@ -477,9 +477,9 @@ describe('organization run scope', () => {
 /**
  * Installing and uninstalling with an API key is the key's act: the binding
  * writer records `api-key:<userId>`, and runs in the REST door's request
- * channel so the audit rows name the key and the request [AUTO-R27].
+ * channel so the audit rows name the key and the request [AUTO-R28].
  */
-describe('installs made with an API key name the key [AUTO-R27]', () => {
+describe('installs made with an API key name the key [AUTO-R28]', () => {
   it.each([
     ['POST', 201, bindProjectInTx],
     ['DELETE', 204, unbindProjectInTx],

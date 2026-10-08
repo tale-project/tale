@@ -93,7 +93,7 @@ beforeEach(() => {
 });
 
 describe('deploy', () => {
-  it('audits what was live and what is live now, after the chain and the name [AUTO-R27]', async () => {
+  it('audits what was live and what is live now, after the chain and the name [AUTO-R28]', async () => {
     const fake = fakeSql([
       ['FROM app.automations WHERE org_id', [VERSION_ROW]],
       ['SELECT version FROM app.automation_deployments', [{ version: 1 }]],
@@ -171,7 +171,7 @@ describe('deploy', () => {
 });
 
 describe('deleteAutomationCascade', () => {
-  it('audits the removal with how many versions went, after the chain and the name [AUTO-R27]', async () => {
+  it('audits the removal with how many versions went, after the chain and the name [AUTO-R28]', async () => {
     const fake = fakeSql([
       ['DELETE FROM app.automations', [], 4],
       ['DELETE FROM app.automation_deployments', [{ version: 3 }]],
@@ -215,7 +215,7 @@ describe('deleteAutomationCascade', () => {
 });
 
 describe('triggers', () => {
-  it('audits a bind with what the binding was and is — never its token or hash [AUTO-R27]', async () => {
+  it('audits a bind with what the binding was and is — never its token or hash [AUTO-R28]', async () => {
     const fake = fakeSql([
       [
         'FOR UPDATE',
@@ -272,7 +272,7 @@ describe('triggers', () => {
     expect(outcome.revoked).toBeUndefined();
   });
 
-  it('audits a removal with what was bound, after the chain [AUTO-R27]', async () => {
+  it('audits a removal with what was bound, after the chain [AUTO-R28]', async () => {
     const fake = fakeSql([
       [
         'DELETE FROM app.automation_triggers',
@@ -317,7 +317,7 @@ describe('triggers', () => {
 });
 
 describe('installations', () => {
-  it('audits an install and an uninstall only when one happened [AUTO-R27]', async () => {
+  it('audits an install and an uninstall only when one happened [AUTO-R28]', async () => {
     const bound = fakeSql([
       ['SELECT id FROM app.projects', [{ id: 'p-1' }]],
       ['INSERT INTO app.automation_project_bindings', [], 1],

@@ -15037,7 +15037,7 @@ async function checkMcp(
 
 /**
  * The MCP authoring tools at the editor's parity, on the real schema and the
- * real HTTP door (MCP-R1–R4, R9, R14; AUTO-R26, AUTO-R27; migration 0181): a
+ * real HTTP door (MCP-R1–R4, R9, R14; AUTO-R27, AUTO-R28; migration 0181): a
  * save carries the version fields it leaves out and records its door, a
  * stale base version or live version refuses as data, a member's agent
  * starts a recorded mock run of any saved version but not a live one, an
@@ -15316,7 +15316,7 @@ async function checkMcpAuthoringParity(
     `mock=${JSON.stringify(mock.value).slice(0, 120)} row=${JSON.stringify(mockRun[0] ?? null)}, live=${String(liveRefused.value.code)}, page=${JSON.stringify(page.value).slice(0, 80)}`,
   );
 
-  // MCP-R9 / AUTO-R26: installed only in a team project the member is not
+  // MCP-R9 / AUTO-R27: installed only in a team project the member is not
   // in, the automation is "not found" to them over MCP and REST.
   const now = Date.now();
   const teamRows = await sql<{ id: string }[]>`
@@ -15351,7 +15351,7 @@ async function checkMcpAuthoringParity(
   const ownerRest = await restRead(ownerKey);
   const ownerRead = await tool('get_automation', { name });
   record(
-    'an automation installed only in a project the member cannot read is hidden from them on MCP and REST (MCP-R9, AUTO-R26)',
+    'an automation installed only in a project the member cannot read is hidden from them on MCP and REST (MCP-R9, AUTO-R27)',
     !installed.isError &&
       JSON.stringify(installed.value.added) === JSON.stringify([hrProject]) &&
       memberRead.isError &&
@@ -15419,7 +15419,7 @@ async function checkMcpAuthoringParity(
         row.requestId !== null,
     );
   record(
-    'every MCP write to an automation leaves an audit row naming the coding agent (MCP-R14, AUTO-R27)',
+    'every MCP write to an automation leaves an audit row naming the coding agent (MCP-R14, AUTO-R28)',
     !removed.isError &&
       JSON.stringify(removed.value.removed) === JSON.stringify([hrProject]) &&
       notInstalled.isError &&

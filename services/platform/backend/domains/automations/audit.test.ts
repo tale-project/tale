@@ -17,7 +17,7 @@ beforeEach(() => {
   vi.mocked(createAuditLog).mockClear();
 });
 
-describe('auditDefinitionWrite [AUTO-R27]', () => {
+describe('auditDefinitionWrite [AUTO-R28]', () => {
   it.each([
     ['user_ada', 'user_ada', 'user'],
     ['user:user_ada', 'user_ada', 'user'],

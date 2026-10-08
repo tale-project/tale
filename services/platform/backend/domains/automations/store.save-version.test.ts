@@ -422,7 +422,7 @@ describe('saveVersion carry mode', () => {
     });
   });
 
-  it('audits the saved version, naming what it carried and never the document [AUTO-R27]', async () => {
+  it('audits the saved version, naming what it carried and never the document [AUTO-R28]', async () => {
     vi.mocked(auditDefinitionWrite).mockClear();
     const fake = carryStore(5);
     await saveVersion(

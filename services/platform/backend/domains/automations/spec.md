@@ -55,7 +55,7 @@ automation is installed in. A project of another organization is hidden the same
 - **Example**: Zoe belongs to a different organization. With her own API key she asks for a run
   at this project's address → not found, as for a project that does not exist.
 
-### AUTO-R26 · An automation installed only in projects you cannot read is hidden from you
+### AUTO-R27 · An automation installed only in projects you cannot read is hidden from you
 
 An automation installed nowhere belongs to the organization and every member sees it. One
 installed in projects is seen by whoever can read one of them. For anyone else it is left out
@@ -107,7 +107,7 @@ version, deployed or not.
 - **Example**: A schedule is switched on for an automation with nothing deployed. Its time
   comes → no run starts, and the trigger shows `not_deployed`.
 
-### AUTO-R27 · Every change to an automation's definition leaves an audit row
+### AUTO-R28 · Every change to an automation's definition leaves an audit row
 
 Saving a version, deploying one, setting or removing the trigger, installing the automation in
 a project or removing it from one, and deleting the automation each write a row to the audit

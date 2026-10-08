@@ -1639,7 +1639,7 @@ describe('changing an automation over REST', () => {
  * can read, or in none, it reads as before (the release that brought this
  * named it: member reads follow project visibility on MCP and REST).
  */
-describe('reads of an automation installed only in hidden projects [AUTO-R26]', () => {
+describe('reads of an automation installed only in hidden projects [AUTO-R27]', () => {
   it.each([
     [`/api/v1/automations/${SAVED}`],
     [`/api/v1/automations/${SAVED}?version=deployed`],
@@ -1701,7 +1701,7 @@ describe('reads of an automation installed only in hidden projects [AUTO-R26]', 
  * request (`via: 'api-key'`). The example: a leaked key deletes an
  * automation, and the admin reading the row sees which key to revoke.
  */
-describe('definition writes made with an API key name the key [AUTO-R27]', () => {
+describe('definition writes made with an API key name the key [AUTO-R28]', () => {
   const keyChannel = {
     via: 'api-key',
     requestId: 'req-9',

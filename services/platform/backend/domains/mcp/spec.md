@@ -46,7 +46,7 @@ An automation installed only in projects the person cannot read is "not found" o
 MCP — the automation, its versions, its deployments and its trigger — exactly like one that does
 not exist, so the answer never confirms it does. An organization
 automation, and one installed in a project the person can read, read as before; the installations
-a read names are the ones the person can see. The REST API answers the same way (`AUTO-R26`).
+a read names are the ones the person can see. The REST API answers the same way (`AUTO-R27`).
 
 - **Example**: Mia, an ordinary member, is not in the HR team. `hr/onboarding` is installed only in
   a project shared with that team. Her agent asks for it, its versions and its trigger → "not
@@ -259,7 +259,7 @@ counts twice, once in each. Counters are kept 90 days, and an erasure of the per
 ### MCP-R14 · Every write over MCP leaves an audit row naming the coding agent
 
 A write a tool call makes — a version saved, a deploy, a delete, a trigger set or removed, an
-installation added or removed, a run stopped, a question answered — leaves its audit row (`AUTO-R27`),
+installation added or removed, a run stopped, a question answered — leaves its audit row (`AUTO-R28`),
 and every row written during the call says it came through MCP, with the tool, the API key and the
 client's name when the client gave one.
 
