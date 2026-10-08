@@ -269,6 +269,56 @@ export async function checkMentionHandles(
       `unchanged=${unchanged}/${first.size}, late=${handleOf(second, straggler)}/${legacyOf(second, straggler)}, newcomer=${handleOf(second, newcomer)}/${legacyOf(second, newcomer)}`,
     );
 
+    // ---- what the app and the API read of the agents ----------------------
+    const agentsAnswer = z.looseObject({
+      agents: z.array(
+        z.looseObject({
+          id: z.string(),
+          handle: z.string(),
+          legacyHandles: z.array(z.string()).optional(),
+        }),
+      ),
+    });
+    const appRead = await fetch(
+      `${base}/api/app/projects/${projectId}/agents?orgId=${orgId}`,
+      { headers: { cookie, origin: base } },
+    );
+    const appAgents = agentsAnswer.safeParse(
+      await appRead.json().catch(() => null),
+    );
+    const restRead = await fetch(
+      `${base}/api/v1/projects/${projectId}/agents`,
+      {
+        headers: {
+          authorization: `Bearer ${restKey}`,
+          'x-organization-slug': orgSlug,
+        },
+      },
+    );
+    const restAgents = agentsAnswer.safeParse(
+      await restRead.json().catch(() => null),
+    );
+    const appForms = (id: string) =>
+      appAgents.success
+        ? JSON.stringify(
+            appAgents.data.agents.find((agent) => agent.id === id)
+              ?.legacyHandles,
+          )
+        : 'ERR';
+    record(
+      'mention handles: the app reads the older forms a renamed agent answered to, the API does not [COLLAB-R11]',
+      appRead.status === 200 &&
+        appForms(reviewer) === '["pr.reviewer","prreviewer"]' &&
+        appForms(newcomer) === '[]' &&
+        restRead.status === 200 &&
+        restAgents.success &&
+        restAgents.data.agents.length > 0 &&
+        restAgents.data.agents.every(
+          (agent) => agent.legacyHandles === undefined,
+        ),
+      `app=${appRead.status} ${appForms(reviewer)}/${appForms(newcomer)}, rest=${restRead.status} ${restAgents.success ? restAgents.data.agents.filter((agent) => agent.legacyHandles !== undefined).length : 'ERR'} with forms`,
+    );
+
     // ---- the app's comment door --------------------------------------------
     const taskRows = await sql<{ id: string }[]>`
       INSERT INTO app.tasks (
