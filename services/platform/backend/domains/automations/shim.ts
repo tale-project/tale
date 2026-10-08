@@ -3,6 +3,7 @@ import type { Sql } from 'postgres';
 import { loadConnectorDefinitions } from '../../../lib/connectors/catalog.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { NodeFailure } from '../../core/automations/failure.ts';
+import { RUN_CLAIM_PROMISE_MS } from '../../core/automations/liveness.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { WORKFLOW_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
@@ -23,6 +24,7 @@ import { loadAgentLanguageContext } from '../tasks/agent-language.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
+import { beginNodeAttempt, finishNodeAttempt } from './node-attempts.ts';
 import {
   claimRun,
   continueRun,
@@ -208,6 +210,18 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
       const args = raw as Parameters<typeof finishRun>[1];
       return finishRun(sql, args);
+    },
+    // The effect ledger: a walker begins a call that reaches outside the run
+    // before making it, and records how it ended after.
+    'automations/mutations:beginNodeAttempt': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as Parameters<typeof beginNodeAttempt>[1];
+      return beginNodeAttempt(sql, args);
+    },
+    'automations/mutations:finishNodeAttempt': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as Parameters<typeof finishNodeAttempt>[1];
+      return finishNodeAttempt(sql, args);
     },
 
     'automations/queries:loadRunForStep': async (raw) => {
@@ -435,9 +449,11 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
                 executions: checkpoints.executions ?? 0,
               }),
             )},
-            wake_at_ms = ${Date.now()}
+            wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
           WHERE id = ${args.runId}
         `;
+        // The step job below continues the run; its promise gives that
+        // claim time to happen instead of reading as overdue at once.
         await addJobInTx(tx, 'automation.step', {
           organizationId: args.organizationId,
           runId: args.runId,
@@ -806,13 +822,19 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         ) {
           return { retargeted: false };
         }
+        // The exec a turn moved away from is kept beside the new one: a walker
+        // that loaded the cursor before this write parks with the old exec,
+        // and the park keeps this cursor when it sees that (`suspendRun`).
         const patched = {
           ...checkpoints,
           cursor: {
             ...cursor,
             agent: {
               ...cursor.agent,
-              ...(args.toExecId !== undefined ? { execId: args.toExecId } : {}),
+              ...(args.toExecId !== undefined &&
+              args.toExecId !== args.fromExecId
+                ? { execId: args.toExecId, retargetedFrom: args.fromExecId }
+                : {}),
               ...(args.deadlineAt !== undefined
                 ? { deadlineAt: args.deadlineAt }
                 : {}),

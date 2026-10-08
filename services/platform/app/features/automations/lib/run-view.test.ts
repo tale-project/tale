@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  cursorNodeStatus,
   isRunFinished,
   nodeStatusMap,
   projectRun,
   readEffects,
   readRunAgentRetry,
   readRunCursorNode,
+  readRunParkNode,
   readRunStatus,
   runReasonKey,
 } from './run-view';
@@ -250,5 +252,75 @@ describe('runReasonKey', () => {
       key: 'runs.waiting.agent',
       values: { node: 'draft' },
     });
+  });
+
+  it('says which step may already have run when a write waits for a person', () => {
+    expect(
+      runReasonKey({
+        status: 'waiting',
+        detail: 'in_doubt:send_invoice',
+        waitingFor: 'in_doubt',
+      }),
+    ).toEqual({
+      kind: 'waiting',
+      key: 'runs.waiting.in_doubt',
+      values: { node: 'send_invoice' },
+    });
+  });
+});
+
+describe('readRunParkNode', () => {
+  it.each([
+    ['repeat:tick', 'tick'],
+    ['agent:draft', 'draft'],
+    ['room:draft', 'draft'],
+    ['in_doubt:send_invoice', 'send_invoice'],
+  ])('reads the node off %s', (detail, node) => {
+    expect(readRunParkNode(detail)).toBe(node);
+  });
+
+  it('reads nothing off an approval park or no detail', () => {
+    expect(readRunParkNode('approval:appr-1')).toBeUndefined();
+    expect(readRunParkNode(null)).toBeUndefined();
+    expect(readRunParkNode(undefined)).toBeUndefined();
+  });
+});
+
+/**
+ * The node a live run is on spins only while something works on it: a
+ * person's wait reads as waiting there, and a run whose server stopped as
+ * interrupted there — the header badge and the canvas tell one story.
+ */
+describe('the node a live run is on', () => {
+  const live = {
+    checkpoints: {
+      nodes: {},
+      cursor: { node: 'send', index: 0, passes: 0, outs: [] },
+    },
+  };
+
+  it.each([
+    ['a step under way', { status: 'running' }, 'running'],
+    ['a stalled run', { status: 'running', stalled: true }, 'interrupted'],
+    [
+      'a write that may already have happened',
+      { status: 'waiting', waitingFor: 'in_doubt' },
+      'waiting',
+    ],
+    ['an approval', { status: 'waiting', waitingFor: 'approval' }, 'waiting'],
+    ['a question', { status: 'waiting', waitingFor: 'ask' }, 'waiting'],
+    ['an agent turn', { status: 'waiting', waitingFor: 'agent' }, 'running'],
+    ['a poll', { status: 'waiting', waitingFor: 'repeat' }, 'running'],
+  ] as const)('reads %s on its node', (_case, fields, expected) => {
+    const run = { ...live, ...fields };
+    expect(cursorNodeStatus(run)).toBe(expected);
+    const statuses = nodeStatusMap(
+      projectRun(run),
+      ['send', 'archive'],
+      readRunCursorNode(run),
+      cursorNodeStatus(run),
+    );
+    expect(statuses.get('send')).toBe(expected);
+    expect(statuses.get('archive')).toBe('pending');
   });
 });

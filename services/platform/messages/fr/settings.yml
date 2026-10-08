@@ -1378,6 +1378,11 @@ logs:
       ai.completion: Réponse IA
       ai.budget_blocked: Budget IA bloqué
       automation.trigger.paused: Planification d'automatisation mise en pause
+      automation.run.success: Exécution d'automatisation réussie
+      automation.run.failed: Exécution d'automatisation en échec
+      automation.run.cancelled: Exécution d'automatisation arrêtée
+      automation.run.deleted: Exécution d'automatisation supprimée
+      automation.run.in_doubt_resolved: Décision prise sur une étape d'automatisation interrompue
       create_connector: Connector créée
       delete_connector: Connector supprimée
       update_credential: Identifiants mis à jour

@@ -9,6 +9,46 @@
 
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
 
+/** What a `waiting` run is parked on. `approval`, `ask` and `in_doubt`
+ * wait on a person; the rest on the run itself. */
+export type RunWaitingFor =
+  | 'approval'
+  | 'ask'
+  | 'in_doubt'
+  | 'agent'
+  | 'room'
+  | 'repeat';
+
+/** Why and when a run last moved to another server: `shutdown` — its server
+ * was being updated or restarted and handed it on; `lease_expired` — its
+ * server stopped responding and another one took it over. */
+export interface RunLastResume {
+  reason: 'shutdown' | 'lease_expired';
+  at: number;
+}
+
+/** How a person continues past a write that may already have happened. */
+export type InDoubtResolution = 'retry' | 'skip' | 'fail';
+
+/** The write a run waits on a person about: a connector call that may or
+ * may not have reached its service when the run was interrupted. */
+export interface RunInDoubt {
+  attemptId: string;
+  /** The node's path: its id at the top level, `<parent>[<item>:<pass>]/<id>`
+   * inside a subautomation. */
+  nodeId: string;
+  itemIndex: number;
+  pass: number;
+  attempt: number;
+  nodeType: string;
+  /** The connector in words — its display name, or its slug. */
+  connector: string;
+  action: string;
+  /** What the step was sending. */
+  input: unknown;
+  startedAt: number;
+}
+
 /** One subject-linked run as the task modal reads it. */
 export interface AutomationRunForTask {
   detail?: string;
@@ -55,6 +95,16 @@ export interface AutomationsContract {
     kind: 'mutation';
     args: { organizationId: string; runId: string };
     returns: { cancelled: boolean };
+  };
+  'automations/mutations:resolveRunInDoubt': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      runId: string;
+      attemptId: string;
+      resolution: InDoubtResolution;
+    };
+    returns: null;
   };
   'automations/mutations:deleteAutomation': {
     kind: 'mutation';
@@ -226,9 +276,20 @@ export interface AutomationsContract {
       /** Which kind of trigger started a `trigger:<id>` run. */
       startedVia?: 'schedule' | 'webhook' | 'event';
       /** What a `waiting` run is parked on. */
-      waitingFor?: 'approval' | 'ask' | 'agent' | 'room' | 'repeat';
+      waitingFor?: RunWaitingFor;
+      /** How often the run moved to another server; absent while never. */
+      resumeCount?: number;
+      /** Why and when it last moved to another server. */
+      lastResume?: RunLastResume;
+      /** A running run waiting for a server to take it over. */
+      stalled?: boolean;
       input: unknown;
     };
+  };
+  'automations/queries:getRunInDoubt': {
+    kind: 'query';
+    args: { organizationId: string; runId: string };
+    returns: null | RunInDoubt;
   };
   'automations/queries:listAutomationProjects': {
     kind: 'query';
@@ -279,7 +340,13 @@ export interface AutomationsContract {
       /** Which kind of trigger started a `trigger:<id>` run. */
       startedVia?: 'schedule' | 'webhook' | 'event';
       /** What a `waiting` run is parked on. */
-      waitingFor?: 'approval' | 'ask' | 'agent' | 'room' | 'repeat';
+      waitingFor?: RunWaitingFor;
+      /** How often the run moved to another server; absent while never. */
+      resumeCount?: number;
+      /** Why and when it last moved to another server. */
+      lastResume?: RunLastResume;
+      /** A running run waiting for a server to take it over. */
+      stalled?: boolean;
     }>;
   };
   'automations/queries:listTriggers': {

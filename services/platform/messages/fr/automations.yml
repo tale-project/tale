@@ -347,9 +347,9 @@ runs:
     visionModel: 'Les images de cette exécution ont été lues par {model}.'
   approval:
     title: 'En attente de ton approbation : {operation}'
-    node: 'Demandé par le nœud « {node} » — approuver le laisse agir au prochain poll ; rejeter le fait échouer.'
-    pending: "Approuver laisse l'étape en attente agir au prochain poll ; rejeter la fait échouer."
-    approved: "{operation} a été approuvé — l'exécution reprend au prochain poll."
+    node: 'Demandé par le nœud « {node} » — approuver le laisse agir immédiatement ; rejeter le fait échouer.'
+    pending: "Approuver laisse l'étape en attente agir immédiatement ; rejeter la fait échouer."
+    approved: "{operation} a été approuvé — l'exécution reprend immédiatement."
     rejected: "{operation} a été rejeté — l'étape échoue et l'exécution s'arrête."
     input: "L'étape appellerait avec"
     approve: Approuver
@@ -363,6 +363,38 @@ runs:
     answerLabel: Ta réponse
     placeholder: Écris ta réponse — du texte simple suffit.
     submit: Envoyer la réponse & reprendre
+  # Une exécution transmise à un autre serveur — après la mise à jour ou le
+  # redémarrage du sien, ou parce qu’il ne répondait plus.
+  resumed:
+    label: '{count, plural, one {Reprise après un redémarrage} other {Reprise après # redémarrages}}'
+    shutdown: 'Dernière fois le {date} : le serveur qui l’exécutait était mis à jour ou redémarré et l’a transmise.'
+    lease_expired: 'Dernière fois le {date} : le serveur qui l’exécutait ne répondait plus, et un autre a pris le relais.'
+  # Une écriture qui a peut-être déjà atteint son service quand l’exécution a
+  # été interrompue : Tale ne peut pas le savoir, alors une personne décide
+  # de la suite.
+  inDoubt:
+    title: 'Cette étape a peut-être déjà été exécutée : {node}'
+    body: '{item, select, none {L’exécution a été interrompue pendant que cette étape envoyait des données à {connector}.} other {L’exécution a été interrompue pendant que cette étape envoyait l’élément {item} à {connector}.}} Tale ne peut pas savoir si {connector} a reçu cet envoi. Vérifie dans {connector} : s’il l’a reçu, ignore l’étape ; sinon, relance-la.'
+    input: Ce que l’étape envoyait
+    retry: Relancer l’étape
+    retryConfirm:
+      title: Relancer cette étape ?
+      body: 'Si {connector} l’a déjà reçu, l’action aura lieu deux fois.'
+    skip: Ignorer l’étape
+    skipHint: 'Ignorer l’étape : l’exécution continue comme si l’étape n’avait rien renvoyé.'
+    fail: Faire échouer l’exécution
+    failConfirm:
+      title: Faire échouer cette exécution ?
+      body: L’exécution s’arrête ici. Rien de ce qu’elle a déjà fait n’est annulé.
+    resolved:
+      retry: L’étape va être relancée.
+      skip: Étape ignorée — l’exécution continue.
+      fail: L’exécution a échoué.
+    settled: Cette étape n’attend plus de décision.
+    loading: Chargement de l’étape…
+    loadFailed: Impossible de charger cette étape.
+    reload: Réessayer
+    decideFailed: Impossible d’enregistrer ton choix.
   title: Exécutions
   description: Chaque exécution de cette automatisation, la plus récente en premier — essais et exécutions réelles. Ouvre-en une pour ses étapes, ses effets et sa sortie.
   breadcrumb: Exécution
@@ -403,6 +435,7 @@ runs:
     agent: Agent au travail
     room: En attente d’une place de sandbox
     repeat: 'Interrogation — étape {node}'
+    in_doubt: 'En attente d’une décision — l’étape {node} a peut-être déjà été exécutée'
   startedAt: 'Lancée {date}'
   finishedAt: 'Terminée {date}'
   inputTitle: Entrée de l’exécution
@@ -422,6 +455,9 @@ runs:
     success: Réussie
     failed: En échec
     cancelled: Arrêtée
+    # Une exécution en cours dont le serveur s’est arrêté, avant qu’un autre
+    # la reprenne.
+    stalled: Interrompue — reprise en cours
   nodeStatus:
     ok: Exécuté
     skipped: Ignoré
@@ -430,6 +466,8 @@ runs:
     pending: Pas encore atteint
     running: En cours
     stopped: Arrêté ici
+    waiting: En attente ici
+    interrupted: Interrompu ici
   effects:
     title: '{count, plural, one {# effet} other {# effets}}'
     description:

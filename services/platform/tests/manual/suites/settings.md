@@ -89,8 +89,9 @@ run.
 ## Functional tests
 
 - [ ] `SET-F1` · **Rail structure & index redirect** — Desktop: open
-  `/dashboard/{org}/settings` as owner → The URL is replaced by a
-  permission-appropriate leaf; the Settings panel runs the full height beside
+  `/dashboard/{org}/settings` as owner, then as a developer and a member →
+  The URL is replaced by `…/settings/account`, the panel's first row, for
+  every role; the Settings panel runs the full height beside
   the page under its own header, **Settings** (`navigation.userSettings`), and
   shows the three section headers **Personal** / **Organization** /
   **Advanced** (`settings.menu.railSections.*`); every row carries an icon;

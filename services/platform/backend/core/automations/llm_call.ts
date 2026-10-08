@@ -204,10 +204,15 @@ function schemaInstruction(schema: Record<string, unknown>): string {
  * The real llm door for one run. Resolution is memoized per model for the
  * turn: a forEach loop calls the same model dozens of times, and the serving
  * connector cannot change in a way the run should chase mid-flight.
+ *
+ * `signal` is the turn's: when it aborts (the server is stopping and the
+ * step's grace ran out) the provider request is torn down at once rather
+ * than holding the walker until the reply.
  */
 export function automationLlmCall(
   ctx: ActionCtx,
   organizationId: string,
+  options: { signal?: AbortSignal } = {},
 ): AutomationLlmCall {
   const models = new Map<string, Promise<BuilderModel>>();
   const modelFor = (modelId: string): Promise<BuilderModel> => {
@@ -219,6 +224,7 @@ export function automationLlmCall(
           organizationId,
           target,
           maxTokens: LLM_NODE_MAX_TOKENS,
+          ...(options.signal !== undefined && { signal: options.signal }),
         }),
     );
     models.set(modelId, created);

@@ -4,8 +4,8 @@ import {
   hasOwnPhoneHeader,
   isHomePath,
   isPanelCollapsible,
+  isProjectAutomationPage,
   readHomeLocation,
-  showsHomePanel,
 } from './home-paths';
 
 const ORG = 'org-1';
@@ -18,6 +18,8 @@ describe('isHomePath', () => {
       '/dashboard/org-1/chat/thread-1',
       '/dashboard/org-1/projects',
       '/dashboard/org-1/projects/p-1/tasks/board',
+      // The project's Automations tab, the bound list, is the project's page.
+      '/dashboard/org-1/projects/p-1/automations',
       '/dashboard/org-1/tasks/t-1',
       '/dashboard/org-1/conversations/open',
     ]) {
@@ -38,36 +40,41 @@ describe('isHomePath', () => {
       expect(isHomePath(path, ORG), path).toBe(false);
     }
   });
-});
 
-describe('showsHomePanel', () => {
-  it('stands the panel beside every Home route', () => {
-    for (const path of [
-      '/dashboard/org-1/chat/t1',
-      '/dashboard/org-1/projects/p1',
-      '/dashboard/org-1/projects/p1/tasks/board',
-      '/dashboard/org-1/projects/p1/automations',
-      '/dashboard/org-1/tasks/k1',
-    ]) {
-      expect(showsHomePanel(path, 'org-1'), path).toBe(true);
-    }
-  });
-
-  it("leaves a project's automation workbench the full width", () => {
+  // An automation opened inside a project wears the Automations chrome: the
+  // rail lights Automations there, and its canvas keeps the full width.
+  it("leaves a project's automation page to Automations", () => {
     for (const path of [
       '/dashboard/org-1/projects/p1/automations/intake',
       '/dashboard/org-1/projects/p1/automations/intake/editor',
       '/dashboard/org-1/projects/p1/automations/intake/runs/r1',
     ]) {
-      expect(showsHomePanel(path, 'org-1'), path).toBe(false);
-      // Still Home as far as the rail is concerned.
-      expect(isHomePath(path, 'org-1'), path).toBe(true);
+      expect(isHomePath(path, ORG), path).toBe(false);
+    }
+  });
+});
+
+describe('isProjectAutomationPage', () => {
+  it("names an automation's own pages inside a project", () => {
+    for (const path of [
+      '/dashboard/org-1/projects/p1/automations/intake',
+      '/dashboard/org-1/projects/p1/automations/intake/editor',
+      '/dashboard/org-1/projects/p1/automations/intake/runs/r1',
+    ]) {
+      expect(isProjectAutomationPage(path, ORG), path).toBe(true);
     }
   });
 
-  it('never shows outside Home', () => {
-    expect(showsHomePanel('/dashboard/org-1/automations', 'org-1')).toBe(false);
-    expect(showsHomePanel('/dashboard/org-1/settings', 'org-1')).toBe(false);
+  it("leaves the project's Automations tab, the org's automations and other orgs alone", () => {
+    for (const path of [
+      '/dashboard/org-1/projects/p1/automations',
+      '/dashboard/org-1/projects/p1/automations/',
+      '/dashboard/org-1/projects/p1/tasks/board',
+      '/dashboard/org-1/automations/intake',
+      '/dashboard/org-2/projects/p1/automations/intake',
+    ]) {
+      expect(isProjectAutomationPage(path, ORG), path).toBe(false);
+    }
   });
 });
 

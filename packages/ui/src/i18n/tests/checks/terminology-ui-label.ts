@@ -14,10 +14,23 @@ import { escapeRegex, wordBoundary } from '../internals/regex';
 import type { Finding } from './types';
 import { createCheck } from './types';
 
-/** Case-insensitive name; a letter or digit of any script continues a word. */
-function avoidedName(name: string): RegExp {
+/** A letter or digit of any script continues a word. */
+const WORD_START = '(?<![\\p{L}\\p{N}_])';
+const WORD_END = '(?![\\p{L}\\p{N}_])';
+
+/**
+ * Case-insensitive name. Brackets confine an ordinary word to a context:
+ * `sous [gel]` reports `gel` only right after `sous`, so `gel du code` stays
+ * clean, and the finding starts where a longer name such as `gel juridique`
+ * starts, so it never adds a second finding there.
+ */
+function avoidedName(entry: string): RegExp {
+  const scoped = /^([^[\]]*)\[([^[\]]+)\]([^[\]]*)$/u.exec(entry);
+  const before = scoped?.[1] ?? '';
+  const name = scoped?.[2] ?? entry;
+  const after = scoped?.[3] ?? '';
   return new RegExp(
-    `(?<![\\p{L}\\p{N}_])${escapeRegex(name)}(?![\\p{L}\\p{N}_])`,
+    `(?<=${WORD_START}${escapeRegex(before)})${escapeRegex(name)}(?=${escapeRegex(after)}${WORD_END})`,
     'giu',
   );
 }

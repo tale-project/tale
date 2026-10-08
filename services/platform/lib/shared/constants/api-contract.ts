@@ -361,6 +361,13 @@
  * facet; saved models, instructions and secret grants remain independent.
  * No public REST delegation or agent-verdict endpoint is added. Additive.
  *
+ * 3.18.0 — 2026-10-08: a run's `waitingFor` gains `in_doubt` — a write its
+ * server was making when it stopped may already have happened, and a person
+ * decides in the app how to continue (its `detail` reads
+ * `in_doubt:<nodeId>`); `failureCode` gains `engine_incompatible` and
+ * `effect_in_doubt`; runs carry `resumeCount`, `lastResume {reason:
+ * shutdown | lease_expired, at}` and `stalled`. Additive.
+ *
  * 3.19.0 — 2026-10-08: automation documents are analysed before they run,
  * and the MCP authoring tools say what the analysis found.
  * `validate_automation` answers `analysis` (the per-node summary and the

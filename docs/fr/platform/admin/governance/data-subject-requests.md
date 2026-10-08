@@ -54,4 +54,4 @@ Cette échéance facilite le suivi. Ton organisation reste responsable de l’ex
 
 ## Vérifier le résultat
 
-Ouvre les compteurs par catégorie, les erreurs et la chronologie d’audit du reçu. Une action terminée, une catégorie sous gel et une étape échouée n’ont pas le même résultat. Note ces distinctions dans ton dossier. Consulte les [journaux d’audit](/fr/platform/admin/governance/audit-logs) pour les événements administratifs associés.
+Ouvre les compteurs par catégorie, les erreurs et la chronologie d’audit du reçu. Une action terminée, une catégorie sous conservation légale et une étape échouée n’ont pas le même résultat. Note ces distinctions dans ton dossier. Consulte les [journaux d’audit](/fr/platform/admin/governance/audit-logs) pour les événements administratifs associés.

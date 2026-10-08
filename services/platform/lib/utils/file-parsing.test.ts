@@ -1,11 +1,35 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as XLSX from 'xlsx';
 
 import {
   excelRecords,
+  excelHeaderText,
+  parseImportFile,
   parseCSVWithMapper,
   type RequiredColumn,
 } from './file-parsing';
+
+class TestFileReader {
+  result: string | ArrayBuffer | null = null;
+  private listeners = new Map<string, ((event: Event) => void)[]>();
+
+  addEventListener(type: string, listener: (event: Event) => void) {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+  }
+
+  readAsArrayBuffer(file: Blob) {
+    void file.arrayBuffer().then((result) => {
+      this.result = result;
+      this.listeners
+        .get('load')
+        ?.forEach((listener) => listener({ target: this } as unknown as Event));
+    });
+  }
+}
+
+// parseImportFile uses the browser FileReader API; this small adapter exercises
+// the same byte path in the server test environment.
+vi.stubGlobal('FileReader', TestFileReader);
 
 type Row = { email: string; name?: string };
 
@@ -229,5 +253,57 @@ describe('excelRecords line numbers', () => {
         line: 2,
       },
     ]);
+  });
+});
+
+describe('Excel header cell conversion', () => {
+  it('accepts primitive, date, and rich-text values without object coercion', () => {
+    expect(excelHeaderText(' Email ')).toBe(' Email ');
+    expect(excelHeaderText(42)).toBe('42');
+    expect(excelHeaderText(false)).toBe('false');
+    expect(excelHeaderText(new Date('2024-01-02T03:04:05.000Z'))).toBe(
+      '2024-01-02T03:04:05.000Z',
+    );
+    expect(excelHeaderText({ text: 'Email address' })).toBe('Email address');
+    expect(excelHeaderText({ w: 'Formatted header' })).toBe('Formatted header');
+    expect(excelHeaderText({ unexpected: 'object' })).toBe('');
+    expect(excelHeaderText(null)).toBe('');
+  });
+});
+
+describe('Excel header validation', () => {
+  it('uses the worksheet header when the first data row has blank cells', async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([
+        ['name', 'price', 'stock'],
+        ['Blank amounts'],
+        ['Full amounts', 12, 3],
+      ]),
+      'Products',
+    );
+    const file = new File(
+      [XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })],
+      'products.xlsx',
+    );
+    const result = await parseImportFile(
+      file,
+      () => null,
+      (record) => record,
+      {
+        requiredColumns: [
+          { label: 'price', aliases: ['price'] },
+          { label: 'stock', aliases: ['stock'] },
+        ],
+      },
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.data).toEqual([
+      { name: 'Blank amounts' },
+      { name: 'Full amounts', price: 12, stock: 3 },
+    ]);
+    expect(result.rows).toEqual([2, 3]);
   });
 });

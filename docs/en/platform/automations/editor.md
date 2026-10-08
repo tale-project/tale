@@ -5,7 +5,7 @@ description: Inspect and edit nodes, supply test input, save a version, and depl
 
 Use the workflow editor to change what an automation does and decide which saved version runs live. You need Developer, Admin, or Owner permissions to make changes. Saving, testing, and deployment are separate steps: editing a draft leaves the deployed version in place.
 
-Open **Automations**, then select an automation. It opens on **Editor**. To create one first, use [Create or import an automation](/platform/automations/catalog).
+Open **Automations**, then select an automation. It opens on **Editor**. An automation you open from a project's **Automations** tab shows that project at the start of the breadcrumb trail: choose the project's name to return to the project, or **Automations** to return to its automations. Whether you open an automation from a project or from the automation list, the rail marks **Automations**. To create one first, use [Create or import an automation](/platform/automations/catalog).
 
 | Tab | Use it to |
 | --- | --- |

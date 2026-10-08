@@ -409,6 +409,66 @@ const epochMsInput: Json = {
 };
 const int: Json = { type: 'integer' };
 
+/** What a parked run waits on, and the description `Run` and `RunSummary`
+ * share — one vocabulary, so the listing never drifts from the single read. */
+const RUN_WAITING_FOR = [
+  'approval',
+  'ask',
+  'in_doubt',
+  'agent',
+  'room',
+  'repeat',
+] as const;
+const runWaitingForDescription =
+  'Present only while `status` is `waiting`: what the run is ' +
+  'parked on. `approval` — a person’s decision on a gate; `ask` ' +
+  '— a question a person has to answer; `in_doubt` — a write the ' +
+  'run was making when its server stopped may or may not have ' +
+  'reached its service, and a person must decide how to continue ' +
+  '(in the app: run it again, skip it, or fail the run); `agent` — ' +
+  'an agent turn still running, no one to page; `room` — an agent ' +
+  'turn whose start waits for sandbox room, no one to page; ' +
+  '`repeat` — a node polling until its `repeatUntil` condition ' +
+  'holds, no one to page.';
+
+/** Whether and why a run moved between servers — the three keys `Run` and
+ * `RunSummary` share. */
+const runResumeProperties: Record<string, Json> = {
+  resumeCount: {
+    ...int,
+    minimum: 0,
+    description:
+      'How often the run moved to another server: a server that was ' +
+      'being updated or restarted handed it on, or another one took it ' +
+      'over after its own stopped responding. Steps it had finished never ' +
+      'run again. `Run` always carries it; `RunSummary` omits it while it ' +
+      'is 0.',
+  },
+  lastResume: {
+    type: 'object',
+    required: ['reason', 'at'],
+    additionalProperties: false,
+    description:
+      'Why and when the run last moved to another server; absent while it ' +
+      'never did. `shutdown` — its server was being updated or restarted ' +
+      'and handed it on; `lease_expired` — its server stopped responding ' +
+      'and another one took it over.',
+    properties: {
+      reason: { type: 'string', enum: ['shutdown', 'lease_expired'] },
+      at: epochMs,
+    },
+  },
+  stalled: {
+    type: 'boolean',
+    description:
+      'True while a `running` run waits for a server to take it over ' +
+      'after its own stopped (the app reads it as “Interrupted — ' +
+      'resuming”): nothing is working on it right now, and another server ' +
+      'picks it up within about a minute and a half. `Run` always carries ' +
+      'it; `RunSummary` carries it only while true.',
+  },
+};
+
 /** The keys of a run — the `Run` schema in full, and the `RunProjection` a
  * `?fields=` read answers, share them so the two can never drift. */
 const runProperties: Record<string, Json> = {
@@ -455,8 +515,8 @@ const runProperties: Record<string, Json> = {
       'The failure or wait reason; null while the run has none — and null ' +
       'again once a cancel lands (the park it named is over). ' +
       'While `waiting` it names the park: `approval:<approvalId>`, ' +
-      '`agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — ' +
-      '`waitingFor` is the ' +
+      '`agent:<nodeId>`, `room:<nodeId>`, `repeat:<nodeId>` or ' +
+      '`in_doubt:<nodeId>` — `waitingFor` is the ' +
       'field to branch on; when `failed`, the failure sentence, and ' +
       '`failureCode` the stable cause to branch on — the sentence is not ' +
       'contractual.',
@@ -472,7 +532,11 @@ const runProperties: Record<string, Json> = {
       '`llm_output_invalid` — the model’s reply did not satisfy the node’s ' +
       '`outputSchema`; `approval_rejected`; `execution_limit` — the ' +
       '100-execution guard; `automation_deleted` — the automation vanished ' +
-      'mid-flight. The provider codes the chat surface documents ' +
+      'mid-flight; `engine_incompatible` — the run’s saved progress could ' +
+      'not be read by this version of Tale, so it was stopped instead of ' +
+      'starting over (no step ran twice); `effect_in_doubt` — a person ' +
+      'failed the run at a write that may already have reached its service ' +
+      'when the run was interrupted. The provider codes the chat surface documents ' +
       '(`credit_exhausted`, `auth_error`, `rate_limited`, ' +
       '`provider_unreachable`, `provider_error`, `model_not_found`, …) — an ' +
       '`llm` node’s provider: the account or the provider, not the ' +
@@ -485,20 +549,14 @@ const runProperties: Record<string, Json> = {
   },
   waitingFor: {
     type: 'string',
-    enum: ['approval', 'ask', 'agent', 'room', 'repeat'],
-    description:
-      'Present only while `status` is `waiting`: what the run is ' +
-      'parked on. `approval` — a person’s decision on a gate; `ask` ' +
-      '— a question a person has to answer; `agent` — an agent turn ' +
-      'still running, no one to page; `room` — an agent turn whose ' +
-      'start waits for sandbox room, no one to page; `repeat` — a ' +
-      'node polling until its `repeatUntil` condition holds, no one ' +
-      'to page.',
+    enum: [...RUN_WAITING_FOR],
+    description: runWaitingForDescription,
   },
+  ...runResumeProperties,
   claimEpoch: {
     ...int,
     description:
-      'The stepper’s claim fence: incremented each time a worker claims the run (the first claim, a liveness re-poke, a queue retry); a worker holding an older epoch has its writes refused as stale. Diagnostic — above 1 means the run was re-claimed at least once.',
+      'The stepper’s claim fence: incremented on every claim — each turn, a takeover after a server stopped, or a queue retry; a worker holding an older epoch has its writes refused as stale. Diagnostic — above 1 means the run was claimed more than once.',
   },
   chainSeq: {
     ...int,
@@ -9551,8 +9609,8 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'The failure or wait reason, when the run has one. While ' +
                 '`waiting` it names the park: `approval:<approvalId>`, ' +
-                '`agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — ' +
-                '`waitingFor` is the ' +
+                '`agent:<nodeId>`, `room:<nodeId>`, `repeat:<nodeId>` or ' +
+                '`in_doubt:<nodeId>` — `waitingFor` is the ' +
                 'field to branch on; when `failed`, the failure sentence, ' +
                 'and `failureCode` the stable cause — the sentence is not ' +
                 'contractual.',
@@ -9568,18 +9626,13 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
             waitingFor: {
               type: 'string',
-              enum: ['approval', 'ask', 'agent', 'room', 'repeat'],
+              enum: [...RUN_WAITING_FOR],
               description:
-                'Present only while `status` is `waiting`: what the run is ' +
-                'parked on. `approval` — a person’s decision on a gate; `ask` ' +
-                '— a question a person has to answer; `agent` — an agent turn ' +
-                'still running, no one to page; `room` — an agent turn whose ' +
-                'start waits for sandbox room, no one to page; `repeat` — a ' +
-                'node polling until its `repeatUntil` condition holds, no one ' +
-                'to page. ' +
+                `${runWaitingForDescription} ` +
                 '"Runs that need a human" is `waitingFor` in (`approval`, ' +
-                '`ask`), never `status=waiting` alone.',
+                '`ask`, `in_doubt`), never `status=waiting` alone.',
             },
+            ...runResumeProperties,
             startedAt: epochMs,
             finishedAt: {
               ...epochMs,

@@ -53,6 +53,7 @@ Ajouter un connector demande une contribution au code source. L'exécution lit l
 | `mock` | JavaScript déterministe obligatoire : même entrée, même sortie, sans accès réseau |
 | `backend` | Implémentation réelle facultative : `yaml-js` avec `live`, ou `native` avec un identifiant `impl` |
 | `exampleInput` | Petit exemple facultatif utile à la découverte et aux tests |
+| `idempotent` | Facultatif ; `true` seulement pour une écriture dont un second appel avec la même `ctx.idempotencyKey` ne change plus rien. Une exécution d’automatisation interrompue la relance alors d’elle-même au lieu d’attendre une décision |
 
 Sans backend réel, le connector fonctionne en simulation mais refuse l'exécution réelle. Une écriture n'a pas lieu si la plateforme ne peut pas obtenir une décision d'approbation. La [référence de politique](/fr/self-hosted/configuration/approvals) explique la priorité des règles et les décisions en attente.
 

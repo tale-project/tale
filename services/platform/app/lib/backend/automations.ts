@@ -24,6 +24,7 @@ type ListTriggersResult = ReturnsOf<'automations/queries:listTriggers'>;
 type ListRunsResult = ReturnsOf<'automations/queries:listRuns'>;
 type GetRunResult = ReturnsOf<'automations/queries:getRun'>;
 type PendingAskResult = ReturnsOf<'automations/human_asks:getPendingAskForRun'>;
+type RunInDoubtResult = ReturnsOf<'automations/queries:getRunInDoubt'>;
 type OrgAutomationMetricsResult =
   ReturnsOf<'automations/queries:getOrgAutomationMetrics'>;
 type ApprovalResult = ReturnsOf<'approvals/queries:getApproval'>;
@@ -193,6 +194,21 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
           `/automations/runs/${encodeURIComponent(runId)}/ask`,
           { orgId },
         ).then((body) => body.ask),
+    };
+  },
+  // Keyed under the run, so the run's own hint refreshes it: a decision
+  // taken elsewhere, or the run moving on, clears the card everywhere.
+  'automations/queries:getRunInDoubt': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    if (orgId === undefined || typeof runId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'automation_run', 'in-doubt', runId),
+      queryFn: () =>
+        backendFetch<{ inDoubt: RunInDoubtResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/in-doubt`,
+          { orgId },
+        ).then((body) => body.inDoubt),
     };
   },
   'automations/queries:getOrgAutomationMetrics': (args, ctx) => {
@@ -449,6 +465,17 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
         `/automations/runs/${encodeURIComponent(stringArg(args, 'runId'))}/cancel`,
         { orgId: requireOrg(args, ctx), body: {} },
       ),
+    invalidate: invalidateRuns,
+  },
+  'automations/mutations:resolveRunInDoubt': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/automations/runs/${encodeURIComponent(stringArg(args, 'runId'))}/in-doubt/${encodeURIComponent(stringArg(args, 'attemptId'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: { resolution: stringArg(args, 'resolution') },
+        },
+      ).then(() => null),
     invalidate: invalidateRuns,
   },
   'approvals/mutations:updateApprovalStatus': {

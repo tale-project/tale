@@ -25,7 +25,7 @@ import {
 } from './acceptance-model';
 import { withFrozenDeployment, type DeploymentBundle } from './bundle';
 import { readProvisionStateProof } from './provision-state';
-import { observeReadyState } from './runtime-apply';
+import { observeReadyState, startedAtSchema } from './runtime-apply';
 import { runtimeProcessEnvironment } from './runtime-command';
 import {
   readRuntimeBundle,
@@ -33,6 +33,7 @@ import {
   runtimeImageSchema,
   TALE_REGISTRY,
 } from './runtime-model';
+import { imageInspectSchema } from './runtime-prepare';
 
 export interface AcceptDeploymentOptions {
   bundle: string;
@@ -55,11 +56,11 @@ const containerIdentitySchema = z.object({
   Id: sha,
   Image: digest,
   RestartCount: z.number().int().nonnegative(),
-  State: z.object({ Running: z.literal(true), StartedAt: z.iso.datetime() }),
+  State: z.object({ Running: z.literal(true), StartedAt: startedAtSchema }),
 });
 const imageIdentitySchema = z.object({
   Id: digest,
-  Config: z.object({ Labels: z.record(z.string(), z.string()).nullable() }),
+  Config: imageInspectSchema.shape.Config,
 });
 function ready(bundle: DeploymentBundle, directory: string) {
   try {
