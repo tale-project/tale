@@ -154,6 +154,90 @@ export function gatewayRequestTimeoutSeconds(): number {
   return Math.max(REQUEST_TIMEOUT_SECONDS, gatewayStreamIdleTimeoutSeconds());
 }
 
+/** Request workers per SHARED standard provider record. The gateway starts
+ * a record's `concurrency` workers as goroutines the moment it loads the
+ * record — at boot for every stored record, and again on each create or
+ * update — and they stay parked, holding their stacks, whether or not
+ * anything calls the record. A standard record exists once per built-in
+ * vendor and carries every organization's sessions and model-endpoint
+ * requests, so it keeps a deep pool. Operator-tunable
+ * (`SANDBOX_LLM_GATEWAY_PROVIDER_CONCURRENCY`). */
+const STANDARD_PROVIDER_CONCURRENCY = 512;
+
+/** Request workers per org-scoped CUSTOM record. Those records multiply with
+ * organizations times custom models (one per organization, connector and
+ * model, plus the Anthropic-lane sibling — see customGatewayProviderName),
+ * and each carries one organization's calls to one model. A worker is held
+ * for a whole answer only when it is not streamed; a stream holds it until
+ * the upstream's response headers arrive, then the gateway hands the stream
+ * to its caller. A sandbox host sizes itself to at most 256 sessions, so 64
+ * workers cover one organization's burst on one model, and a hundred such
+ * records park 6,400 workers instead of 100,000. A request past the pool
+ * waits in the queue rather than failing. Operator-tunable
+ * (`SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY`). */
+const CUSTOM_PROVIDER_CONCURRENCY = 64;
+
+/** The most workers a record is given: the gateway opens at most 5,000
+ * connections to one upstream host unless told otherwise (its default
+ * `max_conns_per_host`, which the platform never sets), so a worker past
+ * that would only wait for a connection. */
+const MAX_PROVIDER_CONCURRENCY = 5_000;
+
+/** Queue slots per worker. A request that finds every worker busy waits in
+ * the record's queue, a channel of this many pointers per worker (8 bytes a
+ * slot), and the gateway refuses a queue shorter than the pool. */
+const PROVIDER_QUEUE_SLOTS_PER_WORKER = 16;
+
+/** The pool a provider record is pushed with: the gateway's
+ * `concurrency_and_buffer_size`. */
+interface GatewayProviderPool {
+  concurrency: number;
+  buffer_size: number;
+}
+
+/** Operator values already warned about, so a bad setting is said once per
+ * process rather than on every provision. */
+const warnedPoolSettings = new Set<string>();
+
+/** A worker count from `SANDBOX_LLM_GATEWAY_<suffix>`: a whole number from 1
+ * up to {@link MAX_PROVIDER_CONCURRENCY}. Anything else falls back to the
+ * default (or the ceiling) with a warning — the gateway refuses a record
+ * whose pool is not positive, which would fail every session's provision. */
+function providerWorkers(suffix: string, fallback: number): number {
+  const raw = gatewayEnv(suffix)?.trim();
+  if (raw === undefined || raw === '') return fallback;
+  const workers = Number(raw);
+  const valid = Number.isSafeInteger(workers) && workers > 0;
+  const used = valid ? Math.min(workers, MAX_PROVIDER_CONCURRENCY) : fallback;
+  if (used !== workers) {
+    const setting = `SANDBOX_LLM_GATEWAY_${suffix}=${raw}`;
+    if (!warnedPoolSettings.has(setting)) {
+      warnedPoolSettings.add(setting);
+      console.warn(
+        valid
+          ? `[llm-gateway] ${setting} is above the gateway's ${MAX_PROVIDER_CONCURRENCY} connections per upstream host; using ${used}`
+          : `[llm-gateway] ${setting} is not a positive whole number; using ${used}`,
+      );
+    }
+  }
+  return used;
+}
+
+/** The request-worker pool for a standard (shared) or custom (org-scoped)
+ * provider record, and its queue sixteen requests deep per worker. */
+function gatewayProviderPool(custom: boolean): GatewayProviderPool {
+  const concurrency = custom
+    ? providerWorkers(
+        'CUSTOM_PROVIDER_CONCURRENCY',
+        CUSTOM_PROVIDER_CONCURRENCY,
+      )
+    : providerWorkers('PROVIDER_CONCURRENCY', STANDARD_PROVIDER_CONCURRENCY);
+  return {
+    concurrency,
+    buffer_size: concurrency * PROVIDER_QUEUE_SLOTS_PER_WORKER,
+  };
+}
+
 function managementHeaders(): Record<string, string> {
   // The gateway authenticates /api/* with HTTP Basic
   // (admin_username/admin_password), not a bearer token. ALWAYS sent:
@@ -1011,7 +1095,9 @@ function providerFingerprint(
   // baseUrl IS included: for a custom provider it is pushed to the gateway
   // as network_config.base_url, so a base-URL-only change must bust the memo
   // and re-provision. Inert for standard providers (their baseUrl is never
-  // pushed and is a stable value).
+  // pushed and is a stable value). The worker pool is included for the same
+  // reason: a record whose pool the platform resized is rewritten, so the
+  // gateway restarts its workers at the new count, on the next provision.
   return createHash('sha256')
     .update(
       JSON.stringify({
@@ -1020,6 +1106,7 @@ function providerFingerprint(
         apiFormat: p.apiFormat ?? null,
         allowPrivateNetwork,
         models: [...p.models].sort(),
+        pool: gatewayProviderPool(!isStandardGatewayProvider(p.name)),
       }),
     )
     .digest('hex');
@@ -1292,7 +1379,8 @@ export async function removeOrganizationFromGateway(
 
 /** PUT /api/providers/:name — provider RECORD config only (network +
  * concurrency; keys are a sub-resource, a keys[] in this body is refused;
- * concurrency must be > 0 or the config validator 400s). Idempotent.
+ * the config validator 400s unless 0 < concurrency <= buffer_size — see
+ * gatewayProviderPool for how each record kind is sized). Idempotent.
  *
  * A STANDARD gateway provider carries its own base URL — overriding it
  * breaks the built-in URL construction and custom_provider_config on it is
@@ -1346,7 +1434,7 @@ async function ensureProviderConfig(
         ? { extra_headers: attribution }
         : {}),
     },
-    concurrency_and_buffer_size: { concurrency: 1000, buffer_size: 5000 },
+    concurrency_and_buffer_size: gatewayProviderPool(custom),
     ...(custom
       ? {
           custom_provider_config: anthropic

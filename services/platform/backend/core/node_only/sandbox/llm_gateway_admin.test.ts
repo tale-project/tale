@@ -861,6 +861,124 @@ describe('provisionProviders', () => {
   });
 });
 
+describe('provisionProviders — request workers per provider record', () => {
+  const CUSTOM = {
+    name: 'org_1__my-vllm__llama-3.3-70b',
+    baseUrl: 'https://llm.example.com/v1',
+    apiKey: 'key-D',
+    models: ['llama-3.3-70b'],
+  };
+
+  /** The pool each provider record's config PUT carried, by record name. */
+  function pools(calls: RecordedCall[]): Record<string, unknown> {
+    return Object.fromEntries(
+      writes(calls)
+        .filter((c) => c.method === 'PUT' && !c.url.includes('/keys'))
+        .map((c) => [
+          decodeURIComponent(c.url.split('/api/providers/')[1] ?? ''),
+          c.body?.concurrency_and_buffer_size,
+        ]),
+    );
+  }
+
+  it('gives a shared standard record 512 workers and an org-scoped custom record 64, each with a queue 16 deep per worker', async () => {
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    // A standard connector on the Anthropic lane rides an org-scoped record
+    // of its own, so it is sized like any other custom record.
+    const lane = mod.resolveGatewayRouting(ORG, 'openrouter', 'm', {
+      anthropicHarnessLane: true,
+    }).gatewayProvider;
+    expect(
+      await mod.provisionProviders(ORG, [
+        PROVIDER,
+        CUSTOM,
+        {
+          name: lane,
+          baseUrl: 'https://openrouter.ai/api',
+          apiFormat: 'anthropic',
+          apiKey: 'key-A',
+          models: ['m'],
+        },
+      ]),
+    ).toEqual([]);
+    expect(pools(calls)).toEqual({
+      openrouter: { concurrency: 512, buffer_size: 8192 },
+      [CUSTOM.name]: { concurrency: 64, buffer_size: 1024 },
+      [lane]: { concurrency: 64, buffer_size: 1024 },
+    });
+  });
+
+  it('takes each kind of record’s worker count from its own setting', async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_PROVIDER_CONCURRENCY', '200');
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY', ' 8 ');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER, CUSTOM]);
+    expect(pools(calls)).toEqual({
+      openrouter: { concurrency: 200, buffer_size: 3200 },
+      [CUSTOM.name]: { concurrency: 8, buffer_size: 128 },
+    });
+  });
+
+  it.each(['0', '-4', '1.5', 'many'])(
+    'keeps the default for a setting of %j, which the gateway would refuse, and says so once',
+    async (setting) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.stubEnv('SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY', setting);
+      const calls = stubGateway({ keyExists: false });
+      const mod = await loadModule();
+      await mod.provisionProviders(ORG, [CUSTOM]);
+      await mod.provisionProviders('org_2', [CUSTOM]);
+      expect(Object.values(pools(calls))).toEqual([
+        { concurrency: 64, buffer_size: 1024 },
+      ]);
+      expect(
+        warn.mock.calls.filter(([message]) =>
+          String(message).includes(
+            `SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY=${setting} is not a positive whole number; using 64`,
+          ),
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
+  it('holds a record to the 5,000 connections the gateway opens to one upstream host', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_PROVIDER_CONCURRENCY', '20000');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER]);
+    expect(pools(calls)).toEqual({
+      openrouter: { concurrency: 5000, buffer_size: 80_000 },
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'SANDBOX_LLM_GATEWAY_PROVIDER_CONCURRENCY=20000 is above',
+      ),
+    );
+  });
+
+  it('rewrites a provisioned record whose pool was resized, so the gateway restarts its workers at the new count', async () => {
+    const calls = stubGateway({
+      keyExists: true,
+      keyName: `tale-${ORG}-${CUSTOM.name}`,
+    });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [CUSTOM]);
+    calls.length = 0;
+    await mod.provisionProviders(ORG, [CUSTOM]);
+    expect(writes(calls)).toEqual([]);
+
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY', '16');
+    await mod.provisionProviders(ORG, [CUSTOM]);
+    expect(pools(calls)).toEqual({
+      [CUSTOM.name]: { concurrency: 16, buffer_size: 256 },
+    });
+    expect(writes(calls)).toHaveLength(2);
+  });
+});
+
 describe('provisionProviders — management-plane auth', () => {
   it('sends Basic auth from SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD on EVERY management call', async () => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-1');
