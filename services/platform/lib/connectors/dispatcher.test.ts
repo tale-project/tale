@@ -517,6 +517,77 @@ describe('live yaml-js under the sandbox-exec runner (portable convention)', () 
 });
 
 describe('live yaml-js backend', () => {
+  it("stops a live body's host calls at its time limit [CONN-R14]", async () => {
+    // A body that pages through a vendor without bound, like a recursive
+    // listing over a large account. In this process nothing can stop the body
+    // itself, so the host must refuse every request once the limit passed.
+    const PAGER = connectorSchema.parse({
+      name: 'pager',
+      displayName: 'Pager',
+      description: 'Pages through a vendor without bound.',
+      endpointMode: 'fixed',
+      allowedHosts: ['api.demo.test'],
+      auth: [{ method: 'bearer' }],
+      actions: [
+        {
+          name: 'list_all',
+          description: 'Read every page.',
+          effects: 'read',
+          input: { type: 'object', properties: {} },
+          output: '{ pages: number }',
+          mock: 'return { pages: 0 };',
+          backend: {
+            kind: 'yaml-js',
+            live: [
+              'let pages = 0;',
+              'while (true) {',
+              "  await ctx.http.get('https://api.demo.test/page?n=' + pages);",
+              '  pages += 1;',
+              '}',
+            ].join('\n'),
+          },
+        },
+      ],
+    });
+    installConnectorCatalog([...shipped, DEMO, PAGER]);
+    const issued: Array<{ atMs: number; aborted: boolean }> = [];
+    fetchStub.mockImplementation(async (_url: string, init: RequestInit) => {
+      issued.push({ atMs: Date.now(), aborted: init.signal?.aborted === true });
+      if (init.signal?.aborted) throw new DOMException('aborted', 'AbortError');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return new Response('{}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    await expect(
+      executeConnectorAction({
+        connector: 'pager',
+        action: 'list_all',
+        input: {},
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          codeRunner: inProcessLiveRunner(),
+          timeoutMs: 150,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'LIVE_BODY_FAILED' });
+    const releasedAtMs = Date.now();
+    const issuedByRelease = issued.length;
+    expect(issuedByRelease).toBeGreaterThan(0);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // At most the one request in flight at the limit went out after it, and
+    // the host refused it; nothing reached the vendor afterwards.
+    const late = issued.filter((call) => call.atMs >= releasedAtMs);
+    expect(late.length).toBeLessThanOrEqual(1);
+    expect(late.every((call) => call.aborted)).toBe(true);
+  });
+
   it('refuses live on the data-only node-vm runner, before any host work', async () => {
     // The bundled in-process runner cannot carry `ctx.secrets.get` or the
     // HTTP host across its JSON boundary — the dispatcher must say so up

@@ -17,14 +17,11 @@ import {
   type SandboxScriptRunner,
   type WorkflowConversationStore,
 } from '../../../lib/connectors/natives/index.ts';
-import type { PortableHostCall } from '../../../lib/connectors/portable-live.ts';
 import {
   hasCodeRunner,
   setCodeRunner,
-  type CodeRunner,
 } from '../../../lib/engine/core/runner.ts';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm.ts';
-import { signHostcallToken } from '../../core/connectors/hostcall_token.ts';
 import {
   ingestEmails,
   ingestSentEmails,
@@ -32,7 +29,6 @@ import {
   querySyncCursor,
   syncMailbox,
 } from '../../core/conversations/sync_mailbox.ts';
-import { codeRunnerForSession } from '../../core/node_only/sandbox/engine_exec_runner.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -257,17 +253,12 @@ export interface RunConnectorArgs {
   caller: ConnectorCaller;
   idempotencyKey?: string;
   /**
-   * A live sandbox session to run a yaml-js body IN, out of process. No
-   * caller passes one: every live caller — automation runs, chat, the
-   * platform's own senders and the external-turn bridge — runs the body on
-   * the in-process live runner. The bridge must not: the session-bound
-   * runner starts the body as a `node -e` program in the agent's own
-   * session, with its scope (credential secrets included) on the command
-   * line every process of that session can read. The runner is
-   * per-invocation ON PURPOSE — the process-global slot is shared by every
-   * concurrent org.
+   * Whether a live body may store files through `ctx.files` (default yes).
+   * The agent bridge says no: an agent's read calls should not leave blobs
+   * and file records in the organization's store, and an action that needs
+   * the store refuses instead, as it always did for agent calls.
    */
-  execSessionId?: string;
+  storeFiles?: boolean;
   /**
    * The caller's own stop: an automation run's turn passes its signal so a
    * live call still running when the server is shutting down is cut
@@ -287,33 +278,6 @@ export async function runConnectorAction(
   args: RunConnectorArgs,
 ): Promise<ConnectorDispatchResult> {
   assembleConnectorHost(sql);
-  // Out-of-process live execution: the session-bound sandbox-exec runner
-  // plus the one-run capability its in-sandbox façade phones home with. No
-  // HMAC root ⇒ no token ⇒ the body runs in process instead, where its
-  // `ctx.http` is mediated by the live host directly.
-  let portableRunner:
-    | { codeRunner: CodeRunner; portableHost: PortableHostCall }
-    | undefined;
-  if (args.execSessionId !== undefined && args.mode === 'live') {
-    const token = await signHostcallToken({
-      org: args.organizationId,
-      connector: args.connector,
-      action: args.action,
-      ...(args.credentialRef !== undefined
-        ? { credentialRef: args.credentialRef }
-        : {}),
-    });
-    if (token === null) {
-      console.warn(
-        '[connectors] no HMAC root configured — live sandbox execution unavailable, running the body in process',
-      );
-    } else {
-      portableRunner = {
-        codeRunner: codeRunnerForSession(args.execSessionId),
-        portableHost: { url: connectorsHostcallUrlForSessions(), token },
-      };
-    }
-  }
   return executeConnectorAction({
     connector: args.connector,
     action: args.action,
@@ -329,32 +293,25 @@ export async function runConnectorAction(
       approvals: approvalGate(sql),
       audit: auditSink(sql),
       // `ctx.files` for an in-process live body: the org's own blob store.
-      blobs: connectorBlobSink(sql, {
-        organizationId: args.organizationId,
-        connector: args.connector,
-        caller: args.caller,
-      }),
+      ...(args.storeFiles !== false
+        ? {
+            blobs: connectorBlobSink(sql, {
+              organizationId: args.organizationId,
+              connector: args.connector,
+              caller: args.caller,
+            }),
+          }
+        : {}),
       ...(args.idempotencyKey !== undefined
         ? { idempotencyKey: args.idempotencyKey }
         : {}),
       ...(args.signal !== undefined ? { signal: args.signal } : {}),
-      // A live yaml-js body needs a host-capable runner: the session-bound
-      // one when the caller owns a session, the in-process one otherwise.
-      // The process-global slot stays the data-only runner for mock bodies.
-      ...(portableRunner !== undefined
-        ? portableRunner
-        : args.mode === 'live'
-          ? { codeRunner: inProcessLive }
-          : {}),
+      // A live yaml-js body needs a host-capable runner: the in-process one,
+      // never a `node -e` program in a sandbox session, whose command line
+      // would carry the body's scope (credential secrets included) to every
+      // process of that session. The process-global slot stays the
+      // data-only runner for mock bodies.
+      ...(args.mode === 'live' ? { codeRunner: inProcessLive } : {}),
     },
   });
-}
-
-/** Where a session's CONTAINER reaches the host-call door (the same origin
- * contract the staging callback and the tools bridge use). */
-function connectorsHostcallUrlForSessions(): string {
-  const origin = (
-    process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://backend-api:3005'
-  ).replace(/\/$/, '');
-  return `${origin}/api/connectors/hostcall`;
 }

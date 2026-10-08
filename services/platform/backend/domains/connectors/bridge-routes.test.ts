@@ -314,6 +314,41 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     );
   });
 
+  it('runs at most four of a session’s calls at once and stores no files [CONN-R14]', async () => {
+    tokenWith(TASK_TURN);
+    const pending: Array<() => void> = [];
+    runConnectorAction.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pending.push(() => resolve({ status: 'ok', output: [] }));
+        }),
+    );
+
+    const running = Array.from({ length: 4 }, () =>
+      post('/execute', LIST_ISSUES),
+    );
+    await vi.waitFor(() => expect(pending).toHaveLength(4));
+    const refused = await post('/execute', LIST_ISSUES);
+
+    expect(await refused.json()).toMatchObject({
+      status: 'unavailable',
+      blockers: [{ code: 'busy' }],
+    });
+    expect(runConnectorAction).toHaveBeenCalledTimes(4);
+    for (const call of runConnectorAction.mock.calls) {
+      expect(call[1]).toMatchObject({ storeFiles: false });
+    }
+
+    // A call that answered gives its place back.
+    pending.shift()?.();
+    await running[0];
+    const next = post('/execute', LIST_ISSUES);
+    await vi.waitFor(() => expect(pending).toHaveLength(4));
+    for (const finish of pending) finish();
+    await Promise.all([...running.slice(1), next]);
+    expect(runConnectorAction).toHaveBeenCalledTimes(5);
+  });
+
   it('acts for the member a REST start named (the api-key door) [CONN-R1]', async () => {
     runs.set('exec_1', { status: 'running', startedBy: 'api-key:user_1' });
     tokenWith(TASK_TURN);

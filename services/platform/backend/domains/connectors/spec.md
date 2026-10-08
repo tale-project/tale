@@ -126,9 +126,20 @@ The connector's code runs in the platform with the organization's credential, an
 sandbox gets back only the result. No process of the agent's sandbox is handed the
 credential for the call.
 
-- **Example**: Mia's agent reads GlitchTip issues through the connector → the call runs on
-  the platform with the organization's GlitchTip token, and nothing in Mia's sandbox sees
-  the token.
+- **Example**: Mia's agent searches the web through the Tavily connector → the search runs
+  on the platform with the organization's Tavily key, and nothing in Mia's sandbox sees
+  the key.
+
+### CONN-R14 · An agent's connector calls are bounded on the platform
+
+One sandbox session's agents have at most four connector calls running at once; a further
+call is refused as busy and can be tried again. A call that outlives its time limit can no
+longer reach the outside system, and an agent's call stores no files in the organization's
+file store.
+
+- **Example**: Mia's agent starts five Google Drive listings at once → four run and the
+  fifth is refused as busy; a listing still paging after its minute is cut off at its next
+  request, and a Gmail attachment the agent reads is not saved to the organization's files.
 
 ## Not yet
 

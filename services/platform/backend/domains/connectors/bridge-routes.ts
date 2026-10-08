@@ -49,7 +49,8 @@ import { runConnectorAction } from './service.ts';
  *  - `hostcall` authenticates a one-run HMAC capability minted at dispatch,
  *    bound to (org, connector, action, credential). It carries no secret:
  *    the door re-resolves the credential itself, so a leaked token cannot
- *    become a credential.
+ *    become a credential. No caller mints one today: every live body runs
+ *    in process (the session-bound runner is listed as contract debt).
  *
  * The decision bodies are REUSED from the 0.4 bridge (one wording of every
  * refusal, for the model that relays it); only the dispatch and credential
@@ -227,6 +228,14 @@ function isHostcallMethod(value: string): value is keyof typeof HTTP_VERBS {
   return value in HTTP_VERBS;
 }
 
+/** Connector calls one sandbox session's agents may have running at once in
+ * this process: the four live execs a session had when each call ran inside
+ * it. A body now runs in the platform process, so the agent, which chooses
+ * how many calls it makes and how often it retries, gets a busy refusal
+ * past this instead of stacking bodies there. */
+const MAX_BRIDGE_CALLS_PER_SESSION = 4;
+const bridgeCallsInFlight = new Map<string, number>();
+
 export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
   const app = new Hono();
   app.use('/execute', sandboxDoorBodyLimit(toolResultTooLarge));
@@ -279,24 +288,49 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
     if ('blocker' in caller) {
       return json(200, { status: 'unavailable', blockers: [caller.blocker] });
     }
-    const result = await runBridgeConnectorImpl(
-      (dispatchArgs) =>
-        runConnectorAction(deps.sql, {
-          organizationId: dispatchArgs.organizationId,
-          connector: dispatchArgs.connector,
-          action: dispatchArgs.action,
-          input: dispatchArgs.input,
-          mode: 'live',
-          caller: { kind: 'user', userId: dispatchArgs.userId },
-        }),
-      {
-        organizationId: auth.organizationId,
-        userId: caller.userId,
-        slug,
-        operation,
-        callArgs,
-      },
-    );
+    const running = bridgeCallsInFlight.get(auth.sessionId) ?? 0;
+    if (running >= MAX_BRIDGE_CALLS_PER_SESSION) {
+      return json(200, {
+        status: 'unavailable',
+        blockers: [
+          {
+            code: 'busy',
+            guidance:
+              `This agent already has ${MAX_BRIDGE_CALLS_PER_SESSION} connector calls running. ` +
+              'Wait for one of them to answer, then try this call again.',
+          },
+        ],
+      });
+    }
+    bridgeCallsInFlight.set(auth.sessionId, running + 1);
+    let result: Awaited<ReturnType<typeof runBridgeConnectorImpl>>;
+    try {
+      result = await runBridgeConnectorImpl(
+        (dispatchArgs) =>
+          runConnectorAction(deps.sql, {
+            organizationId: dispatchArgs.organizationId,
+            connector: dispatchArgs.connector,
+            action: dispatchArgs.action,
+            input: dispatchArgs.input,
+            mode: 'live',
+            caller: { kind: 'user', userId: dispatchArgs.userId },
+            // An agent's read calls leave no files in the organization's
+            // store; an action that needs the store refuses instead.
+            storeFiles: false,
+          }),
+        {
+          organizationId: auth.organizationId,
+          userId: caller.userId,
+          slug,
+          operation,
+          callArgs,
+        },
+      );
+    } finally {
+      const left = (bridgeCallsInFlight.get(auth.sessionId) ?? 1) - 1;
+      if (left > 0) bridgeCallsInFlight.set(auth.sessionId, left);
+      else bridgeCallsInFlight.delete(auth.sessionId);
+    }
     await recordConnectorCall(deps.sql, {
       organizationId: auth.organizationId,
       sessionId: auth.sessionId,
