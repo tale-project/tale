@@ -390,6 +390,27 @@ describe('TimeField', () => {
       await checkAccessibility(container);
     });
 
+    it('keeps focus and a half-typed part when an error comes and goes', async () => {
+      const { user, rerender } = render(<Harness />);
+      const { group, minute } = parts();
+      await user.click(minute);
+      // 4 waits for a second digit while the host shows its error.
+      await user.keyboard('4');
+      rerender(<Harness errorMessage="Pick 10:00 or later." />);
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Pick 10:00 or later.',
+      );
+      expect(screen.getByRole('group', { name: 'Start' })).toBe(group);
+      expect(minute).toHaveFocus();
+      expect(minute).toHaveValue('04');
+      rerender(<Harness />);
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(minute).toHaveFocus();
+      await user.keyboard('5');
+      expect(minute).toHaveValue('45');
+      expect(shown()).toBe('09:45');
+    });
+
     it('reads but never changes while read-only', async () => {
       const onValueChange = vi.fn();
       const { user } = render(

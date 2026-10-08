@@ -45,6 +45,8 @@ Pasting a whole time into any part replaces the time: `17:30`, `1730`, `17h30`, 
 
 `description` sits under the label, and `errorMessage` marks every part invalid and shows the message under the field. The field has no rules of its own: a time outside your range is your host's error, as in the example, where a reminder before office hours is refused.
 
+A `label` or `description` puts the field in the standard label-and-field frame; keep them for the field's whole life. Without them, the field renders bare and an `errorMessage` follows it as its next sibling, so place the two in a column. An error that appears or clears while someone types never remounts the field, so focus and a part typed halfway stay where they are.
+
 | Need                                          | Use                                                                                     |
 | --------------------------------------------- | --------------------------------------------------------------------------------------- |
 | The time cannot change now                    | `disabled`. The parts are dimmed and leave the tab order.                               |
@@ -73,6 +75,6 @@ Pasting a whole time into any part replaces the time: `17:30`, `1730`, `17h30`, 
 | `aria-label`, `aria-labelledby`, `aria-describedby`, `aria-invalid` | Optional | Naming and state when the layout supplies them.        |
 | `disabled`, `readOnly`             | `false`                          | Unavailable, or readable but not editable.                     |
 | `size`                             | `default` or `sm`                | A 36px or 32px field.                                          |
-| `id`, `className`, `wrapperClassName` | Optional                      | The group's ID and classes; classes for the label frame.       |
+| `id`, `className`, `wrapperClassName` | Optional                      | The group's ID and classes; classes for the frame a `label` or `description` brings. |
 
 `@tale/ui/time-of-day` holds the helpers the field is built on: `formatTimeOfDay(time, locale, cycle?)` writes a time the way the locale does, `localHourCycle(locale)` reads a language's hour cycle, `parseTimeText(text)` reads a pasted time, and `compareTime`, `sameTime` and `clampTime` order, compare and bound times.

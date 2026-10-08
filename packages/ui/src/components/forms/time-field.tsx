@@ -65,7 +65,8 @@ export interface TimeFieldProps {
   /** `default` is a 36px field, `sm` a 32px one. @default 'default' */
   size?: 'default' | 'sm';
   className?: string;
-  /** Classes for the label-and-field frame, when a label is given. */
+  /** Classes for the label-and-field frame, when a label or description
+   *  is given. */
   wrapperClassName?: string;
 }
 
@@ -646,12 +647,29 @@ export function TimeField({
     </SkeletonBox>
   );
 
-  if (
-    label === undefined &&
-    description === undefined &&
-    errorMessage === undefined
-  ) {
-    return group;
+  const errorNode =
+    errorMessage !== undefined ? (
+      <p
+        id={ids.error}
+        role="alert"
+        aria-live="polite"
+        className="text-destructive flex items-center gap-1.5 text-sm"
+      >
+        <XCircle className="size-4" aria-hidden="true" />
+        {errorMessage}
+      </p>
+    ) : null;
+
+  // The frame follows the label and description alone. An error that comes
+  // and goes while someone types must not swap the element around the
+  // group, or the field would remount and drop focus and a half-typed part.
+  if (label === undefined && description === undefined) {
+    return (
+      <>
+        {group}
+        {errorNode}
+      </>
+    );
   }
 
   return (
@@ -676,21 +694,7 @@ export function TimeField({
             ),
           }
         : {})}
-      {...(errorMessage !== undefined
-        ? {
-            error: (
-              <p
-                id={ids.error}
-                role="alert"
-                aria-live="polite"
-                className="text-destructive flex items-center gap-1.5 text-sm"
-              >
-                <XCircle className="size-4" aria-hidden="true" />
-                {errorMessage}
-              </p>
-            ),
-          }
-        : {})}
+      {...(errorNode !== null ? { error: errorNode } : {})}
       {...(wrapperClassName !== undefined
         ? { className: wrapperClassName }
         : {})}
