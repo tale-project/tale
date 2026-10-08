@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 87 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 88 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -622,7 +622,8 @@ output:
       launch; the start and the coalesced occurrence still show.)
 - [ ] `AUTO-F57` · **A crashed worker's run reads Interrupted, then
       resumes** — With one backend worker, start a live run whose step works for a few
-      minutes (an agent step), open its run page, and once it reads **Running**
+      minutes (an `llm` step asked for a long answer; an agent step parks the
+      run as **Waiting** instead), open its run page, and once it reads **Running**
       kill the worker without warning (`docker kill -s KILL` on its
       container); leave it down for a minute and reload the page → the badge
       reads `automations.runs.status.stalled` with a still icon, not
@@ -653,8 +654,9 @@ output:
       step's output reads `null`; and with **Fail the run**
       (`automations.runs.inDoubt.fail`, confirmed with
       `automations.runs.inDoubt.failConfirm.title`) → **Failed**
-      (`automations.runs.status.failed`), its detail saying the step was
-      failed by a person and may already have run.
+      (`automations.runs.status.failed`), its detail saying a person chose to
+      fail the run at that step because it may already have run — naming the
+      step once, never a path such as `batch[1:0]/send`.
 - [ ] `AUTO-F59` · **A deploy hands a run on** — With two backend workers
       (`docker compose up -d --scale backend-worker=2`), deploy an automation
       of five steps in a row that each work for about 30 seconds (an `llm`
@@ -664,13 +666,27 @@ output:
       app.automation_runs WHERE id = '{runId}'` in the app database) is that
       container's hostname — and stop it gracefully (`docker stop`, not
       `kill`) → the third step finishes, the other worker continues with the
-      fourth within seconds and the badge never reads
-      `automations.runs.status.stalled`; the run succeeds, each step shows
+      fourth within seconds, and the badge reads
+      `automations.runs.status.stalled` for at most a few seconds before
+      `automations.runs.status.running`; the run succeeds, each step shows
       once in the steps list and the effects, and the header shows
       `automations.runs.resumed.label` followed by
       `automations.runs.resumed.shutdown`. Repeat with steps that each work
       for two minutes → the step under way is cut about 20 seconds into the
       stop, runs again on the other worker, and still shows once.
+- [ ] `AUTO-F60` · **An interrupted write is decided from its task** —
+      Interrupt a write as in `AUTO-F58`, this time in the run of an
+      automation that owns a project task, then open that task as a member
+      who can work it → the panel reads `tasks.run.waitingDecision` with no
+      spinner and shows the card `automations.runs.inDoubt.title`; **Skip
+      it** (`automations.runs.inDoubt.skip`) decides it from the task and the
+      run goes on. As a member who can only read the task → the panel reads
+      `tasks.run.waitingDecisionOther` and shows no card. On the run page
+      meanwhile the canvas marks the step
+      `automations.runs.nodeStatus.waiting` with a still icon, and on the run
+      of `AUTO-F57`, while it reads `automations.runs.status.stalled`, its
+      step reads `automations.runs.nodeStatus.interrupted` — nothing spins on
+      a step no server is running.
 
 ## Boundary & error tests
 
@@ -830,8 +846,11 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       lands on the resolved sentence (`automations.runs.inDoubt.resolved.*`).
       A screen reader reads the badge's word
       (`automations.runs.status.stalled`), not only its icon, and the card's
-      title and body. At 390 px wide the actions wrap and nothing is cut; at
-      200 % zoom the card reads without scrolling sideways.
+      title and body; heading navigation reaches the card's title, and a run
+      that parks while its page is open is announced once
+      (`automations.runs.waiting.in_doubt`). At 390 px wide the actions wrap
+      and nothing is cut; at 200 % zoom the card reads without scrolling
+      sideways.
 
 ## Performance
 
