@@ -33,9 +33,21 @@ Badges show conditions and loops: `when`, `else of`, `for each`, `repeat until`,
 
 ## Edit a node
 
-Select a box to open its fields. On a wide screen, the panel opens beside the canvas; until you select a node, the canvas takes the full width. On narrower screens, the fields open in a dialog over the canvas. A `transform` has **Code**; an `llm` has prompt, model, and output-schema fields; an `agent` also has agent runtime and equipment. The **Model** picker of an `llm` or `agent` node lists the models your organization’s connected providers serve; a model that is not listed can still be typed, but validation warns that a live run would fail at that node until its provider is connected. **Input** contains JSON values and references passed to the node. Incomplete JSON is reported and does not update the node.
+Select a box to open its fields. On a wide screen, the panel opens beside the canvas; until you select a node, the canvas takes the full width. On narrower screens, the fields open in a dialog over the canvas. A `transform` has **Code**; an `llm` has prompt, model, and output-schema fields; an `agent` also has agent runtime and equipment. The **Model** picker of an `llm` or `agent` node lists the models your organization’s connected providers serve; a model that is not listed can still be typed, but **Problems** then warns that a live run would fail at that node until its provider is connected. **Input** contains JSON values and references passed to the node. Incomplete JSON is reported and does not update the node.
 
 Open **Control flow** for conditions and iteration; it is already open on a node that has one. Use **Close** to return to the canvas. On a wide screen, clicking the empty canvas or pressing Escape outside a text field also closes the panel. The automation's trigger and project settings are on the **General** tab. [Automation concepts](/platform/automations/concepts) explains the node types and expression rules.
+
+## Find and fix problems
+
+While you edit, Tale checks the draft the same way it checks a save. A moment after you stop typing, the **Problems** button beside **Save** shows what the check found: a red count of errors, an amber count of warnings, or **No problems**. An error is something a run would fail on, such as a reference to a node that does not exist. A warning is something that might go wrong, such as reading the output of a node that is sometimes skipped. A node with problems shows the same counts on its box, and a field with a problem explains it under the field.
+
+Click **Problems** to list them. On a wide screen the list opens under the canvas; on narrower screens it opens in a panel. Each entry says what is wrong, where it is, why, and how to fix it. **Technical details** shows the engine's own message, and the code beside the title helps when you search or ask for support. **All**, **Errors** and **Warnings** filter the list, and Escape closes it.
+
+Select an entry, or press Enter on it, to go there: the node opens, its field takes focus, and where the field shows the text as written, the part that causes the problem is selected. A problem with no field of its own, such as a model the organization does not serve, is listed under **Problems in this node** at the top of the node's fields. A problem in a part of the automation the editor does not show, such as its output or its tests, says that it can't be edited here; change that part through MCP, the API or an uploaded package.
+
+While errors remain, **Save** is disabled and says why, for example "Fix 1 error to save". Warnings never block saving or deploying. If Tale can't check the draft, for example because the connection dropped, the button shows **Couldn't check** and you can still save: every save is checked again on the server. When a save or a deploy is refused because of errors, the list opens with the server's problems, starting at the first error.
+
+The check runs only for Developers, Admins and Owners, the roles that can save. [What Tale checks before a run](/platform/automations/concepts#checks) explains each kind of problem.
 
 ## Save and test a version
 
