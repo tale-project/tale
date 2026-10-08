@@ -114,6 +114,10 @@ const runRow = {
   startedAt: 1_700_000_000_000,
   finishedAt: 1_700_000_000_500,
   askPending: false,
+  resumeCount: 0,
+  lastResumeReason: null,
+  lastResumedAt: null,
+  stalled: false,
 };
 
 /** What a listing answers for `runRow`: identity, scope, status, timing. */
@@ -563,6 +567,58 @@ describe('GET /runs/{runId}', () => {
     expect(body).not.toHaveProperty('waitingFor');
     expect(body).not.toHaveProperty('askPending');
     expect(body.output).toBe(2);
+  });
+
+  // Contract 3.18.0: a write that may already have happened needs a person,
+  // and a run that moved between servers says how often, when and why — as
+  // one `lastResume`, never the two raw stamps.
+  it('names an in-doubt park and the last move between servers', async () => {
+    vi.mocked(getRun).mockResolvedValue({
+      ...runRow,
+      status: 'waiting',
+      detail: 'in_doubt:send',
+      finishedAt: null,
+      resumeCount: 2,
+      lastResumeReason: 'shutdown',
+      lastResumedAt: 1_700_000_000_200,
+    });
+    const res = await mount().app.request('http://localhost/api/v1/runs/run-1');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      waitingFor: 'in_doubt',
+      resumeCount: 2,
+      stalled: false,
+      lastResume: { reason: 'shutdown', at: 1_700_000_000_200 },
+    });
+    expect(body).not.toHaveProperty('lastResumeReason');
+    expect(body).not.toHaveProperty('lastResumedAt');
+  });
+
+  it('projects the resume keys a poller names', async () => {
+    vi.mocked(getRun).mockResolvedValue({
+      ...runRow,
+      status: 'running',
+      finishedAt: null,
+      resumeCount: 1,
+      lastResumeReason: 'lease_expired',
+      lastResumedAt: 1_700_000_000_300,
+      stalled: true,
+    });
+    const res = await mount().app.request(
+      'http://localhost/api/v1/runs/run-1?fields=status,stalled,resumeCount,lastResume',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      status: 'running',
+      stalled: true,
+      resumeCount: 1,
+      lastResume: { reason: 'lease_expired', at: 1_700_000_000_300 },
+    });
+    const raw = await mount().app.request(
+      'http://localhost/api/v1/runs/run-1?fields=lastResumedAt',
+    );
+    expect(raw.status).toBe(400);
   });
 });
 
@@ -1408,9 +1464,16 @@ describe('GET /runs/{runId} with ?fields=', () => {
 
   it('answers the whole run when no fields are named', async () => {
     vi.mocked(getRun).mockResolvedValue({ ...runRow, projectId: null });
-    // `askPending` is the read's own input to `waitingFor` and never
-    // reaches the wire; a run that is not parked carries no `waitingFor`.
-    const { askPending: _askPending, ...wire } = runRow;
+    // `askPending` is the read's own input to `waitingFor`, and the two
+    // resume stamps the read's input to `lastResume`: none reaches the wire.
+    // A run that is not parked carries no `waitingFor`, and one that never
+    // moved between servers no `lastResume`.
+    const {
+      askPending: _askPending,
+      lastResumeReason: _lastResumeReason,
+      lastResumedAt: _lastResumedAt,
+      ...wire
+    } = runRow;
     expect(await (await read('/runs/run-1')).json()).toEqual(wire);
   });
 
@@ -1556,4 +1619,79 @@ describe('changing an automation over REST', () => {
       expect(deleteAutomationCascade).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('quarantined run reads', () => {
+  it('filters and projects the public hold without exposing stored custody', async () => {
+    const legacyQuarantine = {
+      reason: 'legacy_execution_unproven',
+      observedAt: 1700000000000,
+      claimEpoch: 4,
+      priorStatus: 'running',
+      resolution: null,
+    };
+    const heldRun = {
+      ...runRow,
+      status: 'quarantined',
+      claimEpoch: 4,
+      finishedAt: null,
+      legacyQuarantine: {
+        schemaVersion: 1,
+        reason: 'legacy_execution_unproven',
+        observedAtMs: legacyQuarantine.observedAt,
+        prior: {
+          status: 'running',
+          claimEpoch: 3,
+          chainSeq: 2,
+          engineProtocol: 1,
+          wakeAtMs: null,
+          leaseEpoch: 3,
+          leaseOwner: 'private-owner',
+          leaseExpiresAtMs: 1700000000050,
+        },
+        resolution: null,
+      },
+    };
+    vi.mocked(getRun).mockResolvedValue(heldRun as never);
+    vi.mocked(listRunsPage).mockResolvedValue({
+      runs: [heldRun],
+      isDone: true,
+      next: null,
+    } as never);
+    const { app } = mount();
+    const detail = await app.request(
+      '/api/v1/runs/run-1?fields=status,legacyQuarantine',
+    );
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toEqual({
+      status: 'quarantined',
+      legacyQuarantine,
+    });
+    const list = await app.request('/api/v1/runs?status=quarantined');
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({
+      runs: [{ status: 'quarantined', legacyQuarantine }],
+    });
+    expect(listRunsPage).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      expect.objectContaining({ statuses: ['quarantined'] }),
+    );
+  });
+});
+
+it('preserves the held-run cancel refusal instead of claiming cancellation', async () => {
+  vi.mocked(getRun).mockResolvedValue({
+    ...runRow,
+    status: 'quarantined',
+  } as never);
+  vi.mocked(cancelRun).mockRejectedValue(
+    new AutomationError('RUN_QUARANTINED', 'Run is held', 409),
+  );
+  const response = await mount().app.request(
+    '/api/v1/runs/run-1/cancel',
+    json('POST'),
+  );
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ code: 'RUN_QUARANTINED' });
 });

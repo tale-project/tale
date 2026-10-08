@@ -259,11 +259,16 @@ export interface AutomationLlmRun {
  * is refused with `budget_exceeded` once a cap has too little room; after
  * it, reply or not, the tokens the provider reported are booked in the
  * hold's place.
+ *
+ * `signal` is the turn's: when it aborts (the server is stopping and the
+ * step's grace ran out) the provider request is torn down at once rather
+ * than holding the walker until the reply.
  */
 export function automationLlmCall(
   ctx: ActionCtx,
   organizationId: string,
   run: AutomationLlmRun,
+  options: { signal?: AbortSignal } = {},
 ): AutomationLlmCall {
   const models = new Map<string, Promise<ServedModel>>();
   const modelFor = (modelId: string): Promise<ServedModel> => {
@@ -276,6 +281,7 @@ export function automationLlmCall(
           organizationId,
           target,
           maxTokens: LLM_NODE_MAX_TOKENS,
+          ...(options.signal !== undefined && { signal: options.signal }),
         }),
       }),
     );

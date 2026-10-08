@@ -80,7 +80,7 @@ Toutes les méthodes sauf `OPTIONS` exigent le mot de passe d'application.
 
 `GET` sur un dossier renvoie `405` : utilise `PROPFIND`. Sans en-tête `Depth`, la valeur est `1` ; `Depth: infinity` est refusé avec `403`. Le corps de `MKCOL` doit être vide. `PUT` exige `Content-Length` : envoie un fichier de taille connue plutôt qu'un transfert chunked.
 
-`MOVE` et `COPY` utilisent `Destination` et respectent `Overwrite: T/F` ainsi que `If`. La destination doit rester sur le même hôte et dans la même organisation. Un parent absent produit `409` ; `Overwrite: F` vers une destination existante produit `412`. Le déplacement d'un document est atomique ; celui d'un dossier change son parent. Les opérations destructives respectent aussi les gels juridiques et les restrictions des documents contrôlés.
+`MOVE` et `COPY` utilisent `Destination` et respectent `Overwrite: T/F` ainsi que `If`. La destination doit rester sur le même hôte et dans la même organisation. Un parent absent produit `409` ; `Overwrite: F` vers une destination existante produit `412`. Le déplacement d'un document est atomique ; celui d'un dossier change son parent. Les opérations destructives respectent aussi les conservations légales et les restrictions des documents contrôlés.
 
 `Allow` décrit la cible : l'arbre de documents annonce toutes les méthodes ci-dessus, un fichier de la corbeille `OPTIONS, GET, HEAD, PROPFIND`, et la corbeille ou la racine de l'organisation `OPTIONS, PROPFIND`. Une sonde sur un chemin encore impossible à analyser reçoit la liste complète pour découvrir le service. Windows reçoit aussi `MS-Author-Via: DAV` et `Microsoft-Server-WebDAV-Extensions: 1`.
 

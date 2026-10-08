@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -76,10 +76,20 @@ describe('engine purity', () => {
   });
 
   it('pure layers reach outside the engine only for sanctioned pure helpers', () => {
-    // ajv (schema validation), the shared safe YAML loader, type guards,
-    // name grammar and stable serializer are runtime-neutral; everything
-    // else outside the engine tree is a layering violation.
-    const allowedPackages = new Set(['ajv', '@tale/shared/automation-name']);
+    // ajv (schema validation), the parser stack (acorn, its ESTree types,
+    // periscopic scopes, the zimmerframe walker, is-reference), the shared
+    // safe YAML loader, type guards, name grammar and stable serializer are
+    // runtime-neutral; everything else outside the engine tree is a layering
+    // violation.
+    const allowedPackages = new Set([
+      'ajv',
+      '@tale/shared/automation-name',
+      'acorn',
+      'estree',
+      'is-reference',
+      'periscopic',
+      'zimmerframe',
+    ]);
     const allowedModules = [
       path.join('lib', 'shared', 'config', 'yaml'),
       path.join('lib', 'utils', 'type-utils'),
@@ -98,6 +108,73 @@ describe('engine purity', () => {
         }
       }
     }
+    expect(offenders).toEqual([]);
+  });
+
+  it('the analysis layers stay browser-safe: they never reach Ajv', () => {
+    // The editor runs the parser, typing and analysis layers in the browser,
+    // where the Content-Security-Policy forbids the code generation Ajv
+    // compiles schemas with. Ajv-based checks live in `validate/` only, so
+    // nothing these layers import — directly or through another engine
+    // module — may load it.
+    const browserSafe = ['syntax', 'typing', 'analysis']
+      .map((d) => path.join(ENGINE_ROOT, 'core', d))
+      .filter((d) => existsSync(d))
+      .flatMap((d) => sourceFiles(d));
+    expect(browserSafe.length).toBeGreaterThan(0);
+    const resolveModule = (from: string, spec: string): string | null => {
+      const target = path.resolve(path.dirname(from), spec);
+      for (const candidate of [`${target}.ts`, path.join(target, 'index.ts')]) {
+        if (existsSync(candidate)) return candidate;
+      }
+      return null;
+    };
+    const reached = new Set<string>();
+    const pending = [...browserSafe];
+    while (pending.length > 0) {
+      const file = pending.pop();
+      if (file === undefined || reached.has(file)) continue;
+      reached.add(file);
+      for (const spec of importsOf(file)) {
+        if (!spec.startsWith('.')) continue;
+        const next = resolveModule(file, spec);
+        if (next !== null) pending.push(next);
+      }
+    }
+    const offenders = [...reached].filter((f) =>
+      importsOf(f).some((s) => s === 'ajv' || s.startsWith('ajv/')),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('the MCP tool inventory loads none of the engine behind the methods', () => {
+    // The settings page lists the MCP tools from lib/mcp/tools.ts; the
+    // method names it needs are a leaf, so the page never downloads the
+    // parser, the schema validator or the YAML loader to show a list.
+    const resolveModule = (from: string, spec: string): string | null => {
+      const target = path.resolve(path.dirname(from), spec);
+      for (const candidate of [`${target}.ts`, path.join(target, 'index.ts')]) {
+        if (existsSync(candidate)) return candidate;
+      }
+      return null;
+    };
+    const reached = new Set<string>();
+    const pending = [path.resolve(ENGINE_ROOT, '../mcp/tools.ts')];
+    while (pending.length > 0) {
+      const file = pending.pop();
+      if (file === undefined || reached.has(file)) continue;
+      reached.add(file);
+      for (const spec of importsOf(file)) {
+        if (!spec.startsWith('.')) continue;
+        const next = resolveModule(file, spec);
+        if (next !== null) pending.push(next);
+      }
+    }
+    expect(reached.size).toBeGreaterThan(1);
+    const heavy = new Set(['acorn', 'ajv', 'yaml', 'periscopic']);
+    const offenders = [...reached].filter((f) =>
+      importsOf(f).some((s) => heavy.has(s)),
+    );
     expect(offenders).toEqual([]);
   });
 

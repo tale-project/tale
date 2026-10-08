@@ -153,7 +153,7 @@ actions:
   reindex: Neu indexieren
   stopSync: Synchronisierung beenden
   stopSyncDone: Synchronisierung beendet. Die importierten Dateien bleiben in
-    deinem Workspace.
+    deinem Arbeitsbereich.
   stopSyncFailed: Synchronisierung konnte nicht beendet werden
   moveToFolder: In Ordner verschieben…
 folder:
@@ -194,6 +194,7 @@ deleteFile:
 breadcrumb:
   navigation: Brotkrumennavigation
   documents: Dokumente
+  loadFailed: Der Ordnerpfad konnte nicht geladen werden. Versuche es erneut.
   oneDrive: OneDrive
   googleDrive: Google Drive
 aria:
@@ -381,7 +382,7 @@ onedrive:
     "{name}" enthält mehr Elemente, als ein Import auflisten kann.
     Importiere die Unterordner einzeln oder richte einen Sync-Import ein.
   oneTimeImport: Einmaliger Import
-  oneTimeDescription: Dateien einmal importieren und in deinem Workspace speichern
+  oneTimeDescription: Dateien einmal importieren und in deinem Arbeitsbereich speichern
   syncImport: Synchronisierungsimport
   syncDescription: Dateien automatisch synchronisiert halten
   importCount: Importieren ({count})
@@ -416,7 +417,7 @@ googledrive:
   loadFailed: Elemente konnten nicht geladen werden
   noFilesSelected: Keine importierbaren Dateien in der Auswahl
   oneTimeImport: Einmaliger Import
-  oneTimeDescription: Dateien einmal importieren und in deinem Workspace speichern
+  oneTimeDescription: Dateien einmal importieren und in deinem Arbeitsbereich speichern
   syncImport: Synchronisierungsimport
   syncDescription: Dateien automatisch synchronisiert halten
   importSettings: Importeinstellungen

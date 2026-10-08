@@ -27,6 +27,20 @@
       "description": "Open a labelled modal, manage confirmation state, and return focus to a useful place."
     }
   },
+  "components/field-issues": {
+    "slug": "components/field-issues",
+    "frontmatter": {
+      "title": "Field issues",
+      "description": "Show a check's problems under the field they belong to, take the reader there with the range selected, and say why Save is off."
+    }
+  },
+  "components/flow-node-issues": {
+    "slug": "components/flow-node-issues",
+    "frontmatter": {
+      "title": "Flow node issues",
+      "description": "Mark the nodes of a flow canvas with their problem counts, in a way that reads without colour or sight."
+    }
+  },
   "components/input": {
     "slug": "components/input",
     "frontmatter": {
@@ -34,11 +48,25 @@
       "description": "Build labelled text fields with validation, read-only states, and appropriate password or secret handling."
     }
   },
+  "components/issue-list": {
+    "slug": "components/issue-list",
+    "frontmatter": {
+      "title": "Issue list",
+      "description": "List problems a check found in the reader's words, take the reader to each one, and count and announce the result."
+    }
+  },
   "components/recurrence-picker": {
     "slug": "components/recurrence-picker",
     "frontmatter": {
       "title": "Recurrence picker",
-      "description": "Let people choose how something repeats — one-click presets or a custom rule — and show the dates it produces."
+      "description": "Let people choose how something repeats, or when a schedule runs — one-click presets or a custom rule — and show the dates or runs it produces."
+    }
+  },
+  "components/schedule-occurrence-list": {
+    "slug": "components/schedule-occurrence-list",
+    "frontmatter": {
+      "title": "Schedule occurrence list",
+      "description": "Show the next times a schedule starts, in the schedule's time zone, with the reader's own time and any clock change spelled out."
     }
   },
   "components/tabs-and-navigation": {
@@ -46,6 +74,13 @@
     "frontmatter": {
       "title": "Tabs and navigation",
       "description": "Choose local panels or route navigation, preserve drafts deliberately, and keep every destination reachable."
+    }
+  },
+  "components/time-field": {
+    "slug": "components/time-field",
+    "frontmatter": {
+      "title": "Time field",
+      "description": "Let people enter a time of day in their own hour cycle, with segmented parts they can step, type or paste."
     }
   },
   "components/toast": {

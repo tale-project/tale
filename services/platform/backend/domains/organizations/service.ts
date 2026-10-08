@@ -8,6 +8,7 @@ import {
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { deleteOrganizationApiKeysInTx } from '../api_keys/retire.ts';
 import { logSuccess } from '../audit_logs/service.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import {
   loadActiveHolds,
   LegalHoldError,
@@ -569,6 +570,7 @@ export async function deleteOrganization(
   // naming them go with the cascade below, so what their teardown needs is
   // read (and its jobs queued) first. The jobs become visible on commit.
   await scheduleOrganizationSandboxRetirement(tx, organizationId);
+  await markAutomationWriterInTx(tx);
   // The keys bound to the organization go with their secrets and the
   // identities its team, project and organization keys acted as — before
   // the cascade below takes their bindings: a member's key whose binding

@@ -3,11 +3,13 @@
 > **Prefix** `AUTO-` · **Suite** [`automations`](../../../tests/manual/suites/automations.md) · **Docs** [`automations/concepts`](../../../../../docs/en/platform/automations/concepts.md)
 
 The rules an automation is held to between the editor and a finished run: who can change one
-and run it live, what a saved version and a deployment guarantee, what a start is refused for,
-what each trigger may start, what a run that ends takes with it, and what a delete leaves
-behind. The workflow document itself, how a run proceeds step by step, agent steps and their
-retries, approvals and questions inside a run, package upload and managed configuration are not
-covered; see Not yet.
+and run it live, what a saved version and a deployment guarantee, what a check for problems
+reports, what a start is refused for, what each trigger may start, what a run that ends takes
+with it, which server steps a run, how a restart hands a run on, what a run says once it moved
+to another and what a resumed run never repeats, whose approval policy a run's steps ask, and
+what a delete leaves behind. The workflow document itself, how a run proceeds step by step,
+agent steps and their retries, the rest of approvals and questions inside a run, package upload
+and managed configuration are not covered; see Not yet.
 
 ## Who can do what
 
@@ -19,6 +21,7 @@ then belongs to the project it ran in.
 | Change an automation | yes | no |
 | Start a live run | yes | no |
 | See a run in a project | only when they can read that project | only when they can read that project |
+| Have a draft checked for problems | yes | no |
 
 Four things are not settled and are listed under Not yet: who can see a run of the
 organization, who can stop a run, who can answer the question a run waits on, and who can
@@ -88,6 +91,38 @@ version, deployed or not.
   2 → refused. He starts a test run of version 2 → it runs.
 - **Example**: A schedule is switched on for an automation with nothing deployed. Its time
   comes → no run starts, and the trigger shows `not_deployed`.
+
+## Checking a version for problems
+
+Tale checks a document before it saves or deploys it, and an author can have a draft checked
+without saving it. A check finds errors, which a run would fail on, and warnings, which it
+might. Each problem names its code and where in the document it is.
+
+### AUTO-R23 · A refused save names every problem and where it is, and changes nothing
+
+A save whose document has an error is refused (`AUTOMATION_INVALID`). The refusal lists every
+error and every warning with where it is, and no version is added. Deploying a saved version
+that no longer passes the check is refused the same way, and the deployed version stays.
+
+- **Example**: Noah's draft reads the output of a node that does not exist. He saves → refused,
+  with the problem pointing at the field that reads it, and the latest version is still 5.
+
+### AUTO-R24 · Warnings never block a save or a deploy
+
+A document whose only problems are warnings is saved, and the warnings come back with the new
+version. Such a version can be deployed.
+
+- **Example**: Ada's draft keeps a node nothing reads. She saves → version 6 is added and the
+  answer warns about the unread node. She deploys version 6 → it becomes the deployed one.
+
+### AUTO-R25 · Only owners, admins and developers can have a draft checked
+
+Checking reads the organization's other automations and triggers, so it takes the same roles as
+changing an automation. Anyone else is refused before anything is read, and a check never
+saves.
+
+- **Example**: Mia is an ordinary member. She asks for a check of a draft → refused. Noah asks
+  for a check of the same draft → he gets its problems, and no version is added.
 
 ## Starting a run
 
@@ -233,6 +268,113 @@ over.
 - **Example**: A live run is waiting for Ada to approve sending an email. Noah stops the run →
   the approval leaves Ada's pending list, recorded as rejected because the run ended.
 
+### AUTO-R17 · A stop and a finishing step never both land; the first recorded wins
+
+A person can stop a run in the same moment its last step finishes. The first of the two to be
+recorded decides how the run ends, and the second changes nothing: the run ends once, with one
+entry for it in the audit log. A stop recorded first wins even though the step did its work;
+what the step did is not undone.
+
+- **Example**: Ada presses Stop in the second the run's last step finishes, and her stop is
+  recorded first → the run reads Stopped, and the audit log has one stop entry and no success
+  entry.
+
+## When a server stops
+
+A deployment can run several servers that step automation runs, and a server can stop at any
+moment: an update, a restart, a crash. These rules say what holds for the runs they step.
+
+### AUTO-R16 · One server at a time steps a run
+
+While a server steps a run, a second request to step it does nothing, whether it is a repeated
+job or a check that took the run for stalled. Only when that server stops answering does
+another one take the run over, and the run records that it was taken over.
+
+- **Example**: Noah's nightly import is on step 3 when a second copy of its step job arrives →
+  the second one does nothing, and step 3 runs once.
+
+### AUTO-R18 · A run that was handed to another server says when and why
+
+When a server that is being updated or restarted hands a run on, or another server takes a
+run over because the one stepping it stopped answering, the run counts the move and keeps the
+time and the reason of the last one. Its page says so beside its status, and a read of the run
+carries the same count and reason (`resumeCount`, `lastResume`). Until another server has
+taken it over, the run reads Interrupted instead of Running (`stalled`). No read names the
+server.
+
+- **Example**: Zoe's weekly report is running when its server is restarted for an update, and
+  another server finishes it → the run page reads "Resumed after a restart", with the time and
+  "the server running it was being updated or restarted and handed it on".
+
+### AUTO-R19 · A write that may already have happened waits for a person
+
+When a run is interrupted while a step is writing to another service, Tale cannot tell whether
+the write reached that service. The resumed run never sends it again on its own: it waits
+(`waitingFor: in_doubt`) until a person chooses to run the step again, to skip it (the step then
+returns nothing), or to fail the run (`effect_in_doubt`). A choice is about one attempt of the
+write: once the step was run again and interrupted again, a choice made about the earlier attempt
+is refused and decides nothing, so the person decides about the new interruption. A write that
+finished before the interruption is not sent again, and neither is an item of a list that was
+already sent. A model call is made again instead, and so is an action its connector declares safe
+to repeat.
+
+- **Example**: Mia's run is sending an invoice to the accounting system when its server stops →
+  the run waits with "This step may already have run", and nothing is sent again until Mia
+  chooses.
+
+### AUTO-R20 · A run whose saved progress cannot be read fails instead of starting over
+
+A server that cannot read a run's saved progress fails the run (`engine_incompatible`) and says
+so. It does not start the run again from its first step, which would repeat every step the run
+had already finished.
+
+- **Example**: Noah's import has finished two of its steps when its saved progress becomes
+  unreadable → the run fails, saying its progress could not be read by this version of Tale, and
+  neither step runs again.
+
+### AUTO-R22 · A restart hands a run on; steps it finished never run again
+
+After both servers use the run-lease protocol, a run is handed on at its next step: the step
+under way finishes, and another server continues the run from the step after it, or from
+the next item of a list. A step still working 20 seconds into the shutdown is cut and runs again
+on the next server; it is not recorded as failed, and a write it may already have sent waits for
+a person instead (`AUTO-R19`). A step or an item the run had finished never runs again.
+
+- **Example**: Noah's nightly import is on step 3 of 5 when its server is restarted for an
+  update → step 3 finishes, another server runs steps 4 and 5, and no step shows twice in the
+  run's log.
+
+### AUTO-R26 · The first protocol upgrade preserves uncertain legacy work on hold
+
+The first upgrade from the legacy executor holds its queued, running and waiting runs with
+their original checkpoints. The run says **On hold — outcome unknown**. A write already sent
+by the old server may still finish; the hold does not claim that it failed, completed or was
+undone. The new server never takes over or replays this work automatically. A task attached
+to a held run cannot start another agent or automation run, and its task and run cannot be
+deleted while that uncertainty remains.
+
+An authorized person can request a stop after acknowledging the unknown external effects.
+The request identifies the exact hold they saw; a stale confirmation is refused. **Stop
+requested** records the decision and asks the owned session to stop. The run stays on hold,
+its evidence and task exclusion remain, and no successful cancellation or retirement is
+inferred. There is no resume, retry or skip action for this hold.
+
+- **Example**: Ada upgrades while an old automation waits for a reply after sending a write
+  → the run appears on hold. She requests a stop → the decision is recorded, but the run
+  remains on hold and its task cannot start a replacement run.
+
+## Approvals inside a run
+
+### AUTO-R21 · Each run asks its own organization's approval policy
+
+One server steps the runs of several organizations at the same time. A step that needs an
+approval is decided by the policy of the organization its run belongs to, never by one another
+run brought along: a run is not held up or refused because of another organization's run.
+
+- **Example**: Ada's and Noah's organizations each start a live run that writes a file, at the
+  same moment on the same server → each run is decided by its own organization's policy, and
+  neither fails with "a different organization".
+
 ## Deleting an automation
 
 ### AUTO-R15 · Deleting an automation keeps its runs and removes everything else
@@ -241,7 +383,8 @@ Its versions, its deployment, its trigger and its project installs are removed i
 Its runs stay: they can still be listed under the automation's name, and opening the
 automation answers that it was deleted and when (`AUTOMATION_DELETED`). The delete is refused
 while one of its runs is still queued, running or waiting (`AUTOMATION_HAS_ACTIVE_RUNS`): stop
-the run or let it finish first.
+the run or let it finish first. A legacy hold also refuses deletion (`RUN_QUARANTINED`);
+requesting a stop leaves that hold intact (`AUTO-R26`).
 
 - **Example**: An automation has one run waiting on a question. Ada deletes the automation →
   refused, and nothing is removed. She stops the run and deletes again → the automation is
@@ -252,14 +395,18 @@ the run or let it finish first.
 - **The workflow document**: node types, references between steps, control flow, and limits
   such as the number of repeats and the depth of nested automations
   (`lib/engine/core/validate/`, `lib/engine/core/execute/`, `backend/core/automations/stepper.ts`).
-- **How a run proceeds**: checkpoints and resuming, the sweep that revives a stalled run, agent
+- **How a run proceeds**: checkpoints and resuming, how soon the sweep revives a run whose
+  server stopped answering, what becomes of a step its server was running when it crashed, agent
   steps with their automatic retries and waits for a sandbox
   (`backend/core/automations/stepper.ts`, `checkpoints.ts`, `liveness.ts`, `agent_host.ts`,
-  `agent_retry.ts`, `reattach.ts`, `shim.ts`).
+  `agent_retry.ts`, `reattach.ts`, `shim.ts`, `node-attempts.ts`). `AUTO-R16` covers which
+  server steps a run, `AUTO-R22` how a restart hands it on, `AUTO-R18` what a run says once it
+  moved to another, and `AUTO-R19` and `AUTO-R20` what a resumed run never repeats.
 - **Approvals inside a run**: which step asks, and the credential check before it asks
-  (`backend/core/automations/stepper.ts`, `shim.ts`). An approval cannot be decided over the
-  API; the contract debt ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records
-  it.
+  (`backend/core/automations/stepper.ts`, `shim.ts`); `AUTO-R21` covers whose policy decides.
+  An approval cannot be decided over the API; the contract debt ledger in
+  [`.agents/repo.md`](../../../../../.agents/repo.md) records it. Neither can a write a run
+  waits on a person about (`AUTO-R19`): it is decided in the app only.
 - **Questions an agent asks**: who is notified, when a question expires, and that it is
   answered once (`ask-shim.ts`, `ask-retraction.ts`, `answerAsk` in `store.ts`,
   `backend/core/automations/ask_answer_carryover.ts`). The code refuses a second answer

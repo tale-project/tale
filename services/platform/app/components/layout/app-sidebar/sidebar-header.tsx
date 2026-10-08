@@ -22,6 +22,7 @@ export function SidebarHeader({ organizationId }: SidebarHeaderProps) {
     <Link
       to="/dashboard/$id/chat"
       params={{ id: organizationId }}
+      search={{ new: true }}
       aria-label={workspaceName}
       className="focus-visible:ring-ring inline-flex shrink-0 rounded-md focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
     >

@@ -11,7 +11,17 @@ import { runStepsInParallel } from '../../utils/progress';
 import { confirm } from '../../utils/prompt';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
-import { ROTATABLE_SERVICES, imageRef } from '../compose/types';
+import {
+  ROTATABLE_SERVICES,
+  imageRef,
+  type ServiceConfig,
+} from '../compose/types';
+import { requireAutomationProtocol } from '../deployment/automation-protocol';
+import {
+  admitPendingAutomationColor,
+  admitTagAutomationImage,
+  tagDeploymentProtocol,
+} from '../deployment/tag-automation-protocol';
 import { ensureNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { migrateConfigVolume } from '../docker/migrate-config-volume';
@@ -29,6 +39,7 @@ import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
 import {
   colorLooksUp,
+  colorProject,
   colorPlatformVersion,
   isUnfinishedColorFlip,
   retireColor,
@@ -70,7 +81,16 @@ function printSnapshotRestoreRunbook(): void {
     'Minor and major upgrades can run forward-only data migrations, so an',
   );
   logger.info('older binary must never run on top of migrated data. To roll');
-  logger.info('back across versions, restore the pre-upgrade snapshot:');
+  logger.info(
+    'back across versions, first check the automation writer protocol.',
+  );
+  logger.info(
+    'After its cutover, use a compatible forward repair: restoring data',
+  );
+  logger.info('cannot undo external effects or authorize an old writer.');
+  logger.info(
+    'Only a separately verified compatible recovery can restore a snapshot:',
+  );
   logger.info('  1. List the snapshots taken before deploys:');
   logger.info('       tale restore');
   logger.info('  2. Restore the one taken before the upgrade:');
@@ -103,12 +123,10 @@ export async function rollback(
     }
 
     // Image-rollback gate: this command only swaps the running binary, so the
-    // only safe automatic target is a patch-level step from the running version
-    // (the "patch = always safe" contract in
-    // docs/en/self-hosted/operate/upgrades.md). Crossing a minor/major may have
-    // run forward-only data migrations, so here we refuse and point at the
-    // snapshot-restore runbook rather than rolling the image onto a
-    // forward-migrated schema.
+    // version boundary permits only a patch-level step. That is necessary,
+    // not sufficient: the installed writer protocol is checked separately below.
+    // Crossing a minor/major may have run forward-only data migrations; refuse
+    // and require an independently verified recovery path.
     const rollbackVersion = await getPreviousVersion(env.DEPLOY_DIR);
     if (!rollbackVersion) {
       logger.error('No previous version recorded — nothing to roll back to.');
@@ -138,11 +156,13 @@ export async function rollback(
     if (!isPatchRollback) {
       logger.error(
         `Refusing to roll back from ${currentVersion} to ${rollbackVersion}: ` +
-          'only patch-level rollbacks (same major.minor) are safe.',
+          'the version guard permits only patch-level rollbacks (same major.minor).',
       );
       printSnapshotRestoreRunbook();
       throw new Error('Rollback refused: not a patch-level rollback');
     }
+
+    const installedProtocol = await tagDeploymentProtocol(getProjectId(), true);
 
     const rollbackColor = getOppositeColor(currentColor);
 
@@ -174,7 +194,7 @@ export async function rollback(
       }
     }
 
-    const serviceConfig = {
+    const serviceConfig: ServiceConfig = {
       version: rollbackVersion,
       registry: env.GHCR_REGISTRY,
     };
@@ -206,14 +226,10 @@ export async function rollback(
         `Failed to pull ${failedPulls.length} image(s): ${failedPulls.join(', ')}`,
       );
     }
-
-    // Ensure infrastructure exists before compose up. The config-store
-    // rename runs first for the same reason it does on deploy: the generated
-    // compose names `config-data`, and mounting it while the configuration
-    // still sits in `convex-data` would roll back onto an empty config tree.
-    await migrateConfigVolume(`${getProjectId()}_`);
-    await ensureVolumes([...REQUIRED_VOLUMES]);
-    await ensureNetwork('internal');
+    serviceConfig.platformImage = await admitTagAutomationImage(
+      serviceConfig,
+      installedProtocol,
+    );
 
     const services = [...ROTATABLE_SERVICES];
     const replicas = getReplicaCounts();
@@ -230,6 +246,28 @@ export async function rollback(
       resume && pending !== null ? pending.promoting : rollbackColor;
     const retiring =
       resume && pending !== null ? pending.retiring : currentColor;
+
+    if (await colorLooksUp(promoting, services, replicas))
+      await admitPendingAutomationColor(
+        colorProject(promoting),
+        serviceConfig.platformImage,
+        installedProtocol,
+      );
+
+    const checkInstalledWriter = async () =>
+      requireAutomationProtocol(
+        await tagDeploymentProtocol(getProjectId(), true),
+        serviceConfig.platformImage === undefined ? 1 : 2,
+      );
+    await checkInstalledWriter();
+
+    // Ensure infrastructure exists before compose up. The config-store
+    // rename runs first for the same reason it does on deploy: the generated
+    // compose names `config-data`, and mounting it while the configuration
+    // still sits in `convex-data` would roll back onto an empty config tree.
+    await migrateConfigVolume(`${getProjectId()}_`);
+    await ensureVolumes([...REQUIRED_VOLUMES]);
+    await ensureNetwork('internal');
 
     if (!resume) {
       if (pending !== null) await clearFlipPending(env.DEPLOY_DIR);

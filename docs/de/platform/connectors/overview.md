@@ -37,9 +37,9 @@ Wissensimporte verwenden die [Dokumentenindexierung](/de/platform/knowledge/docu
 
 Wähle **Zugangsdaten hinzufügen**, suche den Dienst und öffne seine Karte. Bereits eingerichtete Connectors erscheinen zuerst. Trotzdem kannst du für denselben Dienst ein weiteres Konto hinzufügen. Das Formular fragt nach der vom Connector unterstützten Anmeldung.
 
-<Frame caption="Zugangsdaten hinzufügen öffnet den Katalog — die mitgelieferten Connectoren, die mit vorhandenen Zugangsdaten zuerst.">
+<Frame caption="Zugangsdaten hinzufügen öffnet den Katalog — die mitgelieferten Connectors, die mit vorhandenen Zugangsdaten zuerst.">
 
-![Der Dialog Zugangsdaten hinzufügen über der Tabelle unter Einstellungen > Connectors, mit den mitgelieferten Connectoren als Karten samt Kategorien und Aktionszahl, einem Suchfeld oben und dem bereits eingerichteten Connector Tavily am Anfang der Liste.](/images/platform/connectors-add-credential.webp)
+![Der Dialog Zugangsdaten hinzufügen über der Tabelle unter Einstellungen > Connectors, mit den mitgelieferten Connectors als Karten samt Kategorien und Aktionszahl, einem Suchfeld oben und dem bereits eingerichteten Connector Tavily am Anfang der Liste.](/images/platform/connectors-add-credential.webp)
 
 </Frame>
 

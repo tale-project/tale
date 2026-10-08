@@ -113,17 +113,17 @@ Les agents de programmation s’appuient aussi sur la fenêtre de contexte que l
 
 Sur un modèle autre que Claude, une session Claude Code gérée omet aussi la ligne d’attribution que Claude Code place sinon au début de chaque prompt système. Cette ligne change à chaque requête : un serveur qui met en cache le début des prompts devrait sinon recalculer toute la conversation à chaque tour.
 
-## Où vivent les connecteurs
+## Où vivent les connectors {#ou-vivent-les-connecteurs}
 
 Les définitions fournies se trouvent dans `configs/platform/system/providers/<slug>/provider.yml` et leurs catalogues statiques dans `configs/platform/system/models/<slug>/models.yml`. Anthropic utilise par exemple `providers/anthropic/provider.yml` et `models/anthropic/models.yml`. Ces fichiers appartiennent à l’image et évoluent avec sa version.
 
 <Warning>
 
-Les fichiers fournis sont des entrées d’image en lecture seule, remplacées lors des mises à niveau. Pour un fournisseur externe, utilise la déclaration vérifiée `configuration` décrite dans [Installation CLI](/fr/self-hosted/install/cli-install#configurer-la-plateforme). Elle crée un connecteur propre à l’organisation sous `TALE_CONFIG_DIR/<org>/providers/` avec le schéma natif ; les modifications d’identifiants et de politiques passent par les API natives. L’entrée **Fournisseur personnalisé** d’**Ajouter des identifiants** dans l’app écrit le même fichier propre à l’organisation et conserve chaque version enregistrée sous `.history/`.
+Les fichiers fournis sont des entrées d’image en lecture seule, remplacées lors des mises à niveau. Pour un fournisseur externe, utilise la déclaration vérifiée `configuration` décrite dans [Installation CLI](/fr/self-hosted/install/cli-install#configurer-la-plateforme). Elle crée un connector propre à l’organisation sous `TALE_CONFIG_DIR/<org>/providers/` avec le schéma natif ; les modifications d’identifiants et de politiques passent par les API natives. L’entrée **Fournisseur personnalisé** d’**Ajouter des identifiants** dans l’app écrit le même fichier propre à l’organisation et conserve chaque version enregistrée sous `.history/`.
 
 </Warning>
 
-## Ce qu’un connecteur déclare
+## Ce qu’un connector déclare {#ce-quun-connecteur-declare}
 
 Une définition décrit le protocole, l’endpoint, le catalogue et les méthodes d’authentification admises. Elle ne contient aucun identifiant d’organisation. Ces deux extraits en montrent le format :
 

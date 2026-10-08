@@ -310,6 +310,10 @@ recurrence:
   custom: Personnalisé
   back: Retour aux choix rapides
   workweekRange: lun.–ven.
+  nextRuns: Prochaines exécutions
+  scheduleLabel: Planification
+  customInterval: Intervalle personnalisé
+  customTimes: Horaires personnalisés
   nextDates: Prochaines dates
   sentence:
     daily: '{count, plural, one {Tous les jours} other {Tous les # jours}}'
@@ -324,6 +328,31 @@ recurrence:
     yearly: '{count, plural, one {Tous les ans} other {Tous les # ans}}'
     monthDay: '{day, plural, =1 {le 1er} other {le #}}'
     dayCount: '{count, plural, one {# jour} other {# jours}}'
+  schedule:
+    sentence:
+      minutely: '{count, plural, one {Toutes les minutes} other {Toutes les # minutes}}'
+      hourly: '{count, plural, one {Toutes les heures} other {Toutes les # heures}}'
+      hourlyAt: '{count, plural, one {Toutes les heures} other {Toutes les # heures}}, {minute, plural, one {# minute} other {# minutes}} après l’heure pile'
+      withTimes: '{rule} à {times}'
+      withWindow: '{rule}, {window}'
+    hoursRange: 'de {from} à {to}'
+    dayRange: '{first}–{last}'
+    compact:
+      at: '{days} à {times}'
+      timeCount: '{count, plural, one {# fois} other {# fois}}'
+      minutePast: ':{mm}'
+      hoursRange: '{from}–{to}'
+  occurrences:
+    dateTime: '{date}, {time}'
+    inZone: '{label} · {zone}'
+    viewerZone: 'Ton fuseau horaire est {zone}.'
+    local: '{time} dans ton fuseau horaire'
+    localOtherDay: '{date}, {time} dans ton fuseau horaire'
+    clockChange: Changement d’heure
+    shiftedForward: '{time} n’existe pas ce jour-là : cette exécution démarre donc à {actual}.'
+    repeatedHour: '{time} revient deux fois ce jour-là : une seule exécution, à la première.'
+    intervalRepeated: 'L’heure recule : cette heure se répète et les exécutions gardent leur intervalle réel.'
+    empty: Aucune exécution à venir.
   editor:
     unit: Unité
     units:
@@ -331,12 +360,34 @@ recurrence:
       weekly: Semaine
       monthly: Mois
       yearly: Année
-    every: '{count, plural, one {Chaque} other {{unit, select, weekly {Toutes les} other {Tous les}}}}'
+    every: '{count, plural, one {{unit, select, minutely {Toutes les} hourly {Toutes les} other {Chaque}}} other {{unit, select, weekly {Toutes les} minutely {Toutes les} hourly {Toutes les} other {Tous les}}}}'
     unitNoun:
       daily: '{count, plural, one {jour} other {jours}}'
       weekly: '{count, plural, one {semaine} other {semaines}}'
       monthly: '{count, plural, one {mois} other {mois}}'
       yearly: '{count, plural, one {année} other {ans}}'
+    intervalOption:
+      minutely: '{count, plural, one {minutes} other {# minutes}}'
+      hourly: '{count, plural, one {heures} other {# heures}}'
+    minutePast: '{count, plural, one {minute} other {minutes}} après l’heure pile'
+    at: À
+    timeName: 'Horaire {index}'
+    addTime: Ajouter un horaire
+    removeTime: 'Retirer {time}'
+    maxTimes: 'Jusqu’à {count} horaires par jour.'
+    duplicateTime: 'Déjà dans la liste : une seule exécution.'
+    onlyBetween: Seulement entre
+    and: et
+    windowFrom: De
+    windowUntil: Jusqu’à
+    windowHint:
+      sameDay: 'Chaque jour, la première exécution démarre à {first} et la dernière à {last}.'
+      overnight: 'Exécutions de nuit : la première démarre à {first}, la dernière à {last} le lendemain matin.'
+      nextMorning: 'Exécutions le lendemain matin : la première démarre à {first}, la dernière à {last}.'
+      once: 'Chaque jour, une seule exécution, à {time}.'
+      onceNextMorning: 'Chaque jour, une seule exécution, à {time} le lendemain matin.'
+      allDay: Un début et une fin identiques signifient toute la journée.
+      none: Aucune exécution ne tombe entre ces heures. Élargis la plage ou choisis un intervalle plus court.
     onWeekdays: Jours
     onDay: Le jour
     onDate: Le
@@ -352,5 +403,34 @@ recurrence:
     saturday: Sa
     sunday: Di
 
+timeField:
+  hours: Heures
+  minutes: Minutes
+  dayPeriod: AM/PM
+  minuteValue: '{minute, plural, one {# minute} other {# minutes}}'
+  empty: Vide
+  pasteInvalid: Ce n’est pas une heure. Colle-en une comme {example}.
+
 siteFooter:
   copyright: © {year} Tale par Ruler GmbH. Sous licence MIT.
+
+issues:
+  srPrefix:
+    error: 'Erreur :'
+    warning: 'Avertissement :'
+    info: 'Remarque :'
+  summary: '{errors, plural, =0 {{warnings, plural, =0 {Aucun problème} one {# avertissement} many {# avertissements} other {# avertissements}}} one {# erreur{warnings, plural, =0 {} one { et # avertissement} many { et # avertissements} other { et # avertissements}}} many {# erreurs{warnings, plural, =0 {} one { et # avertissement} many { et # avertissements} other { et # avertissements}}} other {# erreurs{warnings, plural, =0 {} one { et # avertissement} many { et # avertissements} other { et # avertissements}}}}'
+  none: Aucun problème
+  listLabel: Problèmes
+  listFailed: La vérification a échoué. La liste n’est peut-être plus à jour.
+  buttonLabel: 'Problèmes : {summary}'
+  buttonLabelChecking: 'Problèmes : {summary}. Vérification en cours…'
+  buttonLabelFailed: 'Problèmes : vérification impossible'
+  checking: Vérification…
+  checkFailed: Vérification impossible
+  announce: '{context}. {summary}'
+  nodeSummary: '({summary})'
+  fixLabel: 'Pour corriger :'
+  technicalDetails: Détails techniques
+  learnMore: En savoir plus
+  goTo: Y aller

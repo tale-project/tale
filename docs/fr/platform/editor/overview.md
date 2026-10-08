@@ -37,4 +37,4 @@ Crée et partage des skills pour les agents qui ont besoin d’une méthode rép
 
 ## Quand faire intervenir un Développeur
 
-Le rôle Éditeur ne permet pas de créer des workflows ni d’administrer les connecteurs ; ces ressources sont en lecture seule. Un Développeur, Admin ou Propriétaire gère les modifications d’automatisations et les identifiants techniques. Les agents de projet nécessitent aussi un accès en édition au projet, des fournisseurs et des sandboxes fonctionnels. Consulte [Membres et rôles](/fr/platform/admin/members-and-roles) avant de suivre un guide qui demande des permissions supplémentaires.
+Le rôle Éditeur ne permet pas de créer des workflows ni d’administrer les connectors ; ces ressources sont en lecture seule. Un Développeur, Admin ou Propriétaire gère les modifications d’automatisations et les identifiants techniques. Les agents de projet nécessitent aussi un accès en édition au projet, des fournisseurs et des sandboxes fonctionnels. Consulte [Membres et rôles](/fr/platform/admin/members-and-roles) avant de suivre un guide qui demande des permissions supplémentaires.

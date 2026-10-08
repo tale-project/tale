@@ -1,0 +1,345 @@
+levels:
+  error: Erreur
+  warning: Avertissement
+unknownCode:
+  title: Problème sans description
+  explanation: Cette version de l’application ne décrit pas encore ce problème. Les détails techniques montrent le message du moteur lui-même.
+quote: « {text} »
+more: '{count, plural, one {# autre} many {# autres} other {# autres}}'
+place: '{hasNode, select, true {Dans le champ {fieldLabel} de {nodeLabel}} other {{field, select, output {Dans la sortie de l’automatisation} other {Dans le champ {fieldLabel}}}}}'
+reasons:
+  when: quand sa propre condition est fausse
+  else: quand {partnerLabel} s’exécute à sa place
+  upstream: quand {viaLabel} est ignoré
+  error: quand il échoue, car il continue en cas d’erreur
+  sometimes: lors de certaines exécutions
+sources:
+  node: '{nodeLabel}'
+  input: l’entrée de l’exécution
+  item: chaque élément
+  ownInput: l’entrée de ce nœud
+  passOutput: le résultat de ce passage
+  data: ces données
+kinds:
+  string: du texte
+  number: un nombre
+  boolean: vrai ou faux
+  'null': 'null'
+  undefined: undefined
+  array: une liste
+  object: un objet
+  other: une autre sorte de valeur
+places:
+  document: Automatisation
+  output: Sortie
+  inputs: Entrées
+  tests: Tests
+  name: Nom
+  version: Version
+  nodes: Nœuds
+codes:
+  AUTOMATION_NOT_OBJECT:
+    title: Le document n’est pas une automatisation
+    explanation: Un document d’automatisation est un ensemble de champs comme name, nodes et output. Tout autre contenu ne peut pas être lu comme une automatisation.
+    cause: Le document n’est pas un ensemble de champs.
+    fix: Commence le document par version, name, nodes et output.
+  UNKNOWN_TOP_FIELD:
+    title: Champ inconnu au premier niveau
+    explanation: Le premier niveau d’un document n’accepte que les champs que Tale connaît. Un champ inconnu est refusé plutôt qu’ignoré, pour qu’aucune faute de frappe ne passe inaperçue.
+    cause: Le document contient un champ « {field} ».
+    fix: '{field, select, edges {Retire-le. Les liaisons viennent des références entre les nœuds, un document n’a donc pas de liste de liaisons.} other {Retire-le, ou utilise l’un de ces champs : {allowedList}.}}'
+  VERSION_UNSUPPORTED:
+    title: Version non prise en charge
+    explanation: Cette version de Tale lit les documents au format de la version 1.
+    cause: Le document déclare la version {version}.
+    fix: Mets version à 1.
+  VERSION_MISSING:
+    title: Version manquante
+    explanation: Un document indique la version du format qu’il utilise, pour que les versions suivantes de Tale continuent de le lire de la même façon.
+    cause: Le document n’a pas de champ version.
+    fix: 'Ajoute version: 1 en haut du document.'
+  NAME_INVALID:
+    title: Nom manquant ou invalide
+    explanation: Le nom identifie l’automatisation. Il s’écrit en minuscules, avec « / » entre les dossiers, comme billing/dunning-reminder.
+    cause: '{name, select, none {Le document n’a pas de nom.} other {« {name} » n’est pas un nom valide.}}'
+    fix: Utilise des lettres minuscules et des chiffres, « - » ou « _ » entre les mots et « / » entre les dossiers, avec 200 caractères au plus.
+  INPUTS_SCHEMA_INVALID:
+    title: Le schéma des entrées est invalide
+    explanation: Le champ inputs décrit, sous forme de JSON Schema, les données que reçoit une exécution. Une exécution ne peut pas être vérifiée avec un schéma qui ne fonctionne pas.
+    cause: Le champ inputs n’est pas un objet JSON Schema valide.
+    fix: Corrige le schéma, par exemple un type objet avec une propriété par entrée. Les détails techniques montrent ce que la vérification a trouvé.
+  NODES_MISSING:
+    title: Aucun nœud
+    explanation: Une automatisation fait son travail dans des nœuds. Sans nœud, il n’y a rien à exécuter.
+    cause: La liste nodes est absente ou vide.
+    fix: Ajoute au moins un nœud.
+  NODES_TOO_MANY:
+    title: Trop de nœuds
+    explanation: Une automatisation contient un nombre limité de nœuds, pour rester lisible et rapide à vérifier.
+    cause: L’automatisation contient {count} nœuds, et la limite est de {max}.
+    fix: Déplace des groupes de nœuds liés dans des automatisations enregistrées, et appelle-les avec des nœuds subautomation.
+  SECRET_IN_DOCUMENT:
+    title: Identifiants dans le document
+    explanation: Les documents sont enregistrés et partagés en texte brut, ils ne contiennent donc jamais d’identifiants. Tale ajoute les secrets au moment de l’exécution, depuis la configuration du connector.
+    cause: Une valeur du document ressemble à une clé API, à un jeton ou à un mot de passe.
+    fix: Retire la valeur et enregistre plutôt les identifiants sur le connector.
+  TESTS_INVALID:
+    title: Test mal formé
+    explanation: Chaque test a un nom, une entrée et, si besoin, ce qu’il attend. Un test sous une autre forme ne peut pas s’exécuter.
+    cause: '{test, select, none {Le champ tests n’est pas une liste de tests.} other {{keysCount, plural, =0 {Le test {testNumber} n’est pas écrit sous la forme name, input et expect.} other {La partie expect du test {testNumber} contient des clés inconnues : {keysList}.}}}}'
+    fix: Écris chaque test sous la forme name, input et, si besoin, expect avec output et effects.
+  NODE_NOT_OBJECT:
+    title: Le nœud n’est pas un objet
+    explanation: Chaque entrée de nodes est un objet avec au moins un id et un type.
+    cause: L’entrée {position} de la liste nodes n’est pas un objet.
+    fix: Remplace-la par un nœud, ou retire-la.
+  NODE_ID_INVALID:
+    title: Identifiant de nœud manquant ou invalide
+    explanation: Chaque nœud a besoin d’un identifiant en snake_case, comme fetch_orders. Les autres nœuds lisent sa sortie grâce à cet identifiant.
+    cause: '{id, select, none {Le nœud {position} n’a pas d’identifiant.} other {Le nœud {position} a l’identifiant « {id} ».}}'
+    fix: Utilise des lettres minuscules, des chiffres et des tirets bas, en commençant par une lettre.
+  NODE_ID_DUPLICATE:
+    title: Identifiant de nœud en double
+    explanation: Les identifiants de nœud sont uniques, car les références trouvent un nœud par son identifiant.
+    cause: Le nœud {firstPosition} a déjà l’identifiant « {node} ».
+    fix: Renomme l’un des deux nœuds, et mets à jour les références qui doivent pointer vers lui.
+  UNKNOWN_NODE_TYPE:
+    title: Type de nœud inconnu
+    explanation: Le type d’un nœud est transform, llm, agent, subautomation ou le nom d’une capacité du catalogue.
+    cause: '{type, select, none {{nodeLabel, select, none {Un nœud} other {{nodeLabel}}} n’a pas de type.} connector {{nodeLabel, select, none {Un nœud} other {{nodeLabel}}} a le type « connector », qui n’est pas un nom de capacité.} other {{nodeLabel, select, none {Un nœud} other {{nodeLabel}}} a le type « {type} », que ce déploiement ne connaît pas.}}'
+    fix: '{suggestion, select, none {{type, select, connector {Donne comme type le nom de la capacité elle-même, tel que le catalogue l’indique.} other {Utilise transform, llm, agent, subautomation ou le nom d’une capacité du catalogue.}}} other {Voulais-tu dire « {suggestion} » ?}}'
+  NODE_UNKNOWN_FIELD:
+    title: Ce champ n’appartient pas à ce nœud
+    explanation: Chaque type de nœud n’accepte que ses propres champs. Un champ inconnu est refusé plutôt qu’ignoré, pour qu’aucune faute de frappe ne passe inaperçue.
+    cause: '{nodeLabel} est un nœud {type}, qui n’a pas de champ « {field} ».'
+    fix: 'Retire-le, ou utilise l’un de ces champs : {allowedList}.'
+  NODE_MISSING_FIELD:
+    title: Champ obligatoire manquant
+    explanation: Certains champs sont obligatoires pour un type de nœud, comme le code d’un nœud transform ou le modèle d’un nœud llm.
+    cause: '{nodeLabel} est un nœud {type} et a besoin de {fieldLabel}.'
+    fix: Remplis {fieldLabel}.
+  NODE_FIELD_TYPE:
+    title: Le champ a le mauvais type
+    explanation: Les champs d’un nœud ont des types fixes. Les conditions et les boucles sont des templates, une entrée est un objet, et les listes d’un nœud agent sont des listes de noms.
+    cause: '{expected, select, repeatUntil {{fieldLabel} de {nodeLabel} ne fonctionne qu’avec une condition « Répéter jusqu’à ».} other {{fieldLabel} de {nodeLabel} doit être {expected, select, template {un seul template, comme ''{{'' nodes.check.output.ok ''}}''} nodeId {l’identifiant d’un autre nœud} object {un objet} string {du texte} stringArray {une liste de noms} filesMap {une association de noms à des fichiers ou des dossiers} other {de type {expected}}}.}}'
+    fix: '{expected, select, repeatUntil {Ajoute une condition « Répéter jusqu’à », ou retire {fieldLabel}.} other {Donne à {fieldLabel} une valeur de ce type.}}'
+  CODE_SYNTAX:
+    title: Le code ne peut pas être validé
+    explanation: Le code transform doit avoir une syntaxe JavaScript valide et respecter les limites d’analyse avant l’enregistrement ou le déploiement.
+    cause: '{parseLimited, select, true {Le code dépasse la limite de taille ou d’imbrication de l’analyse.} other {Le code de {nodeLabel} ne s’analyse pas.}}'
+    fix: '{parseLimited, select, true {Raccourcis le code ou réduis son imbrication, puis valide à nouveau.} other {Corrige la syntaxe à l’endroit marqué. Les détails techniques montrent le message de l’analyseur.}}'
+  CODE_NO_IO:
+    title: Le code n’a pas accès au réseau
+    explanation: Le code d’un nœud transform s’exécute sans accès au réseau ni aux modules. Un appel comme fetch ou require échoue donc dès que le nœud s’exécute.
+    cause: Le code de {nodeLabel} utilise « {token} ».
+    fix: Récupère les données avec un nœud de capacité, puis transmets sa sortie à ce nœud par son entrée.
+  CODE_NO_RETURN:
+    title: Le code ne renvoie rien
+    explanation: La sortie d’un nœud transform est ce que renvoie son code. Sans instruction return, la sortie reste vide.
+    cause: Le code de {nodeLabel} n’a pas d’instruction return.
+    fix: Termine le code par return et la valeur que le nœud doit produire.
+  OUTPUT_SCHEMA_INVALID:
+    title: Le schéma de sortie est invalide
+    explanation: Un schéma de sortie est un objet JSON Schema qui transforme la réponse d’un modèle en champs nommés.
+    cause: Le schéma de sortie de {nodeLabel} n’est pas un objet JSON Schema valide.
+    fix: Corrige le schéma, par exemple un type objet avec les propriétés dont tu as besoin. Les détails techniques montrent ce que la vérification a trouvé.
+  ELSEOF_TARGET_INVALID:
+    title: « Sinon de » désigne le mauvais nœud
+    explanation: « Sinon de » fait d’un nœud l’alternative d’un autre nœud qui a une condition « Si ». Il s’exécute exactement quand ce nœud est ignoré par sa condition.
+    cause: '{reason, select, self {{nodeLabel} se désigne lui-même dans « Sinon de ».} other {« {target} » n’est pas un autre nœud avec une condition « Si ».}}'
+    fix: Dans « Sinon de », désigne un autre nœud qui a une condition « Si ».
+  REPEAT_MAX_INVALID:
+    title: Limite de répétitions hors plage
+    explanation: La limite de répétitions est un nombre entier de 1 à 20, pour que chaque boucle se termine.
+    cause: '{nodeLabel} fixe la limite à {value}.'
+    fix: Utilise un nombre entier de 1 à 20.
+  ONERROR_INVALID:
+    title: Gestion d’erreur invalide
+    explanation: En cas d’erreur, la valeur est soit fail, qui arrête l’exécution au nœud, soit continue, qui note l’échec et ignore les nœuds qui lisent celui-ci.
+    cause: '{nodeLabel} utilise la valeur « {value} ».'
+    fix: Utilise fail ou continue.
+  SUBAUTOMATION_REF_INVALID:
+    title: L’automatisation appelée est mal écrite
+    explanation: Un nœud subautomation désigne l’automatisation qu’il appelle sous la forme name ou name@version.
+    cause: '{nodeLabel} appelle « {ref} ».'
+    fix: Écris le nom de l’automatisation, suivi si besoin de @ et d’un numéro de version, comme billing/reminder@3.
+  SUBAUTOMATION_NOT_FOUND:
+    title: Automatisation appelée introuvable
+    explanation: Un nœud subautomation appelle une automatisation enregistrée de cette organisation. Elle doit donc exister dans la version que le nœud indique.
+    cause: '{version, select, none {Aucune automatisation enregistrée ne s’appelle {automationLabel}.} other {{automationLabel} n’a pas de version {version}{latest, select, none {} other {. La plus récente est la version {latest}}}.}}'
+    fix: '{suggestion, select, none {{version, select, none {Enregistre d’abord cette automatisation, ou appelle-en une qui existe.} other {Appelle une version qui existe, ou retire la version pour appeler celle qui est déployée.}}} other {Voulais-tu dire « {suggestion} » ?}}'
+  SUBAUTOMATION_HAS_AGENT_NODE:
+    title: L’automatisation appelée contient un nœud agent
+    explanation: Un nœud agent s’exécute comme un tour qui peut se mettre en pause et reprendre, ce qu’une automatisation appelée ne sait pas faire. Une exécution en direct échoue donc à ce nœud.
+    cause: '{automationLabel} contient le nœud agent {childNodeLabel}.'
+    fix: Exécute plutôt le nœud agent dans cette automatisation, ou remplace-le par un nœud llm dans l’automatisation appelée.
+  SUBAUTOMATION_HAS_WRITE:
+    title: L’automatisation appelée effectue une écriture
+    explanation: Une automatisation appelée ne peut pas attendre une approbation. Quand la politique d’approbation demande à une personne de valider une écriture, l’exécution échoue.
+    cause: '{automationLabel} écrit par {childNodeLabel} ({childType}).'
+    fix: Déplace l’écriture dans cette automatisation, ou assure-toi que la politique d’approbation la valide sans demander.
+  EXPR_SYNTAX:
+    title: L’expression ne peut pas être validée
+    explanation: Une expression de template doit avoir une syntaxe JavaScript valide et respecter les limites d’analyse avant l’enregistrement ou le déploiement.
+    cause: '{parseLimited, select, true {Le code dépasse la limite de taille ou d’imbrication de l’analyse.} other {{place}, ''{{'' {expr} ''}}'' ne s’analyse pas.}}'
+    fix: '{parseLimited, select, true {Raccourcis le code ou réduis son imbrication, puis valide à nouveau.} other {Corrige l’expression à l’endroit marqué. Les détails techniques montrent le message de l’analyseur.}}'
+  REF_UNKNOWN_NODE:
+    title: Référence à un nœud inconnu
+    explanation: nodes.<id> lit la sortie du nœud qui porte cet identifiant. Aucun nœud ne le porte, donc la lecture échoue dès que l’automatisation s’exécute.
+    cause: '{place}, nodes.{ref} désigne un nœud qui n’existe pas.'
+    fix: '{suggestion, select, none {{knownCount, plural, =0 {Ajoute le nœud, ou retire la référence.} other {Utilise l’identifiant d’un nœud existant : {knownList}.}}} other {Voulais-tu dire « {suggestion} » ?}}'
+  REF_SELF:
+    title: Le nœud se lit lui-même
+    explanation: Un nœud ne peut pas lire sa propre sortie, car elle n’existe qu’une fois le nœud exécuté.
+    cause: '{place}, {nodeLabel} lit sa propre sortie.'
+    fix: Lis un autre nœud, ou calcule la valeur dans ce nœud même.
+  REF_NOT_OUTPUT:
+    title: Nœud lu sans .output
+    explanation: Le résultat d’un nœud se trouve sous nodes.<id>.output. Un nœud n’a pas d’autre membre à lire.
+    cause: '{place}, nodes.{source}.{member} oublie .output.'
+    fix: Lis le résultat par .output, comme nodes.{source}.output.
+  REF_BARE:
+    title: Nœud lu sans .output
+    explanation: nodes.<id> seul n’est pas le résultat du nœud, qui se trouve sous .output.
+    cause: '{place}, nodes.{source} est utilisé sans .output.'
+    fix: Écris nodes.{source}.output, ou lis l’un de ses champs.
+  REF_CYCLE:
+    title: Des nœuds se lisent en boucle
+    explanation: L’ordre d’exécution suit les références entre les nœuds. Des nœuds qui se lisent en boucle n’ont pas d’ordre, donc l’automatisation ne peut pas s’exécuter.
+    cause: 'La boucle : {cycleList}.'
+    fix: Retire l’une de ces références pour rompre la boucle.
+  REF_UNSTRUCTURED_PATH:
+    title: Une sortie texte n’a pas de champs
+    explanation: Certains nœuds renvoient du texte brut, comme un nœud llm sans schéma de sortie. Leur sortie n’a que .text, les autres champs n’existent pas.
+    cause: '{place}, nodes.{source}.output.{member} lit un champ, mais {sourceLabel} ne renvoie que du texte ({sourceType}).'
+    fix: '{sourceType, select, llm {Donne un schéma de sortie à {sourceLabel}, ou lis nodes.{source}.output.text.} other {Lis nodes.{source}.output.text, ou transforme le texte en champs avec un nœud llm doté d’un schéma de sortie.}}'
+  ITEM_WITHOUT_FOREACH:
+    title: « item » utilisé hors d’une boucle
+    explanation: item et index n’existent que dans un nœud avec « Pour chaque ». Ailleurs, un template ou une condition qui les utilise échoue, et le code les lit comme undefined.
+    cause: '{place}, {namesCount, plural, one {{namesList} est utilisé} many {{namesList} sont utilisés} other {{namesList} sont utilisés}}, mais {nodeLabel} n’a pas de « Pour chaque ».'
+    fix: Ajoute « Pour chaque » à {nodeLabel}, ou lis la valeur dans l’entrée de l’exécution ou dans un autre nœud.
+  INPUT_KEY_UNKNOWN:
+    title: Entrée non déclarée
+    explanation: input.<key> lit une valeur de l’entrée de l’exécution. Le schéma des entrées ne déclare pas cette clé, donc une exécution risque de ne pas l’avoir.
+    cause: '{place}, input.{key} lit « {key} », que le schéma des entrées ne déclare pas.'
+    fix: '{suggestion, select, none {Déclare « {key} » dans le schéma des entrées{declaredCount, plural, =0 {} other {, ou utilise l’une de ces entrées : {declaredList}}}.} other {Voulais-tu dire « {suggestion} » ?}}'
+  TEMPLATE_UNTERMINATED:
+    title: Template non fermé
+    explanation: Un '{{' sans son '}}' reste du texte brut au lieu d’être rempli.
+    cause: '{place}, un ''{{'' n’a pas de ''}}'' fermant.'
+    fix: Ferme le template avec '}}', ou retire le '{{' en trop.
+  EXPR_UNKNOWN_NAME:
+    title: Nom inconnu
+    explanation: Une expression ne peut utiliser que les noms que fournit son champ, comme input et nodes, ainsi que les noms intégrés de JavaScript. Tout autre nom échoue dès que le nœud s’exécute.
+    cause: '{place}, « {name} » n’est pas disponible.{availableCount, plural, =0 {} one { Nom disponible : {availableList}.} many { Noms disponibles : {availableList}.} other { Noms disponibles : {availableList}.}}'
+    fix: '{suggestion, select, none {{name, select, output {output n’existe que dans « Répéter jusqu’à ». Lis plutôt nodes.<id>.output.} other {Utilise l’un des noms disponibles.}}} other {Voulais-tu dire « {suggestion} » ?}}'
+  ITEM_OUT_OF_SCOPE:
+    title: « item » utilisé avant la boucle
+    explanation: « Si » et « Pour chaque » sont lus une seule fois, avant que le nœud ne parcoure ses éléments. item et index n’y existent pas encore, donc le nœud échoue.
+    cause: '{place}, « {name} » est utilisé.'
+    fix: '{field, select, when {Pour ignorer certains éléments, filtre plutôt la liste dans « Pour chaque ».} other {« Pour chaque » désigne la liste elle-même. Lis-la dans l’entrée de l’exécution ou dans un autre nœud.}}'
+  REF_UNKNOWN_FIELD:
+    title: Ce champ n’existe pas
+    explanation: Une référence lit un champ que ses données n’ont pas, et ne trouve donc rien dès que l’automatisation s’exécute.
+    cause: '{place}, {ref} lit « {key} » dans {sourceLabel}, qui n’a pas ce champ.{listWrapped, select, true { Cette valeur est une liste.} other {{knownCount, plural, =0 {} other { Ses champs : {knownList}.}}}}'
+    fix: '{suggestion, select, none {{listWrapped, select, true {Lis un seul élément de la liste, ou parcours-la avec map.} other {{root, select, input {{field, select, code {Ajoute « {key} » à l’entrée de ce nœud pour transmettre la valeur.} other {Déclare « {key} » dans le schéma des entrées, ou lis un champ qu’il déclare.}}} other {Utilise un champ qui existe, ou change ce qui produit ces données.}}}}} other {Voulais-tu dire « {suggestion} » ?}}'
+  TYPE_MISMATCH:
+    title: La valeur a le mauvais type
+    explanation: Une valeur arrive à un endroit qui attend un autre genre de données, donc le nœud risque d’échouer.
+    cause: '{consumer, select, forEach {« Pour chaque » de {nodeLabel} a besoin d’une liste, mais {expr} est {actualText}.} subautomationInput {L’entrée « {property} » de {automationLabel} attend {expectedText}, mais {expr} est {actualText}.} other {L’entrée « {property} » de {nodeLabel} attend {expectedText}, mais {expr} est {actualText}.}}'
+    fix: '{consumer, select, forEach {Fais pointer « Pour chaque » vers une liste{suggestion, select, none {} other {, comme ''{{'' {expr}.{suggestion} ''}}''}}.} other {Passe ici {expectedText}.}}'
+  TEMPLATE_NULL_INTERPOLATION:
+    title: Une valeur peut manquer dans le texte
+    explanation: Une valeur insérée dans du texte peut être vide. Dans ce cas, le nœud échoue au lieu d’écrire « undefined » dans le texte.
+    cause: '{place}, {expr} {why, select, optional {est facultatif} other {peut valoir null}}.'
+    fix: Donne-lui une valeur de repli, par exemple '{{' {expr} ?? "" '}}'.
+  FOREACH_NOT_ARRAY:
+    title: « Pour chaque » n’est pas une liste
+    explanation: « Pour chaque » exécute un nœud une fois par élément d’une liste. Cette valeur ne peut jamais être une liste, donc le nœud échoue à chaque exécution.
+    cause: '{reason, select, notATemplate {« Pour chaque » de {nodeLabel} vaut « {value} », qui n’a pas de template et reste donc du texte brut.} mixedText {Le texte autour du template fait de « Pour chaque » de {nodeLabel} du texte.} other {« Pour chaque » de {nodeLabel} vaut toujours {kind, select, null {null} undefined {undefined} string {du texte} number {un nombre} boolean {vrai ou faux} object {un objet} other {{kind}}}.}}'
+    fix: Écris « Pour chaque » comme un seul template qui donne une liste, par exemple '{{' nodes.fetch.output.items '}}'.
+  AGENT_ITERATION_UNSUPPORTED:
+    title: Les nœuds agent ne peuvent pas se répéter
+    explanation: Un nœud agent exécute un seul tour. Il ne peut pas encore s’exécuter une fois par élément ni se répéter, donc une exécution en direct échoue à ce nœud.
+    cause: '{nodeLabel} utilise {fieldLabel}.'
+    fix: Donne à chaque élément son propre nœud agent, ou fais le travail par élément dans un nœud llm.
+  MAYBE_NULL:
+    title: Lit un nœud qui peut être ignoré
+    explanation: Une condition ou la sortie lit un nœud qui ne s’exécute pas toujours. Quand ce nœud est ignoré, sa sortie est vide. Lire l’un de ses champs échoue alors, tout comme l’insérer dans du texte.
+    cause: '{place}, {ref} lit {sourceLabel}, qui est ignoré {reasonText}.'
+    fix: Protège la lecture, par exemple avec {suggestion}. Ou ajoute un nœud alternatif avec « Sinon de ».
+  UNCAUGHT_FAILURE:
+    title: Un échec toléré n’est pas géré
+    explanation: Un nœud continue en cas d’échec, mais un autre endroit lit son résultat sans valeur de repli. Quand le nœud échoue, cette lecture échoue aussi, et l’exécution échoue quand même, avec une erreur moins utile.
+    cause: '{failingIsSource, select, true {{place}, {ref} lit {sourceLabel}, qui continue en cas d’erreur.} other {{place}, {ref} lit {sourceLabel}, qui est ignoré quand {failingLabel} échoue, et {failingLabel} continue en cas d’erreur.}}'
+    fix: Protège la lecture, par exemple avec {suggestion}. Ou laisse {failingLabel} arrêter l’exécution quand il échoue.
+  UNREACHABLE:
+    title: Le nœud ne peut jamais s’exécuter
+    explanation: Aucune combinaison de conditions ne permet à ce nœud de s’exécuter, donc il ne fait jamais son travail.
+    cause: '{cause, select, constantWhen {La condition « Si » de {nodeLabel} est toujours fausse.} elsePartnerAlwaysRuns {{nodeLabel} remplace {partnerLabel}, qui s’exécute toujours.} elsePartnerUnreachable {{nodeLabel} remplace {partnerLabel}, qui ne s’exécute jamais.} readsPartner {{nodeLabel} lit {partnerLabel}, le nœud qu’il remplace.} exclusiveBranches {{nodeLabel} lit {aLabel} et {bLabel}, qui ne s’exécutent jamais ensemble.} other {{nodeLabel} lit {viaLabel}, qui ne peut jamais s’exécuter.}}'
+    fix: '{cause, select, constantWhen {Fais dépendre la condition des données, ou retire le nœud.} other {Un nœud qui lit un nœud ignoré est ignoré lui aussi. Réunis les branches alternatives dans la sortie de l’automatisation, ou retire ce nœud.}}'
+  CONDITION_CONSTANT:
+    title: La condition ne change jamais
+    explanation: Cette condition donne toujours la même réponse, elle ne décide donc rien.
+    cause: '{field, select, repeatUntil {{fieldLabel} de {nodeLabel} est toujours vrai, donc le nœud s’exécute une seule fois.} other {{cause, select, mixedText {Le texte autour du template fait de {fieldLabel} de {nodeLabel} un texte non vide, qui compte toujours comme vrai.} other {{fieldLabel} de {nodeLabel} est toujours vrai.}}}}'
+    fix: '{cause, select, mixedText {Écris la condition comme un seul template, sans texte autour.} other {Retire la condition, ou fais-la dépendre des données.}}'
+  REPEAT_NEVER_TRUE:
+    title: La boucle ne s’arrête jamais plus tôt
+    explanation: « Répéter jusqu’à » est toujours faux, donc le nœud fait toujours le nombre maximal de passages.
+    cause: '{nodeLabel} fait ses {maxRepeats} passages à chaque fois.'
+    fix: Fais lire à la condition le résultat du passage, par exemple '{{' output.status === "done" '}}'.
+  REPEAT_UNTIL_STATIC:
+    title: La condition de boucle ignore le résultat
+    explanation: « Répéter jusqu’à » ne lit pas le résultat du passage, donc il donne la même réponse après chaque passage.
+    cause: La condition « Répéter jusqu’à » de {nodeLabel} ne lit ni output ni le résultat du nœud lui-même.
+    fix: Fais lire à la condition le résultat du passage, par exemple '{{' output.status === "done" '}}'.
+  OUTPUT_MAYBE_EMPTY:
+    title: La sortie peut être vide
+    explanation: La sortie ne lit que des nœuds qui sont parfois ignorés. Lors de ces exécutions, l’automatisation renvoie des valeurs vides.
+    cause: '{nodesCount, plural, one {La sortie ne lit que {nodesList}, qui ne s’exécute pas} many {La sortie ne lit que {nodesList}, et aucun ne s’exécute} other {La sortie ne lit que {nodesList}, et aucun ne s’exécute}} {rootReason, select, when {quand {rootLabel} est ignoré par sa condition.} error {quand {rootLabel} échoue, car il continue en cas d’erreur.} other {quand {rootLabel} s’exécute, car son alternative est alors ignorée.}}'
+    fix: Lis aussi un nœud qui s’exécute toujours, ou ajoute un nœud alternatif avec « Sinon de ».
+  CONNECTOR_INPUT_INVALID:
+    title: L’entrée ne convient pas à la capacité
+    explanation: Chaque capacité déclare l’entrée qu’elle accepte. Une entrée qui ne convient pas est refusée, donc le nœud échoue.
+    cause: '{keyword, select, required {{nodeLabel} ({type}) a besoin de l’entrée « {property} ».} additionalProperties {{nodeLabel} ({type}) n’accepte pas d’entrée « {property} ».} other {{property, select, none {L’entrée de {nodeLabel} ({type}) ne correspond pas à ce que la capacité accepte.} other {L’entrée « {property} » de {nodeLabel} ({type}) ne correspond pas à ce que la capacité accepte.}}}}'
+    fix: '{suggestion, select, none {Adapte l’entrée à ce que la capacité accepte. Les détails techniques montrent ce que la vérification a trouvé.} other {Voulais-tu dire « {suggestion} » ?}}'
+  SUBAUTOMATION_INPUT_INVALID:
+    title: L’entrée ne convient pas à l’automatisation appelée
+    explanation: Les valeurs transmises à l’automatisation appelée ne correspondent pas à ce qu’elle accepte. Elle refuse donc de démarrer, et ce nœud échoue.
+    cause: '{missingCount, plural, =0 {{unknownCount, plural, =0 {{automationLabel} en version {version} n’accepte pas ces valeurs.} one {{automationLabel} en version {version} n’accepte pas {unknownList}.} many {{automationLabel} en version {version} n’accepte pas {unknownList}.} other {{automationLabel} en version {version} n’accepte pas {unknownList}.}}} one {{unknownCount, plural, =0 {{automationLabel} en version {version} a besoin de {missingList}.} one {{automationLabel} en version {version} a besoin de {missingList} et n’accepte pas {unknownList}.} many {{automationLabel} en version {version} a besoin de {missingList} et n’accepte pas {unknownList}.} other {{automationLabel} en version {version} a besoin de {missingList} et n’accepte pas {unknownList}.}}} many {{unknownCount, plural, =0 {{automationLabel} en version {version} a besoin de {missingList}.} one {{automationLabel} en version {version} a besoin de {missingList} et n’accepte pas {unknownList}.} many {{automationLabel} en version {version} a besoin de {missingList} et n’accepte pas {unknownList}.} other {{automationLabel} en version {version} a besoin de {missingList} et n’accepte pas {unknownList}.}}} other {{unknownCount, plural, =0 {{automationLabel} en version {version} a besoin de {missingList}.} one {{automationLabel} en version {version} a besoin de {missingList} et n’accepte pas {unknownList}.} many {{automationLabel} en version {version} a besoin de {missingList} et n’accepte pas {unknownList}.} other {{automationLabel} en version {version} a besoin de {missingList} et n’accepte pas {unknownList}.}}}}'
+    fix: Transmets les entrées qu’elle déclare, sous les noms qu’elle utilise.
+  TRIGGER_INPUT_MISMATCH:
+    title: L’entrée du déclencheur est refusée
+    explanation: Le déclencheur lance des exécutions avec une entrée que le schéma des entrées de l’automatisation n’accepte pas. Chaque exécution qu’il lance est donc refusée.
+    cause: '{kind, select, schedule {La planification} other {Le déclencheur}} {missingCount, plural, =0 {lance des exécutions avec une entrée que le schéma des entrées refuse.} one {lance des exécutions sans {missingList}.} many {lance des exécutions sans {missingList}.} other {lance des exécutions sans {missingList}.}}'
+    fix: Rends ces entrées facultatives, ou lance cette automatisation par un webhook, un événement ou l’API.
+  TESTS_INPUT_INVALID:
+    title: L’entrée du test est refusée
+    explanation: L’entrée du test ne correspond pas au schéma des entrées de l’automatisation. L’exécution la refuse donc, et le test ne peut pas réussir.
+    cause: Le test « {name} » {missingCount, plural, =0 {contient des valeurs que le schéma des entrées n’accepte pas} one {omet {missingList}} many {omet {missingList}} other {omet {missingList}}}.
+    fix: Modifie l’entrée du test pour qu’elle corresponde au schéma des entrées.
+  TESTS_EFFECT_UNKNOWN:
+    title: Le test attend une action impossible
+    explanation: Le test attend une action qu’aucun nœud de cette automatisation n’effectue, donc il ne peut jamais réussir.
+    cause: Le test « {name} » attend « {connector} ».{possibleCount, plural, =0 { Aucun nœud ici n’effectue d’action.} one { Les nœuds ici effectuent {possibleList}.} many { Les nœuds ici effectuent {possibleList}.} other { Les nœuds ici effectuent {possibleList}.}}
+    fix: '{suggestion, select, none {Attends une action qu’un nœud effectue.} other {Voulais-tu dire « {suggestion} » ?}}'
+  TESTS_EXPECT_TYPE:
+    title: Le test attend le mauvais type
+    explanation: Le test attend une valeur d’un type que l’automatisation ne renvoie jamais, donc il ne peut pas réussir.
+    cause: Le test « {name} » attend que output.{property} soit {expectedText}, mais l’automatisation y renvoie {actualText}.
+    fix: Corrige l’attente, ou modifie la sortie.
+  LLM_MODEL_UNAVAILABLE:
+    title: Le modèle n’est pas disponible
+    explanation: Le modèle d’un nœud llm ou agent doit être servi par l’un des fournisseurs connectés de l’organisation. Sinon, une exécution en direct échoue à ce nœud.
+    cause: '{nodeLabel} utilise « {model} », qu’aucun fournisseur connecté ne sert.'
+    fix: Choisis un modèle qu’un fournisseur connecté sert, ou connecte le fournisseur de celui-ci.
+  OUTPUT_MISSING:
+    title: Aucune sortie
+    explanation: La sortie est ce que renvoie l’automatisation. Sans sortie, chaque exécution ne renvoie rien.
+    cause: Le document n’a pas de champ output.
+    fix: Ajoute une sortie qui lit les résultats dont tu as besoin, par exemple '{{' nodes.summary.output.text '}}'.
+  UNUSED_NODE:
+    title: Sortie jamais utilisée
+    explanation: Rien ne lit la sortie de ce nœud et il n’a aucun effet, donc l’exécuter ne sert à rien.
+    cause: '{reason, select, readersUnreachable {Seuls des nœuds qui ne peuvent jamais s’exécuter lisent {nodeLabel}.} other {Rien ne lit la sortie de {nodeLabel}, ni un nœud ni la sortie de l’automatisation.}}'
+    fix: Lis sa sortie là où tu en as besoin, ou retire le nœud.

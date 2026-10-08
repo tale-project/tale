@@ -8,6 +8,9 @@ not-an-object:
   errors:
     - code: AUTOMATION_NOT_OBJECT
       message: 'the automation document must be a mapping/object: {version, name, inputs?, nodes, output?}'
+      at:
+        pointer: ''
+      params: {}
   warnings: []
 unknown-top-field:
   errors:
@@ -15,12 +18,30 @@ unknown-top-field:
       path: edges
       message: unknown top-level field "edges"
       hint: remove it — edges are derived automatically from {{ nodes.<id>.output }} references
+      at:
+        pointer: /edges
+        subject: key
+      params:
+        field: edges
+        allowed:
+          - version
+          - name
+          - description
+          - inputs
+          - nodes
+          - output
+          - tests
+          - ui
   warnings: []
 version-unsupported:
   errors:
     - code: VERSION_UNSUPPORTED
       path: version
       message: unsupported document version 2 — this engine supports version 1
+      at:
+        pointer: /version
+      params:
+        version: '2'
   warnings: []
 version-missing:
   errors: []
@@ -29,30 +50,48 @@ version-missing:
       path: version
       message: document has no "version" field
       hint: 'add version: 1'
+      at:
+        pointer: /version
+        subject: missing
+      params: {}
 name-invalid:
   errors:
     - code: NAME_INVALID
       path: name
       message: '"name" is required — lowercase slug segments separated by "/" (e.g. "billing/dunning-reminder")'
       hint: lowercase letters and digits; "-" or "_" between words inside a segment, "/" between segments; at most 200 characters
+      at:
+        pointer: /name
+      params:
+        name: My Flow
   warnings: []
 inputs-not-an-object:
   errors:
     - code: INPUTS_SCHEMA_INVALID
       path: inputs
       message: '"inputs" must be a JSON Schema object'
+      at:
+        pointer: /inputs
+      params: {}
   warnings: []
 inputs-schema-malformed:
   errors:
     - code: INPUTS_SCHEMA_INVALID
       path: inputs
       message: '"inputs" is not a valid JSON Schema: schema is invalid: data/required must be array, data/properties must be object'
+      at:
+        pointer: /inputs
+      params:
+        detail: 'schema is invalid: data/required must be array, data/properties must be object'
   warnings: []
 nodes-missing:
   errors:
     - code: NODES_MISSING
       path: nodes
       message: '"nodes" must be a non-empty array of node objects'
+      at:
+        pointer: /nodes
+      params: {}
   warnings: []
 nodes-too-many:
   errors:
@@ -60,6 +99,11 @@ nodes-too-many:
       path: nodes
       message: automation has 41 nodes — at most 40 per automation
       hint: extract cohesive groups into saved automations and call them with subautomation nodes
+      at:
+        pointer: /nodes
+      params:
+        count: 41
+        max: 40
   warnings: []
 secret-api-key:
   errors:
@@ -67,6 +111,10 @@ secret-api-key:
       path: nodes[0].prompt
       message: the document appears to contain a credential (API key (sk-…))
       hint: remove it — secrets are configured on the connector and injected at runtime, never stored in automations
+      at:
+        pointer: /nodes/0/prompt
+      params:
+        kind: API key (sk-…)
   warnings: []
 secret-injected-values:
   errors:
@@ -74,26 +122,48 @@ secret-injected-values:
       path: nodes[0].input.authorization
       message: the document appears to contain a credential (bearer token)
       hint: remove it — secrets are configured on the connector and injected at runtime, never stored in automations
+      at:
+        pointer: /nodes/0/input/authorization
+      params:
+        kind: bearer token
     - code: SECRET_IN_DOCUMENT
       path: nodes[0].input.api_key
       message: the document appears to contain a credential (credential-looking value under "api_key")
       hint: remove it — secrets are configured on the connector and injected at runtime, never stored in automations
+      at:
+        pointer: /nodes/0/input/api_key
+      params:
+        kind: credential-looking value under "api_key"
   warnings: []
 tests-invalid:
   errors:
     - code: TESTS_INVALID
       path: tests[0]
       message: 'tests[0] must be {name: string, input, expect?}'
+      at:
+        pointer: /tests/0
+      params:
+        test: 0
     - code: TESTS_INVALID
       path: tests[1].expect
       message: 'tests[1].expect has unknown key(s): outputs'
       hint: 'expect supports {output?, effects?: [{connector, input?}]}'
+      at:
+        pointer: /tests/1/expect
+      params:
+        test: 1
+        keys:
+          - outputs
   warnings: []
 node-not-an-object:
   errors:
     - code: NODE_NOT_OBJECT
       path: nodes[0]
       message: nodes[0] must be an object
+      at:
+        pointer: /nodes/0
+      params:
+        index: 0
   warnings: []
 node-id-invalid:
   errors:
@@ -101,12 +171,27 @@ node-id-invalid:
       path: nodes[0].id
       message: nodes[0] needs an "id" in snake_case (got "Main")
       hint: ids match ^[a-z][a-z0-9_]{0,49}$
+      at:
+        pointer: /nodes/0/id
+      params:
+        index: 0
+        id: Main
   warnings: []
 node-id-duplicate:
   errors:
     - code: NODE_ID_DUPLICATE
       nodeId: main
       message: duplicate node id "main"
+      at:
+        pointer: /nodes/1/id
+      params:
+        node: main
+        firstIndex: 0
+      related:
+        - role: partner
+          nodeId: main
+          at:
+            pointer: /nodes/0/id
   warnings: []
 unknown-node-type:
   errors:
@@ -114,6 +199,12 @@ unknown-node-type:
       nodeId: main
       message: unknown node type "transfrom"
       hint: 'did you mean "transform"? registered types include: transform, llm, agent, subautomation, weather.current, mail.send, web.fetch_text — search the catalog for the full list'
+      at:
+        pointer: /nodes/0/type
+      params:
+        node: main
+        type: transfrom
+        suggestion: transform
   warnings: []
 unknown-node-type-keyword:
   errors:
@@ -121,6 +212,11 @@ unknown-node-type-keyword:
       nodeId: fetch
       message: unknown node type "connector"
       hint: 'set "type" to the capability name itself, e.g. {"id": "fetch", "type": "weather.current", "input": {...}}; registered types include: transform, llm, agent, subautomation, weather.current, mail.send, web.fetch_text — search the catalog for the full list'
+      at:
+        pointer: /nodes/0/type
+      params:
+        node: fetch
+        type: connector
   warnings: []
 node-unknown-field:
   errors:
@@ -129,6 +225,24 @@ node-unknown-field:
       path: nodes[0].prompt
       message: 'node "main" (transform): unknown field "prompt"'
       hint: 'allowed fields: id, type, when, elseOf, forEach, repeatUntil, maxRepeats, onError, input, code'
+      at:
+        pointer: /nodes/0/prompt
+        subject: key
+      params:
+        node: main
+        type: transform
+        field: prompt
+        allowed:
+          - id
+          - type
+          - when
+          - elseOf
+          - forEach
+          - repeatUntil
+          - maxRepeats
+          - onError
+          - input
+          - code
   warnings: []
 llm-missing-model:
   errors:
@@ -136,6 +250,13 @@ llm-missing-model:
       nodeId: gen
       message: 'node "gen" (llm): missing required field "model"'
       hint: the model is always explicit — name the exact model to call; the engine never picks one for you
+      at:
+        pointer: /nodes/0/model
+        subject: missing
+      params:
+        node: gen
+        type: llm
+        field: model
   warnings: []
 llm-model-unavailable:
   errors: []
@@ -145,31 +266,69 @@ llm-model-unavailable:
       path: model
       message: 'node "gen": no connected provider of this organization serves model "nonexistent/model-xyz" — a live run would fail at this node'
       hint: pick a model a connected provider serves (Settings → Providers lists them), or connect a provider that serves this one
+      at:
+        pointer: /nodes/0/model
+      params:
+        node: gen
+        model: nonexistent/model-xyz
 transform-missing-code:
   errors:
     - code: NODE_MISSING_FIELD
       nodeId: main
       message: 'node "main" (transform): missing required field "code"'
       hint: 'e.g. "code": "return input.orders.filter(o => o.total > 100)"'
+      at:
+        pointer: /nodes/0/code
+        subject: missing
+      params:
+        node: main
+        type: transform
+        field: code
   warnings: []
 node-field-types:
   errors:
     - code: NODE_FIELD_TYPE
       nodeId: main
       message: 'node "main": "when" must be a template string like "{{ nodes.check.output.ok }}"'
+      at:
+        pointer: /nodes/0/when
+      params:
+        node: main
+        field: when
+        expected: template
     - code: NODE_FIELD_TYPE
       nodeId: main
       message: 'node "main": maxRepeats only makes sense together with repeatUntil'
+      at:
+        pointer: /nodes/0/maxRepeats
+      params:
+        node: main
+        field: maxRepeats
+        expected: repeatUntil
     - code: NODE_FIELD_TYPE
       nodeId: main
       message: 'node "main": "input" must be an object'
       hint: 'put templates in its values: "input": {"city": "{{ input.city }}"}'
+      at:
+        pointer: /nodes/0/input
+      params:
+        node: main
+        field: input
+        expected: object
   warnings: []
 code-syntax:
   errors:
     - code: CODE_SYNTAX
       nodeId: main
       message: 'node "main": JavaScript syntax error in "code": Unexpected token '';'''
+      at:
+        pointer: /nodes/0/code
+        range:
+          - 8
+          - 9
+      params:
+        node: main
+        detail: Unexpected token ';'
   warnings: []
 code-no-io:
   errors:
@@ -177,6 +336,14 @@ code-no-io:
       nodeId: main
       message: 'node "main": transform code has no network or module access — "fetch(" will fail at runtime'
       hint: transforms only reshape data; use a connector node for external calls
+      at:
+        pointer: /nodes/0/code
+        range:
+          - 7
+          - 13
+      params:
+        node: main
+        token: fetch(
   warnings: []
 code-no-return:
   errors: []
@@ -185,18 +352,31 @@ code-no-return:
       nodeId: main
       message: 'node "main": "code" contains no return statement — the node output will be empty'
       hint: end the body with `return <value>`
+      at:
+        pointer: /nodes/0/code
+      params:
+        node: main
 output-schema-not-an-object:
   errors:
     - code: OUTPUT_SCHEMA_INVALID
       nodeId: gen
       message: 'node "gen": "outputSchema" must be a JSON Schema object'
       hint: 'e.g. "outputSchema": {"type": "object", "properties": {"headline": {"type": "string"}}}'
+      at:
+        pointer: /nodes/0/outputSchema
+      params:
+        node: gen
   warnings: []
 output-schema-malformed:
   errors:
     - code: OUTPUT_SCHEMA_INVALID
       nodeId: gen
       message: 'node "gen": "outputSchema" is not a valid JSON Schema: schema is invalid: data/properties must be object'
+      at:
+        pointer: /nodes/0/outputSchema
+      params:
+        node: gen
+        detail: 'schema is invalid: data/properties must be object'
   warnings: []
 elseof-target-invalid:
   errors:
@@ -204,18 +384,34 @@ elseof-target-invalid:
       nodeId: main
       message: 'node "main": elseOf target "plan" must be another node that has a "when" condition'
       hint: elseOf runs exactly when its partner was when-skipped
+      at:
+        pointer: /nodes/1/elseOf
+      params:
+        node: main
+        target: plan
+        reason: no-when
   warnings: []
 repeat-max-invalid:
   errors:
     - code: REPEAT_MAX_INVALID
       nodeId: main
       message: 'node "main": maxRepeats must be an integer 1..20'
+      at:
+        pointer: /nodes/0/maxRepeats
+      params:
+        node: main
+        value: 99
   warnings: []
 onerror-invalid:
   errors:
     - code: ONERROR_INVALID
       nodeId: main
       message: 'node "main": "onError" must be "fail" or "continue"'
+      at:
+        pointer: /nodes/0/onError
+      params:
+        node: main
+        value: retry
   warnings: []
 subautomation-ref-invalid:
   errors:
@@ -223,6 +419,11 @@ subautomation-ref-invalid:
       nodeId: sub
       message: 'node "sub": "automation" must be "name" or "name@version" (got "Daily Digest@next")'
       hint: 'e.g. "automation": "daily-digest" or "daily-digest@2"'
+      at:
+        pointer: /nodes/0/automation
+      params:
+        node: sub
+        ref: Daily Digest@next
   warnings: []
 subautomation-not-found:
   errors:
@@ -230,6 +431,16 @@ subautomation-not-found:
       nodeId: sub
       message: 'node "sub": no saved automation named "daily-digest"'
       hint: 'saved automations: send-digest, weekly-report, draft-reply, send-mail'
+      at:
+        pointer: /nodes/0/automation
+      params:
+        node: sub
+        automation: daily-digest
+        known:
+          - send-digest
+          - weekly-report
+          - draft-reply
+          - send-mail
   warnings: []
 subautomation-version-not-found:
   errors:
@@ -237,6 +448,13 @@ subautomation-version-not-found:
       nodeId: sub
       message: 'node "sub": automation "send-digest" has no version 9'
       hint: 'latest version: 2'
+      at:
+        pointer: /nodes/0/automation
+      params:
+        node: sub
+        automation: send-digest
+        version: 9
+        latest: 2
   warnings: []
 subautomation-has-agent-node:
   errors:
@@ -244,6 +462,12 @@ subautomation-has-agent-node:
       nodeId: sub
       message: 'node "sub": automation "draft-reply" contains an agent node ("draft") — a live agent turn cannot run inside a subautomation'
       hint: hoist the agent node into the calling automation and pass its result to the subautomation as input
+      at:
+        pointer: /nodes/0/automation
+      params:
+        node: sub
+        automation: draft-reply
+        childNode: draft
   warnings: []
 subautomation-has-write:
   errors: []
@@ -252,17 +476,60 @@ subautomation-has-write:
       nodeId: sub
       message: 'node "sub": automation "send-mail" performs a write ("send": mail.send) — a subautomation cannot wait for approval, so the run fails when the approval policy asks a person to release it'
       hint: hoist the write into the calling automation, or allow mail.send without approval in the approval policy
+      at:
+        pointer: /nodes/0/automation
+      params:
+        node: sub
+        automation: send-mail
+        childNode: send
+        childType: mail.send
 expr-syntax-prompt:
   errors:
     - code: EXPR_SYNTAX
       nodeId: gen
       message: 'node "gen" prompt: bad expression {{ input. }}: Unexpected token '')'''
+      at:
+        pointer: /nodes/0/prompt
+        range:
+          - 14
+          - 15
+      params:
+        node: gen
+        field: prompt
+        expr: input.
+        detail: Unexpected token ')'
+  warnings: []
+expr-syntax-regex-modifier:
+  errors:
+    - code: EXPR_SYNTAX
+      nodeId: main
+      message: 'node "main" when: bad expression {{ /(?i:yes)/.test(input.answer) }}: Invalid regular expression: /(?i:yes)/: Invalid group'
+      at:
+        pointer: /nodes/0/when
+        range:
+          - 4
+          - 13
+      params:
+        node: main
+        field: when
+        expr: /(?i:yes)/.test(input.answer)
+        detail: 'Invalid regular expression: /(?i:yes)/: Invalid group'
   warnings: []
 expr-syntax-when:
   errors:
     - code: EXPR_SYNTAX
       nodeId: main
       message: 'node "main" when: bad expression {{ (( }}: Unexpected token '')'''
+      at:
+        pointer: /nodes/0/when
+        range:
+          - 4
+          - 5
+      params:
+        node: main
+        field: when
+        expr: ((
+        detail: Unexpected token ')'
   warnings: []
 ref-unknown-node:
   errors:
@@ -270,12 +537,33 @@ ref-unknown-node:
       nodeId: main
       message: node "main" references nodes.fetc but no node with id "fetc" exists
       hint: 'did you mean "fetch"? known node ids: fetch, main'
+      at:
+        pointer: /nodes/1/code
+        range:
+          - 28
+          - 45
+      params:
+        node: main
+        field: code
+        ref: fetc
+        suggestion: fetch
+        known:
+          - fetch
+          - main
   warnings: []
 ref-self:
   errors:
     - code: REF_SELF
       nodeId: main
       message: node "main" references itself
+      at:
+        pointer: /nodes/0/code
+        range:
+          - 7
+          - 24
+      params:
+        node: main
+        field: code
   warnings: []
 ref-not-output:
   errors:
@@ -283,6 +571,16 @@ ref-not-output:
       nodeId: main
       message: 'node "main": "nodes.fetch.result" — node results are read via .output'
       hint: use nodes.fetch.output.result
+      at:
+        pointer: /nodes/1/code
+        range:
+          - 7
+          - 25
+      params:
+        node: main
+        field: code
+        source: fetch
+        member: result
   warnings: []
 ref-bare:
   errors: []
@@ -291,11 +589,36 @@ ref-bare:
       nodeId: gen
       message: 'node "gen": "nodes.fetch" used without .output'
       hint: use nodes.fetch.output
+      at:
+        pointer: /nodes/1/prompt
+        range:
+          - 9
+          - 20
+      params:
+        node: gen
+        field: prompt
+        source: fetch
 ref-cycle:
   errors:
     - code: REF_CYCLE
       message: 'circular reference between nodes: a → b → a'
       hint: automations must be acyclic — a node may not read, directly or transitively, from its own output
+      at:
+        pointer: /nodes/0
+      params:
+        cycle:
+          - a
+          - b
+          - a
+      related:
+        - role: cycle
+          nodeId: a
+          at:
+            pointer: /nodes/0
+        - role: cycle
+          nodeId: b
+          at:
+            pointer: /nodes/1
   warnings: []
 ref-unstructured-path:
   errors:
@@ -303,6 +626,17 @@ ref-unstructured-path:
       nodeId: main
       message: 'node "main": "nodes.gen.output.summary" — node "gen" (llm) returns unstructured text; only .output.text exists'
       hint: give "gen" an outputSchema to get structured output, or read nodes.gen.output.text
+      at:
+        pointer: /nodes/1/code
+        range:
+          - 7
+          - 31
+      params:
+        node: main
+        field: code
+        source: gen
+        sourceType: llm
+        member: summary
   warnings: []
 ref-unstructured-path-connector:
   errors:
@@ -310,14 +644,60 @@ ref-unstructured-path-connector:
       nodeId: main
       message: 'node "main": "nodes.page.output.title" — node "page" (web.fetch_text) returns unstructured text; only .output.text exists'
       hint: read nodes.page.output.text, or bridge through an llm node with an outputSchema
+      at:
+        pointer: /nodes/1/code
+        range:
+          - 7
+          - 30
+      params:
+        node: main
+        field: code
+        source: page
+        sourceType: web.fetch_text
+        member: title
   warnings: []
 item-without-foreach:
-  errors: []
-  warnings:
+  errors:
     - code: ITEM_WITHOUT_FOREACH
       nodeId: gen
       message: node "gen" uses `item`, but `item` only exists on nodes with a "forEach" field
       hint: 'add "forEach": "{{ <array expr> }}" to this node, or reference the array element explicitly'
+      at:
+        pointer: /nodes/0/prompt
+        range:
+          - 8
+          - 17
+      params:
+        node: gen
+        field: prompt
+        names:
+          - item
+  warnings: []
+template-unterminated:
+  errors: []
+  warnings:
+    - code: TEMPLATE_UNTERMINATED
+      nodeId: gen
+      message: 'node "gen" prompt: "{{" at position 6 has no closing "}}" — it is kept as plain text'
+      hint: close the template with }}, or remove the stray {{
+      at:
+        pointer: /nodes/0/prompt
+        range:
+          - 6
+          - 8
+      params:
+        node: gen
+        field: prompt
+    - code: TEMPLATE_UNTERMINATED
+      message: 'output.note: "{{" at position 7 has no closing "}}" — it is kept as plain text'
+      hint: close the template with }}, or remove the stray {{
+      at:
+        pointer: /output/note
+        range:
+          - 7
+          - 9
+      params:
+        field: output
 input-key-unknown:
   errors: []
   warnings:
@@ -325,21 +705,59 @@ input-key-unknown:
       nodeId: gen
       message: node "gen" uses input.citi, which is not declared in the inputs schema
       hint: 'did you mean "city"? declared keys: city'
+      at:
+        pointer: /nodes/0/prompt
+        range:
+          - 15
+          - 25
+      params:
+        node: gen
+        field: prompt
+        key: citi
+        suggestion: city
+        declared:
+          - city
 connector-input-invalid:
   errors:
     - code: CONNECTOR_INPUT_INVALID
       nodeId: w
       message: 'node "w" (weather.current): input must have required property ''city'''
       hint: 'schema: {"type":"object","properties":{"city":{"type":"string"},"units":{"type":"string","enum":["metric","imperial"]},"days":{"type":"integer"}},"required":["city"],"additionalProperties":false}'
+      at:
+        pointer: /nodes/0/input/city
+        subject: missing
+      params:
+        node: w
+        type: weather.current
+        property: city
+        keyword: required
+        detail: must have required property 'city'
     - code: CONNECTOR_INPUT_INVALID
       nodeId: w
       message: 'node "w" (weather.current): input must NOT have additional properties ("extra")'
       hint: 'schema: {"type":"object","properties":{"city":{"type":"string"},"units":{"type":"string","enum":["metric","imperial"]},"days":{"type":"integer"}},"required":["city"],"additionalProperties":false}'
+      at:
+        pointer: /nodes/0/input/extra
+        subject: key
+      params:
+        node: w
+        type: weather.current
+        property: extra
+        keyword: additionalProperties
+        detail: must NOT have additional properties
     - code: CONNECTOR_INPUT_INVALID
       nodeId: w
       path: /units
       message: 'node "w" (weather.current): input/units must be equal to one of the allowed values'
       hint: 'schema: {"type":"object","properties":{"city":{"type":"string"},"units":{"type":"string","enum":["metric","imperial"]},"days":{"type":"integer"}},"required":["city"],"additionalProperties":false}'
+      at:
+        pointer: /nodes/0/input/units
+      params:
+        node: w
+        type: weather.current
+        property: units
+        keyword: enum
+        detail: must be equal to one of the allowed values
   warnings: []
 output-missing:
   errors: []
@@ -347,6 +765,10 @@ output-missing:
     - code: OUTPUT_MISSING
       message: automation has no "output" — it will return null
       hint: 'e.g. "output": "{{ nodes.<id>.output }}"'
+      at:
+        pointer: /output
+        subject: missing
+      params: {}
 unused-node:
   errors: []
   warnings:
@@ -354,3 +776,487 @@ unused-node:
       nodeId: stale
       message: output of node "stale" is never used (not referenced by any node or by the automation output)
       hint: reference nodes.stale.output somewhere, or remove the node
+      at:
+        pointer: /nodes/0
+      params:
+        node: stale
+        reason: unread
+expr-unknown-name:
+  errors: []
+  warnings:
+    - code: EXPR_UNKNOWN_NAME
+      nodeId: gen
+      message: 'node "gen" prompt: "inptu" is not defined here — prompt expressions see input, nodes'
+      hint: did you mean "input"?
+      at:
+        pointer: /nodes/0/prompt
+        range:
+          - 9
+          - 19
+      params:
+        node: gen
+        field: prompt
+        name: inptu
+        available:
+          - input
+          - nodes
+        suggestion: input
+item-out-of-scope:
+  errors:
+    - code: ITEM_OUT_OF_SCOPE
+      nodeId: each
+      message: 'node "each" forEach: uses `item`, but forEach is evaluated once, before the items are iterated — `item` does not exist there and the node fails'
+      hint: forEach names the list itself — read it from input or nodes
+      at:
+        pointer: /nodes/0/forEach
+        range:
+          - 3
+          - 12
+      params:
+        node: each
+        field: forEach
+        name: item
+  warnings: []
+item-without-foreach-code:
+  errors: []
+  warnings:
+    - code: ITEM_WITHOUT_FOREACH
+      nodeId: main
+      message: node "main" uses `item`, but `item` only exists on nodes with a "forEach" field
+      hint: 'add "forEach": "{{ <array expr> }}" to this node, or reference the array element explicitly'
+      at:
+        pointer: /nodes/0/code
+        range:
+          - 7
+          - 11
+      params:
+        node: main
+        field: code
+        names:
+          - item
+ref-unknown-field:
+  errors: []
+  warnings:
+    - code: REF_UNKNOWN_FIELD
+      nodeId: main
+      message: 'node "main" input: nodes.calc.output.cuont — nodes.calc.output has no field "cuont"'
+      hint: 'did you mean "count"? its fields: count, items'
+      at:
+        pointer: /nodes/1/input/n
+        range:
+          - 3
+          - 26
+      params:
+        node: main
+        field: input
+        ref: nodes.calc.output.cuont
+        root: nodes
+        source: calc
+        key: cuont
+        known:
+          - count
+          - items
+        suggestion: count
+        closed: true
+        listWrapped: false
+type-mismatch-connector:
+  errors: []
+  warnings:
+    - code: TYPE_MISMATCH
+      nodeId: w
+      message: 'node "w" input.city: expects string, but {{ nodes.calc.output.count }} is number'
+      hint: the weather.current input schema wants string here
+      at:
+        pointer: /nodes/1/input/city
+        range:
+          - 3
+          - 26
+      params:
+        node: w
+        consumer: connector-input
+        property: city
+        expr: '{{ nodes.calc.output.count }}'
+        expected: string
+        actual: number
+type-mismatch-foreach:
+  errors: []
+  warnings:
+    - code: TYPE_MISMATCH
+      nodeId: each
+      message: 'node "each" forEach: expects an array, but {{ nodes.calc.output }} is { items: Array<number> }'
+      hint: point forEach at a list, e.g. {{ nodes.calc.output.items }}
+      at:
+        pointer: /nodes/1/forEach
+        range:
+          - 3
+          - 20
+      params:
+        node: each
+        consumer: forEach
+        expr: nodes.calc.output
+        expected: array
+        actual: '{ items: Array<number> }'
+        suggestion: items
+template-null-interpolation:
+  errors: []
+  warnings:
+    - code: TEMPLATE_NULL_INTERPOLATION
+      nodeId: post
+      message: 'node "post" prompt: {{ nodes.gen.output.title }} may be missing ("title" is optional) — inside text, a missing value fails the node'
+      hint: "give it a fallback: {{ nodes.gen.output.title ?? '' }}"
+      at:
+        pointer: /nodes/1/prompt
+        range:
+          - 15
+          - 37
+      params:
+        node: post
+        field: prompt
+        expr: nodes.gen.output.title
+        why: optional
+        key: title
+foreach-not-array:
+  errors:
+    - code: FOREACH_NOT_ARRAY
+      nodeId: each
+      message: 'node "each" forEach: "nodes.calc.output.items" has no {{ }} template, so it is plain text, not an array — the run fails at this node'
+      hint: 'write it as a template: "{{ nodes.calc.output.items }}"'
+      at:
+        pointer: /nodes/1/forEach
+      params:
+        node: each
+        reason: not-a-template
+        value: nodes.calc.output.items
+  warnings:
+    - code: UNUSED_NODE
+      nodeId: calc
+      message: output of node "calc" is never used (not referenced by any node or by the automation output)
+      hint: reference nodes.calc.output somewhere, or remove the node
+      at:
+        pointer: /nodes/0
+      params:
+        node: calc
+        reason: unread
+agent-iteration-unsupported:
+  errors:
+    - code: AGENT_ITERATION_UNSUPPORTED
+      nodeId: review
+      message: node "review" (agent) uses forEach — an agent node cannot iterate yet; a live run fails at this node
+      hint: give each item its own agent node, or do the per-item work in an llm node
+      at:
+        pointer: /nodes/0/forEach
+      params:
+        node: review
+        field: forEach
+  warnings: []
+condition-constant:
+  errors: []
+  warnings:
+    - code: CONDITION_CONSTANT
+      nodeId: main
+      message: 'node "main" when is always true: text around the template makes it a non-empty string'
+      hint: 'write the condition as one template: "{{ input.go }}"'
+      at:
+        pointer: /nodes/0/when
+      params:
+        node: main
+        field: when
+        value: true
+        cause: mixed-text
+repeat-never-true:
+  errors: []
+  warnings:
+    - code: REPEAT_NEVER_TRUE
+      nodeId: main
+      message: node "main" repeatUntil is always false — the node runs all 3 passes every time
+      hint: make the condition read this pass's result, e.g. "{{ output.status === 'done' }}"
+      at:
+        pointer: /nodes/0/repeatUntil
+      params:
+        node: main
+        maxRepeats: 3
+repeat-until-static:
+  errors: []
+  warnings:
+    - code: REPEAT_UNTIL_STATIC
+      nodeId: main
+      message: node "main" repeatUntil does not read this pass's result (output or nodes.main.output) — it gives the same answer after every pass
+      hint: make the condition read this pass's result, e.g. "{{ output.status === 'done' }}"
+      at:
+        pointer: /nodes/0/repeatUntil
+      params:
+        node: main
+maybe-null:
+  errors: []
+  warnings:
+    - code: MAYBE_NULL
+      message: 'output: nodes.check.output.ok reads "check", which is skipped when its own "when" is false — building the output then fails, so the run fails'
+      hint: 'guard the read: nodes.check.output?.ok ?? null — or give "check" an elseOf partner that produces a fallback'
+      at:
+        pointer: /output/ok
+        range:
+          - 3
+          - 24
+      params:
+        field: output
+        ref: nodes.check.output.ok
+        source: check
+        reasons:
+          - when
+        suggestion: nodes.check.output?.ok ?? null
+      related:
+        - role: source
+          nodeId: check
+          at:
+            pointer: /nodes/1
+maybe-null-optional-in-text:
+  errors: []
+  warnings:
+    - code: CONDITION_CONSTANT
+      nodeId: notify
+      message: 'node "notify" when is always true: text around the template makes it a non-empty string'
+      hint: 'write the condition as one template: "{{ nodes.check.output?.summary }}"'
+      at:
+        pointer: /nodes/2/when
+      params:
+        node: notify
+        field: when
+        value: true
+        cause: mixed-text
+    - code: MAYBE_NULL
+      nodeId: notify
+      message: 'node "notify" when: nodes.check.output?.summary reads "check", which is skipped when its own "when" is false — the condition then fails and the node fails'
+      hint: 'guard the read: nodes.check.output?.summary ?? '''' — or give "check" an elseOf partner that produces a fallback'
+      at:
+        pointer: /nodes/2/when
+        range:
+          - 9
+          - 36
+      params:
+        node: notify
+        field: when
+        ref: nodes.check.output?.summary
+        source: check
+        reasons:
+          - when
+        suggestion: nodes.check.output?.summary ?? ''
+      related:
+        - role: source
+          nodeId: check
+          at:
+            pointer: /nodes/1
+    - code: MAYBE_NULL
+      message: 'output: nodes.check.output?.summary reads "check", which is skipped when its own "when" is false — building the output then fails, so the run fails'
+      hint: 'guard the read: nodes.check.output?.summary ?? '''' — or give "check" an elseOf partner that produces a fallback'
+      at:
+        pointer: /output/line
+        range:
+          - 12
+          - 39
+      params:
+        field: output
+        ref: nodes.check.output?.summary
+        source: check
+        reasons:
+          - when
+        suggestion: nodes.check.output?.summary ?? ''
+      related:
+        - role: source
+          nodeId: check
+          at:
+            pointer: /nodes/1
+    - code: MAYBE_NULL
+      message: 'output: nodes.check.output[input.key] reads "check", which is skipped when its own "when" is false — building the output then fails, so the run fails'
+      hint: 'guard the read: nodes.check.output?.[input.key] ?? null — or give "check" an elseOf partner that produces a fallback'
+      at:
+        pointer: /output/pick
+        range:
+          - 3
+          - 32
+      params:
+        field: output
+        ref: nodes.check.output[input.key]
+        source: check
+        reasons:
+          - when
+        suggestion: nodes.check.output?.[input.key] ?? null
+      related:
+        - role: source
+          nodeId: check
+          at:
+            pointer: /nodes/1
+uncaught-failure:
+  errors: []
+  warnings:
+    - code: UNCAUGHT_FAILURE
+      message: 'output: nodes.fetch.output.rows reads "fetch", which continues on error — when it fails, this read fails too, so the failure is not handled'
+      hint: 'guard the read (nodes.fetch.output?.rows ?? null), or drop onError: continue on "fetch" so the run stops there with its own error'
+      at:
+        pointer: /output/rows
+        range:
+          - 3
+          - 26
+      params:
+        field: output
+        ref: nodes.fetch.output.rows
+        source: fetch
+        failing: fetch
+        reasons:
+          - error
+        suggestion: nodes.fetch.output?.rows ?? null
+      related:
+        - role: source
+          nodeId: fetch
+          at:
+            pointer: /nodes/1
+        - role: cause
+          nodeId: fetch
+          at:
+            pointer: /nodes/1
+unreachable:
+  errors: []
+  warnings:
+    - code: UNREACHABLE
+      nodeId: never
+      message: 'node "never" can never run: its "when" is always false ({{ false }})'
+      hint: make the condition depend on data, or remove the node
+      at:
+        pointer: /nodes/0/when
+      params:
+        node: never
+        cause: constant-when
+        value: '{{ false }}'
+unused-node-readers-unreachable:
+  errors: []
+  warnings:
+    - code: UNUSED_NODE
+      nodeId: never
+      message: output of node "never" is never used (not referenced by any node or by the automation output)
+      hint: reference nodes.never.output somewhere, or remove the node
+      at:
+        pointer: /nodes/1
+      params:
+        node: never
+        reason: unread
+    - code: UNREACHABLE
+      nodeId: never
+      message: 'node "never" can never run: its "when" is always false ({{ false }})'
+      hint: make the condition depend on data, or remove the node
+      at:
+        pointer: /nodes/1/when
+      params:
+        node: never
+        cause: constant-when
+        value: '{{ false }}'
+    - code: UNUSED_NODE
+      nodeId: prep
+      message: output of node "prep" is only read by nodes that can never run (never)
+      hint: make one of those nodes reachable, or remove "prep"
+      at:
+        pointer: /nodes/0
+      params:
+        node: prep
+        reason: readers-unreachable
+      related:
+        - role: reader
+          nodeId: never
+          at:
+            pointer: /nodes/1
+output-maybe-empty:
+  errors: []
+  warnings:
+    - code: OUTPUT_MAYBE_EMPTY
+      message: output reads only "main", which does not run when "main" is skipped by its "when" — the automation then returns empty values
+      hint: read a node that always runs as well, or give "main" an elseOf partner that produces a fallback
+      at:
+        pointer: /output
+      params:
+        nodes:
+          - main
+        root: main
+        rootReason: when
+      related:
+        - role: cause
+          nodeId: main
+          at:
+            pointer: /nodes/0
+subautomation-input-invalid:
+  errors: []
+  warnings:
+    - code: SUBAUTOMATION_INPUT_INVALID
+      nodeId: sub
+      message: 'node "sub": input does not fit the inputs of "weekly-report@1": n is required; m is not a field the inputs schema takes'
+      hint: '"weekly-report" expects { n: number }'
+      at:
+        pointer: /nodes/0/input
+      params:
+        node: sub
+        automation: weekly-report
+        version: 1
+        missing:
+          - n
+        unknown:
+          - m
+        problems:
+          - n is required
+          - m is not a field the inputs schema takes
+trigger-input-mismatch:
+  errors: []
+  warnings:
+    - code: TRIGGER_INPUT_MISMATCH
+      message: 'the schedule trigger starts runs with {trigger, firedAt}, which the inputs schema refuses: city is required; trigger is not a field the inputs schema takes; firedAt is not a field the inputs schema takes — every scheduled run is refused'
+      hint: 'a schedule passes only trigger and firedAt: declare both in the inputs schema and make every other input optional, or start this automation from a webhook, an event or the API'
+      at:
+        pointer: /inputs
+      params:
+        kind: schedule
+        missing:
+          - city
+        problems:
+          - city is required
+          - trigger is not a field the inputs schema takes
+          - firedAt is not a field the inputs schema takes
+tests-input-invalid:
+  errors: []
+  warnings:
+    - code: TESTS_INPUT_INVALID
+      message: 'tests[0] "no city": input does not match the inputs schema: city is required'
+      hint: the run refuses this input before any node runs, so the test cannot pass
+      at:
+        pointer: /tests/0/input
+      params:
+        test: 0
+        name: no city
+        missing:
+          - city
+        problems:
+          - city is required
+tests-effect-unknown:
+  errors: []
+  warnings:
+    - code: TESTS_EFFECT_UNKNOWN
+      message: tests[0] "sends the mail" expects a "mail.sned" effect, which no node of this automation performs
+      hint: 'did you mean "mail.send"? effects come from: mail.send'
+      at:
+        pointer: /tests/0/expect/effects/0/connector
+      params:
+        test: 0
+        name: sends the mail
+        connector: mail.sned
+        suggestion: mail.send
+        possible:
+          - mail.send
+tests-expect-type:
+  errors: []
+  warnings:
+    - code: TESTS_EXPECT_TYPE
+      message: tests[0] "counts" expects output.count to be string, but the automation's output.count is number
+      hint: the test cannot pass as written — fix the expectation or the output
+      at:
+        pointer: /tests/0/expect/output/count
+      params:
+        test: 0
+        name: counts
+        property: count
+        expected: string
+        actual: number

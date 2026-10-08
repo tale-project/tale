@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 34 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 35 boxes
 
 Verify the app adapts across viewports — the mobile in-flow bottom tab bar,
 the phone's Home list and its way back, the mobile floating Save cluster, and
@@ -78,7 +78,9 @@ if you want to keep a write.
   **Settings** (`navigation.userSettings`) — no **More** tab, no overflow
   sheet, no separate Projects or Inbox tab. **Home** is the active tab on the
   chat, and on a project, a task page and the inbox too; each other tab opens
-  its section's first page.
+  its section's first page, also from inside that section: **Knowledge**
+  opened from **Websites** lands on **Documents**, **Automations** opened from
+  an automation's **Runs** tab on the list.
 - [ ] `RESP-F2` · **~~More sheet~~ (retired)** → The **More** tab and its
   overflow sheet are gone: Knowledge, Automations and Settings are tabs of
   their own (`RESP-F1`).
