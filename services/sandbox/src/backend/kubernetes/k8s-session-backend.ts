@@ -78,6 +78,18 @@ function conflictError(
   );
 }
 
+/** The scheduler's reason a Pod has no node yet, when it reported one: its
+ * PodScheduled condition, False with reason Unschedulable. */
+function unschedulableReason(pod: V1Pod | undefined): string | undefined {
+  const scheduled = pod?.status?.conditions?.find(
+    (condition) => condition.type === 'PodScheduled',
+  );
+  if (scheduled?.status !== 'False' || scheduled.reason !== 'Unschedulable') {
+    return undefined;
+  }
+  return scheduled.message?.trim() || 'no reason given';
+}
+
 /** Margin past a create's budget before a Pod-less Secret counts as an
  * orphan rather than a peer replica's create in flight. */
 const ORPHAN_SECRET_SLACK_MS = 60_000;
@@ -579,7 +591,6 @@ export class KubernetesSessionBackend implements SessionBackend {
     }
   }
 
-  /** Read the Pod until status.podIP is assigned, then return the runnerd URL. */
   /** Watch the session's Pod while a create waits on it: `failed` rejects
    * with the reason once a container cannot start, and `signal` aborts then
    * or at stop(), so the waits beside it end too. A read that fails says
@@ -627,20 +638,44 @@ export class KubernetesSessionBackend implements SessionBackend {
     };
   }
 
+  /** Read the Pod until status.podIP is assigned, then return the runnerd URL.
+   * A Pod the scheduler cannot place (a selector no node matches, a taint it
+   * does not tolerate, a disk request on a node with no capacity) keeps
+   * waiting, since an autoscaler can still add a node; but the scheduler's
+   * reason is logged once and carried by the error the wait ends with, so an
+   * operator need not reach for `kubectl describe pod`. */
   private async waitForEndpoint(
     sessionId: string,
     deadlineMs: number,
     giveUp?: AbortSignal,
   ): Promise<string> {
-    for (;;) {
-      operationSignal()?.throwIfAborted();
-      giveUp?.throwIfAborted();
-      const ip = (await this.readPod(sessionId))?.status?.podIP;
-      if (ip) return `http://${ip}:${RUNNERD_PORT}`;
-      if (Date.now() > deadlineMs) {
-        throw new Error(`session ${sessionId} pod never got an IP`);
+    let unschedulable: string | undefined;
+    let logged = false;
+    try {
+      for (;;) {
+        operationSignal()?.throwIfAborted();
+        giveUp?.throwIfAborted();
+        const pod = await this.readPod(sessionId);
+        const ip = pod?.status?.podIP;
+        if (ip) return `http://${ip}:${RUNNERD_PORT}`;
+        unschedulable = unschedulableReason(pod);
+        if (unschedulable !== undefined && !logged) {
+          logged = true;
+          console.warn(
+            `[sandbox.session] session ${sessionId} pod unschedulable: ${unschedulable}`,
+          );
+        }
+        if (Date.now() > deadlineMs) {
+          throw new Error(`session ${sessionId} pod never got an IP`);
+        }
+        await new Promise((r) => setTimeout(r, 500));
       }
-      await new Promise((r) => setTimeout(r, 500));
+    } catch (error) {
+      if (unschedulable === undefined) throw error;
+      throw new Error(
+        `session ${sessionId} pod never got an IP: pod unschedulable: ${unschedulable}`,
+        { cause: error },
+      );
     }
   }
 

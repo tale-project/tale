@@ -684,7 +684,7 @@ globalDefault: false
 description: Tale sandbox sessions yield to the platform.
 ```
 
-Die Einstellungen gelten für jeden Session-Pod, auch für Crawler-Renders, und zwar für die Sessions, die der Spawner nach seinem Neustart anlegt; laufende Sessions behalten ihre Platzierung. Ein fehlerhafter Wert verhindert den Start des Spawners. Bei Node-lokalem Speicher bleibt der Workspace-Claim einer gestoppten Session auf ihrem Node; behalte diesen Node im Selektor, sonst lässt sich die Session nicht fortsetzen.
+Die Einstellungen gelten für jeden Session-Pod, auch für Crawler-Renders, und zwar für die Sessions, die der Spawner nach seinem Neustart anlegt; laufende Sessions behalten ihre Platzierung. Ein fehlerhafter Wert verhindert den Start des Spawners. Passt ein gültiger Selektor auf keinen Node oder fehlt die Toleration für einen Taint, bleibt ein Session-Pod ausstehend: Der Spawner protokolliert den Grund des Schedulers, und das Anlegen schlägt mit diesem Grund fehl, sobald sein Startbudget abgelaufen ist. Bei Node-lokalem Speicher bleibt der Workspace-Claim einer gestoppten Session auf ihrem Node; behalte diesen Node im Selektor, sonst lässt sich die Session nicht fortsetzen.
 
 ### Sandbox-Images vorab laden
 

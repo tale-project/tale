@@ -684,7 +684,7 @@ globalDefault: false
 description: Tale sandbox sessions yield to the platform.
 ```
 
-Ces paramètres s’appliquent à chaque Pod de session, rendus du crawler compris, pour les sessions que le spawner crée après son redémarrage ; les sessions en cours gardent leur placement. Une valeur mal formée empêche le spawner de démarrer. Avec un stockage local au nœud, le claim de workspace d’une session arrêtée reste sur son nœud : garde ce nœud dans le sélecteur, sinon la session ne peut pas reprendre.
+Ces paramètres s’appliquent à chaque Pod de session, rendus du crawler compris, pour les sessions que le spawner crée après son redémarrage ; les sessions en cours gardent leur placement. Une valeur mal formée empêche le spawner de démarrer. Un sélecteur valide qu’aucun nœud ne satisfait, ou un taint que les tolérances ne couvrent pas, laisse un Pod de session en attente : le spawner journalise la raison donnée par le scheduler, et la création échoue avec cette raison une fois son budget de démarrage épuisé. Avec un stockage local au nœud, le claim de workspace d’une session arrêtée reste sur son nœud : garde ce nœud dans le sélecteur, sinon la session ne peut pas reprendre.
 
 ### Précharger les images de la sandbox
 

@@ -125,7 +125,11 @@ reverse, and among Pods over their requests the kubelet evicts sessions
 first. The values are
 held to the apiserver's rules at boot (label keys and values, a toleration's
 operator, effect and `tolerationSeconds`, a DNS-subdomain class name), so a
-typo stops the spawner instead of failing every create. The spawner needs no
+typo stops the spawner instead of failing every create. A valid selector no
+node matches, a missing toleration or a disk request on a node with no
+capacity leaves the Pod `Unschedulable`; the create keeps waiting, since an
+autoscaler can still add a node, logs the scheduler's message once and,
+when its budget runs out, fails with that message. The spawner needs no
 extra RBAC; a cluster administrator creates the PriorityClass once. A
 changed selector reaches new Pods only, and with node-local storage a
 stopped session resumes only on the node that holds its workspace PVC.

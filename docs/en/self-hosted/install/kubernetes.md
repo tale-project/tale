@@ -684,7 +684,7 @@ globalDefault: false
 description: Tale sandbox sessions yield to the platform.
 ```
 
-The settings apply to every session Pod, crawler renders included, for the sessions the spawner creates after its restart; running sessions keep their placement. A malformed value stops the spawner at start. With node-local storage, a stopped session's workspace claim stays on its node, so keep that node inside the selector or the session cannot resume.
+The settings apply to every session Pod, crawler renders included, for the sessions the spawner creates after its restart; running sessions keep their placement. A malformed value stops the spawner at start. A valid selector that no node matches, or a taint the tolerations miss, leaves a session Pod pending: the spawner logs the scheduler's reason, and the create fails with that reason once its startup budget runs out. With node-local storage, a stopped session's workspace claim stays on its node, so keep that node inside the selector or the session cannot resume.
 
 ### Pre-pull the sandbox images
 
