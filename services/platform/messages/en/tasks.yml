@@ -181,6 +181,7 @@ priority:
   none: No priority
 fields:
   title: Title
+  titlePlaceholder: Task title
   description: Description
   assignee: Assignee
   reviewer: Reviewer
@@ -214,6 +215,10 @@ labels:
     deleteFailed: Couldn't delete the label.
 actions:
   create: Create task
+  createAnother: Create another
+  createShortcut: '{shortcut} to create'
+  openCreated: Open
+  openCreatedAltText: Open the new task
   createAndStart: Create and start agent
   createOnly: Create only
   created: Task created

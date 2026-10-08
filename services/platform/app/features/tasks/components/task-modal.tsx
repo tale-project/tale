@@ -27,9 +27,11 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import { useCopy } from '@tale/ui/use-copy';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { useIsMac } from '@tale/ui/use-is-mac';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
 import {
@@ -64,6 +66,7 @@ import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { TASK_TITLE_MAX } from '@/backend/core/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
@@ -93,6 +96,10 @@ import {
   type ResolvedTaskSubjectContract,
 } from '../hooks/use-task-subject-contract';
 import {
+  DEFAULT_NEW_TASK_PRIORITY,
+  defaultNewTaskStartDate,
+} from '../lib/create-defaults';
+import {
   TASK_TERMINAL_STATUSES,
   type TaskActorType,
   type TaskPriority,
@@ -102,6 +109,7 @@ import { parentCloseRefusal } from '../lib/parent-close-refusal';
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 import { reviewerRefusalMessage } from '../lib/reviewer-refusal';
 import { subtaskProgress } from '../lib/subtasks';
+import { toastTaskCreated } from '../lib/task-created-toast';
 import { taskLimitRefusalMessage } from '../lib/task-limit-refusal';
 import {
   canTaskRepeat,
@@ -809,28 +817,61 @@ function CreateTaskBody({
   const [templateSlug, setTemplateSlug] = useState<string | null>(null);
   const activeTemplate =
     templates.find((entry) => entry.automationSlug === templateSlug) ?? null;
-  const { attachments, uploadingFiles, uploadFiles, removeAttachment } =
-    useFileUpload({
-      organizationId,
-      allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
-      ...(draft !== undefined && { initialAttachments: draft.attachments }),
-    });
+  const {
+    attachments,
+    uploadingFiles,
+    uploadFiles,
+    removeAttachment,
+    clearAttachments,
+  } = useFileUpload({
+    organizationId,
+    allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
+    ...(draft !== undefined && { initialAttachments: draft.attachments }),
+  });
 
   const [title, setTitle] = useState(draft?.title ?? '');
   const [description, setDescription] = useState(draft?.description ?? '');
   const [status, setStatus] = useState<TaskStatus>(defaultStatus);
   const pasteCounterRef = useRef(1);
-  const [priority, setPriority] = useState<TaskPriority | null>(null);
+  const [priority, setPriority] = useState<TaskPriority | null>(
+    DEFAULT_NEW_TASK_PRIORITY,
+  );
   const [assignee, setAssignee] = useState<{
     type: TaskActorType;
     id: string;
   } | null>(draft?.assignee ?? null);
   const [dueDate, setDueDate] = useState<number | undefined>(undefined);
-  const [startDate, setStartDate] = useState<number | undefined>(undefined);
+  const [startDate, setStartDate] = useState<number | undefined>(() =>
+    defaultNewTaskStartDate(),
+  );
   const [repeat, setRepeat] = useState<TaskRepeat | null>(null);
   const [labels, setLabels] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [labelsManageOpen, setLabelsManageOpen] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
+  // After a create with "Create another", the caret goes back to Title once
+  // the field is enabled again (it is disabled while the create runs).
+  const refocusTitleRef = useRef(false);
+  useEffect(() => {
+    if (submitting || !refocusTitleRef.current) return;
+    refocusTitleRef.current = false;
+    titleRef.current?.focus();
+  }, [submitting]);
+  const isMac = useIsMac();
+  // "Create another" belongs to the board's own create: the chat hand-over
+  // links a source thread and announces itself, and a template opens what it
+  // made, so neither loops.
+  const canCreateAnother = draft === undefined && onTaskCreated === undefined;
+  const [createAnother, setCreateAnother] = usePersistedState(
+    'tale.platform.tasks.createAnother',
+    false,
+  );
+  const createsAnother = canCreateAnother && createAnother;
+  // A start after the due date is refused by the server; say so where the
+  // dates are, before Create, rather than in a toast after it.
+  const scheduleInvalid =
+    startDate !== undefined && dueDate !== undefined && startDate > dueDate;
+  const uploading = uploadingFiles.length > 0;
   // A rule belongs on open work a person or agent carries: a task created
   // straight into Done or Cancelled would never come back, and one handed to
   // an automation follows the automation's lifecycle. Choosing either drops
@@ -850,6 +891,13 @@ function CreateTaskBody({
     counterMax: descriptionCounterMax,
     counterValue: descriptionCounterValue,
   } = useDescriptionCap(description);
+  // Create waits for a title, a description within its cap, a schedule the
+  // server takes and every file that is still uploading.
+  const canSubmit =
+    title.trim().length > 0 &&
+    !descriptionOverCap &&
+    !scheduleInvalid &&
+    !uploading;
   const { resolveActor } = useActorDirectory(organizationId, projectId);
   // Named beside the avatar, as on the task's own details panel — the bare
   // avatar button left "who takes this" to a hover.
@@ -868,7 +916,7 @@ function CreateTaskBody({
 
   const submit = async (options: { start?: boolean } = {}) => {
     const trimmed = title.trim();
-    if (!trimmed || submitting || descriptionOverCap) return;
+    if (!trimmed || submitting || !canSubmit) return;
     setSubmitting(true);
     try {
       const taskId = await createTask.mutateAsync({
@@ -895,7 +943,27 @@ function CreateTaskBody({
           : {}),
       });
       if (onTaskCreated === undefined) {
-        toast({ title: t('actions.created'), variant: 'success' });
+        toastTaskCreated({
+          title: t('actions.created'),
+          openLabel: t('actions.openCreated'),
+          openAltText: t('actions.openCreatedAltText'),
+          onOpen: () => {
+            onClose();
+            onCreated?.(taskId);
+          },
+        });
+      }
+      if (createsAnother) {
+        // Ready for the next one: the words and files go, everything a run of
+        // similar tasks shares — status, priority, assignee, dates, repeat,
+        // labels — stays.
+        setTitle('');
+        setDescription('');
+        clearAttachments();
+        pasteCounterRef.current = 1;
+        refocusTitleRef.current = true;
+        setSubmitting(false);
+        return;
       }
       onClose();
       onTaskCreated?.(taskId);
@@ -973,34 +1041,50 @@ function CreateTaskBody({
     <div className="contents" onPaste={onPasteImages}>
       <ModalLayout
         header={
-          <ResponsiveDialogTitle className="text-lg leading-snug font-semibold">
-            {t('actions.create')}
-          </ResponsiveDialogTitle>
+          // The task as it will read: its status as the glyph tile and its
+          // title in the same place and weight as the open task's own header,
+          // so creating and reading a task look alike. The dialog's name
+          // stays the verb.
+          <Stack gap={2} className="md:pr-10">
+            <ResponsiveDialogTitle className="text-muted-foreground text-xs font-medium">
+              {t('actions.create')}
+            </ResponsiveDialogTitle>
+            <Row gap={3} align="center">
+              <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-lg">
+                <TaskStatusGlyph status={status} />
+              </span>
+              <input
+                ref={titleRef}
+                id="task-title"
+                aria-label={t('fields.title')}
+                placeholder={t('fields.titlePlaceholder')}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={submitting}
+                autoFocus
+                required
+                // Hard-cap at the server limit (validateTitle rejects >
+                // TASK_TITLE_MAX) so an over-long title can't reach the
+                // mutation and strand the dialog behind a generic error toast.
+                maxLength={TASK_TITLE_MAX}
+                autoComplete="off"
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+                  e.preventDefault();
+                  // Cmd/Ctrl+Enter creates; a plain Enter moves on to the
+                  // description, as a title is one line.
+                  if (e.metaKey || e.ctrlKey)
+                    void submit({ start: startFirst });
+                  else document.getElementById('task-description')?.focus();
+                }}
+                className="text-foreground placeholder:text-muted-foreground hover:bg-muted/50 focus:bg-muted/50 -mx-1 min-w-0 flex-1 rounded-md bg-transparent px-1 text-lg leading-snug font-semibold outline-none disabled:opacity-60"
+              />
+            </Row>
+          </Stack>
         }
         main={
           <>
             {chips}
-            <Input
-              id="task-title"
-              label={t('fields.title')}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              disabled={submitting}
-              autoFocus
-              required
-              // Hard-cap at the server limit (validateTitle rejects > TASK_TITLE_MAX)
-              // so an over-long title can't reach the mutation and strand the dialog
-              // behind a generic error toast.
-              maxLength={TASK_TITLE_MAX}
-              onKeyDown={(e) => {
-                // Cmd/Ctrl+Enter submits from the title (fast path) — the
-                // footer's main verb.
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                  e.preventDefault();
-                  void submit({ start: startFirst });
-                }
-              }}
-            />
             <MentionTextarea
               id="task-description"
               organizationId={organizationId}
@@ -1009,6 +1093,18 @@ function CreateTaskBody({
               rows={8}
               value={description}
               onValueChange={setDescription}
+              onKeyDown={(e) => {
+                // Cmd/Ctrl+Enter creates from the description too; a plain
+                // Enter stays a new line.
+                if (
+                  (e.metaKey || e.ctrlKey) &&
+                  e.key === 'Enter' &&
+                  !e.nativeEvent.isComposing
+                ) {
+                  e.preventDefault();
+                  void submit({ start: startFirst });
+                }
+              }}
               errorMessage={descriptionHint}
               counterMax={descriptionCounterMax}
               counterValue={descriptionCounterValue}
@@ -1092,6 +1188,12 @@ function CreateTaskBody({
                 onChange={(ms) => setDueDate(ms ?? undefined)}
               />
             </PropertyRow>
+            {scheduleInvalid && (
+              // Named where the dates are, and Create waits until it is fixed.
+              <p role="alert" className="text-destructive text-xs">
+                {t('startDate.afterDue')}
+              </p>
+            )}
             <PropertyRow label={t('repeat.label')}>
               <TaskRepeatField
                 value={repeat}
@@ -1137,17 +1239,38 @@ function CreateTaskBody({
           </>
         }
         footer={
-          <Row gap={2} justify="end" className="flex-wrap">
-            <Button variant="secondary" onClick={onClose} disabled={submitting}>
+          <Row gap={2} align="center" className="flex-wrap">
+            {canCreateAnother && (
+              <Switch
+                checked={createAnother}
+                onCheckedChange={setCreateAnother}
+                label={t('actions.createAnother')}
+                disabled={submitting}
+              />
+            )}
+            {/* The shortcut, for a keyboard; a touch screen has none. */}
+            <Text
+              as="span"
+              variant="muted"
+              className="ml-auto text-xs max-md:hidden pointer-coarse:hidden"
+            >
+              {t('actions.createShortcut', {
+                shortcut: isMac ? '⌘ Enter' : 'Ctrl + Enter',
+              })}
+            </Text>
+            <Button
+              variant="secondary"
+              onClick={onClose}
+              disabled={submitting}
+              className="max-md:ml-auto"
+            >
               {tCommon('actions.cancel')}
             </Button>
             {offerStart && startFirst && (
               <Button
                 variant="secondary"
                 onClick={() => void submit()}
-                disabled={
-                  title.trim().length === 0 || descriptionOverCap || submitting
-                }
+                disabled={!canSubmit || submitting}
               >
                 {t('actions.createOnly')}
               </Button>
@@ -1157,9 +1280,7 @@ function CreateTaskBody({
                 variant="secondary"
                 icon={Play}
                 onClick={() => void submit({ start: true })}
-                disabled={
-                  title.trim().length === 0 || descriptionOverCap || submitting
-                }
+                disabled={!canSubmit || submitting}
               >
                 {t('actions.createAndStart')}
               </Button>
@@ -1167,7 +1288,7 @@ function CreateTaskBody({
             <Button
               {...(startFirst || startsOnCreate ? { icon: Play } : {})}
               onClick={() => void submit({ start: startFirst })}
-              disabled={title.trim().length === 0 || descriptionOverCap}
+              disabled={!canSubmit}
               isLoading={submitting}
             >
               {startFirst || startsOnCreate
@@ -2404,6 +2525,7 @@ function SubtaskComposer({
         projectId,
         title: subTitle,
         status: 'todo',
+        priority: DEFAULT_NEW_TASK_PRIORITY,
         parentTaskId,
       });
       setSubtaskTitle('');
