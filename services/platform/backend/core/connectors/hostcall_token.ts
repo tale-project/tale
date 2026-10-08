@@ -2,8 +2,10 @@
  * Signed capability tokens for the connectors HOST-CALL endpoint —
  * the platform end of a live yaml-js body running out of process.
  *
- * A live connector body executes inside the org's sandbox session
- * (sandbox-exec runner), but its `ctx.http` stays PLATFORM-MEDIATED: the
+ * No caller runs a body this way today — every live body runs on the
+ * in-process live runner — and the path is listed as contract debt. When a
+ * live connector body executes inside the org's sandbox session
+ * (sandbox-exec runner), its `ctx.http` stays PLATFORM-MEDIATED: the
  * in-sandbox portable ctx round-trips every request to
  * `/api/connectors/hostcall`, where the real live host (allowlist, https,
  * response caps, Authorization injection) performs it. This token is what the

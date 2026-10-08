@@ -55,6 +55,13 @@
       "description": "List problems a check found in the reader's words, take the reader to each one, and count and announce the result."
     }
   },
+  "components/property-list": {
+    "slug": "components/property-list",
+    "frontmatter": {
+      "title": "Property list",
+      "description": "Line up a record's properties beside their labels, and offer them as chips under a form."
+    }
+  },
   "components/recurrence-picker": {
     "slug": "components/recurrence-picker",
     "frontmatter": {
