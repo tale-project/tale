@@ -84,7 +84,9 @@ Place the list in a panel that stays open while the reader clicks the chart, not
 
 ## Use the keyboard
 
-The list is one Tab stop across all its sections. ↓ and ↑ move between rows, Home and End jump to the first and last. Enter or Space pins or opens a row. Escape unpins, and a screen reader hears your `announce` words once for each pin.
+The list is one Tab stop across all its sections. ↓ and ↑ move between rows, Home and End jump to the first and last. Enter or Space pins or opens a row. Escape unpins from a row or from **Show all**, and a screen reader hears your `announce` words once for each pin.
+
+Unpinning ends the preview too (`onPreview(null)`), so the chart shows every path again. Focus stays on the row that was pinned, or returns to it from **Show all**, without previewing it; the next arrow key previews as usual.
 
 While a path is pinned, the list claims Escape, so inside a sheet the first Escape unpins and the next one closes the sheet. The chart itself highlights only a node's own lines on keyboard focus; the list is how a keyboard reaches a single path.
 

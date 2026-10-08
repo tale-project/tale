@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -90,6 +91,11 @@ const CLAUSE_DOT: Record<NonNullable<FlowPathClause['tone']>, string> = {
  * Home and End jump. Pinning says so once in a polite live region, in the
  * host's words. While a path is pinned the list claims Escape, so the
  * first Escape inside a sheet unpins and only the next one closes it.
+ *
+ * Unpinning — Escape anywhere in the list, or **Show all** — ends the
+ * preview too, so the chart shows every path again; focus stays on (or
+ * returns to) the row that was pinned without previewing it, and the next
+ * arrow key previews as usual.
  */
 export function FlowPathList({
   sections,
@@ -105,9 +111,15 @@ export function FlowPathList({
 }: FlowPathListProps) {
   const { t } = useT('flow');
   const baseId = useId();
-  const rows = sections.flatMap((section) => section.rows);
+  const rows = useMemo(
+    () => sections.flatMap((section) => section.rows),
+    [sections],
+  );
   const ids = rows.map((row) => row.id);
   const buttons = useRef(new Map<string, HTMLButtonElement>());
+  // A row focused by the list itself after an unpin: it keeps the focus
+  // without previewing its path again.
+  const quietFocus = useRef<string | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [spoken, setSpoken] = useState({ text: '', serial: 0 });
 
@@ -133,8 +145,10 @@ export function FlowPathList({
     setSpoken((previous) => ({ text, serial: previous.serial + 1 }));
   }, [pinnedId, announce, rows]);
 
-  const focusRow = useCallback((id: string) => {
+  const focusRow = useCallback((id: string, preview = true) => {
+    if (!preview) quietFocus.current = id;
     buttons.current.get(id)?.focus();
+    quietFocus.current = null;
   }, []);
 
   const choose = (row: FlowPathListRow) => {
@@ -142,10 +156,34 @@ export function FlowPathList({
     else onPin?.(pinnedId === row.id ? null : row.id);
   };
 
+  /** Back to every path: no pin, no preview. `refocus` returns focus to
+   *  the row that was pinned (from **Show all**, which then goes away). */
+  const unpin = (refocus: boolean) => {
+    if (pinnedId === null) return;
+    onPin?.(null);
+    onPreview?.(null);
+    if (refocus) focusRow(pinnedId, false);
+  };
+
+  // Escape unpins from anywhere in the list — a row, or Show all, which
+  // then hands focus back to the row — and the claim keeps a sheet round
+  // the list from closing on that same press.
+  const onEscape = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    refocus: boolean,
+  ): boolean => {
+    if (event.key !== 'Escape' || pinnedId === null) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    unpin(refocus);
+    return true;
+  };
+
   const onRowKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
   ) => {
+    if (onEscape(event, false)) return;
     let next: string | undefined;
     switch (event.key) {
       case 'ArrowDown':
@@ -160,12 +198,6 @@ export function FlowPathList({
       case 'End':
         next = ids.at(-1);
         break;
-      case 'Escape':
-        if (pinnedId === null) return;
-        event.preventDefault();
-        event.stopPropagation();
-        onPin?.(null);
-        return;
       default:
         return;
     }
@@ -249,7 +281,8 @@ export function FlowPathList({
                           onKeyDown={(event) => onRowKeyDown(event, at)}
                           onFocus={() => {
                             setFocusedId(row.id);
-                            onPreview?.(row.id);
+                            if (quietFocus.current !== row.id)
+                              onPreview?.(row.id);
                           }}
                           onBlur={(event) => {
                             // Leaving the list ends the preview; moving
@@ -328,10 +361,8 @@ export function FlowPathList({
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => {
-              onPin?.(null);
-              focusRow(pinnedId);
-            }}
+            onClick={() => unpin(true)}
+            onKeyDown={(event) => onEscape(event, true)}
           >
             {t('paths.showAll')}
           </Button>

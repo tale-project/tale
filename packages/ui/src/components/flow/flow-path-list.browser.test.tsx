@@ -6,6 +6,7 @@ import { userEvent } from 'vitest/browser';
 
 import { render, screen, waitFor } from '@/tests/utils/render';
 
+import { Sheet } from '../overlays/sheet';
 import {
   FlowPathList,
   type FlowPathListProps,
@@ -116,12 +117,19 @@ describe('FlowPathList', () => {
       document.querySelector('[data-slot="flow-path-list"]'),
     ).toHaveAttribute('data-claims-escape');
 
+    // Unpinning shows every path again: the preview ends with the pin,
+    // and focus stays where it was.
     await userEvent.keyboard('{Escape}');
     expect(onPin).toHaveBeenLastCalledWith(null);
     expect(row(/^Path 2/)).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('preview')).toHaveTextContent('none');
+    expect(document.activeElement).toBe(row(/^Path 2/));
     expect(
       document.querySelector('[data-slot="flow-path-list"]'),
     ).not.toHaveAttribute('data-claims-escape');
+    // The next arrow key previews again.
+    await userEvent.keyboard('{ArrowUp}');
+    expect(screen.getByTestId('preview')).toHaveTextContent('p1');
 
     await userEvent.click(row(/^Path 1/));
     await waitFor(() => expect(status).toHaveTextContent('Showing Path 1'));
@@ -129,6 +137,53 @@ describe('FlowPathList', () => {
     expect(onPin).toHaveBeenLastCalledWith(null);
     expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull();
     expect(document.activeElement).toBe(row(/^Path 1/));
+    expect(screen.getByTestId('preview')).toHaveTextContent('none');
+  });
+
+  it('unpins with Escape from Show all and returns focus to the row', async () => {
+    const onPin = vi.fn();
+    render(<Harness onPin={onPin} />);
+    await userEvent.click(row(/^Path 2/));
+    await userEvent.tab();
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Show all' }),
+    );
+    await userEvent.keyboard('{Escape}');
+    expect(onPin).toHaveBeenLastCalledWith(null);
+    expect(document.activeElement).toBe(row(/^Path 2/));
+    expect(screen.getByTestId('preview')).toHaveTextContent('none');
+  });
+
+  it('takes the first Escape in a sheet to unpin, and the next closes it', async () => {
+    function InSheet() {
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <p>{open ? 'sheet open' : 'sheet closed'}</p>
+          <Sheet
+            open={open}
+            onOpenChange={setOpen}
+            title="Paths"
+            description="Every way a run can go"
+            side="bottom"
+          >
+            <Harness />
+          </Sheet>
+        </>
+      );
+    }
+    render(<InSheet />);
+    await userEvent.click(
+      await screen.findByRole('button', { name: /^Path 2/ }),
+    );
+    expect(row(/^Path 2/)).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.keyboard('{Escape}');
+    expect(row(/^Path 2/)).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('sheet open')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.getByText('sheet closed')).toBeInTheDocument(),
+    );
   });
 
   it('activates a row that is not a path instead of pinning it', async () => {
