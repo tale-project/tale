@@ -1,28 +1,11 @@
 'use client';
 
 import * as ToggleGroupPrimitive from '@radix-ui/react-toggle-group';
-import { cn } from '@tale/ui/cn';
 import { useT } from '@tale/ui/i18n/client';
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  type LucideIcon,
-  Repeat,
-} from 'lucide-react';
-import {
-  type KeyboardEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { Repeat } from 'lucide-react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 
 import { useRecurrenceFormat } from '../../hooks/use-recurrence-format';
-import { useTriggerTooltipGuard } from '../../hooks/use-trigger-tooltip-guard';
 import {
   type CalendarDay,
   matchRecurrencePreset,
@@ -41,13 +24,31 @@ import {
   sameRecurrence,
   withRecurrenceFrequency,
 } from '../../lib/recurrence/rule';
-import { structuralEqual } from '../../lib/structural-equal';
-import { hasDisabledReason } from '../overlays/disabled-reason';
 import { Popover } from '../overlays/popover';
-import { Button } from '../primitives/button';
-import { IconButton } from '../primitives/icon-button';
-import { OPTION_ROW_CLASSES, OPTION_ROW_INSET } from './option-row';
 import { RecurrenceEditor } from './recurrence-editor';
+import {
+  customHeader,
+  customRow,
+  pickerFooter,
+  pickerTrigger,
+  popoverKeyDown,
+  presetRow,
+  type RecurrencePickerSharedProps,
+} from './recurrence-picker-parts';
+import {
+  type PickerSession,
+  type RecurrenceMachine,
+  useRecurrenceSession,
+} from './recurrence-session';
+import {
+  SchedulePicker,
+  type ScheduleRecurrencePickerProps,
+} from './schedule-picker';
+
+export type {
+  ScheduleExtraContext,
+  ScheduleRecurrencePickerProps,
+} from './schedule-picker';
 
 /** What `renderExtra` gets: the session's draft, and a way to change its extra. */
 export interface RecurrenceExtraContext<Extra> {
@@ -58,21 +59,15 @@ export interface RecurrenceExtraContext<Extra> {
   setExtra: (next: Extra) => void;
 }
 
-interface RecurrencePickerBaseProps {
+interface DayPickerFields {
+  /** Days, the default: how often something recurs, by calendar day. */
+  granularity?: 'day';
   /** The saved rule. A host type with keys of its own is accepted; they are
    *  ignored, and never emitted back. */
   value: RecurrenceRule | null;
   /** The day the presets and a new custom rule are read off (the item's due
    *  date, else today), with its weekday worked out by the host. */
   reference: RecurrenceReference;
-  /** The control's name: the trigger's hidden prefix and the popover's
-   *  name. @default "Repeat" */
-  label?: string;
-  /** A second line under the rule in the tooltip and the accessible
-   *  description, while a rule is set. */
-  description?: string;
-  /** @default Repeat */
-  icon?: LucideIcon;
   /** The next dates a rule produces — the host's calendar arithmetic. The
    *  first three are listed; omit it and no dates are shown. */
   nextDates?: (rule: RecurrenceRule) => readonly CalendarDay[];
@@ -84,67 +79,60 @@ interface RecurrencePickerBaseProps {
   frequencies?: readonly RecurrenceFrequency[];
   /** The widest step the custom editor allows. @default 99 */
   maxInterval?: number;
-  /** With a `disabledReason`, the trigger stays focusable (`aria-disabled`)
-   *  and explains itself; without one it is natively disabled. */
-  disabled?: boolean;
-  disabledReason?: ReactNode;
-  /** The rule as plain text, with no control at all. */
-  readOnly?: boolean;
-  /** `ghost` fits a property list's `h-7` row; `default` is an `h-9`
-   *  outlined field for forms. @default 'ghost' */
-  variant?: 'ghost' | 'default';
-  /** @default 'end' */
-  align?: 'start' | 'center' | 'end';
-  /** Traps focus and makes the page inert while open; keep it on inside a
-   *  Dialog, Sheet or Drawer, whose scroll lock otherwise swallows the
-   *  popover's wheel events. @default true */
-  modal?: boolean;
-  /** Id of the trigger. */
-  id?: string;
-  className?: string;
 }
 
-export type RecurrencePickerProps<Extra = never> = RecurrencePickerBaseProps &
-  (
-    | {
-        /** Called once per session, only when something changed. */
-        onChange: (rule: RecurrenceRule | null) => void;
-        extra?: never;
-        renderExtra?: never;
-      }
-    | {
-        /** Called once per session, only when the rule or the extra changed. */
-        onChange: (rule: RecurrenceRule | null, extra: Extra) => void;
-        /** A host option saved with the rule — its saved value. */
-        extra: Extra;
-        /** The host option's control, drafted and saved with the rule;
-         *  rendered under the next dates in both views. */
-        renderExtra: (context: RecurrenceExtraContext<Extra>) => ReactNode;
-      }
-  );
+export type DayRecurrencePickerProps<Extra = never> =
+  RecurrencePickerSharedProps &
+    DayPickerFields &
+    (
+      | {
+          /** Called once per session, only when something changed. */
+          onChange: (rule: RecurrenceRule | null) => void;
+          extra?: never;
+          renderExtra?: never;
+        }
+      | {
+          /** Called once per session, only when the rule or the extra changed. */
+          onChange: (rule: RecurrenceRule | null, extra: Extra) => void;
+          /** A host option saved with the rule — its saved value. */
+          extra: Extra;
+          /** The host option's control, drafted and saved with the rule;
+           *  rendered under the next dates in both views. */
+          renderExtra: (context: RecurrenceExtraContext<Extra>) => ReactNode;
+        }
+    );
+
+/**
+ * The day picker's props, or — with `granularity="time"` — the schedule
+ * picker's. `AllowNever` is `false` when the schedule picker is given
+ * `allowNever={false}`, which makes its `value` and `onChange` non-null.
+ */
+export type RecurrencePickerProps<
+  Extra = never,
+  AllowNever extends boolean = true,
+> =
+  | DayRecurrencePickerProps<Extra>
+  | ScheduleRecurrencePickerProps<Extra, AllowNever>;
 
 const NEVER = 'never';
 type Choice = RecurrencePreset | typeof NEVER;
 
-/** One popover session: the draft that Save commits and Cancel discards. */
-interface Session<Extra> {
-  view: 'presets' | 'custom';
-  rule: RecurrenceRule | null;
-  /** The drafted host extra; `null` when the host has none. */
-  extra: { value: Extra } | null;
-  /** The custom editor's state, once the Custom view has been opened. */
-  editor: RecurrenceDraft | null;
-}
+type DaySession<Extra> = PickerSession<
+  RecurrenceRule,
+  'presets' | 'custom',
+  RecurrenceDraft,
+  Extra
+>;
 
 function savedExtra<Extra>(
-  props: RecurrencePickerProps<Extra>,
+  props: DayRecurrencePickerProps<Extra>,
 ): { value: Extra } | null {
   return props.renderExtra === undefined ? null : { value: props.extra };
 }
 
 function freshSession<Extra>(
-  props: RecurrencePickerProps<Extra>,
-): Session<Extra> {
+  props: DayRecurrencePickerProps<Extra>,
+): DaySession<Extra> {
   return {
     view: 'presets',
     rule: props.value ? normalizeRecurrence(props.value) : null,
@@ -153,29 +141,8 @@ function freshSession<Extra>(
   };
 }
 
-function extraChanged<Extra>(
-  draft: { value: Extra } | null,
-  saved: { value: Extra } | null,
-): boolean {
-  return (
-    draft !== null &&
-    saved !== null &&
-    !structuralEqual(draft.value, saved.value)
-  );
-}
-
-function isDirty<Extra>(
-  session: Session<Extra>,
-  props: RecurrencePickerProps<Extra>,
-): boolean {
-  return (
-    !sameRecurrence(session.rule, props.value) ||
-    extraChanged(session.extra, savedExtra(props))
-  );
-}
-
 function emit<Extra>(
-  props: RecurrencePickerProps<Extra>,
+  props: DayRecurrencePickerProps<Extra>,
   rule: RecurrenceRule | null,
   extra: { value: Extra } | null,
 ): void {
@@ -189,7 +156,7 @@ function emit<Extra>(
 
 /** The Custom editor's starting draft: the rule's, on a unit the host offers. */
 function seedEditor<Extra>(
-  props: RecurrencePickerProps<Extra>,
+  props: DayRecurrencePickerProps<Extra>,
   rule: RecurrenceRule | null,
 ): RecurrenceDraft {
   const frequencies = props.frequencies ?? RECURRENCE_FREQUENCIES;
@@ -206,11 +173,30 @@ function seedEditor<Extra>(
     : draft;
 }
 
-const ROW_CLASSES = cn(
-  OPTION_ROW_CLASSES,
-  OPTION_ROW_INSET,
-  'hover:bg-accent focus-visible:bg-accent outline-none',
-);
+/** How the day picker's session reads, compares and saves rules. */
+function dayMachine<Extra>(): RecurrenceMachine<
+  DayRecurrencePickerProps<Extra>,
+  RecurrenceRule,
+  DaySession<Extra>,
+  Extra
+> {
+  return {
+    value: (props) => props.value,
+    savedExtra,
+    same: sameRecurrence,
+    fresh: freshSession,
+    emit,
+    // A clean draft follows new saved values; an open Custom view re-seeds.
+    reseed: (live, current, saved) => {
+      const editor =
+        live.view === 'custom' ? seedEditor(current, current.value) : null;
+      let rule: RecurrenceRule | null = null;
+      if (editor) rule = recurrenceFromDraft(editor);
+      else if (current.value) rule = normalizeRecurrence(current.value);
+      return { ...live, rule, extra: saved, editor };
+    },
+  };
+}
 
 /**
  * How something repeats: a compact trigger ("↻ Weekly · Tue") that opens a
@@ -222,16 +208,30 @@ const ROW_CLASSES = cn(
  * `onChange`, and Cancel, Escape or a click outside throw it away. The
  * package does no calendar arithmetic: the host supplies the reference day
  * and, if it wants them shown, the next dates a rule produces.
+ *
+ * With `granularity="time"` it picks a schedule instead: presets from every
+ * 15 minutes to monthly, a Custom interval view (every N minutes or hours,
+ * on some weekdays, between some hours) and a Custom times view (the day
+ * editor plus times of day), with the next runs the host computes.
  */
-export function RecurrencePicker<Extra = never>(
-  props: RecurrencePickerProps<Extra>,
-) {
+export function RecurrencePicker<
+  Extra = never,
+  AllowNever extends boolean = true,
+>(props: RecurrencePickerProps<Extra, AllowNever>) {
+  return props.granularity === 'time' ? (
+    <SchedulePicker<Extra> {...props} />
+  ) : (
+    <DayPicker<Extra> {...props} />
+  );
+}
+
+function DayPicker<Extra>(props: DayRecurrencePickerProps<Extra>) {
   const {
     value,
     reference,
     label: labelProp,
     description,
-    icon: Icon = Repeat,
+    icon = Repeat,
     nextDates,
     nextDatesLabel,
     presets = RECURRENCE_PRESETS,
@@ -259,94 +259,33 @@ export function RecurrencePicker<Extra = never>(
     nextDates: `${baseId}-next-dates`,
   };
 
-  const [open, setOpen] = useState(false);
-  const [session, setSessionState] = useState<Session<Extra>>(() =>
-    freshSession(props),
-  );
-  // The latest session and props, for handlers that run several steps in one
-  // event (Enter in a number field commits the number, then saves).
-  const sessionRef = useRef(session);
-  const propsRef = useRef(props);
-  // Event handlers must see committed props, never props from a concurrent
-  // render that React later discards.
-  useLayoutEffect(() => {
-    propsRef.current = props;
-  });
-  // False from the moment a session ends, so one event can never save twice.
-  const openRef = useRef(false);
-  // The saved values the open session last took in, to tell a clean draft
-  // (follows new values) from a dirty one (kept) when the props change.
-  const syncedRef = useRef<{
-    value: RecurrenceRule | null;
-    extra: { value: Extra } | null;
-  }>({ value: null, extra: null });
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  // One machine for the component's life, so the session's callbacks keep
+  // their identity.
+  const [machine] = useState(dayMachine<Extra>);
+  const {
+    open,
+    session,
+    propsRef,
+    triggerRef,
+    tooltipGuard,
+    update,
+    isDirty,
+    handleOpenChange,
+    close,
+    save,
+    commit,
+  } = useRecurrenceSession(props, machine);
   const listRef = useRef<HTMLDivElement>(null);
   const customRowRef = useRef<HTMLButtonElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const focusAfterSwitch = useRef<'editor' | 'customRow' | null>(null);
-  const tooltipGuard = useTriggerTooltipGuard(open);
-  const suppressTooltipOpen = tooltipGuard.suppressNextOpen;
 
-  const update = useCallback(
-    (change: (current: Session<Extra>) => Session<Extra>) => {
-      const next = change(sessionRef.current);
-      sessionRef.current = next;
-      setSessionState(next);
-    },
-    [],
-  );
-
-  const handleOpenChange = useCallback(
-    (next: boolean) => {
-      if (next) {
-        const current = propsRef.current;
-        if (current.disabled || current.readOnly) return;
-        const fresh = freshSession(current);
-        sessionRef.current = fresh;
-        setSessionState(fresh);
-        syncedRef.current = {
-          value: current.value,
-          extra: savedExtra(current),
-        };
-        openRef.current = true;
-        setOpen(true);
-        return;
-      }
-      openRef.current = false;
-      setOpen(false);
-      suppressTooltipOpen();
-    },
-    [suppressTooltipOpen],
-  );
-  const close = useCallback(() => handleOpenChange(false), [handleOpenChange]);
-
-  const save = useCallback(() => {
-    if (!openRef.current) return;
-    const current = propsRef.current;
-    const draft = sessionRef.current;
-    if (isDirty(draft, current)) emit(current, draft.rule, draft.extra);
-    close();
-  }, [close]);
-
-  const pick = (choice: Choice) => {
-    if (!openRef.current) return;
-    const current = propsRef.current;
-    const draft = sessionRef.current;
-    if (choice === NEVER) {
-      if (current.value) emit(current, null, draft.extra);
-      close();
-      return;
-    }
-    const rule = recurrencePreset(choice, current.reference);
-    if (
-      !sameRecurrence(rule, current.value) ||
-      extraChanged(draft.extra, savedExtra(current))
-    ) {
-      emit(current, rule, draft.extra);
-    }
-    close();
-  };
+  const pick = (choice: Choice) =>
+    commit(
+      choice === NEVER
+        ? null
+        : recurrencePreset(choice, propsRef.current.reference),
+    );
 
   const enterCustom = () => {
     update((current) => {
@@ -395,172 +334,30 @@ export function RecurrencePicker<Extra = never>(
       ?.focus();
   }, [session.view]);
 
-  // New saved values while the popover is open: a clean draft follows them,
-  // a dirty one is kept (the last save wins). Runs after every render; the
-  // comparison makes it a no-op unless a saved value really changed.
-  useEffect(() => {
-    if (!open) return;
-    const current = propsRef.current;
-    const saved = savedExtra(current);
-    const previous = syncedRef.current;
-    if (
-      sameRecurrence(previous.value, current.value) &&
-      !extraChanged(previous.extra, saved)
-    ) {
-      return;
-    }
-    syncedRef.current = { value: current.value, extra: saved };
-    const draft = sessionRef.current;
-    const clean =
-      sameRecurrence(draft.rule, previous.value) &&
-      !extraChanged(draft.extra, previous.extra);
-    if (!clean) return;
-    update((live) => {
-      const editor =
-        live.view === 'custom' ? seedEditor(current, current.value) : null;
-      let rule: RecurrenceRule | null = null;
-      if (editor) rule = recurrenceFromDraft(editor);
-      else if (current.value) rule = normalizeRecurrence(current.value);
-      return { ...live, rule, extra: saved, editor };
-    });
+  const parts = pickerTrigger({
+    sentence: value ? format.sentence(value) : null,
+    compact: value ? format.compact(value) : null,
+    never: format.never,
+    namePrefix: t('namePrefix', { label }),
+    description,
+    icon,
+    disabled,
+    disabledReason,
+    variant,
+    id,
+    className,
+    descriptionId: ids.description,
+    triggerRef,
+    tooltipGuard,
   });
 
-  // A control that turns disabled or read-only takes its popover with it.
-  // The popover's focus return aimed at the trigger it unmounted with, so
-  // put focus back on the one that replaced it rather than on the page.
-  useEffect(() => {
-    if ((disabled || readOnly) && openRef.current) {
-      openRef.current = false;
-      setOpen(false);
-      if (
-        document.activeElement === null ||
-        document.activeElement === document.body
-      ) {
-        triggerRef.current?.focus();
-      }
-    }
-  }, [disabled, readOnly]);
-
-  const sentence = value ? format.sentence(value) : null;
-  const compact = value ? format.compact(value) : null;
-  const reason =
-    disabled && hasDisabledReason(disabledReason) ? disabledReason : undefined;
-  const hostDescription = value && description ? description : undefined;
-  const hasDescription =
-    sentence !== null || hostDescription !== undefined || reason !== undefined;
-  const tip = hasDescription ? (
-    <span className="flex flex-col gap-0.5">
-      {sentence !== null && <span>{sentence}</span>}
-      {hostDescription !== undefined && <span>{hostDescription}</span>}
-      {reason !== undefined && <span>{reason}</span>}
-    </span>
-  ) : undefined;
-
-  // "Repeat: Weekly, Tue" — the visible words behind the control's name, so
-  // a voice command that reads the label out finds it.
-  const visibleText = compact
-    ? [compact.head, compact.tail].filter(Boolean).join(', ')
-    : format.never;
-  const accessibleName = `${t('namePrefix', { label })} ${visibleText}`;
-
-  // One line whatever the width: a tail that does not fit wraps onto a
-  // second line the box hides, so it leaves whole rather than mid-word.
-  const icon = (
-    <Icon
-      className="text-muted-foreground size-4 shrink-0"
-      aria-hidden="true"
-    />
-  );
-  const text = (
-    <span className="flex h-5 min-w-0 flex-wrap overflow-hidden leading-5">
-      {compact ? (
-        <>
-          <span className="max-w-full truncate">{compact.head}</span>
-          {compact.tail !== undefined && (
-            <span className="whitespace-nowrap">
-              {'\u00a0·\u00a0'}
-              {compact.tail}
-            </span>
-          )}
-        </>
-      ) : (
-        <span className="text-muted-foreground max-w-full truncate">
-          {format.never}
-        </span>
-      )}
-    </span>
-  );
-
-  if (readOnly) {
-    // Plain text: the full sentence for assistive technology, the compact
-    // line (and the sentence on hover) for sight.
-    return (
-      <span
-        id={id}
-        title={sentence ?? undefined}
-        className={cn(
-          'inline-flex w-full min-w-0 items-center gap-1.5 text-sm',
-          variant === 'ghost' ? 'h-7 px-1.5' : 'h-9 px-2',
-          className,
-        )}
-      >
-        {icon}
-        <span aria-hidden="true" className="flex min-w-0">
-          {text}
-        </span>
-        <span className="sr-only">{sentence ?? format.never}</span>
-      </span>
-    );
-  }
-
-  const trigger = (
-    <Button
-      ref={triggerRef}
-      id={id}
-      type="button"
-      variant="ghost"
-      disabled={disabled}
-      disabledReason={reason !== undefined ? tip : undefined}
-      tooltip={disabled ? undefined : tip}
-      tooltipOpen={tooltipGuard.open}
-      onTooltipOpenChange={tooltipGuard.onOpenChange}
-      aria-label={accessibleName}
-      aria-describedby={hasDescription ? ids.description : undefined}
-      className={cn(
-        'w-full min-w-0 justify-start gap-1.5 text-sm font-normal',
-        variant === 'ghost'
-          ? 'h-7 px-1.5'
-          : 'ring-border h-9 rounded-md px-2 ring-1',
-        // Locked is not dimmed: the rule stays readable at full contrast
-        // and the tooltip says why it cannot change.
-        reason !== undefined &&
-          'hover:bg-transparent aria-disabled:cursor-default aria-disabled:opacity-100 aria-disabled:hover:opacity-100',
-        className,
-      )}
-    >
-      {icon}
-      {text}
-    </Button>
-  );
-
-  // Read by assistive technology whether or not the tooltip is open. One
-  // run of text, so every engine hears the spaces between the lines.
-  const descriptionText = [sentence, hostDescription]
-    .filter((part) => part !== null && part !== undefined)
-    .join(' ');
-  const descriptionNode = hasDescription ? (
-    <span id={ids.description} hidden>
-      {descriptionText}
-      {descriptionText !== '' && reason !== undefined && ' '}
-      {reason}
-    </span>
-  ) : null;
+  if (readOnly) return parts.readOnly;
 
   if (disabled) {
     return (
       <>
-        {trigger}
-        {descriptionNode}
+        {parts.trigger}
+        {parts.description}
       </>
     );
   }
@@ -585,43 +382,6 @@ export function RecurrencePicker<Extra = never>(
   const hasExtraNode =
     extraNode !== null && extraNode !== undefined && extraNode !== false;
 
-  // Enter never leaves the popover: React bubbles it through the portal to
-  // whatever form or shortcut the host wraps the picker in.
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Enter') return;
-    event.stopPropagation();
-    if (event.ctrlKey || event.metaKey) {
-      event.preventDefault();
-      save();
-    }
-  };
-
-  const presetRow = (choice: Choice, rowLabel: string, badge?: string) => (
-    <ToggleGroupPrimitive.Item
-      key={choice}
-      value={choice}
-      onClick={() => pick(choice)}
-      className={cn(ROW_CLASSES, 'items-center')}
-    >
-      <span className="min-w-0 flex-1">{rowLabel}</span>
-      {badge !== undefined && (
-        <span
-          aria-hidden="true"
-          className="text-muted-foreground shrink-0 text-xs"
-        >
-          {badge}
-        </span>
-      )}
-      <Check
-        aria-hidden="true"
-        className={cn(
-          'text-primary size-4 shrink-0',
-          checked !== choice && 'invisible',
-        )}
-      />
-    </ToggleGroupPrimitive.Item>
-  );
-
   const presetView = (
     <>
       <ToggleGroupPrimitive.Root
@@ -633,65 +393,43 @@ export function RecurrencePicker<Extra = never>(
         aria-label={t('presets')}
         className="flex flex-col p-1"
       >
-        {presetRow(NEVER, format.never)}
+        {presetRow({
+          choice: NEVER,
+          label: format.never,
+          checked: checked === NEVER,
+          onPick: pick,
+        })}
         {presets.map((preset) =>
-          presetRow(
-            preset,
-            format.sentence(recurrencePreset(preset, reference)),
-            preset === 'weekdays' ? t('workweekRange') : undefined,
-          ),
+          presetRow({
+            choice: preset,
+            label: format.sentence(recurrencePreset(preset, reference)),
+            badge: preset === 'weekdays' ? t('workweekRange') : undefined,
+            checked: checked === preset,
+            onPick: pick,
+          }),
         )}
       </ToggleGroupPrimitive.Root>
       <div className="border-border border-t p-1">
-        <button
-          ref={customRowRef}
-          type="button"
-          onClick={enterCustom}
-          aria-labelledby={ids.customLabel}
-          aria-describedby={isCustom ? ids.customRule : undefined}
-          className={cn(ROW_CLASSES, 'items-start')}
-        >
-          <span className="min-w-0 flex-1">
-            <span id={ids.customLabel} className="block">
-              {t('custom')}
-            </span>
-            {isCustom && draftRule && (
-              <span
-                id={ids.customRule}
-                className="text-muted-foreground line-clamp-2 block text-xs"
-              >
-                {format.sentence(draftRule)}
-              </span>
-            )}
-          </span>
-          {isCustom && (
-            <Check
-              aria-hidden="true"
-              className="text-primary mt-0.5 size-4 shrink-0"
-            />
-          )}
-          <ChevronRight
-            aria-hidden="true"
-            className="text-muted-foreground mt-0.5 size-4 shrink-0"
-          />
-        </button>
+        {customRow({
+          rowRef: customRowRef,
+          label: t('custom'),
+          labelId: ids.customLabel,
+          ruleId: ids.customRule,
+          rule: isCustom && draftRule ? format.sentence(draftRule) : null,
+          onOpen: enterCustom,
+        })}
       </div>
     </>
   );
 
   const customView = session.editor ? (
     <>
-      <div className="border-border flex items-center gap-1 border-b p-1">
-        <IconButton
-          icon={ChevronLeft}
-          size="sm"
-          aria-label={t('back')}
-          onClick={backToPresets}
-        />
-        <h2 id={ids.customHeading} className="text-sm font-medium">
-          {t('custom')}
-        </h2>
-      </div>
+      {customHeader({
+        headingId: ids.customHeading,
+        title: t('custom'),
+        backLabel: t('back'),
+        onBack: backToPresets,
+      })}
       <form
         noValidate
         className="p-3"
@@ -733,10 +471,10 @@ export function RecurrencePicker<Extra = never>(
           );
           (checkedRow ?? customRowRef.current)?.focus();
         }}
-        trigger={trigger}
+        trigger={parts.trigger}
       >
         {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- keydown boundary for the whole popover, not a control */}
-        <div className="flex flex-col" onKeyDown={handleKeyDown}>
+        <div className="flex flex-col" onKeyDown={popoverKeyDown(save)}>
           {session.view === 'custom' ? customView : presetView}
           {(dates.length > 0 || hasExtraNode) && (
             <div className="border-border flex flex-col gap-3 border-t p-3">
@@ -763,29 +501,16 @@ export function RecurrencePicker<Extra = never>(
               {hasExtraNode && extraNode}
             </div>
           )}
-          {(session.view === 'custom' || dirty) && (
-            <div className="border-border flex justify-end gap-2 border-t p-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={close}
-              >
-                {tCommon('actions.cancel')}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={save}
-                aria-keyshortcuts="Control+Enter Meta+Enter"
-              >
-                {tCommon('actions.save')}
-              </Button>
-            </div>
-          )}
+          {(session.view === 'custom' || dirty) &&
+            pickerFooter({
+              cancelLabel: tCommon('actions.cancel'),
+              saveLabel: tCommon('actions.save'),
+              onCancel: close,
+              onSave: save,
+            })}
         </div>
       </Popover>
-      {descriptionNode}
+      {parts.description}
     </>
   );
 }

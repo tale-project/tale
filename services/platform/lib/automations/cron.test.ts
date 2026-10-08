@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { parseCron, parseField } from './cron.ts';
+import { cronDstClass, parseCron, parseField } from './cron.ts';
 
 describe('parseCron', () => {
   it.each(['* * * * *', '0 */6 * * *', '43 7 * * *', '0 9 * * 1-5'])(
@@ -48,5 +48,33 @@ describe('parseField', () => {
   it('refuses a half-open range and a zero step', () => {
     expect(() => parseField('5-', 0, 59)).toThrow('not a range');
     expect(() => parseField('*/0', 0, 59)).toThrow('invalid step');
+  });
+});
+
+describe('cronDstClass', () => {
+  it.each([
+    ['30 2 * * *', 'named'],
+    ['0 9 * * 1-5', 'named'],
+    ['0,30 8-18 * * *', 'named'],
+    ['0 9-17/2 * * *', 'named'],
+    ['*/15 * * * *', 'grid'],
+    ['* * * * *', 'grid'],
+    ['30 * * * *', 'grid'],
+    ['0 */6 * * *', 'grid'],
+    ['*/10 9-17 * * 1-5', 'grid'],
+  ] as const)('reads %s as %s', (expression, dstClass) => {
+    expect(cronDstClass(parseCron(expression))).toBe(dstClass);
+  });
+
+  it('marks a field starred by its text, a stepped wildcard included', () => {
+    expect(parseField('*/15', 0, 59)).toMatchObject({
+      starred: true,
+      wildcard: false,
+    });
+    expect(parseField('*', 0, 23)).toMatchObject({
+      starred: true,
+      wildcard: true,
+    });
+    expect(parseField('0-59/15', 0, 59).starred).toBe(false);
   });
 });
