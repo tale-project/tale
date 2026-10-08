@@ -1,9 +1,11 @@
-// The gemini, qwen and pi wrappers stage settings and/or a context file on
-// disk before their CLI starts, and must remove them however the exec ends —
-// runnerd ends a cancelled, timed-out or exited exec with a SIGTERM to its
-// process group, and Python's default SIGTERM runs no `finally`. A second
-// signal must not cut that cleanup short either. These drive each real
-// wrapper against a fake CLI on PATH that only waits to be signalled.
+// The qwen wrapper stages settings and a context file on disk before its CLI
+// starts and waits on the CLI as a child, so it must remove them however the
+// exec ends — runnerd ends a cancelled, timed-out or exited exec with a
+// SIGTERM to its process group, and Python's default SIGTERM runs no
+// `finally`. A second signal must not cut that cleanup short either. These
+// drive the real wrapper against a fake CLI on PATH that only waits to be
+// signalled. (The gemini and pi wrappers become their CLI instead; see
+// harness-wrapper-exec.test.ts.)
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { spawn, spawnSync } from 'node:child_process';
@@ -20,18 +22,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import {
-  geminiPayload,
-  installGeminiWrapper,
-} from './gemini-settings-test-helper';
-
 const hasPython = spawnSync('python3', ['-V']).status === 0;
 const pyTest = hasPython ? test : test.skip;
 
 const WRAPPERS = [
-  { name: 'tale-gemini-run', cli: 'gemini', home: '.gemini' },
   { name: 'tale-qwen-run', cli: 'qwen', home: '.qwen' },
-  { name: 'tale-pi-run', cli: 'pi', home: '.pi' },
 ] as const;
 
 const FAKE_CLI = `#!/bin/sh
@@ -60,10 +55,7 @@ async function cancelMidRun(
   writeFileSync(fake, FAKE_CLI);
   chmodSync(fake, 0o755);
   const startedPath = join(root, 'started');
-  const wrapperPath =
-    wrapper.cli === 'gemini'
-      ? installGeminiWrapper(root)
-      : resolve(import.meta.dir, '../..', wrapper.name);
+  const wrapperPath = resolve(import.meta.dir, '../..', wrapper.name);
   const child = spawn(
     'python3',
     [wrapperPath, '--workdir', join(root, 'workspace')],
@@ -79,11 +71,7 @@ async function cancelMidRun(
       },
     },
   );
-  child.stdin?.end(
-    wrapper.cli === 'gemini'
-      ? geminiPayload(root)
-      : JSON.stringify({ prompt: 'p', system_prompt: 'be brief' }),
-  );
+  child.stdin?.end(JSON.stringify({ prompt: 'p', system_prompt: 'be brief' }));
   const exited = new Promise<number | null>((r) =>
     child.on('exit', (code) => r(code)),
   );

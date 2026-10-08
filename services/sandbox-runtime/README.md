@@ -347,9 +347,20 @@ selects the file matching the incoming settings and supplies only the bridge
 URL and a unique context filename through environment substitution. Repository
 settings cannot override that system policy. A platform/image policy mismatch
 fails before the CLI starts and asks for a runtime update. Agent execution
-remains non-root, and cancellation removes the private per-execution context
-file. Keep the harness catalog and runtime image aligned when changing Gemini
-settings.
+remains non-root. Keep the harness catalog and runtime image aligned when
+changing Gemini settings.
+
+The Gemini and Pi wrappers stage their per-execution files, then replace
+themselves with the CLI (`exec`, same pid): no Python process stays resident
+for the turn, and the CLI's exit status and signals are the execution's own.
+The prompt reaches the CLI on stdin from an anonymous temporary file. Nothing
+is left to remove the staged files when the CLI exits, so their names carry the
+execution's pid: Gemini's private context file under `~/.gemini/` (the only
+place Gemini reads a global context file from), and Pi's config directory
+under `$TMPDIR`. The next wrapper to start removes every one whose pid no
+longer runs, and the entrypoint empties `$TMPDIR` at every container start. A
+wrapper cancelled before its CLI starts removes what it staged itself. The
+Qwen, Hermes and OpenClaw wrappers run their CLI as a child and wait for it.
 
 ### Built-in skills
 
