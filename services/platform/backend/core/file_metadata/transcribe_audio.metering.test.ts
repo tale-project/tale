@@ -60,12 +60,22 @@ let admission: unknown;
 const mutations: Array<{ name: string; args: Record<string, unknown> }> = [];
 const scheduled: unknown[] = [];
 
-function fakeCtx(options: { settleFails?: boolean } = {}) {
+function fakeCtx(
+  options: {
+    settleFails?: boolean;
+    /** The row's status as each read finds it, in order; `queued` after. */
+    statuses?: (string | null)[];
+  } = {},
+) {
+  const statuses = [...(options.statuses ?? [])];
   return {
     runQuery: vi.fn(async (ref: unknown) => {
       const name = functionRefName(ref);
       if (name === 'file_metadata/internal_queries:getByStorageId') {
-        return { transcriptionStatus: 'queued', uploadedBy: 'user-1' };
+        const status = statuses.length > 0 ? statuses.shift() : 'queued';
+        return status === null
+          ? null
+          : { transcriptionStatus: status, uploadedBy: 'user-1' };
       }
       return null;
     }),
@@ -234,5 +244,51 @@ describe('transcribeAudioImpl and the uploader’s limits', () => {
       ),
     ).toBe(false);
     expect(scheduled).toEqual([]);
+  });
+
+  it('stops at a removal mid-way, booking the chunks already transcribed', async () => {
+    compressedTo(120, Number.MAX_SAFE_INTEGER);
+    mocks.chunkCompressedAudio.mockResolvedValue({
+      chunks: [
+        { blob: new Blob([new Uint8Array(2)]), durationSec: 60, index: 0 },
+        { blob: new Blob([new Uint8Array(2)]), durationSec: 60, index: 1 },
+      ],
+      cleanup: vi.fn(async () => undefined),
+    });
+    mocks.requestTranscription.mockResolvedValueOnce({
+      text: 'One.',
+      segments: [],
+      duration: 60,
+    });
+
+    // The pre-check finds it queued; before chunk 2 it reads `skipped`.
+    await transcribeAudioImpl(
+      fakeCtx({ statuses: ['queued', 'skipped'] }) as never,
+      ARGS,
+    );
+
+    expect(mocks.requestTranscription).toHaveBeenCalledTimes(1);
+    expect(called(':settleTranscriptionCall')[0]?.args).toMatchObject({
+      audioDurationSec: 60,
+    });
+    expect(
+      called(':updateFileTranscription').some(
+        (mutation) => mutation.args.transcriptionStatus === 'completed',
+      ),
+    ).toBe(false);
+  });
+
+  it('tells a video link that handed its audio over that a usage limit refused it', async () => {
+    admission = {
+      allowed: false,
+      reason: 'Usage limit reached. Your monthly cost limit is used up.',
+    };
+
+    await transcribeAudioImpl(fakeCtx() as never, ARGS);
+
+    const failed = called(':updateFileTranscription').find(
+      (mutation) => mutation.args.transcriptionStatus === 'failed',
+    );
+    expect(failed?.args.transcriptionErrorCode).toBe('budgetExceeded');
   });
 });

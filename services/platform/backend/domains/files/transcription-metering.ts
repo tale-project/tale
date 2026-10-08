@@ -50,12 +50,14 @@ export type TranscriptionAdmission =
       cancelled?: true;
     };
 
-/** Hold a transcription's whole length under `subject`. */
+/** Hold a transcription's whole length under `subject`, for at most
+ * `maxDurationMs` — an upload's job lease by default. */
 export async function openTranscriptionCall(
   sql: Sql,
   args: TranscriptionModelFacts & {
     subject: DirectCallSubject;
     audioDurationSec: number;
+    maxDurationMs?: number;
   },
 ): Promise<TranscriptionAdmission> {
   const admission = await openDirectCall(sql, {
@@ -70,7 +72,7 @@ export async function openTranscriptionCall(
       tokens: 0,
     },
     modelRef: `${args.provider}/${args.model}`,
-    maxDurationMs: TRANSCRIPTION_CALL_MAX_MS,
+    maxDurationMs: args.maxDurationMs ?? TRANSCRIPTION_CALL_MAX_MS,
   });
   return admission.allowed
     ? { allowed: true, lease: admission.lease }
@@ -123,7 +125,13 @@ export async function uploadTranscriptionSubject(
   };
 }
 
-/** Book the minutes the provider transcribed in the hold's place. */
+/** The pause before each further attempt at a booking: the provider has
+ * billed the minutes, so one failed write must not lose them, and a settle
+ * books once however often it is sent. */
+const SETTLE_RETRY_DELAYS_MS = [1_000, 3_000] as const;
+
+/** Book the minutes the provider transcribed in the hold's place — tried
+ * again twice before the failure is the caller's. */
 export async function settleTranscriptionCall(
   sql: Sql,
   args: TranscriptionModelFacts & {
@@ -131,17 +139,31 @@ export async function settleTranscriptionCall(
     audioDurationSec: number;
   },
 ): Promise<void> {
-  await settleDirectCall(sql, args.lease, {
-    provider: args.provider,
-    model: args.model,
-    inputTokens: 0,
-    outputTokens: 0,
-    costCents: estimateTranscriptionCostCents(
-      args.audioDurationSec,
-      args.centsPerAudioMinute,
-    ),
-    audioDurationSec: args.audioDurationSec,
-  });
+  const settle = () =>
+    settleDirectCall(sql, args.lease, {
+      provider: args.provider,
+      model: args.model,
+      inputTokens: 0,
+      outputTokens: 0,
+      costCents: estimateTranscriptionCostCents(
+        args.audioDurationSec,
+        args.centsPerAudioMinute,
+      ),
+      audioDurationSec: args.audioDurationSec,
+    });
+  for (const delayMs of SETTLE_RETRY_DELAYS_MS) {
+    try {
+      await settle();
+      return;
+    } catch (error) {
+      console.warn(
+        `[transcription] booking failed; trying again in ${delayMs} ms:`,
+        error,
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  await settle();
 }
 
 /** Release the hold of a transcription that transcribed nothing. */

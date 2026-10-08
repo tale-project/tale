@@ -207,6 +207,31 @@ describe('transcribeDictation', () => {
     );
   });
 
+  it('holds the longest the clip’s size allows when its length cannot be read, for at most two minutes', async () => {
+    mocks.probeAudioDurationSec.mockResolvedValueOnce(0);
+    mocks.requestTranscription.mockResolvedValue({ text: 'Hi.' });
+
+    await transcribeDictation(sql, {
+      ...DICTATION,
+      audio: new Uint8Array(60_000),
+    });
+
+    expect(mocks.openDirectCall).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        // 60 000 bytes at 2 000 a second: 30 s at 0.6¢ a minute.
+        worstCase: { cents: 0.3, tokens: 0 },
+        maxDurationMs: 120_000,
+      }),
+    );
+    // No length from the provider either: the bound is booked, never 0.
+    expect(mocks.settleDirectCall).toHaveBeenCalledWith(
+      sql,
+      LEASE,
+      expect.objectContaining({ audioDurationSec: 30 }),
+    );
+  });
+
   it('refuses with 429 BUDGET_EXCEEDED before the provider hears it [GOV-R4]', async () => {
     mocks.openDirectCall.mockResolvedValue({
       allowed: false,

@@ -483,6 +483,9 @@ export async function settleHandoffJobsByStorageRef(
     storageId: string;
     transcriptionStatus: 'completed' | 'failed' | 'skipped';
     errorMessage?: string;
+    /** Why the transcription failed, when it knows (`budgetExceeded`);
+     * a plain transcription failure otherwise. */
+    reasonCode?: string;
   },
 ): Promise<void> {
   const now = Date.now();
@@ -492,7 +495,7 @@ export async function settleHandoffJobsByStorageRef(
         status = 'failed',
         status_changed_at_ms = ${now},
         progress = NULL,
-        error_reason_code = 'whisperFailed',
+        error_reason_code = ${args.reasonCode === 'budgetExceeded' ? 'budgetExceeded' : 'whisperFailed'},
         error_message = ${args.errorMessage ?? 'Whisper transcription failed'}
       WHERE status = 'transcribing_handoff' AND storage_ref = ${args.storageId}
       RETURNING id, org_id AS "organizationId", uploaded_by AS "uploadedBy"

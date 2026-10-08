@@ -200,9 +200,10 @@ function readTranscriptionAdmission(
   );
 }
 
-/** Book what the attempt transcribed in its hold's place, or release the
- * hold of one that transcribed nothing. Never throws: the transcript, or
- * the failure being recorded, matters more than its booking. */
+/** Book what the attempt transcribed in its hold's place (the booking
+ * tries itself again), or release the hold of one that transcribed
+ * nothing. Never throws: the transcript, or the failure being recorded,
+ * matters more than its booking. */
 async function closeTranscriptionCall(
   ctx: ActionCtx,
   lease: unknown,
@@ -227,6 +228,20 @@ async function closeTranscriptionCall(
       error,
     );
   }
+}
+
+/** Whether the recording is still wanted: a removal skips its
+ * transcription, a deletion drops its row — either way, no further minute
+ * is sent to the provider or charged. */
+async function stillWanted(
+  ctx: ActionCtx,
+  storageId: BlobRef,
+): Promise<boolean> {
+  const row = await ctx.runQuery(
+    internal.file_metadata.internal_queries.getByStorageId,
+    { storageId },
+  );
+  return row !== null && row.transcriptionStatus !== 'skipped';
 }
 
 /** The pipeline body, hoisted so the 0.5 backend can run it on a ctx shim
@@ -456,6 +471,23 @@ export async function transcribeAudioImpl(
       let totalDurationSec = 0;
       let chunkStartSec = 0;
       for (const chunk of chunks) {
+        if (chunk.index > 0 && !(await stillWanted(ctx, args.storageId))) {
+          // Removed mid-way: book the minutes already transcribed, send no
+          // more, and leave the row as the removal left it.
+          await closeTranscriptionCall(ctx, lease, model, transcribedSec);
+          lease = undefined;
+          console.log(
+            JSON.stringify({
+              event: 'transcription.cancelled',
+              requestId,
+              storageId: args.storageId,
+              status: 'removed_mid_way',
+              attempt,
+              transcribedSec,
+            }),
+          );
+          return null;
+        }
         const progressLabel =
           chunks.length === 1
             ? 'transcribing'
@@ -468,6 +500,10 @@ export async function transcribeAudioImpl(
           fileName: chunkFileName(args.fileName, chunk),
           timeoutMs: TRANSCRIBE_API_TIMEOUT_MS,
         });
+        // Billed the moment the provider answered: counted before anything
+        // below can throw.
+        const chunkDuration = result.duration ?? chunk.durationSec;
+        transcribedSec += chunkDuration;
         // Timestamps are only meaningful for video-link transcripts —
         // they let the agent cite "Chapter 3 @ 12:34" in summaries.
         // Regular microphone recordings don't carry that context, so
@@ -485,9 +521,7 @@ export async function transcribeAudioImpl(
         if (paragraphs.length > 0) {
           chunkParagraphs.push(paragraphs);
         }
-        const chunkDuration = result.duration ?? chunk.durationSec;
         totalDurationSec += chunkDuration;
-        transcribedSec += chunkDuration;
         chunkStartSec += chunkDuration;
 
         // Heartbeat any video-link job that's tracking this storageId so its
@@ -636,6 +670,10 @@ export async function transcribeAudioImpl(
           transcriptionStatus: 'failed',
           transcriptionError: sanitized,
           transcriptionProgress: '',
+          // A video link that handed its audio over says why it failed.
+          ...(classification.reason === 'budget_exceeded'
+            ? { transcriptionErrorCode: 'budgetExceeded' }
+            : {}),
         },
       );
       return null;

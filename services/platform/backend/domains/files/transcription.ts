@@ -44,6 +44,13 @@ import {
 
 const DICTATION_TIMEOUT_MS = 60_000;
 const MAX_DICTATION_BYTES = 8 * 1024 * 1024;
+/** The longest a dictation may hold its length: its one request's timeout,
+ * with room to spare. */
+const DICTATION_CALL_MAX_MS = 2 * 60 * 1000;
+/** The fewest bytes a second of recorded speech takes (16 kbit/s, below
+ * what a browser's recorder writes): a clip whose length cannot be read is
+ * held at its size over this — never shorter than it can be. */
+const MIN_DICTATION_BYTES_PER_SECOND = 2_000;
 
 // ------------------------------------------------------------ row verbs
 
@@ -53,15 +60,20 @@ interface TranscriptionRowPatch {
   transcriptionDurationSec?: number;
   transcriptionProgress?: string;
   transcriptionError?: string;
+  /** Why a failed transcription failed, for the video-link job that handed
+   * its audio over (`budgetExceeded`); not stored on the file row. */
+  transcriptionErrorCode?: string;
   contentHash?: string;
 }
 
+/** Write the patch; false when nothing changed — a completion never lands
+ * on a recording that was removed (`skipped`) while it was transcribed. */
 async function applyTranscriptionPatch(
   db: Sql | TransactionSql,
   storageRef: string,
   patch: TranscriptionRowPatch,
-): Promise<void> {
-  await db`
+): Promise<boolean> {
+  const rows = await db<{ id: string }[]>`
     UPDATE app.file_metadata SET
       transcription_status = ${patch.transcriptionStatus !== undefined ? patch.transcriptionStatus : db.unsafe('transcription_status')},
       transcript = ${patch.transcript !== undefined ? patch.transcript : db.unsafe('transcript')},
@@ -71,7 +83,11 @@ async function applyTranscriptionPatch(
       content_hash = ${patch.contentHash !== undefined ? patch.contentHash : db.unsafe('content_hash')},
       status_changed_at_ms = ${patch.transcriptionStatus !== undefined ? Date.now() : db.unsafe('status_changed_at_ms')}
     WHERE storage_ref = ${storageRef}
+      AND (${patch.transcriptionStatus !== 'completed'}
+           OR transcription_status IS DISTINCT FROM 'skipped')
+    RETURNING id
   `;
+  return rows.length > 0;
 }
 
 async function updateFileTranscription(
@@ -89,12 +105,15 @@ async function updateFileTranscription(
   // whisper jobs parked in 'transcribing_handoff' forever (holding an org
   // ingest slot each and making the chip's Retry 409).
   await sql.begin(async (tx) => {
-    await applyTranscriptionPatch(tx, storageRef, patch);
+    if (!(await applyTranscriptionPatch(tx, storageRef, patch))) return;
     await settleHandoffJobsByStorageRef(tx, {
       storageId: storageRef,
       transcriptionStatus: status,
       ...(patch.transcriptionError !== undefined
         ? { errorMessage: patch.transcriptionError }
+        : {}),
+      ...(patch.transcriptionErrorCode !== undefined
+        ? { reasonCode: patch.transcriptionErrorCode }
         : {}),
     });
   });
@@ -144,7 +163,9 @@ export async function acquireTranscriptionLease(
 
 // ------------------------------------------------------------- crawl host
 
-function transcriptionHandlers(sql: Sql): ShimHandlers {
+/** The handler map the reused upload pipeline dispatches through.
+ * Exported for tests only; production reaches it through the job. */
+export function transcriptionHandlers(sql: Sql): ShimHandlers {
   return {
     ...chatShimHandlers(sql),
     'file_metadata/internal_queries:getByStorageId': async (raw) => {
@@ -476,8 +497,8 @@ export async function transcribeDictation(
   const fileName = `dictation.${ext}`;
   // A dictation is the dictating member's spend: its length is held
   // before the provider hears it, and refused when a limit has too little
-  // room for it. The length is read off the clip itself — 0 when its
-  // container names none, which still holds and counts the request.
+  // room for it. The length is read off the clip itself; when its container
+  // names none, the longest the clip's size allows stands in.
   const model = {
     organizationId: args.organizationId,
     provider: modelData.providerName,
@@ -492,10 +513,15 @@ export async function transcribeDictation(
       return 0;
     },
   );
+  const heldSec =
+    probedSec > 0
+      ? probedSec
+      : args.audio.byteLength / MIN_DICTATION_BYTES_PER_SECOND;
   const admission = await openTranscriptionCall(sql, {
     ...model,
     subject: { userId: args.userId, agentSlug: TRANSCRIPTION_SLUG },
-    audioDurationSec: probedSec,
+    audioDurationSec: heldSec,
+    maxDurationMs: DICTATION_CALL_MAX_MS,
   });
   if (!admission.allowed) {
     throw new FileError('BUDGET_EXCEEDED', admission.reason, 429);
@@ -521,8 +547,9 @@ export async function transcribeDictation(
   }
 
   const text = result.text ?? '';
-  // What the provider reports it heard, else the clip's own length.
-  const durationSec = result.duration ?? probedSec;
+  // What the provider reports it heard, else the clip's own length — else
+  // the longest its size allows, never nothing for minutes it was billed.
+  const durationSec = result.duration ?? heldSec;
   await settleTranscriptionCall(sql, {
     ...model,
     lease: admission.lease,
