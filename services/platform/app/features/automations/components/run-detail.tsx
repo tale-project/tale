@@ -195,8 +195,8 @@ function RunDetailBody({
     [graph.nodes, projection, run],
   );
   const nodeTypes = useMemo(
-    () => mergeNodeTypes(catalogQuery.data),
-    [catalogQuery.data],
+    () => mergeNodeTypes(catalogQuery.data?.nodeTypes),
+    [catalogQuery.data?.nodeTypes],
   );
 
   const runMissing = isMissingAutomationRead({

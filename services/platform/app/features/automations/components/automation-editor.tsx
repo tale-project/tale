@@ -424,8 +424,8 @@ function AutomationEditorScope({
   );
 
   const nodeTypes = useMemo(
-    () => mergeNodeTypes(catalogQuery.data),
-    [catalogQuery.data],
+    () => mergeNodeTypes(catalogQuery.data?.nodeTypes),
+    [catalogQuery.data?.nodeTypes],
   );
 
   // ── Problems ──────────────────────────────────────────────────────────

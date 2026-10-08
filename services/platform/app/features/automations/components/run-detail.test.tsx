@@ -75,7 +75,10 @@ vi.mock('../hooks/queries', async (importOriginal) => {
         : state.versionError === undefined
           ? { data: { document: state.versionDocument }, isError: false }
           : { data: undefined, isError: true, error: state.versionError },
-    useNodeTypeCatalog: () => ({ data: [], isError: false }),
+    useNodeTypeCatalog: () => ({
+      data: { nodeTypes: [], connectors: [] },
+      isError: false,
+    }),
     useRunPendingAsk: () => ({ data: null }),
     useRunInDoubt: () => ({
       data: {

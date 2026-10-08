@@ -34,6 +34,8 @@ export interface ConnectorLike {
    * and effect recording). */
   hasEffect: boolean;
   tags?: string[];
+  /** How a person reads a node of this type; never read by the engine. */
+  display?: ConnectorActionDisplay;
   /**
    * Deterministic mock: same input → same output, no IO.
    *
@@ -43,6 +45,18 @@ export interface ConnectorLike {
    */
   mock(input: unknown): unknown;
   live?(input: unknown, ctx: ConnectorContext): Promise<unknown>;
+}
+
+/**
+ * The display half of a connector action: the connector it belongs to (its
+ * catalog slug, the first half of the node type) and the action's title in
+ * English with its per-locale overrides (`de`, `fr`, `de-CH`). Surfaces such
+ * as the automation canvas name a node "GitHub · List issues" from it.
+ */
+export interface ConnectorActionDisplay {
+  connector: string;
+  title?: string;
+  i18n?: Record<string, { title?: string }>;
 }
 
 /**
