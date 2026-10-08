@@ -6509,7 +6509,7 @@ export function buildSpec(): Json {
           code: {
             type: 'integer',
             description:
-              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, a `tools/call` without a name), -32022 unsupported protocol revision (`data.supported`), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait). Arguments that do not match a tool’s advertised input schema are a tool result flagged `isError` with the code `INVALID_ARGUMENTS`, never an error envelope',
+              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, a `tools/call` without a name), -32022 unsupported protocol revision (`data.supported`), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait). Arguments that do not match a tool’s advertised input schema are a tool result flagged `isError` whose text names the tool-error code INVALID_ARGUMENTS (a tool code, not a REST one), never an error envelope',
           },
           message: str,
         },
@@ -6533,7 +6533,7 @@ export function buildSpec(): Json {
         'and the organization’s capability surface — and the `get_docs` tool ' +
         'for the in-band authoring reference. Tool arguments are checked ' +
         'against the advertised input schema, and every problem comes back ' +
-        'at once as a tool result (`INVALID_ARGUMENTS`). GET answers 405. See the MCP ' +
+        'at once as a tool result (code INVALID_ARGUMENTS). GET answers 405. See the MCP ' +
         'endpoint page in the developer docs for the full tour.',
       operationId: 'mcp',
       security: sec,
