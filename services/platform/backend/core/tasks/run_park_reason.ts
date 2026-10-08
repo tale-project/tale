@@ -24,16 +24,11 @@ export function runParkReason(
   noRoom: CapacityRefusal | null,
 ): AgentRunWaitingReason | undefined {
   if (noRoom === null) return 'destroy_pending';
-  switch (noRoom.scope) {
-    case 'host':
-      return 'host';
-    case 'session':
-      return 'exec_limit';
-    case 'organization':
-      return refusalReason(err) === SANDBOX_SESSION_HELD_REASON
-        ? undefined
-        : 'org_limit';
-  }
+  if (noRoom.scope === 'host') return 'host';
+  if (noRoom.scope === 'session') return 'exec_limit';
+  return refusalReason(err) === SANDBOX_SESSION_HELD_REASON
+    ? undefined
+    : 'org_limit';
 }
 
 /** The `reason` a quota refusal names, in each shape one arrives in: an
