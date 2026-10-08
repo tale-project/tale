@@ -115,6 +115,21 @@ export function isReapableContainerStatus(status: string): boolean {
   return s === 'exited' || s === 'dead';
 }
 
+/** States a session container is left in when its start never finished: a
+ * spawner killed between the daemon's create and start leaves `created`, and
+ * a timed-out run whose cleanup also timed out can leave any of these. The
+ * spawner never pauses a session and gives it no restart policy, so none of
+ * them is a session at work. */
+const STUCK_CONTAINER_STATES: ReadonlySet<string> = new Set([
+  'created',
+  'paused',
+  'restarting',
+]);
+
+/** Past a create's whole budget, how long its container may still sit in a
+ * {@link STUCK_CONTAINER_STATES} state before it counts as abandoned. */
+const STUCK_CONTAINER_SLACK_MS = 60_000;
+
 export class DockerSessionBackend implements SessionBackend {
   readonly kind = 'docker' as const;
 
@@ -1019,6 +1034,71 @@ export class DockerSessionBackend implements SessionBackend {
     // create starts unpinned and the platform re-pushes.
     await this.clearPinMarker(sessionId);
     return existed;
+  }
+
+  /** A container that never got going — `created`, `paused` or `restarting`
+   * past its create's whole budget — is removed like a stop removes one, its
+   * workspace kept. Left alone it held a capacity slot for ever, answered
+   * every create of the id busy, pinned an old runtime image and outlived
+   * spawner restarts. Fenced to the incarnation the caller listed (its
+   * `tale.created` stamp) and to the immutable container id read with its
+   * state; Docker's own creation time keeps a container created just now
+   * safe whatever stamp it carries. False when it is not provably abandoned. */
+  async reapStaleSession(
+    sessionId: string,
+    expectedCreatedAtMs: number,
+  ): Promise<boolean> {
+    const containerName = sessionContainerName(sessionId);
+    const observed = await runDocker(
+      [
+        'inspect',
+        '--format',
+        '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}\t{{.State.Status}}\t{{.Created}}\t{{with index .Config.Labels "tale.docker"}}{{.}}{{end}}\t{{range .Mounts}}{{if eq .Destination "/var/lib/docker"}}true{{end}}{{end}}',
+        containerName,
+      ],
+      { timeoutMs: 5_000, priority: true },
+    );
+    if (observed.exitCode !== 0) {
+      if (isDockerNoSuchObject(observed.stderr)) return true;
+      throw new Error(
+        `cannot identify session ${sessionId} for lifecycle transition`,
+      );
+    }
+    const [containerId, created, status, dockerCreated, capability, mounted] =
+      observed.stdout.replace(/\r?\n$/, '').split('\t');
+    const stamp = Number(created);
+    const createdAtMs = Date.parse(dockerCreated ?? '');
+    if (
+      !containerId ||
+      !/^[a-f0-9]{12,64}$/.test(containerId) ||
+      status === undefined ||
+      !STUCK_CONTAINER_STATES.has(status) ||
+      !Number.isSafeInteger(stamp) ||
+      stamp <= 0 ||
+      stamp !== expectedCreatedAtMs ||
+      !Number.isFinite(createdAtMs) ||
+      Date.now() <=
+        Math.max(createdAtMs, stamp) +
+          this.cfg.session.createHealthTimeoutMs +
+          STUCK_CONTAINER_SLACK_MS
+    )
+      return false;
+    const removal = await dockerRm(containerId);
+    if (!dockerRmSucceeded(removal)) {
+      throw new Error(
+        `docker rm ${containerName} failed (exit ${removal.exitCode}): ${removal.stderr.trim() || removal.stdout.trim() || 'no output'}`,
+      );
+    }
+    const docker =
+      capability === 'true' ||
+      (capability !== 'false' &&
+        (mounted === 'true' || this.cfg.dockerInContainer));
+    if (docker) await this.removeDindVolume(sessionId);
+    await this.clearPinMarker(sessionId);
+    console.warn(
+      `[sandbox.session] removed ${sessionId}'s container, stuck ${status} since ${new Date(createdAtMs).toISOString()}`,
+    );
+    return true;
   }
 
   // --- the durable "always-on" pin -----------------------------------------

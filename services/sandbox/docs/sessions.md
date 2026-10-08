@@ -257,7 +257,18 @@ still running is joined, never stacked) **stops**:
   (the inner image volume, the pin marker) and would otherwise remove what
   the new container uses. The removal
   belongs to the ended incarnation: it never holds up an acquire of a
-  session registered under the id, nor counts as that session's stop.
+  session registered under the id, nor counts as that session's stop;
+- compute that never got going: a Kubernetes Pod still Pending past its
+  creator's startup deadline, or a Docker container still `created`, `paused`
+  or `restarting` (a spawner killed between the daemon's create and start, or
+  a timed-out run whose cleanup also timed out) once its create's whole
+  budget (`SANDBOX_SESSION_CREATE_TIMEOUT_MS`) and a minute's slack have
+  passed since both its `tale.created` stamp and Docker's own creation time.
+  Such a container used to hold a capacity slot for ever, answer every create
+  of the id busy, pin an old runtime image and outlive spawner restarts. It is
+  removed by the container id read with its state, with its inner image
+  volume; the workspace stays. One whose stamp names another incarnation than
+  the one listed is left alone.
 
 Every such stop is fenced to the incarnation the registry or listing
 describes, and keeps the workspace. The pass probes at most eight daemons at a
