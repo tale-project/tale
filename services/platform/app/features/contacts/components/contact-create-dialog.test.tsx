@@ -103,6 +103,34 @@ describe('ContactCreateDialog', () => {
     });
   });
 
+  it('keeps letters in the phone and creates nothing until they are removed (#3825)', async () => {
+    const onClose = vi.fn();
+    const { user } = render(
+      <ContactCreateDialog
+        isOpen={true}
+        onClose={onClose}
+        organizationId="org-1"
+      />,
+    );
+
+    await user.type(screen.getByLabelText(/email/i), 'jane@example.com');
+    const phoneInput = screen.getByLabelText(/phone/i);
+    await user.type(phoneInput, '+41abc');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    // Not `+41`: the shared fields used to strip the letters and the
+    // schema then passed what was left.
+    await waitFor(() => {
+      expect(phoneInput).toHaveFocus();
+    });
+    expect(phoneInput).toHaveValue('+41abc');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Enter a phone number using digits and + ( ) - only',
+    );
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('shows a duplicate-email error toast on CONTACT_DUPLICATE_EMAIL', async () => {
     mockMutateAsync.mockRejectedValueOnce(
       new AppError({ code: 'CONTACT_DUPLICATE_EMAIL' }),

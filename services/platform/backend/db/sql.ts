@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import type { JSONValue, Sql } from 'postgres';
+import type { JSONValue, Parameter, Sql, TransactionSql } from 'postgres';
 
 import { resolvePostgresConnection } from './ssl.ts';
 
@@ -13,6 +13,21 @@ import { resolvePostgresConnection } from './ssl.ts';
 export function toJson(value: unknown): JSONValue {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON-shaped by the caller's contract (see doc comment)
   return value as JSONValue;
+}
+
+/**
+ * Any JSON value bound as ONE json/jsonb parameter, or SQL NULL for
+ * `undefined` and `null`. Serialized here, so the passthrough serializer below
+ * sends it verbatim — a bare string becomes a JSON string, where
+ * `sql.json(string)` would read the string itself as JSON text.
+ */
+export function jsonParam(
+  sql: Sql | TransactionSql,
+  value: unknown,
+): Parameter | null {
+  return value === undefined || value === null
+    ? null
+    : sql.json(toJson(JSON.stringify(value)));
 }
 
 /**

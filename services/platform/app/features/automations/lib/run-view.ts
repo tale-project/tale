@@ -13,6 +13,7 @@
  * every one, in the order it happened.
  */
 
+import type { RunWaitingFor } from '@/app/lib/backend/contract/automations';
 import type { Effect, NodeStatus, NodeTrace } from '@/lib/engine/core/types';
 
 /** How a run ended, or where it is. Mirrors the store's `status` union. */
@@ -20,6 +21,7 @@ export type RunStatus =
   | 'queued'
   | 'running'
   | 'waiting'
+  | 'quarantined'
   | 'success'
   | 'failed'
   | 'cancelled';
@@ -28,6 +30,7 @@ const RUN_STATUSES: ReadonlySet<string> = new Set<RunStatus>([
   'queued',
   'running',
   'waiting',
+  'quarantined',
   'success',
   'failed',
   'cancelled',
@@ -45,28 +48,34 @@ export function isRunFinished(status: RunStatus): boolean {
   return status === 'success' || status === 'failed' || status === 'cancelled';
 }
 
-const WAITING_KINDS = new Set(['approval', 'ask', 'agent', 'room', 'repeat']);
+const WAITING_KINDS: ReadonlySet<string> = new Set<RunWaitingFor>([
+  'approval',
+  'ask',
+  'in_doubt',
+  'agent',
+  'room',
+  'repeat',
+]);
 
 /** The `waitingFor` the read model answers on a parked run, or nothing. */
-function readRunWaitingFor(
-  value: unknown,
-): 'approval' | 'ask' | 'agent' | 'room' | 'repeat' | undefined {
+function readRunWaitingFor(value: unknown): RunWaitingFor | undefined {
   return typeof value === 'string' && WAITING_KINDS.has(value)
     ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- membership checked against the union's own set
-      (value as 'approval' | 'ask' | 'agent' | 'room' | 'repeat')
+      (value as RunWaitingFor)
     : undefined;
 }
 
 /**
- * The node a `repeat:<nodeId>` / `agent:<nodeId>` / `room:<nodeId>` park
- * names — the one place the park's detail prefix is read, so the page can
- * say "polling — step {node}" instead of printing the raw `repeat:tick`.
+ * The node a `repeat:<nodeId>` / `agent:<nodeId>` / `room:<nodeId>` /
+ * `in_doubt:<nodeId>` park names — the one place the park's detail prefix is
+ * read, so the page can say "polling — step {node}" instead of printing the
+ * raw `repeat:tick`.
  */
-function readRunParkNode(
+export function readRunParkNode(
   detail: string | null | undefined,
 ): string | undefined {
   if (typeof detail !== 'string') return undefined;
-  const match = /^(?:repeat|agent|room):(.+)$/.exec(detail);
+  const match = /^(?:repeat|agent|room|in_doubt):(.+)$/.exec(detail);
   return match?.[1];
 }
 
@@ -90,6 +99,9 @@ export function runReasonKey(run: {
       ? { kind: 'failed', detail: run.detail }
       : undefined;
   }
+  if (status === 'quarantined') {
+    return { kind: 'waiting', key: 'runs.quarantine.reason', values: {} };
+  }
   if (status !== 'waiting') return undefined;
   const waitingFor = readRunWaitingFor(run.waitingFor);
   if (waitingFor === undefined) return undefined;
@@ -102,11 +114,59 @@ export function runReasonKey(run: {
 }
 
 /** What the overlay shows on one node. `running` is the node the stepper is ON
- * right now (a live run's cursor); `pending` is a node the run has not reached
- * yet — distinct from the engine's `not_run`, which is a node the run finished
- * without reaching; `stopped` is the node a cancelled run was on when it was
- * stopped — reached, never finished. */
-export type NodeRunStatus = NodeStatus | 'pending' | 'running' | 'stopped';
+ * right now (a live run's cursor); `waiting` is the node a parked run waits on
+ * a person at (an approval, a question, a write that may already have
+ * happened); `interrupted` is the node a run was on when its server stopped,
+ * before another one took it over; `pending` is a node the run has not
+ * reached yet — distinct from the engine's `not_run`, which is a node the run
+ * finished without reaching; `stopped` is the node a cancelled run was on when
+ * it was stopped — reached, never finished. */
+export type NodeRunStatus =
+  | NodeStatus
+  | 'pending'
+  | 'running'
+  | 'waiting'
+  | 'interrupted'
+  | 'stopped';
+
+/** What the node a live run's cursor names reads as. */
+export type CursorNodeStatus = Extract<
+  NodeRunStatus,
+  'running' | 'waiting' | 'interrupted'
+>;
+
+/** The waits a person ends: the run is not working on its node meanwhile. */
+const PERSON_WAITS: ReadonlySet<string> = new Set<RunWaitingFor>([
+  'approval',
+  'ask',
+  'in_doubt',
+]);
+
+/**
+ * What the node a live run is on is doing: worked on (`running` — a step
+ * under way, an agent turn, a poll, a wait for sandbox room), parked for a
+ * person (`waiting`), or left by a server that stopped and not picked up yet
+ * (`interrupted`). Nothing spins on a node nobody is running.
+ */
+export function cursorNodeStatus(
+  run:
+    | { status?: unknown; stalled?: unknown; waitingFor?: unknown }
+    | null
+    | undefined,
+): CursorNodeStatus {
+  if (!run) return 'running';
+  const status = readRunStatus(run.status);
+  if (status === 'quarantined') return 'interrupted';
+  if (status === 'running' && run.stalled === true) return 'interrupted';
+  if (
+    status === 'waiting' &&
+    typeof run.waitingFor === 'string' &&
+    PERSON_WAITS.has(run.waitingFor)
+  ) {
+    return 'waiting';
+  }
+  return 'running';
+}
 
 export interface NodeRunView {
   status: NodeRunStatus;
@@ -217,7 +277,7 @@ export function readRunCursorNode(
 
 /**
  * The auto-retry attempt a LIVE run's parked agent turn is on (1-based), or
- * null when the run is finished, not parked on an agent turn, or still on
+ * null when the run is held or finished, not parked on an agent turn, or still on
  * its original attempt. The counter lives only in the stepper's cursor, so
  * a terminal run always reads null — its attempt count survives in the
  * failure detail instead.
@@ -225,7 +285,9 @@ export function readRunCursorNode(
 export function readRunAgentRetry(
   run: RunLike | null | undefined,
 ): number | null {
-  if (!run || isRunFinished(readRunStatus(run.status))) return null;
+  if (!run) return null;
+  const status = readRunStatus(run.status);
+  if (status === 'quarantined' || isRunFinished(status)) return null;
   const checkpoints = run.checkpoints;
   if (!isRecord(checkpoints)) return null;
   const cursor = checkpoints.cursor;
@@ -322,15 +384,17 @@ export function projectRun(run: RunLike | null | undefined): RunProjection {
 export function nodeStatusMap(
   projection: RunProjection,
   nodeIds: readonly string[],
-  /** The node a live run is parked on — shown as `running` rather than
+  /** The node a live run is on — shown as what it is doing there rather than
    * "not reached", which is what it looks like from the checkpoints alone. */
   cursorNode?: string | null,
+  /** What that node reads as ({@link cursorNodeStatus}). */
+  cursorStatus: CursorNodeStatus = 'running',
 ): Map<string, NodeRunStatus> {
   return new Map(
     nodeIds.map((id) => {
       const recorded = projection.byNode.get(id)?.status;
       if (recorded !== undefined) return [id, recorded];
-      return [id, id === cursorNode ? 'running' : 'pending'];
+      return [id, id === cursorNode ? cursorStatus : 'pending'];
     }),
   );
 }

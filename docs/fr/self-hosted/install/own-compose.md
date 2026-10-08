@@ -95,6 +95,7 @@ services:
     volumes: ['config-data:/app/data']
     cap_add: [NET_ADMIN]
     restart: unless-stopped
+    stop_grace_period: 30s
     healthcheck:
       test: ['CMD-SHELL', 'curl -sf http://localhost:3005/ping']
       interval: 10s
@@ -119,6 +120,7 @@ services:
     volumes: ['config-data:/app/data']
     cap_add: [NET_ADMIN]
     restart: unless-stopped
+    stop_grace_period: 120s
     healthcheck: { disable: true }
     networks: [internal]
 volumes:
@@ -164,7 +166,7 @@ Configure `BACKEND_UPSTREAM=backend-api:3005` sur le proxy. Pour le stockage fou
 | Service de sortie | Après retrait de toutes les autres capacités : `NET_ADMIN`, `DAC_OVERRIDE`, `CHOWN`, `SETUID`, `SETGID`, `NET_BIND_SERVICE` et `KILL`. Sans `KILL`, le superviseur root ne peut plus signaler tinyproxy une fois passé à `nobody` : un arrêt attend la fin du délai de grâce et se termine en exit 137 au lieu de se vider proprement. |
 | IPv6 de sortie | `sysctls` avec `net.ipv6.conf.all.disable_ipv6: '1'` et `net.ipv6.conf.default.disable_ipv6: '1'`, comme dans le stack fourni. Le pare-feu egress fonctionne en fail-closed : il exige un pare-feu IPv6 fonctionnel ou IPv6 désactivé pour la valeur par défaut et chaque interface, et un conteneur ne peut pas écrire ces sysctls lui-même à travers un `/proc/sys` en lecture seule. Sans elles, le proxy refuse de démarrer sur un noyau sans le module `ip6_tables` ; voir [Infrastructure sandbox](/fr/self-hosted/configuration/environment-reference#sandbox-infrastructure). |
 | Arrêt Postgres | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` dans la référence. |
-| Arrêt web et spawner | Délais de grâce de 45 secondes pour le web, 30 pour le spawner ; coordonner le travail actif avant l’arrêt. |
+| Arrêt web, backend et spawner | Délais de grâce de 45 secondes pour le web, 30 pour `backend-api`, 120 pour `backend-worker` et 30 pour le spawner. Un worker transmet ses exécutions d’automatisation pendant ce délai (`SHUTDOWN_DRAIN_MS`) ; coordonner le reste du travail actif avant l’arrêt. |
 
 Conserve `db-backup` si tes outils écrivent dans `/var/lib/postgresql/backup` ; un montage seul ne programme aucune sauvegarde. Les anciens volumes de configuration `convex-data` demandent un transfert délibéré vers `config-data`, pas leur suppression. Garde l’ancienne copie jusqu’à vérification.
 

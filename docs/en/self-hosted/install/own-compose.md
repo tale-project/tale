@@ -95,6 +95,7 @@ services:
     volumes: ['config-data:/app/data']
     cap_add: [NET_ADMIN]
     restart: unless-stopped
+    stop_grace_period: 30s
     healthcheck:
       test: ['CMD-SHELL', 'curl -sf http://localhost:3005/ping']
       interval: 10s
@@ -119,6 +120,7 @@ services:
     volumes: ['config-data:/app/data']
     cap_add: [NET_ADMIN]
     restart: unless-stopped
+    stop_grace_period: 120s
     healthcheck: { disable: true }
     networks: [internal]
 volumes:
@@ -164,7 +166,7 @@ Configure `BACKEND_UPSTREAM=backend-api:3005` on the proxy. For bundled file sto
 | Egress service | The shipped restricted capability set after dropping all others: `NET_ADMIN`, `DAC_OVERRIDE`, `CHOWN`, `SETUID`, `SETGID`, `NET_BIND_SERVICE` and `KILL`. Without `KILL` the root supervisor cannot signal tinyproxy after it has dropped to `nobody`, so a stop waits out the grace period and ends in exit 137 instead of draining. |
 | Egress IPv6 | `sysctls` with `net.ipv6.conf.all.disable_ipv6: '1'` and `net.ipv6.conf.default.disable_ipv6: '1'`, as in the shipped stack. The egress firewall fails closed: it needs working IPv6 firewall support or IPv6 disabled for the default and every interface, and a container cannot write those sysctls itself through a read-only `/proc/sys`. Without them the proxy refuses to start on a kernel without the `ip6_tables` module; see [Sandbox infrastructure](/self-hosted/configuration/environment-reference#sandbox-infrastructure). |
 | Postgres shutdown | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` in the reference stack. |
-| Web and spawner shutdown | Allow the web tier's 45-second and spawner's 30-second stop grace; coordinate active work before stopping. |
+| Web, backend and spawner shutdown | Allow the stop grace: 45 seconds for the web tier, 30 for `backend-api`, 120 for `backend-worker` and 30 for the spawner. A stopping worker hands its automation runs on within it (`SHUTDOWN_DRAIN_MS`); coordinate other active work before stopping. |
 
 Keep `db-backup` if your database tooling writes to `/var/lib/postgresql/backup`; mounting it alone does not create a backup schedule. Older `convex-data` configuration volumes need a deliberate transfer into `config-data`, not deletion. Preserve the old copy until verified.
 

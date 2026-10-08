@@ -37,4 +37,4 @@ Erstelle und teile Skills für Agenten, die eine wiederholbare Methode brauchen.
 
 ## Wann ein Entwickler nötig ist
 
-Die Rolle Redakteur erlaubt weder das Erstellen von Workflows noch die Verwaltung von Connectoren; diese Ressourcen sind schreibgeschützt. Ein Entwickler, Admin oder Inhaber übernimmt Automatisierungsänderungen und technische Zugangsdaten. Für Projektagenten sind außerdem Projekt-Bearbeitungszugriff sowie funktionierende Provider und Sandboxes nötig. Prüfe [Mitglieder und Rollen](/de/platform/admin/members-and-roles), bevor du mit einer Anleitung für zusätzliche Berechtigungen beginnst.
+Die Rolle Redakteur erlaubt weder das Erstellen von Workflows noch die Verwaltung von Connectors; diese Ressourcen sind schreibgeschützt. Ein Entwickler, Admin oder Inhaber übernimmt Automatisierungsänderungen und technische Zugangsdaten. Für Projektagenten sind außerdem Projekt-Bearbeitungszugriff sowie funktionierende Provider und Sandboxes nötig. Prüfe [Mitglieder und Rollen](/de/platform/admin/members-and-roles), bevor du mit einer Anleitung für zusätzliche Berechtigungen beginnst.

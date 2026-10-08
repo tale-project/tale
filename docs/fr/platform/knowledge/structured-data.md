@@ -38,7 +38,7 @@ Le rôle Rédacteur ou un rôle supérieur est nécessaire pour modifier les fic
 2. Vérifie **Langue**, dont la valeur initiale est `en`, et adapte-la à la langue du contact.
 3. Choisis **Enregistrer**. La fiche apparaît dans Contacts avec ses coordonnées et sa date d’ajout.
 
-Avant d’enregistrer, le formulaire vérifie chaque champ selon ce que Tale conserve : un **Nom** de 300 caractères au plus, un **Téléphone** de 50 au plus, une **Langue** de 20 au plus et un **Courriel** d’au plus 64 caractères avant le `@`. Une valeur qui dépasse une limite est signalée sous son champ, et rien n’est enregistré tant que tu ne l’as pas corrigée.
+Avant d’enregistrer, le formulaire vérifie chaque champ selon ce que Tale conserve : un **Nom** de 300 caractères au plus, un **Téléphone** de 50 au plus, une **Langue** de 20 au plus et un **Courriel** d’au plus 64 caractères avant le `@`. Une valeur qui dépasse une limite est signalée sous son champ, et rien n’est enregistré tant que tu ne l’as pas corrigée. **Téléphone** n’accepte que des chiffres, des espaces et `+ ( ) . -`. Un autre caractère reste là où tu l’as saisi, un message sous le champ te le signale, et rien n’est enregistré tant que tu ne l’as pas retiré.
 
 Pour n’afficher que les contacts d’une langue, choisis **Filtre** au-dessus de la liste des contacts, puis la langue sous **Langue**. Une langue inclut ses variantes régionales : **FR** affiche les contacts dont la langue est `fr`, `fr-CH` ou `fr_CA`. Un contact sans langue n’apparaît que tant qu’aucune langue n’est choisie.
 

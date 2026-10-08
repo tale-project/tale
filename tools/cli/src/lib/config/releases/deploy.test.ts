@@ -82,6 +82,7 @@ for (const fault of [
   'workflowConflict',
   'wrongName',
   'warnings',
+  'driftWarning',
   'missingBinding',
   'skillWrite',
   'driftDuringImport',
@@ -110,6 +111,16 @@ for (const fault of [
       );
   }, 30_000);
 }
+test("the analysis's warnings about the workflow's own logic do not stop a release", async () => {
+  const { options, state } = await fixture();
+  state.faults.add('analysisWarning');
+  const result = await deployRelease(options);
+  expect(state.deploys).toBe(1);
+  expect(result.importWarnings).toEqual([
+    expect.stringContaining('[MAYBE_NULL]'),
+  ]);
+}, 30_000);
+
 for (const fault of ['corruptFile', 'unexpectedFile', 'missingAsset']) {
   test(`existing skill ${fault} refuses before any mutation, including on replay`, async () => {
     const { options, state, release } = await fixture();

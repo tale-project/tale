@@ -77,17 +77,34 @@ Les outils exposent aussi `readOnlyHint`, `destructiveHint`, `idempotentHint` et
 | Outil                 | Ce qu'il fait                                                        |
 | --------------------- | -------------------------------------------------------------------- |
 | `get_docs` | Lire la référence d'automatisation : grammaire, types de nœuds, nœuds de capacité et méthodes au format `tools/call`. |
-| `get_catalog` | Lister les types de nœuds disponibles ; `kind` filtre le type, `compact: true` omet les schémas d'entrée. |
+| `get_catalog` | Lister les types de nœuds disponibles, avec le schéma d’entrée, la signature de sortie et l’`outputSchema` de chaque capacité ; `kind` filtre le type, `compact: true` omet les schémas. |
 | `search_catalog`      | Chercher dans le catalogue de types de nœuds par mot-clé.            |
-| `validate_automation` | Valider un document d'automatisation sans l'enregistrer.             |
+| `validate_automation` | Valider un document d’automatisation sans l’enregistrer : ses erreurs et avertissements avec leur emplacement, plus l’analyse du flux et les types déduits. |
 | `run_automation` | Exécuter un document avec les mocks déterministes. |
 | `test_automation`     | Lancer les tests d'acceptation propres à une automatisation.         |
-| `save_automation`     | Enregistrer un document comme nouvelle version immuable.             |
+| `save_automation`     | Enregistrer un document comme nouvelle version immuable ; la réponse liste ses avertissements. |
 | `get_automation`      | Lire une version enregistrée — la dernière sans précision, `version: "deployed"` pour celle qui est en ligne (`AUTOMATION_VERSION_UNKNOWN` tant que rien n’est déployé). |
 | `list_automations`    | Les automatisations de l'organisation avec leur dernière version, leur version déployée et les projets où chacune est installée (`projectIds`). |
 | `deploy_automation` | Déployer une version enregistrée pour les exécutions réelles. |
 
 Suis cet ordre : lire la grammaire et le catalogue, valider le document, l'exécuter avec les mocks, lancer ses tests d'acceptation, enregistrer une version, puis la déployer. Un test simulé réussi vérifie le chemin simulé. Il ne valide ni les identifiants du fournisseur, ni le réseau, ni les effets réels.
+
+#### Lire un résultat de validation {#validation-result}
+
+`validate_automation` répond avec `valid`, `errors`, `warnings`, `analysis` et `types`. Les erreurs empêchent d’enregistrer et de déployer, les avertissements jamais. `save_automation` renvoie les `warnings` de la version enregistrée, et un enregistrement refusé indique ses `warnings` à côté de ses `errors` : tu découvres ainsi les deux pendant ton travail.
+
+| Champ d’un problème | Contenu |
+| --- | --- |
+| `code` | La valeur stable sur laquelle brancher, comme `REF_UNKNOWN_FIELD` ou `MAYBE_NULL` |
+| `message`, `hint` | Des phrases en anglais qui restent stables d’une version à l’autre ; affiche-les, mais branche sur `code` |
+| `nodeId` | Le nœud concerné, s’il y en a un |
+| `at.pointer` | Un JSON Pointer dans le document envoyé, comme `/nodes/2/input/to` ; `""` désigne le document entier |
+| `at.range` | `[start, end)` en unités de code UTF-16 dans la chaîne située à `at.pointer`, quand le problème est une seule expression d’un template, d’une condition ou du code |
+| `at.subject` | `key` quand le pointeur désigne un champ qui ne devrait pas exister ; `missing` quand il désigne un champ qui devrait exister et manque |
+| `params` | Les faits dont le message est fait, comme `node`, `field`, `ref`, `key` et `suggestion` |
+| `related` | Les autres endroits concernés : le nœud dont dépend une lecture, le nœud dont la condition ou l’échec cause le problème, les nœuds lecteurs ou les membres d’une boucle |
+
+`analysis.nodes.<id>` indique si un nœud est atteignable (`reachable`), s’il s’exécute toujours (`alwaysRuns`), comment il peut être ignoré (`maySkip`) et si son échec arrête l’exécution (`failureHandling: "halts"`) ou la laisse continuer (`"continues"`). `analysis.paths` liste les chemins que peut prendre une exécution réussie — jusqu’à 32, avec `count` pour le total — et nomme les nœuds dont l’échec termine une exécution. `types` donne le JSON Schema de l’entrée de l’exécution, de la sortie de chaque nœud et du résultat de l’automatisation ; `get_catalog` donne de la même façon l’`outputSchema` de chaque capacité. [Ce que Tale vérifie avant une exécution](/fr/platform/automations/concepts#checks) explique chaque famille de vérifications.
 
 ### Gestion des exécutions & déclencheurs
 
@@ -119,7 +136,7 @@ Les deux outils de version déployée utilisent le même moteur durable, avec le
 | `invoke_capability` | Appeler une capacité par son `id`. Si une approbation est nécessaire, renvoyer son état en attente au lieu d'exécuter l'action. |
 | `get_knowledge` | Récupérer des passages des documents et sites web explorés de l'organisation. `corpus` vaut `private` (documents), `public-web` (pages explorées) ou `all` ; les orthographes REST `documents` et `web` sont acceptées aussi. `query` est plafonné à 2000 caractères. Chaque passage porte `text`, `source` (un titre), `ref`, `corpus`, `chunkIndex`, `score`, `similarity` quand la recherche dense l’a classé, `url` pour une page web et — pour un document — le `documentId` qu’attend `GET /api/v1/documents/{id}` (l’id du fichier pour un résultat de projet) ainsi que son `projectId` : la même citation que renvoie la recherche REST. |
 
-Le registre de capacités contient actuellement les automatisations déployées. Il n'inclut ni outils intégrés, ni actions de connecteurs, ni skills, ni serveurs MCP externes. Appeler une automatisation déployée correspond à la même opération réelle que `run_deployed`. Si une approbation est nécessaire, le résultat `pending` permet au client d'expliquer qu'une personne doit décider avant la poursuite.
+Le registre de capacités contient actuellement les automatisations déployées. Il n'inclut ni outils intégrés, ni actions de connectors, ni skills, ni serveurs MCP externes. Appeler une automatisation déployée correspond à la même opération réelle que `run_deployed`. Si une approbation est nécessaire, le résultat `pending` permet au client d'expliquer qu'une personne doit décider avant la poursuite.
 
 ## Ce que la clé peut faire
 
@@ -139,7 +156,7 @@ Avant de configurer des outils privilégiés, lis `GET /api/v1/me` : `capabiliti
 | JSON-RPC `-32601` | Corriger la méthode inconnue |
 | JSON-RPC `-32602` | Corriger le nom de l'outil ou ses arguments à partir de `tools/list` ; une valeur hors d’un ensemble énuméré est refusée et le message nomme l’ensemble |
 | Résultat avec `isError: true` | Lire le `code` stable, l'`error` explicative et le `hint` dans le texte ; `data` peut détailler les champs invalides |
-| `validate_automation` avec `valid: false` | Verdict normal de validation ; examiner `errors`, même si `isError` reste false |
+| `validate_automation` avec `valid: false` | Verdict normal de validation ; examiner `errors` et leurs emplacements ([Lire un résultat de validation](#validation-result)), même si `isError` reste false. Les avertissements ne rendent jamais un document invalide |
 | Capacité avec `pending` | Résultat normal d'approbation ; ni une fin d'exécution, ni un échec à relancer |
 | Capacité avec `refused` | Résultat d'erreur ; corriger la cause indiquée |
 

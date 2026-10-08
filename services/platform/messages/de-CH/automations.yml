@@ -1,0 +1,3 @@
+runs:
+  quarantine:
+    changed: Die Sperre hat sich geändert. Schliesse diesen Dialog und prüfe die aktuellen Angaben, bevor du entscheidest.

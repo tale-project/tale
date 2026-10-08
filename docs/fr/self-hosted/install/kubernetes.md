@@ -236,7 +236,7 @@ Les trois rôles partagent l’image de la plateforme : l’API et le worker éc
 
 <Warning>
 
-Les rôles backend s’exécutent sans `NET_ADMIN` et avec `TALE_SKIP_SSRF_FIREWALL=1`. Avec cette capability, l’image installe sa barrière de sortie iptables, qui n’accepte que les sous-réseaux directement connectés au Pod et rejette le reste de l’espace d’adressage privé. Sur un réseau de Pods, cela rejette aussi le DNS du cluster et chaque adresse de Service : le rôle échoue avec `getaddrinfo EAI_AGAIN db` et redémarre jusqu’à ce que tu retires la capability. La NetworkPolicy à la fin du fichier assure la barrière à la place : les rôles joignent chaque voisin du namespace, le DNS du cluster et l’internet public, jamais le service de métadonnées du cloud, les nœuds ni les réseaux privés. Étends sa dernière règle si tes fournisseurs de modèles ou tes connecteurs se trouvent sur une plage privée.
+Les rôles backend s’exécutent sans `NET_ADMIN` et avec `TALE_SKIP_SSRF_FIREWALL=1`. Avec cette capability, l’image installe sa barrière de sortie iptables, qui n’accepte que les sous-réseaux directement connectés au Pod et rejette le reste de l’espace d’adressage privé. Sur un réseau de Pods, cela rejette aussi le DNS du cluster et chaque adresse de Service : le rôle échoue avec `getaddrinfo EAI_AGAIN db` et redémarre jusqu’à ce que tu retires la capability. La NetworkPolicy à la fin du fichier assure la barrière à la place : les rôles joignent chaque voisin du namespace, le DNS du cluster et l’internet public, jamais le service de métadonnées du cloud, les nœuds ni les réseaux privés. Étends sa dernière règle si tes fournisseurs de modèles ou tes connectors se trouvent sur une plage privée.
 
 </Warning>
 

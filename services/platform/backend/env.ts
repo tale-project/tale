@@ -37,6 +37,24 @@ const envSchema = z.object({
    */
   AGENT_DRIVE_SLOTS: z.coerce.number().int().min(1).max(256).optional(),
   /**
+   * Automation steps one organization runs at once across every worker
+   * (`jobs/tasks.ts` `queueGroupConcurrency`), so one organization's burst
+   * of runs cannot take every step slot; 0 turns the limit off. A single
+   * worker at the default WORKER_CONCURRENCY never reaches it.
+   */
+  AUTOMATION_ORG_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(256)
+    .default(8),
+  /**
+   * How long a stopping process waits for its jobs before it fails what is
+   * left (`shutdown-sequence.ts`); unset, 15 s for the api and 90 s for a
+   * worker. Keep the container's stop grace at least 15 s above it.
+   */
+  SHUTDOWN_DRAIN_MS: z.coerce.number().int().min(1_000).max(600_000).optional(),
+  /**
    * Required by the api/all roles (asserted in main.ts); a pure worker can
    * boot without auth configuration.
    */

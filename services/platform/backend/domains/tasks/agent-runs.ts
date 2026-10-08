@@ -8,6 +8,7 @@ import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import type { MentionSource } from '../../core/tasks/mentions.ts';
 import {
   AUTO_RETRY_MAX_ATTEMPTS,
+  MODEL_CAPACITY_RETRY_DELAY_MS,
   isAutoRetryableFailure,
   resolveAutoRetryBudget,
 } from '../../core/tasks/task_auto_retry.ts';
@@ -257,7 +258,7 @@ export async function kickAgentRun(
     SELECT id FROM app.automation_runs
     WHERE org_id = ${args.organizationId}
       AND (project_id = ${args.projectId} OR project_id IS NULL)
-      AND status IN ('queued', 'running', 'waiting')
+      AND status IN ('queued', 'running', 'waiting', 'quarantined')
       AND input -> 'task' ->> 'id' = ${args.taskId}
     LIMIT 1
   `;
@@ -584,12 +585,17 @@ export async function failAgentRunFromTurn(
       error,
     });
     if (armRetry) {
-      // A cooldown ends a minute after its 429 at the latest, so a wait
-      // stays far inside the stranded-queued-run sweep's window.
+      // Both finite waits stay inside the stranded-queued-run sweep. Sample
+      // model capacity AFTER winning the terminal write and recording the
+      // ledger, so a lock wait cannot consume its floor. Commit/enqueue
+      // latency is not a promise of 60s after commit. This still counts;
+      // it is not a broker 429/free cooldown.
       const startAfterMs =
-        args.retryAtMs !== undefined && args.retryAtMs > now
-          ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
-          : undefined;
+        args.failureCode === 'model_capacity'
+          ? Date.now() + MODEL_CAPACITY_RETRY_DELAY_MS
+          : args.retryAtMs !== undefined && args.retryAtMs > now
+            ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
+            : undefined;
       await addJobInTx(tx, 'task.agent_retry', {
         organizationId: run.organizationId,
         taskId: run.taskId,
@@ -848,6 +854,37 @@ export async function wakeParkedAgentRun(
         AND status = 'queued'
         AND waiting_for_capacity_at_ms IS NOT NULL
         AND deadline_at_ms > ${Date.now()}
+      FOR UPDATE SKIP LOCKED
+    `;
+    const run = parked[0];
+    if (!run) return 0;
+    await restartParkedRun(tx, run);
+    return 1;
+  });
+}
+
+/** Wake the OLDEST run parked on one workspace, when a turn of that workspace
+ * has ended: its exec gave back one of the runtime's live-exec places, the
+ * room a run whose exec was refused for want of one (`EXEC_LIMIT`) waits
+ * for — and any other run parked on the workspace finds it up. One claim,
+ * single-winner like every wake: a run that still finds no place parks
+ * again, and the watchdog's sweep stays the backstop. */
+export async function wakeSessionParkedAgentRun(
+  sql: Sql,
+  args: { organizationId: string; sessionId: string },
+): Promise<number> {
+  return sql.begin(async (tx) => {
+    const parked = await tx<ParkedRun[]>`
+      SELECT id, org_id AS "organizationId", exec_id AS "execId",
+             task_id AS "taskId"
+      FROM app.project_agent_runs
+      WHERE org_id = ${args.organizationId}
+        AND session_id = ${args.sessionId}
+        AND status = 'queued'
+        AND waiting_for_capacity_at_ms IS NOT NULL
+        AND deadline_at_ms > ${Date.now()}
+      ORDER BY waiting_for_capacity_at_ms
+      LIMIT 1
       FOR UPDATE SKIP LOCKED
     `;
     const run = parked[0];

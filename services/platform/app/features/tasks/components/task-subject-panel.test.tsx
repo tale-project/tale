@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   runFetching: false,
   refetchRun: vi.fn(),
   pendingAsk: null as unknown,
+  inDoubt: null as unknown,
+  resolveInDoubt: vi.fn(),
   reviewer: undefined as TaskReviewerState | undefined,
   reviewerError: false,
   refetchReviewer: vi.fn(),
@@ -47,6 +49,9 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
     }
     if (query === 'automations/human_asks:getPendingAskForRun') {
       return { data: mocks.pendingAsk };
+    }
+    if (query === 'automations/queries:getRunInDoubt') {
+      return { data: mocks.inDoubt, isError: false, refetch: vi.fn() };
     }
     return {
       data: mocks.run,
@@ -76,6 +81,11 @@ vi.mock('../hooks/mutations', () => ({
 
 vi.mock('@/app/features/automations/hooks/mutations', () => ({
   useAnswerHumanAsk: () => ({ mutateAsync: mocks.answerAsk }),
+  useRequestLegacyRunStop: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useResolveRunInDoubt: () => ({
+    mutateAsync: mocks.resolveInDoubt,
+    isPending: false,
+  }),
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
@@ -191,6 +201,9 @@ describe('TaskSubjectPanel', () => {
     mocks.runFetching = false;
     mocks.refetchRun.mockReset();
     mocks.pendingAsk = null;
+    mocks.inDoubt = null;
+    mocks.resolveInDoubt.mockReset();
+    mocks.resolveInDoubt.mockResolvedValue(null);
     mocks.reviewer = {
       reviewer: { kind: 'inherit' },
       projectReviewer: { kind: 'human_default' },
@@ -619,6 +632,56 @@ describe('TaskSubjectPanel', () => {
     expect(mocks.updateStatus).not.toHaveBeenCalled();
   });
 
+  it('says a run waiting on a step that may already have run waits for a decision, and offers it here [AUTO-R19]', async () => {
+    // Mia works the task; its run was sending the verification report when
+    // the server stopped, and nobody can tell whether it arrived.
+    mocks.run = {
+      runId: 'run_1',
+      name: 'document-verify-desk',
+      status: 'waiting',
+      version: 1,
+      detail: 'in_doubt:send_report',
+    };
+    mocks.inDoubt = {
+      attemptId: 'attempt_1',
+      nodeId: 'send_report',
+      itemIndex: 0,
+      pass: 0,
+      attempt: 1,
+      nodeType: 'imap-smtp.send',
+      connector: 'Email',
+      action: 'send',
+      input: { to: 'audit@example.test' },
+      startedAt: 1_790_000_000_000,
+    };
+    const { container, user } = renderPanel(ownedBy(), true, 'in_progress');
+
+    expect(
+      screen.getByText(
+        'Document verification desk waits for a decision on a step that may already have run — choose below how it continues.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Document verification desk is working on this task.'),
+    ).toBeNull();
+    // Nothing is working on the run: nothing spins.
+    expect(container.querySelector('.animate-spin')).toBeNull();
+    expect(
+      screen.getByRole('heading', {
+        name: 'This step may already have run: send_report',
+      }),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Skip it' }));
+    expect(mocks.resolveInDoubt).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org_1',
+      runId: 'run_1',
+      attemptId: 'attempt_1',
+      attempt: 1,
+      resolution: 'skip',
+    });
+  });
+
   it('names the automation and shows the automation s own description', () => {
     renderPanel(ownedBy(), true);
 
@@ -855,4 +918,27 @@ describe('TaskSubjectPanel', () => {
       variant: 'destructive',
     });
   });
+});
+
+it('shows a held subject without offering ordinary cancellation or replay', () => {
+  mocks.run = {
+    runId: 'run-held',
+    name: 'archive',
+    status: 'quarantined',
+    legacyQuarantine: {
+      reason: 'legacy_execution_unproven',
+      observedAt: 123,
+      claimEpoch: 4,
+      priorStatus: 'running',
+      resolution: null,
+    },
+  };
+  const { container } = renderPanel(ownedBy(), true, 'in_progress');
+  expect(screen.getByText('Outcome unknown')).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Request stop' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Cancel$/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Start/ })).toBeNull();
+  expect(container.querySelector('.animate-spin')).toBeNull();
 });
