@@ -336,8 +336,9 @@ export async function runSandboxWatchdog(
 
   // What waiting for sandbox room leaves behind: the op rows of refused
   // starts an hour after they ended (each session's newest kept, the run
-  // view reads it) and failed session rows a day after they were collected
-  // (domains/sandbox/wait-retention.ts).
+  // view reads it) and failed session rows a day after they were collected,
+  // except a project agent's newest row of its id, which names the
+  // workspace its collect kept (domains/sandbox/wait-retention.ts).
   try {
     const pruned = await sweepRoomWaitLeftovers(sql, { now });
     if (pruned.ops + pruned.sessions > 0) {
