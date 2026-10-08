@@ -45,10 +45,10 @@ tightens the limit of the person it belongs to, and the reverse.
 ### GOV-R14 · A project's limit caps everything spent in the project, whoever spends it
 
 What a project spent is everything done in it: its chats (their titles, the answers read aloud,
-the recordings transcribed in them, even before a new chat's first message, and the assistant's
-tool calls included),
-the turns of its agents and the agent and `llm` steps of the automations run in it, with the
-images they make, and the calls made with its own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
+the recordings transcribed in them, even before a new chat's first message, the files indexed for
+them and the assistant's tool calls and searches included), the turns of its agents and the agent
+and `llm` steps of the automations run in it, with the images they make, and the calls made with
+its own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
 schedule started included, and binds nothing done outside the project. A run that names no
 project, of an automation installed in several projects, is each one's work: it counts toward,
 and must fit, every one of their limits, as a member's spend counts toward each of their teams.
@@ -71,10 +71,11 @@ What running work may still cost is set aside against the person's and the organ
 limits, so several things started at the same moment cannot overrun a limit together: a chat
 reply's every round as it starts, an agent's allowance, a voice chunk's estimate, and the
 estimated largest cost of a call Tale makes straight to a model — an automation's `llm` step, a
-chat's title, a rewrite with Improve with AI, a transcription at the recording's length. Such a call is
-refused when a limit has too little room for that cost; a chat's title is then made from the first
-message, without a call. With no
-limit set, work gets the deployment's default allowance.
+chat's title, a rewrite with Improve with AI, a transcription at the recording's length, each
+embedding request of knowledge indexing and search. Such a call is refused when a limit has too
+little room for that cost; a chat's title is then made from the first message, without a call, and
+indexing waits for the limit (`KNOW-R17`). With no limit set, work gets the deployment's default
+allowance.
 
 - **Example**: Two agents are working for Mia and hold most of what is left under her limit.
   She starts a third → it gets only what remains, or is refused.
@@ -164,8 +165,6 @@ It counts only in the organization it was granted in.
 - **API keys**: creating, listing and revoking one (`api-keys.ts`).
 - **The usage pages** and their figures (`usage-metrics.ts`).
 - **A project's limit warns no one** before it is reached.
-- **Embeddings are not counted**: the embeddings that index knowledge and those a search asks
-  for are neither checked nor booked.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.

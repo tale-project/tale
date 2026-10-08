@@ -19,7 +19,7 @@ import { incrementUsageLedger } from './service.ts';
 /**
  * A call the platform makes straight to a provider, with no gateway key in
  * between — an automation's `llm` step, a chat title, the Inbox's Improve, a
- * transcription — held against the caps that bind whoever it is for, the way a managed turn
+ * transcription, an embedding request — held against the caps that bind whoever it is for, the way a managed turn
  * holds its allowance:
  *
  *  1. OPEN — before the call, its worst case is measured against every cap
