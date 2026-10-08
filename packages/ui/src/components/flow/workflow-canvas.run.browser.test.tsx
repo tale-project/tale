@@ -7,6 +7,7 @@ import { cdp, page, userEvent } from 'vitest/browser';
 import { ratioAgainst } from '@/tests/utils/contrast';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
+import { FLOW_STRIP_SETTLE } from './motion/flow-motion';
 import { highlightForNodes, type FlowPath } from './paths/highlight';
 import { buildPlaybackTimeline } from './playback/build-timeline';
 import { flowStateAt } from './playback/derive-state';
@@ -287,6 +288,92 @@ describe('WorkflowCanvas with a run', () => {
   });
 });
 
+describe('WorkflowCanvas run motion', () => {
+  /** The strip settles the canvas asked the browser for. */
+  const settles = (spy: { mock: { calls: unknown[][] } }) =>
+    spy.mock.calls.filter(
+      ([keyframes]) =>
+        JSON.stringify(keyframes) ===
+        JSON.stringify(FLOW_STRIP_SETTLE.keyframes),
+    );
+
+  it('sweeps a running node’s top bar, and holds it still under reduced motion', async () => {
+    const overlay = {
+      finished: false,
+      nodes: { issues: { state: 'running' as const } },
+    };
+    const { unmount } = await renderRun({ graph: triageFlowGraph(), overlay });
+    const bar = () =>
+      node('issues')?.querySelector('[data-slot="flow-node-running"] > span');
+    let style = getComputedStyle(bar() as Element);
+    expect(style.animationName).toBe('flow-running-sweep');
+    expect(style.animationDuration).toBe('1.2s');
+    expect(style.animationTimingFunction).toBe('linear');
+    expect(style.animationIterationCount).toBe('infinite');
+    unmount();
+
+    await cdp().send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+    });
+    await renderRun({ graph: triageFlowGraph(), overlay });
+    style = getComputedStyle(bar() as Element);
+    // Still there, still blue — it only stops moving.
+    expect(style.animationName).toBe('none');
+    expect(bar()).toBeVisible();
+  });
+
+  it('settles a strip softly as the run plays on, and swaps it when scrubbing back', async () => {
+    const graph = triageFlowGraph();
+    const timeline = buildPlaybackTimeline(triageFailedRun());
+    const issues = timeline.spans.find((span) => span.nodeId === 'issues');
+    if (issues?.end === undefined) throw new Error('no issues span');
+    const running = (issues.start + issues.end) / 2;
+    const { rerun } = await renderRun({
+      graph,
+      playback: { timeline, t: running },
+    });
+    expect(strip('issues')).toBe('Running');
+    const animate = vi.spyOn(Element.prototype, 'animate');
+    try {
+      rerun({ playback: { timeline, t: issues.end + 1 } });
+      await waitFor(() => expect(strip('issues')).toBe('Succeeded · 1.2 s'));
+      const forward = settles(animate);
+      expect(forward.length).toBeGreaterThan(0);
+      expect(forward[0]?.[1]).toEqual(FLOW_STRIP_SETTLE.options);
+      expect(FLOW_STRIP_SETTLE.options.duration).toBe(150);
+
+      animate.mockClear();
+      rerun({ playback: { timeline, t: running } });
+      await waitFor(() => expect(strip('issues')).toBe('Running'));
+      expect(settles(animate)).toEqual([]);
+    } finally {
+      animate.mockRestore();
+    }
+  });
+
+  it('swaps strips at once under reduced motion', async () => {
+    await cdp().send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+    });
+    const graph = triageFlowGraph();
+    const timeline = buildPlaybackTimeline(triageFailedRun());
+    const issues = timeline.spans.find((span) => span.nodeId === 'issues');
+    if (issues?.end === undefined) throw new Error('no issues span');
+    const { rerun } = await renderRun({
+      graph,
+      playback: { timeline, t: (issues.start + issues.end) / 2 },
+    });
+    const animate = vi.spyOn(Element.prototype, 'animate');
+    try {
+      rerun({ playback: { timeline, t: issues.end + 1 } });
+      await waitFor(() => expect(strip('issues')).toBe('Succeeded · 1.2 s'));
+      expect(settles(animate)).toEqual([]);
+    } finally {
+      animate.mockRestore();
+    }
+  });
+});
+
 describe('WorkflowCanvas highlights', () => {
   it('highlights the paths through No when a pointer rests on its label', async () => {
     const onHighlightChange = vi.fn();
@@ -322,6 +409,20 @@ describe('WorkflowCanvas highlights', () => {
     expect(look('open_issues>score')).toBe('emphasis');
     expect(look('score>report')).toBe('base');
     expect(document.querySelector('[data-flow-quiet]')).toBeNull();
+    // The two stacked lines crossfade: opacity only, short, out-quint.
+    for (const selector of [
+      'path[data-flow-edge="issues>open_issues"]',
+      'path[data-flow-edge-state="issues>open_issues"]',
+    ]) {
+      const style = getComputedStyle(
+        document.querySelector(selector) as Element,
+      );
+      expect(style.transitionProperty, selector).toBe('opacity');
+      expect(style.transitionDuration, selector).toBe('0.15s');
+      expect(style.transitionTimingFunction, selector).toBe(
+        'cubic-bezier(0.22, 1, 0.36, 1)',
+      );
+    }
   });
 
   it('shows a host highlight with its reasons, and says it once', async () => {
