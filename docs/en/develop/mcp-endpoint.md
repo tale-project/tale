@@ -77,17 +77,34 @@ Tools also expose `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `open
 | Tool                  | What it does                                               |
 | --------------------- | ---------------------------------------------------------- |
 | `get_docs`            | The automation authoring reference — grammar, node kinds, capability nodes and the method table in this endpoint's own `tools/call` dialect — as text. |
-| `get_catalog`         | Every node type this deployment can execute; `kind` narrows to one node kind and `compact: true` drops the input schemas. |
+| `get_catalog`         | Every node type this deployment can execute, with each capability's input schema, output signature, and `outputSchema`; `kind` narrows to one node kind and `compact: true` drops the schemas. |
 | `search_catalog`      | Search the node-type catalog by keyword.                   |
-| `validate_automation` | Validate an automation document without saving it.         |
+| `validate_automation` | Validate an automation document without saving it: its errors and warnings, each with its location, plus the flow analysis and the inferred types. |
 | `run_automation`      | Run an automation document directly against the deterministic mocks. |
 | `test_automation`     | Run an automation's own acceptance tests.                  |
-| `save_automation`     | Save an automation document as a new immutable version.    |
+| `save_automation`     | Save an automation document as a new immutable version; the answer lists its warnings. |
 | `get_automation`      | Read one saved version — the latest when unversioned, `version: "deployed"` for the live one (`AUTOMATION_VERSION_UNKNOWN` while nothing is deployed). |
 | `list_automations`    | The organization's automations with their latest and deployed versions and the projects each is installed in (`projectIds`). |
 | `deploy_automation`   | Promote one saved version to be the live version.          |
 
 Use the authoring loop in this order: read the grammar and catalog, validate the document, run it against mocks, run its acceptance tests, save a version, then deploy that version. A successful mock run verifies the simulated path; it does not prove vendor credentials, network access, or real effects.
+
+#### Read a validation result {#validation-result}
+
+`validate_automation` answers `valid`, `errors`, `warnings`, `analysis`, and `types`. Errors stop a save and a deployment; warnings never do. `save_automation` returns the `warnings` of the version it saved, and a refused save returns its `warnings` beside its `errors`, so you hear about both while you work.
+
+| Issue field | What it holds |
+| --- | --- |
+| `code` | The stable value to branch on, such as `REF_UNKNOWN_FIELD` or `MAYBE_NULL` |
+| `message`, `hint` | English sentences that stay stable between releases; show them, but branch on `code` |
+| `nodeId` | The node the issue is about, when there is one |
+| `at.pointer` | A JSON Pointer into the document you sent, such as `/nodes/2/input/to`; `""` is the whole document |
+| `at.range` | `[start, end)` in UTF-16 code units inside the string at `at.pointer`, when the issue is one expression in a template, a condition, or code |
+| `at.subject` | `key` when the pointer names a field that should not exist; `missing` when it names one that should exist and does not |
+| `params` | The facts the message is built from, such as `node`, `field`, `ref`, `key`, and `suggestion` |
+| `related` | Other places involved: the node a read depends on, the node whose condition or failure causes the issue, readers, or the members of a cycle |
+
+`analysis.nodes.<id>` says whether a node is `reachable`, whether it `alwaysRuns`, how it can be skipped (`maySkip`), and whether its failure stops the run (`failureHandling: "halts"`) or lets the run go on (`"continues"`). `analysis.paths` lists the ways a successful run can go, up to 32 of them with `count` for all, and names the nodes whose failure ends a run. `types` gives the JSON Schema of the run input, of each node's output, and of the automation's result; `get_catalog` gives each capability's `outputSchema` the same way. [What Tale checks before a run](/platform/automations/concepts#checks) explains each family of checks.
 
 ### Run & trigger management
 
@@ -139,7 +156,7 @@ Read `GET /api/v1/me` before configuring privileged tools: `capabilities.develop
 | JSON-RPC `-32601` | Correct the unknown method |
 | JSON-RPC `-32602` | Correct the tool name or arguments using `tools/list`; a value outside an enumerated set is refused with the set named |
 | Tool result with `isError: true` | Read its text payload's stable `code`, explanatory `error`, and actionable `hint`; `data` may contain field problems |
-| `validate_automation` with `valid: false` | Normal validation result; inspect `errors`, even though `isError` remains false |
+| `validate_automation` with `valid: false` | Normal validation result; inspect `errors` and where each one is ([Read a validation result](#validation-result)), even though `isError` remains false. Warnings never make a document invalid |
 | Capability result `pending` | Normal approval outcome; do not treat it as completion or retry it as a failure |
 | Capability result `refused` | Error result; correct the stated cause |
 

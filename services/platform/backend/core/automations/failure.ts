@@ -18,7 +18,11 @@ import type { WorkflowAgentFailureCode } from './agent_retry.ts';
  *   (a connector action refused or failed), `llm_output_invalid` (the
  *   model's reply did not satisfy the node's `outputSchema`),
  *   `approval_rejected`, `execution_limit` (the execution guard),
- *   `automation_deleted` (the automation vanished mid-flight);
+ *   `automation_deleted` (the automation vanished mid-flight),
+ *   `engine_incompatible` (the run's saved progress could not be read by
+ *   this version of Tale, so it was stopped instead of starting over),
+ *   `effect_in_doubt` (a person failed the run at a write that may already
+ *   have reached its service when the run was interrupted);
  * - an `llm` node's provider, reusing the chat surface's own vocabulary —
  *   `credit_exhausted`, `auth_error`, `rate_limited`, `provider_unreachable`,
  *   `provider_error`, …: the account or the provider, not the request;
@@ -33,6 +37,8 @@ const ENGINE_FAILURE_CODES = [
   'approval_rejected',
   'execution_limit',
   'automation_deleted',
+  'engine_incompatible',
+  'effect_in_doubt',
 ] as const;
 
 const AGENT_FAILURE_CODES = [
@@ -169,13 +175,39 @@ export class NodeFailure extends Error {
 }
 
 /**
+ * A failure that ends the run at the node that raised it, whatever the node's
+ * `onError` says: a person decided the run must stop there (they chose to
+ * fail it at a write that may already have happened). Inside a
+ * subautomation it ends the calling node too, instead of being folded into
+ * "subautomation … failed".
+ */
+export class RunStopFailure extends Error {
+  readonly code: RunFailureCode;
+
+  constructor(code: RunFailureCode, message: string) {
+    super(message);
+    this.name = 'RunStopFailure';
+    this.code = code;
+  }
+}
+
+const RUN_FAILURE_CODE_SET: ReadonlySet<string> = new Set(RUN_FAILURE_CODES);
+
+/** Whether a stored string is a code `Run.failureCode` can carry. */
+export function isRunFailureCode(value: unknown): value is RunFailureCode {
+  return typeof value === 'string' && RUN_FAILURE_CODE_SET.has(value);
+}
+
+/**
  * The code for an error the stepper caught: a `NodeFailure` names its own;
  * anything else is classified the way the chat surface classifies a
  * provider failure — a status number or a `"code":` in the sentence names
  * the provider bucket — and falls to `node_error` when it is not one.
  */
 export function runFailureCodeOf(error: unknown): RunFailureCode {
-  if (error instanceof NodeFailure) return error.code;
+  if (error instanceof NodeFailure || error instanceof RunStopFailure) {
+    return error.code;
+  }
   const chat = classifyChatErrorCode(error);
   return (PROVIDER_FAILURE_CODES as readonly string[]).includes(chat)
     ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the membership test above

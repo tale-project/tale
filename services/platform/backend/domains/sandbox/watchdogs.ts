@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import {
   sessionCreate,
@@ -388,16 +388,24 @@ interface Candidate {
 }
 
 /** Stamp the rows a pass visited — whatever the verdict — so the next tick's
- * batch moves on to the rows it has not seen for longest. */
-async function stampVisited(
-  sql: Sql,
+ * batch moves on to the rows it has not seen for longest. Concurrent passes
+ * can visit the same rows through different scan plans. Lock their immutable
+ * IDs in one order before updating, without serializing the remote probes. */
+export async function stampVisited(
+  sql: Sql | TransactionSql,
   candidates: readonly Candidate[],
   now: number,
 ): Promise<void> {
   if (candidates.length === 0) return;
   await sql`
-    UPDATE app.sandbox_sessions SET last_reconciled_at_ms = ${now}
-    WHERE id = ANY(${candidates.map((candidate) => candidate.id)})
+    WITH visited AS MATERIALIZED (
+      SELECT id FROM app.sandbox_sessions
+      WHERE id = ANY(${candidates.map((candidate) => candidate.id)})
+      ORDER BY id
+      FOR NO KEY UPDATE
+    )
+    UPDATE app.sandbox_sessions AS session SET last_reconciled_at_ms = ${now}
+    FROM visited WHERE session.id = visited.id
   `;
 }
 

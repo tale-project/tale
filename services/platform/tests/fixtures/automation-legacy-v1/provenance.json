@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "source": "b4931db4b48bdfde37afe1af2a1479e6640a0799",
+  "files": [
+    {
+      "sourcePath": "services/platform/backend/domains/automations/store.ts",
+      "blob": "133f67863e268b047e8806e1e3cc54a0ac926bed",
+      "rawFile": "store.raw.txt",
+      "rawSha256": "83e31c0d90ed430b3186eb25cefe2de3b264f631aad7fc02ec8e181862a89e56",
+      "moduleFile": "store.ts",
+      "sections": [
+        {
+          "name": "claimRun",
+          "start": 87477,
+          "end": 89071,
+          "sha256": "dbe8958cd7d0bfe863628fe07d58327bb1b3d362f1e76aca5b1e518ed568876d"
+        },
+        {
+          "name": "CheckpointsShape",
+          "start": 89522,
+          "end": 89628,
+          "sha256": "7b6ddb4d601d380ebac99eaa6b8fd26286926fa93ff65b35b1b0fe636cad9c7d"
+        },
+        {
+          "name": "readCheckpoints",
+          "start": 89630,
+          "end": 90345,
+          "sha256": "0ab4412906de7bb440b38903b467b376c5f096a9498d723be5b8a58d47e25a49"
+        },
+        {
+          "name": "boundIncomingCheckpoint",
+          "start": 90797,
+          "end": 91286,
+          "sha256": "2508e1602a911ffc5571bc03722d980f9c609ad4c8e52cfbf830818867af079a"
+        },
+        {
+          "name": "recordProgress",
+          "start": 91288,
+          "end": 92733,
+          "sha256": "5213264b8002546c44d3bab6b273d5102b4ec7bf3b0d2216917e5c30f3013966"
+        }
+      ]
+    },
+    {
+      "sourcePath": "services/platform/backend/core/automations/stepper.ts",
+      "blob": "58937b4867008ed459557e77a8594e26949d664a",
+      "rawFile": "stepper.raw.txt",
+      "rawSha256": "6a7d87d44790b50fc7d0ee298527fa09dfa93578fb0479b8c8cee838b3e5f434",
+      "moduleFile": "stepper.ts",
+      "sections": [
+        {
+          "name": "RunSink",
+          "start": 10140,
+          "end": 11210,
+          "sha256": "196db2bf34cd139388fe4737be6d1ad9eee0a108e351226e5e823b6830981d22"
+        },
+        {
+          "name": "durableSink",
+          "start": 60648,
+          "end": 62156,
+          "sha256": "1994d887a88f4962f3e71fab4de88924196c3a87d5a61c1909c9c12918b5f229"
+        }
+      ]
+    },
+    {
+      "sourcePath": "services/platform/backend/core/automations/agent_host.ts",
+      "blob": "595901face218a2876f35a64d0501465be479036",
+      "rawFile": "agent.raw.txt",
+      "rawSha256": "e212aadfc1061a0bfea1c5d35280582cd8f2c487c9689c0d8f98e7866dda7975",
+      "moduleFile": "agent.ts",
+      "sections": [
+        {
+          "name": "AgentCursorState",
+          "start": 64174,
+          "end": 64292,
+          "sha256": "9a6179e0984e79d309c58ca836db9d0be480110aa032f60093bbb3d8f670989a"
+        },
+        {
+          "name": "LIVE_RUN_STATUSES",
+          "start": 64294,
+          "end": 64362,
+          "sha256": "e6e1d23bb74848040d8337cf11c32277310a62e1657e941e3dcaa1b966c938d7"
+        },
+        {
+          "name": "workflowTurnStartRefusal",
+          "start": 65738,
+          "end": 66666,
+          "sha256": "c0cc20502f92508eaa4afb50d587cd5d0f1469fc37c308066f8aa29d8d149d89"
+        }
+      ]
+    }
+  ]
+}

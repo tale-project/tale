@@ -11,11 +11,26 @@
 import type { TFunction } from 'i18next';
 
 import {
+  formatTimeOfDay,
+  type HourCycle,
+  localHourCycle,
+} from '../time-of-day';
+import {
   type CalendarDay,
   isWorkweek,
   type RecurrenceRule,
   WEEKDAYS_MONDAY_FIRST,
 } from './rule';
+import {
+  isScheduleGrid,
+  parseScheduleTime,
+  type ScheduleDayRule,
+  type ScheduleGridRule,
+  type ScheduleOccurrence,
+  type ScheduleRule,
+  type ScheduleWindow,
+  scheduleDays,
+} from './schedule';
 
 /** The compact trigger label: a head that always shows, and a tail that
  *  drops out whole when the column is too narrow for it. */
@@ -208,4 +223,222 @@ export function weekdayChipLabel(weekday: number, t: TFunction): string {
     default:
       return t('weekdayChip.sunday');
   }
+}
+
+/** A day rule lists its times up to this many; more read as a count. */
+const COMPACT_MAX_TIMES = 2;
+
+/** The `hourCycle` select the German catalog reads: "Uhr" after a 24-hour
+ *  time, nothing after "9:00 AM". */
+function cycleKey(cycle: HourCycle): 'h12' | 'h23' {
+  return cycle === 12 ? 'h12' : 'h23';
+}
+
+/** The times of a day rule, in day order, as the locale writes them. */
+function timeWords(
+  rule: ScheduleDayRule,
+  locale: string,
+  cycle: HourCycle,
+): string[] {
+  return [...new Set(rule.times)]
+    .toSorted()
+    .map(parseScheduleTime)
+    .filter((time) => time !== null)
+    .map((time) => formatTimeOfDay(time, locale, cycle));
+}
+
+/**
+ * A set of weekdays, Monday first — "Mon–Fri" for the workweek, "Tue–Thu"
+ * for a run of three or more, "Mon, Wed, Fri" otherwise — or null for all
+ * seven (no day limit).
+ */
+export function formatWeekdaySet(
+  days: readonly number[],
+  t: TFunction,
+  locale: string,
+): string | null {
+  const ordered = mondayFirst(days);
+  if (ordered.length === 0 || ordered.length === 7) return null;
+  if (isWorkweek(ordered)) return t('workweekRange');
+  const positions = ordered.map((day) => WEEKDAYS_MONDAY_FIRST.indexOf(day));
+  const run = positions.every(
+    (position, index) => index === 0 || position === positions[index - 1] + 1,
+  );
+  const first = ordered[0];
+  const last = ordered.at(-1);
+  if (run && ordered.length >= 3 && first !== undefined && last !== undefined) {
+    return t('schedule.dayRange', {
+      first: weekdayName(first, locale, 'short'),
+      last: weekdayName(last, locale, 'short'),
+    });
+  }
+  return ordered.map((day) => weekdayName(day, locale, 'short')).join(', ');
+}
+
+/** A window's hours, for a sentence ("8:00 AM–6:00 PM", "de 08:00 à
+ *  18:00") or a compact tail ("08:00–18:00"). */
+function hoursWords(
+  hours: ScheduleWindow['hours'],
+  t: TFunction,
+  locale: string,
+  cycle: HourCycle,
+  compact: boolean,
+): string | null {
+  if (hours === undefined || hours.from === hours.to) return null;
+  const from = parseScheduleTime(hours.from);
+  const to = parseScheduleTime(hours.to);
+  if (from === null || to === null) return null;
+  const words = {
+    from: formatTimeOfDay(from, locale, cycle),
+    to: formatTimeOfDay(to, locale, cycle),
+  };
+  return compact
+    ? t('schedule.compact.hoursRange', words)
+    : t('schedule.hoursRange', { ...words, hourCycle: cycleKey(cycle) });
+}
+
+/** A grid's step — "Every 15 minutes", "Every 2 hours". */
+function gridHead(rule: ScheduleGridRule, t: TFunction): string {
+  return rule.frequency === 'minutely'
+    ? t('schedule.sentence.minutely', { count: rule.interval })
+    : t('schedule.sentence.hourly', { count: rule.interval });
+}
+
+/**
+ * The schedule as a sentence — "Every weekday at 9:00 AM and 5:30 PM",
+ * "Every 15 minutes, Mon–Fri, 8:00 AM–6:00 PM". Times follow the locale's
+ * hour cycle unless `cycle` names one.
+ */
+export function formatSchedule(
+  rule: ScheduleRule,
+  t: TFunction,
+  locale: string,
+  cycle: HourCycle = localHourCycle(locale),
+): string {
+  if (isScheduleGrid(rule)) {
+    const head =
+      rule.frequency === 'hourly' && rule.minute > 0
+        ? t('schedule.sentence.hourlyAt', {
+            count: rule.interval,
+            minute: rule.minute,
+          })
+        : gridHead(rule, t);
+    const window = [
+      rule.window ? formatWeekdaySet(rule.window.weekdays, t, locale) : null,
+      hoursWords(rule.window?.hours, t, locale, cycle, false),
+    ].filter((part) => part !== null);
+    return window.length > 0
+      ? t('schedule.sentence.withWindow', {
+          rule: head,
+          window: window.join(', '),
+        })
+      : head;
+  }
+  return t('schedule.sentence.withTimes', {
+    rule: formatRecurrence(scheduleDays(rule), t, locale),
+    times: new Intl.ListFormat(locale, { type: 'conjunction' }).format(
+      timeWords(rule, locale, cycle),
+    ),
+    hourCycle: cycleKey(cycle),
+  });
+}
+
+/**
+ * The schedule for a narrow trigger — "Weekdays" · "9:00 AM, 5:30 PM",
+ * "Every 15 minutes" · "Mon–Fri, 08:00–18:00". Three times or more read as
+ * a count.
+ */
+export function formatScheduleCompact(
+  rule: ScheduleRule,
+  t: TFunction,
+  locale: string,
+  cycle: HourCycle = localHourCycle(locale),
+): RecurrenceCompactLabel {
+  if (isScheduleGrid(rule)) {
+    const tail = [
+      rule.frequency === 'hourly' && rule.minute > 0
+        ? t('schedule.compact.minutePast', {
+            mm: String(rule.minute).padStart(2, '0'),
+          })
+        : null,
+      rule.window ? formatWeekdaySet(rule.window.weekdays, t, locale) : null,
+      hoursWords(rule.window?.hours, t, locale, cycle, true),
+    ].filter((part) => part !== null);
+    return tail.length > 0
+      ? { head: gridHead(rule, t), tail: tail.join(', ') }
+      : { head: gridHead(rule, t) };
+  }
+  const days = formatRecurrenceCompact(scheduleDays(rule), t, locale);
+  const words = timeWords(rule, locale, cycle);
+  const many = words.length > COMPACT_MAX_TIMES;
+  const times = many
+    ? t('schedule.compact.timeCount', { count: words.length })
+    : words.join(', ');
+  if (days.tail === undefined) return { head: days.head, tail: times };
+  return {
+    head: days.head,
+    tail: many
+      ? `${days.tail}, ${times}`
+      : t('schedule.compact.at', { days: days.tail, times }),
+  };
+}
+
+/** The calendar part of an instant in a zone — "Tue, Oct 13", with the year
+ *  when it differs from `referenceYear`. */
+export function formatZonedDate(
+  at: number,
+  timeZone: string,
+  locale: string,
+  referenceYear?: number,
+): string {
+  const year = Number(
+    new Intl.DateTimeFormat('en', { year: 'numeric', timeZone }).format(at),
+  );
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year:
+      referenceYear !== undefined && year !== referenceYear
+        ? 'numeric'
+        : undefined,
+    timeZone,
+  }).format(at);
+}
+
+/** The clock part of an instant in a zone — "9:00 AM", "09:00". */
+export function formatZonedTime(
+  at: number,
+  timeZone: string,
+  locale: string,
+  cycle: HourCycle = localHourCycle(locale),
+): string {
+  return new Intl.DateTimeFormat(locale, {
+    timeStyle: 'short',
+    hourCycle: cycleKey(cycle),
+    timeZone,
+  }).format(at);
+}
+
+/** One upcoming start in its schedule's zone — "Tue, Oct 13, 9:00 AM". */
+export function formatOccurrence(
+  occurrence: ScheduleOccurrence,
+  t: TFunction,
+  locale: string,
+  options: { referenceYear?: number; cycle?: HourCycle } = {},
+): string {
+  return t('occurrences.dateTime', {
+    date: formatZonedDate(
+      occurrence.at,
+      occurrence.timeZone,
+      locale,
+      options.referenceYear,
+    ),
+    time: formatZonedTime(
+      occurrence.at,
+      occurrence.timeZone,
+      locale,
+      options.cycle,
+    ),
+  });
 }

@@ -40,7 +40,7 @@ Seul le propriétaire peut modifier cette règle. Les protections renforcées s�
 | En cours | Attends les résultats par catégorie ; ne dépose pas de doublon. |
 | Terminée | Vérifie les nombres enregistrés et conserve le reçu dans ton dossier. |
 | Partielle | Examine les catégories ignorées et les erreurs. Résous la cause avant de réessayer. |
-| Bloquée | Examine la [conservation juridique](/fr/platform/admin/governance/legal-hold). Les données couvertes restent protégées. Le reçu nomme la rétention encore en vigueur ; une fois levée, il l’indique, et l’effacement ne reprend que si tu choisis **Réessayer**. |
+| Bloquée | Examine la [conservation légale](/fr/platform/admin/governance/legal-hold). Les données couvertes restent protégées. Le reçu nomme la conservation encore en vigueur ; une fois levée, il l’indique, et l’effacement ne reprend que si tu choisis **Réessayer**. |
 | Échouée | Lis les détails. Utilise **Réessayer** si disponible ; un dépassement du délai de surveillance peut exiger une nouvelle demande. |
 | Annulée | Ce reçu ne prévoit plus d’exécution. Dépose une nouvelle demande si le dossier doit reprendre. |
 
@@ -54,4 +54,4 @@ Cette échéance facilite le suivi. Ton organisation reste responsable de l’ex
 
 ## Vérifier le résultat
 
-Ouvre les compteurs par catégorie, les erreurs et la chronologie d’audit du reçu. Une action terminée, une catégorie sous gel et une étape échouée n’ont pas le même résultat. Note ces distinctions dans ton dossier. Consulte les [journaux d’audit](/fr/platform/admin/governance/audit-logs) pour les événements administratifs associés.
+Ouvre les compteurs par catégorie, les erreurs et la chronologie d’audit du reçu. Une action terminée, une catégorie sous conservation légale et une étape échouée n’ont pas le même résultat. Note ces distinctions dans ton dossier. Consulte les [journaux d’audit](/fr/platform/admin/governance/audit-logs) pour les événements administratifs associés.

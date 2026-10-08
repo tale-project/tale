@@ -13,7 +13,7 @@ Use chat to ask questions, understand a document, or investigate information in 
 
 ## Send your first message
 
-Open **Home**. On a computer, it reopens the chat you last read, if there is one. To begin a new subject, choose **New chat** at the top of the Home list or, on a computer, choose **Home** again while it is active. Type in the message field. Press **Enter** to send or **Shift+Enter** for a new line. A starter prompt fills the same role as your own first question; edit your request to include the source, subject, and kind of answer you need.
+Open **Home**. On a computer, a new chat opens, and the Home panel beside it lists your earlier chats; on a phone, choose **Chats**, then **New chat**. To begin another subject later, choose **New chat** or, on a computer, **Home** again. Type in the message field. Press **Enter** to send or **Shift+Enter** for a new line. A starter prompt fills the same role as your own first question; edit your request to include the source, subject, and kind of answer you need.
 
 For example: “Find the onboarding feedback and summarize the three most common problems. Cite the documents and separate reported problems from your suggestions.”
 

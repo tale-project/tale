@@ -1,0 +1,430 @@
+// @vitest-environment node
+
+/**
+ * Unit lock for the two doors a walker leaves a live run by: the hand-off
+ * (`continueRun`) and the park (`suspendRun`). Both are ONE statement fenced
+ * by the walker's epoch and a live status, and both release the walker's
+ * lease — the run has no walker until the next claim.
+ *
+ * A hand-off queues the step that continues the run and promises a claim
+ * within the claim window AFTER the step's delay, so the sweep never reads a
+ * handed-off run as overdue while its step waits. A hand-off because the
+ * server is stopping counts on the run and is recorded (with the node it was
+ * in, and whether the node was cut off); a budget hand-off changes nothing a
+ * person sees. A park takes its poll chain's next sequence from the write
+ * itself, never from an earlier read.
+ */
+
+import type { Sql } from 'postgres';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
+
+import { RUN_CLAIM_PROMISE_MS } from '../../core/automations/liveness.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
+import { continueRun, suspendRun } from './store.ts';
+
+interface Statement {
+  text: string;
+  values: unknown[];
+}
+
+/** Scripted transactional `sql`: the fenced run write answers `written`
+ * (empty = it matched nothing), the approval a park waits on reads as
+ * `decided`, and `more` answers anything else it knows. */
+function fakeSql(
+  written: Record<string, unknown>[],
+  decided = false,
+  more: (text: string) => unknown[] | undefined = () => undefined,
+): {
+  sql: Sql;
+  statements: Statement[];
+} {
+  const statements: Statement[] = [];
+  const fn = (
+    strings: TemplateStringsArray,
+    ...values: unknown[]
+  ): Promise<unknown[]> => {
+    const text = strings.join('?');
+    statements.push({ text, values });
+    const answered = more(text);
+    if (answered !== undefined) return Promise.resolve(answered);
+    if (text.includes('UPDATE app.automation_runs')) {
+      return Promise.resolve(written);
+    }
+    if (text.includes('INSERT INTO app.automation_run_events')) {
+      return Promise.resolve([{ id: 'event_1' }]);
+    }
+    if (text.includes('FROM app.approvals')) {
+      return Promise.resolve([{ decided }]);
+    }
+    return Promise.resolve([]);
+  };
+  fn.unsafe = (text: string): { raw: string } => ({ raw: text });
+  fn.json = (value: unknown): { json: unknown } => ({ json: value });
+  fn.begin = (body: (tx: unknown) => Promise<unknown>): Promise<unknown> =>
+    body(fn);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a scripted tagged template standing in for postgres.js
+  return { sql: fn as unknown as Sql, statements };
+}
+
+const runWrite = (statements: Statement[]): Statement => {
+  const write = statements.find((s) =>
+    s.text.includes('UPDATE app.automation_runs'),
+  );
+  if (!write) throw new Error('no run write recorded');
+  return write;
+};
+
+/** Every event the door recorded: its kind and detail. */
+const events = (statements: Statement[]) =>
+  statements
+    .filter((s) => s.text.includes('INSERT INTO app.automation_run_events'))
+    .map((s) => ({
+      kind: s.values[3],
+      detail: (s.values[6] as { json: unknown } | null)?.json,
+    }));
+
+function expectFenced(write: Statement): void {
+  expect(write.text).toContain('AND claim_epoch = ?');
+  expect(write.text).toContain(
+    "AND status IN ('queued', 'running', 'waiting')",
+  );
+  expect(write.text).toContain(
+    'lease_owner = NULL, lease_expires_at_ms = NULL',
+  );
+  expect(write.values).toEqual(expect.arrayContaining(['run_1', 'org_1', 7]));
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('continueRun', () => {
+  const hand = (
+    sql: Sql,
+    extra: Partial<Parameters<typeof continueRun>[1]> = {},
+  ) =>
+    continueRun(sql, {
+      organizationId: 'org_1',
+      runId: 'run_1',
+      epoch: 7,
+      resumeInMs: 0,
+      ...extra,
+    });
+
+  it('releases the lease and queues the next turn, promising its claim after the delay', async () => {
+    const before = Date.now();
+    const fake = fakeSql([{ id: 'run_1' }]);
+    await expect(hand(fake.sql, { resumeInMs: 5_000 })).resolves.toEqual({
+      scheduled: true,
+    });
+    const write = runWrite(fake.statements);
+    expectFenced(write);
+    // Never born overdue: the promise covers the step's delay and its claim.
+    expect(write.values[0]).toBeGreaterThanOrEqual(
+      before + 5_000 + RUN_CLAIM_PROMISE_MS,
+    );
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'automation.step',
+      { organizationId: 'org_1', runId: 'run_1' },
+      { startAfter: expect.any(Date) },
+    );
+  });
+
+  it('keeps a budget hand-off silent: nothing counted, recorded or announced', async () => {
+    const fake = fakeSql([{ id: 'run_1' }]);
+    await hand(fake.sql);
+    const write = runWrite(fake.statements);
+    expect(write.values).toContain(0);
+    expect(write.values).toContain(false);
+    expect(write.values).not.toContain(true);
+    expect(events(fake.statements)).toEqual([]);
+    expect(emitHintInTx).not.toHaveBeenCalled();
+    // An immediate hand-off queues its step at once.
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'automation.step',
+      { organizationId: 'org_1', runId: 'run_1' },
+      {},
+    );
+  });
+
+  it('counts and records a hand-off because the server is stopping', async () => {
+    const fake = fakeSql([{ id: 'run_1' }]);
+    await hand(fake.sql, {
+      handoff: {
+        reason: 'shutdown',
+        nodeId: 'send',
+        itemIndex: 4,
+        interrupted: true,
+      },
+    });
+    const write = runWrite(fake.statements);
+    expect(write.text).toContain("THEN 'shutdown' ELSE last_resume_reason");
+    expect(write.values).toContain(1);
+    expect(write.values).toContain(true);
+    expect(events(fake.statements)).toEqual([
+      {
+        kind: 'handed_off',
+        detail: { reason: 'shutdown', nodeId: 'send', itemIndex: 4 },
+      },
+      { kind: 'node_interrupted', detail: { nodeId: 'send', itemIndex: 4 } },
+    ]);
+    expect(emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('records no interruption for a node that finished before the hand-off', async () => {
+    const fake = fakeSql([{ id: 'run_1' }]);
+    await hand(fake.sql, { handoff: { reason: 'shutdown' } });
+    expect(events(fake.statements)).toEqual([
+      { kind: 'handed_off', detail: { reason: 'shutdown' } },
+    ]);
+  });
+
+  it('queues nothing when the walker no longer holds a live run', async () => {
+    const fake = fakeSql([]);
+    await expect(
+      hand(fake.sql, { handoff: { reason: 'shutdown' } }),
+    ).resolves.toEqual({ scheduled: false });
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(events(fake.statements)).toEqual([]);
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('suspendRun', () => {
+  const park = (
+    sql: Sql,
+    extra: Partial<Parameters<typeof suspendRun>[1]> = {},
+  ) =>
+    suspendRun(sql, {
+      organizationId: 'org_1',
+      runId: 'run_1',
+      epoch: 7,
+      detail: 'approval:appr_1',
+      cursor: { node: 'send', index: 0, passes: 0, outs: [] },
+      executions: 3,
+      resumeInMs: 30_000,
+      ...extra,
+    });
+
+  it('parks the run, releases the lease and chains the poll on the sequence it wrote', async () => {
+    const fake = fakeSql([{ seq: 12 }]);
+    await expect(park(fake.sql)).resolves.toEqual({ suspended: true });
+    const write = runWrite(fake.statements);
+    expectFenced(write);
+    expect(write.text).toContain("status = 'waiting'");
+    expect(write.text).toContain('chain_seq = chain_seq + 1');
+    expect(write.text).toContain('RETURNING chain_seq AS seq');
+    // Keys the engine does not know survive; the cursor is replaced.
+    expect(write.text).toContain("checkpoints - 'cursor'");
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'automation.poll',
+      { organizationId: 'org_1', runId: 'run_1', seq: 12, pollMs: 30_000 },
+      { startAfter: expect.any(Date) },
+    );
+    expect(events(fake.statements)).toEqual([]);
+    expect(emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the approval it waits on only after its own write holds the run', async () => {
+    const fake = fakeSql([{ seq: 12 }]);
+    await park(fake.sql);
+    const texts = fake.statements.map((s) => s.text);
+    const parkedAt = texts.findIndex((t) => t.includes("status = 'waiting'"));
+    const readAt = texts.findIndex((t) => t.includes('FROM app.approvals'));
+    expect(parkedAt).toBeGreaterThanOrEqual(0);
+    expect(readAt).toBeGreaterThan(parkedAt);
+    expect(fake.statements[readAt]?.text).toContain("status <> 'pending'");
+    expect(fake.statements[readAt]?.values).toEqual(['appr_1', 'org_1']);
+  });
+
+  // A person who decides while the walker is between its gate read and this
+  // park finds the run still walking, so the decision's own wake does
+  // nothing; the park must not then wait for its poll, ten minutes out.
+  it('wakes the run at once when its approval was decided before the park landed [APV-R12]', async () => {
+    const before = Date.now();
+    const fake = fakeSql([{ seq: 12 }], true);
+    await expect(park(fake.sql)).resolves.toEqual({ suspended: true });
+    const wake = fake.statements.filter((s) =>
+      s.text.includes('UPDATE app.automation_runs'),
+    )[1];
+    expect(wake?.text).toContain('wake_at_ms = ?');
+    expect(wake?.values[0]).toBeGreaterThanOrEqual(
+      before + RUN_CLAIM_PROMISE_MS,
+    );
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'automation.step',
+      { organizationId: 'org_1', runId: 'run_1' },
+      {},
+    );
+    expect(emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads no approval for a park on anything else', async () => {
+    const fake = fakeSql([{ seq: 3 }], true);
+    await park(fake.sql, { detail: 'agent:review' });
+    expect(
+      fake.statements.some((s) => s.text.includes('FROM app.approvals')),
+    ).toBe(false);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'automation.poll',
+      expect.objectContaining({ seq: 3 }),
+      { startAfter: expect.any(Date) },
+    );
+  });
+
+  it('records why it parked when the caller says so', async () => {
+    const fake = fakeSql([{ seq: 2 }]);
+    await park(fake.sql, {
+      detail: 'in_doubt:send',
+      event: {
+        kind: 'in_doubt',
+        detail: { path: 'send', itemIndex: 0, pass: 0, attemptId: 'att_1' },
+      },
+    });
+    expect(events(fake.statements)).toEqual([
+      {
+        kind: 'in_doubt',
+        detail: { path: 'send', itemIndex: 0, pass: 0, attemptId: 'att_1' },
+      },
+    ]);
+  });
+
+  it('parks nothing and chains no poll when the walker no longer holds a live run', async () => {
+    const fake = fakeSql([]);
+    await expect(park(fake.sql)).resolves.toEqual({ suspended: false });
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('wakes the run at once when the write it waits on was finished before the park landed [AUTO-R19]', async () => {
+    // The walker that was sending Mia's invoice outlived its lease and
+    // recorded the send while this walker was on its way to park on it.
+    const fake = fakeSql([{ seq: 5 }], false, (text) =>
+      text.includes('FROM app.automation_node_attempts')
+        ? [{ settled: true }]
+        : undefined,
+    );
+    await park(fake.sql, { detail: 'in_doubt:send' });
+    const texts = fake.statements.map((s) => s.text);
+    const parkedAt = texts.findIndex((t) => t.includes("status = 'waiting'"));
+    const readAt = texts.findIndex((t) =>
+      t.includes('FROM app.automation_node_attempts'),
+    );
+    expect(readAt).toBeGreaterThan(parkedAt);
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('automation.step');
+  });
+
+  describe('an agent node’s park', () => {
+    const turn = (agent: Record<string, unknown>) => ({
+      node: 'review',
+      index: 0,
+      passes: 0,
+      outs: [],
+      agent: {
+        sessionId: 'sess_1',
+        deadlineAt: 1_000,
+        input: { prompt: 'Review it' },
+        ...agent,
+      },
+    });
+    const parkAgent = (sql: Sql, cursor: unknown) =>
+      park(sql, { detail: 'agent:review', cursor, resumeInMs: 30_000 });
+    const writtenCursor = (statements: Statement[]) =>
+      (
+        runWrite(statements).values.find(
+          (value) =>
+            typeof value === 'object' && value !== null && 'json' in value,
+        ) as { json: string }
+      ).json;
+
+    it('keeps a result the turn settled while its walker was on its way, and wakes the run', async () => {
+      // Zoe's review agent finished while a walker re-entered the parked
+      // node: the walker loaded the cursor before the result landed.
+      const fake = fakeSql([{ seq: 9 }], false, (text) =>
+        text.includes("checkpoints -> 'cursor' AS cursor")
+          ? [
+              {
+                cursor: turn({
+                  execId: 'exec_1',
+                  result: { text: 'Looks good', files: [] },
+                }),
+              },
+            ]
+          : undefined,
+      );
+      await parkAgent(fake.sql, turn({ execId: 'exec_1' }));
+      const read = fake.statements.find((s) =>
+        s.text.includes("checkpoints -> 'cursor' AS cursor"),
+      );
+      expect(read?.text).toContain('FOR UPDATE');
+      expect(read?.text).toContain('AND claim_epoch = ?');
+      expect(JSON.parse(writtenCursor(fake.statements))).toMatchObject({
+        agent: { execId: 'exec_1', result: { text: 'Looks good' } },
+      });
+      expect(addJobInTx).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('automation.step');
+    });
+
+    it('keeps the exec an answer moved the turn to', async () => {
+      const fake = fakeSql([{ seq: 9 }], false, (text) =>
+        text.includes("checkpoints -> 'cursor' AS cursor")
+          ? [
+              {
+                cursor: turn({
+                  execId: 'exec_2',
+                  retargetedFrom: 'exec_1',
+                  deadlineAt: 9_000,
+                }),
+              },
+            ]
+          : undefined,
+      );
+      await parkAgent(fake.sql, turn({ execId: 'exec_1' }));
+      expect(JSON.parse(writtenCursor(fake.statements))).toMatchObject({
+        agent: { execId: 'exec_2', deadlineAt: 9_000 },
+      });
+      expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('automation.poll');
+    });
+
+    it('writes a turn its walker just kicked as it is', async () => {
+      const fake = fakeSql([{ seq: 9 }], false, (text) =>
+        text.includes("checkpoints -> 'cursor' AS cursor")
+          ? [
+              {
+                cursor: turn({
+                  execId: 'exec_1',
+                  result: { errored: true, text: '', files: [] },
+                }),
+              },
+            ]
+          : undefined,
+      );
+      await parkAgent(fake.sql, turn({ execId: 'exec_3', attempt: 1 }));
+      const written = JSON.parse(writtenCursor(fake.statements));
+      expect(written.agent.execId).toBe('exec_3');
+      expect(written.agent.result).toBeUndefined();
+      expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('automation.poll');
+    });
+  });
+
+  it('reads no stored cursor for a park that is not an agent turn', async () => {
+    const fake = fakeSql([{ seq: 3 }]);
+    await park(fake.sql);
+    expect(
+      fake.statements.some((s) =>
+        s.text.includes("checkpoints -> 'cursor' AS cursor"),
+      ),
+    ).toBe(false);
+  });
+});

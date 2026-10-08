@@ -57,3 +57,36 @@ export const WithError: Story = {
     </div>
   ),
 };
+
+/**
+ * Problems a check found: one line each under the control, describing it.
+ * An error marks the control invalid; a warning does not. Never an alert.
+ */
+export const WithIssues: Story = {
+  render: () => (
+    <div className="max-w-sm">
+      <Field
+        label="Prompt"
+        htmlFor="prompt-issues"
+        description="What the agent is asked to do."
+        issues={[
+          {
+            id: 'unknown-node',
+            severity: 'error',
+            message: 'Reads "nope", and there is no node with that id.',
+          },
+          {
+            id: 'maybe-empty',
+            severity: 'warning',
+            message: 'Can be empty when the triage is skipped.',
+          },
+        ]}
+      >
+        <Input
+          id="prompt-issues"
+          defaultValue="Reply to {{ nodes.nope.output }}"
+        />
+      </Field>
+    </div>
+  ),
+};

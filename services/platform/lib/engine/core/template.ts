@@ -13,12 +13,16 @@
  *  - mixed text interpolates, and interpolating null/undefined is an error —
  *    silent `"undefined: 18°C"` strings are a real, measured failure mode.
  *
- * The scanners (`templateExprsIn`, `refsInSource`, `inputKeysInSource`) are
- * pure and synchronous — validation derives the dependency graph from them
- * without executing anything.
+ * Where a template begins and ends, and which nodes an expression reads, is
+ * decided by the parser (`./syntax`), never by a pattern: a `}}` inside a
+ * string or an object literal does not end a template, and a `nodes` in a
+ * comment or a string is not a reference.
  */
 
 import { codeRunner } from './runner';
+import { parseBody, parseExpressionIn } from './syntax/parse';
+import { isSingleTemplate, tokenizeTemplate } from './syntax/tokens';
+import { collectRefs, SCOPE_ROOTS } from './syntax/walk';
 
 export class ExprError extends Error {
   constructor(
@@ -29,40 +33,8 @@ export class ExprError extends Error {
   }
 }
 
-export const TPL_RE = /\{\{([\s\S]+?)\}\}/g;
-
-/** Collect template expressions from all strings nested in a value. */
-export function templateExprsIn(value: unknown): string[] {
-  const out: string[] = [];
-  walkStrings(value, (s) => {
-    for (const m of s.matchAll(TPL_RE)) out.push(m[1].trim());
-  });
-  return out;
-}
-
-function walkStrings(v: unknown, fn: (s: string) => void): void {
-  if (typeof v === 'string') fn(v);
-  else if (Array.isArray(v)) {
-    for (const x of v) walkStrings(x, fn);
-  } else if (v && typeof v === 'object') {
-    for (const x of Object.values(v)) walkStrings(x, fn);
-  }
-}
-
-/** The two static spellings of a node reference: `nodes.foo` and
- * `nodes["foo"]`. Both the derived-edge scanner and the scope pruner read
- * these, so a reference the graph sees is exactly one the pruner keeps. */
-const NODE_DOT_REF_RE = /\bnodes\s*\.\s*([A-Za-z_$][\w$]*)/g;
-const NODE_BRACKET_REF_RE = /\bnodes\s*\[\s*["']([^"']+)["']\s*\]/g;
-
-/** Node ids referenced as `nodes.foo` / `nodes["foo"]` in a JS source
- * string — the derived-edge scanner. */
-export function refsInSource(src: string): Set<string> {
-  const out = new Set<string>();
-  for (const m of src.matchAll(NODE_DOT_REF_RE)) out.add(m[1]);
-  for (const m of src.matchAll(NODE_BRACKET_REF_RE)) out.add(m[1]);
-  return out;
-}
+/** Names through which code can reach `nodes` without spelling it. */
+const INDIRECT_SCOPE_RE = /\b(?:eval|Function|arguments)\b/;
 
 /**
  * The scope a piece of source actually needs: `nodes` cut down to the ids it
@@ -75,37 +47,31 @@ export function refsInSource(src: string): Set<string> {
  * the source does not name reads as `undefined` with or without pruning.
  * Any other use of the `nodes` identifier — a computed index, a spread, the
  * object handed to a function — could reach an unnamed node, so the source
- * keeps the full scope. Wrongly keeping too much only costs time; the check
- * errs that way.
+ * keeps the full scope, as does source that does not parse or that could
+ * reach the scope indirectly. Wrongly keeping too much only costs time; the
+ * check errs that way.
  */
 function scopeForSource(
   src: string,
+  kind: 'expr' | 'body',
   scope: Record<string, unknown>,
 ): Record<string, unknown> {
   const nodes = scope.nodes;
-  if (!isPlainRecord(nodes)) return scope;
-  const rest = src
-    .replace(NODE_DOT_REF_RE, '')
-    .replace(NODE_BRACKET_REF_RE, '');
-  if (/\bnodes\b/.test(rest)) return scope;
+  if (!isPlainRecord(nodes) || INDIRECT_SCOPE_RE.test(src)) return scope;
+  const parsed =
+    kind === 'body' ? parseBody(src) : parseExpressionIn(src, 0, src.length);
+  if (!parsed.ok) return scope;
   const kept: Record<string, unknown> = {};
-  for (const id of refsInSource(src)) {
-    if (Object.hasOwn(nodes, id)) kept[id] = nodes[id];
+  for (const ref of collectRefs(parsed.ast, { roots: SCOPE_ROOTS })) {
+    if (ref.root !== 'nodes') continue;
+    if (ref.nodeId === undefined) return scope;
+    if (Object.hasOwn(nodes, ref.nodeId)) kept[ref.nodeId] = nodes[ref.nodeId];
   }
   return { ...scope, nodes: kept };
 }
 
 function isPlainRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
-}
-
-/** `input.<key>` references, for typo-checking against the inputs schema. */
-export function inputKeysInSource(src: string): Set<string> {
-  const out = new Set<string>();
-  for (const m of src.matchAll(/\binput\s*\.\s*([A-Za-z_$][\w$]*)/g)) {
-    out.add(m[1]);
-  }
-  return out;
 }
 
 /** Expression evaluation budget. Expressions are lookups and small
@@ -120,9 +86,13 @@ async function evalExpr(
   scope: Record<string, unknown>,
 ): Promise<unknown> {
   try {
-    return await codeRunner().evalExpr(expr, scopeForSource(expr, scope), {
-      timeoutMs: EXPR_TIMEOUT_MS,
-    });
+    return await codeRunner().evalExpr(
+      expr,
+      scopeForSource(expr, 'expr', scope),
+      {
+        timeoutMs: EXPR_TIMEOUT_MS,
+      },
+    );
   } catch (e) {
     throw new ExprError(
       expr,
@@ -147,15 +117,20 @@ export async function evalTemplates(
   scope: Record<string, unknown>,
 ): Promise<unknown> {
   if (typeof value === 'string') {
-    const matches = [...value.matchAll(TPL_RE)];
-    if (matches.length === 0) return value;
-    if (matches.length === 1 && matches[0][0] === value.trim()) {
-      return await evalExpr(matches[0][1].trim(), scope);
+    if (!value.includes('{{')) return value;
+    const tokens = tokenizeTemplate(value);
+    const exprs = tokens.segments.filter((s) => s.kind === 'expr');
+    if (exprs.length === 0) return value;
+    if (isSingleTemplate(value, tokens)) {
+      return await evalExpr(exprs[0].source ?? '', scope);
     }
     let out = '';
-    let last = 0;
-    for (const m of matches) {
-      const expr = m[1].trim();
+    for (const segment of tokens.segments) {
+      if (segment.kind === 'text') {
+        out += value.slice(segment.start, segment.end);
+        continue;
+      }
+      const expr = segment.source ?? '';
       const v = await evalExpr(expr, scope);
       if (v === undefined || v === null) {
         throw new ExprError(
@@ -163,10 +138,9 @@ export async function evalTemplates(
           `template {{ ${expr} }} evaluated to ${String(v)} inside the string ${JSON.stringify(value.slice(0, 80))} — the referenced value does not exist. Check the exact output shape in the trace and your run input.`,
         );
       }
-      out += value.slice(last, m.index) + interpolate(v);
-      last = (m.index ?? 0) + m[0].length;
+      out += interpolate(v);
     }
-    return out + value.slice(last);
+    return out;
   }
   if (Array.isArray(value)) {
     const out = [];
@@ -205,9 +179,13 @@ export async function runCode(
   timeoutMs = CODE_TIMEOUT_MS,
 ): Promise<unknown> {
   try {
-    return await codeRunner().runBody(code, scopeForSource(code, scope), {
-      timeoutMs,
-    });
+    return await codeRunner().runBody(
+      code,
+      scopeForSource(code, 'body', scope),
+      {
+        timeoutMs,
+      },
+    );
   } catch (e) {
     throw new ExprError('[code]', e instanceof Error ? e.message : String(e));
   }

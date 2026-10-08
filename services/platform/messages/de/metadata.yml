@@ -168,7 +168,7 @@ webdav:
   description: Tale-Dokumente als Netzlaufwerk einhängen.
 mcp:
   title: MCP
-  description: Verbinde MCP-Clients über MCP mit diesem Workspace.
+  description: Verbinde MCP-Clients über MCP mit diesem Arbeitsbereich.
 modelEndpoints:
   title: Modell-Endpunkte
   description: Rufe die Modelle der Organisation über OpenAI- und Anthropic-kompatible Endpunkte aus deinen eigenen Werkzeugen auf.
