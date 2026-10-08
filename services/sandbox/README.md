@@ -49,7 +49,11 @@ runtime_image`. A pull that fails is retried after 30 s, 1, 2, 5 and then every
 10 minutes, and creates wait meanwhile (`Retry-After` follows the next pull,
 5–60 s). `GET /health` reports `runtimeImage: { state, lastError,
 nextAttemptAtMs }` with `state` one of `unchecked`, `pulling`, `ready` or
-`missing`; a missing image never makes the spawner unhealthy. Session lookups whose backend inventory or endpoint
+`missing`; a missing image never makes the spawner unhealthy. Docker probes
+`GET /health` with `curl` (a runc exec each time) every 30 s once the spawner
+is healthy and every 2 s during its first 30 s, so a deploy sees it ready
+within seconds of booting; the start interval needs Docker Engine 25 or later
+(compose.yml, the CLI generator and the image's `HEALTHCHECK` agree). Session lookups whose backend inventory or endpoint
 cannot be read, or whose nonterminal runtime is still starting, answer
 `503 session_unavailable` and `Retry-After: 1`; callers retry without treating
 that temporary uncertainty as a lost session.
