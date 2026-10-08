@@ -35,6 +35,14 @@ The pre-rename `LLM_GATEWAY_*` names are still read as a fallback; use the `SAND
 
 Auth + virtual-key enforcement are config-store fields the platform pushes via `applyGatewayConfig()`, not env knobs on this container; the admin password, as its setup token, is the one value the container reads.
 
+## Recover a gateway killed at boot
+
+The gateway starts every stored record's workers while it boots, before it serves HTTP. A store whose records were written with more workers than the pools above (the gateway's own default is 1,000 per record) can need more memory than the container's limit (`mem_limit: 512m` from `tale deploy`, `limits.memory: 512Mi` in the Kubernetes manifest). The gateway is then killed inside its own start-up at every restart (`docker inspect --format '{{.State.OOMKilled}}' <container>` answers `true`), and the backend, which resizes records only through the management API, never reaches it. Do not wipe the volume: it holds the admin account and the minted keys with their spend.
+
+1. Raise the limit until the gateway starts. On a `tale deploy` host, run `docker update --memory 2g --memory-swap 2g <container>` on the container whose name ends in `-sandbox-llm-gateway`; its restart policy starts it again with the new limit. On Kubernetes, raise `resources.limits.memory` on its Deployment.
+2. Start a sandbox session or call the model endpoints. The backend's shrink pass resizes every record over its kind's pool and logs `[llm-gateway] resized <n> provider record(s)`.
+3. Restore the limit with `docker update --memory 512m --memory-swap 1g <container>` (the memory and swap `tale deploy` gives the container) and `docker restart <container>`, or the Deployment's original value, and check that the gateway starts within it.
+
 ## Connect private model providers
 
 Set `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in the **backend** environment when a
