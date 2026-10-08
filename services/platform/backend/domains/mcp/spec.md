@@ -3,10 +3,10 @@
 > **Prefix** `MCP-` · **Suite** [`mcp`](../../../tests/manual/suites/mcp.md) · **Docs** [`automations/assistant`](../../../../../docs/en/platform/automations/assistant.md)
 
 The rules of the door a coding agent uses to work in Tale, `/api/v1/mcp`: whom a call acts as and
-what the key holder's role lets it change, how a refusal reaches the agent, what a request and a
-batch of calls cost, and which protocol revisions the endpoint speaks. What a call does once it
-reaches an automation or the capability surface, the tool inventory itself, and a failure the
-engine throws instead of answering are not covered; see Not yet.
+what the key holder's role lets it change, how a refusal or a bad argument reaches the agent, what a
+request and a batch of calls cost, what is kept of a call, and which protocol revisions the endpoint
+speaks. What a call does once it reaches an automation or the capability surface, and the tool
+inventory itself, are not covered; see Not yet.
 
 ## Who can do what
 
@@ -42,6 +42,29 @@ not an error.
 
 - **Example**: Ada's agent asks for the automation `evaluation/never-created` → a tool result
   marked as an error says no saved automation has that name, and the agent picks an existing one.
+
+### MCP-R7 · A call with invalid arguments returns every problem at once, as a tool error
+
+A tool's arguments are checked against the schema the tool advertises before anything runs. When
+they miss it, the call is answered with one tool error (`INVALID_ARGUMENTS`) that lists every
+problem — where it is, what kind of problem, and the reason — sorted by where it is, never only the
+first one, and never as a protocol error. An unknown argument is named; a value the agent sent is
+never repeated back. Nothing runs.
+
+- **Example**: Ada's agent calls `get_automation` with `version: "x"`, an unknown `foo` and no
+  `name` → one answer lists `foo` (not an argument this tool takes), `name` (required) and `version`
+  (a saved version number or "deployed"), and nothing is read.
+
+### MCP-R8 · A refusal keeps its code even when thrown; a fault names only a request id
+
+A refusal the engine or a store throws instead of answering is still a tool error with its own code
+and sentence; a structured refusal is answered in its own words, never as its serialized payload.
+Anything else that goes wrong is answered as `INTERNAL_ERROR` with the request id the agent can
+quote, and the error itself is logged and reported on the server, never sent to the agent.
+
+- **Example**: Ada's agent cancels a run while the database is unreachable → the answer is
+  `INTERNAL_ERROR` with `data.requestId`, and nothing about the database; the operator finds the
+  error under that request id.
 
 ## Requests and batches
 
@@ -93,7 +116,4 @@ proposes another revision is answered with the newest one the endpoint speaks; a
 - What a call does once it reaches an automation (saving, versions, deployment, runs and triggers)
   is held by the [automations spec](../automations/spec.md); the capability surface's own rules
   (searching and invoking capabilities, retrieving knowledge) are not covered.
-- The tool inventory, each tool's arguments and the schemas they are checked against
-  (`lib/mcp/tools.ts`), and what an agent is told when its arguments do not match.
-- A failure the engine or the capability surface throws instead of answering: the tool result
-  today carries the thrown message as its text (`protocol.ts`).
+- The tool inventory and each tool's arguments (`lib/mcp/tools.ts`, `lib/mcp/args.ts`).

@@ -384,6 +384,44 @@ describe('a host refusal is lifted whole', () => {
     });
   });
 
+  it('lifts a structured refusal from its payload, never its serialized message [MCP-R8]', async () => {
+    // The platform's `AppError` serializes its whole payload into `message`.
+    const structured = Object.assign(
+      new Error(
+        JSON.stringify({
+          code: 'PROJECT_ARCHIVED',
+          message: 'The project is archived.',
+          internal: 'row 42',
+        }),
+      ),
+      {
+        data: {
+          code: 'PROJECT_ARCHIVED',
+          message: 'The project is archived.',
+          internal: 'row 42',
+          data: { projectId: 'p1' },
+        },
+      },
+    );
+    const result = await dispatch(
+      'start_run',
+      { name: SAVED, input: {} },
+      {
+        store: fullStore({
+          startRun: async () => {
+            throw structured;
+          },
+        }),
+      },
+    );
+    expect(result).toEqual({
+      error: 'The project is archived.',
+      code: 'PROJECT_ARCHIVED',
+      data: { projectId: 'p1' },
+    });
+    expect(JSON.stringify(result)).not.toContain('row 42');
+  });
+
   it('keeps a bare host error a bare sentence', async () => {
     const result = await dispatch(
       'cancel_run',

@@ -20,7 +20,7 @@ import {
 } from '../automations/dispatch-store.ts';
 import { dispatchCapabilityAs } from '../chat/capabilities.ts';
 import type { McpCaller } from './caller.ts';
-import type { McpHost } from './protocol.ts';
+import type { McpHost } from './tools.ts';
 
 /** Install the engine seams one dispatch needs (cheap and idempotent). */
 function assembleEngineHost(): void {

@@ -362,6 +362,30 @@ function refusalFrom(error: unknown): {
   const message = error instanceof Error ? error.message : String(error);
   if (error === null || typeof error !== 'object') return { error: message };
   const code: unknown = Reflect.get(error, 'code');
+  // A structured refusal (the platform's `AppError`) carries its code and
+  // sentence in `data`, and its `message` serializes that whole payload:
+  // the refusal is lifted from the payload, never the serialization.
+  const payload: unknown = Reflect.get(error, 'data');
+  if (
+    typeof code !== 'string' &&
+    payload !== null &&
+    typeof payload === 'object' &&
+    typeof Reflect.get(payload, 'code') === 'string'
+  ) {
+    const payloadCode = String(Reflect.get(payload, 'code'));
+    const sentence: unknown = Reflect.get(payload, 'message');
+    const detail: unknown = Reflect.get(payload, 'data');
+    return {
+      error: typeof sentence === 'string' ? sentence : payloadCode,
+      code: payloadCode,
+      ...(detail !== null &&
+        typeof detail === 'object' &&
+        !Array.isArray(detail) && {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the object check above
+          data: detail as Record<string, unknown>,
+        }),
+    };
+  }
   const hint: unknown = Reflect.get(error, 'hint');
   const data: unknown = Reflect.get(error, 'data');
   return {

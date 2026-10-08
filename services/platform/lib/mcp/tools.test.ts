@@ -1,5 +1,8 @@
+import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, test } from 'vitest';
 
+import { ENGINE_TOOL_ARGS } from './args';
+import { toolJsonSchema } from './json-schema';
 import {
   MCP_TOOL_GROUPS,
   MCP_TOOLS,
@@ -140,6 +143,60 @@ describe('MCP tool annotations', () => {
       expect(tool.annotations.readOnlyHint, tool.name).toBe(
         !mutating.has(tool.name),
       );
+    }
+  });
+});
+
+/**
+ * What a client does with an advertised input schema decides whether the
+ * tool is usable at all: Claude Code drops a tool whose top-level property
+ * names break `^[A-Za-z0-9_.-]{1,64}$` or whose schema fails the 2020-12
+ * meta-schema, and flattens a root-level `anyOf`/`oneOf`/`allOf` (losing
+ * the alternatives). Every schema is generated from the tool's zod
+ * arguments, so these hold for every tool, present and future.
+ */
+describe('MCP tool input schemas', () => {
+  const ajv = new Ajv2020({ strict: false });
+
+  test.each(MCP_TOOLS.map((tool) => [tool.name, tool] as const))(
+    '%s advertises a schema every client keeps',
+    (_name, tool) => {
+      const schema = toolJsonSchema(tool.args, 'input');
+      expect(schema.type).toBe('object');
+      expect(schema.$schema).toBeUndefined();
+      for (const combinator of ['anyOf', 'oneOf', 'allOf']) {
+        expect(schema[combinator]).toBeUndefined();
+      }
+      // A typo is refused, never dropped.
+      expect(schema.additionalProperties).toBe(false);
+      const properties = Object.keys(
+        (schema.properties ?? {}) as Record<string, unknown>,
+      );
+      for (const property of properties) {
+        expect(property).toMatch(/^[A-Za-z0-9_.-]{1,64}$/);
+      }
+      expect(ajv.validateSchema(schema), JSON.stringify(ajv.errors)).toBe(true);
+      expect(() => ajv.compile(schema)).not.toThrow();
+    },
+  );
+
+  test('a schema and the check a call meets are one: what the schema refuses, the arguments refuse', () => {
+    const schema = toolJsonSchema(ENGINE_TOOL_ARGS.get_automation, 'input');
+    const validate = ajv.compile(schema);
+    for (const args of [
+      { name: 'billing/dunning' },
+      { name: 'billing/dunning', version: 3 },
+      { name: 'billing/dunning', version: 'deployed' },
+      { name: '   ' },
+      { name: 'x', version: 0 },
+      { name: 'x', version: 'latest' },
+      { name: 'x', extra: true },
+      {},
+    ]) {
+      expect(
+        ENGINE_TOOL_ARGS.get_automation.safeParse(args).success,
+        JSON.stringify(args),
+      ).toBe(validate(args));
     }
   });
 });

@@ -18,6 +18,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { currentRequestChannel } from '../../lib/request-channel';
 import type { McpCaller } from './caller';
 import {
@@ -110,6 +111,22 @@ function resultText(payload: Record<string, unknown>): string {
     isError: boolean;
   };
   return result.content[0].text;
+}
+
+/** The refusal a tool result carries as JSON text. */
+function refusalOf(payload: Record<string, unknown>): {
+  error: string;
+  code: string;
+  hint?: string;
+  data?: Record<string, unknown>;
+} {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape asserted by the calling test
+  return JSON.parse(resultText(payload)) as {
+    error: string;
+    code: string;
+    hint?: string;
+    data?: Record<string, unknown>;
+  };
 }
 
 function isErrorFlag(payload: Record<string, unknown>): boolean {
@@ -268,16 +285,22 @@ describe('tools/list', () => {
     }
   });
 
-  it('refuses a document tool called without its document at the transport', async () => {
+  it('refuses a document tool called without its document, as a tool error the agent reads', async () => {
     const { payload } = await call({
       jsonrpc: '2.0',
       id: 4,
       method: 'tools/call',
       params: { name: 'run_automation', arguments: { input: { n: 1 } } },
     });
-    expect(payload.error).toMatchObject({
-      code: -32602,
-      message: expect.stringContaining('automation'),
+    expect(payload.error).toBeUndefined();
+    expect(isErrorFlag(payload)).toBe(true);
+    expect(refusalOf(payload)).toMatchObject({
+      code: 'INVALID_ARGUMENTS',
+      data: {
+        issues: [
+          { path: 'automation', code: 'invalid_type', message: 'is required' },
+        ],
+      },
     });
   });
 
@@ -516,10 +539,11 @@ describe('tools/call — the engine surface', () => {
     expect(JSON.parse(resultText(payload))).toEqual(verdict);
   });
 
-  it('reports a thrown call as isError with its message', async () => {
-    const dispatch = vi
-      .fn()
-      .mockRejectedValue(new Error('Role "member" lacks the capability'));
+  it('keeps the code and the sentence of a refusal the surface threw [MCP-R8]', async () => {
+    const thrown = Object.assign(
+      new Error('The caller is not a member of this organization.'),
+      { name: 'ActorAuthError', code: 'ORG_FORBIDDEN' },
+    );
     const { status, payload } = await call(
       {
         jsonrpc: '2.0',
@@ -527,12 +551,72 @@ describe('tools/call — the engine surface', () => {
         method: 'tools/call',
         params: { name: 'cancel_run', arguments: { runId: 'r1' } },
       },
-      dispatch,
+      vi.fn().mockRejectedValue(thrown),
     );
     // A tool failure is still a successful JSON-RPC exchange.
     expect(status).toBe(200);
     expect(isErrorFlag(payload)).toBe(true);
-    expect(resultText(payload)).toContain('lacks the capability');
+    expect(refusalOf(payload)).toEqual({
+      error: 'The caller is not a member of this organization.',
+      code: 'ORG_FORBIDDEN',
+    });
+  });
+
+  it('answers a structured refusal in its own words, never its serialized payload [MCP-R8]', async () => {
+    const { payload } = await call(
+      {
+        jsonrpc: '2.0',
+        id: 8,
+        method: 'tools/call',
+        params: { name: 'list_automations', arguments: {} },
+      },
+      vi.fn().mockRejectedValue(
+        new AppError({
+          code: 'PROJECT_ARCHIVED',
+          message: 'The project is archived.',
+          internal: 'SENTINEL-row-42',
+        }),
+      ),
+    );
+    expect(isErrorFlag(payload)).toBe(true);
+    expect(refusalOf(payload)).toEqual({
+      error: 'The project is archived.',
+      code: 'PROJECT_ARCHIVED',
+    });
+    expect(resultText(payload)).not.toContain('SENTINEL');
+  });
+
+  it('answers a fault with the request id only, and reports it server-side [MCP-R8]', async () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fault = new Error('connect ECONNREFUSED 10.0.0.7:5432');
+    const response = await handleMcpRequest(
+      { ...keyCaller(), requestId: 'req-fault' },
+      rpc({
+        jsonrpc: '2.0',
+        id: 9,
+        method: 'tools/call',
+        params: { name: 'get_run', arguments: { runId: 'r1' } },
+      }),
+      {
+        host: { engine: vi.fn().mockRejectedValue(fault), capability: vi.fn() },
+      },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
+    const payload = (await response.json()) as Record<string, unknown>;
+    expect(response.status).toBe(200);
+    expect(isErrorFlag(payload)).toBe(true);
+    expect(refusalOf(payload)).toEqual({
+      error: 'get_run failed unexpectedly',
+      code: 'INTERNAL_ERROR',
+      hint: expect.stringContaining('requestId'),
+      data: { requestId: 'req-fault' },
+    });
+    expect(resultText(payload)).not.toContain('10.0.0.7');
+    expect(quiet).toHaveBeenCalledWith(
+      expect.stringContaining('req-fault'),
+      fault,
+    );
+    quiet.mockRestore();
   });
 });
 
@@ -620,11 +704,21 @@ describe('tools/call — the capability surface', () => {
   });
 });
 
-describe('tools/call — arguments are held to the advertised schema', () => {
+describe('tools/call — arguments are held to the advertised schema [MCP-R7]', () => {
+  interface Issue {
+    path: string;
+    code: string;
+    message: string;
+  }
+
   const invalid = async (
     name: string,
     args: unknown,
-  ): Promise<{ message: string; dispatch: ReturnType<typeof vi.fn> }> => {
+  ): Promise<{
+    message: string;
+    issues: Issue[];
+    dispatch: ReturnType<typeof vi.fn>;
+  }> => {
     const dispatch = vi.fn();
     const { status, payload } = await call(
       {
@@ -636,86 +730,135 @@ describe('tools/call — arguments are held to the advertised schema', () => {
       dispatch,
     );
     expect(status).toBe(200);
-    expect(payload.error).toMatchObject({ code: -32602 });
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- asserted above
-    return {
-      message: (payload.error as { message: string }).message,
-      dispatch,
-    };
+    expect(payload.error).toBeUndefined();
+    expect(isErrorFlag(payload)).toBe(true);
+    const refusal = refusalOf(payload);
+    expect(refusal.code).toBe('INVALID_ARGUMENTS');
+    expect(refusal.hint).toContain('tools/list');
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the refusal's documented shape
+    const issues = (refusal.data as { issues: Issue[] }).issues;
+    return { message: refusal.error, issues, dispatch };
   };
 
+  it('lists every problem at once, sorted by where it is, and runs nothing', async () => {
+    const { message, issues, dispatch } = await invalid('get_automation', {
+      version: 'x',
+      foo: 1,
+    });
+    expect(issues).toEqual([
+      {
+        path: 'foo',
+        code: 'unrecognized_key',
+        message: 'is not an argument this tool takes',
+      },
+      { path: 'name', code: 'invalid_type', message: 'is required' },
+      {
+        path: 'version',
+        code: 'invalid_union',
+        message: 'must be a saved version number (1 or more) or "deployed"',
+      },
+    ]);
+    expect(message).toBe(
+      'invalid arguments for get_automation: "foo" is not an argument this tool takes (and 2 more)',
+    );
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
   it('refuses a wrongly typed argument and runs nothing', async () => {
-    const { message, dispatch } = await invalid('search_capabilities', {
+    const { issues, dispatch } = await invalid('search_capabilities', {
       query: 42,
     });
-    expect(message).toContain('arguments.query');
-    expect(message).toContain('string');
+    expect(issues).toEqual([
+      { path: 'query', code: 'invalid_type', message: 'must be a string' },
+    ]);
     expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('refuses a missing required argument instead of answering an empty search', async () => {
-    const { message, dispatch } = await invalid('search_capabilities', {});
-    expect(message).toContain("required property 'query'");
+    const { issues, dispatch } = await invalid('search_capabilities', {});
+    expect(issues).toEqual([
+      { path: 'query', code: 'invalid_type', message: 'is required' },
+    ]);
     expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('refuses a value outside the declared range', async () => {
-    const { message } = await invalid('list_runs', { limit: 0 });
-    expect(message).toContain('arguments.limit');
-    expect(message).toContain('>= 1');
+    const { issues } = await invalid('list_runs', { limit: 0 });
+    expect(issues).toEqual([
+      { path: 'limit', code: 'too_small', message: 'must be at least 1' },
+    ]);
   });
 
   // A blank string used to pass the schema and reach the engine, which
   // answered its own `INVALID_PARAMS` refusal as data — a code the MCP page
-  // never promised. The schema now refuses it where a missing field is
-  // refused, so no dispatch refusal for a malformed argument reaches a
-  // client.
-  it('refuses a blank automation name, run id or query at the transport', async () => {
+  // never promised. The schema refuses it where a missing field is refused.
+  it('refuses a blank automation name, run id or query before it runs', async () => {
     // Empty AND whitespace-only: the previous round's `minLength: 1` let a
     // whitespace `name` reach the engine ("AUTOMATION_NOT_FOUND" for a name
     // the caller never supplied) and a blank `get_knowledge` query answer
     // `passages: []` as a confident success (2026-09-14 evaluation, g9-2).
-    for (const [name, args] of [
-      ['get_automation', { name: '' }],
-      ['get_automation', { name: '   ' }],
-      ['start_run', { name: '' }],
-      ['start_run', { name: 'ok', projectId: '  ' }],
-      ['list_runs', { name: '' }],
-      ['list_runs', { name: ' ' }],
-      ['list_versions', { name: '  ' }],
-      ['get_run', { runId: '' }],
-      ['get_run', { runId: '   ' }],
-      ['cancel_run', { runId: '' }],
-      ['search_catalog', { query: '' }],
-      ['search_catalog', { query: '   ' }],
-      ['save_automation', { automation: { name: 'x' }, message: '  ' }],
-      ['search_capabilities', { query: '' }],
-      ['search_capabilities', { query: '   ' }],
-      ['invoke_capability', { id: '' }],
-      ['invoke_capability', { id: '  ' }],
-      ['invoke_capability', { id: 'ok', credential: ' ' }],
-      ['get_knowledge', { query: '' }],
-      ['get_knowledge', { query: '  ' }],
+    for (const [name, args, field] of [
+      ['get_automation', { name: '' }, 'name'],
+      ['get_automation', { name: '   ' }, 'name'],
+      ['start_run', { name: '' }, 'name'],
+      ['start_run', { name: 'ok', projectId: '  ' }, 'projectId'],
+      ['list_runs', { name: '' }, 'name'],
+      ['list_runs', { name: ' ' }, 'name'],
+      ['list_versions', { name: '  ' }, 'name'],
+      ['get_run', { runId: '' }, 'runId'],
+      ['get_run', { runId: '   ' }, 'runId'],
+      ['cancel_run', { runId: '' }, 'runId'],
+      ['search_catalog', { query: '' }, 'query'],
+      ['search_catalog', { query: '   ' }, 'query'],
+      [
+        'save_automation',
+        { automation: { name: 'x' }, message: '  ' },
+        'message',
+      ],
+      ['search_capabilities', { query: '' }, 'query'],
+      ['search_capabilities', { query: '   ' }, 'query'],
+      ['invoke_capability', { id: '' }, 'id'],
+      ['invoke_capability', { id: '  ' }, 'id'],
+      ['invoke_capability', { id: 'ok', credential: ' ' }, 'credential'],
+      ['get_knowledge', { query: '' }, 'query'],
+      ['get_knowledge', { query: '  ' }, 'query'],
     ] as const) {
-      const { message, dispatch } = await invalid(name, args);
-      expect(message, `${name} ${JSON.stringify(args)}`).toContain(
-        'arguments.',
-      );
+      const { issues, dispatch } = await invalid(name, args);
+      expect(
+        issues.map((issue) => [issue.path, issue.message]),
+        `${name} ${JSON.stringify(args)}`,
+      ).toContainEqual([field, 'must not be blank']);
       expect(dispatch).not.toHaveBeenCalled();
     }
   });
 
   it('refuses an unexpected property by name', async () => {
-    const { message } = await invalid('get_run', {
+    const { issues } = await invalid('get_run', {
       runId: 'r1',
       verbose: true,
     });
-    expect(message).toContain('unexpected property "verbose"');
+    expect(issues).toEqual([
+      {
+        path: 'verbose',
+        code: 'unrecognized_key',
+        message: 'is not an argument this tool takes',
+      },
+    ]);
   });
 
   it('refuses arguments that are not an object', async () => {
-    const { message } = await invalid('get_run', ['r1']);
-    expect(message).toContain('must be an object');
+    const { issues } = await invalid('get_run', ['r1']);
+    expect(issues).toEqual([
+      { path: '', code: 'invalid_type', message: 'must be an object' },
+    ]);
+  });
+
+  it('never echoes an argument’s value in the refusal', async () => {
+    const { message, issues } = await invalid('get_run', {
+      runId: 'r1',
+      apiKey: 'SENTINEL-sk-live-4b1d',
+    });
+    expect(JSON.stringify({ message, issues })).not.toContain('SENTINEL');
   });
 
   it('leaves the automation DOCUMENT to the engine but holds the envelope around it', async () => {
@@ -734,26 +877,86 @@ describe('tools/call — arguments are held to the advertised schema', () => {
       dispatch,
     );
     expect(open.payload.error).toBeUndefined();
+    expect(isErrorFlag(open.payload)).toBe(false);
     expect(dispatch).toHaveBeenCalledTimes(1);
 
     // A stray key BESIDE the document is a typo the client hears about.
-    const strict = await call(
-      {
-        jsonrpc: '2.0',
-        id: 22,
-        method: 'tools/call',
-        params: {
-          name: 'validate_automation',
-          arguments: { automation: { name: 'x', nodes: [] }, anything: 1 },
-        },
-      },
-      dispatch,
-    );
-    expect(strict.payload.error).toMatchObject({
-      code: -32602,
-      message: expect.stringContaining('anything'),
+    const strict = await invalid('validate_automation', {
+      automation: { name: 'x', nodes: [] },
+      anything: 1,
     });
-    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(strict.issues).toEqual([
+      {
+        path: 'anything',
+        code: 'unrecognized_key',
+        message: 'is not an argument this tool takes',
+      },
+    ]);
+    // A document that is not an object is refused before the engine.
+    const notADocument = await invalid('validate_automation', {
+      automation: ['x'],
+    });
+    expect(notADocument.issues).toEqual([
+      {
+        path: 'automation',
+        code: 'invalid_type',
+        message: 'must be an object — the automation document',
+      },
+    ]);
+  });
+
+  it('names the allowed values when an enum argument misses them', async () => {
+    // A model reading its own error could not self-correct from "must be
+    // equal to one of the allowed values" (2026-09-14 evaluation, h9).
+    const { issues } = await invalid('get_knowledge', {
+      query: 'x',
+      corpus: 'h8h9',
+    });
+    expect(issues).toEqual([
+      {
+        path: 'corpus',
+        code: 'invalid_value',
+        message:
+          'must be one of "private", "public-web", "all", "documents", "web"',
+      },
+    ]);
+  });
+
+  it('refuses a trigger key of another kind by name, through the kind’s own shape', async () => {
+    const { issues } = await invalid('set_trigger', {
+      name: 'billing/dunning',
+      trigger: {
+        kind: 'schedule',
+        cron: '0 3 * * *',
+        event: 'contact.created',
+      },
+    });
+    expect(issues).toEqual([
+      {
+        path: 'trigger.event',
+        code: 'unrecognized_key',
+        message: 'is not a field this object takes',
+      },
+    ]);
+    const unknownKind = await invalid('set_trigger', {
+      name: 'billing/dunning',
+      trigger: { kind: 'hourly' },
+    });
+    expect(unknownKind.issues).toEqual([
+      {
+        path: 'trigger.kind',
+        code: 'invalid_union',
+        message: 'must name its kind: "schedule", "webhook" or "event"',
+      },
+    ]);
+  });
+
+  it('bounds the list it answers', async () => {
+    const args = Object.fromEntries(
+      Array.from({ length: 80 }, (_, index) => [`extra${index}`, index]),
+    );
+    const { issues } = await invalid('list_automations', args);
+    expect(issues).toHaveLength(50);
   });
 });
 
@@ -975,49 +1178,6 @@ describe('protocol errors', () => {
     expect(payload.error).toMatchObject({
       code: -32602,
       message: 'Unknown tool "delete_everything"',
-    });
-  });
-
-  it('names the allowed values when an enum argument misses them (-32602)', async () => {
-    // A model reading its own error could not self-correct from "must be
-    // equal to one of the allowed values" (2026-09-14 evaluation, h9).
-    const { payload } = await call({
-      jsonrpc: '2.0',
-      id: 14,
-      method: 'tools/call',
-      params: {
-        name: 'get_knowledge',
-        arguments: { query: 'x', corpus: 'h8h9' },
-      },
-    });
-    expect(payload.error).toMatchObject({
-      code: -32602,
-      message: expect.stringContaining(
-        'must be one of "private", "public-web", "all", "documents", "web"',
-      ),
-    });
-  });
-
-  it('refuses a trigger key of another kind by name, through the kind’s own shape (-32602)', async () => {
-    const { payload } = await call({
-      jsonrpc: '2.0',
-      id: 15,
-      method: 'tools/call',
-      params: {
-        name: 'set_trigger',
-        arguments: {
-          name: 'billing/dunning',
-          trigger: {
-            kind: 'schedule',
-            cron: '0 3 * * *',
-            event: 'contact.created',
-          },
-        },
-      },
-    });
-    expect(payload.error).toMatchObject({
-      code: -32602,
-      message: expect.stringContaining('unexpected property "event"'),
     });
   });
 

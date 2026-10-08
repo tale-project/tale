@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { recordMcpActivity } from '../domains/mcp/activity.ts';
 import type { McpCaller } from '../domains/mcp/caller.ts';
-import type { McpHost } from '../domains/mcp/protocol.ts';
+import type { McpHost } from '../domains/mcp/tools.ts';
 import {
   RateLimitExceededError,
   checkUserRateLimit,

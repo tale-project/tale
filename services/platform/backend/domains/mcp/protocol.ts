@@ -17,23 +17,13 @@
  *    knowledge — through `dispatchCapabilityAs`, the same registry and
  *    dispatcher a chat turn uses.
  *
- * Authorization beyond the key: tools that persist or rebind an automation
- * (save, deploy, set_trigger) read the caller's role and require the
- * developer capability, exactly as the in-app mutations do; tools that start
- * or stop live work are gated by the store. The key proves who is calling;
- * the role decides what the call may do.
- *
- * A refusal is never a protocol error. The engine and the capability surface
- * both answer refusals as DATA (`{error, hint}` / `{status: 'refused'}`), and
- * those come back as an ordinary tool result so the caller's model can read
- * and act on them. The result's `isError` flag tells a generic client the
- * same thing without parsing the text: it is set whenever the answer says the
- * call did not do its job — an engine refusal or missing resource (a top-level
- * string `error`), a capability that was refused (an unknown id, arguments
- * its schema rejects, no deployment) or could not act (`unavailable`), a run
- * tool whose run ended in `error` or `invalid` — and on a call that threw. A
- * read that found a failed run is an outcome, not a failure, and keeps the
- * flag off.
+ * Every `tools/call` goes through `tools.ts`: the arguments are checked
+ * against the tool's schema (every problem at once, as one tool error), the
+ * role the tool needs is checked, the surface runs it, and a refusal —
+ * answered or thrown — comes back as data the caller's model can read and
+ * act on, flagged `isError` whenever the call did not do its job. A fault is
+ * `INTERNAL_ERROR` with the request id. The key proves who is calling; the
+ * role decides what the call may do.
  *
  * Protocol notes: `initialize`/`ping`/`tools/*` only. The envelope is checked
  * before anything is dispatched — a `jsonrpc` other than "2.0" or an id that
@@ -42,32 +32,27 @@
  * and answered as an array (a batch of notifications alone answers 202), and
  * every tool call a batch carries beyond the first is admitted through the
  * host's `admit` hook — the REST door charged the HTTP request once, so a
- * batch is never cheaper than the requests it stands for. Tool arguments are
- * held to the input schema `tools/list` advertised (-32602), and a
- * notification gets 202 with no body as the streamable-HTTP transport
- * specifies.
+ * batch is never cheaper than the requests it stands for. An unknown tool is
+ * -32602; arguments that miss the tool's schema are a tool error
+ * (`INVALID_ARGUMENTS`), never a protocol error. A notification gets 202
+ * with no body as the streamable-HTTP transport specifies.
  */
 
 import { randomUUID } from 'node:crypto';
 
-import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
-
-import { MCP_TOOLS } from '../../../lib/mcp/tools';
-import { defineAbilityFor } from '../../../lib/permissions/ability';
+import { MCP_TOOLS, findMcpTool } from '../../../lib/mcp/tools';
 import { displayClientName } from '../../../lib/shared/client-name';
 import {
   INEXACT_NUMBER_MESSAGE,
   parseJsonExact,
 } from '../../../lib/utils/json-exact';
-import { runInRequestChannel } from '../../lib/request-channel';
 import {
   isRecordedMethod,
   type McpCallOutcome,
   type McpCallRecord,
 } from './activity';
 import type { McpCaller } from './caller';
-
-type McpTool = (typeof MCP_TOOLS)[number];
+import { callTool, listTools, type McpHost } from './tools';
 
 /**
  * The protocol revisions this endpoint speaks, newest first. `initialize`
@@ -84,45 +69,6 @@ const LATEST_PROTOCOL_VERSION = '2025-06-18';
  * batches and says nothing about their size; without a cap one HTTP request
  * could carry any number of tool dispatches. */
 export const MAX_BATCH_MESSAGES = 20;
-
-/** The tools that EXECUTE an automation: their answer's `status` is the run's
- * own outcome, so `error` / `invalid` there means the call did not do its job.
- * A READ of a run (`get_run`) that found a failed run succeeded. */
-const RUN_TOOLS: ReadonlySet<string> = new Set([
-  'run_automation',
-  'run_deployed',
-]);
-
-/** `test_automation` answers `status: 'invalid'` when the document could
- * not even be tested — the call did not do its job; a report with failing
- * tests is the verdict it was asked for, and an outcome. */
-const TEST_TOOL = 'test_automation';
-
-/**
- * Tools that persist or rebind an automation. Their in-app equivalents sit
- * behind the developer capability, so an API key meets the same bar here at
- * the endpoint; the engine's own store deliberately leaves save/deploy
- * unchecked because each authoring door proves the capability before dispatch.
- */
-const DEVELOPER_TOOLS: ReadonlySet<string> = new Set([
-  'save_automation',
-  'deploy_automation',
-  'set_trigger',
-]);
-
-/** Null when the key holder may persist automations; otherwise the reason,
- * from the same ability the in-app mutations check. The door refuses a
- * disabled member before this layer runs; the check stays so a caller built
- * any other way is never mistaken for a developer. */
-function developerRefusal(caller: McpCaller): string | null {
-  if (caller.role === 'disabled') {
-    return `Not a member of organization "${caller.orgSlug}".`;
-  }
-  if (defineAbilityFor(caller.role).cannot('read', 'developerSettings')) {
-    return `Role "${caller.role}" lacks the developer-settings capability required to perform this action.`;
-  }
-  return null;
-}
 
 /** A JSON-RPC request id as MCP restricts it: a string or an integer. A
  * fraction, an object or an array cannot be represented in a conforming
@@ -168,121 +114,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Whether a tool's answer says the call did not do its job — the shapes the
- * two surfaces use for that, per tool: the engine's refusal envelope is a
- * top-level string `error` (a run view's failure detail is an object, so a
- * read that succeeded is not mistaken for one); a capability answers
- * `refused` (an unknown id, arguments its schema rejects, a backend that
- * would not act) or `unavailable` (a knowledge base it could not search);
- * a run tool's `status` is the run's own, so `error` / `invalid` there is the
- * call failing at what it was asked to do. */
-function isFailureShaped(tool: McpTool, result: unknown): boolean {
-  if (!isRecord(result)) return false;
-  if (typeof result.error === 'string') return true;
-  if (tool.kind === 'capability') {
-    return result.status === 'refused' || result.status === 'unavailable';
-  }
-  if (RUN_TOOLS.has(tool.name)) {
-    return result.status === 'error' || result.status === 'invalid';
-  }
-  if (tool.name === TEST_TOOL) return result.status === 'invalid';
-  return false;
-}
-
-/** A tool result the caller's model reads as text. Structured content is not
- * offered: the tools answer arbitrary JSON (a run trace, a passage list), and
- * pretty-printed JSON is what every MCP client renders faithfully. */
-function toolResult(
-  tool: McpTool,
-  id: JsonRpcId,
-  result: unknown,
-): JsonRpcReply {
-  const isError = isFailureShaped(tool, result);
-  const code =
-    isRecord(result) && typeof result.code === 'string'
-      ? result.code
-      : undefined;
-  return {
-    ...rpcResult(id, {
-      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-      isError,
-    }),
-    toolOutcome: {
-      outcome: isError ? 'refused' : 'ok',
-      ...(isError && code !== undefined ? { code } : {}),
-    },
-  };
-}
-
-// ------------------------------------------------------ argument validation
-
-const ajv = new Ajv({ allErrors: false, strict: false, discriminator: true });
-const validators = new Map<string, ValidateFunction>();
-
-function describeIssue(issue: ErrorObject): string {
-  const where =
-    issue.instancePath === ''
-      ? 'arguments'
-      : `arguments${issue.instancePath.replace(/\//g, '.')}`;
-  if (issue.keyword === 'additionalProperties') {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ajv's params for this keyword
-    const extra = (issue.params as { additionalProperty?: unknown })
-      .additionalProperty;
-    return `${where} has an unexpected property "${String(extra)}"`;
-  }
-  if (issue.keyword === 'enum') {
-    // Name the set, as the REST door does — a model reading its own error
-    // could not self-correct from "one of the allowed values" (2026-09-14
-    // evaluation, h9).
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ajv's params for this keyword
-    const allowed = (issue.params as { allowedValues?: unknown[] })
-      .allowedValues;
-    if (Array.isArray(allowed)) {
-      return `${where} must be one of ${allowed.map((value) => JSON.stringify(value)).join(', ')}`;
-    }
-  }
-  return `${where} ${issue.message ?? 'does not match the schema'}`;
-}
-
-/** Null when the arguments satisfy the input schema `tools/list` advertised
- * for this tool; otherwise what is wrong, for the -32602 the caller gets
- * instead of a "successful" call that never ran the query it meant — a
- * missing required `query` used to read as an empty search. */
-function argumentProblem(
-  name: string,
-  schema: Record<string, unknown>,
-  args: Record<string, unknown>,
-): string | null {
-  let validate = validators.get(name);
-  if (validate === undefined) {
-    validate = ajv.compile(schema);
-    validators.set(name, validate);
-  }
-  if (validate(args)) return null;
-  const issue = validate.errors?.[0];
-  return issue === undefined
-    ? 'the arguments do not match the tool schema'
-    : describeIssue(issue);
-}
-
 // --------------------------------------------------------------- dispatch
-
-/** The two surfaces a tool call reaches, each acting as the caller. The door
- * binds them to the database (`engine-host.ts`). */
-export interface McpHost {
-  /** One method of the automation engine's dispatch table. */
-  readonly engine: (
-    caller: McpCaller,
-    method: string,
-    params: Record<string, unknown>,
-  ) => Promise<unknown>;
-  /** One method of the organization's capability surface. */
-  readonly capability: (
-    caller: McpCaller,
-    method: string,
-    params: Record<string, unknown>,
-  ) => Promise<unknown>;
-}
 
 export interface McpRequestOptions {
   readonly host: McpHost;
@@ -455,93 +287,44 @@ async function answerMessage(
           'Invalid params: this server answers tools/list whole and never issues a cursor',
         );
       }
-      return rpcResult(id, {
-        tools: MCP_TOOLS.map((tool) => ({
-          name: tool.name,
-          description: tool.description,
-          inputSchema: tool.inputSchema,
-          annotations: tool.annotations,
-        })),
-      });
+      return rpcResult(id, { tools: listTools() });
 
     case 'tools/call': {
       if (!isRecord(params) || typeof params.name !== 'string') {
         return rpcError(id, -32602, 'tools/call needs a string `name`');
       }
-      const name = params.name;
-      const tool = MCP_TOOLS.find((candidate) => candidate.name === name);
+      const tool = findMcpTool(params.name);
       if (tool === undefined) {
-        return rpcError(id, -32602, `Unknown tool "${name}"`);
+        return rpcError(id, -32602, `Unknown tool "${params.name}"`);
       }
-      const rawArgs = params.arguments;
-      if (rawArgs !== undefined && !isRecord(rawArgs)) {
-        return rpcError(id, -32602, 'tools/call `arguments` must be an object');
-      }
-      const args = rawArgs ?? {};
-      const problem = argumentProblem(tool.name, tool.inputSchema, args);
-      if (problem !== null) {
+      const reply = await callTool(caller, tool, params.arguments, {
+        host: options.host,
+        requestId: state.requestId,
+        // The door charged the HTTP request itself; every further call a
+        // batch carries is charged here, once its arguments hold.
+        admit: async () => {
+          if (state.toolCalls > 0 && options.admit !== undefined) {
+            const wait = await options.admit();
+            if (wait !== null) return wait;
+          }
+          state.toolCalls += 1;
+          return null;
+        },
+      });
+      if (reply.kind === 'admission') {
         return rpcError(
           id,
-          -32602,
-          `Invalid arguments for "${name}": ${problem}`,
+          -32000,
+          `Rate limit exceeded — this batch has spent the key holder's request budget; retry after ${Math.ceil(reply.retryAfterMs / 1000)} s`,
+          200,
+          { retryAfterMs: reply.retryAfterMs },
         );
       }
-      if (state.toolCalls > 0 && options.admit !== undefined) {
-        const wait = await options.admit();
-        if (wait !== null) {
-          return rpcError(
-            id,
-            -32000,
-            `Rate limit exceeded — this batch has spent the key holder's request budget; retry after ${Math.ceil(wait.retryAfterMs / 1000)} s`,
-            200,
-            { retryAfterMs: wait.retryAfterMs },
-          );
-        }
-      }
-      state.toolCalls += 1;
-      try {
-        if (DEVELOPER_TOOLS.has(name)) {
-          const refusal = developerRefusal(caller);
-          if (refusal !== null) {
-            // The same role refusal the store raises on the live and run
-            // tools (`ActorAuthError`), under the same code — every refusal
-            // the page documents carries a `code` to branch on.
-            return toolResult(tool, id, {
-              error: `${name} is refused for this key: ${refusal}`,
-              code: 'FORBIDDEN_DEVELOPER_SETTINGS',
-              hint: 'saving, deploying and trigger binding need a key whose holder has the developer capability; every read and run tool remains available',
-            });
-          }
-        }
-        // Every audit row the call writes, however deep in a domain, names
-        // the door, the tool, the key and the client (`request-channel.ts`).
-        const { apiKeyId } = caller.credential;
-        const result: unknown = await runInRequestChannel(
-          {
-            via: 'mcp',
-            requestId: state.requestId,
-            tool: name,
-            ...(apiKeyId === undefined ? {} : { apiKeyId }),
-          },
-          () =>
-            tool.kind === 'capability'
-              ? options.host.capability(caller, name, args)
-              : options.host.engine(caller, name, args),
-        );
-        return toolResult(tool, id, result);
-      } catch (error) {
-        // Only a THROWN failure lands here — a refusal is data and was returned
-        // above. Surface the message as a tool error rather than a protocol
-        // error, so the client's model can read it and adjust.
-        const text = error instanceof Error ? error.message : String(error);
-        return {
-          ...rpcResult(id, {
-            content: [{ type: 'text', text }],
-            isError: true,
-          }),
-          toolOutcome: { outcome: 'error' },
-        };
-      }
+      const { result, outcome, code } = reply.answer;
+      return {
+        ...rpcResult(id, result),
+        toolOutcome: { outcome, ...(code === undefined ? {} : { code }) },
+      };
     }
 
     default:
