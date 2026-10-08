@@ -588,7 +588,14 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
 
     'file_metadata/internal_queries:getByStorageId': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
-      const args = raw as { storageId: string };
+      const args = raw as {
+        storageId: string;
+        organizationId: string;
+        userId: string;
+      };
+      if (!args.organizationId || !args.userId) return null;
+      const viewer = await viewerForUser(sql, args.organizationId, args.userId);
+      if (viewer === null) return null;
       const rows = await sql<
         {
           id: string;
@@ -604,6 +611,8 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
           ragStatus: string | null;
           threadId: string | null;
           documentId: string | null;
+          uploadedBy: string | null;
+          conversationId: string | null;
         }[]
       >`
         SELECT id, org_id AS "organizationId", storage_ref AS "storageId",
@@ -613,13 +622,26 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
                transcription_error AS "transcriptionError",
                transcription_duration_sec AS "transcriptionDurationSec",
                rag_status AS "ragStatus", thread_id AS "threadId",
-               document_id AS "documentId"
+               document_id AS "documentId", uploaded_by AS "uploadedBy",
+               conversation_id AS "conversationId"
         FROM app.file_metadata
-        WHERE storage_ref = ${args.storageId}
+        WHERE org_id = ${args.organizationId} AND storage_ref = ${args.storageId}
+          AND (lifecycle_status IS NULL OR lifecycle_status <> 'trashed')
         LIMIT 1
       `;
       const row = rows[0];
       if (!row) return null;
+      if (
+        !(await resolveFileReadAccess(sql, viewer, {
+          organizationId: row.organizationId,
+          storageRef: row.storageId,
+          uploadedBy: row.uploadedBy,
+          documentId: row.documentId,
+          threadId: row.threadId,
+          conversationId: row.conversationId,
+        }))
+      )
+        return null;
       return Object.fromEntries(
         Object.entries(row).map(([key, value]) => [key, value ?? undefined]),
       );
