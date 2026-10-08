@@ -88,6 +88,12 @@ interface Who {
    * thread. Required on purpose: an executor built without it is a
    * project thread nobody can read, never a widening. */
   projectId: string | null;
+  /** Where a search's query embedding is held and booked. */
+  embeddingMeter?: {
+    open: (...args: never[]) => unknown;
+    settle: (...args: never[]) => unknown;
+    release: (...args: never[]) => unknown;
+  };
 }
 
 type ExecutorFactory = (ctx: unknown, who: Who) => Executor;
@@ -527,6 +533,32 @@ describe('rag_search', () => {
     expect(result.sources?.knowledgeEntries).toBe('searched (no matches)');
     expect(result.sources?.contacts).toBe('searched');
     expect(result.results?.map((entry) => entry.kind)).toEqual(['contact']);
+  });
+
+  it('meters the query as the turn’s spend, and says a usage limit stopped it — never as nothing found [GOV-R4] [KNOW-R17]', async () => {
+    const { EmbeddingBudgetExceeded } = await import('../knowledge/embedding');
+    searchKnowledgeMock.mockRejectedValueOnce(
+      new EmbeddingBudgetExceeded('Usage limit reached.'),
+    );
+    const meter = { open: vi.fn(), settle: vi.fn(), release: vi.fn() };
+    const executor = await makeExecutor(createCtx().ctx, {
+      ...WHO,
+      embeddingMeter: meter,
+    });
+
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_search',
+      input: { query: 'acme' },
+    });
+
+    expect(searchKnowledgeMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ meter }),
+    );
+    expect(result.sources?.documents).toMatch(/^not searched: a usage limit/);
+    expect(result.sources?.documents).toContain('do not treat it as nothing');
+    expect(result.sources?.webPages).toBe(result.sources?.documents);
   });
 
   it('reads a denied subject as denied, without running its query', async () => {

@@ -52,6 +52,10 @@ import {
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
 import { readDocumentText } from '../knowledge/document_text';
 import {
+  EmbeddingBudgetExceeded,
+  type EmbeddingMeter,
+} from '../knowledge/embedding';
+import {
   FETCH_WINDOW_CHARS,
   fetchWebPageByUrl,
   windowText,
@@ -89,6 +93,12 @@ export interface ChatToolContext {
    * argument can narrow inside this boundary, never move it.
    */
   readonly projectId: string | null;
+  /**
+   * Where a search's query embedding is held and booked — the turn's own
+   * spend: its member, the API key that sent the message, the thread's
+   * project. Absent (a test's bare executor), nothing is metered.
+   */
+  readonly embeddingMeter?: EmbeddingMeter;
 }
 
 /** A page bigger than this is cut BEFORE extraction — a tool result must
@@ -561,8 +571,23 @@ const KNOWLEDGE_CREDENTIAL_UNUSABLE_FOR_MODEL =
   'embedding model). Say this plainly if it matters to the answer; do not ' +
   'guess at the cause.';
 
+/**
+ * The same, when a usage limit refused the search: the query's embedding
+ * is a model call this conversation pays for, and a limit that binds it
+ * has too little room. Nothing is broken, and nothing was found missing.
+ */
+const KNOWLEDGE_USAGE_LIMIT_FOR_MODEL =
+  'not searched: a usage limit that applies to this conversation has been ' +
+  'reached, so documents and web pages could not be searched. Tell the ' +
+  'user plainly that the search did not run because of the usage limit — ' +
+  'Settings → Usage shows when it resets — and do not treat it as nothing ' +
+  'found.';
+
 /** The sentence for the model, by cause — never the raw error. */
 function knowledgeUnavailableForModel(error: unknown): string {
+  if (error instanceof EmbeddingBudgetExceeded) {
+    return KNOWLEDGE_USAGE_LIMIT_FOR_MODEL;
+  }
   return isTerminalCredentialRefusal(error)
     ? KNOWLEDGE_CREDENTIAL_UNUSABLE_FOR_MODEL
     : KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
@@ -1065,6 +1090,10 @@ export function createChatToolExecutor(
             query,
             corpus,
             limit,
+            // The query's embedding is the turn's spend.
+            ...(who.embeddingMeter !== undefined
+              ? { meter: who.embeddingMeter }
+              : {}),
             // The organization's own floor (`embedding.json`
             // `minSimilarity`), else the built-in default — resolved next
             // to the model, not hard-wired here.

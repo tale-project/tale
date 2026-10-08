@@ -301,6 +301,31 @@ describe('dispatchWorkspaceToolImpl', () => {
     );
   });
 
+  it('rag_search meters its query with the turn’s meter, and says a usage limit stopped it [GOV-R4]', async () => {
+    const { EmbeddingBudgetExceeded } =
+      await import('../../knowledge/embedding');
+    searchKnowledgeMock.mockRejectedValueOnce(
+      new EmbeddingBudgetExceeded('Usage limit reached.'),
+    );
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const meter = { open: vi.fn(), settle: vi.fn(), release: vi.fn() };
+    const { dispatch } = await getActions();
+    const result = await dispatch(createCtx({}).ctx, {
+      ...BASE,
+      embeddingMeter: meter,
+      tool: 'rag_search',
+      callArgs: { query: 'anything' },
+    });
+    expect(searchKnowledgeMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ meter }),
+    );
+    expect(result.status).toBe('unavailable');
+    expect((result.blockers as { code: string }[])[0]?.code).toBe(
+      'usage_limit',
+    );
+  });
+
   it('rag_search carries the SESSION-derived access scope, never a body one', async () => {
     searchKnowledgeMock.mockResolvedValueOnce({ hits: [] });
     const scope = {

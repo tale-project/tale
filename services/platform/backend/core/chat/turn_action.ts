@@ -47,6 +47,7 @@ import {
   type WireImage,
 } from '../../../lib/chat/wire-parts';
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy';
+import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   CHAT_MAX_FILE_COUNT,
@@ -59,6 +60,7 @@ import { providerAttributionHeaders } from '../../../lib/shared/providers/attrib
 import type { CredentialAuth } from '../../../lib/shared/providers/resolve_execution';
 import { isTextBasedFile } from '../../../lib/utils/text-file-types';
 import { buildChatRequest } from '../automations_builder/chat_wire';
+import type { EmbeddingMeter } from '../knowledge/embedding';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
@@ -709,6 +711,14 @@ export interface ExecuteTurnOverrides {
    * plus any pipeline dep a test wants to swap. Required: this host has no
    * store of its own. */
   readonly deps: Partial<TurnDeps> & Pick<TurnDeps, 'store' | 'usage'>;
+  /** The host's embedding meter, for whoever a search's query embedding is
+   * the spend of — this host holds and books no call of its own. */
+  readonly meterEmbeddings?: (subject: {
+    userId: string;
+    agentSlug: string;
+    apiKeyId?: string;
+    projectIds?: readonly string[];
+  }) => EmbeddingMeter;
 }
 
 /** Auto-resolution refusals, verbatim in the user's face — same voice as
@@ -979,12 +989,16 @@ export function chatToolContextForTurn(args: {
   userId: string;
   threadIds: readonly string[];
   projectId: string | null;
+  embeddingMeter?: EmbeddingMeter;
 }): ChatToolContext {
   return {
     organizationId: args.organizationId,
     userId: args.userId,
     threadIds: args.threadIds,
     projectId: args.projectId,
+    ...(args.embeddingMeter !== undefined
+      ? { embeddingMeter: args.embeddingMeter }
+      : {}),
   };
 }
 
@@ -1309,6 +1323,22 @@ export async function executeTurn(
         userId: args.userId,
         threadIds: lineage.threadIds,
         projectId: threadProjectId,
+        // A search's query embedding is the turn's spend: its member, the
+        // key that sent the message, the thread's project.
+        ...(overrides.meterEmbeddings !== undefined
+          ? {
+              embeddingMeter: overrides.meterEmbeddings({
+                userId: args.userId,
+                agentSlug: EMBEDDING_SLUG,
+                ...(args.apiKeyId !== undefined
+                  ? { apiKeyId: args.apiKeyId }
+                  : {}),
+                ...(threadProjectId !== null
+                  ? { projectIds: [threadProjectId] }
+                  : {}),
+              }),
+            }
+          : {}),
       }),
     ),
     ...overrides.deps,

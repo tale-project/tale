@@ -16,6 +16,10 @@ import { mintCursorFor, verifyCursorFor } from '../core/lib/signed_cursor.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
 import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
 import {
+  budgetRetryAfterSeconds,
+  type ChatBudgetExceededError,
+} from '../domains/chat/budget-admission.ts';
+import {
   DocumentError,
   type DocumentRow,
 } from '../domains/documents/service.ts';
@@ -301,6 +305,32 @@ export function domainErrorResponse(
     );
   }
   throw error;
+}
+
+/** A reached budget cap: 429 with the cap that binds in `data` — whose
+ * bucket, which period and limit, the usage and the limit, and when the
+ * period resets (epoch ms) — and that wait as `Retry-After`. */
+export function restBudgetExceeded(
+  c: Context<RestEnv>,
+  error: ChatBudgetExceededError,
+): Response {
+  const refusal = error.data;
+  c.header('Retry-After', String(budgetRetryAfterSeconds(refusal.resetsAt)));
+  return c.json(
+    {
+      error: refusal.message,
+      code: refusal.code,
+      data: {
+        scope: refusal.scope,
+        period: refusal.period,
+        limitCode: refusal.limitCode,
+        used: refusal.used,
+        limit: refusal.limit,
+        resetsAt: refusal.resetsAt,
+      },
+    },
+    429,
+  );
 }
 
 /** The `{data}` a domain error carries, when it is a plain object. */

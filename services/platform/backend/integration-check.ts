@@ -8896,6 +8896,92 @@ async function checkKnowledge(
       `indexed=${indexed} (status=${statusRows[0]?.status}${statusRows[0]?.error ? `, err=${statusRows[0].error.slice(0, 80)}` : ''}), hits=${search.success ? search.data.hits.length : 'ERR'}, searchHit=${searchRaw.includes('verdigris')}, fetchHit=${fetchRaw.includes('zeppelin ledger')}, documentHints=${ragHints[0]?.count ?? '0'} (want >= 2)`,
     );
 
+    // Embeddings are spend: the indexing above is booked under
+    // `__embedding__` as its uploader's, and a search as the searcher's. A
+    // reached limit parks the next file (`usage_limit`) and refuses the
+    // search with the coded 429; once the limit is lifted, the hourly pass
+    // puts the file back in the queue and it indexes.
+    const embeddingUsers = await sql<{ userId: string; requests: number }[]>`
+      SELECT user_id AS "userId", sum(request_count)::float8 AS requests
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = '__embedding__'
+        AND granularity = 'monthly'
+      GROUP BY user_id
+    `;
+    const quarterlyUploader = await sql<{ uploadedBy: string | null }[]>`
+      SELECT uploaded_by AS "uploadedBy" FROM app.file_metadata
+      WHERE id = ${quarterlyFileId}
+    `;
+    const { clearOrgConfigCaches: clearLimitCaches } =
+      await import('./lib/org-config.ts');
+    const limitGovernanceDir = path.join(configRoot, orgSlug, 'governance');
+    await mkdir(limitGovernanceDir, { recursive: true });
+    const limitBudgetsFile = path.join(limitGovernanceDir, 'budgets.yml');
+    await writeFile(
+      limitBudgetsFile,
+      [
+        'enabled: true',
+        'rules:',
+        '  - scope: org',
+        '    period: monthly',
+        '    maxRequests: 1',
+      ].join('\n'),
+    );
+    clearLimitCaches();
+    let parkedCode: string | null = null;
+    let refusedSearch = { status: 0, code: '' };
+    let resumed = false;
+    let requeued = 0;
+    try {
+      const limited = await uploadTextDocument(
+        'limited.txt',
+        'The limit probe: a document uploaded while the usage limit is reached.',
+      );
+      await waitFor(
+        async () => (await ragRow(limited.fileId)).code === 'usage_limit',
+        20_000,
+      );
+      parkedCode = (await ragRow(limited.fileId)).code;
+      const refused = await send(
+        'POST',
+        `/api/app/knowledge/search?orgId=${orgId}`,
+        { query: 'verdigris zeppelin ledger', limit: 5 },
+      );
+      const refusedBody = z
+        .object({ error: z.string() })
+        .loose()
+        .safeParse(await refused.json());
+      refusedSearch = {
+        status: refused.status,
+        code: refusedBody.success ? refusedBody.data.error : 'ERR',
+      };
+      await rm(limitBudgetsFile, { force: true });
+      clearLimitCaches();
+      const { requeueUsageLimitedFiles } =
+        await import('./domains/knowledge/usage-limit-resume.ts');
+      requeued = await requeueUsageLimitedFiles(sql);
+      resumed = await waitFor(
+        async () => (await ragRow(limited.fileId)).status === 'completed',
+        20_000,
+      );
+    } finally {
+      await rm(limitBudgetsFile, { force: true });
+      clearLimitCaches();
+    }
+    record(
+      'knowledge embeddings are booked, wait at a reached limit, and resume once it lifts',
+      embeddingUsers.some(
+        (row) =>
+          row.userId === quarterlyUploader[0]?.uploadedBy && row.requests > 0,
+      ) &&
+        parkedCode === 'usage_limit' &&
+        refusedSearch.status === 429 &&
+        refusedSearch.code === 'BUDGET_EXCEEDED' &&
+        requeued >= 1 &&
+        resumed,
+      `embedding usage=${JSON.stringify(embeddingUsers)} (want the uploader with requests), parked=${parkedCode} (want usage_limit), search=${refusedSearch.status}/${refusedSearch.code} (want 429/BUDGET_EXCEEDED), requeued=${requeued} (want >= 1), resumed=${resumed}`,
+    );
+
     // Round h, h4 (S2): a document of one repeated passage is embedded once
     // per DISTINCT passage — its repeats are stored without a vector and
     // flagged, out of both legs — so it neither crowds the shared vector

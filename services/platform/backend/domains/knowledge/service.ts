@@ -93,6 +93,10 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
+import {
+  ChatBudgetExceededError,
+  toChatBudgetRefusal,
+} from '../chat/budget-admission.ts';
 import { readThreadProjectId } from '../chat/threads.ts';
 import { indexingStateFrom } from '../file_metadata/indexing-state.ts';
 import {
@@ -108,7 +112,7 @@ import {
   type DirectCallSubject,
 } from '../governance/direct-calls.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
-import { embeddingMeter } from './embedding-meter.ts';
+import { embeddingMeter, refusedEmbeddingCap } from './embedding-meter.ts';
 import { isCorpusRefLive } from './liveness.ts';
 import type { ReleaseOutcome } from './release.ts';
 import {
@@ -571,9 +575,13 @@ function knowledgeShim(sql: Sql) {
 
 export class KnowledgeError extends Error {
   readonly code: string;
-  readonly status: 400 | 404 | 503;
+  readonly status: 400 | 404 | 429 | 503;
 
-  constructor(code: string, message: string, status: 400 | 404 | 503 = 400) {
+  constructor(
+    code: string,
+    message: string,
+    status: 400 | 404 | 429 | 503 = 400,
+  ) {
     super(message);
     this.name = 'KnowledgeError';
     this.code = code;
@@ -712,31 +720,48 @@ function embeddingFailureDetail(error: unknown): string {
   );
 }
 
-/** The reused 0.4 search over the org's corpus. */
+/**
+ * The reused 0.4 search over the org's corpus. Embedding the query is
+ * `spender`'s spend — the member searching, the API key they search with,
+ * the project they search in — held and booked like every model call; a
+ * limit with too little room refuses the search before the provider hears
+ * the query, with the coded `BUDGET_EXCEEDED` every budget lane answers.
+ */
 export async function searchKnowledgeForOrg(
   sql: Sql,
-  args: { organizationId: string } & Omit<
+  args: { organizationId: string; spender: DirectCallSubject } & Omit<
     SearchKnowledgeArgs,
-    'organizationId' | 'orgSlug'
+    'organizationId' | 'orgSlug' | 'meter'
   >,
 ): Promise<Awaited<ReturnType<typeof searchKnowledge>>> {
   const orgSlug = await requireOrgSlug(sql, args.organizationId);
   const shim = knowledgeShim(sql);
   // The folder filter in canonical spelling — the one the corpus stamp is
   // written in — so `/Reports/` and `Reports` name the same folder.
-  const { folder: rawFolder, ...rest } = args;
+  const { folder: rawFolder, spender, ...rest } = args;
   const folder = normalizeFolderPath(rawFolder);
   try {
     const result = await searchKnowledge(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 module; ctx usage covered by the shim handlers
       shim as unknown as Parameters<typeof searchKnowledge>[0],
-      { ...rest, orgSlug, ...(folder !== null ? { folder } : {}) },
+      {
+        ...rest,
+        orgSlug,
+        ...(folder !== null ? { folder } : {}),
+        meter: embeddingMeter(sql, {
+          organizationId: args.organizationId,
+          subject: spender,
+        }),
+      },
     );
     return {
       ...result,
       hits: await withDocumentIds(sql, args.organizationId, result.hits),
     };
   } catch (error) {
+    if (error instanceof EmbeddingBudgetExceeded) {
+      throw knowledgeBudgetRefusal(error);
+    }
     if (error instanceof EmbeddingNotConfigured) {
       throw new KnowledgeError(
         'EMBEDDING_NOT_CONFIGURED',
@@ -762,6 +787,18 @@ export async function searchKnowledgeForOrg(
     }
     throw error;
   }
+}
+
+/** A search a usage limit refused, as the coded refusal every budget lane
+ * answers: the cap that binds and when it resets, for the door to hand on
+ * (a REST 429 with `Retry-After`, the tool's sentence). */
+function knowledgeBudgetRefusal(
+  error: EmbeddingBudgetExceeded,
+): ChatBudgetExceededError | KnowledgeError {
+  const cap = refusedEmbeddingCap(error);
+  return cap !== null
+    ? new ChatBudgetExceededError(toChatBudgetRefusal(cap))
+    : new KnowledgeError('BUDGET_EXCEEDED', error.message, 429);
 }
 
 /** The reused 0.4 fetch (document window by file ref, scope-stamped). */

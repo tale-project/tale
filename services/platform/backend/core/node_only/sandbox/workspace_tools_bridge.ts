@@ -12,6 +12,10 @@ import {
 import { TASK_COMMENT_LOCALES_MAX } from '../../../../lib/shared/schemas/task-comment';
 import { readDocumentText } from '../../knowledge/document_text';
 import {
+  EmbeddingBudgetExceeded,
+  type EmbeddingMeter,
+} from '../../knowledge/embedding';
+import {
   FETCH_WINDOW_CHARS,
   fetchWebPageByUrl,
   windowText,
@@ -440,6 +444,9 @@ export async function dispatchWorkspaceToolImpl(
     /** The token's own `turnOp` — the turn a generation is booked and
      * delivered for. Read by `generate_image` alone. */
     turn?: TurnOpRef;
+    /** Where a knowledge search's query embedding is held and booked — the
+     * turn's spend. Absent, nothing is metered. */
+    embeddingMeter?: EmbeddingMeter;
     tool: string;
     callArgs: unknown;
   },
@@ -515,6 +522,7 @@ async function runWorkspaceTool(
     userId?: string;
     taskRunExecId?: string;
     turn?: TurnOpRef;
+    embeddingMeter?: EmbeddingMeter;
     tool: string;
     callArgs: unknown;
   },
@@ -623,6 +631,9 @@ async function runWorkspaceTool(
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      ...(args.embeddingMeter !== undefined
+        ? { embeddingMeter: args.embeddingMeter }
+        : {}),
       tool: args.tool,
       callArgs,
     });
@@ -860,6 +871,24 @@ const KNOWLEDGE_ACCESS_BLOCKERS: Record<
  * configured or its corpus/pool is unusable — surfaced as guidance, not a
  * transport error, so the agent tells the user instead of retrying. */
 function knowledgeUnavailable(error: unknown): ToolResult {
+  // A usage limit refused the query's embedding: nothing is broken, the
+  // search simply did not run — said as such, never as "nothing found".
+  if (error instanceof EmbeddingBudgetExceeded) {
+    console.info(`[sandbox] knowledge search refused: ${error.message}`);
+    return {
+      status: 'unavailable',
+      blockers: [
+        {
+          code: 'usage_limit',
+          guidance:
+            'Knowledge search did not run: a usage limit that applies to ' +
+            'this run has been reached. Say so to the person you work ' +
+            'for; it works again once the limit resets or is raised. Do ' +
+            'not treat it as nothing found.',
+        },
+      ],
+    };
+  }
   // Same split as the chat leg: the real error to the log, a stable sentence
   // to the agent. There is no Settings → Knowledge page — the embedding
   // configuration lives under Settings → Data residency, and pointing an
@@ -888,6 +917,7 @@ async function runKnowledgeTool(
     organizationId: string;
     sessionId: string;
     userId?: string;
+    embeddingMeter?: EmbeddingMeter;
     tool: 'rag_search' | 'rag_fetch';
     callArgs: Record<string, unknown>;
   },
@@ -922,6 +952,9 @@ async function runKnowledgeTool(
         query,
         limit,
         access: access.scope,
+        ...(args.embeddingMeter !== undefined
+          ? { meter: args.embeddingMeter }
+          : {}),
       });
       return { status: 'ok', output: result };
     } catch (error) {

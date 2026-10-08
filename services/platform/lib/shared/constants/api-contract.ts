@@ -374,5 +374,12 @@
  * 3.19.0 — 2026-10-07: budget rules can cap a project — everything spent in
  * it, whoever spends it, its own API keys included. A 429 `BUDGET_EXCEEDED`
  * names such a cap with `data.scope` `project`. Additive.
+ *
+ * 3.20.0 — 2026-10-08: embeddings are counted and held to the budget caps.
+ * A knowledge search answers 429 `BUDGET_EXCEEDED` (with `data` and
+ * `Retry-After`) when a cap that binds the key holder, the key or the
+ * searched project is reached; a document's indexing `errorCode` gains
+ * `usage_limit` — a `failed` file whose indexing waits for such a cap and
+ * resumes by itself. Additive.
  */
-export const API_CONTRACT_VERSION = '3.19.0';
+export const API_CONTRACT_VERSION = '3.20.0';

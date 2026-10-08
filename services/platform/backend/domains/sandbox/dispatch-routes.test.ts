@@ -24,9 +24,20 @@ const { workspaceToolStatusImpl: listGrantedTools } = await vi.importActual<
   typeof import('../../core/node_only/sandbox/workspace_tools_bridge.ts')
 >('../../core/node_only/sandbox/workspace_tools_bridge.ts');
 
-const { dispatchWorkspaceToolImpl, getSessionTokenByHash } = vi.hoisted(() => ({
+const {
+  dispatchWorkspaceToolImpl,
+  getSessionTokenByHash,
+  deferredEmbeddingMeter,
+  resolveSessionOpAttribution,
+} = vi.hoisted(() => ({
   dispatchWorkspaceToolImpl: vi.fn(),
   getSessionTokenByHash: vi.fn(),
+  deferredEmbeddingMeter: vi.fn(() => ({
+    open: vi.fn(),
+    settle: vi.fn(),
+    release: vi.fn(),
+  })),
+  resolveSessionOpAttribution: vi.fn(),
 }));
 
 vi.mock(
@@ -46,6 +57,8 @@ vi.mock(
 vi.mock('../../lib/ctx-shim.ts', () => ({ createCtxShim: vi.fn(() => ({})) }));
 vi.mock('./shim.ts', () => ({ sandboxToolShimHandlers: vi.fn(() => ({})) }));
 vi.mock('./sessions.ts', () => ({ getSessionTokenByHash }));
+vi.mock('../knowledge/embedding-meter.ts', () => ({ deferredEmbeddingMeter }));
+vi.mock('./op-attribution.ts', () => ({ resolveSessionOpAttribution }));
 
 const { createToolDispatchRoutes } = await import('./dispatch-routes.ts');
 
@@ -212,6 +225,8 @@ describe('POST /api/tools/execute — the turn a token serves', () => {
       userId: 'user_1',
       tool: 'document_find',
       callArgs: {},
+      // A knowledge search's embedding is metered as the turn's spend.
+      embeddingMeter: expect.objectContaining({ open: expect.any(Function) }),
     });
   });
 
@@ -389,5 +404,57 @@ describe('POST /api/tools/status — the serving platform version', () => {
     });
     // The label itself is never echoed: an image can be stamped with anything.
     expect(text).not.toContain(SHA);
+  });
+});
+
+describe('POST /api/tools/execute — whose spend a search is', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dispatchWorkspaceToolImpl.mockResolvedValue({ status: 'ok', output: {} });
+  });
+
+  it('meters a knowledge search as the turn the token serves — its person, key and projects [GOV-R5]', async () => {
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: {
+        ...TOKEN_ROW.scope,
+        toolGrants: ['rag_search'],
+        turnOp: { kind: 'task-agent', execId: 'exec_1' },
+      },
+    });
+    resolveSessionOpAttribution.mockResolvedValue({
+      userId: 'starter_1',
+      agentSlug: 'support-agent',
+      apiKeyId: 'key_1',
+      projectIds: ['project_1'],
+    });
+
+    const res = await post(
+      JSON.stringify({ tool: 'rag_search', args: { query: 'refunds' } }),
+    );
+    expect(res.status).toBe(200);
+
+    const [, meterArgs] = deferredEmbeddingMeter.mock.calls[0] as unknown as [
+      unknown,
+      { organizationId: string; subject: () => Promise<unknown> },
+    ];
+    expect(meterArgs.organizationId).toBe('org_1');
+    // Read only once a search actually embeds.
+    expect(resolveSessionOpAttribution).not.toHaveBeenCalled();
+    await expect(meterArgs.subject()).resolves.toEqual({
+      userId: 'starter_1',
+      agentSlug: '__embedding__',
+      apiKeyId: 'key_1',
+      projectIds: ['project_1'],
+    });
+    expect(resolveSessionOpAttribution).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        organizationId: 'org_1',
+        sessionId: 'sess_1',
+        execId: 'exec_1',
+        kind: 'task-agent',
+      },
+    );
   });
 });

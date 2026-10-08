@@ -8,6 +8,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
+import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
@@ -19,6 +20,10 @@ import {
   invalidBodyResponse,
 } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import {
+  budgetRetryAfterSeconds,
+  ChatBudgetExceededError,
+} from '../chat/budget-admission.ts';
 import { getProjectAuthContext, listProjects } from '../projects/service.ts';
 import {
   isCredentialSelectionResolvable,
@@ -61,6 +66,18 @@ function handleError<E extends OrgEnv>(
 ): Response {
   if (error instanceof KnowledgeError) {
     return c.json({ error: error.code, message: error.message }, error.status);
+  }
+  // A usage limit refused the search: the cap that binds, and when it
+  // resets, as every budget refusal names it.
+  if (error instanceof ChatBudgetExceededError) {
+    c.header(
+      'Retry-After',
+      String(budgetRetryAfterSeconds(error.data.resetsAt)),
+    );
+    return c.json(
+      { error: error.data.code, message: error.data.message, data: error.data },
+      429,
+    );
   }
   throw error;
 }
@@ -113,6 +130,7 @@ export function createKnowledgeRoutes(deps: {
       const { access } = await callerScope(c);
       const result = await searchKnowledgeForOrg(deps.sql, {
         organizationId: c.get('orgId'),
+        spender: { userId: access.userId, agentSlug: EMBEDDING_SLUG },
         query: body.data.query,
         ...(body.data.corpus !== undefined ? { corpus: body.data.corpus } : {}),
         ...(body.data.limit !== undefined ? { limit: body.data.limit } : {}),
