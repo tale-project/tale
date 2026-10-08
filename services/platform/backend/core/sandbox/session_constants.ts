@@ -28,16 +28,6 @@ export const WORKFLOW_AGENT_OP_KIND: SandboxAgentOpKind = 'workflow-agent';
  */
 export const MODEL_API_OP_KIND = 'model-api';
 
-/**
- * The kind a call the platform makes straight to a provider files its op
- * under (`domains/governance/direct-calls.ts`) — an automation's `llm`
- * step, a chat title, the Inbox's Improve, a transcription. Like a model-endpoint request it
- * is no agent turn: its `session_id` is `direct-call:<lane>`, which names
- * no session row, and the row records whose call it is, what it holds
- * while a budget binds, and what it was booked at.
- */
-export const DIRECT_CALL_OP_KIND = 'direct-call';
-
 /** The `session_id` a model-endpoint request's op row carries — one per API
  * key, so a key's requests read together. */
 export function modelApiOpSessionId(apiKeyId: string): string {
