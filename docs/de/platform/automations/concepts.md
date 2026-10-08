@@ -80,6 +80,49 @@ Eine **strukturierte** Ausgabe hat benannte Felder, die du über `nodes.<id>.out
 
 Ein Werkzeug ohne Ausgabeschema liefert unstrukturierte Ausgabe. Soll daraus strukturierte Eingabe für weitere Schritte entstehen, nutze eine `llm`-Node mit `outputSchema`. Die Validierung nennt bei einem Fehler die ungültige Referenz und die zulässigen Felder oder Kontexte. Korrigiere die Referenz, bevor du erneut speicherst.
 
+## Was Tale vor einem Lauf prüft {#checks}
+
+Tale prüft das ganze Dokument, wenn du es speicherst, wenn du eine Version bereitstellst und wann immer ein Client `validate_automation` aufruft. Ein **Fehler** beschreibt etwas, das sicher scheitert, und verhindert Speichern wie Bereitstellen. Eine **Warnung** zeigt auf etwas, das scheitern kann oder nichts Nützliches tut. Sie verhindert weder Speichern noch Bereitstellen; du entscheidest selbst, ob du etwas änderst. Jedes Problem nennt seine Node und sein Feld und, in einem Template, einer Bedingung oder in Code, den genauen Ausdruck.
+
+### Referenzen und Namen {#checks-references}
+
+Jedes `nodes.<id>` muss eine bestehende Node nennen, ihr Ergebnis über `.output` lesen und darf keinen Kreis von Nodes schließen, die einander lesen. Liest eine Referenz ein Feld, das ihre Quelle nicht hat, etwa beim Tippfehler `nodes.calc.output.cuont`, gibt es eine Warnung mit dem ähnlichsten Feld als Vorschlag. Tale meldet auch Namen, die ein Ausdruck nicht sieht, etwa `item` außerhalb von `forEach` oder ein vertipptes `input`, und ein `input.<key>`, das `inputs` nicht deklariert.
+
+### Typen {#checks-types}
+
+Tale kennt die Form der meisten Werte: die Eingabe des Laufs aus `inputs`, die Ausgabe einer Capability aus ihrer Signatur im Katalog, die Ausgabe einer `llm`-Node aus ihrem `outputSchema` und die einer `transform`-Node aus dem Objekt, das ihr Code zurückgibt. Tale warnt, wenn ein Wert an einer Stelle landet, die einen anderen Typ braucht, etwa eine Zahl, wo eine Capability Text erwartet, oder ein Objekt, wo `forEach` eine Liste braucht. Außerdem warnt Tale, wenn ein Wert, der in Text eingesetzt wird, fehlen kann, denn ein fehlender Wert lässt die Node dort scheitern.
+
+### Übersprungene und fehlgeschlagene Nodes {#checks-skips}
+
+Eine Node wird übersprungen, wenn ihr `when` falsch ist, wenn ihr `elseOf`-Partner läuft oder wenn eine Node, die sie liest, übersprungen wird. Eine Node mit `onError: continue` wird übersprungen, wenn sie fehlschlägt. Die Ausgabe einer übersprungenen Node ist `null`, und eine Node, die eine übersprungene Node liest, wird ebenfalls übersprungen.
+
+Liest eine Bedingung oder die `output` der Automatisierung ein Feld einer Node, die übersprungen werden kann, schlägt das Lesen also in den Läufen fehl, in denen diese Node nicht lief. Tale warnt bei jedem solchen Lesezugriff und sagt eigens dazu, wenn die Ursache ein Fehler ist, den `onError: continue` toleriert. Sichere den Lesezugriff mit `?.` und einem Ersatzwert ab: `{{ nodes.check.output?.ok ?? false }}` in einer Bedingung, `{{ nodes.summary.output?.text ?? null }}` in der Ausgabe. Alternative Zweige treffen sich in der `output` der Automatisierung, nicht in einer Node, die beide liest:
+
+```yaml
+output:
+  message: '{{ nodes.summary.output?.text ?? nodes.summary_empty.output?.text }}'
+```
+
+### Nodes, die nie laufen können {#checks-unreachable}
+
+Manche Nodes können nie laufen: eine, deren Bedingung immer falsch ist, die Alternative einer Node, die immer läuft, oder eine Node, die zwei Zweige liest, die nie zusammen laufen. Tale warnt bei jeder davon. Eine Node, deren Ausgabe niemand liest und die nichts bewirkt, meldet Tale als unbenutzt.
+
+### Bedingungen und Schleifen {#checks-conditions}
+
+Eine Bedingung, die immer dieselbe Antwort liefert, entscheidet nichts. Text um ein Template macht `when` zum Beispiel zu einem nicht leeren String, und der gilt immer als wahr. Ein `repeatUntil`, das immer falsch ist, durchläuft alle `maxRepeats` Durchgänge, und eines, das das Ergebnis des Durchgangs (`output`) nie liest, liefert nach jedem Durchgang dieselbe Antwort.
+
+### Iteration {#checks-iteration}
+
+`forEach` muss ein einzelnes Template sein, das eine Liste ergibt. Reiner Text, Text um ein Template oder ein fester Wert, der keine Liste ist, ist ein Fehler, denn die Node scheitert bei jedem Lauf. `when` und `forEach` werden einmal gelesen, bevor die Node ihre Elemente durchläuft. `item` und `index` gibt es dort deshalb nicht, und sie dort zu verwenden ist ebenfalls ein Fehler. Eine `agent`-Node kann `forEach` und `repeatUntil` noch nicht verwenden.
+
+### Aufgerufene Automatisierungen {#checks-called-automations}
+
+Eine `subautomation`-Node wird gegen die Version geprüft, die ein Lauf aufrufen würde: die genannte Version, sonst die bereitgestellte, sonst die neueste. Diese Version muss existieren und darf keine `agent`-Node enthalten. Tale warnt, wenn die Eingabe nicht zu ihren `inputs` passt und wenn sie einen Schreibzugriff ausführt, den eine Freigabe aufhalten könnte, denn eine aufgerufene Automatisierung kann nicht warten. Auch ein Zeitplan-Trigger, dessen Starteingabe die `inputs` der Automatisierung ablehnen, wird gemeldet.
+
+### Tests {#checks-tests}
+
+Die Eingabe eines Tests muss zu `inputs` passen, jeder erwartete Effekt muss von einer Node stammen, die ihn ausführt, und ein erwarteter Ausgabewert muss einen Typ haben, den die Automatisierung zurückgeben kann. Ein Test, der gegen eine dieser Regeln verstößt, kann nie bestehen, deshalb warnt Tale, bevor du ihn ausführst.
+
 ## Versionen ändern sich nie
 
 Speichern legt eine neue Version an, statt die vorige zu überschreiben. Die Nummerierung beginnt für jede Automatisierung bei 1; jede Version enthält die Änderungsnotiz ihres Autors. Der Workflow einer vorhandenen Version bleibt unverändert.

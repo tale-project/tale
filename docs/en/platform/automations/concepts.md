@@ -80,6 +80,49 @@ A **structured** output has named fields that you can reference with `nodes.<id>
 
 A tool without an output schema is unstructured. To turn its text into structured data for later steps, use an `llm` node with an `outputSchema`. Validation errors identify the invalid reference and the fields or context that are allowed. Correct that reference before saving again.
 
+## What Tale checks before a run {#checks}
+
+Tale checks the whole document when you save it, when you deploy a version, and whenever a client calls `validate_automation`. An **error** describes something that fails for certain, and it stops both saving and deploying. A **warning** points at something that can fail or does no useful work; it never stops a save or a deployment, so you decide whether to act on it. Each problem names its node and field and, inside a template, a condition, or code, the exact expression.
+
+### References and names {#checks-references}
+
+Every `nodes.<id>` must name an existing node, read its result through `.output`, and must not close a circle of nodes that read each other. A reference to a field its source does not have, such as the typo `nodes.calc.output.cuont`, gets a warning that suggests the closest field. Tale also reports a name an expression cannot see, such as `item` outside `forEach` or a misspelled `input`, and an `input.<key>` that `inputs` does not declare.
+
+### Types {#checks-types}
+
+Tale knows the shape of most values: the run input from `inputs`, a capability's output from its signature in the catalog, an `llm` node's output from its `outputSchema`, and a `transform` node's output from the object its code returns. It warns when a value reaches a place that needs another type, such as a number where a capability input takes text, or an object where `forEach` needs a list. It also warns when a value placed inside text can be missing, because a missing value there fails the node.
+
+### Skipped and failed nodes {#checks-skips}
+
+A node is skipped when its `when` is false, when its `elseOf` partner runs, or when a node it reads is skipped. A node with `onError: continue` is skipped when it fails. The output of a skipped node is `null`, and a node that reads a skipped node is skipped too.
+
+So when a condition or the automation's `output` reads a field of a node that may be skipped, the read fails on the runs where that node did not run. Tale warns about each such read, and says so separately when the cause is a failure that `onError: continue` tolerates. Guard the read with `?.` and a fallback: `{{ nodes.check.output?.ok ?? false }}` in a condition, `{{ nodes.summary.output?.text ?? null }}` in the output. Alternative branches meet in the automation's `output`, not in a node that reads both:
+
+```yaml
+output:
+  message: '{{ nodes.summary.output?.text ?? nodes.summary_empty.output?.text }}'
+```
+
+### Nodes that can never run {#checks-unreachable}
+
+Some nodes can never run: one whose condition is always false, the alternative of a node that always runs, or a node that reads two branches that never run together. Tale warns about each of them. A node whose output nothing reads, and which has no effect, is reported as unused.
+
+### Conditions and loops {#checks-conditions}
+
+A condition that always gives the same answer decides nothing. Text around a template, for example, turns `when` into a non-empty string, which always counts as true. A `repeatUntil` that is always false runs all `maxRepeats` passes, and one that never reads the result of the pass (`output`) gives the same answer after every pass.
+
+### Iteration {#checks-iteration}
+
+`forEach` must be one template that gives a list. Plain text, text around a template, or a constant that is not a list is an error, because the node fails every time it runs. `when` and `forEach` are read once, before the node goes through its items, so `item` and `index` do not exist there; using them is an error too. An `agent` node cannot use `forEach` or `repeatUntil` yet.
+
+### Called automations {#checks-called-automations}
+
+A `subautomation` node is checked against the version a run would call: the version it names, otherwise the deployed one, otherwise the latest. That version must exist and contain no `agent` node. Tale warns when the input does not fit its `inputs`, and when it performs a write that an approval could hold, because a called automation cannot wait. A schedule trigger whose start input the automation's `inputs` refuses is reported as well.
+
+### Tests {#checks-tests}
+
+A test's input must fit `inputs`, each expected effect must come from a node that performs it, and an expected output value must have a type the automation can return. A test that breaks one of these rules can never pass, so Tale warns before you run it.
+
 ## Versions never change
 
 Saving creates a new version instead of overwriting the previous one. Versions are numbered from 1 for each automation and carry the author’s change message. An existing version’s workflow stays unchanged.
