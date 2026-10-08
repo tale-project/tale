@@ -13,6 +13,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
+import { toModelOptions, type ModelOption } from '@/lib/shared/harness-offer';
 
 import { useDeleteProjectAgent } from '../hooks/mutations';
 import {
@@ -24,7 +25,6 @@ import {
   useStandardAgent,
 } from '../hooks/queries';
 import { projectAgentDetails } from '../lib/agent-details';
-import { toModelOptions, type ModelOption } from '../lib/model-options';
 import { ProjectAgentDetailsDialog } from './project-agent-details';
 import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
 import {

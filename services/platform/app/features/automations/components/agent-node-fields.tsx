@@ -30,29 +30,23 @@ import {
 } from '@/app/features/projects/hooks/queries';
 import { useUnpinnedServingPreview } from '@/app/features/projects/hooks/use-unpinned-serving-preview';
 import {
-  findSelectedModel,
-  offeredToHarness,
-  toModelOptions,
-} from '@/app/features/projects/lib/model-options';
-import {
   AGENT_TOOL_CATALOG,
   PROJECT_AGENT_ONLY_TOOLS,
 } from '@/backend/core/sandbox/tool_names';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
+import {
+  DEFAULT_HARNESS,
+  findSelectedModel,
+  offeredToHarness,
+  toModelOptions,
+} from '@/lib/shared/harness-offer';
 
 import { useAutomationCapabilities } from '../hooks/queries';
 
 /** Sentinel for the harness Select's "default" choice — Radix Select items
  * cannot carry an empty-string value, so an unset harness maps to this. */
 const HARNESS_DEFAULT = '__default__';
-
-/** The harness the workflow host runs when the node names none — mirrors
- * `convex/automations/agent_host.ts` `DEFAULT_HARNESS` (a 'use node' module
- * the browser bundle cannot import); the "Default (Claude Code)" label above
- * the picker states the same fact. Exported for the blank-automation wizard,
- * whose scaffolded node never names a harness. */
-export const DEFAULT_HARNESS = 'claude-code';
 
 function readStringArray(node: NodeDef, field: string): string[] {
   const record: Record<string, unknown> = { ...node };

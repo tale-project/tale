@@ -26,6 +26,12 @@ import { AGENT_TOOL_CATALOG } from '@/backend/core/sandbox/tool_names';
 import { useT } from '@/lib/i18n/client';
 import { DOCUMENT_SKILL_SLUGS } from '@/lib/shared/document-skills';
 import { AppError } from '@/lib/shared/errors/app-error';
+import {
+  findSelectedModel,
+  offeredToHarness,
+  type HarnessToolWire,
+  type ModelOption,
+} from '@/lib/shared/harness-offer';
 
 import {
   useCreateProjectAgent,
@@ -34,12 +40,6 @@ import {
 import { useAgentSecrets, type AgentSecretSummary } from '../hooks/queries';
 import type { ProjectAgentRow } from '../hooks/queries';
 import { useUnpinnedServingPreview } from '../hooks/use-unpinned-serving-preview';
-import {
-  findSelectedModel,
-  offeredToHarness,
-  type HarnessToolWire,
-  type ModelOption,
-} from '../lib/model-options';
 import { AgentSecretsField } from './agent-secrets-field';
 
 /** One harness the agent can run on (the composer's managed roster entry). */

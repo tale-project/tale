@@ -27,6 +27,7 @@ import type {
   Automation,
 } from '../../../lib/engine/core/types';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
+import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
 import { processShutdown, type ShutdownState } from '../../lib/shutdown';
 import { harnessResumesConversations } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
@@ -34,7 +35,6 @@ import { internal } from '../lib/handler_names';
 import type { Id } from '../lib/rows';
 import {
   automationAgentHost,
-  DEFAULT_HARNESS,
   type AutomationAgentHost,
   type WorkflowAgentRequest,
 } from './agent_host';
