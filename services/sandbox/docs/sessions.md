@@ -105,7 +105,10 @@ until the read returns or the process is gone. While such a read is still out,
 runnerd ends itself by SIGKILL when it exits: `process.exit` would wait for
 the read. A cancel that comes before the shim has named the command's group
 waits for it — the shim does so as soon as it has forked — so the group still
-gets its signal as a whole.
+gets its signal as a whole. A process in the middle of an `execve` has no
+environment yet and reads as empty — a leftover often is right there when a
+round comes — so runnerd reads such a process again, four times ten
+milliseconds apart, before it counts as untagged.
 
 A shim that exits normally has waited for every descendant to end. Its later
 SIGKILL round therefore reads neither the process table nor environments. A
