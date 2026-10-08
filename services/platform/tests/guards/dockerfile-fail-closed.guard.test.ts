@@ -717,9 +717,45 @@ describe('sandbox-runtime: independently cached toolchains', () => {
     ['gh-build', 'GH_VERSION'],
     ['vision-build', 'PILLOW_VERSION'],
   ];
+  const base = source.filter((item) => item.stage === 'tooling-base');
+  const stageNames = new Set(
+    source.filter((item) => item.keyword === 'FROM').map((item) => item.stage),
+  );
+
+  /**
+   * Every stage of this Dockerfile that `stage` builds on: its FROM chain and
+   * the stages it copies or mounts from. External images are leaves.
+   */
+  function reachedStages(stage: string, reached = new Set<string>()) {
+    if (!stageNames.has(stage) || reached.has(stage)) return reached;
+    reached.add(stage);
+    for (const item of source.filter((entry) => entry.stage === stage)) {
+      const words = item.args.trim().split(/\s+/);
+      if (item.keyword === 'FROM') {
+        reachedStages(
+          words.find((word) => !word.startsWith('--')) ?? '',
+          reached,
+        );
+      }
+      for (const word of words) {
+        const from = /(?:^--from=|[,=]from=)([^,\s]+)/.exec(word)?.[1];
+        if (from !== undefined) reachedStages(from, reached);
+      }
+    }
+    return reached;
+  }
+
+  /** The runtime stage's COPYs of what `stage` built. */
+  function runtimeCopies(stage: string): Instruction[] {
+    return source.filter(
+      (item) =>
+        item.stage === 'runtime' &&
+        item.keyword === 'COPY' &&
+        item.args.includes(`--from=${stage} `),
+    );
+  }
 
   it('keeps version pins out of the shared OS and document layers', () => {
-    const base = source.filter((item) => item.stage === 'tooling-base');
     expect(base.some((item) => item.keyword === 'FROM')).toBe(true);
     expect(
       base.filter((item) => item.keyword === 'ARG').map((item) => item.args),
@@ -735,39 +771,74 @@ describe('sandbox-runtime: independently cached toolchains', () => {
     ).toBe('tooling-base AS runtime');
   });
 
-  it.each(pins)('isolates %s from every other version pin', (stage, pin) => {
-    expect(
-      source
-        .filter(
-          (item) => item.keyword === 'ARG' && item.args.startsWith(`${pin}=`),
-        )
-        .map((item) => item.stage),
-    ).toEqual([stage]);
-    expect(
-      source.find((item) => item.stage === stage && item.keyword === 'FROM')
-        ?.args,
-    ).toBe(`tooling-base AS ${stage}`);
-    const copies = source.filter(
-      (item) =>
-        item.stage === 'runtime' &&
-        item.keyword === 'COPY' &&
-        item.args.includes(`--from=${stage} `),
+  // An ENV changes the cache key of every RUN after it: one in the OS chain
+  // rebuilt every apt set below it and every stage built on them.
+  it('keeps environment variables out of the OS chain', () => {
+    expect(base.filter((item) => item.keyword === 'ENV')).toEqual([]);
+  });
+
+  it('runs the apt sets from the stablest to the most often extended', () => {
+    const installs = base.filter(
+      (item) => item.keyword === 'RUN' && item.args.includes('apt-get install'),
     );
-    expect(copies.length).toBeGreaterThan(0);
-    expect(copies.every((item) => item.args.startsWith('--link '))).toBe(true);
+    const position = (pkg: string) =>
+      installs.findIndex((item) => item.args.includes(` ${pkg} `));
+    const order = [
+      'fonts-noto-cjk',
+      'libreoffice-writer',
+      'texlive-xetex',
+      'docker-ce',
+      'openssh-client',
+    ].map(position);
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(new Set(order).size).toBe(order.length);
+    expect(order.at(-1)).toBe(installs.length - 1);
+  });
+
+  it.each(pins)(
+    'isolates %s from every other version pin and from the OS chain',
+    (stage, pin) => {
+      expect(
+        source
+          .filter(
+            (item) => item.keyword === 'ARG' && item.args.startsWith(`${pin}=`),
+          )
+          .map((item) => item.stage),
+      ).toEqual([stage]);
+      expect(reachedStages(stage).has('tooling-base')).toBe(false);
+      const copies = runtimeCopies(stage);
+      expect(copies.length).toBeGreaterThan(0);
+      expect(copies.every((item) => item.args.startsWith('--link '))).toBe(
+        true,
+      );
+    },
+  );
+
+  it.each(['document-python-build', 'document-node-build'])(
+    'installs %s outside the OS chain, as layers of their own',
+    (stage) => {
+      expect(reachedStages(stage).has('tooling-base')).toBe(false);
+      const copies = runtimeCopies(stage);
+      expect(copies.length).toBeGreaterThan(0);
+      expect(copies.every((item) => item.args.startsWith('--link '))).toBe(
+        true,
+      );
+    },
+  );
+
+  it('reaches the OS chain from nothing but the runtime stage', () => {
+    const builtOnBase = [...stageNames].filter(
+      (stage) =>
+        stage !== 'tooling-base' && reachedStages(stage).has('tooling-base'),
+    );
+    expect(builtOnBase).toEqual(['runtime']);
   });
 
   it('exports the complete private Hermes prefix, including wheel data files', () => {
-    expect(
-      source
-        .filter(
-          (item) =>
-            item.stage === 'runtime' &&
-            item.keyword === 'COPY' &&
-            item.args.includes('--from=hermes-build '),
-        )
-        .map((item) => item.args),
-    ).toEqual(['--link --from=hermes-build /opt/tale-hermes/ /usr/local/']);
+    expect(runtimeCopies('hermes-build').map((item) => item.args)).toEqual([
+      '--link --from=hermes-build /opt/tale-hermes/ /usr/local/',
+    ]);
   });
 });
 

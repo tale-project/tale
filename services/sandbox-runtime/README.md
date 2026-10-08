@@ -292,10 +292,24 @@ during startup. An image update does not add models to the platform catalog;
 deploy the matching platform release before selecting newly supported models.
 
 BuildKit keeps native-addon headers and the built-in skill's Bun package cache
-outside runtime layers. OS tools, Office, TeX and the document libraries form
-a shared base without harness version arguments. Each harness installs in its
-own stage and exports an independent artifact layer, so refreshing one harness
-reuses the base and the other harnesses instead of storing new copies of them.
+outside runtime layers. Every host downloads and stores each layer whose bytes
+change, so the layout keeps a release's change to the layers it touched:
+
+- The OS chain (`tooling-base`: fonts and browser libraries, Office, TeX, the
+  Docker engine, then the everyday tools) carries no harness version argument
+  and no environment variable, and runs from the largest, stablest apt set to
+  the most often extended. Adding a tool rebuilds one small layer.
+- Each harness, the browser, and the document Python and Node libraries
+  install in stages that never build on the OS chain (`harness-base` holds just
+  Node and the download tools) and arrive as `COPY --link` layers of their own.
+  An OS change reinstalls none of them, and refreshing one re-ships only its
+  own layer. The guard in
+  `services/platform/tests/guards/dockerfile-fail-closed.guard.test.ts` holds
+  this layout.
+- A release build reads only its own registry cache, so an unchanged layer
+  keeps the previous release's bytes. Pull request and `main` builds read that
+  cache too, after their own.
+
 The image remains shared by concurrent sessions.
 
 Headless Chromium is the only baked browser. Playwright scripts use their usual
