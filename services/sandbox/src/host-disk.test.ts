@@ -63,6 +63,20 @@ describe('diskCriticalBytes', () => {
     ).toBe(true);
   });
 
+  test('an operator’s tier never stands above the floor, and a floor of 0 turns it off too', () => {
+    // A 100 GiB disk keeps a 5 GiB floor unset.
+    expect(diskCriticalBytes(100 * GIB, undefined, 8 * GIB)).toBe(5 * GIB);
+    expect(diskCriticalBytes(100 * GIB, 4 * GIB, 8 * GIB)).toBe(4 * GIB);
+    expect(diskCriticalBytes(100 * GIB, 0, 2 * GIB)).toBe(0);
+    expect(
+      belowDiskCritical(
+        { totalBytes: 100 * GIB, availableBytes: GIB },
+        0,
+        2 * GIB,
+      ),
+    ).toBe(false);
+  });
+
   test('an unknown or unreadable disk is never critical', () => {
     expect(belowDiskCritical(null)).toBe(false);
     expect(

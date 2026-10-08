@@ -578,8 +578,8 @@ The floor holds new work back; it does not stop what already runs, which
 writes until the disk is full, and with it the replay journal of every running
 exec. So the disk also has a critical tier, below which those writes are about
 to fail: `SANDBOX_CRITICAL_FREE_DISK`, unset a quarter of the floor, at least
-1 GiB and never above the floor (`0` turns it off, and so does a floor of
-`0`). The sweep reads it from the same five-second reading, and an unknown or
+1 GiB, and never above the floor, set or unset (`0` turns it off, and so does
+a floor of `0`). The sweep reads it from the same five-second reading, and an unknown or
 unreadable disk is never critical. While the disk is below it, the sweep
 stops a released, idle Docker-in-sandbox session at once instead of after its
 full idle window — through runnerd's claim like every idle stop, so a turn

@@ -67,16 +67,17 @@ export function belowDiskFloor(
 /** The free space below which the session disk is critical: what running
  * sessions still write there is about to fail, and with it the replay
  * journal of every running exec. The operator's (0 turns the tier off), else
- * a quarter of the floor, at least 1 GiB and never above the floor; none
- * while the floor is off. */
+ * a quarter of the floor, at least 1 GiB; never above the floor, and none
+ * while the floor is off: a disk the tier calls critical must also be one
+ * admission refuses new sessions on. */
 export function diskCriticalBytes(
   totalBytes: number,
   configuredFloorBytes?: number,
   configuredBytes?: number,
 ): number {
-  if (configuredBytes !== undefined) return configuredBytes;
   if (configuredFloorBytes === 0) return 0;
   const floor = diskReserveBytes(totalBytes, configuredFloorBytes);
+  if (configuredBytes !== undefined) return Math.min(floor, configuredBytes);
   return Math.min(floor, Math.max(GIB, Math.floor(floor / 4)));
 }
 
