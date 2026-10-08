@@ -15,6 +15,14 @@ import { useT } from '@/lib/i18n/client';
 import { MCP_TOOL_GROUPS, MCP_TOOLS } from '@/lib/mcp/tools';
 import { useSiteUrl } from '@/lib/site-url-context';
 
+/** The inventory by group, in the documented order. Every group listed has
+ * tools: `lib/mcp/tools.test.ts` fails on a group the inventory leaves
+ * empty, so a group arrives on this page with its first tool. */
+const TOOL_GROUPS = MCP_TOOL_GROUPS.map((group) => ({
+  group,
+  tools: MCP_TOOLS.filter((tool) => tool.group === group),
+}));
+
 /**
  * The INBOUND MCP surface: the platform's own MCP endpoint. An MCP client (an
  * IDE, a desktop assistant, an external agent) points at the endpoint with an
@@ -106,20 +114,31 @@ export function McpEndpointSection({
         {/* The inventory in the same groups the docs tables draw —
             authoring, run & trigger management, discovery, capabilities &
             knowledge — so a reader can map this list onto the MCP endpoint
-            docs 1:1. */}
-        {MCP_TOOL_GROUPS.map((group) => (
+            docs 1:1. Each list is named and described by its row, so a
+            screen reader announces which group it is in. */}
+        {TOOL_GROUPS.map(({ group, tools }) => (
           <SettingsFieldRow
             key={group}
             label={t(`mcpEndpoint.tools.${group}.title`)}
             description={t(`mcpEndpoint.tools.${group}.description`)}
           >
-            <ul className="grid grid-cols-2 gap-1">
-              {MCP_TOOLS.filter((tool) => tool.group === group).map((tool) => (
-                <li key={tool.name}>
-                  <code className="text-xs">{tool.name}</code>
-                </li>
-              ))}
-            </ul>
+            {({ labelId, descriptionId }) => (
+              // A column is as wide as a long tool name (`ch` counts in the
+              // list's own monospace font), so the list takes two columns
+              // only where two names fit side by side and never runs one
+              // name into the next.
+              <ul
+                aria-labelledby={labelId}
+                aria-describedby={descriptionId}
+                className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,24ch),1fr))] gap-1 font-mono text-xs"
+              >
+                {tools.map((tool) => (
+                  <li key={tool.name}>
+                    <code>{tool.name}</code>
+                  </li>
+                ))}
+              </ul>
+            )}
           </SettingsFieldRow>
         ))}
 

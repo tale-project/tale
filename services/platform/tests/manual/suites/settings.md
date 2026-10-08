@@ -429,10 +429,13 @@ run.
 - [ ] `SET-F33` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → copy the endpoint (`settings.mcpEndpoint.copyEndpoint`); read the tool
   inventory; **Copy example request** (`settings.mcpEndpoint.copyExample`) →
-  The page (`settings.mcpEndpoint.title`) renders three tool groups —
+  The page (`settings.mcpEndpoint.title`) renders four tool groups —
   **Authoring** (`settings.mcpEndpoint.tools.authoring.title`), **Run &
   trigger management** (`settings.mcpEndpoint.tools.management.title`),
-  **Skills & knowledge** (`settings.mcpEndpoint.tools.capability.title`) — and
+  **Discovery** (`settings.mcpEndpoint.tools.discovery.title`), **Capabilities
+  & knowledge** (`settings.mcpEndpoint.tools.capability.title`) — each tool
+  name whole and none running into another, also at 375 px; a screen reader
+  names each list by its group; and
   the **Try it** example (`settings.mcpEndpoint.exampleTitle`); auth help
   points at REST API keys (`settings.mcpEndpoint.authLink`); the
   **Organization slug** row (`settings.mcpEndpoint.orgSlug.title`) shows this

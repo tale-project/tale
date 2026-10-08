@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
 import { MCP_TOOL_GROUPS, MCP_TOOLS, type McpToolGroup } from '@/lib/mcp/tools';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, within } from '@/tests/utils/render';
@@ -41,6 +42,8 @@ const organizationQuery = {
 vi.mock('@/app/features/organization/hooks/queries', () => ({
   useOrganization: () => organizationQuery,
 }));
+
+const t = i18n.getFixedT('en', 'settings');
 
 const GROUP_HEADINGS: Record<McpToolGroup, string> = {
   authoring: 'Authoring',
@@ -106,12 +109,14 @@ describe('McpEndpointSection', () => {
     const { container } = render(<McpEndpointSection organizationId="org-1" />);
 
     for (const group of MCP_TOOL_GROUPS) {
-      const row = screen
-        .getByText(GROUP_HEADINGS[group])
-        .closest('[aria-labelledby]');
-      expect(row).not.toBeNull();
+      // Each list is named by its group's row, so a screen reader says
+      // which group a tool is in.
+      const list = screen.getByRole('list', { name: GROUP_HEADINGS[group] });
+      expect(list).toHaveAccessibleDescription(
+        t(`mcpEndpoint.tools.${group}.description`),
+      );
 
-      const names = within(row as HTMLElement)
+      const names = within(list)
         .getAllByRole('listitem')
         .map((item) => item.textContent);
       expect(names).toEqual(
