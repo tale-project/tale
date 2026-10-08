@@ -320,8 +320,8 @@ function guardLogical(
       : { ok: false as const };
     if (
       left.ok &&
-      ((a.operator === '||' && Boolean(left.value)) ||
-        (a.operator === '&&' && !Boolean(left.value)) ||
+      ((a.operator === '||' && left.value) ||
+        (a.operator === '&&' && !left.value) ||
         (a.operator === '??' &&
           left.value !== null &&
           left.value !== undefined))
