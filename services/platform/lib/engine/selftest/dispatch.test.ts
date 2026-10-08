@@ -284,8 +284,9 @@ describe('dispatch — the shared method table', () => {
     const store: DispatchStore = {
       ...base,
       startRun: async () => {
-        throw new Error(
-          'Role "member" lacks the developer-settings capability',
+        throw Object.assign(
+          new Error('Role "member" lacks the developer-settings capability'),
+          { name: 'ActorAuthError', code: 'FORBIDDEN_DEVELOPER_SETTINGS' },
         );
       },
     };
@@ -828,8 +829,9 @@ describe('automation names are "/"-separated slug paths', () => {
   it("the host's own refusal on save comes back as data, not a throw", async () => {
     const store = dispatchStore();
     store.save = async () => {
-      throw new Error(
-        '"runs/nightly" starts with a word the platform reserves',
+      throw Object.assign(
+        new Error('"runs/nightly" starts with a word the platform reserves'),
+        { code: 'AUTOMATION_NAME_RESERVED', status: 400 },
       );
     };
     const result = await dispatch(
@@ -837,8 +839,9 @@ describe('automation names are "/"-separated slug paths', () => {
       { automation: { ...DOC_EXAMPLE.automation, name: 'runs/nightly' } },
       { store },
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       error: '"runs/nightly" starts with a word the platform reserves',
+      code: 'AUTOMATION_NAME_RESERVED',
     });
   });
 });

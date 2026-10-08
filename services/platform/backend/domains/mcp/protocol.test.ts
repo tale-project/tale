@@ -17,6 +17,10 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  dispatch as engineDispatch,
+  type DispatchStore,
+} from '../../../lib/engine/api/dispatch';
 import { SERVER_INSTRUCTIONS } from '../../../lib/mcp/instructions';
 import { MCP_SERVER_INFO } from '../../../lib/mcp/server';
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
@@ -666,6 +670,71 @@ describe('tools/call — the engine surface', () => {
     expect(resultText(payload)).not.toContain('10.0.0.7');
     expect(quiet).toHaveBeenCalledWith(
       expect.stringContaining('req-fault'),
+      fault,
+    );
+    quiet.mockRestore();
+  });
+
+  it("answers Ada's cancel while the database is unreachable as INTERNAL_ERROR through the real dispatch, counted as a failure [MCP-R8]", async () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fault = Object.assign(
+      new Error(
+        'connect ECONNREFUSED 10.0.0.5:5432 password authentication failed for user "tale_app"',
+      ),
+      { code: 'ECONNREFUSED' },
+    );
+    const store: DispatchStore = {
+      list: async () => [],
+      get: async () => null,
+      deployedVersion: async () => null,
+      save: async () => ({ name: 'x', version: 1 }),
+      deploy: async () => ({ name: 'x', version: 1 }),
+      cancelRun: async () => {
+        throw fault;
+      },
+    };
+    const recorded: unknown[] = [];
+    const response = await handleMcpRequest(
+      { ...keyCaller(), requestId: 'req-down' },
+      rpc({
+        jsonrpc: '2.0',
+        id: 10,
+        method: 'tools/call',
+        params: { name: 'cancel_run', arguments: { runId: 'run_1' } },
+      }),
+      {
+        host: {
+          engine: async (_caller, method, params) =>
+            engineDispatch(method, params, { store }),
+          platform: vi.fn(),
+          capability: vi.fn(),
+        },
+        observe: async (record) => {
+          recorded.push(record);
+        },
+      },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
+    const payload = (await response.json()) as Record<string, unknown>;
+    expect(isErrorFlag(payload)).toBe(true);
+    expect(refusalOf(payload)).toEqual({
+      error: 'cancel_run failed unexpectedly',
+      code: 'INTERNAL_ERROR',
+      hint: expect.stringContaining('requestId'),
+      data: { requestId: 'req-down' },
+    });
+    for (const leaked of ['ECONNREFUSED', '10.0.0.5', 'tale_app']) {
+      expect(JSON.stringify(payload)).not.toContain(leaked);
+    }
+    expect(recorded).toEqual([
+      expect.objectContaining({
+        method: 'tools/call',
+        tool: 'cancel_run',
+        outcome: 'error',
+      }),
+    ]);
+    expect(quiet).toHaveBeenCalledWith(
+      expect.stringContaining('req-down'),
       fault,
     );
     quiet.mockRestore();

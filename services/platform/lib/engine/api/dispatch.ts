@@ -48,6 +48,7 @@ import {
   type CoreNodeKind,
 } from './docs';
 import { METHODS } from './methods';
+import { isCodedRefusal, structuredRefusal } from './refusal';
 import { runAutomationTests } from './tests';
 
 export { METHODS, type Method } from './methods';
@@ -514,53 +515,41 @@ function notSupported(what: string): {
  * error classes carry (`AutomationError`, `ActorAuthError`) so a client
  * can branch on it, and — where the host attached them — the `hint` that
  * says what to do and the structured `data` (the schema problems of a
- * refused run input). The catch sites used to keep only the sentence. A
- * thrown value without a code stays a bare message.
+ * refused run input). A structured refusal (the platform's `AppError`)
+ * is lifted from its payload, never from its `message`, which serializes
+ * the whole payload.
+ *
+ * Anything that is not a refusal (`refusal.ts`) is a FAULT and is thrown
+ * on: a store whose database is unreachable must not answer the socket's
+ * sentence as a refusal. The host answers a fault its own way — the MCP
+ * endpoint as `INTERNAL_ERROR` with the request id, logged and reported;
+ * the app's routes as their 500.
  */
 function refusalFrom(error: unknown): {
   error: string;
-  code?: string;
+  code: string;
   hint?: string;
   data?: Record<string, unknown>;
 } {
-  const message = error instanceof Error ? error.message : String(error);
-  if (error === null || typeof error !== 'object') return { error: message };
-  const code: unknown = Reflect.get(error, 'code');
-  // A structured refusal (the platform's `AppError`) carries its code and
-  // sentence in `data`, and its `message` serializes that whole payload:
-  // the refusal is lifted from the payload, never the serialization.
-  const payload: unknown = Reflect.get(error, 'data');
-  if (
-    typeof code !== 'string' &&
-    payload !== null &&
-    typeof payload === 'object' &&
-    typeof Reflect.get(payload, 'code') === 'string'
-  ) {
-    const payloadCode = String(Reflect.get(payload, 'code'));
-    const sentence: unknown = Reflect.get(payload, 'message');
-    const detail: unknown = Reflect.get(payload, 'data');
+  const structured = structuredRefusal(error);
+  if (structured !== null) {
+    const hint = HOST_REFUSAL_HINTS[structured.code];
     return {
-      error: typeof sentence === 'string' ? sentence : payloadCode,
-      code: payloadCode,
-      ...(detail !== null &&
-        typeof detail === 'object' &&
-        !Array.isArray(detail) && {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the object check above
-          data: detail as Record<string, unknown>,
-        }),
+      error: structured.message,
+      code: structured.code,
+      ...(hint !== undefined && { hint }),
+      ...(structured.data !== undefined && { data: structured.data }),
     };
   }
+  if (!isCodedRefusal(error)) throw error;
+  const { code } = error;
   const own: unknown = Reflect.get(error, 'hint');
   const hint =
-    typeof own === 'string' && own !== ''
-      ? own
-      : typeof code === 'string'
-        ? HOST_REFUSAL_HINTS[code]
-        : undefined;
+    typeof own === 'string' && own !== '' ? own : HOST_REFUSAL_HINTS[code];
   const data: unknown = Reflect.get(error, 'data');
   return {
-    error: message,
-    ...(typeof code === 'string' && code !== '' && { code }),
+    error: error.message,
+    code,
     ...(hint !== undefined && { hint }),
     ...(data !== null &&
       typeof data === 'object' &&

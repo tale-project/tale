@@ -16,6 +16,7 @@
 
 import type { z } from 'zod';
 
+import { isCodedRefusal } from '../../../lib/engine/api/refusal';
 import { type McpToolListing, toolListing } from '../../../lib/mcp/listing';
 import { MCP_TOOLS, type McpToolSpec } from '../../../lib/mcp/tools';
 import { defineAbilityFor } from '../../../lib/permissions/ability';
@@ -120,17 +121,6 @@ interface Refusal {
   data?: Record<string, unknown>;
 }
 
-/** The shape of a stable refusal code. A database's SQLSTATE never has it;
- * a socket's `ECONNRESET` does, which is why a refusal also needs a 4xx
- * status or one of the refusing classes below. */
-const REFUSAL_CODE = /^[A-Z][A-Z0-9_]*$/;
-
-/** Error classes that refuse without an HTTP status of their own. */
-const STATUSLESS_REFUSALS: ReadonlySet<string> = new Set([
-  'ActorAuthError',
-  'CapabilityAuthError',
-]);
-
 function plainData(value: unknown): Record<string, unknown> | undefined {
   return isRecord(value) ? value : undefined;
 }
@@ -161,15 +151,10 @@ function refusalFromThrown(error: unknown): Refusal | null {
       ...(coded.data === undefined ? {} : { data: coded.data }),
     };
   }
-  if (!(error instanceof Error)) return null;
-  const code: unknown = Reflect.get(error, 'code');
-  if (typeof code !== 'string' || !REFUSAL_CODE.test(code)) return null;
-  const status: unknown = Reflect.get(error, 'status');
-  const refuses =
-    typeof status === 'number'
-      ? status >= 400 && status < 500
-      : STATUSLESS_REFUSALS.has(error.name);
-  if (!refuses) return null;
+  // One rule with the engine's dispatch (`lib/engine/api/refusal.ts`): a
+  // stable code and a 4xx status, or a class that refuses without one.
+  if (!isCodedRefusal(error)) return null;
+  const { code } = error;
   const hint: unknown = Reflect.get(error, 'hint');
   const data = plainData(Reflect.get(error, 'data'));
   return {

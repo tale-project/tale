@@ -110,6 +110,7 @@ describe('save_automation', () => {
     const save = vi.fn(async () => {
       throw Object.assign(new Error('v6 of … Reload to see it'), {
         code: 'AUTOMATION_VERSION_STALE',
+        status: 409,
         data: { latestVersion: 6, baseVersion: 5 },
       });
     });
@@ -130,6 +131,7 @@ describe('save_automation', () => {
     const save = vi.fn(async () => {
       throw Object.assign(new Error('An automation named … already exists'), {
         code: 'AUTOMATION_NAME_TAKEN',
+        status: 409,
       });
     });
     const result = await dispatch(
@@ -267,6 +269,7 @@ describe('deploy_automation', () => {
     const deploy = vi.fn(async () => {
       throw Object.assign(new Error('v6 of … is live now'), {
         code: 'AUTOMATION_DEPLOYMENT_STALE',
+        status: 409,
         data: { deployedVersion: 6 },
       });
     });
@@ -309,6 +312,7 @@ describe('delete_automation', () => {
     const deleteAutomation = vi.fn(async () => {
       throw Object.assign(new Error('A run of … is still running'), {
         code: 'AUTOMATION_HAS_ACTIVE_RUNS',
+        status: 409,
       });
     });
     const s = store({ deleteAutomation });
@@ -463,6 +467,7 @@ describe('set_automation_projects', () => {
     const setAutomationProjects = vi.fn(async () => {
       throw Object.assign(new Error('not installed'), {
         code: 'AUTOMATION_NOT_INSTALLED',
+        status: 404,
         data: { projectId: 'p-9' },
       });
     });
@@ -504,6 +509,7 @@ describe('answer_run_ask', () => {
     const answerAsk = vi.fn(async () => {
       throw Object.assign(new Error('this question was already answered'), {
         code: 'HUMAN_ASK_NOT_PENDING',
+        status: 409,
       });
     });
     const s = store({ answerAsk });

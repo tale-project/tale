@@ -374,6 +374,7 @@ describe('a host refusal is lifted whole', () => {
       new Error('input does not match the inputs schema'),
       {
         code: 'AUTOMATION_INPUT_INVALID',
+        status: 400,
         hint: 'read data.issues',
         data: { issues: [{ path: 'n', message: 'is required' }] },
       },
@@ -435,19 +436,21 @@ describe('a host refusal is lifted whole', () => {
     expect(JSON.stringify(result)).not.toContain('row 42');
   });
 
-  it('keeps a bare host error a bare sentence', async () => {
-    const result = await dispatch(
-      'cancel_run',
-      { runId: 'r' },
-      {
-        store: fullStore({
-          cancelRun: async () => {
-            throw new Error('Project not found.');
-          },
-        }),
-      },
-    );
-    expect(result).toEqual({ error: 'Project not found.' });
+  it('throws a bare host error on: without a code it is a fault, not a refusal [MCP-R8]', async () => {
+    const fault = new Error('Project not found.');
+    await expect(
+      dispatch(
+        'cancel_run',
+        { runId: 'r' },
+        {
+          store: fullStore({
+            cancelRun: async () => {
+              throw fault;
+            },
+          }),
+        },
+      ),
+    ).rejects.toBe(fault);
   });
 
   it('tells a finished run from a missing one on cancel_run (2026-09-18, J8-1)', async () => {
@@ -544,7 +547,7 @@ describe('the MCP door’s hints name its own tools', () => {
           new Error(
             'Live runs must use the deployed version. Deploy this version or use mock mode.',
           ),
-          { code: 'AUTOMATION_VERSION_NOT_DEPLOYED' },
+          { code: 'AUTOMATION_VERSION_NOT_DEPLOYED', status: 409 },
         );
       },
     });
@@ -735,5 +738,114 @@ describe('the MCP door’s run, trigger and version tools after the 2026-09-14 r
       [1, true],
       [2, false],
     ]);
+  });
+});
+
+/**
+ * A FAULT inside a store call — a database that cannot be reached, a
+ * constraint the database raised — is thrown on to the host, at every catch
+ * site of the table, never answered as a refusal: its sentence names the
+ * database's address and user, its SQLSTATE is no code an agent branches
+ * on, and a refusal-shaped answer would hide the outage from the logs. The
+ * MCP endpoint answers what is thrown as INTERNAL_ERROR with the request id
+ * (`backend/domains/mcp/tools.ts`); the example is MCP-R8's own: Ada's
+ * agent cancels a run while the database is unreachable.
+ */
+describe('a store fault is thrown on, never answered as a refusal [MCP-R8]', () => {
+  const unreachable = () =>
+    Object.assign(
+      new Error(
+        'connect ECONNREFUSED 10.0.0.5:5432 password authentication failed for user "tale_app"',
+      ),
+      { code: 'ECONNREFUSED' },
+    );
+  const constraint = () =>
+    Object.assign(
+      new Error(
+        'duplicate key value violates unique constraint "automations_pkey"',
+      ),
+      { code: '23505', hint: 'Key (org_id)=(org_1) already exists.' },
+    );
+  const failing = (fault: () => Error) => async (): Promise<never> => {
+    throw fault();
+  };
+
+  /** Every catch site, as [method, the store method that fails, params,
+   * whether the host runs live]. */
+  const SITES: [
+    string,
+    keyof DispatchStore,
+    Record<string, unknown>,
+    boolean,
+  ][] = [
+    ['run_deployed', 'startRun', { name: SAVED, input: {} }, true],
+    ['run_deployed', 'authorizeRun', { name: SAVED, input: {} }, false],
+    ['save_automation', 'save', { automation: DOC_EXAMPLE.automation }, false],
+    ['deploy_automation', 'deploy', { name: SAVED, version: 1 }, false],
+    [
+      'delete_automation',
+      'deleteAutomation',
+      { name: SAVED, expectedLatestVersion: 1 },
+      false,
+    ],
+    [
+      'set_trigger',
+      'setTrigger',
+      { name: SAVED, trigger: { kind: 'schedule', cron: '0 6 * * *' } },
+      false,
+    ],
+    ['start_run', 'startRun', { name: SAVED, input: {} }, false],
+    ['cancel_run', 'cancelRun', { runId: 'r' }, false],
+    [
+      'set_automation_projects',
+      'setAutomationProjects',
+      { name: SAVED, add: ['p1'] },
+      false,
+    ],
+    [
+      'answer_run_ask',
+      'answerAsk',
+      { runId: 'r', askId: 'a', answer: 'yes' },
+      false,
+    ],
+    ['delete_trigger', 'deleteTrigger', { name: SAVED }, false],
+  ];
+
+  it.each(SITES)(
+    '%s throws on what a failing %s threw',
+    async (method, failingMethod, params, allowLive) => {
+      vi.mocked(runAutomationTests).mockResolvedValue({
+        passed: 0,
+        failed: 0,
+        results: [],
+      } as unknown as Awaited<ReturnType<typeof runAutomationTests>>);
+      for (const fault of [unreachable, constraint]) {
+        const store = fullStore({ [failingMethod]: failing(fault) });
+        await expect(
+          dispatch(method, params, { store, allowLive }),
+        ).rejects.toThrow(fault().message);
+      }
+    },
+  );
+
+  it('still answers a coded refusal of the same store call as data', async () => {
+    const result = await dispatch(
+      'cancel_run',
+      { runId: 'r' },
+      {
+        store: fullStore({
+          cancelRun: async () => {
+            throw Object.assign(new Error('Project is archived.'), {
+              code: 'PROJECT_ARCHIVED',
+              name: 'ActorAuthError',
+            });
+          },
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      error: 'Project is archived.',
+      code: 'PROJECT_ARCHIVED',
+    });
   });
 });
