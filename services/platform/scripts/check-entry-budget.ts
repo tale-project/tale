@@ -13,11 +13,15 @@
  * route's code loads with its route (`ENTRY_ROUTES` in `vite.config.ts`), and
  * a static import from the entry would bring one back to every page.
  *
+ * The code editor is held to a budget of its own: what its lazy view chunk
+ * loads beyond the cold load (`LAZY_BUDGETS`) — the editor's packages and
+ * nothing more, no other language's grammar, no code built from strings.
+ *
  * Usage (from `services/platform`): `bun scripts/check-entry-budget.ts [dist]`
  */
 
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 /** Vendor chunks that must never be in the cold-load preload set. */
@@ -42,6 +46,14 @@ export const FORBIDDEN_PRELOADS = [
  * the entry fails the build.
  */
 export const FORBIDDEN_PACKAGES = [
+  // The code editor: its view and the syntax trees load with the first
+  // code field, and the languages only the message editor's code blocks
+  // read load with a block in that language.
+  '@codemirror/view',
+  '@lezer/common',
+  '@codemirror/lang-html',
+  '@codemirror/legacy-modes',
+  '@codemirror/language-data',
   'recharts',
   '@xyflow/react',
   'elkjs',
@@ -98,11 +110,19 @@ export function findForbiddenPreloads(urls: string[]): string[] {
   return matching(urls, FORBIDDEN_PRELOADS);
 }
 
-/** The forbidden packages a source map's `sources` name, each once. */
-export function forbiddenPackagesIn(sources: readonly string[]): string[] {
-  return FORBIDDEN_PACKAGES.filter((name) =>
+/** Which of `names` a source map's `sources` name, each once. */
+function packagesIn(
+  sources: readonly string[],
+  names: readonly string[],
+): string[] {
+  return names.filter((name) =>
     sources.some((source) => source.includes(`node_modules/${name}/`)),
   );
+}
+
+/** The forbidden packages a source map's `sources` name, each once. */
+export function forbiddenPackagesIn(sources: readonly string[]): string[] {
+  return packagesIn(sources, FORBIDDEN_PACKAGES);
 }
 
 /**
@@ -154,6 +174,167 @@ export function gzipTotal(dist: string, urls: string[]): number {
   return total;
 }
 
+/** A lazy chunk whose static closure is held to a size and a content. */
+export interface LazyBudget {
+  /** The chunk's name, as the build prefixes its file (`code-editor-view-…`). */
+  name: string;
+  /** Gzip bytes it may load beyond the cold load. */
+  maxGzip: number;
+  /** Packages none of its chunks may carry. */
+  packages: readonly string[];
+  /** Text none of its chunks may hold. */
+  text: readonly string[];
+}
+
+export const LAZY_BUDGETS: readonly LazyBudget[] = [
+  {
+    // The code editor: CodeMirror's core, its JavaScript, JSON and YAML
+    // grammars, and the view module.
+    name: 'code-editor-view',
+    maxGzip: 230 * 1024,
+    // Languages only the message editor's code blocks read, and the table
+    // that imports every one of them.
+    packages: [
+      '@codemirror/lang-html',
+      '@codemirror/lang-css',
+      '@codemirror/legacy-modes',
+      '@codemirror/language-data',
+    ],
+    // The production CSP has no `unsafe-eval`.
+    text: ['eval(', 'new Function('],
+  },
+];
+
+/**
+ * The chunks a built chunk imports statically (`import … from "./x.js"`,
+ * `import "./x.js"`, `export … from "./x.js"`), as paths from `dist`; a
+ * dynamic `import("./x.js")` loads later and is not one of them.
+ */
+export function staticImportsOf(source: string, url: string): string[] {
+  const dir = dirname(url);
+  const found = new Set<string>();
+  for (const match of source.matchAll(
+    /(?:^|[;\s}])(?:import|export)\s*(?:[\w$*{}\s,]*?\bfrom\s*)?["'](\.{1,2}\/[^"']+)["']/g,
+  )) {
+    const path = match[1];
+    if (path !== undefined) found.add(join(dir, path));
+  }
+  return [...found];
+}
+
+/** `start` and every chunk it imports statically, each once, `start` first. */
+export function staticClosure(
+  start: string,
+  read: (url: string) => string,
+): string[] {
+  const seen = new Set<string>([start]);
+  const queue = [start];
+  for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+    for (const url of staticImportsOf(read(next), next)) {
+      if (seen.has(url)) continue;
+      seen.add(url);
+      queue.push(url);
+    }
+  }
+  return [...seen];
+}
+
+/** The chunks that load `url` with a dynamic `import()`. */
+export function dynamicImportersOf(
+  url: string,
+  files: readonly string[],
+  read: (url: string) => string,
+): string[] {
+  const name = url.slice(url.lastIndexOf('/') + 1);
+  const forms = ['`', "'", '"'].map(
+    (quote) => `import(${quote}./${name}${quote})`,
+  );
+  return files.filter((file) => {
+    if (file === url) return false;
+    const text = read(file);
+    return forms.some((form) => text.includes(form));
+  });
+}
+
+/** What a lazy chunk loads beyond the cold load, and what is wrong with it. */
+export interface LazyReport {
+  name: string;
+  /** Its chunks that neither the cold load nor the chunks importing it
+   *  have already loaded. */
+  chunks: string[];
+  gzip: number;
+  problems: string[];
+}
+
+/**
+ * Hold one lazy chunk to its budget: the chunks its static closure adds to
+ * what is loaded by the time it is asked for — the cold load (`preloaded`)
+ * and whatever every chunk that imports it brings — their gzip size, the
+ * packages their source maps name and the text they hold.
+ */
+export function checkLazyChunk(
+  dist: string,
+  preloaded: readonly string[],
+  budget: LazyBudget,
+): LazyReport {
+  const files = readdirSync(resolve(dist, 'assets'))
+    .filter((file) => file.endsWith('.js'))
+    .map((file) => `assets/${file}`);
+  const start = files.filter((file) =>
+    file.startsWith(`assets/${budget.name}-`),
+  );
+  const [first] = start;
+  if (first === undefined || start.length > 1) {
+    return {
+      name: budget.name,
+      chunks: [],
+      gzip: 0,
+      problems: [
+        first === undefined
+          ? `no ${budget.name} chunk was built`
+          : `more than one ${budget.name} chunk: ${start.join(', ')}`,
+      ],
+    };
+  }
+  const read = (url: string) => readFileSync(resolve(dist, url), 'utf8');
+  // Loaded already, whichever chunk asks for it: what every importer
+  // needs before it can.
+  const importerClosures = dynamicImportersOf(first, files, read).map(
+    (importer) => new Set(staticClosure(importer, read)),
+  );
+  const [firstClosure, ...otherClosures] = importerClosures;
+  const loaded = new Set(
+    [...(firstClosure ?? [])].filter((url) =>
+      otherClosures.every((closure) => closure.has(url)),
+    ),
+  );
+  const chunks = staticClosure(first, read).filter(
+    (url) => !preloaded.includes(url) && !loaded.has(url),
+  );
+  const gzip = gzipTotal(dist, chunks);
+  const problems: string[] = [];
+  if (gzip > budget.maxGzip) {
+    problems.push(
+      `${(gzip / 1024).toFixed(0)} KB gzip, over its ${(budget.maxGzip / 1024).toFixed(0)} KB`,
+    );
+  }
+  for (const url of chunks) {
+    const text = read(url);
+    for (const needle of budget.text) {
+      if (text.includes(needle)) problems.push(`${url} holds ${needle}`);
+    }
+    const mapPath = resolve(dist, `${url}.map`);
+    if (!existsSync(mapPath)) continue;
+    const map = JSON.parse(readFileSync(mapPath, 'utf8')) as {
+      sources?: string[];
+    };
+    for (const name of packagesIn(map.sources ?? [], budget.packages)) {
+      problems.push(`${url} carries ${name}`);
+    }
+  }
+  return { name: budget.name, chunks, gzip, problems };
+}
+
 if (import.meta.main) {
   const dist = resolve(process.argv[2] ?? 'dist');
   const urls = parsePreloadedScripts(
@@ -171,11 +352,28 @@ if (import.meta.main) {
   console.log(
     `Cold-load JS: ${urls.length} preloaded modules, ${(total / 1024).toFixed(0)} KB gzip`,
   );
+  let failed = false;
   if (forbidden.length > 0) {
     console.error(
       'Chunks that must stay behind a dynamic import are preloaded:',
     );
     for (const url of forbidden) console.error(`  - ${url}`);
-    process.exit(1);
+    failed = true;
   }
+  for (const budget of LAZY_BUDGETS) {
+    const report = checkLazyChunk(dist, urls, budget);
+    console.log(
+      `Lazy ${report.name}: ${report.chunks.length} chunks beyond what loads it, ${(report.gzip / 1024).toFixed(0)} KB gzip (budget ${(budget.maxGzip / 1024).toFixed(0)} KB)`,
+    );
+    for (const url of report.chunks) {
+      const size = gzipTotal(dist, [url]);
+      console.log(`  ${url} ${(size / 1024).toFixed(1)} KB`);
+    }
+    if (report.problems.length > 0) {
+      console.error(`${report.name} is over its budget:`);
+      for (const problem of report.problems) console.error(`  - ${problem}`);
+      failed = true;
+    }
+  }
+  if (failed) process.exit(1);
 }

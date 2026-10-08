@@ -138,6 +138,10 @@ function coreChunk(id: string): string | null {
   return null;
 }
 
+/** What `@tale/ui/code-editor` loads, and nothing else of CodeMirror's. */
+const CODE_EDITOR_PACKAGES =
+  /\/node_modules\/(?:@codemirror\/(?:state|view|language|commands|autocomplete|lint|search|lang-javascript|lang-json|lang-yaml)|@lezer\/(?:common|highlight|lr|javascript|json|yaml|markdown)|style-mod|w3c-keyname|crelt|@marijn\/find-cluster-break)\//;
+
 /** The vendor chunk a dependency belongs to; `null` leaves it to the default chunking. */
 function vendorChunk(id: string): string | null {
   if (!id.includes('node_modules')) {
@@ -166,11 +170,12 @@ function vendorChunk(id: string): string | null {
   if (id.includes('/node_modules/katex/')) {
     return 'vendor-katex';
   }
-  if (
-    id.includes('codemirror') ||
-    id.includes('@codemirror') ||
-    id.includes('@lezer')
-  ) {
+  // The code editor's own packages: CodeMirror's core, the grammars the
+  // editor reads (JavaScript, JSON, YAML, Markdown) and their helpers. The
+  // other languages (Milkdown's code blocks reach every one through
+  // `@codemirror/language-data`) keep the default chunking, one lazy chunk
+  // per language; grouped here, the first code field loaded them all.
+  if (CODE_EDITOR_PACKAGES.test(id)) {
     return 'vendor-codemirror';
   }
   if (id.includes('lucide-react')) {
