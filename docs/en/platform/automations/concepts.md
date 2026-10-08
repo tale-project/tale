@@ -94,9 +94,9 @@ Tale knows the shape of most values: the run input from `inputs`, a capability's
 
 ### Skipped and failed nodes {#checks-skips}
 
-A node is skipped when its `when` is false, when its `elseOf` partner runs, or when a node it reads is skipped. A node with `onError: continue` is skipped when it fails. The output of a skipped node is `null`, and a node that reads a skipped node is skipped too.
+A node is skipped when its `when` is false, when its `elseOf` partner runs, or when a node it reads in its `input`, `prompt`, `system`, `files`, `code` or `forEach` is skipped. A node with `onError: continue` is skipped when it fails. The output of a skipped node is `null`, and a node that reads a skipped node in one of those fields is skipped too. A read in `when` or `repeatUntil` does not skip the node: the condition runs and reads `null`.
 
-So when a condition or the automation's `output` reads a field of a node that may be skipped, the read fails on the runs where that node did not run. Tale warns about each such read, and says so separately when the cause is a failure that `onError: continue` tolerates. Guard the read with `?.` and a fallback: `{{ nodes.check.output?.ok ?? false }}` in a condition, `{{ nodes.summary.output?.text ?? null }}` in the output. Alternative branches meet in the automation's `output`, not in a node that reads both:
+So when a condition or the automation's `output` reads a field of a node that may be skipped, the read fails on the runs where that node did not run. The same happens when the value of such a node stands inside text, as in `Summary: {{ nodes.summary.output?.text }}`: `?.` leaves no value there, and text refuses a missing value. Tale warns about each such read, and says so separately when the cause is a failure that `onError: continue` tolerates. Guard the read with `?.` and a fallback: `{{ nodes.check.output?.ok ?? false }}` in a condition, `{{ nodes.summary.output?.text ?? null }}` in the output. Alternative branches meet in the automation's `output`, not in a node that reads both:
 
 ```yaml
 output:

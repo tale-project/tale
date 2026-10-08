@@ -94,9 +94,9 @@ Tale connaît la forme de la plupart des valeurs : l’entrée de l’exécutio
 
 ### Nœuds ignorés et en échec {#checks-skips}
 
-Un nœud est ignoré quand son `when` est faux, quand son partenaire `elseOf` s’exécute ou quand un nœud qu’il lit est ignoré. Un nœud avec `onError: continue` est ignoré quand il échoue. La sortie d’un nœud ignoré vaut `null`, et un nœud qui lit un nœud ignoré est ignoré lui aussi.
+Un nœud est ignoré quand son `when` est faux, quand son partenaire `elseOf` s’exécute ou quand un nœud qu’il lit dans `input`, `prompt`, `system`, `files`, `code` ou `forEach` est ignoré. Un nœud avec `onError: continue` est ignoré quand il échoue. La sortie d’un nœud ignoré vaut `null`, et un nœud qui lit un nœud ignoré dans l’un de ces champs est ignoré lui aussi. Une lecture dans `when` ou `repeatUntil` n’ignore pas le nœud : la condition s’exécute et lit `null`.
 
-Quand une condition ou la `output` de l’automatisation lit un champ d’un nœud qui peut être ignoré, la lecture échoue donc lors des exécutions où ce nœud ne s’est pas exécuté. Tale avertit pour chacune de ces lectures, et le précise quand la cause est un échec que `onError: continue` tolère. Protège la lecture avec `?.` et une valeur de repli : `{{ nodes.check.output?.ok ?? false }}` dans une condition, `{{ nodes.summary.output?.text ?? null }}` dans la sortie. Les branches alternatives se rejoignent dans la `output` de l’automatisation, pas dans un nœud qui lit les deux :
+Quand une condition ou la `output` de l’automatisation lit un champ d’un nœud qui peut être ignoré, la lecture échoue donc lors des exécutions où ce nœud ne s’est pas exécuté. Il en va de même quand la valeur d’un tel nœud figure dans du texte, comme dans `Summary: {{ nodes.summary.output?.text }}` : `?.` n’y donne aucune valeur, et le texte refuse une valeur manquante. Tale avertit pour chacune de ces lectures, et le précise quand la cause est un échec que `onError: continue` tolère. Protège la lecture avec `?.` et une valeur de repli : `{{ nodes.check.output?.ok ?? false }}` dans une condition, `{{ nodes.summary.output?.text ?? null }}` dans la sortie. Les branches alternatives se rejoignent dans la `output` de l’automatisation, pas dans un nœud qui lit les deux :
 
 ```yaml
 output:

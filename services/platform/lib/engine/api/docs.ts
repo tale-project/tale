@@ -238,7 +238,7 @@ analysis describes how runs can go:
 - analysis.output: which nodes the output reads, and whether it may be empty.
 types is the JSON Schema of the data: types.inputs (the run input), types.nodes[id].output (what nodes.<id>.output holds when it ran; item under forEach; ts, the same as a TypeScript type) and types.output (what a run returns). get_catalog gives each capability's outputSchema the same way.
 
-A skipped node's output is null. A node that reads a skipped node is skipped too (upstream), so alternative branches meet in the automation "output", never in a node. Reading a field of a node that may be skipped — or that continues on error — fails where nothing guards it (MAYBE_NULL, UNCAUGHT_FAILURE). Guard such a read with optional chaining and a fallback: "{{ nodes.check.output?.ok ?? false }}" in a condition, "{{ nodes.summary.output?.text ?? null }}" in the output.
+A skipped node's output is null. A node that reads a skipped node in its input, prompt, system, files, code or forEach is skipped too (upstream), so alternative branches meet in the automation "output", never in a node; a read in when or repeatUntil does not skip the node — the condition runs and reads null. Reading a field of a node that may be skipped — or that continues on error — fails where nothing guards it (MAYBE_NULL, UNCAUGHT_FAILURE), and so does placing its value inside text, even through ?. ("Summary: {{ nodes.x.output?.text }}"). Guard such a read with optional chaining and a fallback: "{{ nodes.check.output?.ok ?? false }}" in a condition, "{{ nodes.summary.output?.text ?? null }}" in the output.
 
 ## Results you get back
 run_automation returns {status, output, trace, effects}:
