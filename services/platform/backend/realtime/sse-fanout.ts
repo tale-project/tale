@@ -16,7 +16,7 @@ import type { SSEStreamingApi } from 'hono/streaming';
  */
 
 /** Writes a stream may have queued before it is treated as gone. */
-export const DEFAULT_MAX_PENDING_WRITES = 256;
+const DEFAULT_MAX_PENDING_WRITES = 256;
 
 export interface FanoutStream {
   /** The underlying Hono SSE stream. */
