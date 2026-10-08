@@ -91,7 +91,92 @@ describe('EXPR_UNKNOWN_NAME', () => {
   });
 });
 
+describe('bounded validation', () => {
+  it('reports an analysis limit instead of accepting a deep transform', async () => {
+    const found = await issues(
+      doc([
+        {
+          id: 'main',
+          type: 'transform',
+          code: 'return ' + Array(80).fill('1').join('+') + ';',
+        },
+      ]),
+      'CODE_SYNTAX',
+    );
+    expect(found).toEqual([
+      expect.objectContaining({
+        params: {
+          node: 'main',
+          detail: 'code exceeds the analysis size or depth limit',
+        },
+      }),
+    ]);
+  });
+});
+
 describe('ITEM_OUT_OF_SCOPE', () => {
+  it.each([
+    'true || item',
+    'false && index',
+    '(1 > 0) || item',
+    '0 && item',
+    '1 ?? index',
+  ])('ignores unreachable reads in %s', async (when) => {
+    expect(
+      await issues(
+        doc([
+          {
+            id: 'main',
+            type: 'transform',
+            when: `{{ ${when} }}`,
+            code: 'return 1;',
+          },
+        ]),
+        'ITEM_OUT_OF_SCOPE',
+      ),
+    ).toEqual([]);
+  });
+
+  it.each(['false || item', 'true && index', 'input.go || item'])(
+    'retains reachable or unknown reads in %s',
+    async (when) => {
+      expect(
+        await issues(
+          doc([
+            {
+              id: 'main',
+              type: 'transform',
+              when: `{{ ${when} }}`,
+              code: 'return 1;',
+            },
+          ]),
+          'ITEM_OUT_OF_SCOPE',
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    '((Infinity) => Infinity || item)(false)',
+    '((NaN) => NaN && index)(true)',
+    '((undefined) => undefined ?? item)(null)',
+    '((Infinity) => (Infinity > 0) || item)(0)',
+  ])('retains a reachable read behind shadowed globals: %s', async (expr) => {
+    const node = { id: 'main', type: 'transform', code: 'return input;' };
+    expect(
+      await issues(
+        doc([{ ...node, when: `{{ ${expr} }}` }]),
+        'ITEM_OUT_OF_SCOPE',
+      ),
+    ).toHaveLength(1);
+    expect(
+      await issues(
+        doc([{ ...node, input: { value: `{{ ${expr} }}` } }]),
+        'ITEM_WITHOUT_FOREACH',
+      ),
+    ).toHaveLength(1);
+  });
+
   it('refuses item in the when of a forEach node — it is evaluated before the items', async () => {
     const [issue] = await issues(
       doc([
@@ -160,6 +245,22 @@ describe('ITEM_OUT_OF_SCOPE', () => {
 });
 
 describe('ITEM_WITHOUT_FOREACH', () => {
+  it('ignores unreachable reads in a non-iterating template', async () => {
+    expect(
+      await issues(
+        doc([
+          {
+            id: 'main',
+            type: 'transform',
+            input: { value: '{{ true || item }}' },
+            code: 'return input;',
+          },
+        ]),
+        'ITEM_WITHOUT_FOREACH',
+      ),
+    ).toEqual([]);
+  });
+
   it('is an error in a template and a warning in code', async () => {
     const { errors, warnings } = await validate(
       doc([

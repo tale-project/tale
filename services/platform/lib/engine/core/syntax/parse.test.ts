@@ -5,11 +5,53 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { parseBody, parseExpressionIn, RUNTIME_ECMA_VERSION } from './parse';
+import {
+  MAX_PARSE_DEPTH,
+  MAX_SOURCE_SIZE,
+  parseBody,
+  parseExpressionIn,
+  RUNTIME_ECMA_VERSION,
+} from './parse';
 
 const parse = (text: string) => parseExpressionIn(text, 0, text.length);
 
 describe('parseExpressionIn', () => {
+  it('bounds source size and nesting before parsing', () => {
+    expect(parse('x'.repeat(MAX_SOURCE_SIZE + 1))).toMatchObject({
+      ok: false,
+      message: expect.stringContaining('limit'),
+    });
+    expect(
+      parse(
+        '('.repeat(MAX_PARSE_DEPTH + 1) + '1' + ')'.repeat(MAX_PARSE_DEPTH + 1),
+      ),
+    ).toMatchObject({ ok: false, message: expect.stringContaining('limit') });
+  });
+  it('ignores delimiters inside strings and comments', () => {
+    expect(
+      parse(JSON.stringify('('.repeat(MAX_PARSE_DEPTH + 1))),
+    ).toMatchObject({ ok: true });
+    expect(
+      parse('1 /* ' + '('.repeat(MAX_PARSE_DEPTH + 1) + ' */'),
+    ).toMatchObject({ ok: true });
+  });
+
+  it('bounds flat expression trees and transform bodies', () => {
+    expect(parse(Array(80).fill('1').join('+'))).toMatchObject({
+      ok: false,
+      limited: true,
+    });
+    expect(
+      parseBody(
+        'return ' +
+          '('.repeat(MAX_PARSE_DEPTH + 1) +
+          '1' +
+          ')'.repeat(MAX_PARSE_DEPTH + 1) +
+          ';',
+      ),
+    ).toMatchObject({ ok: false, limited: true });
+  });
+
   it.each(['a', '(a)', '((a))', '(a) + (b)', '({ ...nodes })', 'a /* note */'])(
     'accepts %s as exactly one expression',
     (text) => {
