@@ -28,6 +28,11 @@ export interface CronField {
   /** Whether the field was left unrestricted (`*`) — the day-of-month /
    * day-of-week OR rule needs to know. */
   wildcard: boolean;
+  /** Whether the field's text starts with `*`, a bare one or one with a
+   * step — what makes a minute or hour field a wildcard in Vixie cron's
+   * daylight-saving rule, and so the expression a grid
+   * ({@link cronDstClass}). */
+  starred: boolean;
 }
 
 export function parseField(spec: string, min: number, max: number): CronField {
@@ -80,7 +85,7 @@ export function parseField(spec: string, min: number, max: number): CronField {
     for (let value = from; value <= to; value += step) values.add(value);
   }
   if (values.size === 0) throw new Error(`"${spec}" matches nothing`);
-  return { min, max, values, wildcard };
+  return { min, max, values, wildcard, starred: spec.trim().startsWith('*') };
 }
 
 export interface CronSchedule {
@@ -122,4 +127,19 @@ export function parseCron(expression: string): CronSchedule {
     throw new Error(describeImpossibleCronDate(impossible));
   }
   return schedule;
+}
+
+/**
+ * How an expression behaves when the clock changes. `named` — both minute
+ * and hour spelled out (`30 2 * * *`) — names times of day: one that does not
+ * exist that day moves forward by the gap, and one that occurs twice starts
+ * once, at its first instant. `grid` — the minute or the hour starts with `*`
+ * (every 15 minutes, `30 * * * *`) — keeps its pace in real time: it starts at
+ * every instant whose wall clock is on it, so a repeated hour runs twice and
+ * a skipped one not at all. Vixie cron and cronie draw the same line, and a
+ * schedule's repeat rule falls on the same sides (day rules named, minutely
+ * and hourly grids), so converting between the two changes nothing.
+ */
+export function cronDstClass(schedule: CronSchedule): 'grid' | 'named' {
+  return schedule.minute.starred || schedule.hour.starred ? 'grid' : 'named';
 }
