@@ -9,10 +9,17 @@ import {
 import { useCallback, useMemo, useRef } from 'react';
 
 import { runAdapted } from '@/app/lib/backend/adapters';
-import { validateAutomationDraft } from '@/app/lib/backend/automation-validation';
+import {
+  validateAutomationDraft,
+  type DraftCheck,
+  type ValidationDetail,
+} from '@/app/lib/backend/automation-validation';
 import { backendKey } from '@/app/lib/backend/query-keys';
 import type { Automation } from '@/lib/engine/core/types';
-import type { ValidationAnswer } from '@/lib/shared/schemas/automation-issues';
+import type {
+  AnalysisView,
+  TypesView,
+} from '@/lib/shared/schemas/automation-issues';
 import { stableStringify } from '@/lib/shared/utils/stable-stringify';
 
 import { withIssueIds, type AutomationIssue } from '../lib/issues';
@@ -137,12 +144,22 @@ export interface AutomationValidation {
   currentHash: string | null;
   /** Why the last check failed, when it did. */
   failure?: unknown;
+  /** The last result's analysis: why each node can fail, what the result
+   * may leave empty — of the document on screen when `ready`. */
+  analysis: AnalysisView | null;
+  /** The last result's inferred shapes: the run input, each node's output,
+   * the result. */
+  types: TypesView | null;
 }
 
 interface Settled {
   hash: string;
-  answer: ValidationAnswer;
+  answer: DraftCheck;
 }
+
+/** What every check asks for beside the issues: the canvas words why a
+ * node can fail and shows what each node returns. */
+const DETAIL: readonly ValidationDetail[] = ['analysis', 'types'];
 
 const NO_ISSUES: AutomationIssue[] = [];
 
@@ -197,6 +214,7 @@ export function useAutomationValidation({
         runAdapted(() =>
           validateAutomationDraft(organizationId, automationSlug, target, {
             signal: bounded,
+            detail: DETAIL,
           }),
         ),
       ),
@@ -244,5 +262,7 @@ export function useAutomationValidation({
     settledFor: settled?.hash ?? null,
     currentHash,
     ...(status === 'failed' && { failure: query.error }),
+    analysis: settled?.answer.analysis ?? null,
+    types: settled?.answer.types ?? null,
   };
 }

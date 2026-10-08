@@ -111,6 +111,34 @@ describe('useAutomationValidation', () => {
     );
   });
 
+  it('asks for the analysis and the shapes, and keeps them with the result', async () => {
+    const analysis = {
+      nodes: {},
+      paths: { count: 1, truncated: false, halts: [] },
+      output: { reads: [], maybeEmpty: false },
+    };
+    const types = {
+      inputs: {},
+      nodes: { reply: { output: { type: 'string' } } },
+      output: {},
+    };
+    validate.mockResolvedValue({ ...answer(), analysis, types });
+    const { result } = renderValidation({
+      document: doc('Hi'),
+      isDraft: false,
+      enabled: true,
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(validate).toHaveBeenCalledWith(
+      'org-1',
+      'support/triage',
+      doc('Hi'),
+      expect.objectContaining({ detail: ['analysis', 'types'] }),
+    );
+    expect(result.current.analysis).toEqual(analysis);
+    expect(result.current.types).toEqual(types);
+  });
+
   it('waits for a pause in the edits and checks the newest draft only', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     validate.mockResolvedValue(answer());
