@@ -24515,10 +24515,13 @@ async function checkPolicySweeps(
     SELECT count(*)::text AS count FROM app.messages
     WHERE org_id = ${orgId} AND text LIKE '[automated]%'
   `;
-  // Rescheduling re-arms the ladder (updateTask clears the stamps it owns):
-  // the overdue task pushed out to later today is "due soon" again on the
-  // next sweep, and a started task whose start moves is announced again.
-  // And the level-2 nudge speaks every locale the app ships.
+  // Rescheduling re-arms the ladder (updateTask rewrites the stamps it
+  // owns): the overdue task pushed out to later today is "due soon" again on
+  // the next sweep, and a started task whose start moves ahead is unstamped,
+  // to ring on its new day. A start moved to a moment that has already come
+  // is written as announced (TASK-R23): whoever set it is looking at the
+  // task, so the sweep rings nobody. And the level-2 nudge speaks every
+  // locale the app ships.
   const { updateTask } = await import('./domains/tasks/service.ts');
   const sweepAuth = {
     organizationId: orgId,
@@ -24530,7 +24533,13 @@ async function checkPolicySweeps(
     updateTask(tx, sweepAuth, { taskId: overdueId, dueDate: now + 3_600_000 }),
   );
   await transactSerializable(sql, (tx) =>
-    updateTask(tx, sweepAuth, { taskId: startedId, startDate: now - 30_000 }),
+    updateTask(tx, sweepAuth, {
+      taskId: startedId,
+      startDate: now + 86_400_000,
+    }),
+  );
+  await transactSerializable(sql, (tx) =>
+    updateTask(tx, sweepAuth, { taskId: futureId, startDate: now - 30_000 }),
   );
   const third = await enforceTaskDatesForOrg(sql, orgId);
   const rescheduled = await sql<
@@ -24538,7 +24547,7 @@ async function checkPolicySweeps(
   >`
     SELECT id, start_notified_at_ms::float8 AS "startNotified",
            sla_level AS "slaLevel"
-    FROM app.tasks WHERE id IN (${startedId}, ${overdueId})
+    FROM app.tasks WHERE id IN (${startedId}, ${overdueId}, ${futureId})
   `;
   const rescheduledById = new Map(rescheduled.map((row) => [row.id, row]));
   const nudgeMeta = await sql<{ bodyByLocale: unknown }[]>`
@@ -24551,13 +24560,14 @@ async function checkPolicySweeps(
   record(
     'sweeps: a reschedule re-arms the date ladder, and the nudge speaks every locale',
     third.dueSoon === 1 &&
-      third.start === 1 &&
+      third.start === 0 &&
       rescheduledById.get(overdueId)?.slaLevel === 1 &&
-      rescheduledById.get(startedId)?.startNotified !== null &&
+      rescheduledById.get(startedId)?.startNotified === null &&
+      rescheduledById.get(futureId)?.startNotified !== null &&
       typeof nudgeLocales?.en === 'string' &&
       typeof nudgeLocales?.de === 'string' &&
       typeof nudgeLocales?.fr === 'string',
-    `third=${JSON.stringify(third)} (want dueSoon 1, start 1), overdue→slaLevel=${rescheduledById.get(overdueId)?.slaLevel} (want 1), started re-stamped=${rescheduledById.get(startedId)?.startNotified !== null}, nudge locales=${nudgeLocales ? Object.keys(nudgeLocales).sort().join(',') : 'none'} (want de,en,fr)`,
+    `third=${JSON.stringify(third)} (want dueSoon 1, start 0), overdue→slaLevel=${rescheduledById.get(overdueId)?.slaLevel} (want 1), moved-ahead start re-armed=${rescheduledById.get(startedId)?.startNotified === null} (want true), arrived start written announced=${rescheduledById.get(futureId)?.startNotified !== null} (want true), nudge locales=${nudgeLocales ? Object.keys(nudgeLocales).sort().join(',') : 'none'} (want de,en,fr)`,
   );
 
   record(

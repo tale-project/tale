@@ -17,8 +17,6 @@
  * of it (`ChatTaskTray`).
  */
 
-import * as ToastPrimitives from '@radix-ui/react-toast';
-import { Button } from '@tale/ui/button';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { FormSection } from '@tale/ui/form-section';
 import { SearchableSelect } from '@tale/ui/searchable-select';
@@ -33,6 +31,7 @@ import {
   useStandardAgentQuery,
 } from '@/app/features/projects/hooks/queries';
 import { TaskModal } from '@/app/features/tasks/components/task-modal';
+import { toastTaskCreated } from '@/app/features/tasks/lib/task-created-toast';
 import { taskRunErrorMessage } from '@/app/features/tasks/lib/task-run-error';
 import { chatMessagesQuery } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
@@ -43,9 +42,6 @@ import {
   useChatQueryClient,
 } from '../data/chat-backend';
 import { chatTaskDraft } from '../lib/chat-task-draft';
-
-/** Long enough to read the toast and reach its action. */
-const CREATED_TOAST_MS = 10_000;
 
 interface CreateTaskFromChatProps {
   open: boolean;
@@ -234,27 +230,16 @@ export function CreateTaskFromChat({
 
   const announce = (taskId: string, taskProjectId: string) => {
     const project = listed.find((row) => row.id === taskProjectId);
-    toast({
+    toastTaskCreated({
       title: t('createTask.created', { project: project?.name ?? '' }),
-      variant: 'success',
-      duration: CREATED_TOAST_MS,
-      action: (
-        <ToastPrimitives.Action
-          altText={t('createTask.openTaskAltText')}
-          asChild
-          onClick={() =>
-            void navigate({
-              to: '/dashboard/$id/projects/$projectId/tasks/board',
-              params: { id: organizationId, projectId: taskProjectId },
-              search: { task: taskId },
-            })
-          }
-        >
-          <Button type="button" variant="secondary" size="sm">
-            {t('createTask.openTask')}
-          </Button>
-        </ToastPrimitives.Action>
-      ),
+      openLabel: t('createTask.openTask'),
+      openAltText: t('createTask.openTaskAltText'),
+      onOpen: () =>
+        void navigate({
+          to: '/dashboard/$id/projects/$projectId/tasks/board',
+          params: { id: organizationId, projectId: taskProjectId },
+          search: { task: taskId },
+        }),
     });
   };
 

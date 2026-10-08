@@ -9,6 +9,7 @@
     "components/flow-node-issues",
     "components/input",
     "components/issue-list",
+    "components/property-list",
     "components/recurrence-picker",
     "components/schedule-occurrence-list",
     "components/tabs-and-navigation",

@@ -529,10 +529,13 @@ describe('managed instruction adoption and preconditions', () => {
     expect(update.text).not.toMatch(
       /SET status|assignee_id =|reviewer_agent_id =/,
     );
-    expect(update.values.slice(6, 13)).toEqual([
+    // dueChanged ×2, startChanged, the start-bell stamp it would write, the
+    // attachments flag and value, the repeat flag and value.
+    expect(update.values.slice(6, 14)).toEqual([
       false,
       false,
       false,
+      null,
       false,
       null,
       false,
