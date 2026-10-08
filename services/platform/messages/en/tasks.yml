@@ -28,6 +28,10 @@ run:
   missingInput: Add the input files first — this task's Files list is still empty.
   working: '{name} is working on this task.'
   waitingAnswer: '{name} paused with a question — it continues as soon as you answer below.'
+  # A write the run was making when its server stopped may already have
+  # reached its service: a person decides how the run continues.
+  waitingDecision: '{name} waits for a decision on a step that may already have run — choose below how it continues.'
+  waitingDecisionOther: '{name} waits for a decision on a step that may already have run.'
   label: Run
   details: Details
   detailsTitle: '{name} — run details'

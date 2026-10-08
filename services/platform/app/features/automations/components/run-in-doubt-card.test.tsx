@@ -195,7 +195,7 @@ describe('RunInDoubtCard — the write', () => {
 
     expect(
       await screen.findByText(
-        "The run was interrupted while this step was sending to Email. Tale can't tell whether Email received it. Check Email, then choose how to continue.",
+        "The run was interrupted while this step was sending to Email. Tale can't tell whether Email received it. Check Email: if it received it, skip the step; if not, run it again.",
       ),
     ).toBeVisible();
     expect(screen.getByText('The step was sending')).toBeVisible();
@@ -207,8 +207,37 @@ describe('RunInDoubtCard — the write', () => {
     expect(
       screen.getByRole('button', { name: 'Skip it' }),
     ).toHaveAccessibleDescription(
-      'The run continues as if the step returned nothing.',
+      'Skip it: the run continues as if the step returned nothing.',
     );
+  });
+
+  it('is a labelled section with its own heading, and says once that the run waits for a decision', async () => {
+    waitingOn('attempt-a');
+    renderCard();
+
+    const title = 'This step may already have run: send_invoice';
+    expect(
+      await screen.findByRole('heading', { level: 3, name: title }),
+    ).toBeVisible();
+    expect(screen.getByRole('region', { name: title })).toBeInTheDocument();
+    const announced = await screen.findByText(
+      'Waiting for a decision — step send_invoice may already have run',
+    );
+    expect(announced).toHaveAttribute('role', 'status');
+  });
+
+  it('keeps the explanation mounted while the write loads, so the card does not grow', async () => {
+    const answer = deferred();
+    door.read = () => answer.promise;
+    renderCard();
+
+    const masked = screen.getByText(/^The run was interrupted/);
+    expect(masked.closest('[aria-hidden="true"]')).not.toBeNull();
+
+    answer.resolve(answerWith(200, { inDoubt: attemptRow('attempt-a') }));
+    expect(
+      await screen.findByText(/^The run was interrupted .* to Email\./),
+    ).toBeVisible();
   });
 
   it('names the item of a step that runs once per item', async () => {
@@ -245,13 +274,11 @@ describe('RunInDoubtCard — the write', () => {
     expect(screen.queryByText("Couldn't load this step.")).toBeNull();
   });
 
-  it('says the run continues when no write waits any more', async () => {
+  it('says no write waits any more, without promising how the run goes on', async () => {
     renderCard();
 
     expect(
-      await screen.findByText(
-        'This step no longer waits for a decision — the run continues shortly.',
-      ),
+      await screen.findByText('This step no longer waits for a decision.'),
     ).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Skip it' })).toBeNull();
   });
@@ -404,7 +431,7 @@ describe('RunInDoubtCard — the decision', () => {
     expect(attempts).toBe(2);
   });
 
-  it('shows the attempt on record after someone else decided first', async () => {
+  it('says the step no longer waits after someone else decided first', async () => {
     let decidedElsewhere = false;
     door.read = () =>
       answerWith(200, {
@@ -422,10 +449,10 @@ describe('RunInDoubtCard — the decision', () => {
     decidedElsewhere = true;
     await user.click(screen.getByRole('button', { name: 'Skip it' }));
 
+    // Noah may have failed the run: the card claims nothing about what
+    // comes next, the run's own status does.
     expect(
-      await screen.findByText(
-        'This step no longer waits for a decision — the run continues shortly.',
-      ),
+      await screen.findByText('This step no longer waits for a decision.'),
     ).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Skip it' })).toBeNull();
   });
@@ -455,5 +482,33 @@ describe('RunInDoubtCard — the decision', () => {
     ).toBeVisible();
     expect(screen.queryByText('Editor role required')).toBeNull();
     expect(screen.queryByText("Couldn't record your choice.")).toBeNull();
+  });
+
+  it('offers the ways on again when a write run again is interrupted again', async () => {
+    // Mia chose Run it again; the server stopped while the step was sending
+    // a second time, and the run waits on the same write once more.
+    let attempt = 1;
+    door.read = () =>
+      answerWith(200, { inDoubt: attemptRow('attempt-a', { attempt }) });
+    door.decide = () => answerWith(200, { ok: true });
+    const { user, client } = renderCard();
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Run it again' }),
+    );
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Run this step again?',
+    });
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Run it again' }),
+    );
+    expect(await screen.findByText('Running the step again.')).toBeVisible();
+
+    attempt = 2;
+    await client.invalidateQueries();
+    expect(
+      await screen.findByRole('button', { name: 'Skip it' }),
+    ).toBeEnabled();
+    expect(screen.queryByText('Running the step again.')).toBeNull();
   });
 });

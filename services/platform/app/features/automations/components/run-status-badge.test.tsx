@@ -72,3 +72,21 @@ describe('an interrupted run', () => {
     expect(screen.getByText('Waiting')).toBeInTheDocument();
   });
 });
+
+describe('the node a run is on, when nobody is running it', () => {
+  it.each([
+    ['waiting', 'Waiting here', 'lucide-clock'],
+    ['interrupted', 'Interrupted here', 'lucide-refresh-cw'],
+  ] as const)('reads %s in words, with a still icon', (status, word, icon) => {
+    const { container } = render(<RunStatusBadge status={status} />);
+    expect(screen.getByText(word)).toBeInTheDocument();
+    const svg = container.querySelector('svg');
+    expect(svg).toHaveClass(icon);
+    expect(svg).not.toHaveClass('animate-spin');
+  });
+
+  it('keeps the interrupted run badge apart from the orange Live badge beside it', () => {
+    const { container } = render(<RunBadge status="running" stalled />);
+    expect(container.firstElementChild?.className).not.toMatch(/orange/);
+  });
+});

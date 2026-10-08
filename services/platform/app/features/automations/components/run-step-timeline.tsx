@@ -10,7 +10,11 @@ import { useT } from '@/lib/i18n/client';
 import { formatDurationSeconds } from '@/lib/utils/format/duration';
 
 import { humanizeNodeId, type AutomationGraph } from '../lib/graph';
-import type { NodeRunView, RunProjection } from '../lib/run-view';
+import type {
+  CursorNodeStatus,
+  NodeRunView,
+  RunProjection,
+} from '../lib/run-view';
 import { AgentActivityLine, AgentExecutionLog } from './agent-execution-log';
 import { NodeStatusIcon } from './run-status-badge';
 import { RunStepDetail } from './run-step-detail';
@@ -158,6 +162,7 @@ export function RunStepTimeline({
   graph,
   projection,
   currentNodeId,
+  currentStatus = 'running',
   waitingForRoom = false,
   organizationId,
   runId,
@@ -166,6 +171,9 @@ export function RunStepTimeline({
   projection: RunProjection;
   /** The node a live run is parked on — from the stepper's cursor. */
   currentNodeId: string | null;
+  /** What that node reads as: worked on, waiting for a person, or left by a
+   * server that stopped ({@link cursorNodeStatus}). */
+  currentStatus?: CursorNodeStatus;
   /** The run is parked on its current agent step's start, waiting for
    * sandbox room (`waitingFor: room`). */
   waitingForRoom?: boolean;
@@ -211,10 +219,10 @@ export function RunStepTimeline({
         // The step in flight has no checkpoint yet — nothing has been
         // recorded about it, which is exactly why "not reached" would be the
         // wrong thing to say. Its view is synthesised so the reader can still
-        // unfold WHICH step is running and, for an `agent` step, its
+        // unfold WHICH step the run is on and, for an `agent` step, its
         // transcript.
         const view: NodeRunView = projection.byNode.get(node.id) ?? {
-          status: 'running',
+          status: currentStatus,
           effects: [],
           type: node.type,
         };

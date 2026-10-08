@@ -785,6 +785,9 @@ describe('RunDetail a run handed to another server [AUTO-R18]', () => {
     renderRun();
     expect(screen.getByText('Interrupted — resuming')).toBeVisible();
     expect(screen.queryByText('Running')).toBeNull();
+    // Not "Resumed" yet: the badge says where the run stands until a server
+    // has it again.
+    expect(screen.queryByText(/Resumed after/)).toBeNull();
   });
 });
 
@@ -804,14 +807,21 @@ describe('RunDetail a write that may already have happened', () => {
     expect(screen.getByRole('button', { name: 'Run it again' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Skip it' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Fail the run' })).toBeVisible();
-    expect(screen.queryByText(/^Needs you/)).toBeNull();
+    // The card replaces the waiting line; only its polite announcement
+    // says it, once.
+    expect(
+      screen
+        .getAllByText(/^Waiting for a decision/)
+        .map((node) => node.getAttribute('role')),
+    ).toEqual(['status']);
     expect(screen.queryByText('in_doubt:send')).toBeNull();
   });
 
   it('shows no card once the run is no longer parked on it', () => {
     state.status = 'failed';
     state.finishedAt = 1789363170729;
-    state.detail = 'send was failed by a person: the step may already have run';
+    state.detail =
+      'send: a person chose to fail the run here, since the step may already have run';
     state.waitingFor = undefined;
     renderRun();
     expect(screen.queryByRole('button', { name: 'Run it again' })).toBeNull();

@@ -367,14 +367,14 @@ runs:
   # eine Person, wie es weitergeht.
   inDoubt:
     title: 'Dieser Schritt ist vielleicht schon gelaufen: {node}'
-    body: '{item, select, none {Der Lauf wurde unterbrochen, während dieser Schritt an {connector} gesendet hat.} other {Der Lauf wurde unterbrochen, während dieser Schritt Element {item} an {connector} gesendet hat.}} Tale kann nicht erkennen, ob {connector} es erhalten hat. Prüfe es in {connector} und wähle dann, wie es weitergeht.'
+    body: '{item, select, none {Der Lauf wurde unterbrochen, während dieser Schritt an {connector} gesendet hat.} other {Der Lauf wurde unterbrochen, während dieser Schritt Element {item} an {connector} gesendet hat.}} Tale kann nicht erkennen, ob {connector} es erhalten hat. Prüfe in {connector}, ob es angekommen ist: Wenn ja, überspring den Schritt, sonst führ ihn erneut aus.'
     input: Der Schritt hat gesendet
     retry: Erneut ausführen
     retryConfirm:
       title: Diesen Schritt erneut ausführen?
       body: 'Falls {connector} es schon erhalten hat, passiert es zweimal.'
     skip: Überspringen
-    skipHint: Der Lauf macht weiter, als hätte der Schritt nichts zurückgegeben.
+    skipHint: 'Überspringen: Der Lauf macht weiter, als hätte der Schritt nichts zurückgegeben.'
     fail: Lauf fehlschlagen lassen
     failConfirm:
       title: Diesen Lauf fehlschlagen lassen?
@@ -383,7 +383,7 @@ runs:
       retry: Der Schritt wird erneut ausgeführt.
       skip: Übersprungen — der Lauf macht weiter.
       fail: Der Lauf ist fehlgeschlagen.
-    settled: Dieser Schritt wartet nicht mehr auf eine Entscheidung — der Lauf geht gleich weiter.
+    settled: Dieser Schritt wartet nicht mehr auf eine Entscheidung.
     loading: Schritt wird geladen…
     loadFailed: Dieser Schritt konnte nicht geladen werden.
     reload: Erneut versuchen
@@ -428,7 +428,7 @@ runs:
     agent: Agent arbeitet
     room: Wartet auf einen Sandbox-Platz
     repeat: 'Pollt — Schritt {node}'
-    in_doubt: 'Braucht dich — Schritt {node} ist vielleicht schon gelaufen'
+    in_doubt: 'Wartet auf eine Entscheidung — Schritt {node} ist vielleicht schon gelaufen'
   startedAt: 'Gestartet {date}'
   finishedAt: 'Beendet {date}'
   inputTitle: Eingabe des Laufs
@@ -458,6 +458,8 @@ runs:
     pending: Noch nicht erreicht
     running: Läuft gerade
     stopped: Hier gestoppt
+    waiting: Wartet hier
+    interrupted: Hier unterbrochen
   effects:
     title: '{count, plural, one {# Auswirkung} other {# Auswirkungen}}'
     description:

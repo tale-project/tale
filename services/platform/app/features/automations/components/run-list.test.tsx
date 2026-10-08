@@ -225,7 +225,9 @@ describe('RunList interruptions', () => {
       }),
     ]);
     expect(
-      screen.getByText('Needs you — step send_invoice may already have run'),
+      screen.getByText(
+        'Waiting for a decision — step send_invoice may already have run',
+      ),
     ).toBeVisible();
     expect(screen.queryByText(/in_doubt:/)).toBeNull();
   });

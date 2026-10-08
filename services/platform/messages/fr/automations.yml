@@ -368,14 +368,14 @@ runs:
   # de la suite.
   inDoubt:
     title: 'Cette étape a peut-être déjà été exécutée : {node}'
-    body: '{item, select, none {L’exécution a été interrompue pendant que cette étape envoyait des données à {connector}.} other {L’exécution a été interrompue pendant que cette étape envoyait l’élément {item} à {connector}.}} Tale ne peut pas savoir si {connector} a reçu cet envoi. Vérifie dans {connector}, puis choisis comment continuer.'
+    body: '{item, select, none {L’exécution a été interrompue pendant que cette étape envoyait des données à {connector}.} other {L’exécution a été interrompue pendant que cette étape envoyait l’élément {item} à {connector}.}} Tale ne peut pas savoir si {connector} a reçu cet envoi. Vérifie dans {connector} : s’il l’a reçu, ignore l’étape ; sinon, relance-la.'
     input: Ce que l’étape envoyait
     retry: Relancer l’étape
     retryConfirm:
       title: Relancer cette étape ?
       body: 'Si {connector} l’a déjà reçu, l’action aura lieu deux fois.'
     skip: Ignorer l’étape
-    skipHint: L’exécution continue comme si l’étape n’avait rien renvoyé.
+    skipHint: 'Ignorer l’étape : l’exécution continue comme si l’étape n’avait rien renvoyé.'
     fail: Faire échouer l’exécution
     failConfirm:
       title: Faire échouer cette exécution ?
@@ -384,7 +384,7 @@ runs:
       retry: L’étape va être relancée.
       skip: Étape ignorée — l’exécution continue.
       fail: L’exécution a échoué.
-    settled: Cette étape n’attend plus de décision — l’exécution reprend dans un instant.
+    settled: Cette étape n’attend plus de décision.
     loading: Chargement de l’étape…
     loadFailed: Impossible de charger cette étape.
     reload: Réessayer
@@ -429,7 +429,7 @@ runs:
     agent: Agent au travail
     room: En attente d’une place de sandbox
     repeat: 'Interrogation — étape {node}'
-    in_doubt: 'À toi de décider — l’étape {node} a peut-être déjà été exécutée'
+    in_doubt: 'En attente d’une décision — l’étape {node} a peut-être déjà été exécutée'
   startedAt: 'Lancée {date}'
   finishedAt: 'Terminée {date}'
   inputTitle: Entrée de l’exécution
@@ -460,6 +460,8 @@ runs:
     pending: Pas encore atteint
     running: En cours
     stopped: Arrêté ici
+    waiting: En attente ici
+    interrupted: Interrompu ici
   effects:
     title: '{count, plural, one {# effet} other {# effets}}'
     description:

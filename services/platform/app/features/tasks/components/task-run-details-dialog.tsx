@@ -18,6 +18,7 @@ import { useCanUseAutomations } from '@/app/features/automations/hooks/use-can-u
 import { readDocument } from '@/app/features/automations/lib/document';
 import { buildGraph } from '@/app/features/automations/lib/graph';
 import {
+  cursorNodeStatus,
   projectRun,
   readRunCursorNode,
 } from '@/app/features/automations/lib/run-view';
@@ -150,6 +151,7 @@ function TaskRunTimeline({
         graph={graph}
         projection={projection}
         currentNodeId={currentNodeId}
+        currentStatus={cursorNodeStatus(run)}
         waitingForRoom={run.waitingFor === 'room'}
         organizationId={organizationId}
         runId={runId}

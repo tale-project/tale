@@ -36,6 +36,7 @@ import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
 import { issueImportResultSchema, issueSource } from '../lib/issue-import';
 import {
+  cursorNodeStatus,
   isRunFinished,
   nodeStatusMap,
   projectRun,
@@ -188,6 +189,7 @@ function RunDetailBody({
         projection,
         graph.nodes.map((node) => node.id),
         readRunCursorNode(run),
+        cursorNodeStatus(run),
       ),
     [graph.nodes, projection, run],
   );
@@ -272,23 +274,6 @@ function RunDetailBody({
             </Text>
           );
         })()}
-        {/* A run another server took over, or a stopping one handed on:
-            how often, and the last time when and why — the platform's
-            recovery, told apart from anything the reader did. */}
-        {typeof run.resumeCount === 'number' && run.resumeCount > 0 && (
-          <Text as="span" variant="muted" className="text-xs">
-            {[
-              t('runs.resumed.label', { count: run.resumeCount }),
-              run.lastResume === undefined
-                ? null
-                : t(`runs.resumed.${run.lastResume.reason}`, {
-                    date: formatDate(new Date(run.lastResume.at), 'long'),
-                  }),
-            ]
-              .filter((part) => part !== null)
-              .join(' · ')}
-          </Text>
-        )}
         <Badge variant={run.mode === 'live' ? 'orange' : 'slate'}>
           {t(`runs.mode.${run.mode === 'live' ? 'live' : 'mock'}`)}
         </Badge>
@@ -323,6 +308,27 @@ function RunDetailBody({
             {t('runs.cancel')}
           </Button>
         )}
+        {/* A run another server took over, or a stopping one handed on:
+            how often, and the last time when and why — the platform's
+            recovery, told apart from anything the reader did. On a row of
+            its own under the run's identity, and only once a server has it
+            again: until then the Interrupted badge says where it stands. */}
+        {typeof run.resumeCount === 'number' &&
+          run.resumeCount > 0 &&
+          run.stalled !== true && (
+            <Text as="p" variant="muted" className="basis-full text-xs">
+              {[
+                t('runs.resumed.label', { count: run.resumeCount }),
+                run.lastResume === undefined
+                  ? null
+                  : t(`runs.resumed.${run.lastResume.reason}`, {
+                      date: formatDate(new Date(run.lastResume.at), 'long'),
+                    }),
+              ]
+                .filter((part) => part !== null)
+                .join(' · ')}
+            </Text>
+          )}
       </div>
 
       {/* A stop is irreversible and withdraws whatever the run waits on (an

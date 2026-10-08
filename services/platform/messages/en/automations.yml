@@ -356,14 +356,14 @@ runs:
   # interrupted: Tale cannot tell, so a person decides how to continue.
   inDoubt:
     title: 'This step may already have run: {node}'
-    body: "{item, select, none {The run was interrupted while this step was sending to {connector}.} other {The run was interrupted while this step was sending item {item} to {connector}.}} Tale can't tell whether {connector} received it. Check {connector}, then choose how to continue."
+    body: "{item, select, none {The run was interrupted while this step was sending to {connector}.} other {The run was interrupted while this step was sending item {item} to {connector}.}} Tale can't tell whether {connector} received it. Check {connector}: if it received it, skip the step; if not, run it again."
     input: The step was sending
     retry: Run it again
     retryConfirm:
       title: Run this step again?
       body: 'If {connector} already received it, it happens twice.'
     skip: Skip it
-    skipHint: The run continues as if the step returned nothing.
+    skipHint: 'Skip it: the run continues as if the step returned nothing.'
     fail: Fail the run
     failConfirm:
       title: Fail this run?
@@ -372,7 +372,7 @@ runs:
       retry: Running the step again.
       skip: Skipped — the run continues.
       fail: The run was failed.
-    settled: This step no longer waits for a decision — the run continues shortly.
+    settled: This step no longer waits for a decision.
     loading: Loading the step…
     loadFailed: "Couldn't load this step."
     reload: Try again
@@ -416,7 +416,7 @@ runs:
     agent: Agent working
     room: Waiting for a sandbox slot
     repeat: 'Polling — step {node}'
-    in_doubt: 'Needs you — step {node} may already have run'
+    in_doubt: 'Waiting for a decision — step {node} may already have run'
   startedAt: 'Started {date}'
   finishedAt: 'Finished {date}'
   inputTitle: Run input
@@ -445,6 +445,11 @@ runs:
     pending: Not reached yet
     running: Running now
     stopped: Stopped here
+    # The node a parked run waits on a person at.
+    waiting: Waiting here
+    # The node a run was on when its server stopped, before another one
+    # takes it over.
+    interrupted: Interrupted here
   effects:
     title: '{count, plural, one {# effect} other {# effects}}'
     description:

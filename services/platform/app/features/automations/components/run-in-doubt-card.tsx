@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { JsonViewer } from '@tale/ui/json-viewer';
 import { SkeletonBox } from '@tale/ui/skeleton';
@@ -9,7 +10,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useFocusHandoff } from '@tale/ui/use-focus-handoff';
 import { useRetryFocus } from '@tale/ui/use-retry-focus';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, TriangleAlert } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
@@ -22,16 +23,35 @@ import { useT } from '@/lib/i18n/client';
 import { useResolveRunInDoubt } from '../hooks/mutations';
 import { useRunInDoubt } from '../hooks/queries';
 
-/** A decision this card recorded, for the attempt it was about. */
-interface Recorded {
+/** The step a run waiting on a write that may already have happened names
+ * in its `in_doubt:<node>` detail, or nothing for any other detail. */
+export function inDoubtNodeFromDetail(
+  detail: string | null | undefined,
+): string | undefined {
+  if (typeof detail !== 'string') return undefined;
+  return /^in_doubt:(.+)$/.exec(detail)?.[1];
+}
+
+/** Which attempt a decision was about: its row and its number. A write run
+ * again keeps its row and takes the next number, so a second interruption of
+ * it is a new decision. */
+interface AttemptRef {
   attemptId: string;
+  attempt: number;
+}
+
+/** A decision this card recorded, for the attempt it was about. */
+interface Recorded extends AttemptRef {
   resolution: InDoubtResolution;
 }
 
 /** A decision the door refused, for the attempt it was about. */
-interface Refusal {
-  attemptId: string;
+interface Refusal extends AttemptRef {
   detail: string | undefined;
+}
+
+function sameAttempt(a: AttemptRef, b: AttemptRef): boolean {
+  return a.attemptId === b.attemptId && a.attempt === b.attempt;
 }
 
 /** The decisions that ask before they go. */
@@ -47,9 +67,12 @@ type Confirmable = Exclude<InDoubtResolution, 'skip'>;
  *
  * Everything the card shows belongs to ONE attempt: a refusal or a recorded
  * decision is kept with the attempt it was about, so a later write the run
- * parks on never shows the previous one's outcome. Loading, failed and
- * pending share one mounted frame, so the card holds its place as the read
- * resolves. Once a decision is recorded the actions go and focus moves to
+ * parks on — or the same write interrupted again after **Run it again** —
+ * never shows the previous one's outcome. Loading, failed and pending share
+ * one mounted frame, so the card holds its place as the read resolves. It is
+ * a labelled section with its own heading, carries the accent of a move that
+ * is the reader's, and says once, politely, that the run waits for a
+ * decision. Once a decision is recorded the actions go and focus moves to
  * the sentence saying what happens next; when the run moves on and the card
  * leaves the page with focus inside it, `onFocusLost` takes the focus.
  */
@@ -76,8 +99,15 @@ export function RunInDoubtCard({
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const [confirming, setConfirming] = useState<Confirmable | null>(null);
   const skipHintId = useId();
-  const handoffRef = useFocusHandoff<HTMLDivElement>(onFocusLost);
+  const titleId = useId();
+  const handoffRef = useFocusHandoff<HTMLElement>(onFocusLost);
   const resolvedRef = useRef<HTMLDivElement>(null);
+  // Said once, after the card is on the page: a live region that already
+  // holds its words when it appears is not read out.
+  const [announcement, setAnnouncement] = useState('');
+  useEffect(() => {
+    setAnnouncement(t('runs.waiting.in_doubt', { node }));
+  }, [t, node]);
 
   const attempt = inDoubtQuery.data ?? null;
   const loading = inDoubtQuery.data === undefined && !inDoubtQuery.isError;
@@ -90,11 +120,10 @@ export function RunInDoubtCard({
         : 'loading',
     runId,
   );
-  // A decision recorded here stands until the run parks on another write:
-  // the read then answers that attempt, never this one again.
+  // A decision recorded here stands until the run parks on another write,
+  // or on this one again: the read then answers that attempt.
   const decided =
-    recorded !== null &&
-    (attempt === null || attempt.attemptId === recorded.attemptId)
+    recorded !== null && (attempt === null || sameAttempt(attempt, recorded))
       ? recorded
       : null;
 
@@ -116,7 +145,7 @@ export function RunInDoubtCard({
       ? String(attempt.itemIndex + 1)
       : 'none';
   const shownRefusal =
-    attempt !== null && refusal?.attemptId === attempt.attemptId
+    attempt !== null && refusal !== null && sameAttempt(attempt, refusal)
       ? refusal
       : null;
   const busy = loading || resolve.isPending;
@@ -133,12 +162,17 @@ export function RunInDoubtCard({
       .then(
         () => {
           setConfirming(null);
-          setRecorded({ attemptId: about.attemptId, resolution: decision });
+          setRecorded({
+            attemptId: about.attemptId,
+            attempt: about.attempt,
+            resolution: decision,
+          });
         },
         (error: unknown) => {
           setConfirming(null);
           setRefusal({
             attemptId: about.attemptId,
+            attempt: about.attempt,
             detail: failureDetail(error),
           });
           // The attempt's own record decides what the card shows next:
@@ -175,101 +209,121 @@ export function RunInDoubtCard({
   } else {
     body = (
       <Skeletonize loading={loading} label={t('runs.inDoubt.loading')}>
-        <div
+        <Card
+          asChild
           ref={handoffRef}
-          className="border-border bg-card flex flex-col gap-3 rounded-lg border p-4"
+          padding="md"
+          className="border-primary/40 bg-primary/[0.03] flex flex-col gap-3"
         >
-          <div className="flex min-w-0 flex-col gap-1">
-            <Text as="p" className="text-sm font-medium">
-              {t('runs.inDoubt.title', { node: attempt?.nodeId ?? node })}
-            </Text>
-            {attempt !== null && (
-              <Text as="p" variant="muted" className="text-xs">
-                {t('runs.inDoubt.body', { item, connector })}
-              </Text>
-            )}
-          </div>
-          {unreadable ? (
-            <div ref={retryFocus.ref}>
-              <Alert
-                variant="destructive"
-                title={t('runs.inDoubt.loadFailed')}
-                description={failureDetail(inDoubtQuery.error)}
-              >
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={RefreshCw}
-                  className="mt-3"
-                  isLoading={inDoubtQuery.isFetching}
-                  onClick={() => {
-                    retryFocus.arm();
-                    void inDoubtQuery.refetch();
-                  }}
-                >
-                  {t('runs.inDoubt.reload')}
-                </Button>
-              </Alert>
+          <section aria-labelledby={titleId}>
+            <div className="flex items-start gap-2">
+              <TriangleAlert
+                className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-500"
+                aria-hidden
+              />
+              <div className="flex min-w-0 flex-col gap-1">
+                <Text as="h3" id={titleId} className="text-sm font-medium">
+                  {t('runs.inDoubt.title', { node: attempt?.nodeId ?? node })}
+                </Text>
+                {/* Mounted while the write loads, masked over a stand-in of
+                    the same length, so the card does not grow as it lands. */}
+                {!unreadable && (
+                  <SkeletonBox fullWidth>
+                    <Text as="p" variant="muted" className="text-xs">
+                      {t('runs.inDoubt.body', {
+                        item,
+                        connector: attempt?.connector ?? node,
+                      })}
+                    </Text>
+                  </SkeletonBox>
+                )}
+              </div>
             </div>
-          ) : (
-            <>
-              <InDoubtInput input={attempt?.input ?? LOADING_INPUT} />
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap gap-2">
+            {unreadable ? (
+              <div ref={retryFocus.ref}>
+                <Alert
+                  variant="destructive"
+                  title={t('runs.inDoubt.loadFailed')}
+                  description={failureDetail(inDoubtQuery.error)}
+                >
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled={busy}
-                    onClick={() => setConfirming('retry')}
-                  >
-                    {t('runs.inDoubt.retry')}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={busy}
-                    isLoading={resolve.isPending && confirming === null}
-                    aria-describedby={skipHintId}
+                    icon={RefreshCw}
+                    className="mt-3"
+                    isLoading={inDoubtQuery.isFetching}
                     onClick={() => {
-                      if (attempt !== null) decide('skip', attempt);
+                      retryFocus.arm();
+                      void inDoubtQuery.refetch();
                     }}
                   >
-                    {t('runs.inDoubt.skip')}
+                    {t('runs.inDoubt.reload')}
                   </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => setConfirming('fail')}
-                  >
-                    {t('runs.inDoubt.fail')}
-                  </Button>
-                </div>
-                <Text
-                  as="p"
-                  id={skipHintId}
-                  variant="muted"
-                  className="text-xs"
-                >
-                  {t('runs.inDoubt.skipHint')}
-                </Text>
+                </Alert>
               </div>
-            </>
-          )}
-          {shownRefusal !== null && (
-            <Alert
-              variant="destructive"
-              title={t('runs.inDoubt.decideFailed')}
-              description={shownRefusal.detail}
-            />
-          )}
-        </div>
+            ) : (
+              <>
+                <InDoubtInput input={attempt?.input ?? LOADING_INPUT} />
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => setConfirming('retry')}
+                    >
+                      {t('runs.inDoubt.retry')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={busy}
+                      isLoading={resolve.isPending && confirming === null}
+                      aria-describedby={skipHintId}
+                      onClick={() => {
+                        if (attempt !== null) decide('skip', attempt);
+                      }}
+                    >
+                      {t('runs.inDoubt.skip')}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => setConfirming('fail')}
+                    >
+                      {t('runs.inDoubt.fail')}
+                    </Button>
+                  </div>
+                  <Text
+                    as="p"
+                    id={skipHintId}
+                    variant="muted"
+                    className="text-xs"
+                  >
+                    {t('runs.inDoubt.skipHint')}
+                  </Text>
+                </div>
+              </>
+            )}
+            {shownRefusal !== null && (
+              <Alert
+                variant="destructive"
+                title={t('runs.inDoubt.decideFailed')}
+                description={shownRefusal.detail}
+              />
+            )}
+          </section>
+        </Card>
       </Skeletonize>
     );
   }
 
   return (
     <>
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
       {body}
       {/* Running it again may make it happen twice, and failing the run is
           final: both ask first. The dialog stays open while the choice is
