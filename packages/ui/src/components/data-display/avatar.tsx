@@ -35,14 +35,15 @@ export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg';
  */
 export type AvatarTone = 'auto' | 'neutral' | 'primary' | 'strong';
 
-/** Theme-safe tints, each with its dark-mode pair. */
+/** Theme-safe tints, each with its dark-mode pair. The light text is the 800
+ * step: at 10px initials the 700 step fell under 4.5:1 over its own tint. */
 const PERSON_TONES = [
-  'bg-blue-500/15 text-blue-700 dark:text-blue-300',
-  'bg-violet-500/15 text-violet-700 dark:text-violet-300',
-  'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  'bg-rose-500/15 text-rose-700 dark:text-rose-300',
-  'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300',
+  'bg-blue-500/15 text-blue-800 dark:text-blue-300',
+  'bg-violet-500/15 text-violet-800 dark:text-violet-300',
+  'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  'bg-rose-500/15 text-rose-800 dark:text-rose-300',
+  'bg-cyan-500/15 text-cyan-800 dark:text-cyan-300',
 ] as const;
 
 const TONES: Record<Exclude<AvatarTone, 'auto'>, string> = {
@@ -108,6 +109,9 @@ export function getInitials(name: string): string {
   return `${letter(first)}${last === undefined ? '' : letter(last)}`.toUpperCase();
 }
 
+/** Initial pairs too wide for a 20px circle at 10px semibold (Inter). */
+const XS_WIDE_PAIRS: ReadonlySet<string> = new Set(['WW', 'MW', 'WM']);
+
 function hashTone(name: string): string {
   let hash = 0;
   for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) | 0;
@@ -155,6 +159,12 @@ export function Avatar({
   const onImageError = useCallback(() => setFailedSrc(src ?? null), [src]);
   const initials =
     kind === 'person' && name !== undefined ? getInitials(name) : '';
+  // At 20px two 10px capitals overflow the circle only for the widest pairs;
+  // those show their first letter.
+  const shownInitials =
+    size === 'xs' && XS_WIDE_PAIRS.has(initials)
+      ? initials.slice(0, 1)
+      : initials;
   const resolvedTone = tone ?? DEFAULT_TONE[kind];
   const surface =
     kind === 'unassigned'
@@ -185,7 +195,7 @@ export function Avatar({
           className="size-full object-cover"
         />
       ) : initials.length > 0 ? (
-        <span aria-hidden="true">{initials}</span>
+        <span aria-hidden="true">{shownInitials}</span>
       ) : (
         <Icon aria-hidden="true" className={ICON_SIZES[size]} />
       )}

@@ -11,5 +11,9 @@ export function ContactInitials({
   /** 20px (`sm`) or 32px (`lg`). */
   size?: 'sm' | 'lg';
 }) {
-  return <Avatar name={label} size={size === 'lg' ? 'lg' : 'xs'} />;
+  // A block, not inline: the Home row's glyph slot holds it level with the
+  // selection checkbox that takes its place.
+  return (
+    <Avatar name={label} size={size === 'lg' ? 'lg' : 'xs'} className="flex" />
+  );
 }
