@@ -48,6 +48,12 @@ vi.mock('../hooks/queries', () => ({
     data: { deployedVersion: automation.deployedVersion },
     isPending: false,
   }),
+  // The deployed version's document the trigger's input is checked against.
+  useDeployedAutomation: () => ({
+    data: { document: { name: 'gmail-triage-inbox', nodes: [] } },
+    isPending: false,
+  }),
+  useAutomationRun: () => ({ data: undefined, isPending: false }),
 }));
 
 vi.mock('../hooks/mutations', () => ({
@@ -60,6 +66,7 @@ vi.mock('../hooks/mutations', () => ({
     mutateAsync: setProjects,
     isPending: false,
   }),
+  useStartAutomationRun: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/app/features/projects/hooks/queries', () => ({

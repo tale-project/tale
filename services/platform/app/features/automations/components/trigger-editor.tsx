@@ -12,17 +12,15 @@ import {
 import { InlineCode } from '@tale/ui/inline-code';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
-import { Link } from '@tanstack/react-router';
 import { KeyRound, Plus, Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useProjects } from '@/app/features/projects/hooks/queries';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
-import { PERMANENT_FAILURES_BEFORE_PAUSE } from '@/backend/core/automations/failure';
-import { automationSlugToParam } from '@/lib/automations/slug';
+import type { Issue } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import { localTimeZone } from '@/lib/shared/zoned-time';
 
@@ -30,21 +28,42 @@ import {
   useDeleteAutomationTrigger,
   useSetAutomationTrigger,
 } from '../hooks/mutations';
-import { useAutomationTriggers } from '../hooks/queries';
+import {
+  useAutomationProjects,
+  useAutomationTriggers,
+  useDeployedAutomation,
+} from '../hooks/queries';
 import { useTriggerDraft } from '../hooks/use-trigger-draft';
+import { useTriggerInputCheck } from '../hooks/use-trigger-input-check';
 import { TRIGGER_DIRTY_KEY } from '../lib/dirty-keys';
+import { readDocument } from '../lib/document';
 import { automationErrorMessage } from '../lib/errors';
+import { AUTOMATION_PROJECTS_FIELD_ID } from '../lib/field-ids';
 import {
   sameAsStored,
   toTriggerBody,
   triggerDraftIssue,
 } from '../lib/trigger-draft';
 import { triggerRefusalText } from '../lib/trigger-issue-text';
+import {
+  TriggerFixedInput,
+  type TriggerFixedInputHandle,
+} from './trigger-fixed-input';
 import { TriggerForm } from './trigger-form';
+import { TriggerHealth } from './trigger-health';
+import { TriggerInputPreview } from './trigger-input-preview';
+import type { TriggerPlace } from './trigger-links';
+import { TriggerRunNow } from './trigger-run-now';
 
-type StoredTrigger = NonNullable<
-  ReturnType<typeof useAutomationTriggers>['data']
->[number];
+const NO_WARNINGS: readonly Issue[] = [];
+
+/** Move focus to the control with `id`, when it is on the page. */
+function focusField(id: string): void {
+  const field = document.getElementById(id);
+  if (field === null) return;
+  field.scrollIntoView({ block: 'nearest' });
+  field.focus();
+}
 
 const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
 /** What the General tab's strip lights its unsaved dot for. */
@@ -93,7 +112,6 @@ export function TriggerEditor({
   const { t: tRecurrence } = useT('recurrence');
   const { i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en';
-  const { formatDate } = useFormatDate();
   // The public webhook endpoint. External callers POST here; the token is the
   // last path segment and is shown only once (stored as a hash), so a revisit
   // shows a `<token>` placeholder and points to Rotate. The origin the operator
@@ -110,6 +128,37 @@ export function TriggerEditor({
   const deleteTrigger = useDeleteAutomationTrigger();
 
   const stored = triggersQuery.data?.[0];
+  // What the trigger is checked against: the deployed version's inputs.
+  const deployedQuery = useDeployedAutomation(
+    organizationId,
+    name,
+    deployedVersion,
+  );
+  const inputsSchema = useMemo(
+    () => readDocument(deployedQuery.data?.document)?.inputs,
+    [deployedQuery.data?.document],
+  );
+  // The projects the automation is installed in, by name: where a run it
+  // starts acts.
+  const boundQuery = useAutomationProjects(organizationId, name);
+  const { projects } = useProjects(organizationId);
+  const boundProjects = useMemo(() => {
+    const ids = new Set((boundQuery.data ?? []).map(String));
+    return projects.filter((project) => ids.has(project._id));
+  }, [boundQuery.data, projects]);
+  const place: TriggerPlace = { organizationId, projectId, name };
+  // A trigger names no project: a sole installation is where its runs act,
+  // and otherwise they act organization-wide.
+  const [soleProject] = boundProjects.length === 1 ? boundProjects : [];
+  const runScopeText =
+    soleProject === undefined
+      ? t('detail.runScope.confirmOrgWide')
+      : t('detail.runScope.confirmProject', { project: soleProject.name });
+  const scheduleFieldId = useId();
+  const fixedInputRef = useRef<TriggerFixedInputHandle>(null);
+  // What the last save answered about the input the trigger sends.
+  const [saveWarnings, setSaveWarnings] =
+    useState<readonly Issue[]>(NO_WARNINGS);
 
   const [refusal, setRefusal] = useState<string | null>(null);
   const [mintedToken, setMintedToken] = useState<string | null>(null);
@@ -138,6 +187,14 @@ export function TriggerEditor({
   // dirty when saving it would send something other than what is stored.
   const dirty = stored === undefined ? adding : !sameAsStored(draft, stored);
   const issue = triggerDraftIssue(draft);
+  const inputCheck = useTriggerInputCheck({
+    draft,
+    stored: stored ?? null,
+    inputsSchema,
+    deployed: deployedVersion !== undefined && deployedQuery.data != null,
+    clean: !dirty,
+    saveWarnings,
+  });
 
   /** Write the draft as the binding; a webhook's fresh token is shown once. */
   const persistTrigger = (rotateToken?: boolean): Promise<void> => {
@@ -150,6 +207,7 @@ export function TriggerEditor({
         trigger: toTriggerBody(sent, storedRef.current ?? null),
         ...(rotateToken === true && { rotateToken: true }),
       });
+      setSaveWarnings(result.warnings ?? NO_WARNINGS);
       if (result.token !== undefined) setMintedToken(result.token);
       // The server names the live URL this bind stopped answering on — say
       // so, since nothing on the page shows the old URL any more.
@@ -272,20 +330,21 @@ export function TriggerEditor({
             ),
           })}
       >
-        {stored?.lastFiredAt != null && (
-          <Text as="p" variant="muted" className="text-xs">
-            {t('trigger.lastFired', {
-              at: formatDate(new Date(stored.lastFiredAt), 'long'),
-            })}
-          </Text>
-        )}
-
         {stored !== undefined && (
-          <TriggerFailureNotice
-            organizationId={organizationId}
-            projectId={projectId}
-            name={name}
+          <TriggerHealth
+            place={place}
             trigger={stored}
+            actions={{
+              editSchedule: () => focusField(scheduleFieldId),
+              editProjects: () => focusField(AUTOMATION_PROJECTS_FIELD_ID),
+              ...(canEdit &&
+                inputCheck.missing.length > 0 && {
+                  fillMissing: {
+                    count: inputCheck.missing.length,
+                    run: () => fixedInputRef.current?.fillMissing(),
+                  },
+                }),
+            }}
           />
         )}
 
@@ -364,6 +423,37 @@ export function TriggerEditor({
                 nextRunAt: stored?.nextRunAt ?? null,
               }}
               onChange={update}
+              scheduleFieldId={scheduleFieldId}
+              after={
+                <>
+                  <TriggerFixedInput
+                    ref={fixedInputRef}
+                    value={draft.input}
+                    onChange={(input) => update({ input })}
+                    canEdit={canEdit}
+                    missing={inputCheck.missing}
+                  />
+                  <TriggerInputPreview
+                    surface="panel"
+                    kind={draft.kind}
+                    check={inputCheck}
+                    version={deployedVersion}
+                    place={place}
+                    {...(canEdit && {
+                      action: (
+                        <TriggerRunNow
+                          place={place}
+                          stored={stored ?? null}
+                          deployedVersion={deployedVersion}
+                          inputsSchema={inputsSchema}
+                          dirty={dirty}
+                          scopeText={runScopeText}
+                        />
+                      ),
+                    })}
+                  />
+                </>
+              }
               webhookDetails={
                 <div className="flex flex-col gap-1">
                   <Text
@@ -471,105 +561,5 @@ export function TriggerEditor({
         />
       </SettingsSection>
     </Skeletonize>
-  );
-}
-
-/**
- * What the binding's failure streak says (`trigger-failures.ts`): a schedule
- * its failures paused — a standing banner until someone saves the trigger —
- * or runs failing in a row that will pause a schedule, each with the last
- * failure's code and a way into its run. Silent while the streak is empty.
- */
-function TriggerFailureNotice({
-  organizationId,
-  projectId,
-  name,
-  trigger,
-}: {
-  organizationId: string;
-  projectId: string | undefined;
-  name: string;
-  trigger: StoredTrigger;
-}) {
-  const { t } = useT('automations');
-  const { formatDate } = useFormatDate();
-  const count = trigger.consecutiveFailures ?? 0;
-  const paused =
-    !trigger.enabled && trigger.lastSkipReason === 'paused_after_failures';
-  if (!paused && count === 0) return null;
-
-  const lastFailure =
-    trigger.lastFailedAt != null && trigger.lastFailureCode != null ? (
-      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <span>
-          {t('trigger.failures.last', {
-            at: formatDate(new Date(trigger.lastFailedAt), 'long'),
-          })}
-        </span>
-        <InlineCode>{trigger.lastFailureCode}</InlineCode>
-        {trigger.lastFailedRunId != null && (
-          <Link
-            // The run opens where the section is shown: under the project
-            // when the tab is, as the run list's rows open it.
-            {...(projectId
-              ? {
-                  to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId' as const,
-                  params: {
-                    id: organizationId,
-                    projectId,
-                    automationSlug: automationSlugToParam(name),
-                    runId: trigger.lastFailedRunId,
-                  },
-                }
-              : {
-                  to: '/dashboard/$id/automations/$automationSlug/runs/$runId' as const,
-                  params: {
-                    id: organizationId,
-                    automationSlug: automationSlugToParam(name),
-                    runId: trigger.lastFailedRunId,
-                  },
-                })}
-            className="text-foreground focus-visible:ring-ring rounded-sm underline underline-offset-2 focus-visible:ring-2 focus-visible:outline-none"
-          >
-            {t('trigger.failures.viewRun')}
-          </Link>
-        )}
-      </span>
-    ) : null;
-
-  if (paused) {
-    return (
-      <Alert
-        variant="warning"
-        // A standing state, not an event: announcing it on every visit to
-        // the tab would repeat what the page already shows.
-        live="off"
-        title={t('trigger.failures.pausedTitle')}
-        description={
-          <span className="flex flex-col gap-1">
-            <span>{t('trigger.failures.pausedBody', { count })}</span>
-            {lastFailure}
-          </span>
-        }
-      />
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      <Text as="p" variant="muted" className="text-xs">
-        {t('trigger.failures.streak', { count })}
-        {trigger.kind === 'schedule' &&
-          trigger.enabled &&
-          ` ${t('trigger.failures.streakSchedule', {
-            limit: PERMANENT_FAILURES_BEFORE_PAUSE,
-          })}`}
-      </Text>
-      {lastFailure !== null && (
-        <Text as="div" variant="muted" className="text-xs">
-          {lastFailure}
-        </Text>
-      )}
-    </div>
   );
 }

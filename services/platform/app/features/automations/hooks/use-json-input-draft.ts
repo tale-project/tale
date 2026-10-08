@@ -81,56 +81,6 @@ export function checkJsonInput(
   return { valid: false, paths };
 }
 
-/** A top-level field an input lacks, and the type its schema gives it. */
-export interface MissingInputField {
-  name: string;
-  /** The JSON Schema `type`, when it names exactly one. */
-  type: string | undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * The fields an `inputs` schema requires at the top that `input` does not
- * have, in the schema's order. Empty when the schema requires nothing or
- * `input` is no object.
- */
-export function missingRequiredFields(
-  schema: Record<string, unknown> | undefined,
-  input: unknown,
-): MissingInputField[] {
-  if (schema === undefined || !isRecord(input)) return [];
-  const required = Array.isArray(schema.required) ? schema.required : [];
-  const properties = isRecord(schema.properties) ? schema.properties : {};
-  return required
-    .filter((name): name is string => typeof name === 'string')
-    .filter((name) => !Object.hasOwn(input, name))
-    .map((name) => {
-      const property = properties[name];
-      const type = isRecord(property) ? property.type : undefined;
-      return { name, type: typeof type === 'string' ? type : undefined };
-    });
-}
-
-/** The placeholder a missing field of `type` starts as. */
-export function placeholderFor(type: string | undefined): unknown {
-  switch (type) {
-    case 'number':
-    case 'integer':
-      return 0;
-    case 'boolean':
-      return false;
-    case 'array':
-      return [];
-    case 'object':
-      return {};
-    default:
-      return '';
-  }
-}
-
 /**
  * The checker of one `inputs` schema: its validator, built once per schema,
  * and `check`, which reads an input against it.

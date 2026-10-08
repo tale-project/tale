@@ -162,7 +162,6 @@ trigger:
   eventLabel: Event name
   eventPlaceholder: Select an event
   enabledLabel: Enabled
-  lastFired: 'Last fired {at}'
   failures:
     pausedTitle: 'Paused after repeated failures'
     pausedBody: '{count, plural, one {# run} other {# runs}} in a row failed with an error a retry won''t fix, so the schedule turned itself off. Fix the automation, then turn the trigger back on and save.'
@@ -226,6 +225,52 @@ trigger:
     paused: 'Paused: turn on Enabled and save to start these runs.'
     notDeployed: 'Nothing starts until a version is deployed.'
     unavailable: 'Fix the schedule above to see the next runs.'
+  health:
+    lastRun: 'Last run {at}'
+    noRunYet: 'Hasn''t started a run yet.'
+  skip:
+    technicalDetails: 'Technical details'
+    openEditor: 'Open the editor'
+    editSchedule: 'Edit the schedule'
+    editProjects: 'Edit the projects'
+    alsoMissed: '{count, plural, one {An earlier run was missed too.} other {# earlier runs were missed too.}}'
+    notDeployed:
+      title: 'Skipped: no version is deployed'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but no version is deployed, so no run started. Deploy a tested version in the editor.'
+    inputRefused:
+      title: 'Skipped: the run''s input was refused'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but version {version} refused what the trigger sends. Change the automation''s inputs, or the trigger''s fixed input, so they match.'
+    projectRefused:
+      title: 'Skipped: its project can''t start runs'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but {reason, select, archived {its project is archived} other {its project is missing or no longer allows this automation}}, so no run started. Check the automation''s projects.'
+    startRefused:
+      title: 'Skipped: the run couldn''t start'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but the run couldn''t start. The technical details say why.'
+    unusableSchedule:
+      title: 'Skipped: the schedule can''t be read'
+      body: 'It came due on {at}, but its schedule or time zone couldn''t be read. Correct it and save; nothing starts until then.'
+    missed:
+      title: '{count, plural, one {# run was missed} other {# runs were missed}}'
+      titleCapped: 'More than {count, number} runs were missed'
+      body: '{count, plural, one {A run was due on {from} while Tale was unavailable.} other {Runs were due between {from} and {to} while Tale was unavailable.}} {policy}'
+      policyLatest: 'The latest one started when Tale was back.'
+      policySkip: 'They were skipped, as set under Missed runs.'
+  input:
+    title: 'This run receives'
+    copy: 'Copy the input'
+    firedAt: 'firedAt: the due time in milliseconds since 1970 (UTC). Here, {at}.'
+    webhook: 'Your request body arrives as payload: JSON stays structured, anything else arrives as text.'
+    event: 'The event data arrives as payload. It holds IDs; read the full record with a step.'
+    accepted: 'Version {version} accepts this input.'
+    refusedTitle: 'Version {version} doesn''t accept this input'
+    refusedBody: 'Its inputs refuse what this trigger sends, so every start would be skipped. Add the missing fields to the fixed input, or change the inputs in the editor.'
+  runNow:
+    label: 'Run now'
+    unsaved: 'Save your trigger changes first.'
+    body: 'Runs version {version} for real with the input below, as the trigger would — emails send, records change. The schedule doesn''t change.'
+    confirm: 'Start run'
+    started: 'Run started.'
+    failed: 'Couldn''t start the run: {error}'
   issues:
     keyOtherKind: 'This setting belongs to a different trigger type.'
     schedule:
@@ -247,6 +292,10 @@ trigger:
       required: 'Pick an event.'
       unknown: 'Tale doesn''t raise this event.'
   fixedInput:
+    label: 'Fixed input'
+    description: 'Values this trigger adds to every run''s input, as JSON. The trigger''s own fields (trigger, firedAt, event, payload) are set over them.'
+    add: 'Add fixed input'
+    fillMissing: '{count, plural, one {Add the missing field} other {Add the # missing fields}}'
     notJson: 'This isn''t valid JSON.'
   timezoneInvalid: 'Pick a valid IANA time zone (e.g. Europe/Zurich or UTC).'
 canvas:

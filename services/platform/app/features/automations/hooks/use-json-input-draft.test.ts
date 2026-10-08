@@ -4,9 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   checkJsonInput,
   inputSchemaValidator,
-  missingRequiredFields,
   parseJsonText,
-  placeholderFor,
   useJsonInputDraft,
 } from './use-json-input-draft';
 
@@ -69,46 +67,6 @@ describe('inputSchemaValidator', () => {
       inputSchemaValidator({ type: 'object', unevaluatedProperties: false }),
     ).toBeNull();
     warn.mockRestore();
-  });
-});
-
-describe('missingRequiredFields', () => {
-  it('lists the required fields an input lacks, with their types, in schema order', () => {
-    expect(
-      missingRequiredFields(GITHUB_INPUTS, { trigger: 'schedule', repo: 'x' }),
-    ).toEqual([
-      { name: 'owner', type: 'string' },
-      { name: 'limit', type: 'integer' },
-    ]);
-  });
-
-  it('finds nothing missing without a schema or an object input', () => {
-    expect(missingRequiredFields(undefined, {})).toEqual([]);
-    expect(missingRequiredFields(GITHUB_INPUTS, 'text')).toEqual([]);
-    expect(missingRequiredFields({ type: 'object' }, {})).toEqual([]);
-  });
-
-  it('gives a field with several types no single type', () => {
-    expect(
-      missingRequiredFields(
-        { required: ['a'], properties: { a: { type: ['string', 'null'] } } },
-        {},
-      ),
-    ).toEqual([{ name: 'a', type: undefined }]);
-  });
-});
-
-describe('placeholderFor', () => {
-  it.each([
-    ['string', ''],
-    ['number', 0],
-    ['integer', 0],
-    ['boolean', false],
-    ['array', []],
-    ['object', {}],
-    [undefined, ''],
-  ])('starts a %s field as %j', (type, placeholder) => {
-    expect(placeholderFor(type)).toEqual(placeholder);
   });
 });
 

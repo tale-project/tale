@@ -50,6 +50,7 @@ import { localTimeZone } from '@/lib/shared/zoned-time';
 
 import { useSaveAutomation, useSetAutomationTrigger } from '../hooks/mutations';
 import { useAutomationCapabilities } from '../hooks/queries';
+import { useTriggerInputCheck } from '../hooks/use-trigger-input-check';
 import { automationErrorCode, automationErrorMessage } from '../lib/errors';
 import {
   cronParseError,
@@ -61,6 +62,9 @@ import {
 import { triggerIssueText } from '../lib/trigger-issue-text';
 import { DEFAULT_HARNESS } from './agent-node-fields';
 import { TriggerForm } from './trigger-form';
+import { TriggerInputPreview } from './trigger-input-preview';
+
+const NO_WARNINGS: readonly never[] = [];
 
 const EMPTY_BINDING: SkillsSelection = {
   skills: [],
@@ -225,6 +229,16 @@ export function BlankAutomationDialog({
   // fails to set its trigger. The toast on a refused bind stays as the
   // fallback for whatever the server alone can see.
   const triggerIssue = triggerDraftIssue(trigger);
+  // What the new trigger's runs will receive; nothing is deployed yet, so
+  // there is nothing to check it against.
+  const inputCheck = useTriggerInputCheck({
+    draft: trigger,
+    stored: null,
+    inputsSchema: undefined,
+    deployed: false,
+    clean: false,
+    saveWarnings: NO_WARNINGS,
+  });
 
   // The slug is addressing; the typed name is what people see. A name the
   // slugifier empties (Chinese, emoji) still creates — under a generated
@@ -531,6 +545,14 @@ export function BlankAutomationDialog({
             runState={{ clean: false, deployed: false, nextRunAt: null }}
             onChange={(patch) =>
               setTriggerDraft((current) => ({ ...current, ...patch }))
+            }
+            after={
+              <TriggerInputPreview
+                surface="wizard"
+                kind={trigger.kind}
+                check={inputCheck}
+                version={undefined}
+              />
             }
           />
           <Checkbox

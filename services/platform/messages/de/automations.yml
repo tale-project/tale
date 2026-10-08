@@ -163,7 +163,6 @@ trigger:
   eventLabel: Ereignisname
   eventPlaceholder: Ereignis wählen
   enabledLabel: Aktiv
-  lastFired: 'Zuletzt ausgelöst {at}'
   failures:
     pausedTitle: 'Nach wiederholten Fehlern pausiert'
     pausedBody: '{count, plural, one {# Lauf ist} other {# Läufe sind}} nacheinander mit einem Fehler fehlgeschlagen, den ein erneuter Versuch nicht behebt, deshalb hat sich der Zeitplan ausgeschaltet. Behebe den Fehler in der Automatisierung, schalte den Trigger dann wieder ein und speichere.'
@@ -230,6 +229,52 @@ trigger:
     paused: 'Pausiert: Schalte „Aktiv“ ein und speichere, damit diese Läufe starten.'
     notDeployed: 'Es startet nichts, solange keine Version bereitgestellt ist.'
     unavailable: 'Korrigiere den Zeitplan oben, um die nächsten Läufe zu sehen.'
+  health:
+    lastRun: 'Letzter Lauf {at}'
+    noRunYet: 'Hat noch keinen Lauf gestartet.'
+  skip:
+    technicalDetails: 'Technische Details'
+    openEditor: 'Editor öffnen'
+    editSchedule: 'Zeitplan bearbeiten'
+    editProjects: 'Projekte bearbeiten'
+    alsoMissed: '{count, plural, one {Ein früherer Lauf wurde ebenfalls verpasst.} other {# frühere Läufe wurden ebenfalls verpasst.}}'
+    notDeployed:
+      title: 'Ausgelassen: keine Version bereitgestellt'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber es ist keine Version bereitgestellt, deshalb startete kein Lauf. Stelle im Editor eine getestete Version bereit.'
+    inputRefused:
+      title: 'Ausgelassen: Die Eingabe des Laufs wurde abgelehnt'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber Version {version} lehnte ab, was der Trigger sendet. Passe die Eingaben der Automatisierung oder die feste Eingabe des Triggers an, damit sie zusammenpassen.'
+    projectRefused:
+      title: 'Ausgelassen: Das Projekt kann keine Läufe starten'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber {reason, select, archived {das Projekt ist archiviert} other {das Projekt fehlt oder erlaubt diese Automatisierung nicht mehr}}, deshalb startete kein Lauf. Prüfe die Projekte der Automatisierung.'
+    startRefused:
+      title: 'Ausgelassen: Der Lauf konnte nicht starten'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber der Lauf konnte nicht starten. Die technischen Details nennen den Grund.'
+    unusableSchedule:
+      title: 'Ausgelassen: Der Zeitplan ist nicht lesbar'
+      body: 'Er war am {at} fällig, aber Zeitplan oder Zeitzone waren nicht lesbar. Korrigiere sie und speichere; bis dahin startet nichts.'
+    missed:
+      title: '{count, plural, one {# Lauf wurde verpasst} other {# Läufe wurden verpasst}}'
+      titleCapped: 'Mehr als {count, number} Läufe wurden verpasst'
+      body: '{count, plural, one {Ein Lauf war am {from} fällig, während Tale nicht verfügbar war.} other {Zwischen {from} und {to} waren Läufe fällig, während Tale nicht verfügbar war.}} {policy}'
+      policyLatest: 'Der letzte wurde nachgeholt, als Tale wieder lief.'
+      policySkip: 'Sie wurden ausgelassen, wie unter „Verpasste Läufe“ eingestellt.'
+  input:
+    title: 'Dieser Lauf erhält'
+    copy: 'Eingabe kopieren'
+    firedAt: 'firedAt: der Fälligkeitszeitpunkt in Millisekunden seit 1970 (UTC). Hier {at}.'
+    webhook: 'Dein Request-Body kommt als payload an: JSON bleibt strukturiert, alles andere kommt als Text.'
+    event: 'Die Ereignisdaten kommen als payload an. Sie enthalten IDs; lies den vollständigen Datensatz mit einem Schritt.'
+    accepted: 'Version {version} akzeptiert diese Eingabe.'
+    refusedTitle: 'Version {version} akzeptiert diese Eingabe nicht'
+    refusedBody: 'Ihre Eingaben lehnen ab, was dieser Trigger sendet, also würde jeder Start ausgelassen. Ergänze die fehlenden Felder in der festen Eingabe oder passe die Eingaben im Editor an.'
+  runNow:
+    label: 'Jetzt ausführen'
+    unsaved: 'Speichere zuerst deine Änderungen am Trigger.'
+    body: 'Führt Version {version} live mit der Eingabe unten aus, wie es der Trigger täte — Mails gehen raus, Daten ändern sich. Der Zeitplan bleibt, wie er ist.'
+    confirm: 'Lauf starten'
+    started: 'Lauf gestartet.'
+    failed: 'Der Lauf konnte nicht starten: {error}'
   issues:
     keyOtherKind: 'Diese Einstellung gehört zu einem anderen Trigger-Typ.'
     schedule:
@@ -251,6 +296,10 @@ trigger:
       required: 'Wähle ein Ereignis.'
       unknown: 'Dieses Ereignis löst Tale nicht aus.'
   fixedInput:
+    label: 'Feste Eingabe'
+    description: 'Werte, die dieser Trigger jeder Laufeingabe hinzufügt, als JSON. Die eigenen Felder des Triggers (trigger, firedAt, event, payload) überschreiben sie.'
+    add: 'Feste Eingabe hinzufügen'
+    fillMissing: '{count, plural, one {Fehlendes Feld ergänzen} other {Die # fehlenden Felder ergänzen}}'
     notJson: 'Das ist kein gültiges JSON.'
   timezoneInvalid: 'Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).'
 canvas:

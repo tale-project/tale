@@ -47,6 +47,8 @@ export function TriggerForm({
   runState,
   onChange,
   webhookDetails,
+  scheduleFieldId,
+  after,
 }: {
   surface: TriggerSurface;
   draft: TriggerDraft;
@@ -57,6 +59,11 @@ export function TriggerForm({
   onChange: (patch: Partial<TriggerDraft>) => void;
   /** The panel's webhook block; the wizard says the URL comes after. */
   webhookDetails?: ReactNode;
+  /** The id the schedule's control carries. */
+  scheduleFieldId?: string;
+  /** What follows the kind's fields: the fixed input and what a run
+   * receives. */
+  after?: ReactNode;
 }) {
   const { t } = useT('automations');
   const eventId = useId();
@@ -133,6 +140,7 @@ export function TriggerForm({
             enabled={draft.enabled}
             runState={runState}
             onChange={onChange}
+            {...(scheduleFieldId !== undefined && { fieldId: scheduleFieldId })}
           />
         )}
         {draft.kind === 'event' && (
@@ -160,6 +168,7 @@ export function TriggerForm({
             webhookDetails
           ))}
       </div>
+      {after}
     </div>
   );
 }

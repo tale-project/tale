@@ -136,7 +136,10 @@ export function AutomationRunDialog({
           )}
         </>
       ) : (
-        request.schema !== undefined && (
+        // The input is typed when the version declares one, or when the
+        // caller hands a sample to edit (a trigger's Run now).
+        (request.schema !== undefined ||
+          request.initialInput !== undefined) && (
           <div className="mt-4 space-y-3">
             <Field
               label={t('detail.runInput.label')}
@@ -155,11 +158,13 @@ export function AutomationRunDialog({
                 spellCheck={false}
               />
             </Field>
-            <CollapsibleDetails summary={t('detail.runInput.schema')}>
-              <pre className="bg-muted mt-2 max-h-48 overflow-auto rounded-md p-3 text-xs">
-                {JSON.stringify(request.schema, null, 2)}
-              </pre>
-            </CollapsibleDetails>
+            {request.schema !== undefined && (
+              <CollapsibleDetails summary={t('detail.runInput.schema')}>
+                <pre className="bg-muted mt-2 max-h-48 overflow-auto rounded-md p-3 text-xs">
+                  {JSON.stringify(request.schema, null, 2)}
+                </pre>
+              </CollapsibleDetails>
+            )}
           </div>
         )
       )}

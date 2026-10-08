@@ -78,6 +78,7 @@ export function TriggerScheduleField({
   enabled,
   runState,
   onChange,
+  fieldId,
 }: {
   surface: TriggerSurface;
   draft: TriggerDraft;
@@ -88,11 +89,16 @@ export function TriggerScheduleField({
   enabled: boolean;
   runState: ScheduleRunState;
   onChange: (patch: Partial<TriggerDraft>) => void;
+  /** The id of the schedule's control — the picker, or the cron field —
+   * so a notice can hand focus to it. */
+  fieldId?: string;
 }) {
   const { t } = useT('automations');
   const format = useRecurrenceFormat();
-  const pickerId = useId();
-  const cronId = useId();
+  const ownId = useId();
+  // One of the two controls is on screen at a time; both answer to it.
+  const pickerId = fieldId ?? `${ownId}-picker`;
+  const cronId = fieldId ?? `${ownId}-cron`;
   const [note, setNote] = useState<FormatNote | null>(null);
   const fadeRef = useSwapFade<HTMLDivElement>(draft.scheduleFormat, {
     fromEmpty: false,

@@ -163,7 +163,6 @@ trigger:
   eventLabel: Nom de l’événement
   eventPlaceholder: Choisir un événement
   enabledLabel: Actif
-  lastFired: 'Dernier déclenchement {at}'
   failures:
     pausedTitle: 'En pause après des échecs répétés'
     pausedBody: '{count, plural, one {# exécution a échoué} other {# exécutions ont échoué}} d’affilée avec une erreur qu’une nouvelle tentative ne corrigera pas, la planification s’est donc désactivée. Corrige l’automatisation, puis réactive le déclencheur et enregistre.'
@@ -230,6 +229,52 @@ trigger:
     paused: 'En pause : active « Actif » et enregistre pour lancer ces exécutions.'
     notDeployed: 'Rien ne démarre tant qu’aucune version n’est déployée.'
     unavailable: 'Corrige la planification ci-dessus pour voir les prochaines exécutions.'
+  health:
+    lastRun: 'Dernière exécution {at}'
+    noRunYet: 'N’a encore lancé aucune exécution.'
+  skip:
+    technicalDetails: 'Détails techniques'
+    openEditor: 'Ouvrir l’éditeur'
+    editSchedule: 'Modifier la planification'
+    editProjects: 'Modifier les projets'
+    alsoMissed: '{count, plural, one {Une exécution précédente a aussi été manquée.} other {# exécutions précédentes ont aussi été manquées.}}'
+    notDeployed:
+      title: 'Ignorée : aucune version déployée'
+      body: '{kind, select, event {Un événement est arrivé le {at}} other {Il était prévu le {at}}}, mais aucune version n’est déployée : aucune exécution n’a démarré. Déploie une version testée dans l’éditeur.'
+    inputRefused:
+      title: 'Ignorée : l’entrée de l’exécution a été refusée'
+      body: '{kind, select, event {Un événement est arrivé le {at}} other {Il était prévu le {at}}}, mais la version {version} a refusé ce que le déclencheur envoie. Modifie les entrées de l’automatisation ou l’entrée fixe du déclencheur pour qu’elles correspondent.'
+    projectRefused:
+      title: 'Ignorée : le projet ne peut pas lancer d’exécutions'
+      body: '{kind, select, event {Un événement est arrivé le {at}} other {Il était prévu le {at}}}, mais {reason, select, archived {son projet est archivé} other {son projet n’existe plus ou n’autorise plus cette automatisation}} : aucune exécution n’a démarré. Vérifie les projets de l’automatisation.'
+    startRefused:
+      title: 'Ignorée : l’exécution n’a pas pu démarrer'
+      body: '{kind, select, event {Un événement est arrivé le {at}} other {Il était prévu le {at}}}, mais l’exécution n’a pas pu démarrer. Les détails techniques en donnent la raison.'
+    unusableSchedule:
+      title: 'Ignorée : la planification est illisible'
+      body: 'Il était prévu le {at}, mais sa planification ou son fuseau horaire était illisible. Corrige-les et enregistre ; rien ne démarre d’ici là.'
+    missed:
+      title: '{count, plural, one {# exécution manquée} other {# exécutions manquées}}'
+      titleCapped: 'Plus de {count, number} exécutions manquées'
+      body: '{count, plural, one {Une exécution était prévue le {from} pendant que Tale était indisponible.} other {Des exécutions étaient prévues entre le {from} et le {to} pendant que Tale était indisponible.}} {policy}'
+      policyLatest: 'La dernière a été lancée au retour de Tale.'
+      policySkip: 'Elles ont été ignorées, comme réglé sous « Exécutions manquées ».'
+  input:
+    title: 'Cette exécution reçoit'
+    copy: 'Copier l’entrée'
+    firedAt: 'firedAt : l’heure prévue, en millisecondes depuis 1970 (UTC). Ici, {at}.'
+    webhook: 'Le corps de ta requête arrive dans payload : le JSON reste structuré, le reste arrive en texte.'
+    event: 'Les données de l’événement arrivent dans payload. Elles contiennent des identifiants ; lis l’enregistrement complet avec une étape.'
+    accepted: 'La version {version} accepte cette entrée.'
+    refusedTitle: 'La version {version} n’accepte pas cette entrée'
+    refusedBody: 'Ses entrées refusent ce que ce déclencheur envoie : chaque démarrage serait ignoré. Ajoute les champs manquants à l’entrée fixe ou modifie les entrées dans l’éditeur.'
+  runNow:
+    label: 'Exécuter maintenant'
+    unsaved: 'Enregistre d’abord tes modifications du déclencheur.'
+    body: 'Exécute la version {version} en réel avec l’entrée ci-dessous, comme le ferait le déclencheur : les e-mails partent, les données changent. La planification ne change pas.'
+    confirm: 'Lancer l’exécution'
+    started: 'Exécution lancée.'
+    failed: 'Impossible de lancer l’exécution : {error}'
   issues:
     keyOtherKind: 'Ce réglage appartient à un autre type de déclencheur.'
     schedule:
@@ -251,6 +296,10 @@ trigger:
       required: 'Choisis un événement.'
       unknown: 'Tale ne déclenche pas cet événement.'
   fixedInput:
+    label: 'Entrée fixe'
+    description: 'Valeurs que ce déclencheur ajoute à l’entrée de chaque exécution, en JSON. Les champs propres au déclencheur (trigger, firedAt, event, payload) les remplacent.'
+    add: 'Ajouter une entrée fixe'
+    fillMissing: '{count, plural, one {Ajouter le champ manquant} other {Ajouter les # champs manquants}}'
     notJson: 'Ce n’est pas du JSON valide.'
   timezoneInvalid: 'Choisis un fuseau horaire IANA valide (par ex. Europe/Zurich ou UTC).'
 canvas:

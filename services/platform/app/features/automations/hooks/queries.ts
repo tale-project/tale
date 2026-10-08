@@ -66,6 +66,19 @@ export function useAutomation(
   });
 }
 
+/** The deployed version's document, for what the trigger checks against;
+ * skipped while nothing is deployed. */
+export function useDeployedAutomation(
+  organizationId: string,
+  name: string,
+  version: number | undefined,
+) {
+  return useBackendQuery(
+    'automations/queries:getAutomation',
+    version === undefined ? 'skip' : { organizationId, name, version },
+  );
+}
+
 /** The immutable version history of one automation, oldest first. */
 export function useAutomationVersions(organizationId: string, name: string) {
   return useBackendQuery('automations/queries:listVersions', {

@@ -12,9 +12,14 @@ import { TriggerEditor } from './trigger-editor';
 
 const mockSetTrigger = vi.fn();
 const mockDeleteTrigger = vi.fn();
+const mockStartRun = vi.fn();
 const mockToast = vi.fn();
 
 let triggersData: TriggerView[] | undefined;
+/** The deployed version's `inputs`, when it declares any. */
+let deployedInputs: Record<string, unknown> | undefined;
+/** The projects the automation is installed in. */
+let boundProjectIds: string[] = [];
 
 /** A stored trigger as the read returns it: every field, `overrides` on
  * top of an idle schedule. */
@@ -82,6 +87,41 @@ vi.mock('../hooks/queries', () => ({
     isError: triggersError,
     refetch: mockRefetch,
   }),
+  // The deployed version's document, which the trigger's input is checked
+  // against.
+  useDeployedAutomation: (
+    _organizationId: string,
+    _name: string,
+    version: number | undefined,
+  ) => ({
+    data:
+      version === undefined
+        ? undefined
+        : {
+            document: {
+              name: 'gmail-triage-inbox',
+              nodes: [],
+              ...(deployedInputs !== undefined && { inputs: deployedInputs }),
+            },
+          },
+    isPending: false,
+  }),
+  useAutomationRun: (_organizationId: string, runId: string | undefined) => ({
+    data:
+      runId === undefined ? undefined : { status: 'success', stalled: false },
+    isPending: false,
+  }),
+  useAutomationProjects: () => ({ data: boundProjectIds, isPending: false }),
+}));
+
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProjects: () => ({
+    projects: [
+      { _id: 'proj-1', name: 'Document desk' },
+      { _id: 'proj-2', name: 'Support' },
+    ],
+    isLoading: false,
+  }),
 }));
 
 // A new trigger reads its schedule in the reader's zone; the suite pins it.
@@ -97,6 +137,10 @@ vi.mock('../hooks/mutations', () => ({
   }),
   useDeleteAutomationTrigger: () => ({
     mutate: mockDeleteTrigger,
+    isPending: false,
+  }),
+  useStartAutomationRun: () => ({
+    mutateAsync: mockStartRun,
     isPending: false,
   }),
 }));
@@ -172,7 +216,10 @@ describe('TriggerEditor', () => {
     vi.clearAllMocks();
     triggersData = [CRON_ROW];
     triggersError = false;
+    deployedInputs = undefined;
+    boundProjectIds = [];
     mockSetTrigger.mockResolvedValue({});
+    mockStartRun.mockResolvedValue({ runId: 'run-9', version: 2 });
   });
 
   it('shows the stored binding, with Save and Discard waiting for an edit', () => {
@@ -1029,6 +1076,226 @@ describe('TriggerEditor', () => {
 
       expect(screen.queryByText(/a retry won't fix/)).toBeNull();
       expect(screen.queryByRole('link', { name: 'View run' })).toBeNull();
+    });
+  });
+
+  // Ada's GitHub triage schedule came due, but version 3 needs owner and
+  // repo, which a schedule never sends: the section says so, writes the
+  // two fields into the fixed input on one click, and saves them with the
+  // trigger.
+  describe('what the trigger sends, and fixing it', () => {
+    const GITHUB_INPUTS = {
+      type: 'object',
+      required: ['owner', 'repo'],
+      properties: { owner: { type: 'string' }, repo: { type: 'string' } },
+    };
+    const DUE = Date.UTC(2026, 9, 12, 7, 0);
+    const REFUSED_ROW = row({
+      name: 'github-triage-issues',
+      repeat: { frequency: 'daily', interval: 1, times: ['09:00'] },
+      startDate: '2026-10-01',
+      timezone: 'Europe/Zurich',
+      catchUp: 'latest',
+      lastSkippedAt: DUE + 60_000,
+      lastSkipReason: 'start_refused',
+      lastSkipDetail: {
+        reason: 'start_refused',
+        occurrence: DUE,
+        code: 'AUTOMATION_INPUT_INVALID',
+        version: 3,
+        message: 'The run input does not match the automation inputs.',
+        issues: [{ path: 'owner', message: 'Required' }],
+      },
+    });
+    const fixedInput = () =>
+      screen.getByRole('textbox', { name: 'Fixed input' });
+
+    beforeEach(() => {
+      triggersData = [REFUSED_ROW];
+      deployedInputs = GITHUB_INPUTS;
+    });
+
+    it('fills the missing fields from the skip notice, focuses them, and saves them', async () => {
+      const { user } = renderTrigger('github-triage-issues', true, 3);
+      expect(
+        screen.getByRole('heading', {
+          name: "Version 3 doesn't accept this input",
+        }),
+      ).toBeVisible();
+      const banner = screen
+        .getByRole('heading', { name: "Skipped: the run's input was refused" })
+        .closest('[data-slot="alert"]');
+      if (!(banner instanceof HTMLElement)) throw new Error('no notice');
+      await user.click(
+        within(banner).getByRole('button', {
+          name: 'Add the 2 missing fields',
+        }),
+      );
+      expect(fixedInput()).toHaveValue('{\n  "owner": "",\n  "repo": ""\n}');
+      await waitFor(() => expect(fixedInput()).toHaveFocus());
+      await user.keyboard('acme');
+      // Both fields are there now; blank text is still text.
+      expect(screen.getByText('Version 3 accepts this input.')).toBeVisible();
+
+      await user.click(saveButton());
+      await waitFor(() =>
+        expect(mockSetTrigger).toHaveBeenCalledWith(
+          expect.objectContaining({
+            trigger: expect.objectContaining({
+              kind: 'schedule',
+              input: { owner: 'acme', repo: '' },
+            }),
+          }),
+        ),
+      );
+    });
+
+    it('says the version accepts the input once the fixed input holds it', async () => {
+      triggersData = [
+        { ...REFUSED_ROW, input: { owner: 'acme', repo: 'tale' } },
+      ];
+      renderTrigger('github-triage-issues', true, 3);
+      expect(screen.getByText('Version 3 accepts this input.')).toBeVisible();
+    });
+
+    it('takes the save’s own warning over the form’s check', async () => {
+      const accepted = {
+        ...REFUSED_ROW,
+        input: { owner: 'acme', repo: 'tale' },
+      };
+      triggersData = [accepted];
+      mockSetTrigger.mockResolvedValue({
+        warnings: [
+          {
+            level: 'warning',
+            code: 'TRIGGER_INPUT_MISMATCH',
+            message: 'The schedule starts runs without region.',
+            params: { kind: 'schedule', missing: ['region'] },
+          },
+        ],
+      });
+      const { user, rerender } = renderTrigger('github-triage-issues', true, 3);
+      expect(screen.getByText('Version 3 accepts this input.')).toBeVisible();
+      await user.click(screen.getByRole('switch', { name: 'Enabled' }));
+      await user.click(saveButton());
+      await waitFor(() => expect(mockSetTrigger).toHaveBeenCalledTimes(1));
+      // The store holds what was sent; the form reads clean again.
+      triggersData = [{ ...accepted, enabled: false }];
+      rerender(
+        <GeneralTab>
+          <TriggerEditor
+            organizationId="org-1"
+            name="github-triage-issues"
+            canEdit
+            deployedVersion={3}
+          />
+        </GeneralTab>,
+      );
+      expect(
+        await screen.findByRole('heading', {
+          name: "Version 3 doesn't accept this input",
+        }),
+      ).toBeVisible();
+      expect(screen.getByText('region')).toBeVisible();
+    });
+
+    it('sends the reader to the Projects field when a project refused the start', async () => {
+      triggersData = [
+        {
+          ...REFUSED_ROW,
+          lastSkipDetail: {
+            reason: 'start_refused',
+            occurrence: DUE,
+            code: 'PROJECT_ARCHIVED',
+            version: null,
+            message: 'The project is archived.',
+          },
+        },
+      ];
+      const { user } = render(
+        <GeneralTab>
+          <TriggerEditor
+            organizationId="org-1"
+            name="github-triage-issues"
+            canEdit
+            deployedVersion={3}
+          />
+          <label htmlFor="automation-projects-field">Projects</label>
+          <input id="automation-projects-field" />
+        </GeneralTab>,
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Edit the projects' }),
+      );
+      expect(screen.getByRole('textbox', { name: 'Projects' })).toHaveFocus();
+    });
+
+    it('hands focus to the schedule when it could not be read', async () => {
+      triggersData = [
+        {
+          ...REFUSED_ROW,
+          lastSkipReason: 'unusable_cron',
+          lastSkipDetail: { reason: 'unusable_cron', message: 'Bad zone.' },
+        },
+      ];
+      const { user } = renderTrigger('github-triage-issues', true, 3);
+      await user.click(
+        screen.getByRole('button', { name: 'Edit the schedule' }),
+      );
+      expect(
+        screen.getByRole('button', { name: /^Schedule: Daily/ }),
+      ).toHaveFocus();
+    });
+
+    // Run now acts where the trigger acts: the store infers the sole
+    // installation, so no project is named even from a project's tab.
+    it('runs the stored trigger now, naming the project it acts in', async () => {
+      boundProjectIds = ['proj-1'];
+      triggersData = [
+        { ...REFUSED_ROW, input: { owner: 'acme', repo: 'tale' } },
+      ];
+      const { user } = renderTrigger('github-triage-issues', true, 3, 'proj-1');
+      await user.click(screen.getByRole('button', { name: 'Run now' }));
+      const dialog = screen.getByRole('dialog', { name: 'Run live?' });
+      expect(dialog).toHaveTextContent(/in the Document desk project/);
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Start run' }),
+      );
+      await waitFor(() =>
+        expect(mockStartRun).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          name: 'github-triage-issues',
+          mode: 'live',
+          version: 3,
+          input: {
+            owner: 'acme',
+            repo: 'tale',
+            trigger: 'schedule',
+            firedAt: expect.any(Number),
+          },
+        }),
+      );
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Run started.',
+      );
+    });
+
+    it('holds Run now while the trigger has unsaved edits', async () => {
+      const { user } = renderTrigger('github-triage-issues', true, 3);
+      await user.click(screen.getByRole('switch', { name: 'Enabled' }));
+      expect(screen.getByRole('button', { name: 'Run now' })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+    });
+
+    it('offers members no Run now and no empty fixed input', () => {
+      renderTrigger('github-triage-issues', false, 3);
+      expect(screen.queryByRole('button', { name: 'Run now' })).toBeNull();
+      expect(screen.queryByText('Add fixed input')).toBeNull();
+      expect(
+        screen.getByRole('region', { name: 'This run receives' }),
+      ).toBeVisible();
     });
   });
 });
