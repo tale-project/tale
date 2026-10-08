@@ -188,6 +188,19 @@ describe('WorkflowCanvas', () => {
     // No edge is React Flow's own curve: every edge group holds a routed path.
     for (const group of container.querySelectorAll('.react-flow__edge'))
       expect(group.querySelector('path[data-flow-edge]')).not.toBeNull();
+    // A pointer resting on a line with a detail reaches its words.
+    const path = container.querySelector<SVGPathElement>(
+      'path[data-flow-edge="open_issues>report"]',
+    );
+    const middle = path?.getPointAtLength(path.getTotalLength() / 2);
+    const svg = path?.ownerSVGElement?.getScreenCTM();
+    if (middle === undefined || svg === null || svg === undefined)
+      throw new Error('no route to point at');
+    const point = new DOMPoint(middle.x, middle.y).matrixTransform(svg);
+    const hit = document
+      .elementsFromPoint(point.x, point.y)
+      .find((element) => element.querySelector(':scope > title') !== null);
+    expect(hit?.querySelector('title')?.textContent).toBe('Carries .issues');
   });
 
   it('draws every box at its size and no line through any box on the page', async () => {
