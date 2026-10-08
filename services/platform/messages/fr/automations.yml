@@ -66,7 +66,6 @@ blank:
   promptPlaceholder: p. ex. Passer en revue les issues GlitchTip ouvertes et
     créer une tâche pour chaque nouvelle.
   equipmentLabel: Équipement
-  timezoneInvalid: Choisis un fuseau horaire IANA valide (par ex. Europe/Zurich ou UTC).
   webhookHint: L’URL du webhook s’affiche une seule fois, juste après la
     création — copie-la avant d’ouvrir l’éditeur.
   stepWebhook: Copie l’URL du webhook — elle n’est affichée que maintenant.
@@ -82,6 +81,7 @@ blank:
   submit: Créer l'automatisation
   submitting: Création…
   initialMessage: Première version
+  kindQuestion: 'Quand s’exécute-t-elle ?'
 notFound:
   title: Automatisation introuvable
   description: Elle a peut-être été renommée, ou elle appartient à une autre
@@ -157,12 +157,6 @@ trigger:
   cronHint: Expression cron standard à 5 champs (minute heure jour mois jour-semaine).
   cronInvalid: Cette expression cron n’est pas valide.
   cronInvalidReason: 'Cette expression cron n’est pas valide : {reason}'
-  cronNext: 'Prochaine exécution {at}'
-  paused: En pause — aucune exécution ne démarre
-  notDeployed: 'Ne démarrera pas tant qu’aucune version n’est déployée · prochaine exécution prévue {at}'
-  cronEveryMinutes: '{n, plural, one {Toutes les minutes} other {Toutes les # minutes}}'
-  cronEveryHours: '{n, plural, one {Toutes les heures} other {Toutes les # heures}}'
-  cronDailyAt: 'Tous les jours à {time}'
   timezoneLabel: Fuseau horaire
   timezoneSearch: Rechercher un fuseau
   timezoneEmpty: Aucun fuseau ne correspond
@@ -199,6 +193,66 @@ trigger:
     title: Renouveler le token du webhook ?
     body: L’URL actuelle cesse de fonctionner dès que le nouveau token est généré. Copie la nouvelle URL et mets à jour chaque système expéditeur.
   revokedToast: L’ancienne URL du webhook a été révoquée — les expéditeurs qui l’utilisent reçoivent désormais 404.
+  loadFailed: 'Impossible de charger le déclencheur.'
+  retry: 'Réessayer'
+  kindHint:
+    schedule: 'Aux moments que tu choisis.'
+    webhook: 'Quand un autre système envoie une requête à son URL.'
+    event: 'Quand quelque chose se passe dans Tale, comme une nouvelle tâche.'
+  schedule:
+    label: 'Planification'
+    description: 'Quand l’automatisation démarre.'
+    format: 'Format de la planification'
+    formatRepeat: 'Répétition'
+    formatCron: 'Cron (avancé)'
+    inZone: 'Heures en {zone}'
+    savedAsCron: 'Enregistrée comme expression cron {cron}. Si tu modifies la planification et enregistres, elle devient une règle de répétition.'
+    cronNotConvertible: 'Cette expression cron ne peut pas s’afficher comme répétition. L’enregistrer en mode Répétition la remplace.'
+    repeatNoCron: '« {sentence} » ne s’écrit pas en une seule expression cron. Saisis-en une ou reviens à Répétition.'
+    cronReadsAs: 'Signifie : {sentence}'
+    anchor:
+      daily: 'Compté à partir du {date}.'
+      weekly: 'Compté à partir de la semaine du {date}.'
+      monthly: 'Compté depuis {month}.'
+      yearly: 'Compté à partir de {year}.'
+  timezoneYours: 'Ton fuseau horaire'
+  catchUp:
+    label: 'Exécutions manquées'
+    description: 'Quand Tale n’était pas disponible à l’heure prévue, par exemple pendant une mise à jour.'
+    latest: 'Lancer la dernière au retour de Tale'
+    skip: 'Les ignorer'
+    latestHint: 'S’exécute une fois pour le dernier horaire manqué, quel que soit le retard. Les horaires manqués plus anciens sont comptés, pas rattrapés.'
+    skipHint: 'Une exécution en retard de plus de 10 minutes ne démarre pas ; elle est comptée comme manquée.'
+  nextRuns:
+    title: 'Prochaines exécutions'
+    titleUnsaved: 'Prochaines exécutions (non enregistrées)'
+    wouldRun: 'S’exécuterait à'
+    paused: 'En pause : active « Actif » et enregistre pour lancer ces exécutions.'
+    notDeployed: 'Rien ne démarre tant qu’aucune version n’est déployée.'
+    unavailable: 'Corrige la planification ci-dessus pour voir les prochaines exécutions.'
+  issues:
+    keyOtherKind: 'Ce réglage appartient à un autre type de déclencheur.'
+    schedule:
+      cronOrRepeat: 'Donne à la planification soit une règle de répétition, soit une expression cron, pas les deux.'
+      cronUnreadable: 'Cette expression cron est illisible.'
+      cronImpossibleDate: 'Cette expression cron désigne une date qui n’arrive jamais.'
+      timesRequired: 'Ajoute au moins une heure.'
+      timeFormat: 'Écris les heures au format HH:MM, par exemple 09:30.'
+      timesTooMany: 'Utilise au plus {max} heures par jour.'
+      intervalUnsupported: 'Choisis l’un des intervalles proposés.'
+      monthDayImpossible: 'Ce mois n’a jamais ce jour.'
+      windowHoursEqual: 'Le début et la fin sont identiques. Retire les heures pour une exécution toute la journée.'
+      startDate: 'La date de début n’est pas une date du calendrier.'
+    input:
+      notObject: 'L’entrée fixe doit être un objet JSON.'
+      reservedKey: 'Retire {keys} : le déclencheur définit ces champs lui-même.'
+      tooLarge: 'L’entrée fixe dépasse 16 Kio.'
+    event:
+      required: 'Choisis un événement.'
+      unknown: 'Tale ne déclenche pas cet événement.'
+  fixedInput:
+    notJson: 'Ce n’est pas du JSON valide.'
+  timezoneInvalid: 'Choisis un fuseau horaire IANA valide (par ex. Europe/Zurich ou UTC).'
 canvas:
   ariaLabel: Canvas de l’automatisation
   readsFrom: 'Lit {nodes}'

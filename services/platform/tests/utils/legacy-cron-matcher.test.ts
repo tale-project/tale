@@ -1,13 +1,12 @@
 // @vitest-environment node
 
 /**
- * The cron matcher's parse contract (trigger-delivery class): a five-field
+ * The legacy cron matcher the schedule evaluator's tests use as their
+ * oracle, held to its own contract so the oracle stays right: a five-field
  * expression is refused at PARSE for anything that can never fire — a field
  * out of range, a range with an end missing, and a day-of-month no month it
- * names can reach — so the bind door answers 400 instead of saving a
- * schedule that ticks forever without an occurrence. The feasibility rule
- * itself lives in `lib/automations/cron-feasibility.ts`, shared with the
- * editor's preview.
+ * names can reach — and the matcher names the minutes a crontab would. The
+ * feasibility rule itself lives in `lib/automations/cron-feasibility.ts`.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -17,7 +16,7 @@ import {
   firstOccurrenceBetween,
   parseCron,
   wallClockIn,
-} from './cron.ts';
+} from './legacy-cron-matcher.ts';
 
 describe('parseCron feasibility', () => {
   it.each([

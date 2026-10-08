@@ -1,9 +1,8 @@
 /**
  * The one rule that decides whether a cron expression's day-of-month can
- * ever meet its month — shared by the backend matcher (`backend/core/
- * automations/cron.ts`, which refuses the expression at bind) and the
- * editor's preview (`app/features/automations/lib/cron-preview.ts`), so the
- * two never disagree about `0 0 31 4,6 *`.
+ * ever meet its month — read by the cron parse (`lib/automations/cron.ts`)
+ * that the bind refuses on and the trigger editor checks the Cron field
+ * with, so the two never disagree about `0 0 31 4,6 *`.
  *
  * Pure and dependency-free on purpose: the app bundle and the worker both
  * import it. Field VALUES are the caller's parser's job; this module only

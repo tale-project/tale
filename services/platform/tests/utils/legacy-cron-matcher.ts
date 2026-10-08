@@ -1,38 +1,26 @@
 /**
- * Minute-resolution cron matching — the editor's legacy cron preview
- * (`app/features/automations/lib/cron-preview.ts`) and the oracle the
- * schedule evaluator's tests hold it to. The scan no longer reads it: when a
- * schedule starts is `lib/automations/schedule/occurrences.ts`'s, for cron
- * expressions and repeat rules alike.
+ * The minute-by-minute cron matcher the schedule scan fired on before the
+ * schedule evaluator (`lib/automations/schedule/occurrences.ts`) replaced
+ * it, kept only as the oracle the evaluator's tests hold it to: on ordinary
+ * days, and through a repeated hour, both must name the same starts. Nothing
+ * outside tests reads it.
  *
  * Five fields — minute, hour, day-of-month, month, day-of-week — each a `*`, a
  * number, a `a-b` range, a step (`a-b/n`, or a wildcard with a step), or a
- * comma-separated list of
- * those. Day-of-week is 0..7 with both 0 and 7 meaning Sunday, matching what
- * operators expect from crontab. When BOTH day-of-month and day-of-week are
- * restricted, a day matching EITHER fires — crontab's own rule, and the one
- * that makes "every Monday and the 1st" express what it reads like.
- *
- * Written here rather than taken from the packaged parser because the package
- * re-exports a crontab-FILE reader, which pulls `node:fs` into a bundle that
- * runs in a runtime with no filesystem. The matcher below is the part a trigger
- * scan actually needs; the parse it matches against is the shared validator in
- * `lib/automations/cron.ts`.
- *
- * Wall-clock time is resolved in the trigger's IANA zone through `Intl`, so a
- * schedule written as 09:00 Europe/Zurich stays 09:00 across a DST change
- * instead of drifting an hour twice a year.
+ * comma-separated list of those. Day-of-week is 0..7 with both 0 and 7
+ * meaning Sunday. When BOTH day-of-month and day-of-week are restricted, a day
+ * matching EITHER fires — crontab's own rule. Wall-clock time is resolved in
+ * the trigger's IANA zone through `Intl`.
  */
 
 import {
   type CronField,
   type CronSchedule,
   parseCron,
-} from '../../../lib/automations/cron.ts';
+} from '../../lib/automations/cron.ts';
 
-// The parse itself — `parseField` / `parseCron` — lives in
-// `lib/automations/cron.ts`, shared with the editor's preview so both refuse
-// the same expressions; this module keeps the wall-clock half.
+// The parse itself lives in `lib/automations/cron.ts`, which the evaluator
+// shares; this module keeps the legacy wall-clock half.
 export { parseCron, type CronField, type CronSchedule };
 
 const MINUTE_MS = 60 * 1000;

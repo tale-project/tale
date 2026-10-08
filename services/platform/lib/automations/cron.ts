@@ -1,9 +1,9 @@
 /**
  * The one cron validator — the five-field parse the `schedule` trigger bind
- * refuses on, shared by the backend matcher (`backend/core/automations/
- * cron.ts`) and the editor's preview (`app/features/automations/lib/
- * cron-preview.ts`), so the panel never previews a "next run" for an
- * expression the save will turn down.
+ * refuses on, shared by the schedule evaluator
+ * (`lib/automations/schedule/occurrences.ts`) and the trigger editor's Cron
+ * field, so the panel never previews a "next run" for an expression the
+ * save will turn down.
  *
  * Five fields — minute, hour, day-of-month, month, day-of-week — each a `*`,
  * a number, a `a-b` range, a step (`a-b/n`, or a wildcard with a step), or a
@@ -13,7 +13,7 @@
  * bind refused. Day-of-week is 0..7 with both 0 and 7 meaning Sunday,
  * matching what operators expect from crontab.
  *
- * Pure: no `Intl`, no clock — the wall-clock half stays in the backend.
+ * Pure: no `Intl`, no clock — the wall-clock half is the evaluator's.
  */
 
 import {

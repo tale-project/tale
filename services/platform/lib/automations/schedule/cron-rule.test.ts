@@ -17,7 +17,7 @@ import {
 } from '@tale/shared/schemas/schedule-rule';
 import { describe, expect, it } from 'vitest';
 
-import { firstOccurrenceBetween } from '../../../backend/core/automations/cron.ts';
+import { firstOccurrenceBetween } from '../../../tests/utils/legacy-cron-matcher.ts';
 import type { CalendarDate } from '../../shared/calendar.ts';
 import { cronDstClass, parseCron } from '../cron.ts';
 import {

@@ -66,7 +66,6 @@ blank:
   promptPlaceholder: e.g. Scan open GlitchTip issues and open a task for each
     new one.
   equipmentLabel: Equipment
-  timezoneInvalid: Pick a valid IANA time zone (e.g. Europe/Zurich or UTC).
   webhookHint: The webhook URL is shown once, right after the automation is
     created — copy it before opening the editor.
   stepWebhook: Copy the webhook URL — it is shown only now.
@@ -82,6 +81,7 @@ blank:
   submit: Create automation
   submitting: Creating…
   initialMessage: Initial version
+  kindQuestion: 'When does it run?'
 notFound:
   title: Automation not found
   description: It may have been renamed, or it may belong to another
@@ -156,12 +156,6 @@ trigger:
   cronHint: Use a standard 5-field cron expression (minute hour day month weekday).
   cronInvalid: That cron expression is not valid.
   cronInvalidReason: 'That cron expression is not valid: {reason}'
-  cronNext: 'Next run {at}'
-  paused: Paused — no runs start
-  notDeployed: "Won't start until a version is deployed · would next run {at}"
-  cronEveryMinutes: '{n, plural, one {Every minute} other {Every # minutes}}'
-  cronEveryHours: '{n, plural, one {Every hour} other {Every # hours}}'
-  cronDailyAt: 'Every day at {time}'
   timezoneLabel: Timezone
   timezoneSearch: Search timezones
   timezoneEmpty: No timezones match
@@ -195,6 +189,66 @@ trigger:
     title: Rotate the webhook token?
     body: The current URL stops working the moment the new token is minted. Copy the new URL and update every sending system.
   revokedToast: The previous webhook URL has been revoked — senders using it now get 404.
+  loadFailed: 'Couldn''t load the trigger.'
+  retry: 'Try again'
+  kindHint:
+    schedule: 'At the times you choose.'
+    webhook: 'When another system sends a request to its URL.'
+    event: 'When something happens in Tale, such as a new task.'
+  schedule:
+    label: 'Schedule'
+    description: 'When the automation starts.'
+    format: 'Schedule format'
+    formatRepeat: 'Repeat'
+    formatCron: 'Cron (advanced)'
+    inZone: 'Times in {zone}'
+    savedAsCron: 'Stored as the cron expression {cron}. Saving a change to the schedule stores it as a repeat rule.'
+    cronNotConvertible: 'This cron expression can''t be shown as a repeat. Saving in Repeat replaces it.'
+    repeatNoCron: '"{sentence}" has no single cron expression. Enter one, or go back to Repeat.'
+    cronReadsAs: 'Reads as: {sentence}'
+    anchor:
+      daily: 'Counted from {date}.'
+      weekly: 'Counted from the week of {date}.'
+      monthly: 'Counted from {month}.'
+      yearly: 'Counted from {year}.'
+  timezoneYours: 'Your time zone'
+  catchUp:
+    label: 'Missed runs'
+    description: 'When Tale was unavailable at the due time, for example during an update.'
+    latest: 'Start the latest one when Tale is back'
+    skip: 'Skip them'
+    latestHint: 'Runs once for the most recent time it missed, however late. Earlier missed times are counted, not run.'
+    skipHint: 'A run more than 10 minutes late doesn''t start; it''s counted as missed.'
+  nextRuns:
+    title: 'Next runs'
+    titleUnsaved: 'Next runs (unsaved)'
+    wouldRun: 'Would run at'
+    paused: 'Paused: turn on Enabled and save to start these runs.'
+    notDeployed: 'Nothing starts until a version is deployed.'
+    unavailable: 'Fix the schedule above to see the next runs.'
+  issues:
+    keyOtherKind: 'This setting belongs to a different trigger type.'
+    schedule:
+      cronOrRepeat: 'Give the schedule either a repeat rule or a cron expression, not both.'
+      cronUnreadable: 'This cron expression can''t be read.'
+      cronImpossibleDate: 'This cron expression names a date that never comes.'
+      timesRequired: 'Add at least one time of day.'
+      timeFormat: 'Write times as HH:MM, for example 09:30.'
+      timesTooMany: 'Use at most {max} times a day.'
+      intervalUnsupported: 'Pick one of the offered intervals.'
+      monthDayImpossible: 'That month never has this day.'
+      windowHoursEqual: 'Start and end are the same. Leave out the hours to run all day.'
+      startDate: 'The start date isn''t a calendar date.'
+    input:
+      notObject: 'The fixed input must be a JSON object.'
+      reservedKey: 'Remove {keys}: the trigger sets these fields itself.'
+      tooLarge: 'The fixed input is larger than 16 KiB.'
+    event:
+      required: 'Pick an event.'
+      unknown: 'Tale doesn''t raise this event.'
+  fixedInput:
+    notJson: 'This isn''t valid JSON.'
+  timezoneInvalid: 'Pick a valid IANA time zone (e.g. Europe/Zurich or UTC).'
 canvas:
   ariaLabel: Automation canvas
   readsFrom: 'Reads {nodes}'

@@ -312,10 +312,13 @@ output:
   status leaves **Waiting** without reload.
 - [ ] `AUTO-F27` · **Trigger — schedule** — Open the **General** tab's
   **Trigger** section on an automation with a schedule → **Trigger type**
-  (`automations.trigger.kindLabel`) is Schedule; **Cron**
-  (`automations.trigger.cronLabel`), **Timezone**, and the **Enabled** switch
+  (`automations.trigger.kindLabel`) is Schedule; the schedule picker
+  (`automations.trigger.schedule.label`, or **Cron**
+  `automations.trigger.cronLabel` under **Cron (advanced)** for a cron no
+  repeat rule says), **Timezone**, **Missed runs**
+  (`automations.trigger.catchUp.label`) and the **Enabled** switch
   (`automations.trigger.enabledLabel`) reflect the stored trigger. Edit the
-  cron → the **General** tab's unsaved dot lights, and **Save**
+  schedule → the **General** tab's unsaved dot lights, and **Save**
   (`common.actions.save`) in the strip persists it on reload; an unchanged form
   leaves **Save** and **Discard** (`common.actions.discard`) disabled.
 - [ ] `AUTO-F28` · **Trigger — webhook token** — Switch **Trigger type** to
@@ -440,17 +443,21 @@ output:
       `approval:<uuid>` or `repeat:tick`; a failed run's row and header keep
       its failure sentence; a succeeded run's row shows its starter only.
 - [ ] `AUTO-F40` · **One cron validator** — In the **General** tab's **Trigger**
-      section on a schedule, type a four-field cron (`*/1 * * *`), then a six-field one and
-      `0 9 * * MON` → Each shows the refusal with the validator's own sentence
-      under the field (`automations.trigger.cronInvalidReason`, e.g. "got 4")
-      and NO "Next run" line; **Save** in the tab strip stays disabled; nothing
-      is sent to the server. A five-field cron restores the preview
-      (`automations.trigger.cronNext`).
+      section on a schedule, pick **Cron (advanced)**
+      (`automations.trigger.schedule.formatCron`) and type a four-field cron
+      (`*/1 * * *`), then a six-field one and `0 9 * * MON` → Each shows the
+      refusal with the validator's own sentence under the field
+      (`automations.trigger.cronInvalidReason`, e.g. "got 4"); **Next runs**
+      lists nothing and reads `automations.trigger.nextRuns.unavailable`;
+      **Save** in the tab strip stays disabled; nothing is sent to the
+      server. A five-field cron restores the list, and one a repeat rule says
+      reads `automations.trigger.schedule.cronReadsAs`.
 - [ ] `AUTO-F41` · **Blank wizard validates the schedule before creating** —
       **Create automation** › **Blank** › step 2 with **Schedule** → The
-      **Cron** field shows the pattern and next run (`automations.trigger.cronNext`)
-      for the default; **Timezone** is a searchable picker
-      (`automations.trigger.timezoneSearch`), not free text. Type
+      schedule picker shows the default daily 09:00 in your time zone, with
+      three runs under `automations.trigger.nextRuns.wouldRun`; **Timezone**
+      is a searchable picker (`automations.trigger.timezoneSearch`), not free
+      text. Switch to **Cron (advanced)** and type
       `61 * * * *`, then `0 0 31 2 *`, then `*/1 * * *` → each shows the
       refusal under the field (`automations.trigger.cronInvalidReason`) and
       **Create automation** is disabled with that reason — no automation is
@@ -473,18 +480,20 @@ output:
       the latest directly (AUTO-F36); an unknown slug still shows
       `automations.notFound.title`.
 - [ ] `AUTO-F44` · **A schedule says what it will do** — On a deployed
-      automation with an enabled schedule the Cron line reads the pattern and
-      `automations.trigger.cronNext`. Switch **Enabled** off → the line reads
-      `automations.trigger.paused` with no next run, before and after **Save** +
-      reload. Open a not-deployed automation with a schedule (a
-      fresh upload, or a built-in pack) → the line reads
-      `automations.trigger.notDeployed` naming the would-be occurrence, never
-      a bare "Next run"; deploy a version → the plain next run returns.
+      automation with an enabled schedule, **Next runs**
+      (`automations.trigger.nextRuns.title`) lists five runs in the
+      schedule's zone. Switch **Enabled** off → the heading reads
+      `automations.trigger.nextRuns.wouldRun` and the line under it
+      `automations.trigger.nextRuns.paused`, before and after **Save** +
+      reload. Open a not-deployed automation with a schedule (a fresh
+      upload, or a built-in pack) → `automations.trigger.nextRuns.wouldRun`
+      with `automations.trigger.nextRuns.notDeployed`, never a bare **Next
+      runs**; deploy a version → the plain list returns.
 - [ ] `AUTO-F45` · **A new trigger starts off** — On an automation with no
       trigger, **Add trigger** (`automations.trigger.add`) → the form opens
-      with **Enabled** OFF; type a cron and **Save** → after reload
-      the switch is still off and the Cron line reads
-      `automations.trigger.paused`; nothing fires at the cron's minute. In the
+      with **Enabled** OFF on a daily 09:00 schedule in your time zone;
+      **Save** → after reload the switch is still off and the next runs read
+      `automations.trigger.nextRuns.paused`; nothing fires at 09:00. In the
       **Blank** wizard step 2, **Enable now** (`automations.blank.enableNow`)
       is unchecked by default → the created automation's trigger is off;
       check it → the trigger is on.

@@ -15,16 +15,15 @@ import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { CopyableField } from '@tale/ui/copyable-field';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
-import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { SearchableSelect } from '@tale/ui/searchable-select';
-import { Select } from '@tale/ui/select';
 import { Textarea } from '@tale/ui/textarea';
 import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import { KeyRound } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   SkillsMenu,
@@ -47,23 +46,27 @@ import {
 import { blankAutomationDocument } from '@/lib/automations/blank-document';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
-import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
+import { localTimeZone } from '@/lib/shared/zoned-time';
 
 import { useSaveAutomation, useSetAutomationTrigger } from '../hooks/mutations';
 import { useAutomationCapabilities } from '../hooks/queries';
-import { useCronPreview } from '../hooks/use-cron-preview';
-import { isValidTimezone, listTimezoneOptions } from '../lib/cron-preview';
 import { automationErrorCode, automationErrorMessage } from '../lib/errors';
+import {
+  cronParseError,
+  defaultTriggerDraft,
+  toTriggerBody,
+  type TriggerDraft,
+  triggerDraftIssue,
+} from '../lib/trigger-draft';
+import { triggerIssueText } from '../lib/trigger-issue-text';
 import { DEFAULT_HARNESS } from './agent-node-fields';
+import { TriggerForm } from './trigger-form';
 
 const EMPTY_BINDING: SkillsSelection = {
   skills: [],
   connectors: [],
   tools: [],
 };
-
-const TRIGGER_KINDS = ['schedule', 'webhook', 'event'] as const;
-type TriggerKind = (typeof TRIGGER_KINDS)[number];
 
 /** Mirrors the store's `NAME_RE` — the automation identity is a kebab slug. */
 function slugify(input: string): string {
@@ -99,6 +102,9 @@ export function BlankAutomationDialog({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { t: tProjects } = useT('projects');
+  const { t: tRecurrence } = useT('recurrence');
+  const { i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en';
   const navigate = useNavigate();
   const roster = useProjectHarnesses(organizationId);
   const capabilities = useAutomationCapabilities(
@@ -129,14 +135,13 @@ export function BlankAutomationDialog({
   const [nameError, setNameError] = useState<string | undefined>(undefined);
   const [generatedSlug, setGeneratedSlug] = useState(fallbackSlug);
 
-  // Step 2 — the trigger.
-  const [triggerKind, setTriggerKind] = useState<TriggerKind>('schedule');
-  const [cron, setCron] = useState('0 */6 * * *');
-  const [timezone, setTimezone] = useState('UTC');
-  const [eventName, setEventName] = useState('');
-  // Off by default: the trigger is created paused, the way the panel does
-  // it, so nothing starts before the author has looked at the result.
-  const [enableNow, setEnableNow] = useState(false);
+  // Step 2 — the trigger, in the form the General tab edits it with: a
+  // daily 09:00 schedule in the author's zone, created off (the way the
+  // panel does it) so nothing starts before the author has looked.
+  const [viewerZone] = useState(localTimeZone);
+  const [trigger, setTriggerDraft] = useState<TriggerDraft>(() =>
+    defaultTriggerDraft(viewerZone),
+  );
   // The webhook token the create minted — the server shows it exactly once,
   // and this dialog is the only place that sees the mint, so it stays open
   // on a copy screen until the author has taken the URL.
@@ -156,13 +161,9 @@ export function BlankAutomationDialog({
     setSecretNames([]);
     setNameError(undefined);
     setGeneratedSlug(fallbackSlug());
-    setTriggerKind('schedule');
-    setCron('0 */6 * * *');
-    setTimezone('UTC');
-    setEventName('');
-    setEnableNow(false);
+    setTriggerDraft(defaultTriggerDraft(viewerZone));
     setMinted(null);
-  }, [open]);
+  }, [open, viewerZone]);
 
   // The grantable platform tools, labelled per name with a read/write badge
   // (the same labels the project-agent dialog uses).
@@ -219,24 +220,11 @@ export function BlankAutomationDialog({
     [offeredModels, tProjects],
   );
 
-  // The schedule is judged here, before anything is written: the same
-  // validator the bind refuses on, so the wizard never creates an
-  // automation and then fails to set its trigger. The toast on a refused
-  // bind stays as the fallback for whatever the server alone can see.
-  const {
-    preview: cronPreview,
-    description: cronDescription,
-    invalidText: cronInvalidText,
-  } = useCronPreview(cron, timezone, triggerKind === 'schedule');
-  const timezoneOptions = useMemo(
-    () =>
-      listTimezoneOptions(timezone).map((zone) => ({
-        value: zone,
-        label: zone,
-      })),
-    [timezone],
-  );
-  const timezoneValid = isValidTimezone(timezone);
+  // The trigger is judged here, before anything is written, by the checks
+  // the bind refuses on, so the wizard never creates an automation and then
+  // fails to set its trigger. The toast on a refused bind stays as the
+  // fallback for whatever the server alone can see.
+  const triggerIssue = triggerDraftIssue(trigger);
 
   // The slug is addressing; the typed name is what people see. A name the
   // slugifier empties (Chinese, emoji) still creates — under a generated
@@ -246,20 +234,15 @@ export function BlankAutomationDialog({
     name.trim() === '' ? '' : typedSlug === '' ? generatedSlug : typedSlug;
   const canSubmitStep1 =
     slug.length > 0 && model !== '' && prompt.trim() !== '';
-  const canSubmitStep2 =
-    triggerKind === 'webhook' ||
-    (triggerKind === 'schedule'
-      ? cronPreview.kind === 'ok' && timezoneValid
-      : eventName.trim() !== '');
+  const canSubmitStep2 = triggerIssue === null;
   const step2DisabledReason =
-    triggerKind === 'schedule'
-      ? (cronInvalidText ??
-        (cronPreview.kind === 'empty'
-          ? t('trigger.cronHint')
-          : timezoneValid
-            ? undefined
-            : t('blank.timezoneInvalid')))
-      : undefined;
+    triggerIssue === null
+      ? undefined
+      : triggerIssueText(
+          triggerIssue,
+          { t, tRecurrence, locale },
+          { cronReason: cronParseError(trigger.cron) },
+        );
 
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
   const webhookUrl = (token: string): string =>
@@ -316,14 +299,7 @@ export function BlankAutomationDialog({
         const bound = await setTrigger({
           organizationId,
           name: saved.name,
-          trigger: {
-            kind: triggerKind,
-            enabled: enableNow,
-            ...(triggerKind === 'schedule'
-              ? { cron: cron.trim(), timezone: timezone.trim() || 'UTC' }
-              : {}),
-            ...(triggerKind === 'event' ? { event: eventName.trim() } : {}),
-          },
+          trigger: toTriggerBody(trigger, null),
         });
         token = bound?.token;
       } catch (error) {
@@ -337,7 +313,7 @@ export function BlankAutomationDialog({
         });
       }
       const automationSlug = automationSlugToParam(saved.name);
-      if (triggerKind === 'webhook' && token !== undefined) {
+      if (trigger.kind === 'webhook' && token !== undefined) {
         setMinted({ token, automationSlug });
         setSubmitting(false);
         return;
@@ -546,79 +522,28 @@ export function BlankAutomationDialog({
         </Stack>
       ) : (
         <Stack gap={4}>
-          <Select
-            id="blank-automation-trigger-kind"
-            label={t('trigger.kindLabel')}
-            options={TRIGGER_KINDS.map((value) => ({
-              value,
-              label: t(`trigger.kinds.${value}`),
-            }))}
-            value={triggerKind}
-            onValueChange={(value) => {
-              if (
-                value === 'schedule' ||
-                value === 'webhook' ||
-                value === 'event'
-              ) {
-                setTriggerKind(value);
-              }
-            }}
+          <TriggerForm
+            surface="wizard"
+            draft={trigger}
+            stored={null}
+            canEdit
+            viewerZone={viewerZone}
+            runState={{ clean: false, deployed: false, nextRunAt: null }}
+            onChange={(patch) =>
+              setTriggerDraft((current) => ({ ...current, ...patch }))
+            }
           />
-          {triggerKind === 'schedule' ? (
-            <>
-              <Field
-                label={t('trigger.cronLabel')}
-                htmlFor="blank-automation-cron"
-                description={
-                  cronPreview.kind === 'invalid' ? undefined : cronDescription
-                }
-                error={cronInvalidText}
-              >
-                <Input
-                  id="blank-automation-cron"
-                  placeholder="0 */6 * * *"
-                  value={cron}
-                  onChange={(e) => setCron(e.target.value)}
-                  className="font-mono"
-                />
-              </Field>
-              <SearchableSelect
-                id="blank-automation-timezone"
-                label={t('trigger.timezoneLabel')}
-                options={timezoneOptions}
-                value={timezone || null}
-                onValueChange={setTimezone}
-                searchPlaceholder={t('trigger.timezoneSearch')}
-                emptyText={t('trigger.timezoneEmpty')}
-                placeholder="UTC"
-                modal
-              />
-            </>
-          ) : null}
-          {triggerKind === 'event' ? (
-            <Select
-              id="blank-automation-event"
-              label={t('trigger.eventLabel')}
-              placeholder={t('trigger.eventPlaceholder')}
-              options={EMITTED_EVENT_TYPES.map((value) => ({
-                value,
-                label: value,
-              }))}
-              value={eventName}
-              onValueChange={(value) => {
-                if (value !== '') setEventName(value);
-              }}
-            />
-          ) : null}
-          {triggerKind === 'webhook' ? (
-            <Alert variant="info" description={t('blank.webhookHint')} />
-          ) : null}
           <Checkbox
             id="blank-automation-enable-now"
             label={t('blank.enableNow')}
             description={t('blank.enableNowHint')}
-            checked={enableNow}
-            onCheckedChange={(checked) => setEnableNow(checked === true)}
+            checked={trigger.enabled}
+            onCheckedChange={(checked) =>
+              setTriggerDraft((current) => ({
+                ...current,
+                enabled: checked === true,
+              }))
+            }
           />
         </Stack>
       )}

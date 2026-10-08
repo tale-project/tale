@@ -66,7 +66,6 @@ blank:
   promptPlaceholder: z. B. Offene GlitchTip-Issues durchsehen und für jede
     neue eine Aufgabe anlegen.
   equipmentLabel: Ausrüstung
-  timezoneInvalid: Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).
   webhookHint: Die Webhook-URL erscheint genau einmal, direkt nach dem
     Anlegen — kopiere sie, bevor du den Editor öffnest.
   stepWebhook: Kopiere die Webhook-URL — sie wird nur jetzt angezeigt.
@@ -82,6 +81,7 @@ blank:
   submit: Automatisierung erstellen
   submitting: Erstellt …
   initialMessage: Erste Version
+  kindQuestion: 'Wann läuft sie?'
 notFound:
   title: Automatisierung nicht gefunden
   description:
@@ -157,12 +157,6 @@ trigger:
   cronHint: Standard-Cron mit 5 Feldern (Minute Stunde Tag Monat Wochentag).
   cronInvalid: Dieser Cron-Ausdruck ist ungültig.
   cronInvalidReason: 'Dieser Cron-Ausdruck ist ungültig: {reason}'
-  cronNext: 'Nächster Lauf {at}'
-  paused: Pausiert — es starten keine Läufe
-  notDeployed: 'Startet erst, wenn eine Version bereitgestellt ist · nächster Lauf wäre {at}'
-  cronEveryMinutes: '{n, plural, one {Jede Minute} other {Alle # Minuten}}'
-  cronEveryHours: '{n, plural, one {Jede Stunde} other {Alle # Stunden}}'
-  cronDailyAt: 'Jeden Tag um {time}'
   timezoneLabel: Zeitzone
   timezoneSearch: Zeitzonen suchen
   timezoneEmpty: Keine passende Zeitzone
@@ -199,6 +193,66 @@ trigger:
     title: Webhook-Token rotieren?
     body: Die aktuelle URL funktioniert nicht mehr, sobald das neue Token erzeugt ist. Kopiere die neue URL und aktualisiere jedes sendende System.
   revokedToast: Die bisherige Webhook-URL wurde widerrufen — Absender, die sie nutzen, bekommen jetzt 404.
+  loadFailed: 'Der Trigger konnte nicht geladen werden.'
+  retry: 'Erneut versuchen'
+  kindHint:
+    schedule: 'Zu den Zeiten, die du wählst.'
+    webhook: 'Wenn ein anderes System eine Anfrage an seine URL sendet.'
+    event: 'Wenn in Tale etwas passiert, etwa eine neue Aufgabe.'
+  schedule:
+    label: 'Zeitplan'
+    description: 'Wann die Automatisierung startet.'
+    format: 'Format des Zeitplans'
+    formatRepeat: 'Wiederholung'
+    formatCron: 'Cron (erweitert)'
+    inZone: 'Zeiten in {zone}'
+    savedAsCron: 'Gespeichert als Cron-Ausdruck {cron}. Änderst du den Zeitplan und speicherst, wird daraus eine Wiederholungsregel.'
+    cronNotConvertible: 'Dieser Cron-Ausdruck lässt sich nicht als Wiederholung darstellen. Speicherst du unter Wiederholung, wird er ersetzt.'
+    repeatNoCron: '„{sentence}“ lässt sich nicht als ein Cron-Ausdruck schreiben. Gib einen ein oder wechsle zurück zu Wiederholung.'
+    cronReadsAs: 'Bedeutet: {sentence}'
+    anchor:
+      daily: 'Gezählt ab {date}.'
+      weekly: 'Gezählt ab der Woche vom {date}.'
+      monthly: 'Gezählt ab {month}.'
+      yearly: 'Gezählt ab {year}.'
+  timezoneYours: 'Deine Zeitzone'
+  catchUp:
+    label: 'Verpasste Läufe'
+    description: 'Wenn Tale zum geplanten Zeitpunkt nicht verfügbar war, etwa während eines Updates.'
+    latest: 'Den letzten nachholen, sobald Tale wieder läuft'
+    skip: 'Auslassen'
+    latestHint: 'Läuft einmal für den letzten verpassten Zeitpunkt, egal wie spät. Frühere verpasste Zeitpunkte werden gezählt, nicht nachgeholt.'
+    skipHint: 'Ein Lauf, der mehr als 10 Minuten zu spät ist, startet nicht und wird als verpasst gezählt.'
+  nextRuns:
+    title: 'Nächste Läufe'
+    titleUnsaved: 'Nächste Läufe (nicht gespeichert)'
+    wouldRun: 'Würde laufen um'
+    paused: 'Pausiert: Schalte „Aktiv“ ein und speichere, damit diese Läufe starten.'
+    notDeployed: 'Es startet nichts, solange keine Version bereitgestellt ist.'
+    unavailable: 'Korrigiere den Zeitplan oben, um die nächsten Läufe zu sehen.'
+  issues:
+    keyOtherKind: 'Diese Einstellung gehört zu einem anderen Trigger-Typ.'
+    schedule:
+      cronOrRepeat: 'Gib dem Zeitplan entweder eine Wiederholungsregel oder einen Cron-Ausdruck, nicht beides.'
+      cronUnreadable: 'Dieser Cron-Ausdruck ist nicht lesbar.'
+      cronImpossibleDate: 'Dieser Cron-Ausdruck nennt ein Datum, das nie eintritt.'
+      timesRequired: 'Füge mindestens eine Uhrzeit hinzu.'
+      timeFormat: 'Schreibe Uhrzeiten als HH:MM, zum Beispiel 09:30.'
+      timesTooMany: 'Verwende höchstens {max} Uhrzeiten pro Tag.'
+      intervalUnsupported: 'Wähle eines der angebotenen Intervalle.'
+      monthDayImpossible: 'Diesen Tag hat der Monat nie.'
+      windowHoursEqual: 'Beginn und Ende sind gleich. Lass die Uhrzeiten weg, damit es den ganzen Tag läuft.'
+      startDate: 'Das Startdatum ist kein Kalenderdatum.'
+    input:
+      notObject: 'Die feste Eingabe muss ein JSON-Objekt sein.'
+      reservedKey: 'Entferne {keys}: Diese Felder setzt der Trigger selbst.'
+      tooLarge: 'Die feste Eingabe ist größer als 16 KiB.'
+    event:
+      required: 'Wähle ein Ereignis.'
+      unknown: 'Dieses Ereignis löst Tale nicht aus.'
+  fixedInput:
+    notJson: 'Das ist kein gültiges JSON.'
+  timezoneInvalid: 'Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).'
 canvas:
   ariaLabel: Canvas der Automatisierung
   readsFrom: 'Liest {nodes}'

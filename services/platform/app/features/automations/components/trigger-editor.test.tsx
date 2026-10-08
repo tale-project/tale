@@ -1,3 +1,4 @@
+import type { TriggerView } from '@tale/shared/schemas/automation-trigger';
 import { ActiveEditorProvider, EditorGroup } from '@tale/ui/editor';
 import { within } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
@@ -13,23 +14,37 @@ const mockSetTrigger = vi.fn();
 const mockDeleteTrigger = vi.fn();
 const mockToast = vi.fn();
 
-let triggersData:
-  | Array<{
-      name: string;
-      kind: string;
-      cron?: string;
-      timezone?: string;
-      event?: string;
-      hasToken: boolean;
-      enabled: boolean;
-      lastFiredAt?: number;
-      lastSkipReason?: string | null;
-      consecutiveFailures?: number;
-      lastFailedAt?: number | null;
-      lastFailureCode?: string | null;
-      lastFailedRunId?: string | null;
-    }>
-  | undefined;
+let triggersData: TriggerView[] | undefined;
+
+/** A stored trigger as the read returns it: every field, `overrides` on
+ * top of an idle schedule. */
+function row(overrides: Partial<TriggerView>): TriggerView {
+  return {
+    id: 'trigger-1',
+    name: 'gmail-triage-inbox',
+    kind: 'schedule',
+    cron: null,
+    repeat: null,
+    startDate: null,
+    timezone: null,
+    catchUp: null,
+    input: null,
+    event: null,
+    hasToken: false,
+    enabled: true,
+    nextRunAt: null,
+    lastFiredAt: null,
+    lastRunId: null,
+    lastSkippedAt: null,
+    lastSkipReason: null,
+    lastSkipDetail: null,
+    consecutiveFailures: 0,
+    lastFailedAt: null,
+    lastFailureCode: null,
+    lastFailedRunId: null,
+    ...overrides,
+  };
+}
 
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   to?: string;
@@ -57,8 +72,22 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   };
 });
 
+let triggersError = false;
+const mockRefetch = vi.fn();
+
 vi.mock('../hooks/queries', () => ({
-  useAutomationTriggers: () => ({ data: triggersData, isPending: false }),
+  useAutomationTriggers: () => ({
+    data: triggersData,
+    isPending: false,
+    isError: triggersError,
+    refetch: mockRefetch,
+  }),
+}));
+
+// A new trigger reads its schedule in the reader's zone; the suite pins it.
+vi.mock('@/lib/shared/zoned-time', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/shared/zoned-time')>()),
+  localTimeZone: () => 'Europe/Zurich',
 }));
 
 vi.mock('../hooks/mutations', () => ({
@@ -82,14 +111,20 @@ vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 
-const SCHEDULE_ROW = {
-  name: 'gmail-triage-inbox',
-  kind: 'schedule',
+/** A cron a repeat rule says exactly: it opens in Repeat. */
+const SCHEDULE_ROW = row({
   cron: '0 */6 * * *',
   timezone: 'UTC',
-  hasToken: false,
-  enabled: true,
-};
+  catchUp: 'latest',
+});
+
+/** A cron no repeat rule says (7 does not divide an hour): it opens in Cron,
+ * where the edit-keeping cases type. */
+const CRON_ROW = row({
+  cron: '*/7 * * * *',
+  timezone: 'UTC',
+  catchUp: 'latest',
+});
 
 /** The design system's `InlineCode` (`@tale/ui`): a `<code>` chip in its
  * mono face — which the hand-rolled `<code>` it replaced never set. */
@@ -135,14 +170,15 @@ const savedButton = () => screen.getByRole('button', { name: /^Saved?$/ });
 describe('TriggerEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    triggersData = [SCHEDULE_ROW];
+    triggersData = [CRON_ROW];
+    triggersError = false;
     mockSetTrigger.mockResolvedValue({});
   });
 
   it('shows the stored binding, with Save and Discard waiting for an edit', () => {
     renderTrigger();
 
-    expect(screen.getByLabelText('Cron')).toHaveValue('0 */6 * * *');
+    expect(screen.getByLabelText('Cron')).toHaveValue('*/7 * * * *');
     expect(saveButton()).toBeDisabled();
     expect(discardButton()).toBeDisabled();
   });
@@ -162,6 +198,7 @@ describe('TriggerEditor', () => {
         kind: 'schedule',
         cron: '0 9 * * 1',
         timezone: 'UTC',
+        catchUp: 'latest',
         enabled: true,
       },
     });
@@ -175,7 +212,7 @@ describe('TriggerEditor', () => {
     await userEvent.type(cron, '0 9 * * 1');
     await userEvent.click(discardButton());
 
-    expect(cron).toHaveValue('0 */6 * * *');
+    expect(cron).toHaveValue('*/7 * * * *');
     expect(saveButton()).toBeDisabled();
     expect(mockSetTrigger).not.toHaveBeenCalled();
   });
@@ -187,7 +224,7 @@ describe('TriggerEditor', () => {
     await userEvent.clear(cron);
     await userEvent.type(cron, '0 9 * * 1');
     // The trigger fired meanwhile: the row comes back as a new object.
-    triggersData = [{ ...SCHEDULE_ROW, lastFiredAt: 1_790_000_000_000 }];
+    triggersData = [{ ...CRON_ROW, lastFiredAt: 1_790_000_000_000 }];
     rerender(
       <GeneralTab>
         <TriggerEditor
@@ -206,18 +243,13 @@ describe('TriggerEditor', () => {
   // fields the author changed keep the edit, the ones they left alone follow
   // the row — and a save's own row still settles the form.
   describe('a row saved while the form holds an edit', () => {
-    const WEBHOOK_ROW = {
-      name: 'gmail-triage-inbox',
-      kind: 'webhook',
-      hasToken: true,
-      enabled: true,
-    };
+    const WEBHOOK_ROW = row({ kind: 'webhook', hasToken: true });
 
     function rerenderWith(
       rerender: ReturnType<typeof renderTrigger>['rerender'],
-      row: NonNullable<typeof triggersData>[number],
+      next: TriggerView,
     ) {
-      triggersData = [row];
+      triggersData = [next];
       rerender(
         <GeneralTab>
           <TriggerEditor
@@ -250,7 +282,7 @@ describe('TriggerEditor', () => {
     it('keeps an edited cron when another session switches the trigger off', async () => {
       const { rerender } = renderTrigger();
       const cron = await editCron();
-      rerenderWith(rerender, { ...SCHEDULE_ROW, enabled: false });
+      rerenderWith(rerender, { ...CRON_ROW, enabled: false });
 
       expect(cron).toHaveValue('0 9 * * 1');
       // The switch the author left alone takes the other session's answer.
@@ -265,6 +297,7 @@ describe('TriggerEditor', () => {
           kind: 'schedule',
           cron: '0 9 * * 1',
           timezone: 'UTC',
+          catchUp: 'latest',
           enabled: false,
         },
       });
@@ -273,7 +306,7 @@ describe('TriggerEditor', () => {
     it('keeps an edited cron when another session saved a different one', async () => {
       const { rerender } = renderTrigger();
       const cron = await editCron();
-      rerenderWith(rerender, { ...SCHEDULE_ROW, cron: '0 7 * * *' });
+      rerenderWith(rerender, { ...CRON_ROW, cron: '*/9 * * * *' });
 
       expect(cron).toHaveValue('0 9 * * 1');
       expect(saveButton()).toBeEnabled();
@@ -291,7 +324,7 @@ describe('TriggerEditor', () => {
       const cron = await editCron();
       await userEvent.click(saveButton());
       await waitFor(() => expect(mockSetTrigger).toHaveBeenCalledTimes(1));
-      rerenderWith(rerender, { ...SCHEDULE_ROW, enabled: false });
+      rerenderWith(rerender, { ...CRON_ROW, enabled: false });
       await act(async () => {
         refuse(new Error('The store refused the trigger.'));
       });
@@ -353,15 +386,15 @@ describe('TriggerEditor', () => {
         await userEvent.click(saveButton());
         await waitFor(() => expect(mockSetTrigger).toHaveBeenCalledTimes(1));
         await userEvent.clear(cron);
-        await userEvent.paste('0 */6 * * *');
-        const saved = { ...SCHEDULE_ROW, cron: '0 9 * * 1' };
+        await userEvent.paste('*/7 * * * *');
+        const saved = { ...CRON_ROW, cron: '0 9 * * 1' };
         if (rowFirst) rerenderWith(rerender, saved);
         await act(async () => {
           answer({});
         });
         if (!rowFirst) rerenderWith(rerender, saved);
 
-        expect(cron).toHaveValue('0 */6 * * *');
+        expect(cron).toHaveValue('*/7 * * * *');
         expect(discardButton()).toBeEnabled();
         expect(savedButton()).toBeEnabled();
       },
@@ -381,8 +414,8 @@ describe('TriggerEditor', () => {
       await waitFor(() => expect(mockSetTrigger).toHaveBeenCalledTimes(1));
       // Another session switches the trigger off; then this save, written
       // after it, lands with the switch on again.
-      rerenderWith(rerender, { ...SCHEDULE_ROW, enabled: false });
-      rerenderWith(rerender, { ...SCHEDULE_ROW, cron: '0 9 * * 1' });
+      rerenderWith(rerender, { ...CRON_ROW, enabled: false });
+      rerenderWith(rerender, { ...CRON_ROW, cron: '0 9 * * 1' });
       await act(async () => {
         answer({});
       });
@@ -415,38 +448,124 @@ describe('TriggerEditor', () => {
     expect(
       screen.getByText(/That cron expression is not valid: .*got 4/),
     ).toBeVisible();
-    expect(screen.queryByText(/Next run/)).toBeNull();
+    expect(
+      screen.getByText('Fix the schedule above to see the next runs.'),
+    ).toBeVisible();
+    expect(screen.queryByRole('list')).toBeNull();
     expect(saveButton()).toBeDisabled();
     expect(mockSetTrigger).not.toHaveBeenCalled();
   });
 
   // A schedule that will not fire — switched off, or on an automation with
-  // no deployed version — used to promise "Next run …" all the same.
+  // no deployed version — used to promise "Next run …" all the same. The
+  // next runs say what will start, what would, and when nothing can.
   describe('what the schedule will actually do', () => {
-    it('promises the next run only for an enabled schedule on a deployed automation', () => {
+    const nextRuns = () => screen.getByRole('list', { name: /^Next runs/ });
+
+    it('lists the next runs for an enabled schedule on a deployed automation', () => {
       renderTrigger('gmail-triage-inbox', true, 2);
-      expect(screen.getByText(/Every 6 hours · Next run/)).toBeVisible();
-      expect(screen.queryByText(/Paused/)).toBeNull();
-      expect(screen.queryByText(/deployed/)).toBeNull();
+      expect(nextRuns()).toBeVisible();
+      expect(within(nextRuns()).getAllByRole('listitem')).toHaveLength(5);
+      expect(screen.queryByText(/^Paused:/)).toBeNull();
+      expect(screen.queryByText(/until a version is deployed/)).toBeNull();
     });
 
-    it('reads paused, with no next run, while the switch is off', async () => {
+    it('marks the runs unsaved while the schedule differs from the stored one', async () => {
+      renderTrigger('gmail-triage-inbox', true, 2);
+      const cron = screen.getByLabelText('Cron');
+      await userEvent.clear(cron);
+      await userEvent.paste('*/9 * * * *');
+      expect(
+        screen.getByRole('list', { name: /^Next runs \(unsaved\)/ }),
+      ).toBeVisible();
+    });
+
+    it('says the runs would start, and how, while the switch is off', async () => {
       renderTrigger('gmail-triage-inbox', true, 2);
       await userEvent.click(screen.getByRole('switch', { name: 'Enabled' }));
-      expect(
-        screen.getByText('Every 6 hours · Paused — no runs start'),
-      ).toBeVisible();
-      expect(screen.queryByText(/Next run/)).toBeNull();
-    });
-
-    it('says the schedule will not start until a version is deployed, naming the would-be run', () => {
-      renderTrigger();
+      expect(screen.getByRole('list', { name: /^Would run at/ })).toBeVisible();
       expect(
         screen.getByText(
-          /Every 6 hours · Won't start until a version is deployed · would next run /,
+          'Paused: turn on Enabled and save to start these runs.',
         ),
       ).toBeVisible();
-      expect(screen.queryByText(/^Next run/)).toBeNull();
+    });
+
+    it('says nothing starts until a version is deployed, naming the would-be runs', () => {
+      renderTrigger();
+      expect(screen.getByRole('list', { name: /^Would run at/ })).toBeVisible();
+      expect(
+        screen.getByText('Nothing starts until a version is deployed.'),
+      ).toBeVisible();
+    });
+
+    it('lists the server’s next run first while the form is clean', () => {
+      const next = Date.now() + 60 * 60 * 1000 + 17_000;
+      triggersData = [{ ...CRON_ROW, nextRunAt: next }];
+      renderTrigger('gmail-triage-inbox', true, 2);
+      const first = within(nextRuns()).getAllByRole('listitem')[0];
+      expect(first).toHaveTextContent(
+        new Intl.DateTimeFormat('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZone: 'UTC',
+        })
+          .format(next)
+          .replace(/\s/g, ' ')
+          .split(' ')[0] ?? '',
+      );
+    });
+  });
+
+  // A stored cron a repeat rule says exactly opens as that rule, and is sent
+  // back as the same cron until the schedule itself changes — a managed or
+  // legacy cron never drifts on an unrelated save.
+  describe('a stored cron a repeat rule can show', () => {
+    beforeEach(() => {
+      triggersData = [SCHEDULE_ROW];
+    });
+
+    it('opens in Repeat, says it is stored as cron, and reads clean', () => {
+      renderTrigger();
+      expect(screen.getByRole('radio', { name: 'Repeat' })).toBeChecked();
+      expect(
+        screen.getByRole('button', { name: /^Schedule: Every 6 hours/ }),
+      ).toBeVisible();
+      expect(
+        screen.getByText(
+          'Stored as the cron expression 0 */6 * * *. Saving a change to the schedule stores it as a repeat rule.',
+        ),
+      ).toBeVisible();
+      expect(saveButton()).toBeDisabled();
+    });
+
+    it('sends the stored cron back on an unrelated save', async () => {
+      renderTrigger();
+      await userEvent.click(screen.getByRole('switch', { name: 'Enabled' }));
+      await userEvent.click(saveButton());
+      expect(mockSetTrigger).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        name: 'gmail-triage-inbox',
+        trigger: {
+          kind: 'schedule',
+          cron: '0 */6 * * *',
+          timezone: 'UTC',
+          catchUp: 'latest',
+          enabled: false,
+        },
+      });
+    });
+
+    it('shows the same cron in Cron and changes nothing by flipping', async () => {
+      renderTrigger();
+      await userEvent.click(
+        screen.getByRole('radio', { name: 'Cron (advanced)' }),
+      );
+      expect(screen.getByLabelText('Cron')).toHaveValue('0 */6 * * *');
+      expect(screen.getByText('Reads as: Every 6 hours')).toBeVisible();
+      expect(saveButton()).toBeDisabled();
+      await userEvent.click(screen.getByRole('radio', { name: 'Repeat' }));
+      expect(saveButton()).toBeDisabled();
     });
   });
 
@@ -469,6 +588,58 @@ describe('TriggerEditor', () => {
     });
     expect(cron).toHaveValue('0 9 * * 1');
     expect(saveButton()).toBeEnabled();
+  });
+
+  // A refused trigger names each problem by code; the toast says each in
+  // its field's own words, never the payload.
+  it('says each refused field in its own words', async () => {
+    mockSetTrigger.mockRejectedValue(
+      Object.assign(new Error('refused'), {
+        data: {
+          code: 'AUTOMATION_TRIGGER_INVALID',
+          message: 'The trigger is invalid.',
+          issues: [
+            {
+              path: 'timezone',
+              code: 'timezone.unknown',
+              message: '"Mars/Olympus" is not a valid IANA time zone.',
+            },
+            {
+              path: 'input',
+              code: 'input.reserved_key',
+              message:
+                'Remove "trigger", "event": the trigger sets these fields itself.',
+            },
+          ],
+        },
+      }),
+    );
+    renderTrigger();
+    const cron = screen.getByLabelText('Cron');
+    await userEvent.clear(cron);
+    await userEvent.paste('0 9 * * 1');
+    await userEvent.click(saveButton());
+
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description:
+            'Pick a valid IANA time zone (e.g. Europe/Zurich or UTC). Remove trigger and event: the trigger sets these fields itself.',
+        }),
+      );
+    });
+  });
+
+  it('shows a read that failed with Try again, and no form', async () => {
+    triggersData = undefined;
+    triggersError = true;
+    renderTrigger();
+    expect(screen.getByText("Couldn't load the trigger.")).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Add trigger' })).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Enabled' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(mockRefetch).toHaveBeenCalledTimes(1);
   });
 
   it('shows a minted webhook token exactly where the save reported it', async () => {
@@ -519,23 +690,43 @@ describe('TriggerEditor', () => {
       expect(saveButton()).toBeDisabled();
     });
 
-    it('opens a new binding with Enabled OFF and saves it off', async () => {
+    it('opens a new binding as a daily 09:00 schedule in your zone, OFF, and saves it off', async () => {
       triggersData = [];
       renderTrigger('fresh-automation');
       await userEvent.click(
         screen.getByRole('button', { name: 'Add trigger' }),
       );
       expect(screen.getByRole('switch', { name: 'Enabled' })).not.toBeChecked();
-      await userEvent.type(screen.getByLabelText('Cron'), '0 9 * * 1');
+      expect(
+        screen.getByRole('button', { name: /^Schedule: Daily/ }),
+      ).toBeVisible();
+      expect(
+        screen.getByRole('button', { name: /^Timezone/ }),
+      ).toHaveTextContent('Europe/Zurich');
+      // Adding a trigger is the edit: Save waits for nothing else.
       await userEvent.click(saveButton());
-      expect(mockSetTrigger).toHaveBeenCalledWith(
-        expect.objectContaining({
-          trigger: expect.objectContaining({
-            kind: 'schedule',
-            enabled: false,
-          }),
-        }),
+      expect(mockSetTrigger).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        name: 'fresh-automation',
+        trigger: {
+          kind: 'schedule',
+          repeat: { frequency: 'daily', interval: 1, times: ['09:00'] },
+          timezone: 'Europe/Zurich',
+          catchUp: 'latest',
+          enabled: false,
+        },
+      });
+    });
+
+    it('discards a new binding back to no trigger', async () => {
+      triggersData = [];
+      renderTrigger('fresh-automation');
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Add trigger' }),
       );
+      await userEvent.click(discardButton());
+      expect(screen.getByRole('button', { name: 'Add trigger' })).toBeVisible();
+      expect(saveButton()).toBeDisabled();
     });
 
     it('keeps the plain sentence for members', () => {
@@ -550,12 +741,7 @@ describe('TriggerEditor', () => {
   // both revoke the URL a sending system holds — neither happens on one
   // click, and a revocation the server reports is said out loud.
   describe('irreversible webhook moves', () => {
-    const WEBHOOK_ROW = {
-      name: 'gmail-triage-inbox',
-      kind: 'webhook',
-      hasToken: true,
-      enabled: true,
-    };
+    const WEBHOOK_ROW = row({ kind: 'webhook', hasToken: true });
 
     /** Switch the stored webhook to a platform event and press Save. */
     async function switchToEventAndSave() {
@@ -564,6 +750,14 @@ describe('TriggerEditor', () => {
       );
       await userEvent.click(
         screen.getByRole('option', { name: 'Platform event' }),
+      );
+      // An event trigger saves once it names its event.
+      expect(saveButton()).toBeDisabled();
+      await userEvent.click(
+        screen.getByRole('combobox', { name: 'Event name' }),
+      );
+      await userEvent.click(
+        screen.getByRole('option', { name: 'task.created' }),
       );
       await userEvent.click(saveButton());
     }
@@ -802,16 +996,14 @@ describe('TriggerEditor', () => {
 
     it('counts a webhook streak without promising a pause', () => {
       triggersData = [
-        {
-          name: 'gmail-triage-inbox',
+        row({
           kind: 'webhook',
           hasToken: true,
-          enabled: true,
           consecutiveFailures: 1,
           lastFailedAt: LAST_FAILED_AT,
           lastFailureCode: 'node_error',
           lastFailedRunId: 'run-1',
-        },
+        }),
       ];
       renderTrigger();
 

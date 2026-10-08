@@ -1409,27 +1409,21 @@ export const SHOTS: readonly Shot[] = [
         .first(),
   },
   {
-    // An automation's General tab — its trigger (the pack's schedule: cron,
-    // timezone, enabled) above the projects it is bound to. The form paints
-    // before the trigger query answers, so gate on the cron field holding
-    // the pack's expression. The tab is short; trim the empty frame below.
+    // An automation's General tab — its trigger (the pack's schedule, which
+    // opens as the repeat rule its cron says: every 6 hours, with its zone,
+    // missed-runs setting and next runs) above the projects it is bound to.
+    // The form paints before the trigger query answers, so gate on the
+    // schedule picker naming the pack's rule. The section is tall.
     name: 'automation-general-trigger',
     section: 'platform',
     route: '/dashboard/:orgId/automations/gmail-triage-inbox/general',
     readyWhen: (page) =>
-      page.getByRole('textbox', {
-        name: t('automations.trigger.cronLabel'),
-        exact: true,
+      page.getByRole('button', {
+        name: new RegExp(
+          `^${escapeRegExp(t('automations.trigger.schedule.label'))}: \\S`,
+        ),
       }),
-    prepare: async (page) => {
-      await expect(
-        page.getByRole('textbox', {
-          name: t('automations.trigger.cronLabel'),
-          exact: true,
-        }),
-      ).not.toHaveValue('', { timeout: TIMEOUT.FIRST_PAINT });
-    },
-    viewport: { width: 1440, height: 640 },
+    viewport: { width: 1440, height: 900 },
   },
   {
     name: 'automation-run-input',
