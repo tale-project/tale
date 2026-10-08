@@ -26,7 +26,7 @@ Each part — hour, minute and, on a 12-hour clock, the day period — is a tab 
 
 | Key                         | Hour                                                     | Minute                       | Day period         |
 | --------------------------- | -------------------------------------------------------- | ---------------------------- | ------------------ |
-| Up Arrow / Down Arrow       | One hour, wrapping from 23 to 0 (12 to 1 on a 12-hour clock) | `minuteStep` (1), wrapping from 59 to 0 | Switches AM and PM |
+| Up Arrow / Down Arrow       | One hour, wrapping from 23 to 0; on a 12-hour clock from 11 to 12 without changing AM or PM, so 11 PM goes to 12 PM | `minuteStep` (1), wrapping from 59 to 0 | Switches AM and PM |
 | Page Up / Page Down         | 6 hours, wrapping                                        | 15 minutes, wrapping         | Switches AM and PM |
 | Home / End                  | First and last hour                                      | 0 and 59                     | AM and PM          |
 | Left Arrow / Right Arrow    | Previous or next part                                    | Previous or next part        | Previous or next part |
