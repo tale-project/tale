@@ -149,6 +149,10 @@ never refused.
 One wait is free: when a run hits the model provider's rate limit (HTTP 429) and waits before
 trying again, that wait is not counted as a start. A second wait in a row is.
 
+A Codex model-capacity failure schedules an automatic retry one minute later. Its
+attempt still counts; it does not qualify for the free account-cooldown wait and does not
+exclude the account.
+
 - **Example**: A schedule has started the agent on a task three times since 14:00. At 14:40
   another agent starts it again → refused as `paused`, with the time after which it may retry.
 

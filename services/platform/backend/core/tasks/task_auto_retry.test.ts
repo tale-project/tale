@@ -111,6 +111,19 @@ function cooled(overrides: Partial<AutoRetryRunFacts> = {}): AutoRetryRunFacts {
 }
 
 describe('resolveAutoRetryBudget', () => {
+  it('counts model capacity normally and never turns its wait into a free account cooldown', () => {
+    const capacity = failed({ failureCode: 'model_capacity' });
+    expect(resolveAutoRetryBudget([capacity])).toEqual({
+      retry: true,
+      attempt: 1,
+    });
+    expect(
+      resolveAutoRetryBudget([capacity, capacity, capacity, capacity]).retry,
+    ).toBe(false);
+    expect(freeCooldownWaits([cooled(), capacity])).toEqual([false, false]);
+    expect(freeCredentialRotations([capacity])).toEqual([false]);
+  });
+
   it('counts consecutive short failures and stops one past the budget', () => {
     expect(resolveAutoRetryBudget([failed()])).toEqual({
       retry: true,

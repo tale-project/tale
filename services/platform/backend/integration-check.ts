@@ -144,6 +144,7 @@ import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integ
 import { checkTaskExternalStatusProjection } from './domains/tasks/external-status.integration.ts';
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
+import { checkModelCapacityRetry } from './domains/tasks/model-capacity.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
@@ -29084,6 +29085,14 @@ async function checkNotificationEmailSink(
     await import('./domains/collab/service.ts');
   await drainNotificationEmails(sql);
 
+  const recipientId = randomUUID();
+  const recipientEmail = `email-sink-${recipientId}@door.test`;
+  const prefEmail = `email-sink-pref-${recipientId}@door.test`;
+  const unrelatedTitle = `Unrelated notification fixture ${recipientId}`;
+  let prefUserId = '';
+  let unrelatedCount = 0;
+  let unrelatedFixtureSeen = false;
+  let ownedSendCount = 0;
   const smtpSends: Array<{
     to: string;
     from: string;
@@ -29103,20 +29112,44 @@ async function checkNotificationEmailSink(
         text?: string;
         html?: string;
       }) => {
-        smtpSends.push({
-          to: message.to,
-          from: message.from,
-          subject: message.subject,
-          ...(message.text !== undefined ? { text: message.text } : {}),
-          ...(message.html !== undefined ? { html: message.html } : {}),
-        });
-        return { messageId: `<notif-${smtpSends.length}@door.test>` };
+        // The transport is process-global and ordinary workers remain live.
+        // Count every message to either owned recipient, including a forbidden
+        // preference-off send, without filtering on a valid subject or link.
+        if (message.to !== recipientEmail && message.to !== prefEmail) {
+          unrelatedCount += 1;
+          unrelatedFixtureSeen ||= (message.text ?? '').includes(
+            unrelatedTitle,
+          );
+          return { messageId: `<unrelated-${unrelatedCount}@door.test>` };
+        }
+        ownedSendCount += 1;
+        // Keep diagnostics bounded; the exact counter still catches overflow.
+        if (smtpSends.length < 16)
+          smtpSends.push({
+            to: message.to,
+            from: message.from,
+            subject: message.subject,
+            ...(message.text !== undefined ? { text: message.text } : {}),
+            ...(message.html !== undefined ? { html: message.html } : {}),
+          });
+        return { messageId: `<notif-${ownedSendCount}@door.test>` };
       },
       close: async () => {},
     }),
   });
 
   try {
+    await sql`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt",
+                          "updatedAt")
+      VALUES (${recipientId}, ${recipientEmail}, 'Email sink recipient',
+              true, ${new Date()}, ${new Date()})
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+      VALUES (${`m-email-sink-${recipientId}`}, ${orgId}, ${recipientId},
+              'member', ${new Date()})
+    `;
     const bell = (
       taskId: string,
       title: string,
@@ -29124,7 +29157,7 @@ async function checkNotificationEmailSink(
       recipient?: string,
     ) =>
       writeCoalescedNotification(sql, {
-        userId: recipient ?? userId,
+        userId: recipient ?? recipientId,
         organizationId: orgId,
         type: 'task_assigned',
         titleKey: 'taskAssigned',
@@ -29151,6 +29184,7 @@ async function checkNotificationEmailSink(
       'email-task-b',
       'email-task-c',
       'email-task-d',
+      'email-task-unrelated',
     ].entries()) {
       await sql`
         INSERT INTO app.tasks (
@@ -29173,7 +29207,7 @@ async function checkNotificationEmailSink(
     await bell('email-task-b', 'Read before fire');
     await sql`
       UPDATE app.user_notifications SET read = true, read_at_ms = ${Date.now()}
-      WHERE org_id = ${orgId} AND user_id = ${userId}
+      WHERE org_id = ${orgId} AND user_id = ${recipientId}
         AND resource_id = 'email-task-b'
     `;
 
@@ -29185,11 +29219,11 @@ async function checkNotificationEmailSink(
     const prefUsers = await sql<{ id: string }[]>`
       INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt",
                           "updatedAt")
-      VALUES (gen_random_uuid(), 'no-email-pref@door.test', 'Pref Off',
+      VALUES (gen_random_uuid(), ${prefEmail}, 'Pref Off',
               true, ${new Date()}, ${new Date()})
       RETURNING "id"
     `;
-    const prefUserId = prefUsers[0]?.id ?? '';
+    prefUserId = prefUsers[0]?.id ?? '';
     // A member, so the row is written and the preference alone keeps the
     // email in.
     await sql`
@@ -29212,10 +29246,10 @@ async function checkNotificationEmailSink(
 
     const drained = await drainNotificationEmails(sql);
     const delivered = smtpSends[0];
-    const adminEmailRows = await sql<{ email: string | null }[]>`
-      SELECT "email" FROM "user" WHERE "id" = ${userId} LIMIT 1
+    const recipientEmailRows = await sql<{ email: string | null }[]>`
+      SELECT "email" FROM "user" WHERE "id" = ${recipientId} LIMIT 1
     `;
-    const adminEmail = adminEmailRows[0]?.email ?? '';
+    const storedRecipientEmail = recipientEmailRows[0]?.email ?? '';
     const rowsLeft = await sql<{ resourceId: string }[]>`
       SELECT resource_id AS "resourceId" FROM app.user_notifications
       WHERE org_id = ${orgId} AND resource_id LIKE 'email-task-%'
@@ -29228,16 +29262,16 @@ async function checkNotificationEmailSink(
         undone === 'cancelled' &&
         prefWrite === 'inserted' &&
         drained &&
-        smtpSends.length === 1 &&
+        ownedSendCount === 1 &&
         delivered?.subject === 'Task assigned to you' &&
-        delivered?.to === adminEmail &&
+        delivered?.to === storedRecipientEmail &&
         (delivered?.text ?? '').includes('Email me B (final)') &&
         (delivered?.html ?? '').includes(
           `/dashboard/${orgId}/projects/p-email-sink/tasks?task=email-task-a`,
         ) &&
         (delivered?.from ?? '').startsWith('notification@') &&
         !rowsLeft.some((row) => row.resourceId === 'email-task-c'),
-      `write=${first}/${rewritten}/undo=${undone}/pref=${prefWrite}, drained=${drained}, emails=${smtpSends.length} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${adminEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
+      `write=${first}/${rewritten}/undo=${undone}/pref=${prefWrite}, drained=${drained}, emails=${ownedSendCount} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${storedRecipientEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
         .map((r) => r.resourceId)
         .sort()
         .join('|')}`,
@@ -29269,7 +29303,7 @@ async function checkNotificationEmailSink(
     const deadlineTaskId = deadlineTask[0]?.id ?? '';
 
     await writeCoalescedNotification(sql, {
-      userId,
+      userId: recipientId,
       organizationId: orgId,
       type: 'task_deadline',
       titleKey: 'taskSlaEscalated',
@@ -29285,6 +29319,9 @@ async function checkNotificationEmailSink(
       taskId: deadlineTaskId,
       actorType: 'system',
     });
+    // An earlier lane can enqueue after our initial drain. Force that
+    // interleaving through the real writer and worker, never a wall-clock tick.
+    await bell('email-task-unrelated', unrelatedTitle, undefined, userId);
     const deadlineDrained = await drainNotificationEmails(sql);
     const deadlineMail = smtpSends[1];
     const deadlineLink =
@@ -29300,24 +29337,35 @@ async function checkNotificationEmailSink(
     record(
       'overdue notification email opens its task',
       deadlineDrained &&
-        smtpSends.length === 2 &&
+        unrelatedFixtureSeen &&
+        ownedSendCount === 2 &&
         storedParams[0]?.projectId === deadlineProjectId &&
         deadlineMail?.subject === 'Overdue task escalated' &&
         (deadlineMail?.html ?? '').includes(`<a href="`) &&
         (deadlineMail?.html ?? '').includes(deadlineLink) &&
         (deadlineMail?.text ?? '').includes(`Open in Tale: `),
-      `drained=${deadlineDrained} emails=${smtpSends.length} (want 2) storedProject=${storedParams[0]?.projectId}==${deadlineProjectId} subject=${deadlineMail?.subject} link=${(deadlineMail?.html ?? '').includes(deadlineLink)} want=${deadlineLink} cta=${(deadlineMail?.text ?? '').includes('Open in Tale: ')}`,
+      `drained=${deadlineDrained} unrelated=${unrelatedCount}/injected=${unrelatedFixtureSeen} emails=${ownedSendCount} (want 2) storedProject=${storedParams[0]?.projectId}==${deadlineProjectId} subject=${deadlineMail?.subject} link=${(deadlineMail?.html ?? '').includes(deadlineLink)} want=${deadlineLink} cta=${(deadlineMail?.text ?? '').includes('Open in Tale: ')}`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
     // Later lanes count the organization's members and projects.
     await sql`
       DELETE FROM "member"
-      WHERE "organizationId" = ${orgId} AND "id" LIKE 'm-email-pref-%'
+      WHERE "organizationId" = ${orgId}
+        AND "userId" IN (${recipientId}, ${prefUserId})
     `;
     await sql`
       DELETE FROM app.projects WHERE id = 'p-email-sink' AND org_id = ${orgId}
     `;
+    await sql`
+      DELETE FROM app.user_notifications
+      WHERE org_id = ${orgId} AND user_id IN (${recipientId}, ${prefUserId})
+    `;
+    await sql`
+      DELETE FROM app.notification_preferences
+      WHERE org_id = ${orgId} AND user_id IN (${recipientId}, ${prefUserId})
+    `;
+    await sql`DELETE FROM "user" WHERE "id" IN (${recipientId}, ${prefUserId})`;
   }
 }
 
@@ -61318,6 +61366,10 @@ async function main(): Promise<void> {
       [
         'checkCooledStartRetry',
         () => checkCooledStartRetry(sql, authCtx, record),
+      ],
+      [
+        'checkModelCapacityRetry',
+        () => checkModelCapacityRetry(sql, boss, authCtx, record),
       ],
       [
         'checkSessionOpTranscriptMerge',
