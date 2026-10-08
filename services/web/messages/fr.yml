@@ -2070,21 +2070,22 @@ pageIllustrations:
 
 demo:
   pages:
-    viewFull: "Voir l’écran du produit en entier : {page}"
+    playMotion: "Lire la démo"
+    pauseMotion: "Mettre la démo en pause"
     viewLabel: "Voir l’écran en entier"
     interfaceLanguage: "Espace de travail de démonstration · Capture du produit"
     home:
-      label: "La vue d’une tâche Tale affiche la checklist de lancement, sa description et la discussion."
+      label: "La vue d’une tâche Tale pour relire un brief de lancement et discuter de la prochaine étape."
       caption: "La tâche, son contexte et la prochaine décision au même endroit."
     hub:
-      label: "La boîte de réception de Tale affiche les conversations clients et un aperçu de leurs messages."
+      label: "La boîte de réception de Tale pour lire les conversations clients et rédiger une réponse."
       caption: "Les projets, les chats et les conversations clients dans un même espace de travail."
     agents:
-      label: "L’onglet Agents d’un projet Tale affiche les agents avec leurs environnements d’exécution, leurs modèles et les skills attribués."
+      label: "L’onglet Agents d’un projet Tale pour examiner la configuration d’un agent."
       caption: "Chaque agent de projet a son propre environnement d’exécution, son modèle, ses instructions et son équipement."
     chat:
-      label: "Un chat Tale affiche une synthèse des retours clients avec un tableau des thèmes et de leur fréquence."
-      caption: "Une vraie conversation, avec des réponses structurées et les commandes pour poursuivre le travail."
+      label: "L’espace de chat de Tale pour rédiger des prompts et lire les réponses de l’IA."
+      caption: "Rédige un prompt, suis la réponse et poursuis le travail."
     projects:
       label: "Le tableau des tâches d’un projet Tale affiche les tâches, leur statut et la personne responsable."
       caption: "Garde une vue d’ensemble du projet, du travail proposé à la vérification et à la finalisation."

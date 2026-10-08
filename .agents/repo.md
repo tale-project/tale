@@ -314,6 +314,9 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   the docs capture manifest and registered EN/DE/FR source images. Its guard,
   `services/web/tests/turbo-inputs.test.ts`, derives the source paths from the registry and verifies
   their actual Turbo dry-run hashes. A newly registered source must enter the task's input glob.
+  Native motion recording also imports platform capture and video helpers: lint and typecheck
+  hash their full static dependency closure; unit tests hash the encoder's ffmpeg helper and
+  capture-options parser. The same guard checks the actual hashes for all three tasks.
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) hashes the shared root
   `.github/release-candidate-contract.json` through CLI transit for lint/typecheck/test
   and directly for its source-reading tests. The candidate contract refresh script

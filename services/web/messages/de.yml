@@ -2048,21 +2048,22 @@ pageIllustrations:
 
 demo:
   pages:
-    viewFull: "Vollständigen Produktbildschirm ansehen: {page}"
+    playMotion: "Demo abspielen"
+    pauseMotion: "Demo pausieren"
     viewLabel: "Vollbild ansehen"
     interfaceLanguage: "Beispielarbeitsbereich · Im Produkt aufgenommen"
     home:
-      label: "Die Aufgabenansicht von Tale zeigt die Checkliste für den Launch, ihre Beschreibung und die Diskussion."
+      label: "Die Aufgabenansicht von Tale zum Prüfen eines Launch-Briefings und zum Besprechen des nächsten Schritts."
       caption: "Die Aufgabe, ihr Kontext und die nächste Entscheidung an einem Ort."
     hub:
-      label: "Der Tale-Posteingang zeigt Kundengespräche und eine Vorschau ihrer Nachrichten."
+      label: "Der Tale-Posteingang zum Lesen von Kundengesprächen und zum Entwerfen einer Antwort."
       caption: "Projekte, Chats und Kundengespräche in einem Arbeitsbereich."
     agents:
-      label: "Der Tab Agenten eines Tale-Projekts zeigt Agenten mit ihren Laufzeitumgebungen, Modellen und zugewiesenen Skills."
+      label: "Der Tab Agenten eines Tale-Projekts zum Prüfen der Konfiguration eines Agenten."
       caption: "Jeder Projektagent hat seine eigene Laufzeitumgebung, sein Modell, seine Anweisungen und seine Ausstattung."
     chat:
-      label: "Ein Tale-Chat zeigt eine Zusammenfassung von Kundenfeedback mit einer Tabelle der Themen und ihrer Häufigkeit."
-      caption: "Ein echtes Gespräch mit strukturierten Antworten und den Bedienelementen für die weitere Arbeit."
+      label: "Der Chat-Arbeitsbereich von Tale zum Schreiben von Prompts und zum Lesen von KI-Antworten."
+      caption: "Schreibe einen Prompt, verfolge die Antwort und setze die Arbeit fort."
     projects:
       label: "Das Aufgabenboard eines Tale-Projekts zeigt Aufgaben, ihren Status und die verantwortliche Person."
       caption: "Behalte das gesamte Projekt im Blick, von vorgeschlagener Arbeit bis zur Prüfung und zum Abschluss."

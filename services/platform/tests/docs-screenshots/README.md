@@ -118,6 +118,58 @@ The orchestrator derives its source list from the marketing registry and forward
 before running the optimizer. Use `--only` and `--locales` for a targeted refresh after all required
 sources have been captured. `--list` only enumerates shots and does not run the optimizer.
 
+### Record the marketing product in action
+
+`web:animations` records eight individual native interactions using the same authentication,
+organization, seed, locale helpers, shot preparation, and readiness gates as screenshots. It
+reuses the docs-video CDP recorder and ffmpeg helpers; these silent takes do not invoke narration,
+paid TTS, or title cards. Install ffmpeg and ffprobe on PATH, or set
+`VIDEO_INGEST_FFMPEG_LOCATION` to their directory.
+
+```bash
+bun run web:animations -- --list
+bun run web:animations -- --state-dir /absolute/path/to/isolated-capture-state --config-dir /absolute/path/to/platform/config
+bun run web:animations -- --state-dir /absolute/path/to/isolated-capture-state --config-dir /absolute/path/to/platform/config --skip-seed --only agents,chat --locales de,fr
+bun run web:animations:verify
+bun run web:animations:verify -- --review-dir /absolute/path/outside/checkout/motion-review
+```
+
+The default matrix is `home`, `hub`, `agents`, `chat`, `projects`, `automations`, `knowledge`, and
+`governance`, each in English, German, and French. Swiss German reuses German. Every page has a
+1280 × 800 desktop take and a separate 390 × 820 native phone take; the phone view is not a crop
+of the desktop. Controls use the real interface catalog. Shared synthetic workspace content
+remains English, while typed comment and Inbox drafts are localized capture content.
+
+Each route and interaction warms off camera before recording. Comment and Inbox composers must
+be empty before typing; drafts are cleared without submitting. The chat scene sends a real
+grounded request and removes only the new threads it registered, in a finally block. Other scenes
+inspect existing tasks, agents, knowledge entries, audit events, and completed automation steps.
+Keep the isolated provider's native display name suitable for the example, such as `Team model
+gateway`, through its normal organization configuration. Preserve its driver, model, endpoint,
+and environment-based credential binding; do not paint a different label onto captured pixels.
+
+Raw timestamped frames and per-take evidence remain under the selected state directory's
+`motion/` folder. Encoding produces eight-second, 24 fps, 192-frame VP9 WebM and H.264 MP4 clips
+with no audio. Desktop files must fit 750 KiB and phone files 350 KiB. Bounded quality retries fail
+at their floor. Both codecs and the native first-frame poster are staged in the take's own state
+directory before publication. Posters use the existing responsive AVIF/WebP image optimizer and
+its size guard.
+
+Published clips and full provenance live under `services/web/public/marketing/product-motion/`;
+responsive posters live under `services/web/public/marketing/optimized/`. Compact browser
+registries derive canonical URLs and fixed native geometry. The disk-only `manifest.json` retains
+source shot, route, locale, viewport, DPR, dimensions, timing, frame hashes, semantic before/after
+assertions, an interaction region, and each file's bytes and SHA-256. These hashes and unused blur
+previews do not enter the browser bundle.
+
+`web:animations:verify` requires all 48 native takes and 96 encoded clips. It checks hashes,
+budgets, containers, codecs, dimensions, duration, exact frame rate/count, and absence of audio,
+then decodes both codecs before and after the action and checks changed pixels inside the
+declared interaction region. Review actual playback in every layout as well: machine checks
+cannot judge whether the action and text remain useful at normal reading width.
+The optional `--review-dir` retains a decoded full-frame MP4 result PNG for each native take;
+keep this visual review evidence outside the checkout.
+
 For each changed image:
 
 1. Open the WebP and verify that the intended controls, data, and state are visible.

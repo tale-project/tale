@@ -30,6 +30,34 @@ function captureFiles(): string[] {
   ];
 }
 
+/** Native recording helpers imported by the web capture CLI's TypeScript program. */
+const MOTION_STATIC_IMPORTS = [
+  'services/platform/tests/e2e/helpers/env.ts',
+  'services/platform/tests/docs-screenshots/capture-options.ts',
+  'services/platform/tests/e2e/helpers/i18n.ts',
+  'services/platform/tests/e2e/helpers/seed.ts',
+  'services/platform/tests/e2e/helpers/auth.ts',
+  'services/platform/tests/e2e/helpers/forms.ts',
+  'services/platform/lib/mocks/overrides/embeddings.ts',
+  'services/platform/tests/docs-screenshots/demo-content.ts',
+  'services/platform/tests/docs-screenshots/capture-auth.ts',
+  'services/platform/tests/e2e/helpers/chat.ts',
+  'services/platform/tests/docs-screenshots/i18n.ts',
+  'services/platform/tests/docs-screenshots/manifest.ts',
+  'services/platform/lib/mocks/overrides/docs-replies.ts',
+  'services/platform/tests/docs-screenshots/seed-demo-org.ts',
+  'services/platform/tests/docs-screenshots/capture-runtime.ts',
+  'services/platform/tests/docs-videos/lib/screencast.ts',
+  'services/platform/tests/docs-videos/lib/frame-playlist.ts',
+  'services/platform/tests/docs-videos/lib/ffmpeg.ts',
+] as const;
+
+/** Encoder/CLI unit suites execute these outside helpers. */
+const MOTION_TEST_IMPORTS = [
+  'services/platform/tests/docs-videos/lib/ffmpeg.ts',
+  'services/platform/tests/docs-screenshots/capture-options.ts',
+] as const;
+
 interface DryRunTask {
   taskId: string;
   directory: string;
@@ -37,13 +65,15 @@ interface DryRunTask {
 }
 
 /** Ask Turbo for the actual hashes, rather than trusting a matching glob. */
-function hashedTestInputs(): Map<string, string> {
+function hashedTaskInputs(): Map<string, Map<string, string>> {
   const run = spawnSync(
     'bunx',
     [
       'turbo',
       'run',
       'test',
+      'lint',
+      'typecheck',
       '--filter=@tale/web',
       '--dry=json',
       '--cache=local:,remote:',
@@ -65,24 +95,35 @@ function hashedTestInputs(): Map<string, string> {
   const { tasks } = JSON.parse(run.stdout.slice(start)) as {
     tasks: DryRunTask[];
   };
-  const task = tasks.find(({ taskId }) => taskId === '@tale/web#test');
-  if (!task) throw new Error('turbo --dry=json omitted @tale/web#test');
   return new Map(
-    Object.entries(task.inputs).map(([file, hash]) => [
-      path
-        .relative(REPO_ROOT, path.join(REPO_ROOT, task.directory, file))
-        .split(path.sep)
-        .join('/'),
-      hash,
-    ]),
+    ['test', 'lint', 'typecheck'].map((name) => {
+      const task = tasks.find(({ taskId }) => taskId === `@tale/web#${name}`);
+      if (!task) throw new Error(`turbo --dry=json omitted @tale/web#${name}`);
+      return [
+        name,
+        new Map(
+          Object.entries(task.inputs).map(([file, hash]) => [
+            path
+              .relative(REPO_ROOT, path.join(REPO_ROOT, task.directory, file))
+              .split(path.sep)
+              .join('/'),
+            hash,
+          ]),
+        ),
+      ];
+    }),
   );
 }
 
 describe('Turbo product-capture inputs', () => {
   let hashes: Map<string, string>;
+  let taskHashes: Map<string, Map<string, string>>;
 
   beforeAll(() => {
-    hashes = hashedTestInputs();
+    taskHashes = hashedTaskInputs();
+    const tests = taskHashes.get('test');
+    if (!tests) throw new Error('Missing actual web test hashes');
+    hashes = tests;
   }, 60_000);
 
   it('keeps root task inputs and hashes its own source files', () => {
@@ -112,4 +153,31 @@ describe('Turbo product-capture inputs', () => {
       'Product-capture tests read files outside @tale/web: add their $TURBO_ROOT$ inputs to services/web/turbo.json',
     ).toEqual([]);
   });
+
+  it('hashes the motion encoder and capture-options helpers read by unit tests', () => {
+    expect(
+      MOTION_TEST_IMPORTS.filter((file) => !hashes.get(file)),
+      'Native motion unit imports require explicit outside inputs',
+    ).toEqual([]);
+    for (const file of [
+      'services/web/app/generated/product-motion.ts',
+      'services/web/public/marketing/product-motion/manifest.json',
+    ]) {
+      expect(
+        hashes.get(file),
+        `Motion provenance is not hashed: ${file}`,
+      ).toBeTruthy();
+    }
+  });
+
+  for (const task of ['lint', 'typecheck']) {
+    it(`${task} hashes the native recording dependency closure`, () => {
+      const inputs = taskHashes.get(task);
+      if (!inputs) throw new Error(`Missing actual ${task} hashes`);
+      expect(
+        MOTION_STATIC_IMPORTS.filter((file) => !inputs.get(file)),
+        'The recording CLI statically imports outside sources; TypeScript and type-aware lint read the full imported program',
+      ).toEqual([]);
+    });
+  }
 });

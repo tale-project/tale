@@ -1989,21 +1989,22 @@ pageIllustrations:
 
 demo:
   pages:
-    viewFull: "View the full product screen: {page}"
+    playMotion: "Play demo"
+    pauseMotion: "Pause demo"
     viewLabel: "View full screen"
     interfaceLanguage: "Example workspace · Captured from the product"
     home:
-      label: "Tale task detail showing the launch checklist, its description and discussion."
+      label: "Tale task workspace for reviewing a launch brief and discussing the next step."
       caption: "The task, its context and the next decision in one place."
     hub:
-      label: "Tale Home inbox showing customer conversations and their message previews."
+      label: "Tale inbox for reading customer conversations and drafting a reply."
       caption: "Projects, chats and customer conversations in one workspace."
     agents:
-      label: "Tale project Agents tab showing agents with their runtimes, models and equipped skills."
+      label: "Tale project Agents tab for inspecting an agent’s configuration."
       caption: "Each project agent has its own runtime, model, instructions and equipment."
     chat:
-      label: "Tale chat showing a customer-feedback summary with a table of themes and mentions."
-      caption: "A real conversation, with structured answers and the controls to continue the work."
+      label: "Tale chat workspace for writing prompts and reading AI responses."
+      caption: "Write a prompt, follow the reply and continue the work."
     projects:
       label: "Tale project task board showing tasks, their status and assignee details."
       caption: "See the whole project, from proposed work to review and completion."

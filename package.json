@@ -69,7 +69,9 @@
     "gen:episode": "bun run gen video-episode",
     "generate:icons": "bun scripts/generate-connector-icons.ts",
     "prepare": "bunx husky",
-    "test:performance": "bun test scripts/performance/*.test.ts && bun scripts/performance/run.ts"
+    "test:performance": "bun test scripts/performance/*.test.ts && bun scripts/performance/run.ts",
+    "web:animations": "bun services/web/scripts/capture-product-motion.ts",
+    "web:animations:verify": "bun services/web/scripts/verify-product-motion.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",

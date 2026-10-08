@@ -30,7 +30,9 @@ describe('default marketing-image command', () => {
         $: () => ({ cwd: () => ({ nothrow: async () => ({ exitCode: 0 }) }) }),
       });
       try {
-        await import('./optimize-images');
+        const { optimizeImages } = await import('./optimize-images');
+        expect(readDirectory).not.toHaveBeenCalled();
+        await optimizeImages();
         expect(readDirectory).toHaveBeenCalledOnce();
         expect(writeManifest).not.toHaveBeenCalled();
       } finally {

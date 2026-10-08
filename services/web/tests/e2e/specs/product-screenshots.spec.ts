@@ -6,6 +6,7 @@ import {
   productScreenshotId,
 } from '../../../app/content/product-screenshots';
 import { IMAGE_MANIFEST } from '../../../app/generated/image-manifest';
+import { PRODUCT_MOTION } from '../../../app/generated/product-motion';
 import { gotoClientPage } from '../helpers/client-page';
 
 const catalogs = {
@@ -51,11 +52,27 @@ for (const locale of ['en', 'de', 'fr'] as const) {
           (element: HTMLImageElement) => element.currentSrc,
         );
         const sourceId = productScreenshotId(screenshot.source, locale);
-        expect(selectedSource).toContain(sourceId);
+        const motion =
+          PRODUCT_MOTION[id as keyof typeof PRODUCT_SCREENSHOTS]?.[locale];
+        const motionPoster = motion?.[width === 320 ? 'mobile' : 'desktop'];
+        const posterId = motionPoster?.posterId ?? sourceId;
+        expect(selectedSource).toContain(posterId);
         expect(selectedSource.includes('-mobile-')).toBe(width === 320);
         expect(selectedSource.includes('-desktop-')).toBe(
-          width === 1440 && 'desktopCrop' in screenshot,
+          width === 1440 &&
+            (Boolean(motionPoster) || 'desktopCrop' in screenshot),
         );
+        if (motionPoster) {
+          const provenancePoster = IMAGE_MANIFEST.find(
+            (entry) => entry.id === posterId,
+          );
+          expect(
+            provenancePoster,
+            `Missing native first frame: ${posterId}`,
+          ).toBeDefined();
+          expect(provenancePoster?.width).toBe(motionPoster.width);
+          expect(provenancePoster?.height).toBe(motionPoster.height);
+        }
         await expect(figure).toContainText(t(`demo.pages.${id}.caption`));
         await expect(figure).toContainText(t('demo.pages.interfaceLanguage'));
         const original = IMAGE_MANIFEST.find((entry) => entry.id === sourceId);

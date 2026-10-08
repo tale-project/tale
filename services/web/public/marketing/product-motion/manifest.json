@@ -1,0 +1,2069 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "page": "chat",
+      "locale": "en",
+      "variant": "desktop",
+      "sourceShot": "chat-thread-reply",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 660,
+      "action": {
+        "id": "send-and-stream-grounded-reply",
+        "beforeAssertion": "textbox: Message input; fresh chat empty",
+        "afterAssertion": "log: Message history; Across the three onboarding calls",
+        "beforeFrameHash": "946a5c9307e20f4ba9614af6e8c413b1a7cf68763902d7954d8a002d58e56f47",
+        "afterFrameHash": "7977825a04b494ecd9c17de13823071515737f0173ccded7214f7a45d93f2df6",
+        "completedAtMs": 6024,
+        "beforeAtMs": 500,
+        "afterAtMs": 6274,
+        "inkRegion": {
+          "left": 333,
+          "top": 0,
+          "width": 947,
+          "height": 610
+        }
+      },
+      "webm": {
+        "bytes": 286213,
+        "sha256": "ebde3e752893a9e401da7524897865fd512a9bc53da65376b93751e7f3b3b0e9",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 212818,
+        "sha256": "a9e2019fe49386ec6688f4f7442f02fc1d3083d00e7d1645212f72b942dc97e3",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "chat",
+      "locale": "en",
+      "variant": "mobile",
+      "sourceShot": "chat-thread-reply",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 732,
+      "action": {
+        "id": "send-and-stream-grounded-reply",
+        "beforeAssertion": "textbox: Message input; fresh chat empty",
+        "afterAssertion": "log: Message history; Across the three onboarding calls",
+        "beforeFrameHash": "c9d35ea910a6b4eee99321a49966c73aa2c9f9efe5e2c2a76364380b933e21aa",
+        "afterFrameHash": "b6c2cad69581e804925e45c0771bd861ce8e9a4202d4b99b96aecfef2253274e",
+        "completedAtMs": 5276,
+        "beforeAtMs": 500,
+        "afterAtMs": 5526,
+        "inkRegion": {
+          "left": 0,
+          "top": 48,
+          "width": 390,
+          "height": 542
+        }
+      },
+      "webm": {
+        "bytes": 125354,
+        "sha256": "158c7defa7c464d8d35bf48893a5066d6083a99fa4868adc97cf499b1fb5ca18",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 111958,
+        "sha256": "2294824e6ace51e09d98778dfd096486bc55edfd1aa0a699543561fe8113b667",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "agents",
+      "locale": "en",
+      "variant": "desktop",
+      "sourceShot": "project-agents-models",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 701,
+      "action": {
+        "id": "inspect-agent-configuration",
+        "beforeAssertion": "button: View agent details; Content editor",
+        "afterAssertion": "dialog: Agent details; Content editor; Instructions",
+        "beforeFrameHash": "874d51f654aa9bdb3aaff269464898c0844d9ee60abb573fbdc2ce677067eba0",
+        "afterFrameHash": "938c49333c9146e66ab830053be94fc5d2601f2109e2be3f947721832b8b75ca",
+        "completedAtMs": 1071,
+        "beforeAtMs": 500,
+        "afterAtMs": 1321,
+        "inkRegion": {
+          "left": 384,
+          "top": 175,
+          "width": 512,
+          "height": 450
+        }
+      },
+      "webm": {
+        "bytes": 315627,
+        "sha256": "aadc7a6e03bc4fd0ae1018e8ab3be61e03aeac7a18d15e4ed7dadc6a9268d248",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 246717,
+        "sha256": "edbaab63291cab92bc2c500a62ec6fd11b335260ba415a4efd100bc00257356d",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "agents",
+      "locale": "en",
+      "variant": "mobile",
+      "sourceShot": "project-agents-models",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 755,
+      "action": {
+        "id": "inspect-agent-configuration",
+        "beforeAssertion": "button: View agent details; Content editor",
+        "afterAssertion": "dialog: Agent details; Content editor; Instructions",
+        "beforeFrameHash": "97165ba2558ac9cf9e303805d7a3cbc043325594f4961a47b51b3c69e66f979e",
+        "afterFrameHash": "1f9875521d58704104ab3b0cb58d521625d0454d12cb8509a4ae4997d195e01c",
+        "completedAtMs": 1075,
+        "beforeAtMs": 500,
+        "afterAtMs": 1325,
+        "inkRegion": {
+          "left": 0,
+          "top": 363,
+          "width": 390,
+          "height": 457
+        }
+      },
+      "webm": {
+        "bytes": 113596,
+        "sha256": "93d4f5eacaddba7827e2274d22983c83e8306fe035681f7359259db05ab7fdab",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 90968,
+        "sha256": "2e23acccf9d3e87ab0efce2197a837840014ec55f9195f01fe1251fa78708a49",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "en",
+      "variant": "desktop",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 656,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: The revised brief is ready for your review.",
+        "beforeFrameHash": "0a05f046cc955318123e94e9034e492e6f30faa4f0ac5e553ac7a327b9bfebdc",
+        "afterFrameHash": "4a2271a18baa8df31ca8278469887fc2ff4a6a944da590b0af2d92c864bfc400",
+        "completedAtMs": 2592,
+        "beforeAtMs": 500,
+        "afterAtMs": 2842,
+        "inkRegion": {
+          "left": 281,
+          "top": 628,
+          "width": 430,
+          "height": 120
+        }
+      },
+      "webm": {
+        "bytes": 204517,
+        "sha256": "6cd6a5ec246140f4ab92a64e650bb9f37f5b8ef977e41c8a6a47f58084997957",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 102903,
+        "sha256": "7085741eeee07ba3ee9a42e87ca0288685a82c7c679cee138af3a7763f0d9972",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "en",
+      "variant": "mobile",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 689,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: The revised brief is ready for your review.",
+        "beforeFrameHash": "e05bac09dd5ec6db7556c1c4daab137519fe7ddcb24b20a58f1d803b55088127",
+        "afterFrameHash": "f1070ef4a5751f837a6dc726f57ad66fac7717b2dd66dfbaab715aa4be2efe02",
+        "completedAtMs": 2467,
+        "beforeAtMs": 500,
+        "afterAtMs": 2717,
+        "inkRegion": {
+          "left": 16,
+          "top": 698,
+          "width": 358,
+          "height": 120
+        }
+      },
+      "webm": {
+        "bytes": 101876,
+        "sha256": "a0d027563c45c140aca4b4e69df799cd5bcc85089d559ebbf4a3e85882986497",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 54961,
+        "sha256": "e57c4b56e1385c7f6bedddcf5375e1edc5b670f26e44530e62902fa72bba6d67",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "hub",
+      "locale": "en",
+      "variant": "desktop",
+      "sourceShot": "home-inbox",
+      "route": "/dashboard/:orgId/conversations/open",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 606,
+      "action": {
+        "id": "draft-inbox-reply",
+        "beforeAssertion": "textbox: Type a message; reply draft empty",
+        "afterAssertion": "textbox: Thanks, Hannah. I will include both regional offices.",
+        "beforeFrameHash": "f10a7e72ce08791e0385362f35a754f53ded782556f25928c1b64297227ea697",
+        "afterFrameHash": "1cda883471914b60f4508db5fbcd7a19381aa440a95b703c4e6eb5fa928e91b9",
+        "completedAtMs": 2675,
+        "beforeAtMs": 500,
+        "afterAtMs": 2925,
+        "inkRegion": {
+          "left": 444,
+          "top": 415,
+          "width": 726,
+          "height": 45
+        }
+      },
+      "webm": {
+        "bytes": 130952,
+        "sha256": "8d72c714c894caa4b15ecad1dbffe3b87b283bb75f1996d704984e4329e6c710",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 73585,
+        "sha256": "53df39618e64d3f0bad73c5ff9349f8dd9afb3da7c3ad5e81c3edecb699f10e1",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "hub",
+      "locale": "en",
+      "variant": "mobile",
+      "sourceShot": "home-inbox",
+      "route": "/dashboard/:orgId/conversations/open",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 627,
+      "action": {
+        "id": "draft-inbox-reply",
+        "beforeAssertion": "textbox: Type a message; reply draft empty",
+        "afterAssertion": "textbox: Thanks, Hannah. I will include both regional offices.",
+        "beforeFrameHash": "5dc5d31dbb49366462d32d7b7eb2be6b6aef0766e6543b9c18ab79e68369b5ba",
+        "afterFrameHash": "0d0d00118dda8f1c9a3204730b3f53399f463198d05564a8e591ea216cef805b",
+        "completedAtMs": 2737,
+        "beforeAtMs": 500,
+        "afterAtMs": 2987,
+        "inkRegion": {
+          "left": 29,
+          "top": 367,
+          "width": 332,
+          "height": 66
+        }
+      },
+      "webm": {
+        "bytes": 81177,
+        "sha256": "aa6e03ee075183f2782f514b0f6aed6af6122e13eed30642fe8bfd06e566f94d",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 45987,
+        "sha256": "1bfb60efa08eb29a22d41a2cb3ac6cf105f723ac52d7f715567850e48fa08870",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "en",
+      "variant": "desktop",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 749,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "cc3fc50359324f978419533f10d6dea05f2b4489b957a3419228fcfa1023dfc4",
+        "afterFrameHash": "0a61eaa0279c33809740a1b59a5fd978993599bf75de8dc273f4fceb26b60e85",
+        "completedAtMs": 1267,
+        "beforeAtMs": 500,
+        "afterAtMs": 1517,
+        "inkRegion": {
+          "left": 257,
+          "top": 60,
+          "width": 767,
+          "height": 679
+        }
+      },
+      "webm": {
+        "bytes": 435061,
+        "sha256": "c021365ad78f87a2f7e82222a49d241de88d92c97f9372b04a2dc64efe846759",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 339783,
+        "sha256": "56f3be4a850e734f3d2a01adb37162e0b30b9d2b075236862c5f05501f1ef918",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "en",
+      "variant": "mobile",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 749,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "09f55a232293ef3e41856bf09dc9937127a5aa6859686089bf8a6cd18518d4e4",
+        "afterFrameHash": "8e5a791d5aa15761e10ed1a3b9e53b888a5077fac383acb171c7234a60c265ca",
+        "completedAtMs": 1273,
+        "beforeAtMs": 500,
+        "afterAtMs": 1523,
+        "inkRegion": {
+          "left": 0,
+          "top": 407,
+          "width": 390,
+          "height": 413
+        }
+      },
+      "webm": {
+        "bytes": 261197,
+        "sha256": "545e31486fa5176392800bc8ecff2aeed9efefc6b1f319fe853e1019a261f7ef",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 193624,
+        "sha256": "6b140ea94ff911f0b1f4141709a725a3ffff5c955a50ffdab3239eea2333ee92",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "knowledge",
+      "locale": "en",
+      "variant": "desktop",
+      "sourceShot": "knowledge-entries-list",
+      "route": "/dashboard/:orgId/knowledge-entries",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 743,
+      "action": {
+        "id": "find-and-read-knowledge",
+        "beforeAssertion": "searchbox: Search knowledge entries; Support first-response target",
+        "afterAssertion": "dialog: Knowledge entry details; Support aims for a first response within 45 minutes during business hours (Mon–Fri, 9:00–17:00 CET). The Q2 median was 42 minutes.",
+        "beforeFrameHash": "25fef4e3260f96eee46df81da0aa9c944b63f37d928bfd0ba5f8ac5c6e1ceacf",
+        "afterFrameHash": "94e74f90c6dd45cc0207872056ec0fc1ea3a84a49723dee775fcbc666737df5e",
+        "completedAtMs": 1945,
+        "beforeAtMs": 500,
+        "afterAtMs": 2195,
+        "inkRegion": {
+          "left": 384,
+          "top": 206,
+          "width": 512,
+          "height": 388
+        }
+      },
+      "webm": {
+        "bytes": 273470,
+        "sha256": "77c51ae2ec0ca8b6f15ddb096a5f0af3c8a522178d88a7c0d2a8fe8a448c8154",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 214618,
+        "sha256": "c554a7cc92f95cf0a48a3ed8220bdee7e53b021fb42d6dab662fa786ff86efa7",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "knowledge",
+      "locale": "en",
+      "variant": "mobile",
+      "sourceShot": "knowledge-entries-list",
+      "route": "/dashboard/:orgId/knowledge-entries",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 741,
+      "action": {
+        "id": "find-and-read-knowledge",
+        "beforeAssertion": "searchbox: Search knowledge entries; Support first-response target",
+        "afterAssertion": "dialog: Knowledge entry details; Support aims for a first response within 45 minutes during business hours (Mon–Fri, 9:00–17:00 CET). The Q2 median was 42 minutes.",
+        "beforeFrameHash": "e1e6d14eb1ff55e477a75f3bc827aa121f83dc5ef82c309770470358164e5049",
+        "afterFrameHash": "c09e21b471144b39f7e64e3f71ef59fd79471a50e544355aa6ba79dd20718fe3",
+        "completedAtMs": 1987,
+        "beforeAtMs": 500,
+        "afterAtMs": 2237,
+        "inkRegion": {
+          "left": 0,
+          "top": 344,
+          "width": 390,
+          "height": 476
+        }
+      },
+      "webm": {
+        "bytes": 155908,
+        "sha256": "6fea9ba38f10e00d3f20ff73975742a3a2d47f292e60aa9c365677d91c596eac",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 122549,
+        "sha256": "ddc5c00932d2e27fa314c4eda2175e4927c8f775fb322d7a34158bf83e576471",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "governance",
+      "locale": "en",
+      "variant": "desktop",
+      "sourceShot": "governance-audit-logs",
+      "route": "/dashboard/:orgId/settings/governance/logs?category=member",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 757,
+      "action": {
+        "id": "inspect-audit-entry",
+        "beforeAssertion": "heading: Logs; member audit rows",
+        "afterAssertion": "dialog: Audit log details; User",
+        "beforeFrameHash": "94d919a9d8fb56897c8b6d8b63a4716fe725a5cfd617e7646bd9673f8b03f029",
+        "afterFrameHash": "96d9718f1d76127696132d5ab2163f391f29e5b12455ec70d0179f0f9baa88c9",
+        "completedAtMs": 1148,
+        "beforeAtMs": 500,
+        "afterAtMs": 1398,
+        "inkRegion": {
+          "left": 448,
+          "top": 122,
+          "width": 384,
+          "height": 556
+        }
+      },
+      "webm": {
+        "bytes": 491024,
+        "sha256": "b3f4bd044062f05390b2a7ad65e48bd18f73aed2533b2bed2fc63638f0ae34d8",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 349449,
+        "sha256": "64ca311f14d20484bc74878d3de125bda8452fe78fd211cbf47497ef7b02ea8b",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "governance",
+      "locale": "en",
+      "variant": "mobile",
+      "sourceShot": "governance-audit-logs",
+      "route": "/dashboard/:orgId/settings/governance/logs?category=member",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 769,
+      "action": {
+        "id": "inspect-audit-entry",
+        "beforeAssertion": "heading: Logs; member audit rows",
+        "afterAssertion": "dialog: Audit log details; User",
+        "beforeFrameHash": "38b2a8b1a556c4c5e1cb9e2aad4bc3aa9b7abed4bf9ed8c475ab686c68b16f43",
+        "afterFrameHash": "4c5cd127ecc740d2331601865655e9e64f686a891e23b22dda5085cac9dfb23c",
+        "completedAtMs": 1080,
+        "beforeAtMs": 500,
+        "afterAtMs": 1330,
+        "inkRegion": {
+          "left": 0,
+          "top": 265,
+          "width": 390,
+          "height": 555
+        }
+      },
+      "webm": {
+        "bytes": 119406,
+        "sha256": "58384e8297a562b58457bfd4b4f764c57b952b5609b8df7253ffad20cb217768",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 111922,
+        "sha256": "ff39f9dbef9e5212c754243d840f58806469b4229a89c2e6a09d43c668a03ae9",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "automations",
+      "locale": "en",
+      "variant": "desktop",
+      "sourceShot": "automation-run-detail",
+      "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 748,
+      "action": {
+        "id": "inspect-completed-run-step",
+        "beforeAssertion": "completed report node: Ran",
+        "afterAssertion": "heading: report; In this run",
+        "beforeFrameHash": "441107a6126a2d66891b20da9b243f422760ed28e3a3359c5bdaf91b05389b23",
+        "afterFrameHash": "31e086a3f9a9fa080f3ea6a423558323e2da6087248c617e635a2e1c2b5de7a6",
+        "completedAtMs": 1123,
+        "beforeAtMs": 500,
+        "afterAtMs": 1373,
+        "inkRegion": {
+          "left": 929,
+          "top": 598,
+          "width": 67,
+          "height": 20
+        }
+      },
+      "webm": {
+        "bytes": 207521,
+        "sha256": "8e31bb97a0737e54e2d83e6ce0a6b866029873e3524343d49ae7898ddde4090d",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 162659,
+        "sha256": "4787d7e8ca5c1abbbccf9a15e48c68989c17c72458ac8d483940c893e979daa2",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "automations",
+      "locale": "en",
+      "variant": "mobile",
+      "sourceShot": "automation-run-detail",
+      "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 741,
+      "action": {
+        "id": "inspect-completed-run-step",
+        "beforeAssertion": "completed report node: Ran",
+        "afterAssertion": "heading: report; In this run",
+        "beforeFrameHash": "479fe869b47a380d92f911c7b509e976e1961ae4fad343bc6b2ee6f4166a54af",
+        "afterFrameHash": "59908a486dbb04b114b6a50ba04c2ea85d414224caee9632f1ca1322db401295",
+        "completedAtMs": 1110,
+        "beforeAtMs": 500,
+        "afterAtMs": 1360,
+        "inkRegion": {
+          "left": 33,
+          "top": 388,
+          "width": 67,
+          "height": 20
+        }
+      },
+      "webm": {
+        "bytes": 146837,
+        "sha256": "0030341c8d5eb351c410465f8f53d4164d2282140c776dd203120b2dd70b828d",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 126794,
+        "sha256": "e0539b09beaded7019f6add43f04fedc0fc17670b84ad9f16cef5aa84cb28504",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "chat",
+      "locale": "de",
+      "variant": "desktop",
+      "sourceShot": "chat-thread-reply",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 620,
+      "action": {
+        "id": "send-and-stream-grounded-reply",
+        "beforeAssertion": "textbox: Nachrichteneingabe; fresh chat empty",
+        "afterAssertion": "log: Nachrichtenverlauf; Across the three onboarding calls",
+        "beforeFrameHash": "789cb52091631b2b1b9e28e5a2e33a8b3c3794b726c38fa5f1ac1085195da06d",
+        "afterFrameHash": "8412ca579618201242f7bcd39e8abd7940757cb95f89b2d7d954d9e3b91ada37",
+        "completedAtMs": 5552,
+        "beforeAtMs": 500,
+        "afterAtMs": 5802,
+        "inkRegion": {
+          "left": 333,
+          "top": 0,
+          "width": 947,
+          "height": 610
+        }
+      },
+      "webm": {
+        "bytes": 288558,
+        "sha256": "43d011404f003b528f3d6e914004606f3b196193a1f34170e22bfaae26f2dd36",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 210952,
+        "sha256": "b63d9962646c7521dafe6133ddb24eb3816da118b7db8b1c9db49b8286ade170",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "chat",
+      "locale": "de",
+      "variant": "mobile",
+      "sourceShot": "chat-thread-reply",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 720,
+      "action": {
+        "id": "send-and-stream-grounded-reply",
+        "beforeAssertion": "textbox: Nachrichteneingabe; fresh chat empty",
+        "afterAssertion": "log: Nachrichtenverlauf; Across the three onboarding calls",
+        "beforeFrameHash": "9d1f47221cd45d9c32fc11c12b13ab6cd6d6e55dc97480bd69282cbe52a0656d",
+        "afterFrameHash": "ac00e6527c823e8f88d64693ade703f4d432131c35d88245ea0dcfc277506127",
+        "completedAtMs": 5923,
+        "beforeAtMs": 500,
+        "afterAtMs": 6173,
+        "inkRegion": {
+          "left": 0,
+          "top": 48,
+          "width": 390,
+          "height": 542
+        }
+      },
+      "webm": {
+        "bytes": 142056,
+        "sha256": "05c19a99c4acca49ab72437d9234128b34d2a9129f5e654a31fe3a74a140ee76",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 120880,
+        "sha256": "f6a44f19bea07d3f79ac8dd0bf363dd442f53fafe3ff1c3c58a7bf913334c9ba",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "agents",
+      "locale": "de",
+      "variant": "desktop",
+      "sourceShot": "project-agents-models",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 747,
+      "action": {
+        "id": "inspect-agent-configuration",
+        "beforeAssertion": "button: Agentdetails ansehen; Content editor",
+        "afterAssertion": "dialog: Agentdetails; Content editor; Anweisungen",
+        "beforeFrameHash": "7e44d55afeef10c40775511d5caa4cab90678da8f31f6a4ee7a14b601077a8d6",
+        "afterFrameHash": "06a0e6b750ef2e3f394cdccd9eaeeb87ebd8fa9a98dfe8d3b0c54eab033e46f0",
+        "completedAtMs": 1068,
+        "beforeAtMs": 500,
+        "afterAtMs": 1318,
+        "inkRegion": {
+          "left": 384,
+          "top": 175,
+          "width": 512,
+          "height": 450
+        }
+      },
+      "webm": {
+        "bytes": 348652,
+        "sha256": "615a7c19c8e88f47068119667594b054e136f2357fb0acd5e66571080aa9771f",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 296044,
+        "sha256": "da13b8999ee79249d41dc795510aa6687694c98e3501b51bfeb19de8f2a03f91",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "agents",
+      "locale": "de",
+      "variant": "mobile",
+      "sourceShot": "project-agents-models",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 759,
+      "action": {
+        "id": "inspect-agent-configuration",
+        "beforeAssertion": "button: Agentdetails ansehen; Content editor",
+        "afterAssertion": "dialog: Agentdetails; Content editor; Anweisungen",
+        "beforeFrameHash": "346a0ed0c4cf4cfce4c443ca9cf9a5821bd3cac850db8db90257b63dd43ccb2d",
+        "afterFrameHash": "25cf636dd5f814fcbce762d1337db64088ad1a3867486f33581eed9ddc0f3de0",
+        "completedAtMs": 1102,
+        "beforeAtMs": 500,
+        "afterAtMs": 1352,
+        "inkRegion": {
+          "left": 0,
+          "top": 364,
+          "width": 390,
+          "height": 456
+        }
+      },
+      "webm": {
+        "bytes": 136410,
+        "sha256": "dbb681af3dce02c4ce706bac851adb60c879bc6c431315fff13c2e857a7db8d8",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 107002,
+        "sha256": "96cf611c662579a5e6354d5dd310e380ede8fd7474cf2aec5b14070ab6905088",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "de",
+      "variant": "desktop",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 641,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: Das überarbeitete Briefing ist bereit zur Prüfung.",
+        "beforeFrameHash": "c8c17a20d2e50010389ca8a605827a7a743302c5548d3cd98141968b0a951761",
+        "afterFrameHash": "7d96e9f450dafdd15b8f9d5f0a1434601491cd2bc107022bda4c0d05d7575b09",
+        "completedAtMs": 2698,
+        "beforeAtMs": 500,
+        "afterAtMs": 2948,
+        "inkRegion": {
+          "left": 281,
+          "top": 628,
+          "width": 430,
+          "height": 120
+        }
+      },
+      "webm": {
+        "bytes": 219056,
+        "sha256": "dbfee94239fb263ffd9c0e5f80c27cd14272ebd2d626afa81d832edddd347f4f",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 110600,
+        "sha256": "888b0710854b3dd7a0b96ae545df0be226d1e4c7ee75c9c8aad1dd5b4aa9c022",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "de",
+      "variant": "mobile",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 669,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: Das überarbeitete Briefing ist bereit zur Prüfung.",
+        "beforeFrameHash": "9ac5644a204821b231b591a3f9d13fb9c827fd2ce372d02239e17a9ce99ff060",
+        "afterFrameHash": "4b9f11a96bf6b1d3f4a8991e4446c783fed7008050d100a2f6ca54ca8fcac05f",
+        "completedAtMs": 2695,
+        "beforeAtMs": 500,
+        "afterAtMs": 2945,
+        "inkRegion": {
+          "left": 16,
+          "top": 698,
+          "width": 358,
+          "height": 120
+        }
+      },
+      "webm": {
+        "bytes": 108625,
+        "sha256": "91c4b3044c6d03250b4c944c3249209ddbefab5a8d463f2a6c1d187e27713a84",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 58514,
+        "sha256": "2c610216425cef8104e8dac09ad67e6c3b7ea10f8dcdbb7d1365fe36ae83295c",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "hub",
+      "locale": "de",
+      "variant": "desktop",
+      "sourceShot": "home-inbox",
+      "route": "/dashboard/:orgId/conversations/open",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 619,
+      "action": {
+        "id": "draft-inbox-reply",
+        "beforeAssertion": "textbox: Nachricht eingeben; reply draft empty",
+        "afterAssertion": "textbox: Danke, Hannah. Ich nehme beide Regionalbüros auf.",
+        "beforeFrameHash": "aea6a30f1fc34b850bf4ac78b37c72cea981361e372e92138f14a38b63861430",
+        "afterFrameHash": "cf5c5e88e13ce9cdafae8609cfda9b46fefb6077ad9029ac7a55956282edd12f",
+        "completedAtMs": 2580,
+        "beforeAtMs": 500,
+        "afterAtMs": 2830,
+        "inkRegion": {
+          "left": 444,
+          "top": 415,
+          "width": 726,
+          "height": 45
+        }
+      },
+      "webm": {
+        "bytes": 131495,
+        "sha256": "7c613507842c64fb32ed82457442076cc5957ff4a0cefd00fa169e09ef6e2ea5",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 71974,
+        "sha256": "00549c65da71d6ee2ba5ad4fe680f2cdedb74dc4f0c45c618b3783aa130b510d",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "hub",
+      "locale": "de",
+      "variant": "mobile",
+      "sourceShot": "home-inbox",
+      "route": "/dashboard/:orgId/conversations/open",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 619,
+      "action": {
+        "id": "draft-inbox-reply",
+        "beforeAssertion": "textbox: Nachricht eingeben; reply draft empty",
+        "afterAssertion": "textbox: Danke, Hannah. Ich nehme beide Regionalbüros auf.",
+        "beforeFrameHash": "480d6b552f5e3607e778aaa5ffed6351a893dc00b8f07b80a0a1930fba0703b7",
+        "afterFrameHash": "e90928ad088e6f5debe8e2594f19b865fb5e109867f355ed4ba2329a1c0b53f5",
+        "completedAtMs": 2712,
+        "beforeAtMs": 500,
+        "afterAtMs": 2962,
+        "inkRegion": {
+          "left": 29,
+          "top": 367,
+          "width": 332,
+          "height": 66
+        }
+      },
+      "webm": {
+        "bytes": 82158,
+        "sha256": "c1365ecc2f36e23a0905159ec9b60c5e1bfe812f985af6a1514fdd7d84677214",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 47305,
+        "sha256": "5ca3749b75d300192a9d70c22be7ca9ae7f0308afdabce6e6e85dd39b4c7e78f",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "de",
+      "variant": "desktop",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 754,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "a2e68d2a54b73df45f2c9bd784cd5abad84b48a9a7d6fc773b4de5ca55391dd7",
+        "afterFrameHash": "691ca028cbba6f7d2e18a2ddc5b7f06f0a9f883128d3e483fc22894ae9fdfdf0",
+        "completedAtMs": 1280,
+        "beforeAtMs": 500,
+        "afterAtMs": 1530,
+        "inkRegion": {
+          "left": 257,
+          "top": 61,
+          "width": 766,
+          "height": 679
+        }
+      },
+      "webm": {
+        "bytes": 544902,
+        "sha256": "4b4cba22d6e76253c9c60d7d18a5c6333ca9ff49b516ad1793b20f75ffeda274",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 421028,
+        "sha256": "24c74fea0ea05c22a0246ac139a0c2aa6a2117954241aaf1488c86410112a72f",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "de",
+      "variant": "mobile",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 751,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "4ade03f18142be0b18a9fd9a38c751b2c8451c89c1fbda8e086c458a175017ee",
+        "afterFrameHash": "4e71405922e04808432e1fc099e975e1d0a08845dfe0d36551d3c3955c566a2a",
+        "completedAtMs": 1226,
+        "beforeAtMs": 500,
+        "afterAtMs": 1476,
+        "inkRegion": {
+          "left": 0,
+          "top": 459,
+          "width": 390,
+          "height": 361
+        }
+      },
+      "webm": {
+        "bytes": 322061,
+        "sha256": "67376dca6e24aa4d32733b1902a69e4dc9b97809ec2620cefb292e60be7722fb",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 225617,
+        "sha256": "aca60420e7e412b26f318e0aeb456f6679820210768130034af00e6fef67d114",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "knowledge",
+      "locale": "de",
+      "variant": "desktop",
+      "sourceShot": "knowledge-entries-list",
+      "route": "/dashboard/:orgId/knowledge-entries",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 756,
+      "action": {
+        "id": "find-and-read-knowledge",
+        "beforeAssertion": "searchbox: Wissenseinträge durchsuchen; Support first-response target",
+        "afterAssertion": "dialog: Details zum Wissenseintrag; Support aims for a first response within 45 minutes during business hours (Mon–Fri, 9:00–17:00 CET). The Q2 median was 42 minutes.",
+        "beforeFrameHash": "9acb01aab1b288dc861ab7be0719310a88cee18e2cf554f75b9614fbb937a029",
+        "afterFrameHash": "75cc2a22f9609695aa46f83af81dc6b0136760891998709de0d11384f5692746",
+        "completedAtMs": 1996,
+        "beforeAtMs": 500,
+        "afterAtMs": 2246,
+        "inkRegion": {
+          "left": 384,
+          "top": 196,
+          "width": 512,
+          "height": 408
+        }
+      },
+      "webm": {
+        "bytes": 280127,
+        "sha256": "32799991737b165238034f2e7e7977f8662b98fef2926bb27cd1a395b33f81d1",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 225048,
+        "sha256": "ff3ddfca6d57f06184dc79ea5354e8c61f8b2559d5ed28609075ec92782f745a",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "knowledge",
+      "locale": "de",
+      "variant": "mobile",
+      "sourceShot": "knowledge-entries-list",
+      "route": "/dashboard/:orgId/knowledge-entries",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 742,
+      "action": {
+        "id": "find-and-read-knowledge",
+        "beforeAssertion": "searchbox: Wissenseinträge durchsuchen; Support first-response target",
+        "afterAssertion": "dialog: Details zum Wissenseintrag; Support aims for a first response within 45 minutes during business hours (Mon–Fri, 9:00–17:00 CET). The Q2 median was 42 minutes.",
+        "beforeFrameHash": "df8d5f615910d812f37af659218864e61d8c1d1178a901303f5c5b63f702bb49",
+        "afterFrameHash": "794a0e405314b77f3c52a96212473d33b838861ce14a86fffd674b8e98259170",
+        "completedAtMs": 2032,
+        "beforeAtMs": 500,
+        "afterAtMs": 2282,
+        "inkRegion": {
+          "left": 0,
+          "top": 310,
+          "width": 390,
+          "height": 510
+        }
+      },
+      "webm": {
+        "bytes": 176409,
+        "sha256": "78a6cb4f1101c582224fc5ada8869134b96a9181410372bff96eb871ae426d06",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 143072,
+        "sha256": "030195463f27e1954af22f800a4ec52443dcb90b465f6a3a664e1fb9d4a09ae5",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "governance",
+      "locale": "de",
+      "variant": "desktop",
+      "sourceShot": "governance-audit-logs",
+      "route": "/dashboard/:orgId/settings/governance/logs?category=member",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 759,
+      "action": {
+        "id": "inspect-audit-entry",
+        "beforeAssertion": "heading: Protokolle; member audit rows",
+        "afterAssertion": "dialog: Audit-Protokoll-Details; Benutzer",
+        "beforeFrameHash": "a4b9b641e610b58697cb96b8261a2a6fc3084189d00a4d00dfcdb7b22fdab089",
+        "afterFrameHash": "5d1c3fd5b6f0ea313c38044c868933c7881cfe02d3cbb500c3c088576f2c40e4",
+        "completedAtMs": 1143,
+        "beforeAtMs": 500,
+        "afterAtMs": 1393,
+        "inkRegion": {
+          "left": 448,
+          "top": 122,
+          "width": 384,
+          "height": 556
+        }
+      },
+      "webm": {
+        "bytes": 491281,
+        "sha256": "124ce1d528af08f4a5698516c09cf22644877e26446b67626d094b4fcc8584e4",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 406234,
+        "sha256": "2eca2de9199b70104e91887ab7440c5c2c8b323e78e83d44f9e1a84e17998fb0",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "governance",
+      "locale": "de",
+      "variant": "mobile",
+      "sourceShot": "governance-audit-logs",
+      "route": "/dashboard/:orgId/settings/governance/logs?category=member",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 769,
+      "action": {
+        "id": "inspect-audit-entry",
+        "beforeAssertion": "heading: Protokolle; member audit rows",
+        "afterAssertion": "dialog: Audit-Protokoll-Details; Benutzer",
+        "beforeFrameHash": "568f0977ae650b51436424e1e4123b81eed797a65248613b434c9811253518d1",
+        "afterFrameHash": "888cf1676fa5a91afdee66588cc3e90a4f4475c49c3d77036d86c55e9ec73186",
+        "completedAtMs": 1079,
+        "beforeAtMs": 500,
+        "afterAtMs": 1329,
+        "inkRegion": {
+          "left": 0,
+          "top": 265,
+          "width": 390,
+          "height": 555
+        }
+      },
+      "webm": {
+        "bytes": 131466,
+        "sha256": "c21fd198dc538833a67dab3d44c8b24668dafa32852ea571feb1c42f57e75c86",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 117660,
+        "sha256": "1cd4d484684b1a3cad450ff4e08a0eb290b1282d339fb16469d68802c94b8e66",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "automations",
+      "locale": "de",
+      "variant": "desktop",
+      "sourceShot": "automation-run-detail",
+      "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 765,
+      "action": {
+        "id": "inspect-completed-run-step",
+        "beforeAssertion": "completed report node: Gelaufen",
+        "afterAssertion": "heading: report; In diesem Lauf",
+        "beforeFrameHash": "265115d5582cb179bbc9eeaf20d71698549a10721bcf95b1b3999a830547519c",
+        "afterFrameHash": "810247637eded307f16190acc2604cdb288dc02d8069440651ed48a1dff211be",
+        "completedAtMs": 1122,
+        "beforeAtMs": 500,
+        "afterAtMs": 1372,
+        "inkRegion": {
+          "left": 929,
+          "top": 598,
+          "width": 99,
+          "height": 20
+        }
+      },
+      "webm": {
+        "bytes": 219008,
+        "sha256": "5aca9b3aa1e9269dffc5bd94828d5dd592992a3176d4827c5b073d07abc1c9bc",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 167620,
+        "sha256": "04aeb174fc629c17130d693e66f12f7ceccf033d6a9d77957a413760818899e7",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "automations",
+      "locale": "de",
+      "variant": "mobile",
+      "sourceShot": "automation-run-detail",
+      "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 764,
+      "action": {
+        "id": "inspect-completed-run-step",
+        "beforeAssertion": "completed report node: Gelaufen",
+        "afterAssertion": "heading: report; In diesem Lauf",
+        "beforeFrameHash": "cd019b9a2574cb9a77acd4a5f2fd69065dc93f5d110feaf49449c93418e55243",
+        "afterFrameHash": "40c8d9cd1cff3ee77c13cfa91b71aa80dcc7b83780d015cd7c1b61cc26ecc933",
+        "completedAtMs": 1129,
+        "beforeAtMs": 500,
+        "afterAtMs": 1379,
+        "inkRegion": {
+          "left": 33,
+          "top": 388,
+          "width": 99,
+          "height": 20
+        }
+      },
+      "webm": {
+        "bytes": 145658,
+        "sha256": "7bf06f2fe99c8c4cdf8d64cad58c58a32668c3e5c039fe9dd2b855421da60d7b",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 142013,
+        "sha256": "fdd4ae5c2bd1ee1c4967b16913220e16b5735ab8a8b6b900c432cb034b75d76f",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "chat",
+      "locale": "fr",
+      "variant": "desktop",
+      "sourceShot": "chat-thread-reply",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 673,
+      "action": {
+        "id": "send-and-stream-grounded-reply",
+        "beforeAssertion": "textbox: Saisie du message; fresh chat empty",
+        "afterAssertion": "log: Historique des messages; Across the three onboarding calls",
+        "beforeFrameHash": "341a0d075d3f7104e743ce486d378afa7abd816050ab26cc077e478d463ba011",
+        "afterFrameHash": "17dcd8ba804c97364d082b7f9c9fa6c65f7b0746aa27147b9347046481d90d55",
+        "completedAtMs": 5858,
+        "beforeAtMs": 500,
+        "afterAtMs": 6108,
+        "inkRegion": {
+          "left": 333,
+          "top": 0,
+          "width": 947,
+          "height": 610
+        }
+      },
+      "webm": {
+        "bytes": 304613,
+        "sha256": "7ca6102d597b4227bcd2e10fd7c92b42cb5c804187c281b88e5405107b6c5cae",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 220600,
+        "sha256": "4d61cb5c1fda148a8ef21aa4332dfa3c4804987b833139798df411c32605d839",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "chat",
+      "locale": "fr",
+      "variant": "mobile",
+      "sourceShot": "chat-thread-reply",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 715,
+      "action": {
+        "id": "send-and-stream-grounded-reply",
+        "beforeAssertion": "textbox: Saisie du message; fresh chat empty",
+        "afterAssertion": "log: Historique des messages; Across the three onboarding calls",
+        "beforeFrameHash": "03a35b1f0017f53eeaa085d6f4bd311bb234377bb5c2bed264fc56dfe10c9035",
+        "afterFrameHash": "302f561638ca67ff340b4d862e7f73346c060795d45e9eda65806e8288037b23",
+        "completedAtMs": 6089,
+        "beforeAtMs": 500,
+        "afterAtMs": 6339,
+        "inkRegion": {
+          "left": 0,
+          "top": 48,
+          "width": 390,
+          "height": 542
+        }
+      },
+      "webm": {
+        "bytes": 141319,
+        "sha256": "9c7b5ab0e3259cc6158bef2eba2ef16dd4f249e47f2b5e39b332b269a0adb174",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 122590,
+        "sha256": "c73a3572412e9fa82dc4f2fadf4dddbb9fbe247269e70e58d4fd946000d314c4",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "agents",
+      "locale": "fr",
+      "variant": "desktop",
+      "sourceShot": "project-agents-models",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 761,
+      "action": {
+        "id": "inspect-agent-configuration",
+        "beforeAssertion": "button: Voir les détails de l’agent; Content editor",
+        "afterAssertion": "dialog: Détails de l’agent; Content editor; Instructions",
+        "beforeFrameHash": "abbf27f23ed55faf085ae66ce628108c6f82434c0a80898d122afa563e2f1646",
+        "afterFrameHash": "06702ff7aee16adad8f76fbfcd60538e39605dbc884e0e42bae92306582d7498",
+        "completedAtMs": 1053,
+        "beforeAtMs": 500,
+        "afterAtMs": 1303,
+        "inkRegion": {
+          "left": 384,
+          "top": 175,
+          "width": 512,
+          "height": 450
+        }
+      },
+      "webm": {
+        "bytes": 362702,
+        "sha256": "babbc310741f3ed64e78d28f869c60968e3f1852bf11736e448fbc4b8989b9d7",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 269165,
+        "sha256": "7d5119db79b5eb3660865ee737157d56e8712a66251beac37204699ff198bcbb",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "agents",
+      "locale": "fr",
+      "variant": "mobile",
+      "sourceShot": "project-agents-models",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 757,
+      "action": {
+        "id": "inspect-agent-configuration",
+        "beforeAssertion": "button: Voir les détails de l’agent; Content editor",
+        "afterAssertion": "dialog: Détails de l’agent; Content editor; Instructions",
+        "beforeFrameHash": "63c8414c888017fb4618072ef3e8bc14352960342b4263198d65c7b5c6c9b981",
+        "afterFrameHash": "ec203092646d75b53b846ad3f3c4cceac26afb5eee7091e79009e4d65a1222e9",
+        "completedAtMs": 1060,
+        "beforeAtMs": 500,
+        "afterAtMs": 1310,
+        "inkRegion": {
+          "left": 0,
+          "top": 365,
+          "width": 390,
+          "height": 455
+        }
+      },
+      "webm": {
+        "bytes": 126526,
+        "sha256": "b02c69fa9fc42cba1eabd12ca19be81c109a158880a5c1a32554ad68c44769b2",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 103216,
+        "sha256": "23bf01318a74c36e9a96afe90512a0e8011de881b8c547e18b70c735dd33a0c9",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "fr",
+      "variant": "desktop",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 685,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: Le brief révisé est prêt pour ta relecture.",
+        "beforeFrameHash": "c100dd0a8d4e2b39bf62b84d57dcb564b07ebbb7a063a2cbee900b69a07f5f55",
+        "afterFrameHash": "b77913d333f1c7c10f297b5f4597bd3667b058d7b4d222e91b5b98649337f38b",
+        "completedAtMs": 2431,
+        "beforeAtMs": 500,
+        "afterAtMs": 2681,
+        "inkRegion": {
+          "left": 281,
+          "top": 628,
+          "width": 430,
+          "height": 120
+        }
+      },
+      "webm": {
+        "bytes": 214612,
+        "sha256": "106187d1e6298edf396fa3870bc7069b8a1be237a98ef2ed7e481d7dac9b650e",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 108457,
+        "sha256": "30c76e81425d165a7bc738741430dc55407febb2f61cef09e5cce6d76261fd1f",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "fr",
+      "variant": "mobile",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 692,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: Le brief révisé est prêt pour ta relecture.",
+        "beforeFrameHash": "0fc7f6f63074cd03c155ed16de912ad315b9bab1ed07de6dd585d300ba52695e",
+        "afterFrameHash": "e3ee2c49b105412226668f79adc1af7e53da1c0da68cb9b22ef73b6c0a9bc5b2",
+        "completedAtMs": 2427,
+        "beforeAtMs": 500,
+        "afterAtMs": 2677,
+        "inkRegion": {
+          "left": 16,
+          "top": 698,
+          "width": 358,
+          "height": 120
+        }
+      },
+      "webm": {
+        "bytes": 105612,
+        "sha256": "54ed795281df3822fa33dfc1cef306849cd5b68751a79608b5b271a1bb27413c",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 56638,
+        "sha256": "c891d9bb54cdc8db803b4d368f443db10bc45741a6e4e5edbda44d51f1c55c3c",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "hub",
+      "locale": "fr",
+      "variant": "desktop",
+      "sourceShot": "home-inbox",
+      "route": "/dashboard/:orgId/conversations/open",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 618,
+      "action": {
+        "id": "draft-inbox-reply",
+        "beforeAssertion": "textbox: Saisis un message; reply draft empty",
+        "afterAssertion": "textbox: Merci, Hannah. J’inclus les deux bureaux régionaux.",
+        "beforeFrameHash": "1fa59ff8c8fd8565d88d86d7497c72a6aa10c07cd6c395b2d0645901d6c17be0",
+        "afterFrameHash": "16bf3c8cce46f55037adfc8d90fb80948b14520f81b97b35623d8cc45dda06be",
+        "completedAtMs": 2593,
+        "beforeAtMs": 500,
+        "afterAtMs": 2843,
+        "inkRegion": {
+          "left": 444,
+          "top": 415,
+          "width": 726,
+          "height": 45
+        }
+      },
+      "webm": {
+        "bytes": 131906,
+        "sha256": "3d0bf13e0c2ed67defcd92a9a6090ebe5eaaadc7c8c1ae038562d3b356a4fc01",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 73108,
+        "sha256": "439e0b44a7e235ac9eefd1039688e4d1659d85fe0abe179ee6aec1d1b7b1f6f8",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "hub",
+      "locale": "fr",
+      "variant": "mobile",
+      "sourceShot": "home-inbox",
+      "route": "/dashboard/:orgId/conversations/open",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 631,
+      "action": {
+        "id": "draft-inbox-reply",
+        "beforeAssertion": "textbox: Saisis un message; reply draft empty",
+        "afterAssertion": "textbox: Merci, Hannah. J’inclus les deux bureaux régionaux.",
+        "beforeFrameHash": "31ff345aee7c9f2a0e57312fc7530a4985dafeac17ccf8017439c001f87aac5c",
+        "afterFrameHash": "af40896c0da055bde07bf541d39ee95faa9ae629e977ffa31b75738b13e83720",
+        "completedAtMs": 2604,
+        "beforeAtMs": 500,
+        "afterAtMs": 2854,
+        "inkRegion": {
+          "left": 29,
+          "top": 367,
+          "width": 332,
+          "height": 66
+        }
+      },
+      "webm": {
+        "bytes": 82002,
+        "sha256": "b87f53130740926a6cdaebd1813263f4cc02e5c50c63d9088f4b4845eb3e6d58",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 46589,
+        "sha256": "b88b5cc112fb45ff0774820a35d5421d8fc4187c292c58ff3debd090d185159c",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "fr",
+      "variant": "desktop",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 750,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "b57d41e33665a5b6599a984e84568c184e06f59359e8874839c30e892ba36f89",
+        "afterFrameHash": "0571e3b9a0226c7b07778d21d1bcf2a31b179888ce210a54749ea0bd09cfc5bb",
+        "completedAtMs": 1245,
+        "beforeAtMs": 500,
+        "afterAtMs": 1495,
+        "inkRegion": {
+          "left": 258,
+          "top": 61,
+          "width": 765,
+          "height": 677
+        }
+      },
+      "webm": {
+        "bytes": 497784,
+        "sha256": "43c585037c78a446b259ea5729116d857122b698ddf8f8ab403aeb333e4b8aea",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 410706,
+        "sha256": "9c986ffb65cc858b88d7314a4c1fce695a7b53afe3578f42c00ac2c749d35e84",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "fr",
+      "variant": "mobile",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 754,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "cefc6dee1dbb57ce2e2e9657286a84a49c19cd78081acac986746fd4f5f5c225",
+        "afterFrameHash": "154ac35eeec49d8518c7b1debac3326f88ba024011624422936324f642bae263",
+        "completedAtMs": 1246,
+        "beforeAtMs": 500,
+        "afterAtMs": 1496,
+        "inkRegion": {
+          "left": 0,
+          "top": 451,
+          "width": 390,
+          "height": 369
+        }
+      },
+      "webm": {
+        "bytes": 288644,
+        "sha256": "92598cc36f8b6c78d5857c15c1a83463b2d79ef50ada79a07cbdab2ef9ff16fe",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 225193,
+        "sha256": "98470a7f326df352e96b0e844014f85410f6ecf2a76dd55fd9a06851d6065868",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "knowledge",
+      "locale": "fr",
+      "variant": "desktop",
+      "sourceShot": "knowledge-entries-list",
+      "route": "/dashboard/:orgId/knowledge-entries",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 750,
+      "action": {
+        "id": "find-and-read-knowledge",
+        "beforeAssertion": "searchbox: Rechercher des entrées de connaissances; Support first-response target",
+        "afterAssertion": "dialog: Détails de l'entrée de connaissances; Support aims for a first response within 45 minutes during business hours (Mon–Fri, 9:00–17:00 CET). The Q2 median was 42 minutes.",
+        "beforeFrameHash": "85cf8e5493ede4269854dd9720aea0231df2a680fb73a4df11307bc4c80f2d07",
+        "afterFrameHash": "c90089c850422d470a6a124764ce2512bffec286e0ce090da7102e9f3691499c",
+        "completedAtMs": 2055,
+        "beforeAtMs": 500,
+        "afterAtMs": 2305,
+        "inkRegion": {
+          "left": 384,
+          "top": 196,
+          "width": 512,
+          "height": 408
+        }
+      },
+      "webm": {
+        "bytes": 297440,
+        "sha256": "46e7d50b0c93418b7f5f78cc6db26ffe74e19d8a8185d4bd4b88f0566aee5f25",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 234281,
+        "sha256": "2456b5237641fc95fc0e2eaa202386c6ec8ea829484c6922be05f27c5496e40b",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "knowledge",
+      "locale": "fr",
+      "variant": "mobile",
+      "sourceShot": "knowledge-entries-list",
+      "route": "/dashboard/:orgId/knowledge-entries",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 748,
+      "action": {
+        "id": "find-and-read-knowledge",
+        "beforeAssertion": "searchbox: Rechercher des entrées de connaissances; Support first-response target",
+        "afterAssertion": "dialog: Détails de l'entrée de connaissances; Support aims for a first response within 45 minutes during business hours (Mon–Fri, 9:00–17:00 CET). The Q2 median was 42 minutes.",
+        "beforeFrameHash": "e9899babb033cc1ac7ef5515633dcdd0e7a6c2315a49010c4620e53ba4e09a70",
+        "afterFrameHash": "da86ad79add0b22994932d80a2f6908e07cf0426c1f9a883a739347174f625a1",
+        "completedAtMs": 1922,
+        "beforeAtMs": 500,
+        "afterAtMs": 2172,
+        "inkRegion": {
+          "left": 0,
+          "top": 328,
+          "width": 390,
+          "height": 492
+        }
+      },
+      "webm": {
+        "bytes": 155971,
+        "sha256": "e0742815bbfeb6109afa6ad9e37b43eec77c035a278cca9fb140e69db72fec49",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 126023,
+        "sha256": "cd41e3ad2bc93e54c0eb17bbadc2ee22b9efa251bd63f58e98f27419d101b9bb",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "governance",
+      "locale": "fr",
+      "variant": "desktop",
+      "sourceShot": "governance-audit-logs",
+      "route": "/dashboard/:orgId/settings/governance/logs?category=member",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 758,
+      "action": {
+        "id": "inspect-audit-entry",
+        "beforeAssertion": "heading: Journaux; member audit rows",
+        "afterAssertion": "dialog: Détails du journal d'audit; Utilisateur",
+        "beforeFrameHash": "04e7a9958534a169fa8a2f679f774c3de0647f85ade3bcf5ec0e17c1322f6fab",
+        "afterFrameHash": "dec8b27bf8d0c43949c2b6c05070f79692adc3e38b0d5f4c8590eb7019f7efde",
+        "completedAtMs": 1076,
+        "beforeAtMs": 500,
+        "afterAtMs": 1326,
+        "inkRegion": {
+          "left": 448,
+          "top": 122,
+          "width": 384,
+          "height": 556
+        }
+      },
+      "webm": {
+        "bytes": 469522,
+        "sha256": "5415c1652485d082b4ef4c2274231434cd77948900baf393448fae267d965bee",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 400609,
+        "sha256": "4170adf942c7fec8f60896c35d51e712ed0f1c4c8cf2fd4131bdc39241f682c5",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "governance",
+      "locale": "fr",
+      "variant": "mobile",
+      "sourceShot": "governance-audit-logs",
+      "route": "/dashboard/:orgId/settings/governance/logs?category=member",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 765,
+      "action": {
+        "id": "inspect-audit-entry",
+        "beforeAssertion": "heading: Journaux; member audit rows",
+        "afterAssertion": "dialog: Détails du journal d'audit; Utilisateur",
+        "beforeFrameHash": "5ec4b26a255d95c20462660a2e5a470b50bc7e0586bde3b1eb0c4122337a4d37",
+        "afterFrameHash": "c58a12b575fd9e20114ae6ba6097deda28c760f2f772f88f6bed6c6881bc1063",
+        "completedAtMs": 1076,
+        "beforeAtMs": 500,
+        "afterAtMs": 1326,
+        "inkRegion": {
+          "left": 0,
+          "top": 267,
+          "width": 390,
+          "height": 553
+        }
+      },
+      "webm": {
+        "bytes": 158767,
+        "sha256": "cf3c296db3906ad1b8ebeeea9a45627a7a227e43dced7c95cd240aaf213ac154",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 129943,
+        "sha256": "66f197a5b5cea9d6fb0619e7fb1f50d298034dba27b147fbbc4216bf2354ed94",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "automations",
+      "locale": "fr",
+      "variant": "desktop",
+      "sourceShot": "automation-run-detail",
+      "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 767,
+      "action": {
+        "id": "inspect-completed-run-step",
+        "beforeAssertion": "completed report node: Exécuté",
+        "afterAssertion": "heading: report; Dans cette exécution",
+        "beforeFrameHash": "081d5e1d3c1ff984d10c04706517ff5b935b051437030f1351ea265d0b5a3020",
+        "afterFrameHash": "c21a7893e953ef2d5470dc5f1ca42d89f183441a911a18d48dc01784a1996d55",
+        "completedAtMs": 1120,
+        "beforeAtMs": 500,
+        "afterAtMs": 1370,
+        "inkRegion": {
+          "left": 929,
+          "top": 598,
+          "width": 142,
+          "height": 20
+        }
+      },
+      "webm": {
+        "bytes": 214874,
+        "sha256": "2e8e3f49945a39fcae1216d173c21d548c6427347e3593ffc3dc605e40846bb1",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 170204,
+        "sha256": "3be1e12f081cfc8f88d762c3c7f39a12ce786da92fafc9242484788e9002fbfe",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "automations",
+      "locale": "fr",
+      "variant": "mobile",
+      "sourceShot": "automation-run-detail",
+      "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 764,
+      "action": {
+        "id": "inspect-completed-run-step",
+        "beforeAssertion": "completed report node: Exécuté",
+        "afterAssertion": "heading: report; Dans cette exécution",
+        "beforeFrameHash": "db18968444a1ce704acfc7f83ea0f40227a07e73883df2bd9adb70c68cc76019",
+        "afterFrameHash": "0df02d3f7ca2dd1c7eecc1a9fe0b20725df19e1d12480476b57ed438e719d7a9",
+        "completedAtMs": 1105,
+        "beforeAtMs": 500,
+        "afterAtMs": 1355,
+        "inkRegion": {
+          "left": 33,
+          "top": 388,
+          "width": 142,
+          "height": 20
+        }
+      },
+      "webm": {
+        "bytes": 154386,
+        "sha256": "69247af21340570c641208ef1882a42a2e2a972f25c62e4824930ccee758537a",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 133228,
+        "sha256": "41ad526638aa1773b07f9487d253117fc2ee07d351cad0c53c7d6b56e8b02e99",
+        "durationMs": 8000
+      }
+    }
+  ]
+}

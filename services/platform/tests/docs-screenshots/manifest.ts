@@ -215,13 +215,18 @@ const RIG_SECRETS: readonly RigSwap[] = [
 const replaceRigNames = async (page: Page): Promise<void> => {
   await page.evaluate(
     ({ swaps, secrets }) => {
+      const environment = (
+        window as Window & {
+          __ENV__?: { SITE_URL?: string; SITE_ORIGINS?: string[] };
+        }
+      ).__ENV__;
       // The app prints absolute URLs from the origins the deployment
       // reports, which a capture on another host name does not share.
       const origins = new Set(
         [
           window.location.href,
-          window.__ENV__?.SITE_URL,
-          ...(window.__ENV__?.SITE_ORIGINS ?? []),
+          environment?.SITE_URL,
+          ...(environment?.SITE_ORIGINS ?? []),
         ]
           .filter(
             (url): url is string => url !== undefined && URL.canParse(url),

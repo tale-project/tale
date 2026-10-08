@@ -6,8 +6,58 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/platform/tests/docs-videos/lib/ffmpeg.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/capture-options.ts",
         "$TURBO_ROOT$/services/docs/public/images/manifest.json",
         "$TURBO_ROOT$/services/docs/public/images/platform/**/{project-task-detail,home-inbox,project-agents-models,chat-thread-reply,projects-task-board,automation-run-detail,knowledge-entries-list,governance-audit-logs}.webp"
+      ]
+    },
+    "lint": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/env.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/capture-options.ts",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/i18n.ts",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/seed.ts",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/auth.ts",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/forms.ts",
+        "$TURBO_ROOT$/services/platform/lib/mocks/overrides/embeddings.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/demo-content.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/capture-auth.ts",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/chat.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/i18n.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/manifest.ts",
+        "$TURBO_ROOT$/services/platform/lib/mocks/overrides/docs-replies.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/seed-demo-org.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/capture-runtime.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-videos/lib/screencast.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-videos/lib/frame-playlist.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-videos/lib/ffmpeg.ts"
+      ]
+    },
+    "typecheck": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/env.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/capture-options.ts",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/i18n.ts",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/seed.ts",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/auth.ts",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/forms.ts",
+        "$TURBO_ROOT$/services/platform/lib/mocks/overrides/embeddings.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/demo-content.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/capture-auth.ts",
+        "$TURBO_ROOT$/services/platform/tests/e2e/helpers/chat.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/i18n.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/manifest.ts",
+        "$TURBO_ROOT$/services/platform/lib/mocks/overrides/docs-replies.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/seed-demo-org.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-screenshots/capture-runtime.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-videos/lib/screencast.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-videos/lib/frame-playlist.ts",
+        "$TURBO_ROOT$/services/platform/tests/docs-videos/lib/ffmpeg.ts"
       ]
     },
     "build": {

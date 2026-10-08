@@ -3,6 +3,8 @@ import {
   imageEntry,
   type ImageManifestEntry,
 } from '../../lib/images/manifest-entry';
+import { motionPosterEntries } from '../../lib/media/product-motion-entry';
+import { PRODUCT_MOTION } from './product-motion';
 export type { ImageManifestEntry } from '../../lib/images/manifest-entry';
 
 export const IMAGE_MANIFEST = [
@@ -462,6 +464,7 @@ export const IMAGE_MANIFEST = [
     [480, 610],
     [480, 610],
   ),
+  ...motionPosterEntries(PRODUCT_MOTION),
 ] as const satisfies readonly ImageManifestEntry[];
 
 export type ImageManifestId = (typeof IMAGE_MANIFEST)[number]['id'];

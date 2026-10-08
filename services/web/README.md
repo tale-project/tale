@@ -55,6 +55,23 @@ The optimizer preserves dimensions and adjusts encoding quality only when needed
 asset budget. If a capture cannot fit at the quality floor, it names the asset and stops so its
 source or framing can be reviewed.
 
+The eight product heroes also have individual native interactions in English, German, and French,
+including separate phone takes. Silent WebM clips use an H.264 MP4 fallback and matching native
+first-frame posters from the same image optimizer. Reduced motion and unplayable media retain
+the static capture. Playback has localized pause and resume controls;
+the full-resolution screenshot link remains available.
+
+```bash
+bun run web:animations -- --state-dir /absolute/path/to/isolated-capture-state --config-dir /absolute/path/to/platform/config
+bun run web:animations:verify
+```
+
+Follow the [motion capture runbook](../platform/tests/docs-screenshots/README.md#record-the-marketing-product-in-action)
+for prerequisites, targeted refreshes, cleanup, and review. Compact runtime factories derive asset
+paths and geometry; full hash-bound provenance stays in `public/marketing/product-motion/manifest.json`.
+The verify command checks all native codecs and changed action frames. Browser playback and
+visual review still decide whether each interaction is readable and useful.
+
 Contact and demo forms share server/client validation rules. Schema issues use stable identifiers;
 the presentation resolves specific guidance in the current language. Text is cleaned before
 validation, optional phone numbers require digits, and consent errors describe and focus the
