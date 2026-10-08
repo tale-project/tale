@@ -19,8 +19,8 @@ import { engineTemplateScan } from './template-scanner';
  * runtime's for anything an author writes.
  *
  * They differ on purpose only where "balanced" and "parses" part ways: a
- * comment or a regular expression holding `}}`, and a span that is
- * balanced but not an expression. The generator writes neither.
+ * regular expression holding `}}`, a line comment, and a span that is
+ * balanced but not an expression. The generator writes none of them.
  */
 
 /** The spans as both scanners must agree on them. */
@@ -169,12 +169,16 @@ describe('engineTemplateScan', () => {
     ]);
   });
 
-  it('follows the run where the package rule cannot: a comment holding the closer', () => {
-    const text = '{{ a /* }} */ }}';
+  it('follows the run where the package rule cannot: a regular expression holding the closer', () => {
+    const text = '{{ /}}/.test(a) }}';
     expect(engineTemplateScan(text).spans.map((span) => span.end)).toEqual([
-      10,
+      18,
     ]);
-    expect(scanTemplates(text).spans.map((span) => span.end)).toEqual([16]);
+    expect(scanTemplates(text).spans.map((span) => span.end)).toEqual([6]);
+  });
+
+  it('agrees with the package on a block comment holding the closer', () => {
+    expectSame('{{ a /* }} */ }}');
   });
 });
 
