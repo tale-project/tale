@@ -54,4 +54,4 @@ When a limit is reached, Tale refuses the next request before it runs and names 
 
 ## What members see
 
-**Settings > Usage** lists every limit that applies to the signed-in member with its current usage: the chats they sent, the voice output they requested, the model endpoint calls they made, and the agent and automation runs they started, whichever way they started them. Shared team and organization limits appear there too, because they can be reached before a personal one. A project's limit does not appear there; a request it refuses names it.
+**Settings > Usage** lists every limit that applies to the signed-in member with its current usage: the chats they sent, the voice output they requested, the model endpoint calls they made, and the agent and automation runs they started, whichever way they started them. Shared team and organization limits appear there too, because they can be reached before a personal one. A project's limit does not appear there: a banner in the project's chats warns about it once its threshold is passed, and a request it refuses names it.
