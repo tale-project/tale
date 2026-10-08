@@ -58259,11 +58259,12 @@ async function checkWatchdogs(
 
   // Lane 3c: the failed-create collect (#3494). A failed row whose spawner
   // session is still live is removed (an agent session's compute alone, its
-  // workspace kept) and stamped by primary key, keeping `failed`; a failed row whose deterministic id a newer, hibernated
-  // incarnation carries is stamped WITHOUT a spawner call, and that
-  // incarnation's row and token stay untouched; a busy session and a failure
-  // inside the grace wait. The scripted spawner answers busy for every
-  // session outside this lane, so rows other lanes left are not disturbed.
+  // workspace kept) and stamped by primary key, keeping `failed`; a failed
+  // row whose deterministic id a newer, hibernated incarnation carries is
+  // stamped WITHOUT a spawner call, and that incarnation's row and token
+  // stay untouched; a busy session and a failure inside the grace wait. The
+  // scripted spawner answers busy for every session outside this lane, so
+  // rows other lanes left are not disturbed.
   const collectAt = now - 2 * 3_600_000;
   await sql`
     INSERT INTO app.sandbox_sessions (
