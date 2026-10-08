@@ -7067,3 +7067,142 @@ test('cancelling a backpressured HTTP replay detaches its upstream producer', as
     await proxy.stop(true);
   }
 }, 10000);
+
+describe('disabled native growth routing', () => {
+  function admission() {
+    const calls: string[] = [];
+    const state = { available: true };
+    const ticket = {
+      id: 'intent',
+      requestHash: 'a'.repeat(64),
+      containerId: 'b'.repeat(64),
+      useId: 'use',
+    };
+    return {
+      calls,
+      state,
+      adapter: {
+        create: async <T>(
+          _spec: unknown,
+          launch: (id: string) => Promise<T>,
+        ) => {
+          calls.push('create');
+          if (!state.available) throw new Error('unknown capacity');
+          return launch('12345678-abcd-1234-abcd-123456789012');
+        },
+        beginUse: () => {
+          calls.push('use');
+          return state.available
+            ? Promise.resolve(ticket)
+            : Promise.reject(new Error('unknown capacity'));
+        },
+        acknowledge: () => {
+          calls.push('ack');
+          return Promise.resolve();
+        },
+      },
+    };
+  }
+  async function setup() {
+    const native = admission();
+    let createAttempt: string | undefined;
+    const routes = new SessionRoutes(
+      cfg,
+      {
+        ...fakeBackend,
+        createSession: (spec) => {
+          createAttempt = spec.createAttemptId;
+          return fakeBackend.createSession(spec);
+        },
+      },
+      undefined,
+      undefined,
+      undefined,
+      native.adapter,
+    );
+    const response = await routes.handleCreate(
+      JSON.stringify({ sessionId: 'native', organizationId: 'org_a' }),
+    );
+    expect(response.status).toBe(201);
+    expect(createAttempt).toBe('12345678-abcd-1234-abcd-123456789012');
+    return { native, routes };
+  }
+
+  test('native create supplies backend attempt custody; acquire still checks unknown memory', async () => {
+    const { native, routes } = await setup();
+    native.state.available = false;
+    const response = await routes.handleActivity('native', 'acquire');
+    expect(response.status).toBe(503);
+    expect(native.calls).toEqual(['create', 'use']);
+    expect(fakeActivities.size).toBe(0);
+  });
+
+  test('an acknowledged acquire does not bypass native admission for a fresh exec', async () => {
+    const { native, routes } = await setup();
+    expect((await routes.handleActivity('native', 'acquire')).status).toBe(200);
+    native.state.available = false;
+    const response = await routes.handleExec(
+      new Request('http://sandbox/exec'),
+      'native',
+      JSON.stringify({ execId: 'gone-new', command: ['true'] }),
+    );
+    expect(response.status).toBe(503);
+    expect(native.calls).toEqual(['create', 'use', 'ack', 'use']);
+    expect(execRequests).toHaveLength(0);
+  });
+
+  test('busy health never skips native fresh exec admission', async () => {
+    const { native, routes } = await setup();
+    fakeHealth.liveExecs = 3;
+    native.state.available = false;
+    const response = await routes.handleExec(
+      new Request('http://sandbox/exec'),
+      'native',
+      JSON.stringify({ execId: 'gone-busy', command: ['true'] }),
+    );
+    expect(response.status).toBe(503);
+    expect(native.calls).toEqual(['create', 'use']);
+    expect(execRequests).toHaveLength(0);
+  });
+
+  test('retained output attaches while native capacity is unknown and never POSTS', async () => {
+    const { native, routes } = await setup();
+    native.state.available = false;
+    const response = await routes.handleExec(
+      new Request('http://sandbox/exec'),
+      'native',
+      JSON.stringify({ execId: 'done-retained', command: ['true'] }),
+    );
+    await readSse(response);
+    expect(response.status).toBe(200);
+    expect(native.calls).toEqual(['create']);
+    expect(execRequests).toHaveLength(0);
+    expect(attachRequests).toHaveLength(1);
+  });
+
+  test('a retained exec evicted after status can never become a fresh POST', async () => {
+    const { native, routes } = await setup();
+    native.state.available = false;
+    const response = await routes.handleExec(
+      new Request('http://sandbox/exec'),
+      'native',
+      JSON.stringify({ execId: 'done-disappears', command: ['true'] }),
+    );
+    await readSse(response);
+    expect(native.calls).toEqual(['create']);
+    expect(execRequests).toHaveLength(0);
+    expect(attachRequests).toEqual(['/execs/done-disappears/attach']);
+  });
+
+  test('the native exec hold is acknowledged only on authenticated execution events', async () => {
+    const { native, routes } = await setup();
+    const response = await routes.handleExec(
+      new Request('http://sandbox/exec'),
+      'native',
+      JSON.stringify({ execId: 'gone-new', command: ['echo', 'native'] }),
+    );
+    await readSse(response);
+    expect(native.calls).toEqual(['create', 'use', 'ack']);
+    expect(execRequests).toHaveLength(1);
+  });
+});

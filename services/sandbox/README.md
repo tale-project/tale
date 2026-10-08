@@ -324,3 +324,71 @@ delay doubling up to 10 minutes while the daemon keeps refuting the mount.
 unavailable. Separately mounted volumes or containerd stores need their own
 monitoring. These checks do not
 enforce per-session disk quotas; those require a quota-capable storage backend.
+
+## Native admission foundation tests
+
+The native admission coordinator is disabled at boot, with no enabling environment
+setting and no phase execution tool. The default path performs no native admission
+I/O and preserves ordinary session behavior. The internal enabled path shares one
+private durable journal across create, acquire and fresh exec; normal quota and
+fairness gates remain. Slow Docker startup runs outside the admission queue while
+its durable growth hold remains counted. Already-held ordinary growth is reused;
+unknown RPC replies stay occupied, and retained output attaches without a fresh POST.
+
+Module and fake-runnerd tests cover this routing, complete daemon inventory,
+pressure samples, owned journal paths and restart lineage. An ended predecessor's
+metadata record is retained under its immutable ID; only native termination proof
+allows a journal's generation to change, preserving every unresolved hold. Healthy
+telemetry cannot clear an unknown activity reply. A phase hold never ages out.
+A restart of the same Docker container changes its start timestamp and remains
+refused. Recovery currently requires a replacement owner after native proof that
+the exact predecessor has stopped or disappeared; it is not automatic recovery
+of the same container.
+
+Ordinary attempt UUIDs encode the durable journal epoch. Released issued attempts
+retain at most 128 recent readbacks; their older IDs cannot be reserved again.
+Legacy IDs and every unresolved or phase record remain retained. Reconciliation
+uses one complete inventory and one batched snapshot; unchanged observations do
+not rewrite the journal. Tests exercise 4097 completed growth cycles through an
+instrumented snapshot adapter, real-file reopen and a 20-session scan/write count.
+These counts establish bounded work in the fixtures, not native-host latency.
+
+The internal v1 path refuses DinD, build-cache helpers, competing spawners and
+unknown writers, Kubernetes, connected devices and remote Docker. It requires an
+explicit empty Docker workload allowlist and one verified filesystem shared by the
+workspace and Docker metadata. It never changes those capabilities to make a host
+eligible. Arbitrary host-root operations and other Docker daemons are outside this
+single-daemon boundary. These tests do not establish native topology or telemetry,
+and do not make the phase execution feature available.
+
+To exercise the owner with real independent processes, select an already-present
+immutable Docker image that contains the workspace's pinned Bun and Docker CLI.
+Set `SANDBOX_ADMISSION_TEST_IMAGE` to its full `sha256:` image ID, then run from
+the repository root:
+
+```bash
+bun run --filter @tale/sandbox test:admission
+```
+
+If that image lacks Docker CLI, set `SANDBOX_ADMISSION_TEST_DOCKER_CLI` to an
+existing canonical absolute path to a compatible Linux Docker executable. The
+fixture mounts that file read-only and compares its SHA-256 inside the runner.
+It does not install or download the binary.
+
+This test uses the local `/var/run/docker.sock` and needs Docker administration
+access. It starts one 256 MiB, half-CPU runner and one stopped metadata object,
+with unique fixture names. It mounts only its captured source closure read-only
+in the runner, compares the in-container source hashes, races two independent Bun
+processes for ownership, and refuses takeover by a new process while the owner
+remains live. This proves the checked-out owner primitive using that image's
+binaries; it does not certify the image's baked source. It never pulls or builds
+an image and does not use the production authority name.
+
+Docker work has a 75-second operation budget and a separate 15-second cleanup
+budget. Filesystem operations are not forcibly interrupted. Cleanup checks
+fixture labels and immutable IDs before removal; missing or changed identity
+fails the test instead of deleting an unknown object. A passing JSON receipt
+records source/image identities and confirms owned objects were removed.
+Run it separately from cached unit tests. Exclusive boot topology, fresh host
+telemetry, all-writer accounting, restart reconciliation and actual phase
+execution require their own native proof before this foundation can be enabled.

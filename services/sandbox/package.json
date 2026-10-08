@@ -12,7 +12,8 @@
     "format": "bunx oxfmt",
     "format:check": "bunx oxfmt --check",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "test:admission": "bun tests/native/host-admission.ts"
   },
   "dependencies": {
     "@kubernetes/client-node": "^1.4.0",

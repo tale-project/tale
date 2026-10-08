@@ -281,7 +281,13 @@ export class DockerSessionBackend implements SessionBackend {
   }
 
   async createSession(spec: SessionSpec): Promise<CreateSessionResult> {
-    const createAttemptId = randomUUID();
+    const createAttemptId = spec.createAttemptId ?? randomUUID();
+    if (
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
+        createAttemptId,
+      )
+    )
+      throw new Error('Invalid native create attempt');
     const release =
       sessionDindEnabled(this.cfg, spec.profile, spec.docker) &&
       this.cfg.dockerBuildCache

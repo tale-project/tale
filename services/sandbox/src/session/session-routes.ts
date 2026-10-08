@@ -12,6 +12,11 @@ import {
 } from '../backend/types.ts';
 import { reportSandboxError } from '../error-reporting.ts';
 import {
+  HostAdmissionUnavailable,
+  type HostAdmissionCoordinator,
+  type NativeGrowthTicket,
+} from '../host-admission-coordinator.ts';
+import {
   belowDiskFloor,
   type HostDiskSource,
   type SessionDiskState,
@@ -422,6 +427,11 @@ export class SessionRoutes {
      * afresh. Null where it cannot be read (Kubernetes, whose workspaces
      * are volumes of a fixed size): admission then ignores disk. */
     private readonly hostDisk: HostDiskSource = NO_HOST_DISK,
+    /** Native-only boot injection. No request can enable or construct it. */
+    private readonly nativeAdmission?: Pick<
+      HostAdmissionCoordinator,
+      'create' | 'beginUse' | 'acknowledge'
+    >,
   ) {}
 
   /** Number of live sessions this spawner currently manages (drain readiness). */
@@ -1885,18 +1895,36 @@ export class SessionRoutes {
       const createdAtMs = Date.now();
       let created: CreateSessionResult;
       try {
-        created = await this.backend.createSession({
-          sessionId: req.sessionId,
-          organizationId: req.organizationId,
-          profile: req.profile,
-          docker: req.docker,
-          ttlMs: req.ttlMs,
-          idleTimeoutMs: req.idleTimeoutMs,
-          env: req.env,
-          createdAtMs,
-          signal: operationSignal(),
-        });
+        const launch = (createAttemptId?: string) =>
+          this.backend.createSession({
+            sessionId: req.sessionId,
+            organizationId: req.organizationId,
+            profile: req.profile,
+            docker: req.docker,
+            ttlMs: req.ttlMs,
+            idleTimeoutMs: req.idleTimeoutMs,
+            env: req.env,
+            createdAtMs,
+            signal: operationSignal(),
+            ...(createAttemptId ? { createAttemptId } : {}),
+          });
+        created = this.nativeAdmission
+          ? await this.nativeAdmission.create(
+              {
+                sessionId: req.sessionId,
+                createdAtMs,
+                memoryBytes: sessionWorkingSetBytes(
+                  req.profile,
+                  req.docker ?? this.cfg.dockerInContainer,
+                ),
+                diskBytes: 2 * 1024 ** 3,
+              },
+              launch,
+            )
+          : await launch();
       } catch (err) {
+        if (err instanceof HostAdmissionUnavailable)
+          return unavailableSessionResponse();
         return jsonResponse(
           {
             error: 'create_failed',
@@ -2220,6 +2248,7 @@ export class SessionRoutes {
     if (this.registry.get(sessionId) !== session)
       return jsonResponse({ error: 'not_found' }, 404);
     const opts = { baseUrl: session.endpoint, token: this.tokenFor(sessionId) };
+    let nativeTicket: NativeGrowthTicket | undefined;
     try {
       if (action === 'acquire') {
         this.activating.set(sessionId, session);
@@ -2228,6 +2257,9 @@ export class SessionRoutes {
           knownHealth?.health,
         );
         if (refused !== null) return refused;
+        nativeTicket = await this.nativeAdmission?.beginUse(
+          this.nativeGrowth(session),
+        );
         if (this.registry.get(sessionId) !== session)
           return jsonResponse({ error: 'not_found' }, 404);
       }
@@ -2256,6 +2288,7 @@ export class SessionRoutes {
       ) {
         throw new Error('invalid runnerd generation');
       }
+      if (nativeTicket) await this.nativeAdmission?.acknowledge(nativeTicket);
       // Held by the caller's work from now on: no reclaim candidate.
       if (action === 'acquire') {
         this.activeGenerations.set(sessionId, {
@@ -2275,6 +2308,8 @@ export class SessionRoutes {
         return jsonResponse({ error: 'not_found' }, 404);
       if (this.registry.get(sessionId) !== session)
         return jsonResponse({ error: 'not_found' }, 404);
+      if (this.nativeAdmission && action === 'acquire')
+        return unavailableSessionResponse();
       if (error instanceof RunnerdActivityError && error.status === 404) {
         // Older runtime images cannot be pressure-reclaimed. They can still
         // serve work during a rolling upgrade; a release ticket stays absent.
@@ -2302,6 +2337,19 @@ export class SessionRoutes {
       if (action === 'acquire' && this.activating.get(sessionId) === session)
         this.activating.delete(sessionId);
     }
+  }
+
+  private nativeGrowth(session: RegistrySession) {
+    return {
+      sessionId: session.sessionId,
+      createdAtMs: session.createdAtMs,
+      memoryBytes: sessionWorkingSetBytes(
+        session.profile,
+        session.docker ?? this.cfg.dockerInContainer,
+      ),
+      // A conservative startup estimate, not a filesystem quota.
+      diskBytes: 2 * 1024 ** 3,
+    };
   }
 
   /** Renew the growth reservation when idle compute becomes working compute.
@@ -2657,6 +2705,7 @@ export class SessionRoutes {
     }
     const active = this.activeGenerations.get(sessionId);
     if (
+      this.nativeAdmission === undefined &&
       !replayOnly &&
       session.liveExecs.size === 0 &&
       (active === undefined ||
@@ -2690,6 +2739,25 @@ export class SessionRoutes {
       }
     }
 
+    let nativeTicket: NativeGrowthTicket | undefined;
+    if (this.nativeAdmission && !replayOnly) {
+      try {
+        // Even a busy/young session reaches native admission for fresh work.
+        // A retained ID only attaches, including when telemetry is unavailable.
+        replayOnly = await retainedExec();
+        if (!replayOnly)
+          nativeTicket = await this.nativeAdmission.beginUse(
+            this.nativeGrowth(session),
+          );
+      } catch {
+        try {
+          replayOnly = await retainedExec();
+        } catch {
+          return unavailableSessionResponse();
+        }
+        if (!replayOnly) return unavailableSessionResponse();
+      }
+    }
     if (this.registry.get(sessionId) !== session)
       return jsonResponse({ error: 'not_found' }, 404);
 
@@ -2718,6 +2786,13 @@ export class SessionRoutes {
       let result: SessionExecResponse | null = null;
       let replayGap = false;
       const onEvent = async (e: RunnerdExecEvent) => {
+        if (
+          nativeTicket &&
+          (e.t === 'start' || e.t === 'exit' || e.t === 'replay-start')
+        ) {
+          await this.nativeAdmission?.acknowledge(nativeTicket);
+          nativeTicket = undefined;
+        }
         switch (e.t) {
           case 'replay-start':
             await send('replay-start', {});
