@@ -309,6 +309,7 @@ recurrence:
   custom: Custom
   back: Back to presets
   workweekRange: Mon–Fri
+  nextRuns: Next runs
   nextDates: Next dates
   sentence:
     daily: '{count, plural, one {Daily} other {Every # days}}'
@@ -339,6 +340,15 @@ recurrence:
       hoursRange: '{from}–{to}'
   occurrences:
     dateTime: '{date}, {time}'
+    inZone: '{label} · {zone}'
+    viewerZone: 'Your time zone is {zone}.'
+    local: '{time} in your time zone'
+    localOtherDay: '{date}, {time} in your time zone'
+    clockChange: Clock change
+    shiftedForward: '{time} doesn''t exist that day, so this run starts at {actual}.'
+    repeatedHour: '{time} happens twice that day; it runs once, at the first.'
+    intervalRepeated: 'Clocks go back: this hour repeats, and runs keep their real-time spacing.'
+    empty: No upcoming runs.
   editor:
     unit: Unit
     units:

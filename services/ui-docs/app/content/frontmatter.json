@@ -41,6 +41,13 @@
       "description": "Let people choose how something repeats — one-click presets or a custom rule — and show the dates it produces."
     }
   },
+  "components/schedule-occurrence-list": {
+    "slug": "components/schedule-occurrence-list",
+    "frontmatter": {
+      "title": "Schedule occurrence list",
+      "description": "Show the next times a schedule starts, in the schedule's time zone, with the reader's own time and any clock change spelled out."
+    }
+  },
   "components/tabs-and-navigation": {
     "slug": "components/tabs-and-navigation",
     "frontmatter": {

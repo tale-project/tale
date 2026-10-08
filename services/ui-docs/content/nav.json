@@ -26,6 +26,7 @@
         "components/input",
         "components/time-field",
         "components/recurrence-picker",
+        "components/schedule-occurrence-list",
         "components/data-table",
         "components/dialog",
         "components/tabs-and-navigation",

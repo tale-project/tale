@@ -309,6 +309,7 @@ recurrence:
   custom: Personnalisé
   back: Retour aux choix rapides
   workweekRange: lun.–ven.
+  nextRuns: Prochaines exécutions
   nextDates: Prochaines dates
   sentence:
     daily: '{count, plural, one {Tous les jours} other {Tous les # jours}}'
@@ -339,6 +340,15 @@ recurrence:
       hoursRange: '{from}–{to}'
   occurrences:
     dateTime: '{date}, {time}'
+    inZone: '{label} · {zone}'
+    viewerZone: 'Ton fuseau horaire est {zone}.'
+    local: '{time} dans ton fuseau horaire'
+    localOtherDay: '{date}, {time} dans ton fuseau horaire'
+    clockChange: Changement d’heure
+    shiftedForward: '{time} n’existe pas ce jour-là : cette exécution démarre donc à {actual}.'
+    repeatedHour: '{time} revient deux fois ce jour-là : une seule exécution, à la première.'
+    intervalRepeated: 'L’heure recule : cette heure se répète et les exécutions gardent leur intervalle réel.'
+    empty: Aucune exécution à venir.
   editor:
     unit: Unité
     units:

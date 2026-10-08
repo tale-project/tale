@@ -271,6 +271,7 @@
     "./reorder-list": "./src/components/forms/reorder-list.tsx",
     "./responsive-dialog": "./src/components/overlays/responsive-dialog.tsx",
     "./route-progress-bar": "./src/components/layout/route-progress-bar.tsx",
+    "./schedule-occurrence-list": "./src/components/data-display/schedule-occurrence-list.tsx",
     "./scroll-wheel-chain": "./src/lib/scroll-wheel-chain.ts",
     "./search": "./src/components/search/index.ts",
     "./search-input": "./src/components/forms/search-input.tsx",
