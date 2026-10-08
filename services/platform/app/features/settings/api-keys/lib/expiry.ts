@@ -5,10 +5,9 @@ import dayjs from 'dayjs';
  *
  * Better Auth's api-key plugin takes the lifetime as `expiresIn` seconds and
  * holds it to between one day and its `keyExpiration.maxExpiresIn` default
- * of 365 days (`backend/auth/auth.ts` sets no override). Every choice here is
- * a whole number of days from now — a preset, or a date picked in the
- * calendar — so a key expires at the time of day it was created, on the day
- * the form named.
+ * of 365 days (`backend/auth/auth.ts` sets no override). Presets are elapsed
+ * days. Custom dates use the viewer's calendar, whose days may be shorter
+ * or longer when the UTC offset changes.
  */
 
 /** The longest lifetime a key may be given, in days. */
@@ -43,54 +42,59 @@ export const DEFAULT_CUSTOM_EXPIRY_DAYS = 30;
 
 const DAY_MS = 86_400_000;
 
-/** Whole calendar days from `now`'s day to `date`'s, in the viewer's zone. */
-export function daysUntil(date: number, now: number): number {
-  return dayjs(date).startOf('day').diff(dayjs(now).startOf('day'), 'day');
-}
-
-/** The first and last day a custom expiry may name: tomorrow, and a year
- * from today. */
+/** Local dates that contain an instant within the provider's interval. */
 export function customExpiryBounds(now: number): {
   minDate: number;
   maxDate: number;
 } {
-  const today = dayjs(now).startOf('day');
   return {
-    minDate: today.add(1, 'day').valueOf(),
-    maxDate: today.add(API_KEY_MAX_EXPIRY_DAYS, 'day').valueOf(),
+    minDate: dayjs(now + DAY_MS)
+      .startOf('day')
+      .valueOf(),
+    maxDate: dayjs(now + API_KEY_MAX_EXPIRY_DAYS * DAY_MS)
+      .startOf('day')
+      .valueOf(),
   };
 }
 
 /**
- * The days a key made at `now` lives: `null` for one that never expires,
- * `undefined` while "Custom date" has no date picked.
+ * Lifetime in seconds: null means never; undefined means an unavailable
+ * custom date. Keep the local clock time where possible, then constrain it
+ * to the provider interval only if the result stays on the selected day.
  */
-export function expiryDays(
+export function expirySeconds(
   choice: ApiKeyExpiryChoice,
   customDate: number | null,
   now: number,
 ): number | null | undefined {
   if (choice === 'never') return null;
   if (choice === 'custom') {
-    return customDate === null ? undefined : daysUntil(customDate, now);
+    if (customDate === null || !Number.isFinite(customDate)) return undefined;
+    const picked = dayjs(customDate);
+    const clock = dayjs(now);
+    const target = picked
+      .hour(clock.hour())
+      .minute(clock.minute())
+      .second(clock.second())
+      .millisecond(clock.millisecond())
+      .valueOf();
+    const expiresAt = Math.max(
+      now + DAY_MS,
+      Math.min(target, now + API_KEY_MAX_EXPIRY_DAYS * DAY_MS),
+    );
+    if (!picked.isSame(expiresAt, 'day')) return undefined;
+    return (expiresAt - now) / 1000;
   }
-  return Number(choice);
+  return Number(choice) * 86_400;
 }
 
 /** Whether a custom date lies in the window the plugin accepts. */
 export function isCustomExpiryInRange(date: number, now: number): boolean {
-  const days = daysUntil(date, now);
-  return days >= 1 && days <= API_KEY_MAX_EXPIRY_DAYS;
+  return expirySeconds('custom', date, now) !== undefined;
 }
 
-/** The `expiresIn` the create call sends — absent for a key that never
- * expires. */
-export function expiresInSeconds(days: number | null): number | undefined {
-  return days === null ? undefined : days * 86_400;
-}
-
-/** When a key made at `now` that lives `days` expires — the instant the
+/** When a key made at `now` that lives `seconds` expires — the instant the
  * plugin stores, `now` plus the lifetime in seconds. */
-export function expiresAtAfter(days: number, now: number): number {
-  return now + days * DAY_MS;
+export function expiresAtAfter(seconds: number, now: number): number {
+  return now + seconds * 1000;
 }

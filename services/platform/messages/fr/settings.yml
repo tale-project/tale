@@ -1108,9 +1108,9 @@ apiKeys:
     expiresOn: La clé expire le {date}.
     neverExpiresHint: La clé fonctionne jusqu'à sa révocation.
     expiryDate: Date d'expiration
-    expiryDateHint: Choisis un jour, au plus un an à l'avance.
+    expiryDateHint: Choisis une date disponible dans le calendrier.
     expiryDateRequired: Choisis une date d'expiration.
-    expiryDateRange: Choisis un jour entre demain et dans un an.
+    expiryDateRange: Choisis une date dans la période disponible.
   neverUsed: Jamais utilisée
   neverExpires: Jamais
   expired: Expirée

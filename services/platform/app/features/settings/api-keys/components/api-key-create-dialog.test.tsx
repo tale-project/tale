@@ -198,13 +198,68 @@ describe('ApiKeyCreateDialog', () => {
       const submit = screen.getByRole('button', { name: 'Create key' });
       await waitFor(() => expect(submit).toBeEnabled());
       await user.click(submit);
-      // 2026-10-07 → 2026-11-20 is 44 days.
+      // Use elapsed seconds to the selected local date, including offset changes.
       await waitFor(() =>
         expect(mockCreateKey).toHaveBeenCalledWith({
           name: 'CI Token',
-          expiresIn: 44 * 86_400,
+          expiresIn: (new Date(2026, 10, 20, 9).getTime() - NOW) / 1000,
         }),
       );
+    });
+
+    it('recalculates a valid custom date when the form stays open overnight', async () => {
+      const { user } = renderDialog();
+      await user.type(
+        screen.getByRole('textbox', { name: /Key name/ }),
+        'CI Token',
+      );
+      await user.click(screen.getByRole('combobox', { name: 'Expiration' }));
+      await user.click(screen.getByRole('option', { name: 'Custom date' }));
+      const submit = screen.getByRole('button', { name: 'Create key' });
+      await waitFor(() => expect(submit).toBeEnabled());
+      const submittedAt = new Date(2026, 9, 8, 9).getTime();
+      vi.setSystemTime(submittedAt);
+      await user.click(submit);
+      await waitFor(() =>
+        expect(mockCreateKey).toHaveBeenCalledWith({
+          name: 'CI Token',
+          expiresIn: (new Date(2026, 10, 6, 9).getTime() - submittedAt) / 1000,
+        }),
+      );
+    });
+
+    it('refuses a custom date that became unavailable while the form stayed open', async () => {
+      const { user } = renderDialog();
+      await user.type(
+        screen.getByRole('textbox', { name: /Key name/ }),
+        'CI Token',
+      );
+      await user.click(screen.getByRole('combobox', { name: 'Expiration' }));
+      await user.click(screen.getByRole('option', { name: 'Custom date' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Expiration date Nov 6, 2026' }),
+      );
+      await user.click(screen.getByRole('button', { name: 'Previous month' }));
+      await user.click(
+        screen.getByRole('gridcell', { name: /October 8th, 2026$/ }),
+      );
+      const submit = screen.getByRole('button', { name: 'Create key' });
+      await waitFor(() => expect(submit).toBeEnabled());
+      vi.setSystemTime(new Date(2026, 9, 8, 9));
+      await user.click(submit);
+      expect(
+        await screen.findByText('Pick a date within the available range.'),
+      ).toBeInTheDocument();
+      expect(mockCreateKey).not.toHaveBeenCalled();
+      await user.click(
+        screen.getByRole('button', { name: 'Expiration date Oct 8, 2026' }),
+      );
+      expect(
+        screen.getByRole('gridcell', { name: /October 8th, 2026$/ }),
+      ).toHaveAttribute('aria-disabled', 'true');
+      expect(
+        screen.getByRole('gridcell', { name: /October 9th, 2026$/ }),
+      ).toHaveAttribute('aria-disabled', 'false');
     });
 
     it('offers no day before tomorrow or past a year from today', async () => {

@@ -1,28 +1,22 @@
+import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import {
   customExpiryBounds,
-  daysUntil,
   expiresAtAfter,
-  expiresInSeconds,
-  expiryDays,
+  expirySeconds,
   isCustomExpiryInRange,
 } from './expiry';
 
-// 2026-10-07 17:30 local: late in the day, so a whole-day count that read
-// the clock instead of the calendar would come out one short.
 const NOW = new Date(2026, 9, 7, 17, 30).getTime();
 const day = (month: number, date: number, year = 2026) =>
   new Date(year, month, date).getTime();
 
 describe('API key expiry', () => {
-  it('counts calendar days from today to the picked day', () => {
-    expect(daysUntil(day(9, 8), NOW)).toBe(1);
-    expect(daysUntil(day(10, 6), NOW)).toBe(30);
-    expect(daysUntil(day(9, 7), NOW)).toBe(0);
-  });
-
-  it('offers tomorrow through a year from today, the window the plugin accepts', () => {
+  it('offers only dates containing a lifetime the provider accepts', () => {
     const { minDate, maxDate } = customExpiryBounds(NOW);
     expect(minDate).toBe(day(9, 8));
     expect(maxDate).toBe(day(9, 7, 2027));
@@ -32,22 +26,110 @@ describe('API key expiry', () => {
     expect(isCustomExpiryInRange(day(9, 8, 2027), NOW)).toBe(false);
   });
 
-  it('turns every choice into a lifetime in days', () => {
-    expect(expiryDays('30', null, NOW)).toBe(30);
-    expect(expiryDays('365', null, NOW)).toBe(365);
-    expect(expiryDays('never', null, NOW)).toBeNull();
-    expect(expiryDays('custom', day(9, 21), NOW)).toBe(14);
-    // "Custom date" with no day picked has no lifetime yet.
-    expect(expiryDays('custom', null, NOW)).toBeUndefined();
+  it('keeps preset seconds and Never unchanged', () => {
+    expect(expirySeconds('7', null, NOW)).toBe(604_800);
+    expect(expirySeconds('30', null, NOW)).toBe(2_592_000);
+    expect(expirySeconds('90', null, NOW)).toBe(7_776_000);
+    expect(expirySeconds('365', null, NOW)).toBe(31_536_000);
+    expect(expirySeconds('never', null, NOW)).toBeNull();
   });
 
-  it('sends whole days as seconds, and nothing for a key that never expires', () => {
-    expect(expiresInSeconds(30)).toBe(2_592_000);
-    expect(expiresInSeconds(365)).toBe(31_536_000);
-    expect(expiresInSeconds(null)).toBeUndefined();
+  it('refuses missing, invalid and past custom dates', () => {
+    expect(expirySeconds('custom', null, NOW)).toBeUndefined();
+    expect(expirySeconds('custom', Number.NaN, NOW)).toBeUndefined();
+    expect(expirySeconds('custom', Infinity, NOW)).toBeUndefined();
+    expect(expirySeconds('custom', day(9, 7), NOW)).toBeUndefined();
   });
 
-  it('dates the expiry the way the plugin stores it: now plus the lifetime', () => {
-    expect(expiresAtAfter(14, NOW)).toBe(NOW + 14 * 86_400_000);
+  it('dates the expiry the way the plugin stores it: now plus seconds', () => {
+    expect(expiresAtAfter(90_000, NOW)).toBe(NOW + 90_000_000);
+  });
+
+  // Each child owns its TZ. Changing process.env.TZ in the shared Vitest
+  // worker would make other files and cached Date instances order-dependent.
+  it.each([
+    {
+      name: 'ordinary day preserves the selected date and local clock',
+      now: '2027-02-01T17:30:00+01:00',
+      selected: '2027-02-15T00:00:00+01:00',
+      expiresAt: '2027-02-15T17:30:00+01:00',
+    },
+    {
+      name: 'spring-forward tomorrow cannot fit the 24-hour minimum',
+      now: '2027-03-27T23:30:00+01:00',
+      selected: '2027-03-28T00:00:00+01:00',
+      expiresAt: null,
+      minimum: '2027-03-29T00:00:00+02:00',
+    },
+    {
+      name: 'spring-forward later date keeps its date with a 47-hour lifetime',
+      now: '2027-03-27T23:30:00+01:00',
+      selected: '2027-03-29T00:00:00+02:00',
+      expiresAt: '2027-03-29T23:30:00+02:00',
+    },
+    {
+      name: 'minimum may shift the clock within the selected day',
+      now: '2027-03-27T12:00:00+01:00',
+      selected: '2027-03-28T00:00:00+01:00',
+      expiresAt: '2027-03-28T13:00:00+02:00',
+    },
+    {
+      name: 'autumn date retains its local clock across a 25-hour day',
+      now: '2027-10-31T00:30:00+02:00',
+      selected: '2027-11-01T00:00:00+01:00',
+      expiresAt: '2027-11-01T00:30:00+01:00',
+    },
+    {
+      name: 'maximum stays within the selected date when offsets differ',
+      now: '2026-03-28T23:30:00+01:00',
+      selected: '2027-03-29T00:00:00+02:00',
+      expiresAt: '2027-03-29T00:30:00+02:00',
+    },
+    {
+      name: 'a date beyond the provider maximum is unavailable',
+      now: '2027-02-01T17:30:00+01:00',
+      selected: '2028-02-02T00:00:00+01:00',
+      expiresAt: null,
+    },
+  ])('$name', ({ now, selected, expiresAt, minimum }) => {
+    const input = { now: Date.parse(now), selected: Date.parse(selected) };
+    // The UI project gives import.meta.url a browser URL; the workspace
+    // script's cwd supplies the real module for the isolated Node process.
+    const moduleUrl = pathToFileURL(
+      resolve('app/features/settings/api-keys/lib/expiry.ts'),
+    ).href;
+    const child = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        resolve('backend/node-loader.mjs'),
+        '--input-type=module',
+        '-e',
+        `import { expirySeconds, customExpiryBounds } from ${JSON.stringify(moduleUrl)};
+         const { now, selected } = ${JSON.stringify(input)};
+         const seconds = expirySeconds('custom', selected, now);
+         console.log(JSON.stringify({
+           seconds: seconds ?? null,
+           expiresAt: seconds === undefined ? null : now + seconds * 1000,
+           minimum: customExpiryBounds(now).minDate,
+         }));`,
+      ],
+      {
+        env: { ...process.env, TZ: 'Europe/Zurich' },
+        encoding: 'utf8',
+        timeout: 5000,
+      },
+    );
+    expect(child.error).toBeUndefined();
+    expect(child.status, child.stderr).toBe(0);
+    const result = JSON.parse(child.stdout);
+    expect(result.expiresAt).toBe(
+      expiresAt === null ? null : Date.parse(expiresAt),
+    );
+    if (expiresAt !== null) {
+      expect(result.seconds).toBeGreaterThanOrEqual(86_400);
+      expect(result.seconds).toBeLessThanOrEqual(31_536_000);
+    }
+    if (minimum) expect(result.minimum).toBe(Date.parse(minimum));
   });
 });
