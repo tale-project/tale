@@ -9,8 +9,16 @@ import { useFormatDate } from '@tale/ui/use-format-date';
 import { useListPage } from '@tale/ui/use-list-page';
 import { useToast } from '@tale/ui/use-toast';
 import { ScrollText } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
+import { useRoleLabel } from '@/app/features/settings/organization/components/role-badge';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
@@ -54,6 +62,7 @@ export function AuditLogTable({
 }: AuditLogTableProps) {
   const { formatDate } = useFormatDate();
   const { t } = useT('settings');
+  const roleLabel = useRoleLabel();
   const { toast } = useToast();
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
@@ -178,112 +187,112 @@ export function AuditLogTable({
         title={t('logs.audit.detailTitle')}
         className="max-w-2xl"
       >
+        {/* The dialog's own body scrolls a long entry: a second scroll box
+            inside it would be one a keyboard cannot reach. */}
         {selectedLog && (
-          <div className="max-h-[60vh] overflow-y-auto">
-            <Stack gap={4} className="pr-4">
+          <Stack gap={4}>
+            <DetailRow
+              label={t('logs.audit.columns.timestamp')}
+              value={formatDate(new Date(selectedLog.timestamp), 'long')}
+            />
+            <DetailRow
+              label={t('logs.audit.columns.action')}
+              value={t('logs.audit.actionLabels.' + selectedLog.action, {
+                defaultValue: selectedLog.action.replace(/_/g, ' '),
+              })}
+            />
+            <DetailRow
+              label={t('logs.audit.columns.actor')}
+              value={resolveEmail(selectedLog) ?? selectedLog.actorId}
+            />
+            {resolveEmail(selectedLog) && (
               <DetailRow
-                label={t('logs.audit.columns.timestamp')}
-                value={formatDate(new Date(selectedLog.timestamp), 'long')}
+                label={t('logs.audit.columns.actorId')}
+                value={selectedLog.actorId}
               />
+            )}
+            <DetailRow
+              label={t('logs.audit.columns.actorType')}
+              value={t('logs.audit.actorTypeLabels.' + selectedLog.actorType)}
+            />
+            {selectedLog.actorRole && (
               <DetailRow
-                label={t('logs.audit.columns.action')}
-                value={t('logs.audit.actionLabels.' + selectedLog.action, {
-                  defaultValue: selectedLog.action.replace(/_/g, ' '),
-                })}
+                label={t('logs.audit.columns.actorRole')}
+                value={roleLabel(selectedLog.actorRole)}
               />
+            )}
+            <DetailRow
+              label={t('logs.audit.columns.category')}
+              value={t('logs.audit.categoryLabels.' + selectedLog.category)}
+            />
+            <DetailRow
+              label={t('logs.audit.columns.resource')}
+              value={t(
+                'logs.audit.resourceTypeLabels.' + selectedLog.resourceType,
+                { defaultValue: selectedLog.resourceType.replace(/_/g, ' ') },
+              )}
+            />
+            {selectedLog.resourceId && (
               <DetailRow
-                label={t('logs.audit.columns.actor')}
-                value={resolveEmail(selectedLog) ?? selectedLog.actorId}
+                label={t('logs.audit.columns.resourceId')}
+                value={selectedLog.resourceId}
               />
-              {resolveEmail(selectedLog) && (
+            )}
+            {selectedLog.resourceName && (
+              <DetailRow
+                label={t('logs.audit.columns.target')}
+                value={selectedLog.resourceName}
+              />
+            )}
+            <DetailRow
+              label={t('logs.audit.columns.status')}
+              value={t('logs.audit.statusLabels.' + selectedLog.status)}
+            />
+            {selectedLog.errorMessage && (
+              <DetailRow
+                label={t('logs.audit.columns.error')}
+                value={selectedLog.errorMessage}
+                isError
+              />
+            )}
+            {selectedLog.changedFields &&
+              selectedLog.changedFields.length > 0 && (
                 <DetailRow
-                  label={t('logs.audit.columns.actorId')}
-                  value={selectedLog.actorId}
+                  label={t('logs.audit.columns.changedFields')}
+                  value={selectedLog.changedFields.join(', ')}
                 />
               )}
-              <DetailRow
-                label={t('logs.audit.columns.actorType')}
-                value={t('logs.audit.actorTypeLabels.' + selectedLog.actorType)}
+            {selectedLog.previousState && (
+              <DetailSection
+                label={t('logs.audit.columns.previousState')}
+                data={selectedLog.previousState}
+                formatDate={formatDate}
               />
-              {selectedLog.actorRole && (
-                <DetailRow
-                  label={t('logs.audit.columns.actorRole')}
-                  value={selectedLog.actorRole}
-                />
-              )}
-              <DetailRow
-                label={t('logs.audit.columns.category')}
-                value={t('logs.audit.categoryLabels.' + selectedLog.category)}
+            )}
+            {selectedLog.newState && (
+              <DetailSection
+                label={t('logs.audit.columns.newState')}
+                data={selectedLog.newState}
+                formatDate={formatDate}
               />
-              <DetailRow
-                label={t('logs.audit.columns.resource')}
-                value={t(
-                  'logs.audit.resourceTypeLabels.' + selectedLog.resourceType,
-                  { defaultValue: selectedLog.resourceType.replace(/_/g, ' ') },
-                )}
+            )}
+            {selectedLog.category === 'ai' && selectedLog.metadata ? (
+              <AiMetadataSection
+                metadata={selectedLog.metadata}
+                t={t}
+                formatDate={formatDate}
               />
-              {selectedLog.resourceId && (
-                <DetailRow
-                  label={t('logs.audit.columns.resourceId')}
-                  value={selectedLog.resourceId}
-                />
-              )}
-              {selectedLog.resourceName && (
-                <DetailRow
-                  label={t('logs.audit.columns.target')}
-                  value={selectedLog.resourceName}
-                />
-              )}
-              <DetailRow
-                label={t('logs.audit.columns.status')}
-                value={t('logs.audit.statusLabels.' + selectedLog.status)}
-              />
-              {selectedLog.errorMessage && (
-                <DetailRow
-                  label={t('logs.audit.columns.error')}
-                  value={selectedLog.errorMessage}
-                  isError
-                />
-              )}
-              {selectedLog.changedFields &&
-                selectedLog.changedFields.length > 0 && (
-                  <DetailRow
-                    label={t('logs.audit.columns.changedFields')}
-                    value={selectedLog.changedFields.join(', ')}
-                  />
-                )}
-              {selectedLog.previousState && (
+            ) : (
+              selectedLog.metadata &&
+              Object.keys(selectedLog.metadata).length > 0 && (
                 <DetailSection
-                  label={t('logs.audit.columns.previousState')}
-                  data={selectedLog.previousState}
+                  label={t('logs.audit.columns.metadata')}
+                  data={selectedLog.metadata}
                   formatDate={formatDate}
                 />
-              )}
-              {selectedLog.newState && (
-                <DetailSection
-                  label={t('logs.audit.columns.newState')}
-                  data={selectedLog.newState}
-                  formatDate={formatDate}
-                />
-              )}
-              {selectedLog.category === 'ai' && selectedLog.metadata ? (
-                <AiMetadataSection
-                  metadata={selectedLog.metadata}
-                  t={t}
-                  formatDate={formatDate}
-                />
-              ) : (
-                selectedLog.metadata &&
-                Object.keys(selectedLog.metadata).length > 0 && (
-                  <DetailSection
-                    label={t('logs.audit.columns.metadata')}
-                    data={selectedLog.metadata}
-                    formatDate={formatDate}
-                  />
-                )
-              )}
-            </Stack>
-          </div>
+              )
+            )}
+          </Stack>
         )}
       </Dialog>
     </>
@@ -422,7 +431,7 @@ function DetailRow({
       <Text
         as="span"
         variant="body"
-        className={cn('col-span-2 capitalize', isError && 'text-destructive')}
+        className={cn('col-span-2', isError && 'text-destructive')}
       >
         {value}
       </Text>
@@ -508,12 +517,20 @@ function DetailSection({
   data: Record<string, unknown>;
   formatDate: (d: Date, preset?: 'short' | 'medium' | 'long') => string;
 }) {
+  const labelId = useId();
   return (
     <Stack gap={2}>
-      <Text as="span" variant="muted" className="font-medium">
+      <Text id={labelId} as="span" variant="muted" className="font-medium">
         {label}
       </Text>
-      <pre className="bg-muted/50 max-h-40 overflow-auto rounded-lg p-3 text-xs">
+      {/* A long state scrolls in its own box, so the box is a named stop
+          in the tab order: a keyboard can reach it and scroll it. */}
+      <pre
+        role="region"
+        aria-labelledby={labelId}
+        tabIndex={0}
+        className="bg-muted/50 focus-visible:ring-ring max-h-40 overflow-auto rounded-lg p-3 text-xs focus-visible:ring-2 focus-visible:outline-none"
+      >
         {formatMetadataObject(data, formatDate, 0)}
       </pre>
     </Stack>
