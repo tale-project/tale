@@ -13,8 +13,16 @@
  */
 
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+// The definition writes' audit rows are their own concern (`audit.ts`,
+// `audit.test.ts`); this double answers no audit-chain query.
+vi.mock('./audit.ts', () => ({
+  auditDefinitionWrite: vi.fn(async () => undefined),
+  listDeployments: vi.fn(async () => []),
+}));
+
+import { auditDefinitionWrite } from './audit.ts';
 import { AutomationError, saveVersion } from './store.ts';
 
 interface Statement {
@@ -72,11 +80,15 @@ const args = (overrides: Partial<Parameters<typeof saveVersion>[1]> = {}) => ({
 });
 
 describe('saveVersion', () => {
-  it('takes the per-name advisory lock before reading the version', async () => {
+  it('takes the audit chain, then the per-name advisory lock, before reading the version', async () => {
     const fake = fakeStore([1]);
     await saveVersion(fake.sql, args());
 
-    const [lock, read] = fake.statements;
+    // The chain before the name: the order every definition writer takes
+    // them in, so two writers never wait on each other (`audit.ts`).
+    const [chain, lock, read] = fake.statements;
+    expect(chain?.text).toContain('pg_advisory_xact_lock');
+    expect(chain?.values).toEqual([expect.any(Number), 'audit-chain:org_1']);
     expect(lock?.text).toContain('pg_advisory_xact_lock');
     expect(lock?.values).toEqual(['org_1', 'ops/greet']);
     expect(read?.text).toContain('SELECT max(version)');
@@ -171,7 +183,9 @@ describe('saveVersion', () => {
     const bare = unjudged.statements.find((statement) =>
       statement.text.includes('INSERT INTO app.automations'),
     );
-    expect(bare?.values.filter((value) => value === null).length).toBe(6);
+    // message, the verdict and its time, the three version fields, and the
+    // door, key and client of a save that names no door (0181).
+    expect(bare?.values.filter((value) => value === null).length).toBe(9);
   });
 
   it('binds the install project to version 1 only', async () => {
@@ -246,6 +260,192 @@ describe('saveVersion presentation', () => {
     await saveVersion(fake.sql, args({ presentation: { name: 'Greeter' } }));
     expect(presentationValue(fake.statements)).toEqual({
       json: { name: 'Greeter' },
+    });
+  });
+});
+
+/**
+ * A coding agent's save sends only what it changes (`metadataMode: 'carry'`):
+ * a version field it leaves out is copied from the latest version — read
+ * under the name lock, so no save lands between the read and the write —
+ * `null` stores none, and a value stores itself. The editor, an upload and
+ * managed configuration keep the explicit rule: absent stores none.
+ */
+describe('saveVersion carry mode', () => {
+  const LATEST = {
+    name: 'billing/dunning',
+    version: 5,
+    document: {},
+    message: null,
+    testsPassed: null,
+    testsCheckedAt: null,
+    taskContract: { workflow: 'billing/dunning' },
+    settings: { forms: [{ file: 'settings.json' }] },
+    presentation: { name: 'Dunning' },
+    createdBy: 'user_ben',
+    createdAt: 1,
+    createdVia: 'app',
+    apiKeyId: null,
+    clientName: null,
+  };
+
+  function carryStore(latest: number | null) {
+    const statements: Statement[] = [];
+    const tx = (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ): Promise<unknown[]> => {
+      const text = strings.join('?');
+      statements.push({ text, values });
+      if (text.includes('SELECT max(version)')) {
+        return Promise.resolve([{ latest }]);
+      }
+      if (text.includes('FROM app.automations') && text.includes('ORDER BY')) {
+        return Promise.resolve(latest === null ? [] : [LATEST]);
+      }
+      if (text.includes('INSERT INTO app.automations')) {
+        return Promise.resolve([{ version: (latest ?? 0) + 1 }]);
+      }
+      return Promise.resolve([]);
+    };
+    tx.json = (value: unknown): unknown => ({ json: value });
+    const sql = {
+      begin: (callback: (handle: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+    };
+    return { sql: sql as unknown as Sql, statements };
+  }
+  /** org, name, document, message, testsPassed, testsCheckedAt,
+   * taskContract, settings, presentation, createdBy, createdAt, via, key,
+   * client — the INSERT's bound values. */
+  const inserted = (statements: Statement[]) => {
+    const insert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.automations'),
+    );
+    const values = insert?.values ?? [];
+    return {
+      taskContract: values[6],
+      settings: values[7],
+      presentation: values[8],
+      via: values[11],
+      apiKeyId: values[12],
+      clientName: values[13],
+    };
+  };
+  const carryArgs = (overrides: Partial<Parameters<typeof saveVersion>[1]>) =>
+    args({
+      name: 'billing/dunning',
+      document: { version: 1, name: 'billing/dunning', nodes: [] },
+      metadataMode: 'carry',
+      ...overrides,
+    });
+
+  it("Ada's agent saves v6 with only a new node: v6 keeps v5's settings, task contract and presentation", async () => {
+    const fake = carryStore(5);
+    const saved = await saveVersion(fake.sql, carryArgs({}));
+    expect(saved).toEqual({
+      name: 'billing/dunning',
+      version: 6,
+      carried: ['settings', 'taskContract', 'presentation'],
+    });
+    expect(inserted(fake.statements)).toMatchObject({
+      settings: { json: LATEST.settings },
+      taskContract: { json: LATEST.taskContract },
+      presentation: { json: LATEST.presentation },
+    });
+    // The latest version is read under the name lock, never before it.
+    const nameLock = fake.statements.findIndex(
+      (s) =>
+        s.text.includes('pg_advisory_xact_lock') &&
+        s.values.includes('billing/dunning'),
+    );
+    const latestRead = fake.statements.findIndex(
+      (s) =>
+        s.text.includes('FROM app.automations') && s.text.includes('ORDER BY'),
+    );
+    expect(nameLock).toBeGreaterThanOrEqual(0);
+    expect(latestRead).toBeGreaterThan(nameLock);
+  });
+
+  it('null stores none, a value stores itself, and only what was left out is carried', async () => {
+    const fake = carryStore(5);
+    const saved = await saveVersion(
+      fake.sql,
+      carryArgs({ settings: null, taskContract: { workflow: 'other' } }),
+    );
+    expect(saved.carried).toEqual(['presentation']);
+    expect(inserted(fake.statements)).toMatchObject({
+      settings: null,
+      taskContract: { json: { workflow: 'other' } },
+      presentation: { json: LATEST.presentation },
+    });
+  });
+
+  it('carries nothing into a first version', async () => {
+    const fake = carryStore(null);
+    const saved = await saveVersion(fake.sql, carryArgs({}));
+    expect(saved).toEqual({ name: 'billing/dunning', version: 1, carried: [] });
+    expect(inserted(fake.statements)).toMatchObject({
+      settings: null,
+      taskContract: null,
+      presentation: null,
+    });
+  });
+
+  it('the explicit mode stores none for a field left out, as the editor expects', async () => {
+    const fake = carryStore(5);
+    const saved = await saveVersion(
+      fake.sql,
+      carryArgs({ metadataMode: 'explicit' }),
+    );
+    expect(saved).toEqual({ name: 'billing/dunning', version: 6 });
+    expect(inserted(fake.statements)).toMatchObject({
+      settings: null,
+      taskContract: null,
+      presentation: null,
+    });
+  });
+
+  it('records the door, the key and the client a save came through (0181)', async () => {
+    const fake = carryStore(5);
+    await saveVersion(
+      fake.sql,
+      carryArgs({
+        actor: 'api-key:user_ada',
+        origin: { via: 'mcp', apiKeyId: 'key_1', clientName: 'Claude Code' },
+      }),
+    );
+    expect(inserted(fake.statements)).toMatchObject({
+      via: 'mcp',
+      apiKeyId: 'key_1',
+      clientName: 'Claude Code',
+    });
+  });
+
+  it('audits the saved version, naming what it carried and never the document [AUTO-R27]', async () => {
+    vi.mocked(auditDefinitionWrite).mockClear();
+    const fake = carryStore(5);
+    await saveVersion(
+      fake.sql,
+      carryArgs({
+        actor: 'api-key:user_ada',
+        baseVersion: 5,
+        testsPassed: true,
+      }),
+    );
+    expect(auditDefinitionWrite).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org_1',
+      actor: 'api-key:user_ada',
+      action: 'automation.version.saved',
+      name: 'billing/dunning',
+      version: 6,
+      newState: { version: 6 },
+      metadata: {
+        version: 6,
+        baseVersion: 5,
+        carried: ['settings', 'taskContract', 'presentation'],
+        testsPassed: true,
+      },
     });
   });
 });

@@ -92,6 +92,19 @@ version, deployed or not.
 - **Example**: A schedule is switched on for an automation with nothing deployed. Its time
   comes → no run starts, and the trigger shows `not_deployed`.
 
+### AUTO-R27 · Every change to an automation's definition leaves an audit row
+
+Saving a version, deploying one, setting or removing the trigger, installing the automation in
+a project or removing it from one, and deleting the automation each write a row to the audit
+log in the same step, whoever made the change and through whichever door: the app, a package
+upload, the API, a coding agent, managed configuration. The row names the automation, the
+versions or the project involved and who made the change, never the document or a webhook
+token. A change that changed nothing, such as an install that was already there, writes none.
+
+- **Example**: Ben deploys version 7 over version 6 → the audit log shows "Automation deployed"
+  by Ben, from version 6 to version 7. He installs it again in a project it is already in → no
+  new row.
+
 ## Checking a version for problems
 
 Tale checks a document before it saves or deploys it, and an author can have a draft checked

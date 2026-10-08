@@ -1383,6 +1383,13 @@ logs:
       automation.run.cancelled: Exécution d'automatisation arrêtée
       automation.run.deleted: Exécution d'automatisation supprimée
       automation.run.in_doubt_resolved: Décision prise sur une étape d'automatisation interrompue
+      automation.version.saved: Version d’automatisation enregistrée
+      automation.deployed: Automatisation mise en service
+      automation.deleted: Automatisation supprimée
+      automation.trigger.set: Déclencheur d’automatisation modifié
+      automation.trigger.deleted: Déclencheur d’automatisation supprimé
+      automation.project.bound: Automatisation installée dans un projet
+      automation.project.unbound: Automatisation retirée d’un projet
       create_connector: Connector créée
       delete_connector: Connector supprimée
       update_credential: Identifiants mis à jour
@@ -1493,6 +1500,7 @@ logs:
       workflow: Automatisation
       workflow_run: Exécution d'automatisation
       automation_trigger: Déclencheur d'automatisation
+      automation: Automatisation
       workflow_creation: Création d'automatisation
       workflow_update: Mise à jour d'automatisation
       customer: Contact

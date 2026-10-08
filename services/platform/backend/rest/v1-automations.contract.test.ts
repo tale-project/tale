@@ -81,6 +81,9 @@ const row = (version: number) => ({
   presentation: null,
   createdBy: 'user-1',
   createdAt: 1_700_000_000_000,
+  createdVia: 'mcp' as const,
+  apiKeyId: 'key-1',
+  clientName: 'claude-code',
 });
 
 /** The one project the key holder can see — every binding listing is
@@ -206,7 +209,7 @@ beforeEach(() => {
   vi.mocked(bindingProjectIds).mockReset();
   vi.mocked(bindingProjectIds).mockResolvedValue([]);
   vi.mocked(deleteAutomationCascade).mockReset();
-  vi.mocked(deleteAutomationCascade).mockResolvedValue(undefined);
+  vi.mocked(deleteAutomationCascade).mockResolvedValue({ versions: 2 });
   vi.mocked(listTriggers).mockClear();
   vi.mocked(listVersions).mockReset();
   vi.mocked(listVersions).mockResolvedValue([]);
@@ -1133,6 +1136,8 @@ describe('GET /automations/{name}/versions', () => {
         testsCheckedAt: null,
         createdBy: 'user-1',
         createdAt: 2,
+        createdVia: 'mcp',
+        clientName: 'claude-code',
       },
       {
         version: 1,
@@ -1141,6 +1146,8 @@ describe('GET /automations/{name}/versions', () => {
         testsCheckedAt: 1_700_000_000_500,
         createdBy: 'user-1',
         createdAt: 1,
+        createdVia: null,
+        clientName: null,
       },
     ]);
     const res = await mount().app.request(

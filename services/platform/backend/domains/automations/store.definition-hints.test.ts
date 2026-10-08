@@ -11,7 +11,14 @@
  */
 
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// The definition writes' audit rows are their own concern (`audit.ts`,
+// `audit.test.ts`); this double answers no audit-chain query.
+vi.mock('./audit.ts', () => ({
+  auditDefinitionWrite: vi.fn(async () => undefined),
+  listDeployments: vi.fn(async () => []),
+}));
 
 import {
   bindProject,
@@ -153,14 +160,14 @@ describe('definition doors emit the automation hint in their transaction', () =>
   it('deleteTrigger — only when a row went away', async () => {
     const deleted = fakeSql({ triggerDeleted: true });
     await expect(
-      deleteTrigger(deleted.sql, 'org_1', 'ops/greet'),
+      deleteTrigger(deleted.sql, 'org_1', 'ops/greet', 'user_1'),
     ).resolves.toBe(true);
     expect(hints(deleted)).toEqual([{ values: HINT, inTx: true }]);
 
     const absent = fakeSql({ triggerDeleted: false });
-    await expect(deleteTrigger(absent.sql, 'org_1', 'ops/greet')).resolves.toBe(
-      false,
-    );
+    await expect(
+      deleteTrigger(absent.sql, 'org_1', 'ops/greet', 'user_1'),
+    ).resolves.toBe(false);
     expect(hints(absent)).toEqual([]);
   });
 
@@ -232,9 +239,9 @@ describe('removing a schedule its failures paused reads the admins’ notices of
       triggerDeleted: true,
       triggerSkipReason: 'paused_after_failures',
     });
-    await expect(deleteTrigger(paused.sql, 'org_1', 'ops/greet')).resolves.toBe(
-      true,
-    );
+    await expect(
+      deleteTrigger(paused.sql, 'org_1', 'ops/greet', 'user_1'),
+    ).resolves.toBe(true);
     expect(dismissals(paused)).toEqual([
       { values: [expect.any(Number), 'org_1', 'trg_1'], inTx: true },
     ]);
@@ -252,14 +259,14 @@ describe('removing a schedule its failures paused reads the admins’ notices of
     'deleteTrigger — none for a trigger whose skip reason is %s',
     async (triggerSkipReason) => {
       const fake = fakeSql({ triggerDeleted: true, triggerSkipReason });
-      await deleteTrigger(fake.sql, 'org_1', 'ops/greet');
+      await deleteTrigger(fake.sql, 'org_1', 'ops/greet', 'user_1');
       expect(dismissals(fake)).toEqual([]);
     },
   );
 
   it('deleteTrigger — none when no trigger was removed', async () => {
     const fake = fakeSql({ triggerDeleted: false });
-    await deleteTrigger(fake.sql, 'org_1', 'ops/greet');
+    await deleteTrigger(fake.sql, 'org_1', 'ops/greet', 'user_1');
     expect(dismissals(fake)).toEqual([]);
   });
 

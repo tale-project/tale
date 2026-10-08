@@ -332,8 +332,18 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return c.json({
       name,
       deployedVersion: deployed,
+      // The documented fields only: the history also records the door each
+      // version came through, which this contract does not carry.
       versions: (await listVersions(deps.sql, organizationId, name)).map(
-        (row) => Object.assign(row, { deployed: row.version === deployed }),
+        (row) => ({
+          version: row.version,
+          message: row.message,
+          testsPassed: row.testsPassed,
+          testsCheckedAt: row.testsCheckedAt,
+          createdBy: row.createdBy,
+          createdAt: row.createdAt,
+          deployed: row.version === deployed,
+        }),
       ),
     });
   });
@@ -386,7 +396,12 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       if (!(await exists(c, name))) return automationNotFound(c);
-      await deleteTrigger(deps.sql, c.get('organizationId'), name);
+      await deleteTrigger(
+        deps.sql,
+        c.get('organizationId'),
+        name,
+        c.get('userId'),
+      );
       return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -434,6 +449,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           organizationId: auth.organizationId,
           name,
           projectId: project.id,
+          actor: auth.userId,
         });
       });
       if (result === null) return automationNotFound(c);

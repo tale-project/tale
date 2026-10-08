@@ -90,6 +90,7 @@ export async function uploadAutomationPg(
           name: nameOfDocument(saveArgs.automation),
           document: saveArgs.automation,
           actor: auth.userId,
+          origin: { via: 'upload' },
           message: saveArgs.message,
           ...(saveArgs.projectId !== undefined
             ? { projectId: saveArgs.projectId }
