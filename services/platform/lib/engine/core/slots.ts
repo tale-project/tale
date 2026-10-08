@@ -326,7 +326,7 @@ export type TriggerFacts =
  * `firedAt` is the occurrence the schedule started for, not the moment it
  * ran.
  */
-export function scheduleTriggerInput(firedAt: number): {
+function scheduleTriggerInput(firedAt: number): {
   trigger: 'schedule';
   firedAt: number;
 } {
