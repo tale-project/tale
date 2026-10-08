@@ -138,6 +138,32 @@ bundle commands require POSIX custody checks and are unavailable on Windows.
 Retain the bundle, source pins and receipts together. Serialize competing
 deployments externally: a local lock does not coordinate separate hosts.
 
+The protocol-1 to protocol-2 automation upgrade uses a bounded admission barrier
+for the bundled database and the verified `b4931db4` legacy runtime. It requires
+the complete legacy migration inventory and zero unfinished automation runs
+across every organization. A held database lock blocks new legacy admissions and
+claims while the CLI gracefully stops every recorded backend API and worker
+container. The CLI observes those exact containers exited before releasing the
+lock; the new images install their protocol fence before serving requests or
+starting workers. Busy or unsupported sources and database layouts refuse the
+upgrade before any backend stop. Existing protocol-1 tag deployments must use
+this managed upgrade first; fresh installations and compatible later deployments
+do not need the legacy barrier.
+
+If the lock connection drops, a stop times out, or identities change, the CLI
+leaves the runtime pending and starts no new containers. Keep the bundle and
+`.tale/automation-cutover.json` receipt, then retry the same managed deployment.
+Before another legacy handoff, the retry verifies the recorded identities and
+takes a fresh locked census. If Compose already created some target containers,
+it can resume only with every retained old writer still exactly stopped, each
+replacement on the prepared target image, complete backend roles and the same
+database incarnation. Unknown identities or missing roles require reconciliation
+of the pending deployment. Elapsed time never authorizes a retry. The CLI does not
+force-kill or automatically restart old writers. Do not run an older CLI or
+manually restart containers during this transition. Terminal legacy runs may
+still have historical external effects; this barrier does not claim those
+effects have retired or cancel independent project agents.
+
 After a completed rollout, `tale --json deploy accept --bundle
 "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT"
 --expected-version "$TALE_RELEASE_VERSION"` collects current read-only acceptance.

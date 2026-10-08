@@ -191,6 +191,11 @@ const OUTSIDE_READS = [
 /** Every sandbox-runtime module the platform's sources import, and who imports it. */
 const STATIC_IMPORTS = [
   {
+    path: 'tools/cli/src/lib/deployment/automation-cutover-sql.ts',
+    importers:
+      'backend/jobs/automation-floor.integration.ts proves the maintained CLI admission lock and census',
+  },
+  {
     path: 'tools/cli/src/lib/deployment/automation-floor.ts',
     importers:
       'backend/jobs/automation-floor.integration.ts proves the maintained CLI protocol ledger query',

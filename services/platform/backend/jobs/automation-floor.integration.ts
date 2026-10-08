@@ -3,9 +3,19 @@
  * or Docker host access is required; the CLI's real bounded psql transport has
  * separate command tests. */
 import { randomUUID } from 'node:crypto';
+import { readdirSync } from 'node:fs';
 
 import postgres, { type Sql } from 'postgres';
 
+import {
+  AUTOMATION_CUTOVER_CENSUS_SQL,
+  AUTOMATION_CUTOVER_ISOLATION,
+  AUTOMATION_CUTOVER_LOCK_SQL,
+  AUTOMATION_CUTOVER_PROBE_SQL,
+  AUTOMATION_CUTOVER_SESSION_SQL,
+  cutoverLockOwned,
+  emptyLegacyCutoverCensus,
+} from '../../../../tools/cli/src/lib/deployment/automation-cutover-sql.ts';
 import {
   AUTOMATION_LEDGER_QUERY,
   automationFloor,
@@ -15,6 +25,126 @@ import { AUTOMATION_PROTOCOL_MIGRATION } from '../../../../tools/cli/src/lib/dep
 import { resolvePostgresConnection } from '../db/ssl.ts';
 
 type Recorder = (name: string, ok: boolean, detail: string) => void;
+
+async function ledgerValue(reader: Pick<Sql, 'unsafe'>): Promise<unknown> {
+  const rows = await reader.unsafe(AUTOMATION_LEDGER_QUERY).values();
+  if (rows.length !== 1 || rows[0].length !== 1)
+    throw new Error('Unexpected catalog census');
+  const statement = checkedAutomationLedgerQuery(rows[0][0]);
+  const result = await reader.unsafe(statement).values();
+  if (result.length !== 1 || result[0].length !== 1)
+    throw new Error('Unexpected ledger census');
+  return result[0][0];
+}
+
+/** The actual CLI SQL is exercised in the required Backend integration lane,
+ * in this helper's owned database, with a separate competing connection. */
+async function checkCutover(
+  db: Sql,
+  peer: Sql,
+  record: Recorder,
+): Promise<void> {
+  const ids = readdirSync(new URL('../db/migrations/', import.meta.url))
+    .filter(
+      (name) =>
+        /^\d{4}_[a-z0-9_]+\.(sql|ts)$/.test(name) &&
+        Number(name.slice(0, 4)) <= 153,
+    )
+    .sort();
+  await db`ALTER TABLE tale.app_migrations ADD PRIMARY KEY (name)`;
+  await db`DELETE FROM tale.app_migrations`;
+  await db`INSERT INTO tale.app_migrations ${db(ids.map((name) => ({ name })))}`;
+  await db`CREATE SCHEMA app`;
+  await db`CREATE TABLE app.automation_runs (id text PRIMARY KEY, org_id text NOT NULL, status text NOT NULL)`;
+  const census = async (tx: Pick<Sql, 'unsafe'>) => {
+    const ledger = await ledgerValue(tx);
+    const result = await tx.unsafe(AUTOMATION_CUTOVER_CENSUS_SQL).values();
+    if (result.length !== 1 || result[0].length !== 1)
+      throw new Error('Unexpected cutover census');
+    return emptyLegacyCutoverCensus(
+      `${JSON.stringify(ledger)}\n${JSON.stringify(result[0][0])}`,
+    );
+  };
+  await db.begin(AUTOMATION_CUTOVER_ISOLATION, async (tx) => {
+    await tx.unsafe(AUTOMATION_CUTOVER_SESSION_SQL);
+    await tx.unsafe(AUTOMATION_CUTOVER_LOCK_SQL);
+    record(
+      'automation cutover holds the exact legacy all-org zero census',
+      await census(tx),
+      'source ledger and owned SHARE lock',
+    );
+    let blocked = false;
+    try {
+      await peer.begin(async (writer) => {
+        await writer`SET LOCAL statement_timeout = '300ms'`;
+        await writer`INSERT INTO app.automation_runs VALUES ('competing', 'second-org', 'queued')`;
+      });
+    } catch (error) {
+      blocked =
+        error instanceof postgres.PostgresError && error.code === '57014';
+    }
+    const [count] =
+      await tx`SELECT count(*)::int AS value FROM app.automation_runs`;
+    record(
+      'automation cutover blocks a competing legacy admission while zero is held',
+      blocked && count.value === 0,
+      'competing INSERT hit its statement bound; zero retained',
+    );
+  });
+  await peer`INSERT INTO app.automation_runs VALUES ('after-release', 'second-org', 'queued')`;
+  await db.begin(AUTOMATION_CUTOVER_ISOLATION, async (tx) => {
+    await tx.unsafe(AUTOMATION_CUTOVER_SESSION_SQL);
+    await tx.unsafe(AUTOMATION_CUTOVER_LOCK_SQL);
+    record(
+      'automation cutover refuses unfinished work in another organization',
+      !(await census(tx)),
+      'released lock permits admission; the next census refuses',
+    );
+  });
+  await peer`DELETE FROM app.automation_runs`;
+  await peer.begin(async (writer) => {
+    await writer`INSERT INTO app.automation_runs VALUES ('uncommitted', 'second-org', 'queued')`;
+    let refused = false;
+    try {
+      await db.begin(AUTOMATION_CUTOVER_ISOLATION, async (tx) => {
+        await tx.unsafe(AUTOMATION_CUTOVER_SESSION_SQL);
+        await tx.unsafe(AUTOMATION_CUTOVER_LOCK_SQL);
+      });
+    } catch (error) {
+      refused =
+        error instanceof postgres.PostgresError && error.code === '55P03';
+    }
+    record(
+      'automation cutover refuses a prior uncommitted admission',
+      refused,
+      'NOWAIT never manufactures zero by stopping its writer',
+    );
+    await writer`DELETE FROM app.automation_runs WHERE id = 'uncommitted'`;
+  });
+  let revoked = false;
+  let lost = false;
+  try {
+    await db.begin(AUTOMATION_CUTOVER_ISOLATION, async (tx) => {
+      await tx.unsafe(AUTOMATION_CUTOVER_SESSION_SQL);
+      await tx.unsafe(AUTOMATION_CUTOVER_LOCK_SQL);
+      const [owner] = await tx`SELECT pg_backend_pid() AS pid`;
+      await peer`SELECT pg_terminate_backend(${owner.pid})`;
+      try {
+        const result = await tx.unsafe(AUTOMATION_CUTOVER_PROBE_SQL).values();
+        revoked = !cutoverLockOwned(JSON.stringify(result[0]?.[0]));
+      } catch {
+        revoked = true;
+      }
+    });
+  } catch {
+    lost = true;
+  }
+  record(
+    'automation cutover session loss revokes its lock proof',
+    revoked && lost,
+    'terminated only this owned transaction; no stale zero is authority',
+  );
+}
 
 function connect(raw: string): Sql {
   const url = new URL(raw);
@@ -41,25 +171,21 @@ export async function checkAutomationProtocolFloor(
   target.pathname = `/${name}`;
   let owned = false;
   let sql: Sql | undefined;
+  let peer: Sql | undefined;
   let failure: unknown;
   try {
     await admin`CREATE DATABASE ${admin(name)}`;
     owned = true;
     sql = connect(target.toString());
+    peer = connect(target.toString());
     const db = sql;
     const read = () =>
       db.begin('read only', async (tx) => {
-        const rows = await tx.unsafe(AUTOMATION_LEDGER_QUERY).values();
-        if (rows.length !== 1 || rows[0].length !== 1)
-          throw new Error('Unexpected catalog census');
         // A returned string is not authority to execute SQL. Admit only the exact
         // fixed SELECT the source query can generate, including its null refusal.
-        const statement = checkedAutomationLedgerQuery(rows[0][0]);
-        const result = await tx.unsafe(statement).values();
-        if (result.length !== 1 || result[0].length !== 1)
-          throw new Error('Unexpected ledger census');
+        const result = await ledgerValue(tx);
         try {
-          return automationFloor(JSON.stringify(result[0][0]));
+          return automationFloor(JSON.stringify(result));
         } catch {
           return null;
         }
@@ -104,6 +230,7 @@ export async function checkAutomationProtocolFloor(
     await db`ALTER TABLE tale.app_migrations DISABLE ROW LEVEL SECURITY`;
     await db`ALTER TABLE tale.app_migrations DROP CONSTRAINT app_migrations_pkey`;
     await prove('automation floor refuses malformed ledger identity', null);
+    await checkCutover(db, peer, record);
   } catch (error) {
     failure = error;
   } finally {
@@ -111,7 +238,7 @@ export async function checkAutomationProtocolFloor(
     // A failed shutdown leaves that owned DB for diagnosis; never FORCE others.
     let stopped = sql === undefined;
     try {
-      await sql?.end({ timeout: 8 });
+      await Promise.all([sql?.end({ timeout: 8 }), peer?.end({ timeout: 8 })]);
       stopped = true;
     } catch (error) {
       failure ??= error;

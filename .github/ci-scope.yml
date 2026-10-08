@@ -20,6 +20,7 @@ integration:
   - 'tools/cli/src/lib/deployment/acceptance-migrations.ts'
   - 'tools/cli/src/lib/deployment/migration-model.ts'
   - 'tools/cli/src/lib/deployment/automation-floor.ts'
+  - 'tools/cli/src/lib/deployment/automation-cutover-sql.ts'
   - 'tools/cli/src/lib/deployment/automation-model.ts'
   - 'tools/cli/src/lib/deployment/source-migrations.ts'
   - 'tools/cli/src/lib/deployment/runtime-command.ts'
