@@ -2,6 +2,8 @@ import type { Context, Env, MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import { requestIdOf } from '../error-reporting.ts';
+import { invalidBodyIssuesResponse } from './invalid-body-response.ts';
+import { findUnstorableText } from './unstorable-text.ts';
 
 /** The sentence a body that is not JSON answers on the app door. */
 export const INVALID_JSON_MESSAGE = 'The request body is not valid JSON';
@@ -16,6 +18,10 @@ export const INVALID_JSON_MESSAGE = 'The request body is not valid JSON';
  * refusal speaks (`{error, code}`, with the request id), thrown as an
  * HTTPException so the error handler passes it through unreported.
  *
+ * A body that parses but carries a string Postgres cannot store — a NUL
+ * character or an unpaired UTF-16 surrogate (`unstorable-text.ts`) —
+ * answers the app door's 400 `invalid body`, naming the field.
+ *
  * Everything else about the read is untouched: a valid body parses as
  * before, a handler that falls back on a failed read
  * (`c.req.json().catch(() => ({}))`) still gets its fallback, and a body
@@ -29,8 +35,9 @@ export function appJsonBody<E extends Env>(): MiddlewareHandler<E> {
     const request = c.req;
     const parse = request.json.bind(request);
     request.json = async <T>(): Promise<T> => {
+      let parsed: T;
       try {
-        return await parse<T>();
+        parsed = await parse<T>();
       } catch (error) {
         if (!(error instanceof SyntaxError)) throw error;
         const requestId = requestIdOf(c);
@@ -47,6 +54,19 @@ export function appJsonBody<E extends Env>(): MiddlewareHandler<E> {
           ),
         });
       }
+      // A string Postgres cannot store (a NUL, an unpaired surrogate) is
+      // refused here, naming its field, before any handler hands it to the
+      // database as a 500 — the same rule the REST door applies.
+      const unstorable = findUnstorableText(parsed);
+      if (unstorable !== null) {
+        throw new HTTPException(400, {
+          message: `${unstorable.path || 'body'}: ${unstorable.message}`,
+          res: invalidBodyIssuesResponse(c, [
+            { path: unstorable.path || 'body', message: unstorable.message },
+          ]),
+        });
+      }
+      return parsed;
     };
     await next();
   };

@@ -7,9 +7,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { MentionDirectoryError } from '../domains/collab/mention-directory.ts';
+import { findNulByte } from '../lib/unstorable-text.ts';
 import {
   domainErrorResponse,
-  findNulByte,
   formatKeysetCursor,
   houseIssueMessage,
   invalidBodyResponse,

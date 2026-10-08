@@ -88,6 +88,37 @@ describe('appJsonBody', () => {
     },
   );
 
+  it.each([
+    ['a NUL character', '{"status":"do\\u0000ne"}', 'status', 'NUL character'],
+    [
+      'a NUL in a key',
+      '{"st\\u0000atus":"done"}',
+      'st\u0000atus',
+      'NUL character',
+    ],
+    [
+      'an unpaired surrogate',
+      '{"status":"\\ud800"}',
+      'status',
+      'unpaired UTF-16 surrogate',
+    ],
+  ])(
+    'refuses %s Postgres could not store as 400 invalid body, naming the field',
+    async (_n, body, path, reason) => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const res = await post('/api/app/tasks/t1/move', body);
+      expect(res.status).toBe(400);
+      const answer = (await res.json()) as {
+        error: string;
+        data: { issues: { path: string; message: string }[] };
+      };
+      expect(answer.error).toBe('invalid body');
+      expect(answer.data.issues[0]?.path).toBe(path);
+      expect(answer.data.issues[0]?.message).toContain(reason);
+      expect(errors).not.toHaveBeenCalled();
+    },
+  );
+
   it('parses a valid body exactly as before', async () => {
     const res = await post('/api/app/tasks/t1/move', '{"status":"done"}');
     expect(res.status).toBe(200);
