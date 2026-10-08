@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 90 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 103 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -707,6 +707,47 @@ output:
       of `AUTO-F58`, while it reads `automations.runs.status.stalled`, its
       step reads `automations.runs.nodeStatus.interrupted` — nothing spins on
       a step no server is running.
+- [ ] `AUTO-F62` · **A wrong reference shows while typing** — As a
+      Developer, open an automation's **Editor**, select an `llm` node and add
+      `{{ nodes.nope.output }}` to its **Prompt** → within about a second the
+      Problems button (`issues.buttonLabel`) counts 1 error, the node's box
+      shows a red error chip and its name ends with the count
+      (`issues.nodeSummary`), the reason sits under the Prompt field, and
+      **Save** is disabled; focusing it shows `automations.problems.saveBlocked`.
+- [ ] `AUTO-F63` · **Go to a problem** — With the draft from `AUTO-F62`,
+      click the Problems button and press Enter on the error's row → the list
+      opens under the canvas (`automations.problems.title`), the row reads
+      the problem's title, where it is and how to fix it
+      (`issues.fixLabel`), and Enter opens the node in the inspector with the
+      Prompt field focused and the reference to nope selected.
+- [ ] `AUTO-F64` · **A fix clears it** — Remove the reference again → the
+      Problems button reads `issues.none`, the node's chip and the field's
+      line disappear, **Save** is enabled, and a screen reader hears
+      `issues.none` once (not at every keystroke).
+- [ ] `AUTO-F65` · **Warnings never block** — Give a node a `when` that
+      reads a field of a node with a `when` of its own → the Problems button
+      counts a warning, not an error; **Save** stays enabled, the version
+      saves, and the warning is still listed afterwards.
+- [ ] `AUTO-F66` · **A refused save lands in Problems** — Block the check's
+      request in DevTools (so Save stays enabled), make the draft invalid as
+      in `AUTO-F62` and save it with a message → the save dialog closes onto
+      the Problems list with its first error focused, the list shows the
+      server's problems, a screen reader hears
+      `automations.problems.refusedSave`, no toast appears, and no version
+      is added.
+- [ ] `AUTO-F67` · **Problems in every language** — Switch the interface to
+      Deutsch, then Français, with the draft from `AUTO-F62` → the Problems
+      button, the filter (`automations.problems.filter.all`), each row's
+      title, location, explanation, cause and fix are translated; only
+      **Technical details** (`issues.technicalDetails`) keeps the engine's
+      English message.
+- [ ] `AUTO-F68` · **From a phone's node sheet to the problems** — At 390 px,
+      with the draft from `AUTO-F62`, open a different node and type in one of
+      its fields → under the fields, `automations.problems.saveBlocked` stands
+      beside **Save** with `automations.problems.open` next to it; tap it →
+      the node's sheet closes, the Problems sheet opens on All
+      (`automations.problems.filter.all`) with focus on the first error, and
+      Enter on it opens the node that holds the error with its field focused.
 
 ## Boundary & error tests
 
@@ -784,6 +825,16 @@ output:
       pending card disappears. On another live task, the Editor can cancel;
       the Member sees the terminal state after reload. Use the task panel:
       Member and Editor seats have no Automations navigation (`AUTO-F53`).
+- [ ] `AUTO-B12` · **A project automation whose project is gone keeps a way
+      out** — Open an automation from a project's **Automations** tab
+      (`AUTO-F57`) and copy the URL. As a Developer outside the project's
+      audience, open that URL; then, as an Owner, delete the project and open
+      it again → the automation still opens; the trail reads
+      `Automations / <automation>` with no project, and **Automations**
+      (`automations.title`) opens the organization's list, never a page
+      saying the project was not found; below 768 px the back arrow
+      (`common.aria.back`) leads there too. Open one of its runs → the
+      automation's name returns to the automation under the same URL.
 - [ ] `AUTO-B13` · **Stop beats a finishing step** — Deploy an automation
       whose last step is an `llm` step asking for a long answer (a few
       seconds of model time), start a live run, open **Stop the run**
@@ -803,17 +854,17 @@ output:
       (`automations.runs.approval.title`) in its own organization, and neither
       fails with a message about a different organization; approving each lets
       that run finish.
-
-- [ ] `AUTO-B12` · **A project automation whose project is gone keeps a way
-      out** — Open an automation from a project's **Automations** tab
-      (`AUTO-F57`) and copy the URL. As a Developer outside the project's
-      audience, open that URL; then, as an Owner, delete the project and open
-      it again → the automation still opens; the trail reads
-      `Automations / <automation>` with no project, and **Automations**
-      (`automations.title`) opens the organization's list, never a page
-      saying the project was not found; below 768 px the back arrow
-      (`common.aria.back`) leads there too. Open one of its runs → the
-      automation's name returns to the automation under the same URL.
+- [ ] `AUTO-B15` · **The check fails, the save still works** — Block the
+      check's request (`/api/app/automations/…/validate` in DevTools) and
+      edit a node → the Problems button reads `issues.checkFailed` and the
+      list says `automations.problems.checkFailed`; **Save** stays possible,
+      and saving an invalid draft is refused into the Problems list
+      (`AUTO-F66`).
+- [ ] `AUTO-B16` · **Members check nothing** — Sign in as a Member and open
+      `/dashboard/{org}/automations/{slug}/editor` directly → the access gate
+      answers instead of the editor and the network log shows no validate
+      request; posting a document to the validate route with that session
+      answers 403 and saves nothing.
 
 ## Run liveness — chaos recovery (backend, scripted)
 
@@ -882,6 +933,24 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       (`automations.runs.waiting.in_doubt`). At 390 px wide the actions wrap
       and nothing is cut; at 200 % zoom the card reads without scrolling
       sideways.
+- [ ] `AUTO-A7` · **Problems by keyboard** → Tab reaches the Problems
+      button after the run verbs and before **Save**; Enter opens the list
+      with focus on a row; Up, Down, Home and End move between rows; Enter
+      goes to the field; Escape closes the list and focus returns to the
+      button.
+- [ ] `AUTO-A8` · **Problems to a screen reader** → A node with problems
+      announces its counts after its name; a field with a problem announces
+      the message as its description, never as an alert; the list's rows
+      start with "Error:" or "Warning:" (`issues.srPrefix.error`).
+- [ ] `AUTO-A9` · **Problems in every mode** → In dark mode, with reduced
+      motion, at 200 % zoom and at 375 px wide: chips, frames and field
+      lines keep AA contrast, the list opens without movement under reduced
+      motion, and the Problems sheet is usable at 375 px without horizontal
+      scrolling.
+- [ ] `AUTO-A10` · **The save shortcut with errors** → With the draft from
+      `AUTO-F62`, press ⌘S (Ctrl+S) in the Prompt field → the browser's
+      "Save page as" dialog does not open, focus moves to **Save** and its
+      tooltip says `automations.problems.saveBlocked`; nothing is saved.
 
 ## Performance
 

@@ -284,6 +284,12 @@ editor:
     forEachDescription: Läuft einmal pro Element des Arrays, das der Ausdruck ergibt.
     repeatUntil: Wiederholen bis
     repeatUntilDescription: Diese Node wiederholen, bis der Ausdruck wahr ist.
+    maxRepeats: Maximale Wiederholungen
+    onError: Bei Fehler
+    output: Ausgabe
+    type: Typ
+    id: ID
+    modelProvider: Anbieter
 bindings:
   title: Projekte
   countBadge: '{count, plural, one {An # Projekt gebunden} other {An # Projekte gebunden}}'
@@ -518,3 +524,22 @@ settings:
     removeDescription: '„{name}" wird endgültig aus dem Projekt gelöscht — das lässt sich nicht rückgängig machen.'
     removeConfirm: Löschen
     removeFailed: Die Datei konnte nicht gelöscht werden — versuch es nochmal.
+problems:
+  title: Probleme
+  hide: Probleme ausblenden
+  saveBlocked: '{count, plural, one {Behebe # Fehler, um zu speichern} other {Behebe # Fehler, um zu speichern}}'
+  checkingDraft: Deine Änderungen werden geprüft…
+  checkFailed: Dieser Entwurf konnte nicht geprüft werden, deshalb ist die Liste möglicherweise nicht aktuell. Speichern kannst du trotzdem, und jedes Speichern wird geprüft.
+  refusedSave: Speichern abgelehnt
+  refusedDeploy: Diese Version hat Probleme, die das Live-Schalten verhindern. Du findest sie unter Probleme.
+  refusedDeployDraft: Diese Version hat Probleme, die das Live-Schalten verhindern. Verwirf deinen Entwurf, um sie unter Probleme zu sehen.
+  open: Probleme anzeigen
+  notEditableHere: Dieser Teil der Automatisierung lässt sich hier nicht bearbeiten. Ändere ihn über MCP, die API oder ein hochgeladenes Paket.
+  nodeTitle: Probleme in dieser Node
+  filter:
+    label: Probleme anzeigen
+    all: Alle
+    errors: Fehler
+    warnings: Warnungen
+  emptyFiltered: '{filter, select, errors {Keine Fehler} warnings {Keine Warnungen} other {Keine Probleme}}'
+  fieldPart: '{part}: {message}'

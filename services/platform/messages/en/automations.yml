@@ -274,6 +274,12 @@ editor:
     forEachDescription: Run once per item of the array the expression resolves to.
     repeatUntil: Repeat until
     repeatUntilDescription: Re-run this node until the expression is truthy.
+    maxRepeats: Maximum repeats
+    onError: On error
+    output: Output
+    type: Type
+    id: ID
+    modelProvider: Provider
 bindings:
   title: Projects
   countBadge: '{count, plural, one {Bound to # project} other {Bound to # projects}}'
@@ -508,3 +514,22 @@ settings:
     removeDescription: This deletes "{name}" from the project permanently — it can't be undone.
     removeConfirm: Delete
     removeFailed: Couldn't delete the file — try again.
+problems:
+  title: Problems
+  hide: Hide problems
+  saveBlocked: '{count, plural, one {Fix # error to save} other {Fix # errors to save}}'
+  checkingDraft: Checking your changes…
+  checkFailed: Couldn't check this draft, so the list may be out of date. You can still save, and every save is checked.
+  refusedSave: Saving was refused
+  refusedDeploy: This version has problems that block deploying it. Problems lists them.
+  refusedDeployDraft: This version has problems that block deploying it. Discard your draft to see them in Problems.
+  open: Show problems
+  notEditableHere: This part of the automation can't be edited here. Change it through MCP, the API or an uploaded package.
+  nodeTitle: Problems in this node
+  filter:
+    label: Show problems
+    all: All
+    errors: Errors
+    warnings: Warnings
+  emptyFiltered: '{filter, select, errors {No errors} warnings {No warnings} other {No problems}}'
+  fieldPart: '{part}: {message}'

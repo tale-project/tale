@@ -353,3 +353,24 @@ recurrence:
 
 siteFooter:
   copyright: © {year} Tale par Ruler GmbH. Sous licence MIT.
+
+issues:
+  srPrefix:
+    error: 'Erreur :'
+    warning: 'Avertissement :'
+    info: 'Remarque :'
+  summary: '{errors, plural, =0 {{warnings, plural, =0 {Aucun problème} one {# avertissement} many {# avertissements} other {# avertissements}}} one {# erreur{warnings, plural, =0 {} one { et # avertissement} many { et # avertissements} other { et # avertissements}}} many {# erreurs{warnings, plural, =0 {} one { et # avertissement} many { et # avertissements} other { et # avertissements}}} other {# erreurs{warnings, plural, =0 {} one { et # avertissement} many { et # avertissements} other { et # avertissements}}}}'
+  none: Aucun problème
+  listLabel: Problèmes
+  listFailed: La vérification a échoué. La liste n’est peut-être plus à jour.
+  buttonLabel: 'Problèmes : {summary}'
+  buttonLabelChecking: 'Problèmes : {summary}. Vérification en cours…'
+  buttonLabelFailed: 'Problèmes : vérification impossible'
+  checking: Vérification…
+  checkFailed: Vérification impossible
+  announce: '{context}. {summary}'
+  nodeSummary: '({summary})'
+  fixLabel: 'Pour corriger :'
+  technicalDetails: Détails techniques
+  learnMore: En savoir plus
+  goTo: Y aller

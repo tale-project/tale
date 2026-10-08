@@ -353,3 +353,24 @@ recurrence:
 
 siteFooter:
   copyright: © {year} Tale von Ruler GmbH. MIT-lizenziert.
+
+issues:
+  srPrefix:
+    error: 'Fehler:'
+    warning: 'Warnung:'
+    info: 'Hinweis:'
+  summary: '{errors, plural, =0 {{warnings, plural, =0 {Keine Probleme} one {# Warnung} other {# Warnungen}}} one {# Fehler{warnings, plural, =0 {} one { und # Warnung} other { und # Warnungen}}} other {# Fehler{warnings, plural, =0 {} one { und # Warnung} other { und # Warnungen}}}}'
+  none: Keine Probleme
+  listLabel: Probleme
+  listFailed: Die Prüfung ist fehlgeschlagen. Die Liste ist möglicherweise nicht aktuell.
+  buttonLabel: 'Probleme: {summary}'
+  buttonLabelChecking: 'Probleme: {summary}. Wird geprüft…'
+  buttonLabelFailed: 'Probleme: Prüfung fehlgeschlagen'
+  checking: Wird geprüft…
+  checkFailed: Prüfung fehlgeschlagen
+  announce: '{context}. {summary}'
+  nodeSummary: '({summary})'
+  fixLabel: 'So behebst du es:'
+  technicalDetails: Technische Details
+  learnMore: Mehr erfahren
+  goTo: Zur Stelle

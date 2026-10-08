@@ -688,7 +688,7 @@ actions:
         labels: { type: string, maxLength: 1000 }
         limit: { type: integer, minimum: 1, maximum: 500 }
         cursor: { type: string, maxLength: 12000 }
-    output: '{ issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, truncated: boolean, nextCursor: string | null, repositoryId?: number, sourceOrigin?: string, sourceProjectId?: string }'
+    output: '{ issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, truncated: boolean, nextCursor: string | null, repositoryId?: number, sourceOrigin?: string, sourceProjectId?: string, legacyPrefixes?: Array<string> }'
     mock: |
       const externalId = String(input.owner).toLowerCase() + '/' + String(input.repo).toLowerCase() + '#1';
       const url = 'https://github.com/' + input.owner + '/' + input.repo + '/issues/1';

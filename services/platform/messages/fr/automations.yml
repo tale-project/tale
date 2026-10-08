@@ -285,6 +285,12 @@ editor:
     forEachDescription: S’exécute une fois par élément du tableau que produit l’expression.
     repeatUntil: Répéter jusqu’à
     repeatUntilDescription: Relancer ce nœud jusqu’à ce que l’expression soit vraie.
+    maxRepeats: Répétitions maximales
+    onError: En cas d’erreur
+    output: Sortie
+    type: Type
+    id: Identifiant
+    modelProvider: Fournisseur
 bindings:
   title: Projets
   countBadge: '{count, plural, one {Lié à # projet} other {Lié à # projets}}'
@@ -520,3 +526,22 @@ settings:
     removeDescription: '« {name} » est supprimé définitivement du projet — cette action est irréversible.'
     removeConfirm: Supprimer
     removeFailed: Impossible de supprimer le fichier — réessaie.
+problems:
+  title: Problèmes
+  hide: Masquer les problèmes
+  saveBlocked: '{count, plural, one {Corrige # erreur pour enregistrer} many {Corrige # erreurs pour enregistrer} other {Corrige # erreurs pour enregistrer}}'
+  checkingDraft: Vérification de tes modifications…
+  checkFailed: 'Impossible de vérifier ce brouillon, la liste n’est donc peut-être plus à jour. Tu peux quand même enregistrer : chaque enregistrement est vérifié.'
+  refusedSave: L’enregistrement a été refusé
+  refusedDeploy: Cette version a des problèmes qui empêchent sa mise en service. Ils sont listés dans Problèmes.
+  refusedDeployDraft: Cette version a des problèmes qui empêchent sa mise en service. Abandonne ton brouillon pour les voir dans Problèmes.
+  open: Afficher les problèmes
+  notEditableHere: Cette partie de l’automatisation ne se modifie pas ici. Modifie-la via MCP, l’API ou un paquet téléversé.
+  nodeTitle: Problèmes de ce nœud
+  filter:
+    label: Afficher les problèmes
+    all: Tous
+    errors: Erreurs
+    warnings: Avertissements
+  emptyFiltered: '{filter, select, errors {Aucune erreur} warnings {Aucun avertissement} other {Aucun problème}}'
+  fieldPart: '{part} : {message}'

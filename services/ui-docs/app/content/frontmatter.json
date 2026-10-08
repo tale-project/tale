@@ -27,11 +27,32 @@
       "description": "Open a labelled modal, manage confirmation state, and return focus to a useful place."
     }
   },
+  "components/field-issues": {
+    "slug": "components/field-issues",
+    "frontmatter": {
+      "title": "Field issues",
+      "description": "Show a check's problems under the field they belong to, take the reader there with the range selected, and say why Save is off."
+    }
+  },
+  "components/flow-node-issues": {
+    "slug": "components/flow-node-issues",
+    "frontmatter": {
+      "title": "Flow node issues",
+      "description": "Mark the nodes of a flow canvas with their problem counts, in a way that reads without colour or sight."
+    }
+  },
   "components/input": {
     "slug": "components/input",
     "frontmatter": {
       "title": "Input",
       "description": "Build labelled text fields with validation, read-only states, and appropriate password or secret handling."
+    }
+  },
+  "components/issue-list": {
+    "slug": "components/issue-list",
+    "frontmatter": {
+      "title": "Issue list",
+      "description": "List problems a check found in the reader's words, take the reader to each one, and count and announce the result."
     }
   },
   "components/recurrence-picker": {

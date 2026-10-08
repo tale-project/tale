@@ -193,6 +193,11 @@ export function memoryStore(
     async deleteTrigger(name) {
       return { deleted: triggers.delete(name) };
     },
+    async triggerKinds(name) {
+      const one = triggers.get(name);
+      const kind = TRIGGER_KINDS.find((k) => k === one?.kind);
+      return one?.enabled === true && kind !== undefined ? [kind] : [];
+    },
 
     /**
      * The durable-run stand-in: execute the version inline, record the outcome,
