@@ -377,21 +377,18 @@ describe.each([
       way: 'Escape',
       close: () => userEvent.keyboard('{Escape}'),
     },
-    // The phone's drawer has no X: it closes by the backdrop, a swipe, Back.
-    ...(mobile
-      ? []
-      : [
-          {
-            way: 'the X',
-            close: async () => {
-              const dialog = screen.getByRole('dialog');
-              const buttons = within(dialog).getAllByRole('button', {
-                name: 'Close',
-              });
-              await userEvent.click(buttons[buttons.length - 1]!);
-            },
-          },
-        ]),
+    // The dialog and the phone's drawer both carry the X, last in the
+    // header cluster.
+    {
+      way: 'the X',
+      close: async () => {
+        const dialog = screen.getByRole('dialog');
+        const buttons = within(dialog).getAllByRole('button', {
+          name: 'Close',
+        });
+        await userEvent.click(buttons[buttons.length - 1]!);
+      },
+    },
     {
       way: 'the backdrop',
       close: async () => {
