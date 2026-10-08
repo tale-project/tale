@@ -4,6 +4,7 @@ import {
 } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { TTS_PENDING_STALE_MS } from '../../../lib/shared/constants/tts.ts';
 import type {
   BudgetReservations,
   OrgBudgetSubject,
@@ -20,7 +21,11 @@ import type {
  * gone when the turn settles or the watchdog clears it); a managed turn
  * holds its gateway allowance on its op row until its spend is booked
  * (`app.sandbox_session_ops`), and while one of its `generate_image` calls
- * runs, that call's estimate and image requests on top. An admission adds
+ * runs, that call's estimate and image requests on top; a call the platform
+ * makes straight to a provider (an automation's `llm` step, a chat title,
+ * the Inbox's Improve — `direct-calls.ts`) holds its worst case on an op
+ * row of its own until it is booked; a voice output chunk holds its
+ * estimate on its pending row (`app.tts_audio_chunks`). An admission adds
  * every other hold to the booked usage under the organization's admission
  * lock, so the holds it reads cannot change until its own is written.
  */
@@ -102,10 +107,11 @@ interface HoldRow {
  * in one of its threads, and every op row its reservation stamped with it
  * (an automation run's op, with every project the run belongs to). A chat
  * turn's hold, a managed turn's
- * allowance and a model-endpoint request count as one request each; an
- * image generation in flight counts one per image it may make. Costs count
- * as reserved, tokens where the work sized them (a chat turn's round, a
- * model-endpoint request's prompt and output cap; an agent turn holds no
+ * allowance, a model-endpoint request, a direct call and a pending voice
+ * chunk count as one request each; an image generation in flight counts one
+ * per image it may make. Costs count as reserved, tokens where the work
+ * sized them (a chat turn's round, a model-endpoint request's or a direct
+ * call's prompt and output cap; an agent turn and a voice chunk hold no
  * token figure). `exclude` leaves out the admission's own row when it
  * already exists.
  */
@@ -151,6 +157,20 @@ export async function readInFlightReservations(
         AND spend_settled_at_ms IS NULL
         AND NOT (session_id = ${exclude.op?.sessionId ?? ''}
                  AND exec_id = ${exclude.op?.execId ?? ''})
+      UNION ALL
+      -- A voice output chunk being made: its estimate, toward its requester
+      -- and the project of the thread it reads aloud, while it is pending —
+      -- until it turns ready (and is booked) or failed, or its attempt goes
+      -- stale with its process.
+      SELECT c.user_id, NULL::text,
+             CASE WHEN tm.project_id IS NULL THEN '{}'::text[]
+                  ELSE ARRAY[tm.project_id] END,
+             c.reserved_cost_cents::float8, 0::float8, 1::float8
+      FROM app.tts_audio_chunks c
+      LEFT JOIN app.thread_metadata tm ON tm.thread_id = c.thread_id
+      WHERE c.org_id = ${org} AND c.status = 'pending'
+        AND c.reserved_cost_cents IS NOT NULL
+        AND c.attempt_created_at_ms > ${Date.now() - TTS_PENDING_STALE_MS}
     ),
     -- Who spends for a team: its current members, and the keys it owns.
     team_spenders AS (

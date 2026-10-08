@@ -17,9 +17,15 @@ import {
   assertChatTurnBudget,
   ChatBudgetExceededError,
 } from '../chat/budget-admission.ts';
+import { createPgTurnStore } from '../chat/store.ts';
 import { settleSessionOpSpend } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
 import { readInFlightReservations } from './budget-reservations.ts';
+import {
+  openDirectCall,
+  releaseStaleDirectCalls,
+  settleDirectCall,
+} from './direct-calls.ts';
 import { incrementUsageLedger } from './service.ts';
 
 const createdSchema = z.object({ id: z.string() });
@@ -452,6 +458,94 @@ export async function checkProjectBudgets(
         atCap.reason.includes("This project's monthly request limit"),
       `before the cap=${JSON.stringify(beforeCap.allowed)} (want allowed), second project's hold while the call ran=${JSON.stringify(stepHolds.projects?.[secondProjectId])} (want 1 cent, 140 tokens, 1 request), after it=${JSON.stringify(settledHolds.projects?.[secondProjectId])} (want none), buckets=${JSON.stringify(stepBuckets)} (want 15+7+50 and 7+50 tokens, the second at 2 requests), ledger=${JSON.stringify(stepLedger)} (want 50 tokens under __automation__), at the cap=${JSON.stringify(atCap)} (want refused for the project's request limit)`,
     );
+
+    // The other holds, on the real schema: a voice chunk being made holds
+    // its estimate in the project's thread until it is ready; a direct call
+    // past its deadline stops holding, and is still booked when it ends; a
+    // reply's later round raises its hold.
+    const inProject = {
+      organizationId: orgId,
+      userId,
+      userTeamIds: [],
+      projectIds: [projectId],
+    };
+    const heldInProject = async (): Promise<number> =>
+      (await readInFlightReservations(sql, inProject)).projects?.[projectId]
+        ?.costCents ?? 0;
+    const chunkMessage = `itest-msg-${suffix}`;
+    const baseline = await heldInProject();
+    await sql`
+      INSERT INTO app.tts_audio_chunks (
+        org_id, thread_id, message_id, user_id, chunk_index, text, status,
+        locale, created_at_ms, attempt_created_at_ms, reserved_cost_cents
+      ) VALUES (
+        ${orgId}, ${projectThread}, ${chunkMessage}, ${userId}, 0, 'Hello.',
+        'pending', 'en', ${Date.now()}, ${Date.now()}, 3
+      )
+    `;
+    const whileVoiced = await heldInProject();
+    await sql`
+      UPDATE app.tts_audio_chunks SET status = 'ready'
+      WHERE message_id = ${chunkMessage}
+    `;
+    const afterVoiced = await heldInProject();
+
+    const directSlug = `itest-direct-${suffix}`;
+    const lost = await openDirectCall(sql, {
+      organizationId: orgId,
+      lane: 'itest',
+      subject: { userId, agentSlug: directSlug, projectIds: [projectId] },
+      worstCase: { cents: 5, tokens: 10 },
+      // Already past its deadline: its process "died" at once.
+      maxDurationMs: -1_000,
+    });
+    const whileDirect = await heldInProject();
+    const released = await releaseStaleDirectCalls(sql);
+    const afterRelease = await heldInProject();
+    if (lost.allowed) {
+      await settleDirectCall(sql, lost.lease, {
+        provider: 'itest',
+        model: `itest-model-${suffix}`,
+        inputTokens: 4,
+        outputTokens: 2,
+        costCents: 1.5,
+      });
+    }
+    const lateBooking = await sql<{ cost: number }[]>`
+      SELECT cost_estimate_cents::float8 AS cost FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = ${directSlug}
+        AND granularity = 'monthly'
+    `;
+
+    await sql`
+      INSERT INTO app.generations (
+        thread_id, org_id, user_id, reserved_cost_cents, reserved_tokens,
+        started_at_ms, heartbeat_at_ms, updated_at_ms
+      ) VALUES (${projectThread}, ${orgId}, ${userId}, 0, 0, ${now}, ${now},
+                ${now})
+    `;
+    const beforeRound = await heldInProject();
+    await createPgTurnStore(sql).holdNextRound?.({
+      organizationId: orgId,
+      threadId: projectThread,
+      tokens: 100,
+      costCents: 4,
+    });
+    const afterRound = await heldInProject();
+    await sql`DELETE FROM app.generations WHERE thread_id = ${projectThread}`;
+    record(
+      'project budgets: a voice chunk, a direct call and a reply’s later round hold in the project, and a lost direct call stops holding',
+      whileVoiced - baseline === 3 &&
+        afterVoiced === baseline &&
+        lost.allowed &&
+        lost.lease.held &&
+        whileDirect - baseline === 5 &&
+        released >= 1 &&
+        afterRelease === baseline &&
+        lateBooking[0]?.cost === 1.5 &&
+        afterRound - beforeRound === 4,
+      `voice chunk held ${whileVoiced - baseline} then ${afterVoiced - baseline} (want 3 then 0), direct call held ${whileDirect - baseline} (want 5), released=${released} then ${afterRelease - baseline} (want ≥1 then 0), late booking=${JSON.stringify(lateBooking)} (want 1.5 cents), next round raised the reply's hold by ${afterRound - beforeRound} (want 4)`,
+    );
   } finally {
     await unlink(budgetsFile).catch((error: unknown) => {
       console.warn('[itest] project budgets: budgets file not removed', error);
@@ -463,8 +557,14 @@ export async function checkProjectBudgets(
     `;
     await sql`
       DELETE FROM app.sandbox_session_ops
-      WHERE org_id = ${orgId} AND session_id = 'direct-call:llm-step'
-        AND agent_slug = ${automationName}
+      WHERE org_id = ${orgId}
+        AND ((session_id = 'direct-call:llm-step'
+              AND agent_slug = ${automationName})
+          OR session_id = 'direct-call:itest')
+    `;
+    await sql`
+      DELETE FROM app.tts_audio_chunks
+      WHERE org_id = ${orgId} AND message_id = ${`itest-msg-${suffix}`}
     `;
     await sql`
       DELETE FROM app.sandbox_sessions
@@ -483,7 +583,8 @@ export async function checkProjectBudgets(
     `;
     await sql`
       DELETE FROM app.usage_ledger
-      WHERE org_id = ${orgId} AND agent_slug = ANY(${[agentSlug, automationName]})
+      WHERE org_id = ${orgId}
+        AND agent_slug = ANY(${[agentSlug, automationName, `itest-direct-${suffix}`]})
     `;
     await sql`
       DELETE FROM app.project_usage

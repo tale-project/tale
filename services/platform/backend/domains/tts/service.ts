@@ -14,6 +14,7 @@ import {
   MAX_TTS_CHUNKS_PER_MESSAGE,
   MIN_TTS_AUDIO_BYTES,
   TTS_FETCH_TIMEOUT_MS,
+  TTS_PENDING_STALE_MS,
   TTS_WATCHDOG_BUFFER_MS,
 } from '../../../lib/shared/constants/tts.ts';
 import { TTS_SLUG } from '../../../lib/shared/constants/usage.ts';
@@ -44,10 +45,17 @@ import { chatShimHandlers } from '../chat/shim.ts';
 import { loadOwnedThread, readThreadProjectId } from '../chat/threads.ts';
 import { deleteOrgBlobRefs, putOrgBlobBytes } from '../files/service.ts';
 import {
+  budgetPolicyActive,
   checkOrgBudget,
+  findBudgetViolation,
   loadBudgetSubject,
   type OrgBudgetSubject,
 } from '../governance/budget-gate.ts';
+import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
+import {
+  lockBudgetAdmission,
+  readInFlightReservations,
+} from '../governance/budget-reservations.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 
 /**
@@ -70,7 +78,6 @@ import { incrementUsageLedger } from '../governance/service.ts';
 
 const CHUNK_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const CLEANUP_PASS_LIMIT = 64;
-const PENDING_STALE_MS = TTS_FETCH_TIMEOUT_MS + 30_000;
 const PROSPECTIVE_TTS_CENTS_PER_M_CHARS = 1500;
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 
@@ -295,6 +302,11 @@ export async function reserveChunk(
   }
 
   return sql.begin(async (tx) => {
+    // A budget admission serializes the organization's admissions, so it
+    // runs only where a budget policy is on — and takes the lock first,
+    // before the chunk's own, so every admission acquires them in one order.
+    const budgeted = await budgetPolicyActive(tx, args.organizationId);
+    if (budgeted) await lockBudgetAdmission(tx, args.organizationId);
     // Serialize reserves per (message, index) BEFORE the row read. The unique
     // row is the race arbiter once it exists, but `FOR UPDATE` over zero rows
     // locks nothing: two first-time reserves of one chunk both saw no row and
@@ -344,7 +356,7 @@ export async function reserveChunk(
       }
       if (existing.status === 'pending') {
         const age = Date.now() - existing.createdAt;
-        if (age < PENDING_STALE_MS) {
+        if (age < TTS_PENDING_STALE_MS) {
           return { kind: 'pending-in-flight' };
         }
         // Stale pending — the attempt crashed; fall through to overwrite.
@@ -439,16 +451,19 @@ export async function reserveChunk(
       args.text.length,
       args.prospectiveCostCentsPerMChars ?? PROSPECTIVE_TTS_CENTS_PER_M_CHARS,
     );
-    const budget = await checkTtsBudget(tx, {
-      ...subject,
-      prospectiveCostCents,
-      prospectiveRequests: 1,
-    });
-    if (!budget.allowed) {
+    // Measured with every hold in flight — chat turns, managed turns,
+    // other chunks — and with this chunk's own estimate, which the pending
+    // row then holds until the chunk is ready (and booked) or failed.
+    const violation = budgeted
+      ? await findBudgetViolation(tx, subject, {
+          prospectiveCostCents,
+          reservations: await readInFlightReservations(tx, subject),
+        })
+      : null;
+    if (violation !== null) {
       throw new TtsError(
         'BUDGET_EXCEEDED',
-        budget.reason ??
-          'TTS budget exceeded for this period. Contact your administrator.',
+        budgetRefusalMessage(violation),
         429,
       );
     }
@@ -469,6 +484,7 @@ export async function reserveChunk(
           usage_recorded_at_ms = NULL, voice = NULL, provider_name = NULL,
           model_id = NULL, format = NULL, storage_ref = NULL,
           character_count = NULL, cost_estimate_cents = NULL,
+          reserved_cost_cents = ${prospectiveCostCents},
           user_id = ${args.userId}, team_id = NULL,
           agent_slug = ${args.agentSlug ?? tx.unsafe('agent_slug')}
         WHERE id = ${existing.id}
@@ -479,12 +495,12 @@ export async function reserveChunk(
         INSERT INTO app.tts_audio_chunks (
           org_id, thread_id, message_id, user_id, team_id, agent_slug,
           chunk_index, text, status, locale, created_at_ms,
-          attempt_created_at_ms
+          attempt_created_at_ms, reserved_cost_cents
         ) VALUES (
           ${args.organizationId}, ${args.threadId}, ${args.messageId},
           ${args.userId}, NULL, ${args.agentSlug},
           ${args.index}, ${args.text}, 'pending', ${args.locale},
-          ${attemptCreatedAt}, ${attemptCreatedAt}
+          ${attemptCreatedAt}, ${attemptCreatedAt}, ${prospectiveCostCents}
         )
         RETURNING id
       `;
@@ -501,7 +517,7 @@ export async function reserveChunk(
       { chunkId, attemptCreatedAt },
       {
         startAfter: new Date(
-          Date.now() + PENDING_STALE_MS + TTS_WATCHDOG_BUFFER_MS,
+          Date.now() + TTS_PENDING_STALE_MS + TTS_WATCHDOG_BUFFER_MS,
         ),
       },
     );
@@ -539,6 +555,52 @@ async function markChunkFailed(
       await addJobInTx(tx, 'tts.cleanup', { threadId: row.threadId });
     }
     return { stale: false };
+  });
+}
+
+/** Voice output the provider was paid for. */
+interface TtsSpend {
+  modelId: string;
+  providerName: string;
+  characterCount: number;
+  costEstimateCents: number;
+}
+
+/**
+ * Book voice output under its requester, and in the project of the thread
+ * it reads aloud. Ledger rows for TTS always bucket under the TTS_SLUG
+ * sentinel so voice cost surfaces as its own row, never folded into the
+ * agent.
+ */
+async function bookTtsSpend(
+  sql: Sql | TransactionSql,
+  args: TtsSpend & {
+    organizationId: string;
+    userId: string;
+    teamId?: string | null;
+    threadId: string;
+  },
+): Promise<void> {
+  const projectId = await readThreadProjectId(
+    sql,
+    args.organizationId,
+    args.threadId,
+  );
+  await incrementUsageLedger(sql, {
+    organizationId: args.organizationId,
+    userId: args.userId,
+    ...(args.teamId !== undefined && args.teamId !== null
+      ? { teamId: args.teamId }
+      : {}),
+    ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
+    agentSlug: TTS_SLUG,
+    model: args.modelId,
+    provider: args.providerName,
+    inputTokens: 0,
+    outputTokens: 0,
+    costEstimateCents: args.costEstimateCents,
+    characterCount: args.characterCount,
+    timestamp: Date.now(),
   });
 }
 
@@ -582,26 +644,15 @@ async function markChunkReadyAndRecordUsage(
         usage_recorded_at_ms = ${Date.now()}
       WHERE id = ${row.id}
     `;
-    // Ledger rows for TTS always bucket under the TTS_SLUG sentinel so
-    // voice cost surfaces as its own row, never folded into the agent.
-    const projectId = await readThreadProjectId(
-      tx,
-      row.organizationId,
-      row.threadId,
-    );
-    await incrementUsageLedger(tx, {
+    await bookTtsSpend(tx, {
       organizationId: row.organizationId,
       userId: row.userId,
-      ...(row.teamId !== null ? { teamId: row.teamId } : {}),
-      ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
-      agentSlug: TTS_SLUG,
-      model: args.modelId,
-      provider: args.providerName,
-      inputTokens: 0,
-      outputTokens: 0,
-      costEstimateCents: args.costEstimateCents,
+      teamId: row.teamId,
+      threadId: row.threadId,
+      modelId: args.modelId,
+      providerName: args.providerName,
       characterCount: args.characterCount,
-      timestamp: Date.now(),
+      costEstimateCents: args.costEstimateCents,
     });
     if (row.index === 0) {
       await addJobInTx(tx, 'tts.cleanup', { threadId: row.threadId });
@@ -772,6 +823,20 @@ export async function synthesizeChunk(
   const url = `${modelData.baseUrl.replace(/\/+$/, '')}/audio/speech`;
   const mime =
     AUDIO_MIME_BY_FORMAT[modelData.audioFormat] ?? 'application/octet-stream';
+  let billed: TtsSpend | undefined;
+  const bookUnkeptTtsSpend = async (spend: TtsSpend): Promise<void> => {
+    await bookTtsSpend(sql, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      threadId: args.threadId,
+      ...spend,
+    }).catch((error: unknown) => {
+      console.error('[tts] booking unkept voice output failed', {
+        chunkId,
+        detail: sanitizeError(error),
+      });
+    });
+  };
   try {
     const response = await safeFetchBinary(url, {
       allowPrivateAddresses: privateProviderHostsAllowed(),
@@ -822,6 +887,17 @@ export async function synthesizeChunk(
       );
     }
     const bytes = new Uint8Array(await response.body.arrayBuffer());
+    // From here the provider has been paid for this audio, whatever
+    // becomes of it.
+    billed = {
+      providerName: modelData.providerName,
+      modelId: modelData.modelId,
+      characterCount: text.length,
+      costEstimateCents: estimateTtsCostCents(
+        text.length,
+        modelData.centsPerMillionCharacters,
+      ),
+    };
     const storageRef = await putOrgBlobBytes(sql, args.organizationId, {
       bytes,
       contentType: mime,
@@ -832,18 +908,20 @@ export async function synthesizeChunk(
       organizationId: args.organizationId,
       storageRef,
       voice: modelData.voice,
-      providerName: modelData.providerName,
-      modelId: modelData.modelId,
       format: modelData.audioFormat,
-      characterCount: text.length,
-      costEstimateCents: estimateTtsCostCents(
-        text.length,
-        modelData.centsPerMillionCharacters,
-      ),
+      ...billed,
     });
-    if (settle.stale) return { status: 'in-flight' };
+    if (settle.stale) {
+      // A newer attempt owns the chunk now; this attempt's audio was still
+      // paid for, so it is booked all the same.
+      await bookUnkeptTtsSpend(billed);
+      return { status: 'in-flight' };
+    }
     return { status: 'ready' };
   } catch (error) {
+    // Audio paid for and then lost (its blob could not be stored, its
+    // settle failed) is booked before the chunk fails.
+    if (billed !== undefined) await bookUnkeptTtsSpend(billed);
     const { code, retryAfterMs } = errorCodeFromCaught(error);
     console.warn('[tts] synthesis failed', {
       chunkId,

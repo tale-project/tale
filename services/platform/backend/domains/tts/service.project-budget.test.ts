@@ -36,9 +36,12 @@ vi.mock('../../lib/org-config.ts', () => ({
 vi.mock('../../jobs/enqueue.ts', () => ({
   addJobInTx: vi.fn(async () => 'job-1'),
 }));
+const blobs = vi.hoisted(() => ({
+  putOrgBlobBytes: vi.fn(async () => 's3:org-1/chunk-1'),
+}));
 vi.mock('../files/service.ts', () => ({
   deleteOrgBlobRefs: vi.fn(async () => undefined),
-  putOrgBlobBytes: vi.fn(async () => 's3:org-1/chunk-1'),
+  putOrgBlobBytes: blobs.putOrgBlobBytes,
 }));
 vi.mock('../governance/service.ts', () => ({
   incrementUsageLedger: mocks.incrementUsageLedger,
@@ -79,9 +82,35 @@ const THREAD = 'thr-1';
 
 /** A `sql` stand-in answering by the statement's text; `begin` runs the
  * callback on the same tag. */
-function scriptedSql(projectId: string | null, projectSpentCents: number) {
-  const tag = (strings: TemplateStringsArray) => {
+function scriptedSql(
+  projectId: string | null,
+  projectSpentCents: number,
+  options: {
+    /** What the work in flight holds in the project. */
+    projectHeldCents?: number;
+    statements?: Array<{ text: string; values: unknown[] }>;
+  } = {},
+) {
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
+    options.statements?.push({ text, values });
+    if (text.startsWith('WITH holds AS')) {
+      return Promise.resolve([
+        {
+          projects:
+            options.projectHeldCents !== undefined && projectId !== null
+              ? [
+                  {
+                    projectId,
+                    costCents: options.projectHeldCents,
+                    tokens: 0,
+                    requests: 1,
+                  },
+                ]
+              : [],
+        },
+      ]);
+    }
     if (text.includes('FROM app.threads t')) return Promise.resolve([{}]);
     if (text.includes('FROM app.messages')) {
       return Promise.resolve([{ one: 1 }]);
@@ -186,5 +215,74 @@ describe('synthesizeChunk in a project’s thread [GOV-R14]', () => {
     await expect(
       synthesizeChunk(scriptedSql(null, 100), CHUNK),
     ).resolves.toEqual({ status: 'ready' });
+  });
+});
+
+describe('synthesizeChunk holds its estimate while it is made [GOV-R5]', () => {
+  const PROJECT_CAP = {
+    enabled: true,
+    rules: [],
+    projectRules: [
+      {
+        scope: 'project',
+        scopeId: 'project-1',
+        period: 'monthly',
+        maxCostCents: 100,
+      },
+    ],
+  };
+
+  it('takes the admission lock before the chunk’s own, and writes its estimate on the pending row', async () => {
+    mocks.budgets = PROJECT_CAP;
+    const statements: Array<{ text: string; values: unknown[] }> = [];
+    await synthesizeChunk(scriptedSql('project-1', 0, { statements }), CHUNK);
+
+    const at = (needle: string) =>
+      statements.findIndex((statement) => statement.text.includes(needle));
+    expect(at('INSERT INTO app.budget_admissions')).toBeGreaterThanOrEqual(0);
+    expect(at('INSERT INTO app.budget_admissions')).toBeLessThan(
+      at("hashtextextended('tts:'"),
+    );
+    const insert = statements.find((statement) =>
+      statement.text.includes('INSERT INTO app.tts_audio_chunks'),
+    );
+    expect(insert?.text).toContain('reserved_cost_cents');
+    // 12 characters at 1,500 cents per million: the hold the row carries.
+    expect(insert?.values).toContain((12 * 1_500) / 1_000_000);
+  });
+
+  it('refuses a chunk once what other work holds fills the project’s cap', async () => {
+    mocks.budgets = PROJECT_CAP;
+    await expect(
+      synthesizeChunk(
+        scriptedSql('project-1', 50, { projectHeldCents: 50 }),
+        CHUNK,
+      ),
+    ).rejects.toMatchObject({ code: 'BUDGET_EXCEEDED', status: 429 });
+    // Without the holds, the same booked spend leaves room.
+    await expect(
+      synthesizeChunk(scriptedSql('project-1', 50), CHUNK),
+    ).resolves.toEqual({ status: 'ready' });
+  });
+});
+
+describe('synthesizeChunk books the audio it paid for', () => {
+  it('books audio whose blob could not be stored before the chunk fails', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    blobs.putOrgBlobBytes.mockRejectedValueOnce(new Error('object store 503'));
+
+    await expect(
+      synthesizeChunk(scriptedSql('project-1', 0), CHUNK),
+    ).resolves.toMatchObject({ status: 'failed' });
+    expect(mocks.incrementUsageLedger).toHaveBeenCalledTimes(1);
+    expect(mocks.incrementUsageLedger).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        userId: USER,
+        agentSlug: '__tts__',
+        characterCount: 12,
+        projectIds: ['project-1'],
+      }),
+    );
   });
 });

@@ -15,6 +15,7 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { budgetPolicyActive } from '../governance/budget-gate.ts';
+import { lockBudgetAdmission } from '../governance/budget-reservations.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import { claimMessageSlot, type SlotClaimOptions } from '../threads/store.ts';
 import {
@@ -530,6 +531,23 @@ function pgTurnStore(
       return scope === undefined
         ? sql.begin(open)
         : transactSerializable(sql, open);
+    },
+
+    async holdNextRound(round) {
+      // Holds count only where a budget policy binds; the lock orders the
+      // raise with every admission that reads it.
+      if (!(await budgetPolicyActive(sql, round.organizationId))) return;
+      await sql.begin(async (tx) => {
+        await lockBudgetAdmission(tx, round.organizationId);
+        await tx`
+          UPDATE app.generations SET
+            reserved_cost_cents = reserved_cost_cents + ${round.costCents},
+            reserved_tokens = reserved_tokens + ${Math.ceil(round.tokens)},
+            updated_at_ms = ${Date.now()}
+          WHERE thread_id = ${round.threadId}
+            AND org_id = ${round.organizationId}
+        `;
+      });
     },
 
     async endGeneration(generation) {

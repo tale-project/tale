@@ -580,6 +580,44 @@ describe('createPgTurnStore.endGeneration', () => {
   });
 });
 
+describe('createPgTurnStore.holdNextRound [GOV-R5]', () => {
+  const ROUND = {
+    organizationId: 'org_1',
+    threadId: 'thread_1',
+    tokens: 1_200.4,
+    costCents: 0.8,
+  };
+
+  it('raises the generation row’s hold under the admission lock', async () => {
+    budget.budgetPolicyActive.mockResolvedValueOnce(true);
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).holdNextRound?.(ROUND);
+
+    expect(f.transactions).toEqual(['commit']);
+    const texts = f.tx.map((statement) => statement.text);
+    const lock = texts.findIndex((t) =>
+      t.includes('INSERT INTO app.budget_admissions'),
+    );
+    const raise = texts.findIndex(
+      (t) =>
+        t.includes('UPDATE app.generations') &&
+        t.includes('reserved_cost_cents = reserved_cost_cents +'),
+    );
+    expect(lock).toBeGreaterThanOrEqual(0);
+    expect(raise).toBeGreaterThan(lock);
+    expect(f.tx[raise]?.values).toEqual(
+      expect.arrayContaining([0.8, 1_201, 'thread_1', 'org_1']),
+    );
+  });
+
+  it('holds nothing while no budget binds the organization', async () => {
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).holdNextRound?.(ROUND);
+    expect(f.transactions).toEqual([]);
+    expect(f.tx).toEqual([]);
+  });
+});
+
 const FAILED = {
   organizationId: 'org_1',
   threadId: 'thread_1',

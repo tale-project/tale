@@ -1105,6 +1105,43 @@ describe('runTurn — the tool loop', () => {
     };
   }
 
+  it('raises the turn’s hold before each further round, by the round’s worst case [GOV-R5]', async () => {
+    const { model } = oneToolRoundModel();
+    const { executor } = fakeExecutor({ status: 'ok', hits: 3 });
+    const d = deps({ model, tools: executor });
+    const holds: Array<{ tokens: number; costCents: number }> = [];
+    d.deps.store.holdNextRound = (round) => {
+      holds.push({ tokens: round.tokens, costCents: round.costCents });
+      return Promise.resolve();
+    };
+
+    await runTurn(request(), d.deps);
+
+    // One tool round, so one further round: held once, on a transcript
+    // that now carries the round's call and result.
+    expect(holds).toHaveLength(1);
+    expect(holds[0]?.tokens).toBeGreaterThan(0);
+  });
+
+  it('keeps answering when raising the hold fails', async () => {
+    const { model } = oneToolRoundModel();
+    const { executor } = fakeExecutor();
+    const d = deps({ model, tools: executor });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    d.deps.store.holdNextRound = () =>
+      Promise.reject(new Error('connection reset'));
+
+    await expect(runTurn(request(), d.deps)).resolves.toMatchObject({
+      status: 'completed',
+      text: 'Found it: 30 days.',
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('for its next round failed'),
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
+
   it('executes the calls, settles parts in order, and answers', async () => {
     const { model, requests } = oneToolRoundModel();
     const { executor, executed } = fakeExecutor({ status: 'ok', hits: 3 });
