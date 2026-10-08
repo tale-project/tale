@@ -17,7 +17,7 @@
 // Every sandbox run is a session; the per-org session budgets live platform-side
 // (governance `sandbox_quota`), bounded by the host cap `SANDBOX_MAX_SESSIONS`.
 
-import { createHostBackend, createSessionBackend } from './backend/index.ts';
+import { loadBackends } from './backend/index.ts';
 import type { SessionBackend } from './backend/types.ts';
 import { CapacityReader } from './capacity.ts';
 import { installSignalHandlers, startPeriodicSweep } from './cleanup.ts';
@@ -47,11 +47,14 @@ import { ImageWarmup } from './image-warmup.ts';
 import { createRequestAuth } from './request-auth.ts';
 import { SessionRoutes } from './session/session-routes.ts';
 
-initSandboxErrorReporting();
+// Awaited before anything else so a failure from here on is reported; it
+// loads the error-reporting SDK only when SENTRY_DSN is set.
+await initSandboxErrorReporting();
 const cfg = loadConfig();
 // Host lifecycle backend (docker | kubernetes), chosen once at boot. Constructing
 // it has no side effects; init() runs the docker lock + boot sweep in main().
-const backend = createHostBackend(cfg);
+const { host: backend, createSession: createSessionBackend } =
+  await loadBackends(cfg);
 const imageWarmup = new ImageWarmup(() => backend.warmImage());
 
 // Session lifecycle is separate from host boot/health. Construct once after
@@ -103,7 +106,7 @@ async function sizeSessionCapacity(): Promise<void> {
 let sessionRoutes: SessionRoutes | null = null;
 let sessionBackend: SessionBackend | null = null;
 function getSessionBackend(): SessionBackend {
-  sessionBackend ??= createSessionBackend(cfg);
+  sessionBackend ??= createSessionBackend();
   return sessionBackend;
 }
 function getSessionRoutes(): SessionRoutes {
