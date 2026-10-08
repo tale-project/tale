@@ -9,6 +9,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { ChevronLeft, X } from 'lucide-react';
 import * as React from 'react';
 
+import { CLOSE_BUTTON_CLASS } from '../overlays/close-button-class';
 import { PagePointerPin } from '../overlays/page-pointer-pin';
 
 // Tracks dialog nesting so a child Dialog opened from inside another
@@ -113,7 +114,7 @@ function DialogCloseButton() {
   const { t } = useT('common');
   return (
     <DialogPrimitive.Close
-      className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex items-center justify-center rounded-lg p-2 transition-all duration-150 focus-visible:ring-1 focus-visible:outline-none"
+      className={CLOSE_BUTTON_CLASS}
       aria-label={t('aria.close')}
       onClick={(e) => e.stopPropagation()}
     >

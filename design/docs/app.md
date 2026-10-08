@@ -68,6 +68,13 @@ what is there, and the page shows the one thing you opened.
   pills, and its structure (status, owner, dates…) lives in a details panel that folds away. The
   actions a teammate needs lead: **Copy link** on a task and a conversation, and a task's key copies
   itself from the header. On a phone the page keeps its own header row only — no shell bar above it.
+  The board's task dialog carries the same identity in its own header — the status glyph tile, the
+  title and one quiet line of project · key · status — and its chrome actions sit in one cluster at
+  the top-right before Close (`ResponsiveDialogContent headerActions`): **Copy link** and **Open as
+  page**, a real link to the task's page. The drawer on a phone shows the same cluster in its own band.
+  Creating a task reads like the open task: the status tile and a borderless title in the header, the
+  property panel beside the description (Medium priority and today's start preselected), and a footer
+  with **Create another** at the left and the `⌘ Enter` hint beside Cancel and Create.
 - **Detail pages** — the header is a breadcrumb trail (`HeaderBreadcrumbs`: semantic `nav > ol`, the
   leaf is the page's only `h1`). When the entity has siblings, the leaf is the shared
   `HeaderBreadcrumbSwitcher` (name + chevron opening a titled, searchable list) — projects and
