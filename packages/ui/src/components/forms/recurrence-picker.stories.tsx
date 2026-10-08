@@ -1,12 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { CalendarSync } from 'lucide-react';
+import { CalendarClock, CalendarSync } from 'lucide-react';
 import { useState } from 'react';
+import { userEvent, within } from 'storybook/test';
 
 import type {
   CalendarDay,
   RecurrenceReference,
   RecurrenceRule,
 } from '../../lib/recurrence/rule';
+import type {
+  ScheduleOccurrence,
+  ScheduleRule,
+} from '../../lib/recurrence/schedule';
 import { InLocale } from '../../storybook/in-locale';
 import { TooltipProvider } from '../overlays/tooltip';
 import { Checkbox } from './checkbox';
@@ -147,6 +152,59 @@ function ExtraRender() {
   );
 }
 
+/**
+ * A toy stand-in for a host's schedule engine: the next three days at the
+ * rule's first time (or 09:00 for a grid), read as UTC. A real host steps in
+ * the schedule's zone and marks clock changes.
+ */
+function toyNextRuns(rule: ScheduleRule): ScheduleOccurrence[] {
+  const first = 'times' in rule ? rule.times[0] : undefined;
+  const hour = first === undefined ? 9 : Number(first.slice(0, 2));
+  const minute = first === undefined ? 0 : Number(first.slice(3, 5));
+  return [1, 2, 3].map((offset) => ({
+    at: Date.UTC(
+      REFERENCE.year,
+      REFERENCE.month - 1,
+      REFERENCE.day + offset,
+      hour,
+      minute,
+    ),
+    timeZone: 'UTC',
+  }));
+}
+
+function ScheduleRender({
+  initial,
+  width = 256,
+}: {
+  initial: ScheduleRule;
+  width?: number;
+}) {
+  const [value, setValue] = useState<ScheduleRule>(initial);
+  return (
+    <div style={{ width }}>
+      <RecurrencePicker
+        granularity="time"
+        allowNever={false}
+        variant="default"
+        align="start"
+        icon={CalendarClock}
+        value={value}
+        reference={REFERENCE}
+        nextOccurrences={toyNextRuns}
+        onChange={setValue}
+      />
+    </div>
+  );
+}
+
+const WEEKDAYS_TWICE: ScheduleRule = {
+  frequency: 'weekly',
+  interval: 1,
+  weekdays: [1, 2, 3, 4, 5],
+  times: ['09:00', '17:30'],
+};
+
 const meta: Meta<typeof RecurrencePicker> = {
   title: 'Forms/RecurrencePicker',
   component: RecurrencePicker,
@@ -270,4 +328,96 @@ export const French: Story = {
       />
     </InLocale>
   ),
+};
+
+export const ScheduleWeekdays: Story = {
+  render: () => <ScheduleRender initial={WEEKDAYS_TWICE} />,
+};
+
+export const ScheduleInterval: Story = {
+  render: () => (
+    <ScheduleRender
+      initial={{
+        frequency: 'minutely',
+        interval: 15,
+        window: {
+          weekdays: [1, 2, 3, 4, 5],
+          hours: { from: '08:00', to: '18:00' },
+        },
+      }}
+    />
+  ),
+};
+
+export const ScheduleWindowOvernight: Story = {
+  render: () => (
+    <ScheduleRender
+      initial={{
+        frequency: 'minutely',
+        interval: 30,
+        window: { weekdays: [5], hours: { from: '22:00', to: '06:00' } },
+      }}
+    />
+  ),
+};
+
+export const ScheduleCustomTimes: Story = {
+  // In English whatever story ran before, so the play finds its words.
+  render: () => (
+    <InLocale locale="en">
+      <ScheduleRender initial={WEEKDAYS_TWICE} />
+    </InLocale>
+  ),
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      await page.findByRole('button', { name: /^Schedule/ }),
+    );
+    await userEvent.click(
+      await page.findByRole('button', { name: 'Custom times' }),
+    );
+  },
+};
+
+export const ScheduleWindowNeverFires: Story = {
+  render: () => (
+    <ScheduleRender
+      initial={{
+        frequency: 'hourly',
+        interval: 6,
+        minute: 0,
+        window: {
+          weekdays: [1, 2, 3, 4, 5],
+          hours: { from: '08:00', to: '18:00' },
+        },
+      }}
+    />
+  ),
+};
+
+export const ScheduleGerman: Story = {
+  render: () => (
+    <InLocale locale="de">
+      <ScheduleRender initial={WEEKDAYS_TWICE} />
+    </InLocale>
+  ),
+};
+
+export const ScheduleFrench: Story = {
+  render: () => (
+    <InLocale locale="fr">
+      <ScheduleRender
+        initial={{
+          frequency: 'hourly',
+          interval: 2,
+          minute: 15,
+          window: { weekdays: [1, 2, 3, 4, 5] },
+        }}
+      />
+    </InLocale>
+  ),
+};
+
+export const ScheduleNarrow128px: Story = {
+  render: () => <ScheduleRender width={128} initial={WEEKDAYS_TWICE} />,
 };

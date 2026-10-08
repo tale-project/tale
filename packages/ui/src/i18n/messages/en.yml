@@ -310,6 +310,9 @@ recurrence:
   back: Back to presets
   workweekRange: Mon–Fri
   nextRuns: Next runs
+  scheduleLabel: Schedule
+  customInterval: Custom interval
+  customTimes: Custom times
   nextDates: Next dates
   sentence:
     daily: '{count, plural, one {Daily} other {Every # days}}'
@@ -362,6 +365,25 @@ recurrence:
       weekly: '{count, plural, one {week} other {weeks}}'
       monthly: '{count, plural, one {month} other {months}}'
       yearly: '{count, plural, one {year} other {years}}'
+    intervalOption:
+      minutely: '{count, plural, one {minute} other {# minutes}}'
+      hourly: '{count, plural, one {hour} other {# hours}}'
+    minutePast: '{count, plural, one {minute} other {minutes}} past the hour'
+    at: At
+    timeName: 'Time {index}'
+    addTime: Add time
+    removeTime: 'Remove {time}'
+    maxTimes: 'Up to {count} times a day.'
+    duplicateTime: Already in the list — it runs once.
+    onlyBetween: Only between
+    and: and
+    windowFrom: From
+    windowUntil: Until
+    windowHint:
+      sameDay: 'Each day, the first run starts at {first} and the last at {last}.'
+      overnight: 'Runs overnight: the first starts at {first}, the last at {last} the next morning.'
+      allDay: The same start and end means all day.
+      none: No run falls between these times. Widen the hours or pick a shorter interval.
     onWeekdays: 'On'
     onDay: On day
     onDate: 'On'

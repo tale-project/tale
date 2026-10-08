@@ -310,6 +310,9 @@ recurrence:
   back: Zurück zur Schnellauswahl
   workweekRange: Mo–Fr
   nextRuns: Nächste Läufe
+  scheduleLabel: Zeitplan
+  customInterval: Benutzerdefiniertes Intervall
+  customTimes: Benutzerdefinierte Uhrzeiten
   nextDates: Nächste Termine
   sentence:
     daily: '{count, plural, one {Täglich} other {Alle # Tage}}'
@@ -356,12 +359,31 @@ recurrence:
       weekly: Woche
       monthly: Monat
       yearly: Jahr
-    every: '{count, plural, one {{unit, select, weekly {Jede} yearly {Jedes} other {Jeden}}} other {Alle}}'
+    every: '{count, plural, one {{unit, select, weekly {Jede} yearly {Jedes} minutely {Jede} hourly {Jede} other {Jeden}}} other {Alle}}'
     unitNoun:
       daily: '{count, plural, one {Tag} other {Tage}}'
       weekly: '{count, plural, one {Woche} other {Wochen}}'
       monthly: '{count, plural, one {Monat} other {Monate}}'
       yearly: '{count, plural, one {Jahr} other {Jahre}}'
+    intervalOption:
+      minutely: '{count, plural, one {Minute} other {# Minuten}}'
+      hourly: '{count, plural, one {Stunde} other {# Stunden}}'
+    minutePast: '{count, plural, one {Minute} other {Minuten}} nach der vollen Stunde'
+    at: Um
+    timeName: 'Uhrzeit {index}'
+    addTime: Uhrzeit hinzufügen
+    removeTime: '{time} entfernen'
+    maxTimes: 'Höchstens {count} Uhrzeiten pro Tag.'
+    duplicateTime: Steht schon in der Liste — läuft nur einmal.
+    onlyBetween: Nur zwischen
+    and: und
+    windowFrom: Von
+    windowUntil: Bis
+    windowHint:
+      sameDay: 'Jeden Tag startet der erste Lauf um {first}, der letzte um {last}.'
+      overnight: 'Läuft über Nacht: Der erste Lauf startet um {first}, der letzte um {last} am nächsten Morgen.'
+      allDay: 'Gleicher Beginn und gleiches Ende bedeutet: den ganzen Tag.'
+      none: Zwischen diesen Uhrzeiten fällt kein Lauf. Erweitere den Zeitraum oder wähle ein kürzeres Intervall.
     onWeekdays: Am
     onDay: Am Tag
     onDate: Am

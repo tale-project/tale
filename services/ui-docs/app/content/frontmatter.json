@@ -38,7 +38,7 @@
     "slug": "components/recurrence-picker",
     "frontmatter": {
       "title": "Recurrence picker",
-      "description": "Let people choose how something repeats — one-click presets or a custom rule — and show the dates it produces."
+      "description": "Let people choose how something repeats, or when a schedule runs — one-click presets or a custom rule — and show the dates or runs it produces."
     }
   },
   "components/schedule-occurrence-list": {
