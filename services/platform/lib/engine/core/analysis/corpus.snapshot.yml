@@ -20,6 +20,8 @@ pack imap-smtp/triage-inbox: []
 pack outlook/sync-emails: []
 pack outlook/triage-inbox: []
 get_docs example: []
+blank wizard scaffold: []
+blank wizard scaffold, equipped: []
 e2e probe pack:
   - code: VERSION_MISSING
     pointer: /version

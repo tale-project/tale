@@ -3,8 +3,8 @@
 /**
  * The analysis on every automation document the repository ships: the
  * packs under configs/platform/custom/automations, the worked example of
- * get_docs, the end-to-end probe pack and the complete documents of the
- * English docs.
+ * get_docs, the document the blank-automation wizard saves, the end-to-end
+ * probe pack and the complete documents of the English docs.
  *
  *  1. none of them has an error — a new rule that refuses a shipped
  *     document is a regression, never a finding;
@@ -22,8 +22,7 @@
  *   CORPUS_UPDATE=1 bunx vitest --run --project server \
  *     lib/engine/core/analysis/corpus
  *
- * and review the diff. Follow-up: the blank-automation scaffold joins the
- * corpus once it lives in a module of its own.
+ * and review the diff.
  */
 
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -33,6 +32,7 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { parse, parseDocument, stringify } from 'yaml';
 
+import { blankAutomationDocument } from '../../../automations/blank-document';
 import { loadConnectors } from '../../../connectors/registry';
 import { isRecord } from '../../../utils/type-utils';
 import type { TriggerSpec } from '../../api/dispatch';
@@ -118,6 +118,30 @@ function corpus(): Array<[string, Automation]> {
     }
   }
   out.push(['get_docs example', DOC_EXAMPLE.automation]);
+  // What the wizard saves, bare and with every kind of equipment.
+  const wizard = {
+    slug: 'support/triage-inbox',
+    model: 'openai/gpt-4o',
+    modelProvider: '',
+    prompt: '  Sort the new messages and draft a reply to each.  ',
+    skills: [],
+    connectors: [],
+    tools: [],
+    secrets: [],
+  };
+  out.push(['blank wizard scaffold', blankAutomationDocument(wizard)]);
+  out.push([
+    'blank wizard scaffold, equipped',
+    blankAutomationDocument({
+      ...wizard,
+      slug: 'support/triage-inbox-equipped',
+      modelProvider: 'openrouter',
+      skills: ['reply-style'],
+      connectors: ['gmail'],
+      tools: ['web_search'],
+      secrets: ['SUPPORT_SIGNATURE'],
+    }),
+  ]);
 
   // The end-to-end probe pack is a template literal in a Playwright spec,
   // which a unit test cannot import; it is read from the spec's text.
@@ -198,6 +222,7 @@ describe('the shipped automation corpus', () => {
         .sort(),
     );
     expect(labels).toContain('get_docs example');
+    expect(labels).toContain('blank wizard scaffold');
     expect(labels).toContain('e2e probe pack');
     expect(labels.some((l) => l.startsWith('docs '))).toBe(true);
   });
