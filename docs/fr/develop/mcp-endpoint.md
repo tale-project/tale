@@ -99,7 +99,7 @@ La réponse liste toutes les révisions dans `supportedVersions` et contient les
 
 Les outils exposent aussi `readOnlyHint`, `destructiveHint`, `idempotentHint` et `openWorldHint`. Un hôte peut s'en servir pour expliquer un appel, mais ces indications n'accordent aucun droit et ne garantissent pas sa sûreté. Les lectures sont marquées comme telles ; enregistrer écrit une version ; déployer, supprimer, installer ou modifier un déclencheur peut remplacer un état existant. Les exécutions réelles peuvent joindre de vrais services. Mettre en service, supprimer, définir un déclencheur, installer une automatisation dans des projets et répondre à la question d’une exécution portent aussi `_meta["anthropic/requiresUserInteraction"]` : un client qui en tient compte demande à la personne avant chacun de ces appels.
 
-### Écriture
+### Écriture {#authoring}
 
 | Outil                 | Ce qu'il fait                                                        |
 | --------------------- | -------------------------------------------------------------------- |
@@ -142,7 +142,7 @@ Passe `baseVersion`, la version dont ta modification est partie. Si quelqu’un 
 
 `detail` choisit ce qui accompagne les problèmes : `["analysis"]`, `["types"]` ou `[]` pour les problèmes seuls ; sans `detail`, tu reçois les deux. Certains avertissements ne vérifient pas le document, ils le comparent à ton organisation : un skill qu’aucune exécution de l’automatisation ne peut atteindre (`SKILL_UNKNOWN`), un connector que personne n’a connecté (`CONNECTOR_NOT_CONNECTED`), un secret que personne n’a enregistré (`SECRET_UNKNOWN`, signalé seulement aux rôles Propriétaire, Admin et Développeur), un environnement d’agent que ce déploiement ne peut pas exécuter (`HARNESS_UNKNOWN`) et un déclencheur d’événement qui attend un événement que Tale n’émet pas (`EVENT_UNKNOWN`). Ils n’empêchent jamais d’enregistrer ; les [outils de découverte](#discovery) listent ce qui existe.
 
-### Gestion des exécutions & déclencheurs
+### Gestion des exécutions & déclencheurs {#management}
 
 | Outil            | Ce qu'il fait                                                                                                  |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -182,7 +182,7 @@ Les deux outils de version déployée utilisent le même moteur durable, avec le
 
 Chaque réponse porte un `hint` qui nomme l’outil ou le paramètre qui la fait changer.
 
-### Capacités & connaissances
+### Capacités & connaissances {#capabilities}
 
 | Outil                 | Ce qu'il fait                                                                                                                                      |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |

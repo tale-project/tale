@@ -99,7 +99,7 @@ Die Antwort nennt unter `supportedVersions` alle Revisionen und enthält dieselb
 
 Tools liefern außerdem `readOnlyHint`, `destructiveHint`, `idempotentHint` und `openWorldHint`. Ein Host kann damit einen Aufruf erklären; die Hinweise erteilen aber weder Rechte noch Sicherheitsgarantien. Lesezugriffe sind als solche markiert, Speichern schreibt eine Version, Live-Schalten, Löschen, Installieren und Triggeränderungen können Bestehendes ersetzen. Live-Ausführungen können echte Dienste ansprechen. Live-Schalten, Löschen, einen Trigger setzen, eine Automatisierung in Projekten installieren und die Frage eines Laufs beantworten tragen zusätzlich `_meta["anthropic/requiresUserInteraction"]`: Ein Client, der das beachtet, fragt die Person vor jedem solchen Aufruf.
 
-### Automatisierungen entwickeln {#autorieren}
+### Automatisierungen entwickeln {#authoring}
 
 | Tool                  | Was es tut                                                               |
 | --------------------- | ------------------------------------------------------------------------ |
@@ -142,7 +142,7 @@ Gib `baseVersion` mit, die Version, von der deine Änderung ausging. Hat inzwisc
 
 `detail` wählt, was neben den Problemen zurückkommt: `["analysis"]`, `["types"]` oder `[]` für die Probleme allein; ohne `detail` bekommst du beides. Manche Warnungen prüfen das Dokument nicht, sondern vergleichen es mit deiner Organisation: ein Skill, den kein Lauf der Automatisierung erreicht (`SKILL_UNKNOWN`), ein Connector, den niemand verbunden hat (`CONNECTOR_NOT_CONNECTED`), ein Secret, das niemand gespeichert hat (`SECRET_UNKNOWN`, nur für Inhaber, Admins und Entwickler), eine Agent-Laufzeit, die dieses Deployment nicht ausführen kann (`HARNESS_UNKNOWN`), und ein Event-Trigger, der auf ein Ereignis wartet, das Tale nicht auslöst (`EVENT_UNKNOWN`). Sie verhindern nie das Speichern; die [Tools zum Nachschlagen](#discovery) zeigen, was es gibt.
 
-### Läufe und Trigger verwalten
+### Läufe und Trigger verwalten {#management}
 
 | Tool             | Was es tut                                                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -182,7 +182,7 @@ Beide Tools für bereitgestellte Versionen verwenden denselben dauerhaften Runne
 
 Jede Antwort trägt einen `hint`, der das Tool oder die Einstellung nennt, mit der sie sich ändert.
 
-### Capabilities und Wissen
+### Capabilities und Wissen {#capabilities}
 
 | Tool                  | Was es tut                                                                                                                                |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |

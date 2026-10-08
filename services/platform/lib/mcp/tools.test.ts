@@ -17,7 +17,7 @@ import {
  * moves group, ships unclassified, or appears in the inventory without a docs
  * decision fails loudly instead of silently drifting the settings page away
  * from the docs tables. Names are listed in the advertised (`tools/list`)
- * order.
+ * order; `endpoint-docs.test.ts` holds the pages' tables to the inventory.
  */
 
 const byGroup = (group: McpToolGroup) =>

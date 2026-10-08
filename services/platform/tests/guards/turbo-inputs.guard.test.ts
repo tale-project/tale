@@ -95,6 +95,11 @@ const OUTSIDE_READS = [
       'the shipped connector, model, provider, harness and PII catalog suites',
   },
   {
+    // The MCP endpoint guide, which tables every tool under its group.
+    path: 'docs/*/develop/mcp-endpoint.md',
+    readers: 'lib/mcp/endpoint-docs.test.ts',
+  },
+  {
     // The connector guides, which table the catalog the picker offers and
     // name the connectors whose credentials carry an instance URL.
     path: 'docs/*/platform/admin/connectors.md',

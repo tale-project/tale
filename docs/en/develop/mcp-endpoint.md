@@ -99,7 +99,7 @@ The answer lists every revision under `supportedVersions` and carries the same c
 
 Tools also expose `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`. Hosts can use these annotations to explain a call, but they do not grant permission or guarantee safety. Reads are marked read-only; saving writes a version; deployment, deletion, installation and trigger changes can replace existing state; live runs can contact real services. Deploying, deleting, setting a trigger, installing an automation in projects, and answering a run's question also carry `_meta["anthropic/requiresUserInteraction"]`, so a client that honors it asks the person before every such call.
 
-### Authoring
+### Authoring {#authoring}
 
 | Tool                  | What it does                                               |
 | --------------------- | ---------------------------------------------------------- |
@@ -142,7 +142,7 @@ Pass `baseVersion`, the version your edit started from. When someone saved a new
 
 `detail` chooses what comes beside the issues: `["analysis"]`, `["types"]`, or `[]` for the issues alone; left out, you get both. Some warnings compare the document with your organization instead of checking it: a skill no run of the automation can reach (`SKILL_UNKNOWN`), a connector nobody has connected (`CONNECTOR_NOT_CONNECTED`), a secret nobody has stored (`SECRET_UNKNOWN`, reported only to Owners, Admins and Developers), an agent runtime this deployment can't run (`HARNESS_UNKNOWN`), and an event trigger that waits for an event Tale doesn't raise (`EVENT_UNKNOWN`). They never stop a save; the [discovery tools](#discovery) list what exists.
 
-### Run & trigger management
+### Run & trigger management {#management}
 
 | Tool             | What it does                                                                                                   |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -182,7 +182,7 @@ Both deployed-run tools use the durable runner with the same authorization and e
 
 Each answer carries a `hint` that names the tool or the setting that changes it.
 
-### Capabilities & knowledge
+### Capabilities & knowledge {#capabilities}
 
 | Tool                  | What it does                                                                                                        |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------- |
