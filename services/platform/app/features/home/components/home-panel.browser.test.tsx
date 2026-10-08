@@ -1142,8 +1142,18 @@ describe.each(['light', 'dark'] as const)(
           return age;
         }
 
-        function measuredContrast(row: HTMLElement, highlighted: boolean) {
-          const age = ageOf(row);
+        function statusOf(row: HTMLElement) {
+          const status = within(row).getByText('In progress');
+          expect(status).toHaveClass('truncate');
+          return status;
+        }
+
+        function measuredContrast(
+          row: HTMLElement,
+          highlighted: boolean,
+          text: HTMLElement = ageOf(row),
+        ) {
+          const age = text;
           const layers: Element[] = [];
           for (
             let node: Element | null = age;
@@ -1186,6 +1196,7 @@ describe.each(['light', 'dark'] as const)(
                 : row.matches(':hover')
                   ? 'hovered'
                   : 'idle',
+              text: text.textContent,
               foreground: style.color,
               background,
               opacity: style.opacity,
@@ -1212,10 +1223,17 @@ describe.each(['light', 'dark'] as const)(
             .toBe(true);
           expect(measuredContrast(idle, false)).toBeGreaterThanOrEqual(4.5);
           expect(measuredContrast(current, true)).toBeGreaterThanOrEqual(4.5);
+          expect(
+            measuredContrast(idle, false, statusOf(idle)),
+          ).toBeGreaterThanOrEqual(4.5);
+          expect(
+            measuredContrast(current, true, statusOf(current)),
+          ).toBeGreaterThanOrEqual(4.5);
           // Whole neutral Home panel; additional branded coverage targets
           // ages, the repaired ink contract, rather than unrelated labels.
           const ageNodes = [ageOf(idle), ageOf(current)];
-          const result = await axe.run(palette ? ageNodes : container, {
+          const checkedNodes = [...ageNodes, statusOf(idle), statusOf(current)];
+          const result = await axe.run(palette ? checkedNodes : container, {
             runOnly: ['color-contrast'],
             elementRef: true,
           });
@@ -1256,7 +1274,7 @@ describe.each(['light', 'dark'] as const)(
               width,
               accent: accent ?? null,
               hovered: idle.matches(':hover'),
-              scope: palette ? 'row ages' : 'whole Home panel',
+              scope: palette ? 'row ages and status' : 'whole Home panel',
               violations: result.violations.map(plainRule),
               agePasses: result.passes
                 .flatMap((rule) => rule.nodes)
@@ -1269,7 +1287,7 @@ describe.each(['light', 'dark'] as const)(
             result.passes.some((rule) => rule.id === 'color-contrast'),
           ).toBe(true);
           // A visible age must be evaluated, not deferred to manual inspection.
-          for (const age of ageNodes) {
+          for (const age of checkedNodes) {
             expect(
               result.passes
                 .flatMap((rule) => rule.nodes)
