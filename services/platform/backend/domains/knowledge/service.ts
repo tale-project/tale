@@ -9,6 +9,10 @@ import {
 } from '../../../lib/knowledge/message-ref.ts';
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
 import {
+  AUTOMATION_SUBJECT_ID,
+  EMBEDDING_SLUG,
+} from '../../../lib/shared/constants/usage.ts';
+import {
   isAudioOrVideo,
   isImage,
   shouldRagIndexOnUpload,
@@ -27,6 +31,7 @@ import {
 } from '../../core/knowledge/document_text.ts';
 import {
   classifyEmbeddingFailure,
+  EmbeddingBudgetExceeded,
   EmbeddingNotConfigured,
   embedderForOrg,
 } from '../../core/knowledge/embedding.ts';
@@ -57,6 +62,7 @@ import {
   RAG_ERROR_PII_BLOCKED,
   RAG_ERROR_SECRET_DETECTED,
   RAG_ERROR_UNSUPPORTED_TYPE,
+  RAG_ERROR_USAGE_LIMIT,
 } from '../../core/knowledge/rag_error_codes.ts';
 import {
   unsupportedByName,
@@ -87,6 +93,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
+import { readThreadProjectId } from '../chat/threads.ts';
 import { indexingStateFrom } from '../file_metadata/indexing-state.ts';
 import {
   documentFolderPathFrom,
@@ -95,7 +102,13 @@ import {
   resolveDocumentFolderPath,
   subtreeDocumentFolderPaths,
 } from '../folders/paths.ts';
+import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
+import {
+  directCallBlocked,
+  type DirectCallSubject,
+} from '../governance/direct-calls.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
+import { embeddingMeter } from './embedding-meter.ts';
 import { isCorpusRefLive } from './liveness.ts';
 import type { ReleaseOutcome } from './release.ts';
 import {
@@ -1014,6 +1027,66 @@ async function activeDocumentHoldingRef(
 }
 
 /**
+ * Whose spend a file's embedding is: the person who uploaded it; else the
+ * creator of the document that holds it — a synced drive's owner, the run
+ * an agent wrote it for; else nobody (`__automation__`), as for an emailed
+ * attachment. In that document's project, else the project of the chat the
+ * file was added to.
+ */
+async function fileIndexingSubject(
+  sql: Sql,
+  file: {
+    organizationId: string;
+    storageRef: string;
+    documentId: string | null;
+    uploadedBy: string | null;
+    threadId: string | null;
+  },
+): Promise<DirectCallSubject> {
+  const docs = await sql<
+    { createdBy: string | null; projectId: string | null }[]
+  >`
+    SELECT d.created_by AS "createdBy", d.project_id AS "projectId"
+    FROM app.documents d
+    WHERE d.org_id = ${file.organizationId}
+      AND (d.file_ref = ${file.storageRef} OR d.id = ${file.documentId ?? ''})
+      AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
+    ORDER BY (d.file_ref = ${file.storageRef}) DESC, d.id
+    LIMIT 1
+  `;
+  const doc = docs[0];
+  const projectId =
+    doc?.projectId ??
+    (file.threadId !== null
+      ? await readThreadProjectId(sql, file.organizationId, file.threadId)
+      : undefined);
+  return {
+    userId: file.uploadedBy ?? doc?.createdBy ?? AUTOMATION_SUBJECT_ID,
+    agentSlug: EMBEDDING_SLUG,
+    ...(projectId != null ? { projectIds: [projectId] } : {}),
+  };
+}
+
+/** Park a file a usage limit refused: `failed` with its code, which the RAG
+ * watchdog leaves alone and the hourly re-queue resumes. */
+async function parkForUsageLimit(
+  sql: Sql,
+  fileId: string,
+  file: { storageRef: string },
+  reason: string,
+): Promise<void> {
+  await writeRagStatus(sql, fileId, {
+    ragStatus: 'failed',
+    ragError: `${reason} Indexing resumes by itself once the limit allows it.`,
+    ragErrorCode: RAG_ERROR_USAGE_LIMIT,
+  });
+  console.info('[knowledge] indexing parked by a usage limit', {
+    fileId,
+    storageRef: file.storageRef,
+  });
+}
+
+/**
  * Index one uploaded file into the org's corpus: extract → PII gate →
  * embed → upsert chunks. Idempotent (re-running replaces the document's
  * chunks); the `rag.index_file` job drives it with retries.
@@ -1039,12 +1112,15 @@ export async function indexUploadedFile(
       documentId: string | null;
       conversationId: string | null;
       skipRagIndexing: boolean | null;
+      uploadedBy: string | null;
+      threadId: string | null;
     }[]
   >`
     SELECT org_id AS "organizationId", storage_ref AS "storageRef",
            file_name AS "fileName", content_type AS "contentType",
            document_id AS "documentId", conversation_id AS "conversationId",
-           skip_rag_indexing AS "skipRagIndexing"
+           skip_rag_indexing AS "skipRagIndexing",
+           uploaded_by AS "uploadedBy", thread_id AS "threadId"
     FROM app.file_metadata WHERE id = ${fileId} LIMIT 1
   `;
   const file = rows[0];
@@ -1091,6 +1167,19 @@ export async function indexUploadedFile(
     return;
   }
 
+  // The embedding is whoever the file is for's spend: a limit that binds
+  // them parks the file here, before any bytes are read or extracted — the
+  // hourly re-queue tries it again once the limit may allow it.
+  const subject = await fileIndexingSubject(sql, file);
+  const blocked = await directCallBlocked(sql, {
+    organizationId: file.organizationId,
+    subject,
+  });
+  if (blocked !== null) {
+    await parkForUsageLimit(sql, fileId, file, budgetRefusalMessage(blocked));
+    return;
+  }
+
   await writeRagStatus(sql, fileId, {
     ragStatus: 'running',
     ragProgress: 'Extracting text…',
@@ -1116,7 +1205,15 @@ export async function indexUploadedFile(
     const embedder = await embedderForOrg(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 module; ctx usage covered by the shim handlers
       shim as unknown as Parameters<typeof embedderForOrg>[0],
-      { organizationId: file.organizationId, orgSlug, config },
+      {
+        organizationId: file.organizationId,
+        orgSlug,
+        config,
+        meter: embeddingMeter(sql, {
+          organizationId: file.organizationId,
+          subject,
+        }),
+      },
     );
     const pool = await getKnowledgePoolForOrg(orgSlug);
     const dbUrl = await resolveOrgUrl(orgSlug);
@@ -1280,6 +1377,13 @@ export async function indexUploadedFile(
         'Indexing stopped because its job was cancelled: the job ran past its time budget, or its worker is shutting down. The retry resumes after the stored slices.',
         { cause: error },
       );
+    }
+    if (error instanceof EmbeddingBudgetExceeded) {
+      // A limit filled while the file embedded: parked like one found
+      // reached before it started. The slices already stored stay; the
+      // re-queue resumes after them.
+      await parkForUsageLimit(sql, fileId, file, error.message);
+      return;
     }
     const failure = {
       fileId,

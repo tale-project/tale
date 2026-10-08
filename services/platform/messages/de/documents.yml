@@ -449,6 +449,7 @@ rag:
     unsupported: Nicht unterstützt
     notIndexed: Nicht indexiert
     needsReindex: Neuindexierung nötig
+    usageLimit: Wartet auf ein Nutzungslimit
     unknown: Unbekannt
   retryIndexing: Indexierung erneut versuchen
   toast:
@@ -462,6 +463,12 @@ rag:
       title: Dokument indexiert
       description: Dieses Dokument ist indexiert und für die Wissenssuche verfügbar.
       indexedOn: 'Indexiert am:'
+    usageLimit:
+      title: Wartet auf ein Nutzungslimit
+      description:
+        Ein Nutzungslimit, das für die Indexierung dieses Dokuments gilt, ist
+        erreicht. Die Indexierung läuft von selbst weiter, spätestens eine
+        Stunde nachdem das Limit zurückgesetzt oder erhöht wurde.
     failed:
       title: Indexierung fehlgeschlagen
       description: Dieses Dokument konnte nicht für die Wissenssuche indexiert werden.

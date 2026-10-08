@@ -11,6 +11,10 @@ import {
   messageRef,
 } from '../../../lib/knowledge/message-ref.ts';
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
+import {
+  AUTOMATION_SUBJECT_ID,
+  EMBEDDING_SLUG,
+} from '../../../lib/shared/constants/usage.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { NO_SUBJECT } from '../../core/conversations/ingest/constants.ts';
 import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
@@ -20,6 +24,7 @@ import {
 } from '../../core/knowledge/dimensions.ts';
 import {
   classifyEmbeddingFailure,
+  EmbeddingBudgetExceeded,
   EmbeddingNotConfigured,
   embedderForOrg,
 } from '../../core/knowledge/embedding.ts';
@@ -29,10 +34,60 @@ import {
   getKnowledgePoolForOrg,
   resolveOrgUrl,
 } from '../../core/knowledge/pool.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
+import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
+import {
+  directCallBlocked,
+  type DirectCallSubject,
+} from '../governance/direct-calls.ts';
+import { embeddingMeter } from './embedding-meter.ts';
 import { isMessageCorpusLive } from './liveness.ts';
 import { knowledgeShimHandlers } from './service.ts';
+
+/** Inbound mail is nobody's spend: its embedding books to the organization. */
+const MAIL_EMBEDDING_SUBJECT: DirectCallSubject = {
+  userId: AUTOMATION_SUBJECT_ID,
+  agentSlug: EMBEDDING_SLUG,
+};
+
+/** How long a message a usage limit refused waits before it is tried
+ * again — sooner when the limit's period resets first. */
+const USAGE_LIMIT_RETRY_MS = 60 * 60 * 1000;
+
+/**
+ * Put a message a usage limit refused back in the queue, to be tried again
+ * once the limit may allow it: in an hour, or just after its period resets
+ * when that comes first. A message has no status row to park it on, so its
+ * job carries the wait; one waiting job per message.
+ */
+async function deferForUsageLimit(
+  sql: Sql,
+  messageId: string,
+  reason: string,
+  resetsAtMs: number | undefined,
+): Promise<void> {
+  const now = Date.now();
+  const at =
+    resetsAtMs !== undefined && resetsAtMs > now
+      ? Math.min(now + USAGE_LIMIT_RETRY_MS, resetsAtMs + 60_000)
+      : now + USAGE_LIMIT_RETRY_MS;
+  await addJobInTx(
+    sql,
+    'rag.index_message',
+    { messageId },
+    {
+      startAfter: new Date(at),
+      singletonKey: `rag-index-message-usage-limit-${messageId}`,
+    },
+  );
+  console.info('[knowledge] email body waits for a usage limit', {
+    messageId,
+    retryAt: new Date(at).toISOString(),
+    reason,
+  });
+}
 
 /**
  * Index one inbound email's BODY into its organization's corpus — the
@@ -67,6 +122,11 @@ import { knowledgeShimHandlers } from './service.ts';
  *  - Liveness is the message row's (`isMessageCorpusLive`), asked after the
  *    corpus row is claimed: a conversation deleted while the job waited is
  *    never indexed back.
+ *  - Its embedding is the organization's spend (`__automation__`), held
+ *    and booked request by request (`embedding-meter.ts`). A usage limit
+ *    that binds it — checked before anything is read, and on every request
+ *    — puts the job back in the queue for later (`deferForUsageLimit`);
+ *    the slices already stored stay, and the retry resumes after them.
  *
  * Idempotent: a retry, or a second delivery, finds the content unchanged and
  * embeds nothing.
@@ -134,6 +194,19 @@ export async function indexConversationMessage(
   });
   const sentAt = new Date(message.sentAt);
   const log = { messageId, orgSlug };
+  const blocked = await directCallBlocked(sql, {
+    organizationId: message.organizationId,
+    subject: MAIL_EMBEDDING_SUBJECT,
+  });
+  if (blocked !== null) {
+    await deferForUsageLimit(
+      sql,
+      messageId,
+      budgetRefusalMessage(blocked),
+      blocked.resetsAt,
+    );
+    return;
+  }
   try {
     const config = await readOrgEmbeddingConfig(orgSlug);
     const embedder = await embedderForOrg(
@@ -141,7 +214,15 @@ export async function indexConversationMessage(
       createCtxShim(knowledgeShimHandlers(sql)) as unknown as Parameters<
         typeof embedderForOrg
       >[0],
-      { organizationId: message.organizationId, orgSlug, config },
+      {
+        organizationId: message.organizationId,
+        orgSlug,
+        config,
+        meter: embeddingMeter(sql, {
+          organizationId: message.organizationId,
+          subject: MAIL_EMBEDDING_SUBJECT,
+        }),
+      },
     );
     const pool = await getKnowledgePoolForOrg(orgSlug);
     const dbUrl = await resolveOrgUrl(orgSlug);
@@ -195,6 +276,10 @@ export async function indexConversationMessage(
   } catch (error) {
     // pg-boss gave up on the job (its budget, a shutdown) and owns the retry.
     if (options.signal?.aborted) throw error;
+    if (error instanceof EmbeddingBudgetExceeded) {
+      await deferForUsageLimit(sql, messageId, error.message, error.retryAtMs);
+      return;
+    }
     if (error instanceof EmbeddingNotConfigured) {
       console.info(
         '[knowledge] email body not indexed: the organization has no embedding model',

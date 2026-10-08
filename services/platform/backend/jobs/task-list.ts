@@ -634,6 +634,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         await import('../domains/file_metadata/watchdogs.ts');
       await recoverStuckRagIndexing(deps.sql);
     },
+    'knowledge.resume_usage_limited': async () => {
+      const { requeueUsageLimitedFiles } =
+        await import('../domains/knowledge/usage-limit-resume.ts');
+      const requeued = await requeueUsageLimitedFiles(deps.sql);
+      if (requeued > 0) {
+        console.info(
+          `[knowledge] re-queued ${requeued} file(s) a usage limit had parked`,
+        );
+      }
+    },
     'watchdog.erasures': async () => {
       const { recoverStuckErasureRequests } =
         await import('../domains/erasure/service.ts');

@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   resolveOrgSlug: vi.fn(),
   readGovernancePolicy: vi.fn(),
   isMessageCorpusLive: vi.fn(),
+  directCallBlocked: vi.fn(),
+  addJobInTx: vi.fn(),
 }));
 
 vi.mock('../../core/knowledge/connection.ts', () => ({
@@ -57,9 +59,14 @@ vi.mock('./liveness.ts', () => ({
   isMessageCorpusLive: mocks.isMessageCorpusLive,
 }));
 vi.mock('./service.ts', () => ({ knowledgeShimHandlers: () => ({}) }));
+vi.mock('../governance/direct-calls.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../governance/direct-calls.ts')>()),
+  directCallBlocked: mocks.directCallBlocked,
+}));
+vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: mocks.addJobInTx }));
 
 const { indexConversationMessage } = await import('./message-index.ts');
-const { EmbeddingNotConfigured } =
+const { EmbeddingBudgetExceeded, EmbeddingNotConfigured } =
   await import('../../core/knowledge/embedding.ts');
 const { EmbeddingDimensionMismatch } =
   await import('../../core/knowledge/dimensions.ts');
@@ -138,6 +145,8 @@ beforeEach(() => {
     partial: false,
   });
   mocks.isMessageCorpusLive.mockResolvedValue(true);
+  mocks.directCallBlocked.mockResolvedValue(null);
+  mocks.addJobInTx.mockResolvedValue('job-1');
 });
 
 function indexedArgs(): Record<string, unknown> {
@@ -314,6 +323,57 @@ describe('indexConversationMessage', () => {
     await expect(indexConversationMessage(sql, MESSAGE_ID)).rejects.toBe(
       upstream,
     );
+  });
+
+  it('books the body’s embedding to the organization, request by request [GOV-R5]', async () => {
+    const { sql } = fakeSql(row());
+    await indexConversationMessage(sql, MESSAGE_ID);
+    expect(mocks.directCallBlocked).toHaveBeenCalledWith(sql, {
+      organizationId: 'org_1',
+      subject: { userId: '__automation__', agentSlug: '__embedding__' },
+    });
+    expect(mocks.embedderForOrg).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ meter: expect.any(Object) }),
+    );
+  });
+
+  it('waits for a usage limit: its job comes back later, nothing read meanwhile [GOV-R4] [KNOW-R17]', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const resetsAt = Date.now() + 10 * 60_000;
+    mocks.directCallBlocked.mockResolvedValueOnce({
+      scope: 'org',
+      code: 'COST_LIMIT',
+      period: 'daily',
+      used: 100,
+      limit: 100,
+      reason: 'x',
+      resetsAt,
+    });
+    const { sql } = fakeSql(row());
+    await expect(
+      indexConversationMessage(sql, MESSAGE_ID),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.embedderForOrg).not.toHaveBeenCalled();
+    expect(mocks.addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'rag.index_message',
+      { messageId: MESSAGE_ID },
+      {
+        // The period resets sooner than an hour: just after it.
+        startAfter: new Date(resetsAt + 60_000),
+        singletonKey: `rag-index-message-usage-limit-${MESSAGE_ID}`,
+      },
+    );
+
+    mocks.indexWholeDocument.mockRejectedValueOnce(
+      new EmbeddingBudgetExceeded('Usage limit reached.'),
+    );
+    await expect(
+      indexConversationMessage(sql, MESSAGE_ID),
+    ).resolves.toBeUndefined();
+    expect(mocks.addJobInTx).toHaveBeenCalledTimes(2);
   });
 
   it('throws once pg-boss gave up on the job, whatever the cause', async () => {

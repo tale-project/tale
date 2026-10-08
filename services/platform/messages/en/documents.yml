@@ -428,6 +428,7 @@ rag:
     unsupported: Not supported
     notIndexed: Not indexed
     needsReindex: Needs reindex
+    usageLimit: Waiting for a usage limit
     unknown: Unknown
   retryIndexing: Retry indexing
   toast:
@@ -441,6 +442,12 @@ rag:
       title: Document indexed
       description: This document is indexed and available for knowledge search.
       indexedOn: 'Indexed on:'
+    usageLimit:
+      title: Waiting for a usage limit
+      description:
+        A usage limit that applies to this document's indexing has been
+        reached. Indexing resumes by itself within the hour after the limit
+        resets or is raised.
     failed:
       title: Indexing failed
       description: Couldn't index this document for knowledge search.

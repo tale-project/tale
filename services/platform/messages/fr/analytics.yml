@@ -71,6 +71,7 @@ usage:
   connector: Connector
   transcription: Transcription
   tts: Sortie vocale
+  embedding: Indexation et recherche des connaissances
   granularity:
     label: Granularité
     daily: Quotidien
