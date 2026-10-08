@@ -61,6 +61,8 @@ const MOCK_TIMEOUT_MS = 2000;
 /** A live body may chain several vendor calls, each individually capped by the
  * host, so its own ceiling is generous. */
 const DEFAULT_LIVE_TIMEOUT_MS = 60_000;
+/** How long after a live body's time limit its host calls start refusing. */
+const HOST_ABORT_GRACE_MS = 100;
 
 // ------------------------------------------------------------------ catalog
 
@@ -321,11 +323,10 @@ export interface ConnectorDispatchContext {
    */
   signal?: AbortSignal;
   /**
-   * Per-invocation CodeRunner override for the LIVE yaml-js path. A caller
-   * with a sandbox session hands in the session-bound out-of-process runner
-   * here — never through the process-global `setCodeRunner` slot, which two
-   * concurrent orgs share. Mock bodies always run on the global runner (pure,
-   * data-only, no host).
+   * Per-invocation CodeRunner override for the LIVE yaml-js path: every
+   * live caller hands in the in-process live runner here — never through the
+   * process-global `setCodeRunner` slot, which two concurrent orgs share.
+   * Mock bodies always run on the global runner (pure, data-only, no host).
    */
   codeRunner?: CodeRunner;
   /**
@@ -468,6 +469,15 @@ function resolveAction(connector: Connector, name: string): ConnectorAction {
     );
   }
   return action;
+}
+
+/** The caller's stop and `deadline` as one signal: aborted by whichever
+ * fires first. */
+function anySignal(
+  stop: AbortSignal | undefined,
+  deadline: AbortSignal,
+): AbortSignal {
+  return stop === undefined ? deadline : AbortSignal.any([stop, deadline]);
 }
 
 /**
@@ -699,7 +709,7 @@ export async function executeConnectorAction(
       `${nodeType} has a live body, but this deployment's code runner is the data-only node-vm one, which cannot reach credentials or the network`,
       {
         ...where,
-        hint: 'pass a host-capable runner as ctx.codeRunner: inProcessLiveRunner() for the shipped catalog, or the session-bound sandbox-exec runner (with ctx.portableHost) when the caller owns a sandbox session',
+        hint: 'pass a host-capable runner as ctx.codeRunner: inProcessLiveRunner() for the shipped catalog',
       },
     );
   }
@@ -838,6 +848,23 @@ export async function executeConnectorAction(
       // host-capable in-process runner). Building the host is itself
       // policed — a credential pointing outside the connector's allowlist is
       // refused here — so it shares the block whose failures are recorded.
+      //
+      // Nothing in this process can stop a yaml-js body at its time limit,
+      // but its host calls can be stopped: shortly past the limit every
+      // ctx.http and ctx.files request rejects, so the body unwinds at its
+      // next host call instead of calling the vendor on after its caller was
+      // released. The grace lets the caller's own time-limit error land
+      // first, rather than the aborted request it causes.
+      const hostSignal =
+        nativeImpl === undefined && backend.kind === 'yaml-js'
+          ? anySignal(
+              ctx.signal,
+              AbortSignal.timeout(
+                (ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS) +
+                  HOST_ABORT_GRACE_MS,
+              ),
+            )
+          : ctx.signal;
       const host = createLiveHost({
         connector,
         action: action.name,
@@ -849,7 +876,7 @@ export async function executeConnectorAction(
           authHeader: credential.authHeader,
         }),
         ...(ctx.blobs !== undefined && { blobs: ctx.blobs }),
-        ...(ctx.signal !== undefined && { signal: ctx.signal }),
+        ...(hostSignal !== undefined && { signal: hostSignal }),
       });
 
       const connectorCtx: ConnectorContext = {
