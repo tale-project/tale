@@ -1,6 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { CHAT_AUDIO_MAX_DURATION_SEC } from '../../../lib/shared/file-types.ts';
+import { TRANSCRIPTION_SLUG } from '../../../lib/shared/constants/usage.ts';
 import {
   isPlaylistUrl,
   detectPlatform,
@@ -20,14 +20,15 @@ import {
   reportBrowserSessionResult,
 } from '../browser_sessions/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
+import { readThreadProjectId } from '../chat/threads.ts';
 import {
   deleteOrgBlobRefs,
   deleteUnheldOrgBlobRefs,
   putOrgBlobBytes,
 } from '../files/service.ts';
-import { loadBudgetSubject } from '../governance/budget-gate.ts';
+import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
+import { directCallBlocked } from '../governance/direct-calls.ts';
 import { markRagQueued } from '../knowledge/service.ts';
-import { checkTtsBudget } from '../tts/service.ts';
 import { hintVideoJobs, type VideoJobHintRow } from './hints.ts';
 
 /**
@@ -968,24 +969,33 @@ async function assertInFlightCapInTx(
   await assertInFlightCap(tx, organizationId);
 }
 
-const PROSPECTIVE_VIDEO_LINK_COST_CENTS = Math.ceil(
-  (CHAT_AUDIO_MAX_DURATION_SEC / 60) * 0.6,
-);
-
+/**
+ * The early answer at the door: a person already at a limit — counting
+ * the work in flight, and the limits of the chat's project — starts no
+ * download. Nothing is held here: the transcription a download may lead to
+ * holds its real length when it runs (`files/transcription-metering.ts`),
+ * and captions or a transcript copied from another job cost nothing.
+ */
 async function assertVideoBudget(
   sql: Sql,
-  organizationId: string,
-  userId: string,
+  args: { organizationId: string; userId: string; threadId?: string | null },
 ): Promise<void> {
-  const budget = await checkTtsBudget(sql, {
-    ...(await loadBudgetSubject(sql, { organizationId, userId })),
-    prospectiveCostCents: PROSPECTIVE_VIDEO_LINK_COST_CENTS,
-    prospectiveRequests: 1,
+  const projectId =
+    args.threadId != null
+      ? await readThreadProjectId(sql, args.organizationId, args.threadId)
+      : undefined;
+  const violation = await directCallBlocked(sql, {
+    organizationId: args.organizationId,
+    subject: {
+      userId: args.userId,
+      agentSlug: TRANSCRIPTION_SLUG,
+      ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
+    },
   });
-  if (!budget.allowed) {
+  if (violation !== null) {
     throw new VideoLinkError(
       'budgetExceeded',
-      budget.reason ?? 'Usage limit reached — contact your administrator.',
+      budgetRefusalMessage(violation),
       429,
     );
   }
@@ -1015,7 +1025,6 @@ export async function ingestVideoUrl(
       'Playlist URLs are not supported — paste a single video link instead',
     );
   }
-  await assertVideoBudget(sql, args.organizationId, args.userId);
 
   const serverNormalized = normalizeUrlForHash(args.url);
   const serverPlatform = detectPlatform(args.url);
@@ -1118,6 +1127,8 @@ export async function ingestVideoUrl(
     return inserted;
   }
 
+  // Only a fresh download can spend: the paths above are free.
+  await assertVideoBudget(sql, args);
   return sql.begin(async (tx) => {
     await assertInFlightCapInTx(tx, args.organizationId);
     const rows = await tx<{ id: string }[]>`
@@ -1443,7 +1454,11 @@ export async function retryVideoLink(
       429,
     );
   }
-  await assertVideoBudget(sql, args.organizationId, args.userId);
+  await assertVideoBudget(sql, {
+    organizationId: args.organizationId,
+    userId: args.userId,
+    threadId: job.threadId,
+  });
   // Fast-fail on the pool BEFORE the cleanup below deletes the failed job's
   // blob and file row: a retry the cap refuses should leave them in place.
   // The locked count inside the transaction is the decision.

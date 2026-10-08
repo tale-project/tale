@@ -14,6 +14,9 @@ import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 
 const mocks = vi.hoisted(() => ({
   budgetPolicyActive: vi.fn(),
+  findBudgetViolation: vi.fn(),
+  loadAttributedBudgetSubject: vi.fn(),
+  readInFlightReservations: vi.fn(),
   reserveTurnBudget: vi.fn(),
   incrementUsageLedger: vi.fn(async () => undefined),
   estimateTurnCostCents: vi.fn(async () => 0),
@@ -21,6 +24,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./budget-gate.ts', () => ({
   budgetPolicyActive: mocks.budgetPolicyActive,
+  findBudgetViolation: mocks.findBudgetViolation,
+}));
+vi.mock('./attributed-subject.ts', () => ({
+  loadAttributedBudgetSubject: mocks.loadAttributedBudgetSubject,
+}));
+vi.mock('./budget-reservations.ts', () => ({
+  readInFlightReservations: mocks.readInFlightReservations,
 }));
 vi.mock('../sandbox/turn-budget.ts', () => ({
   reserveTurnBudget: mocks.reserveTurnBudget,
@@ -33,6 +43,7 @@ vi.mock('../chat/store.ts', () => ({
 }));
 
 const {
+  directCallBlocked,
   isDirectCallLease,
   openDirectCall,
   openTokenCall,
@@ -395,5 +406,41 @@ describe('a text model’s call', () => {
     ).toBe(true);
     expect(isDirectCallLease({ organizationId: 'o' })).toBe(false);
     expect(isDirectCallLease('lease-1')).toBe(false);
+  });
+});
+
+describe('directCallBlocked', () => {
+  it('reads nothing while no budget binds the organization', async () => {
+    mocks.budgetPolicyActive.mockResolvedValue(false);
+    await expect(
+      directCallBlocked(fakeSql().sql, {
+        organizationId: 'org-1',
+        subject: SUBJECT,
+      }),
+    ).resolves.toBeNull();
+    expect(mocks.loadAttributedBudgetSubject).not.toHaveBeenCalled();
+  });
+
+  it('measures the subject, its key and projects, counting the work in flight, and holds nothing [GOV-R5]', async () => {
+    const { sql } = fakeSql();
+    const measured = { organizationId: 'org-1', userId: 'user-1' };
+    const holds = { user: { costCents: 3, tokens: 0, requests: 1 } };
+    const violation = { scope: 'user', code: 'COST_LIMIT' };
+    mocks.loadAttributedBudgetSubject.mockResolvedValue(measured);
+    mocks.readInFlightReservations.mockResolvedValue(holds);
+    mocks.findBudgetViolation.mockResolvedValue(violation);
+
+    await expect(
+      directCallBlocked(sql, { organizationId: 'org-1', subject: SUBJECT }),
+    ).resolves.toBe(violation);
+    expect(mocks.loadAttributedBudgetSubject).toHaveBeenCalledWith(
+      sql,
+      'org-1',
+      SUBJECT,
+    );
+    expect(mocks.findBudgetViolation).toHaveBeenCalledWith(sql, measured, {
+      reservations: holds,
+    });
+    expect(mocks.reserveTurnBudget).not.toHaveBeenCalled();
   });
 });

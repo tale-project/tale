@@ -6,8 +6,14 @@ import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import { DIRECT_CALL_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import { estimateTurnCostCents } from '../chat/store.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
-import { budgetPolicyActive, type BudgetViolation } from './budget-gate.ts';
+import { loadAttributedBudgetSubject } from './attributed-subject.ts';
+import {
+  budgetPolicyActive,
+  type BudgetViolation,
+  findBudgetViolation,
+} from './budget-gate.ts';
 import { budgetRefusalMessage } from './budget-refusal.ts';
+import { readInFlightReservations } from './budget-reservations.ts';
 import { incrementUsageLedger } from './service.ts';
 
 /**
@@ -255,6 +261,26 @@ export async function settleTokenCall(
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
     costCents,
+  });
+}
+
+/**
+ * The early answer before work that would only be refused: whether a
+ * limit that binds `subject` is already reached, counting what the work in
+ * flight holds. Holds nothing — the calls the work makes hold their own.
+ */
+export async function directCallBlocked(
+  sql: Sql,
+  args: { organizationId: string; subject: DirectCallSubject },
+): Promise<BudgetViolation | null> {
+  if (!(await budgetPolicyActive(sql, args.organizationId))) return null;
+  const subject = await loadAttributedBudgetSubject(
+    sql,
+    args.organizationId,
+    args.subject,
+  );
+  return findBudgetViolation(sql, subject, {
+    reservations: await readInFlightReservations(sql, subject),
   });
 }
 

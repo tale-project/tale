@@ -14,6 +14,7 @@ import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { deleteOrgBlobRefs } from '../files/service.ts';
+import { directCallBlocked } from '../governance/direct-calls.ts';
 import { ingestVideoUrl, retryVideoLink } from './service.ts';
 
 vi.mock('../files/service.ts', () => ({
@@ -29,8 +30,8 @@ vi.mock('../../jobs/enqueue.ts', () => ({
 vi.mock('../audit_logs/service.ts', () => ({
   createAuditLog: vi.fn(() => Promise.resolve()),
 }));
-vi.mock('../tts/service.ts', () => ({
-  checkTtsBudget: vi.fn(() => Promise.resolve({ allowed: true })),
+vi.mock('../governance/direct-calls.ts', () => ({
+  directCallBlocked: vi.fn(() => Promise.resolve(null)),
 }));
 vi.mock('../../auth/membership.ts', () => ({
   findOrganizationMember: vi.fn(() => Promise.resolve(null)),
@@ -288,5 +289,35 @@ describe('retryVideoLink in-flight cap [VID-R4]', () => {
     const order = kinds(fake.statements);
     expect(order).toEqual(['BEGIN', 'LOCK', 'COUNT', 'ROLLBACK']);
     expect(order).not.toContain('UPDATE');
+  });
+});
+
+describe('ingestVideoUrl at a usage limit [GOV-R4]', () => {
+  it('starts no download for a member a limit binds, counting the chat’s project', async () => {
+    vi.mocked(directCallBlocked).mockResolvedValueOnce({
+      scope: 'user',
+      code: 'COST_LIMIT',
+      period: 'monthly',
+      used: 100,
+      limit: 100,
+      reason: 'x',
+      resetsAt: Date.UTC(2026, 10, 1),
+    });
+    const fake = fakeSql({ inFlight: 0 });
+
+    await expect(ingestVideoUrl(fake.sql, pasteArgs)).rejects.toMatchObject({
+      code: 'budgetExceeded',
+      status: 429,
+      message: expect.stringContaining('Your monthly cost limit is used up'),
+    });
+    expect(directCallBlocked).toHaveBeenCalledWith(fake.sql, {
+      organizationId: 'org-1',
+      subject: { userId: 'user-1', agentSlug: '__transcription__' },
+    });
+    expect(
+      fake.statements.some((s) =>
+        s.text.startsWith('INSERT INTO app.video_link_jobs'),
+      ),
+    ).toBe(false);
   });
 });
