@@ -39,6 +39,19 @@ export const INSTRUCTION_FRAGMENTS: readonly InstructionFragment[] = [
     tools: ['get_docs', 'search_catalog', 'get_catalog'],
   },
   {
+    text: 'Name only what exists: list_models, list_harnesses, list_skills, list_connectors (which are connected), list_agent_secrets (names only), list_projects and list_events say what this organization has; validate_automation warns about anything else.',
+    tools: [
+      'list_models',
+      'list_harnesses',
+      'list_skills',
+      'list_connectors',
+      'list_agent_secrets',
+      'list_projects',
+      'list_events',
+      'validate_automation',
+    ],
+  },
+  {
     text: 'Every refusal is data {error, code, hint}: branch on code, follow hint. Invalid arguments list every issue at once. RATE_LIMITED says how long to wait.',
     tools: [],
   },

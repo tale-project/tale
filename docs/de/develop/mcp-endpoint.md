@@ -113,6 +113,8 @@ Gib `baseVersion` mit, die Version, von der deine Änderung ausging. Hat inzwisc
 
 `analysis.nodes.<id>` sagt, ob eine Node erreichbar ist (`reachable`), ob sie immer läuft (`alwaysRuns`), wie sie übersprungen werden kann (`maySkip`) und ob ihr Fehler den Lauf anhält (`failureHandling: "halts"`) oder weiterlaufen lässt (`"continues"`). `analysis.paths` listet die Wege, die ein erfolgreicher Lauf nehmen kann — bis zu 32, mit `count` für alle — und nennt die Nodes, deren Fehler einen Lauf beendet. `types` liefert das JSON-Schema der Eingabe des Laufs, der Ausgabe jeder Node und des Ergebnisses der Automatisierung; `get_catalog` liefert das `outputSchema` jeder Capability auf dieselbe Weise. [Was Tale vor einem Lauf prüft](/de/platform/automations/concepts#checks) erklärt jede Gruppe von Prüfungen.
 
+`detail` wählt, was neben den Problemen zurückkommt: `["analysis"]`, `["types"]` oder `[]` für die Probleme allein; ohne `detail` bekommst du beides. Manche Warnungen prüfen das Dokument nicht, sondern vergleichen es mit deiner Organisation: ein Skill, den kein Lauf der Automatisierung erreicht (`SKILL_UNKNOWN`), ein Connector, den niemand verbunden hat (`CONNECTOR_NOT_CONNECTED`), ein Secret, das niemand gespeichert hat (`SECRET_UNKNOWN`, nur für Inhaber, Admins und Entwickler), eine Agent-Laufzeit, die dieses Deployment nicht ausführen kann (`HARNESS_UNKNOWN`), und ein Event-Trigger, der auf ein Ereignis wartet, das Tale nicht auslöst (`EVENT_UNKNOWN`). Sie verhindern nie das Speichern; die [Tools zum Nachschlagen](#discovery) zeigen, was es gibt.
+
 ### Läufe und Trigger verwalten
 
 | Tool             | Was es tut                                                                                                              |
@@ -139,6 +141,20 @@ Gib `baseVersion` mit, die Version, von der deine Änderung ausging. Hat inzwisc
 
 Beide Tools für bereitgestellte Versionen verwenden denselben dauerhaften Runner mit denselben Berechtigungsprüfungen und Ausführungsdaten. `start_run` akzeptiert optional `projectId`. Eine projektgebundene Automatisierung darf nur in einem ihrer Installationsprojekte laufen; bei genau einer Bindung kann dieses automatisch gewählt werden. Ohne Bindungen bedeutet eine fehlende Angabe Organisationskontext. Lies `projectIds` aus `list_automations` und die tatsächliche `projectId` aus dem zurückgegebenen Handle, statt die REST-URL zum Abfragen zu erraten.
 
+### Nachschlagen {#discovery}
+
+| Tool | Was es tut |
+| --- | --- |
+| `list_models` | Die Modelle, die du verwenden darfst, gefiltert nach deinem Modellzugriff: jeweils mit `providerSlug` (eine `agent`-Node speichert ihn als `modelProvider`), `lane` (`direct`, wenn ein Anbieter es bereitstellt, `subscription` oder `broker`, wenn das Abo eines Mitglieds es bereitstellt), den passenden `nodeTypes` (eine `llm`-Node nimmt nur ein direkt bereitgestelltes Modell) und den Agent-Laufzeiten, denen es angeboten wird (`harnesses`). `nodeType` und `harness` filtern die Liste. |
+| `list_harnesses` | Die Agent-Laufzeiten, die eine `agent`-Node als `harness` nennen kann, die Standard-Laufzeit (`default`), die läuft, wenn sie keine nennt, und ob ein Abo sie jeweils bedienen kann. |
+| `list_skills` | Die Skills der Organisation; mit `projectId` auch die Team-Skills dieses Projekts, also die, die ein Lauf darin verwenden kann. Ein Projekt, das du nicht lesen darfst, antwortet `PROJECT_NOT_FOUND`. |
+| `list_connectors` | Die Connectors, die dieses Deployment anbietet, ob deine Organisation sie jeweils verbunden hat (`connected`) und wie viele Aktionen sie haben; `query` filtert. `search_catalog` listet die Aktionen. |
+| `list_agent_secrets` | Die Namen der Agent-Secrets der Organisation mit einer maskierten Vorschau (`preview`), nie ein Wert. Inhaber, Admins und Entwickler sehen sie; alle anderen bekommen eine leere Liste mit einem Hinweis (`note`). |
+| `list_projects` | Die Projekte, die du lesen darfst: ob sie jeweils bearbeitbar (`writable`) oder archiviert (`archived`) sind und welche der darin installierten Automatisierungen du sehen darfst (`automations`). `query` filtert nach Name; `includeArchived` nimmt archivierte Projekte dazu. |
+| `list_events` | Die Ereignisse, die Tale auslöst, jeweils mit dem Zeitpunkt, zu dem es eintritt: worauf ein Event-Trigger warten kann. |
+
+Jede Antwort trägt einen `hint`, der das Tool oder die Einstellung nennt, mit der sie sich ändert.
+
 ### Capabilities und Wissen
 
 | Tool                  | Was es tut                                                                                                                                |
@@ -155,6 +171,7 @@ Das Capability-Verzeichnis enthält derzeit bereitgestellte Automatisierungen. I
 | --- | --- |
 | Lesen, Validierung, Mock-Ausführungen (auch `start_run` mit `mode: "mock"`) und Akzeptanztests, Capability-Suche, Wissensabruf | Mitgliedschaft plus normale Zugriffsregeln der Ressource |
 | Die Frage eines Laufs beantworten | Mitgliedschaft; bei einem Lauf in einem Projekt Bearbeitungszugriff auf dieses Projekt |
+| Namen der Agent-Secrets (`list_agent_secrets`) | Rolle Inhaber, Admin oder Entwickler; alle anderen bekommen eine leere Liste |
 | Speichern, live schalten, löschen, in Projekten installieren, Trigger setzen/löschen, Lauf abbrechen oder live ausführen | Entwicklerberechtigung plus normale Zugriffsregeln der Ressource |
 
 Der Schlüssel identifiziert seinen Inhaber. Er erweitert weder dessen Rolle noch dessen Projektzugriff. Eine Automatisierung, die nur in Projekten installiert ist, die der Schlüsselinhaber nicht lesen darf, fehlt in `list_automations`, und jeder Lesezugriff auf sie antwortet `AUTOMATION_NOT_FOUND` wie bei einer, die es nicht gibt. Auch eine Live-Ausführung über `invoke_capability` durchläuft die Ausführungsprüfungen.

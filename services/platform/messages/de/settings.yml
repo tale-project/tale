@@ -76,6 +76,11 @@ mcpEndpoint:
       title: Lauf- & Trigger-Verwaltung
       description: Betreiben, was live ist — Läufe starten und abfragen,
         Versionen durchsehen, Trigger setzen und lösen.
+    discovery:
+      title: Nachschlagen
+      description: Nachsehen, was eine Automatisierung nennen darf — Modelle,
+        Agent-Laufzeiten, Skills, Connectors, Namen von Secrets, Projekte
+        und Ereignisse.
     capability:
       title: Capabilities & Wissen
       description: Die eigene Oberfläche der Organisation — durchsuchen, was

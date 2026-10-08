@@ -81,6 +81,58 @@ export const READ_TOOL_RESULTS = {
     series: z.array(z.looseObject({ dateKey: z.string() })),
     topAutomations: z.array(z.looseObject({ name: z.string() })),
   }),
+  list_models: z.looseObject({
+    models: z.array(
+      z.looseObject({
+        id: z.string(),
+        providerSlug: z.string(),
+        lane: z.string(),
+        nodeTypes: z.array(z.string()),
+      }),
+    ),
+    hint: z.string(),
+  }),
+  list_harnesses: z.looseObject({
+    harnesses: z.array(
+      z.looseObject({
+        slug: z.string(),
+        label: z.string(),
+        default: z.boolean(),
+      }),
+    ),
+    hint: z.string(),
+  }),
+  list_skills: z.looseObject({
+    skills: z.array(z.looseObject({ slug: z.string() })),
+    hint: z.string(),
+  }),
+  list_connectors: z.looseObject({
+    connectors: z.array(
+      z.looseObject({ slug: z.string(), connected: z.boolean() }),
+    ),
+    hint: z.string(),
+  }),
+  list_agent_secrets: z.looseObject({
+    secrets: z.array(z.looseObject({ name: z.string() })),
+    hint: z.string(),
+  }),
+  list_projects: z.looseObject({
+    projects: z.array(
+      z.looseObject({
+        id: z.string(),
+        name: z.string(),
+        archived: z.boolean(),
+        writable: z.boolean(),
+      }),
+    ),
+    hint: z.string(),
+  }),
+  list_events: z.looseObject({
+    events: z.array(
+      z.looseObject({ name: z.string(), description: z.string() }),
+    ),
+    hint: z.string(),
+  }),
   search_capabilities: z.looseObject({
     capabilities: z.array(z.looseObject({ id: z.string() })),
   }),

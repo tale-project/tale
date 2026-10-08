@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   EMITTED_EVENT_TYPES,
+  EVENT_DESCRIPTIONS,
   isEmittedEventType,
   RESERVED_EVENT_TYPES,
 } from './event-types.ts';
@@ -94,5 +95,20 @@ describe('the platform event vocabulary', () => {
     }
     expect(isEmittedEventType('contact.created ')).toBe(false);
     expect(isEmittedEventType('')).toBe(false);
+  });
+});
+
+describe('the event descriptions', () => {
+  it('say when each raised event fires, and describe no other name', () => {
+    expect(Object.keys(EVENT_DESCRIPTIONS).sort()).toEqual(
+      [...EMITTED_EVENT_TYPES].sort(),
+    );
+    for (const [name, sentence] of Object.entries(EVENT_DESCRIPTIONS)) {
+      expect(sentence.trim(), name).not.toBe('');
+      expect(sentence, name).toMatch(/\.$/);
+    }
+    for (const name of RESERVED_EVENT_TYPES) {
+      expect(Object.hasOwn(EVENT_DESCRIPTIONS, name), name).toBe(false);
+    }
   });
 });

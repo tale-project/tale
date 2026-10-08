@@ -78,6 +78,11 @@ mcpEndpoint:
       description: Piloter ce qui est déployé — lancer et suivre les
         exécutions, parcourir les versions, poser et retirer les
         déclencheurs.
+    discovery:
+      title: Découverte
+      description: Consulter ce qu'une automatisation peut nommer — modèles,
+        environnements d'agent, skills, connectors, noms de secrets, projets
+        et événements.
     capability:
       title: Capacités & connaissances
       description: La surface propre à l'organisation — chercher ce qu'elle

@@ -20,7 +20,7 @@ import { useSiteUrl } from '@/lib/site-url-context';
  * IDE, a desktop assistant, an external agent) points at the endpoint with an
  * org API key and gets the same tools the in-platform builder drives, plus the
  * organization's capability surface. The list renders `MCP_TOOLS` — the very
- * inventory the endpoint answers `tools/list` with, in the same three groups
+ * inventory the endpoint answers `tools/list` with, in the same groups
  * the endpoint docs draw — so this section can never advertise a tool the
  * server would refuse. Lives on the API settings page with the other inbound
  * surfaces. (Managing OUTBOUND MCP servers for agents is a separate, retired
@@ -103,9 +103,10 @@ export function McpEndpointSection({
           </SettingsFieldRow>
         )}
 
-        {/* The inventory in the same three groups the docs table draws —
-            authoring, run & trigger management, capabilities & knowledge —
-            so a reader can map this list onto the MCP endpoint docs 1:1. */}
+        {/* The inventory in the same groups the docs tables draw —
+            authoring, run & trigger management, discovery, capabilities &
+            knowledge — so a reader can map this list onto the MCP endpoint
+            docs 1:1. */}
         {MCP_TOOL_GROUPS.map((group) => (
           <SettingsFieldRow
             key={group}

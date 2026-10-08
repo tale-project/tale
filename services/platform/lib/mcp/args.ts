@@ -154,7 +154,16 @@ export const ENGINE_TOOL_ARGS = {
       'Capability keywords — verbs and objects, e.g. "send email".',
     ),
   }),
-  validate_automation: z.strictObject({ automation: automationDocument }),
+  validate_automation: z.strictObject({
+    automation: automationDocument,
+    detail: z
+      .array(z.enum(['analysis', 'types']))
+      .max(2)
+      .optional()
+      .describe(
+        'What to answer beside the errors and warnings: "analysis" (which nodes run on which ways a run can go) and "types" (the shape of every value). Left out, both; [] answers the issues alone — the types of a large document run to tens of KB.',
+      ),
+  }),
   run_automation: z.strictObject({
     automation: automationDocument,
     input: runInput,
@@ -353,6 +362,10 @@ export const ENGINE_TOOL_ARGS = {
   delete_trigger: z.strictObject({ name: automationName() }),
 } satisfies Record<Method, z.ZodObject>;
 
+/** A filter over a listing's names and descriptions. */
+const listingQuery = (description: string) =>
+  nonBlank().max(200).optional().describe(description);
+
 /** The arguments of the platform tools — answered by the platform itself,
  * not the automation engine. */
 export const PLATFORM_TOOL_ARGS = {
@@ -370,6 +383,42 @@ export const PLATFORM_TOOL_ARGS = {
       .optional()
       .describe('Which runs to count: live (the default) or mock.'),
   }),
+  list_models: z.strictObject({
+    nodeType: z
+      .enum(['llm', 'agent'])
+      .optional()
+      .describe(
+        'Only the models a step of this type can use: an llm step takes a model a provider serves directly, an agent step a model offered to its runtime.',
+      ),
+    harness: nonBlank()
+      .max(64)
+      .optional()
+      .describe(
+        'Only the models offered to this agent runtime — the harness slug list_harnesses names.',
+      ),
+  }),
+  list_harnesses: z.strictObject({}),
+  list_skills: z.strictObject({
+    projectId: nonBlank()
+      .optional()
+      .describe(
+        "Also the team skills of this project — the ones a run in it can use. You need read access to it; list_projects shows the ids. Left out, the organization's own skills.",
+      ),
+  }),
+  list_connectors: z.strictObject({
+    query: listingQuery(
+      'Only connectors whose slug, name or description contains this text.',
+    ),
+  }),
+  list_agent_secrets: z.strictObject({}),
+  list_projects: z.strictObject({
+    query: listingQuery('Only projects whose name contains this text.'),
+    includeArchived: z
+      .boolean()
+      .optional()
+      .describe('Also archived projects (default false).'),
+  }),
+  list_events: z.strictObject({}),
 } satisfies Record<string, z.ZodObject>;
 
 /** The arguments of the organization's capability tools. */

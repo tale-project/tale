@@ -34,7 +34,16 @@ import { callTool, listTools, type McpHost } from './tools';
 /** A database with no rows: the platform tools answer an organization that
  * has run nothing yet. */
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double: every query answers no rows
-const emptySql = (() => Promise.resolve([])) as unknown as Sql;
+const emptySql = Object.assign(() => Promise.resolve([]), {
+  unsafe: (text: string) => text,
+}) as unknown as Sql;
+
+// The model listing walks the organization's provider catalogs; here an
+// organization with no provider serves no model.
+vi.mock('../chat/composer.ts', async (original) => ({
+  ...(await original<typeof import('../chat/composer.ts')>()),
+  listGovernedChatModels: async () => [],
+}));
 
 const caller: McpCaller = {
   organizationId: 'org_1',
@@ -154,6 +163,15 @@ function readCalls(): Array<[string, Record<string, unknown>]> {
     ['list_triggers', {}],
     ['get_automation_metrics', {}],
     ['get_automation_metrics', { periodDays: 30, mode: 'mock' }],
+    ['validate_automation', { automation: DOC_EXAMPLE.automation, detail: [] }],
+    ['list_models', {}],
+    ['list_models', { nodeType: 'agent', harness: 'codex' }],
+    ['list_harnesses', {}],
+    ['list_skills', {}],
+    ['list_connectors', { query: 'mail' }],
+    ['list_agent_secrets', {}],
+    ['list_projects', { includeArchived: true }],
+    ['list_events', {}],
     ['search_capabilities', { query: 'orders' }],
     ['get_knowledge', { query: 'refunds' }],
   ];

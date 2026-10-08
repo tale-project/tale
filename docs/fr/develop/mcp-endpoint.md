@@ -113,6 +113,8 @@ Passe `baseVersion`, la version dont ta modification est partie. Si quelqu’un 
 
 `analysis.nodes.<id>` indique si un nœud est atteignable (`reachable`), s’il s’exécute toujours (`alwaysRuns`), comment il peut être ignoré (`maySkip`) et si son échec arrête l’exécution (`failureHandling: "halts"`) ou la laisse continuer (`"continues"`). `analysis.paths` liste les chemins que peut prendre une exécution réussie — jusqu’à 32, avec `count` pour le total — et nomme les nœuds dont l’échec termine une exécution. `types` donne le JSON Schema de l’entrée de l’exécution, de la sortie de chaque nœud et du résultat de l’automatisation ; `get_catalog` donne de la même façon l’`outputSchema` de chaque capacité. [Ce que Tale vérifie avant une exécution](/fr/platform/automations/concepts#checks) explique chaque famille de vérifications.
 
+`detail` choisit ce qui accompagne les problèmes : `["analysis"]`, `["types"]` ou `[]` pour les problèmes seuls ; sans `detail`, tu reçois les deux. Certains avertissements ne vérifient pas le document, ils le comparent à ton organisation : un skill qu’aucune exécution de l’automatisation ne peut atteindre (`SKILL_UNKNOWN`), un connector que personne n’a connecté (`CONNECTOR_NOT_CONNECTED`), un secret que personne n’a enregistré (`SECRET_UNKNOWN`, signalé seulement aux rôles Propriétaire, Admin et Développeur), un environnement d’agent que ce déploiement ne peut pas exécuter (`HARNESS_UNKNOWN`) et un déclencheur d’événement qui attend un événement que Tale n’émet pas (`EVENT_UNKNOWN`). Ils n’empêchent jamais d’enregistrer ; les [outils de découverte](#discovery) listent ce qui existe.
+
 ### Gestion des exécutions & déclencheurs
 
 | Outil            | Ce qu'il fait                                                                                                  |
@@ -139,6 +141,20 @@ Passe `baseVersion`, la version dont ta modification est partie. Si quelqu’un 
 
 Les deux outils de version déployée utilisent le même moteur durable, avec les mêmes contrôles d'accès et traces d'exécution. `start_run` accepte un `projectId` facultatif. Une automatisation liée à des projets doit s'exécuter dans un projet où elle est installée ; une liaison unique peut être choisie automatiquement. Sans liaison, omettre le champ sélectionne le périmètre de l'organisation. Lis `projectIds` dans `list_automations` et le véritable `projectId` du résultat au lieu de deviner l'URL REST de suivi.
 
+### Découverte {#discovery}
+
+| Outil | Ce qu’il fait |
+| --- | --- |
+| `list_models` | Les modèles que tu peux utiliser, filtrés selon ton accès aux modèles : chacun avec `providerSlug` (un nœud `agent` l’enregistre comme `modelProvider`), `lane` (`direct` quand un fournisseur le sert, `subscription` ou `broker` quand c’est l’abonnement d’un membre), les `nodeTypes` qui lui conviennent (un nœud `llm` n’accepte qu’un modèle servi directement) et les environnements d’agent auxquels il est proposé (`harnesses`). `nodeType` et `harness` filtrent la liste. |
+| `list_harnesses` | Les environnements d’agent qu’un nœud `agent` peut indiquer comme `harness`, celui par défaut (`default`) qui s’exécute quand il n’en indique aucun, et si un abonnement peut servir chacun. |
+| `list_skills` | Les skills de l’organisation ; avec `projectId`, aussi les skills d’équipe de ce projet, ceux qu’une exécution dans ce projet peut utiliser. Un projet que tu ne peux pas lire répond `PROJECT_NOT_FOUND`. |
+| `list_connectors` | Les connectors que ce déploiement propose, si ton organisation a connecté chacun (`connected`) et combien d’actions il compte ; `query` filtre. `search_catalog` liste les actions. |
+| `list_agent_secrets` | Les noms des secrets d’agent de l’organisation avec un aperçu masqué (`preview`), jamais une valeur. Les rôles Propriétaire, Admin et Développeur les voient ; les autres reçoivent une liste vide avec une explication (`note`). |
+| `list_projects` | Les projets que tu peux lire : si chacun est modifiable (`writable`) ou archivé (`archived`), et les automatisations installées que tu peux voir (`automations`). `query` filtre par nom ; `includeArchived` ajoute les projets archivés. |
+| `list_events` | Les événements que Tale émet, chacun avec le moment où il se produit : ce qu’un déclencheur d’événement peut attendre. |
+
+Chaque réponse porte un `hint` qui nomme l’outil ou le paramètre qui la fait changer.
+
 ### Capacités & connaissances
 
 | Outil                 | Ce qu'il fait                                                                                                                                      |
@@ -155,6 +171,7 @@ Le registre de capacités contient actuellement les automatisations déployées.
 | --- | --- |
 | Lectures, validation, simulations (y compris `start_run` avec `mode: "mock"`) et tests d'acceptation, recherche de capacités, récupération de connaissances | Appartenance à l'organisation, puis règles habituelles de la ressource |
 | Répondre à la question d’une exécution | Appartenance à l’organisation ; pour une exécution dans un projet, droit de modifier ce projet |
+| Noms des secrets d’agent (`list_agent_secrets`) | Rôle Propriétaire, Admin ou Développeur ; les autres reçoivent une liste vide |
 | Enregistrer, déployer, supprimer, installer dans des projets, définir/supprimer un déclencheur, annuler ou exécuter réellement | Capacité développeur, puis règles habituelles de la ressource |
 
 La clé identifie son titulaire ; elle n'élargit ni son rôle ni son accès aux projets. Une automatisation installée uniquement dans des projets que le titulaire de la clé ne peut pas lire n’apparaît pas dans `list_automations`, et toute lecture de celle-ci répond `AUTOMATION_NOT_FOUND`, comme pour une automatisation qui n’existe pas. Les appels réels via `invoke_capability` passent aussi par les contrôles d'exécution.

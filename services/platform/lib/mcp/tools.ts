@@ -24,11 +24,12 @@ import {
 } from './args';
 import { READ_TOOL_RESULTS } from './results';
 
-/** The three groups the inventory is presented in — the settings page and the
- * docs table both read the list in this order. */
+/** The groups the inventory is presented in — the settings page and the
+ * docs tables both read the list in this order. */
 export const MCP_TOOL_GROUPS = [
   'authoring',
   'management',
+  'discovery',
   'capability',
 ] as const;
 
@@ -347,6 +348,55 @@ const PLATFORM_TOOLS = [
     annotations: READ,
     group: 'management',
   },
+  {
+    name: 'list_models',
+    description:
+      'The models you may use in a step: each with its provider (an agent step saves both as model and modelProvider), whether a provider serves it directly or a subscription does, the step types it suits and the agent runtimes it is offered to.',
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_harnesses',
+    description:
+      'The agent runtimes an agent step can run on (its harness), which one runs when a step names none, and which a subscription can serve.',
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_skills',
+    description:
+      "The skills an agent step can equip: the organization's own, or with projectId also the team skills of that project.",
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_connectors',
+    description:
+      'The connectors this deployment offers and whether the organization connected each — an agent step equips them by slug, a step running one of their actions needs it connected.',
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_agent_secrets',
+    description:
+      "The names of the organization's agent secrets an agent step can ask for, with a masked preview — never a value. Only owners, admins and developers see them; anyone else gets an empty list.",
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_projects',
+    description:
+      'The projects you can read: whether you can edit each, whether it is archived, and the automations installed in it.',
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_events',
+    description:
+      'The events Tale raises, which an event trigger can wait for, each with when it fires.',
+    annotations: READ,
+    group: 'discovery',
+  },
 ] as const satisfies ReadonlyArray<{
   name: keyof typeof PLATFORM_TOOL_ARGS;
   description: string;
@@ -386,8 +436,8 @@ const CAPABILITY_TOOL_ANNOTATIONS: Record<
 /**
  * Every tool this endpoint serves, in the order it advertises them: the engine's
  * method table first (authoring, then management, exactly as the engine lists
- * them), then the platform's own management reads, then the capability
- * tools.
+ * them), then the platform's own reads (its management read, then
+ * discovery), then the capability tools.
  */
 export const MCP_TOOLS: readonly McpToolSpec[] = [
   ...METHODS.map((name) =>

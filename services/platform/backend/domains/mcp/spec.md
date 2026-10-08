@@ -124,6 +124,24 @@ warnings.
   answer warns about both; Mia, an ordinary member, validates a step that names the secret
   `CRM_TOKEN` → she is told nothing about it.
 
+## Looking up what exists
+
+### MCP-R23 · Discovery answers only what the person may see, and never a secret's value
+
+The discovery tools list what an automation may name — models, agent runtimes, skills,
+connectors, the names of agent secrets, projects and events — from the readers the editor's
+pickers use, for the person and in their organization only: the models their model access allows,
+the skills of the organization and of a project they can read (any other project, or another
+organization's, is "not found"), whether each connector is connected, the projects they can read
+with only the automations they may see in each. The names of agent secrets go only to an owner,
+admin or developer, with a masked preview; anyone else gets an empty list that says why. No
+answer carries a secret's value.
+
+- **Example**: Mia, an ordinary member, asks for the agent secrets → an empty list saying only
+  owners, admins and developers see them; Ada, an admin, gets `CRM_TOKEN` with its masked preview
+  and never its value. Mia lists the projects → Sales is listed with `sales/follow-up`, and
+  nothing of the HR project she is not in.
+
 ## Answers and refusals
 
 ### MCP-R18 · A refusal comes back as an answer the agent can read, not a protocol error

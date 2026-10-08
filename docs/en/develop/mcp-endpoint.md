@@ -113,6 +113,8 @@ Pass `baseVersion`, the version your edit started from. When someone saved a new
 
 `analysis.nodes.<id>` says whether a node is `reachable`, whether it `alwaysRuns`, how it can be skipped (`maySkip`), and whether its failure stops the run (`failureHandling: "halts"`) or lets the run go on (`"continues"`). `analysis.paths` lists the ways a successful run can go, up to 32 of them with `count` for all, and names the nodes whose failure ends a run. `types` gives the JSON Schema of the run input, of each node's output, and of the automation's result; `get_catalog` gives each capability's `outputSchema` the same way. [What Tale checks before a run](/platform/automations/concepts#checks) explains each family of checks.
 
+`detail` chooses what comes beside the issues: `["analysis"]`, `["types"]`, or `[]` for the issues alone; left out, you get both. Some warnings compare the document with your organization instead of checking it: a skill no run of the automation can reach (`SKILL_UNKNOWN`), a connector nobody has connected (`CONNECTOR_NOT_CONNECTED`), a secret nobody has stored (`SECRET_UNKNOWN`, reported only to Owners, Admins and Developers), an agent runtime this deployment can't run (`HARNESS_UNKNOWN`), and an event trigger that waits for an event Tale doesn't raise (`EVENT_UNKNOWN`). They never stop a save; the [discovery tools](#discovery) list what exists.
+
 ### Run & trigger management
 
 | Tool             | What it does                                                                                                   |
@@ -139,6 +141,20 @@ Pass `baseVersion`, the version your edit started from. When someone saved a new
 
 Both deployed-run tools use the durable runner with the same authorization and execution records. `start_run` accepts an optional `projectId`. A project-bound automation must run in a project where it is installed; a sole binding can be selected automatically. With no bindings, omission means organization scope. Read `projectIds` from `list_automations` and the actual `projectId` from the returned handle rather than guessing a REST polling URL.
 
+### Discovery {#discovery}
+
+| Tool | What it does |
+| --- | --- |
+| `list_models` | The models you may use, filtered by your model access: each with `providerSlug` (an `agent` node saves it as `modelProvider`), `lane` (`direct` when a provider serves it, `subscription` or `broker` when a member's subscription does), the `nodeTypes` it suits (an `llm` node takes only a directly served model) and the agent runtimes it is offered to (`harnesses`). `nodeType` and `harness` filter the list. |
+| `list_harnesses` | The agent runtimes an `agent` node can name as `harness`, the `default` one that runs when it names none, and whether a subscription can serve each. |
+| `list_skills` | The organization's skills; with `projectId`, also the team skills of that project, the ones a run in it can use. A project you can't read answers `PROJECT_NOT_FOUND`. |
+| `list_connectors` | The connectors this deployment offers, whether your organization connected each (`connected`) and how many actions it has; `query` filters. `search_catalog` lists the actions. |
+| `list_agent_secrets` | The names of the organization's agent secrets with a masked `preview`, never a value. Owners, Admins and Developers see them; anyone else gets an empty list with a `note`. |
+| `list_projects` | The projects you can read: whether each is `writable` or `archived`, and the `automations` installed in it that you may see. `query` filters by name; `includeArchived` adds archived projects. |
+| `list_events` | The events Tale raises, each with when it fires: what an event trigger can wait for. |
+
+Each answer carries a `hint` that names the tool or the setting that changes it.
+
 ### Capabilities & knowledge
 
 | Tool                  | What it does                                                                                                        |
@@ -155,6 +171,7 @@ The capability registry currently contains deployed automations. It does not inc
 | --- | --- |
 | Reads, validation, mock runs (`start_run` with `mode: "mock"` included) and acceptance tests, capability search, knowledge retrieval | Organization membership, plus the resource's normal access rules |
 | Answer a run's question | Organization membership; for a run in a project, edit access to that project |
+| Agent secret names (`list_agent_secrets`) | Owner, Admin or Developer role; anyone else gets an empty list |
 | Save, deploy, delete, install in projects, set/delete a trigger, cancel a run, or execute live | Developer capability, plus the resource's normal access rules |
 
 The key identifies its holder; it does not expand that person's role or project access. An automation installed only in projects the key holder cannot read is left out of `list_automations`, and every read of it answers `AUTOMATION_NOT_FOUND`, as for one that does not exist. Live `invoke_capability` calls also pass through the execution checks.

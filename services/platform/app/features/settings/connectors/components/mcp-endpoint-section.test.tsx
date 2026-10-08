@@ -10,7 +10,7 @@ import { McpEndpointSection } from './mcp-endpoint-section';
 /**
  * Component coverage for the API → MCP settings section: the endpoint URL
  * renders from the deployment site URL, and the tool inventory renders as
- * three grouped rows — every advertised tool exactly once, under the row of
+ * one row per group — every advertised tool exactly once, under the row of
  * its own group. Which tool belongs to which group is pinned against the docs
  * in `lib/mcp/tools.test.ts`; this suite guards the rendering.
  */
@@ -45,6 +45,7 @@ vi.mock('@/app/features/organization/hooks/queries', () => ({
 const GROUP_HEADINGS: Record<McpToolGroup, string> = {
   authoring: 'Authoring',
   management: 'Run & trigger management',
+  discovery: 'Discovery',
   capability: 'Capabilities & knowledge',
 };
 
@@ -101,7 +102,7 @@ describe('McpEndpointSection', () => {
     organizationQuery.data = { slug: 'northlight' };
   });
 
-  it('renders the tool inventory in the three documented groups', async () => {
+  it('renders the tool inventory in the documented groups', async () => {
     const { container } = render(<McpEndpointSection organizationId="org-1" />);
 
     for (const group of MCP_TOOL_GROUPS) {

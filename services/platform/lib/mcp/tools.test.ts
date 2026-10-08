@@ -13,7 +13,7 @@ import {
 /**
  * The inventory's grouping contract. The endpoint docs
  * (docs/en/develop/mcp-endpoint.md) and the API → MCP settings section present
- * the same three groups, so membership is pinned by name here: a tool that
+ * the same groups, so membership is pinned by name here: a tool that
  * moves group, ships unclassified, or appears in the inventory without a docs
  * decision fails loudly instead of silently drifting the settings page away
  * from the docs tables. Names are listed in the advertised (`tools/list`)
@@ -52,6 +52,15 @@ describe('MCP tool grouping', () => {
       'delete_trigger',
       'get_automation_metrics',
     ]);
+    expect(byGroup('discovery')).toEqual([
+      'list_models',
+      'list_harnesses',
+      'list_skills',
+      'list_connectors',
+      'list_agent_secrets',
+      'list_projects',
+      'list_events',
+    ]);
     expect(byGroup('capability')).toEqual([
       'search_capabilities',
       'invoke_capability',
@@ -59,7 +68,7 @@ describe('MCP tool grouping', () => {
     ]);
   });
 
-  test('the three groups partition the whole inventory', () => {
+  test('the groups partition the whole inventory', () => {
     expect(MCP_TOOL_GROUPS.flatMap(byGroup)).toHaveLength(MCP_TOOLS.length);
   });
 
@@ -114,6 +123,13 @@ describe('MCP tool annotations', () => {
     list_triggers: { ...READ, idempotentHint: true },
     delete_trigger: hints(false, true, true, false),
     get_automation_metrics: { ...READ, idempotentHint: true },
+    list_models: { ...READ, idempotentHint: true },
+    list_harnesses: { ...READ, idempotentHint: true },
+    list_skills: { ...READ, idempotentHint: true },
+    list_connectors: { ...READ, idempotentHint: true },
+    list_agent_secrets: { ...READ, idempotentHint: true },
+    list_projects: { ...READ, idempotentHint: true },
+    list_events: { ...READ, idempotentHint: true },
     search_capabilities: { ...READ, idempotentHint: true },
     invoke_capability: hints(false, true, false, true),
     get_knowledge: { ...READ, idempotentHint: true },

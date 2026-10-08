@@ -237,6 +237,13 @@ describe('tools/list', () => {
     'delete_trigger',
     // The platform's own management read.
     'get_automation_metrics',
+    'list_models',
+    'list_harnesses',
+    'list_skills',
+    'list_connectors',
+    'list_agent_secrets',
+    'list_projects',
+    'list_events',
     // The platform capability tools — real schemas, a different backend.
     'search_capabilities',
     'invoke_capability',

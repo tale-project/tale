@@ -74,6 +74,10 @@ mcpEndpoint:
       title: Run & trigger management
       description: Operate what is deployed — start and poll durable runs,
         browse versions, bind and unbind triggers.
+    discovery:
+      title: Discovery
+      description: Look up what an automation may name — models, agent
+        runtimes, skills, connectors, secret names, projects and events.
     capability:
       title: Capabilities & knowledge
       description: This organization's own surface — search what it can do,
