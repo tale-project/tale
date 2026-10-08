@@ -272,6 +272,11 @@ export async function harvestSessionOutput(
      * bumps the recovery sweep would read a working settle as a dead chain
      * and re-attach a second one. */
     execId?: string;
+    /** The exec that wrote the outputs had exited before this harvest, so
+     * nothing is left writing to the box: its first listing is final. Leave
+     * it unset when the exec may still be running (a reaped linger, a window
+     * cut on a live exec) — an empty listing is then re-read briefly. */
+    execExited?: boolean;
   },
 ): Promise<{
   files: HarvestedOutputFile[];
@@ -316,11 +321,14 @@ export async function harvestSessionOutput(
         `sandbox output listing came back 404 for ${outputDir} — the session or its delivery box disappeared before harvest`,
       );
     }
-    if (entries.length === 0) {
-      // An EMPTY listing right after an exec that reported success is usually a
-      // read-after-write race on the session's delivery box, not a script that
-      // wrote nothing (scripts that write nothing are rare and retrying costs
-      // milliseconds). Re-list briefly before accepting emptiness as truth.
+    if (entries.length === 0 && args.execExited !== true) {
+      // An EMPTY listing while the exec may still be running (reaped after its
+      // turn ended, still inside its kill grace) can be a write that has not
+      // landed yet. Re-list briefly before accepting emptiness as truth. An
+      // exec that already exited skips this: the listing reads the same
+      // filesystem its writer used, so once the writer is gone there is
+      // nothing left to land, and the 1.5 s of re-reads would only delay
+      // every turn that delivered no file.
       for (let attempt = 0; attempt < 3 && entries.length === 0; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 500));
         const again = await sessionListFiles(sessionId, outputDir);

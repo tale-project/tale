@@ -1984,6 +1984,7 @@ async function continueOrSettle(
     ...(ended?.usageTotals !== undefined
       ? { usageTotals: ended.usageTotals }
       : {}),
+    ...(window.exited ? { execExited: true } : {}),
   });
 }
 
@@ -2095,6 +2096,9 @@ async function settleTaskAgentTurn(
     retryAtMs?: number;
     /** The harness's own token totals, booked alongside the gateway spend. */
     usageTotals?: { inputTokens: number; outputTokens: number };
+    /** The turn's exec exited on its own before the settle, so the harvest
+     * reads a box nothing is still writing to. */
+    execExited?: boolean;
   },
 ): Promise<void> {
   const current = await ctx.runQuery(
@@ -2221,6 +2225,7 @@ async function settleTaskAgentTurn(
       sessionId: args.sessionId,
       outputDir: taskOutputDir(args.taskId),
       execId: args.execId,
+      ...(result.execExited === true ? { execExited: true } : {}),
     });
     // Outputs the harvest could not bring back (caps, unreadable, storage
     // rejection) go into the settle comment — the reviewer must see WHAT is

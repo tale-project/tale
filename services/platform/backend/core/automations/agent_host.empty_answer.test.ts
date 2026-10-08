@@ -23,6 +23,8 @@ const io = vi.hoisted(() => ({
   /** What the exec printed, replayed into every drain window. */
   stdout: '',
   cancelled: [] as string[],
+  /** What each settle asked the output harvest for. */
+  harvests: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
@@ -59,7 +61,13 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
   };
 });
 vi.mock('../node_only/sandbox/session_exec', () => ({
-  harvestSessionOutput: async () => ({ files: [], harvestSkipped: [] }),
+  harvestSessionOutput: async (
+    _ctx: unknown,
+    args: Record<string, unknown>,
+  ) => {
+    io.harvests.push(args);
+    return { files: [], harvestSkipped: [] };
+  },
 }));
 
 const { driveWorkflowAgentTurnImpl } = await import('./agent_host');
@@ -162,6 +170,7 @@ const SILENT_RESULT = {
 beforeEach(() => {
   io.stdout = '';
   io.cancelled = [];
+  io.harvests = [];
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -192,6 +201,10 @@ describe('an automation agent turn', () => {
       .filter((text): text is string => typeof text === 'string');
     expect(progress.length).toBeGreaterThan(0);
     expect(progress.every((text) => text.length <= 64 * 1024)).toBe(true);
+    // The exec exited before the settle: the harvest takes its first listing.
+    expect(io.harvests).toEqual([
+      expect.objectContaining({ execId: KEYS.execId, execExited: true }),
+    ]);
   });
 
   it('fails, retryably, when the model answered nothing', async () => {

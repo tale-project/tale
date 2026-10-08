@@ -2636,6 +2636,7 @@ async function continueOrSettle(
         ? { agentResultStatus: ended.status }
         : {}),
       harvest: true,
+      execExited: window.exited,
     },
   );
 }
@@ -2654,6 +2655,9 @@ async function settleWorkflowAgentTurn(
     exitCode?: number;
     agentResultStatus?: string;
     harvest?: boolean;
+    /** The turn's exec exited on its own before the settle, so the harvest
+     * reads a box nothing is still writing to. */
+    execExited?: boolean;
   } = {},
 ): Promise<void> {
   const release = await releaseTurnKey(ctx, {
@@ -2740,6 +2744,7 @@ async function settleWorkflowAgentTurn(
         organizationId: args.organizationId,
         sessionId: args.sessionId,
         execId: args.execId,
+        ...(opts.execExited === true ? { execExited: true } : {}),
       });
       files = harvested.files.map((file) => ({
         name: file.path.split('/').at(-1) ?? file.path,
