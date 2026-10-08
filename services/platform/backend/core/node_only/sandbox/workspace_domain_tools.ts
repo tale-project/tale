@@ -1102,7 +1102,7 @@ export async function runTaskTool(
       }
       // What works on the task and who reviews it. A read that fails
       // fails the call — never a task that reads as idle for want of runs.
-      const work: TaskWorkStateAnswer | null = await ctx.runQuery(
+      let work: TaskWorkStateAnswer | null = await ctx.runQuery(
         internal.tasks.internal_queries.getTaskWorkStateForAgent,
         {
           organizationId,
@@ -1140,24 +1140,70 @@ export async function runTaskTool(
           'read the current review',
         );
       }
-      const reviewFiles =
-        hasReviewFiles && review.reviewer?.kind === 'agent'
-          ? await ctx.runQuery(
-              internal.tasks.internal_queries.getTaskReviewFilesForAgent,
-              {
-                organizationId,
-                projectId: String(scoped.task.projectId),
-                taskId,
-                expected: {
-                  approvalId: review.approvalId,
-                  runId: review.runId,
-                  evidenceRevision: review.evidenceRevision,
-                },
-                reviewerAgentId: review.reviewer.agentId,
-                cursor: callArgs.reviewFileCursor,
+      let reviewFiles = null;
+      if (hasReviewFiles && review.reviewer?.kind === 'agent') {
+        const readReviewFiles = (currentReview: {
+          approvalId: string;
+          runId: string;
+          evidenceRevision: string;
+          reviewer: { kind: 'agent'; agentId: string };
+        }) =>
+          ctx.runQuery(
+            internal.tasks.internal_queries.getTaskReviewFilesForAgent,
+            {
+              organizationId,
+              projectId: String(scoped.task.projectId),
+              taskId,
+              expected: {
+                approvalId: currentReview.approvalId,
+                runId: currentReview.runId,
+                evidenceRevision: currentReview.evidenceRevision,
               },
-            )
-          : null;
+              reviewerAgentId: currentReview.reviewer.agentId,
+              cursor: callArgs.reviewFileCursor,
+            },
+          );
+        try {
+          reviewFiles = await readReviewFiles(review);
+        } catch (error) {
+          if (
+            !isStaleReviewFilesError(error) ||
+            (typeof callArgs.reviewFileCursor === 'string' &&
+              callArgs.reviewFileCursor !== '')
+          ) {
+            throw error;
+          }
+          const rereadWork: TaskWorkStateAnswer | null = await ctx.runQuery(
+            internal.tasks.internal_queries.getTaskWorkStateForAgent,
+            {
+              organizationId,
+              projectId: String(scoped.task.projectId),
+              taskId,
+              runLimit:
+                typeof callArgs.runLimit === 'number' && callArgs.runLimit > 0
+                  ? readLimit(callArgs.runLimit, TASK_GET_RUNS_MAX)
+                  : TASK_GET_RUNS_DEFAULT,
+              ...(runsBeforeSeq !== undefined ? { runsBeforeSeq } : {}),
+            },
+          );
+          const currentReview =
+            rereadWork !== null && Array.isArray(rereadWork.agentRuns)
+              ? rereadWork.pendingReview
+              : null;
+          if (rereadWork !== null && Array.isArray(rereadWork.agentRuns)) {
+            work = rereadWork;
+          }
+          if (
+            currentReview?.reviewer?.kind !== 'agent' ||
+            typeof currentReview.runId !== 'string' ||
+            typeof currentReview.evidenceRevision !== 'string'
+          ) {
+            reviewFiles = null;
+          } else {
+            reviewFiles = await readReviewFiles(currentReview);
+          }
+        }
+      }
       return {
         status: 'ok',
         output: {
@@ -1687,6 +1733,14 @@ export async function runTaskTool(
   } catch (error) {
     return toolResultFromError(error);
   }
+}
+
+function isStaleReviewFilesError(error: unknown): boolean {
+  return (
+    error instanceof AppError &&
+    isRecord(error.data) &&
+    error.data.code === 'TASK_REVIEW_STALE'
+  );
 }
 
 /**

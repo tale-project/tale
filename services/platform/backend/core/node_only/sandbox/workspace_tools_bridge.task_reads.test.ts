@@ -15,6 +15,7 @@
 import type { PendingReviewIdentity } from '@tale/shared/schemas/task-review';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
 import { mintCursorFor } from '../../lib/signed_cursor';
 import { taskFindListing } from './workspace_domain_tools';
@@ -109,6 +110,7 @@ interface Harness {
   scope: Scope;
   context: (args: Record<string, unknown>) => unknown;
   workState: (args: Record<string, unknown>) => unknown;
+  reviewFiles?: (args: Record<string, unknown>) => unknown;
 }
 
 function createHarness(overrides: Partial<Harness> = {}) {
@@ -160,6 +162,9 @@ function createHarness(overrides: Partial<Harness> = {}) {
       }
       if (name === 'tasks/internal_queries:getTaskWorkStateForAgent') {
         return harness.workState(args);
+      }
+      if (name === 'tasks/internal_queries:getTaskReviewFilesForAgent') {
+        return harness.reviewFiles?.(args) ?? null;
       }
       return null;
     },
@@ -915,6 +920,119 @@ describe('task_get reads what a manager decides with', () => {
       }
     },
   );
+
+  it('recovers one stale review-file snapshot with a coherent reread', async () => {
+    const reviewA = {
+      approvalId: 'a-1',
+      round: 1,
+      runId: 'r-a',
+      reviewer: { kind: 'agent', agentId: 'reviewer-a' },
+      requestedFor: null,
+      implementationAgentId: 'worker',
+      evidenceRevision: 'a'.repeat(64),
+      createdAt: 1_790_000_000_000,
+    };
+    const reviewB = {
+      ...reviewA,
+      approvalId: 'b-1',
+      runId: 'r-b',
+      reviewer: { kind: 'agent', agentId: 'reviewer-b' },
+      evidenceRevision: 'b'.repeat(64),
+    };
+    let workRead = 0;
+    let fileRead = 0;
+    const { call, called } = createHarness({
+      workState: () => ({
+        agentRuns: [],
+        agentRunsHasMore: false,
+        workflowRun: null,
+        pendingReview: ++workRead === 1 ? reviewA : reviewB,
+      }),
+      reviewFiles: () => {
+        if (++fileRead === 1)
+          throw new AppError({ code: 'TASK_REVIEW_STALE', message: 'changed' });
+        return { entries: [{ fileId: 'new-file' }], page: { isDone: true } };
+      },
+    });
+    const result = await call('task_get', { taskId: 't-0000' });
+    expect(result.status).toBe('ok');
+    expect(outputOf(result).reviewFiles).toEqual({
+      entries: [{ fileId: 'new-file' }],
+      page: { isDone: true },
+    });
+    expect(outputOf(result).pendingReview).toMatchObject({ approvalId: 'b-1' });
+    expect(called('getTaskReviewFilesForAgent')).toHaveLength(2);
+    expect(
+      called('getTaskReviewFilesForAgent')[1]?.args.expected,
+    ).toMatchObject({ approvalId: 'b-1', runId: 'r-b' });
+  });
+
+  it('bounds repeated review handoff churn as a recoverable stale result', async () => {
+    const review = {
+      approvalId: 'a-1',
+      round: 1,
+      runId: 'r-a',
+      reviewer: { kind: 'agent', agentId: 'reviewer-a' },
+      requestedFor: null,
+      implementationAgentId: 'worker',
+      evidenceRevision: 'a'.repeat(64),
+      createdAt: 1_790_000_000_000,
+    };
+    let workRead = 0;
+    const { call } = createHarness({
+      workState: () => ({
+        agentRuns: [],
+        agentRunsHasMore: false,
+        workflowRun: null,
+        pendingReview: {
+          ...review,
+          approvalId: workRead++ === 0 ? 'a-1' : 'b-1',
+          runId: workRead === 1 ? 'r-a' : 'r-b',
+          evidenceRevision: workRead === 1 ? 'a'.repeat(64) : 'b'.repeat(64),
+        },
+      }),
+      reviewFiles: () => {
+        throw new AppError({ code: 'TASK_REVIEW_STALE', message: 'changed' });
+      },
+    });
+    const result = await call('task_get', { taskId: 't-0000' });
+    expect(result).toMatchObject({
+      status: 'invalid_args',
+      message: expect.stringContaining('TASK_REVIEW_STALE'),
+    });
+  });
+
+  it('does not rebind a review-file cursor after a stale snapshot', async () => {
+    const review = {
+      approvalId: 'a-1',
+      round: 1,
+      runId: 'r-a',
+      reviewer: { kind: 'agent', agentId: 'reviewer-a' },
+      requestedFor: null,
+      implementationAgentId: 'worker',
+      evidenceRevision: 'a'.repeat(64),
+      createdAt: 1_790_000_000_000,
+    };
+    const { call } = createHarness({
+      workState: () => ({
+        agentRuns: [],
+        agentRunsHasMore: false,
+        workflowRun: null,
+        pendingReview: review,
+      }),
+      reviewFiles: () => {
+        throw new AppError({ code: 'TASK_REVIEW_STALE', message: 'changed' });
+      },
+    });
+    const result = await call('task_get', {
+      taskId: 't-0000',
+      reviewFileCursor: 'cursor',
+    });
+    expect(result).toMatchObject({
+      status: 'invalid_args',
+      message: expect.stringContaining('TASK_REVIEW_STALE'),
+    });
+  });
 
   it('answers a failed run-state read as an error, never as an idle task', async () => {
     const { harness, call } = createHarness();
