@@ -23,6 +23,31 @@ export interface BackendServiceOptions {
   colour?: DeploymentColor;
 }
 
+/** The api's stop grace, in seconds, under its default 15 s drain. */
+export const BACKEND_API_STOP_GRACE_S = 30;
+/** The worker's stop grace, in seconds, under its default 90 s drain. */
+export const BACKEND_WORKER_STOP_GRACE_S = 120;
+/** How far a role's stop grace stays above its drain budget. */
+const STOP_GRACE_ABOVE_DRAIN_S = 15;
+
+/**
+ * How long `docker stop` waits for a backend role before SIGKILL: the role's
+ * own grace, or 15 s above the operator's `SHUTDOWN_DRAIN_MS` when that drain
+ * is longer — a grace below the drain would kill the process in the middle
+ * of it, with nothing in its log saying why. Read from `process.env`, where
+ * `loadEnv` has folded the project's `.env`; a value the backend would
+ * refuse at boot keeps the default.
+ */
+export function backendStopGraceSeconds(defaultSeconds: number): number {
+  const raw = process.env.SHUTDOWN_DRAIN_MS?.trim() ?? '';
+  const drainMs = /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
+  if (!Number.isSafeInteger(drainMs) || drainMs <= 0) return defaultSeconds;
+  return Math.max(
+    defaultSeconds,
+    Math.ceil(drainMs / 1000) + STOP_GRACE_ABOVE_DRAIN_S,
+  );
+}
+
 function backendBase(
   config: ServiceConfig,
   service: 'backend-api' | 'backend-worker',
@@ -149,7 +174,7 @@ export function createBackendApiService(
     // `docker stop` waits this long before SIGKILL: the api closes HTTP/SSE
     // and stops its job queue inside its 15 s drain (SHUTDOWN_DRAIN_MS) with
     // room to spare. Mirrored in compose.yml.
-    stop_grace_period: '30s',
+    stop_grace_period: `${backendStopGraceSeconds(BACKEND_API_STOP_GRACE_S)}s`,
     // LIVENESS, not readiness: `/ping` stays 200 while a replica drains, so
     // Docker does not kill a container that is deliberately finishing its
     // in-flight work. `/ready` is the deploy's question (503 once this
@@ -202,7 +227,7 @@ export function createBackendWorkerService(
     // its automation runs to another one and waits out its other jobs inside
     // its 90 s drain (SHUTDOWN_DRAIN_MS); the grace stays 15 s above it.
     // Mirrored in compose.yml.
-    stop_grace_period: '120s',
+    stop_grace_period: `${backendStopGraceSeconds(BACKEND_WORKER_STOP_GRACE_S)}s`,
     // No shared alias: nothing addresses a worker by name — it is reached
     // only through the job queue. Old workers stay up through the api drain
     // so already-claimed jobs can finish; they refuse NEW claims once their

@@ -140,6 +140,32 @@ describe('generateColorCompose ↔ the backend stop budget', () => {
       expect(services['backend-worker']?.stop_grace_period).toBe('120s');
     });
   }
+
+  // A deploy generates its compose file, so the drain an operator sets in
+  // the project `.env` is the only knob: the grace follows it up, never
+  // below the role's own.
+  test('keeps the grace 15 s above a longer SHUTDOWN_DRAIN_MS', () => {
+    const before = process.env.SHUTDOWN_DRAIN_MS;
+    try {
+      process.env.SHUTDOWN_DRAIN_MS = '300000';
+      const longer = servicesOf('blue');
+      expect(longer['backend-api']?.stop_grace_period).toBe('315s');
+      expect(longer['backend-worker']?.stop_grace_period).toBe('315s');
+
+      process.env.SHUTDOWN_DRAIN_MS = '5000';
+      const shorter = servicesOf('blue');
+      expect(shorter['backend-api']?.stop_grace_period).toBe('30s');
+      expect(shorter['backend-worker']?.stop_grace_period).toBe('120s');
+
+      process.env.SHUTDOWN_DRAIN_MS = 'ninety seconds';
+      expect(servicesOf('blue')['backend-worker']?.stop_grace_period).toBe(
+        '120s',
+      );
+    } finally {
+      if (before === undefined) delete process.env.SHUTDOWN_DRAIN_MS;
+      else process.env.SHUTDOWN_DRAIN_MS = before;
+    }
+  });
 });
 
 describe('generateColorCompose ↔ the shared config store', () => {
