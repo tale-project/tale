@@ -35,8 +35,10 @@ import {
   toUtc,
   validInstant,
 } from './calendar.ts';
+import { isTimeZone } from './zoned-time.ts';
 
 export { type CalendarDate, weekdayOf } from './calendar.ts';
+export { localTimeZone } from './zoned-time.ts';
 
 const DAY_MS = 86_400_000;
 const HALF_DAY_MS = DAY_MS / 2;
@@ -46,16 +48,6 @@ dayjs.extend(timezone);
 
 /** "Every 99 weeks" is the widest step the custom form offers. */
 export const TASK_REPEAT_MAX_INTERVAL = 99;
-
-function isTimeZone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: value });
-    return true;
-  } catch (error) {
-    if (error instanceof RangeError) return false;
-    throw error;
-  }
-}
 
 const intervalSchema = z.number().int().min(1).max(TASK_REPEAT_MAX_INTERVAL);
 const timezoneSchema = z
@@ -342,9 +334,4 @@ export function upcomingTaskRepeatDates(
     next.push(anchor);
   }
   return { dueDate, next };
-}
-
-/** The zone this runtime reads dates in — the browser's, in the app. */
-export function localTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
