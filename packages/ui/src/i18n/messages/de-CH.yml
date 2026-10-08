@@ -11,6 +11,8 @@ docs:
 common:
   aria:
     close: Schliessen
+  flow:
+    zoomIn: Vergrössern
 envEditor:
   projectSecretBadKey: «{key}» muss mit einem Grossbuchstaben beginnen und darf nur Grossbuchstaben, Ziffern oder Unterstriche enthalten (maximal 64 Zeichen).
 codeEditor:
@@ -20,3 +22,6 @@ codeEditor:
   phrases:
     close: Schliessen
     matchCase: Gross-/Kleinschreibung
+flow:
+  canvas:
+    arrangeFailed: Die Nodes liessen sich nicht anordnen und stehen deshalb untereinander.

@@ -195,7 +195,6 @@ common:
     somethingWentWrong: Something went wrong. Try again.
     tryAgain: Try again
   flow:
-    aiEditor: AI editor
     resetView: Reset view
     zoomIn: Zoom in
     zoomOut: Zoom out
@@ -523,3 +522,57 @@ schemaTree:
   maybeEmpty: may be empty
   more: '{count, plural, one {# more field} other {# more fields}}'
   asTypeScript: Show as TypeScript
+
+flow:
+  canvas:
+    roleDescription: flow chart
+    keyboardHelp: Use the arrow keys to follow the connections between nodes, Home and End to jump to Start and End, and Enter to open a node.
+    arranging: Arranging the nodes…
+    arrangeFailed: Couldn't arrange the nodes, so they're shown in one column.
+    touchHint: Use two fingers to move the chart
+  controls:
+    showList: Show as list
+    showChart: Show as chart
+    legend: Legend
+  legend:
+    title: How to read the chart
+  node:
+    entry: Start
+    exit: End
+    triggers: Starts
+    inputs: Input
+    outputs: Returns
+    outcomes: Ends
+    noInput: No input
+    noOutput: Returns nothing
+    more: +{count} more
+    unreachable: Never runs
+    position: Node {index} of {count}
+    section: '{heading}: {items}'
+    rowWithDetail: '{label} ({detail})'
+  gate:
+    onlyIf: Only if
+    ifElse: If
+    name: 'Condition for {node}: {condition}'
+    branches: Yes leads to {yes}, No leads to {no}
+  branch:
+    'yes': 'Yes'
+    'no': 'No'
+  relation:
+    comesFrom: Comes from {list}
+    leadsTo: Leads to {list}
+    onlyIf: Runs only if {condition}
+    otherwise: Runs when the condition of {node} is false
+  state:
+    pending: Not reached yet
+    running: Running
+    waiting: Waiting
+    succeeded: Succeeded
+    failed: Failed
+    skipped: Skipped
+    stopped: Stopped here
+    notRun: Not run
+  list:
+    label: Nodes
+    reads: Reads {list}
+    empty: No nodes yet

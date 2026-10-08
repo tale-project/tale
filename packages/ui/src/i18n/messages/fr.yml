@@ -195,7 +195,6 @@ common:
     somethingWentWrong: Une erreur s'est produite. Réessaie.
     tryAgain: Réessayer
   flow:
-    aiEditor: Éditeur IA
     resetView: Réinitialiser la vue
     zoomIn: Zoomer
     zoomOut: Dézoomer
@@ -523,3 +522,57 @@ schemaTree:
   maybeEmpty: peut être vide
   more: '{count, plural, one {# autre champ} many {# autres champs} other {# autres champs}}'
   asTypeScript: Afficher en TypeScript
+
+flow:
+  canvas:
+    roleDescription: diagramme de flux
+    keyboardHelp: Utilise les flèches pour suivre les liens entre les nœuds, Début et Fin pour aller au début et à la fin, et Entrée pour ouvrir un nœud.
+    arranging: Disposition des nœuds…
+    arrangeFailed: Impossible de disposer les nœuds, ils sont donc affichés en une colonne.
+    touchHint: Utilise deux doigts pour déplacer le diagramme
+  controls:
+    showList: Afficher en liste
+    showChart: Afficher en diagramme
+    legend: Légende
+  legend:
+    title: Comment lire le diagramme
+  node:
+    entry: Début
+    exit: Fin
+    triggers: Démarre
+    inputs: Entrée
+    outputs: Renvoie
+    outcomes: Se termine
+    noInput: Aucune entrée
+    noOutput: Ne renvoie rien
+    more: +{count} de plus
+    unreachable: Ne s'exécute jamais
+    position: Nœud {index} sur {count}
+    section: '{heading} : {items}'
+    rowWithDetail: '{label} ({detail})'
+  gate:
+    onlyIf: Seulement si
+    ifElse: Si
+    name: 'Condition pour {node} : {condition}'
+    branches: Oui mène à {yes}, Non à {no}
+  branch:
+    'yes': Oui
+    'no': Non
+  relation:
+    comesFrom: Vient de {list}
+    leadsTo: Mène à {list}
+    onlyIf: S'exécute seulement si {condition}
+    otherwise: S'exécute quand la condition de {node} est fausse
+  state:
+    pending: Pas encore atteint
+    running: En cours
+    waiting: En attente
+    succeeded: Réussi
+    failed: Échoué
+    skipped: Ignoré
+    stopped: Arrêté ici
+    notRun: Non exécuté
+  list:
+    label: Nœuds
+    reads: Lit {list}
+    empty: Aucun nœud pour l'instant

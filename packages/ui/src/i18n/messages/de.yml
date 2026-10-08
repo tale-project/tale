@@ -195,7 +195,6 @@ common:
     somethingWentWrong: Etwas ist schiefgelaufen. Versuch es erneut.
     tryAgain: Erneut versuchen
   flow:
-    aiEditor: KI-Editor
     resetView: Ansicht zurücksetzen
     zoomIn: Vergrößern
     zoomOut: Verkleinern
@@ -523,3 +522,57 @@ schemaTree:
   maybeEmpty: kann leer sein
   more: '{count, plural, one {# weiteres Feld} other {# weitere Felder}}'
   asTypeScript: Als TypeScript zeigen
+
+flow:
+  canvas:
+    roleDescription: Ablaufdiagramm
+    keyboardHelp: Folge mit den Pfeiltasten den Verbindungen zwischen den Nodes. Pos1 und Ende springen zu Start und Ende, mit der Eingabetaste öffnest du eine Node.
+    arranging: Nodes werden angeordnet…
+    arrangeFailed: Die Nodes ließen sich nicht anordnen und stehen deshalb untereinander.
+    touchHint: Verschiebe das Diagramm mit zwei Fingern
+  controls:
+    showList: Als Liste anzeigen
+    showChart: Als Diagramm anzeigen
+    legend: Legende
+  legend:
+    title: So liest du das Diagramm
+  node:
+    entry: Start
+    exit: Ende
+    triggers: Startet
+    inputs: Eingabe
+    outputs: Gibt zurück
+    outcomes: Endet
+    noInput: Keine Eingabe
+    noOutput: Gibt nichts zurück
+    more: +{count} weitere
+    unreachable: Läuft nie
+    position: Node {index} von {count}
+    section: '{heading}: {items}'
+    rowWithDetail: '{label} ({detail})'
+  gate:
+    onlyIf: Nur wenn
+    ifElse: Wenn
+    name: 'Bedingung für {node}: {condition}'
+    branches: Ja führt zu {yes}, Nein zu {no}
+  branch:
+    'yes': Ja
+    'no': Nein
+  relation:
+    comesFrom: Kommt von {list}
+    leadsTo: Führt zu {list}
+    onlyIf: Läuft nur, wenn {condition}
+    otherwise: Läuft, wenn die Bedingung von {node} nicht zutrifft
+  state:
+    pending: Noch nicht erreicht
+    running: Läuft
+    waiting: Wartet
+    succeeded: Erfolgreich
+    failed: Fehlgeschlagen
+    skipped: Übersprungen
+    stopped: Hier gestoppt
+    notRun: Nicht ausgeführt
+  list:
+    label: Nodes
+    reads: Liest {list}
+    empty: Noch keine Nodes

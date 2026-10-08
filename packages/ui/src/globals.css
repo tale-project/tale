@@ -291,6 +291,12 @@
   --code-squiggle-error: hsl(var(--destructive));
   --code-squiggle-warning: #b45309;
   --code-squiggle-info: hsl(var(--info-foreground));
+
+  /* A flow chart's "No" branch: amber, never red ("No" is a path the author
+     drew, not an error). The warning amber is 2.2:1 on white, too faint for
+     a line, so light mode takes amber-700 (5:1); the edge palette reads it
+     through FLOW_EDGE_COLORS.negative. */
+  --flow-edge-negative: #b45309;
 }
 
 .dark {
@@ -395,6 +401,7 @@
   --code-template-tint: hsl(var(--info-foreground) / 0.1);
   --code-match: hsl(var(--info-foreground) / 0.25);
   --code-squiggle-warning: #f59e0b;
+  --flow-edge-negative: #f59e0b;
 }
 
 /* Windows contrast themes repaint text in their own colours; the selection
