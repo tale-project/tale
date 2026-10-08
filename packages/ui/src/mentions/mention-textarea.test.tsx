@@ -159,20 +159,32 @@ describe('MentionTextarea', () => {
     );
   });
 
-  it('hands back the value it was given when an edit returns to it', async () => {
+  it('shows a typed handle by name and writes it back as typed', async () => {
     const onValue = vi.fn();
     const { user } = render(
-      <Field initial="@ada hi" resolvePlain={resolveAda} onValue={onValue} />,
+      <Field initial="@Ada hi" resolvePlain={resolveAda} onValue={onValue} />,
     );
     const field = screen.getByRole('textbox', { name: 'Comment' });
     expect(field).toHaveValue('@Ada Lovelace hi');
     await user.click(field);
     await user.keyboard('{End}!');
+    // Whom the handle names stays the saving server's call.
+    expect(onValue).toHaveBeenLastCalledWith('@Ada hi!');
+  });
+
+  it('hands back the value it was given when an edit returns to it', async () => {
+    const onValue = vi.fn();
+    const initial = 'Hi [@Old Name](mention:user/u-ada)';
+    const { user } = render(<Field initial={initial} onValue={onValue} />);
+    const field = screen.getByRole('textbox', { name: 'Comment' });
+    expect(field).toHaveValue('Hi @Ada Lovelace');
+    await user.click(field);
+    await user.keyboard('{End}!');
     expect(onValue).toHaveBeenLastCalledWith(
-      '[@Ada Lovelace](mention:user/u-ada) hi!',
+      'Hi [@Ada Lovelace](mention:user/u-ada)!',
     );
     await user.keyboard('{Backspace}');
-    expect(onValue).toHaveBeenLastCalledWith('@ada hi');
+    expect(onValue).toHaveBeenLastCalledWith(initial);
   });
 
   it('follows names that arrive late until someone types, then keeps the words', async () => {

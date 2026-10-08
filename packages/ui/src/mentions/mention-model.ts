@@ -10,6 +10,12 @@
  * ({@link serializeMentionDoc}), so whoever holds the value keeps a plain
  * string.
  *
+ * A typed `@handle` in an older text shows the name of whom it names too, but
+ * only for the reader: it is written back as it was typed. Whom a handle
+ * names is the saving server's call (it knows who can be mentioned there,
+ * whom the text named when it was saved, and which texts keep another
+ * system's `@names`), so a field never turns one into a token itself.
+ *
  * Pure, no React.
  */
 
@@ -29,6 +35,9 @@ export interface MentionRange<
   end: number;
   /** The name shown after `@`. */
   name: string;
+  /** The `@handle` the stored text says here, for a mention read from a
+   * typed handle: it is written back as it is, never as a token. */
+  written?: string;
 }
 
 export interface MentionDoc<Kind extends string = string> {
@@ -51,7 +60,8 @@ export interface MentionDocOptions<Kind extends string> {
    * shown when this answers nothing. */
   nameOf?: (ref: MentionRef<Kind>) => string | null | undefined;
   /** Whom a typed `@handle` names, for text written before mentions were
-   * stored as tokens. Unresolved, or without this, a handle stays text. */
+   * stored as tokens: the field shows the name and writes the handle back as
+   * typed. Unresolved, or without this, a handle stays text. */
   resolvePlain?: (handle: string) => MentionTarget<Kind> | null | undefined;
 }
 
@@ -70,6 +80,7 @@ export function parseMentionDoc<Kind extends string>(
   let cursor = 0;
   for (const occurrence of findMentions(value, { kinds: options.kinds })) {
     let target: MentionTarget<Kind> | null | undefined;
+    let written: string | undefined;
     if (occurrence.type === 'token') {
       target = {
         ...occurrence.ref,
@@ -77,6 +88,7 @@ export function parseMentionDoc<Kind extends string>(
       };
     } else {
       target = options.resolvePlain?.(occurrence.handle);
+      written = value.slice(occurrence.start, occurrence.end);
     }
     if (target === null || target === undefined) continue;
     text += value.slice(cursor, occurrence.start);
@@ -87,6 +99,7 @@ export function parseMentionDoc<Kind extends string>(
       name,
       start: text.length,
       end: text.length + 1 + name.length,
+      ...(written === undefined ? {} : { written }),
     });
     text += `@${name}`;
     cursor = occurrence.end;
@@ -95,12 +108,22 @@ export function parseMentionDoc<Kind extends string>(
   return { text, ranges };
 }
 
-/** The stored form of what a field shows: each mention as its token. */
-export function serializeMentionDoc(doc: MentionDoc): string {
-  return serializeWithOffsets(doc).value;
+/**
+ * The stored form of what a field shows: each mention as its token, and a
+ * mention read from a typed handle as that handle. `tokens` writes every
+ * mention as a token, for a copy that a paste turns into new mentions.
+ */
+export function serializeMentionDoc(
+  doc: MentionDoc,
+  options: { tokens?: boolean } = {},
+): string {
+  return serializeWithOffsets(doc, options.tokens === true).value;
 }
 
-function serializeWithOffsets(doc: MentionDoc): {
+function serializeWithOffsets(
+  doc: MentionDoc,
+  tokens = false,
+): {
   value: string;
   starts: number[];
 } {
@@ -110,11 +133,14 @@ function serializeWithOffsets(doc: MentionDoc): {
   for (const range of doc.ranges) {
     value += doc.text.slice(cursor, range.start);
     starts.push(value.length);
-    value += formatMentionToken({
-      kind: range.kind,
-      id: range.id,
-      label: range.name,
-    });
+    value +=
+      range.written !== undefined && !tokens
+        ? range.written
+        : formatMentionToken({
+            kind: range.kind,
+            id: range.id,
+            label: range.name,
+          });
     cursor = range.end;
   }
   value += doc.text.slice(cursor);
@@ -124,7 +150,8 @@ function serializeWithOffsets(doc: MentionDoc): {
 /**
  * The doc without the mentions that would not be mentions once stored: one
  * that ended up inside code or math, or after a `!` or a `\`, which turn a
- * token into an image or plain brackets. Their names stay, as text.
+ * token into an image or plain brackets, and a typed handle that what was
+ * typed right after it made another handle. Their names stay, as text.
  */
 export function settleMentionDoc<Kind extends string>(
   doc: MentionDoc<Kind>,
@@ -132,14 +159,19 @@ export function settleMentionDoc<Kind extends string>(
 ): MentionDoc<Kind> {
   if (doc.ranges.length === 0) return doc;
   const { value, starts } = serializeWithOffsets(doc);
-  const tokens = new Set(
-    findMentions(value, { kinds })
-      .filter((occurrence) => occurrence.type === 'token')
-      .map((occurrence) => occurrence.start),
-  );
-  const ranges = doc.ranges.filter((_, index) =>
-    tokens.has(starts[index] ?? -1),
-  );
+  const stored = new Map<number, { type: string; end: number }>();
+  for (const occurrence of findMentions(value, { kinds })) {
+    stored.set(occurrence.start, occurrence);
+  }
+  const ranges = doc.ranges.filter((range, index) => {
+    const start = starts[index] ?? -1;
+    const occurrence = stored.get(start);
+    if (occurrence === undefined) return false;
+    return range.written === undefined
+      ? occurrence.type === 'token'
+      : occurrence.type === 'plain' &&
+          occurrence.end === start + range.written.length;
+  });
   return ranges.length === doc.ranges.length ? doc : { ...doc, ranges };
 }
 
@@ -282,18 +314,6 @@ export function mentionAfter<Kind extends string>(
   );
 }
 
-/** The mention whose name holds `position` strictly inside it. */
-export function mentionAround<Kind extends string>(
-  doc: MentionDoc<Kind>,
-  position: number,
-): MentionRange<Kind> | null {
-  return (
-    doc.ranges.find(
-      (range) => range.start < position && position < range.end,
-    ) ?? null
-  );
-}
-
 /** A mention moved along its text by `offset` characters. */
 export function moveMentionRange<Kind extends string>(
   range: MentionRange<Kind>,
@@ -305,6 +325,7 @@ export function moveMentionRange<Kind extends string>(
     name: range.name,
     start: range.start + offset,
     end: range.end + offset,
+    ...(range.written === undefined ? {} : { written: range.written }),
   };
 }
 
@@ -346,9 +367,5 @@ export class MentionHistory<Kind extends string> {
       if (state?.text === text) return state;
     }
     return null;
-  }
-
-  clear(): void {
-    this.#states = [];
   }
 }

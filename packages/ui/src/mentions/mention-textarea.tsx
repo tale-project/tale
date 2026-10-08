@@ -254,7 +254,9 @@ function MentionHighlights({
  * `options`, and a picked mention reads `@` and the name, tinted. The value
  * a caller holds is the stored form, with each mention as a token
  * (`[@Ada Lovelace](mention:user/…)`), so it saves and restores as a plain
- * string; the field shows each token by its current name (`nameOf`).
+ * string; the field shows each token by its current name (`nameOf`). A
+ * typed `@handle` it can name (`resolvePlain`) shows the name as well and is
+ * written back as typed.
  *
  * A mention is one piece: Backspace at its end or Delete at its start
  * removes all of it, a selection that cuts into one grows to take it whole,
@@ -671,9 +673,10 @@ export function MentionTextarea<Kind extends string>({
     event.preventDefault();
     event.clipboardData.setData('text/plain', slice.text);
     if (slice.ranges.length > 0) {
+      // As tokens: a paste places mentions someone can see, as a pick does.
       event.clipboardData.setData(
         MENTION_CLIPBOARD_TYPE,
-        serializeMentionDoc(slice),
+        serializeMentionDoc(slice, { tokens: true }),
       );
     }
     if (cut) {

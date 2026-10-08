@@ -6,7 +6,6 @@ import {
   type MentionDoc,
   MentionHistory,
   mentionAfter,
-  mentionAround,
   mentionBefore,
   parseMentionDoc,
   serializeMentionDoc,
@@ -68,8 +67,30 @@ describe('reading a stored text into a field', () => {
     const doc = parse('@research.bot and @nobody', true);
     expect(doc.text).toBe('@QA Bot and @nobody');
     expect(doc.ranges).toEqual([
-      { kind: 'agent', id: 'a-bot', name: 'QA Bot', start: 0, end: 7 },
+      {
+        kind: 'agent',
+        id: 'a-bot',
+        name: 'QA Bot',
+        start: 0,
+        end: 7,
+        written: '@research.bot',
+      },
     ]);
+  });
+
+  it('writes a typed handle back as typed, never as a token', () => {
+    const value = 'cc @Research.Bot on the crash';
+    const doc = parse(value, true);
+    expect(doc.text).toBe('cc @QA Bot on the crash');
+    expect(serializeMentionDoc(doc)).toBe(value);
+    // An edit elsewhere leaves the handle as it was typed.
+    const edited = applyTextChange(doc, 'cc @QA Bot on the crash!', 24).doc;
+    expect(serializeMentionDoc(edited)).toBe(`${value}!`);
+    expect(settleMentionDoc(edited, KINDS)).toBe(edited);
+    // A copy carries it as a token, as a pick would place it.
+    expect(serializeMentionDoc(doc, { tokens: true })).toBe(
+      'cc [@QA Bot](mention:agent/a-bot) on the crash',
+    );
   });
 
   it('writes back what it read, with the current names', () => {
@@ -144,8 +165,6 @@ describe('editing around mentions', () => {
     expect(mentionBefore(doc, 3)).toBeNull();
     expect(mentionAfter(doc, 3)?.id).toBe('u-ada');
     expect(mentionAfter(doc, 16)).toBeNull();
-    expect(mentionAround(doc, 8)?.id).toBe('u-ada');
-    expect(mentionAround(doc, 3)).toBeNull();
   });
 
   it('copies the mentions wholly inside a slice', () => {
@@ -185,6 +204,18 @@ describe('mentions that would not survive being stored', () => {
     expect(settleMentionDoc(bang, KINDS).ranges).toEqual([]);
     const slash: MentionDoc<Kind> = { ...bang, text: 'Hi\\@Ada Lovelace' };
     expect(settleMentionDoc(slash, KINDS).ranges).toEqual([]);
+  });
+
+  it('lets go of a typed handle that what was typed after it changed', () => {
+    const doc = parse('ask @research.bot', true);
+    // "ask @QA Bot" + "s" would store `@research.bots`: another handle.
+    const longer = applyTextChange(doc, 'ask @QA Bots', 12).doc;
+    expect(longer.ranges).toHaveLength(1);
+    expect(settleMentionDoc(longer, KINDS).ranges).toEqual([]);
+    // A full stop ends a sentence, not the handle.
+    const stop = applyTextChange(doc, 'ask @QA Bot.', 12).doc;
+    expect(settleMentionDoc(stop, KINDS)).toBe(stop);
+    expect(serializeMentionDoc(stop)).toBe('ask @research.bot.');
   });
 
   it('keeps the same doc when every mention survives', () => {
