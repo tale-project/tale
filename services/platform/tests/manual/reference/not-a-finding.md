@@ -106,6 +106,10 @@ defect, with the reason. Anything not on this list is a finding, on any page.
   fetch dynamically imported module` shown together with the **A new version
   is available** toast is different: it is the real error of a chunk that
   failed again after its reload, and it is reported.
+- `[mcp] origin-mismatch origin=… enforced=false` (warn, backend log) during the `mcp` suite: a
+  coding agent sent an `Origin` that is neither the deployment's own address nor listed in
+  `TALE_MCP_ALLOWED_ORIGINS`. Enforcement is off by default and the call was answered; record the
+  origin and the client in the round record (`MCP-F1`, `MCP-F2`, `reference/pins.md`).
 
 ## Known debt
 
