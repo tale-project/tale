@@ -25,6 +25,7 @@ import {
   isMigrationFile,
   runBootMigrations,
 } from '../../db/migrate.ts';
+import { toJson } from '../../db/sql.ts';
 import { resolvePostgresConnection } from '../../db/ssl.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 
@@ -124,7 +125,7 @@ function context(sql: Sql): ActionCtx {
     scheduler: async () => {
       await legacyAgentEvent('drive-enqueued');
     },
-  }) as ActionCtx;
+  }) as unknown as ActionCtx;
 }
 
 function args(id: string): StartWorkflowAgentTurnArgs {
@@ -168,7 +169,7 @@ async function seed(
     ...(cursor === 'absent' ? {} : { cursor: { node: 'agent', agent } }),
   };
   await sql`INSERT INTO app.automation_runs (id, org_id, name, version, status, mode, started_by, checkpoints, claim_epoch, chain_seq, started_at_ms, wake_at_ms)
-    VALUES (${id}, 'fixture', 'example', 1, 'waiting', 'live', 'user:fixture', ${sql.json(checkpoints)}, 3, 4, 1, 1)`;
+    VALUES (${id}, 'fixture', 'example', 1, 'waiting', 'live', 'user:fixture', ${sql.json(toJson(checkpoints))}, 3, 4, 1, 1)`;
   if (ask)
     await sql`INSERT INTO app.automation_human_asks (id, org_id, run_id, node_id, session_id, exec_id, question, status, answer, agent_session_id, expires_at_ms, created_at_ms)
     VALUES (${`${id}-ask`}, 'fixture', ${id}, 'agent', ${start.sessionId}, ${start.execId}, 'Synthetic question', 'answered', 'Synthetic answer', 'fixture-conversation', 9999999999999, 1)`;

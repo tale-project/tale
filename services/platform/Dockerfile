@@ -457,11 +457,12 @@ RUN chmod +x ./docker-entrypoint.sh \
     && mkdir -p /app/data \
     && chown app:app /app/data
 
+ARG AUTOMATION_WRITER_PROTOCOL
+RUN test "$(bun -e 'import { ENGINE_PROTOCOL } from "./lib/engine/core/protocol.ts"; console.log(ENGINE_PROTOCOL)')" = "$AUTOMATION_WRITER_PROTOCOL"
+
 # Keep version metadata after filesystem work so new releases reuse its layers.
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
-ARG AUTOMATION_WRITER_PROTOCOL
-RUN test "$(bun -e 'import { ENGINE_PROTOCOL } from "./lib/engine/core/protocol.ts"; console.log(ENGINE_PROTOCOL)')" = "$AUTOMATION_WRITER_PROTOCOL"
 LABEL org.opencontainers.image.version="${VERSION}" \
       io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}" \
       org.opencontainers.image.title="tale-platform" \
@@ -485,7 +486,8 @@ COPY --from=runner / /
 
 ARG VERSION=dev
 ARG AUTOMATION_WRITER_PROTOCOL
-LABEL io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}"
+LABEL org.opencontainers.image.version="${VERSION}" \
+      io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}"
 
 WORKDIR /app
 

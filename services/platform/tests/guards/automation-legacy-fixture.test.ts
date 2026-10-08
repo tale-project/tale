@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+
+import type { ActionCtx } from '../../backend/core/lib/ctx.ts';
+import { internal } from '../../backend/core/lib/handler_names.ts';
+import { durableSink } from '../fixtures/automation-legacy-v1/stepper.ts';
 
 const fixtures = new URL('../fixtures/automation-legacy-v1/', import.meta.url);
 const hash = (value: string): string =>
@@ -54,6 +58,65 @@ describe('retained real legacy execution bodies', () => {
         );
       }
     }
+  });
+
+  it.each([
+    ['stale', 'cancelled'],
+    ['cancelled', 'cancelled'],
+    ['quarantined', 'running'],
+    ['failed', 'running'],
+    ['missing', 'running'],
+  ] as const)(
+    'old continuation maps %s to %s without inventing a new hold gate',
+    async (status, expected) => {
+      const runMutation = vi.fn().mockResolvedValue({ status });
+      const sink = durableSink(
+        { runMutation } as unknown as ActionCtx,
+        'fixture',
+        'running',
+        100,
+        3,
+      );
+      await expect(sink.commit({ executions: 2 })).resolves.toBe(expected);
+      expect(runMutation).toHaveBeenCalledExactlyOnceWith(
+        internal.automations.mutations.recordProgress,
+        {
+          organizationId: 'fixture',
+          runId: 'running',
+          epoch: 3,
+          executions: 2,
+        },
+      );
+    },
+  );
+
+  it('old continuation propagates a refused SQL write instead of continuing', async () => {
+    const refused = new Error('fixture SQL refusal');
+    const runMutation = vi.fn().mockRejectedValue(refused);
+    const sink = durableSink(
+      { runMutation } as unknown as ActionCtx,
+      'fixture',
+      'running',
+      100,
+      3,
+    );
+    await expect(sink.commit({ executions: 2 })).rejects.toBe(refused);
+    expect(runMutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('declares only the exact filesystem-read historical agent module as a Knip entry', async () => {
+    const config = await readFile(
+      new URL('../../../../knip.config.ts', import.meta.url),
+      'utf8',
+    );
+    const entries = [
+      ...config.matchAll(
+        /'([^']*tests\/fixtures\/automation-legacy-v1[^']*)'/g,
+      ),
+    ].map((match) => match[1]);
+    expect(entries).toEqual([
+      'tests/fixtures/automation-legacy-v1/agent-flow.ts',
+    ]);
   });
 
   it('excludes the historical modules from production Docker context', async () => {

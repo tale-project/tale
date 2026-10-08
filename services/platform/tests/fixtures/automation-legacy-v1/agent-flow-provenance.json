@@ -330,49 +330,37 @@
   "reused": [
     {
       "sourcePath": "services/platform/lib/chat/untrusted-content.ts",
-      "names": [
-        "escapeForXmlTag"
-      ],
+      "names": ["escapeForXmlTag"],
       "blob": "720cefaf0939a3cfe34d6ad7e5b413ee468c9cc5",
       "sha256": "1dda751e209e17174b81b5f2001b8e026ab7e68409277f79c736d53b4d22460e"
     },
     {
       "sourcePath": "services/platform/lib/harnesses/projection.ts",
-      "names": [
-        "textTail"
-      ],
+      "names": ["textTail"],
       "blob": "1c21970ba7200dc8e2bca212745de85bc78d3f01",
       "sha256": "8c6f327a67309f7bc066d3f6996dfe4590c8d8d619d60fb7f4f332aafb4cbe4d"
     },
     {
       "sourcePath": "services/platform/lib/harnesses/timeline.ts",
-      "names": [
-        "mergeTimelineParts"
-      ],
+      "names": ["mergeTimelineParts"],
       "blob": "3993e6ea46aa0f1b233a1ff7e641fa6a4d5f5a99",
       "sha256": "423268519f3b84bb34555fa11ac0109221f33ab1edcfa540d712641f6d078a56"
     },
     {
       "sourcePath": "services/platform/lib/shared/agent-language.ts",
-      "names": [
-        "agentLanguageGuidance"
-      ],
+      "names": ["agentLanguageGuidance"],
       "blob": "06a0297d562b1ad07b9504251c8acb0ba5ce03ae",
       "sha256": "aa506e01e6207512db57a3ac5361064fb725f2c10259c0a15ef5f23faba2b36d"
     },
     {
       "sourcePath": "services/platform/lib/shared/sanitize-untrusted-field.ts",
-      "names": [
-        "sanitizeUntrustedField"
-      ],
+      "names": ["sanitizeUntrustedField"],
       "blob": "cc558d35bc086cc1eca052d44aadbc1787f5420b",
       "sha256": "1a7f23c50163bd6c35df6347600f7826c6afcd02b6d6cbcf4bf426f023bb7d93"
     },
     {
       "sourcePath": "services/platform/lib/skills/parse.ts",
-      "names": [
-        "parseSkillMd"
-      ],
+      "names": ["parseSkillMd"],
       "blob": "cb09a11ef5a14e8f8c6171094bb840732e4a1c71",
       "sha256": "2d6c2bb1797046cdf5c0c9aba1c5721c1d9a79b670618917dcfc95af0f3d60cc"
     },
@@ -422,9 +410,7 @@
     },
     {
       "sourcePath": "services/platform/backend/core/lib/handler_names.ts",
-      "names": [
-        "internal"
-      ],
+      "names": ["internal"],
       "blob": "7813dd8dcdeaf3f9f2ce3ec4e3cfa382149cc2f3",
       "sections": [
         {
@@ -435,44 +421,31 @@
     },
     {
       "sourcePath": "services/platform/backend/core/lib/providers/subscription_vision.ts",
-      "names": [
-        "refuseBlindImageTurn",
-        "visionUnreadableGuidance"
-      ],
+      "names": ["refuseBlindImageTurn", "visionUnreadableGuidance"],
       "blob": "db1f5051a61f36af15abe78b01f1a4e58fe86a96",
       "sha256": "7e7482641e79f7f5e9196d0e0c6a9e61b1bf171fe6651cd5c35b00f452b2803f"
     },
     {
       "sourcePath": "services/platform/backend/core/node_only/sandbox/capacity_refusal.ts",
-      "names": [
-        "isDestroyPendingRefusal",
-        "sandboxCapacityRefusal"
-      ],
+      "names": ["isDestroyPendingRefusal", "sandboxCapacityRefusal"],
       "blob": "38b8fd6d484febb325c5eb8ba15088850efff014",
       "sha256": "c635c6a6a66c1c8286a37c602e82b5a09da3cc76435239c2ace93f8039522ace"
     },
     {
       "sourcePath": "services/platform/backend/core/node_only/sandbox/gateway_key_settlement.ts",
-      "names": [
-        "settleGatewayKey",
-        "settlementPending"
-      ],
+      "names": ["settleGatewayKey", "settlementPending"],
       "blob": "6e87db016b3c956b361f2d13eaf7f10c7246d3bf",
       "sha256": "3ae6ab4ee33afa44e7786474817171070d5d7a18162ff71d33b8ffcf9ffe0495"
     },
     {
       "sourcePath": "services/platform/backend/core/node_only/sandbox/llm_gateway_admin.ts",
-      "names": [
-        "hashVirtualKey"
-      ],
+      "names": ["hashVirtualKey"],
       "blob": "9417452265bd2af66c65948839a96b52aad80d03",
       "sha256": "1c0b33f4ddc0498a2b91337eb28be2125f22f1206a1a82ff305523b4cbfbf6cc"
     },
     {
       "sourcePath": "services/platform/backend/core/node_only/sandbox/managed_stage.ts",
-      "names": [
-        "stageBlobCacheKey"
-      ],
+      "names": ["stageBlobCacheKey"],
       "blob": "a8b705ebb265afe14f7648e634e252f9881d1a03",
       "sha256": "7de971195f409165173a901b3dc055d1c65c71d464eea3aaf239ea0b867a180f"
     },
@@ -488,10 +461,7 @@
     },
     {
       "sourcePath": "services/platform/backend/core/provider_credentials/resolve_credential.ts",
-      "names": [
-        "credentialRetryAtMs",
-        "runFailureMessage"
-      ],
+      "names": ["credentialRetryAtMs", "runFailureMessage"],
       "blob": "e7210d6b98cca17b313efece5765cdab989f79f1",
       "sections": [
         {
@@ -514,10 +484,7 @@
     },
     {
       "sourcePath": "services/platform/backend/core/sandbox/agent_deadline.ts",
-      "names": [
-        "agentWorkTurnDeadlineMs",
-        "workflowAgentBudgetCents"
-      ],
+      "names": ["agentWorkTurnDeadlineMs", "workflowAgentBudgetCents"],
       "blob": "80fdb6aff678559f2ac76ea596bfec32499bfa5d",
       "sha256": "c59a851581b55181095eb9342a8f62e40b48127319f3082aad5aaeae770a574e"
     },
@@ -532,9 +499,7 @@
     },
     {
       "sourcePath": "services/platform/backend/core/sandbox/session_naming.ts",
-      "names": [
-        "sessionIdForWorkflowExecution"
-      ],
+      "names": ["sessionIdForWorkflowExecution"],
       "blob": "ebd604f9b61d83cc33080db10b3d7eff944749b6",
       "sha256": "8c5d8b86ced48b05704903573b0a69b47d3d6a124b3047f6756f34633dd41fc4"
     },
@@ -555,17 +520,13 @@
     },
     {
       "sourcePath": "services/platform/backend/core/skills/skill_unavailable_error.ts",
-      "names": [
-        "SkillUnavailableError"
-      ],
+      "names": ["SkillUnavailableError"],
       "blob": "e847516437b7391c877a7655625d2cd54f41f91e",
       "sha256": "3562c3408f8cc4fa6048d055f0630e33d1baa9783d869c6ade341f2f39b60bba"
     },
     {
       "sourcePath": "services/platform/backend/core/tasks/task_auto_retry.ts",
-      "names": [
-        "isCredentialRotation"
-      ],
+      "names": ["isCredentialRotation"],
       "blob": "4451abbd074568228354c42a350a55eee1027a2c",
       "sections": [
         {
@@ -576,26 +537,19 @@
     },
     {
       "sourcePath": "services/platform/backend/core/automations/agent_retry.ts",
-      "names": [
-        "retryResumePrompt"
-      ],
+      "names": ["retryResumePrompt"],
       "blob": "7cf30af93a5ae880097e3ba4a520a28f2a190ea8",
       "sha256": "4bb621f67e3d41a95fe4a7d471080e75d34167541a45f272d155bdbb54d0656f"
     },
     {
       "sourcePath": "services/platform/backend/core/automations/ask_answer_carryover.ts",
-      "names": [
-        "answerResumePrompt",
-        "promptWithAnsweredAsks"
-      ],
+      "names": ["answerResumePrompt", "promptWithAnsweredAsks"],
       "blob": "5383c50c17c277ea643c42ed13679032c0b3ebb1",
       "sha256": "53f70fd9743c7bd8be97326152fc8a37716207d18310e22d626b502e4e153798"
     },
     {
       "sourcePath": "services/platform/backend/db/sql.ts",
-      "names": [
-        "toJson"
-      ],
+      "names": ["toJson"],
       "blob": "f77a28301ae505aa7bc7c8dd10355ad278c54675",
       "sections": [
         {
