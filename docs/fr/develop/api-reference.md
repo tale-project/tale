@@ -570,12 +570,13 @@ AGENT_ID=$(curl -fsS "$AGENT_URL" \
 curl -fsS "$AGENT_URL/$AGENT_ID" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: $ORG_SLUG" \
-  | jq '.agent | {name, harness, skills, connectors}'
+  | jq '.agent | {name, handle, harness, skills, connectors}'
 ```
 
 ```json
 {
   "name": "Reviewer",
+  "handle": "reviewer",
   "harness": "claude-code",
   "skills": [],
   "connectors": []
@@ -597,6 +598,8 @@ Un agent dont `managed` vaut `true` est l’[agent standard](/fr/platform/projec
 Un projet peut contenir au maximum 50 agents. Les noms sont limités à 120 caractères et doivent être uniques dans le projet, sans distinction de casse. Chaque liste de ressources attribuées accepte 25 entrées ; les instructions sont limitées à 20 000 caractères.
 
 Une configuration invalide ou un dépassement de limite donne **400**. Un nom déjà utilisé donne **409**, `PROJECT_AGENT_NAME_TAKEN`, comme les autres conflits de doublon sur cette interface. Retrouve l’agent existant ou choisis un autre nom avant de réessayer.
+
+Chaque agent a aussi un `handle` : ce que tu saisis après `@` pour le mentionner. C’est son nom actuel en lettres minuscules, chiffres et tirets simples : « My Opus Agent #3 » répond donc à `my-opus-agent-3`. Un handle est unique dans son projet : si un autre agent le porte déjà, ou si un membre ou une automatisation de l’organisation y répond déjà, l’agent reçoit le suivant disponible, `-02`, puis `-03` et ainsi de suite. Renommer un agent lui donne le handle de son nouveau nom, sauf si seules la casse ou la ponctuation changent. Pour t’adresser plus tard à un agent, garde son `id` ; le handle suit le nom (contrat 3.22.0).
 
 Choisis `model` dans le catalogue de l’organisation et précise `modelProvider` si plusieurs fournisseurs servent ce modèle. `tools` doit contenir uniquement des autorisations connues. Une valeur invalide donne **400** avec `PROJECT_AGENT_MODEL_INVALID`, `PROJECT_AGENT_PROVIDER_UNKNOWN` ou `PROJECT_AGENT_TOOL_UNKNOWN`. `task_start_agent` permet à l’agent de mettre au travail un autre agent du même projet sur une tâche (contrat 3.8.0).
 
@@ -703,6 +706,8 @@ Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trig
 | `task.status_changed`                                   | une personne déplace une tâche vers un autre statut (les déplacements d’un agent n’émettent rien, une automatisation ne peut donc pas se redéclencher elle-même) |
 | `comment.created`                                       | un commentaire arrive sur une tâche                                                                                                                              |
 | `comment.mentioned`                                     | un commentaire de tâche mentionne quelqu’un avec `@`                                                                                                             |
+
+Le `comment` d’un événement de commentaire contient `body` tel qu’il est enregistré, chaque mention sous forme de lien de mention, et `bodyText`, le même texte avec chaque mention sous la forme `@` suivi du nom actuel. Compare les mots, comme un nom, avec `bodyText` (contrat 3.22.0).
 
 ### Vérifier le déclencheur et le suspendre
 
@@ -1600,6 +1605,8 @@ La lecture d’une tâche renvoie aussi son calendrier, en lecture seule sur cet
 ### Lire les commentaires et télécharger les livrables
 
 Lors de l’écriture d’un commentaire, le texte d’origine `body`, sans ses espaces de début et de fin, doit compter de 1 à 10 000 unités de code UTF-16 (la plupart des emojis en comptent 2). Tu peux lui ajouter `bodyByLocale`. La lecture le renvoie lorsqu’il existe. Fournis des traductions équivalentes et non vides pour `en`, `de` et `fr` ; d’autres clés de langue ou de région, comme `nl`, `it` et `de-CH`, sont acceptées. Chaque valeur est nettoyée et limitée de la même façon, avec au plus 16 langues par commentaire. Affiche la variante exacte choisie par le lecteur, puis la langue de base, puis `en`, puis `body`. L’auteur reste le titulaire de la clé. Une modification du texte seul dans Tale efface les anciennes traductions pour qu’elles ne masquent pas la modification.
+
+Une mention est enregistrée comme un lien Markdown qui désigne la personne mentionnée : `[@Ada Lovelace](mention:user/<userId>)`, ou `agent/` suivi de l’ID d’un agent du projet, ou `automation/` suivi du nom d’enregistrement d’une automatisation. Quand tu envoies `@` suivi du `handle` d’un agent, du nom d’e-mail d’un membre, du nom d’enregistrement d’une automatisation ou d’un ID, Tale enregistre ce lien, et la mention reste valable après un renommage. Un texte écrit avant le contrat 3.22.0 continue de désigner les agents qu’il désignait : un agent répond toujours à son nom d’alors, en minuscules, avec des points à la place des espaces ou sans espaces. Le texte entre crochets est le nom au moment de l’enregistrement du commentaire ; `bodyText` renvoie le commentaire avec chaque mention sous la forme `@` suivi du nom actuel. Compare donc les mots avec `bodyText` et affiche `body`. Si tu mentionnes quelqu’un qui ne peut pas ouvrir la tâche, un agent d’un autre projet ou une personne extérieure à l’organisation, la mention est enregistrée en texte brut et ne notifie personne ; dans du code, une mention reste du texte. Les lectures de tâche renvoient `description` sous la même forme enregistrée, avec `descriptionText` à côté. La collecte de tâches enregistre de la même façon les mentions de la description, sans notifier personne ; une tâche dont `externalSystem` vaut `github` ou `glitchtip` garde les `@noms` de ce suivi tels qu’ils sont écrits (contrat 3.22.0).
 
 Les agents de tâche et de workflow reçoivent la consigne de conserver la langue du titre et de la description de la tâche. Si aucune langue ne s’en dégage, ils utilisent celle définie par défaut pour les agents de l’organisation. Les mots fixes d’un modèle de titre, les identifiants de trimestre, la langue des documents sources et celle de l’interface de la personne qui démarre l’exécution ne déterminent pas la langue de la tâche. Cette règle couvre aussi les questions, les reprises et la création de tâches associées. Il s’agit de consignes au modèle ; les traductions enregistrées des commentaires de progression permettent aux clients de choisir la langue affichée indépendamment de celle de la tâche.
 

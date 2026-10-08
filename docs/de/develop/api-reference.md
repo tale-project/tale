@@ -531,12 +531,13 @@ AGENT_ID=$(curl -fsS "$AGENT_URL" \
 curl -fsS "$AGENT_URL/$AGENT_ID" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: $ORG_SLUG" \
-  | jq '.agent | {name, harness, skills, connectors}'
+  | jq '.agent | {name, handle, harness, skills, connectors}'
 ```
 
 ```json
 {
   "name": "Reviewer",
+  "handle": "reviewer",
   "harness": "claude-code",
   "skills": [],
   "connectors": []
@@ -552,6 +553,8 @@ Ein Agent mit `managed` gleich `true` ist der [Standard-Agent](/de/platform/proj
 ### Modelle, Freigaben und Grenzen prüfen
 
 Ein Projekt fasst höchstens 50 Agenten. Namen müssen innerhalb des Projekts unabhängig von Groß- und Kleinschreibung eindeutig sein und dürfen bis zu 120 Zeichen lang sein; jede Ausstattungsliste erlaubt 25 Einträge, Anweisungen 20.000 Zeichen. Ungültige Konfiguration oder eine überschrittene Grenze ergibt **400**; ein Name, den ein anderer Agent des Projekts schon trägt, ergibt **409**, `PROJECT_AGENT_NAME_TAKEN` — die Klasse, mit der jedes andere Duplikat an dieser Schnittstelle antwortet —, verwende also den bestehenden Agenten, statt es erneut zu versuchen.
+
+Jeder Agent hat außerdem ein `handle`: das, was du nach `@` tippst, um ihn zu erwähnen. Es ist sein aktueller Name in Kleinbuchstaben, Ziffern und einzelnen Bindestrichen, „My Opus Agent #3“ hört also auf `my-opus-agent-3`. Ein Handle ist in seinem Projekt eindeutig: Hat es schon ein anderer Agent, oder hört bereits ein Mitglied oder eine Automatisierung der Organisation darauf, bekommt der Agent das nächste freie, `-02`, dann `-03` und so weiter. Benennst du einen Agenten um, bekommt er das Handle seines neuen Namens, außer wenn sich nur Groß- und Kleinschreibung oder Satzzeichen ändern. Willst du einen Agenten später ansprechen, merk dir seine `id`; das Handle folgt dem Namen (Vertrag 3.22.0).
 
 `model` muss ein Modell aus dem Katalog der Organisation sein (nenne `modelProvider`, wenn mehrere Anbieter es bedienen), und `tools` darf nur bekannte Tool-Freigaben nennen — ein falscher Wert ergibt **400** mit `PROJECT_AGENT_MODEL_INVALID`, `PROJECT_AGENT_PROVIDER_UNKNOWN` oder `PROJECT_AGENT_TOOL_UNKNOWN`, das sagt, was zu korrigieren ist, statt eines Agenten, der an seiner ersten Aufgabe scheitert. Mit `task_start_agent` kann der Agent einen anderen Agenten desselben Projekts an einer Aufgabe arbeiten lassen (Vertrag 3.8.0). `secrets` enthält Namen von Organisationsgeheimnissen, niemals deren Werte; ein Name, den die Organisation nicht gespeichert hat, wird mit **400**, `PROJECT_AGENT_SECRET_UNKNOWN`, abgewiesen und in `data.secrets` genannt (der Dialog der App entfernt solche Namen, die API nicht — ein Tippfehler ergibt also nie einen Agenten, der ohne seine Zugangsdaten läuft).
 
@@ -632,6 +635,8 @@ Jede Art nimmt ihre eigenen Schlüssel — `cron` und `timezone` nur mit `schedu
 | `task.status_changed`                                   | eine Person eine Aufgabe in einen anderen Status verschiebt (die eigenen Züge eines Agenten lösen nichts aus, eine Automatisierung kann sich also nicht selbst neu triggern) |
 | `comment.created`                                       | ein Kommentar auf einer Aufgabe landet                                                                                                                                       |
 | `comment.mentioned`                                     | ein Aufgabenkommentar jemanden mit `@` erwähnt                                                                                                                               |
+
+Das `comment` eines Kommentar-Events enthält `body` so, wie es gespeichert ist, mit jeder Erwähnung als Erwähnungslink, und `bodyText`, denselben Text mit jeder Erwähnung als `@` und dem aktuellen Namen. Vergleiche Wörter wie einen Namen mit `bodyText` (Vertrag 3.22.0).
 
 ### Triggerzustand prüfen und gezielt pausieren
 
@@ -1349,6 +1354,8 @@ Eine gelesene Aufgabe enthält auch ihre Termine; über diese API lassen sie sic
 ### Kommentare und Arbeitsergebnisse lesen
 
 Beim Schreiben eines Kommentars wird `body` außen von Leerraum bereinigt und muss danach 1 bis 10.000 UTF-16-Codeeinheiten enthalten; die meisten Emojis zählen doppelt. Neben diesem ursprünglichen `body` kannst du optional `bodyByLocale` mitsenden. Beim Lesen wird es zurückgegeben, sofern vorhanden. Liefere inhaltlich gleichwertige, nicht leere Übersetzungen für `en`, `de` und `fr`; weitere Sprach- oder Sprachregionsschlüssel wie `nl`, `it` und `de-CH` sind erlaubt. Jeder Wert wird ebenso bereinigt und begrenzt; pro Kommentar sind bis zu 16 Sprachvarianten erlaubt. Zeige zuerst die genaue Spracheinstellung des Lesers, danach die Grundsprache, dann `en` und zuletzt `body` an. Als Autor bleibt der Schlüsselinhaber eingetragen. Eine reine Textbearbeitung in Tale entfernt die alten Übersetzungen, damit sie die Änderung nicht verdecken.
+
+Eine Erwähnung wird als Markdown-Link gespeichert, der nennt, wen sie erwähnt: `[@Ada Lovelace](mention:user/<userId>)`, oder `agent/` mit der ID eines Projektagenten, oder `automation/` mit dem Speichernamen einer Automatisierung. Schickst du `@` mit dem `handle` eines Agenten, dem E-Mail-Namen eines Mitglieds, dem Speichernamen einer Automatisierung oder einer ID, speichert Tale diesen Link, und die Erwähnung bleibt auch nach einer Umbenennung gültig. Text von vor Vertrag 3.22.0 nennt weiterhin die Agenten, die er genannt hat: Ein Agent hört weiter auf seinen damaligen Namen in Kleinbuchstaben, mit Punkten statt Leerzeichen oder ohne Leerzeichen. In eckigen Klammern steht der Name beim Speichern des Kommentars; `bodyText` liefert den Kommentar mit jeder Erwähnung als `@` und dem aktuellen Namen. Vergleiche Wörter also mit `bodyText` und zeige `body` an. Erwähnst du jemanden, der die Aufgabe nicht öffnen kann, einen Agenten aus einem anderen Projekt oder jemanden außerhalb der Organisation, wird die Erwähnung als reiner Text gespeichert und benachrichtigt niemanden; in Code ist eine Erwähnung reiner Text. Aufgaben liefern `description` in derselben gespeicherten Form und daneben `descriptionText`. Der Intake speichert die Erwähnungen einer Beschreibung genauso und benachrichtigt niemanden; eine Aufgabe mit `externalSystem` `github` oder `glitchtip` behält die `@`-Namen dieses Trackers so, wie sie geschrieben sind (Vertrag 3.22.0).
 
 Aufgaben- und Workflow-Agenten erhalten die Anweisung, die Sprache aus Titel und Beschreibung der Aufgabe beizubehalten. Ist keine erkennbar, gilt die Standardsprache der Organisation für Agenten. Vorgegebene Wörter einer Titelvorlage, Quartalskennungen, die Sprache der Quelldokumente und die Oberflächensprache der startenden Person legen die Aufgabensprache nicht fest. Das gilt auch für Rückfragen, fortgesetzte Läufe und neue zugehörige Aufgaben. Dies sind Anweisungen an das Modell; gespeicherte Übersetzungen von Fortschrittsmeldungen erlauben Clients, die angezeigte Sprache unabhängig davon zu wählen.
 

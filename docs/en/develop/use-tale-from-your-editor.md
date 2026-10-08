@@ -389,7 +389,7 @@ tale_api -X POST "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID/comments"
 echo "TASK_ID=$TASK_ID"
 ```
 
-`externalSystem` and `externalId` make the task idempotent: sending the same pair again returns the existing task. A description holds up to 20,000 characters; for a longer script, upload it to the project as described in [Upload a file in two steps](/develop/api-reference#upload-a-file-in-two-steps). An agent answers to its ID and to its name in lower case with spaces replaced by dots or removed, so `@script.editor` also works.
+`externalSystem` and `externalId` make the task idempotent: sending the same pair again returns the existing task. A description holds up to 20,000 characters; for a longer script, upload it to the project as described in [Upload a file in two steps](/develop/api-reference#upload-a-file-in-two-steps). The comment names the agent by its ID; its `handle` works as well, here `@script-editor`, and the agent's read carries it. Tale stores either as a mention of the agent itself, so the comment keeps naming it after a rename.
 
 The mention assigns the task to the agent and starts a run, and the task moves to `in_progress`. A mention that cannot start a run is saved as an ordinary comment without an error, for example when the task is not yours to change, task automation is turned off, or another run already holds the task. Set `TASK_ID` to the value the script printed, check the task, and read the agent's report once the task reaches `in_review`:
 

@@ -389,7 +389,7 @@ tale_api -X POST "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID/comments"
 echo "TASK_ID=$TASK_ID"
 ```
 
-`externalSystem` et `externalId` rendent la tâche idempotente : un nouvel envoi de la même paire renvoie la tâche existante. Une description contient jusqu’à 20 000 caractères ; pour un script plus long, charge-le dans le projet comme l’explique [Charger un fichier en deux étapes](/fr/develop/api-reference#charger-un-fichier-en-deux-etapes). Un agent répond à son identifiant et à son nom en minuscules, les espaces remplacés par des points ou supprimés ; `@assistant.scripts` fonctionne donc aussi.
+`externalSystem` et `externalId` rendent la tâche idempotente : un nouvel envoi de la même paire renvoie la tâche existante. Une description contient jusqu’à 20 000 caractères ; pour un script plus long, charge-le dans le projet comme l’explique [Charger un fichier en deux étapes](/fr/develop/api-reference#charger-un-fichier-en-deux-etapes). Le commentaire désigne l’agent par son identifiant ; son `handle` fonctionne aussi, ici `@assistant-scripts`, et figure dans ce que tu lis de l’agent. Tale enregistre l’un comme l’autre comme une mention de l’agent lui-même : le commentaire continue de le désigner après un renommage.
 
 La mention affecte la tâche à l’agent et démarre une exécution ; la tâche passe à `in_progress`. Une mention qui ne peut pas démarrer d’exécution reste un simple commentaire, sans message d’erreur, par exemple quand tu ne peux pas modifier la tâche, que l’automatisation des tâches est désactivée ou qu’une autre exécution occupe déjà la tâche. Définis `TASK_ID` sur la valeur affichée par le script, vérifie la tâche, puis lis le compte rendu de l’agent une fois la tâche arrivée à `in_review` :
 
