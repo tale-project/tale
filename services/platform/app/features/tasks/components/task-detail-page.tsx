@@ -12,12 +12,9 @@
 
 import { Button } from '@tale/ui/button';
 import { PageLayout } from '@tale/ui/page-layout';
-import { Tooltip } from '@tale/ui/tooltip';
-import { useCopy } from '@tale/ui/use-copy';
 import { useSwapFade } from '@tale/ui/use-swap-fade';
-import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
-import { KanbanSquare, Link2 } from 'lucide-react';
+import { KanbanSquare } from 'lucide-react';
 
 import { DashboardNotFound } from '@/app/components/layout/dashboard-not-found';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
@@ -25,6 +22,7 @@ import { useT } from '@/lib/i18n/client';
 import { documentTitle } from '@/lib/utils/seo';
 
 import { useTask } from '../hooks/queries';
+import { TaskCopyLinkButton } from './task-header-actions';
 import { EditTaskBody } from './task-modal';
 
 export function TaskDetailPage({
@@ -43,16 +41,6 @@ export function TaskDetailPage({
   useDocumentTitle(
     task !== null ? documentTitle('task', task.title) : undefined,
   );
-  const { copy } = useCopy();
-  // The page's own address, without any state in its query — the link a
-  // teammate opens lands on this task.
-  const copyLink = () => {
-    const link = `${window.location.origin}${window.location.pathname}`;
-    void copy(link).then((copied) => {
-      if (copied) toast({ title: t('detail.linkCopied') });
-    });
-  };
-
   const openBoard = () => {
     if (task === null) return;
     void navigate({
@@ -80,17 +68,10 @@ export function TaskDetailPage({
           surface="page"
           pageActions={
             <>
-              <Tooltip content={t('detail.copyLink')} side="bottom">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={copyLink}
-                  aria-label={t('detail.copyLink')}
-                  className="text-muted-foreground hover:text-foreground size-8"
-                >
-                  <Link2 className="size-4" />
-                </Button>
-              </Tooltip>
+              <TaskCopyLinkButton
+                organizationId={organizationId}
+                taskId={taskId}
+              />
               <Button
                 variant="ghost"
                 size="sm"

@@ -263,6 +263,8 @@
     "./parse-frontmatter": "./src/utils/parse-frontmatter.ts",
     "./popover": "./src/components/overlays/popover.tsx",
     "./progress-bar": "./src/components/feedback/progress-bar.tsx",
+    "./property-chip": "./src/components/forms/property-chip.tsx",
+    "./property-list": "./src/components/data-display/property-list.tsx",
     "./pwa/ios-install-sheet": "./src/pwa/ios-install-sheet.tsx",
     "./pwa/sw-update-listener": "./src/pwa/sw-update-listener.tsx",
     "./pwa/sw-update-toasts": "./src/pwa/sw-update-toasts.tsx",
