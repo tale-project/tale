@@ -46,7 +46,7 @@ describe('ScheduleOccurrenceList', () => {
     render(
       <ScheduleOccurrenceList occurrences={WEEK} viewerTimeZone={NEW_YORK} />,
     );
-    expect(rows()[0]).toBe('Tue, Oct 13, 9:00 AM 3:00 AM in your time zone');
+    expect(rows()[0]).toBe('Tue, Oct 13, 9:00 AM, 3:00 AM in your time zone');
   });
 
   it('names the reader’s date when their day differs', () => {
@@ -58,7 +58,7 @@ describe('ScheduleOccurrenceList', () => {
       />,
     );
     expect(rows()[0]).toBe(
-      'Tue, Oct 13, 1:00 AM Mon, Oct 12, 7:00 PM in your time zone',
+      'Tue, Oct 13, 1:00 AM, Mon, Oct 12, 7:00 PM in your time zone',
     );
   });
 
@@ -132,8 +132,9 @@ describe('ScheduleOccurrenceList', () => {
     expect(
       within(shifted as HTMLElement).getByText('Clock change'),
     ).toBeVisible();
-    expect(plain(shifted?.textContent)).toContain(
-      "2:30 AM doesn't exist that day, so this run starts at 3:30 AM.",
+    // One sentence for a screen reader: the start, the badge, the reason.
+    expect(plain(shifted?.textContent)).toBe(
+      "Sun, Mar 29, 3:30 AM, Clock change. 2:30 AM doesn't exist that day, so this run starts at 3:30 AM.",
     );
     expect(plain(repeated?.textContent)).toContain(
       '2:30 AM happens twice that day; it runs once, at the first.',

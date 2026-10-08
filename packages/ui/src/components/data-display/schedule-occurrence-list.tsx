@@ -206,22 +206,23 @@ export function ScheduleOccurrenceList({
                       cycle,
                     })}
                   </span>
-                  {/* Spaces between the parts, so they read as words; the
-                      flex row lays them out with its own gap. */}
-                  {local !== null && ' '}
+                  {/* Punctuation between the parts for a screen reader, so
+                      they read as a sentence; the flex row lays them out
+                      with its own gap. */}
+                  {local !== null && <span className="sr-only">, </span>}
                   {local !== null && (
                     <span className="text-muted-foreground text-xs tabular-nums">
                       {local}
                     </span>
                   )}
-                  {clock !== null && ' '}
+                  {clock !== null && <span className="sr-only">, </span>}
                   {clock !== null && (
                     <Badge variant="yellow" className="px-1.5 py-0">
                       {t('occurrences.clockChange')}
                     </Badge>
                   )}
                 </div>
-                {clock !== null && ' '}
+                {clock !== null && <span className="sr-only">. </span>}
                 {clock !== null && (
                   <span className="text-muted-foreground text-xs leading-5">
                     {clock}

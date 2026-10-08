@@ -37,7 +37,7 @@ Set `muted` when the starts are what would happen, not what will: a schedule tha
 ## Accessibility
 
 - The heading names the list: it is an ordered list labelled by the heading, so a screen reader announces "Next runs · Europe/Zurich, list, 3 items".
-- Each start reads as one line of words, such as "Tue, Oct 13, 9:00 AM, 3:00 AM in your time zone". A clock change reads its badge and its sentence in the same item.
+- Each start reads as one line of words, such as "Tue, Oct 13, 9:00 AM, 3:00 AM in your time zone". A clock change reads its badge and its sentence in the same item, such as "Sun, Mar 29, 3:30 AM, Clock change. 2:30 AM doesn't exist that day, so this run starts at 3:30 AM." The commas and the full stop are there for a screen reader only; on screen the parts sit apart.
 - Muted rows, the reader's time and the clock-change line keep AA contrast in light and dark themes, and the reader's time wraps under the start in a narrow column instead of overflowing.
 
 ## Props
