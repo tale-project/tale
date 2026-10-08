@@ -1,6 +1,6 @@
 # MCP
 
-> **Prefix** `MCP-` · **Reset** none · **Cost** 5 boxes
+> **Prefix** `MCP-` · **Reset** none · **Cost** 6 boxes
 
 Exercise Tale's MCP endpoint, `/api/v1/mcp`, from a real coding agent: connecting a client with an
 API key and working in the organization through it. A person drives the agent in a terminal beside
@@ -39,6 +39,16 @@ and behind Caddy (mode C) trust its internal CA first, as setup.md describes. Cr
   organization's automations → `claude mcp list` reports `tale` as connected; the /mcp panel
   shows the `tale` server with its tools; the agent's answer names exactly the automations
   `/dashboard/{org}/automations` lists.
+- [ ] `MCP-F12` · **Serve a 2026-07-28 client and a legacy one on one key** — With `MCP-F1`'s
+  connection (re-added with `claude mcp remove tale` and the `MCP-F1` command if Claude Code met
+  this deployment before it spoke 2026-07-28, since it remembers a server's era), restart Claude
+  Code and ask it to list this organization's automations; then, in
+  another terminal, run the `initialize` and the `get_docs` commands of "Initialize and retrieve
+  the authoring reference" in the MCP endpoint guide (docs `develop/mcp-endpoint`) with the same
+  key → both answer; the backend log carries `[mcp]` lines with `method=server/discover` for
+  Claude Code, which speaks 2026-07-28, and `method=initialize` for the `curl` call, with the same
+  `cred=`; the agent names exactly the automations `/dashboard/{org}/automations` lists; the
+  `get_docs` answer holds the reference and `"isError":false`.
 
 ## Prompts, resources and the skill
 

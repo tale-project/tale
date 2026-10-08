@@ -21,7 +21,7 @@ Erstelle einen [API-Schlüssel](/de/platform/admin/api-keys) und hinterlege ihn 
 | Transport | HTTPS-POST mit JSON-RPC und normalen JSON-Antworten |
 | Authentifizierung | `Authorization: Bearer <api-key>` |
 | Organisation | `X-Organization-Slug: <slug>` |
-| Protokollrevisionen | `2025-11-25`, oder `2025-06-18` bzw. `2025-03-26`, wenn der Client diese vorschlägt |
+| Protokollrevisionen | `2026-07-28`, von jeder Anfrage selbst mitgebracht; oder `2025-11-25`, `2025-06-18` bzw. `2025-03-26`, mit `initialize` eröffnet ([Protokollrevisionen](#protocol-revisions)) |
 
 Der Client muss entfernte HTTP-Endpunkte mit eigenen Headern unterstützen. Es gibt keinen SSE-Ereignisstrom, keine Sitzung zum Löschen und keinen OAuth-Anmeldeablauf. OAuth-Discovery-URLs antworten mit JSON und `404`; ein Client, der diesen Ablauf voraussetzt, braucht eine andere Authentifizierungskonfiguration. Ein reiner stdio-Client kann diese URL nicht direkt nutzen. Fertige Konfigurationen für opencode und Claude Code findest du unter [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor).
 
@@ -57,7 +57,7 @@ Bei Erfolg enthält `get_docs` die Automatisierungsreferenz als Text, ohne geset
 | Anfrage | Antwort |
 | --- | --- |
 | Einzelne JSON-RPC-Nachricht | Ein JSON-RPC-Ergebnis oder -Fehler |
-| Bis zu 20 Nachrichten im Batch | Array mit Antworten; Benachrichtigungen erhalten keinen eigenen Eintrag |
+| Bis zu 20 Nachrichten im Batch (nur Revisionen von 2025) | Array mit Antworten; Benachrichtigungen erhalten keinen eigenen Eintrag |
 | Nur Benachrichtigungen | HTTP `202` |
 | `OPTIONS` | HTTP `204`, `Allow: POST, OPTIONS`; kein Schlüssel nötig |
 | Andere HTTP-Methode | HTTP `405`, `Allow: POST, OPTIONS` |
@@ -65,6 +65,33 @@ Bei Erfolg enthält `get_docs` die Automatisierungsreferenz als Text, ohne geset
 Jeder zusätzliche Tool-Aufruf, jede weitere Ressourcen-Abfrage oder -Liste und jeder weitere Prompt im Batch verbraucht dasselbe Anfragebudget wie ein eigener Aufruf. Ist das Budget erschöpft, enthält der betroffene Eintrag JSON-RPC `-32000` mit `data.retryAfterMs`. Die HTTP-Antwort bleibt `200` ohne `Retry-After`. Eine einzelne Anfrage, die bereits am HTTP-Eingang abgelehnt wird, erhält REST `429`. Behandle beide Fälle nach der [Referenz zu Ratenlimits](/de/develop/rate-limits).
 
 Der Endpunkt liefert keine CORS-Header für API-Schlüssel in Webseiten. Bewahre den Schlüssel auf einem vertrauenswürdigen Server oder im Zugangsdaten-Speicher des MCP-Clients auf. Eine Anfrage, deren `Origin`-Kopfzeile eine Website nennt, die das Deployment nicht annimmt, wird protokolliert und mit `403` `ORIGIN_FORBIDDEN` abgelehnt, wo der Betreiber diese Prüfung durchsetzt ([Umgebungsreferenz](/de/self-hosted/configuration/environment-reference#mcp-endpoint)). Coding-Agents im Terminal senden keinen `Origin`.
+
+### Protokollrevisionen {#protocol-revisions}
+
+Der Endpunkt bedient zwei Generationen des Protokolls unter derselben URL und mit demselben Schlüssel und entscheidet bei jeder Anfrage, welche vorliegt. Ein Client, der `2026-07-28` spricht, sendet kein `initialize`: Jede Anfrage bringt ihre Revision und die Fähigkeiten des Clients selbst mit, deshalb bleibt zwischen zwei Anfragen nichts gespeichert.
+
+| | `2025-11-25`, `2025-06-18`, `2025-03-26` | `2026-07-28` |
+| --- | --- | --- |
+| Start | `initialize`, danach die ausgehandelte Revision in `MCP-Protocol-Version` | Kein Handshake; `server/discover` nennt, was der Server spricht |
+| Jede Anfrage | Die JSON-RPC-Nachricht | `params._meta` mit `io.modelcontextprotocol/protocolVersion` und `io.modelcontextprotocol/clientCapabilities`; die Header `MCP-Protocol-Version` und `Mcp-Method`, bei `tools/call`, `resources/read` und `prompts/get` zusätzlich `Mcp-Name` |
+| Batches | Bis zu 20 Nachrichten | Eine Nachricht pro Anfrage |
+| Ergebnisse | Wie auf dieser Seite beschrieben | Zusätzlich `resultType: "complete"` und der Server unter `_meta["io.modelcontextprotocol/serverInfo"]`; `server/discover`, die Listen und `resources/read` ergänzen `ttlMs` und `cacheScope: "private"` |
+| `initialize`, `ping` | Werden beantwortet | HTTP `404` mit JSON-RPC `-32601` |
+| Eine Adresse, die nichts findet | `-32002` | `-32602` |
+
+Nach den Regeln von `2026-07-28` bedient der Endpunkt eine Anfrage, wenn ihr `_meta` eine Revision nennt oder ihr Header `MCP-Protocol-Version` `2026-07-28` lautet. Ihre Header müssen wiederholen, was im Body steht. Fehlt ein Header oder nennt er eine andere Revision, eine andere Methode, ein anderes Tool, einen anderen Prompt oder eine andere Adresse, lehnt der Endpunkt die Anfrage mit HTTP `400` und JSON-RPC `-32020` ab, bevor etwas ausgeführt wird. Einen Wert für `Mcp-Name`, der kein reines ASCII ist, sendest du als `=?base64?<UTF-8-Text in Base64>?=`. Fehlt `_meta` oder ist es fehlerhaft, antwortet der Endpunkt mit `-32602` und HTTP `400` und nennt die betroffenen Einträge unter `data.missing` oder `data.malformed`.
+
+```bash
+curl --fail-with-body "$TALE_URL/api/v1/mcp" \
+  --header "Authorization: Bearer $TALE_API_KEY" \
+  --header "X-Organization-Slug: $TALE_ORG_SLUG" \
+  --header 'MCP-Protocol-Version: 2026-07-28' \
+  --header 'Mcp-Method: server/discover' \
+  --header 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"docs-client","version":"1.0.0"}}}}'
+```
+
+Die Antwort nennt unter `supportedVersions` alle Revisionen und enthält dieselben Fähigkeiten und `instructions` wie `initialize`, dazu den Server unter `_meta`. `ttlMs` gibt an, wie lange dein Client eine Antwort wiederverwenden darf: eine Stunde für `server/discover`, die Listen der Tools, Prompts und Adressmuster sowie die Referenzen; eine Minute für `resources/list` und den Connector-Katalog; `0` für eine Automatisierung oder einen Lauf, weil sie sich mit dem nächsten Speichern deines Agents ändern können. Jede Antwort gehört zu dem Schlüssel, der gefragt hat; ein Cache darf sie deshalb nie mit einem anderen Schlüssel teilen. Der Name aus `io.modelcontextprotocol/clientInfo` wird mit jedem Aufruf und mit den Änderungen des Aufrufs gespeichert, sodass eine Version, die ein Agent speichert, den Client nennt, der sie gespeichert hat.
 
 ## Die Tools
 
@@ -181,7 +208,7 @@ Neben Tools liefert der Endpunkt Ressourcen, die ein Client über ihre Adresse l
 | `tale://automations/{name}/versions/{version}` | Eine gespeicherte Version; `{version}` ist eine Nummer oder `deployed` | `get_automation` mit `version` |
 | `tale://runs/{runId}` | Einen Lauf mit Ausgabe, Trace und Effekten | `get_run` |
 
-Schreibe jeden `/` in einem Automatisierungsnamen als `%2F`: `tale://automations/billing%2Fdunning`. Eine Adresse, die nichts findet, liefert JSON-RPC `-32002` mit dem Code der Ablehnung in `data.code`, etwa `AUTOMATION_NOT_FOUND`. Eine Automatisierung, die der Schlüsselinhaber nicht sehen darf, liefert denselben Fehler wie eine, die es nicht gibt. Eine fehlerhafte Adresse, etwa eine Version, die keine Zahl ist, liefert `-32602`.
+Schreibe jeden `/` in einem Automatisierungsnamen als `%2F`: `tale://automations/billing%2Fdunning`. Eine Adresse, die nichts findet, liefert JSON-RPC `-32002` (unter `2026-07-28` `-32602`) mit dem Code der Ablehnung in `data.code`, etwa `AUTOMATION_NOT_FOUND`. Eine Automatisierung, die der Schlüsselinhaber nicht sehen darf, liefert denselben Fehler wie eine, die es nicht gibt. Eine fehlerhafte Adresse, etwa eine Version, die keine Zahl ist, liefert `-32602`.
 
 ### Mit einem Prompt beginnen {#prompts}
 
@@ -214,10 +241,11 @@ Lies vor dem Einrichten privilegierter Tools `GET /api/v1/me`: `capabilities.dev
 
 | Ergebnis | Umgang damit |
 | --- | --- |
-| JSON-RPC `-32601` | Unbekannte Methode korrigieren |
-| JSON-RPC `-32602` | Tool-Name anhand von `tools/list`, Name oder Argumente eines Prompts anhand von `prompts/list` oder eine Ressourcenadresse korrigieren |
-| JSON-RPC `-32002` | Die Ressourcenadresse findet nichts; `data.code` nennt die Ablehnung, etwa `AUTOMATION_NOT_FOUND` |
-| JSON-RPC `-32022` (HTTP `400`) | `MCP-Protocol-Version` mit einer der Revisionen aus `data.supported` senden |
+| JSON-RPC `-32601` | Unbekannte Methode korrigieren; unter `2026-07-28` kommt der Fehler mit HTTP `404`, auch für `initialize` und `ping` |
+| JSON-RPC `-32602` | Tool-Name anhand von `tools/list`, Name oder Argumente eines Prompts anhand von `prompts/list` oder eine Ressourcenadresse korrigieren. Mit HTTP `400` das `_meta` unter `2026-07-28` um die Einträge aus `data.missing` oder `data.malformed` ergänzen |
+| JSON-RPC `-32002` | Die Ressourcenadresse findet nichts; `data.code` nennt die Ablehnung, etwa `AUTOMATION_NOT_FOUND`. Unter `2026-07-28` trägt dieselbe Antwort den Code `-32602` |
+| JSON-RPC `-32020` (HTTP `400`) | Die Header einer Anfrage unter `2026-07-28` wiederholen ihren Body nicht; `MCP-Protocol-Version`, `Mcp-Method` und `Mcp-Name` wie unter [Protokollrevisionen](#protocol-revisions) beschrieben senden |
+| JSON-RPC `-32022` (HTTP `400`) | Eine der Revisionen aus `data.supported` senden: in `MCP-Protocol-Version` und unter `2026-07-28` auch in `_meta`. Eine Revision von 2025 wird mit `initialize` eröffnet |
 | Tool-Ergebnis mit `isError: true` | Stabilen `code`, erklärenden `error` und Handlungshinweis `hint` im Textinhalt lesen; `data` kann Feldprobleme enthalten |
 | `validate_automation` mit `valid: false` | Normales Validierungsergebnis; `errors` und ihre Stellen auswerten ([Ein Validierungsergebnis lesen](#validation-result)), obwohl `isError` false bleibt. Warnungen machen ein Dokument nie ungültig |
 | Capability mit `pending` | Normales Genehmigungsergebnis; weder als fertig noch als erneut zu versuchenden Fehler behandeln |

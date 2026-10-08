@@ -21,7 +21,7 @@ Create an [API key](/platform/admin/api-keys) and keep it in your client's secre
 | Transport | HTTPS POST with JSON-RPC; plain JSON responses |
 | Authorization | `Authorization: Bearer <api-key>` |
 | Organization | `X-Organization-Slug: <slug>` |
-| Protocol revisions | `2025-11-25`, or `2025-06-18` or `2025-03-26` when proposed by the client |
+| Protocol revisions | `2026-07-28`, carried by every request; or `2025-11-25`, `2025-06-18` or `2025-03-26`, opened with `initialize` ([Protocol revisions](#protocol-revisions)) |
 
 Use a client that supports a remote HTTP endpoint with custom headers. There is no SSE event stream, session deletion, or OAuth authorization flow. OAuth discovery URLs return JSON `404`; a client requiring that flow needs a different authentication configuration. A client that only launches local stdio servers cannot use this URL directly. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor) has ready configurations for opencode and Claude Code.
 
@@ -57,7 +57,7 @@ A successful `get_docs` result contains the automation reference as text and has
 | Request | Response behavior |
 | --- | --- |
 | One JSON-RPC message | One JSON-RPC result or error |
-| Batch of up to 20 messages | An array of responses; notifications have no response entry |
+| Batch of up to 20 messages (2025 revisions only) | An array of responses; notifications have no response entry |
 | Notifications only | HTTP `202` |
 | `OPTIONS` | HTTP `204`, `Allow: POST, OPTIONS`; no key required |
 | Any other HTTP method | HTTP `405`, `Allow: POST, OPTIONS` |
@@ -65,6 +65,33 @@ A successful `get_docs` result contains the automation reference as text and has
 Every additional tool call, resource read or listing, or prompt in a batch consumes the same request budget as a separate call. If a batch exhausts its budget, the refused entry is JSON-RPC `-32000` with `data.retryAfterMs`; the enclosing HTTP response remains `200` and has no `Retry-After`. A single request rejected at the HTTP boundary gets REST `429`. Handle both cases using the [rate-limit guidance](/develop/rate-limits).
 
 The endpoint supplies no CORS headers for browser key use. Keep the API key on a trusted server or in the MCP client's credential store. A request whose `Origin` header names a site the deployment does not accept is logged, and refused with `403` `ORIGIN_FORBIDDEN` where the operator enforces that check ([environment reference](/self-hosted/configuration/environment-reference#mcp-endpoint)). Coding agents in a terminal send no `Origin`.
+
+### Protocol revisions {#protocol-revisions}
+
+The endpoint serves two generations of the protocol on the same URL and key, and decides for each request which one it is. A client that speaks `2026-07-28` sends no `initialize`: every request carries its revision and the client's capabilities, so nothing is kept between requests.
+
+| | `2025-11-25`, `2025-06-18`, `2025-03-26` | `2026-07-28` |
+| --- | --- | --- |
+| Start | `initialize`, then the negotiated revision in `MCP-Protocol-Version` | No handshake; `server/discover` returns what the server speaks |
+| Every request | The JSON-RPC message | `params._meta` with `io.modelcontextprotocol/protocolVersion` and `io.modelcontextprotocol/clientCapabilities`; the headers `MCP-Protocol-Version` and `Mcp-Method`, plus `Mcp-Name` for `tools/call`, `resources/read` and `prompts/get` |
+| Batches | Up to 20 messages | One message per request |
+| Results | As described on this page | Also `resultType: "complete"` and the server under `_meta["io.modelcontextprotocol/serverInfo"]`; `server/discover`, the lists and `resources/read` add `ttlMs` and `cacheScope: "private"` |
+| `initialize`, `ping` | Answered | HTTP `404` with JSON-RPC `-32601` |
+| An address that reads nothing | `-32002` | `-32602` |
+
+A request is served as `2026-07-28` when its `_meta` names a revision or its `MCP-Protocol-Version` header names `2026-07-28`. Its headers must repeat what the body says. A missing header, or one that names another revision, method, tool, prompt or address, is refused with HTTP `400` and JSON-RPC `-32020` before anything runs. Send an `Mcp-Name` value that is not plain ASCII as `=?base64?<Base64 of the UTF-8 text>?=`. A missing or malformed `_meta` returns `-32602` with HTTP `400` and names the keys under `data.missing` or `data.malformed`.
+
+```bash
+curl --fail-with-body "$TALE_URL/api/v1/mcp" \
+  --header "Authorization: Bearer $TALE_API_KEY" \
+  --header "X-Organization-Slug: $TALE_ORG_SLUG" \
+  --header 'MCP-Protocol-Version: 2026-07-28' \
+  --header 'Mcp-Method: server/discover' \
+  --header 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"docs-client","version":"1.0.0"}}}}'
+```
+
+The answer lists every revision under `supportedVersions` and carries the same capabilities and `instructions` as `initialize`, with the server under `_meta`. `ttlMs` says how long your client may reuse an answer: an hour for `server/discover`, the tool, prompt and template lists and the references; a minute for `resources/list` and the connector catalog; `0` for an automation or a run, because it can change with your agent's next save. Every answer belongs to the key that asked, so a cache must never share it with another key. The name in `io.modelcontextprotocol/clientInfo` is recorded with each call and with the changes the call makes, so a version an agent saves names the client that saved it.
 
 ## The tools
 
@@ -181,7 +208,7 @@ Besides tools, the endpoint serves resources, which a client reads by address, a
 | `tale://automations/{name}/versions/{version}` | One saved version; `{version}` is a number or `deployed` | `get_automation` with `version` |
 | `tale://runs/{runId}` | One run with its output, trace and effects | `get_run` |
 
-Write each `/` in an automation name as `%2F`: `tale://automations/billing%2Fdunning`. An address that reads nothing returns JSON-RPC `-32002` with the refusal's code in `data.code`, such as `AUTOMATION_NOT_FOUND`; an automation the key holder cannot see returns the same error as one that does not exist. A malformed address, such as a version that is not a number, returns `-32602`.
+Write each `/` in an automation name as `%2F`: `tale://automations/billing%2Fdunning`. An address that reads nothing returns JSON-RPC `-32002` (`-32602` on `2026-07-28`) with the refusal's code in `data.code`, such as `AUTOMATION_NOT_FOUND`; an automation the key holder cannot see returns the same error as one that does not exist. A malformed address, such as a version that is not a number, returns `-32602`.
 
 ### Start from a prompt {#prompts}
 
@@ -214,10 +241,11 @@ Read `GET /api/v1/me` before configuring privileged tools: `capabilities.develop
 
 | Result | How to handle it |
 | --- | --- |
-| JSON-RPC `-32601` | Correct the unknown method |
-| JSON-RPC `-32602` | Correct the tool name using `tools/list`, a prompt's name or arguments using `prompts/list`, or a resource address |
-| JSON-RPC `-32002` | The resource address reads nothing; `data.code` names the refusal, such as `AUTOMATION_NOT_FOUND` |
-| JSON-RPC `-32022` (HTTP `400`) | Send `MCP-Protocol-Version` with one of the revisions in `data.supported` |
+| JSON-RPC `-32601` | Correct the unknown method; on `2026-07-28` it comes with HTTP `404`, also for `initialize` and `ping` |
+| JSON-RPC `-32602` | Correct the tool name using `tools/list`, a prompt's name or arguments using `prompts/list`, or a resource address. With HTTP `400`, complete the `2026-07-28` `_meta` named in `data.missing` or `data.malformed` |
+| JSON-RPC `-32002` | The resource address reads nothing; `data.code` names the refusal, such as `AUTOMATION_NOT_FOUND`. On `2026-07-28` the same answer has the code `-32602` |
+| JSON-RPC `-32020` (HTTP `400`) | A `2026-07-28` request's headers do not repeat its body; send `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` as described in [Protocol revisions](#protocol-revisions) |
+| JSON-RPC `-32022` (HTTP `400`) | Send one of the revisions in `data.supported`: in `MCP-Protocol-Version`, and on `2026-07-28` also in `_meta`. A 2025 revision is opened with `initialize` |
 | Tool result with `isError: true` | Read its text payload's stable `code`, explanatory `error`, and actionable `hint`; `data` may contain field problems |
 | `validate_automation` with `valid: false` | Normal validation result; inspect `errors` and where each one is ([Read a validation result](#validation-result)), even though `isError` remains false. Warnings never make a document invalid |
 | Capability result `pending` | Normal approval outcome; do not treat it as completion or retry it as a failure |
