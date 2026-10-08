@@ -56,7 +56,7 @@ For inbound conversations, [routing rules](/platform/admin/governance/policies-a
 
 ## Retire a team carefully
 
-Choose **Delete** from the row menu. The confirmation counts the team's members, the projects, folders, and documents it is on, and the conversations in its queue. It also says how many of those items have no other team and will become visible to everyone in the organization. Reassign work that must remain restricted before you confirm.
+Choose **Delete** from the row menu. The confirmation counts the team's members, the projects, folders, and documents it is on, and the conversations in its queue. It also says how many of those items have no other team and will become visible to everyone in the organization, and how many [API keys](/platform/admin/api-keys#create-a-key-for-someone-else) belong to the team: they stop working with it. Reassign work that must remain restricted before you confirm.
 
 <Warning>
 

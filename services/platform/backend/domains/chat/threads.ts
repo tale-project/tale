@@ -7,10 +7,7 @@ import {
   parseBranchSelections,
   resolveViewPath,
 } from '../../../lib/shared/branch-selection.ts';
-import {
-  getUserTeamIds,
-  findOrganizationMember,
-} from '../../auth/membership.ts';
+import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { PROJECT_AUDIT_ACTIONS } from '../../core/projects/audit_actions.ts';
@@ -193,11 +190,7 @@ export async function projectChatAccess(
   `;
   const project = projects[0];
   if (!project || project.orgId !== args.organizationId) return 'not_found';
-  const member = await findOrganizationMember(
-    sql,
-    args.organizationId,
-    args.userId,
-  );
+  const member = await findActingMember(sql, args.organizationId, args.userId);
   if (member === null || member.role === 'disabled') return 'forbidden';
   const teamIds = await getUserTeamIds(sql, args.organizationId, args.userId);
   const access = checkProjectAccess(

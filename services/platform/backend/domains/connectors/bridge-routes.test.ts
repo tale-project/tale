@@ -112,6 +112,11 @@ const sql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
     // The attribution's fallback: a task-agent op stamps no other person.
     return Promise.resolve([]);
   }
+  if (text.includes('FROM app.api_key_owners')) {
+    // A starter who is no member is no team's, project's or organization's
+    // key either.
+    return Promise.resolve([]);
+  }
   if (text.includes('INSERT INTO app.sandbox_tool_calls')) {
     toolCalls.push(values);
     return Promise.resolve([]);

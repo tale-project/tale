@@ -10,6 +10,7 @@ import {
   type KnowledgePassage,
 } from '../../../lib/chat/index.ts';
 import type { KnowledgeCorpus } from '../../../lib/knowledge/types.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import { pgAutomationStore } from '../automations/dispatch-store.ts';
 import { KnowledgeError, searchKnowledgeForOrg } from '../knowledge/service.ts';
 import { resolveAccessScope } from './shim.ts';
@@ -190,7 +191,10 @@ export async function buildCapabilitySurface(
 /**
  * The capability dispatch for a caller proved elsewhere (the platform MCP
  * endpoint): the membership is re-checked from the (organization, user)
- * pair before anything runs — the 0.4 `dispatchCapabilityAs`.
+ * pair before anything runs — the 0.4 `dispatchCapabilityAs`. A team's or
+ * the organization's own API key acts with the role it was made with; a
+ * project's key reaches its project alone, never these organization-wide
+ * tools (the REST door refuses it first).
  */
 export async function dispatchCapabilityAs(
   sql: Sql,
@@ -201,14 +205,12 @@ export async function dispatchCapabilityAs(
     params?: unknown;
   },
 ): Promise<unknown> {
-  const rows = await sql<{ role: string }[]>`
-    SELECT "role" FROM "member"
-    WHERE "organizationId" = ${args.organizationId}
-      AND "userId" = ${args.userId}
-    LIMIT 1
-  `;
-  const role = rows[0]?.role;
-  if (role === undefined || role === 'disabled') {
+  const member = await findActingMember(sql, args.organizationId, args.userId);
+  if (
+    member === null ||
+    member.role === 'disabled' ||
+    member.apiKeyOwner?.kind === 'project'
+  ) {
     throw new CapabilityAuthError(
       'ORG_FORBIDDEN',
       'The caller is not a member of this organization.',

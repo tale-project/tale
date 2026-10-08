@@ -14,6 +14,7 @@ import { useMemo } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 import { ApiKeyExpiresCell } from '../components/api-key-expires-cell';
+import { ApiKeyOwnerCell } from '../components/api-key-owner-cell';
 import { ApiKeyRowActions } from '../components/api-key-row-actions';
 import type { ApiKey } from '../types';
 
@@ -24,8 +25,17 @@ interface ApiKeysTableConfig {
   infiniteScroll: boolean;
 }
 
+/** The masked key as its holder saw it: `start … suffix`. */
+function maskedKey(apiKey: ApiKey): string {
+  const head = apiKey.start || apiKey.prefix;
+  const tail = apiKey.suffix;
+  return head ? (tail ? `${head} … ${tail}` : head) : tail ? `… ${tail}` : '-';
+}
+
 export function useApiKeysTableConfig(
   organizationId: string,
+  /** The signed-in member, so a key made for them reads as theirs. */
+  viewerUserId?: string,
 ): ApiKeysTableConfig {
   const { t: tSettings } = useT('settings');
 
@@ -37,40 +47,43 @@ export function useApiKeysTableConfig(
       {
         accessorKey: 'name',
         header: tSettings('apiKeys.columns.name'),
+        // The masked key sits under its name: one column, so the owner and
+        // the dates fit the settings page's measure beside it.
         cell: ({ row }) => (
-          <Text as="span" variant="label">
-            {row.original.name || '-'}
-          </Text>
+          <div className="flex min-w-0 flex-col">
+            <Text as="span" variant="label" truncate>
+              {row.original.name || '-'}
+            </Text>
+            <Text
+              as="span"
+              variant="muted"
+              truncate
+              className="font-mono text-xs"
+            >
+              <span className="sr-only">
+                {tSettings('apiKeys.columns.key')}:{' '}
+              </span>
+              {maskedKey(row.original)}
+            </Text>
+          </div>
         ),
       },
       {
-        id: 'key',
-        header: tSettings('apiKeys.columns.key'),
-        // Progressive disclosure on narrow screens: name + actions always show;
-        // the key and its expiry, then the other dates, reveal as the
-        // viewport widens.
+        id: 'owner',
+        header: tSettings('apiKeys.columns.owner'),
+        size: 160,
+        // Progressive disclosure on narrow screens: the name + key and the
+        // actions always show; the owner and the expiry, then the other
+        // dates, reveal as the viewport widens.
         meta: { className: 'hidden sm:table-cell' },
-        cell: ({ row }) => {
-          const head = row.original.start || row.original.prefix;
-          const tail = row.original.suffix;
-          const display = head
-            ? tail
-              ? `${head} … ${tail}`
-              : head
-            : tail
-              ? `… ${tail}`
-              : '-';
-          return (
-            <Text as="span" variant="muted" className="font-mono text-sm">
-              {display}
-            </Text>
-          );
-        },
+        cell: ({ row }) => (
+          <ApiKeyOwnerCell apiKey={row.original} viewerUserId={viewerUserId} />
+        ),
       },
       {
         id: 'expires',
         header: tSettings('apiKeys.columns.expires'),
-        size: 140,
+        size: 120,
         meta: { className: 'hidden sm:table-cell' },
         cell: ({ row }) => (
           <ApiKeyExpiresCell expiresAt={row.original.expiresAt} />
@@ -79,7 +92,7 @@ export function useApiKeysTableConfig(
       {
         id: 'created',
         header: tSettings('apiKeys.columns.created'),
-        size: 140,
+        size: 120,
         meta: { className: 'hidden lg:table-cell' },
         cell: ({ row }) => (
           <TableDateCell date={row.original.createdAt} preset="short" />
@@ -88,7 +101,7 @@ export function useApiKeysTableConfig(
       {
         id: 'lastUsed',
         header: tSettings('apiKeys.columns.lastUsed'),
-        size: 140,
+        size: 120,
         meta: { className: 'hidden md:table-cell' },
         cell: ({ row }) => (
           <TableDateCell
@@ -114,7 +127,7 @@ export function useApiKeysTableConfig(
         ),
       },
     ],
-    [tSettings, organizationId],
+    [tSettings, organizationId, viewerUserId],
   );
 
   return {

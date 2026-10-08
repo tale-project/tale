@@ -1,5 +1,12 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { roleRank } from '../../lib/shared/role-rank.ts';
+import { PROJECT_TEAM_IDS_SQL } from '../core/lib/audience.ts';
+import {
+  type ApiKeyOwner,
+  readServicePrincipal,
+} from '../domains/api_keys/owners.ts';
+import { retireApiKeysInTx } from '../domains/api_keys/retire.ts';
 import { scheduleMemberWorkspaceRetirement } from '../domains/sandbox/retirement-schedule.ts';
 
 /**
@@ -136,22 +143,9 @@ export function isAdminOrDeveloperRole(role: string): boolean {
   return ADMIN_OR_DEVELOPER_ROLES.has(role.toLowerCase());
 }
 
-/**
- * Authority rank for the owner-protection / strict-outrank guards. Higher =
- * more authority. Unknown roles rank 0 (fail closed: they can outrank nobody).
- */
-const ROLE_RANK: Readonly<Record<string, number>> = {
-  owner: 5,
-  admin: 4,
-  developer: 3,
-  editor: 2,
-  member: 1,
-  disabled: 0,
-};
-
-export function roleRank(role: string): number {
-  return ROLE_RANK[role.toLowerCase()] ?? 0;
-}
+/** Authority rank for the owner-protection / strict-outrank guards — shared
+ * with the app, so a picker offers exactly whom a rule admits. */
+export { roleRank };
 
 export type CredentialResetDenial =
   | 'self'
@@ -269,6 +263,20 @@ export async function removeMembershipCascade(
     WHERE org_id = ${organizationId} AND user_id = ${userId}
       AND revoked_at_ms IS NULL
   `;
+  // The API keys an Owner or Admin made for the member here act as them in
+  // this organization alone; they end with the seat (the member's own keys
+  // are theirs and simply stop working here). So do the keys the member
+  // made for others: a key acts as its member only while its maker may.
+  await retireApiKeysInTx(tx, {
+    organizationId,
+    reason: 'member_removed',
+    memberUserId: userId,
+  });
+  await retireApiKeysInTx(tx, {
+    organizationId,
+    reason: 'maker_removed',
+    makerUserId: userId,
+  });
   // The workspaces the member's runs with the organization's agents worked
   // in hold what those runs left behind — theirs, and reachable by nobody
   // once they are gone. Deleted once this commits (a member re-added before
@@ -278,21 +286,113 @@ export async function removeMembershipCascade(
 }
 
 /**
- * Team ids the user belongs to IN THIS ORGANIZATION (the other half of the
- * RLS prime). Scoped through the team's own org: a membership in another
+ * What one caller sees with in one organization: their teams, and — for a
+ * project's own API key — the one project it reaches.
+ */
+interface ActingAudience {
+  teamIds: string[];
+  /** The project a project's own key is confined to. */
+  projectScope?: string;
+}
+
+/**
+ * The caller's audience IN THIS ORGANIZATION (the other half of the RLS
+ * prime). Scoped through the team's own org: a membership in another
  * tenant's team must never widen what this org's team-scoped rows show, and
  * a membership whose team row is gone is no team at all.
+ *
+ * An API key that is not a person (`domains/api_keys/owners.ts`) has no
+ * `teamMember` row and sees with the audience it was given instead: a
+ * team's key that team's, a project's key the project's own teams — and
+ * that one project alone — the organization's key none. One statement for a
+ * person; a project's key reads its project's teams with a second.
  */
+async function readActingAudience(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  userId: string,
+): Promise<ActingAudience> {
+  const rows = await sql<{ teamId: string | null; projectId: string | null }[]>`
+    SELECT tm."teamId" AS "teamId", NULL::text AS "projectId"
+    FROM "teamMember" tm
+    JOIN "team" t ON t."id" = tm."teamId"
+    WHERE tm."userId" = ${userId} AND t."organizationId" = ${organizationId}
+    UNION
+    SELECT o.team_id, o.project_id
+    FROM app.api_key_owners o
+    LEFT JOIN "team" t ON t."id" = o.team_id AND t."organizationId" = o.org_id
+    WHERE o.principal_user_id = ${userId} AND o.org_id = ${organizationId}
+      AND o.revoked_at_ms IS NULL
+      AND ((o.owner_kind = 'team' AND t."id" IS NOT NULL)
+           OR o.owner_kind = 'project')
+  `;
+  const teamIds = rows.flatMap((row) =>
+    typeof row.teamId === 'string' ? [row.teamId] : [],
+  );
+  const projectScope = rows.find(
+    (row) => typeof row.projectId === 'string',
+  )?.projectId;
+  if (typeof projectScope !== 'string') return { teamIds };
+  // A project's own key sees with that project's audience.
+  const projects = await sql<{ teamIds: string[] | null }[]>`
+    SELECT ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
+    FROM app.projects
+    WHERE id = ${projectScope} AND org_id = ${organizationId}
+  `;
+  return {
+    teamIds: [
+      ...new Set([
+        ...teamIds,
+        ...projects.flatMap((project) => project.teamIds ?? []),
+      ]),
+    ],
+    projectScope,
+  };
+}
+
+/** The team ids of {@link readActingAudience}. */
 export async function getUserTeamIds(
   sql: Sql | TransactionSql,
   organizationId: string,
   userId: string,
 ): Promise<string[]> {
-  const rows = await sql<{ teamId: string }[]>`
-    SELECT tm."teamId"
-    FROM "teamMember" tm
-    JOIN "team" t ON t."id" = tm."teamId"
-    WHERE tm."userId" = ${userId} AND t."organizationId" = ${organizationId}
-  `;
-  return rows.map((row) => row.teamId);
+  return (await readActingAudience(sql, organizationId, userId)).teamIds;
+}
+
+/**
+ * The member a request ACTS AS in one organization: the person's own member
+ * row, or — for an API key that is not a person — the role that key was
+ * made with, for as long as the key is live and bound to this organization.
+ * Only the doors an API key reaches ask this; a check about another person
+ * (whom to add to a team, whom to grant a competence) keeps reading
+ * {@link findOrganizationMember}, which a key's identity never satisfies.
+ */
+export async function findActingMember(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  userId: string,
+): Promise<ActingMember | null> {
+  const member = await findOrganizationMember(sql, organizationId, userId);
+  if (member !== null) return member;
+  const principal = await readServicePrincipal(sql, userId);
+  if (
+    principal === null ||
+    principal.organizationId !== organizationId ||
+    principal.role === null
+  ) {
+    return null;
+  }
+  return {
+    id: `api-key:${principal.apiKeyId}`,
+    organizationId,
+    userId,
+    role: principal.role,
+    apiKeyOwner: principal,
+  };
+}
+
+/** The member a request acts as; `apiKeyOwner` names the key when it is an
+ * API key's own identity rather than a person. */
+export interface ActingMember extends OrganizationMember {
+  apiKeyOwner?: ApiKeyOwner;
 }

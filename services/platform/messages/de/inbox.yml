@@ -68,6 +68,8 @@ cloudSyncNeedsReauth: Cloud-Synchronisierung muss neu verbunden werden
 cloudSyncNeedsReauthBody: 'Tale hat mit deinem Konto keinen Zugriff mehr auf {provider}, deshalb wird "{itemName}" nicht mehr synchronisiert. Verbinde {provider} unter Dokumente erneut, um fortzufahren.'
 usageCreditsRequested: Nutzungskontingent angefragt
 usageCreditsRequestedBody: '{name} hat ein Nutzungslimit erreicht und um mehr Kontingent gebeten.'
+apiKeyCreatedForYou: API-Schlüssel für dich erstellt
+apiKeyCreatedForYouBody: '{name} hat den API-Schlüssel "{keyName}" für dich erstellt. Er handelt in dieser Organisation in deinem Namen; brauchst du ihn nicht, widerrufe ihn unter Einstellungen > API > REST.'
 automationTriggerPaused: Zeitplan pausiert
 automationTriggerPausedBody: '"{name}" ist {failures}-mal in Folge fehlgeschlagen ({code}), deshalb ist der Zeitplan pausiert. Behebe den Fehler in der Automatisierung und schalte ihren Trigger dann wieder ein.'
 agentRunFailed: Agenten-Lauf fehlgeschlagen

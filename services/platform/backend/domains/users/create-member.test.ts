@@ -92,6 +92,10 @@ function createRecordingSql(scenario: Scenario): {
     if (/^(INSERT|UPDATE|DELETE)\b/.test(text)) {
       return [];
     }
+    // The user is no API key's own identity.
+    if (text.includes('FROM app.api_key_owners')) {
+      return [];
+    }
     throw new Error(`unexpected SQL in recording sql: ${text}`);
   };
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {

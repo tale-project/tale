@@ -601,7 +601,7 @@ export function createGovernanceRoutes(deps: {
     const userId = c.get('sessionBundle').user.id;
     const [mayCreate, holdsKeys] = await Promise.all([
       mayCreateApiKeys(deps.sql, userId),
-      holdsApiKeys(deps.sql, userId),
+      holdsApiKeys(deps.sql, userId, c.get('orgId')),
     ]);
     return c.json({ mayCreate, holdsKeys });
   });

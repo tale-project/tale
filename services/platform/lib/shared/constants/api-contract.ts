@@ -389,5 +389,15 @@
  * and project-write gates. The request does not clear the hold or prove
  * termination. Ordinary cancel refuses held runs (`RUN_QUARANTINED`);
  * stale stop requests answer `RUN_QUARANTINE_CHANGED`. Additive.
+ *
+ * 3.21.0 — 2026-10-08: API keys can belong to a member an Owner or Admin
+ * made them for, or to a team, a project or the organization itself. Such a
+ * key works in its one organization: it needs no `X-Organization-Slug`, and
+ * one naming another organization answers 403 `ORG_FORBIDDEN`. A project's
+ * key reaches its own project, the project list, `/me` and the model
+ * endpoints; any other route answers 403 `API_KEY_SCOPE_FORBIDDEN`.
+ * `GET /api/v1/me` answers `key.owner` (`kind`, `team`, `project`), lists
+ * the bound organization alone, and an empty `user.email` for a key that
+ * is not a person. Additive.
  */
-export const API_CONTRACT_VERSION = '3.20.0';
+export const API_CONTRACT_VERSION = '3.21.0';

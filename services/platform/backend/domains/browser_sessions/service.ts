@@ -130,13 +130,22 @@ export async function reportBrowserSessionResult(
  */
 export async function assertBrowserSessionImporter(
   sql: Sql,
-  args: { callerUserId: string; callerEmail?: string },
+  args: {
+    callerUserId: string;
+    callerEmail?: string;
+    /** For an API key bound to one organization: the one membership it
+     * acts with. Its member's standing elsewhere is not the key's. */
+    boundMembership?: { organizationId: string; role: string };
+  },
 ): Promise<void> {
-  const members = await sql<{ organizationId: string; role: string }[]>`
-    SELECT "organizationId", "role" FROM "member"
-    WHERE "userId" = ${args.callerUserId}
-    LIMIT 50
-  `;
+  const members =
+    args.boundMembership !== undefined
+      ? [args.boundMembership]
+      : await sql<{ organizationId: string; role: string }[]>`
+          SELECT "organizationId", "role" FROM "member"
+          WHERE "userId" = ${args.callerUserId}
+          LIMIT 50
+        `;
   const decision = decideInstanceAdmin({
     email: args.callerEmail,
     members,
@@ -199,6 +208,7 @@ export async function importBrowserSession(
   args: {
     callerUserId: string;
     callerEmail?: string;
+    boundMembership?: { organizationId: string; role: string };
     organizationId: string;
     domain: string;
     cookiesJar: string;

@@ -247,6 +247,49 @@ describe('getOrgUsageMetricsPg', () => {
     expect(byAgent.get('invoices/monthly')).not.toHaveProperty('displayName');
   });
 
+  it('books a key that is not a person as its own row, and never as an active user [APIKEY-R9]', async () => {
+    const today = buildPeriodKeyFromTimestamp('daily', Date.now());
+    const rows = [
+      { ...bucket(today, 0), userId: 'user_1' },
+      { ...bucket(today, 1), userId: 'key_identity' },
+    ];
+    const { sql, statements } = fakeSql((statement) => {
+      if (statement.text.includes('FROM app.usage_ledger')) return rows;
+      if (statement.text.includes('FROM app.api_key_owners o')) {
+        return [
+          {
+            userId: 'key_identity',
+            kind: 'team',
+            teamName: 'Finance',
+            projectName: null,
+          },
+        ];
+      }
+      return [];
+    });
+
+    const metrics = await getOrgUsageMetricsPg(sql, 'org_1', {
+      granularity: 'daily',
+      periodDays: 7,
+    });
+
+    // Its spend counts; the key is no person.
+    expect(metrics.summary.totalRequests).toBe(2);
+    expect(metrics.summary.activeUsers).toBe(1);
+    const byUser = new Map(metrics.users.map((user) => [user.userId, user]));
+    expect(byUser.get('key_identity')?.apiKey).toEqual({
+      kind: 'team',
+      teamName: 'Finance',
+      projectName: null,
+    });
+    expect(byUser.get('user_1')).not.toHaveProperty('apiKey');
+    // Only this organization's keys answer for its subjects.
+    const read = statements.find((statement) =>
+      statement.text.includes('FROM app.api_key_owners o'),
+    );
+    expect(read?.values[0]).toBe('org_1');
+  });
+
   it('folds the legacy door forms onto the person and a trigger form onto the automation bucket', async () => {
     const today = buildPeriodKeyFromTimestamp('daily', Date.now());
     // Rows the workflow lane booked before it derived the subject from the

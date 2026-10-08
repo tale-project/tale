@@ -18,7 +18,7 @@ import {
   sameTaskRepeat,
   type TaskRepeat,
 } from '../../../lib/shared/task-repeat.ts';
-import { findOrganizationMember } from '../../auth/membership.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import { assertExpectedHash } from '../../core/lib/config_store/precondition.ts';
 import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import {
@@ -4805,7 +4805,7 @@ export async function deferredAgentKickRefusal(
       : 'not_permitted';
   }
   if (starter.kind === 'unknown') return 'not_permitted';
-  const member = await findOrganizationMember(
+  const member = await findActingMember(
     tx,
     args.organizationId,
     starter.userId,

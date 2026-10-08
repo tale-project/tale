@@ -4,10 +4,7 @@ import {
   parseRunStarter,
   runStarterUserId,
 } from '../../../lib/shared/run-starter.ts';
-import {
-  findOrganizationMember,
-  getUserTeamIds,
-} from '../../auth/membership.ts';
+import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import {
@@ -86,7 +83,9 @@ export async function runStarterMayEditProject(
   }
   const userId = runStarterUserId(args.startedBy);
   if (userId === null) return false;
-  const member = await findOrganizationMember(sql, args.organizationId, userId);
+  // A starter may be an API key that is not a person: it acts with the role
+  // it was made with, and the audience it was given.
+  const member = await findActingMember(sql, args.organizationId, userId);
   if (member === null) return false;
   const role = member.role.toLowerCase();
   if (role === 'disabled') return false;

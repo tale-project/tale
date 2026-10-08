@@ -14,6 +14,7 @@ import {
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { mintCursorFor, verifyCursorFor } from '../core/lib/signed_cursor.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
+import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
 import {
   DocumentError,
   type DocumentRow,
@@ -82,6 +83,10 @@ export interface RestVars {
    * read the key's own facts (name, expiry) without a second verification.
    * Empty when the session carried none (never on the real door). */
   apiKeyId: string;
+  /** Who the key belongs to when it is bound to one organization — a key
+   * made for a member, or a team's, a project's or the organization's own
+   * key (`domains/api_keys/owners.ts`); null for a person's own key. */
+  apiKeyOwner: ApiKeyOwner | null;
   /** Why `readJsonBody` refused a body that parsed as JSON but carried a
    * value no field accepts (a U+0000) — `invalidBodyResponse` names it. */
   bodyIssue?: { path: string; message: string };
@@ -1229,13 +1234,22 @@ export function readPageLimit(
   return pageLimit(raw, defaults);
 }
 
-/** The minting user's project-auth context (visibility matrix). */
+/** The minting user's project-auth context (visibility matrix). A project's
+ * own key reaches that project alone. */
 export async function restProjectAuth(sql: Sql, c: Context<RestEnv>) {
-  return getProjectAuthContext(sql, {
-    organizationId: c.get('organizationId'),
-    userId: c.get('userId'),
-    role: c.get('role'),
-  });
+  const owner = c.get('apiKeyOwner');
+  return getProjectAuthContext(
+    sql,
+    {
+      organizationId: c.get('organizationId'),
+      userId: c.get('userId'),
+      role: c.get('role'),
+    },
+    undefined,
+    owner?.kind === 'project' && owner.projectId !== null
+      ? { projectScope: owner.projectId }
+      : {},
+  );
 }
 
 /** The URL project is authoritative for every nested REST resource. Hidden

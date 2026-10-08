@@ -62,6 +62,15 @@ export interface UsageTopVoiceModel {
   costCents: number;
 }
 
+/** An API key that is not a person, booking under its own identity
+ * (`domains/api_keys/owners.ts`): the team, project or organization it
+ * belongs to. */
+export interface UsageApiKeyIdentity {
+  kind: 'team' | 'project' | 'organization';
+  teamName: string | null;
+  projectName: string | null;
+}
+
 export interface UsageUserRow {
   userId: string;
   displayName: string;
@@ -71,6 +80,8 @@ export interface UsageUserRow {
   tokens: number;
   costCents: number;
   requests: number;
+  /** Set when the row is an API key's own identity, not a person. */
+  apiKey?: UsageApiKeyIdentity;
 }
 
 export interface UsageSummary {
@@ -161,6 +172,11 @@ export async function foldOrgUsageMetrics(
   now: number,
   resolveUserNames: (userIds: string[]) => Promise<Map<string, string>>,
   resolveAgentNames?: (agentSlugs: string[]) => Promise<Map<string, string>>,
+  /** Which of the subjects are API keys rather than people: no active user,
+   * and a row the table labels as a key. */
+  resolveApiKeyIdentities?: (
+    userIds: string[],
+  ) => Promise<Map<string, UsageApiKeyIdentity>>,
 ): Promise<OrgUsageMetrics> {
   const windowKeys = buildWindowKeys(args.granularity, args.periodDays, now);
 
@@ -412,16 +428,37 @@ export async function foldOrgUsageMetrics(
       a.userId.localeCompare(b.userId),
   );
   const userNameMap = await resolveUserNames(sortedUsers.map((u) => u.userId));
-  const users: UsageUserRow[] = sortedUsers.map((u) => ({
-    userId: u.userId,
-    displayName: userNameMap.get(u.userId) ?? u.userId,
-    teamId: u.teamId,
-    inputTokens: u.inputTokens,
-    outputTokens: u.outputTokens,
-    tokens: u.tokens,
-    costCents: u.costCents,
-    requests: u.requests,
-  }));
+  // A key that is not a person spends under an identity of its own: it is no
+  // active user, and its row says which team, project or organization it
+  // belongs to.
+  const apiKeyIdentities =
+    resolveApiKeyIdentities === undefined
+      ? new Map<string, UsageApiKeyIdentity>()
+      : await resolveApiKeyIdentities([
+          ...new Set([
+            ...sortedUsers.map((u) => u.userId),
+            ...prevActiveUserIds,
+          ]),
+        ]);
+  for (const identity of apiKeyIdentities.keys()) {
+    activeUserIds.delete(identity);
+    prevActiveUserIds.delete(identity);
+  }
+  const users: UsageUserRow[] = sortedUsers.map((u) => {
+    const row: UsageUserRow = {
+      userId: u.userId,
+      displayName: userNameMap.get(u.userId) ?? u.userId,
+      teamId: u.teamId,
+      inputTokens: u.inputTokens,
+      outputTokens: u.outputTokens,
+      tokens: u.tokens,
+      costCents: u.costCents,
+      requests: u.requests,
+    };
+    const apiKey = apiKeyIdentities.get(u.userId);
+    if (apiKey !== undefined) row.apiKey = apiKey;
+    return row;
+  });
 
   return {
     summary: {

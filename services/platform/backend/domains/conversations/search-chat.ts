@@ -1,7 +1,7 @@
 import type { Sql } from 'postgres';
 
 import { htmlToText } from '../../../lib/knowledge/html-to-text.ts';
-import { getUserTeamIds } from '../../auth/membership.ts';
+import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { queryTokens, rowMatches } from '../../core/lib/search/relevance.ts';
 import { contactsSearchStrategy } from '../../core/lib/search/strategies/contacts.ts';
@@ -161,16 +161,17 @@ export async function searchConversationsForChat(
   },
 ): Promise<{ conversations: ChatConversationHit[]; truncated: boolean }> {
   // Tier-A role gate (the per-subject matrix ports with governance): an
-  // active member may search; the assignment predicate below is the real
-  // privacy boundary.
-  const members = await sql<{ role: string }[]>`
-    SELECT "role" FROM "member"
-    WHERE "organizationId" = ${args.organizationId}
-      AND "userId" = ${args.userId}
-    LIMIT 1
-  `;
-  const role = members[0]?.role;
-  if (role === undefined || role === 'disabled') {
+  // active member — or an API key that is its own identity, with the role
+  // it was made with — may search; the assignment predicate below is the
+  // real privacy boundary. A project's own key reaches its project alone,
+  // and no conversation belongs to a project.
+  const member = await findActingMember(sql, args.organizationId, args.userId);
+  const role = member?.role;
+  if (
+    role === undefined ||
+    role === 'disabled' ||
+    member?.apiKeyOwner?.kind === 'project'
+  ) {
     return { conversations: [], truncated: false };
   }
 

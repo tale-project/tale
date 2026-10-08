@@ -31,7 +31,7 @@ describe('useApiKeysTableConfig', () => {
     expect(result.current.stickyLayout).toBe(false);
   });
 
-  it('has a column saying when each key expires', () => {
+  it('has a column saying when each key expires [APIKEY-R10]', () => {
     const { result } = renderHook(() => useApiKeysTableConfig('org-1'), {
       wrapper: Providers,
     });

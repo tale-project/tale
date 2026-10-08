@@ -1286,6 +1286,43 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
   },
   {
+    // An Owner's key for the organization itself: whom the key belongs to,
+    // and the role it acts with. Never capture the one-time secret.
+    name: 'settings-api-keys-organization',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/api/rest',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('settings.apiKeys.createKey') })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: t('settings.apiKeys.createKey'),
+      });
+      await dialog
+        .getByLabel(t('settings.apiKeys.form.name'))
+        .fill('Nightly export');
+      await dialog
+        .getByRole('combobox', { name: t('settings.apiKeys.form.owner') })
+        .click();
+      await page
+        .getByRole('option', {
+          name: t('settings.apiKeys.form.ownerOptions.organization'),
+        })
+        .click();
+      await dialog
+        .getByRole('combobox', { name: t('settings.apiKeys.form.role') })
+        .click();
+      await page.getByRole('option', { name: t('roles.developer') }).click();
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('settings.apiKeys.createKey') })
+        .getByRole('combobox', { name: t('settings.apiKeys.form.role') })
+        .filter({ hasText: t('roles.developer') }),
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
+  },
+  {
     // Settings > API > Models — the two base URLs, the models the member may
     // call and the tool setups. Gate on a listed model id: the list arrives
     // after the page chrome.

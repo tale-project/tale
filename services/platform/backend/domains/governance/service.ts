@@ -1,9 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import {
-  getUserTeamIds,
-  findOrganizationMember,
-} from '../../auth/membership.ts';
+import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
 import {
   evaluateFeatureFlags,
   type ResolvedFeatureFlags,
@@ -33,7 +30,7 @@ async function whoIs(
   organizationId: string,
   userId: string,
 ): Promise<{ userId: string; teamIds: string[]; role: string | undefined }> {
-  const member = await findOrganizationMember(sql, organizationId, userId);
+  const member = await findActingMember(sql, organizationId, userId);
   const teamIds = await getUserTeamIds(sql, organizationId, userId);
   return { userId, teamIds, role: member?.role };
 }
