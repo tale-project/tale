@@ -255,3 +255,108 @@ describe('cache volumes pruned behind the spawner', () => {
     expect(result.left).toEqual([]);
   }, 30_000);
 });
+
+interface Retention {
+  /** The organization's recorded use after its first create. */
+  recorded: boolean;
+  /** Past the retention while its session still runs. */
+  whileRunning: string[];
+  /** Past the retention once the session stopped. */
+  afterStop: string[];
+  /** The next create after the removal. */
+  recreated: Observed | null;
+  warnings: string[];
+  error: string | null;
+}
+
+/** An organization's caches through their retention: a create records their
+ * use; past the retention a session that still mounts them keeps them
+ * (Docker refuses the removal); once it stopped they go, and the next
+ * create makes them again, labelled and writable. */
+async function retainedCaches(): Promise<Retention> {
+  const sourceRoot = resolve(import.meta.dir, '../..');
+  const script = `
+import { mock } from 'bun:test';
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+const source = ${JSON.stringify(sourceRoot)};
+mock.module(join(source,'session/runnerd-client.ts'), () => ({
+  runnerdHealth: async () => ({}),
+  runnerdEnvPatch: async () => [],
+}));
+const warnings = [];
+console.warn = (...parts) => { warnings.push(parts.map(String).join(' ')); };
+console.log = () => {};
+let now = 1_700_000_000_000;
+Date.now = () => now;
+const fake = await mkdtemp(join(tmpdir(),'tale-cache-retention-'));
+await writeFile(join(fake,'docker'), ${JSON.stringify(FAKE_DOCKER)});
+await chmod(join(fake,'docker'), 0o755);
+await writeFile(join(fake,'state.json'), JSON.stringify({volumes:{}, containers:{}}));
+process.env.DOCKER_BIN = join(fake,'docker');
+const state = async () => JSON.parse(await readFile(join(fake,'state.json'),'utf8'));
+const {DockerSessionBackend} = await import(join(source,'backend/docker/docker-session-backend.ts'));
+const {expirePackageCaches} = await import(join(source,'package-cache-retention.ts'));
+const {TEST_SESSION_CONFIG} = await import(join(source,'session/session-test-config.ts'));
+const root = join(fake,'sessions');
+const cfg = {
+ backend:'docker', sandboxToken:'test',runtimeImage:'runtime:test',runtimeTier:'runc',dockerInContainer:false,dockerBuildCache:false,
+ transparentEgress:false,hostSessionRoot:root,cacheVolumePrefix:{pip:'pip',npm:'npm',bun:'bun'},
+ egressNetwork:'control',egressProxy:'http://egress:3128',
+ session:{...TEST_SESSION_CONFIG,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
+};
+const organizationId = 'org-retained';
+const caches = ['pip','npm','bun'].map((prefix) => prefix + '-' + organizationId);
+const backend = new DockerSessionBackend(cfg);
+const create = (sessionId) => backend.createSession({sessionId,organizationId,profile:'agent',env:{},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000});
+const left = async () => { const {volumes} = await state(); return caches.filter((name) => name in volumes); };
+const result = {recorded:false, whileRunning:[], afterStop:[], recreated:null, warnings, error:null};
+try {
+  await create('retain-a');
+  result.recorded = (await stat(join(root,'.package-caches',organizationId + '.used')).catch(() => null)) !== null;
+  const past = now + 15 * 24 * 60 * 60 * 1000;
+  await expirePackageCaches(cfg, past);
+  result.whileRunning = await left();
+  await backend.stopSession('retain-a');
+  await expirePackageCaches(cfg, past);
+  result.afterStop = await left();
+  now = past;
+  await create('retain-b');
+  const {volumes} = await state();
+  result.recreated = {
+    write: caches.every((name) => volumes[name]?.mode === '1777'),
+    labelled: caches.every((name) => volumes[name]?.labels?.['tale.sandbox-cache'] === '1'),
+  };
+  await backend.stopSession('retain-b');
+} catch (e) { result.error = e.message; }
+await rm(fake,{recursive:true,force:true});
+process.stdout.write(JSON.stringify(result) + '\\n');
+`;
+  const child = Bun.spawn([process.execPath, '-e', script], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [stdout, stderr, exit] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (exit !== 0) throw new Error(`Retention probe failed: ${stderr}`);
+  return JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}');
+}
+
+describe('package cache retention through session creates', () => {
+  test('a create records the use; past the retention the caches stay while mounted, go once the session stopped, and come back with the next create', async () => {
+    const result = await retainedCaches();
+    expect(result.error).toBeNull();
+    expect(result.recorded).toBe(true);
+    // The fake lists no session container: Docker's refusal keeps them.
+    expect(result.whileRunning).toHaveLength(3);
+    expect(
+      result.warnings.some((line) => line.includes('volume is in use')),
+    ).toBe(true);
+    expect(result.afterStop).toEqual([]);
+    expect(result.recreated).toEqual({ write: true, labelled: true });
+  }, 30_000);
+});

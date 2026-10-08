@@ -35,6 +35,7 @@ import {
   withOperationBudget,
   waitWithinOperation,
 } from '../../operation-budget.ts';
+import { holdPackageCaches } from '../../package-cache-retention.ts';
 import {
   attachBuildkitNetwork,
   readBuildkitNetworkPlan,
@@ -305,15 +306,22 @@ export class DockerSessionBackend implements SessionBackend {
 
   async createSession(spec: SessionSpec): Promise<CreateSessionResult> {
     const createAttemptId = randomUUID();
+    const dind = sessionDindEnabled(this.cfg, spec.profile, spec.docker);
     const release =
-      sessionDindEnabled(this.cfg, spec.profile, spec.docker) &&
-      this.cfg.dockerBuildCache
+      dind && this.cfg.dockerBuildCache
         ? retainBuildkitd(spec.organizationId)
         : undefined;
+    // Only a session without Docker inside mounts the package caches: held
+    // until its container exists or the create gave up, so their retention
+    // never removes them under it (package-cache-retention.ts).
+    const caches = dind
+      ? undefined
+      : holdPackageCaches(this.cfg, spec.organizationId);
     try {
       return await withOperationBudget(
         this.cfg.session.createHealthTimeoutMs,
         async (signal) => {
+          if (caches !== undefined) await waitWithinOperation(caches.ready);
           try {
             const created = await this.createSessionUnlocked(
               spec,
@@ -335,6 +343,7 @@ export class DockerSessionBackend implements SessionBackend {
       );
     } finally {
       release?.();
+      caches?.release();
     }
   }
 

@@ -33,6 +33,7 @@ const KEYS = [
   'SANDBOX_BUILDKITD_MEMORY',
   'SANDBOX_BUILDKITD_IDLE_CACHE',
   'SANDBOX_BUILDKITD_CACHE_RETENTION',
+  'SANDBOX_PACKAGE_CACHE_RETENTION',
   'SANDBOX_MIN_FREE_DISK',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
@@ -154,6 +155,21 @@ test('how long stopped build caches are kept is optional and validated', () => {
   }
   process.env.SANDBOX_BUILDKITD_CACHE_RETENTION = 'two weeks';
   expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_CACHE_RETENTION/);
+});
+
+test('how long unused package caches are kept is optional and validated', () => {
+  expect(loadConfig()).not.toHaveProperty('packageCacheRetentionMs');
+  const hour = 60 * 60 * 1000;
+  process.env.SANDBOX_PACKAGE_CACHE_RETENTION = '30d';
+  expect(loadConfig().packageCacheRetentionMs).toBe(30 * 24 * hour);
+  process.env.SANDBOX_PACKAGE_CACHE_RETENTION = '72h';
+  expect(loadConfig().packageCacheRetentionMs).toBe(72 * hour);
+  for (const off of ['0', 'off']) {
+    process.env.SANDBOX_PACKAGE_CACHE_RETENTION = off;
+    expect(loadConfig().packageCacheRetentionMs).toBe(0);
+  }
+  process.env.SANDBOX_PACKAGE_CACHE_RETENTION = '2 weeks';
+  expect(() => loadConfig()).toThrow(/SANDBOX_PACKAGE_CACHE_RETENTION/);
 });
 
 describe('loadConfig — runtime tier', () => {
