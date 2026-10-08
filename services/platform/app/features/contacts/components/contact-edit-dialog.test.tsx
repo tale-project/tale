@@ -11,6 +11,8 @@ import { ContactEditDialog } from './contact-edit-dialog';
 const mockMutateAsync = vi.fn();
 const mockToast = vi.fn();
 
+const PHONE_MESSAGE = 'Enter a phone number using digits and + ( ) - only';
+
 vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
@@ -112,7 +114,7 @@ describe('ContactEditDialog', () => {
     });
   });
 
-  it('strips letters from the phone field and explains why', async () => {
+  it('keeps letters typed into the phone field and explains why', async () => {
     const onClose = vi.fn();
     const { user } = render(
       <ContactEditDialog
@@ -126,12 +128,107 @@ describe('ContactEditDialog', () => {
     await user.clear(phoneInput);
     await user.type(phoneInput, '00kkkk');
 
-    expect(phoneInput).toHaveValue('00');
-    expect(
-      await screen.findByText(
-        'Enter a phone number using digits and + ( ) - only',
-      ),
-    ).toBeInTheDocument();
+    // Never rewritten behind the person's back (#3825): what they typed
+    // stays, and the field says why it can't be saved yet.
+    expect(phoneInput).toHaveValue('00kkkk');
+    expect(await screen.findByText(PHONE_MESSAGE)).toBeInTheDocument();
+    expect(phoneInput).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  // #3825 (duplicates #3824, #3826): the letters used to be stripped as they
+  // were typed and the schema then passed the cleaned value, so Save sent
+  // `00` for `00kkkk` and the only explanation vanished.
+  describe('a phone holding a character no number has', () => {
+    it.each(['00kkkk', '+41abc'])(
+      'blocks Save on %s and keeps the error under the field',
+      async (typed) => {
+        const onClose = vi.fn();
+        const { user } = render(
+          <ContactEditDialog
+            contact={makeContact({ name: 'John' })}
+            isOpen={true}
+            onClose={onClose}
+          />,
+        );
+
+        const phoneInput = screen.getByDisplayValue('+1-555-0100');
+        await user.clear(phoneInput);
+        await user.type(phoneInput, typed);
+        await user.click(screen.getByRole('button', { name: /save/i }));
+
+        // The refused submit hands focus back to the field: proof the
+        // submit's validation ran and failed, not merely that it is pending.
+        await waitFor(() => {
+          expect(phoneInput).toHaveFocus();
+        });
+        expect(phoneInput).toHaveValue(typed);
+        expect(phoneInput).toHaveAttribute('aria-invalid', 'true');
+        expect(screen.getByRole('alert')).toHaveTextContent(PHONE_MESSAGE);
+        expect(mockMutateAsync).not.toHaveBeenCalled();
+        expect(mockToast).not.toHaveBeenCalled();
+        expect(onClose).not.toHaveBeenCalled();
+      },
+    );
+
+    it('saves the number once the person removes the letters', async () => {
+      const { user } = render(
+        <ContactEditDialog
+          contact={makeContact({ name: 'John' })}
+          isOpen={true}
+          onClose={vi.fn()}
+        />,
+      );
+
+      const phoneInput = screen.getByDisplayValue('+1-555-0100');
+      await user.clear(phoneInput);
+      await user.type(phoneInput, '00kkkk');
+      await user.click(screen.getByRole('button', { name: /save/i }));
+      await waitFor(() => {
+        expect(phoneInput).toHaveFocus();
+      });
+
+      await user.type(phoneInput, '{Backspace>4/}');
+      expect(phoneInput).toHaveValue('00');
+      await waitFor(() => {
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      });
+      await user.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(mockMutateAsync).toHaveBeenCalledWith({
+          contactId: 'contact-1',
+          name: 'John',
+          email: 'test@example.com',
+          phone: '00',
+          locale: 'en',
+        });
+      });
+    });
+
+    it.each(['+41 79 123 45 67', '+1 (555) 010-0100', '079.123.45.67'])(
+      'still saves %s, digits and phone punctuation only',
+      async (number) => {
+        const { user } = render(
+          <ContactEditDialog
+            contact={makeContact({ name: 'John' })}
+            isOpen={true}
+            onClose={vi.fn()}
+          />,
+        );
+
+        const phoneInput = screen.getByDisplayValue('+1-555-0100');
+        await user.clear(phoneInput);
+        await user.paste(number);
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: /save/i }));
+
+        await waitFor(() => {
+          expect(mockMutateAsync).toHaveBeenCalledWith(
+            expect.objectContaining({ phone: number }),
+          );
+        });
+      },
+    );
   });
 
   it('shows a visible, localized inline error when a required field is emptied', async () => {
