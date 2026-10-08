@@ -1,17 +1,20 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { CodeEditor } from '@tale/ui/code-editor';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Field } from '@tale/ui/field';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { SchemaTree, schemaKindLabel } from '@tale/ui/schema-tree';
 import { Text } from '@tale/ui/text';
-import { Textarea } from '@tale/ui/textarea';
 import { useId, useMemo, useState } from 'react';
 import { z } from 'zod';
 
 import { useT } from '@/lib/i18n/client';
 
 import { guidedIssueSource } from '../lib/issue-import';
+import { runInputProviders } from '../lib/run-input-completion';
 import {
   IssueImportFields,
   type IssueImportProject,
@@ -47,6 +50,8 @@ export function AutomationRunDialog({
   onConfirm: (input: unknown) => void;
 }) {
   const { t } = useT('automations');
+  const { t: tSchema } = useT('schemaTree');
+  const { locale } = useLocale();
   const inputId = useId();
   const [text, setText] = useState(() =>
     JSON.stringify(request.initialInput ?? {}, null, 2),
@@ -71,11 +76,22 @@ export function AutomationRunDialog({
       return null;
     }
   }, [request.schema]);
+  // The fields the schema declares, offered where a key of the input is
+  // typed, each with its kind.
+  const providers = useMemo(
+    () =>
+      runInputProviders(request.schema, (field) =>
+        schemaKindLabel(tSchema, field, locale),
+      ),
+    [request.schema, tSchema, locale],
+  );
   const parsed = useMemo(() => {
     let input: unknown;
     try {
       input = source === null ? JSON.parse(text) : values;
     } catch {
+      // The editor marks where the text stops being JSON; this line says
+      // nothing can start until it is.
       return { valid: false as const, error: t('detail.runInput.invalidJson') };
     }
     const checked = schema?.safeParse(input);
@@ -98,6 +114,9 @@ export function AutomationRunDialog({
     return { valid: true as const, input };
   }, [schema, text, source, values, t]);
 
+  const confirmText =
+    request.mode === 'live' ? t('detail.runLive') : t('detail.runMock');
+
   return (
     <ConfirmDialog
       open
@@ -110,9 +129,7 @@ export function AutomationRunDialog({
           ? t('detail.runLiveBody')
           : t('detail.runInput.mockDescription')
       }
-      confirmText={
-        request.mode === 'live' ? t('detail.runLive') : t('detail.runMock')
-      }
+      confirmText={confirmText}
       disableConfirm={!parsed.valid}
       isLoading={pending}
       onConfirm={() => {
@@ -157,19 +174,30 @@ export function AutomationRunDialog({
               })}
               error={parsed.valid ? undefined : parsed.error}
             >
-              <Textarea
+              <CodeEditor
                 id={inputId}
-                rows={6}
-                className="font-mono text-xs"
+                language="json"
                 value={text}
-                onChange={(event) => setText(event.target.value)}
-                spellCheck={false}
+                onChange={setText}
+                minRows={6}
+                maxRows={14}
+                providers={providers}
+                // Mod-Enter starts the run, as the dialog's button does —
+                // once the input is one the run takes.
+                onSubmit={() => {
+                  if (parsed.valid && !pending) onConfirm(parsed.input);
+                }}
+                submitLabel={confirmText}
+                describeDiagnostics={false}
               />
             </Field>
             <CollapsibleDetails summary={t('detail.runInput.schema')}>
-              <pre className="bg-muted mt-2 max-h-48 overflow-auto rounded-md p-3 text-xs">
-                {JSON.stringify(request.schema, null, 2)}
-              </pre>
+              <SchemaTree
+                schema={request.schema}
+                density="comfortable"
+                aria-label={t('detail.runInput.schema')}
+                className="mt-2"
+              />
             </CollapsibleDetails>
           </div>
         )
