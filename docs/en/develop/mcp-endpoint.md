@@ -233,7 +233,7 @@ Each argument is a single word, because clients such as Claude Code split argume
 
 The key identifies its holder; it does not expand that person's role or project access. An automation installed only in projects the key holder cannot read is left out of `list_automations`, and every read of it answers `AUTOMATION_NOT_FOUND`, as for one that does not exist. Live `invoke_capability` calls also pass through the execution checks.
 
-Every change an MCP call makes to an automation — a version saved, a deploy, a delete, a trigger set or removed, an installation added or removed — is in the organization's audit log, marked as coming through MCP with the tool and the API key. In the event's details, **Source** reads Coding agent, and **Client** names the agent's app when the app sent its name ([Audit logs](/platform/admin/governance/audit-logs)).
+Every change an MCP call makes to an automation — a version saved, a deploy, a delete, a trigger set or removed, an installation added or removed — is in the organization's audit log, marked as coming through MCP with the tool and the API key. In the event's details, **Source** reads Coding agent, and **Client** names the agent's app when it names itself on every call, as on revision 2026-07-28; an app on a 2025 revision names itself only on `initialize`, so its events show no **Client** ([Audit logs](/platform/admin/governance/audit-logs)).
 
 Read `GET /api/v1/me` before configuring privileged tools: `capabilities.developer` reports the current role gate, while `deploymentEditor` is a separate operator allowlist and does not authorize MCP authoring. The MCP tool-error envelope below still applies; a REST capability check does not change JSON-RPC error handling.
 

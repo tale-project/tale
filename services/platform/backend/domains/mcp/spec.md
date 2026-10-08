@@ -278,7 +278,7 @@ counts twice, once in each. Counters are kept 90 days, and an erasure of the per
 A write a tool call makes — a version saved, a deploy, a delete, a trigger set or removed, an
 installation added or removed, a run stopped, a question answered — leaves its audit row (`AUTO-R28`),
 and every row written during the call says it came through MCP, with the tool, the API key and the
-client's name when the client gave one.
+client's name when the client named itself on that call (every call on 2026-07-28; see Not yet).
 
 - **Example**: Ada's agent deploys v7 with her key "laptop" → the audit log shows "Automation
   deployed" by Ada, through MCP (`deploy_automation`, her laptop key).

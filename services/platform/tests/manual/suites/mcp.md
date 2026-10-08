@@ -139,8 +139,10 @@ earlier boxes left.
   owner or admin, open **Settings > Governance > Logs**, and open the newest **Automation version
   saved** row (`settings.logs.audit.actionLabels.automation.version.saved`) of `billing/dunning`;
   then save a version of it in the editor and open that row too → the agent's row shows **Source**
-  (`settings.logs.audit.viaLabel`) as **Coding agent** (`settings.logs.audit.viaLabels.mcp`) and
-  **Client** (`settings.logs.audit.clientLabel`) as the name Claude Code sent, written as sent;
+  (`settings.logs.audit.viaLabel`) as **Coding agent** (`settings.logs.audit.viaLabels.mcp`) and,
+  when the agent's client spoke MCP 2026-07-28 (`MCP-F12`), **Client**
+  (`settings.logs.audit.clientLabel`) as the name it sent, written as sent — a client on a 2025
+  revision names itself only when it connects, and its row has no **Client**;
   **User** is the person who holds the key; **Metadata** names the tool `save_automation` and
   the key's id, and repeats neither the source nor the client; the editor's row has no
   **Source** and no **Client** row.

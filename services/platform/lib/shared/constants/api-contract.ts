@@ -393,9 +393,10 @@
  * `outputSchema` and answer `structuredContent`; the text block is compact
  * JSON. Tools carry `_meta` hints (`anthropic/requiresUserInteraction` on
  * `deploy_automation` and `set_trigger`, `anthropic/maxResultSizeChars`).
- * Tools that execute an automation draw from the `rest:execute` budget
- * (`RATE_LIMITED`, `data.retryAfterMs`), and `run_deployed`, `start_run`,
- * `cancel_run` and `delete_trigger` refuse a member before anything runs.
+ * Tools that execute an automation, and `answer_run_ask`, draw from the
+ * `rest:execute` budget (`RATE_LIMITED`, `data.retryAfterMs`), and
+ * `run_deployed`, a live `start_run`, `cancel_run` and `delete_trigger`
+ * refuse a member before anything runs.
  * A request whose `Origin` the deployment does not accept is logged, and
  * refused with 403 `ORIGIN_FORBIDDEN` where the operator enforces the rule
  * (TALE_MCP_ORIGIN_ENFORCE); clients that send no `Origin` are not judged.
@@ -425,7 +426,11 @@
  * Member reads tighten on MCP and REST alike: an automation installed only in
  * projects the key holder cannot read is left out of `list_automations` and
  * `GET /api/v1/automations`, and its reads answer `AUTOMATION_NOT_FOUND`
- * (REST 404). Every change to an automation's definition is audited.
+ * (REST 404) — its runs by name too, unless runs of it are in the URL's
+ * scope — and an MCP save onto it is refused as `AUTOMATION_NAME_TAKEN`.
+ * Every change to an automation's definition is audited; one made through
+ * the REST API is recorded as the key's (actor type `api`, `via: api-key`,
+ * the key's id and the request id).
  * `validate_automation` takes `detail` (`[]` answers the issues alone), and
  * validation warns when a document names what the organization lacks:
  * SKILL_UNKNOWN, CONNECTOR_NOT_CONNECTED, SECRET_UNKNOWN (told only to
