@@ -424,3 +424,9 @@ checks daemon liveness; `/readyz` also checks requested Docker capability.
 `/healthz` reuses that Docker snapshot and adds bounded, coalesced egress
 diagnostics when configured. Docker-disabled sessions remain ready; health
 failures do not hide activity or prevent file access and exec cancellation.
+A container launched with `TALE_RUNNERD_INCARNATION` (the spawner's creation
+stamp) names it as `incarnation` in `/healthz` and in every activity answer,
+and refuses with `409 incarnation_mismatch` an activity request whose
+`x-tale-runnerd-incarnation` header names another stamp, before anything
+changes. A malformed stamp is never named; without one, answers name none and
+requests are not checked.
