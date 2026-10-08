@@ -1,9 +1,9 @@
 /**
- * The syntax verdict for one parsed unit: acorn locates, the CodeRunner
- * decides.
+ * The syntax verdict for one parsed unit: analysis limits always refuse;
+ * for ordinary syntax errors acorn locates and the CodeRunner decides.
  *
  * A unit acorn accepts is valid without asking the runner — one IPC round
- * trip fewer per expression on every validation. A unit acorn rejects is
+ * trip fewer per expression on every validation. An ordinary syntax rejection is
  * confirmed by the runner when one is installed: if the runner compiles it,
  * the code is valid and only marked opaque (no analysis runs on it); if not,
  * the runner's own sentence is the error, located at acorn's range. Without
@@ -19,7 +19,7 @@ export async function syntaxError(
   kind: 'expr' | 'body',
 ): Promise<string | null> {
   if (unit.parse.ok || unit.opaque === true) return null;
-  if (!hasCodeRunner()) return unit.parse.message;
+  if (unit.parse.limited || !hasCodeRunner()) return unit.parse.message;
   const verdict =
     kind === 'body'
       ? await codeRunner().checkBody(unit.source)

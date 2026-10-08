@@ -101,7 +101,9 @@ function unitOf(
     parse,
     refs: parse.ok
       ? collectRefs(parse.ast, { roots })
-      : looseNodeRefs(text, start, end),
+      : parse.limited
+        ? []
+        : looseNodeRefs(text, start, end),
   };
 }
 
@@ -139,7 +141,9 @@ function analyzeText(
           parse,
           refs: parse.ok
             ? collectRefs(parse.ast, { roots })
-            : looseNodeRefs(text, 0, text.length),
+            : parse.limited
+              ? []
+              : looseNodeRefs(text, 0, text.length),
         },
       ],
     };

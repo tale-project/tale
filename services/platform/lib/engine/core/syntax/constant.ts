@@ -19,12 +19,9 @@ function isPrimitive(v: unknown): v is Primitive {
 }
 
 function binary(op: string, a: Primitive, b: Primitive): Folded {
-  // Mixed bigint/number arithmetic throws at run time — not a constant.
-  if ((typeof a === 'bigint') !== (typeof b === 'bigint')) {
-    if (!['==', '!=', '===', '!==', '<', '>', '<=', '>='].includes(op)) {
-      return NOT_CONSTANT;
-    }
-  }
+  // BigInt arithmetic can allocate without a practical bound and may throw
+  // (division by zero, mixed coercions). Leave it to the runtime.
+  if (typeof a === 'bigint' || typeof b === 'bigint') return NOT_CONSTANT;
   /* oxlint-disable typescript/no-unsafe-type-assertion -- JavaScript's own operator semantics over primitives are the point; the operands are never objects */
   const x = a as number;
   const y = b as number;
@@ -55,13 +52,9 @@ function binary(op: string, a: Primitive, b: Primitive): Folded {
     case '*':
       return { ok: true, value: x * y };
     case '/':
-      return typeof a === 'bigint' && b === BigInt(0)
-        ? NOT_CONSTANT
-        : { ok: true, value: x / y };
+      return { ok: true, value: x / y };
     case '%':
-      return typeof a === 'bigint' && b === BigInt(0)
-        ? NOT_CONSTANT
-        : { ok: true, value: x % y };
+      return { ok: true, value: x % y };
     case '**':
       return { ok: true, value: x ** y };
     default:
@@ -152,7 +145,11 @@ function fold(node: Node): Folded {
       const b = fold(node.right);
       if (!a.ok || !b.ok) return NOT_CONSTANT;
       if (!isPrimitive(a.value) || !isPrimitive(b.value)) return NOT_CONSTANT;
-      return binary(node.operator, a.value, b.value);
+      try {
+        return binary(node.operator, a.value, b.value);
+      } catch {
+        return NOT_CONSTANT;
+      }
     }
     case 'LogicalExpression': {
       const a = fold(node.left);
@@ -181,5 +178,9 @@ function fold(node: Node): Folded {
 
 /** The value of a literal-only expression, or `{ ok: false }`. */
 export function foldConstant(expr: Expression | Node): Folded {
-  return fold(expr);
+  try {
+    return fold(expr);
+  } catch {
+    return NOT_CONSTANT;
+  }
 }

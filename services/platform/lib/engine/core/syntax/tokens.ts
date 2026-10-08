@@ -9,7 +9,7 @@
  * Compatibility is by construction. The legacy rule — the first `}}` at least
  * one character after the `{{` — is tried first, and whenever the text it
  * encloses is a valid expression it is kept as is, so every template that
- * evaluated before evaluates identically. Only a span that did NOT parse is
+ * stays within the analysis limits evaluates identically. Only a span that did NOT parse is
  * extended to the closer the parser finds, and when that fails too the
  * legacy span stays (and reports its syntax error, as before).
  *
@@ -17,9 +17,7 @@
  * is listed in `unterminated` so validation can say so.
  */
 
-import { parseExpressionAt } from 'acorn';
-
-import { parseExpressionIn, RUNTIME_ECMA_VERSION } from './parse';
+import { expressionEnd, parseExpressionIn } from './parse';
 
 export interface TemplateSegment {
   kind: 'text' | 'expr';
@@ -39,9 +37,11 @@ export interface TemplateSegment {
 
 export interface Tokenized {
   segments: TemplateSegment[];
-  /** [start, end) of every `{{` that has no closing `}}` after it. */
+  /** [start, end) of the first 32 `{{` with no closing `}}` after them. */
   unterminated: Array<[number, number]>;
 }
+
+const MAX_UNTERMINATED_DIAGNOSTICS = 32;
 
 function trimmedSpan(
   value: string,
@@ -86,21 +86,14 @@ function matchTemplate(
   if (parsesIn(value, open + 2, close)) {
     return exprSegment(value, open, close, true);
   }
-  let end: number | undefined;
-  try {
-    end = parseExpressionAt(value, open + 2, {
-      ecmaVersion: RUNTIME_ECMA_VERSION,
-    }).end;
-  } catch (e) {
-    if (!(e instanceof SyntaxError)) throw e;
-    // No expression starts here at all — the legacy span reports the error.
-    end = undefined;
-  }
-  if (end !== undefined) {
-    const later = value.indexOf('}}', end);
-    if (later > close && parsesIn(value, open + 2, later)) {
-      return exprSegment(value, open, later, true);
-    }
+  const [start] = trimmedSpan(value, open + 2, close);
+  const later = expressionEnd(value, start);
+  if (
+    later !== undefined &&
+    later > close &&
+    parsesIn(value, open + 2, later)
+  ) {
+    return exprSegment(value, open, later, true);
   }
   return exprSegment(value, open, close, false);
 }
@@ -109,13 +102,15 @@ export function tokenizeTemplate(value: string): Tokenized {
   const segments: TemplateSegment[] = [];
   const unterminated: Array<[number, number]> = [];
   let textStart = 0;
+  const lastClose = value.lastIndexOf('}}');
   let open = value.indexOf('{{');
   while (open !== -1) {
-    const close = value.indexOf('}}', open + 3);
+    const close = open + 3 > lastClose ? -1 : value.indexOf('}}', open + 3);
     if (close === -1) {
       // `{{}}` is an empty pair, not a missing closer; it stays text quietly.
-      if (value.indexOf('}}', open + 2) === -1) {
-        unterminated.push([open, open + 2]);
+      if (open + 2 > lastClose) {
+        if (unterminated.length < MAX_UNTERMINATED_DIAGNOSTICS)
+          unterminated.push([open, open + 2]);
       }
       open = value.indexOf('{{', open + 2);
       continue;

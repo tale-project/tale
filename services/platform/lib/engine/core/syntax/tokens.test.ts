@@ -68,6 +68,32 @@ describe('tokenizeTemplate — the compatibility matrix', () => {
     expect(broken).toMatchObject({ source: 'a +', end: 9, parsed: false });
   });
 
+  it.each(['('.repeat(65), 'word '.repeat(513)])(
+    'does not budget plain text after a quoted template',
+    (suffix) => {
+      const value = "{{ 'a}}b' }} " + suffix;
+      const result = tokenizeTemplate(value);
+      expect(exprSegments(result)).toEqual([
+        expect.objectContaining({ source: "'a}}b'", parsed: true, end: 12 }),
+      ]);
+      expect(
+        result.segments
+          .map((segment) => value.slice(segment.start, segment.end))
+          .join(''),
+      ).toBe(value);
+      expect(result.unterminated).toEqual([]);
+    },
+  );
+
+  it('caps missing-closer diagnostics while keeping all text', () => {
+    const value = '{{ '.repeat(40);
+    const result = tokenizeTemplate(value);
+    expect(result.unterminated).toHaveLength(32);
+    expect(result.segments).toEqual([
+      { kind: 'text', start: 0, end: value.length },
+    ]);
+  });
+
   it('an empty pair is text and no unterminated template', () => {
     expect(tokenizeTemplate('{{}}')).toEqual({
       segments: [{ kind: 'text', start: 0, end: 4 }],
