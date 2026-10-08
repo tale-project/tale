@@ -1,0 +1,71 @@
+'use client';
+
+import { useLocation } from '@tanstack/react-router';
+import { type ReactNode } from 'react';
+
+import { ErrorBoundaryBase } from '../core/error-boundary-base';
+import { ErrorDisplayCompact } from '../displays/error-display-compact';
+
+interface LayoutErrorBoundaryProps {
+  /** Child components to wrap */
+  children: ReactNode;
+  /** Organization ID for support links */
+  organizationId?: string;
+}
+
+/**
+ * Whether a caught render error is worth a silent re-render. A signed-out or
+ * lapsed session is not: it answers the same way on every retry, so it goes
+ * straight to the fallback.
+ */
+export function isConvexTransientError(error: Error): boolean {
+  const msg = error.message || '';
+  return (
+    msg.includes('timed out') ||
+    msg.includes('Function execution') ||
+    msg.includes('overloaded') ||
+    // Convex agent SDK reactive hooks can briefly see undefined properties
+    // during WebSocket reconnection (e.g., useDeltaStreams accessing
+    // streams.messages before query results settle)
+    (error instanceof TypeError &&
+      msg.includes('Cannot read properties of undefined'))
+  );
+}
+
+const MAX_RETRIES = 3;
+
+/**
+ * Error boundary for layout-level errors.
+ *
+ * Features:
+ * - Compact error display
+ * - Auto-resets on pathname change (resetKeys pattern)
+ * - Auto-retries transient Convex errors (timeouts, overloaded) up to 3 times
+ * - Organization context support
+ * - Preserves layout navigation
+ */
+export function LayoutErrorBoundary({
+  children,
+  organizationId,
+}: LayoutErrorBoundaryProps) {
+  const location = useLocation();
+  const pathname = location.pathname;
+
+  return (
+    <ErrorBoundaryBase
+      organizationId={organizationId}
+      resetKeys={[pathname]}
+      maxRetries={MAX_RETRIES}
+      isRetryableError={isConvexTransientError}
+      fallback={(fallbackProps) => (
+        <ErrorDisplayCompact
+          error={fallbackProps.error}
+          organizationId={fallbackProps.organizationId}
+          reset={fallbackProps.reset}
+        />
+      )}
+    >
+      {children}
+    </ErrorBoundaryBase>
+  );
+}
