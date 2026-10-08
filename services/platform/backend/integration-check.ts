@@ -16315,6 +16315,377 @@ async function checkMcpResourcesPrompts(
   }
 }
 
+/**
+ * Both MCP protocol eras on the real door, one key (MCP-R16, MCP-R26): a
+ * 2026-07-28 request — its revision and capabilities in `params._meta`,
+ * mirrored into `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` — is
+ * served without `initialize`: `server/discover` names the revisions and the
+ * contract version, the lists and reads answer `resultType`, the server and
+ * the cache hints, and a save names the client the request carries on the
+ * version row, the audit row and the call counter. Legacy `initialize`,
+ * calls and batches on the same key keep their 2025 answers. Refused before
+ * anything runs, each with HTTP 400: a revision it does not speak (-32022,
+ * in a header or in `_meta`), a header that does not say what the body says
+ * (-32020 — a delete whose `Mcp-Name` names a read leaves the automation in
+ * place), a missing envelope (-32602) and a batch on the modern revision
+ * (-32600); `initialize` and `ping` there are 404 -32601, and a read that
+ * finds nothing is -32602 with the tool's code.
+ */
+async function checkMcpEras(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
+  const { API_CONTRACT_VERSION } =
+    await import('../lib/shared/constants/api-contract.ts');
+  const { MCP_TOOLS } = await import('../lib/mcp/tools.ts');
+  const MODERN = '2026-07-28';
+  const CLIENT = 'itest-modern-agent';
+  const minted = z.looseObject({ key: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/api-key/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ name: 'itest-mcp-eras' }),
+      })
+    ).json(),
+  );
+  const apiKey = minted.success ? minted.data.key : '';
+  const door = {
+    authorization: `Bearer ${apiKey}`,
+    'x-organization-slug': orgSlug,
+    'content-type': 'application/json',
+  };
+  interface Reply {
+    readonly status: number;
+    readonly body: unknown;
+    readonly sessionId: string | null;
+  }
+  const send = async (
+    headers: Record<string, string>,
+    payload: unknown,
+  ): Promise<Reply> => {
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: { ...door, ...headers },
+      body: JSON.stringify(payload),
+    });
+    const raw = await res.text();
+    let body: unknown = null;
+    try {
+      body = raw === '' ? null : JSON.parse(raw);
+    } catch (error) {
+      console.warn('[itest] MCP reply is not JSON:', error);
+    }
+    return {
+      status: res.status,
+      body,
+      sessionId: res.headers.get('mcp-session-id'),
+    };
+  };
+  let rpcId = 1500;
+  /** One 2026-07-28 request with the headers its body implies, unless
+   * `headers` overrides one (an empty string leaves it out). */
+  const modern = async (
+    method: string,
+    params: Record<string, unknown> = {},
+    headers: Record<string, string> = {},
+    meta: Record<string, unknown> = {},
+  ): Promise<Reply> => {
+    rpcId += 1;
+    const named =
+      method === 'resources/read'
+        ? params.uri
+        : method === 'tools/call' || method === 'prompts/get'
+          ? params.name
+          : undefined;
+    const all: Record<string, string> = {
+      'mcp-protocol-version': MODERN,
+      'mcp-method': method,
+      ...(typeof named === 'string' ? { 'mcp-name': named } : {}),
+      ...headers,
+    };
+    return send(
+      Object.fromEntries(Object.entries(all).filter(([, v]) => v !== '')),
+      {
+        jsonrpc: '2.0',
+        id: rpcId,
+        method,
+        params: {
+          ...params,
+          _meta: {
+            'io.modelcontextprotocol/protocolVersion': MODERN,
+            'io.modelcontextprotocol/clientCapabilities': {},
+            'io.modelcontextprotocol/clientInfo': {
+              name: CLIENT,
+              version: '1.0.0',
+            },
+            ...meta,
+          },
+        },
+      },
+    );
+  };
+  /** One legacy (2025-11-25) request, or a batch. */
+  const legacy = async (payload: unknown): Promise<Reply> =>
+    send({ 'mcp-protocol-version': '2025-11-25' }, payload);
+  const errorShape = z.object({
+    error: z.object({
+      code: z.number(),
+      message: z.string(),
+      data: z.looseObject({}).optional(),
+    }),
+  });
+  const errorOf = (reply: Reply) => {
+    const parsed = errorShape.safeParse(reply.body);
+    return parsed.success ? parsed.data.error : undefined;
+  };
+  const toolText = (reply: Reply): Record<string, unknown> => {
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+        }),
+      })
+      .safeParse(reply.body);
+    if (!parsed.success) return {};
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return value.success ? value.data : {};
+  };
+  const name = 'itest-eras/report';
+  try {
+    const discovered = await modern('server/discover');
+    const discoverOk =
+      discovered.status === 200 &&
+      discovered.sessionId === null &&
+      z
+        .object({
+          result: z.object({
+            resultType: z.literal('complete'),
+            supportedVersions: z.array(z.string()),
+            capabilities: z.object({ tools: z.object({}) }),
+            instructions: z.string().min(1).max(2048),
+            _meta: z.object({
+              'io.modelcontextprotocol/serverInfo': z.looseObject({
+                version: z.literal(API_CONTRACT_VERSION),
+              }),
+            }),
+            ttlMs: z.number().int().min(0),
+            cacheScope: z.literal('private'),
+          }),
+        })
+        .refine(
+          (body) =>
+            JSON.stringify(body.result.supportedVersions) ===
+            JSON.stringify([MODERN, '2025-11-25', '2025-06-18', '2025-03-26']),
+        )
+        .safeParse(discovered.body).success;
+    const listed = await modern('tools/list');
+    const listedTools = z
+      .object({
+        result: z.object({
+          tools: z.array(z.object({ name: z.string() })),
+          resultType: z.literal('complete'),
+          ttlMs: z.number(),
+          cacheScope: z.literal('private'),
+        }),
+      })
+      .safeParse(listed.body);
+    record(
+      'MCP 2026-07-28: server/discover and tools/list answer without initialize, complete, with the server and cache hints (MCP-R26)',
+      discoverOk &&
+        listed.status === 200 &&
+        listedTools.success &&
+        listedTools.data.result.tools.length === MCP_TOOLS.length,
+      `discover=${discovered.status}/${discoverOk}/session=${discovered.sessionId ?? 'none'}, tools/list=${listed.status}/${listedTools.success ? listedTools.data.result.tools.length : JSON.stringify(listed.body).slice(0, 120)} (want ${MCP_TOOLS.length})`,
+    );
+
+    // A save on the modern revision, between legacy calls on the same key.
+    const init = await legacy({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-11-25',
+        capabilities: {},
+        clientInfo: { name: 'itest-legacy-script', version: '1.0.0' },
+      },
+    });
+    const saved = await modern('tools/call', {
+      name: 'save_automation',
+      arguments: {
+        automation: { ...DOC_EXAMPLE.automation, name },
+        message: 'eras lane',
+      },
+    });
+    const savedValue = toolText(saved);
+    const legacyRead = await legacy({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'get_automation', arguments: { name } },
+    });
+    const legacyView = toolText(legacyRead);
+    const legacyBatch = await legacy([
+      { jsonrpc: '2.0', id: 3, method: 'ping' },
+      { jsonrpc: '2.0', id: 4, method: 'tools/list' },
+    ]);
+    const modernRead = await modern('tools/call', {
+      name: 'get_automation',
+      arguments: { name },
+    });
+    const versionRows = await sql<
+      { createdVia: string | null; clientName: string | null }[]
+    >`
+      SELECT created_via AS "createdVia", client_name AS "clientName"
+      FROM app.automations WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    const auditRows = await sql<
+      { via: string | null; clientName: string | null }[]
+    >`
+      SELECT metadata->>'via' AS via, metadata->>'clientName' AS "clientName"
+      FROM app.audit_logs
+      WHERE org_id = ${orgId} AND resource_type = 'automation'
+        AND resource_id = ${name} AND action = 'automation.version.saved'
+    `;
+    const legacyResult = z
+      .object({ result: z.record(z.string(), z.unknown()) })
+      .safeParse(legacyRead.body);
+    record(
+      'MCP: a 2026-07-28 save names its client on the version and the audit row, between 2025-11-25 calls and a batch on the same key (MCP-R26)',
+      z
+        .object({
+          result: z.object({ protocolVersion: z.literal('2025-11-25') }),
+        })
+        .safeParse(init.body).success &&
+        saved.status === 200 &&
+        savedValue.version === 1 &&
+        legacyRead.status === 200 &&
+        legacyView.clientName === CLIENT &&
+        legacyResult.success &&
+        legacyResult.data.result.resultType === undefined &&
+        Array.isArray(legacyBatch.body) &&
+        legacyBatch.body.length === 2 &&
+        z
+          .object({
+            result: z.looseObject({ resultType: z.literal('complete') }),
+          })
+          .safeParse(modernRead.body).success &&
+        versionRows.length === 1 &&
+        versionRows[0]?.createdVia === 'mcp' &&
+        versionRows[0]?.clientName === CLIENT &&
+        auditRows.length === 1 &&
+        auditRows[0]?.via === 'mcp' &&
+        auditRows[0]?.clientName === CLIENT,
+      `init=${init.status}, save=${saved.status}/${JSON.stringify(savedValue).slice(0, 80)}, legacy read=${legacyRead.status}/client=${String(legacyView.clientName)}, batch=${legacyBatch.status}/${Array.isArray(legacyBatch.body) ? legacyBatch.body.length : 'not an array'}, modern read=${modernRead.status}, version=${JSON.stringify(versionRows)}, audit=${JSON.stringify(auditRows)}`,
+    );
+
+    // Refused before anything runs.
+    const unknownInMeta = await modern(
+      'tools/list',
+      {},
+      { 'mcp-protocol-version': '2027-01-01' },
+      { 'io.modelcontextprotocol/protocolVersion': '2027-01-01' },
+    );
+    const unknownHeader = await send(
+      { 'mcp-protocol-version': '2024-11-05' },
+      { jsonrpc: '2.0', id: 31, method: 'tools/list' },
+    );
+    const supportedOk = (reply: Reply): boolean => {
+      const error = errorOf(reply);
+      const supported = error?.data?.supported;
+      return (
+        reply.status === 400 &&
+        error?.code === -32022 &&
+        Array.isArray(supported) &&
+        supported.includes(MODERN) &&
+        supported.includes('2025-11-25')
+      );
+    };
+    // A proxy that rewrites the name a request is routed on, not the body:
+    // the delete never runs.
+    const disguisedDelete = await modern(
+      'tools/call',
+      {
+        name: 'delete_automation',
+        arguments: { name, expectedLatestVersion: 1 },
+      },
+      { 'mcp-name': 'get_automation' },
+    );
+    const noMethodHeader = await modern('tools/list', {}, { 'mcp-method': '' });
+    const stillThere = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automations
+      WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    const noEnvelope = await send(
+      { 'mcp-protocol-version': MODERN, 'mcp-method': 'tools/list' },
+      { jsonrpc: '2.0', id: 32, method: 'tools/list' },
+    );
+    const modernBatch = await send({ 'mcp-protocol-version': MODERN }, [
+      { jsonrpc: '2.0', id: 33, method: 'tools/list' },
+    ]);
+    const removedInit = await modern('initialize', {
+      protocolVersion: MODERN,
+      capabilities: {},
+    });
+    const removedPing = await modern('ping');
+    const missing = await modern('resources/read', {
+      uri: 'tale://automations/itest-eras%2Fnever-saved',
+    });
+    record(
+      'MCP 2026-07-28 refusals: -32022, -32020 before anything runs, -32602 envelope, batch -32600, 404 for initialize/ping, -32602 for a read that finds nothing (MCP-R16, MCP-R26)',
+      supportedOk(unknownInMeta) &&
+        supportedOk(unknownHeader) &&
+        disguisedDelete.status === 400 &&
+        errorOf(disguisedDelete)?.code === -32020 &&
+        noMethodHeader.status === 400 &&
+        errorOf(noMethodHeader)?.code === -32020 &&
+        stillThere[0]?.count === '1' &&
+        noEnvelope.status === 400 &&
+        errorOf(noEnvelope)?.code === -32602 &&
+        modernBatch.status === 400 &&
+        errorOf(modernBatch)?.code === -32600 &&
+        removedInit.status === 404 &&
+        errorOf(removedInit)?.code === -32601 &&
+        removedPing.status === 404 &&
+        errorOf(removedPing)?.code === -32601 &&
+        missing.status === 200 &&
+        errorOf(missing)?.code === -32602 &&
+        errorOf(missing)?.data?.code === 'AUTOMATION_NOT_FOUND',
+      `unknown in _meta=${unknownInMeta.status}/${errorOf(unknownInMeta)?.code}, unknown header=${unknownHeader.status}/${errorOf(unknownHeader)?.code}, disguised delete=${disguisedDelete.status}/${errorOf(disguisedDelete)?.code}/rows=${stillThere[0]?.count}, no Mcp-Method=${noMethodHeader.status}/${errorOf(noMethodHeader)?.code}, no envelope=${noEnvelope.status}/${errorOf(noEnvelope)?.code}, batch=${modernBatch.status}/${errorOf(modernBatch)?.code}, initialize=${removedInit.status}/${errorOf(removedInit)?.code}, ping=${removedPing.status}/${errorOf(removedPing)?.code}, missing read=${missing.status}/${errorOf(missing)?.code}/${String(errorOf(missing)?.data?.code)}`,
+    );
+
+    const counted = await sql<{ method: string; clientName: string | null }[]>`
+      SELECT method, client_name AS "clientName" FROM app.mcp_client_activity
+      WHERE org_id = ${orgId} AND user_id = ${userId}
+        AND method IN ('server/discover', 'initialize')
+    `;
+    record(
+      'MCP: server/discover is counted with the client a 2026-07-28 request names, initialize with the legacy one (MCP-R21, MCP-R26)',
+      counted.some(
+        (row) => row.method === 'server/discover' && row.clientName === CLIENT,
+      ) &&
+        counted.some(
+          (row) =>
+            row.method === 'initialize' &&
+            row.clientName === 'itest-legacy-script',
+        ),
+      `counted=${JSON.stringify(counted)}`,
+    );
+  } finally {
+    await sql`
+      DELETE FROM app.automations WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    // The lanes after this one spend the same request budget.
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  }
+}
+
 /** The retired standalone goal-authoring endpoint no longer accepts work. */
 async function checkRetiredBuilderRoute(
   base: string,
@@ -62347,6 +62718,10 @@ async function main(): Promise<void> {
         'checkMcpResourcesPrompts',
         () =>
           checkMcpResourcesPrompts(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkMcpEras',
+        () => checkMcpEras(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
       [
         'checkRetiredBuilderRoute',
