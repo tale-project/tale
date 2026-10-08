@@ -477,6 +477,23 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
       ),
     invalidate: invalidateRuns,
   },
+  'automations/mutations:requestLegacyRunStop': {
+    run: (args, ctx) =>
+      backendFetch<ReturnsOf<'automations/mutations:requestLegacyRunStop'>>(
+        `/automations/runs/${encodeURIComponent(stringArg(args, 'runId'))}/legacy-quarantine`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: {
+            expectedClaimEpoch: args.expectedClaimEpoch,
+            expectedObservedAt: args.expectedObservedAt,
+            action: args.action,
+            acknowledgeUnknownExternalEffects:
+              args.acknowledgeUnknownExternalEffects,
+          },
+        },
+      ),
+    invalidate: invalidateRuns,
+  },
   'automations/mutations:resolveRunInDoubt': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>(

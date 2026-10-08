@@ -258,7 +258,7 @@ export async function kickAgentRun(
     SELECT id FROM app.automation_runs
     WHERE org_id = ${args.organizationId}
       AND (project_id = ${args.projectId} OR project_id IS NULL)
-      AND status IN ('queued', 'running', 'waiting')
+      AND status IN ('queued', 'running', 'waiting', 'quarantined')
       AND input -> 'task' ->> 'id' = ${args.taskId}
     LIMIT 1
   `;

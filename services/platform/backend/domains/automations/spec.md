@@ -334,8 +334,8 @@ had already finished.
 
 ### AUTO-R22 · A restart hands a run on; steps it finished never run again
 
-When a server is updated or restarted, a run it is stepping is handed on at its next step: the
-step under way finishes, and another server continues the run from the step after it, or from
+After both servers use the run-lease protocol, a run is handed on at its next step: the step
+under way finishes, and another server continues the run from the step after it, or from
 the next item of a list. A step still working 20 seconds into the shutdown is cut and runs again
 on the next server; it is not recorded as failed, and a write it may already have sent waits for
 a person instead (`AUTO-R19`). A step or an item the run had finished never runs again.
@@ -343,6 +343,25 @@ a person instead (`AUTO-R19`). A step or an item the run had finished never runs
 - **Example**: Noah's nightly import is on step 3 of 5 when its server is restarted for an
   update → step 3 finishes, another server runs steps 4 and 5, and no step shows twice in the
   run's log.
+
+### AUTO-R26 · The first protocol upgrade preserves uncertain legacy work on hold
+
+The first upgrade from the legacy executor holds its queued, running and waiting runs with
+their original checkpoints. The run says **On hold — outcome unknown**. A write already sent
+by the old server may still finish; the hold does not claim that it failed, completed or was
+undone. The new server never takes over or replays this work automatically. A task attached
+to a held run cannot start another agent or automation run, and its task and run cannot be
+deleted while that uncertainty remains.
+
+An authorized person can request a stop after acknowledging the unknown external effects.
+The request identifies the exact hold they saw; a stale confirmation is refused. **Stop
+requested** records the decision and asks the owned session to stop. The run stays on hold,
+its evidence and task exclusion remain, and no successful cancellation or retirement is
+inferred. There is no resume, retry or skip action for this hold.
+
+- **Example**: Ada upgrades while an old automation waits for a reply after sending a write
+  → the run appears on hold. She requests a stop → the decision is recorded, but the run
+  remains on hold and its task cannot start a replacement run.
 
 ## Approvals inside a run
 
@@ -364,7 +383,8 @@ Its versions, its deployment, its trigger and its project installs are removed i
 Its runs stay: they can still be listed under the automation's name, and opening the
 automation answers that it was deleted and when (`AUTOMATION_DELETED`). The delete is refused
 while one of its runs is still queued, running or waiting (`AUTOMATION_HAS_ACTIVE_RUNS`): stop
-the run or let it finish first.
+the run or let it finish first. A legacy hold also refuses deletion (`RUN_QUARANTINED`);
+requesting a stop leaves that hold intact (`AUTO-R26`).
 
 - **Example**: An automation has one run waiting on a question. Ada deletes the automation →
   refused, and nothing is removed. She stops the run and deletes again → the automation is

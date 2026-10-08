@@ -21,11 +21,18 @@ Der Tab **Läufe** zeigt die letzten 50 Läufe, die du sehen kannst, neueste zue
 | **Läuft** | Der Ablauf wird verarbeitet. | Beobachte den Fortschritt der Nodes. |
 | **Unterbrochen — wird fortgesetzt** | Der Server, auf dem der Lauf lief, ist ausgefallen; ein anderer übernimmt ihn innerhalb von etwa anderthalb Minuten. | Warte; du musst nichts tun. |
 | **Wartet** | Entscheidung, Antwort, Agentenarbeit oder Abfragebedingung steht aus. | Lies, worauf der Lauf wartet. |
+| **Zurückgehalten** | Das Ergebnis der vor dem Upgrade begonnenen Arbeit ist unbekannt. | Prüfe die Angaben zur Sperre; geh nicht davon aus, dass eine Wiederholung sicher ist. |
 | **Erfolgreich** | Erreichte Nodes sind abgeschlossen und die Ausgabe liegt vor. | Prüfe Ausgabe und Auswirkungen. |
 | **Fehlgeschlagen** | Der Lauf endete mit einem unbehandelten Fehler. | Öffne die betroffene Node und lies ihren Fehler. |
 | **Gestoppt** | Der Lauf wurde abgebrochen. | Prüfe bereits ausgeführte Arbeit vor einem Neustart. |
 
 Eine ausstehende Freigabe, eine Frage oder ein Schritt, der vielleicht schon gelaufen ist, braucht eine Person. Ein arbeitender Agent oder eine wiederholte Abfrage kann ohne Eingriff fortfahren. Eine Entscheidung oder Antwort kann auch abgelehnt werden oder ablaufen. Entscheide anhand der Begründung, nicht allein nach **Wartet**. [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows) erklärt die Entscheidungsfelder.
+
+## Ein nach dem Upgrade zurückgehaltener Lauf
+
+**Zurückgehalten** bedeutet, dass Tale das Ergebnis der vor dem Upgrade begonnenen Arbeit nicht prüfen kann. Der Lauf wird weder automatisch fortgesetzt noch erneut ausgeführt; seine Aufgabe bleibt reserviert. Gespeicherte Checkpoints und Auswirkungen bleiben lesbar. Fehlende Auswirkungen beweisen nicht, dass ein externer Dienst nichts erhalten hat.
+
+Lass den Lauf während der Prüfung zurückgehalten. **Stopp anfordern** bittet Tale, die zuordenbaren Sitzungen zu stoppen, und erklärt die Unsicherheit vor deiner Bestätigung. **Stopp angefordert** bestätigt nicht, dass die Arbeit gestoppt wurde: Die Sperre bleibt, bis der Stopp der bisherigen Arbeit bestätigt ist. Frühere externe Aktionen werden nicht rückgängig gemacht. Ändert sich die Sperre bei offenem Bestätigungsdialog, schließ ihn und prüfe die aktuellen Angaben.
 
 ## Die betroffene Node untersuchen
 

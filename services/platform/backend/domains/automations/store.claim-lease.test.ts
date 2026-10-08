@@ -116,9 +116,13 @@ describe('claimRun — one walker at a time', () => {
       status: 'leased',
       epoch: 3,
     });
-    // The refusal reads under the row lock and writes nothing.
-    expect(fake.statements).toHaveLength(1);
-    expect(fake.statements[0]?.text).toContain('FOR UPDATE');
+    // Transaction-local protocol setup, then a row-locked read; no row write.
+    expect(fake.statements).toHaveLength(2);
+    expect(fake.statements[0]?.text).toContain(
+      "set_config('tale.automation_writer_protocol'",
+    );
+    expect(fake.statements[0]?.values).toEqual([String(ENGINE_PROTOCOL)]);
+    expect(fake.statements[1]?.text).toContain('FOR UPDATE');
     expect(addJobInTx).not.toHaveBeenCalled();
     expect(emitHintInTx).not.toHaveBeenCalled();
   });

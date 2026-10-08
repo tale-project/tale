@@ -182,8 +182,12 @@ jobs:
       - name: Resolve build metadata
         id: meta
         run: |
+          set -euo pipefail
           echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
           echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          AUTOMATION_PROTOCOL=$(sed -n 's/^export const ENGINE_PROTOCOL = \([1-9][0-9]*\);$/\1/p' services/platform/lib/engine/core/protocol.ts)
+          case "$AUTOMATION_PROTOCOL" in 1|2) ;; *) echo '::error::Unsupported automation writer protocol'; exit 1;; esac
+          echo "automation-protocol=${AUTOMATION_PROTOCOL}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         id: image
@@ -197,6 +201,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}
           build-args: |
             VERSION=${{ needs.prepare.outputs.version_number }}
+            ${{ matrix.service.name == 'platform' && format('AUTOMATION_WRITER_PROTOCOL={0}', steps.meta.outputs.automation-protocol) || '' }}
           # Only trusted releases write these separate per-service cache images.
           # Architecture tags keep the native builders from replacing each other.
           # amd64 also imports the GHA cache CI warms on main.
@@ -214,6 +219,7 @@ jobs:
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.prepare.outputs.version_number }}
+            ${{ matrix.service.name == 'platform' && format('io.tale.automation-writer-protocol={0}', steps.meta.outputs.automation-protocol) || '' }}
           provenance: false
 
       - name: Setup Bun for document checks

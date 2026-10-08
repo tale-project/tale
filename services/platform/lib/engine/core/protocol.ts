@@ -8,7 +8,7 @@
  * run back to the queue for a worker of the newer release instead of reading
  * progress it does not understand.
  */
-export const ENGINE_PROTOCOL = 1;
+export const ENGINE_PROTOCOL = 2;
 
 /**
  * The key a connector call presents as `ctx.idempotencyKey`: the run, the

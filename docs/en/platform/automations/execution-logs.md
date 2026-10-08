@@ -21,11 +21,18 @@ The **Runs** tab lists the latest 50 runs you can see, newest first. Owners, Adm
 | **Running** | The engine is processing the workflow. | Follow node progress. |
 | **Interrupted — resuming** | The server running it stopped; another one takes it over within about a minute and a half. | Wait; nothing to do. |
 | **Waiting** | A decision, reply, agent turn or polling condition is outstanding. | Read what it is waiting for. |
+| **On hold** | Earlier work started before the upgrade has an unknown outcome. | Inspect the hold details; do not assume it is safe to replay. |
 | **Succeeded** | Reached nodes completed and the workflow produced its output. | Review output and effects. |
 | **Failed** | Execution ended with an unhandled failure. | Open the failed node and read its error. |
 | **Stopped** | The run was cancelled. | Inspect work already performed before restarting. |
 
 A waiting approval, a question or a step that may already have run requires a person; a running agent or polling node may continue without you. A decision or answer can also be refused or expire. Use the displayed reason, not **Waiting** alone, to decide whether action is needed. [Approvals in workflows](/platform/automations/approvals-in-workflows) explains the decision controls.
+
+## A run held after an upgrade
+
+**On hold** means Tale cannot verify the outcome of work started before the upgrade. The run does not automatically resume or replay, and its task remains reserved. Its recorded checkpoints and effects remain available; missing effects do not prove that an external service received nothing.
+
+Leave the run on hold while you investigate. **Request stop** asks Tale to stop the sessions it can identify and explains the uncertainty before you confirm. **Stop requested** is not confirmation that the work stopped: the hold remains until its earlier work is confirmed to have stopped. The request does not undo earlier external actions. If the hold changes while the confirmation is open, close the dialog and review the updated details.
 
 ## Inspect the node that matters
 

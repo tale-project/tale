@@ -34,6 +34,36 @@ const finishedRun = {
   ],
 };
 
+describe('a legacy run with an unknown outcome', () => {
+  it('keeps the hold distinct from queued work and from a finished run', () => {
+    const status = readRunStatus('quarantined');
+    expect(status).toBe('quarantined');
+    expect(isRunFinished(status)).toBe(false);
+  });
+
+  it('preserves the cursor without implying that it is running or resuming', () => {
+    const run = {
+      status: 'quarantined',
+      checkpoints: { executions: 0, nodes: {}, cursor: { node: 'send' } },
+    };
+    expect(readRunCursorNode(run)).toBe('send');
+    expect(cursorNodeStatus(run)).toBe('interrupted');
+    expect(
+      nodeStatusMap(
+        projectRun(run),
+        ['send'],
+        'send',
+        cursorNodeStatus(run),
+      ).get('send'),
+    ).toBe('interrupted');
+    expect(runReasonKey(run)).toEqual({
+      kind: 'waiting',
+      key: 'runs.quarantine.reason',
+      values: {},
+    });
+  });
+});
+
 describe('projectRun', () => {
   it('reads a finished run from its trace and effects', () => {
     const projection = projectRun(finishedRun);
@@ -193,6 +223,12 @@ describe('readRunAgentRetry', () => {
       }),
     ).toBeNull();
     expect(readRunAgentRetry(null)).toBeNull();
+  });
+
+  it('does not describe a held run as retrying even when its retained cursor records an attempt', () => {
+    expect(
+      readRunAgentRetry({ ...retrying, status: 'quarantined' }),
+    ).toBeNull();
   });
 
   it('reads null on a finished run — the cursor is history there', () => {

@@ -23,6 +23,7 @@ const store = vi.hoisted(() => ({
   setAutomationProjects: vi.fn(),
   beginRun: vi.fn(),
   cancelRun: vi.fn(),
+  requestLegacyRunStopInTx: vi.fn(),
   getAskRunId: vi.fn(),
   getPendingAskForRun: vi.fn(),
   getRun: vi.fn(),
@@ -109,7 +110,9 @@ import { createAutomationRoutes } from './routes.ts';
 
 async function request(path: string, init?: RequestInit): Promise<Response> {
   return createAutomationRoutes({
-    sql: {} as never,
+    sql: {
+      begin: async (action: (tx: unknown) => unknown) => action({}),
+    } as never,
     auth: {} as never,
   }).request(path, init);
 }
@@ -411,4 +414,70 @@ describe('app automation door — changing an automation or running it live need
       );
     },
   );
+});
+
+describe('legacy quarantine stop requests retain run control and exact identity', () => {
+  const stopRequest = {
+    expectedClaimEpoch: 3,
+    expectedObservedAt: 100,
+    action: 'stop',
+    acknowledgeUnknownExternalEffects: true,
+  };
+  it('refuses hidden/read-only runs before the transactional stop request', async () => {
+    expect(
+      (await post('/runs/r-hidden/legacy-quarantine', stopRequest)).status,
+    ).toBe(404);
+    visibility.runControlAccess.mockResolvedValue('forbidden');
+    expect(
+      (await post('/runs/r-proj/legacy-quarantine', stopRequest)).status,
+    ).toBe(403);
+    expect(store.requestLegacyRunStopInTx).not.toHaveBeenCalled();
+  });
+  it('rejects absent acknowledgment and caller-supplied actor fields', async () => {
+    expect(
+      (
+        await post('/runs/r-org/legacy-quarantine', {
+          ...stopRequest,
+          acknowledgeUnknownExternalEffects: false,
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await post('/runs/r-org/legacy-quarantine', {
+          ...stopRequest,
+          actor: 'spoof',
+        })
+      ).status,
+    ).toBe(400);
+    expect(store.requestLegacyRunStopInTx).not.toHaveBeenCalled();
+  });
+  it('uses the authenticated actor and unchanged dialog identity', async () => {
+    store.requestLegacyRunStopInTx.mockResolvedValue({
+      requested: true,
+      status: 'quarantined',
+    });
+    expect(
+      (await post('/runs/r-org/legacy-quarantine', stopRequest)).status,
+    ).toBe(200);
+    expect(store.requestLegacyRunStopInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        organizationId: 'o1',
+        runId: 'r-org',
+        actor: 'u1',
+        request: stopRequest,
+      },
+    );
+  });
+  it('rejects malformed JSON before reading or mutating a held run', async () => {
+    const response = await request('/runs/r-org/legacy-quarantine', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{',
+    });
+    expect(response.status).toBe(400);
+    expect(store.getRun).not.toHaveBeenCalled();
+    expect(store.requestLegacyRunStopInTx).not.toHaveBeenCalled();
+  });
 });

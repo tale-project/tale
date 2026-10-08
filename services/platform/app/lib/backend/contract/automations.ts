@@ -7,6 +7,9 @@
  * actually serve them.
  */
 
+import type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
+export type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
+
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
 
 /** What a `waiting` run is parked on. `approval`, `ask` and `in_doubt`
@@ -54,7 +57,15 @@ export interface AutomationRunForTask {
   detail?: string;
   runId: string;
   name: string;
-  status: 'queued' | 'running' | 'waiting' | 'success' | 'failed' | 'cancelled';
+  status:
+    | 'queued'
+    | 'running'
+    | 'waiting'
+    | 'quarantined'
+    | 'success'
+    | 'failed'
+    | 'cancelled';
+  legacyQuarantine?: LegacyRunQuarantine;
   version: number;
 }
 
@@ -95,6 +106,22 @@ export interface AutomationsContract {
     kind: 'mutation';
     args: { organizationId: string; runId: string };
     returns: { cancelled: boolean };
+  };
+  'automations/mutations:requestLegacyRunStop': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      runId: string;
+      expectedClaimEpoch: number;
+      expectedObservedAt: number;
+      action: 'stop';
+      acknowledgeUnknownExternalEffects: true;
+    };
+    returns: {
+      requested: true;
+      status: 'quarantined';
+      legacyQuarantine: LegacyRunQuarantine;
+    };
   };
   'automations/mutations:resolveRunInDoubt': {
     kind: 'mutation';
@@ -272,11 +299,13 @@ export interface AutomationsContract {
         | 'queued'
         | 'running'
         | 'waiting'
+        | 'quarantined'
         | 'success'
         | 'failed'
         | 'cancelled';
       mode: 'mock' | 'live';
       startedBy: string;
+      legacyQuarantine?: LegacyRunQuarantine;
       /** Which kind of trigger started a `trigger:<id>` run. */
       startedVia?: 'schedule' | 'webhook' | 'event';
       /** What a `waiting` run is parked on. */
@@ -336,11 +365,13 @@ export interface AutomationsContract {
         | 'queued'
         | 'running'
         | 'waiting'
+        | 'quarantined'
         | 'success'
         | 'failed'
         | 'cancelled';
       mode: 'mock' | 'live';
       startedBy: string;
+      legacyQuarantine?: LegacyRunQuarantine;
       /** Which kind of trigger started a `trigger:<id>` run. */
       startedVia?: 'schedule' | 'webhook' | 'event';
       /** What a `waiting` run is parked on. */

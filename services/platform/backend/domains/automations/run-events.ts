@@ -23,7 +23,8 @@ export type RunEventKind =
   | 'node_interrupted'
   | 'in_doubt'
   | 'in_doubt_resolved'
-  | 'engine_deferred';
+  | 'engine_deferred'
+  | 'legacy_stop_requested';
 
 export interface RunEventArgs {
   organizationId: string;

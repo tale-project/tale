@@ -1,3 +1,9 @@
+import { randomUUID } from 'node:crypto';
+import { readdir, readFile } from 'node:fs/promises';
+import { isDeepStrictEqual } from 'node:util';
+
+import type { Sql, TransactionSql } from 'postgres';
+
 /**
  * Real Postgres proof of the backfill that removes what organization
  * deletions before 0.5.9 stranded (`…_rows_of_deleted_organizations.sql`).
@@ -15,11 +21,7 @@
  * ledger (an audit row, a slug tombstone); a second deleted organization
  * under an ACTIVE hold; and the live organization the harness signed in to.
  */
-import { randomUUID } from 'node:crypto';
-import { readdir, readFile } from 'node:fs/promises';
-import { isDeepStrictEqual } from 'node:util';
-
-import type { Sql, TransactionSql } from 'postgres';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 
 /** What the teardown keeps (`ORG_TEARDOWN_KEEPS`), and so the backfill. */
 const LEDGER: ReadonlySet<string> = new Set([
@@ -150,6 +152,7 @@ export async function checkOrphanedOrgRowsBackfill(
           org_id, name, version, deployed_by, deployed_at_ms
         ) VALUES (${dead}, ${name}, 1, 'itest', ${now})
       `;
+      await markAutomationWriterInTx(tx);
       const runs = await tx<{ id: string }[]>`
         INSERT INTO app.automation_runs (
           org_id, name, version, status, mode, started_by, started_at_ms

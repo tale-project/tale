@@ -293,6 +293,8 @@ entries:
   # app/features/automations/lib/run-view.ts (`runReasonKey`) and rendered by
   # the run list and the run header.
   - 'automations.runs.waiting'
+  # The same runReasonKey projection supplies the held-run list explanation.
+  - 'automations.runs.quarantine.reason'
 
   # How a validation issue reads: app/features/automations/lib/issue-text.ts
   # renders `codes.<CODE>.{title,explanation,cause,fix}` from the issue's

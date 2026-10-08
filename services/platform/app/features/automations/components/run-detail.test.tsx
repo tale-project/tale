@@ -14,6 +14,8 @@ const { state, resolveApproval, readApproval, refetchRun } = vi.hoisted(() => ({
     startedBy: 'user:user-me',
     startedVia: undefined as string | undefined,
     trace: null as unknown,
+    checkpoints: undefined as unknown,
+    agentAutoRetryMax: 3,
     versionDocument: {
       name: 'docs-approval-proof',
       nodes: [],
@@ -111,6 +113,7 @@ vi.mock('../hooks/queries', async (importOriginal) => {
 const cancelRun = vi.hoisted(() => vi.fn());
 vi.mock('../hooks/mutations', () => ({
   useCancelAutomationRun: () => ({ mutate: cancelRun, isPending: false }),
+  useRequestLegacyRunStop: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useResolveRunApproval: () => ({
     mutateAsync: resolveApproval,
     isPending: false,
@@ -170,6 +173,7 @@ beforeEach(() => {
   state.startedBy = 'user:user-me';
   state.startedVia = undefined;
   state.trace = null;
+  state.checkpoints = undefined;
   state.versionDocument = { name: 'docs-approval-proof', nodes: [] };
   state.versionError = undefined;
   state.versionPending = false;
@@ -972,4 +976,25 @@ describe('RunDetail without a version document', () => {
     const canvas = screen.getByTestId('canvas');
     expect(canvas).toHaveTextContent('later (transform): pending');
   });
+});
+
+it('renders a quarantine without acting on a retained approval or pretending to resume', () => {
+  state.status = 'quarantined';
+  state.checkpoints = {
+    nodes: {},
+    cursor: { node: 'agent', agent: { attempt: 2 } },
+  };
+  state.resumeCount = 1;
+  state.stalled = true;
+  renderRun();
+  expect(screen.getByText('On hold')).toBeInTheDocument();
+  expect(screen.queryByText('Auto-retry 2 of 3')).toBeNull();
+  expect(screen.getByText('Outcome unknown')).toBeInTheDocument();
+  expect(
+    screen.getByText(/hold details could not be loaded/),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Stop run' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+  expect(screen.queryByText('Interrupted — resuming')).toBeNull();
+  expect(readApproval).not.toHaveBeenCalled();
 });
