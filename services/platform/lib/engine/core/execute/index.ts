@@ -21,6 +21,7 @@ import type {
 import { agentService, llmService, nodeTypes } from '../slots';
 import { evalCondition, evalTemplates, ExprError, runCode } from '../template';
 import type { Automation, Effect, NodeTrace, RunResult } from '../types';
+import { MAX_SUBAUTOMATION_DEPTH } from '../typing/children';
 import { compileSchema } from '../validate/schema';
 import { refsOf, topoSort } from './controlflow';
 import {
@@ -91,7 +92,6 @@ export interface ExecuteOptions {
   nesting?: number;
 }
 
-const MAX_SUBAUTOMATION_DEPTH = 3;
 const DEFAULT_MAX_REPEATS = 5;
 const REPEATS_HARD_CAP = 20;
 const DEFAULT_MAX_NODE_EXECUTIONS = 100;

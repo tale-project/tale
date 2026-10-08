@@ -22,8 +22,8 @@ import { pointerFromAjv, pointerTokens, ptr } from '../syntax/pointer';
 import type { ExprSource } from '../syntax/sources';
 import { exprSegments, tokenizeTemplate } from '../syntax/tokens';
 import type { Issue, NodeDef } from '../types';
+import { parseAutomationRef } from '../typing/children';
 import type { ValidationContext } from './context';
-import { isValidAutomationName } from './name';
 import { compileSchema } from './schema';
 import { closestName } from './similar';
 import { analyzable } from './syntax-check';
@@ -46,16 +46,6 @@ const VALUE_KEYWORDS = new Set([
   'minItems',
   'maxItems',
 ]);
-
-function parseAutomationRef(
-  ref: string,
-): { name: string; version?: number } | null {
-  const [name, version, ...rest] = ref.split('@');
-  if (rest.length > 0 || !isValidAutomationName(name)) return null;
-  if (version === undefined) return { name };
-  if (!/^\d+$/.test(version)) return null;
-  return { name, version: Number(version) };
-}
 
 function checkConnectorInput(
   n: NodeDef,
