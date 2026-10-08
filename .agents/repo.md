@@ -686,3 +686,38 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   the resume bug remains open. Paying it down means a sandbox-runtime pin that carries
   the upstream fix, then flipping the flag and restoring the `resume` argv slot (the schema
   holds the two coherent).
+- **An in-doubt step is decided in the app only** — a run parked on `waitingFor: in_doubt` (a
+  write its server was making when it stopped may already have reached the service) is read and
+  decided through `GET`/`POST /api/app/automations/runs/{runId}/in-doubt[/{attemptId}]`
+  (`backend/domains/automations/routes.ts`) and the run page's card alone: `/api/v1` and MCP
+  name the wait but offer no door, the task panel's run card does not show it, and the card
+  names a write inside a subautomation by its raw path (`batch[1:0]/send`) (2026-10). Paying it
+  down means `GET {run}/in-doubt` and `POST {run}/in-doubt/{attemptId}` `{resolution, actor?}`
+  in both scopes of `backend/rest/v1-automations.ts` beside the ask doors (the stop's write
+  gate, `rest:execute` charged, the store's 409s re-coded at the door), an MCP tool, a contract
+  bump, the same card in the task panel, and a readable name for a nested path.
+- **An in-doubt park is silent** — nothing tells anyone that a run waits on an in-doubt step: no
+  bell, no email; the run list and the run's status say **Needs you** only to someone who opens
+  them, so an unattended scheduled run can wait until somebody does (2026-10). Paying it down
+  means a notification kind with its preferences, emitted in the park's transaction to the
+  run's starter (an organization run's owners when a trigger started it) and marked read when
+  the step is decided.
+- **No shipped connector action is marked `idempotent`** — the connector schema takes
+  `idempotent: true` (`packages/shared/src/schemas/connectors.ts`), and a write so marked is
+  sent again after an interruption instead of waiting for a person; no catalog action declares
+  it yet, so every write cut mid-call parks in doubt, even one whose service dedupes by the
+  idempotency key Tale sends (2026-10). Paying it down means a review of each action's vendor
+  call (does the service honour the key, or a natural key such as a message id), then the flag
+  on the actions that pass, with a test per action.
+- **An erasure leaves the subject's id on decisions in other people's runs** —
+  `app.automation_human_asks.answered_by` and `app.automation_node_attempts.resolved_by` keep
+  the bare user id of whoever answered an agent's question or decided an in-doubt step; the
+  erasure pass deletes only the runs the subject started (`automationRuns` in
+  `backend/domains/erasure/service.ts`), so the id stays on a run someone else started
+  (2026-10). Paying it down means a pass that pseudonymises both columns the way review
+  decisions are, with its breakdown category and a case in the erasure tests.
+- **The first roll onto run leases is protected one way** — while the image before run leases
+  still serves, it claims a run without honouring a live lease and repeats a write without the
+  effect ledger, keeps its containers' 10 s stop grace, and answers the deploy's `drain-status`
+  without counting automation steps (2026-10). Nothing is left to build: once every deployment
+  has rolled past the release that brought leases, delete this entry.

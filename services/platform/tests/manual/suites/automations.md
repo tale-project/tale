@@ -777,6 +777,8 @@ is revived by the liveness sweep — the "Running now forever" incident class
 the chaos door `testing/e2e_chaos:severRunWakes` refuses unless the deployment
 sets `TALE_E2E=1` or `TALE_CHAOS_DOORS=1`. Executed end-to-end 2026-07-31 on
 the dev stack (cadence froze after sever, sweep poked once, cadence resumed).
+Those doors were Convex functions, gone with that backend: mark the five boxes
+**ENVIRONMENT** with [`BL-8`](../reference/not-a-finding.md#known-debt).
 
 - [ ] `AUTO-L1` · **Healthy park cadence** — Set `TALE_CHAOS_DOORS=1` →
       save+deploy a probe (one transform, repeat-until that never ends, capped
