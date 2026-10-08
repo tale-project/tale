@@ -94,6 +94,15 @@ exec's group and replaced its environment. runnerd's startup line names the
 shim it uses (`execShim=`). On SIGTERM, runnerd passes the signal on to every
 live exec, and to what exited execs left waiting, before it exits.
 
+runnerd is the only child of the container's init, so its end is the
+container's, and every exec in it ends too. An error nothing handled does not
+take the session with it: an unhandled promise rejection (which Node 24 turns
+into an exit) is logged and survived, as in the spawner; an uncaught exception,
+after which the daemon's state is unknown, stops runnerd the way SIGTERM does
+(live execs told to end, the two-second forced deadline still holding) and it
+exits 70 (`EX_SOFTWARE`), apart from a stop's 0 and a signal's 128 + N, or by
+SIGKILL when that deadline passes first.
+
 Reading another process's environment waits on that process's memory lock,
 which a process stuck under memory pressure can hold for minutes. While every
 exec a round covers still has its shim, the round reads `/proc/<pid>/stat`
