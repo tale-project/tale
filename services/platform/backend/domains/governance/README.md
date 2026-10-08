@@ -48,7 +48,8 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    (kind `model-api`), and the settlement's resolver reads that stamp. The same subject decides whom a task turn's connector
    calls act for: the connectors bridge (`domains/connectors/bridge-routes.ts`) resolves it on
    every call from the live run on the exec the turn's token names (`scope.connectorCaller`),
-   so a call is booked, audited and run for one person. An automation's `llm` step — a
+   so a call is booked, audited and run for one person — booked as a connector call under the
+   run's subject (`spender`), never as a model request. An automation's `llm` step — a
    subautomation's included, which runs as one step of its parent's run — spends outside any
    session: its run is its subject, through `resolveAutomationRunAttribution` — the mapping the
    run's agent turns resolve through too — and `domains/automations/llm-metering.ts` measures that
@@ -120,14 +121,14 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 | Transcription (an upload, a video link's audio, a dictation) | `domains/files/transcription-metering.ts`, held and booked as a direct call | the uploader — a retry continues their upload — or `__automation__` for a file nobody added; the dictating member | `__transcription__` | — | the one named at registration, else the uploader's own chat's |
 | Embeddings (knowledge indexing and search) | `domains/knowledge/embedding-meter.ts`, each request held and booked as a direct call | indexing: the uploader, else the holding document's creator (a synced drive's owner), else `__automation__` (an emailed attachment, an inbound email, a scheduled website scan); a website add or Scan now: the member; a search: the searcher (a sandbox turn: its run's subject) | `__embedding__` | the searching key; the key a website was added with | the document's, else the one the file was added in (`fileAttachmentProjectId`, as for a transcription); a search's project (a project chat's, a project URL's, a run's) |
 | Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key | a project's key's project |
-| Connector call | `recordConnectorUsage` | the caller | optional | — | the chat's, for the assistant's tools |
+| Connector call (the assistant's tools; every live call through `runConnectorAction` whose body ran: an agent's bridge call, an automation's connector step, an Inbox send) | `recordConnectorUsage` — the assistant's tool bookkeeping, and the connector door's usage sink (`domains/connectors/service.ts`, `connectorSpender`); `connector_call_count` 1, no request | the member; an agent's call: its run's subject; an automation step: its run's subject (`resolveAutomationRunAttribution`); an email: its sender (`sentBy` on the send job); none for the platform's own sends | `assistant` for the chat tools; the agent's id or the automation's name | the key the turn or run came with | the chat's, the run's (a connector row adds nothing to a project's buckets) |
 
 ## Readers
 
 | Reader | What it assumes |
 | --- | --- |
-| Usage page (`core/governance/get_org_usage_metrics.ts`, `usage-metrics.ts`) | `user_id` is a `"user"` id or the sentinel, folded through `usageLedgerSubject` so a legacy door form (`user:<id>`, `api-key:<id>`) is the person's row and `trigger:<id>` the sentinel's; the sentinel is a labelled row and no active user; project agent slugs resolve to names; a row is a transcription or speech row only when its seconds or characters are `> 0` (the upsert once stamped `0` on every second request) |
-| Budget gate (`budget-gate.ts`, `budget-reservations.ts`) | personal caps sum `user_id = ANY(<bare id>, user:<id>, api-key:<id>)` (`usageLedgerSubjectForms`), team caps the members' ids — and the identities of the team's own keys — under the same forms, key caps `api_key_id`, a project cap `app.project_usage`; an impersonal subject has no personal bucket |
+| Usage page (`core/governance/get_org_usage_metrics.ts`, `usage-metrics.ts`) | `user_id` is a `"user"` id or the sentinel, folded through `usageLedgerSubject` so a legacy door form (`user:<id>`, `api-key:<id>`) is the person's row and `trigger:<id>` the sentinel's; the sentinel is a labelled row and no active user; project agent slugs resolve to names; a row is a transcription or speech row only when its seconds or characters are `> 0` (the upsert once stamped `0` on every second request); a connector row counts no request and makes nobody active, an old one booked with a request included |
+| Budget gate (`budget-gate.ts`, `budget-reservations.ts`) | personal caps sum `user_id = ANY(<bare id>, user:<id>, api-key:<id>)` (`usageLedgerSubjectForms`), team caps the members' ids — and the identities of the team's own keys — under the same forms, key caps `api_key_id`, a project cap `app.project_usage`; an impersonal subject has no personal bucket; a request cap sums the requests of rows no connector names (`GOV-R15`), so a connector row booked with a request before connector calls stopped carrying one counts none |
 | Member's own view (`/my/budget-status`, Settings > Usage) | the same `usageLedgerSubjectForms(<own id>)` as the gate |
 | Erasure (`domains/erasure/service.ts`) | the subject's rows are `user_id IN (<id>, user:<id>, api-key:<id>)` — the two door forms cover rows booked before rule 2 held |
 | Retention (`domains/retention/service.ts`) | buckets age by `updated_at_ms`; a legal hold protects a member's rows; a project's buckets age on the same clock and name no member |
@@ -176,6 +177,11 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
   — a task turn's connector calls act for the run's starter while the run is live, and for
   nobody after it ends or when a trigger started it; `jobs/task-list.agent-retry.test.ts` — an
   auto-retry keeps the failed run's starter.
+- `lib/connectors/dispatcher.test.ts`, `domains/connectors/service.usage.test.ts`,
+  `domains/governance/usage-ledger.test.ts`, `budget-gate.test.ts`, `usage-metrics.test.ts`,
+  `domains/conversations/send.test.ts` — a live connector call whose body ran is counted once, as
+  a connector call under its spender (a run's subject, a member, an email's sender), never as a
+  request (`GOV-R15`).
 - `domains/governance/budget-gate.test.ts` — an impersonal subject binds no personal cap; a
   team's own key is held to its team's cap and counted toward it (`APIKEY-R9`); a project's cap
   binds the work in it, whoever spends, and a project's key spends in its project (`GOV-R14`).

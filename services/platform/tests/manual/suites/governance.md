@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 88 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 89 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -236,6 +236,14 @@ agent.
   within the hour the document reads **Indexed**, the website's notice is
   gone, and **Usage analytics** lists **Knowledge indexing and search**
   (`analytics.usage.embedding`) under you
+- [ ] `GOV-F59` · **A connector call never counts as a request** — read your
+  monthly requests under **Settings → Usage**, then GOV-F4-style give
+  yourself a **User** rule with **Max requests** two above that figure. In a
+  chat you already have (a new chat's title is a request of its own), ask
+  the assistant to search your documents for three different things in one
+  message → the reply runs, and **Settings → Usage** shows your requests up
+  by one, the reply, never by its searches. Send one more message there →
+  it runs. Delete the rule
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the
