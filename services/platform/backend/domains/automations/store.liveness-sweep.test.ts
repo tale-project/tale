@@ -27,8 +27,8 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { instanceId } from '../../lib/instance.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import {
+  pokeParkedRunInTx,
   pollParkedRun,
-  pokeParkedRun,
   releaseOwnedRunLeases,
   sweepOverdueRuns,
 } from './store.ts';
@@ -257,14 +257,16 @@ describe('pollParkedRun', () => {
   });
 });
 
-describe('pokeParkedRun', () => {
+describe('pokeParkedRunInTx', () => {
   it('wakes a parked run only, with the claim promise', async () => {
     const before = Date.now();
     const fake = fakeSql((text) =>
       text.includes('UPDATE app.automation_runs') ? [{ id: 'run_1' }] : [],
     );
     await expect(
-      pokeParkedRun(fake.sql, { organizationId: 'org_1', runId: 'run_1' }),
+      fake.sql.begin((tx) =>
+        pokeParkedRunInTx(tx, { organizationId: 'org_1', runId: 'run_1' }),
+      ),
     ).resolves.toBe(true);
     const [poke] = fake.statements;
     expect(poke?.text).toContain("AND status = 'waiting'");

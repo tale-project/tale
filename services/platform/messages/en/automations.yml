@@ -330,9 +330,9 @@ runs:
     visionModel: 'Images in this run were read by {model}.'
   approval:
     title: 'Waiting for your approval: {operation}'
-    node: 'Requested by node "{node}" — approving lets it act on the next poll; rejecting fails it.'
-    pending: Approving lets the parked step act on the next poll; rejecting fails it.
-    approved: '{operation} approved — the run resumes on its next poll.'
+    node: 'Requested by node "{node}" — approving lets it act right away; rejecting fails it.'
+    pending: Approving lets the parked step act right away; rejecting fails it.
+    approved: '{operation} approved — the run resumes right away.'
     rejected: '{operation} rejected — the step fails and the run stops.'
     input: The step would call with
     approve: Approve

@@ -302,7 +302,7 @@ output:
 - [ ] `AUTO-F25` · **Approval card** — (env-gated: live run parked on a write
       approval) Open the parked run → Card `automations.runs.approval.title` names
       the operation; **Approve** (`automations.runs.approval.approve`) lets the
-      step act on the next poll and the run resumes; **Reject**
+      step act right away and the run resumes; **Reject**
       (`automations.runs.approval.reject`) fails the step and the run stops — the
       card disappears once the run is terminal.
 - [ ] `AUTO-F26` · **Ask card** — (env-gated: a run parked on an agent

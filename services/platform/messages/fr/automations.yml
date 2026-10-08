@@ -341,9 +341,9 @@ runs:
     visionModel: 'Les images de cette exécution ont été lues par {model}.'
   approval:
     title: 'En attente de ton approbation : {operation}'
-    node: 'Demandé par le nœud « {node} » — approuver le laisse agir au prochain poll ; rejeter le fait échouer.'
-    pending: "Approuver laisse l'étape en attente agir au prochain poll ; rejeter la fait échouer."
-    approved: "{operation} a été approuvé — l'exécution reprend au prochain poll."
+    node: 'Demandé par le nœud « {node} » — approuver le laisse agir immédiatement ; rejeter le fait échouer.'
+    pending: "Approuver laisse l'étape en attente agir immédiatement ; rejeter la fait échouer."
+    approved: "{operation} a été approuvé — l'exécution reprend immédiatement."
     rejected: "{operation} a été rejeté — l'étape échoue et l'exécution s'arrête."
     input: "L'étape appellerait avec"
     approve: Approuver

@@ -32,8 +32,12 @@ interface Statement {
 }
 
 /** Scripted transactional `sql`: the fenced run write answers `written`
- * (empty = it matched nothing). */
-function fakeSql(written: Record<string, unknown>[]): {
+ * (empty = it matched nothing), and the approval a park waits on reads as
+ * `decided`. */
+function fakeSql(
+  written: Record<string, unknown>[],
+  decided = false,
+): {
   sql: Sql;
   statements: Statement[];
 } {
@@ -49,6 +53,9 @@ function fakeSql(written: Record<string, unknown>[]): {
     }
     if (text.includes('INSERT INTO app.automation_run_events')) {
       return Promise.resolve([{ id: 'event_1' }]);
+    }
+    if (text.includes('FROM app.approvals')) {
+      return Promise.resolve([{ decided }]);
     }
     return Promise.resolve([]);
   };
@@ -220,6 +227,56 @@ describe('suspendRun', () => {
     );
     expect(events(fake.statements)).toEqual([]);
     expect(emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the approval it waits on only after its own write holds the run', async () => {
+    const fake = fakeSql([{ seq: 12 }]);
+    await park(fake.sql);
+    const texts = fake.statements.map((s) => s.text);
+    const parkedAt = texts.findIndex((t) => t.includes("status = 'waiting'"));
+    const readAt = texts.findIndex((t) => t.includes('FROM app.approvals'));
+    expect(parkedAt).toBeGreaterThanOrEqual(0);
+    expect(readAt).toBeGreaterThan(parkedAt);
+    expect(fake.statements[readAt]?.text).toContain("status <> 'pending'");
+    expect(fake.statements[readAt]?.values).toEqual(['appr_1', 'org_1']);
+  });
+
+  // A person who decides while the walker is between its gate read and this
+  // park finds the run still walking, so the decision's own wake does
+  // nothing; the park must not then wait for its poll, ten minutes out.
+  it('wakes the run at once when its approval was decided before the park landed [APV-R12]', async () => {
+    const before = Date.now();
+    const fake = fakeSql([{ seq: 12 }], true);
+    await expect(park(fake.sql)).resolves.toEqual({ suspended: true });
+    const wake = fake.statements.filter((s) =>
+      s.text.includes('UPDATE app.automation_runs'),
+    )[1];
+    expect(wake?.text).toContain('wake_at_ms = ?');
+    expect(wake?.values[0]).toBeGreaterThanOrEqual(
+      before + RUN_CLAIM_PROMISE_MS,
+    );
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'automation.step',
+      { organizationId: 'org_1', runId: 'run_1' },
+      {},
+    );
+    expect(emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads no approval for a park on anything else', async () => {
+    const fake = fakeSql([{ seq: 3 }], true);
+    await park(fake.sql, { detail: 'agent:review' });
+    expect(
+      fake.statements.some((s) => s.text.includes('FROM app.approvals')),
+    ).toBe(false);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'automation.poll',
+      expect.objectContaining({ seq: 3 }),
+      { startAfter: expect.any(Date) },
+    );
   });
 
   it('records why it parked when the caller says so', async () => {

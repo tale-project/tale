@@ -340,9 +340,9 @@ runs:
     visionModel: 'Bilder in diesem Lauf hat {model} gelesen.'
   approval:
     title: 'Wartet auf deine Freigabe: {operation}'
-    node: 'Angefragt von Node "{node}" — mit der Freigabe führt sie den Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.'
-    pending: Mit der Freigabe führt der wartende Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.
-    approved: '{operation} freigegeben — der Lauf setzt beim nächsten Poll fort.'
+    node: 'Angefragt von Node "{node}" — mit der Freigabe führt sie den Schritt sofort aus; eine Ablehnung lässt ihn fehlschlagen.'
+    pending: Mit der Freigabe wird der wartende Schritt sofort ausgeführt; eine Ablehnung lässt ihn fehlschlagen.
+    approved: '{operation} freigegeben — der Lauf geht sofort weiter.'
     rejected: '{operation} abgelehnt — der Schritt schlägt fehl und der Lauf stoppt.'
     input: Der Schritt würde aufrufen mit
     approve: Freigeben

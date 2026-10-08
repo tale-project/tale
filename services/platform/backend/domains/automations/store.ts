@@ -2853,7 +2853,9 @@ export async function recordProgress(
  * that comes back after `resumeInMs`. The walker's lease is released — a
  * parked run has no walker — and the chain sequence moves on, so a poll of
  * an earlier park finds nothing to do. `event` records why the park happened
- * when the run's history should say more than its park string.
+ * when the run's history should say more than its park string. A park on an
+ * approval that a person decided while the walker was on its way here wakes
+ * the run at once instead.
  */
 export async function suspendRun(
   sql: Sql,
@@ -2894,12 +2896,24 @@ export async function suspendRun(
     `;
     const parked = rows[0];
     if (!parked) return { suspended: false };
-    await enqueuePoll(tx, {
-      organizationId: args.organizationId,
-      runId: args.runId,
-      seq: parked.seq,
-      pollMs: args.resumeInMs,
-    });
+    if (await approvalDecided(tx, args.organizationId, args.detail)) {
+      // Decided between the walker's gate read and this park: the
+      // decision's own wake found the run still walking and did nothing, so
+      // the park wakes the run itself instead of waiting for its poll.
+      await tx`
+        UPDATE app.automation_runs SET
+          wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+      `;
+      await enqueueStep(tx, args.organizationId, args.runId, 0);
+    } else {
+      await enqueuePoll(tx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        seq: parked.seq,
+        pollMs: args.resumeInMs,
+      });
+    }
     if (args.event !== undefined) {
       await recordRunEventInTx(tx, {
         organizationId: args.organizationId,
@@ -2911,6 +2925,32 @@ export async function suspendRun(
     await emitRunHint(tx, args.organizationId, args.runId);
     return { suspended: true };
   });
+}
+
+/**
+ * Whether the approval a park waits on (`approval:<id>`) was decided already.
+ * Read after the park's own write, which holds the run's row: a decision
+ * locks that row before it writes (`lockRunInTx`), so it either committed
+ * before this read — and is seen here — or it waits for the park and then
+ * finds the run parked and wakes it. Its read is a statement of its own:
+ * one inside the park's write would read the approvals as they were before
+ * the write waited for the row.
+ */
+async function approvalDecided(
+  tx: TransactionSql,
+  organizationId: string,
+  detail: string,
+): Promise<boolean> {
+  if (!detail.startsWith('approval:')) return false;
+  const approvalId = detail.slice('approval:'.length);
+  const rows = await tx<{ decided: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM app.approvals
+      WHERE id = ${approvalId} AND org_id = ${organizationId}
+        AND status <> 'pending'
+    ) AS decided
+  `;
+  return rows[0]?.decided ?? false;
 }
 
 /** Whether a person has decided about the run's write that may already have
@@ -3249,8 +3289,9 @@ export async function sweepOverdueRuns(
  * behind. A `running` walker is already awake and reads the decision itself;
  * terminal or foreign runs are a silent no-op (a stale approval must not
  * throw the resolution). Same claim-promise + step enqueue as the liveness
- * sweep. This form joins the caller's transaction, so the wake commits with
- * the decision that caused it.
+ * sweep. It joins the caller's transaction, so the wake commits with the
+ * decision that caused it, and a decision whose wake cannot be queued is not
+ * recorded either.
  */
 export async function pokeParkedRunInTx(
   tx: TransactionSql,
@@ -3268,11 +3309,25 @@ export async function pokeParkedRunInTx(
   return true;
 }
 
-export async function pokeParkedRun(
-  sql: Sql,
+/**
+ * Lock a run's row for a decision that will wake it in the same
+ * transaction — taken BEFORE the decided row's own lock. A run's terminal
+ * doors (finish, cancel, delete) lock the run first and the rows that hang
+ * off it after, so a decision taking them the other way round could
+ * deadlock against a stop. Holding the run also orders the decision against
+ * the walker's park: a park that commits first is woken by the decision's
+ * poke, and one that waits for the decision reads it (`suspendRun`). A run
+ * that is not there locks nothing.
+ */
+export async function lockRunInTx(
+  tx: TransactionSql,
   args: { organizationId: string; runId: string },
-): Promise<boolean> {
-  return sql.begin((tx) => pokeParkedRunInTx(tx, args));
+): Promise<void> {
+  await tx`
+    SELECT 1 FROM app.automation_runs
+    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+    FOR UPDATE
+  `;
 }
 
 /**

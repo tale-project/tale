@@ -108,8 +108,10 @@ function stepBudgetMs(): number {
  * nothing while it waits, short enough to feel immediate. */
 const REPEAT_DELAY_MS = 5_000;
 
-/** How often a run parked on a human decision re-checks it. */
-const APPROVAL_POLL_MS = 30_000;
+/** How often a run parked on a human decision re-checks it. Only a
+ * backstop: the decision wakes the run in its own transaction, and a park
+ * that comes after the decision wakes the run itself (`suspendRun`). */
+const APPROVAL_POLL_MS = 600_000;
 
 /** Poll backstop for a parked agent turn — the settle pokes the run the
  * moment it lands, so this only catches a lost poke. */
