@@ -59,12 +59,13 @@ test('device spawners observe local resource pressure while preserving their con
 
 describe('session HTTP routes', () => {
   let router: typeof import('./server.ts').router;
+  let listenThenAdopt: typeof import('./server.ts').listenThenAdopt;
 
   beforeAll(async () => {
     const previous = process.env.SANDBOX_TOKEN;
     process.env.SANDBOX_TOKEN = 'route-test-secret';
     try {
-      ({ router } = await import('./server.ts'));
+      ({ router, listenThenAdopt } = await import('./server.ts'));
     } finally {
       if (previous === undefined) delete process.env.SANDBOX_TOKEN;
       else process.env.SANDBOX_TOKEN = previous;
@@ -309,6 +310,140 @@ describe('session HTTP routes', () => {
     expect(adoption.pending()).toBe(true);
     adoption.end();
     expect(adoption.pending()).toBe(false);
+  });
+
+  test('boot listens before it adopts, and holds the gate until the hub has loaded', async () => {
+    const adoption = new BootAdoption();
+    const steps: string[] = [];
+    const server = await listenThenAdopt(
+      {
+        listen: () => {
+          steps.push(`listen, gate ${adoption.pending()}`);
+          return 'listener';
+        },
+        adopt: async () => {
+          steps.push(`adopt, gate ${adoption.pending()}`);
+        },
+        startHub: async () => {
+          steps.push(`hub, gate ${adoption.pending()}`);
+        },
+      },
+      adoption,
+    );
+    expect(server).toBe('listener');
+    expect(steps).toEqual([
+      'listen, gate true',
+      'adopt, gate true',
+      'hub, gate true',
+    ]);
+    expect(adoption.pending()).toBe(false);
+  });
+
+  test('a failed adoption still loads the hub and ends the gate', async () => {
+    const adoption = new BootAdoption();
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    let hubStarted = false;
+    try {
+      await listenThenAdopt(
+        {
+          listen: () => null,
+          adopt: async () => {
+            throw new Error('backend gone');
+          },
+          startHub: async () => {
+            hubStarted = true;
+          },
+        },
+        adoption,
+      );
+      expect(hubStarted).toBe(true);
+      expect(adoption.pending()).toBe(false);
+      expect(warn).toHaveBeenCalledWith(
+        '[sandbox.session] session subsystem startup failed:',
+        expect.any(Error),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+    // A hub that cannot load fails the boot, and the gate still ends.
+    const failure = await listenThenAdopt(
+      {
+        listen: () => null,
+        adopt: async () => {},
+        startHub: async () => {
+          throw new Error('placements unreadable');
+        },
+      },
+      adoption,
+    ).then(
+      () => null,
+      (err: unknown) => err,
+    );
+    expect(failure).toEqual(new Error('placements unreadable'));
+    expect(adoption.pending()).toBe(false);
+  });
+
+  test('the router holds health, the deploy drain and session calls while the boot adopts', async () => {
+    const request = (method: string, path: string) => {
+      const timestamp = String(Date.now());
+      const nonce = crypto.randomUUID();
+      return router(
+        new Request(`http://sandbox${path}`, {
+          method,
+          headers: {
+            [SIGNATURE_HEADER]: sign(
+              method,
+              path,
+              timestamp,
+              '',
+              'route-test-secret',
+              nonce,
+            ),
+            [TIMESTAMP_HEADER]: timestamp,
+            [NONCE_HEADER]: nonce,
+          },
+        }),
+      );
+    };
+    let adopted!: () => void;
+    const adopting = new Promise<void>((resolve) => {
+      adopted = resolve;
+    });
+    let listening!: () => void;
+    const listened = new Promise<void>((resolve) => {
+      listening = resolve;
+    });
+    // The server module's own gate, as main() runs it.
+    const boot = listenThenAdopt({
+      listen: () => listening(),
+      adopt: () => adopting,
+      startHub: async () => {},
+    });
+    try {
+      await listened;
+      const health = await router(new Request('http://sandbox/health'));
+      expect(health.status).toBe(503);
+      expect(await health.json()).toEqual({ status: 'starting' });
+      for (const [method, path] of [
+        ['POST', '/v1/drain'],
+        ['GET', '/v1/drain-status'],
+        ['GET', '/v1/sessions/existing'],
+      ] as const) {
+        const answer = await request(method, path);
+        expect({ method, path, status: answer.status }).toEqual({
+          method,
+          path,
+          status: 503,
+        });
+        expect(await answer.json()).toEqual({ error: 'session_unavailable' });
+      }
+    } finally {
+      adopted();
+      await boot;
+    }
+    const status = await request('GET', '/v1/drain-status');
+    expect(status.status).toBe(200);
+    expect(await status.json()).toMatchObject({ draining: false });
   });
 
   test('exec status forwards the incoming recovery cancellation signal', async () => {
