@@ -191,7 +191,18 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'automation run and a pending review. Args: {taskId: string, ' +
     'commentLimit?: number (≤ 50, default 20), commentCursor?: string, ' +
     'runLimit?: number (≤ 20, default 5), runCursor?: string, ' +
-    'reviewFileCursor?: string}. comments are ' +
+    'reviewFileCursor?: string}. For a compact run observation use only ' +
+    '{taskId, view: "occupancy", requestedRunId?: string}: no paging arguments. ' +
+    'Require output.view "occupancy" to confirm support; an older full reply ' +
+    'does not bind the requested run. It returns currentRun (newest) and, ' +
+    'when requested, that exact requestedRun, plus workflowRun and the server ' +
+    'observed read interval. A historical terminal run never replaces a newer ' +
+    'occupant. Missing/inaccessible requested runs fail; failures are unknown. ' +
+    'This omits instructions, comments, feedback, blockers and reviews. The ' +
+    'read is not atomic, does not reserve capacity and never authorizes a ' +
+    'start or review; read full current context and use guarded mutations. ' +
+    'A quarantined workflow remains held even though it is not live. ' +
+    'In the default full view, comments are ' +
     'the newest page, oldest first, each with its commentId (the messageId ' +
     'task_comment answered); while commentsPage.isDone is false, pass ' +
     'commentsPage.continueCursor as commentCursor for older ones. agentRuns ' +

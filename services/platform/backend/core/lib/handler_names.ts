@@ -367,6 +367,7 @@ interface HandlerNames {
       getTaskByIdInternal: FunctionRef;
       getTaskContextForAgent: FunctionRef;
       getTaskWorkStateForAgent: FunctionRef;
+      getTaskOccupancyForAgent: FunctionRef;
       getTaskReviewFilesForAgent: FunctionRef;
       listTasksForAgent: FunctionRef;
     };
