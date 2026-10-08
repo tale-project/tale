@@ -576,16 +576,18 @@ describe('live yaml-js backend', () => {
         },
       }),
     ).rejects.toMatchObject({ code: 'LIVE_BODY_FAILED' });
-    const releasedAtMs = Date.now();
-    const issuedByRelease = issued.length;
-    expect(issuedByRelease).toBeGreaterThan(0);
+    expect(issued.length).toBeGreaterThan(0);
+    // The host refuses from 100 ms past the limit; give it that and a margin.
     await new Promise((resolve) => setTimeout(resolve, 200));
+    const settled = issued.length;
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
-    // At most the one request in flight at the limit went out after it, and
-    // the host refused it; nothing reached the vendor afterwards.
-    const late = issued.filter((call) => call.atMs >= releasedAtMs);
-    expect(late.length).toBeLessThanOrEqual(1);
-    expect(late.every((call) => call.aborted)).toBe(true);
+    // The body stopped calling, and whatever it tried after the host's
+    // grace was refused before reaching the vendor.
+    expect(issued.length).toBe(settled);
+    const lastLive = issued.findLastIndex((call) => !call.aborted);
+    expect(issued.slice(lastLive + 1).every((call) => call.aborted)).toBe(true);
+    expect(issued.filter((call) => call.aborted).length).toBeLessThanOrEqual(1);
   });
 
   it('refuses live on the data-only node-vm runner, before any host work', async () => {

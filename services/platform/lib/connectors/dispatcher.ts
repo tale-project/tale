@@ -61,6 +61,8 @@ const MOCK_TIMEOUT_MS = 2000;
 /** A live body may chain several vendor calls, each individually capped by the
  * host, so its own ceiling is generous. */
 const DEFAULT_LIVE_TIMEOUT_MS = 60_000;
+/** How long after a live body's time limit its host calls start refusing. */
+const HOST_ABORT_GRACE_MS = 100;
 
 // ------------------------------------------------------------------ catalog
 
@@ -848,14 +850,19 @@ export async function executeConnectorAction(
       // refused here — so it shares the block whose failures are recorded.
       //
       // Nothing in this process can stop a yaml-js body at its time limit,
-      // but its host calls can be stopped: past the limit every ctx.http and
-      // ctx.files request rejects, so the body unwinds at its next host call
-      // instead of calling the vendor on after its caller was released.
+      // but its host calls can be stopped: shortly past the limit every
+      // ctx.http and ctx.files request rejects, so the body unwinds at its
+      // next host call instead of calling the vendor on after its caller was
+      // released. The grace lets the caller's own time-limit error land
+      // first, rather than the aborted request it causes.
       const hostSignal =
         nativeImpl === undefined && backend.kind === 'yaml-js'
           ? anySignal(
               ctx.signal,
-              AbortSignal.timeout(ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS),
+              AbortSignal.timeout(
+                (ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS) +
+                  HOST_ABORT_GRACE_MS,
+              ),
             )
           : ctx.signal;
       const host = createLiveHost({
