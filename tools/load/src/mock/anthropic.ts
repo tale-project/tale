@@ -119,6 +119,13 @@ function readAnthropicTurn(
     (toolsJson.length > 0 ? estimateTokens(toolsJson) : 0) +
     estimateTokens(systemText);
   const prefixTokens: number[] = [];
+  // Tools and the system prompt are a prefix of their own: a breakpoint on
+  // the system block (the usual one) caches them for the very next request,
+  // even when the conversation is a single message.
+  if (running > 0) {
+    prefixTokens.push(running);
+    hasher.commit();
+  }
   const toolNames = new Map<string, string>();
   let lastUserText = '';
   let toolResult: ChatTurnInput['toolResult'] = null;
