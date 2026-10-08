@@ -577,8 +577,10 @@ it settles the row as `stopped` while the spawner's inventory
 (`GET /v1/workspaces`) lists the workspace, or cannot be read: the next turn
 resumes it in place, same incarnation and harness conversation included. A
 render session, or an agent session whose workspace is gone, settles as
-destroyed. A create that fails after such a loss removes only compute
-(`?keep_workspace=1`, below), never the workspace it would have re-attached.
+destroyed, and so does a session on a connected device: the inventory lists
+this host's workspaces only. A create that fails after such a loss removes
+only compute (`?keep_workspace=1`, below), never the workspace it would have
+re-attached.
 
 A pin change succeeds only after runnerd and the backend's durable record
 acknowledge it. Failure returns 503 and keeps the last acknowledged `pinned`

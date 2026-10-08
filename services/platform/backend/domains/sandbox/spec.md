@@ -185,11 +185,12 @@ deletion counts as finished only once the files are confirmed deleted.
 
 ### SBX-R17 · A workspace outlives the sandbox it ran in
 
-When the sandbox of a project agent or an automation run disappears without a Destroy, for
-example because the host restarted or the sandbox ran out of memory, its workspace is kept and
-reads as stopped. The next turn goes on in its files. A start that fails after that removes
-only the sandbox it began, never the files. A crawler's temporary sandbox is closed instead,
-and so is a workspace the sandbox service no longer holds.
+When the sandbox of a project agent or an automation run on the Tale server disappears
+without a Destroy, for example because the host restarted or the sandbox ran out of memory, its
+workspace is kept and reads as stopped. The next turn goes on in its files. A start that fails
+after that removes only the sandbox it began, never the files. A crawler's temporary sandbox is
+closed instead, and so is a workspace the sandbox service no longer holds, or one on a
+connected device, which it does not list.
 
 - **Example**: Ada's agent is working on a task when the host restarts → the workspace reads
   **Stopped**, and the agent's next turn finds its files and goes on with its conversation.
