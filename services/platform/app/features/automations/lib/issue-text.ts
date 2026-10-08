@@ -8,9 +8,10 @@
  * catalog instead — for each code a short title, a plain explanation, the
  * concrete cause and the fix — interpolated with the params this module
  * prepares: node ids become the names the canvas shows, field names the
- * labels the inspector shows, lists one locale-formatted list. A code this
- * build does not know (a newer server) still reads as words: a generic
- * title, and the engine's own sentence as the cause.
+ * labels the inspector shows, lists one locale-formatted list, types the
+ * words for their kind ("a number", "text"). A code this build does not
+ * know (a newer server) still reads as words: a generic title and
+ * explanation, with the engine's own English left to the technical details.
  */
 
 import { CODE_META, CODES, type IssueCode } from '@/lib/engine/core/errors';
@@ -32,7 +33,8 @@ export interface IssueText {
   /** What to do about it. */
   fix: string;
   /** False for a code this build has no text for: then `cause` and `fix`
-   * are the engine's English message and hint. */
+   * are empty, and only the generic title and explanation are words — the
+   * engine's English message and hint belong to the technical details. */
   known: boolean;
 }
 
@@ -118,6 +120,8 @@ const SELECT_PARAMS: Partial<Record<IssueCode, readonly string[]>> = {
 const EXTRA_DERIVED: Partial<Record<IssueCode, readonly string[]>> = {
   REF_UNKNOWN_FIELD: ['sourceLabel'],
   UNCAUGHT_FAILURE: ['failingIsSource'],
+  TYPE_MISMATCH: ['expectedText', 'actualText'],
+  TESTS_EXPECT_TYPE: ['expectedText', 'actualText'],
 };
 
 function isIssueCode(code: string): code is IssueCode {
@@ -226,6 +230,73 @@ function asText(value: IssueParamValue | undefined): string | undefined {
     return String(value);
   }
   return undefined;
+}
+
+/** The kinds of value the catalog names in words (`kinds.<kind>`). */
+type ValueKind =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'null'
+  | 'undefined'
+  | 'array'
+  | 'object'
+  | 'other';
+
+/** `a | b` split where the `|` is not inside brackets or quotes. */
+function unionParts(type: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let open: string | null = null;
+  let start = 0;
+  for (let i = 0; i < type.length; i++) {
+    const ch = type[i];
+    if (open !== null) {
+      if (ch === '\\') i++;
+      else if (ch === open) open = null;
+    } else if (ch === '"' || ch === "'") open = ch;
+    else if (ch === '<' || ch === '{' || ch === '[' || ch === '(') depth++;
+    else if (ch === '>' || ch === '}' || ch === ']' || ch === ')') depth--;
+    else if (ch === '|' && depth === 0) {
+      parts.push(type.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(type.slice(start).trim());
+  return parts.filter((part) => part !== '');
+}
+
+function kindOfType(part: string): ValueKind {
+  if (part === 'string' || /^["'`]/.test(part)) return 'string';
+  if (part === 'number' || /^-?\d/.test(part)) return 'number';
+  if (part === 'boolean' || part === 'true' || part === 'false') {
+    return 'boolean';
+  }
+  if (part === 'null' || part === 'undefined') return part;
+  if (part === 'array' || part.startsWith('Array<') || part.endsWith('[]')) {
+    return 'array';
+  }
+  if (part.startsWith('[')) return 'array';
+  if (part === 'object' || part.startsWith('{') || part.startsWith('Record<')) {
+    return 'object';
+  }
+  return 'other';
+}
+
+/**
+ * A type as the engine writes it (`string | null`, `Array<number>`,
+ * `{ items: Array<number> }`) in words: the kinds of value it allows, as the
+ * catalog names them, joined with "or". The exact shape stays in the
+ * technical details.
+ */
+function typeText(ctx: IssueTextContext, type: string | undefined): string {
+  const kinds = [...new Set(unionParts(type ?? '').map(kindOfType))];
+  if (kinds.length === 0) return say(ctx.t, 'kinds.other');
+  return listOf(
+    ctx,
+    kinds.map((kind) => say(ctx.t, `kinds.${kind}`)),
+    'disjunction',
+  );
 }
 
 /** When a node is skipped, from the reasons a flow finding lists. */
@@ -355,6 +426,10 @@ export function issueParamsForText(
   if (code === 'UNCAUGHT_FAILURE') {
     values.failingIsSource = String(params.failing === params.source);
   }
+  if (code === 'TYPE_MISMATCH' || code === 'TESTS_EXPECT_TYPE') {
+    values.expectedText = typeText(ctx, asText(params.expected));
+    values.actualText = typeText(ctx, asText(params.actual));
+  }
   return values;
 }
 
@@ -365,8 +440,8 @@ export function issueText(issue: WireIssue, ctx: IssueTextContext): IssueText {
     return {
       title: say(ctx.t, 'unknownCode.title'),
       explanation: say(ctx.t, 'unknownCode.explanation'),
-      cause: issue.message,
-      fix: issue.hint ?? '',
+      cause: '',
+      fix: '',
       known: false,
     };
   }

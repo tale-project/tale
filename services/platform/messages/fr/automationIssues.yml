@@ -20,6 +20,15 @@ sources:
   ownInput: l’entrée de ce nœud
   passOutput: le résultat de ce passage
   data: ces données
+kinds:
+  string: du texte
+  number: un nombre
+  boolean: vrai ou faux
+  'null': 'null'
+  undefined: undefined
+  array: une liste
+  object: un objet
+  other: une autre sorte de valeur
 places:
   document: Automatisation
   output: Sortie
@@ -237,8 +246,8 @@ codes:
   TYPE_MISMATCH:
     title: La valeur a le mauvais type
     explanation: Une valeur arrive à un endroit qui attend un autre genre de données, donc le nœud risque d’échouer.
-    cause: '{consumer, select, forEach {« Pour chaque » de {nodeLabel} a besoin d’une liste, mais {expr} est {actual}.} subautomationInput {L’entrée « {property} » de {automationLabel} attend {expected}, mais {expr} est {actual}.} other {L’entrée « {property} » de {nodeLabel} attend {expected}, mais {expr} est {actual}.}}'
-    fix: '{consumer, select, forEach {Fais pointer « Pour chaque » vers une liste{suggestion, select, none {} other {, comme ''{{'' {expr}.{suggestion} ''}}''}}.} other {Passe une valeur de type {expected}.}}'
+    cause: '{consumer, select, forEach {« Pour chaque » de {nodeLabel} a besoin d’une liste, mais {expr} est {actualText}.} subautomationInput {L’entrée « {property} » de {automationLabel} attend {expectedText}, mais {expr} est {actualText}.} other {L’entrée « {property} » de {nodeLabel} attend {expectedText}, mais {expr} est {actualText}.}}'
+    fix: '{consumer, select, forEach {Fais pointer « Pour chaque » vers une liste{suggestion, select, none {} other {, comme ''{{'' {expr}.{suggestion} ''}}''}}.} other {Passe ici {expectedText}.}}'
   TEMPLATE_NULL_INTERPOLATION:
     title: Une valeur peut manquer dans le texte
     explanation: Une valeur insérée dans du texte peut être vide. Dans ce cas, le nœud échoue au lieu d’écrire « undefined » dans le texte.
@@ -256,7 +265,7 @@ codes:
     fix: Donne à chaque élément son propre nœud agent, ou fais le travail par élément dans un nœud llm.
   MAYBE_NULL:
     title: Lit un nœud qui peut être ignoré
-    explanation: Une condition ou la sortie lit un champ d’un nœud qui ne s’exécute pas toujours. Quand ce nœud est ignoré, sa sortie est vide, et lire l’un de ses champs échoue.
+    explanation: Une condition ou la sortie lit un nœud qui ne s’exécute pas toujours. Quand ce nœud est ignoré, sa sortie est vide. Lire l’un de ses champs échoue alors, tout comme l’insérer dans du texte.
     cause: '{place}, {ref} lit {sourceLabel}, qui est ignoré {reasonText}.'
     fix: Protège la lecture, par exemple avec {suggestion}. Ou ajoute un nœud alternatif avec « Sinon de ».
   UNCAUGHT_FAILURE:
@@ -317,7 +326,7 @@ codes:
   TESTS_EXPECT_TYPE:
     title: Le test attend le mauvais type
     explanation: Le test attend une valeur d’un type que l’automatisation ne renvoie jamais, donc il ne peut pas réussir.
-    cause: Le test « {name} » attend que output.{property} soit de type {expected}, mais l’automatisation y renvoie {actual}.
+    cause: Le test « {name} » attend que output.{property} soit {expectedText}, mais l’automatisation y renvoie {actualText}.
     fix: Corrige l’attente, ou modifie la sortie.
   LLM_MODEL_UNAVAILABLE:
     title: Le modèle n’est pas disponible

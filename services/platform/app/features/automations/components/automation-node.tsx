@@ -7,10 +7,9 @@ import {
   flowNodeIssueFrameClass,
   flowNodeIssueText,
 } from '@tale/ui/flow/node-issue-marker';
-import { ISSUE_SEVERITY_ICON_CLASS } from '@tale/ui/issue-severity';
 import type { IssueCounts } from '@tale/ui/issue-summary';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { AlertTriangle } from 'lucide-react';
+import { PinOff } from 'lucide-react';
 import { createContext, useContext, useMemo } from 'react';
 
 import type { NodeDef } from '@/lib/engine/core/types';
@@ -162,9 +161,12 @@ export function AutomationNodeBox({
             warnings={counts.warnings}
           />
           {agentHasUnpinnedModel(node) && (
+            // A note, not a problem: a muted glyph of its own, so it never
+            // reads as a warning the count beside it leaves out.
             <>
-              <AlertTriangle
-                className={cn('size-3.5', ISSUE_SEVERITY_ICON_CLASS.warning)}
+              <PinOff
+                data-slot="unpinned-model"
+                className="text-muted-foreground size-3.5"
                 aria-hidden="true"
               />
               <span className="sr-only">{t('canvas.unpinnedModel')}</span>

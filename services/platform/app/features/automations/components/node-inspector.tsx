@@ -486,12 +486,13 @@ export function NodeFields({
 
       {nodeIssues.length > 0 && (
         <Card padding="none">
-          <p
+          {/* Under the inspector's own h3, at the size of the rows it heads. */}
+          <h4
             id={nodeIssuesTitleId}
-            className="text-foreground px-3 pt-2 text-xs font-medium"
+            className="text-foreground px-3 pt-3 text-sm font-medium"
           >
             {t('problems.nodeTitle')}
-          </p>
+          </h4>
           <IssueList
             issues={nodeIssues}
             density="compact"

@@ -292,7 +292,7 @@ export function toIssueView(
     title: text.title,
     location: formatIssueLocation(issue, doc, ctx),
     explanation: text.explanation,
-    cause: text.cause,
+    ...(text.cause !== '' && { cause: text.cause }),
     ...(text.fix !== '' && { fix: text.fix }),
     code: issue.code,
     ...(technical !== '' && { technical }),
@@ -308,20 +308,37 @@ export function toIssueView(
 /**
  * The line a field shows under its control for one of its problems: the
  * issue's cause, led by the key inside the field it is about ("to: …") when
- * the problem is deeper than the field itself.
+ * the problem is deeper than the field itself and the cause does not
+ * already name that key. A problem this build has no words for reads its
+ * generic explanation; the engine's English stays in the technical details.
  */
 export function fieldIssueMessage(
   view: AutomationIssueView,
   t: IssueTranslate,
 ): string {
+  const { cause: itemCause, explanation } = view.item;
   const cause =
-    typeof view.item.cause === 'string' ? view.item.cause : view.issue.message;
+    typeof itemCause === 'string'
+      ? itemCause
+      : typeof explanation === 'string'
+        ? explanation
+        : '';
   if (view.navigation.kind !== 'field') return cause;
   const [, , , ...rest] = pointerTokens(view.navigation.anchor);
   if (rest.length === 0) return cause;
+  const part = rest.join('.');
+  // "The input "to" of …" says the key itself; "to: " before it would say
+  // it twice.
+  const params = view.issue.params ?? {};
+  const named = new Set(
+    [params.property, params.key].filter(
+      (value): value is string => typeof value === 'string',
+    ),
+  );
+  if (named.has(part) || named.has(rest.at(-1) ?? '')) return cause;
   return t('problems.fieldPart', {
     ns: 'automations',
-    part: rest.join('.'),
+    part,
     message: cause,
   });
 }

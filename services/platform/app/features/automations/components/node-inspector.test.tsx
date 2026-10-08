@@ -625,6 +625,10 @@ describe('NodeInspector problems', () => {
     );
     const list = screen.getByRole('list', { name: 'Problems in this node' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    // A heading under the inspector's own, as large as the rows it heads.
+    expect(
+      screen.getByRole('heading', { level: 4, name: 'Problems in this node' }),
+    ).toHaveClass('text-sm');
     // A static list: nothing in it is a "go to" button.
     expect(within(list).queryByRole('button')).toBeNull();
   });

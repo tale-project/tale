@@ -20,6 +20,49 @@ import { withIssueIds, type AutomationIssue } from '../lib/issues';
 /** How long the editor waits after the last edit before it checks a draft. */
 export const VALIDATION_DEBOUNCE_MS = 400;
 
+/**
+ * How long one check may take before the editor stops waiting for it. A
+ * check that hangs (a loaded server, a proxy that holds the connection)
+ * then counts as failed, and a failed check holds nothing back: Save waits
+ * only on a check that can still answer.
+ */
+export const VALIDATION_TIMEOUT_MS = 15_000;
+
+/** The check did not answer within {@link VALIDATION_TIMEOUT_MS}. */
+export class ValidationTimeoutError extends Error {
+  constructor() {
+    super('the check did not answer in time');
+    this.name = 'ValidationTimeoutError';
+  }
+}
+
+/** Runs `check` with a signal that also aborts after `ms`, and rejects then
+ * even if the request ignores its signal. */
+async function withinTime<T>(
+  signal: AbortSignal,
+  ms: number,
+  check: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const bounded = new AbortController();
+  const forward = () => bounded.abort(signal.reason);
+  if (signal.aborted) forward();
+  else signal.addEventListener('abort', forward, { once: true });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new ValidationTimeoutError();
+      bounded.abort(error);
+      reject(error);
+    }, ms);
+  });
+  try {
+    return await Promise.race([check(bounded.signal), late]);
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', forward);
+  }
+}
+
 /** The query entity of draft checks. No server hint names it: a check is
  * keyed by the document itself, so a new edit is a new key. */
 const VALIDATE_ENTITY = 'automation_validate';
@@ -150,10 +193,12 @@ export function useAutomationValidation({
       targetHash,
     ),
     queryFn: ({ signal }) =>
-      runAdapted(() =>
-        validateAutomationDraft(organizationId, automationSlug, target, {
-          signal,
-        }),
+      withinTime(signal, VALIDATION_TIMEOUT_MS, (bounded) =>
+        runAdapted(() =>
+          validateAutomationDraft(organizationId, automationSlug, target, {
+            signal: bounded,
+          }),
+        ),
       ),
     enabled: enabled && target !== null,
     retry: false,

@@ -18,13 +18,7 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { SegmentedControl } from '@tale/ui/segmented-control';
 import { X } from 'lucide-react';
-import {
-  forwardRef,
-  useId,
-  useState,
-  type KeyboardEvent,
-  type RefObject,
-} from 'react';
+import { forwardRef, useId, type KeyboardEvent, type RefObject } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -54,6 +48,27 @@ interface ProblemsContentProps {
   /** The problem the reader last went to. */
   activeId: string | null;
   onActivate: (item: IssueItem) => void;
+  /**
+   * Which problems the list shows. The editor owns it, so opening the panel
+   * and a refused save or deploy can show every problem again.
+   */
+  filter: ProblemsFilter;
+  onFilterChange: (next: ProblemsFilter) => void;
+}
+
+/** The counts in words — or, while a check runs with none to keep,
+ * "Checking…", as the Problems button says. */
+function CountsText({
+  counts,
+  status,
+}: {
+  counts: IssueCounts;
+  status: IssueListStatus;
+}) {
+  const { t } = useT('issues');
+  return status === 'checking' && counts.errors + counts.warnings === 0
+    ? t('checking')
+    : formatIssueCounts(t, counts);
 }
 
 /** The All / Errors / Warnings switch, sized to its labels in every language. */
@@ -83,8 +98,7 @@ function ProblemsFilterControl({
 
 const ProblemsList = forwardRef<
   IssueListHandle,
-  Omit<ProblemsContentProps, 'counts'> & {
-    filter: ProblemsFilter;
+  Omit<ProblemsContentProps, 'counts' | 'onFilterChange'> & {
     /** The heading that names the list, when the surface has one. */
     labelledBy?: string;
   }
@@ -130,12 +144,21 @@ export const AutomationProblemsDock = forwardRef<
   IssueListHandle,
   AutomationProblemsDockProps
 >(function AutomationProblemsDock(
-  { id, items, counts, status, activeId, onActivate, onClose },
+  {
+    id,
+    items,
+    counts,
+    status,
+    activeId,
+    onActivate,
+    filter,
+    onFilterChange,
+    onClose,
+  },
   ref,
 ) {
   const { t } = useT('automations');
   const titleId = useId();
-  const [filter, setFilter] = useState<ProblemsFilter>('all');
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape') return;
     // The inspector closes on Escape too; this one is the dock's.
@@ -157,9 +180,9 @@ export const AutomationProblemsDock = forwardRef<
           {t('problems.title')}
         </h2>
         <span className="text-muted-foreground text-xs tabular-nums">
-          {formatIssueCounts(t, counts)}
+          <CountsText counts={counts} status={status} />
         </span>
-        <ProblemsFilterControl value={filter} onChange={setFilter} />
+        <ProblemsFilterControl value={filter} onChange={onFilterChange} />
         <span className="flex-1" aria-hidden="true" />
         <IconButton
           icon={X}
@@ -209,11 +232,12 @@ export function AutomationProblemsSheet({
   status,
   activeId,
   onActivate,
+  filter,
+  onFilterChange,
   listRef,
   handingOn,
 }: AutomationProblemsSheetProps) {
   const { t } = useT('automations');
-  const [filter, setFilter] = useState<ProblemsFilter>('all');
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent
@@ -222,8 +246,9 @@ export function AutomationProblemsSheet({
         preventCloseAutoFocus={handingOn}
         onOpenAutoFocus={(event) => {
           // Start on a problem, not on the filter: going to one is what
-          // the sheet is for.
-          if (items.length === 0) return;
+          // the sheet is for. With no row on show, the dialog's own focus
+          // stays, so focus never remains behind the sheet.
+          if (filterItems(items, filter).length === 0) return;
           event.preventDefault();
           listRef.current?.focus();
         }}
@@ -233,14 +258,14 @@ export function AutomationProblemsSheet({
             out alike; only the list scrolls. */}
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="flex flex-col gap-1 pr-8">
-            <ResponsiveDialogTitle className="text-base font-medium">
+            <ResponsiveDialogTitle className="text-base font-semibold">
               {t('problems.title')}
             </ResponsiveDialogTitle>
             <ResponsiveDialogDescription className="text-muted-foreground text-sm tabular-nums">
-              {formatIssueCounts(t, counts)}
+              <CountsText counts={counts} status={status} />
             </ResponsiveDialogDescription>
           </div>
-          <ProblemsFilterControl value={filter} onChange={setFilter} />
+          <ProblemsFilterControl value={filter} onChange={onFilterChange} />
           <Card padding="none" className="min-h-0 overflow-y-auto">
             <ProblemsList
               ref={listRef}

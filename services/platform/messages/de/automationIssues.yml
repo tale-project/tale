@@ -20,6 +20,15 @@ sources:
   ownInput: der Eingabe dieser Node
   passOutput: dem Ergebnis dieses Durchgangs
   data: diesen Daten
+kinds:
+  string: Text
+  number: eine Zahl
+  boolean: wahr oder falsch
+  'null': 'null'
+  undefined: undefined
+  array: eine Liste
+  object: ein Objekt
+  other: ein anderer Wert
 places:
   document: Automatisierung
   output: Ausgabe
@@ -237,8 +246,8 @@ codes:
   TYPE_MISMATCH:
     title: Wert hat den falschen Typ
     explanation: Ein Wert landet an einer Stelle, die eine andere Art von Daten braucht. Die Node schlägt deshalb wahrscheinlich fehl.
-    cause: '{consumer, select, forEach {„Für jedes“ von {nodeLabel} braucht eine Liste, aber {expr} ist {actual}.} subautomationInput {Die Eingabe „{property}“ von {automationLabel} braucht {expected}, aber {expr} ist {actual}.} other {Die Eingabe „{property}“ von {nodeLabel} braucht {expected}, aber {expr} ist {actual}.}}'
-    fix: '{consumer, select, forEach {Lass „Für jedes“ auf eine Liste zeigen{suggestion, select, none {} other {, etwa ''{{'' {expr}.{suggestion} ''}}''}}.} other {Übergib einen Wert vom Typ {expected}.}}'
+    cause: '{consumer, select, forEach {„Für jedes“ von {nodeLabel} braucht eine Liste, aber {expr} ist {actualText}.} subautomationInput {Die Eingabe „{property}“ von {automationLabel} braucht {expectedText}, aber {expr} ist {actualText}.} other {Die Eingabe „{property}“ von {nodeLabel} braucht {expectedText}, aber {expr} ist {actualText}.}}'
+    fix: '{consumer, select, forEach {Lass „Für jedes“ auf eine Liste zeigen{suggestion, select, none {} other {, etwa ''{{'' {expr}.{suggestion} ''}}''}}.} other {Übergib hier {expectedText}.}}'
   TEMPLATE_NULL_INTERPOLATION:
     title: Wert im Text kann fehlen
     explanation: Ein Wert, der in Text eingesetzt wird, kann leer sein. Dann schlägt die Node fehl, statt „undefined“ in den Text zu schreiben.
@@ -256,7 +265,7 @@ codes:
     fix: Gib jedem Element seine eigene Agent-Node oder erledige die Arbeit pro Element in einer llm-Node.
   MAYBE_NULL:
     title: Liest eine Node, die übersprungen werden kann
-    explanation: Eine Bedingung oder die Ausgabe liest ein Feld einer Node, die nicht immer läuft. Wird diese Node übersprungen, ist ihre Ausgabe leer, und das Lesen eines ihrer Felder schlägt fehl.
+    explanation: Eine Bedingung oder die Ausgabe liest eine Node, die nicht immer läuft. Wird diese Node übersprungen, ist ihre Ausgabe leer. Dann schlägt das Lesen eines ihrer Felder fehl, ebenso wie das Einsetzen der Ausgabe in Text.
     cause: '{place} liest {ref} aus {sourceLabel}, die übersprungen wird, {reasonText}.'
     fix: Sichere das Lesen ab, zum Beispiel mit {suggestion}. Oder füge mit „Sonst zu“ eine alternative Node hinzu.
   UNCAUGHT_FAILURE:
@@ -317,7 +326,7 @@ codes:
   TESTS_EXPECT_TYPE:
     title: Test erwartet den falschen Typ
     explanation: Der Test erwartet einen Wert von einem Typ, den die Automatisierung nie zurückgibt. Er kann deshalb nicht bestehen.
-    cause: Der Test „{name}“ erwartet für output.{property} den Typ {expected}, aber die Automatisierung gibt dort {actual} zurück.
+    cause: Der Test „{name}“ erwartet für output.{property} {expectedText}, aber die Automatisierung gibt dort {actualText} zurück.
     fix: Korrigiere die Erwartung oder ändere die Ausgabe.
   LLM_MODEL_UNAVAILABLE:
     title: Modell ist nicht verfügbar

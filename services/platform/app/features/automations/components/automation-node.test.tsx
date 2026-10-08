@@ -235,6 +235,25 @@ describe('AutomationNodeBox', () => {
     expect(button).toHaveAccessibleName(/\(1 warning\)$/);
   });
 
+  it('marks an unpinned model with a muted note, never a second warning', () => {
+    render(
+      <AutomationNodeBox
+        node={{ id: 'research', type: 'agent', model: 'openai/gpt-4o' }}
+        selected={false}
+        inspectorId="inspector"
+        sources={[]}
+        issueCounts={{ errors: 0, warnings: 1 }}
+        onSelect={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole('button');
+    const note = button.querySelector('[data-slot="unpinned-model"]');
+    expect(note).toHaveClass('lucide-pin-off', 'text-muted-foreground');
+    expect(note?.getAttribute('class')).not.toMatch(/amber|destructive/);
+    // The one triangle on the node is the counted warning's.
+    expect(button.querySelectorAll('.lucide-triangle-alert')).toHaveLength(1);
+  });
+
   it('says nothing more without problems', () => {
     render(
       <AutomationNodeBox

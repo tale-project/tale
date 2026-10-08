@@ -496,6 +496,8 @@ problems:
   checkFailed: 'Impossible de vérifier ce brouillon, la liste n’est donc peut-être plus à jour. Tu peux quand même enregistrer : chaque enregistrement est vérifié.'
   refusedSave: L’enregistrement a été refusé
   refusedDeploy: Cette version a des problèmes qui empêchent sa mise en service. Ils sont listés dans Problèmes.
+  refusedDeployDraft: Cette version a des problèmes qui empêchent sa mise en service. Abandonne ton brouillon pour les voir dans Problèmes.
+  open: Afficher les problèmes
   notEditableHere: Cette partie de l’automatisation ne se modifie pas ici. Modifie-la via MCP, l’API ou un paquet téléversé.
   nodeTitle: Problèmes de ce nœud
   filter:

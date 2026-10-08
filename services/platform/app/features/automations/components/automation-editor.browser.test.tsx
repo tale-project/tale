@@ -801,6 +801,57 @@ describe('automation editor workbench in Chromium', () => {
     },
   );
 
+  it('reopens the Problems sheet on every problem, so focus never stays behind it', async () => {
+    check.errors = [CODE_PROBLEM];
+    await page.viewport(900, 800);
+    renderEditorTab();
+    const button = await screen.findByRole('button', {
+      name: 'Problems: 1 error',
+    });
+    await userEvent.click(button);
+    const sheet = await screen.findByRole('dialog', { name: 'Problems' });
+    await userEvent.click(
+      within(sheet).getByRole('radio', { name: 'Warnings' }),
+    );
+    await vi.waitFor(() =>
+      expect(within(sheet).getByText('No warnings')).toBeVisible(),
+    );
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Problems' })).toBeNull(),
+    );
+
+    await userEvent.click(button);
+    const reopened = await screen.findByRole('dialog', { name: 'Problems' });
+    expect(
+      within(reopened).getByRole('radio', { name: 'All' }),
+    ).toHaveAttribute('aria-checked', 'true');
+    const row = within(reopened).getByRole('button', { name: /Error:/ });
+    await vi.waitFor(() => expect(row).toHaveFocus());
+  });
+
+  it('takes the reader from the phone node sheet to the problems that hold Save', async () => {
+    check.errors = [CODE_PROBLEM];
+    await page.viewport(390, 844);
+    renderEditorTab();
+    // The error is in "diff"; the reader edits "summary".
+    await selectNode('summary');
+    const nodeSheet = await screen.findByRole('dialog');
+    await userEvent.type(
+      within(nodeSheet).getByRole('textbox', { name: 'Code' }),
+      ' ',
+    );
+    expect(within(nodeSheet).getByText('Fix 1 error to save')).toBeVisible();
+    await userEvent.click(
+      within(nodeSheet).getByRole('button', { name: 'Show problems' }),
+    );
+
+    const sheet = await screen.findByRole('dialog', { name: 'Problems' });
+    const row = within(sheet).getByRole('button', { name: /Error:/ });
+    await vi.waitFor(() => expect(row).toHaveFocus());
+    expect(screen.queryByRole('dialog', { name: 'summary' })).toBeNull();
+  });
+
   it('says why Save waits in a visible line on a phone', async () => {
     check.errors = [CODE_PROBLEM];
     await page.viewport(390, 844);

@@ -291,6 +291,43 @@ describe('fieldIssueMessage', () => {
     expect(message).toContain(typeof cause === 'string' ? cause : '');
   });
 
+  it('does not lead with the key when the cause already names it', () => {
+    const [found] = withIssueIds([
+      issue({
+        code: 'TYPE_MISMATCH',
+        at: { pointer: '/nodes/1/input/to' },
+        params: {
+          node: 'draft_reply',
+          consumer: 'connector',
+          property: 'to',
+          expr: '{{ input.count }}',
+          expected: 'string',
+          actual: 'number',
+        },
+      }),
+    ]);
+    if (found === undefined) throw new Error('no issue');
+    const view = toIssueView(found, DOC, { locale: 'en', t, controlsOf });
+    expect(fieldIssueMessage(view, t)).toBe(view.item.cause);
+  });
+
+  it('reads the generic explanation for a code this build does not know', () => {
+    const [found] = withIssueIds([
+      issue({
+        code: 'SOMETHING_NEWER',
+        message: 'node "draft_reply": something the server learned later',
+        at: { pointer: '/nodes/1/prompt' },
+        params: { node: 'draft_reply' },
+      }),
+    ]);
+    if (found === undefined) throw new Error('no issue');
+    const view = toIssueView(found, DOC, { locale: 'en', t, controlsOf });
+    expect(view.item.cause).toBeUndefined();
+    expect(view.item.fix).toBeUndefined();
+    expect(view.item.technical).toContain('something the server learned');
+    expect(fieldIssueMessage(view, t)).toBe(view.item.explanation);
+  });
+
   it('is the cause alone for a problem with the field itself', () => {
     const [found] = withIssueIds([
       issue({

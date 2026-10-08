@@ -17,6 +17,8 @@ import {
   documentHash,
   useAutomationValidation,
   VALIDATION_DEBOUNCE_MS,
+  VALIDATION_TIMEOUT_MS,
+  ValidationTimeoutError,
 } from './use-automation-validation';
 
 /**
@@ -195,6 +197,44 @@ describe('useAutomationValidation', () => {
     expect(result.current.errors).toHaveLength(1);
     // One attempt: a failed check is shown, not retried behind the reader.
     expect(validate).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops waiting for a check that hangs, so Save is not held back', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    validate.mockResolvedValueOnce(answer([ISSUE]));
+    const { result, rerender } = renderValidation({
+      document: doc('A'),
+      isDraft: false,
+      enabled: true,
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    let seen: AbortSignal | undefined;
+    validate.mockImplementation(
+      (
+        _org: string,
+        _slug: string,
+        _doc: unknown,
+        opts: { signal: AbortSignal },
+      ) => {
+        seen = opts.signal;
+        return new Promise(() => {});
+      },
+    );
+    rerender({ document: doc('B'), isDraft: true, enabled: true });
+    act(() => {
+      vi.advanceTimersByTime(VALIDATION_DEBOUNCE_MS);
+    });
+    await waitFor(() => expect(validate).toHaveBeenCalledTimes(2));
+    expect(result.current.status).toBe('checking');
+    act(() => {
+      vi.advanceTimersByTime(VALIDATION_TIMEOUT_MS);
+    });
+    await waitFor(() => expect(result.current.status).toBe('failed'));
+    expect(result.current.failure).toBeInstanceOf(ValidationTimeoutError);
+    // The request is told to stop as well.
+    expect(seen?.aborted).toBe(true);
+    expect(result.current.errors).toHaveLength(1);
   });
 
   it('answers a document already checked from the cache', async () => {

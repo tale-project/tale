@@ -494,6 +494,8 @@ problems:
   checkFailed: Dieser Entwurf konnte nicht geprüft werden, deshalb ist die Liste möglicherweise nicht aktuell. Speichern kannst du trotzdem, und jedes Speichern wird geprüft.
   refusedSave: Speichern abgelehnt
   refusedDeploy: Diese Version hat Probleme, die das Live-Schalten verhindern. Du findest sie unter Probleme.
+  refusedDeployDraft: Diese Version hat Probleme, die das Live-Schalten verhindern. Verwirf deinen Entwurf, um sie unter Probleme zu sehen.
+  open: Probleme anzeigen
   notEditableHere: Dieser Teil der Automatisierung lässt sich hier nicht bearbeiten. Ändere ihn über MCP, die API oder ein hochgeladenes Paket.
   nodeTitle: Probleme in dieser Node
   filter:

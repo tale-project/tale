@@ -1855,6 +1855,88 @@ describe('AutomationEditor problems', () => {
     expect(screen.getByRole('region', { name: 'Problems' })).toBeVisible();
   });
 
+  it('says a draft check only when its counts change', async () => {
+    const { user } = renderPage();
+    const status = () => screen.getByRole('status');
+    // The stored version had no problems: a clean draft is no news.
+    await editTheNode(user);
+    await user.type(whenField(), 'y');
+    expect(status()).toBeEmptyDOMElement();
+    validationMock.errors = withIssueIds([promptError]);
+    await user.type(whenField(), 'z');
+    await waitFor(() => expect(status()).toHaveTextContent('1 error'));
+    const spoken = status().firstElementChild;
+    // The same count after the next pause in typing is not said again.
+    await user.type(whenField(), 'w');
+    expect(status().firstElementChild).toBe(spoken);
+    validationMock.errors = [];
+    await user.type(whenField(), 'v');
+    await waitFor(() => expect(status()).toHaveTextContent('No problems'));
+  });
+
+  it('shows every problem again on a refusal, whatever the list was filtered to', async () => {
+    saveMutation.mutateAsync = vi.fn().mockRejectedValue(refusal());
+    const { user } = renderPage();
+    await user.click(problemsButton());
+    const dock = screen.getByRole('region', { name: 'Problems' });
+    await user.click(within(dock).getByRole('radio', { name: 'Warnings' }));
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+
+    const row = await within(dock).findByRole('button', { name: /Error:/ });
+    await waitFor(() => expect(row).toHaveFocus());
+    expect(within(dock).getByRole('radio', { name: 'All' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
+  it('says "Checking…" above an empty list while the first check runs', async () => {
+    validationMock.status = 'checking';
+    const { user } = renderPage();
+    await user.click(problemsButton());
+    const dock = screen.getByRole('region', { name: 'Problems' });
+    expect(within(dock).getAllByText('Checking…')).toHaveLength(2);
+    expect(within(dock).queryByText('No problems')).toBeNull();
+  });
+
+  it('says a refused deploy once: the alert names it, the announcer counts', async () => {
+    deploy.mutate.mockImplementation(
+      (
+        _args: unknown,
+        handlers: { onError: (error: unknown) => void } | undefined,
+      ) => {
+        handlers?.onError(refusal());
+      },
+    );
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(/^1 error$/),
+    );
+  });
+
+  it('words a refused deploy with a draft on screen in the reader’s language', async () => {
+    deploy.mutate.mockImplementation(
+      (
+        _args: unknown,
+        handlers: { onError: (error: unknown) => void } | undefined,
+      ) => {
+        handlers?.onError(refusal());
+      },
+    );
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    expect(
+      screen.getByText(
+        'This version has problems that block deploying it. Discard your draft to see them in Problems.',
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/automation failed validation/)).toBeNull();
+  });
+
   it("says why a problem outside the nodes can't be gone to", async () => {
     validationMock.errors = withIssueIds([
       {

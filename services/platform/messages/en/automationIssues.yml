@@ -25,6 +25,15 @@ sources:
   ownInput: this node's input
   passOutput: this pass's result
   data: this data
+kinds:
+  string: text
+  number: a number
+  boolean: true or false
+  'null': 'null'
+  undefined: undefined
+  array: a list
+  object: an object
+  other: another kind of value
 places:
   document: Automation
   output: Output
@@ -242,8 +251,8 @@ codes:
   TYPE_MISMATCH:
     title: Value has the wrong type
     explanation: A value reaches a place that needs a different kind of data, so the node is likely to fail.
-    cause: '{consumer, select, forEach {"For each" of {nodeLabel} needs a list, but {expr} is {actual}.} subautomationInput {The input "{property}" of {automationLabel} needs {expected}, but {expr} is {actual}.} other {The input "{property}" of {nodeLabel} needs {expected}, but {expr} is {actual}.}}'
-    fix: '{consumer, select, forEach {Point "For each" at a list{suggestion, select, none {} other {, such as ''{{'' {expr}.{suggestion} ''}}''}}.} other {Pass a value of type {expected}.}}'
+    cause: '{consumer, select, forEach {"For each" of {nodeLabel} needs a list, but {expr} is {actualText}.} subautomationInput {The input "{property}" of {automationLabel} needs {expectedText}, but {expr} is {actualText}.} other {The input "{property}" of {nodeLabel} needs {expectedText}, but {expr} is {actualText}.}}'
+    fix: '{consumer, select, forEach {Point "For each" at a list{suggestion, select, none {} other {, such as ''{{'' {expr}.{suggestion} ''}}''}}.} other {Pass {expectedText} here.}}'
   TEMPLATE_NULL_INTERPOLATION:
     title: Value may be missing inside text
     explanation: A value placed inside text can be empty. When it is, the node fails instead of writing "undefined" into the text.
@@ -261,7 +270,7 @@ codes:
     fix: Give each item its own agent node, or do the per-item work in an llm node.
   MAYBE_NULL:
     title: Reads a node that may be skipped
-    explanation: A condition or the output reads a field of a node that doesn't always run. When that node is skipped, its output is empty and reading a field of it fails.
+    explanation: A condition or the output reads a node that doesn't always run. When that node is skipped, its output is empty, so reading a field of it fails, and so does placing it inside text.
     cause: '{place}, {ref} reads {sourceLabel}, which is skipped {reasonText}.'
     fix: Guard the read, for example {suggestion}. Or add an alternative node with "Else of".
   UNCAUGHT_FAILURE:
@@ -322,7 +331,7 @@ codes:
   TESTS_EXPECT_TYPE:
     title: Test expects the wrong type
     explanation: The test expects a value of a type the automation never returns, so it can't pass.
-    cause: The test "{name}" expects output.{property} to be {expected}, but the automation returns {actual} there.
+    cause: The test "{name}" expects output.{property} to be {expectedText}, but the automation returns {actualText} there.
     fix: Fix the expectation, or change the output.
   LLM_MODEL_UNAVAILABLE:
     title: Model isn't available

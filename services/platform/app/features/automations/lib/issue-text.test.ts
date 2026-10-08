@@ -239,7 +239,7 @@ describe('issueText — what a person reads', () => {
     expect(issueText(issue, context('en'))).toEqual({
       title: 'Reads a node that may be skipped',
       explanation:
-        "A condition or the output reads a field of a node that doesn't always run. When that node is skipped, its output is empty and reading a field of it fails.",
+        "A condition or the output reads a node that doesn't always run. When that node is skipped, its output is empty, so reading a field of it fails, and so does placing it inside text.",
       cause:
         'In the automation output, nodes.check.output.ok reads "check", which is skipped when its own condition is false or when "load rows" is skipped.',
       fix: 'Guard the read, for example nodes.check.output?.ok ?? null. Or add an alternative node with "Else of".',
@@ -297,14 +297,72 @@ describe('issueText — what a person reads', () => {
       },
       context('fr'),
     );
+    // The engine's English belongs to the technical details, never to the
+    // cause a French reader takes for the app's own words.
     expect(text).toEqual({
       title: 'Problème sans description',
       explanation:
         'Cette version de l’application ne décrit pas encore ce problème. Les détails techniques montrent le message du moteur lui-même.',
-      cause: 'node "x": something the server learned later',
-      fix: 'do the newer thing',
+      cause: '',
+      fix: '',
       known: false,
     });
+  });
+
+  it('says a type in words, not in the engine’s type syntax', () => {
+    const scalar: WireIssue = {
+      level: 'warning',
+      code: 'TYPE_MISMATCH',
+      message: '',
+      params: {
+        node: 'weather',
+        consumer: 'connector',
+        property: 'city',
+        expr: '{{ nodes.calc.output.count }}',
+        expected: 'string',
+        actual: 'number | null',
+      },
+    };
+    expect(issueText(scalar, context('en'))).toMatchObject({
+      cause:
+        'The input "city" of "weather" needs text, but {{ nodes.calc.output.count }} is a number or null.',
+      fix: 'Pass text here.',
+    });
+    expect(issueText(scalar, context('de')).cause).toBe(
+      'Die Eingabe „city“ von „weather“ braucht Text, aber {{ nodes.calc.output.count }} ist eine Zahl oder null.',
+    );
+    expect(issueText(scalar, context('fr')).fix).toBe('Passe ici du texte.');
+    const compound: WireIssue = {
+      level: 'warning',
+      code: 'TYPE_MISMATCH',
+      message: '',
+      params: {
+        node: 'each',
+        consumer: 'forEach',
+        expr: '{{ nodes.load.output }}',
+        expected: 'array',
+        actual: '{ items: Array<number> }',
+        suggestion: 'items',
+      },
+    };
+    expect(issueText(compound, context('de')).cause).toBe(
+      '„Für jedes“ von „each“ braucht eine Liste, aber {{ nodes.load.output }} ist ein Objekt.',
+    );
+    const test: WireIssue = {
+      level: 'warning',
+      code: 'TESTS_EXPECT_TYPE',
+      message: '',
+      params: {
+        test: 0,
+        name: 'counts',
+        property: 'count',
+        expected: 'number',
+        actual: 'Array<string>',
+      },
+    };
+    expect(issueText(test, context('fr')).cause).toBe(
+      'Le test «\u00a0counts\u00a0» attend que output.count soit un nombre, mais l’automatisation y renvoie une liste.',
+    );
   });
 
   it('names the level', () => {

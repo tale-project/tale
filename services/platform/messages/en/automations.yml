@@ -483,6 +483,8 @@ problems:
   checkFailed: Couldn't check this draft, so the list may be out of date. You can still save, and every save is checked.
   refusedSave: Saving was refused
   refusedDeploy: This version has problems that block deploying it. Problems lists them.
+  refusedDeployDraft: This version has problems that block deploying it. Discard your draft to see them in Problems.
+  open: Show problems
   notEditableHere: This part of the automation can't be edited here. Change it through MCP, the API or an uploaded package.
   nodeTitle: Problems in this node
   filter:

@@ -113,6 +113,7 @@ import { AutomationEditorActions } from './automation-editor-actions';
 import {
   AutomationProblemsDock,
   AutomationProblemsSheet,
+  type ProblemsFilter,
 } from './automation-problems';
 import {
   AutomationRunDialog,
@@ -492,9 +493,17 @@ function AutomationEditorScope({
     [issueViews, selectedNodeId],
   );
   const [problemsOpen, setProblemsOpen] = useState(false);
+  /** Which problems the panel shows; every open and every refusal starts
+   * on all of them, so no filter hides what the reader came for. */
+  const [problemsFilter, setProblemsFilter] = useState<ProblemsFilter>('all');
   const [activeIssueId, setActiveIssueId] = useState<string | null>(null);
   /** The Problems sheet is closing to take the reader to a field. */
   const [handingOn, setHandingOn] = useState(false);
+  /** The phone's node sheet is closing onto the Problems sheet. */
+  const [nodeSheetHandsOn, setNodeSheetHandsOn] = useState(false);
+  useEffect(() => {
+    if (selectedNodeId !== null) setNodeSheetHandsOn(false);
+  }, [selectedNodeId]);
   /** Focus the list once the panel has opened: on its current row, or on
    * the first error when a refusal opened it. */
   const [focusProblems, setFocusProblems] = useState<
@@ -505,19 +514,42 @@ function AutomationEditorScope({
   const problemsButtonRef = useRef<HTMLButtonElement>(null);
   const problemsListRef = useRef<IssueListHandle>(null);
   const problemsDockId = useId();
-  /** One sentence per settled check of a draft, and one per refusal. */
+  /** One sentence when a draft's check changes the counts, and one per
+   * refusal. A check runs at every pause in typing; the same counts again
+   * are no news, so they are not said again. */
   const [announcement, setAnnouncement] = useState<{
     key: number;
     context?: string;
   }>({ key: 0 });
-  const announcedHashRef = useRef<string | null>(null);
+  /** The counts last said — seeded by the stored version's own check, so
+   * the first pause in editing a clean version says nothing. */
+  const announcedCountsRef = useRef<IssueCounts | null>(null);
   useEffect(() => {
-    if (draft === null || validation.status !== 'ready') return;
-    if (validation.settledFor === null) return;
-    if (announcedHashRef.current === validation.settledFor) return;
-    announcedHashRef.current = validation.settledFor;
+    if (validation.status !== 'ready' || validation.settledFor === null) {
+      return;
+    }
+    const counts = {
+      errors: validation.errors.length,
+      warnings: validation.warnings.length,
+    };
+    const last = announcedCountsRef.current;
+    announcedCountsRef.current = counts;
+    if (draft === null) return;
+    if (
+      last !== null &&
+      last.errors === counts.errors &&
+      last.warnings === counts.warnings
+    ) {
+      return;
+    }
     setAnnouncement((previous) => ({ key: previous.key + 1 }));
-  }, [draft, validation.status, validation.settledFor]);
+  }, [
+    draft,
+    validation.status,
+    validation.settledFor,
+    validation.errors,
+    validation.warnings,
+  ]);
   useEffect(() => {
     if (focusProblems === null || !problemsOpen) return undefined;
     const frame = requestAnimationFrame(() => {
@@ -531,9 +563,13 @@ function AutomationEditorScope({
     return () => cancelAnimationFrame(frame);
   }, [focusProblems, problemsOpen, issueViews]);
 
-  /** Show what a refused save or deploy listed, and take the reader there. */
+  /**
+   * Show what a refused save or deploy listed, and take the reader there.
+   * `context` leads the spoken counts; leave it out where an alert already
+   * says what was refused.
+   */
   const showRefusal = useCallback(
-    (refused: AutomationErrorIssues, hash: string, context: string) => {
+    (refused: AutomationErrorIssues, hash: string, context?: string) => {
       setServerIssues({
         hash,
         errors: withIssueIds(refused.errors),
@@ -541,9 +577,17 @@ function AutomationEditorScope({
         basis: validation.errors,
       });
       setHandingOn(false);
+      setProblemsFilter('all');
       setProblemsOpen(true);
       setFocusProblems('firstError');
-      setAnnouncement((previous) => ({ key: previous.key + 1, context }));
+      announcedCountsRef.current = {
+        errors: refused.errors.length,
+        warnings: refused.warnings.length,
+      };
+      setAnnouncement((previous) => ({
+        key: previous.key + 1,
+        ...(context !== undefined && { context }),
+      }));
     },
     [validation.errors],
   );
@@ -553,6 +597,7 @@ function AutomationEditorScope({
       return;
     }
     setHandingOn(false);
+    setProblemsFilter('all');
     setProblemsOpen(true);
     // Opening lands on the list's current row, so the arrow keys walk it at
     // once. The sheet does that itself as it opens; the dock is no dialog.
@@ -561,6 +606,16 @@ function AutomationEditorScope({
   const closeProblems = (): void => {
     setProblemsOpen(false);
     problemsButtonRef.current?.focus();
+  };
+  /** From the phone's node sheet, where Save waits on problems the canvas
+   * toolbar's button lists: close the node, open the list on its errors. */
+  const showProblemsFromNode = (): void => {
+    setNodeSheetHandsOn(true);
+    setSelectedNodeId(null);
+    setHandingOn(false);
+    setProblemsFilter('all');
+    setProblemsOpen(true);
+    setFocusProblems('firstError');
   };
   /** "Go to": pick the node, then focus the field and select the text. */
   const goToIssue = (item: IssueItem): void => {
@@ -951,11 +1006,17 @@ function AutomationEditorScope({
                     draft === null ? refusalIssues(error) : undefined;
                   const hash = validation.currentHash;
                   if (refused !== undefined && hash !== null) {
-                    showRefusal(refused, hash, t('versions.deployRefused'));
+                    // The alert says the deploy was refused (it is read
+                    // out); the announcer adds only the counts.
+                    showRefusal(refused, hash);
                     setDeployRefusal(t('problems.refusedDeploy'));
                     return;
                   }
-                  setDeployRefusal(automationErrorMessage(error));
+                  setDeployRefusal(
+                    automationErrorCode(error) === 'AUTOMATION_INVALID'
+                      ? t('problems.refusedDeployDraft')
+                      : automationErrorMessage(error),
+                  );
                 },
               },
             );
@@ -1221,6 +1282,8 @@ function AutomationEditorScope({
                 status={issueStatus === 'idle' ? 'ready' : issueStatus}
                 activeId={activeIssueId}
                 onActivate={goToIssue}
+                filter={problemsFilter}
+                onFilterChange={setProblemsFilter}
                 onClose={closeProblems}
               />
             )}
@@ -1265,6 +1328,8 @@ function AutomationEditorScope({
           status={issueStatus === 'idle' ? 'ready' : issueStatus}
           activeId={activeIssueId}
           onActivate={goToIssue}
+          filter={problemsFilter}
+          onFilterChange={setProblemsFilter}
           listRef={problemsListRef}
           handingOn={handingOn}
         />
@@ -1298,6 +1363,8 @@ function AutomationEditorScope({
           <ResponsiveDialogContent
             hideClose
             className="flex max-h-[85dvh] flex-col"
+            // Closing onto the Problems sheet: its list takes focus.
+            preventCloseAutoFocus={nodeSheetHandsOn}
           >
             {selectedNode !== null && (
               <>
@@ -1328,7 +1395,21 @@ function AutomationEditorScope({
                   nodeIndex={selectedNodeIndex}
                 />
                 {canAuthor && (
-                  <div className="bg-background border-border sticky bottom-0 z-10 -mb-6 flex items-center justify-end gap-2 border-t pt-3 pb-6">
+                  <div className="bg-background border-border sticky bottom-0 z-10 -mb-6 flex flex-wrap items-center justify-end gap-2 border-t pt-3 pb-6">
+                    {/* The problems that hold Save back may sit in other
+                        nodes, and the Problems button is behind this
+                        sheet: a way there beside the reason. */}
+                    {saveBlocked && isDirty && (
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="mr-auto px-0"
+                        onClick={showProblemsFromNode}
+                      >
+                        {t('problems.open')}
+                      </Button>
+                    )}
                     {/* No pointer hovers a sheet: why Save waits is a
                         visible line here, not a tooltip. */}
                     <AutomationEditorActions inlineReason />

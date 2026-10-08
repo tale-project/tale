@@ -59,8 +59,8 @@ codes:
     cause: '{place} liest {ref} das Feld «{key}» aus {sourceLabel}, aber dieses Feld gibt es dort nicht.{listWrapped, select, true { Dieser Wert ist eine Liste.} other {{knownCount, plural, =0 {} other { Vorhandene Felder: {knownList}.}}}}'
     fix: '{suggestion, select, none {{listWrapped, select, true {Lies ein einzelnes Element der Liste oder gehe sie mit map durch.} other {{root, select, input {{field, select, code {Füge «{key}» der Eingabe dieser Node hinzu, um den Wert weiterzureichen.} other {Deklariere «{key}» im Eingabeschema oder lies ein Feld, das es deklariert.}}} other {Verwende ein vorhandenes Feld oder ändere, was diese Daten erzeugt.}}}}} other {Meintest du «{suggestion}»?}}'
   TYPE_MISMATCH:
-    cause: '{consumer, select, forEach {«Für jedes» von {nodeLabel} braucht eine Liste, aber {expr} ist {actual}.} subautomationInput {Die Eingabe «{property}» von {automationLabel} braucht {expected}, aber {expr} ist {actual}.} other {Die Eingabe «{property}» von {nodeLabel} braucht {expected}, aber {expr} ist {actual}.}}'
-    fix: '{consumer, select, forEach {Lass «Für jedes» auf eine Liste zeigen{suggestion, select, none {} other {, etwa ''{{'' {expr}.{suggestion} ''}}''}}.} other {Übergib einen Wert vom Typ {expected}.}}'
+    cause: '{consumer, select, forEach {«Für jedes» von {nodeLabel} braucht eine Liste, aber {expr} ist {actualText}.} subautomationInput {Die Eingabe «{property}» von {automationLabel} braucht {expectedText}, aber {expr} ist {actualText}.} other {Die Eingabe «{property}» von {nodeLabel} braucht {expectedText}, aber {expr} ist {actualText}.}}'
+    fix: '{consumer, select, forEach {Lass «Für jedes» auf eine Liste zeigen{suggestion, select, none {} other {, etwa ''{{'' {expr}.{suggestion} ''}}''}}.} other {Übergib hier {expectedText}.}}'
   TEMPLATE_NULL_INTERPOLATION:
     explanation: Ein Wert, der in Text eingesetzt wird, kann leer sein. Dann schlägt die Node fehl, statt «undefined» in den Text zu schreiben.
   FOREACH_NOT_ARRAY:
@@ -88,6 +88,6 @@ codes:
     cause: Der Test «{name}» erwartet «{connector}».{possibleCount, plural, =0 { Keine Node hier führt eine Aktion aus.} one { Die Nodes hier führen {possibleList} aus.} other { Die Nodes hier führen {possibleList} aus.}}
     fix: '{suggestion, select, none {Erwarte eine Aktion, die eine Node ausführt.} other {Meintest du «{suggestion}»?}}'
   TESTS_EXPECT_TYPE:
-    cause: Der Test «{name}» erwartet für output.{property} den Typ {expected}, aber die Automatisierung gibt dort {actual} zurück.
+    cause: Der Test «{name}» erwartet für output.{property} {expectedText}, aber die Automatisierung gibt dort {actualText} zurück.
   LLM_MODEL_UNAVAILABLE:
     cause: '{nodeLabel} verwendet «{model}», das kein verbundener Anbieter bereitstellt.'
