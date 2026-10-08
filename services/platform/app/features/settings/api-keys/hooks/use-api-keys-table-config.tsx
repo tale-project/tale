@@ -13,6 +13,7 @@ import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
+import { ApiKeyExpiresCell } from '../components/api-key-expires-cell';
 import { ApiKeyRowActions } from '../components/api-key-row-actions';
 import type { ApiKey } from '../types';
 
@@ -46,7 +47,8 @@ export function useApiKeysTableConfig(
         id: 'key',
         header: tSettings('apiKeys.columns.key'),
         // Progressive disclosure on narrow screens: name + actions always show;
-        // the key and dates reveal as the viewport widens.
+        // the key and its expiry, then the other dates, reveal as the
+        // viewport widens.
         meta: { className: 'hidden sm:table-cell' },
         cell: ({ row }) => {
           const head = row.original.start || row.original.prefix;
@@ -64,6 +66,15 @@ export function useApiKeysTableConfig(
             </Text>
           );
         },
+      },
+      {
+        id: 'expires',
+        header: tSettings('apiKeys.columns.expires'),
+        size: 140,
+        meta: { className: 'hidden sm:table-cell' },
+        cell: ({ row }) => (
+          <ApiKeyExpiresCell expiresAt={row.original.expiresAt} />
+        ),
       },
       {
         id: 'created',
