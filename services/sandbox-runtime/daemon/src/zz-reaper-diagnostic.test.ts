@@ -50,7 +50,7 @@ test.skipIf(process.platform !== 'linux')('DIAGNOSTIC: how a setsid survivor is 
   const envBytes = Object.entries(process.env).reduce((n, [k, v]) => n + k.length + 1 + (v?.length ?? 0) + 1, 0);
   let procCount = '';
   try { procCount = (await readFile('/proc/loadavg', 'utf8')).trim(); } catch (e) { console.warn(e); }
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 24; i++) {
     const execId = `diag-finished-${i}`;
     const sent: Array<[number, string, number]> = [];
     let t1 = 0;
@@ -78,12 +78,13 @@ test.skipIf(process.platform !== 'linux')('DIAGNOSTIC: how a setsid survivor is 
     manager.cancel(`diag-peer-${i}`);
     await peer;
     t1 = performance.now();
+    const seenAtReap = await environTag(survivor);
     const until = t1 + 9_000;
     while (running(survivor) && performance.now() < until) await Bun.sleep(5);
     const endedAfterMs = Math.round(performance.now() - t1);
     const stillRunning = running(survivor);
     const statusAtEnd = statusLines(survivor);
-    stats.push({ i, survivor, msToExit: Math.round(t1 - t0), seenAtStart, scanAtStart, seenAfterExit, statusAfterExit, toSurvivor: sent.filter(([p]) => p === survivor), allSent: sent, endedAfterMs, stillRunning, statusAtEnd });
+    stats.push({ i, survivor, msToExit: Math.round(t1 - t0), seenAtStart, scanAtStart, seenAfterExit, seenAtReap, statusAfterExit, toSurvivor: sent.filter(([p]) => p === survivor), allSent: sent, endedAfterMs, stillRunning, statusAtEnd });
     await manager.terminateAll();
     await Promise.all([peer, done]);
     try { process.kill(survivor, 'SIGKILL'); } catch (e) { console.warn(e); }
