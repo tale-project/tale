@@ -438,7 +438,7 @@ default means deleting the override and fixing what surfaces:
 - **The session-bound connector runner has no caller** — agent connector calls through the
   sandbox bridge run on the in-process live runner (2026-10), so nothing starts a live
   connector body as a `node -e` program in a session any more. The machinery for it stays:
-  `engine_exec_runner.ts` (`codeRunnerForSession`), `lib/connectors/portable-live.ts`,
+  `engine_exec_runner.ts` (`sandboxProgramRunnerForSession`), the sandbox-exec runner, `lib/connectors/portable-live.ts`,
   `core/connectors/hostcall_token.ts`, the `/api/connectors/hostcall` route in
   `domains/connectors/bridge-routes.ts` with its body limit in
   `domains/sandbox/door-body-limit.ts`, the dispatcher's portable branch, the hostcall secret
