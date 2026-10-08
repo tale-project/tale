@@ -1574,17 +1574,36 @@ dataSubjectRequests:
     userPreferences: Préférences utilisateur
     messageFeedback: Retours sur messages
     fileMetadata: Fichiers déposés en chat
-    usageLedger: Journal de consommation de tokens
+    usageLedger: "Relevés d'utilisation"
     twoFactorAttempts: Tentatives 2FA
     policyAcknowledgements: Accusés de réception de politiques
     onedrive: Configurations de synchronisation OneDrive
     googleDriveSync: Configurations de synchronisation Google Drive
     userCloudAuthorizations: Autorisations d'importation cloud
     loginAttempts: Tentatives de connexion et verrouillages
-    notifications: Notifications de sécurité
+    notifications: Notifications
     wfExecutions: Exécutions d'automatisation
     promptTemplates: Prompts personnels
     sandboxWorkspaces: Espaces de travail de sandbox
+    threads: Chats
+    documents: Documents
+    uploads: Fichiers téléversés
+    preferences: Préférences
+    subscriptions: Tâches suivies
+    feedback: Retours sur messages
+    memories: Mémoires personnelles
+    modelApiRequests: Requêtes aux endpoints de modèles
+    directCalls: Appels directs aux modèles
+    videoLinks: Liens vidéo
+    cloudGrants: "Autorisations d'importation cloud"
+    syncConfigs: Configurations de synchronisation cloud
+    websiteScanNotes: Analyses de sites web demandées par la personne
+    orgNotifications: Notifications de sécurité la concernant
+    automationRuns: "Exécutions d'automatisation"
+    agentRuns: "Exécutions d'agents"
+    reviewDecisions: Décisions de relecture
+    authState: Tentatives de connexion et de double authentification
+    auditScrub: "Entrées du journal d'audit"
   legalHoldBlock:
     title: Effacement bloqué par une rétention légale
     orgHeld: Une rétention organisationnelle préserve toutes les entités de ce
