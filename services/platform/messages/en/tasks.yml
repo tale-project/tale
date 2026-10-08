@@ -294,7 +294,6 @@ delete:
   error: "Couldn't delete task"
 detail:
   overview: Overview
-  comments: Comments
   commentCount: '{count, plural, one {# comment} other {# comments}}'
   noComments: No comments yet.
   conversation: Conversation
@@ -309,7 +308,6 @@ detail:
   copyKey: 'Copy {key}'
   keyCopied: '{key} copied'
   showEarlierComments: Show earlier comments
-  activity: Activity
   subtasks: Subtasks
   addSubtask: Add a subtask…
   addDescription: Add a description…
@@ -452,6 +450,7 @@ agentRuns:
   working: Agent is working…
   needsAnswer: Waiting for your answer
   totalCost: '{amount} total'
+  costLabel: Agent cost
   status:
     queued: Queued
     running: Running

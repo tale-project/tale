@@ -2,7 +2,38 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TaskActivityRow, TaskAgentRunRow } from '../utils/task-timeline';
-import { TaskTimeline } from './task-timeline';
+import {
+  TaskTimelineEntry,
+  timelineItemKey,
+  useTaskTimeline,
+} from './task-timeline';
+
+/** Every line of a task's history, each as the conversation draws it. */
+function TaskTimeline({
+  taskId,
+  organizationId,
+  projectId,
+}: {
+  taskId: string;
+  organizationId: string;
+  projectId: string;
+}) {
+  const { timeline, runs } = useTaskTimeline(taskId);
+  return (
+    <ul>
+      {timeline.map((item) => (
+        <li key={timelineItemKey(item)}>
+          <TaskTimelineEntry
+            item={item}
+            runs={runs}
+            organizationId={organizationId}
+            projectId={projectId}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 // Typed as the row the timeline actually consumes, so a fixture can carry any
 // real `actorType` and the shape cannot drift from `TaskActivityRow`.

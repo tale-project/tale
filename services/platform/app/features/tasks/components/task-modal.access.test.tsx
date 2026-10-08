@@ -128,9 +128,7 @@ vi.mock('@/app/features/shared/files/use-file-upload', () => ({
 }));
 vi.mock('./task-comments', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./task-comments')>()),
-  TaskCommentComposer: ({ variant }: { variant?: string }) => (
-    <div data-testid="task-comment-composer" data-variant={variant} />
-  ),
+  TaskCommentComposer: () => <div data-testid="task-comment-composer" />,
   TaskCommentComposerSkeleton: () => null,
 }));
 vi.mock('./task-conversation', () => ({
@@ -265,7 +263,6 @@ describe('TaskModal — the discussion', () => {
     const conversation = await screen.findByTestId('task-conversation');
     expect(conversation).toHaveAttribute('data-task-id', baseTask._id);
     const composer = screen.getByTestId('task-comment-composer');
-    expect(composer).toHaveAttribute('data-variant', 'chat');
     // The composer answers the thread from under it, as on the page.
     expect(
       conversation.compareDocumentPosition(composer) &

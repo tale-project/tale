@@ -85,7 +85,6 @@ import { ActorDirectoryProvider } from '../hooks/task-actor-directory';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import { useDescriptionCap } from '../hooks/use-description-cap';
 import { useTaskAccess } from '../hooks/use-task-access';
-import { TaskLogViewport } from '../hooks/use-task-log-window';
 import {
   plannedTransitionKind,
   useTaskStatusChoreography,
@@ -163,6 +162,7 @@ import { TaskStatusBadge } from './task-status-badge';
 import { TaskStatusGlyph } from './task-status-glyph';
 import { TaskSubjectPanel } from './task-subject-panel';
 import { TaskThreadColumn } from './task-thread-column';
+import { formatCents, useTaskTimeline } from './task-timeline';
 import { TaskWatchControl } from './task-watch-control';
 
 /** Strip the client-only `previewUrl` so the value matches the mutations'
@@ -337,7 +337,6 @@ function ModalLayout({
       };
     }
 )) {
-  const mainScrollRef = useRef<HTMLDivElement>(null);
   return (
     <Stack className="min-h-0 flex-1">
       <div className="shrink-0">{header}</div>
@@ -364,11 +363,10 @@ function ModalLayout({
           />
         ) : (
           <Stack
-            ref={mainScrollRef}
             gap={5}
             className="min-w-0 flex-1 md:-ml-2 md:min-h-0 md:overflow-y-auto md:py-0.5 md:pr-6 md:pl-2"
           >
-            <TaskLogViewport scrollRef={mainScrollRef}>{main}</TaskLogViewport>
+            {main}
           </Stack>
         )}
         <PropertyList
@@ -380,6 +378,23 @@ function ModalLayout({
       </div>
       {footer && <div className="shrink-0">{footer}</div>}
     </Stack>
+  );
+}
+
+/** What the task's agent runs cost together. Each run's own cost stays on its
+ *  line in the conversation; the total is a fact about the task, so it sits
+ *  with its details — also once the task moved on to a person. Absent until a
+ *  run cost anything. */
+function TaskAgentCostField({ taskId }: { taskId: string }) {
+  const { t } = useT('tasks');
+  const { totalCostCents } = useTaskTimeline(taskId);
+  if (totalCostCents <= 0) return null;
+  return (
+    <PropertyRow label={t('agentRuns.costLabel')}>
+      <Text as="span" className="text-sm tabular-nums">
+        {t('agentRuns.totalCost', { amount: formatCents(totalCostCents) })}
+      </Text>
+    </PropertyRow>
   );
 }
 
@@ -2120,7 +2135,6 @@ export function EditTaskBody({
       taskId={task._id}
       organizationId={task.organizationId}
       projectId={task.projectId}
-      variant="chat"
       {...(task.assigneeType === 'agent' && task.assigneeId
         ? { hint: t('actions.commentAgentHint') }
         : {})}
@@ -2272,6 +2286,7 @@ export function EditTaskBody({
           />
         </PropertyRow>
       )}
+      <TaskAgentCostField taskId={task._id} />
       {/* The automation lane's twin: the latest subject-linked run's
                 state and its step timeline, kept after the run finished so
                 the result can still be audited from the task. Absent until a

@@ -295,7 +295,6 @@ delete:
   error: Impossible de supprimer la tâche
 detail:
   overview: Aperçu
-  comments: Commentaires
   commentCount: '{count, plural, one {# commentaire} other {# commentaires}}'
   noComments: Aucun commentaire pour le moment.
   conversation: Conversation
@@ -310,7 +309,6 @@ detail:
   copyKey: 'Copier {key}'
   keyCopied: '{key} copié'
   showEarlierComments: Afficher les commentaires précédents
-  activity: Activité
   subtasks: Sous-tâches
   addSubtask: Ajouter une sous-tâche…
   addDescription: Ajouter une description…
@@ -455,6 +453,7 @@ agentRuns:
   working: L'agent travaille…
   needsAnswer: En attente de ta réponse
   totalCost: '{amount} au total'
+  costLabel: Coût des agents
   status:
     queued: En attente
     running: En cours
