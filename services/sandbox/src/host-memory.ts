@@ -12,7 +12,7 @@
 
 import { release } from 'node:os';
 
-import { parseMemory } from './capacity.ts';
+import { parseMemory } from './proc-stats.ts';
 import { runDocker, type RunDockerResult } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 import type { SandboxSessionProfile } from './wire.ts';

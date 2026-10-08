@@ -5,11 +5,13 @@
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
 
+import type { K8sClient } from './backend/kubernetes/k8s-client.ts';
 import {
-  apiTimeout,
-  makeK8sClient,
-  type K8sClient,
-} from './backend/kubernetes/k8s-client.ts';
+  type CpuCounters,
+  parseCpuCounters,
+  parseMemory,
+  usedCpuCores,
+} from './proc-stats.ts';
 import {
   belongsToInstance,
   SESSION_INSTANCE_LABEL,
@@ -25,6 +27,14 @@ export type RuntimeState = 'running' | 'starting' | 'stopped';
 const PREVIOUS_CPU_SAMPLE_MAX_AGE_MS = 30_000;
 /** How long an unprimed poll waits for its own second sample. */
 const CPU_PRIME_SAMPLE_MS = 1_000;
+/** How long the host's fixed facts hold: its CPU count, memory total and
+ * kernel, and whether this process's /proc describes it. They change only
+ * with a daemon or host restart, and each read forks the Docker CLI while the
+ * live inventory is already one fork per five seconds. */
+const HOST_FACTS_TTL_MS = 10 * 60_000;
+/** A Docker endpoint that could not be resolved is asked again sooner, so a
+ * busy CLI does not hide host usage for ten minutes. */
+const UNRESOLVED_ENDPOINT_TTL_MS = 30_000;
 
 export interface RuntimeObservation {
   sessionId: string | null;
@@ -66,6 +76,16 @@ interface InfrastructureSnapshot {
   observedAt: number;
   sessions: RuntimeObservation[];
   resources: HostResources;
+}
+
+interface HostFacts {
+  observedAt: number;
+  ttlMs: number;
+  totalCores: number | null;
+  totalBytes: number | null;
+  /** This process's /proc describes the Docker host: the standard local
+   * socket and the daemon's own kernel. Totals must still agree per read. */
+  local: boolean;
 }
 
 function unavailableResources(): HostResources {
@@ -142,68 +162,6 @@ function parseDockerSessions(
   return sessions;
 }
 
-export interface CpuCounters {
-  total: number;
-  idle: number;
-  cores: number;
-}
-
-/** /proc/stat guest times are already included in user/nice; sum the first
- * eight counters only. I/O wait is idle here. See docs.kernel.org/filesystems/proc.html. */
-export function parseCpuCounters(stat: string): CpuCounters | null {
-  const line = stat.split('\n').find((entry) => /^cpu\s/.test(entry));
-  if (line === undefined) return null;
-  const times = line.trim().split(/\s+/).slice(1, 9).map(Number);
-  const cores = stat
-    .split('\n')
-    .filter((entry) => /^cpu\d+\s/.test(entry)).length;
-  if (
-    times.length < 4 ||
-    cores < 1 ||
-    times.some((value) => !Number.isFinite(value) || value < 0)
-  )
-    return null;
-  return {
-    total: times.reduce((sum, value) => sum + value, 0),
-    idle: (times[3] ?? 0) + (times[4] ?? 0),
-    cores,
-  };
-}
-
-export function usedCpuCores(
-  before: CpuCounters | null,
-  after: CpuCounters,
-): number | null {
-  if (before === null || before.cores !== after.cores) return null;
-  const total = after.total - before.total;
-  const idle = after.idle - before.idle;
-  if (total <= 0 || idle < 0 || idle > total) return null;
-  return ((total - idle) / total) * after.cores;
-}
-
-/** MemAvailable includes reclaimable cache; MemFree alone exaggerates usage. */
-export function parseMemory(meminfo: string): {
-  totalBytes: number;
-  usedBytes: number;
-} | null {
-  const read = (key: string): number | null => {
-    const match = meminfo.match(new RegExp(`^${key}:\\s+(\\d+)\\s+kB$`, 'm'));
-    return match ? positive(Number(match[1]) * 1024) : null;
-  };
-  const total = read('MemTotal');
-  // Zero available memory is a valid observation, unlike an absent field.
-  const availableMatch = meminfo.match(/^MemAvailable:\s+(\d+)\s+kB$/m);
-  const available = availableMatch ? Number(availableMatch[1]) * 1024 : null;
-  if (
-    total === null ||
-    available === null ||
-    available < 0 ||
-    available > total
-  )
-    return null;
-  return { totalBytes: total, usedBytes: total - available };
-}
-
 function commandOutput(result: RunDockerResult): string {
   if (result.exitCode !== 0 || result.stdoutTruncated) {
     throw new Error('Docker capacity observation failed');
@@ -227,12 +185,17 @@ export class CapacityReader {
   private inFlight: Promise<InfrastructureSnapshot> | null = null;
   private previousCpu: CpuCounters | null = null;
   private previousCpuAt = 0;
+  private hostFacts: HostFacts | null = null;
+  private hostFactsInFlight: Promise<HostFacts> | null = null;
+  /** Whether the current run of unresolvable endpoints has been reported:
+   * once per run, not every 30 s while the page is polled. */
+  private endpointWarned = false;
   private readonly docker: typeof runDocker;
   private readonly read: (path: string) => Promise<string>;
   private readonly kernelRelease: () => string;
   private readonly now: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
-  private readonly client: K8sClient | undefined;
+  private client: K8sClient | undefined;
 
   constructor(
     private readonly cfg: SpawnerConfig,
@@ -246,10 +209,7 @@ export class CapacityReader {
     this.sleep =
       deps.sleep ??
       ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-    this.client =
-      cfg.backend === 'kubernetes'
-        ? (deps.client ?? makeK8sClient(cfg.k8s.namespace))
-        : undefined;
+    this.client = deps.client;
   }
 
   async forOrganization(organizationId: string): Promise<SandboxCapacity> {
@@ -316,7 +276,12 @@ export class CapacityReader {
   }
 
   private async observe(): Promise<InfrastructureSnapshot> {
-    if (this.client !== undefined) {
+    if (this.cfg.backend === 'kubernetes') {
+      // The Kubernetes API client is loaded only where it is used: it holds
+      // about 100 MiB resident, which a Docker spawner never needs.
+      const { apiTimeout, makeK8sClient } =
+        await import('./backend/kubernetes/k8s-client.ts');
+      this.client ??= makeK8sClient(this.cfg.k8s.namespace);
       const response = await this.client.core.listNamespacedPod(
         {
           namespace: this.cfg.k8s.namespace,
@@ -387,7 +352,26 @@ export class CapacityReader {
     };
   }
 
-  private async observeHost(): Promise<HostResources> {
+  /** The host's fixed facts, read at most once per HOST_FACTS_TTL_MS;
+   * concurrent snapshots share one read. A failed `docker info` is not kept:
+   * the next snapshot asks again. */
+  private readHostFacts(): Promise<HostFacts> {
+    const facts = this.hostFacts;
+    if (facts !== null && this.now() - facts.observedAt < facts.ttlMs) {
+      return Promise.resolve(facts);
+    }
+    this.hostFactsInFlight ??= this.observeHostFacts()
+      .then((observed) => {
+        this.hostFacts = observed;
+        return observed;
+      })
+      .finally(() => {
+        this.hostFactsInFlight = null;
+      });
+    return this.hostFactsInFlight;
+  }
+
+  private async observeHostFacts(): Promise<HostFacts> {
     const info = record(
       JSON.parse(
         commandOutput(
@@ -402,13 +386,18 @@ export class CapacityReader {
         ),
       ),
     );
-    const resources: HostResources = {
-      cpu: { totalCores: positive(info?.cpus), usedCores: null },
-      memory: { totalBytes: positive(info?.memory), usedBytes: null },
+    const facts: HostFacts = {
+      observedAt: this.now(),
+      ttlMs: HOST_FACTS_TTL_MS,
+      totalCores: positive(info?.cpus),
+      totalBytes: positive(info?.memory),
+      local: false,
     };
     // Standard local socket only. With a remote daemon or Docker Desktop,
     // the spawner's /proc can describe another machine: retain daemon totals,
     // but leave usage unknown. Totals/kernel must agree as a second guard.
+    // The spawner image sets DOCKER_HOST, so only a spawner run outside it
+    // asks the CLI for its context's endpoint.
     let endpoint: unknown;
     try {
       endpoint =
@@ -427,15 +416,32 @@ export class CapacityReader {
                 ),
               ),
             );
-    } catch {
-      this.previousCpu = null;
-      return resources;
+    } catch (error) {
+      if (!this.endpointWarned) {
+        this.endpointWarned = true;
+        console.warn(
+          `[sandbox] cannot resolve the Docker endpoint; host usage stays unknown (asked again every ${UNRESOLVED_ENDPOINT_TTL_MS / 1000} s, reported once until it resolves):`,
+          error,
+        );
+      }
+      facts.ttlMs = UNRESOLVED_ENDPOINT_TTL_MS;
+      return facts;
     }
-    if (
-      (endpoint !== 'unix:///var/run/docker.sock' &&
-        endpoint !== 'unix:///run/docker.sock') ||
-      info?.kernel !== this.kernelRelease()
-    ) {
+    this.endpointWarned = false;
+    facts.local =
+      (endpoint === 'unix:///var/run/docker.sock' ||
+        endpoint === 'unix:///run/docker.sock') &&
+      info?.kernel === this.kernelRelease();
+    return facts;
+  }
+
+  private async observeHost(): Promise<HostResources> {
+    const facts = await this.readHostFacts();
+    const resources: HostResources = {
+      cpu: { totalCores: facts.totalCores, usedCores: null },
+      memory: { totalBytes: facts.totalBytes, usedBytes: null },
+    };
+    if (!facts.local) {
       this.previousCpu = null;
       return resources;
     }
