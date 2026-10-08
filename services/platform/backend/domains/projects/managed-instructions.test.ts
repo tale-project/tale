@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
+import { prepareSurfaceText } from '../collab/mention-directory.ts';
 import { notifyTaskMentions } from '../collab/service.ts';
 import {
   readTaskInstructionsConfiguration,
@@ -25,7 +25,13 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 vi.mock('../events/emit.ts', () => ({ emitEvent: vi.fn() }));
 vi.mock('../collab/mention-directory.ts', () => ({
-  resolveSurfaceMentions: vi.fn(),
+  prepareSurfaceText: vi.fn(async (_sql: unknown, args: { body: string }) => ({
+    text: args.body,
+    mentions: [],
+    added: [],
+    unresolvedMentionTokens: [],
+    invalidTokens: [],
+  })),
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('../collab/service.ts', () => ({
@@ -360,7 +366,12 @@ describe('managed instruction adoption and preconditions', () => {
       { ...config.task, description: 'Coordinate with @agent-a and @owner.' },
       hash(config.task),
     );
-    expect(resolveSurfaceMentions).not.toHaveBeenCalled();
+    // Its mentions are checked, never rewritten: the stored text is the sent
+    // one, so the hash the lane reads back is the hash it wrote.
+    expect(prepareSurfaceText).toHaveBeenCalledWith(
+      db.tx,
+      expect.objectContaining({ mode: 'verbatim' }),
+    );
     expect(notifyTaskMentions).not.toHaveBeenCalled();
     expect(
       db
@@ -376,6 +387,29 @@ describe('managed instruction adoption and preconditions', () => {
       }),
     );
   });
+  it('refuses a mention token naming someone who cannot be mentioned on the task [COLLAB-R12]', async () => {
+    vi.mocked(prepareSurfaceText).mockResolvedValueOnce({
+      text: '[@Ada](mention:user/outsider) please',
+      mentions: [],
+      added: [],
+      unresolvedMentionTokens: ['Ada'],
+      invalidTokens: [{ type: 'user', id: 'outsider' }],
+    });
+    const db = database();
+    await expect(
+      updateTaskInstructionsConfiguration(
+        db.tx,
+        auth,
+        {
+          ...config.task,
+          description: '[@Ada](mention:user/outsider) please',
+        },
+        hash(config.task),
+      ),
+    ).rejects.toMatchObject({ code: 'TASK_DESCRIPTION_INVALID' });
+    expect(db.writes()).toEqual([]);
+  });
+
   it('reads only scoped owned text and hashes it, without equipment or live task fields', async () => {
     const { tx } = database();
     expect(

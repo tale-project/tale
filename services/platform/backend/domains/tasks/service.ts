@@ -38,14 +38,17 @@ import {
 } from '../../core/tasks/audit_actions.ts';
 import {
   TASK_ATTACHMENTS_MAX,
+  TASK_DESCRIPTION_MAX,
   taskDescriptionRefusal,
   taskLabelCountRefusal,
   taskLabelNameRefusal,
   taskTitleRefusal,
 } from '../../core/tasks/helpers.ts';
 import {
+  descriptionMentionMode,
+  editIntroducesMentions,
   type MentionSource,
-  parseMentionTokens,
+  type ResolvedMention,
 } from '../../core/tasks/mentions.ts';
 import { TASK_PRIORITIES } from '../../core/tasks/metadata.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
@@ -54,7 +57,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
+import { prepareSurfaceText } from '../collab/mention-directory.ts';
 import {
   autoSubscribe,
   dismissReviewerAssignedNotifications,
@@ -1345,7 +1348,7 @@ export async function createTask(
   assertTaskCreatable(project, auth);
 
   const title = validateTitle(args.title);
-  const description = validateDescription(args.description);
+  const sentDescription = validateDescription(args.description);
   const labelIds = await resolveProjectLabels(tx, {
     organizationId: auth.organizationId,
     projectId: args.projectId,
@@ -1408,6 +1411,21 @@ export async function createTask(
       throw new TaskError('TASK_PARENT_ARCHIVED', 'Parent archived');
     }
   }
+
+  // The description is stored with its mentions as whom they name, before
+  // the row is written.
+  const prepared =
+    sentDescription === undefined ||
+    !editIntroducesMentions(sentDescription, '')
+      ? undefined
+      : await prepareSurfaceText(tx, {
+          organizationId: auth.organizationId,
+          projectId: args.projectId,
+          body: sentDescription,
+          cap: TASK_DESCRIPTION_MAX,
+          mode: 'full',
+        });
+  const description = prepared?.text ?? sentDescription;
 
   const now = Date.now();
   const rank = await computeEndRank(tx, args.projectId, status);
@@ -1502,11 +1520,12 @@ export async function createTask(
   }
   // After the In progress kick, so an agent the card was born working for
   // keeps its run: one engine per task, and the dispatcher yields to it.
-  if (description !== undefined) {
+  if (prepared !== undefined && description !== undefined) {
     await fanOutDescriptionMentions(tx, auth, {
       taskId,
       project,
       description,
+      added: prepared.added,
     });
   }
   // Before the review gate: a named agent put to work moves the card to In
@@ -1651,12 +1670,29 @@ export async function updateTaskInstructionsConfiguration(
     expectedHash,
   );
   if ((task.description ?? '') === description) return;
+  // Stored exactly as sent, so the hash the caller reads back is the one it
+  // wrote; a mention token it adds must still name someone who can be
+  // mentioned on the task.
+  const check = await prepareSurfaceText(tx, {
+    organizationId: auth.organizationId,
+    projectId: config.projectId,
+    body: description,
+    cap: TASK_DESCRIPTION_MAX,
+    mode: 'verbatim',
+    previousBody: task.description ?? '',
+  });
+  if (check.invalidTokens.length > 0) {
+    throw new TaskError(
+      'TASK_DESCRIPTION_INVALID',
+      `The description mentions someone who cannot be mentioned on this task: ${check.invalidTokens.map((ref) => `${ref.type}/${ref.id}`).join(', ')}`,
+    );
+  }
   await updateTaskFields(
     tx,
     auth,
     { taskId: config.taskId, description },
     undefined,
-    { notifyDescriptionMentions: false },
+    { notifyDescriptionMentions: false, storeVerbatim: true },
   );
 }
 
@@ -1675,7 +1711,12 @@ async function updateTaskFields(
   auth: ProjectAuthContext,
   args: UpdateTaskArgs,
   agentId?: string,
-  options: { notifyDescriptionMentions?: boolean } = {},
+  options: {
+    notifyDescriptionMentions?: boolean;
+    /** Store the description exactly as sent (the managed lane, which has
+     * checked its mentions itself). */
+    storeVerbatim?: boolean;
+  } = {},
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
@@ -1703,11 +1744,32 @@ async function updateTaskFields(
     }
   }
   let description = task.description;
+  let addedMentions: ResolvedMention[] = [];
   if (args.description !== undefined) {
     description =
       args.description === null
         ? null
         : (validateDescription(args.description) ?? null);
+    // An edit is a new write: what it adds is stored as whom it names, while
+    // the mentions already there stay as written. Most edits add none, and
+    // then no directory is built.
+    if (
+      description !== null &&
+      description !== task.description &&
+      options.storeVerbatim !== true &&
+      editIntroducesMentions(description, task.description ?? '')
+    ) {
+      const prepared = await prepareSurfaceText(tx, {
+        organizationId: auth.organizationId,
+        projectId: task.projectId,
+        body: description,
+        cap: TASK_DESCRIPTION_MAX,
+        mode: descriptionMentionMode(task.externalSystem),
+        previousBody: task.description ?? '',
+      });
+      description = prepared.text;
+      addedMentions = prepared.added;
+    }
     if (description !== task.description) {
       previousState.description = task.description;
       newState.description = description;
@@ -1999,7 +2061,7 @@ async function updateTaskFields(
       taskId: task.id,
       project,
       description,
-      previousDescription: task.description ?? '',
+      added: addedMentions,
     });
   }
 }
@@ -2497,7 +2559,7 @@ export async function agentCreateTaskTrusted(
     throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
   }
   const title = validateTitle(args.title);
-  const description = validateDescription(args.description);
+  const sentDescription = validateDescription(args.description);
   const status = args.status ?? 'backlog';
 
   if (args.parentTaskId !== undefined) {
@@ -2526,6 +2588,20 @@ export async function agentCreateTaskTrusted(
       createdBy: args.actorId,
       createIfMissing: args.mintLabels ?? true,
     })) ?? [];
+  // An agent's description stores its mentions as whom they name, as a
+  // person's does; it notifies nobody, as before.
+  const description =
+    sentDescription === undefined
+      ? undefined
+      : (
+          await prepareSurfaceText(tx, {
+            organizationId: args.organizationId,
+            projectId: args.projectId,
+            body: sentDescription,
+            cap: TASK_DESCRIPTION_MAX,
+            mode: 'full',
+          })
+        ).text;
   const now = Date.now();
   const rank = await computeEndRank(tx, args.projectId, status);
   const number = await nextTaskNumber(tx, args.projectId);
@@ -4386,30 +4462,14 @@ async function fanOutDescriptionMentions(
   args: {
     taskId: string;
     project: ProjectRow;
+    /** The description as stored. */
     description: string;
-    /** The text an edit replaces; absent on create. */
-    previousDescription?: string;
+    /** Who the text names that it did not before (`prepareSurfaceText`): on
+     * create, everyone it names. */
+    added: ResolvedMention[];
   },
 ): Promise<void> {
-  // Most descriptions name nobody, and most edits add no `@token`: the token
-  // pre-check keeps the directory build (an org-wide member scan, and more
-  // reads for a SERIALIZABLE save to conflict on) off both. Resolution maps
-  // each token on its own, so a text whose tokens the replaced text already
-  // had resolves to nobody new — the answer a build would give.
-  const tokens = parseMentionTokens(args.description);
-  if (tokens.length === 0) return;
-  if (args.previousDescription !== undefined) {
-    const before = new Set(parseMentionTokens(args.previousDescription));
-    if (tokens.every((token) => before.has(token))) return;
-  }
-  const { added } = await resolveSurfaceMentions(tx, {
-    organizationId: auth.organizationId,
-    projectId: args.project.id,
-    body: args.description,
-    ...(args.previousDescription !== undefined
-      ? { previousBody: args.previousDescription }
-      : {}),
-  });
+  const added = args.added;
   if (added.length === 0) return;
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   await dispatchMentionedProjectAgent(tx, {
