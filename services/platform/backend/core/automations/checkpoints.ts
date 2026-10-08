@@ -176,6 +176,14 @@ export interface NodeCursor {
   passes: number;
   outs: unknown[];
   agent?: AgentCursor;
+  /**
+   * The version of every automation a `subautomation` node walks, fixed the
+   * first time the node runs: keyed by the chain of node ids without items
+   * (`batch`, `batch/inner`). A resumed node walks these versions even when a
+   * newer one was deployed in between, so one run never mixes two versions of
+   * the same child. Absent on a node that walks no subautomation.
+   */
+  pins?: Record<string, number>;
 }
 
 export interface RunCheckpoints {
@@ -191,9 +199,10 @@ export interface RunCheckpoints {
 
 const EMPTY_CHECKPOINTS: RunCheckpoints = { nodes: {}, executions: 0 };
 
-/** Narrow a stored `v.any()` checkpoints blob back to its type. Anything
- * unrecognizable is treated as "nothing done yet", which is safe: the run
- * restarts rather than resuming from state it cannot read. */
+/** Narrow a stored checkpoints blob back to its type, leniently: anything
+ * unrecognizable reads as "nothing done yet". For readers that only DISPLAY a
+ * run's progress — the stepper resumes through {@link parseRunCheckpoints},
+ * which refuses what it cannot read instead of starting the run over. */
 export function readCheckpoints(value: unknown): RunCheckpoints {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return { ...EMPTY_CHECKPOINTS, nodes: {} };
@@ -217,6 +226,106 @@ export function readCheckpoints(value: unknown): RunCheckpoints {
     nodes,
     ...(cursor !== undefined && { cursor }),
     executions: typeof record.executions === 'number' ? record.executions : 0,
+  };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+/** Why a stored node entry cannot be resumed from, or null when it can. */
+function unreadableNode(id: string, entry: unknown): string | null {
+  if (!isPlainObject(entry)) return `node "${id}" is not an object`;
+  if (entry.status !== 'ok' && entry.status !== 'skipped') {
+    return `node "${id}" has no ok or skipped status`;
+  }
+  if (!isPlainObject(entry.trace)) return `node "${id}" has no trace`;
+  if (!Array.isArray(entry.effects)) return `node "${id}" has no effects list`;
+  return null;
+}
+
+/** Why a stored cursor cannot be resumed from, or null when it can. */
+function unreadableCursor(cursor: unknown): string | null {
+  if (!isPlainObject(cursor)) return 'the cursor is not an object';
+  if (typeof cursor.node !== 'string') return 'the cursor names no node';
+  if (!isCount(cursor.index) || !isCount(cursor.passes)) {
+    return 'the cursor has no item index or pass count';
+  }
+  if (!Array.isArray(cursor.outs)) return 'the cursor has no outputs list';
+  if (cursor.agent !== undefined) {
+    if (
+      !isPlainObject(cursor.agent) ||
+      typeof cursor.agent.execId !== 'string' ||
+      typeof cursor.agent.sessionId !== 'string'
+    ) {
+      return "the cursor's agent turn names no exec or session";
+    }
+  }
+  if (cursor.pins !== undefined) {
+    if (
+      !isPlainObject(cursor.pins) ||
+      !Object.values(cursor.pins).every(
+        (version) => typeof version === 'number' && Number.isInteger(version),
+      )
+    ) {
+      return "the cursor's subautomation versions are not numbers";
+    }
+  }
+  return null;
+}
+
+/**
+ * Read a run's stored progress for the stepper, strictly. A run resumes only
+ * from progress this engine can read: progress it cannot read is refused
+ * with the reason, and the run fails instead of starting over — starting over
+ * would run again every step it had already finished, writes included.
+ *
+ * A run nothing was ever recorded for (no value, or an empty object) reads as
+ * nothing done. Keys this engine does not know are kept out of the way, not
+ * refused: they are what a later release adds alongside the ones read here.
+ */
+export function parseRunCheckpoints(
+  value: unknown,
+): { ok: true; checkpoints: RunCheckpoints } | { ok: false; reason: string } {
+  if (value === null || value === undefined) {
+    return { ok: true, checkpoints: { nodes: {}, executions: 0 } };
+  }
+  if (!isPlainObject(value)) {
+    return { ok: false, reason: 'the saved progress is not an object' };
+  }
+  if (Object.keys(value).length === 0) {
+    return { ok: true, checkpoints: { nodes: {}, executions: 0 } };
+  }
+  if (!isPlainObject(value.nodes)) {
+    return { ok: false, reason: 'the saved progress lists no steps' };
+  }
+  for (const [id, entry] of Object.entries(value.nodes)) {
+    const reason = unreadableNode(id, entry);
+    if (reason !== null) return { ok: false, reason };
+  }
+  if (value.cursor !== undefined && value.cursor !== null) {
+    const reason = unreadableCursor(value.cursor);
+    if (reason !== null) return { ok: false, reason };
+  }
+  if (value.executions !== undefined && !isCount(value.executions)) {
+    return { ok: false, reason: 'the execution count is not a number' };
+  }
+  return {
+    ok: true,
+    checkpoints: {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every entry was checked above
+      nodes: value.nodes as Record<string, NodeCheckpoint>,
+      ...(value.cursor !== undefined &&
+        value.cursor !== null && {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- checked above
+          cursor: value.cursor as NodeCursor,
+        }),
+      executions: isCount(value.executions) ? value.executions : 0,
+    },
   };
 }
 

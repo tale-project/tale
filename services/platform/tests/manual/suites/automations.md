@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 82 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 85 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -634,6 +634,27 @@ output:
       finished before the kill shows once in the steps list. Check the badge
       and the header line in the light and the dark theme and at 390 px wide
       (the line wraps, nothing is cut).
+- [ ] `AUTO-F58` · **An interrupted write waits for you** — Deploy an
+      automation whose live step writes a file to a WebDAV share you can slow
+      down (`type: webdav.write`; a large file, or a local share behind a
+      throttling proxy), let the approval policy allow WebDAV writes without a
+      person, and start a live run. While the step is writing, kill the worker
+      stepping it (`docker kill -s KILL` on its container) and start it again
+      → within about a minute and a half the run reads
+      `automations.runs.waiting.in_doubt` and shows the card
+      `automations.runs.inDoubt.title` with what the step was sending; nothing
+      new reaches the share. Choose **Run it again**
+      (`automations.runs.inDoubt.retry`) and confirm
+      (`automations.runs.inDoubt.retryConfirm.title`) →
+      `automations.runs.inDoubt.resolved.retry`, the file is written once more
+      and the run succeeds. Repeat with **Skip it**
+      (`automations.runs.inDoubt.skip`) →
+      `automations.runs.inDoubt.resolved.skip`, the run continues and the
+      step's output reads `null`; and with **Fail the run**
+      (`automations.runs.inDoubt.fail`, confirmed with
+      `automations.runs.inDoubt.failConfirm.title`) → **Failed**
+      (`automations.runs.status.failed`), its detail saying the step was
+      failed by a person and may already have run.
 
 ## Boundary & error tests
 
@@ -722,6 +743,14 @@ output:
       Settings › Audit log has exactly one ending entry per run: a cancelled
       action for a Stopped run, a success action for a Succeeded one, never
       both. A Stopped run shows no output.
+- [ ] `AUTO-B13` · **Two organizations' approvals on one worker** — With one
+      backend worker, deploy in each of two organizations an automation whose
+      live step writes a file to a WebDAV share (`type: webdav.write`) that
+      the approval policy holds for a person, and start a live run in both at
+      the same moment → each run waits on its own approval card
+      (`automations.runs.approval.title`) in its own organization, and neither
+      fails with a message about a different organization; approving each lets
+      that run finish.
 
 ## Run liveness — chaos recovery (backend, scripted)
 
@@ -775,6 +804,16 @@ the dev stack (cadence froze after sever, sweep poked once, cadence resumed).
       active one `aria-current="page"`), keyboard reachable with visible focus;
       below `md` the Editor's action cluster sits in the floating dock, wraps
       within the viewport width and never covers the bottom navigation.
+- [ ] `AUTO-A6` · **Interrupted badge and in-doubt card** → On the run of
+      `AUTO-F57` and the card of `AUTO-F58`, keyboard only: Tab reaches **Run
+      it again**, **Skip it** and **Fail the run** in that order with a
+      visible focus ring; Enter opens the two confirmations, focus stays
+      inside each and Escape returns it to its button; after a choice focus
+      lands on the resolved sentence (`automations.runs.inDoubt.resolved.*`).
+      A screen reader reads the badge's word
+      (`automations.runs.status.stalled`), not only its icon, and the card's
+      title and body. At 390 px wide the actions wrap and nothing is cut; at
+      200 % zoom the card reads without scrolling sideways.
 
 ## Performance
 

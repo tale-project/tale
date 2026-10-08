@@ -53,6 +53,7 @@ Ein neuer Connector ist ein Quellcodebeitrag. Die Laufzeit liest den Plattformka
 | `mock` | Erforderliches deterministisches JavaScript: gleiche Eingabe, gleiche Ausgabe, kein Netzwerkzugriff |
 | `backend` | Optionale Live-Implementierung: `yaml-js` mit `live` oder `native` mit `impl`-Kennung |
 | `exampleInput` | Optionales kleines, aussagekräftiges Beispiel für Erkennung und Tests |
+| `idempotent` | Optional; nur bei einer Schreibaktion auf `true` setzen, bei der ein zweiter Aufruf mit demselben `ctx.idempotencyKey` nichts mehr ändert. Ein unterbrochener Automatisierungslauf wiederholt sie dann selbst, statt auf eine Entscheidung zu warten |
 
 Ohne Live-Backend läuft ein Connector nur mit Mocks und lehnt echte Aufrufe ab. Schreibaktionen werden nicht ausgeführt, wenn keine Genehmigungsentscheidung ermittelt werden kann. Die [Genehmigungsreferenz](/de/self-hosted/configuration/approvals) erklärt Vorrangregeln und ausstehende Entscheidungen.
 

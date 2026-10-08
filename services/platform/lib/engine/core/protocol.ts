@@ -9,3 +9,38 @@
  * progress it does not understand.
  */
 export const ENGINE_PROTOCOL = 1;
+
+/**
+ * The key a connector call presents as `ctx.idempotencyKey`: the run, the
+ * node's path, its forEach item and, from the second `repeatUntil` pass on,
+ * the pass. Retry-stable by construction — the run id is durable and the rest
+ * is positional — so a re-attempted step presents the key its first attempt
+ * used, while two passes of one repeat present two keys. A first pass carries
+ * no pass suffix: that is the key earlier releases presented, so a run
+ * interrupted on one presents the same key on the next.
+ */
+export function connectorIdempotencyKey(
+  runId: string,
+  path: string,
+  itemIndex: number,
+  pass: number,
+): string {
+  return pass > 0
+    ? `${runId}:${path}:${itemIndex}:${pass}`
+    : `${runId}:${path}:${itemIndex}`;
+}
+
+/**
+ * The path prefix of the nodes a `subautomation` node walks: the node's own
+ * path, the forEach item and the repeat pass it was walked for. A node's path
+ * is its id at the top level and `<prefix><id>` inside a subautomation
+ * (`batch[2:0]/send`), so every call a run makes has one stable address
+ * however deep it sits.
+ */
+export function subautomationPathPrefix(
+  path: string,
+  itemIndex: number,
+  pass: number,
+): string {
+  return `${path}[${itemIndex}:${pass}]/`;
+}

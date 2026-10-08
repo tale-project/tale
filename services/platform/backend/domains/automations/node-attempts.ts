@@ -1,6 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { truncateRunDetail } from '../../core/automations/bound_run_payload.ts';
+import type {
+  AttemptKind,
+  BeginAttempt,
+} from '../../core/automations/ledger.ts';
 import { jsonParam } from '../../db/sql.ts';
 import { instanceId } from '../../lib/instance.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -25,24 +29,9 @@ import { AutomationError, emitRunHint, pokeParkedRunInTx } from './store.ts';
  *   the run.
  */
 
-export type AttemptKind = 'connector' | 'llm';
+// What a begin answers is the stepper's contract (`core/automations/ledger.ts`);
+// this module is its store.
 export type AttemptResolution = 'retry' | 'skip' | 'fail';
-
-export type BeginAttempt =
-  /** A `started` row is committed: make the call now. */
-  | { kind: 'go'; attempt: number }
-  /** An earlier attempt finished: reuse its output, make no call. */
-  | { kind: 'done'; output: unknown }
-  /** An earlier attempt failed: replay its failure. */
-  | { kind: 'failed'; error: string; failureCode: string | null }
-  /** An earlier attempt may have happened: park the run for a person. */
-  | { kind: 'in_doubt'; attemptId: string; attempt: number }
-  /** A person chose to skip it: the step returned nothing. */
-  | { kind: 'skip' }
-  /** A person chose to fail the run. */
-  | { kind: 'fail'; resolvedBy: string }
-  /** This walker no longer holds the run. */
-  | { kind: 'stale' };
 
 export interface BeginAttemptArgs {
   organizationId: string;

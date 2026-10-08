@@ -4,10 +4,11 @@
 
 The rules an automation is held to between the editor and a finished run: who can change one
 and run it live, what a saved version and a deployment guarantee, what a start is refused for,
-what each trigger may start, what a run that ends takes with it, which server steps a run and
-what a run says once it moved to another, and what a delete leaves behind. The workflow document itself, how a run proceeds step by step,
-agent steps and their retries, approvals and questions inside a run, package upload and managed
-configuration are not covered; see Not yet.
+what each trigger may start, what a run that ends takes with it, which server steps a run, what
+a run says once it moved to another and what a resumed run never repeats, whose approval policy
+a run's steps ask, and what a delete leaves behind. The workflow document itself, how a run
+proceeds step by step, agent steps and their retries, the rest of approvals and questions inside
+a run, package upload and managed configuration are not covered; see Not yet.
 
 ## Who can do what
 
@@ -271,6 +272,41 @@ server.
   another server finishes it → the run page reads "Resumed after a restart", with the time and
   "the server running it was being updated or restarted and handed it on".
 
+### AUTO-R19 · A write that may already have happened waits for a person
+
+When a run is interrupted while a step is writing to another service, Tale cannot tell whether
+the write reached that service. The resumed run never sends it again on its own: it waits
+(`waitingFor: in_doubt`) until a person chooses to run the step again, to skip it (the step then
+returns nothing), or to fail the run (`effect_in_doubt`). A write that finished before the
+interruption is not sent again, and neither is an item of a list that was already sent. A model
+call is made again instead, and so is an action its connector declares safe to repeat.
+
+- **Example**: Mia's run is sending an invoice to the accounting system when its server stops →
+  the run waits with "This step may already have run", and nothing is sent again until Mia
+  chooses.
+
+### AUTO-R20 · A run whose saved progress cannot be read fails instead of starting over
+
+A server that cannot read a run's saved progress fails the run (`engine_incompatible`) and says
+so. It does not start the run again from its first step, which would repeat every step the run
+had already finished.
+
+- **Example**: Noah's import has finished two of its steps when its saved progress becomes
+  unreadable → the run fails, saying its progress could not be read by this version of Tale, and
+  neither step runs again.
+
+## Approvals inside a run
+
+### AUTO-R21 · Each run asks its own organization's approval policy
+
+One server steps the runs of several organizations at the same time. A step that needs an
+approval is decided by the policy of the organization its run belongs to, never by one another
+run brought along: a run is not held up or refused because of another organization's run.
+
+- **Example**: Ada's and Noah's organizations each start a live run that writes a file, at the
+  same moment on the same server → each run is decided by its own organization's policy, and
+  neither fails with "a different organization".
+
 ## Deleting an automation
 
 ### AUTO-R15 · Deleting an automation keeps its runs and removes everything else
@@ -295,11 +331,13 @@ the run or let it finish first.
   steps with their automatic retries and waits for a sandbox
   (`backend/core/automations/stepper.ts`, `checkpoints.ts`, `liveness.ts`, `agent_host.ts`,
   `agent_retry.ts`, `reattach.ts`, `shim.ts`, `node-attempts.ts`). `AUTO-R16` covers which
-  server steps a run, and `AUTO-R18` what a run says once it moved to another.
+  server steps a run, `AUTO-R18` what a run says once it moved to another, and `AUTO-R19` and
+  `AUTO-R20` what a resumed run never repeats.
 - **Approvals inside a run**: which step asks, and the credential check before it asks
-  (`backend/core/automations/stepper.ts`, `shim.ts`). An approval cannot be decided over the
-  API; the contract debt ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records
-  it.
+  (`backend/core/automations/stepper.ts`, `shim.ts`); `AUTO-R21` covers whose policy decides.
+  An approval cannot be decided over the API; the contract debt ledger in
+  [`.agents/repo.md`](../../../../../.agents/repo.md) records it. Neither can a write a run
+  waits on a person about (`AUTO-R19`): it is decided in the app only.
 - **Questions an agent asks**: who is notified, when a question expires, and that it is
   answered once (`ask-shim.ts`, `ask-retraction.ts`, `answerAsk` in `store.ts`,
   `backend/core/automations/ask_answer_carryover.ts`). The code refuses a second answer

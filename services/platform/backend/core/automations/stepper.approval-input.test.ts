@@ -45,6 +45,9 @@ it('hands the gate the node input resolved against the run scope', async () => {
         gateCalls.push(args);
         return { decision: 'allow' };
       }
+      // A live write goes through the effect ledger first.
+      if (name.endsWith(':beginNodeAttempt')) return { kind: 'go', attempt: 1 };
+      if (name.endsWith(':finishNodeAttempt')) return { recorded: true };
       if (name.endsWith(':finishRun')) return { status: args.status };
       return { status: 'running' };
     },
