@@ -70,7 +70,7 @@ Automations follow a narrower rule, because an automation acts as itself, with t
 A run started by someone who can't edit the project, such as a Member, keeps to its task:
 
 - Its platform tools change only that task and the subtasks under it: the agent creates new tasks only as subtasks of that task, uses only labels the project already has, and can't sync items from other systems into the project.
-- It can't save documents to the project. The files it produces still arrive on the task under **Deliverables**.
+- It can't save documents to the project or write knowledge entries. The files it produces still arrive on the task under **Deliverables**.
 - The run gets neither the agent's **Secrets** nor the token of an equipped GitHub connection. The agent learns which credentials were held back and is asked to say so in its report when the work needs them; an Editor or higher then has to start it. Connectors equipped on the agent keep working and act for the person who started the run.
 - It works in a workspace of its own, kept for that person's runs with this agent: files from runs that Editors started aren't there, and what this run leaves behind never reaches those runs. The same person's later runs with the agent find it again, until Tale deletes it: when the person leaves the organization or the agent is deleted, or once no run has used it for the number of days the organization sets under [**Days without use**](/platform/admin/sandboxes#delete-unused-workspaces-automatically).
 

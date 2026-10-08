@@ -32,7 +32,7 @@ Un agent appartient à un seul projet. Les personnes qui peuvent lire le projet 
 | Connectors et outils | Les services connectés et les opérations autorisées dans Tale. | Accorder l’accès au dépôt et les seuls outils de tâches nécessaires. |
 | Secrets | Des identifiants de l’organisation, référencés par nom et fournis à la session. | Utiliser un jeton limité pour un service sans connector. |
 
-Les listes de skills, connectors, outils et noms de secrets acceptent chacune jusqu’à 25 entrées. Accorder un outil d’écriture autorise ses opérations dans les limites de ses règles d’accès. Une instruction demandant de la prudence ne retire pas cette permission. Seuls un Propriétaire ou un Admin peuvent modifier les secrets accordés.
+Les listes de skills, connectors, outils et noms de secrets acceptent chacune jusqu’à 25 entrées. Accorder un outil d’écriture autorise ses opérations dans les limites de ses règles d’accès. Une instruction demandant de la prudence ne retire pas cette permission. Seuls un Propriétaire ou un Admin peuvent modifier les secrets accordés. Rechercher dans les connaissances du projet ne demande aucune autorisation : chaque agent le peut.
 
 ```mermaid
 flowchart LR

@@ -39,7 +39,7 @@ Vermeide relative Zeitangaben wie „nächsten Freitag“ und Verweise wie „di
 
 <Step title="Speichern und die Indexierung prüfen">
 
-Klicke auf **Speichern**. Der Eintrag erscheint mit Thema, Inhalt, Quelle (**Manuell** für das Formular, **Chat** für eine Information, die der Assistent festgehalten hat, **API** für eine, die eine Integration über REST geschrieben hat), Indexierungsstatus und Änderungszeit in der Tabelle. Öffne ihn, um den gesamten Inhalt zu lesen. Die Indexierung läuft im Hintergrund: Ein gespeicherter Eintrag ist nicht sofort für die Suche bereit.
+Klicke auf **Speichern**. Der Eintrag erscheint mit Thema, Inhalt, Quelle (**Manuell** für das Formular, **Chat** für eine Information, die der Assistent festgehalten hat, **API** für eine, die eine Integration über REST geschrieben hat, **Agent** für eine, die ein Agent gespeichert hat), Indexierungsstatus und Änderungszeit in der Tabelle. Öffne ihn, um den gesamten Inhalt zu lesen. Die Indexierung läuft im Hintergrund: Ein gespeicherter Eintrag ist nicht sofort für die Suche bereit.
 
 </Step>
 
@@ -62,6 +62,16 @@ Klicke auf **Speichern**. Der Eintrag erscheint mit Thema, Inhalt, Quelle (**Man
 Wenn ein Chat eine nützliche Information liefert, prüfe sie anhand der Quelle. Erstelle oder bearbeite den Eintrag anschließend selbst. Chat speichert Informationen nicht automatisch in der Wissensbasis der Organisation.
 
 </Tip>
+
+## Einen Agenten Informationen aktuell halten lassen
+
+Auch ein Projektagent oder der Agentenschritt einer Automatisierung kann Informationen speichern. Gib ihm dazu unter **Skills, Connectors & Tools** in der [Ausstattung des Agenten](/de/platform/projects/project-agents) das Tool **Wissenseinträge hinzufügen und bearbeiten**. Der Agent speichert eine Information pro Thema; ein Thema ohne Eintrag erhält einen neuen, mit **Agent** als Quelle.
+
+Um einen vorhandenen Eintrag zu ändern, muss der Agent die Version nennen, die er gelesen hat. Hat eine Person oder ein anderer Agent den Eintrag inzwischen geändert, wird nichts gespeichert: Der Agent erhält den aktuellen Text und führt seine Änderung darin zusammen. Der **Versionsverlauf** bewahrt jeden früheren Text auf, wie bei deinen eigenen Änderungen.
+
+Einträge gehören der ganzen Organisation. Ein Lauf, den ein Mitglied gestartet hat, kann deshalb keine speichern, und kein Agent kann einen Eintrag löschen. Für Agenten gilt ein eigenes Limit, wie viele Einträge sie pro Minute speichern, sodass ein beschäftigter Agent niemanden beim Bearbeiten aufhält. Jede Speicherung durch einen Agenten wird im Audit-Log festgehalten.
+
+Durchsuchen können Agenten das Wissen immer, ohne Freigabe: Das Ausstattungsmenü zeigt das als **Wissen durchsuchen**, immer aktiv.
 
 ## Einen veralteten Eintrag entfernen
 

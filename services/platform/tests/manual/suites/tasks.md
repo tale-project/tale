@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 136 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 137 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -1208,6 +1208,12 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   after the next hourly date sweep the Inbox shows no **starts today** bell
   for either (`inbox.taskStartReached`); a task whose start you set to tomorrow
   rings tomorrow.
+- [ ] `TASK-B49` · **A member's run cannot write knowledge entries** — With an
+  agent granted **Add and edit knowledge entries**, sign in as a Member and
+  **Start agent** on your own task asking it to save a fact as a knowledge
+  entry → the run's **Details** shows `knowledge_entry_write` refused as
+  `member_run`, **Knowledge entries** is unchanged, and the agent's report says
+  an editor must save the fact. The same request from an Editor's run saves it.
 
 ## Accessibility (WCAG 2.1 AA)
 

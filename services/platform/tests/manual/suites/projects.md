@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 65 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 67 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -407,6 +407,24 @@ projects-list row ⋯ menu.
   add an agent with **New agent** and delete the standard agent → **Assignee**
   (`tasks.fields.assignee`) in this project lists only the project's own
   agents and no **Standard agent**.
+
+- [ ] `PROJ-F64` · **The equipment menu shows knowledge search and the write
+  tool** — Project → **Agents** → **New agent** → open **Skills, connectors &
+  tools** (`projects.agents.equipmentLabel`) → under **Knowledge**
+  (`projects.agents.tool.module.knowledge`) the first row **Search the
+  knowledge base** (`projects.agents.tool.knowledge_search`) reads **Always on
+  — no grant needed** (`projects.agents.tool.alwaysOn`), is switched on and
+  does not switch off when clicked; **Add and edit knowledge entries**
+  (`projects.agents.tool.knowledge_entry_write`) follows with **Writes data**
+  (`projects.agents.tool.writeBadge`). The agent's details list **Search the
+  knowledge base** first under **Platform tools**. An automation's agent step
+  shows the same two rows.
+- [ ] `PROJ-F65` · **The equipment menu searches as you type** — Open the same
+  menu → the caret is in the search field (`chat.skills.searchLabel`) → type
+  `knowledge` → only the Knowledge rows remain, still under their label → type
+  `zzz` → **Nothing matches your search.** (`chat.skills.searchEmpty`) → clear
+  the field, press Arrow Down → focus moves to the first row; Escape closes the
+  menu, and reopening shows every row again.
 
 ## Boundary & error tests
 
