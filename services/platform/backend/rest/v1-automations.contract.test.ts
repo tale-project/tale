@@ -1627,3 +1627,37 @@ describe('changing an automation over REST', () => {
     },
   );
 });
+
+/**
+ * A definition installed only in projects the key holder cannot read is not
+ * theirs to read: every read of it answers the 404 a missing automation
+ * gets, so the answer never confirms it exists. Installed in a project they
+ * can read, or in none, it reads as before (the release that brought this
+ * named it: member reads follow project visibility on MCP and REST).
+ */
+describe('reads of an automation installed only in hidden projects [AUTO-R26]', () => {
+  it.each([
+    [`/api/v1/automations/${SAVED}`],
+    [`/api/v1/automations/${SAVED}?version=deployed`],
+    [`/api/v1/automations/${SAVED}/versions`],
+    [`/api/v1/automations/${SAVED}/triggers`],
+  ])('%s answers not found', async (path) => {
+    vi.mocked(bindingProjectIds).mockResolvedValue(['p-hidden']);
+    const res = await mount({ role: 'member' }).app.request(
+      `http://localhost${path}`,
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'AUTOMATION_NOT_FOUND' });
+  });
+
+  it.each([[['p-visible']], [[]]])(
+    'installed in %j it answers as before',
+    async (bindings) => {
+      vi.mocked(bindingProjectIds).mockResolvedValue(bindings);
+      const res = await mount({ role: 'member' }).app.request(
+        `http://localhost/api/v1/automations/${SAVED}/versions`,
+      );
+      expect(res.status).toBe(200);
+    },
+  );
+});

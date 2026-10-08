@@ -21,6 +21,7 @@ then belongs to the project it ran in.
 | Change an automation | yes | no |
 | Start a live run | yes | no |
 | See a run in a project | only when they can read that project | only when they can read that project |
+| See an automation installed only in projects | when they can read one of them | when they can read one of them |
 | Have a draft checked for problems | yes | no |
 
 Four things are not settled and are listed under Not yet: who can see a run of the
@@ -53,6 +54,18 @@ automation is installed in. A project of another organization is hidden the same
   run's input is shown.
 - **Example**: Zoe belongs to a different organization. With her own API key she asks for a run
   at this project's address → not found, as for a project that does not exist.
+
+### AUTO-R26 · An automation installed only in projects you cannot read is hidden from you
+
+An automation installed nowhere belongs to the organization and every member sees it. One
+installed in projects is seen by whoever can read one of them. For anyone else it is left out
+of the automation list and of the list over the API and MCP, and reading it, its versions or
+its trigger over the API or MCP answers "not found", as for one that does not exist. Listed with
+no installations, it would read as an organization automation, where it cannot run.
+
+- **Example**: `hr/onboarding` is installed only in a project shared with the HR team. Mia, an
+  ordinary member outside that team, lists the automations with her API key → it is not there;
+  she asks for its versions → "not found". Ada, in the HR team, sees it and its versions.
 
 ## Versions and deployment
 

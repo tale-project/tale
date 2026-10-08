@@ -339,37 +339,27 @@ describe('project automation REST scope', () => {
 });
 
 describe('organization run scope', () => {
-  it('keeps shared definitions in the org catalog without revealing their project installations [AUTO-R2]', async () => {
+  it('leaves out a definition installed only in projects the key holder cannot read [AUTO-R2] [AUTO-R26]', async () => {
+    const definition = {
+      latestVersion: 1,
+      deployedVersion: 1,
+      description: null,
+      inputs: null,
+      presentation: null,
+      trigger: null,
+    };
     vi.mocked(listAutomations).mockResolvedValue([
-      {
-        name: 'shared',
-        latestVersion: 1,
-        deployedVersion: 1,
-        description: null,
-        inputs: null,
-        presentation: null,
-        projectIds: ['private-project'],
-        trigger: null,
-      },
+      { ...definition, name: 'hr/onboarding', projectIds: ['private-project'] },
+      { ...definition, name: 'shared', projectIds: [] },
     ]);
     const response = await mount().app.request('/api/v1/automations');
-    // The catalog names the installations the key holder can SEE — the
-    // scope a project-bound automation must be started in — and only
-    // those: `private-project` is not among the caller's projects, so the
-    // list is empty, never a leak of the hidden id.
+    // `private-project` is not among the caller's projects: the automation
+    // installed only there is left out, as the app's list leaves it out —
+    // listed with no installations, it would read as an organization
+    // automation, and its hidden project id never leaks. An organization
+    // automation is everyone's.
     expect(await response.json()).toEqual({
-      automations: [
-        {
-          name: 'shared',
-          latestVersion: 1,
-          deployedVersion: 1,
-          description: null,
-          inputs: null,
-          presentation: null,
-          projectIds: [],
-          trigger: null,
-        },
-      ],
+      automations: [{ ...definition, name: 'shared', projectIds: [] }],
     });
   });
 

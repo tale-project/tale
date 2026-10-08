@@ -4672,11 +4672,15 @@ export function buildSpec(): Json {
       tags: ['Automations'],
       summary: 'List automations',
       description:
-        'The organization’s automation definitions, by name, as a complete set ' +
-        '(not paginated). Each carries the ids of the projects it is installed ' +
-        'in that the key holder can see — the scope a project-bound automation ' +
-        'must be started in. Read `/api/v1/projects/{id}/automations` for the ' +
-        'automations installed in one visible project.',
+        'The organization’s automation definitions the key holder can see, by ' +
+        'name, as a complete set (not paginated): every automation installed ' +
+        'in no project, and every one installed in a project they can read — ' +
+        'one installed only in projects they cannot read is left out, and its ' +
+        'reads answer 404 as for one that does not exist. Each carries the ids ' +
+        'of the projects it is installed in that the key holder can see — the ' +
+        'scope a project-bound automation must be started in. Read ' +
+        '`/api/v1/projects/{id}/automations` for the automations installed in ' +
+        'one visible project.',
       operationId: 'listAutomations',
       security: sec,
       responses: {

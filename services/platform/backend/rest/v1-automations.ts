@@ -9,7 +9,10 @@ import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { TASK_COMMENT_MAX } from '../core/tasks/helpers.ts';
 import { createAuditLog } from '../domains/audit_logs/service.ts';
-import { readableProjectIds } from '../domains/automations/project-visibility.ts';
+import {
+  automationVisible,
+  readableProjectIds,
+} from '../domains/automations/project-visibility.ts';
 import {
   answerAsk,
   AutomationError,
@@ -283,20 +286,40 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const automationNotFound = (c: Context<RestEnv>) =>
     notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
 
+  /** Whether the automation is installed only in projects the key holder
+   * cannot read — it then answers exactly like one that does not exist
+   * (`automationVisible`), on every read of it. */
+  const hiddenFrom = async (
+    c: Context<RestEnv>,
+    name: string,
+  ): Promise<boolean> => {
+    const bindings = await bindingProjectIds(
+      deps.sql,
+      c.get('organizationId'),
+      name,
+    );
+    if (bindings.length === 0) return false;
+    return !automationVisible(bindings, await visibleProjectIds(c));
+  };
+
   app.get('/automations', noQuery, async (c) => {
-    // Definitions are shared by the organization. Their project install
-    // ids are the caller's only way to start a project-bound automation
-    // (the org URL refuses it) — answered as the projects the caller can
-    // SEE, so a catalog read never reveals a hidden project.
+    // Definitions are shared by the organization — those it can see: an
+    // organization automation, or one installed in a project the key holder
+    // can read. Their project install ids are the caller's only way to start
+    // a project-bound automation (the org URL refuses it) — answered as the
+    // projects the caller can SEE, so a catalog read never reveals a hidden
+    // project.
     const visible = await visibleProjectIds(c);
     return c.json({
-      automations: (
-        await listAutomations(deps.sql, c.get('organizationId'))
-      ).map((definition) =>
-        Object.assign(definition, {
-          projectIds: definition.projectIds.filter((id) => visible.has(id)),
-        }),
-      ),
+      automations: (await listAutomations(deps.sql, c.get('organizationId')))
+        .filter((definition) =>
+          automationVisible(definition.projectIds, visible),
+        )
+        .map((definition) =>
+          Object.assign(definition, {
+            projectIds: definition.projectIds.filter((id) => visible.has(id)),
+          }),
+        ),
     });
   });
 
@@ -325,7 +348,9 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/automations/:name/versions', noQuery, async (c) => {
     const name = decodeName(c);
     if (name instanceof Response) return name;
-    if (!(await exists(c, name))) return automationNotFound(c);
+    if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+      return automationNotFound(c);
+    }
     const organizationId = c.get('organizationId');
     const deployed =
       (await deployedVersion(deps.sql, organizationId, name)) ?? null;
@@ -351,7 +376,9 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/automations/:name/triggers', noQuery, async (c) => {
     const name = decodeName(c);
     if (name instanceof Response) return name;
-    if (!(await exists(c, name))) return automationNotFound(c);
+    if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+      return automationNotFound(c);
+    }
     return c.json({
       name,
       triggers: await listTriggers(deps.sql, c.get('organizationId'), name),
@@ -867,6 +894,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (query instanceof Response) return query;
     const name = decodeName(c);
     if (name instanceof Response) return name;
+    if (await hiddenFrom(c, name)) return automationNotFound(c);
     const organizationId = c.get('organizationId');
     const deployed = await deployedVersion(deps.sql, organizationId, name);
     let version: number | undefined;
