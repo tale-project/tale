@@ -8,9 +8,12 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * cancelled, a version saved) that knows nothing of MCP. The MCP door runs
  * each call inside a channel, and `createAuditLog` reads it: every audit row
  * written during the call says `via: 'mcp'`, the tool, the API key and the
- * client that asked, without any writer passing them along. A writer that
- * names its own `via` (the skills publish door's `app` / `upload` / `api`)
- * keeps it.
+ * client that asked, without any writer passing them along. The REST door
+ * opens one around the automation definition writes it shares with MCP
+ * (`via: 'api-key'`, the value its other writers stamp themselves), so a
+ * delete made with a key names the key, not a click in the app. A writer
+ * that names its own `via` (the skills publish door's `app` / `upload` /
+ * `api`) keeps it.
  *
  * Its own store, separate from every other request-scoped store. Work a
  * call only schedules (a queued job, a durable run's next step) runs in a
@@ -18,10 +21,12 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * the agent that caused it.
  */
 export interface RequestChannel {
-  /** The door. MCP is the only one that opens a channel today. */
-  readonly via: 'mcp';
-  /** The HTTP request the call arrived in — what the caller can quote. */
-  readonly requestId: string;
+  /** The door: a coding agent's MCP call, or a request to the REST API
+   * made with a personal API key. */
+  readonly via: 'mcp' | 'api-key';
+  /** The HTTP request the call arrived in — what the caller can quote.
+   * Absent where the door stamped none (a test). */
+  readonly requestId?: string;
   /** The tool that was called. */
   readonly tool?: string;
   /** The API key the caller authenticated with. */

@@ -44,6 +44,8 @@ import {
   versionRow,
 } from '../domains/automations/store.ts';
 import { getProjectAuthContext } from '../domains/projects/service.ts';
+import { requestIdOf } from '../error-reporting.ts';
+import { runInRequestChannel } from '../lib/request-channel.ts';
 import {
   actedBy,
   actorBodySchema,
@@ -283,6 +285,33 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const automationNotFound = (c: Context<RestEnv>) =>
     notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
 
+  /** Who a definition write made with an API key is: the key holder
+   * through the key's door, `api-key:<userId>` — the actor a coding agent's
+   * same write over MCP records, so the audit row reads "API", never a
+   * click in the app. */
+  const keyActor = (c: Context<RestEnv>): string =>
+    `api-key:${c.get('userId')}`;
+
+  /** Run a definition write so every audit row it writes names the key
+   * that made it and the request (`via: 'api-key'`, `apiKeyId`,
+   * `requestId` — `lib/request-channel.ts`): an admin reading the row of a
+   * delete made with a leaked key knows which key to revoke. */
+  const asKeyWrite = <T>(
+    c: Context<RestEnv>,
+    write: () => Promise<T>,
+  ): Promise<T> => {
+    const apiKeyId = restApiKeyId(c);
+    const requestId = requestIdOf(c);
+    return runInRequestChannel(
+      {
+        via: 'api-key',
+        ...(requestId === undefined ? {} : { requestId }),
+        ...(apiKeyId === undefined ? {} : { apiKeyId }),
+      },
+      write,
+    );
+  };
+
   /** Whether the automation is installed only in projects the key holder
    * cannot read — it then answers exactly like one that does not exist
    * (`automationVisible`), on every read of it. */
@@ -329,11 +358,13 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       if (!(await exists(c, name))) return automationNotFound(c);
-      await deleteAutomationCascade(deps.sql, {
-        organizationId: c.get('organizationId'),
-        name,
-        actor: c.get('userId'),
-      });
+      await asKeyWrite(c, () =>
+        deleteAutomationCascade(deps.sql, {
+          organizationId: c.get('organizationId'),
+          name,
+          actor: keyActor(c),
+        }),
+      );
       return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -397,12 +428,14 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (name instanceof Response) return name;
       if (!(await exists(c, name))) return automationNotFound(c);
       const organizationId = c.get('organizationId');
-      const result = await setTrigger(deps.sql, {
-        organizationId,
-        name,
-        trigger: body,
-        actor: c.get('userId'),
-      });
+      const result = await asKeyWrite(c, () =>
+        setTrigger(deps.sql, {
+          organizationId,
+          name,
+          trigger: body,
+          actor: keyActor(c),
+        }),
+      );
       const deployed =
         (await deployedVersion(deps.sql, organizationId, name)) !== undefined;
       return c.json({ name, ...result, deployed });
@@ -420,11 +453,8 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       if (!(await exists(c, name))) return automationNotFound(c);
-      await deleteTrigger(
-        deps.sql,
-        c.get('organizationId'),
-        name,
-        c.get('userId'),
+      await asKeyWrite(c, () =>
+        deleteTrigger(deps.sql, c.get('organizationId'), name, keyActor(c)),
       );
       return c.body(null, 204);
     } catch (error) {
@@ -460,22 +490,24 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       const auth = await restProjectAuth(deps.sql, c);
-      const result = await transactSerializable(deps.sql, async (tx) => {
-        const project = await loadRestProject(
-          tx,
-          auth,
-          c.req.param('id') ?? '',
-          { write: true },
-        );
-        if (!(await automationExists(tx, auth.organizationId, name)))
-          return null;
-        return unbindProjectInTx(tx, {
-          organizationId: auth.organizationId,
-          name,
-          projectId: project.id,
-          actor: auth.userId,
-        });
-      });
+      const result = await asKeyWrite(c, () =>
+        transactSerializable(deps.sql, async (tx) => {
+          const project = await loadRestProject(
+            tx,
+            auth,
+            c.req.param('id') ?? '',
+            { write: true },
+          );
+          if (!(await automationExists(tx, auth.organizationId, name)))
+            return null;
+          return unbindProjectInTx(tx, {
+            organizationId: auth.organizationId,
+            name,
+            projectId: project.id,
+            actor: keyActor(c),
+          });
+        }),
+      );
       if (result === null) return automationNotFound(c);
       if (!result.unbound) {
         return notFound(
@@ -500,22 +532,24 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       const auth = await restProjectAuth(deps.sql, c);
-      const result = await transactSerializable(deps.sql, async (tx) => {
-        const project = await loadRestProject(
-          tx,
-          auth,
-          c.req.param('id') ?? '',
-          { write: true },
-        );
-        if (!(await automationExists(tx, auth.organizationId, name)))
-          return null;
-        return bindProjectInTx(tx, {
-          organizationId: auth.organizationId,
-          name,
-          projectId: project.id,
-          actor: auth.userId,
-        });
-      });
+      const result = await asKeyWrite(c, () =>
+        transactSerializable(deps.sql, async (tx) => {
+          const project = await loadRestProject(
+            tx,
+            auth,
+            c.req.param('id') ?? '',
+            { write: true },
+          );
+          if (!(await automationExists(tx, auth.organizationId, name)))
+            return null;
+          return bindProjectInTx(tx, {
+            organizationId: auth.organizationId,
+            name,
+            projectId: project.id,
+            actor: keyActor(c),
+          });
+        }),
+      );
       if (result === null) return automationNotFound(c);
       return c.json({ name, added: result.bound }, result.bound ? 201 : 200);
     } catch (error) {

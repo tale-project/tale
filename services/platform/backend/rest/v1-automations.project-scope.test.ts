@@ -15,6 +15,7 @@ import {
   getRun,
   listAutomations,
   listRunsPage,
+  unbindProjectInTx,
   versionRow,
 } from '../domains/automations/store.ts';
 import type { ProjectRow } from '../domains/projects/service.ts';
@@ -33,6 +34,7 @@ vi.mock('../domains/automations/store.ts', async (original) => ({
   getRun: vi.fn(),
   listAutomations: vi.fn(),
   listRunsPage: vi.fn(),
+  unbindProjectInTx: vi.fn(),
   versionRow: vi.fn(),
 }));
 
@@ -58,6 +60,8 @@ function mount(
     project?: Partial<typeof project> | null;
     role?: string;
     orgExplicit?: boolean;
+    apiKeyId?: string;
+    requestId?: string;
   } = {},
 ) {
   const selected =
@@ -86,6 +90,8 @@ function mount(
   }) as unknown as Sql;
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
+    if (options.apiKeyId !== undefined) c.set('apiKeyId', options.apiKeyId);
+    if (options.requestId !== undefined) c.set('requestId', options.requestId);
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
@@ -115,6 +121,7 @@ beforeEach(() => {
   vi.mocked(beginRunInTx).mockResolvedValue({ runId: 'run-1', version: 1 });
   vi.mocked(bindProject).mockResolvedValue({ bound: true });
   vi.mocked(bindProjectInTx).mockResolvedValue({ bound: true });
+  vi.mocked(unbindProjectInTx).mockResolvedValue({ unbound: true });
   vi.mocked(cancelRun).mockResolvedValue({ cancelled: true });
   vi.mocked(cancelRunInTx).mockResolvedValue({ cancelled: true });
   vi.mocked(getRun).mockResolvedValue(run as never);
@@ -465,4 +472,42 @@ describe('organization run scope', () => {
     expect(response.status).toBe(400);
     expect(beginRun).not.toHaveBeenCalled();
   });
+});
+
+/**
+ * Installing and uninstalling with an API key is the key's act: the binding
+ * writer records `api-key:<userId>`, and runs in the REST door's request
+ * channel so the audit rows name the key and the request [AUTO-R27].
+ */
+describe('installs made with an API key name the key [AUTO-R27]', () => {
+  it.each([
+    ['POST', 201, bindProjectInTx],
+    ['DELETE', 204, unbindProjectInTx],
+  ] as const)(
+    '%s runs as the key, inside its channel',
+    async (method, status, writer) => {
+      const { currentRequestChannel } =
+        await import('../lib/request-channel.ts');
+      const seen: unknown[] = [];
+      vi.mocked(writer).mockImplementationOnce(async () => {
+        seen.push(currentRequestChannel());
+        return { bound: true, unbound: true };
+      });
+      const response = await mount({
+        apiKeyId: 'key-7',
+        requestId: 'req-9',
+      }).app.request(
+        '/api/v1/projects/p-1/automations/billing__dunning',
+        json(method),
+      );
+      expect(response.status).toBe(status);
+      expect(seen).toEqual([
+        { via: 'api-key', requestId: 'req-9', apiKeyId: 'key-7' },
+      ]);
+      expect(writer).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ actor: 'api-key:user-1' }),
+      );
+    },
+  );
 });

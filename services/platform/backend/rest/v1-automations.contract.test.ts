@@ -166,10 +166,14 @@ function fakeSql(): { sql: Sql; queries: string[] } {
   return { sql: sql as unknown as Sql, queries };
 }
 
-function mount(options: { role?: string } = {}) {
+function mount(
+  options: { role?: string; apiKeyId?: string; requestId?: string } = {},
+) {
   const { sql, queries } = fakeSql();
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
+    if (options.apiKeyId !== undefined) c.set('apiKeyId', options.apiKeyId);
+    if (options.requestId !== undefined) c.set('requestId', options.requestId);
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
@@ -1566,7 +1570,7 @@ describe('DELETE /automations/{name}', () => {
     expect(deleteAutomationCascade).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org-1',
       name: SAVED,
-      actor: 'user-1',
+      actor: 'api-key:user-1',
     });
   });
 
@@ -1660,4 +1664,88 @@ describe('reads of an automation installed only in hidden projects [AUTO-R26]', 
       expect(res.status).toBe(200);
     },
   );
+});
+
+/**
+ * A definition write made with an API key is the key's act, not a click in
+ * the app: the store records `api-key:<userId>` (actor type "API" on the
+ * audit row, as the same write over MCP records), and the write runs in the
+ * REST door's request channel, so its audit rows name the key and the
+ * request (`via: 'api-key'`). The example: a leaked key deletes an
+ * automation, and the admin reading the row sees which key to revoke.
+ */
+describe('definition writes made with an API key name the key [AUTO-R27]', () => {
+  const keyChannel = {
+    via: 'api-key',
+    requestId: 'req-9',
+    apiKeyId: 'key-7',
+  };
+
+  it('DELETE /automations/{name} runs as the key, inside its channel', async () => {
+    const seen: unknown[] = [];
+    const { currentRequestChannel } = await import('../lib/request-channel.ts');
+    vi.mocked(deleteAutomationCascade).mockImplementationOnce(async () => {
+      seen.push(currentRequestChannel());
+      return { versions: 1 };
+    });
+    const res = await mount({
+      apiKeyId: 'key-7',
+      requestId: 'req-9',
+    }).app.request(
+      `http://localhost/api/v1/automations/${SAVED}`,
+      json('DELETE'),
+    );
+    expect(res.status).toBe(204);
+    expect(seen).toEqual([keyChannel]);
+    expect(deleteAutomationCascade).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actor: 'api-key:user-1' }),
+    );
+  });
+
+  it('PUT /automations/{name}/triggers runs as the key, inside its channel', async () => {
+    const seen: unknown[] = [];
+    const { currentRequestChannel } = await import('../lib/request-channel.ts');
+    vi.mocked(setTrigger).mockImplementationOnce(async () => {
+      seen.push(currentRequestChannel());
+      return {};
+    });
+    const res = await mount({
+      apiKeyId: 'key-7',
+      requestId: 'req-9',
+    }).app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', JSON.stringify({ kind: 'webhook' })),
+    );
+    expect(res.status).toBe(200);
+    expect(seen).toEqual([keyChannel]);
+    expect(setTrigger).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actor: 'api-key:user-1' }),
+    );
+  });
+
+  it('DELETE /automations/{name}/triggers runs as the key, inside its channel', async () => {
+    const seen: unknown[] = [];
+    const { currentRequestChannel } = await import('../lib/request-channel.ts');
+    vi.mocked(deleteTrigger).mockImplementationOnce(async () => {
+      seen.push(currentRequestChannel());
+      return true;
+    });
+    const res = await mount({
+      apiKeyId: 'key-7',
+      requestId: 'req-9',
+    }).app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('DELETE'),
+    );
+    expect(res.status).toBe(204);
+    expect(seen).toEqual([keyChannel]);
+    expect(deleteTrigger).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      SAVED,
+      'api-key:user-1',
+    );
+  });
 });

@@ -370,4 +370,46 @@ describe('createAuditLog — the request channel', () => {
     expect(written.metadata).toBeNull();
     expect(written.requestId).toBeNull();
   });
+
+  it('names the key that made the call even when the writer records another under the same name [MCP-R14]', async () => {
+    // Ada's agent creates an API key "ci" over MCP with her key "laptop":
+    // the row must point an admin at "laptop", the key that acted.
+    const written = await insertOf((tx) =>
+      runInRequestChannel(channel, () =>
+        createAuditLog(tx, {
+          ...args,
+          metadata: {
+            apiKeyId: 'key_ci',
+            tool: 'something_else',
+            clientName: 'Spoofed',
+            keyName: 'ci',
+          },
+        }),
+      ),
+    );
+    expect(written.metadata).toEqual({
+      via: 'mcp',
+      tool: 'cancel_run',
+      apiKeyId: 'key_1',
+      clientName: 'Claude Code',
+      keyName: 'ci',
+    });
+  });
+
+  it("stamps a REST write made with Ada's key as the key's, with the request id", async () => {
+    const written = await insertOf((tx) =>
+      runInRequestChannel(
+        { via: 'api-key', requestId: 'req-rest-1', apiKeyId: 'key_9' },
+        () => createAuditLog(tx, args),
+      ),
+    );
+    expect(written.metadata).toEqual({ via: 'api-key', apiKeyId: 'key_9' });
+    expect(written.requestId).toBe('req-rest-1');
+    const unnamed = await insertOf((tx) =>
+      runInRequestChannel({ via: 'api-key', apiKeyId: 'key_9' }, () =>
+        createAuditLog(tx, args),
+      ),
+    );
+    expect(unnamed.requestId).toBeNull();
+  });
 });

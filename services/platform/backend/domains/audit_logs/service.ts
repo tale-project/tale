@@ -192,10 +192,15 @@ async function selfCheckPriorRow(
 
 /**
  * The row as the caller described it, plus the door it came through: inside
- * a request channel (an MCP tool call) `metadata` gains `via`, the tool, the
- * API key and the client, and `requestId` the request's, unless the writer
- * set them itself. Applied BEFORE hashing, so the stored row and its hash
- * agree and the verifier, which rebuilds from the row, sees the same record.
+ * a request channel (an MCP tool call, a REST definition write) `metadata`
+ * gains `via`, the tool, the API key and the client, and `requestId` the
+ * request's, unless the writer named its own `via` (the skills publish
+ * door). What the channel stamps WINS over a writer's key of the same name:
+ * the channel's `apiKeyId` is the key that made the call, and a writer that
+ * records another key (one it created, say) names it differently — an
+ * admin reading the row must never be pointed at the wrong key to revoke.
+ * Applied BEFORE hashing, so the stored row and its hash agree and the
+ * verifier, which rebuilds from the row, sees the same record.
  */
 function withRequestChannel(args: CreateAuditLogArgs): CreateAuditLogArgs {
   const channel = currentRequestChannel();
@@ -204,15 +209,17 @@ function withRequestChannel(args: CreateAuditLogArgs): CreateAuditLogArgs {
     args.metadata?.via === undefined
       ? {
           metadata: {
-            ...channelAuditMetadata(channel),
             ...args.metadata,
+            ...channelAuditMetadata(channel),
           },
         }
       : {};
   return {
     ...args,
     ...stamped,
-    ...(args.requestId === undefined ? { requestId: channel.requestId } : {}),
+    ...(args.requestId === undefined && channel.requestId !== undefined
+      ? { requestId: channel.requestId }
+      : {}),
   };
 }
 

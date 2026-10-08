@@ -113,10 +113,15 @@ log in the same step, whoever made the change and through whichever door: the ap
 upload, the API, a coding agent, managed configuration. The row names the automation, the
 versions or the project involved and who made the change, never the document or a webhook
 token. A change that changed nothing, such as an install that was already there, writes none.
+A change made with an API key, through the REST API or a coding agent, is recorded as the key's
+(actor type API), naming the key and the request, never as a change made in the app.
 
 - **Example**: Ben deploys version 7 over version 6 → the audit log shows "Automation deployed"
   by Ben, from version 6 to version 7. He installs it again in a project it is already in → no
   new row.
+- **Example**: Ada's key "ci" deletes `billing/dunning` through the REST API → the row reads
+  "Automation deleted" by Ada, actor type API, with the key's id and the request id, so an
+  admin knows which key to revoke.
 
 ## Checking a version for problems
 
