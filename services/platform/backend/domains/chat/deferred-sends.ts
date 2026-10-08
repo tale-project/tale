@@ -12,8 +12,10 @@ import {
   type ChatErrorCode,
 } from '../../../lib/shared/chat-errors.ts';
 import { DEFERRED_SEND_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
+import { validateTurnAttachments } from '../../core/chat/turn_action.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { isBackendDraining } from '../control/service.ts';
 import {
@@ -24,6 +26,7 @@ import {
 } from '../video_links/service.ts';
 import { ChatBudgetExceededError } from './budget-admission.ts';
 import { runChatTurn } from './service.ts';
+import { chatShimHandlers } from './shim.ts';
 import { appendAssistantErrorMessage, appendMessageRow } from './store.ts';
 import { ChatThreadError, loadOwnedThread } from './threads.ts';
 
@@ -213,6 +216,17 @@ export async function enqueueDeferredSend(
     MAX_ATTACHMENTS
   ) {
     throw new ChatThreadError('TOO_MANY_ATTACHMENTS', 'Too many attachments');
+  }
+  if ((args.attachments?.length ?? 0) > 0) {
+    const refusal = await validateTurnAttachments(
+      createCtxShim(chatShimHandlers(sql)),
+      args.organizationId,
+      args.userId,
+      args.attachments ?? [],
+    );
+    if (refusal !== null) {
+      throw new ChatThreadError('ATTACHMENT_NOT_FOUND', refusal);
+    }
   }
   return sql.begin(async (tx) => {
     const pending = await tx<{ count: string }[]>`
@@ -448,7 +462,7 @@ async function isDeferredSendReady(
  * model) or thrown before the turn-open write. The direct lane hands such a
  * refusal back to the composer and the REST lane appends an assistant error
  * row; this lane has nobody waiting, so the parked message lands as its
- * user row (the text plus the attachments it carried) followed by the error
+ * user row (typed text only: pre-flight attachments are untrusted) followed by the error
  * row, where the reply would have been. The tray row settles in the caller's
  * `finally`. A failure INSIDE the pipeline needs none of this: the turn-open
  * write persisted the user row and the placeholder carries the error.
@@ -456,14 +470,13 @@ async function isDeferredSendReady(
 async function leaveFailureTrace(
   sql: Sql,
   row: DeferredSendRow,
-  attachments: readonly DeferredAttachment[],
   failure: { code: ChatErrorCode; raw: string; budgetScope?: string },
 ): Promise<void> {
   await appendMessageRow(sql, {
     organizationId: row.organizationId,
     threadId: row.threadId,
     role: 'user',
-    parts: userTurnParts(row.userText, attachments),
+    parts: userTurnParts(row.userText, []),
     text: row.userText,
   });
   await appendAssistantErrorMessage(sql, {
@@ -637,7 +650,7 @@ export async function pollDeferredSend(
       if (!userAppended) {
         // Threw before the turn-open write (an unknown model, an unusable
         // credential): the thread would show nothing of the message.
-        await leaveFailureTrace(sql, row, attachments, {
+        await leaveFailureTrace(sql, row, {
           code: classifyChatErrorCode(error),
           // A platform refusal's sentence (a reached budget cap, an unknown
           // model) is its `data.message`, never the serialized payload.
@@ -658,7 +671,7 @@ export async function pollDeferredSend(
       // refuses before the pipeline runs); a guardrail refusal inside the
       // pipeline already appended its blocked assistant row.
       if (outcome.steps.length === 0) {
-        await leaveFailureTrace(sql, row, attachments, {
+        await leaveFailureTrace(sql, row, {
           code: 'generic',
           raw: outcome.reason,
         });
