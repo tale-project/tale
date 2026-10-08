@@ -98,6 +98,22 @@ describe('pruneSupersededImages', () => {
     ]);
   });
 
+  test('keeps the newest earlier version when no distinct rollback target is recorded', async () => {
+    const deps = fakeDeps([
+      `${REGISTRY}/tale-platform:0.5.78`,
+      `${REGISTRY}/tale-platform:0.5.77`,
+      `${REGISTRY}/tale-sandbox-runtime:0.5.77`,
+      `${REGISTRY}/tale-platform:0.5.76`,
+    ]);
+
+    // A redeploy of the live version records it as its own rollback target.
+    await pruneSupersededImages(REGISTRY, ['0.5.78', '0.5.78'], deps);
+
+    expect(removedBy(deps.docker)).toEqual([
+      `${REGISTRY}/tale-platform:0.5.76`,
+    ]);
+  });
+
   test('touches only release tags of this registry’s tale repositories', async () => {
     const deps = fakeDeps([
       `${REGISTRY}/tale-sandbox-runtime:latest`,
@@ -111,7 +127,7 @@ describe('pruneSupersededImages', () => {
       `${REGISTRY}/tale-platform:0.5.70`,
     ]);
 
-    await pruneSupersededImages(REGISTRY, ['0.5.78'], deps);
+    await pruneSupersededImages(REGISTRY, ['0.5.78', '0.5.77'], deps);
 
     expect(removedBy(deps.docker)).toEqual([
       `${REGISTRY}/tale-platform:0.5.70`,
@@ -129,7 +145,11 @@ describe('pruneSupersededImages', () => {
       },
     });
 
-    const result = await pruneSupersededImages(REGISTRY, ['0.5.78'], deps);
+    const result = await pruneSupersededImages(
+      REGISTRY,
+      ['0.5.78', '0.5.77'],
+      deps,
+    );
 
     expect(
       deps.docker.mock.calls.some((call) => call.includes('--force')),
@@ -148,7 +168,7 @@ describe('pruneSupersededImages', () => {
       `${REGISTRY}/tale-platform:0.5.70`,
     ]);
 
-    const result = await pruneSupersededImages(REGISTRY, ['0.5.78'], {
+    const result = await pruneSupersededImages(REGISTRY, ['0.5.78', '0.5.77'], {
       ...deps,
       dryRun: true,
     });
@@ -168,7 +188,11 @@ describe('pruneSupersededImages', () => {
   test('an unreachable daemon is a warning, not a failure', async () => {
     const deps = fakeDeps([], { listOk: false });
 
-    const result = await pruneSupersededImages(REGISTRY, ['0.5.78'], deps);
+    const result = await pruneSupersededImages(
+      REGISTRY,
+      ['0.5.78', '0.5.77'],
+      deps,
+    );
 
     expect(result).toEqual({ removed: [], inUse: [], failed: [] });
     expect(deps.logger.warn).toHaveBeenCalledTimes(1);

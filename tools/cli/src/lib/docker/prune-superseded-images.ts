@@ -74,7 +74,9 @@ export async function pruneSupersededImages(
   }
 
   const prefix = `${registry.replace(/\/+$/, '')}/tale-`;
-  const superseded = [
+  const tagOf = (reference: string) =>
+    reference.slice(reference.lastIndexOf(':') + 1).replace(/^v/, '');
+  const older = [
     ...new Set(
       listing.stdout
         .split('\n')
@@ -82,12 +84,31 @@ export async function pruneSupersededImages(
         .filter((reference) => reference.startsWith(prefix)),
     ),
   ].filter((reference) => {
-    const tag = reference.slice(reference.lastIndexOf(':') + 1);
+    const tag = tagOf(reference);
     // A release tag: the whole tag is a version, so `latest`, branch and pull
     // request tags never match.
-    if (extractVersion(tag) !== tag.replace(/^v/, '')) return false;
+    if (extractVersion(tag) !== tag) return false;
     return compareVersions(tag, oldestKept) < 0;
   });
+  // Without a distinct rollback target (a first deploy, or a redeploy of the
+  // live version, which records itself), the newest earlier version stays as
+  // the fallback a rollback would want.
+  const distinctKept = new Set(
+    kept.map((version) => version.replace(/^v/, '')),
+  );
+  const fallback =
+    distinctKept.size > 1
+      ? undefined
+      : older
+          .map(tagOf)
+          .reduce<string | undefined>(
+            (newest, tag) =>
+              newest === undefined || compareVersions(tag, newest) > 0
+                ? tag
+                : newest,
+            undefined,
+          );
+  const superseded = older.filter((reference) => tagOf(reference) !== fallback);
 
   for (const reference of superseded) {
     if (dryRun) {
