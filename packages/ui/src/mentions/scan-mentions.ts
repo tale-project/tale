@@ -231,23 +231,65 @@ export interface MentionNameOptions<
   nameOf?: (ref: MentionRef<Kind>) => string | null | undefined;
 }
 
+/** Where a backslash escapes an `@` in a parsed text's prose (never in
+ * code, math or a link), as offsets into the text the tree was parsed from. */
+function escapedMentionSigns(tree: Root, text: string): number[] {
+  const found: number[] = [];
+  const visit = (node: Nodes): void => {
+    if (OPAQUE.has(node.type) || node.type === 'link') return;
+    if (node.type === 'text') {
+      const start = node.position?.start.offset;
+      const end = node.position?.end.offset;
+      if (start === undefined || end === undefined) return;
+      const source = text.slice(start, end);
+      let at = source.indexOf('\\@');
+      while (at !== -1) {
+        // `\\@` is an escaped backslash before a plain `@`.
+        let backslashes = 1;
+        while (source[at - backslashes] === '\\') backslashes += 1;
+        if (backslashes % 2 === 1) found.push(start + at);
+        at = source.indexOf('\\@', at + 2);
+      }
+      return;
+    }
+    if ('children' in node) for (const child of node.children) visit(child);
+  };
+  visit(tree);
+  return found;
+}
+
 /**
- * A text with every token read as `@` and the name of whoever it names, for
- * places that show text without rendering markdown: a search snippet, an
- * activity line, a notification excerpt.
+ * A text with every token read as `@` and the name of whoever it names, and
+ * an escaped `\@` (a mention that was saved as text) read as `@`, for places
+ * that show text without rendering markdown: a search snippet, an activity
+ * line, a notification excerpt.
  */
 export function mentionPlainText<Kind extends string>(
   markdown: string,
   options: MentionNameOptions<Kind>,
 ): string {
-  const occurrences = findMentions(markdown, options).filter(
-    (occurrence) => occurrence.type === 'token',
-  );
-  return spliceMentions(markdown, occurrences, (occurrence) =>
-    occurrence.type === 'token'
-      ? `@${options.nameOf?.(occurrence.ref) ?? occurrence.label}`
-      : null,
-  );
+  if (!markdown.includes('@') && !markdown.includes('mention:')) {
+    return markdown;
+  }
+  const parsed = parseMentionMarkdown(markdown);
+  const edits: { start: number; end: number; text: string }[] = [];
+  for (const occurrence of collectMentions(parsed.tree, parsed.text, options)) {
+    if (occurrence.type !== 'token') continue;
+    edits.push({
+      start: parsed.toInputOffset(occurrence.start),
+      end: parsed.toInputOffset(occurrence.end),
+      text: `@${options.nameOf?.(occurrence.ref) ?? occurrence.label}`,
+    });
+  }
+  for (const offset of escapedMentionSigns(parsed.tree, parsed.text)) {
+    const start = parsed.toInputOffset(offset);
+    edits.push({ start, end: start + 1, text: '' });
+  }
+  let result = markdown;
+  for (const edit of edits.toSorted((a, b) => b.start - a.start)) {
+    result = result.slice(0, edit.start) + edit.text + result.slice(edit.end);
+  }
+  return result;
 }
 
 /**

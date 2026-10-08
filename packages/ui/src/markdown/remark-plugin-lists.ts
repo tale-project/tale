@@ -40,12 +40,14 @@ export const CHAT_REMARK_PLUGINS = [
 
 /**
  * Task comments and descriptions: the chat list, except that a single `$`
- * is a dollar sign. People write amounts there ("$500 approved by @mia,
- * $200 left"), and two of them would otherwise turn the words between into
- * a formula — a mention among them included. `$$…$$` is still math.
+ * is a dollar sign and four leading spaces make code. People write amounts
+ * there ("$500 approved by @mia, $200 left"), and two of them would
+ * otherwise turn the words between into a formula — a mention among them
+ * included; `$$…$$` is still math. And task text is written by people and
+ * imported from issue trackers, whose stack traces and logs are indented
+ * code far more often than an indented paragraph is meant.
  */
 export const TASK_REMARK_PLUGINS = [
-  remarkDisableIndentedCode,
   remarkCjkAttention,
   remarkGfm,
   [remarkMath, { singleDollarTextMath: false }],

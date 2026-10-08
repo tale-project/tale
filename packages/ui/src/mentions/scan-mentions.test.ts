@@ -56,7 +56,7 @@ describe('where a text mentions someone', () => {
     ],
     ['a list', '- @ada\n- [ ] @mia', ['@ada', '@mia']],
     ['a blockquote', '> @ada said\n> @mia agreed', ['@ada', '@mia']],
-    ['an indented paragraph', '    @ada is not code here', ['@ada']],
+    ['indented code', 'Trace:\n\n    @ada at main.js:1', []],
     ['a fenced code block', '```\n@Override\n' + ADA + '\n```', []],
     ['inline code', '`@ada` and `' + ADA + '`', []],
     ['display math', '$$\n@ada\n$$', []],
@@ -125,6 +125,15 @@ describe('a text read without markdown', () => {
         { kinds: KINDS, nameOf },
       ),
     ).toBe(`@Ada King and @Mia and @noah, \`${ADA}\``);
+  });
+
+  it('reads a mention saved as text, `\\@Name`, as @ and the name', () => {
+    expect(
+      mentionPlainText('\\@Gone Person left, `\\@code` and \\\\@mia', {
+        kinds: KINDS,
+        nameOf,
+      }),
+    ).toBe('@Gone Person left, `\\@code` and \\\\@mia');
   });
 
   it('gives a token the current name and keeps its address', () => {
