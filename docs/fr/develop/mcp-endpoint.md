@@ -233,7 +233,7 @@ Chaque argument est un seul mot, car des clients comme Claude Code séparent les
 
 La clé identifie son titulaire ; elle n'élargit ni son rôle ni son accès aux projets. Une automatisation installée uniquement dans des projets que le titulaire de la clé ne peut pas lire n’apparaît pas dans `list_automations`, et toute lecture de celle-ci répond `AUTOMATION_NOT_FOUND`, comme pour une automatisation qui n’existe pas. Les appels réels via `invoke_capability` passent aussi par les contrôles d'exécution.
 
-Chaque modification qu’un appel MCP apporte à une automatisation — une version enregistrée, une mise en service, une suppression, un déclencheur défini ou retiré, une installation ajoutée ou retirée — figure dans le journal d’audit de l’organisation, marquée comme venue par MCP, avec l’outil et la clé API.
+Chaque modification qu’un appel MCP apporte à une automatisation — une version enregistrée, une mise en service, une suppression, un déclencheur défini ou retiré, une installation ajoutée ou retirée — figure dans le journal d’audit de l’organisation, marquée comme venue par MCP, avec l’outil et la clé API. Dans le détail de l’événement, **Source** affiche Agent de code, et **Client** nomme l’application de l’agent quand elle a transmis son nom ([Journaux d’audit](/fr/platform/admin/governance/audit-logs)).
 
 Avant de configurer des outils privilégiés, lis `GET /api/v1/me` : `capabilities.developer` indique le droit lié au rôle actuel. `deploymentEditor` correspond à une liste opérateur distincte et n’autorise pas la création par MCP. Les erreurs d’outils gardent le format MCP décrit ci-dessous ; la lecture d’une capacité REST ne change pas leur traitement JSON-RPC.
 
