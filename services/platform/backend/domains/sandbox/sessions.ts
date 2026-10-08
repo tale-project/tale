@@ -20,6 +20,7 @@ import {
 } from '../../core/sandbox/session_constants.ts';
 import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
 import type { TurnOpRef } from '../../core/sandbox/tool_names.ts';
+import { SANDBOX_SESSION_HELD_REASON } from '../../core/tasks/run_park_reason.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
@@ -61,11 +62,21 @@ import {
 
 export class SandboxQuotaError extends Error {
   readonly code = 'QUOTA_EXCEEDED';
-  /** Set when the refusal is no want of room: the session's Destroy is
-   * pending ({@link SandboxDestroyPendingError}). The shims carry it on. */
-  readonly reason: typeof SANDBOX_DESTROY_PENDING_REASON | undefined;
+  /** Set when the refusal is no want of the organization's room: the
+   * session's Destroy is pending ({@link SandboxDestroyPendingError}), or
+   * the workspace already holds a live session of its own
+   * ({@link SANDBOX_SESSION_HELD_REASON}). The shims carry it on. */
+  readonly reason:
+    | typeof SANDBOX_DESTROY_PENDING_REASON
+    | typeof SANDBOX_SESSION_HELD_REASON
+    | undefined;
 
-  constructor(message: string, reason?: typeof SANDBOX_DESTROY_PENDING_REASON) {
+  constructor(
+    message: string,
+    reason?:
+      | typeof SANDBOX_DESTROY_PENDING_REASON
+      | typeof SANDBOX_SESSION_HELD_REASON,
+  ) {
     super(message);
     this.name = 'SandboxQuotaError';
     this.reason = reason;
@@ -179,9 +190,11 @@ export async function reserveSessionSlot(
     }
     const now = Date.now();
 
-    // One live session per workspace. A project agent owns several — its
-    // standing one and one per member who starts its runs — each with its
-    // own session id, so its cap counts per session.
+    // One live session per workspace. A project agent owns several — a
+    // worker of its standing family and of each member's family for every
+    // run of it working at the same time — each with its own session id, so
+    // its cap counts per session. Meeting it is no want of the
+    // organization's room: a second start raced into the same worker.
     const perSession = args.ownerType === 'project_agent';
     const ownerActive = await tx<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.sandbox_sessions
@@ -194,6 +207,7 @@ export async function reserveSessionSlot(
     ) {
       throw new SandboxQuotaError(
         `This ${args.ownerType} already has an active sandbox session.`,
+        perSession ? SANDBOX_SESSION_HELD_REASON : undefined,
       );
     }
 

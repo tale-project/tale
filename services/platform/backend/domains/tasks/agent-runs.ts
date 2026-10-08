@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  isAgentRunWaitingReason,
+  type AgentRunWaitingReason,
+} from '../../../lib/shared/agent-run-waiting.ts';
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { BROKER_RATE_LIMIT_COOLDOWN_MS } from '../../core/provider_credentials/broker_pool.ts';
 import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
@@ -102,6 +106,9 @@ export interface AgentRunRow {
   trigger: string | null;
   feedback: string | null;
   waitingForCapacityAt: number | null;
+  /** Why the run waits (migration 0167) — only while it is parked; null
+   * otherwise, and on a park that kept no reason. */
+  waitingReason: AgentRunWaitingReason | null;
   agentSessionId: string | null;
   startedBy: string;
   startedAt: number;
@@ -117,6 +124,12 @@ export interface AgentRunRow {
   startedViaAgentId: string | null;
 }
 
+/** A run's waiting reason as every read shows it: only while the run is
+ * parked. A reason left on a row a wake has since restarted (an image that
+ * does not clear it) is never shown. */
+const PARKED_WAITING_REASON_SQL = `CASE WHEN status = 'queued'
+    AND waiting_for_capacity_at_ms IS NOT NULL THEN waiting_reason END`;
+
 const RUN_COLUMNS = `
   id, org_id AS "organizationId", project_id AS "projectId",
   task_id AS "taskId", agent_id AS "agentId", exec_id AS "execId",
@@ -125,6 +138,7 @@ const RUN_COLUMNS = `
   result_text AS "resultText",
   result_message_id AS "resultMessageId", trigger, feedback,
   waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
+  ${PARKED_WAITING_REASON_SQL} AS "waitingReason",
   agent_session_id AS "agentSessionId", started_by AS "startedBy",
   started_at_ms::float8 AS "startedAt", launched_at_ms::float8 AS "launchedAt",
   deadline_at_ms::float8 AS "deadlineAt", settled_at_ms::float8 AS "settledAt",
@@ -826,7 +840,8 @@ async function restartParkedRun(
 ): Promise<void> {
   await tx`
     UPDATE app.project_agent_runs SET
-      waiting_for_capacity_at_ms = NULL, updated_at_ms = ${Date.now()}
+      waiting_for_capacity_at_ms = NULL, waiting_reason = NULL,
+      updated_at_ms = ${Date.now()}
     WHERE id = ${run.id}
   `;
   await addJobInTx(tx, 'task.agent_turn', {
@@ -1005,6 +1020,8 @@ export interface TaskAgentRunCard {
   retryPending?: boolean;
   resultText?: string;
   waitingForCapacity?: boolean;
+  /** Why the run waits, while it is parked and a reason was kept. */
+  waitingReason?: AgentRunWaitingReason;
   trigger?: string;
   autoRetryAttempt?: number;
   autoRetryMax: number;
@@ -1031,6 +1048,7 @@ export async function getLatestAgentRunCardForTask(
       failureCode: string | null;
       resultText: string | null;
       waitingForCapacityAt: number | null;
+      waitingReason: string | null;
       trigger: string | null;
       autoRetryAttempt: number | null;
       startedBy: string;
@@ -1042,6 +1060,9 @@ export async function getLatestAgentRunCardForTask(
            r.harness, r.model, r.error, r.failure_code AS "failureCode",
            r.result_text AS "resultText",
            r.waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
+           CASE WHEN r.status = 'queued'
+             AND r.waiting_for_capacity_at_ms IS NOT NULL
+             THEN r.waiting_reason END AS "waitingReason",
            r.trigger, r.auto_retry_attempt AS "autoRetryAttempt",
            r.started_by AS "startedBy",
            r.started_at_ms::float8 AS "startedAt",
@@ -1070,6 +1091,9 @@ export async function getLatestAgentRunCardForTask(
     ...(retryPending ? { retryPending: true } : {}),
     ...(run.resultText !== null ? { resultText: run.resultText } : {}),
     ...(run.waitingForCapacityAt !== null ? { waitingForCapacity: true } : {}),
+    ...(isAgentRunWaitingReason(run.waitingReason)
+      ? { waitingReason: run.waitingReason }
+      : {}),
     ...(run.trigger !== null ? { trigger: run.trigger } : {}),
     ...(run.autoRetryAttempt !== null
       ? { autoRetryAttempt: run.autoRetryAttempt }
@@ -1133,6 +1157,9 @@ export interface TaskAgentRunSummary {
   launchedAt: number | null;
   settledAt: number | null;
   waitingForCapacity: boolean;
+  /** Why the run waits, while it is parked; null otherwise, and on a park
+   * that kept no reason. */
+  waitingReason: AgentRunWaitingReason | null;
   failureCode: string | null;
   /** The same pending native retry the task card reads. A finished run is
    * not idle work while its automatic retry is still armed. False is an
@@ -1169,6 +1196,9 @@ export async function listTaskAgentRunSummaries(
            settled_at_ms::float8 AS "settledAt",
            (status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)
              AS "waitingForCapacity",
+           CASE WHEN status = 'queued'
+             AND waiting_for_capacity_at_ms IS NOT NULL
+             THEN waiting_reason END AS "waitingReason",
            failure_code AS "failureCode",
            EXISTS (
              SELECT 1 FROM app.project_agents a

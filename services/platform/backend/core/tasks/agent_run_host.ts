@@ -114,6 +114,7 @@ import {
 } from '../sandbox/tool_names';
 import { TASK_COMMENT_MAX } from './helpers';
 import type { MentionSource } from './mentions';
+import { runParkReason } from './run_park_reason';
 import { classifyStartFailure } from './start_failure';
 import {
   isCredentialRotation,
@@ -1670,6 +1671,8 @@ export async function startTaskAgentTurnImpl(
         const execRefused = noRoom?.scope === 'session';
         const wakeAfterMs =
           noRoom !== null ? queuedWakeAfterMs(noRoom) : undefined;
+        // The run keeps why it waits, so its task can say so.
+        const reason = runParkReason(err, noRoom);
         await ctx.runMutation(
           internal.tasks.agent_runs.parkTaskAgentRunForCapacity,
           {
@@ -1677,6 +1680,7 @@ export async function startTaskAgentTurnImpl(
             execId: args.execId,
             ...(wakeAfterMs !== undefined ? { wakeAfterMs } : {}),
             ...(execRefused ? { execRefused: true } : {}),
+            ...(reason !== undefined ? { reason } : {}),
           },
         );
         if (execRefused) {

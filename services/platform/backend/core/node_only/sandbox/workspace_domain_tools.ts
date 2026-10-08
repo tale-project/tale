@@ -266,6 +266,9 @@ interface AgentRunAnswer {
   launchedAt: number | null;
   settledAt: number | null;
   waitingForCapacity: boolean;
+  /** Why a parked run waits (`org_limit`, `host`, `destroy_pending`,
+   * `exec_limit`); null otherwise. */
+  waitingReason?: string | null;
   failureCode: string | null;
   retryPending?: boolean;
   feedback: string | null;
@@ -397,6 +400,13 @@ function agentRunOccupancyView(
     ...(launchedAt !== undefined ? { launchedAt } : {}),
     ...(settledAt !== undefined ? { settledAt } : {}),
     ...(run.waitingForCapacity ? { waitingForCapacity: true } : {}),
+    // A started run that waits for a free worker says why, so a manager
+    // knows the agent it chose is not working yet.
+    ...(run.waitingForCapacity &&
+    run.waitingReason !== undefined &&
+    run.waitingReason !== null
+      ? { waitingReason: run.waitingReason }
+      : {}),
     ...(run.failureCode !== null ? { failureCode: run.failureCode } : {}),
     ...(typeof run.retryPending === 'boolean'
       ? { retryPending: run.retryPending }
