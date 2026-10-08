@@ -47,7 +47,12 @@ export class MembershipError extends Error {
   }
 }
 
-/** All org memberships of a user (disabled rows included — callers filter). */
+/**
+ * All org memberships of a user (disabled rows included — callers filter),
+ * in a STABLE order (by organization id): the sign-in audit walks this list
+ * taking one audit-chain lock per organization inside one transaction, and
+ * every walker must take them in the same order or two of them deadlock.
+ */
 export async function getUserOrganizations(
   sql: Sql | TransactionSql,
   userId: string,
@@ -55,6 +60,7 @@ export async function getUserOrganizations(
   const rows = await sql<{ organizationId: string; role: string }[]>`
     SELECT "organizationId", "role" FROM "member"
     WHERE "userId" = ${userId}
+    ORDER BY "organizationId"
   `;
   return rows.map((row) => ({
     organizationId: row.organizationId,
