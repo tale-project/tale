@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
-import { DIRECT_CALL_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import { estimateTurnCostCents } from '../chat/store.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
 import { budgetPolicyActive, type BudgetViolation } from './budget-gate.ts';
 import { budgetRefusalMessage } from './budget-refusal.ts';
+import { DIRECT_CALL_OP_KIND } from './direct-call-kind.ts';
 import { incrementUsageLedger } from './service.ts';
 
 /**

@@ -9,10 +9,7 @@ import {
 } from '../../core/governance/erasure_constants.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
-import {
-  DIRECT_CALL_OP_KIND,
-  MODEL_API_OP_KIND,
-} from '../../core/sandbox/session_constants.ts';
+import { MODEL_API_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
@@ -27,6 +24,7 @@ import {
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
+import { DIRECT_CALL_OP_KIND } from '../governance/direct-call-kind.ts';
 import { applyMaturedDsarPolicyChange } from '../governance/settings-tail.ts';
 import { type ActiveHolds, loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
