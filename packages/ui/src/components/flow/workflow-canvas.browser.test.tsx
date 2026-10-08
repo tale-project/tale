@@ -9,9 +9,14 @@ import { ratioAgainst } from '@/tests/utils/contrast';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { resetFlowElkForTests } from './layout/elk-client';
+import { layoutFlowGraph } from './layout/layout-flow-graph';
 import { flowNodeSize } from './layout/sizes';
 import { flowEdgePaths } from './render/routed-edge';
-import { branchFlowGraph, triageFlowGraph } from './testing/flow-fixtures';
+import {
+  branchFlowGraph,
+  syntheticFlowGraph,
+  triageFlowGraph,
+} from './testing/flow-fixtures';
 import { edgeBoxCrossings } from './testing/flow-geometry';
 import type { FlowGraph, FlowLayout, FlowRect } from './types';
 import { WorkflowCanvas, type WorkflowCanvasProps } from './workflow-canvas';
@@ -369,6 +374,21 @@ describe('WorkflowCanvas', () => {
     );
     await screen.findByRole('group', { name: 'Triage GitHub issues' });
     expect(window.localStorage.getItem('tale:flow-view')).toBe('chart');
+  });
+
+  it('lays 40 nodes out in the worker inside the budget', async () => {
+    // Warm the worker, then time a layout of a graph it has not seen.
+    await layoutFlowGraph(syntheticFlowGraph(20, 3));
+    const times: number[] = [];
+    for (const seed of [7, 11, 23]) {
+      const layout = await layoutFlowGraph(syntheticFlowGraph(40, seed));
+      expect(layout.engine).toBe('worker');
+      times.push(layout.ms);
+    }
+    console.info(
+      `40-node layouts in the worker: ${times.map((ms) => Math.round(ms)).join(', ')} ms`,
+    );
+    expect(Math.max(...times)).toBeLessThan(1_500);
   });
 
   it('shows a skeleton column, busy, until the first layout lands', async () => {
