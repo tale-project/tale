@@ -16,6 +16,7 @@ import {
 import { DockerBackend } from './backend/docker/docker-backend.ts';
 import { loadConfig } from './config.ts';
 import { ImageWarmup } from './image-warmup.ts';
+import { BootAdoption } from './session/boot-adoption.ts';
 import { SessionRoutes } from './session/session-routes.ts';
 
 test('device spawners observe local resource pressure while preserving their configured slot count', async () => {
@@ -201,6 +202,91 @@ describe('session HTTP routes', () => {
     } finally {
       health.mockRestore();
     }
+  });
+
+  test('while boot adoption runs, calls that depend on it answer 503 session_unavailable, never 404', async () => {
+    const adopting = spyOn(BootAdoption.prototype, 'pending').mockReturnValue(
+      true,
+    );
+    const get = spyOn(SessionRoutes.prototype, 'handleGet').mockImplementation(
+      async () => Response.json({ session: { sessionId: 'existing' } }),
+    );
+    const attach = spyOn(
+      SessionRoutes.prototype,
+      'handleExecAttach',
+    ).mockImplementation(async () => new Response(''));
+    const request = (method: string, path: string) => {
+      const timestamp = String(Date.now());
+      const nonce = crypto.randomUUID();
+      return router(
+        new Request(`http://sandbox${path}`, {
+          method,
+          headers: {
+            [SIGNATURE_HEADER]: sign(
+              method,
+              path,
+              timestamp,
+              '',
+              'route-test-secret',
+              nonce,
+            ),
+            [TIMESTAMP_HEADER]: timestamp,
+            [NONCE_HEADER]: nonce,
+          },
+        }),
+      );
+    };
+    try {
+      for (const [method, path] of [
+        ['GET', '/v1/sessions/existing'],
+        ['GET', '/v1/sessions/existing/exec/exec1/attach?sinceSeq=4'],
+        ['GET', '/v1/sessions/existing/exec/exec1/checkpoint'],
+        ['GET', '/v1/sessions/existing/exec/exec1'],
+        ['POST', '/v1/sessions/existing/acquire'],
+        ['POST', '/v1/sessions'],
+        ['GET', '/v1/workspaces'],
+        ['GET', '/v1/capacity?organizationId=org-a'],
+        ['DELETE', '/v1/organizations/org-a'],
+        ['POST', '/v1/devices/device-1/disconnect'],
+      ] as const) {
+        const answer = await request(method, path);
+        expect({ method, path, status: answer.status }).toEqual({
+          method,
+          path,
+          status: 503,
+        });
+        expect(answer.headers.get('retry-after')).toBe('1');
+        expect(await answer.json()).toEqual({ error: 'session_unavailable' });
+      }
+      expect(get).not.toHaveBeenCalled();
+      expect(attach).not.toHaveBeenCalled();
+      // The deployment's limits and an unknown path answer as ever.
+      expect((await request('GET', '/v1/limits')).status).toBe(200);
+      expect(
+        (await request('GET', '/v1/sessions/existing/screencast')).status,
+      ).toBe(404);
+
+      adopting.mockReturnValue(false);
+      expect((await request('GET', '/v1/sessions/existing')).status).toBe(200);
+      expect(
+        (await request('GET', '/v1/sessions/existing/exec/exec1/attach'))
+          .status,
+      ).toBe(200);
+      expect(get).toHaveBeenCalledWith('existing');
+    } finally {
+      adopting.mockRestore();
+      get.mockRestore();
+      attach.mockRestore();
+    }
+  });
+
+  test('boot adoption is pending from its start to its end', () => {
+    const adoption = new BootAdoption();
+    expect(adoption.pending()).toBe(false);
+    adoption.begin();
+    expect(adoption.pending()).toBe(true);
+    adoption.end();
+    expect(adoption.pending()).toBe(false);
   });
 
   test('exec status forwards the incoming recovery cancellation signal', async () => {

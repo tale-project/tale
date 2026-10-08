@@ -287,6 +287,14 @@ of runnerd's orphan window (`TALE_EXTERNAL_TURN_DEADLINE_MS`, counted from the l
 settles the run as failed, once and with the exec cancelled first; the work-turn deadline still
 applies. A 404, a replay or protocol gap and an error the stream itself reports stay verdicts.
 
+A restarted spawner answers before it has re-adopted its sessions. Once its host lock and boot sweep
+are done it opens its listener, and until boot adoption has run and the device hub has loaded its
+placements, every session route — and the workspace inventory, the capacity read, an organization
+teardown and a device disconnect, whose answers depend on them — returns `503 session_unavailable`
+with `Retry-After: 1`, never a 404 the platform would take for a lost session. A restart thus reads
+to the platform as a few seconds of "not now", which its acquire, create and drain wait out, instead
+of refused connections; `/health`, `/v1/limits` and `/v1/devices` answer as before.
+
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity
 clock are authoritative. On boot the spawner re-adopts running sessions

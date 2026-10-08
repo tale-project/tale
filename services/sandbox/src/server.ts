@@ -45,7 +45,11 @@ import {
 import { jsonResponse } from './http-util.ts';
 import { ImageWarmup } from './image-warmup.ts';
 import { createRequestAuth } from './request-auth.ts';
-import { SessionRoutes } from './session/session-routes.ts';
+import { BootAdoption } from './session/boot-adoption.ts';
+import {
+  SessionRoutes,
+  unavailableSessionResponse,
+} from './session/session-routes.ts';
 
 // Awaited before anything else so a failure from here on is reported; it
 // loads the error-reporting SDK only when SENTRY_DSN is set.
@@ -60,6 +64,7 @@ const imageWarmup = new ImageWarmup(() => backend.warmImage());
 // `bun run dev` script where the runtime image is built ad-hoc and never
 // published to a registry, so the pull is guaranteed to 404.
 const imageWarmupEnabled = process.env.SANDBOX_SKIP_IMAGE_WARMUP !== '1';
+const bootAdoption = new BootAdoption();
 
 // Session lifecycle is separate from host boot/health. Construct once after
 // the deploy control routes are ready; both Docker and Kubernetes implement it.
@@ -292,6 +297,18 @@ const DEVICE_DISCONNECT_RE =
   /^\/v1\/devices\/([a-zA-Z0-9_-]{1,64})\/disconnect$/;
 const ORGANIZATION_RE = /^\/v1\/organizations\/([a-zA-Z0-9_-]{1,128})$/;
 
+/** The calls whose answer depends on what boot adoption fills in — the
+ * session registry and the hub's placements — and so wait for it. */
+function dependsOnAdoption(method: string, path: string): boolean {
+  return (
+    isSessionRoute(method, path) ||
+    (method === 'GET' &&
+      (path === '/v1/workspaces' || path === '/v1/capacity')) ||
+    (method === 'DELETE' && ORGANIZATION_RE.test(path)) ||
+    (method === 'POST' && DEVICE_DISCONNECT_RE.test(path))
+  );
+}
+
 // How often the session TTL/idle reaper runs.
 const SESSION_SWEEP_INTERVAL_MS = 60_000;
 
@@ -462,6 +479,9 @@ export async function router(req: Request): Promise<Response> {
   if (req.method === 'GET' && url.pathname === '/health') {
     return handleHealth();
   }
+  if (bootAdoption.pending() && dependsOnAdoption(req.method, url.pathname)) {
+    return unavailableSessionResponse();
+  }
   if (req.method === 'GET' && url.pathname === '/v1/limits') {
     const signed = await auth.readAndAuth(req);
     if ('error' in signed) return signed.error;
@@ -620,6 +640,40 @@ async function main(): Promise<void> {
 
   const stopPeriodic = startPeriodicSweep(backend, cfg);
 
+  // Listen before re-adopting the sessions a previous process left running,
+  // so a restart reads to the platform as a short 503 rather than a refused
+  // connection; the calls that depend on adoption wait for it (BootAdoption).
+  // The host lock and the boot sweep above have run by now.
+  bootAdoption.begin();
+  const server = Bun.serve({
+    port: cfg.port,
+    // A device's spawner is reached only through its tunnel (in-process) and
+    // by its own healthcheck — never from the network its sessions share.
+    ...(cfg.deviceConfigPath !== null ? { hostname: '127.0.0.1' } : {}),
+    // Bun's default idleTimeout is 10 s, which kills long SSE streams during
+    // silent install phases. 255 is Bun's max — combined with the in-stream
+    // keepalive in session exec streams, this gives a generous backstop without
+    // disabling the timeout entirely.
+    idleTimeout: 255,
+    fetch: (req) => handleSandboxRequest(req, router),
+    error: sandboxServerError,
+  });
+
+  installSignalHandlers(() => {
+    deviceAgent?.stop();
+    hub?.stop();
+    try {
+      void server.stop();
+    } catch (err) {
+      reportSandboxError(err, 'server-stop');
+      console.warn('[sandbox] server.stop() during shutdown failed:', err);
+    }
+  }, backend);
+
+  console.log(
+    `[sandbox] spawner listening on :${server.port}; runtime=${cfg.runtimeTier}${cfg.dockerInContainer ? '+dind' : ''}; image=${cfg.runtimeImage}; maxSessions=${cfg.session.maxSessions}; tokenAuth=on`,
+  );
+
   // Session subsystem: re-adopt running session containers into the registry
   // (the registry is a cache; backend objects are the source of truth) and
   // start the TTL/idle reaper. A transient backend failure is retried on
@@ -675,7 +729,8 @@ async function main(): Promise<void> {
   }
 
   // The hub's placement memory must be loaded before the API routes a single
-  // session call; its WebSocket door opens beside the API.
+  // session call (the adoption gate holds them until it is); its WebSocket
+  // door opens beside the API.
   if (hub !== null && cfg.hub !== null) {
     await hub.start();
     const door = serveHub(hub, cfg.hub.port);
@@ -683,6 +738,7 @@ async function main(): Promise<void> {
       `[sandbox] device hub listening on :${door.port} (devices dial /sandbox/tunnel)`,
     );
   }
+  bootAdoption.end();
 
   if (cfg.deviceConfigPath !== null) {
     const configPath = cfg.deviceConfigPath;
@@ -716,35 +772,6 @@ async function main(): Promise<void> {
       `[sandbox] device mode: "${deviceConfig.name}" (${deviceConfig.deviceId}) connecting to ${deviceConfig.serverUrl}`,
     );
   }
-
-  const server = Bun.serve({
-    port: cfg.port,
-    // A device's spawner is reached only through its tunnel (in-process) and
-    // by its own healthcheck — never from the network its sessions share.
-    ...(cfg.deviceConfigPath !== null ? { hostname: '127.0.0.1' } : {}),
-    // Bun's default idleTimeout is 10 s, which kills long SSE streams during
-    // silent install phases. 255 is Bun's max — combined with the in-stream
-    // keepalive in session exec streams, this gives a generous backstop without
-    // disabling the timeout entirely.
-    idleTimeout: 255,
-    fetch: (req) => handleSandboxRequest(req, router),
-    error: sandboxServerError,
-  });
-
-  installSignalHandlers(() => {
-    deviceAgent?.stop();
-    hub?.stop();
-    try {
-      void server.stop();
-    } catch (err) {
-      reportSandboxError(err, 'server-stop');
-      console.warn('[sandbox] server.stop() during shutdown failed:', err);
-    }
-  }, backend);
-
-  console.log(
-    `[sandbox] spawner listening on :${server.port}; runtime=${cfg.runtimeTier}${cfg.dockerInContainer ? '+dind' : ''}; image=${cfg.runtimeImage}; maxSessions=${cfg.session.maxSessions}; tokenAuth=on`,
-  );
 
   // Keep the periodic sweep handles so they aren't GC'd.
   void stopPeriodic;
