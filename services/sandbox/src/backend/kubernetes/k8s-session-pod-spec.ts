@@ -352,6 +352,10 @@ export function buildSessionPod(
           name: 'runner',
           image: cfg.runtimeImage,
           imagePullPolicy: 'IfNotPresent',
+          // A runner that exits during start (the entrypoint's FATAL line)
+          // reports its last log lines as the termination message, which a
+          // create that fails fast names as the reason.
+          terminationMessagePolicy: 'FallbackToLogsOnError',
           // `daemon` entrypoint dispatch → tini (PID 1, reaps orphans) + runnerd.
           args: ['daemon'],
           envFrom,
