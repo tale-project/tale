@@ -215,6 +215,7 @@ canvas:
     label: Ansicht
     canvas: Canvas
     list: Liste
+    source: Quelltext
   legend:
     data: 'Durchgezogene Linie: liest die Ausgabe der Node darüber'
     control: 'Gestrichelte Linie: läuft danach, ohne ihre Ausgabe zu lesen'
@@ -298,6 +299,19 @@ editor:
       fields: Felder
       shape: Struktur
       run: Letzter Lauf
+  start:
+    title: Start
+    description: Was diese Automatisierung startet und was jeder Lauf erhält.
+    trigger: Trigger
+    editTrigger: In Allgemein ändern
+    inputs: Eingaben
+    schema: Eingabeschema
+    inputsDescription: Die Daten, die jeder Lauf erhält, als JSON-Schema. Ein Lauf mit unpassender Eingabe wird abgelehnt, bevor eine Node läuft.
+  end:
+    title: Ende
+    description: Was ein erfolgreicher Lauf zurückgibt und wie ein Lauf enden kann.
+    outputDescription: Ein JSON-Wert. Lies Node-Ausgaben mit Templates, etwa '{{' nodes.report.output '}}'.
+    outcomes: Wie ein Lauf endet
   flow:
     title: Wann sie läuft
     always: Bei jedem Lauf
@@ -726,6 +740,11 @@ failureReason:
   iteration: ihre Liste nicht durchlaufen werden kann
   inputContract: ihre Eingabe abgelehnt wird
   subautomation: die aufgerufene Automatisierung fehlschlägt
+source:
+  ariaLabel: Quelltext dieser Automatisierung (YAML)
+  copy: YAML kopieren
+  download: YAML herunterladen
+  readOnlyHint: Um das Dokument zu ändern, nutze die Felder oder deinen Coding-Agent.
 codingAgent:
   button: Mit deinem Coding-Agent bearbeiten
   body: Coding-Agents wie Claude Code, Codex und Cursor ändern Automatisierungen über den MCP-Server von Tale. Sie lesen diese Automatisierung, ändern und prüfen sie und speichern eine neue Version, die dann hier erscheint.

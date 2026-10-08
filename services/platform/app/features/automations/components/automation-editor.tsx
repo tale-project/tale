@@ -6,6 +6,7 @@ import { Button } from '@tale/ui/button';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import type { CodeEditorDiagnosticsStatus } from '@tale/ui/code-editor';
+import { locateYamlPointer } from '@tale/ui/code-editor/locate';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Dialog } from '@tale/ui/dialog/dialog';
@@ -81,6 +82,7 @@ import {
 import {
   useAutomation,
   useAutomationProjects,
+  useAutomationRun,
   useAutomationRuns,
   useAutomationTriggers,
   useNodeTypeCatalog,
@@ -95,8 +97,10 @@ import { automationDetailPathname } from '../lib/detail-paths';
 import { DOCUMENT_DIRTY_KEY } from '../lib/dirty-keys';
 import { readDocument } from '../lib/document';
 import {
+  applyDocumentPatch,
   applyNodePatch,
   rawDocumentOf,
+  type DocumentPatch,
   type RawDocument,
 } from '../lib/draft-document';
 import type { AutomationEditorView } from '../lib/editor-search';
@@ -108,7 +112,7 @@ import {
   isMissingAutomationRead,
   type AutomationErrorIssues,
 } from '../lib/errors';
-import { flowGraphTarget } from '../lib/flow-ids';
+import { END_ID, START_ID, flowGraphTarget } from '../lib/flow-ids';
 import { fieldsWithIssueControl } from '../lib/inspector-fields';
 import {
   issueCountsByNode,
@@ -132,6 +136,7 @@ import {
   AUTOMATION_WORKBENCH_COMPACT_QUERY,
   AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
 } from '../lib/workbench';
+import { SOURCE_ISSUE_ANCHOR, yamlSource } from '../lib/yaml-source';
 import { AutomationCanvas, type CanvasRun } from './automation-canvas';
 import { AutomationEditorActions } from './automation-editor-actions';
 import {
@@ -143,14 +148,17 @@ import {
   AutomationRunDialog,
   type AutomationRunRequest,
 } from './automation-run-dialog';
+import { AutomationSourceView } from './automation-source-view';
 import { AutomationVersionPicker } from './automation-version-picker';
 import { CodingAgentButton } from './coding-agent-entry';
+import { EndFields, EndInspector } from './end-inspector';
 import {
   NodeFields,
   NodeInspector,
   type InspectorContext,
 } from './node-inspector';
 import type { ShapeStatus } from './node-shape-panel';
+import { StartFields, StartInspector } from './start-inspector';
 
 /** The run-scope Select's "organization-wide" choice. A Radix Select item
  * cannot carry an empty value, so the org-wide option needs a real sentinel
@@ -284,29 +292,29 @@ function AutomationEditorScope({
   // saving, deploying, triggering, and LIVE runs demand the
   // `developerSettings` ability — hiding what would only fail server-side.
   const canAuthor = ability.can('read', 'developerSettings');
-  // A `?node=` link opens its node on load. Start and End have no inspector
-  // of their own yet, so a link to them opens nothing.
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(() =>
-    nodeParam === undefined || flowGraphTarget(nodeParam).kind !== 'node'
+  /** The box open in the inspector: a node's id, Start or End. A `?node=`
+   * link opens its box on load. */
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    nodeParam === undefined || flowGraphTarget(nodeParam).kind === 'gate'
       ? null
       : nodeParam,
   );
   // The open node follows into the URL (`?node=`), replacing the entry.
-  const writtenNodeRef = useRef<string | null>(selectedNodeId);
+  const writtenNodeRef = useRef<string | null>(selectedId);
   useEffect(() => {
-    if (writtenNodeRef.current === selectedNodeId) return;
-    writtenNodeRef.current = selectedNodeId;
-    onSearchChange?.({ node: selectedNodeId });
-  }, [selectedNodeId, onSearchChange]);
+    if (writtenNodeRef.current === selectedId) return;
+    writtenNodeRef.current = selectedId;
+    onSearchChange?.({ node: selectedId });
+  }, [selectedId, onSearchChange]);
   const deselectNode = useCallback(() => {
-    const id = selectedNodeId;
-    setSelectedNodeId(null);
+    const id = selectedId;
+    setSelectedId(null);
     if (id !== null) {
       queueMicrotask(() => {
         focusAutomationNode(id);
       });
     }
-  }, [selectedNodeId]);
+  }, [selectedId]);
   /** The draft: the raw document with the author's edits (see
    * `../lib/draft-document`) — what the check, a save and the Source view
    * read. The canvas and the inspector read its narrowed view. */
@@ -448,6 +456,17 @@ function AutomationEditorScope({
 
   const runs = runsQuery.data ?? [];
   const lastRun = runs[0];
+  // Start's and End's Last run tabs show the run's input and output, which
+  // only the run's own read carries: it is asked for while one is open.
+  const runDetailQuery = useAutomationRun(
+    organizationId,
+    showLastRun &&
+      lastRun !== undefined &&
+      (selectedId === START_ID || selectedId === END_ID)
+      ? lastRun.id
+      : undefined,
+  );
+  const shownRunDetail = runDetailQuery.data ?? undefined;
   const lastRunProjection = useMemo(
     () => projectRun(showLastRun ? lastRun : null),
     [showLastRun, lastRun],
@@ -599,22 +618,20 @@ function AutomationEditorScope({
   );
   const layoutKey = `${automationSlug}:${version ?? 'latest'}`;
 
-  /** A box picked on the canvas: a node opens its inspector, a condition
-   * opens its node at the condition's field. Start and End have no
-   * inspector of their own yet. */
+  /** A box picked on the canvas: a node, Start or End opens its inspector,
+   * a condition opens its node at the condition's field. */
   const selectOnCanvas = useCallback(
     (id: string | null) => {
       if (id === null) {
-        setSelectedNodeId(null);
+        setSelectedId(null);
         return;
       }
       const target = flowGraphTarget(id);
-      if (target.kind === 'node') {
-        setSelectedNodeId(target.nodeId);
+      if (target.kind !== 'gate') {
+        setSelectedId(id);
         return;
       }
-      if (target.kind !== 'gate') return;
-      setSelectedNodeId(target.nodeId);
+      setSelectedId(target.nodeId);
       const index =
         automation?.nodes.findIndex((node) => node.id === target.nodeId) ?? -1;
       if (index >= 0) requestIssueFocus(ptr('nodes', index, 'when'));
@@ -695,6 +712,7 @@ function AutomationEditorScope({
     viewChoice === 'list' || (viewChoice === undefined && narrowCanvas)
       ? ('list' as const)
       : ('chart' as const);
+  const showSource = viewChoice === 'source';
   const changeView = useCallback(
     (next: AutomationEditorView) => {
       setViewChoice(next);
@@ -748,19 +766,18 @@ function AutomationEditorScope({
     });
     const said = [t('canvas.updated', { version: shownVersion })];
     if (
-      selectedNodeId !== null &&
-      !stored.nodes.some((node) => node.id === selectedNodeId)
+      selectedId !== null &&
+      flowGraphTarget(selectedId).kind === 'node' &&
+      !stored.nodes.some((node) => node.id === selectedId)
     ) {
-      said.push(
-        t('canvas.selectionRemoved', { node: nodeTitle(selectedNodeId) }),
-      );
-      setSelectedNodeId(null);
+      said.push(t('canvas.selectionRemoved', { node: nodeTitle(selectedId) }));
+      setSelectedId(null);
     }
     setCanvasNews((previous) => ({
       text: said.join(' '),
       key: previous.key + 1,
     }));
-  }, [shownVersion, version, stored, draft, selectedNodeId, t]);
+  }, [shownVersion, version, stored, draft, selectedId, t]);
   const newerVersion =
     draft !== null &&
     version === undefined &&
@@ -771,15 +788,24 @@ function AutomationEditorScope({
       ? shownVersion
       : null;
 
-  const selectedNodeIssues = useMemo(
-    () =>
-      issueViews.filter(
-        (view) =>
-          view.navigation.kind !== 'unavailable' &&
-          view.navigation.nodeId === selectedNodeId,
-      ),
-    [issueViews, selectedNodeId],
-  );
+  /** The problems the open inspector shows: a node's, or Start's (the
+   * run input's schema), or End's (the output). */
+  const selectedIssues = useMemo(() => {
+    if (selectedId === null) return [];
+    const target = flowGraphTarget(selectedId);
+    return issueViews.filter(({ navigation }) => {
+      switch (navigation.kind) {
+        case 'start':
+        case 'end':
+          return navigation.kind === target.kind;
+        case 'field':
+        case 'node':
+          return target.kind === 'node' && navigation.nodeId === selectedId;
+        default:
+          return false;
+      }
+    });
+  }, [issueViews, selectedId]);
   const [problemsOpen, setProblemsOpen] = useState(false);
   /** Which problems the panel shows; every open and every refusal starts
    * on all of them, so no filter hides what the reader came for. */
@@ -790,8 +816,8 @@ function AutomationEditorScope({
   /** The phone's node sheet is closing onto the Problems sheet. */
   const [nodeSheetHandsOn, setNodeSheetHandsOn] = useState(false);
   useEffect(() => {
-    if (selectedNodeId !== null) setNodeSheetHandsOn(false);
-  }, [selectedNodeId]);
+    if (selectedId !== null) setNodeSheetHandsOn(false);
+  }, [selectedId]);
   /** Focus the list once the panel has opened: on its current row, or on
    * the first error when a refusal opened it. */
   const [focusProblems, setFocusProblems] = useState<
@@ -899,55 +925,91 @@ function AutomationEditorScope({
    * toolbar's button lists: close the node, open the list on its errors. */
   const showProblemsFromNode = (): void => {
     setNodeSheetHandsOn(true);
-    setSelectedNodeId(null);
+    setSelectedId(null);
     setHandingOn(false);
     setProblemsFilter('all');
     setProblemsOpen(true);
     setFocusProblems('firstError');
   };
-  /** "Go to": pick the node, then focus the field and select the text. */
+  /** "Go to": open the box (a node, Start, End) or the Source view, then
+   * focus the field and select the text. */
   const goToIssue = (item: IssueItem): void => {
     const view = issueViews.find((candidate) => candidate.issue.id === item.id);
     if (view === undefined || view.navigation.kind === 'unavailable') return;
     const { navigation } = view;
     setActiveIssueId(item.id);
     if (isWorkbenchCompact) {
-      // The node's own sheet takes over from this one.
+      // The box's own sheet, or the Source view, takes over from this one.
       setHandingOn(true);
       setProblemsOpen(false);
     }
-    setSelectedNodeId(navigation.nodeId);
-    if (navigation.kind === 'field') {
-      requestIssueFocus(navigation.anchor, navigation.range);
-    } else {
-      requestIssueFocus(ptr('nodes', navigation.nodeIndex));
+    switch (navigation.kind) {
+      case 'source': {
+        changeView('source');
+        // The range in the YAML the Source view shows: the text on screen
+        // now, so it is the one the request's offsets index into.
+        const located =
+          rawDocument === null
+            ? null
+            : locateYamlPointer(yamlSource(rawDocument), navigation.pointer, {
+                ...(navigation.range !== undefined && {
+                  range: navigation.range,
+                }),
+                ...(navigation.subject !== undefined && {
+                  subject: navigation.subject,
+                }),
+              });
+        requestIssueFocus(
+          SOURCE_ISSUE_ANCHOR,
+          located === null ? undefined : [located.from, located.to],
+        );
+        return;
+      }
+      case 'start':
+      case 'end':
+        setSelectedId(navigation.kind === 'start' ? START_ID : END_ID);
+        requestIssueFocus(navigation.anchor, navigation.range);
+        return;
+      case 'field':
+        setSelectedId(navigation.nodeId);
+        requestIssueFocus(navigation.anchor, navigation.range);
+        return;
+      default:
+        setSelectedId(navigation.nodeId);
+        requestIssueFocus(ptr('nodes', navigation.nodeIndex));
     }
   };
 
-  const onChangeNode = useCallback(
-    (patch: Partial<NodeDef>) => {
-      if (!automation || rawDocument === null || selectedNodeId === null) {
-        return;
-      }
-      // The base is pinned on the draft's FIRST edit: the detail query
-      // follows every version another tab saves (its hint invalidates the
-      // read), so reading the version at save time would name the one that
-      // overtook the draft, not the one it was built on.
+  /** The draft after one more edit. Its base is pinned on its FIRST edit:
+   * the detail query follows every version another tab saves (its hint
+   * invalidates the read), so reading the version at save time would name
+   * the one that overtook the draft, not the one it was built on. */
+  const editDraft = useCallback(
+    (edit: (raw: RawDocument) => RawDocument) => {
+      if (!automation || rawDocument === null) return;
       if (draft === null) {
         draftBaseRef.current = automationQuery.data?.version;
         setDraftBase(automationQuery.data?.version);
         setDraftOrigin(automation);
         draftEpochRef.current += 1;
       }
-      setDraft(applyNodePatch(rawDocument, selectedNodeId, patch));
+      setDraft(edit(rawDocument));
     },
-    [
-      automation,
-      rawDocument,
-      selectedNodeId,
-      draft,
-      automationQuery.data?.version,
-    ],
+    [automation, rawDocument, draft, automationQuery.data?.version],
+  );
+  const onChangeNode = useCallback(
+    (patch: Partial<NodeDef>) => {
+      if (selectedId === null) return;
+      editDraft((raw) => applyNodePatch(raw, selectedId, patch));
+    },
+    [editDraft, selectedId],
+  );
+  /** Start edits the run input's schema, End the output. */
+  const onChangeDocument = useCallback(
+    (patch: DocumentPatch) => {
+      editDraft((raw) => applyDocumentPatch(raw, patch));
+    },
+    [editDraft],
   );
 
   const isDirty = draft !== null;
@@ -1143,10 +1205,19 @@ function AutomationEditorScope({
   const lookingIsLive =
     lookingVersion !== undefined && lookingVersion === meta?.deployedVersion;
   const selectedNode =
-    automation.nodes.find((node) => node.id === selectedNodeId) ?? null;
+    automation.nodes.find((node) => node.id === selectedId) ?? null;
   const selectedNodeIndex = automation.nodes.findIndex(
-    (node) => node.id === selectedNodeId,
+    (node) => node.id === selectedId,
   );
+  /** What the inspector shows: a node, Start or End; null while closed. */
+  const inspected =
+    selectedNode !== null
+      ? ('node' as const)
+      : selectedId === START_ID
+        ? ('start' as const)
+        : selectedId === END_ID
+          ? ('end' as const)
+          : null;
   /** Append the draft as a version built on `baseVersion` (none: append
    * whatever the latest is), then show the version that landed. */
   const submitSave = async (baseVersion: number | undefined): Promise<void> => {
@@ -1439,6 +1510,73 @@ function AutomationEditorScope({
     </>
   );
 
+  /** The open box's inspector: beside the canvas in its frame (`panel`),
+   * or bare inside the phone's sheet, which has a frame of its own. */
+  const inspector = (
+    context: InspectorContext,
+    place: 'panel' | 'sheet',
+  ): React.ReactNode => {
+    const shared = {
+      readOnly: !canAuthor,
+      onDeselect: deselectNode,
+      issues: selectedIssues,
+      context,
+    };
+    if (inspected === 'start') {
+      const props = {
+        ...shared,
+        triggers: triggerRowsShown,
+        generalHref: `${automationDetailPathname({
+          organizationId,
+          automationSlug,
+          ...(projectId !== undefined && { projectId }),
+        })}/general`,
+        onChange: onChangeDocument,
+        ...(shownRunDetail !== undefined && {
+          run: { input: shownRunDetail.input },
+        }),
+      };
+      return place === 'panel' ? (
+        <StartInspector id={inspectorId} variant="panel" {...props} />
+      ) : (
+        <StartFields headingId={inspectorId} {...props} />
+      );
+    }
+    if (inspected === 'end') {
+      const props = {
+        ...shared,
+        onChange: onChangeDocument,
+        ...(shownRunDetail !== undefined && {
+          run: { output: shownRunDetail.output },
+        }),
+      };
+      return place === 'panel' ? (
+        <EndInspector id={inspectorId} variant="panel" {...props} />
+      ) : (
+        <EndFields headingId={inspectorId} {...props} />
+      );
+    }
+    if (selectedNode === null) return null;
+    const props = {
+      ...shared,
+      node: selectedNode,
+      nodeType: nodeTypes.find((def) => def.type === selectedNode.type),
+      catalogUnavailable: catalogQuery.isError,
+      runView: showLastRun
+        ? lastRunProjection.byNode.get(selectedNode.id)
+        : undefined,
+      onChange: onChangeNode,
+      organizationId,
+      ...(projectId !== undefined && { projectId }),
+      nodeIndex: selectedNodeIndex,
+    };
+    return place === 'panel' ? (
+      <NodeInspector id={inspectorId} variant="panel" {...props} />
+    ) : (
+      <NodeFields headingId={inspectorId} {...props} />
+    );
+  };
+
   const editorActions = (
     <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
       {automationActions}
@@ -1448,15 +1586,26 @@ function AutomationEditorScope({
   const viewSwitch = (
     <SegmentedControl
       aria-label={t('canvas.view.label')}
-      value={canvasView === 'list' ? 'list' : 'canvas'}
-      onValueChange={(next) => changeView(next === 'list' ? 'list' : 'canvas')}
+      value={showSource ? 'source' : canvasView === 'list' ? 'list' : 'canvas'}
+      onValueChange={(next) =>
+        changeView(
+          next === 'source' ? 'source' : next === 'list' ? 'list' : 'canvas',
+        )
+      }
       options={[
         { value: 'canvas', label: t('canvas.view.canvas') },
         { value: 'list', label: t('canvas.view.list') },
+        { value: 'source', label: t('canvas.view.source') },
       ]}
       className="bg-background shadow-sm"
     />
   );
+  const codingAgentButton = canAuthor ? (
+    <CodingAgentButton
+      organizationId={organizationId}
+      automationSlug={automationSlug}
+    />
+  ) : null;
   const canvasToolbarActions = (
     <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
       {automationActions}
@@ -1568,75 +1717,86 @@ function AutomationEditorScope({
         <div
           className={cn(
             AUTOMATION_EDITOR_WORKBENCH_GRID,
-            selectedNode !== null && AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
+            inspected !== null && AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
           )}
         >
           <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>
-            {canvasDocument !== null && (
-              <AutomationCanvas
-                automation={canvasDocument}
-                layoutKey={layoutKey}
-                catalog={catalog}
-                modelLabel={modelLabel}
-                triggers={triggerRowsShown}
-                check={canvasCheck}
-                startNotice={startNotice}
-                issueCounts={countsByNode}
-                selectedId={selectedNodeId}
-                onSelect={selectOnCanvas}
-                revealId={selectedNodeId}
-                inspectorId={inspectorId}
-                {...(canvasRun !== undefined && { run: canvasRun })}
-                {...(canvasChange !== undefined && { changed: canvasChange })}
-                framed={false}
-                view={canvasView}
-                onViewChange={(next) =>
-                  changeView(next === 'list' ? 'list' : 'canvas')
-                }
-                topStart={viewSwitch}
-                topEnd={
-                  <>
-                    {lastRun ? (
-                      <Button
-                        variant="secondary"
-                        size="icon-sm"
-                        aria-pressed={showLastRun}
-                        title={
-                          showLastRun
-                            ? t('detail.hideLastRun')
-                            : t('detail.showLastRun')
-                        }
-                        tooltipSide="bottom"
-                        onClick={() => {
-                          setShowLastRun((shown) => !shown);
-                        }}
-                      >
-                        {showLastRun ? (
-                          <EyeOff className="size-4" aria-hidden="true" />
-                        ) : (
-                          <Eye className="size-4" aria-hidden="true" />
-                        )}
-                      </Button>
-                    ) : null}
-                    {canAuthor && (
+            {showSource && rawDocument !== null ? (
+              <AutomationSourceView
+                document={rawDocument}
+                settled={settledDocument}
+                issues={issueViews}
+                diagnosticsStatus={diagnosticsStatus}
+                automationSlug={automationSlug}
+                version={lookingVersion}
+                isDraft={isDirty}
+                viewSwitch={viewSwitch}
+                actions={codingAgentButton}
+                {...(isMobile && { toolbar: canvasToolbarActions })}
+                showEditHint={canAuthor}
+              />
+            ) : (
+              canvasDocument !== null && (
+                <AutomationCanvas
+                  automation={canvasDocument}
+                  layoutKey={layoutKey}
+                  catalog={catalog}
+                  modelLabel={modelLabel}
+                  triggers={triggerRowsShown}
+                  check={canvasCheck}
+                  startNotice={startNotice}
+                  issueCounts={countsByNode}
+                  selectedId={selectedId}
+                  onSelect={selectOnCanvas}
+                  revealId={selectedId}
+                  inspectorId={inspectorId}
+                  {...(canvasRun !== undefined && { run: canvasRun })}
+                  {...(canvasChange !== undefined && { changed: canvasChange })}
+                  framed={false}
+                  view={canvasView}
+                  onViewChange={(next) =>
+                    changeView(next === 'list' ? 'list' : 'canvas')
+                  }
+                  topStart={viewSwitch}
+                  topEnd={
+                    <>
+                      {lastRun ? (
+                        <Button
+                          variant="secondary"
+                          size="icon-sm"
+                          aria-pressed={showLastRun}
+                          title={
+                            showLastRun
+                              ? t('detail.hideLastRun')
+                              : t('detail.showLastRun')
+                          }
+                          tooltipSide="bottom"
+                          onClick={() => {
+                            setShowLastRun((shown) => !shown);
+                          }}
+                        >
+                          {showLastRun ? (
+                            <EyeOff className="size-4" aria-hidden="true" />
+                          ) : (
+                            <Eye className="size-4" aria-hidden="true" />
+                          )}
+                        </Button>
+                      ) : null}
+                      {codingAgentButton}
+                    </>
+                  }
+                  {...(isMobile && { toolbar: canvasToolbarActions })}
+                  {...(canAuthor && {
+                    emptyAction: (
                       <CodingAgentButton
                         organizationId={organizationId}
                         automationSlug={automationSlug}
+                        variant="primary"
                       />
-                    )}
-                  </>
-                }
-                {...(isMobile && { toolbar: canvasToolbarActions })}
-                {...(canAuthor && {
-                  emptyAction: (
-                    <CodingAgentButton
-                      organizationId={organizationId}
-                      automationSlug={automationSlug}
-                      variant="primary"
-                    />
-                  ),
-                })}
-              />
+                    ),
+                  })}
+                />
+              )
             )}
             {/* Under the canvas, spanning its column only, so the inspector
                 beside it keeps its full height. Below `lg` the list opens
@@ -1661,32 +1821,9 @@ function AutomationEditorScope({
               (`lg` up) it opens there; below that there is no panel to
               stack against, so it opens in the sheet below instead — never
               both, `isWorkbenchCompact` picks exactly one. */}
-          {selectedNode !== null &&
-            inspectorContext !== null &&
-            !isWorkbenchCompact && (
-              <NodeInspector
-                id={inspectorId}
-                variant="panel"
-                node={selectedNode}
-                nodeType={nodeTypes.find(
-                  (def) => def.type === selectedNode.type,
-                )}
-                catalogUnavailable={catalogQuery.isError}
-                runView={
-                  showLastRun
-                    ? lastRunProjection.byNode.get(selectedNode.id)
-                    : undefined
-                }
-                readOnly={!canAuthor}
-                onChange={onChangeNode}
-                organizationId={organizationId}
-                {...(projectId !== undefined && { projectId })}
-                onDeselect={deselectNode}
-                issues={selectedNodeIssues}
-                nodeIndex={selectedNodeIndex}
-                context={inspectorContext}
-              />
-            )}
+          {inspectorContext !== null &&
+            !isWorkbenchCompact &&
+            inspector(inspectorContext, 'panel')}
         </div>
       </div>
 
@@ -1741,7 +1878,7 @@ function AutomationEditorScope({
           sheet is scrolled. */}
       {isWorkbenchCompact && (
         <ResponsiveDialog
-          open={selectedNode !== null}
+          open={inspected !== null}
           onOpenChange={(open) => {
             if (!open) deselectNode();
           }}
@@ -1752,35 +1889,23 @@ function AutomationEditorScope({
             // Closing onto the Problems sheet: its list takes focus.
             preventCloseAutoFocus={nodeSheetHandsOn}
           >
-            {selectedNode !== null && inspectorContext !== null && (
+            {inspected !== null && inspectorContext !== null && (
               <>
                 <ResponsiveDialogTitle className="sr-only">
-                  {nodeTitle(selectedNode.id)}
+                  {inspected === 'start'
+                    ? t('editor.start.title')
+                    : inspected === 'end'
+                      ? t('editor.end.title')
+                      : nodeTitle(selectedNode?.id ?? '')}
                 </ResponsiveDialogTitle>
                 <ResponsiveDialogDescription className="sr-only">
-                  {t('editor.nodeSheetDescription')}
+                  {inspected === 'start'
+                    ? t('editor.start.description')
+                    : inspected === 'end'
+                      ? t('editor.end.description')
+                      : t('editor.nodeSheetDescription')}
                 </ResponsiveDialogDescription>
-                <NodeFields
-                  headingId={inspectorId}
-                  node={selectedNode}
-                  nodeType={nodeTypes.find(
-                    (def) => def.type === selectedNode.type,
-                  )}
-                  catalogUnavailable={catalogQuery.isError}
-                  runView={
-                    showLastRun
-                      ? lastRunProjection.byNode.get(selectedNode.id)
-                      : undefined
-                  }
-                  readOnly={!canAuthor}
-                  onChange={onChangeNode}
-                  organizationId={organizationId}
-                  {...(projectId !== undefined && { projectId })}
-                  onDeselect={deselectNode}
-                  issues={selectedNodeIssues}
-                  nodeIndex={selectedNodeIndex}
-                  context={inspectorContext}
-                />
+                {inspector(inspectorContext, 'sheet')}
                 {canAuthor && (
                   <div className="bg-background border-border sticky bottom-0 z-10 -mb-6 flex flex-wrap items-center justify-end gap-2 border-t pt-3 pb-6">
                     {/* The problems that hold Save back may sit in other

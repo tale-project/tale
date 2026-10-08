@@ -8,6 +8,12 @@ import { automationEditorSearchSchema } from './editor-search';
  * automation.
  */
 describe('automationEditorSearchSchema', () => {
+  it('opens the Source view', () => {
+    expect(automationEditorSearchSchema.parse({ view: 'source' })).toEqual({
+      view: 'source',
+    });
+  });
+
   it('reads the version, the view and the open node', () => {
     expect(
       automationEditorSearchSchema.parse({
@@ -31,7 +37,7 @@ describe('automationEditorSearchSchema', () => {
     expect(
       automationEditorSearchSchema.parse({
         version: 0,
-        view: 'source',
+        view: 'yaml',
         node: 'Not a node id',
       }),
     ).toEqual({});

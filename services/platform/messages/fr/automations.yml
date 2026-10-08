@@ -215,6 +215,7 @@ canvas:
     label: Vue
     canvas: Canevas
     list: Liste
+    source: Source
   legend:
     data: 'Trait plein : lit la sortie du nœud au-dessus'
     control: 'Trait tireté : s’exécute après lui, sans lire sa sortie'
@@ -297,6 +298,19 @@ editor:
       fields: Champs
       shape: Structure
       run: Dernière exécution
+  start:
+    title: Début
+    description: Ce qui démarre cette automatisation et ce que reçoit chaque exécution.
+    trigger: Déclencheur
+    editTrigger: Modifier dans Général
+    inputs: Entrées
+    schema: Schéma d’entrée
+    inputsDescription: Les données que reçoit chaque exécution, sous forme de schéma JSON. Une exécution dont l’entrée ne correspond pas est refusée avant qu’un nœud ne s’exécute.
+  end:
+    title: Fin
+    description: Ce que renvoie une exécution réussie, et comment une exécution peut se terminer.
+    outputDescription: Une valeur JSON. Lis les sorties des nœuds avec des templates, par exemple '{{' nodes.report.output '}}'.
+    outcomes: Comment une exécution se termine
   flow:
     title: Quand il s’exécute
     always: À chaque exécution
@@ -728,6 +742,11 @@ failureReason:
   iteration: sa liste ne peut pas être parcourue
   inputContract: son entrée est refusée
   subautomation: l’automatisation appelée échoue
+source:
+  ariaLabel: Source de cette automatisation (YAML)
+  copy: Copier le YAML
+  download: Télécharger le YAML
+  readOnlyHint: Pour modifier le document, utilise les champs ou ton agent de code.
 codingAgent:
   button: Modifier avec ton agent de code
   body: Les agents de code comme Claude Code, Codex et Cursor modifient les automatisations via le serveur MCP de Tale. Ils lisent cette automatisation, la modifient, la vérifient et enregistrent une nouvelle version, qui apparaît ensuite ici.

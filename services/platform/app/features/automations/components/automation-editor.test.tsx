@@ -251,6 +251,13 @@ vi.mock('../hooks/queries', async (importOriginal) => {
       ],
     }),
     useAutomationRuns: () => ({ data: runsData }),
+    // A run's own read: what Start's and End's Last run tabs show.
+    useAutomationRun: (_organizationId: string, runId?: string) => ({
+      data:
+        runId === undefined
+          ? undefined
+          : { id: runId, input: { owner: 'acme' }, output: { sent: 2 } },
+    }),
     useAutomationProjects: () => ({ data: projectsData.bound }),
     useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
     useAutomationTriggers: () => ({ data: [] }),
@@ -350,6 +357,12 @@ vi.mock('./automation-canvas', () => ({
             {`select the condition of ${node.id}`}
           </button>
         ))}
+      <button type="button" onClick={() => onSelect('__start')}>
+        select Start
+      </button>
+      <button type="button" onClick={() => onSelect('__end')}>
+        select End
+      </button>
       <button type="button" onClick={() => onSelect(null)}>
         deselect
       </button>
@@ -812,6 +825,25 @@ describe('AutomationEditor missing version', () => {
 function inspector(): HTMLElement | null {
   const id = screen.getByTestId('canvas').dataset.inspectorId;
   return id === undefined ? null : document.getElementById(id);
+}
+
+/** The open inspector; fails the test when none is. */
+function openInspector(): HTMLElement {
+  const found = inspector();
+  if (found === null) throw new Error('No inspector is open');
+  return found;
+}
+
+/** Replace a code field's whole text, as a paste over a selection does. */
+async function replaceText(
+  user: ReturnType<typeof renderPage>['user'],
+  box: HTMLElement,
+  text: string,
+): Promise<void> {
+  if (!(box instanceof HTMLTextAreaElement)) throw new Error('Not a text box');
+  await user.click(box);
+  act(() => box.setSelectionRange(0, box.value.length));
+  await user.paste(text);
 }
 
 describe('AutomationEditor', () => {
@@ -2039,13 +2071,14 @@ describe('AutomationEditor problems', () => {
     expect(screen.queryByText(/automation failed validation/)).toBeNull();
   });
 
-  it("says why a problem outside the nodes can't be gone to", async () => {
+  it("says why a problem in a node the draft no longer has can't be gone to", async () => {
+    // The check answered for an older draft that had a second node.
     validationMock.errors = withIssueIds([
       {
         level: 'error' as const,
-        code: 'OUTPUT_MISSING',
-        message: 'the automation has no output',
-        at: { pointer: '/output', subject: 'missing' },
+        code: 'REF_UNKNOWN_NODE',
+        message: 'nodes.nope does not exist',
+        at: { pointer: '/nodes/3/prompt' },
         params: {},
       },
     ]);
@@ -2232,5 +2265,199 @@ describe('AutomationEditor canvas', () => {
     expect(
       screen.queryByRole('button', { name: 'Edit with your coding agent' }),
     ).toBeNull();
+  });
+});
+
+describe('Start, End and the Source view', () => {
+  const documentWithInputs = {
+    name: 'billing/dunning',
+    inputs: {
+      type: 'object',
+      properties: { owner: { type: 'string' } },
+      required: ['owner'],
+    },
+    nodes: [{ id: 'summary', type: 'llm', prompt: 'Hi {{ input.owner }}' }],
+    output: '{{ nodes.summary.output }}',
+    tests: [{ name: 'smoke', input: { owner: 'acme' } }],
+  };
+
+  it('opens Start, edits the run input schema and saves it with the document', async () => {
+    state.document = documentWithInputs;
+    const onSearchChange = vi.fn();
+    const { user } = renderPage({ onSearchChange });
+    await user.click(screen.getByRole('button', { name: 'select Start' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ node: '__start' });
+    const panel = openInspector();
+    expect(within(panel).getByRole('heading', { name: 'Start' })).toBeVisible();
+    expect(
+      within(panel).getByText('Only by hand, the API or MCP — no trigger'),
+    ).toBeVisible();
+    expect(
+      within(panel).getByRole('link', { name: 'Change in General' }),
+    ).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/automations/billing__dunning/general',
+    );
+    // The fields of the run input, as a tree.
+    expect(within(panel).getByText('owner')).toBeVisible();
+
+    const schema = within(panel).getByRole('textbox', { name: 'Input schema' });
+    await replaceText(user, schema, '{"type":"object"}');
+    const checked = validationMock.calls.at(-1)?.document;
+    expect(checked).toEqual({
+      ...documentWithInputs,
+      inputs: { type: 'object' },
+    });
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => {
+      expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(saveMutation.mutateAsync.mock.calls[0]?.[0].automation).toEqual(
+      checked,
+    );
+  });
+
+  it('opens End, edits the output and goes to a node whose failure stops the run', async () => {
+    state.document = documentWithInputs;
+    const { user } = renderPage({ node: '__end' });
+    const panel = openInspector();
+    expect(within(panel).getByRole('heading', { name: 'End' })).toBeVisible();
+    expect(
+      within(panel).getByRole('list', { name: 'How a run ends' }),
+    ).toBeVisible();
+    const output = within(panel).getByRole('textbox', { name: 'Output' });
+    expect(output).toHaveValue('"{{ nodes.summary.output }}"');
+    await replaceText(user, output, '{"text":"{{ nodes.summary.output }}"}');
+    expect(validationMock.calls.at(-1)?.document).toEqual({
+      ...documentWithInputs,
+      output: { text: '{{ nodes.summary.output }}' },
+    });
+
+    await user.click(within(panel).getByRole('button', { name: 'Summary' }));
+    expect(
+      within(openInspector()).getByRole('heading', { name: 'Summary' }),
+    ).toBeVisible();
+  });
+
+  it('shows the input and the output of the run on the canvas', async () => {
+    state.document = documentWithInputs;
+    runsData.push({
+      id: 'run-1',
+      name: 'billing/dunning',
+      version: 3,
+      status: 'success',
+      mode: 'mock',
+      startedBy: 'user:a',
+      startedAt: 1_700_000_000_000,
+    });
+    const { user } = renderPage({ node: '__start' });
+    await user.click(
+      within(openInspector()).getByRole('tab', { name: 'Last run' }),
+    );
+    expect(within(openInspector()).getByTestId('json')).toHaveTextContent(
+      '{"owner":"acme"}',
+    );
+    await user.click(screen.getByRole('button', { name: 'select End' }));
+    await user.click(
+      within(openInspector()).getByRole('tab', { name: 'Last run' }),
+    );
+    expect(within(openInspector()).getByTestId('json')).toHaveTextContent(
+      '{"sent":2}',
+    );
+  });
+
+  it('goes to a problem in the run input, the output and the tests', async () => {
+    state.document = documentWithInputs;
+    validationMock.errors = withIssueIds([
+      {
+        level: 'error',
+        code: 'SCHEMA_X',
+        message: 'owner is wrong',
+        at: { pointer: '/inputs/properties/owner' },
+      },
+      {
+        level: 'error',
+        code: 'OUTPUT_X',
+        message: 'output is wrong',
+        at: { pointer: '/output' },
+      },
+      {
+        level: 'error',
+        code: 'TEST_X',
+        message: 'the test is wrong',
+        at: { pointer: '/tests/0/name' },
+      },
+    ]);
+    const onSearchChange = vi.fn();
+    const { user } = renderPage({ onSearchChange });
+    const problems = screen.getByRole('button', { name: /^Problems/ });
+    const goTo = async (location: RegExp) => {
+      if (problems.getAttribute('aria-expanded') !== 'true') {
+        await user.click(problems);
+      }
+      const dock = screen.getByRole('region', { name: 'Problems' });
+      await user.click(within(dock).getByRole('button', { name: location }));
+    };
+
+    await goTo(/Inputs › properties › owner/);
+    const schema = await within(
+      openInspector(),
+    ).findByRole<HTMLTextAreaElement>('textbox', { name: 'Input schema' });
+    await waitFor(() => expect(schema).toHaveFocus());
+    expect(schema.value.slice(schema.selectionStart, schema.selectionEnd)).toBe(
+      '{\n      "type": "string"\n    }',
+    );
+
+    await goTo(/Output/);
+    const output = await within(openInspector()).findByRole('textbox', {
+      name: 'Output',
+    });
+    await waitFor(() => expect(output).toHaveFocus());
+
+    await goTo(/Tests › 1 › name/);
+    expect(onSearchChange).toHaveBeenLastCalledWith({ view: 'source' });
+    const source = await screen.findByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Source of this automation (YAML)',
+    });
+    await waitFor(() => expect(source).toHaveFocus());
+    expect(source.value.slice(source.selectionStart, source.selectionEnd)).toBe(
+      'smoke',
+    );
+    // Every problem is marked in the source, at the place it names.
+    expect(
+      JSON.parse(source.dataset.diagnostics ?? '[]').map(
+        (mark: { id: string }) => mark.id,
+      ),
+    ).toHaveLength(3);
+  });
+
+  it('shows the whole document as read-only YAML in the Source view', async () => {
+    state.document = documentWithInputs;
+    const { user } = renderPage();
+    await user.click(
+      within(screen.getByTestId('canvas-top-start')).getByRole('radio', {
+        name: 'Source',
+      }),
+    );
+    expect(screen.queryByTestId('canvas')).toBeNull();
+    const source = screen.getByRole('textbox', {
+      name: 'Source of this automation (YAML)',
+    });
+    expect(source).toHaveAttribute('aria-readonly', 'true');
+    expect(source).toHaveAttribute('data-language', 'yaml');
+    expect((source as HTMLTextAreaElement).value).toContain(
+      'tests:\n  - name: smoke',
+    );
+    expect(
+      screen.getByText(
+        'To change the document, use the fields or your coding agent.',
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Edit with your coding agent' }),
+    ).toBeVisible();
+    await user.click(screen.getByRole('radio', { name: 'Canvas' }));
+    expect(screen.getByTestId('canvas')).toBeInTheDocument();
   });
 });

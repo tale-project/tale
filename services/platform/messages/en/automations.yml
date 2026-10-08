@@ -211,6 +211,7 @@ canvas:
     label: View
     canvas: Canvas
     list: List
+    source: Source
   legend:
     data: 'Solid line: reads the output of the node above'
     control: 'Dashed line: runs after it, without reading its output'
@@ -291,6 +292,19 @@ editor:
       fields: Fields
       shape: Shape
       run: Last run
+  start:
+    title: Start
+    description: What starts this automation and what each run receives.
+    trigger: Trigger
+    editTrigger: Change in General
+    inputs: Inputs
+    schema: Input schema
+    inputsDescription: "The data each run receives, as a JSON Schema. A run whose input doesn't match is refused before any node runs."
+  end:
+    title: End
+    description: What a successful run returns, and how a run can end.
+    outputDescription: A JSON value. Read node outputs with templates, such as '{{' nodes.report.output '}}'.
+    outcomes: How a run ends
   flow:
     title: When it runs
     always: On every run
@@ -716,6 +730,11 @@ failureReason:
   iteration: "its list can't be gone through"
   inputContract: its input is refused
   subautomation: the automation it calls fails
+source:
+  ariaLabel: Source of this automation (YAML)
+  copy: Copy YAML
+  download: Download YAML
+  readOnlyHint: To change the document, use the fields or your coding agent.
 codingAgent:
   button: Edit with your coding agent
   body: Coding agents such as Claude Code, Codex and Cursor change automations through Tale's MCP server. They read this automation, change and check it, and save a new version, which then appears here.

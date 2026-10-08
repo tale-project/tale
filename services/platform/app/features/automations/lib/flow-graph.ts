@@ -60,6 +60,7 @@ import {
   renderCondition,
   renderOperand,
   type ConditionTextContext,
+  type ConditionTranslate,
 } from './condition-text';
 import { END_ID, START_ID, decisionKeyOf, gateIdOf } from './flow-ids';
 import { orderedNodes } from './graph';
@@ -283,6 +284,31 @@ function startNode(doc: Automation, ctx: FlowGraphContext): FlowEntryNode {
   };
 }
 
+/** The three ways a run ends, as End and its inspector say them:
+ *  `halts` is how many nodes stop the run when they fail. */
+export function endOutcomes(t: ConditionTranslate, halts: number): FlowRow[] {
+  return [
+    {
+      id: 'succeeded',
+      icon: CircleCheck,
+      label: t('runs.status.success'),
+      detail: t('canvas.end.succeeded'),
+    },
+    {
+      id: 'failed',
+      icon: CircleX,
+      label: t('runs.status.failed'),
+      detail: t('canvas.end.failed', { count: halts }),
+    },
+    {
+      id: 'stopped',
+      icon: Ban,
+      label: t('runs.status.cancelled'),
+      detail: t('canvas.end.stopped'),
+    },
+  ];
+}
+
 /** End: what a successful run returns, and the three ways a run ends. */
 function endNode(
   doc: Automation,
@@ -369,26 +395,7 @@ function endNode(
       outputsEmpty: t('canvas.end.returnsNothing'),
     }),
     ...(shape !== undefined && { shape }),
-    outcomes: [
-      {
-        id: 'succeeded',
-        icon: CircleCheck,
-        label: t('runs.status.success'),
-        detail: t('canvas.end.succeeded'),
-      },
-      {
-        id: 'failed',
-        icon: CircleX,
-        label: t('runs.status.failed'),
-        detail: t('canvas.end.failed', { count: flow?.halts.length ?? 0 }),
-      },
-      {
-        id: 'stopped',
-        icon: Ban,
-        label: t('runs.status.cancelled'),
-        detail: t('canvas.end.stopped'),
-      },
-    ],
+    outcomes: endOutcomes(t, flow?.halts.length ?? 0),
     ...(someEmpty && {
       notice: { tone: 'info', text: t('canvas.end.someEmpty') },
     }),

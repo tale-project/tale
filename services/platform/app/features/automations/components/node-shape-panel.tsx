@@ -19,7 +19,7 @@ import { nodeTitle } from '../lib/node-face';
 export type ShapeStatus = 'pending' | 'checking' | 'ready' | 'failed';
 
 /** A shape with its TypeScript behind "Show as TypeScript". */
-function ShapeBlock({
+export function ShapeBlock({
   title,
   shape,
   children,
@@ -77,7 +77,7 @@ function originText(
 
 /** A line saying the shapes on screen are being brought up to date, or
  *  could not be worked out. */
-function ShapeStatusLine({ status }: { status: ShapeStatus }) {
+export function ShapeStatusLine({ status }: { status: ShapeStatus }) {
   const { t } = useT('automations');
   if (status === 'failed') {
     return (

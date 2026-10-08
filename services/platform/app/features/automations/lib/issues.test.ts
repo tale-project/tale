@@ -213,12 +213,68 @@ describe('issueNavigation', () => {
     ).toEqual({ kind: 'node', nodeId: 'fetch_issues', nodeIndex: 0 });
   });
 
-  it('cannot go to a place the editor does not edit', () => {
-    for (const pointer of ['/output', '/inputs', '/tests/0', '/name', '']) {
+  it('goes to Start for the run input and a trigger it refuses', () => {
+    expect(
+      issueNavigation(
+        issue({
+          code: 'X',
+          at: { pointer: '/inputs/properties/owner', range: [0, 3] },
+        }),
+        DOC,
+        controlsOf,
+      ),
+    ).toEqual({
+      kind: 'start',
+      anchor: '/inputs/properties/owner',
+      range: [0, 3],
+    });
+    // The schedule's wrapper is refused by the schema: fixed in the schema.
+    expect(
+      issueNavigation(
+        issue({ code: 'TRIGGER_INPUT_MISMATCH', at: { pointer: '' } }),
+        DOC,
+        controlsOf,
+      ),
+    ).toEqual({ kind: 'start', anchor: '/inputs' });
+  });
+
+  it('goes to End for the output, even when the issue names a node', () => {
+    expect(
+      issueNavigation(
+        issue({
+          code: 'X',
+          nodeId: 'draft_reply',
+          at: { pointer: '/output/summary' },
+        }),
+        DOC,
+        controlsOf,
+      ),
+    ).toEqual({ kind: 'end', anchor: '/output/summary' });
+  });
+
+  it('goes to the Source view for a place without a control', () => {
+    for (const pointer of ['/tests/0', '/name', '', '/nodes']) {
       expect(
         issueNavigation(issue({ code: 'X', at: { pointer } }), DOC, controlsOf),
-      ).toEqual({ kind: 'unavailable' });
+      ).toEqual({ kind: 'source', pointer });
     }
+    expect(
+      issueNavigation(
+        issue({
+          code: 'X',
+          at: { pointer: '/tests/0/expect', subject: 'missing' },
+        }),
+        DOC,
+        controlsOf,
+      ),
+    ).toEqual({
+      kind: 'source',
+      pointer: '/tests/0/expect',
+      subject: 'missing',
+    });
+  });
+
+  it('cannot go to a node the document on screen no longer has', () => {
     // A pointer past the nodes of the document on screen (an older check).
     expect(
       issueNavigation(
@@ -303,14 +359,25 @@ describe('toIssueView', () => {
     expect(view.item.unavailableReason).toBeUndefined();
   });
 
-  it('says why a problem outside the nodes cannot be gone to', () => {
+  it('says why a problem in a node that is gone cannot be gone to', () => {
     const [found] = withIssueIds([
-      issue({ code: 'OUTPUT_MISSING', at: { pointer: '/output' } }),
+      issue({ code: 'X', at: { pointer: '/nodes/7/code' } }),
     ]);
     if (found === undefined) throw new Error('no issue');
     const view = toIssueView(found, DOC, { locale: 'en', t, controlsOf });
     expect(view.navigation).toEqual({ kind: 'unavailable' });
     expect(view.item.unavailableReason).toBe(t('problems.notEditableHere'));
+  });
+
+  it('goes to a problem outside the nodes, at Start, End or in the source', () => {
+    const found = withIssueIds([
+      issue({ code: 'OUTPUT_MISSING', at: { pointer: '/output' } }),
+      issue({ code: 'X', at: { pointer: '/tests/0' } }),
+    ]);
+    for (const each of found) {
+      const view = toIssueView(each, DOC, { locale: 'en', t, controlsOf });
+      expect(view.item.unavailableReason).toBeUndefined();
+    }
   });
 });
 
@@ -330,6 +397,29 @@ describe('fieldIssueMessage', () => {
     const cause = view.item.cause;
     expect(typeof cause).toBe('string');
     expect(message).toContain(typeof cause === 'string' ? cause : '');
+  });
+
+  it('leads with the key inside the output and the run input', () => {
+    const found = withIssueIds([
+      issue({
+        code: 'REF_UNKNOWN_NODE',
+        at: { pointer: '/output/summary' },
+        params: { ref: 'nope' },
+      }),
+      issue({
+        code: 'X',
+        message: 'a newer code',
+        at: { pointer: '/inputs/properties' },
+      }),
+    ]);
+    const [output, inputs] = found.map((each) =>
+      fieldIssueMessage(
+        toIssueView(each, DOC, { locale: 'en', t, controlsOf }),
+        t,
+      ),
+    );
+    expect(output?.startsWith('summary: ')).toBe(true);
+    expect(inputs?.startsWith('properties: ')).toBe(true);
   });
 
   it('does not lead with the key when the cause already names it', () => {

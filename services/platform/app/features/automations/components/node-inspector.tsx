@@ -536,7 +536,7 @@ export interface NodeInspectorProps {
 
 /** The inspector's frame: a card in a page inset, or a panel flush
  *  against the canvas. Shared by the node, Start and End inspectors. */
-function InspectorFrame({
+export function InspectorFrame({
   id,
   labelledBy,
   focusKey,
@@ -648,7 +648,7 @@ const NO_ISSUE_VIEWS: readonly AutomationIssueView[] = [];
 
 /** The tab bar of an inspector: Fields, Shape (while the check can say),
  *  Last run (while a run is laid over the canvas). */
-function useInspectorTab(
+export function useInspectorTab(
   hasShape: boolean,
   hasRun: boolean,
   defaultTab: InspectorTab = 'fields',
@@ -667,7 +667,7 @@ function isInspectorTab(value: string): value is InspectorTab {
 
 /** The three tabs, with each panel kept mounted so a half-typed field
  *  survives a look at the shapes. */
-function InspectorTabs({
+export function InspectorTabs({
   tab,
   onTabChange,
   fields,

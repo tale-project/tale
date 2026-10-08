@@ -6,9 +6,9 @@
  * An issue says where it is with an RFC 6901 pointer into the document
  * (`at.pointer`, `/nodes/2/input/to`) and, for a string, the offending range
  * inside it. Node problems are reached through the canvas and the inspector;
- * a problem elsewhere in the document (the output, the inputs schema, the
- * tests) has no control in the editor, so its row says so instead of going
- * anywhere.
+ * the run input's schema through Start, the output through End; a problem
+ * anywhere else in the document (the tests, the name) in the Source view, at
+ * the place it names.
  */
 
 import type { IssueItem } from '@tale/ui/issue-list';
@@ -42,6 +42,23 @@ export type IssueNavigation =
       range?: readonly [number, number];
     }
   | { kind: 'node'; nodeId: string; nodeIndex: number }
+  /** The run input's schema, in Start's inspector, or the output, in
+   *  End's: `anchor` is the issue's pointer under `/inputs` or `/output`. */
+  | {
+      kind: 'start' | 'end';
+      anchor: string;
+      range?: readonly [number, number];
+    }
+  /** A part of the document without a control (the tests, the name): the
+   *  Source view, at the place `pointer` names. */
+  | {
+      kind: 'source';
+      pointer: string;
+      range?: readonly [number, number];
+      subject?: 'value' | 'key' | 'missing';
+    }
+  /** A node the document on screen no longer has (the check is older than
+   *  the edit that removed it): there is nowhere to go. */
   | { kind: 'unavailable' };
 
 /** One issue as every surface of the editor needs it. */
@@ -208,20 +225,58 @@ export function issueCountsByNode(
 }
 
 /**
- * Where "go to" takes the reader: the field's control when the inspector has
- * one for it, else the node (its own list of problems sits at the top of the
- * inspector), and nowhere for a part of the document the editor does not
- * edit. A member name that should not be there (an unknown field) has no
- * control by definition, so it goes to the node.
+ * Where "go to" takes the reader: Start's inspector for the run input's
+ * schema, End's for the output; in a node, the field's control when the
+ * inspector has one for it, else the node (its own list of problems sits at
+ * the top of the inspector); and the Source view for every other part of
+ * the document. A member name that should not be there (an unknown field)
+ * has no control by definition, so it goes to the node.
  */
 export function issueNavigation(
   issue: WireAutomationIssue,
   doc: Automation,
   controlsOf: FieldControls,
 ): IssueNavigation {
+  const pointer = pointerOf(issue);
+  const [section] = pointerTokens(pointer);
+  const range = issue.at?.range;
+  // The run input's schema is edited on Start, and a schedule whose input
+  // the schema refuses is fixed there too.
+  if (section === 'inputs' || issue.code === 'TRIGGER_INPUT_MISMATCH') {
+    return {
+      kind: 'start',
+      anchor: section === 'inputs' ? pointer : '/inputs',
+      ...(range !== undefined && { range }),
+    };
+  }
+  if (section === 'output') {
+    return {
+      kind: 'end',
+      anchor: pointer,
+      ...(range !== undefined && { range }),
+    };
+  }
   const found = nodeOf(issue, doc);
-  if (found === null) return NO_NAVIGATION;
-  const { node, index } = found;
+  if (found !== null) return nodeNavigation(issue, found, controlsOf);
+  const tokens = pointerTokens(pointer);
+  // A node the document on screen does not have at that place: the check
+  // answered for an older draft, and its pointer names nothing here.
+  if (section === 'nodes' && tokens.length > 1) return NO_NAVIGATION;
+  const subject = issue.at?.subject;
+  return {
+    kind: 'source',
+    pointer,
+    ...(range !== undefined && { range }),
+    ...(subject !== undefined && { subject }),
+  };
+}
+
+/** Where "go to" takes the reader for a problem in or about a node. */
+function nodeNavigation(
+  issue: WireAutomationIssue,
+  { node, index }: { node: NodeDef; index: number },
+  controlsOf: FieldControls,
+): IssueNavigation {
   const pointer = pointerOf(issue);
   const tokens = pointerTokens(pointer);
   const inNode =
@@ -351,8 +406,19 @@ export function fieldIssueMessage(
       : typeof explanation === 'string'
         ? explanation
         : '';
-  if (view.navigation.kind !== 'field') return cause;
-  const [, , , ...rest] = pointerTokens(view.navigation.anchor);
+  const { navigation } = view;
+  if (
+    navigation.kind !== 'field' &&
+    navigation.kind !== 'start' &&
+    navigation.kind !== 'end'
+  ) {
+    return cause;
+  }
+  // The keys below the field: under `/nodes/<i>/<field>`, or under
+  // `/inputs` and `/output`.
+  const rest = pointerTokens(navigation.anchor).slice(
+    navigation.kind === 'field' ? 3 : 1,
+  );
   if (rest.length === 0) return cause;
   const part = rest.join('.');
   // "The input "to" of …" says the key itself; "to: " before it would say
