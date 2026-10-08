@@ -253,6 +253,44 @@
   --chart-primary: 217 91% 60%;
   --radius: 0.5rem;
   --chat-max-width: 48rem;
+
+  /* Code: one palette for every renderer. Shiki's read-only blocks (its
+     css-variables theme, prefix `--code-`) and the code editor's highlight
+     style both read these roles, so a value reads the same while it is
+     edited and while it is shown. Every token colour clears 4.5:1 on
+     `--background`, `--color-bg-elevated` (the code-block surface) and
+     `--card`, and on the template tint over each — `code-palette.test.ts`
+     holds the line. They started from Shiki's min-light, whose comments
+     (1.69:1), parameters, constants and string expressions failed AA. */
+  --code-foreground: #24292e;
+  --code-background: transparent;
+  --code-token-keyword: #c62828;
+  --code-token-string: #2b5581;
+  --code-token-string-expression: #1f7a35;
+  --code-token-constant: #1565c0;
+  --code-token-function: #6f42c1;
+  --code-token-parameter: #9a5b00;
+  --code-token-comment: #5f6b76;
+  --code-token-punctuation: #212121;
+  --code-token-link: #1565c0;
+  --code-token-inserted: #1f7a35;
+  --code-token-deleted: #b31d28;
+  --code-token-changed: #005cc5;
+  --code-invalid: hsl(var(--destructive));
+  /* Editor chrome. The line numbers match `.code-block-numbered`; the
+     squiggles are non-text marks and keep 3:1 on every code surface and on
+     the template tint (amber-600 drops to 2.8:1 on the tint, so the warning
+     takes amber-700, the colour of the warning glyph). */
+  --code-line-number: var(--color-fg-subtle);
+  --code-line-number-active: hsl(var(--foreground));
+  --code-active-line: hsl(var(--foreground) / 0.04);
+  --code-selection: hsl(var(--info-foreground) / 0.18);
+  --code-selection-inactive: hsl(var(--foreground) / 0.08);
+  --code-template-tint: hsl(var(--info-foreground) / 0.05);
+  --code-match: hsl(var(--info-foreground) / 0.15);
+  --code-squiggle-error: hsl(var(--destructive));
+  --code-squiggle-warning: #b45309;
+  --code-squiggle-info: hsl(var(--info-foreground));
 }
 
 .dark {
@@ -334,6 +372,43 @@
   --chart-warning: 43 96% 56%;
   --chart-neutral: 0 0% 55%;
   --chart-primary: 213 94% 68%;
+
+  /* Code (dark). From Shiki's min-dark; plain text is neutral instead of
+     min-dark's purple, so a prompt written in prose reads as text, and
+     comments lift to 5:1. */
+  --code-foreground: #e1e4e8;
+  --code-token-keyword: #f97583;
+  --code-token-string: #9db1c5;
+  --code-token-string-expression: #ffab70;
+  --code-token-constant: #79b8ff;
+  --code-token-function: #b392f0;
+  --code-token-parameter: #ff9800;
+  --code-token-comment: #8b949e;
+  --code-token-punctuation: #bbbbbb;
+  --code-token-link: #ffab70;
+  --code-token-inserted: #85e89d;
+  --code-token-deleted: #f97583;
+  --code-token-changed: #79b8ff;
+  --code-active-line: hsl(var(--foreground) / 0.05);
+  --code-selection: hsl(var(--info-foreground) / 0.3);
+  --code-selection-inactive: hsl(var(--foreground) / 0.12);
+  --code-template-tint: hsl(var(--info-foreground) / 0.1);
+  --code-match: hsl(var(--info-foreground) / 0.25);
+  --code-squiggle-warning: #f59e0b;
+}
+
+/* Windows contrast themes repaint text in their own colours; the selection
+   and the problem underlines follow the system's highlight and text colours
+   so they stay visible. */
+@media (forced-colors: active) {
+  :root,
+  .dark {
+    --code-selection: Highlight;
+    --code-selection-inactive: Highlight;
+    --code-squiggle-error: CanvasText;
+    --code-squiggle-warning: CanvasText;
+    --code-squiggle-info: CanvasText;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
