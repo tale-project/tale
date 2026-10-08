@@ -1123,6 +1123,52 @@ describe('shrinkProviderPools — records no provision rewrites', () => {
     return calls;
   }
 
+  /**
+   * A gateway whose `GET /api/providers` lists `listing` and which hands
+   * every other call to `answer`, with its method, the path under
+   * `/api/providers/` and its body.
+   */
+  function stubPass(
+    listing: Record<string, unknown>[],
+    answer: (
+      method: string,
+      name: string,
+      body: Record<string, unknown> | undefined,
+    ) => Response | Promise<Response>,
+  ): RecordedCall[] {
+    const calls: RecordedCall[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        const u = String(url);
+        const method = init?.method ?? 'GET';
+        const body =
+          typeof init?.body === 'string'
+            ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+              (JSON.parse(init.body) as Record<string, unknown>)
+            : undefined;
+        calls.push({ url: u, method, body, headers: {} });
+        if (method === 'GET' && u.endsWith('/api/providers')) {
+          return Response.json({ providers: listing });
+        }
+        return answer(
+          method,
+          decodeURIComponent(u.split('/api/providers/')[1] ?? ''),
+          body,
+        );
+      }),
+    );
+    return calls;
+  }
+
+  const TIMED_OUT = (): Promise<Response> =>
+    Promise.reject(
+      new DOMException(
+        'The operation was aborted due to timeout',
+        'TimeoutError',
+      ),
+    );
+
   it('writes each oversized record back with its kind’s pool and its own network and upstream config', async () => {
     const calls = stubGateway({
       providerRecords: [STALE_STANDARD, STALE_CUSTOM, SIZED_CUSTOM],
@@ -1188,6 +1234,7 @@ describe('shrinkProviderPools — records no provision rewrites', () => {
 
   it('goes on past a record the gateway refuses, which keeps its pool', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
     const calls = stubRecords([STALE_STANDARD, STALE_CUSTOM], {
       refuse: 'openai',
     });
@@ -1202,6 +1249,100 @@ describe('shrinkProviderPools — records no provision rewrites', () => {
         "resizing provider 'openai' to 512 workers failed (400): Invalid base URL",
       ),
     );
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 1 resized, 1 refused, 0 unconfirmed',
+    );
+  });
+
+  it('logs the end of a pass with its counts even when it resized nothing', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    stubGateway({ providerRecords: [SIZED_CUSTOM] });
+    const mod = await loadModule();
+    await mod.shrinkProviderPools();
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 0 resized, 0 refused, 0 unconfirmed',
+    );
+  });
+
+  it('gives a resize 30 s, and counts one the gateway stored but answered too late as resized, from the record read back', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const bounds = vi.spyOn(AbortSignal, 'timeout');
+    let stored: Record<string, unknown> = STALE_CUSTOM;
+    stubPass([STALE_CUSTOM], (method, _name, body) => {
+      if (method === 'GET') return Response.json(stored);
+      stored = {
+        ...stored,
+        concurrency_and_buffer_size: body?.concurrency_and_buffer_size,
+      };
+      return TIMED_OUT();
+    });
+    const mod = await loadModule();
+    await mod.shrinkProviderPools();
+    expect(bounds.mock.calls.map(([ms]) => ms)).toEqual([
+      15_000, 15_000, 30_000, 15_000,
+    ]);
+    expect(warn).toHaveBeenCalledWith(
+      `[llm-gateway] resizing provider '${CUSTOM_NAME}' to 64 workers failed; reading it back:`,
+      expect.any(DOMException),
+    );
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 1 resized, 0 refused, 0 unconfirmed',
+    );
+  });
+
+  it('counts a resize as unconfirmed when the gateway failed it and the record read back keeps its old pool', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    stubPass([STALE_STANDARD, STALE_CUSTOM], (method, name) => {
+      if (method === 'GET') {
+        return Response.json(name === 'openai' ? STALE_STANDARD : STALE_CUSTOM);
+      }
+      return name === 'openai'
+        ? TIMED_OUT()
+        : new Response('upstream gone', { status: 503 });
+    });
+    const mod = await loadModule();
+    await withRetryWaitsElapsed(() => mod.shrinkProviderPools());
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 0 resized, 0 refused, 2 unconfirmed',
+    );
+  });
+
+  it('leaves a record a provision of this process starts on while the pass reads it, and the provision waits for no write', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const provision = {
+      name: CUSTOM_NAME,
+      baseUrl: 'https://llm-new.example.com/v1',
+      apiKey: 'key-D',
+      models: ['llama-3.3-70b'],
+    };
+    let releaseRead: (() => void) | undefined;
+    const calls = stubPass([STALE_CUSTOM], (method, name) => {
+      if (method === 'GET' && name === CUSTOM_NAME) {
+        return new Promise<Response>((resolve) => {
+          releaseRead = () => resolve(Response.json(STALE_CUSTOM));
+        });
+      }
+      return Response.json(method === 'GET' ? { keys: [] } : {});
+    });
+    const mod = await loadModule();
+    const pass = mod.shrinkProviderPools();
+    await vi.waitFor(() => expect(releaseRead).toBeDefined());
+    expect(await mod.provisionProviders('org_9', [provision])).toEqual([]);
+
+    releaseRead?.();
+    await pass;
+    expect(recordWrites(calls)).toEqual([
+      [
+        CUSTOM_NAME,
+        expect.objectContaining({
+          network_config: expect.objectContaining({
+            base_url: provision.baseUrl,
+          }),
+        }),
+      ],
+    ]);
   });
 
   it('keeps a record the gateway answers without the network config a resize must send back', async () => {
