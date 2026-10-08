@@ -101,6 +101,7 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 }));
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
   useNavigate: () => vi.fn(),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
