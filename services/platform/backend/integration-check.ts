@@ -104,6 +104,9 @@ import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integr
 import { checkVectorWidths } from './domains/knowledge/vector-width.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import {
+  checkAgentWriteBudget,
+  checkConcurrentAgentAndPersonEdits,
+  checkConcurrentAgentCreates,
   checkConcurrentEntryCreation,
   checkConcurrentEntryRenameAndCreate,
   checkConcurrentEntryUpdates,
@@ -61463,6 +61466,14 @@ async function main(): Promise<void> {
             'knowledge entries: concurrent creates, corrections and renames',
             true,
             'real transaction interleavings; one winner, normal 409, coherent history and backing bytes',
+          );
+          await checkConcurrentAgentCreates(sql, writer);
+          await checkConcurrentAgentAndPersonEdits(sql, writer);
+          await checkAgentWriteBudget(sql, writer);
+          record(
+            'knowledge entries: agent writes race agents and people, on a budget of their own',
+            true,
+            'two agents on one new topic: one creates, the other is refused with its text; agent vs person either order: the second is refused; a spent agent budget writes nothing and leaves people’s untouched',
           );
         },
       ],

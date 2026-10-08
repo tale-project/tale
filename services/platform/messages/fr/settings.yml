@@ -1339,6 +1339,8 @@ logs:
       document.trashed: Document mis à la corbeille
       document.deleted: Document supprimé
       folder.deleted: Dossier supprimé
+      knowledge_entry.created: Entrée de connaissances créée
+      knowledge_entry.updated: Entrée de connaissances mise à jour
       branding.updated: Branding mis à jour
       branding.image_uploaded: Image de branding chargée
       branding.image_deleted: Image de branding retirée
@@ -1544,6 +1546,7 @@ logs:
       conversationMessage: Message de conversation
       document: Document
       folder: Dossier
+      knowledge_entry: Entrée de connaissances
       agent: Agent
       workflow: Automatisation
       workflow_run: Exécution d'automatisation

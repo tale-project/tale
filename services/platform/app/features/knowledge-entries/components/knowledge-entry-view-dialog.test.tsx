@@ -100,6 +100,22 @@ describe('KnowledgeEntryViewDialog', () => {
     ).toBeInTheDocument();
   });
 
+  it('reads Agent as the source of a fact an agent wrote [KENTRY-R10]', () => {
+    render(
+      <KnowledgeEntryViewDialog
+        isOpen
+        onClose={vi.fn()}
+        entry={makeEntry({ source: 'agent', createdBy: 'agent-7' })}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog', {
+      name: 'Knowledge entry details',
+    });
+    expect(within(dialog).getByText('Agent')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Manual')).not.toBeInTheDocument();
+  });
+
   // Regression: the content is documented as Markdown but was printed as its
   // source, in the current version and in the history alike.
   it('renders the content as Markdown without loading images', () => {

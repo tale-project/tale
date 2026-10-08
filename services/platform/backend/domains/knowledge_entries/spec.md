@@ -4,8 +4,9 @@
 
 A knowledge entry is a short fact with a topic and a body, such as the support hours. It is
 part of the organization's knowledge and is found by the assistant's search. These rules cover
-what an entry can hold, how editing keeps earlier versions, and what deleting removes. Who can
-write entries and how an entry is indexed are not covered; see Not yet.
+what an entry can hold, how editing keeps earlier versions, what deleting removes, and how an
+agent writes entries. Which people can write entries and how an entry is indexed are not
+covered; see Not yet.
 
 ## What an entry holds
 
@@ -88,6 +89,41 @@ the document.
 
 - **Example**: The document behind an entry was deleted while Noah had the entry's form open.
   He saves → refused as not found.
+
+## Agents writing entries
+
+An agent of a project, or an automation's agent step, writes entries only when its equipment
+includes the knowledge-entry write tool. It saves a fact under a topic, and the topic decides
+which entry the fact belongs to.
+
+### KENTRY-R10 · An agent with the write tool adds facts and new versions of them
+
+A topic without an entry gets a new one; a topic with one gets a new version, which keeps the
+topic's spelling. What an agent writes reads Source Agent, names the agent as its author and
+is recorded in the audit log. A save that repeats the current text writes nothing.
+
+- **Example**: Noah gives the project's agent the knowledge-entry write tool. The agent saves
+  `Support hours` as 8–18 → a new entry appears, and its Source reads Agent.
+
+### KENTRY-R12 · An agent's edit of a fact that changed since it read it is refused
+
+To change an entry's text, the agent names the version it read. A save that names none, or one
+that has been replaced since, is refused and writes nothing; the refusal hands the agent the
+current version and its text, so it can merge its change in. A save that names a version of
+an entry deleted since is refused too, and creates nothing.
+
+- **Example**: The agent reads the return window as 30 days. Mia corrects it to 45 days. The
+  agent then saves its own change onto the version it read → refused, and it is shown Mia's
+  45 days.
+
+### KENTRY-R13 · Agents' writes have a rate limit of their own
+
+What agents write counts against a limit per organization that people's edits do not share.
+Once agents reach it, a further save is refused with a time to try again after, and nothing
+is written, while people keep editing.
+
+- **Example**: An agent caught in a loop saves forty entries within a minute → its next save
+  is told to wait, and Noah still saves his correction at once.
 
 ## Not yet
 

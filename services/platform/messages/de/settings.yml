@@ -1309,6 +1309,8 @@ logs:
       document.trashed: Dokument in den Papierkorb verschoben
       document.deleted: Dokument gelöscht
       folder.deleted: Ordner gelöscht
+      knowledge_entry.created: Wissenseintrag erstellt
+      knowledge_entry.updated: Wissenseintrag aktualisiert
       branding.updated: Branding aktualisiert
       branding.image_uploaded: Branding-Bild hochgeladen
       branding.image_deleted: Branding-Bild entfernt
@@ -1514,6 +1516,7 @@ logs:
       conversationMessage: Konversationsnachricht
       document: Dokument
       folder: Ordner
+      knowledge_entry: Wissenseintrag
       agent: Agent
       workflow: Automatisierung
       workflow_run: Automatisierungslauf
