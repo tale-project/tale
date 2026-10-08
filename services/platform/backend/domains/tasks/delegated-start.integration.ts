@@ -24,8 +24,9 @@ import { scanScheduledTriggers } from '../automations/triggers.ts';
  * Together: blocked, started, coalesced, replayed and resumed occurrences;
  * cancelled and failed runs; the per-task circuit breaker; pause, resume and
  * no replay of a missed backlog; revocation by unbinding, pausing and a lost
- * role; webhook runs refused; cross-project dispatch refused; one run per
- * agent workspace under a race; the delegation depth limit; confined runs;
+ * role; webhook runs refused; cross-project dispatch refused; a busy agent
+ * started on another task, and two racing starts of one agent both run; an
+ * agent's start of itself refused; the delegation depth limit; confined runs;
  * a pending review withdrawn but never approved; and the answer's authorship
  * kept on the agent. */
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
@@ -2140,7 +2141,7 @@ export async function checkDelegatedAgentStartTool(
       `waited=${waited} late=${JSON.stringify(lateF)} runs=${describeRuns(runsF)} card=${await cardStatus(qf)}`,
     );
 
-    // ---- two starts racing for one free agent start one run -------------
+    // ---- two starts racing for one free agent both run ------------------
     const [raceA, raceB] = await Promise.all([
       dispatch(managerRun.token, 'task_start_agent', { taskId: race1 }),
       dispatch(managerRun.token, 'task_start_agent', { taskId: race2 }),
