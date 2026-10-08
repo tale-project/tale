@@ -15,10 +15,10 @@ Crée une clé API lorsqu’un script ou un service doit appeler l’API REST de
 
 1. Sélectionne **Créer une clé API**.
 2. Saisis un **Nom de la clé** qui identifie le logiciel, par exemple `Synchronisation facturation` ou `Import de documents`.
-3. Choisis l’**Expiration** : 7, 30 ou 90 jours, un an, ou jamais. La valeur initiale est 30 jours.
+3. Choisis l’**Expiration** : 7, 30 ou 90 jours, un an, une **Date personnalisée**, ou jamais. La valeur initiale est 30 jours, et le formulaire indique sous le champ le jour où la clé expirera. Avec **Date personnalisée**, choisis ce jour dans le calendrier **Date d'expiration**, entre demain et un an plus tard.
 4. Crée la clé et copie sa valeur secrète dans le gestionnaire de secrets prévu pour le logiciel avant de fermer la confirmation.
 
-La valeur complète n’apparaît qu’une fois. Le tableau affiche ensuite un fragment masqué, la date de création et la dernière utilisation. Il présente tes clés, pas celles de tes collègues.
+La valeur complète n’apparaît qu’une fois. Le tableau affiche ensuite un fragment masqué, la date d’expiration, la date de création et la dernière utilisation. Il présente tes clés, pas celles de tes collègues.
 
 <Warning>
 
@@ -34,7 +34,7 @@ Une authentification réussie n’autorise pas l’accès à toutes les ressourc
 
 ## Renouveler une clé sans interruption
 
-1. Crée une clé de remplacement avant l’expiration de l’ancienne.
+1. Crée une clé de remplacement avant l’expiration de l’ancienne. La colonne **Expiration** indique quand elle arrive.
 2. Mets à jour le gestionnaire de secrets du logiciel, puis redémarre-le ou recharge sa configuration si nécessaire.
 3. Vérifie une requête authentifiée avec la nouvelle clé.
 4. Révoque l’ancienne seulement après avoir migré tous les logiciels qui en dépendent.
