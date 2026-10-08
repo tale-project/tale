@@ -201,11 +201,12 @@ export function FlowPlaybackBar({
         />
         {/* The thumb's centre runs 10 px in from each end; so do the ticks. */}
         <div aria-hidden="true" className="relative mx-2.5 h-1.5">
-          {waits.map((mark) => {
-            const end = nextFlowEvent(timeline, mark.at);
+          {waits.map((mark, index) => {
+            // A wait still open runs to the end of what has been recorded.
+            const end = mark.end ?? duration;
             return (
               <span
-                key={`wait-${mark.at}`}
+                key={`wait-${index}`}
                 title={mark.label}
                 data-flow-mark="wait"
                 className="text-muted-foreground absolute top-0 h-1.5 rounded-xs bg-[repeating-linear-gradient(135deg,currentColor_0_2px,transparent_2px_4px)]"
@@ -224,9 +225,9 @@ export function FlowPlaybackBar({
               style={{ left: `${percent(at)}%` }}
             />
           ))}
-          {failures.map((mark) => (
+          {failures.map((mark, index) => (
             <span
-              key={`failure-${mark.at}`}
+              key={`failure-${index}`}
               title={mark.label}
               data-flow-mark="failure"
               className="bg-destructive absolute top-0 h-1.5 w-0.5 -translate-x-1/2 rounded-full"

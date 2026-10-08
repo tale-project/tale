@@ -91,8 +91,16 @@ describe('FlowPlaybackBar', () => {
     expect(shownT()).toBe(Math.round(first));
     await userEvent.keyboard('{End}');
     expect(shownT()).toBe(Math.round(timeline.duration));
-    // The wait shows as a band.
-    expect(document.querySelector('[data-flow-mark="wait"]')).not.toBeNull();
+    // The wait shows as a band, from where it began to where it ended.
+    const band = document.querySelector<HTMLElement>('[data-flow-mark="wait"]');
+    const wait = timeline.marks?.find((mark) => mark.kind === 'wait');
+    if (band === null || wait?.end === undefined) throw new Error('no wait');
+    const share = (at: number) => (at / timeline.duration) * 100;
+    expect(parseFloat(band.style.left)).toBeCloseTo(share(wait.at), 3);
+    expect(parseFloat(band.style.width)).toBeCloseTo(
+      share(wait.end) - share(wait.at),
+      3,
+    );
   });
 
   it('plays with Space and the button, whose name says what it does', async () => {

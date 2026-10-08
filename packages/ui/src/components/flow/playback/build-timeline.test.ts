@@ -49,9 +49,21 @@ describe('buildPlaybackTimeline', () => {
   });
 
   it('marks a long wait with its real words and a failure with its reason', () => {
-    const timeline = buildPlaybackTimeline(branchRun());
+    const run = branchRun();
+    const timeline = buildPlaybackTimeline(run);
     const wait = timeline.marks?.find((mark) => mark.kind === 'wait');
     expect(wait?.label).toBe('Waited 0.8 s for approval');
+    // The band runs from where the wait began to where it ended.
+    const real = run.waits?.[0];
+    expect(wait?.at).toBe(timeline.fromReal(real?.startedAt ?? 0));
+    expect(wait?.end).toBe(timeline.fromReal(real?.endedAt ?? 0));
+    // A wait still open has no end yet.
+    const open = buildPlaybackTimeline({
+      ...run,
+      endedAt: undefined,
+      waits: [{ startedAt: real?.startedAt ?? 0, label: 'Waiting' }],
+    }).marks?.find((mark) => mark.kind === 'wait');
+    expect(open?.end).toBeUndefined();
     const failure = buildPlaybackTimeline(triageFailedRun()).marks?.find(
       (mark) => mark.kind === 'failure',
     );

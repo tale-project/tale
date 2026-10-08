@@ -25,12 +25,14 @@ describe('flowStateAt', () => {
     expect(before.nodes.issues?.state).toBe('pending');
     expect(before.nodes.__end?.state).toBe('pending');
 
+    // What a step came to ("1.2 s") shows once the replay gets there.
     const fetching = flowStateAt(graph, timeline, real(600));
     expect(fetching.nodes.issues?.state).toBe('running');
-    expect(fetching.nodes.issues?.detail).toBe('1.2 s');
+    expect(fetching.nodes.issues?.detail).toBeUndefined();
 
     const done = flowStateAt(graph, timeline, real(1_255));
     expect(done.nodes.issues?.state).toBe('succeeded');
+    expect(done.nodes.issues?.detail).toBe('1.2 s');
   });
 
   it('counts the items of a node that runs once per item, and fails with an item', () => {
@@ -132,10 +134,13 @@ describe('flowStateAt', () => {
           startedAt: run.startedAt + 4_100,
           outcome: 'succeeded',
           item: 2,
+          detail: 'Scoring the third issue',
         }),
     });
     const now = flowStateAt(graph, live, live.duration);
     expect(now.nodes.score?.state).toBe('running');
+    // A span still open says what it is doing now, in the host's words.
+    expect(now.nodes.score?.detail).toBe('Scoring the third issue');
     // The run is not over: a live list has no known length yet.
     expect(now.nodes.score?.items).toEqual({ done: 2 });
     expect(now.nodes.report?.state).toBe('pending');

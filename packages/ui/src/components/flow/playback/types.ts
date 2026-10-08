@@ -78,6 +78,10 @@ export interface FlowEdgeTravel {
 /** A moment worth a mark on the scrubber. */
 export interface FlowTimelineMark {
   at: number;
+  /** Where a wait ended; the scrubber draws it as a band from `at` to
+   *  here. Left out on a wait, the run is still waiting: the band runs to
+   *  the end of the timeline. */
+  end?: number;
   kind: 'wait' | 'resume' | 'failure' | 'restart';
   /** "Waited 3 h for approval". */
   label: string;

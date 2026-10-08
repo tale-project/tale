@@ -42,12 +42,12 @@ When the run failed, the canvas brings forward the way the run took to the first
 
 Press **Play**, drag the scrubber, or step between events. The answer waits three hours for an approval; the replay shows that wait as a hatched band and moves on.
 
-1. Record the run in real time: each node's spans with `startedAt` and `endedAt`, each moment a value left a node (`travels`, with the `target` it goes to), and each wait.
+1. Record the run in real time: each node's spans with `startedAt` and `endedAt`, each moment a value left a node (`travels`, with the `target` it goes to), and each wait. A span's `detail`, such as its duration, shows once the replay reaches the span's end; a span still open on a live run shows its `detail` at once.
 2. Build the timeline once with `buildPlaybackTimeline(run)`.
 3. Drive it with `usePlaybackClock({ timeline })` and pass `playback={{ timeline, t }}` to the canvas.
 4. Put `FlowPlaybackBar` under the canvas, fed by the same clock.
 
-`buildPlaybackTimeline` compresses real time piece by piece. The stretch between two moments plays for its real length, but at least `minStepMs` (240 ms) and at most `maxGapMs` (1.2 s), and each value gets `travelMs` (320 ms) to reach its target before the target starts. A long wait becomes a `wait` mark with your words; a failure becomes a `failure` mark. `toReal(t)` and `fromReal(ms)` map between playback and real time, so the bar can show how long the run really took.
+`buildPlaybackTimeline` compresses real time piece by piece. The stretch between two moments plays for its real length, but at least `minStepMs` (240 ms) and at most `maxGapMs` (1.2 s), and each value gets `travelMs` (320 ms) to reach its target before the target starts. A long wait becomes a `wait` mark with your words and its `end`, drawn as a band on the scrubber; a wait still open has no `end` yet and its band runs to the end of the timeline. A failure becomes a `failure` mark. `toReal(t)` and `fromReal(ms)` map between playback and real time, so the bar can show how long the run really took.
 
 `flowStateAt(graph, timeline, t)` is the frame the canvas draws. Use it to say what is happening for the scrubber's spoken value (`activity`), or to drive the List view.
 

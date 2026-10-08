@@ -105,7 +105,11 @@ function stateFromSpans(
       : undefined;
   const words = failing ?? latest;
   if (words.reason !== undefined) info.reason = words.reason;
-  if (words.detail !== undefined) info.detail = words.detail;
+  // A recorded span's detail ("1.2 s") is what it came to: shown once the
+  // replay reaches its end, never while it still plays. A live span with
+  // no end yet carries the host's words for now.
+  if (words.detail !== undefined && (words.end === undefined || words.end <= t))
+    info.detail = words.detail;
   const decided = [...started]
     .reverse()
     .find((span) => span.decision !== undefined);

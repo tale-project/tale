@@ -169,6 +169,7 @@ export function buildPlaybackTimeline(
   for (const wait of run.waits ?? [])
     marks.push({
       at: fromReal(wait.startedAt),
+      ...(wait.endedAt === undefined ? {} : { end: fromReal(wait.endedAt) }),
       kind: 'wait',
       label: wait.label,
     });

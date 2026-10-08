@@ -149,14 +149,20 @@ export function FlowPulseLayer({
   layout: FlowLayout;
 }) {
   if (travelling.length === 0) return null;
+  // Two values can be on one line at once (items of a list, passes of a
+  // repeat): each keeps its own dot.
+  const seen = new Map<string, number>();
   return (
     <ViewportPortal>
       {travelling.map(({ edgeId, progress, item }) => {
         const route = layout.edges[edgeId];
         if (route === undefined) return null;
+        const base = `${edgeId}:${item ?? ''}`;
+        const nth = seen.get(base) ?? 0;
+        seen.set(base, nth + 1);
         return (
           <FlowPulse
-            key={`${edgeId}:${item ?? ''}`}
+            key={`${base}:${nth}`}
             edgeId={edgeId}
             points={route.points}
             progress={progress}
