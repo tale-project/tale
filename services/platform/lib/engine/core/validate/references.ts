@@ -19,7 +19,7 @@ import { err, warn } from '../errors';
 import { refsOf, topoSort } from '../execute/controlflow';
 import { pointerTokens, ptr } from '../syntax/pointer';
 import type { ExprSource, ExprUnit } from '../syntax/sources';
-import type { PathStep, RefSite } from '../syntax/walk';
+import { renderPath, type RefSite } from '../syntax/walk';
 import type { IssueParams, NodeDef } from '../types';
 import type { ValidationContext } from './context';
 import { closestName } from './similar';
@@ -34,19 +34,6 @@ const TEMPLATE_FIELDS: ReadonlySet<string> = new Set([
   'files',
   'output',
 ]);
-
-/** `a.b`, `a['b-c']`, `a[0]` — a member chain as an author would write it. */
-function renderPath(steps: readonly PathStep[]): string {
-  return steps
-    .map((s) =>
-      typeof s.key === 'number'
-        ? `[${s.key}]`
-        : /^[A-Za-z_$][\w$]*$/.test(s.key)
-          ? `.${s.key}`
-          : `[${JSON.stringify(s.key)}]`,
-    )
-    .join('');
-}
 
 /** `who` in a message: `node "x"` for a node's fields, `output` for the
  * document output. */
@@ -64,13 +51,7 @@ function whereIn(source: ExprSource): string {
   const keys = pointerTokens(tail);
   return (
     source.field +
-    renderPath(
-      keys.map((k) => ({
-        key: /^\d+$/.test(k) ? Number(k) : k,
-        optional: false,
-        computed: false,
-      })),
-    )
+    renderPath(keys.map((k) => ({ key: /^\d+$/.test(k) ? Number(k) : k })))
   );
 }
 
@@ -172,7 +153,7 @@ export async function validateReferences(
       issues.push(
         err(
           'REF_NOT_OUTPUT',
-          `${who(nodeId)}: "nodes.${site.nodeId}${renderPath([{ key: site.member, optional: false, computed: false }])}" — node results are read via .output`,
+          `${who(nodeId)}: "nodes.${site.nodeId}${renderPath([{ key: site.member }])}" — node results are read via .output`,
           {
             nodeId,
             hint: `use nodes.${site.nodeId}.output.${site.member}`,
@@ -220,33 +201,42 @@ export async function validateReferences(
     const sources = ctx.sources(index);
 
     if (typeof n.forEach !== 'string') {
-      // A free `item`/`index` outside forEach. In `when` the node has not
-      // started iterating, and transform code always declares both — those
-      // two would be noise here.
-      const hits: Array<{ source: ExprSource; site: RefSite }> = [];
+      // `item`/`index` outside forEach. In templates and conditions nothing
+      // declares them, so the read is a ReferenceError and the node fails —
+      // an error. Transform code always declares both, so there they only
+      // read undefined — a warning. A `when` is evaluated before any
+      // iteration, so adding forEach would not help there; the analysis
+      // pass reports it as ITEM_OUT_OF_SCOPE.
+      const templateHits: Array<{ source: ExprSource; site: RefSite }> = [];
+      const codeHits: Array<{ source: ExprSource; site: RefSite }> = [];
       for (const source of sources) {
-        if (source.field === 'when' || source.field === 'code') continue;
+        if (source.field === 'when') continue;
+        const inCode = source.field === 'code';
         for (const unit of source.units) {
           if (!analyzable(unit)) continue;
           for (const site of unit.refs) {
-            if (
-              site.root === 'free' &&
-              (site.name === 'item' || site.name === 'index') &&
-              !site.guards.includes('typeof')
-            ) {
-              hits.push({ source, site });
+            const iterVar = site.name === 'item' || site.name === 'index';
+            if (!iterVar || site.guards.includes('typeof')) continue;
+            if (inCode && (site.root === 'item' || site.root === 'index')) {
+              codeHits.push({ source, site });
+            } else if (!inCode && site.root === 'free') {
+              templateHits.push({ source, site });
             }
           }
         }
       }
-      const iterVars = [...new Set(hits.map((h) => h.site.name))];
-      const first = hits.at(0);
-      if (first !== undefined) {
+      for (const [hits, make] of [
+        [templateHits, err],
+        [codeHits, warn],
+      ] as const) {
+        const iterVars = [...new Set(hits.map((h) => h.site.name))];
+        const first = hits.at(0);
+        if (first === undefined) continue;
         const list = iterVars.map((v) => `\`${v}\``).join(' and ');
         const tail =
           iterVars.length > 1 ? 'they only exist' : `${list} only exists`;
         issues.push(
-          warn(
+          make(
             'ITEM_WITHOUT_FOREACH',
             `node "${n.id}" uses ${list}, but ${tail} on nodes with a "forEach" field`,
             {

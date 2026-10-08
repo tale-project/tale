@@ -67,9 +67,44 @@ export const CODES = {
   INPUT_KEY_UNKNOWN: 'input.<key> should be declared in the inputs schema',
   TEMPLATE_UNTERMINATED:
     'a "{{" without its closing "}}" is plain text, not a template',
+  EXPR_UNKNOWN_NAME: 'expressions use only the names their field provides',
+  ITEM_OUT_OF_SCOPE:
+    '`item` and `index` do not exist in when or forEach, which are evaluated before the items are',
+
+  // Types.
+  REF_UNKNOWN_FIELD: 'a reference reads only fields its data can have',
+  TYPE_MISMATCH: 'a value has the type the place it reaches accepts',
+  TEMPLATE_NULL_INTERPOLATION:
+    'a value placed inside text is never missing — a missing one fails the node',
+
+  // Flow.
+  FOREACH_NOT_ARRAY: 'forEach is one template that resolves to an array',
+  AGENT_ITERATION_UNSUPPORTED:
+    'an agent node runs one turn — it cannot iterate (forEach/repeatUntil) yet',
+  MAYBE_NULL:
+    'a condition or the output reads fields of a node that may be skipped only behind a guard',
+  UNCAUGHT_FAILURE:
+    'a failure tolerated with onError: continue does not resurface in a condition or the output',
+  UNREACHABLE: 'every node runs on some way a run can go',
+  CONDITION_CONSTANT: 'a condition depends on the run',
+  REPEAT_NEVER_TRUE: 'repeatUntil can become true',
+  REPEAT_UNTIL_STATIC: 'repeatUntil reads the result of the pass it judges',
+  OUTPUT_MAYBE_EMPTY:
+    'the output reads a node that runs on every way a run can go',
 
   // Connector contracts.
   CONNECTOR_INPUT_INVALID: 'connector inputs must match their JSON Schema',
+  SUBAUTOMATION_INPUT_INVALID:
+    "a subautomation's input matches the inputs schema of the automation it calls",
+  TRIGGER_INPUT_MISMATCH:
+    "the inputs schema accepts the input the automation's triggers start runs with",
+
+  // Tests.
+  TESTS_INPUT_INVALID: 'a test input matches the inputs schema',
+  TESTS_EFFECT_UNKNOWN:
+    'a test expects only effects a node of the automation performs',
+  TESTS_EXPECT_TYPE:
+    'a test expects output values of the types the automation returns',
 
   // Models.
   LLM_MODEL_UNAVAILABLE:
@@ -249,8 +284,11 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     family: 'type',
     params: ['node?', 'field', 'source', 'sourceType', 'member'],
   },
+  // An error in templates and conditions (a ReferenceError there); a warning
+  // in transform code, which always declares both names (they read
+  // undefined outside forEach).
   ITEM_WITHOUT_FOREACH: {
-    level: 'warning',
+    level: 'varies',
     family: 'reference',
     params: ['node', 'field', 'names'],
   },
@@ -264,11 +302,142 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     family: 'syntax',
     params: ['node?', 'field'],
   },
+  EXPR_UNKNOWN_NAME: {
+    level: 'warning',
+    family: 'reference',
+    params: ['node?', 'field', 'name', 'available', 'suggestion?'],
+  },
+  ITEM_OUT_OF_SCOPE: {
+    level: 'error',
+    family: 'reference',
+    params: ['node', 'field', 'name'],
+  },
+  REF_UNKNOWN_FIELD: {
+    level: 'warning',
+    family: 'type',
+    params: [
+      'node?',
+      'field',
+      'ref',
+      'root',
+      'source?',
+      'key',
+      'known',
+      'suggestion?',
+      'closed',
+      'listWrapped',
+    ],
+  },
+  TYPE_MISMATCH: {
+    level: 'warning',
+    family: 'type',
+    params: [
+      'node',
+      'consumer',
+      'property?',
+      'expr',
+      'expected',
+      'actual',
+      'suggestion?',
+      'automation?',
+    ],
+  },
+  TEMPLATE_NULL_INTERPOLATION: {
+    level: 'warning',
+    family: 'type',
+    params: ['node?', 'field', 'expr', 'why', 'key?'],
+  },
+  FOREACH_NOT_ARRAY: {
+    level: 'error',
+    family: 'flow',
+    params: ['node', 'reason', 'value', 'kind?'],
+  },
+  AGENT_ITERATION_UNSUPPORTED: {
+    level: 'error',
+    family: 'node',
+    params: ['node', 'field'],
+  },
+  MAYBE_NULL: {
+    level: 'warning',
+    family: 'flow',
+    params: [
+      'node?',
+      'field',
+      'ref',
+      'source',
+      'reasons',
+      'via?',
+      'partner?',
+      'suggestion',
+    ],
+  },
+  UNCAUGHT_FAILURE: {
+    level: 'warning',
+    family: 'flow',
+    params: [
+      'node?',
+      'field',
+      'ref',
+      'source',
+      'failing',
+      'reasons',
+      'suggestion',
+    ],
+  },
+  UNREACHABLE: {
+    level: 'warning',
+    family: 'flow',
+    params: ['node', 'cause', 'via?', 'partner?', 'a?', 'b?', 'value?'],
+  },
+  CONDITION_CONSTANT: {
+    level: 'warning',
+    family: 'flow',
+    params: ['node', 'field', 'value', 'cause'],
+  },
+  REPEAT_NEVER_TRUE: {
+    level: 'warning',
+    family: 'flow',
+    params: ['node', 'maxRepeats'],
+  },
+  REPEAT_UNTIL_STATIC: { level: 'warning', family: 'flow', params: ['node'] },
+  OUTPUT_MAYBE_EMPTY: {
+    level: 'warning',
+    family: 'flow',
+    params: ['nodes', 'root', 'rootReason'],
+  },
   CONNECTOR_INPUT_INVALID: {
     level: 'error',
     family: 'contract',
     params: ['node', 'type', 'property', 'keyword', 'suggestion?', 'detail'],
     technical: ['detail'],
+  },
+  SUBAUTOMATION_INPUT_INVALID: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'automation', 'version', 'missing', 'unknown', 'problems'],
+    technical: ['problems'],
+  },
+  TRIGGER_INPUT_MISMATCH: {
+    level: 'warning',
+    family: 'contract',
+    params: ['kind', 'missing', 'problems'],
+    technical: ['problems'],
+  },
+  TESTS_INPUT_INVALID: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'missing', 'problems'],
+    technical: ['problems'],
+  },
+  TESTS_EFFECT_UNKNOWN: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'connector', 'suggestion?', 'possible'],
+  },
+  TESTS_EXPECT_TYPE: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'property', 'expected', 'actual'],
   },
   LLM_MODEL_UNAVAILABLE: {
     level: 'warning',

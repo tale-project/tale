@@ -23,7 +23,7 @@ import { evalCondition, evalTemplates, ExprError, runCode } from '../template';
 import type { Automation, Effect, NodeTrace, RunResult } from '../types';
 import { MAX_SUBAUTOMATION_DEPTH } from '../typing/children';
 import { compileSchema } from '../validate/schema';
-import { refsOf, topoSort } from './controlflow';
+import { maxRepeatsOf, refsOf, topoSort } from './controlflow';
 import {
   cloneData,
   makeScope,
@@ -92,8 +92,6 @@ export interface ExecuteOptions {
   nesting?: number;
 }
 
-const DEFAULT_MAX_REPEATS = 5;
-const REPEATS_HARD_CAP = 20;
 const DEFAULT_MAX_NODE_EXECUTIONS = 100;
 
 export async function execute(
@@ -441,10 +439,7 @@ export async function execute(
         record: boolean,
       ): Promise<unknown> => {
         if (typeof n.repeatUntil !== 'string') return runOnce(extra, record);
-        const max = Math.min(
-          n.maxRepeats ?? DEFAULT_MAX_REPEATS,
-          REPEATS_HARD_CAP,
-        );
+        const max = maxRepeatsOf(n);
         let out: unknown;
         let iters = 0;
         let done = false;

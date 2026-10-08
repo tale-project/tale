@@ -3,9 +3,10 @@
  * where each node sits in it, and a parse memo so each expression is parsed
  * once however many passes read it.
  *
- * Created per call and dropped with it — parsed code, sources and pointers
- * of one organization's document never outlive the request that brought
- * them, so nothing here can leak into another tenant's validation.
+ * Created per call and dropped with it — parsed code, sources, pointers and
+ * the child documents of one organization's automation never outlive the
+ * request that brought them, so nothing here can leak into another
+ * tenant's validation.
  */
 
 import { isRecord } from '../../../utils/type-utils';
@@ -18,6 +19,7 @@ import {
   type ParseCtx,
 } from '../syntax/sources';
 import type { Issue, NodeDef } from '../types';
+import type { ChildDocuments } from '../typing/children';
 
 export interface ValidationContext {
   doc: Record<string, unknown>;
@@ -27,6 +29,9 @@ export interface ValidationContext {
   indexById: Map<string, number>;
   parse: ParseCtx;
   store?: StoreAdapter;
+  /** The documents the subautomation nodes run, resolved like a run
+   * resolves them (fetched once per call; absent without a store). */
+  children?: ChildDocuments;
   issues: Issue[];
   /** The node's position in `doc.nodes` — what its pointers start with. */
   indexOf(node: NodeDef): number;

@@ -43,6 +43,13 @@ export function refsOf(n: NodeDef): NodeRefs {
   return { order, data };
 }
 
+/** Passes a `repeatUntil` node runs at most: `maxRepeats` (5 when unset),
+ * never more than 20 — what the executor loops, and what the analysis says a
+ * condition that never holds costs. */
+export function maxRepeatsOf(n: Pick<NodeDef, 'maxRepeats'>): number {
+  return Math.min(n.maxRepeats ?? 5, 20);
+}
+
 /** Stable topological order (document order among ready nodes); null on a
  * cycle — validation reports the cycle with its path. */
 export function topoSort(nodes: NodeDef[]): NodeDef[] | null {

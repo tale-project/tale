@@ -436,7 +436,7 @@ describe('references', () => {
     expect(codesOf(warnings)).not.toContain('ITEM_WITHOUT_FOREACH');
   });
 
-  it('warns on index without forEach', async () => {
+  it('refuses index without forEach in a template, where nothing declares it', async () => {
     const doc = automationDoc(
       [
         {
@@ -448,8 +448,8 @@ describe('references', () => {
       ],
       { output: '{{ nodes.main.output.text }}' },
     );
-    const { warnings } = await validate(doc);
-    expect(codesOf(warnings)).toContain('ITEM_WITHOUT_FOREACH');
+    const { errors } = await validate(doc);
+    expect(codesOf(errors)).toContain('ITEM_WITHOUT_FOREACH');
   });
 
   it('stays silent on input keys when the schema is open or absent', async () => {

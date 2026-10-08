@@ -44,6 +44,9 @@ export interface PathStep {
   optional: boolean;
   /** Written as `x['key']` / `x[0]` rather than `x.key`. */
   computed: boolean;
+  /** Where the chain through this step ends in the field string — the
+   * chain's own start to here is the read up to and including the step. */
+  end?: number;
 }
 
 export interface RefSite {
@@ -68,6 +71,21 @@ export interface RefSite {
   guards: GuardKind[];
   /** [start, end) of the member chain in the field string. */
   range: [number, number];
+}
+
+/** `.b`, `['b-c']`, `[0]` — member steps as an author would write them. */
+export function renderPath(
+  steps: ReadonlyArray<Pick<PathStep, 'key'>>,
+): string {
+  return steps
+    .map((s) =>
+      typeof s.key === 'number'
+        ? `[${s.key}]`
+        : /^[A-Za-z_$][\w$]*$/.test(s.key)
+          ? `.${s.key}`
+          : `[${JSON.stringify(s.key)}]`,
+    )
+    .join('');
 }
 
 /** Every scope name the engine ever hands an expression. */
@@ -148,7 +166,7 @@ function chainFrom(id: Identifier, root: RefRoot, path: Node[]): Found {
         dynamicTail = true;
         break;
       }
-      steps.push(step);
+      steps.push({ ...step, end: rangeOf(parent)[1] });
       chain = parent;
       rangeNode = parent;
       i--;

@@ -12,6 +12,10 @@ import { collectRefs } from './walk';
 /** Names a transform body may not call or read; the runner has none. */
 const IO_CALLS: ReadonlySet<string> = new Set(['require', 'fetch']);
 
+/** Every undeclared name `findIoAccess` judges — CODE_NO_IO's subject, so
+ * no other rule reports them in a body. */
+export const IO_NAMES: ReadonlySet<string> = new Set([...IO_CALLS, 'process']);
+
 /**
  * The first module, network or host-process access in a body: a call of an
  * undeclared `require`/`fetch`, a dynamic `import(...)`, or a member of an

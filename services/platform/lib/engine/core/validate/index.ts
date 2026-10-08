@@ -1,5 +1,5 @@
 /**
- * Static validation — four passes over an automation document, each pass only
+ * Static validation — five passes over an automation document, each pass only
  * seeing what the previous one proved.
  *
  * Returns `{errors, warnings}` where every Issue carries a machine-readable
@@ -9,21 +9,30 @@
  * deliberate, reviewed API change.
  *
  * Order: document shape → per-node structure → references and templates →
- * connector/store contracts and document quality. Every issue says where it
- * is (`at`: a JSON Pointer, and the range inside the string for code) and
- * what its sentence is built from (`params`).
+ * connector/store contracts and document quality → the analysis (`../analysis`:
+ * the types of every value and the ways a run can go, and what they reveal —
+ * reads of fields that cannot exist, reads of skipped nodes, nodes that can
+ * never run, iteration that cannot work). Asked for (`detail`), the result
+ * also carries the per-node summary with the possible paths and the types.
+ * Every issue says where it is (`at`: a JSON Pointer, and the range inside
+ * the string for code) and what its sentence is built from (`params`).
  *
  * Syntax is the parser's (`../syntax`): acorn locates every error, and where
  * a CodeRunner is installed it confirms a rejection before it is reported —
  * code the runner compiles is valid, merely opaque to the analysis. Without
  * a runner the parser's verdict stands. Subautomation resolution rides the
- * caller-supplied async store.
+ * caller-supplied async store, and resolves a reference the way a run does:
+ * `name@version` that version, a bare `name` the deployed version (the
+ * latest while none is) — fetched once per call.
  */
 
 import { isRecord } from '../../../utils/type-utils';
+import { analyze, type AutomationAnalysis } from '../analysis';
 import { err } from '../errors';
 import type { StoreAdapter } from '../slots';
-import type { Issue } from '../types';
+import type { Issue, NodeDef } from '../types';
+import { resolveChildren } from '../typing/children';
+import type { AutomationTypes } from '../typing/infer';
 import { createValidationContext } from './context';
 import { validateContracts } from './contracts';
 import { validateDocument } from './document';
@@ -39,12 +48,28 @@ export interface ValidateOptions {
    * existence is not (a bare harness has no store to ask).
    */
   store?: StoreAdapter;
+  /**
+   * What to return beside the issues: `analysis` (the per-node summary and
+   * the possible paths) and `types` (the shape of every node's output, the
+   * run input and the result). Save, deploy and run leave it out.
+   */
+  detail?: ReadonlyArray<'analysis' | 'types'>;
+}
+
+export interface ValidationResult {
+  errors: Issue[];
+  warnings: Issue[];
+  /** With `detail: ['analysis']`, unless the nodes reference each other in
+   * a cycle. */
+  analysis?: AutomationAnalysis;
+  /** With `detail: ['types']`, once the document has its nodes. */
+  types?: AutomationTypes;
 }
 
 export async function validate(
   doc: unknown,
   opts: ValidateOptions = {},
-): Promise<{ errors: Issue[]; warnings: Issue[] }> {
+): Promise<ValidationResult> {
   if (!isRecord(doc)) {
     return {
       errors: [
@@ -94,10 +119,41 @@ export async function validate(
   }
 
   const ctx = createValidationContext(doc, issues, opts.store);
+  if (opts.store !== undefined) {
+    ctx.children = await resolveChildren(doc, opts.store);
+  }
   const { validNodes, ids } = await validateNodes(ctx);
   await validateReferences(ctx, validNodes, ids);
   await validateContracts(ctx, validNodes);
-  return split(issues);
+
+  // Duplicate ids already carry their own error; the analysis reads the
+  // first occurrence of each, like both executors.
+  const unique: NodeDef[] = [];
+  const seen = new Set<string>();
+  for (const n of validNodes) {
+    if (seen.has(n.id)) continue;
+    seen.add(n.id);
+    unique.push(n);
+  }
+  const analyzed = analyze({
+    doc,
+    nodes: unique,
+    indexOf: (n) => ctx.indexOf(n),
+    sources: (index) => ctx.sources(index),
+    outputSources: () => ctx.outputSources(),
+    parse: ctx.parse,
+    ...(ctx.children !== undefined && { children: ctx.children }),
+    issues: [...issues],
+  });
+  issues.push(...analyzed.issues);
+
+  const detail = new Set(opts.detail ?? []);
+  return {
+    ...split(issues),
+    ...(detail.has('analysis') &&
+      analyzed.analysis !== undefined && { analysis: analyzed.analysis }),
+    ...(detail.has('types') && { types: analyzed.types }),
+  };
 }
 
 function split(issues: Issue[]): { errors: Issue[]; warnings: Issue[] } {

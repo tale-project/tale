@@ -9,12 +9,14 @@
  * Ordinary prose never matches.
  */
 
+import type { ValidateFunction } from 'ajv';
+
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
 import { ptr } from '../syntax/pointer';
 import type { Issue } from '../types';
 import { AUTOMATION_NAME_RULE, isValidAutomationName } from './name';
-import { compileSchema } from './schema';
+import { compileSchema, describeSchemaErrors } from './schema';
 
 const TOP_FIELDS = [
   'version',
@@ -132,12 +134,28 @@ export function validateDocument(
     }
   }
 
-  if (doc.tests !== undefined) validateTests(doc.tests, issues);
+  if (doc.tests !== undefined) validateTests(doc.tests, doc.inputs, issues);
 
   scanForSecrets(doc, issues);
 }
 
-function validateTests(tests: unknown, issues: Issue[]): void {
+/** The run-input check a test's input meets first; null when there is
+ * none to meet (no inputs schema, or one that does not compile — that is
+ * INPUTS_SCHEMA_INVALID's). */
+function inputCheck(inputs: unknown): ValidateFunction | null {
+  if (!isRecord(inputs)) return null;
+  try {
+    return compileSchema(inputs);
+  } catch (e) {
+    console.warn(
+      '[engine] skipping the test input check (the inputs schema does not compile):',
+      e instanceof Error ? e.message : e,
+    );
+    return null;
+  }
+}
+
+function validateTests(tests: unknown, inputs: unknown, issues: Issue[]): void {
   if (!Array.isArray(tests)) {
     issues.push(
       err(
@@ -152,6 +170,8 @@ function validateTests(tests: unknown, issues: Issue[]): void {
     );
     return;
   }
+  // Compiled once, on the first test that has an input to check.
+  let check: ValidateFunction | null | undefined;
   for (const [i, t] of tests.entries()) {
     if (!isRecord(t) || typeof t.name !== 'string' || !('input' in t)) {
       issues.push(
@@ -167,6 +187,8 @@ function validateTests(tests: unknown, issues: Issue[]): void {
       );
       continue;
     }
+    if (check === undefined) check = inputCheck(inputs);
+    if (check !== null) checkTestInput(i, t.name, t.input, check, issues);
     if (t.expect === undefined) continue;
     const keys = isRecord(t.expect) ? Object.keys(t.expect) : [];
     const bad = keys.filter((k) => k !== 'output' && k !== 'effects');
@@ -185,6 +207,40 @@ function validateTests(tests: unknown, issues: Issue[]): void {
       );
     }
   }
+}
+
+/**
+ * A test's input against the inputs schema: a run checks its input before
+ * any node runs, so an input the schema refuses fails the test before it
+ * tests anything.
+ */
+function checkTestInput(
+  index: number,
+  name: string,
+  input: unknown,
+  check: ValidateFunction,
+  issues: Issue[],
+): void {
+  if (check(input)) return;
+  const errors = check.errors ?? [];
+  const described = describeSchemaErrors(errors);
+  const missing = described
+    .filter((_, k) => errors[k]?.keyword === 'required')
+    .map((d) => d.path);
+  const problems = described.map((d) =>
+    d.path === '' ? d.message : `${d.path} ${d.message}`,
+  );
+  issues.push(
+    warn(
+      'TESTS_INPUT_INVALID',
+      `tests[${index}] "${name}": input does not match the inputs schema: ${problems.join('; ')}`,
+      {
+        hint: 'the run refuses this input before any node runs, so the test cannot pass',
+        at: { pointer: ptr('tests', index, 'input') },
+        params: { test: index, name, missing, problems },
+      },
+    ),
+  );
 }
 
 function scanForSecrets(doc: Record<string, unknown>, issues: Issue[]): void {
