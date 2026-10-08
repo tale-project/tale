@@ -446,6 +446,16 @@ default means deleting the override and fixing what surfaces:
 
 ## Contract debt ledger
 
+- **The session-bound connector runner has no caller** — agent connector calls through the
+  sandbox bridge run on the in-process live runner (2026-10), so nothing starts a live
+  connector body as a `node -e` program in a session any more. The machinery for it stays:
+  `engine_exec_runner.ts` (`sandboxProgramRunnerForSession`), the sandbox-exec runner, `lib/connectors/portable-live.ts`,
+  `core/connectors/hostcall_token.ts`, the `/api/connectors/hostcall` route in
+  `domains/connectors/bridge-routes.ts` with its body limit in
+  `domains/sandbox/door-body-limit.ts`, the dispatcher's portable branch, the hostcall secret
+  in `backend/env.ts`, and the device relay's allowance for the route
+  (`services/sandbox/src/devices/relay-policy.ts`). Paying it down means deleting them together
+  with their tests; `runConnectorAction` no longer accepts a session to run in.
 - **Unbounded named-array lists on `/api/v1`** — `GET /automations`,
   `GET /projects/{id}/automations`, the two `…/versions` listings, `GET /projects/{id}/folders`
   (per level) and `GET /browser-sessions` answer the whole set with no `LIMIT`; declared
