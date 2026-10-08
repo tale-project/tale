@@ -558,3 +558,76 @@ describe('answer_run_ask', () => {
     });
   });
 });
+
+/**
+ * A caller polling a long run reads its status, not its whole trace on
+ * every poll: `get_run {detail: []}` answers the run without its input,
+ * output, trace and effects, and the question a waiting run asks stays.
+ */
+describe('get_run detail', () => {
+  const full = {
+    id: 'run-1',
+    runId: 'run-1',
+    name: NAME,
+    version: 7,
+    status: 'waiting',
+    mode: 'mock',
+    startedBy: 'api-key:user-1',
+    startedAt: 1,
+    waitingFor: 'ask' as const,
+    input: { orders: [] },
+    output: { sent: 3 },
+    trace: [{ nodeId: 'n1' }],
+    effects: [{ kind: 'mail' }],
+    ask: {
+      askId: 'ask-1',
+      nodeId: 'n1',
+      question: 'Send it?',
+      createdAt: 1,
+      expiresAt: 2,
+    },
+  };
+  const getRun = vi.fn(async () => full);
+
+  it('answers the status and the question alone for detail []', async () => {
+    const result = await dispatch(
+      'get_run',
+      { runId: 'run-1', detail: [] },
+      { store: store({ getRun }) },
+    );
+    const run = Reflect.get(result as object, 'run') as Record<string, unknown>;
+    expect(run).toMatchObject({ runId: 'run-1', status: 'waiting' });
+    expect(run.ask).toEqual(full.ask);
+    for (const key of ['input', 'output', 'trace', 'effects']) {
+      expect(run).not.toHaveProperty(key);
+    }
+  });
+
+  it('answers what detail names, and everything without it', async () => {
+    const some = await dispatch(
+      'get_run',
+      { runId: 'run-1', detail: ['output'] },
+      { store: store({ getRun }) },
+    );
+    const run = Reflect.get(some as object, 'run') as Record<string, unknown>;
+    expect(run.output).toEqual(full.output);
+    expect(run).not.toHaveProperty('trace');
+    expect(
+      await dispatch(
+        'get_run',
+        { runId: 'run-1' },
+        { store: store({ getRun }) },
+      ),
+    ).toEqual({ run: full });
+  });
+
+  it('refuses a detail it does not know', async () => {
+    expect(
+      await dispatch(
+        'get_run',
+        { runId: 'run-1', detail: ['checkpoints'] },
+        { store: store({ getRun }) },
+      ),
+    ).toMatchObject({ code: 'INVALID_PARAMS', hint: expect.any(String) });
+  });
+});

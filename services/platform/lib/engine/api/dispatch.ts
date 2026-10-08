@@ -683,7 +683,7 @@ async function runDeployedDurably(
       mode: 'live',
       status: run?.status ?? 'queued',
       ...duplicate,
-      note: `the run is still going after ${Math.round(timeoutMs / 1000)}s — poll get_run {runId} for its status, output, trace and effects`,
+      note: `the run is still going after ${Math.round(timeoutMs / 1000)}s — poll get_run {runId, detail: []} for its status, then get_run {runId} once it finished for its output, trace and effects`,
     };
   }
   return {
@@ -753,6 +753,32 @@ function detailParam(
     error: `params.detail must list "analysis" and/or "types" — got ${JSON.stringify(v)}`,
     code: 'INVALID_PARAMS',
     hint: 'omit detail to get both, or pass detail: ["analysis"]',
+  };
+}
+
+/** What `get_run` can answer beside the run's status, each the size of the
+ * run's own data. */
+const RUN_DETAIL = ['input', 'output', 'trace', 'effects'] as const;
+
+/**
+ * Read `params.detail` of get_run: which of the run's own data to answer.
+ * Omitted, all of it; `[]` the status alone — what a caller polling a long
+ * run reads, instead of its whole trace on every poll.
+ */
+function runDetailParam(
+  v: unknown,
+):
+  | { value: ReadonlySet<string> }
+  | { error: string; code: 'INVALID_PARAMS'; hint: string } {
+  if (v === undefined) return { value: new Set(RUN_DETAIL) };
+  const known = new Set<unknown>(RUN_DETAIL);
+  if (Array.isArray(v) && v.every((d) => known.has(d))) {
+    return { value: new Set(v.map(String)) };
+  }
+  return {
+    error: `params.detail must list some of ${RUN_DETAIL.map((d) => `"${d}"`).join(', ')} — got ${JSON.stringify(v)}`,
+    code: 'INVALID_PARAMS',
+    hint: 'omit detail to get them all, or pass detail: [] for the status alone',
   };
 }
 
@@ -1560,10 +1586,10 @@ export async function dispatch(
           mode,
           note:
             started.duplicate === true
-              ? 'this idempotencyKey already started this run — no new run was started; poll get_run {runId} for its status, output, trace and effects'
+              ? 'this idempotencyKey already started this run — no new run was started; poll get_run {runId, detail: []} for its status, then get_run {runId} once it finished for its output, trace and effects'
               : mode === 'mock'
-                ? 'the mock run continues in the background against the mocks — nothing leaves Tale, and it is recorded in the run history; poll get_run {runId} for its status, output, trace and effects'
-                : 'the run continues in the background — poll get_run {runId} for its status, output, trace and effects',
+                ? 'the mock run continues in the background against the mocks — nothing leaves Tale, and it is recorded in the run history; poll get_run {runId, detail: []} for its status, then get_run {runId} once it finished for its output, trace and effects'
+                : 'the run continues in the background — poll get_run {runId, detail: []} for its status, then get_run {runId} once it finished for its output, trace and effects',
           hint:
             mode === 'mock'
               ? 'start_run with mode "live" runs the deployed version for real'
@@ -1643,14 +1669,26 @@ export async function dispatch(
           hint: RUN_ID_HINT,
         };
       }
+      const detail = runDetailParam(p.detail);
+      if ('error' in detail) return detail;
       const run = await store.getRun(runId);
-      return run
-        ? { run }
-        : {
-            error: `no run "${runId}"`,
-            code: 'RUN_NOT_FOUND',
-            hint: RUN_ID_HINT,
-          };
+      if (!run) {
+        return {
+          error: `no run "${runId}"`,
+          code: 'RUN_NOT_FOUND',
+          hint: RUN_ID_HINT,
+        };
+      }
+      // The run's own data the caller left out of `detail` is dropped; its
+      // status, its scope and the question it waits on always stay.
+      const dropped = RUN_DETAIL.filter((key) => !detail.value.has(key));
+      return {
+        run: Object.fromEntries(
+          Object.entries(run).filter(
+            ([key]) => !(dropped as readonly string[]).includes(key),
+          ),
+        ),
+      };
     }
 
     case 'cancel_run': {

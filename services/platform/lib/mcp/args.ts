@@ -369,7 +369,16 @@ export const ENGINE_TOOL_ARGS = {
         'The nextCursor the previous page answered — the next older page. Pass it unchanged, with the same filters.',
       ),
   }),
-  get_run: z.strictObject({ runId }),
+  get_run: z.strictObject({
+    runId,
+    detail: z
+      .array(z.enum(['input', 'output', 'trace', 'effects']))
+      .max(4)
+      .optional()
+      .describe(
+        'What to answer beside the status: "input", "output", "trace", "effects". Left out, all of them; [] the status alone (and the question a waiting run asks) — poll a run with [], then read it whole once it finished.',
+      ),
+  }),
   cancel_run: z.strictObject({ runId }),
   answer_run_ask: z.strictObject({
     runId,

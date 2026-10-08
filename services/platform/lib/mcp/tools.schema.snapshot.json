@@ -745,6 +745,15 @@
           "minLength": 1,
           "pattern": "\\S",
           "description": "The run handle start_run and list_runs return."
+        },
+        "detail": {
+          "description": "What to answer beside the status: \"input\", \"output\", \"trace\", \"effects\". Left out, all of them; [] the status alone (and the question a waiting run asks) — poll a run with [], then read it whole once it finished.",
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["input", "output", "trace", "effects"]
+          }
         }
       },
       "required": ["runId"],

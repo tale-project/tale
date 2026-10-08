@@ -299,7 +299,7 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   list_runs:
     'Recent runs the caller can read, newest first — of one automation or of the current scope; filter by mode and statuses, and page with nextCursor.',
   get_run:
-    'One run in full: status, output, trace and effects. A run waiting on a person\'s answer (waitingFor: "ask") names the question under ask: its askId and the question, for answer_run_ask.',
+    'One run in full: status, output, trace and effects (detail: [] answers the status alone — poll with it). A run waiting on a person\'s answer (waitingFor: "ask") names the question under ask: its askId and the question, for answer_run_ask.',
   cancel_run: 'Stop a run at its next node boundary.',
   answer_run_ask:
     'Answer the question a waiting run asked a person (get_run answers it as run.ask: askId and question); the run resumes on the answer. The answer speaks for the person: ask them first.',
