@@ -54,6 +54,7 @@ const discussionState = vi.hoisted(() => ({
 }));
 
 vi.mock('../hooks/queries', () => ({
+  TASK_DISCUSSION_PAGE_SIZE: 30,
   // The hook answers NEWEST first (the page walk starts at the tail):
   // msg_2 (user, newer) then msg_1 (automated, older).
   useTaskDiscussion: () => ({

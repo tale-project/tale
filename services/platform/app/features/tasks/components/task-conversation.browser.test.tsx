@@ -37,6 +37,7 @@ const comments: TaskCommentData[] = Array.from(
 );
 
 vi.mock('../hooks/queries', () => ({
+  TASK_DISCUSSION_PAGE_SIZE: 50,
   useTaskDiscussion: () => {
     const [count, setCount] = useState(50);
     const [isLoadingEarlier, setLoadingEarlier] = useState(false);

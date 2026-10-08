@@ -108,6 +108,8 @@ const COMMENTS = Array.from({ length: 40 }, (_, index) => ({
 }));
 
 vi.mock('../hooks/queries', () => ({
+  // One page holds every comment here: the test is about the whole list.
+  TASK_DISCUSSION_PAGE_SIZE: 100,
   useTaskDiscussion: () => ({
     comments: COMMENTS,
     isLoading: false,
