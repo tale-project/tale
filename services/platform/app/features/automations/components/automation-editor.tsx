@@ -5,6 +5,7 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
+import type { CodeEditorDiagnosticsStatus } from '@tale/ui/code-editor';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Dialog } from '@tale/ui/dialog/dialog';
@@ -64,6 +65,7 @@ import {
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
+import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
 import { ptr } from '@/lib/engine/core/syntax/pointer';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
@@ -143,7 +145,12 @@ import {
 } from './automation-run-dialog';
 import { AutomationVersionPicker } from './automation-version-picker';
 import { CodingAgentButton } from './coding-agent-entry';
-import { NodeFields, NodeInspector } from './node-inspector';
+import {
+  NodeFields,
+  NodeInspector,
+  type InspectorContext,
+} from './node-inspector';
+import type { ShapeStatus } from './node-shape-panel';
 
 /** The run-scope Select's "organization-wide" choice. A Radix Select item
  * cannot carry an empty value, so the org-wide option needs a real sentinel
@@ -613,6 +620,70 @@ function AutomationEditorScope({
       if (index >= 0) requestIssueFocus(ptr('nodes', index, 'when'));
     },
     [automation, requestIssueFocus],
+  );
+
+  // ── The inspector ────────────────────────────────────────────────────
+  // What a node's inspector reads besides the node: when it runs (the flow
+  // facts of the document the canvas draws, so typing never re-works them
+  // per keystroke), the check's shapes and failure reasons, and where the
+  // check stands for the marks in its code fields.
+  const canvasNodes = canvasDocument?.nodes;
+  const flowFacts = useMemo(
+    () => (canvasNodes === undefined ? null : analyzeFlow(canvasNodes)),
+    [canvasNodes],
+  );
+  const diagnosticsStatus: CodeEditorDiagnosticsStatus =
+    validation.status === 'failed'
+      ? 'failed'
+      : validation.status === 'ready' &&
+          validation.settledFor === validation.currentHash
+        ? 'ready'
+        : 'checking';
+  const shapeStatus: ShapeStatus | 'off' = !canAuthor
+    ? 'off'
+    : validation.status === 'failed'
+      ? 'failed'
+      : validationTypes === null
+        ? 'pending'
+        : diagnosticsStatus === 'ready'
+          ? 'ready'
+          : 'checking';
+  const settledDocument = validation.settledDocument;
+  const sampleOf = useCallback(
+    (nodeId: string) =>
+      showLastRun ? lastRunProjection.byNode.get(nodeId)?.output : undefined,
+    [showLastRun, lastRunProjection],
+  );
+  const inspectorContext = useMemo<InspectorContext | null>(
+    () =>
+      automation === null
+        ? null
+        : {
+            doc: automation,
+            flow: flowFacts,
+            analysis: validationAnalysis,
+            types: validationTypes,
+            shapeStatus,
+            diagnosticsStatus,
+            settled: settledDocument,
+            catalog,
+            modelLabel,
+            onSelect: (id) => selectOnCanvas(id),
+            sampleOf,
+          },
+    [
+      automation,
+      flowFacts,
+      validationAnalysis,
+      validationTypes,
+      shapeStatus,
+      diagnosticsStatus,
+      settledDocument,
+      catalog,
+      modelLabel,
+      selectOnCanvas,
+      sampleOf,
+    ],
   );
 
   const [viewChoice, setViewChoice] = useState<
@@ -1590,27 +1661,32 @@ function AutomationEditorScope({
               (`lg` up) it opens there; below that there is no panel to
               stack against, so it opens in the sheet below instead — never
               both, `isWorkbenchCompact` picks exactly one. */}
-          {selectedNode !== null && !isWorkbenchCompact && (
-            <NodeInspector
-              id={inspectorId}
-              variant="panel"
-              node={selectedNode}
-              nodeType={nodeTypes.find((def) => def.type === selectedNode.type)}
-              catalogUnavailable={catalogQuery.isError}
-              runView={
-                showLastRun
-                  ? lastRunProjection.byNode.get(selectedNode.id)
-                  : undefined
-              }
-              readOnly={!canAuthor}
-              onChange={onChangeNode}
-              organizationId={organizationId}
-              {...(projectId !== undefined && { projectId })}
-              onDeselect={deselectNode}
-              issues={selectedNodeIssues}
-              nodeIndex={selectedNodeIndex}
-            />
-          )}
+          {selectedNode !== null &&
+            inspectorContext !== null &&
+            !isWorkbenchCompact && (
+              <NodeInspector
+                id={inspectorId}
+                variant="panel"
+                node={selectedNode}
+                nodeType={nodeTypes.find(
+                  (def) => def.type === selectedNode.type,
+                )}
+                catalogUnavailable={catalogQuery.isError}
+                runView={
+                  showLastRun
+                    ? lastRunProjection.byNode.get(selectedNode.id)
+                    : undefined
+                }
+                readOnly={!canAuthor}
+                onChange={onChangeNode}
+                organizationId={organizationId}
+                {...(projectId !== undefined && { projectId })}
+                onDeselect={deselectNode}
+                issues={selectedNodeIssues}
+                nodeIndex={selectedNodeIndex}
+                context={inspectorContext}
+              />
+            )}
         </div>
       </div>
 
@@ -1676,10 +1752,10 @@ function AutomationEditorScope({
             // Closing onto the Problems sheet: its list takes focus.
             preventCloseAutoFocus={nodeSheetHandsOn}
           >
-            {selectedNode !== null && (
+            {selectedNode !== null && inspectorContext !== null && (
               <>
                 <ResponsiveDialogTitle className="sr-only">
-                  {selectedNode.id}
+                  {nodeTitle(selectedNode.id)}
                 </ResponsiveDialogTitle>
                 <ResponsiveDialogDescription className="sr-only">
                   {t('editor.nodeSheetDescription')}
@@ -1703,6 +1779,7 @@ function AutomationEditorScope({
                   onDeselect={deselectNode}
                   issues={selectedNodeIssues}
                   nodeIndex={selectedNodeIndex}
+                  context={inspectorContext}
                 />
                 {canAuthor && (
                   <div className="bg-background border-border sticky bottom-0 z-10 -mb-6 flex flex-wrap items-center justify-end gap-2 border-t pt-3 pb-6">

@@ -187,6 +187,13 @@ function outputReadsOf(
   return { all, byField };
 }
 
+/** The nodes the document's `output` reads, in reading order: what End
+ *  returns comes from them. */
+export function outputReaders(doc: Automation): string[] {
+  const known = new Set(doc.nodes.map((node) => node.id));
+  return outputReadsOf(doc.output, known).all;
+}
+
 /** The top-level output field a source sits in: `/output/summary/…` →
  *  `summary`; the whole output → `''`. */
 function fieldOf(source: ExprSource): string {

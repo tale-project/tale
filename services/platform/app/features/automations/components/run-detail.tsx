@@ -18,6 +18,7 @@ import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
+import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
@@ -57,7 +58,7 @@ import { AutomationCanvas, type CanvasRun } from './automation-canvas';
 import { EffectList } from './effect-list';
 import { IssueImportContinuation } from './issue-import-continuation';
 import { IssueImportResult } from './issue-import-result';
-import { NodeInspector } from './node-inspector';
+import { NodeInspector, type InspectorContext } from './node-inspector';
 import { approvalIdFromDetail, RunApprovalCard } from './run-approval-card';
 import { RunAskCard } from './run-ask-card';
 import { RunInDoubtCard } from './run-in-doubt-card';
@@ -233,6 +234,27 @@ function RunDetailBody({
       setSelectedNodeId(target.nodeId);
     }
   }, []);
+
+  // What the inspector reads besides the node: no check runs on a run's
+  // page, so it opens on what the run did and has no Shape tab.
+  const inspectorContext = useMemo<InspectorContext | null>(
+    () =>
+      automation === null
+        ? null
+        : {
+            doc: automation,
+            flow: analyzeFlow(automation.nodes),
+            analysis: null,
+            types: null,
+            shapeStatus: 'off',
+            diagnosticsStatus: 'ready',
+            settled: null,
+            catalog,
+            onSelect: (id) => selectOnCanvas(id),
+            sampleOf: (nodeId) => projection.byNode.get(nodeId)?.output,
+          },
+    [automation, catalog, selectOnCanvas, projection],
+  );
 
   const runMissing = isMissingAutomationRead({
     data: runQuery.data,
@@ -511,7 +533,7 @@ function RunDetailBody({
             )
           )}
         </div>
-        {selectedNode !== null && (
+        {selectedNode !== null && inspectorContext !== null && (
           <NodeInspector
             id={inspectorId}
             node={selectedNode}
@@ -524,6 +546,8 @@ function RunDetailBody({
             }}
             organizationId={organizationId}
             onDeselect={deselectNode}
+            context={inspectorContext}
+            defaultTab="run"
           />
         )}
       </div>

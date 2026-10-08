@@ -131,7 +131,7 @@ function connectorParts(
 }
 
 /** A connector's name in the reader's language. */
-function connectorName(
+export function connectorName(
   slug: string,
   catalog: NodeCatalogView,
   locale: string,
@@ -153,7 +153,7 @@ export function nodeIcon(node: NodeDef, catalog: NodeCatalogView): FlowIcon {
 }
 
 /** A core type's word: "Transform", "Language model", "Agent". */
-function coreTypeWord(type: string, t: ConditionTranslate): string {
+export function coreTypeWord(type: string, t: ConditionTranslate): string {
   switch (type) {
     case 'llm':
       return t('canvas.node.catalog.llm');

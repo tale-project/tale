@@ -289,6 +289,49 @@ editor:
     les types intégrés sont décrits. Les champs de ce nœud restent affichés.
   invalidJson: Ce n’est pas encore du JSON valide, le nœud n’a donc pas été modifié.
   fixSuggestion: 'Remplacer par {name}'
+  jsonMustBeObject: Ce doit être un objet JSON, entre accolades.
+  jsonMustBeList: Ce doit être une liste JSON, entre crochets.
+  inspector:
+    copyId: Copier l’ID du nœud
+    tabs:
+      fields: Champs
+      shape: Structure
+      run: Dernière exécution
+  flow:
+    title: Quand il s’exécute
+    always: À chaque exécution
+    some: 'Sur {count} des {total} chemins'
+    never: 'Jamais : aucune combinaison de conditions ne le permet'
+    skipWhen: Ignoré quand sa condition n’est pas remplie
+    skipElse: 'Ignoré quand {node} s’exécute'
+    skipUpstream: 'Ignoré quand {node} est ignoré'
+    skipError: Ignoré quand il échoue
+    failHalts: S’il échoue, l’exécution s’arrête avec son erreur.
+    failContinues: '{count, plural, =0 {S’il échoue, l’exécution continue sans lui.} one {S’il échoue, l’exécution continue sans lui et ignore # nœud qui le lit.} other {S’il échoue, l’exécution continue sans lui et ignore # nœuds qui le lisent.}}'
+    failsWhen: 'Échoue si {reasons}.'
+  explain:
+    when: 'S’exécute seulement si {condition}. Sinon, il est ignoré, ainsi que chaque nœud qui lit sa sortie.'
+    whenRaw: 'S’exécute seulement si cette condition est remplie. Sinon, il est ignoré, ainsi que chaque nœud qui lit sa sortie.'
+    forEach: 'S’exécute une fois pour chaque élément de {list}. Sa sortie est la liste des résultats.'
+    repeatUntil: 'S’exécute à nouveau jusqu’à ce que la condition soit remplie ({condition}), {max} fois au plus.'
+    elseOf: 'S’exécute seulement quand {node} est ignoré par sa propre condition.'
+  shape:
+    receives: Reçoit
+    receivesCode: Ce que son code lit comme input
+    item: Chaque élément
+    returns: Renvoie
+    readBy: Lu par
+    readByOutput: La sortie de l’automatisation
+    notRead: Rien ne lit sa sortie.
+    checking: Mise à jour…
+    unavailable: Impossible de déterminer les structures. Elles apparaîtront après la prochaine vérification réussie.
+    origin:
+      declared: D’après son schéma de sortie
+      signature: 'Tel que {connector} le décrit'
+      inferred: Déduit de son code
+      fixed: 'Chaque nœud de ce type ({type}) renvoie ceci'
+      child: 'Ce que renvoie {automation}'
+      unknown: Tale ne peut pas déterminer ce qu’il renvoie. Une exécution de test montre les vraies données.
   versionNotFound:
     title: 'La version {version} n’existe pas'
     description: Cette automatisation n’a aucune version portant ce numéro — le lien est peut-être périmé, ou le numéro mal saisi.
@@ -312,7 +355,6 @@ editor:
     typeUnlisted: Saisir un modèle qui n’est pas listé
     modelIdLabel: Identifiant du modèle
     modelIdHint: Exactement tel que le fournisseur l’écrit, p. ex. fournisseur/nom-du-modele.
-  runTitle: Dans cette exécution
   resolvedInput: Entrée résolue
   output: Sortie
   fields:
@@ -346,6 +388,13 @@ editor:
     repeatUntilDescription: Relancer ce nœud jusqu’à ce que l’expression soit vraie.
     maxRepeats: Répétitions maximales
     onError: En cas d’erreur
+    onErrorStop: Arrêter l’exécution
+    onErrorContinue: Continuer sans lui
+    onErrorDescription: Ce qui se passe quand ce nœud échoue. Continuer ignore chaque nœud qui lit sa sortie.
+    maxRepeatsDescription: Au plus ce nombre de passages, de 1 à 20. Vide signifie 5.
+    maxRepeatsRange: Saisis un nombre entier de 1 à 20.
+    elseOfNone: Aucun
+    elseOfEmpty: Aucun autre nœud n’a de condition.
     output: Sortie
     type: Type
     id: Identifiant

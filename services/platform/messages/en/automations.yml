@@ -283,6 +283,49 @@ editor:
   catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
   invalidJson: This is not valid JSON yet, so the node was not changed.
   fixSuggestion: 'Replace with {name}'
+  jsonMustBeObject: This must be a JSON object, in curly braces.
+  jsonMustBeList: This must be a JSON list, in square brackets.
+  inspector:
+    copyId: Copy node ID
+    tabs:
+      fields: Fields
+      shape: Shape
+      run: Last run
+  flow:
+    title: When it runs
+    always: On every run
+    some: 'On {count} of {total} paths'
+    never: 'Never: no combination of conditions lets it run'
+    skipWhen: Skipped when its condition is false
+    skipElse: 'Skipped when {node} runs'
+    skipUpstream: 'Skipped when {node} is skipped'
+    skipError: Skipped when it fails
+    failHalts: If it fails, the run stops with its error.
+    failContinues: '{count, plural, =0 {If it fails, the run goes on without it.} one {If it fails, the run goes on without it and skips # node that reads it.} other {If it fails, the run goes on without it and skips # nodes that read it.}}'
+    failsWhen: 'Fails when {reasons}.'
+  explain:
+    when: "Runs only if {condition}. Otherwise it's skipped, and so is every node that reads its output."
+    whenRaw: "Runs only if this condition holds. Otherwise it's skipped, and so is every node that reads its output."
+    forEach: 'Runs once for each item of {list}. Its output is the list of results.'
+    repeatUntil: 'Runs again until {condition}, at most {max} times in all.'
+    elseOf: 'Runs only when {node} is skipped by its own condition.'
+  shape:
+    receives: Receives
+    receivesCode: What its code reads as input
+    item: Each item
+    returns: Returns
+    readBy: Read by
+    readByOutput: The automation output
+    notRead: Nothing reads its output.
+    checking: Updating…
+    unavailable: "Couldn't work out the shapes. They appear after the next successful check."
+    origin:
+      declared: From its output schema
+      signature: 'As {connector} describes it'
+      inferred: Worked out from its code
+      fixed: 'Every node of this type ({type}) returns this'
+      child: 'What {automation} returns'
+      unknown: "Tale can't tell what this returns. A test run shows the real data."
   versionNotFound:
     title: "Version {version} doesn't exist"
     description: This automation has no version with that number — the link may be stale, or the number mistyped.
@@ -304,7 +347,6 @@ editor:
     typeUnlisted: Type a model that is not listed
     modelIdLabel: Model id
     modelIdHint: Exactly as the provider spells it, e.g. vendor/model-name.
-  runTitle: In this run
   resolvedInput: Resolved input
   output: Output
   fields:
@@ -335,6 +377,13 @@ editor:
     repeatUntilDescription: Re-run this node until the expression is truthy.
     maxRepeats: Maximum repeats
     onError: On error
+    onErrorStop: Stop the run
+    onErrorContinue: Continue without it
+    onErrorDescription: What happens when this node fails. Continuing skips every node that reads its output.
+    maxRepeatsDescription: At most this many passes, from 1 to 20. Empty means 5.
+    maxRepeatsRange: Enter a whole number from 1 to 20.
+    elseOfNone: None
+    elseOfEmpty: No other node has a condition.
     output: Output
     type: Type
     id: ID

@@ -32,6 +32,21 @@ export default defineConfig({
   optimizeDeps: {
     entries: ['**/*.browser.test.{ts,tsx}'],
     include: [
+      // The code editor loads CodeMirror behind a dynamic import; found
+      // only when a test opens a code field, it would re-optimise mid-run
+      // and load a second React.
+      '@codemirror/autocomplete',
+      '@codemirror/commands',
+      '@codemirror/lang-javascript',
+      '@codemirror/lang-json',
+      '@codemirror/lang-yaml',
+      '@codemirror/language',
+      '@codemirror/search',
+      '@codemirror/state',
+      '@codemirror/view',
+      '@lezer/common',
+      '@lezer/highlight',
+      '@lezer/markdown',
       '@milkdown/kit/plugin/listener',
       '@radix-ui/react-toast',
       '@radix-ui/react-toggle-group',

@@ -40,7 +40,7 @@ import { nodeTitle } from './node-face';
 /** What can make a node fail, as the server's check names it, in words;
  *  null for a reason a newer server names and this build has no words
  *  for. */
-function failureReasonWords(
+export function failureReasonWords(
   reason: string,
   t: ConditionTranslate,
 ): string | null {

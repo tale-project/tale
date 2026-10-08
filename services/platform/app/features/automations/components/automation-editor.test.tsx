@@ -111,7 +111,10 @@ vi.mock('../hooks/use-automation-validation', () => ({
         errors: [],
         warnings: [],
         settledFor: null,
+        settledDocument: null,
         currentHash,
+        analysis: null,
+        types: null,
       };
     }
     return {
@@ -120,7 +123,10 @@ vi.mock('../hooks/use-automation-validation', () => ({
       warnings: validationMock.warnings,
       settledFor:
         validationMock.status === 'ready' ? currentHash : 'an older draft',
+      settledDocument: validationMock.status === 'ready' ? document : null,
       currentHash,
+      analysis: null,
+      types: null,
     };
   },
   useInvalidateAutomationValidation: () => invalidateValidation,

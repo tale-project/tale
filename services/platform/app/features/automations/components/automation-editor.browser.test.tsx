@@ -116,7 +116,10 @@ vi.mock('../hooks/use-automation-validation', async (importOriginal) => ({
       errors: check.errors,
       warnings: check.warnings,
       settledFor: hash,
+      settledDocument: document,
       currentHash: hash,
+      analysis: null,
+      types: null,
     };
   },
   useInvalidateAutomationValidation: () => () => undefined,
@@ -398,9 +401,14 @@ describe('automation editor workbench in Chromium', () => {
       try {
         renderEditorTab();
         await userEvent.click(
-          await screen.findByRole('button', { name: /^pulls/i }),
+          // The first chart of the file waits for the layout worker.
+          await screen.findByRole(
+            'button',
+            { name: /^pulls/i },
+            { timeout: 15_000 },
+          ),
         );
-        const sheet = await screen.findByRole('dialog', { name: 'pulls' });
+        const sheet = await screen.findByRole('dialog', { name: 'Pulls' });
         const closeActions = within(sheet).getAllByRole('button', {
           name: /^(Close|Schließen|Fermer)$/,
         });
@@ -599,7 +607,7 @@ describe('automation editor workbench in Chromium', () => {
     expect(canvasBox.width).toBeCloseTo(canvasBoxBefore.width, 0);
     expect(canvasBox.height).toBeCloseTo(canvasBoxBefore.height, 0);
     expect(pageScroll.scrollHeight).toBe(pageScroll.clientHeight);
-    expect(screen.queryByRole('region', { name: 'pulls' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Pulls' })).toBeNull();
 
     // The fields — and the document's Save/Discard — live in a sheet over
     // the canvas instead, not the side panel and not the canvas's own
@@ -653,12 +661,12 @@ describe('automation editor workbench in Chromium', () => {
     expect(canvasBox.left).toBeCloseTo(frame.left, 0);
     expect(canvasBox.top).toBeCloseTo(strip.getBoundingClientRect().bottom, 0);
     expect(canvasBox.right).toBeCloseTo(frame.left + pageScroll.clientWidth, 0);
-    expect(screen.queryByRole('region', { name: 'pulls' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Pulls' })).toBeNull();
 
     // A picked node opens the inspector: it ends at the page's right and
     // bottom edges, and meets the canvas at its border with no gutter.
     await selectNode('pulls');
-    const inspector = screen.getByRole('region', { name: 'pulls' });
+    const inspector = screen.getByRole('region', { name: 'Pulls' });
     canvasBox = canvas.getBoundingClientRect();
     const inspectorBox = inspector.getBoundingClientRect();
     expect(inspectorBox.right).toBeCloseTo(
@@ -765,11 +773,12 @@ describe('automation editor workbench in Chromium', () => {
     await vi.waitFor(() => expect(row).toHaveFocus());
     await userEvent.keyboard('{Enter}');
 
-    const code = await screen.findByRole<HTMLTextAreaElement>('textbox', {
-      name: 'Code',
-    });
+    const code = await screen.findByRole('textbox', { name: 'Code' });
+    // The code editor selects exactly the offending characters.
     await vi.waitFor(() => expect(code).toHaveFocus());
-    expect([code.selectionStart, code.selectionEnd]).toEqual([0, 6]);
+    await vi.waitFor(() =>
+      expect(document.getSelection()?.toString()).toBe('return'),
+    );
     // The inspector opened beside the canvas, and the dock stays open.
     expect(screen.getByRole('region', { name: 'Problems' })).toBeVisible();
     const box = screen.getByRole('button', { name: /^diff/i });
@@ -788,12 +797,14 @@ describe('automation editor workbench in Chromium', () => {
     await vi.waitFor(() => expect(row).toHaveFocus());
     await userEvent.keyboard('{Enter}');
 
-    const nodeSheet = await screen.findByRole('dialog', { name: 'diff' });
-    const code = within(nodeSheet).getByRole<HTMLTextAreaElement>('textbox', {
+    const nodeSheet = await screen.findByRole('dialog', { name: 'Diff' });
+    const code = await within(nodeSheet).findByRole('textbox', {
       name: 'Code',
     });
     await vi.waitFor(() => expect(code).toHaveFocus());
-    expect([code.selectionStart, code.selectionEnd]).toEqual([0, 6]);
+    await vi.waitFor(() =>
+      expect(document.getSelection()?.toString()).toBe('return'),
+    );
     expect(screen.queryByRole('dialog', { name: 'Problems' })).toBeNull();
   });
 
@@ -826,7 +837,7 @@ describe('automation editor workbench in Chromium', () => {
       ).toHaveAccessibleName(/\(1 warning\)$/);
       // Let the dock finish fading in: axe reads colours at rest.
       await new Promise((resolve) => setTimeout(resolve, 400));
-      const inspector = screen.getByRole('region', { name: 'summary' });
+      const inspector = screen.getByRole('region', { name: 'Summary' });
       for (const region of [dock, inspector]) {
         const result = await axe.run(region, {
           runOnly: [
@@ -894,7 +905,7 @@ describe('automation editor workbench in Chromium', () => {
     const sheet = await screen.findByRole('dialog', { name: 'Problems' });
     const row = within(sheet).getByRole('button', { name: /Error:/ });
     await vi.waitFor(() => expect(row).toHaveFocus());
-    expect(screen.queryByRole('dialog', { name: 'summary' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Summary' })).toBeNull();
   });
 
   it('says why Save waits in a visible line on a phone', async () => {

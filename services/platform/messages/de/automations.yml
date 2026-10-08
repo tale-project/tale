@@ -290,6 +290,49 @@ editor:
     du trotzdem.
   invalidJson: Das ist noch kein gültiges JSON, deshalb wurde die Node nicht geändert.
   fixSuggestion: 'Durch {name} ersetzen'
+  jsonMustBeObject: Das muss ein JSON-Objekt in geschweiften Klammern sein.
+  jsonMustBeList: Das muss eine JSON-Liste in eckigen Klammern sein.
+  inspector:
+    copyId: Node-ID kopieren
+    tabs:
+      fields: Felder
+      shape: Struktur
+      run: Letzter Lauf
+  flow:
+    title: Wann sie läuft
+    always: Bei jedem Lauf
+    some: 'Auf {count} von {total} Pfaden'
+    never: 'Nie: Keine Kombination von Bedingungen lässt sie laufen'
+    skipWhen: Übersprungen, wenn ihre Bedingung nicht zutrifft
+    skipElse: 'Übersprungen, wenn {node} läuft'
+    skipUpstream: 'Übersprungen, wenn {node} übersprungen wird'
+    skipError: Übersprungen, wenn sie fehlschlägt
+    failHalts: Schlägt sie fehl, stoppt der Lauf mit ihrem Fehler.
+    failContinues: '{count, plural, =0 {Schlägt sie fehl, läuft der Lauf ohne sie weiter.} one {Schlägt sie fehl, läuft der Lauf ohne sie weiter und überspringt # Node, die sie liest.} other {Schlägt sie fehl, läuft der Lauf ohne sie weiter und überspringt # Nodes, die sie lesen.}}'
+    failsWhen: 'Schlägt fehl, wenn {reasons}.'
+  explain:
+    when: 'Läuft nur, wenn {condition}. Sonst wird sie übersprungen, ebenso jede Node, die ihre Ausgabe liest.'
+    whenRaw: 'Läuft nur, wenn diese Bedingung zutrifft. Sonst wird sie übersprungen, ebenso jede Node, die ihre Ausgabe liest.'
+    forEach: 'Läuft einmal für jedes Element von {list}. Ihre Ausgabe ist die Liste der Ergebnisse.'
+    repeatUntil: 'Läuft erneut, bis {condition}, insgesamt höchstens {max}-mal.'
+    elseOf: 'Läuft nur, wenn {node} durch ihre eigene Bedingung übersprungen wird.'
+  shape:
+    receives: Erhält
+    receivesCode: Was ihr Code als input liest
+    item: Jedes Element
+    returns: Gibt zurück
+    readBy: Gelesen von
+    readByOutput: Die Ausgabe der Automatisierung
+    notRead: Nichts liest ihre Ausgabe.
+    checking: Wird aktualisiert…
+    unavailable: Die Strukturen konnten nicht ermittelt werden. Sie erscheinen nach der nächsten erfolgreichen Prüfung.
+    origin:
+      declared: Aus ihrem Ausgabeschema
+      signature: 'Wie {connector} es beschreibt'
+      inferred: Aus ihrem Code abgeleitet
+      fixed: 'Jede Node dieses Typs ({type}) gibt das zurück'
+      child: 'Was {automation} zurückgibt'
+      unknown: Tale kann nicht erkennen, was sie zurückgibt. Ein Testlauf zeigt die echten Daten.
   versionNotFound:
     title: 'Version {version} gibt es nicht'
     description: Diese Automatisierung hat keine Version mit dieser Nummer — der Link ist vielleicht veraltet oder die Nummer vertippt.
@@ -312,7 +355,6 @@ editor:
     typeUnlisted: Ein Modell eingeben, das nicht aufgeführt ist
     modelIdLabel: Modell-ID
     modelIdHint: Genau so, wie der Anbieter sie schreibt, z. B. anbieter/modellname.
-  runTitle: In diesem Lauf
   resolvedInput: Aufgelöste Eingabe
   output: Ausgabe
   fields:
@@ -345,6 +387,13 @@ editor:
     repeatUntilDescription: Diese Node wiederholen, bis der Ausdruck wahr ist.
     maxRepeats: Maximale Wiederholungen
     onError: Bei Fehler
+    onErrorStop: Lauf stoppen
+    onErrorContinue: Ohne sie weiterlaufen
+    onErrorDescription: Was passiert, wenn diese Node fehlschlägt. Läuft der Lauf weiter, wird jede Node übersprungen, die ihre Ausgabe liest.
+    maxRepeatsDescription: Höchstens so viele Durchläufe, von 1 bis 20. Leer bedeutet 5.
+    maxRepeatsRange: Gib eine ganze Zahl von 1 bis 20 ein.
+    elseOfNone: Keine
+    elseOfEmpty: Keine andere Node hat eine Bedingung.
     output: Ausgabe
     type: Typ
     id: ID
