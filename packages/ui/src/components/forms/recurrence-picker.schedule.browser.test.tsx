@@ -15,15 +15,22 @@ import type {
   ScheduleReference,
   ScheduleRule,
 } from '../../lib/recurrence/schedule';
+import { Dialog } from '../dialog/dialog';
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogTitle,
+} from '../overlays/responsive-dialog';
 import { RecurrencePicker } from './recurrence-picker';
 
 import '../../globals.css';
 
 // Real-Chromium coverage for the picker's time mode: contrast of every view
 // in both themes, the keyboard path through the views, focus after adding
-// and removing a time, the 320px popover in English, German and French at a
-// phone's width, the swap fade between views and its absence under reduced
-// motion.
+// and removing a time, the one-line trigger that drops its tail whole, focus
+// trapped and restored inside a Dialog and a vaul Drawer, the 320px popover
+// in English, German and French at a phone's width, the swap fade between
+// views and its absence under reduced motion.
 
 afterEach(() => {
   cleanup();
@@ -31,6 +38,10 @@ afterEach(() => {
   document.documentElement.classList.remove('dark');
   localStorage.removeItem('user-locale');
 });
+
+/** Chromium writes U+202F before AM/PM; compare words, not the space. */
+const plain = (text: string | null) =>
+  (text ?? '').replace(/[\s\u00a0\u202f]+/g, ' ').trim();
 
 /** Tue Sep 29, 2026. */
 const TUESDAY: ScheduleReference = {
@@ -361,3 +372,186 @@ describe.each(['en', 'de', 'fr'])(
     });
   },
 );
+
+/** Every 15 minutes on weekdays during office hours: the longest tail. */
+const OFFICE_HOURS: ScheduleRule = {
+  frequency: 'minutely',
+  interval: 15,
+  window: {
+    weekdays: [1, 2, 3, 4, 5],
+    hours: { from: '08:00', to: '18:00' },
+  },
+};
+
+describe('the schedule picker trigger width', () => {
+  /** The trigger's head and tail, and the one line that shows them. */
+  function parts(trigger: HTMLElement, head: string) {
+    const headPart = within(trigger).getByText(head);
+    const tailPart = headPart.nextElementSibling;
+    if (!(tailPart instanceof HTMLElement)) throw new Error('No tail');
+    const line = headPart.parentElement;
+    if (line === null) throw new Error('No line');
+    return { headPart, tailPart, line };
+  }
+
+  it('keeps a tail that fits on the line in a 192px column', async () => {
+    await page.viewport(1280, 900);
+    render(
+      <div style={{ width: 192 }}>
+        <Picker
+          initial={{ frequency: 'daily', interval: 1, times: ['09:00'] }}
+        />
+      </div>,
+    );
+    const trigger = screen.getByRole('button', { name: /^Schedule:/ });
+    const { headPart, tailPart } = parts(trigger, 'Daily');
+    expect(tailPart.offsetTop).toBe(headPart.offsetTop);
+    expect(tailPart.scrollWidth).toBeLessThanOrEqual(tailPart.clientWidth);
+    expect(trigger.getBoundingClientRect().height).toBe(36);
+  });
+
+  it.each([192, 128])(
+    'drops a long tail whole in a %ipx column, and keeps it in the name',
+    async (width) => {
+      await page.viewport(1280, 900);
+      render(
+        <div style={{ width }}>
+          <Picker initial={OFFICE_HOURS} />
+        </div>,
+      );
+      const trigger = screen.getByRole('button', { name: /^Schedule:/ });
+      expect(plain(trigger.getAttribute('aria-label'))).toBe(
+        'Schedule: Every 15 minutes, Mon–Fri, 8:00 AM–6:00 PM',
+      );
+      const { headPart, tailPart, line } = parts(trigger, 'Every 15 minutes');
+      expect(tailPart.offsetTop).toBeGreaterThan(headPart.offsetTop);
+      // The tail sits on the hidden second line: nothing of it shows.
+      expect(tailPart.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        line.getBoundingClientRect().bottom,
+      );
+      expect(trigger.getBoundingClientRect().height).toBe(36);
+    },
+  );
+});
+
+describe('the schedule picker in a Dialog', () => {
+  it('traps focus in the popover, restores it, and leaves the dialog open', async () => {
+    await page.viewport(1280, 900);
+    render(
+      <Dialog open onOpenChange={() => {}} title="Create trigger">
+        <div className="flex flex-col gap-2">
+          <button type="button">Name</button>
+          <Picker initial={OFFICE_HOURS} />
+        </div>
+      </Dialog>,
+    );
+    const host = await screen.findByRole('dialog', { name: 'Create trigger' });
+    const trigger = within(host).getByRole('button', { name: /^Schedule/ });
+    await userEvent.click(trigger);
+    const popover = await screen.findByRole('dialog', { name: 'Schedule' });
+    await waitFor(() =>
+      expect(popover.contains(document.activeElement)).toBe(true),
+    );
+    for (let index = 0; index < 8; index++) {
+      await userEvent.tab();
+      expect(popover.contains(document.activeElement)).toBe(true);
+    }
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Schedule' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'Create trigger' }),
+    ).toBeVisible();
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    // Custom interval's time fields hold a tab stop per part; focus walks
+    // them inside the popover, and Escape still closes only the popover.
+    await userEvent.click(trigger);
+    const again = await screen.findByRole('dialog', { name: 'Schedule' });
+    await userEvent.click(
+      within(again).getByRole('button', { name: 'Custom interval' }),
+    );
+    await waitFor(() =>
+      expect(
+        within(again).getByRole('combobox', { name: 'Every' }),
+      ).toHaveFocus(),
+    );
+    const until = within(again).getByRole('group', { name: 'Until' });
+    for (let index = 0; index < 8; index++) {
+      await userEvent.tab();
+      expect(again.contains(document.activeElement)).toBe(true);
+    }
+    expect(until.contains(document.activeElement)).toBe(true);
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Schedule' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'Create trigger' }),
+    ).toBeVisible();
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+});
+
+describe('the schedule picker in a vaul Drawer', () => {
+  it('opens, traps focus, and closes on Escape without closing the drawer', async () => {
+    // Below `md`, ResponsiveDialog is a vaul bottom drawer: the phone sheet.
+    await page.viewport(390, 844);
+    render(
+      <ResponsiveDialog open onOpenChange={() => {}}>
+        <ResponsiveDialogContent>
+          <ResponsiveDialogTitle>Create trigger</ResponsiveDialogTitle>
+          <Picker />
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>,
+    );
+    const drawer = await screen.findByRole('dialog', {
+      name: 'Create trigger',
+    });
+    expect(drawer).toHaveAttribute('data-vaul-drawer');
+    await userEvent.click(
+      within(drawer).getByRole('button', { name: /^Schedule/ }),
+    );
+    const popover = await screen.findByRole('dialog', { name: 'Schedule' });
+    const box = popover.getBoundingClientRect();
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(390);
+    await waitFor(() =>
+      expect(popover.contains(document.activeElement)).toBe(true),
+    );
+    for (let index = 0; index < 6; index++) {
+      await userEvent.tab();
+      expect(popover.contains(document.activeElement)).toBe(true);
+    }
+    // A pointer tap on a preset works inside the drawer.
+    await userEvent.click(
+      within(popover).getByRole('radio', { name: /^Every hour/ }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Schedule' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      within(drawer).getByRole('button', { name: /^Schedule: Every hour/ }),
+    ).toBeVisible();
+    const trigger = within(drawer).getByRole('button', { name: /^Schedule/ });
+    await userEvent.click(trigger);
+    await screen.findByRole('dialog', { name: 'Schedule' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Schedule' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'Create trigger' }),
+    ).toBeVisible();
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+});
