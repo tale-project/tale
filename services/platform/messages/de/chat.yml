@@ -463,6 +463,9 @@ skills:
   unavailableOption: '"{slug}" (nicht verfügbar)'
   emptyConnectors: Noch keine Connectors hinzugefügt.
   emptyTools: Keine Plattform-Tools verfügbar.
+  searchLabel: Skills, Connectors und Tools durchsuchen
+  searchPlaceholder: Suchen…
+  searchEmpty: Nichts passt zu deiner Suche.
 generation:
   regionLabel: Status der Antwort
   queued: In der Warteschlange — startet gleich

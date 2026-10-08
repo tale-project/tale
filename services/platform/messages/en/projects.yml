@@ -274,6 +274,8 @@ agents:
     document_find: Find documents
     knowledge_entry_find: Find knowledge entries
     knowledge_entry_write: Add and edit knowledge entries
+    knowledge_search: Search the knowledge base
+    alwaysOn: Always on — no grant needed
     contact_find: Find contacts
     product_find: Find products
     website_find: List websites
