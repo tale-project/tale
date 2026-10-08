@@ -21,11 +21,8 @@ const readOrgEmbeddingConfig = vi.fn(
 vi.mock('./connection', () => ({
   readOrgEmbeddingConfig: (orgSlug: string) => readOrgEmbeddingConfig(orgSlug),
 }));
-vi.mock('./dimensions', () => ({
-  pinDimensions: vi.fn(async () => undefined),
-}));
 vi.mock('./embedding', () => ({
-  embedderForOrg: vi.fn(async () => ({ dimensions: 3 })),
+  embedderForOrg: vi.fn(async () => ({ dimensions: 1024 })),
 }));
 vi.mock('./pool', () => ({
   getKnowledgePoolForOrg: vi.fn(async () => ({})),

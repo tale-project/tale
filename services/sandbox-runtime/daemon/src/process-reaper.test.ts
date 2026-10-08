@@ -86,6 +86,9 @@ interface FakeProcess {
   comm?: string;
   /** Start time in clock ticks since boot; defaults to 1000 + pid. */
   startTime?: number;
+  /** An environ file with no bytes at all — what the kernel answers for a
+   * process in the middle of an execve. `env` is then not written. */
+  midExec?: boolean;
 }
 
 /** A process table: pid → its environment and process group. */
@@ -94,7 +97,9 @@ function procTable(processes: Record<string, FakeProcess>): string {
   roots.push(root);
   for (const [pid, proc] of Object.entries(processes)) {
     mkdirSync(`${root}/${pid}`);
-    if (proc.env !== null) {
+    if (proc.midExec === true) {
+      writeFileSync(`${root}/${pid}/environ`, '');
+    } else if (proc.env !== null) {
       writeFileSync(`${root}/${pid}/environ`, `${proc.env.join('\0')}\0`);
     }
     writeStat(root, pid, proc);
@@ -185,6 +190,43 @@ describe('taggedPids', () => {
     expect(
       await taggedPids('e1', { procRoot: '/nonexistent-proc-root' }),
     ).toEqual([]);
+  });
+
+  test('a process in the middle of an execve, whose environment reads empty, is read again and found', async () => {
+    const procRoot = procTable({
+      '20': { env: [], midExec: true },
+      '21': tagged('e1'),
+    });
+    // The exec completes while the scan is on its re-reads.
+    const laidOut = setTimeout(() => {
+      writeFileSync(
+        `${procRoot}/20/environ`,
+        `PATH=/bin\0${EXEC_TAG_ENV}=e1\0`,
+      );
+    }, 15);
+    try {
+      const started = performance.now();
+      expect(await taggedPids('e1', { procRoot, selfPid: 0 })).toEqual([
+        20, 21,
+      ]);
+      // Found by a re-read, not by the scan's deadline.
+      expect(performance.now() - started).toBeLessThan(1_000);
+    } finally {
+      clearTimeout(laidOut);
+    }
+  });
+
+  test('a process whose environment stays empty counts as untagged after a bounded wait', async () => {
+    const procRoot = procTable({
+      '20': { env: [], midExec: true },
+      '21': tagged('e1'),
+    });
+    const started = performance.now();
+    expect(await taggedPids('e1', { procRoot, selfPid: 0 })).toEqual([21]);
+    const elapsed = performance.now() - started;
+    // Four re-reads, ten milliseconds apart — and no more.
+    expect(elapsed).toBeGreaterThanOrEqual(35);
+    expect(elapsed).toBeLessThan(1_000);
   });
 });
 

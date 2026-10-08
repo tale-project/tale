@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isKnowledgeVectorWidth,
   KNOWLEDGE_DEFAULT_MAX_CONCURRENT_REQUESTS,
   KNOWLEDGE_EMBEDDING_KEPT_KEYS,
+  KNOWLEDGE_VECTOR_WIDTHS,
   knowledgeConnectionSchema,
   knowledgeEmbeddingSchema,
   knowledgeEmbeddingWriteSchema,
@@ -57,6 +59,50 @@ describe('knowledgeEmbeddingWriteSchema — what a write may clear', () => {
         knowledgeEmbeddingWriteSchema.safeParse({ ...base, ...fields }).success,
       ).toBe(false);
     }
+  });
+});
+
+describe('the vector widths a knowledge database stores', () => {
+  const base = {
+    providerSlug: 'local-embedding',
+    model: 'Example-embedding',
+  };
+
+  it('takes a write of every listed width', () => {
+    for (const dimensions of KNOWLEDGE_VECTOR_WIDTHS) {
+      expect(isKnowledgeVectorWidth(dimensions)).toBe(true);
+      expect(
+        knowledgeEmbeddingWriteSchema.safeParse({ ...base, dimensions })
+          .success,
+        String(dimensions),
+      ).toBe(true);
+    }
+  });
+
+  // A width with no table would save and then fail every document at index
+  // time, so the write is where it is refused — with the list in the message.
+  it.each([1, 1000, 1535, 2560, 16_000])(
+    'refuses a write of %s, which has no table, and names the list',
+    (dimensions) => {
+      expect(isKnowledgeVectorWidth(dimensions)).toBe(false);
+      const result = knowledgeEmbeddingWriteSchema.safeParse({
+        ...base,
+        dimensions,
+      });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.path).toEqual(['dimensions']);
+      expect(result.error?.issues[0]?.message).toContain(
+        KNOWLEDGE_VECTOR_WIDTHS.join(', '),
+      );
+    },
+  );
+
+  // A file stored before the widths were a list must still open in Settings,
+  // or the admin could not see what to correct.
+  it('still reads a stored file of another width', () => {
+    expect(
+      knowledgeEmbeddingSchema.safeParse({ ...base, dimensions: 1000 }).success,
+    ).toBe(true);
   });
 });
 
