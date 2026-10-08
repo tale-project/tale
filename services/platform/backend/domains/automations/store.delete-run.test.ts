@@ -142,6 +142,18 @@ describe('deleteRunInTx', () => {
     },
   );
 
+  it('preserves a quarantined run without promising cancellation can release it', async () => {
+    const { tx, statements } = fakeRun({ status: 'quarantined' });
+    await expect(deleteRunInTx(tx, args)).rejects.toMatchObject({
+      code: 'RUN_QUARANTINED',
+      status: 409,
+    });
+    expect(statements.some((s) => s.text.startsWith('DELETE FROM'))).toBe(
+      false,
+    );
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
   it('answers deleted: false for a run that is not there', async () => {
     const { tx, statements } = fakeRun(null);
     await expect(deleteRunInTx(tx, args)).resolves.toEqual({ deleted: false });
@@ -228,6 +240,17 @@ describe('deleteAutomationCascade [AUTO-R15]', () => {
       );
     },
   );
+
+  it('keeps the definition of a quarantined run without suggesting cancellation', async () => {
+    const { sql, statements } = fakeAutomation('quarantined');
+    await expect(
+      deleteAutomationCascade(sql, automation),
+    ).rejects.toMatchObject({
+      code: 'RUN_QUARANTINED',
+      status: 409,
+    });
+    expect(statements.some((s) => /^(DELETE|INSERT)/.test(s.text))).toBe(false);
+  });
 
   it('removes the versions, the deployment, the trigger and the project installs, leaves a tombstone, and keeps every run', async () => {
     const { sql, statements } = fakeAutomation(null);

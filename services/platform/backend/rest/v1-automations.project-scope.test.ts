@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  AutomationError,
   automationExists,
   beginRun,
   beginRunInTx,
@@ -15,6 +16,7 @@ import {
   getRun,
   listAutomations,
   listRunsPage,
+  requestLegacyRunStopInTx,
   versionRow,
 } from '../domains/automations/store.ts';
 import type { ProjectRow } from '../domains/projects/service.ts';
@@ -33,6 +35,7 @@ vi.mock('../domains/automations/store.ts', async (original) => ({
   getRun: vi.fn(),
   listAutomations: vi.fn(),
   listRunsPage: vi.fn(),
+  requestLegacyRunStopInTx: vi.fn(),
   versionRow: vi.fn(),
 }));
 
@@ -474,5 +477,149 @@ describe('organization run scope', () => {
     );
     expect(response.status).toBe(400);
     expect(beginRun).not.toHaveBeenCalled();
+  });
+});
+
+describe('legacy quarantine stop requests', () => {
+  const request = {
+    action: 'stop',
+    expectedClaimEpoch: 4,
+    expectedObservedAt: 1_700_000_000_000,
+    acknowledgeUnknownExternalEffects: true,
+  };
+  const legacyQuarantine = {
+    reason: 'legacy_execution_unproven',
+    observedAt: request.expectedObservedAt,
+    claimEpoch: 4,
+    priorStatus: 'running',
+    resolution: { action: 'stop', actor: 'user-1', at: 1_700_000_000_001 },
+  };
+  const receipt = { requested: true, status: 'quarantined', legacyQuarantine };
+
+  it.each([
+    {
+      path: '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+      projectId: 'p-1',
+    },
+    { path: '/api/v1/runs/run-1/legacy-quarantine', projectId: null },
+  ])(
+    'requests a stop in the exact $path scope without clearing the hold',
+    async ({ path, projectId }) => {
+      vi.mocked(getRun).mockResolvedValue({
+        ...run,
+        projectId,
+        status: 'quarantined',
+      } as never);
+      vi.mocked(requestLegacyRunStopInTx).mockResolvedValue(receipt as never);
+      const { app, sql, begin } = mount();
+      const response = await app.request(path, json('POST', request));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual(receipt);
+      expect(begin).toHaveBeenCalledTimes(1);
+      expect(requestLegacyRunStopInTx).toHaveBeenCalledWith(sql, {
+        organizationId: 'org-1',
+        runId: 'run-1',
+        actor: 'user-1',
+        request,
+      });
+      expect(cancelRunInTx).not.toHaveBeenCalled();
+      expect(cancelRun).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    {
+      path: '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+      projectId: null,
+    },
+    {
+      path: '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+      projectId: 'p-2',
+    },
+    { path: '/api/v1/runs/run-1/legacy-quarantine', projectId: 'p-1' },
+  ])(
+    'hides runs outside the URL scope: $path / $projectId',
+    async ({ path, projectId }) => {
+      vi.mocked(getRun).mockResolvedValue({ ...run, projectId } as never);
+      const response = await mount({ role: 'admin' }).app.request(
+        path,
+        json('POST', request),
+      );
+      expect(response.status).toBe(404);
+      expect(requestLegacyRunStopInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { options: { project: null }, status: 404 },
+    { options: { project: { organizationId: 'org-2' } }, status: 404 },
+    { options: { project: { teamId: 'private-team' } }, status: 404 },
+    { options: { project: { archivedAt: 1 } }, status: 403 },
+    { options: { role: 'member' }, status: 403 },
+  ])(
+    'preserves the project write gate: $options',
+    async ({ options, status }) => {
+      const response = await mount(options).app.request(
+        '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+        json('POST', request),
+      );
+      expect(response.status).toBe(status);
+      expect(requestLegacyRunStopInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    {},
+    { ...request, action: 'resume' },
+    { ...request, acknowledgeUnknownExternalEffects: false },
+    { ...request, expectedClaimEpoch: -1 },
+    { ...request, expectedObservedAt: 1.5 },
+    { ...request, actor: 'another-user' },
+    { ...request, projectId: 'p-2' },
+  ])(
+    'refuses invalid or authority-bearing request fields: %j',
+    async (body) => {
+      const response = await mount().app.request(
+        '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+        json('POST', body),
+      );
+      expect(response.status).toBe(400);
+      expect(requestLegacyRunStopInTx).not.toHaveBeenCalled();
+      expect(getRun).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses organization stop requests without developer authority', async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...run, projectId: null } as never);
+    const response = await mount({ role: 'member' }).app.request(
+      '/api/v1/runs/run-1/legacy-quarantine',
+      json('POST', request),
+    );
+    expect(response.status).toBe(403);
+    expect(requestLegacyRunStopInTx).not.toHaveBeenCalled();
+  });
+
+  it('hides missing runs before the stop mutation', async () => {
+    vi.mocked(getRun).mockResolvedValue(null);
+    const response = await mount().app.request(
+      '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+      json('POST', request),
+    );
+    expect(response.status).toBe(404);
+    expect(requestLegacyRunStopInTx).not.toHaveBeenCalled();
+  });
+
+  it('preserves a stale quarantine 409 from the store', async () => {
+    vi.mocked(requestLegacyRunStopInTx).mockRejectedValue(
+      new AutomationError('RUN_QUARANTINE_CHANGED', 'Quarantine changed', 409),
+    );
+    const response = await mount().app.request(
+      '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+      json('POST', request),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: 'RUN_QUARANTINE_CHANGED',
+    });
   });
 });

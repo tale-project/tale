@@ -120,7 +120,8 @@ const TOOLS = [
       'write to them, document_create saves a file to the hub, and ' +
       'generate_image (where the organization allows it) creates images ' +
       'into your workspace. The exact ' +
-      'set is per agent — call workspace_status FIRST to see which tools are ' +
+      'set is per agent — call the separate workspace_status MCP tool with {} ' +
+      'to see which tools are ' +
       'granted and their argument shapes. If the result has status ' +
       '"unavailable" or "invalid_args", relay the message to the user and do ' +
       'not retry blindly.',
@@ -141,7 +142,9 @@ const TOOLS = [
     description:
       'List the platform workspace tools granted to this agent (each with its ' +
       'argument shape and whether it only reads or also writes). Call this ' +
-      'before relying on workspace_tool. Tools are granted per agent by the ' +
+      'MCP tool directly with {} to discover workspace_tool operations. ' +
+      'Discovery requires a live session, not a workspace_status grant. ' +
+      'Tools are granted per agent by the ' +
       'user when configuring the agent; an ungranted tool cannot be called. ' +
       'The answer also carries platform.version: the release version the ' +
       'platform backend that answered this call is labelled with (for ' +
@@ -258,6 +261,16 @@ async function handleToolCall(name, args, progressToken) {
     const res = await callPlatform('/status', {});
     return toolText(res.text, !res.ok);
   }
+  // Some clients put the discovery tool inside the generic workspace tool.
+  // It is the same read-only operation: retain the session credential and
+  // status timeout, discard supplied args, and never pass it to execution.
+  if (
+    name === 'workspace_status' ||
+    (name === 'workspace_tool' && args.tool === 'workspace_status')
+  ) {
+    const res = await callPlatform('/status', {}, TOOLS_BASE_URL);
+    return toolText(res.text, !res.ok);
+  }
   if (name === 'workspace_tool') {
     const tool = typeof args.tool === 'string' ? args.tool : '';
     const callArgs =
@@ -278,10 +291,6 @@ async function handleToolCall(name, args, progressToken) {
     } finally {
       stopProgress();
     }
-  }
-  if (name === 'workspace_status') {
-    const res = await callPlatform('/status', {}, TOOLS_BASE_URL);
-    return toolText(res.text, !res.ok);
   }
   return toolText(`Unknown tool: ${name}`, true);
 }

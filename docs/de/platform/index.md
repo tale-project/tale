@@ -14,14 +14,16 @@ Auf dem Smartphone schwebt die Navigation als abgerundete Leiste über der Seite
 
 Beim Scrollen nach unten wird die Leiste kleiner, rückt etwas nach unten und zeigt nur noch die Symbole. Scrollst du nach oben, erscheinen die Leiste in voller Größe und die Beschriftungen wieder. Alle Bereiche bleiben in beiden Größen erreichbar.
 
-Ein Bereich öffnet immer seine eigene erste Seite – egal, was du dort zuletzt getan hast. Dieselbe Auswahl führt dich also jedes Mal an dieselbe Stelle. Ein Beispiel: Öffne in einer Automatisierung den Tab **Läufe**, wechsle zu **Start** und wähle dann **Automatisierungen**. Du landest in der Liste der Automatisierungen, nicht auf dem Tab, den du verlassen hast. Am Computer macht nur **Start** dort weiter, wo du aufgehört hast, und öffnet den Chat, den du zuletzt gelesen hast – oder einen neuen Chat, falls es noch keinen gibt. Wählst du **Start** erneut, während du schon dort bist, beginnt ein neuer Chat. Dasselbe erreichst du mit **⌥⌘N** auf dem Mac oder **Alt+Ctrl+N** unter Windows und Linux.
+Ein Bereich öffnet immer seine eigene erste Seite – egal, was du dort zuletzt getan hast. Dieselbe Auswahl führt dich also jedes Mal an dieselbe Stelle: **Start** öffnet einen neuen Chat, **Wissen** die **Dokumente** und **Automatisierungen** die Liste der Automatisierungen. Das gilt auch, wenn du den Bereich wählst, in dem du gerade bist. Ein Beispiel: Öffne in einer Automatisierung den Tab **Läufe**, wechsle zu **Wissen** und wähle dann **Automatisierungen**. Du landest in der Liste der Automatisierungen, nicht auf dem Tab, den du verlassen hast. Auf dem Smartphone öffnet **Start** statt eines neuen Chats die Liste von **Start**. Einen neuen Chat beginnst du auch mit **⌥⌘N** auf dem Mac oder **Alt+Ctrl+N** unter Windows und Linux.
+
+Eine Automatisierung, die du im Tab **Automatisierungen** eines Projekts öffnest, gehört zu **Automatisierungen**: Die Navigationsleiste markiert **Automatisierungen**, und der Navigationspfad über der Automatisierung beginnt mit dem Projekt. Wähle den Projektnamen, um zum Projekt zurückzukehren, oder **Automatisierungen**, um zu seinen Automatisierungen zurückzukehren.
 
 Die **Einstellungen** führen ihre Seiten in einer Seitenleiste neben der Seite auf, und die Kopfzeile nennt die geöffnete Seite; auf dem Smartphone beginnen sie mit einer Liste ihrer Seiten. **Wissen** zeigt seine Seiten als Tabs unter der Kopfzeile.
 
 | Du möchtest … | So gehst du vor |
 | --- | --- |
 | Einen anderen Bereich öffnen | Wähle den Bereich in der Navigationsleiste oder auf dem Smartphone in der Tab-Leiste. |
-| Einen neuen Chat beginnen | Am Computer wählst du **Neuer Chat** im Bereich **Start** oder wählst **Start** erneut, während du bereits dort bist. Auf dem Smartphone öffnest du **Start**, wählst **Chats** und dann **Neuer Chat**. |
+| Einen neuen Chat beginnen | Am Computer wählst du **Start** oder **Neuer Chat** im Bereich **Start**. Auf dem Smartphone öffnest du **Start**, wählst **Chats** und dann **Neuer Chat**. |
 | Ein Projekt öffnen | Am Computer wählst du das Projekt im Bereich **Start** unter **Projekte**. Auf dem Smartphone wählst du das Projekt und dann **Projekt öffnen**. |
 | Zur Projektliste zurückkehren | Wähle **Alle Projekte** im Bereich **Start** oder klicke oben im Projekt auf den Navigationspfad **Projekte**. |
 | Zur Dokumentenliste zurückkehren | Wähle **Wissen**. |

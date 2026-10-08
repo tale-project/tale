@@ -10,9 +10,9 @@ branding: Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen
   zuzugreifen.
 knowledge: Du hast keine Berechtigung, auf Wissen zuzugreifen.
 automations: Automatisierungen sind Inhabern, Admins und Entwicklern vorbehalten.
-workspaceNotFound: Dieser Workspace existiert nicht oder wurde entfernt.
+workspaceNotFound: Dieser Arbeitsbereich existiert nicht oder wurde entfernt.
 disabled: Dein Konto ist deaktiviert. Kontaktiere den Support.
-noMembership: Du bist kein Mitglied dieses Workspace. Wende dich an einen Administrator.
+noMembership: Du bist kein Mitglied dieses Arbeitsbereichs. Wende dich an einen Administrator.
 enterpriseSso: Sie benötigen Administratorrechte, um auf die
   Enterprise-SSO-Einstellungen zuzugreifen.
 dataResidency: Du benötigst Admin-Berechtigungen, um auf die

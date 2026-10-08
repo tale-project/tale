@@ -4,7 +4,7 @@ description: Importer une transcription vérifiée dans le bon projet, contrôle
 ---
 Transforme une transcription exportée en source de projet que les membres peuvent interroger dans le chat. Commence par un fichier texte vérifié, puis contrôle son accès et son indexation avant d’automatiser la livraison. Tu dois pouvoir modifier le projet cible et être autorisé à partager ce texte avec ses membres.
 
-Tale ne fournit ni connecteur Meetily dédié ni dossier de transcriptions surveillé. Exporte depuis ton outil de transcription, puis utilise l’import de documents ou l’API de Tale. Ce guide commence après la transcription ; il n’enregistre pas de réunion et ne configure pas cet outil.
+Tale ne fournit ni connector Meetily dédié ni dossier de transcriptions surveillé. Exporte depuis ton outil de transcription, puis utilise l’import de documents ou l’API de Tale. Ce guide commence après la transcription ; il n’enregistre pas de réunion et ne configure pas cet outil.
 
 ## Préparer la transcription
 

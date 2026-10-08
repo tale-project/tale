@@ -209,7 +209,8 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'field on an older platform is unknown, never false. Re-read current ' +
     'task, assignment, runs and review before acting; honor provider waits ' +
     'and admission retryAfter. No provider reset time is supplied here. ' +
-    'workflowRun.waitingFor "ask" or "approval" waits on a person. ' +
+    'workflowRun.waitingFor "ask", "approval" or "in_doubt" waits on a ' +
+    'person. ' +
     'pendingReview.reviewer names its captured user or agent recipient; ' +
     'implementationAgentId and evidenceRevision bind an agent decision to ' +
     'the source. A null source or revision cannot be decided by task_review. ' +

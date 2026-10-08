@@ -7,6 +7,9 @@
 
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
+# Local builds share the same checked capability as official producers. The
+# runner verifies this argument against its actual bundled engine before squash.
+ARG AUTOMATION_WRITER_PROTOCOL=2
 
 # Bun binary for all stages
 FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS bun-bin
@@ -156,6 +159,10 @@ COPY services/platform/backend ./services/platform/backend
 # so it needs no link.
 # ============================================================================
 FROM builder AS dev
+
+ARG AUTOMATION_WRITER_PROTOCOL
+RUN test "$(bun -e 'import { ENGINE_PROTOCOL } from "./services/platform/lib/engine/core/protocol.ts"; console.log(ENGINE_PROTOCOL)')" = "$AUTOMATION_WRITER_PROTOCOL"
+LABEL io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}"
 
 # Node for the 0.5 backend roles; the dev image keeps sources at the workspace
 # path, so the entrypoint's role dispatch needs the dir override below.
@@ -450,10 +457,14 @@ RUN chmod +x ./docker-entrypoint.sh \
     && mkdir -p /app/data \
     && chown app:app /app/data
 
+ARG AUTOMATION_WRITER_PROTOCOL
+RUN test "$(bun -e 'import { ENGINE_PROTOCOL } from "./lib/engine/core/protocol.ts"; console.log(ENGINE_PROTOCOL)')" = "$AUTOMATION_WRITER_PROTOCOL"
+
 # Keep version metadata after filesystem work so new releases reuse its layers.
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
 LABEL org.opencontainers.image.version="${VERSION}" \
+      io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}" \
       org.opencontainers.image.title="tale-platform" \
       org.opencontainers.image.description="Tale Platform — TanStack Start SPA + Postgres backend" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
@@ -474,6 +485,9 @@ FROM scratch
 COPY --from=runner / /
 
 ARG VERSION=dev
+ARG AUTOMATION_WRITER_PROTOCOL
+LABEL org.opencontainers.image.version="${VERSION}" \
+      io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}"
 
 WORKDIR /app
 

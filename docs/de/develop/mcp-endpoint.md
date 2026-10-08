@@ -77,17 +77,34 @@ Tools liefern außerdem `readOnlyHint`, `destructiveHint`, `idempotentHint` und 
 | Tool                  | Was es tut                                                               |
 | --------------------- | ------------------------------------------------------------------------ |
 | `get_docs` | Automatisierungsreferenz als Text abrufen: Grammatik, Knotentypen, Capability-Knoten und Methodentabelle für `tools/call`. |
-| `get_catalog` | Unterstützte Knotentypen auflisten; `kind` filtert die Art, `compact: true` lässt Eingabeschemas weg. |
+| `get_catalog` | Unterstützte Knotentypen auflisten, mit Eingabeschema, Ausgabesignatur und `outputSchema` jeder Capability; `kind` filtert die Art, `compact: true` lässt die Schemas weg. |
 | `search_catalog` | Knotenkatalog nach Stichwörtern durchsuchen. |
-| `validate_automation` | Ein Automatisierungsdokument validieren, ohne es zu speichern.           |
+| `validate_automation` | Ein Automatisierungsdokument validieren, ohne es zu speichern: Fehler und Warnungen mit ihrer Stelle, dazu die Ablaufanalyse und die abgeleiteten Typen. |
 | `run_automation`      | Ein Automatisierungsdokument direkt gegen die deterministischen Mocks ausführen. |
 | `test_automation`     | Die eigenen Abnahmetests einer Automatisierung ausführen.                |
-| `save_automation`     | Ein Automatisierungsdokument als neue unveränderliche Version speichern. |
+| `save_automation`     | Ein Automatisierungsdokument als neue unveränderliche Version speichern; die Antwort nennt seine Warnungen. |
 | `get_automation`      | Eine gespeicherte Version lesen — ohne Angabe die neueste, `version: "deployed"` die live geschaltete (`AUTOMATION_VERSION_UNKNOWN`, solange nichts deployt ist). |
 | `list_automations` | Automatisierungen mit neuester und bereitgestellter Version sowie Installationsprojekten (`projectIds`) auflisten. |
 | `deploy_automation` | Eine gespeicherte Version für Live-Ausführungen bereitstellen. |
 
 Arbeite in dieser Reihenfolge: Grammatik und Katalog lesen, Dokument validieren, mit Mocks ausführen, Akzeptanztests ausführen, Version speichern und dann bereitstellen. Ein erfolgreicher Mock-Test bestätigt den simulierten Ablauf. Er bestätigt keine echten Zugangsdaten, Netzwerkverbindungen oder Auswirkungen beim Anbieter.
+
+#### Ein Validierungsergebnis lesen {#validation-result}
+
+`validate_automation` antwortet mit `valid`, `errors`, `warnings`, `analysis` und `types`. Fehler verhindern Speichern und Bereitstellen, Warnungen nie. `save_automation` gibt die `warnings` der gespeicherten Version zurück, und ein abgelehntes Speichern nennt seine `warnings` neben den `errors`. So erfährst du beides schon während der Arbeit.
+
+| Feld eines Problems | Inhalt |
+| --- | --- |
+| `code` | Der stabile Wert für Verzweigungen, etwa `REF_UNKNOWN_FIELD` oder `MAYBE_NULL` |
+| `message`, `hint` | Englische Sätze, die zwischen Releases stabil bleiben; zeige sie an, aber verzweige über `code` |
+| `nodeId` | Die betroffene Node, sofern es eine gibt |
+| `at.pointer` | Ein JSON Pointer in das gesendete Dokument, etwa `/nodes/2/input/to`; `""` steht für das ganze Dokument |
+| `at.range` | `[start, end)` in UTF-16-Codeeinheiten innerhalb des Strings an `at.pointer`, wenn das Problem ein einzelner Ausdruck in einem Template, einer Bedingung oder Code ist |
+| `at.subject` | `key`, wenn der Pointer ein Feld nennt, das es nicht geben sollte; `missing`, wenn er eines nennt, das es geben müsste und das fehlt |
+| `params` | Die Fakten, aus denen die Meldung besteht, etwa `node`, `field`, `ref`, `key` und `suggestion` |
+| `related` | Weitere beteiligte Stellen: die Node, von der ein Lesezugriff abhängt, die Node, deren Bedingung oder Fehler das Problem verursacht, lesende Nodes oder die Glieder eines Kreises |
+
+`analysis.nodes.<id>` sagt, ob eine Node erreichbar ist (`reachable`), ob sie immer läuft (`alwaysRuns`), wie sie übersprungen werden kann (`maySkip`) und ob ihr Fehler den Lauf anhält (`failureHandling: "halts"`) oder weiterlaufen lässt (`"continues"`). `analysis.paths` listet die Wege, die ein erfolgreicher Lauf nehmen kann — bis zu 32, mit `count` für alle — und nennt die Nodes, deren Fehler einen Lauf beendet. `types` liefert das JSON-Schema der Eingabe des Laufs, der Ausgabe jeder Node und des Ergebnisses der Automatisierung; `get_catalog` liefert das `outputSchema` jeder Capability auf dieselbe Weise. [Was Tale vor einem Lauf prüft](/de/platform/automations/concepts#checks) erklärt jede Gruppe von Prüfungen.
 
 ### Läufe und Trigger verwalten
 
@@ -139,7 +156,7 @@ Lies vor dem Einrichten privilegierter Tools `GET /api/v1/me`: `capabilities.dev
 | JSON-RPC `-32601` | Unbekannte Methode korrigieren |
 | JSON-RPC `-32602` | Tool-Name oder Argumente anhand von `tools/list` korrigieren; ein Wert außerhalb einer aufgezählten Menge wird abgelehnt, und die Meldung nennt die Menge |
 | Tool-Ergebnis mit `isError: true` | Stabilen `code`, erklärenden `error` und Handlungshinweis `hint` im Textinhalt lesen; `data` kann Feldprobleme enthalten |
-| `validate_automation` mit `valid: false` | Normales Validierungsergebnis; `errors` auswerten, obwohl `isError` false bleibt |
+| `validate_automation` mit `valid: false` | Normales Validierungsergebnis; `errors` und ihre Stellen auswerten ([Ein Validierungsergebnis lesen](#validation-result)), obwohl `isError` false bleibt. Warnungen machen ein Dokument nie ungültig |
 | Capability mit `pending` | Normales Genehmigungsergebnis; weder als fertig noch als erneut zu versuchenden Fehler behandeln |
 | Capability mit `refused` | Fehlerergebnis; die genannte Ursache beheben |
 

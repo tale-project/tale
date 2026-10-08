@@ -13,11 +13,15 @@
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
+import {
+  wakeParkedAgentRuns,
+  wakeSessionParkedAgentRun,
+} from '../tasks/agent-runs.ts';
 import { releaseProjectAgentSessionSlot } from './sessions.ts';
 
 vi.mock('../tasks/agent-runs.ts', () => ({
   wakeParkedAgentRuns: vi.fn(() => Promise.resolve(1)),
+  wakeSessionParkedAgentRun: vi.fn(() => Promise.resolve(1)),
 }));
 vi.mock('./gateway-keys.ts', () => ({
   revokeSessionGatewayKeys: vi.fn(() => Promise.resolve()),
@@ -97,6 +101,55 @@ describe('releaseProjectAgentSessionSlot', () => {
 
     expect(released).toBe(false);
     expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
+  });
+
+  it("wakes the oldest run parked on the ended turn's workspace while a sibling keeps it up", async () => {
+    // Four turns filled the workspace's live-exec places and a fifth parked;
+    // one of the four ended. The workspace stays up for the other three,
+    // and the place the ended exec gave back goes to the parked run.
+    const { sql } = fakeSql([]);
+
+    const released = await releaseProjectAgentSessionSlot(sql, {
+      ...ARGS,
+      sessionId: 'pa-agent-1',
+    });
+
+    expect(released).toBe(false);
+    expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
+    expect(wakeSessionParkedAgentRun).toHaveBeenCalledExactlyOnceWith(sql, {
+      organizationId: 'org-1',
+      sessionId: 'pa-agent-1',
+    });
+  });
+
+  it('wakes no run on the workspace for a release that is itself parking', async () => {
+    const { sql } = fakeSql([{ id: 'row-1' }]);
+
+    await releaseProjectAgentSessionSlot(
+      sql,
+      { ...ARGS, sessionId: 'pa-agent-1' },
+      undefined,
+      { wake: false },
+    );
+
+    expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
+    expect(wakeSessionParkedAgentRun).not.toHaveBeenCalled();
+  });
+
+  it('never fails the release over a failed workspace wake', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(wakeSessionParkedAgentRun).mockRejectedValueOnce(
+      new Error('boss down'),
+    );
+    const { sql } = fakeSql([]);
+
+    await expect(
+      releaseProjectAgentSessionSlot(sql, { ...ARGS, sessionId: 'pa-agent-1' }),
+    ).resolves.toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      '[sandbox] workspace wake failed:',
+      expect.any(Error),
+    );
   });
 
   it('never fails the release over a failed wake', async () => {

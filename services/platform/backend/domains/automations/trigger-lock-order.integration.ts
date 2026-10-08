@@ -1,3 +1,20 @@
+import { randomUUID } from 'node:crypto';
+
+import { transactSerializable } from '@tale/shared/db/serializable';
+import type { Sql, TransactionSql } from 'postgres';
+
+import { toJson } from '../../db/sql.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
+import { emitEvent } from '../events/emit.ts';
+import { sweepOrgPhase2 } from '../retention/service.ts';
+import {
+  deleteRunInTx,
+  deleteTrigger,
+  finishRun,
+  getRun,
+  saveVersion,
+  setTrigger,
+} from './store.ts';
 /** Real Postgres proof of the one order an organization's audit chain and a
  * trigger row are locked in (`trigger-failures.ts`, the module note): a run
  * landing through `finishRun` (its audit row, then the trigger's failure
@@ -28,23 +45,7 @@
  * The chain is held no wider than that order needs: a sweep whose batch no
  * trigger names, held after its delete, lets an audit writer of the same
  * organization commit meanwhile. */
-import { randomUUID } from 'node:crypto';
-
-import { transactSerializable } from '@tale/shared/db/serializable';
-import type { Sql, TransactionSql } from 'postgres';
-
-import { toJson } from '../../db/sql.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
-import { emitEvent } from '../events/emit.ts';
-import { sweepOrgPhase2 } from '../retention/service.ts';
-import {
-  deleteRunInTx,
-  deleteTrigger,
-  finishRun,
-  getRun,
-  saveVersion,
-  setTrigger,
-} from './store.ts';
+import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 interface TriggerState {
   id: string;
@@ -174,7 +175,9 @@ export async function checkTriggerStreakLockOrder(
     triggerId: string,
     organizationId = orgId,
   ): Promise<string> => {
-    const rows = await sql<{ id: string }[]>`
+    const rows = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, project_id, status, mode, started_by,
         input, checkpoints, claim_epoch, started_at_ms
@@ -186,6 +189,7 @@ export async function checkTriggerStreakLockOrder(
       )
       RETURNING id
     `;
+    });
     const id = rows[0]?.id;
     if (id === undefined) throw new Error('itest run insert failed');
     return id;
@@ -340,11 +344,14 @@ export async function checkTriggerStreakLockOrder(
       );
       if (remover === 'retention sweep') {
         const longAgo = Date.now() - 400 * DAY_MS;
-        await sql`
+        await sql.begin(async (fixtureTx) => {
+          await markAutomationWriterInTx(fixtureTx);
+          return fixtureTx`
           UPDATE app.automation_runs
           SET started_at_ms = ${longAgo}, finished_at_ms = ${longAgo}
           WHERE id = ${removedRunId}
         `;
+        });
       }
       const before = await trigger(organizationId);
       const runId = await runningRun(bound.id, organizationId);
@@ -417,7 +424,9 @@ export async function checkTriggerStreakLockOrder(
     {
       const longAgo = Date.now() - 400 * DAY_MS;
       // A person's run: no trigger names it.
-      const rows = await sql<{ id: string }[]>`
+      const rows = await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx<{ id: string }[]>`
         INSERT INTO app.automation_runs (
           org_id, name, version, project_id, status, mode, started_by,
           input, checkpoints, claim_epoch, started_at_ms, finished_at_ms
@@ -429,6 +438,7 @@ export async function checkTriggerStreakLockOrder(
         )
         RETURNING id
       `;
+      });
       const unnamedRunId = rows[0]?.id;
       if (unnamedRunId === undefined) {
         throw new Error('itest run insert failed');
@@ -477,9 +487,12 @@ export async function checkTriggerStreakLockOrder(
   } finally {
     await deleteTrigger(sql, orgId, name);
     await deleteTrigger(sql, removalOrgId, name);
-    await sql`
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
       DELETE FROM app.automation_runs WHERE org_id = ${removalOrgId}
     `;
+    });
     await sql`DELETE FROM "organization" WHERE "id" = ${removalOrgId}`;
   }
 }

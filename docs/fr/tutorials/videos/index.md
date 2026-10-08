@@ -47,7 +47,7 @@ Le tableau en plein vol, les fichiers comme contexte borné, et une tâche cré�
 
 <Card title="Épisode 7 — Connectors & le monde extérieur" icon="play" href="/fr/tutorials/videos/connectors">
 
-Des connecteurs qu’on lit avant d’ouvrir, la porte MCP telle que la montrait la version précédente, et une sortie réseau qui échoue fermée. Chaque porte ouverte délibérément. Deux minutes et demie.
+Des connectors qu’on lit avant d’ouvrir, la porte MCP telle que la montrait la version précédente, et une sortie réseau qui échoue fermée. Chaque porte ouverte délibérément. Deux minutes et demie.
 
 </Card>
 

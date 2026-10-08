@@ -94,12 +94,23 @@ it with the corresponding platform version and encryption secrets.
 `tale update` changes the CLI and project files, staying in the current `x.y` line
 unless you select another version. `tale deploy` rolls application containers;
 `--stop` also permits stop-gated updates with downtime. Blue-green rollout does not
-make every operation downtime-free.
+make every operation downtime-free. After the rollout it removes Tale's
+images of versions older than the new version and the rollback target, leaving any
+image a container still uses.
 
 `tale rollback` is limited to a recorded compatible patch version. Recovery across
 minor or major migrations uses a snapshot and its matching version; see the
 [upgrade guide](../../docs/en/self-hosted/operate/upgrades.md) before crossing a
-release line. The 0.5 cutover requires a fresh deployment from earlier lines.
+release line. After the automation writer-protocol cutover, deploy and rollback
+also require a compatible, source-identified image and a readable installed
+protocol floor. Already-created protocol-2 backend images raise that floor even
+before their migration commits. The CLI rereads it after slow preparation;
+concurrent manual or older-CLI mutation is outside its deployment lock.
+An older CLI cannot enforce this guard; a snapshot cannot undo
+external effects. Repair forward with a compatible runtime. Tag deployments with
+an external `DATABASE_URL` or a custom application database are refused until a
+separately verified database readback path is available. The 0.5 cutover requires
+a fresh deployment from earlier lines.
 
 Commands such as `reset`, `restore`, `--override` and `--override-all` change or
 replace state. Read their reference and preview what is available before using
@@ -131,13 +142,18 @@ After a completed rollout, `tale --json deploy accept --bundle
 "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT"
 --expected-version "$TALE_RELEASE_VERSION"` collects current read-only acceptance.
 It verifies the exact Ready receipt, runtime image custody and OCI release labels,
-the declared origin's serving version, and complete SQL/TypeScript migration
-inventories from the runtime source. It refuses older bundles without that
-inventory, pending operations, missing or extra ledger entries, and changed
-container identities. No application or configuration state is written. The
-existing deployment lock is held for the bounded observation; repeat the command
-when fresh evidence is needed. `sourceTag` is image-reference metadata and may
-be a source SHA tag; OCI labels and the health response establish the version.
+complete SQL/TypeScript migration inventories, and both frontend/API serving
+processes. The canonical HTTPS health responses must carry the same fresh public
+process identities as the captured local containers, including a final reread;
+another installation at the same version is refused. Legacy servers without that
+identity contract cannot supply acceptance. No application/configuration state is
+written. The existing lock and an owned temporary bundle copy preserve custody.
+External observations share a 120-second elapsed budget; the bundle's existing
+2 GiB/256 MiB-per-file limits bound preparation resources, but filesystem waits
+and cleanup do not have a cancellable whole-command deadline. Use an external
+process supervisor when a total deadline is required. A receipt is point-in-time
+correlation, not authentication or a guarantee of later routing. `sourceTag` is
+image-reference metadata; OCI labels and frontend health establish the version.
 
 Managed runtime error reporting defaults `SENTRY_ENVIRONMENT` to the deployment's
 retained `name`. To use a canonical reporting label, declare

@@ -52,6 +52,11 @@ export const sandboxErrorCodeLiterals = [
   // fails the runnerd realpath-under-/agent check (no silent mkdir).
   'SESSION_LOST',
   'INVALID_CWD',
+  // The session's runtime already runs its maximum of live execs
+  // (`RUNNERD_MAX_LIVE_EXECS`) and refused this one before it spawned. No
+  // room, not a fault: a place frees when another exec of the session ends,
+  // so the caller waits for that instead of failing the work.
+  'EXEC_LIMIT',
 ] as const;
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];

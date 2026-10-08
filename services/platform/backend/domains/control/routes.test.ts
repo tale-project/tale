@@ -62,6 +62,9 @@ describe('the control door', () => {
     expect(await res.json()).toEqual({
       draining: false,
       inFlight: 0,
+      generations: 0,
+      automationRuns: 0,
+      agentDrives: 0,
       colour: null,
     });
   });

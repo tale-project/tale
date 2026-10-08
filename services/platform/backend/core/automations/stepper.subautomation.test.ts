@@ -53,6 +53,9 @@ const ctx = {
       finished = args;
       return { status: args.status };
     }
+    // A model call goes through the effect ledger first.
+    if (name.endsWith(':beginNodeAttempt')) return { kind: 'go', attempt: 1 };
+    if (name.endsWith(':finishNodeAttempt')) return { recorded: true };
     return { status: 'running' };
   },
 };

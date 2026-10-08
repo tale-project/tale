@@ -11,6 +11,7 @@ import {
   recoveryProbeSignal,
   visitRecoveryCandidates,
 } from '../sandbox/recovery.ts';
+import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 /**
  * Re-attach abandoned workflow-agent turns — the 0.5 twin of 0.4's
@@ -85,9 +86,9 @@ async function listStalledWorkflowAgentTurns(
   staleBeforeMs: number,
 ): Promise<StalledWorkflowTurn[]> {
   const now = Date.now();
-  const rows = await sql<
-    { runId: string; organizationId: string; cursor: unknown }[]
-  >`
+  const rows = await sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
+    return tx<{ runId: string; organizationId: string; cursor: unknown }[]>`
     WITH candidates AS (
     SELECT r.id
     FROM app.automation_runs r
@@ -128,6 +129,7 @@ async function listStalledWorkflowAgentTurns(
     RETURNING r.id AS "runId", r.org_id AS "organizationId",
            r.checkpoints -> 'cursor' AS cursor
   `;
+  });
   const out: StalledWorkflowTurn[] = [];
   for (const row of rows) {
     // The shape guards stay: a cursor the SQL matched but the drive window
