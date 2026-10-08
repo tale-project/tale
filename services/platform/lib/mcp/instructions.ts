@@ -35,11 +35,11 @@ export const INSTRUCTION_FRAGMENTS: readonly InstructionFragment[] = [
     ],
   },
   {
-    text: 'Grammar: call get_docs (or read tale://docs/authoring) once per session before you write a document; get_docs with topic "triggers" or "validation" answers those references. Discover instead of guessing: search_catalog and get_catalog list the node types this deployment can run.',
+    text: 'Read get_docs (tale://docs/authoring) once before you write; its topics "triggers" and "validation" answer those. search_catalog and get_catalog list the node types this deployment runs.',
     tools: ['get_docs', 'search_catalog', 'get_catalog'],
   },
   {
-    text: 'Name only what exists: list_models, list_harnesses, list_skills, list_connectors (which are connected), list_agent_secrets (names only), list_projects and list_events say what this organization has; validate_automation warns about anything else.',
+    text: 'Name only what exists: list_models, list_harnesses, list_skills, list_connectors, list_agent_secrets, list_projects and list_events say what this organization has; validate_automation warns about the rest.',
     tools: [
       'list_models',
       'list_harnesses',
@@ -52,19 +52,15 @@ export const INSTRUCTION_FRAGMENTS: readonly InstructionFragment[] = [
     ],
   },
   {
-    text: 'Every refusal is data {error, code, hint}: branch on code, follow hint. Invalid arguments list every issue at once. RATE_LIMITED says how long to wait.',
+    text: 'A refusal is data {error, code, hint}: branch on code, follow hint; invalid arguments list every issue at once.',
     tools: [],
   },
   {
-    text: 'Never overwrite: pass baseVersion (the version you read) to save_automation, and expectedDeployedVersion to deploy_automation; a refusal names the newer version to read and merge. Fields you leave out of a save are kept.',
+    text: 'Never overwrite: save_automation with baseVersion (the version you read), or create: true for a new automation; deploy_automation with expectedDeployedVersion. A refusal names the newer version to read and merge. Fields a save leaves out are kept.',
     tools: ['save_automation', 'deploy_automation'],
   },
   {
-    text: 'Test a saved version with start_run and mode "mock": it runs on the mocks and is recorded for the person to see.',
-    tools: ['start_run'],
-  },
-  {
-    text: 'Live means real effects: run_deployed, start_run, deploy_automation and set_trigger act for real; run_automation and test_automation use mocks.',
+    text: 'Live means real effects: run_deployed, start_run, deploy_automation and set_trigger act for real. run_automation, test_automation and start_run with mode "mock" use the mocks; a mock start is recorded for the person to see.',
     tools: [
       'run_deployed',
       'start_run',
@@ -79,12 +75,8 @@ export const INSTRUCTION_FRAGMENTS: readonly InstructionFragment[] = [
     tools: [],
   },
   {
-    text: "A failed run: get_run, read its status, error and trace, fix the document, reproduce with run_automation and the run's input.",
+    text: "A failed run: read it with get_run, fix the document, reproduce with run_automation and the run's input.",
     tools: ['get_run', 'run_automation'],
-  },
-  {
-    text: 'Resources tale://automations/{name} and tale://runs/{runId} read like get_automation and get_run.',
-    tools: ['get_automation', 'get_run'],
   },
 ];
 
