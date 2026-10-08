@@ -31,6 +31,7 @@ import {
 import { sseResponse } from '../sse.ts';
 import type { SpawnerConfig } from '../types.ts';
 import type {
+  SandboxErrorCode,
   SandboxSessionProfile,
   SessionExecResponse,
   SessionInfo,
@@ -2793,7 +2794,7 @@ export class SessionRoutes {
               stdoutBase64: '',
               stderrBase64: '',
               truncated: { stdout: false, stderr: false },
-              errorCode: e.code === 'INVALID_CWD' ? e.code : 'RUNTIME_ERROR',
+              errorCode: execFailErrorCode(e.code),
               errorMessage: e.message,
             };
             break;
@@ -3421,6 +3422,18 @@ export class SessionRoutes {
   }
 }
 
+/** The result code for a runnerd exec refused before it spawned. A cwd it
+ * rejected and a session whose every live-exec place is taken keep their own
+ * codes: the caller fixes the first and waits out the second, where any
+ * other refusal is a runtime error. */
+function execFailErrorCode(
+  code: Extract<RunnerdExecEvent, { t: 'fail' }>['code'],
+): SandboxErrorCode {
+  return code === 'INVALID_CWD' || code === 'EXEC_LIMIT'
+    ? code
+    : 'RUNTIME_ERROR';
+}
+
 /** Translate a runnerd exec NDJSON event into the SSE event grammar used by
  * both /exec and /exec/:id/attach. */
 async function forwardExecEvent(
@@ -3496,7 +3509,7 @@ async function forwardExecEvent(
         stdoutBase64: '',
         stderrBase64: '',
         truncated: { stdout: false, stderr: false },
-        errorCode: e.code === 'INVALID_CWD' ? e.code : 'RUNTIME_ERROR',
+        errorCode: execFailErrorCode(e.code),
         errorMessage: e.message,
       } satisfies SessionExecResponse);
       break;

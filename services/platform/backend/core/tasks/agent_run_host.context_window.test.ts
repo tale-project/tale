@@ -11,11 +11,21 @@
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { safeFetch } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import {
+  classifyOutcome,
+  NO_OUTCOME_RESULT_STATUSES,
+} from '../../domains/sandbox/external-turn-outcome';
+import { releaseTurnKey } from '../automations/agent_host';
 import { resolveModel } from '../lib/providers/resolve_model';
+import { encryptSecret } from '../lib/secret_box';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
-import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants';
+import {
+  AWAITING_ROOM_RESULT_STATUS,
+  SANDBOX_DESTROY_PENDING_MESSAGE,
+} from '../sandbox/session_constants';
 
 const io = vi.hoisted(() => ({
   instructions: [] as string[],
@@ -34,6 +44,13 @@ const io = vi.hoisted(() => ({
     | { providerSlug: string; modelId: string; apiBaseUrl: string },
   /** What the session ensure throws, when it refuses. */
   sessionRefusal: undefined as Error | undefined,
+  brokerRow: null as unknown,
+  ensures: 0,
+}));
+
+vi.mock('../../../lib/net/safe-fetch', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../lib/net/safe-fetch')>()),
+  safeFetch: vi.fn(),
 }));
 
 vi.mock('../chat/external_turn_shared', async (importActual) => {
@@ -74,7 +91,7 @@ vi.mock('../automations/agent_host', () => ({
     onTimeline() {},
     async flush() {},
   }),
-  releaseTurnKey: async () => ({ won: true }),
+  releaseTurnKey: vi.fn(async () => ({ won: true })),
   stageWorkflowSkills: async () => '',
 }));
 vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
@@ -93,6 +110,7 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
 });
 vi.mock('../node_only/sandbox/agent_session', () => ({
   ensureAgentSession: async () => {
+    io.ensures++;
     if (io.sessionRefusal !== undefined) throw io.sessionRefusal;
     return { liveCreatedAt: 1000 };
   },
@@ -158,6 +176,8 @@ function servesWindow(contextWindow: number): void {
 interface RunState {
   status: string;
   execId: string;
+  confined?: boolean;
+  rotateAfterSelection?: boolean;
 }
 
 function makeCtx(run: RunState, contextCap: number | null = null) {
@@ -174,6 +194,8 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
           organizationId: 'org-1',
         };
       }
+      if (name === 'provider_credentials/queries:getDefaultCredentialInternal')
+        return io.brokerRow;
       if (name === 'projects/internal_queries:getProjectAgentSkillScope') {
         return null;
       }
@@ -205,7 +227,17 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
       }
       // An editor's run: the agent's full equipment.
       if (name === 'tasks/agent_runs:getTaskAgentRunAuthority') {
-        return { confined: false };
+        if (
+          run.rotateAfterSelection &&
+          mutations.some(
+            ({ name: mutationName }) =>
+              mutationName ===
+              'provider_credentials/mutations:selectBrokerAccountInternal',
+          )
+        ) {
+          run.execId = 'successor-exec';
+        }
+        return { confined: run.confined ?? false };
       }
       throw new Error(`unexpected query ${name}`);
     },
@@ -222,6 +254,12 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
       }
       if (name === 'sandbox/session_mutations:reserveTurnBudget') {
         return { allowed: true, budgetCents: 500 };
+      }
+      if (
+        name === 'provider_credentials/mutations:selectBrokerAccountInternal'
+      ) {
+        const candidates = args.candidates as { hash: string }[];
+        return { hash: candidates[0]?.hash ?? null, fellBack: false };
       }
       return null;
     },
@@ -261,6 +299,8 @@ beforeEach(() => {
   io.windows = [];
   io.subscription = undefined;
   io.sessionRefusal = undefined;
+  io.brokerRow = null;
+  io.ensures = 0;
   vi.mocked(resolveProviderCredential).mockReset();
   vi.mocked(resolveModel).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -268,6 +308,128 @@ beforeEach(() => {
 });
 
 describe('a task agent start', () => {
+  it.each([
+    'recover',
+    'cancel',
+    'rotate',
+    'rotate-during-final-authority',
+    'confine',
+    'job-abort',
+    'initially-confined',
+  ] as const)(
+    'keeps real broker recovery inside one admitted task: %s',
+    async (mode) => {
+      vi.useFakeTimers({
+        toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'],
+      });
+      vi.spyOn(Math, 'random').mockReturnValue(0);
+      vi.stubEnv('ENCRYPTION_SECRET_HEX', 'test-key-material');
+      try {
+        const actual = await vi.importActual<
+          typeof import('../provider_credentials/resolve_credential')
+        >('../provider_credentials/resolve_credential');
+        vi.mocked(resolveProviderCredential).mockImplementation(
+          actual.resolveProviderCredential,
+        );
+        io.subscription = {
+          providerSlug: 'anthropic',
+          modelId: 'claude-sonnet',
+          apiBaseUrl: 'https://api.anthropic.com',
+        };
+        io.brokerRow = {
+          _id: 'credential-1',
+          organizationId: 'org-1',
+          providerSlug: 'anthropic',
+          authMethod: 'subscription-broker',
+          status: 'active',
+          name: 'Synthetic broker',
+          encryptedData: encryptSecret(
+            JSON.stringify({
+              endpoint: 'https://broker.example/pool',
+              httpMethod: 'GET',
+              auth: { method: 'none' },
+              responseMapping: {
+                tokensPath: '$.tokens',
+                tokenField: 'access_token',
+              },
+              targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+              selection: 'first',
+            }),
+          ),
+        };
+        const response = {
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers(),
+          finalUrl: 'https://broker.example/pool',
+          body: JSON.stringify({
+            tokens: [{ access_token: 'synthetic-token' }],
+          }),
+        };
+        vi.mocked(safeFetch)
+          .mockReset()
+          .mockResolvedValueOnce({ ...response, status: 521 })
+          .mockResolvedValue(response);
+        const run = {
+          status: 'queued',
+          execId: 'exec-1',
+          confined: mode === 'initially-confined',
+          rotateAfterSelection: mode === 'rotate-during-final-authority',
+        };
+        const { ctx, mutations } = makeCtx(run);
+        const controller = new AbortController();
+        const promise = startTaskAgentTurnImpl(
+          ctx,
+          {
+            ...KEYS,
+            modelProvider: 'anthropic',
+            model: 'claude-sonnet',
+            deadlineAt: Date.now() + 60_000,
+          } as never,
+          { signal: controller.signal },
+        );
+        await vi.advanceTimersByTimeAsync(1);
+        expect(safeFetch).toHaveBeenCalledTimes(1);
+        expect(io.starts).toHaveLength(0);
+        if (mode === 'cancel') run.status = 'cancelled';
+        if (mode === 'rotate') run.execId = 'successor-exec';
+        if (mode === 'confine') run.confined = true;
+        if (mode === 'job-abort') controller.abort();
+        await vi.advanceTimersByTimeAsync(4_999);
+        await promise;
+        expect(io.ensures).toBe(1);
+        const selected =
+          mode === 'recover' || mode === 'rotate-during-final-authority';
+        expect(safeFetch).toHaveBeenCalledTimes(selected ? 2 : 1);
+        expect(io.starts).toHaveLength(mode === 'recover' ? 1 : 0);
+        expect(
+          mutations.filter(
+            ({ name }) => name === 'tasks/agent_runs:setTaskAgentRunRunning',
+          ),
+        ).toHaveLength(mode === 'recover' ? 1 : 0);
+        expect(
+          mutations.filter(
+            ({ name }) =>
+              name ===
+              'provider_credentials/mutations:selectBrokerAccountInternal',
+          ),
+        ).toHaveLength(selected ? 1 : 0);
+        if (mode === 'recover') {
+          expect(io.starts[0]?.execId).toBe('exec-1');
+          expect(console.error).not.toHaveBeenCalled();
+        }
+        if (mode === 'initially-confined')
+          expect(
+            vi.mocked(resolveProviderCredential).mock.calls[0]?.[2],
+          ).toBeUndefined();
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+        vi.mocked(Math.random).mockRestore();
+        vi.unstubAllEnvs();
+      }
+    },
+  );
   it.each(
     [
       {
@@ -330,6 +492,10 @@ describe('a task agent start', () => {
         ctx,
         expect.objectContaining({
           requireBrokerAccountId: harness === 'codex',
+        }),
+        expect.objectContaining({
+          deadlineAt: KEYS.deadlineAt,
+          assertCurrent: expect.any(Function),
         }),
       );
       if (providerSlug === 'openai') {
@@ -467,6 +633,105 @@ describe('a task agent start', () => {
     expect(
       mutations.some(
         (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      ),
+    ).toBe(false);
+  });
+
+  /** The start window of an exec the workspace's runtime refused before it
+   * spawned: the spawner's result for runnerd's `fail` (no exit, no output). */
+  function refusedExecWindow(errorCode: string, errorMessage: string) {
+    return {
+      kind: 'terminal',
+      text: '',
+      textTruncated: false,
+      answerText: '',
+      timeline: [],
+      exited: true,
+      execResult: {
+        status: 'failed',
+        exitCode: null,
+        durationMs: 0,
+        stdoutBase64: '',
+        stderrBase64: '',
+        truncated: { stdout: false, stderr: false },
+        errorCode,
+        errorMessage,
+      },
+      outputTokens: 0,
+    };
+  }
+
+  it('parks a launched start whose exec found every live-exec place of its workspace taken, instead of failing it', async () => {
+    // The agent's other runs hold all of the workspace's exec places: the
+    // runtime refuses the fifth exec before it spawns (`EXEC_LIMIT`).
+    io.windows = [refusedExecWindow('EXEC_LIMIT', 'live exec cap 4 reached')];
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
+
+    expect(io.starts).toHaveLength(1);
+    // Parked through the capacity lane, off its launch: no failure, no
+    // settle, so no retry is armed and no attempt is spent.
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:parkTaskAgentRunForCapacity',
+      )?.args,
+    ).toEqual({ runId: 'run-1', execId: 'exec-1', execRefused: true });
+    expect(
+      mutations.some(
+        (m) =>
+          m.name === 'tasks/agent_runs:markTaskAgentRunFailed' ||
+          m.name === 'tasks/agent_runs:markTaskAgentRunSettled' ||
+          m.name === 'tasks/agent_runs:completeTaskAgentRun',
+      ),
+    ).toBe(false);
+    // The refused exec's key and op row close as cancelled, marked as a
+    // room wait: nothing ran.
+    expect(releaseTurnKey).toHaveBeenCalledExactlyOnceWith(ctx, {
+      organizationId: 'org-1',
+      sessionId: 'pa-alice',
+      execId: 'exec-1',
+      status: 'cancelled',
+      agentResultStatus: AWAITING_ROOM_RESULT_STATUS,
+    });
+  });
+
+  it('closes a refused exec as a room wait, never as a cancelled turn of the external-turn metrics', async () => {
+    io.windows = [refusedExecWindow('EXEC_LIMIT', 'live exec cap 4 reached')];
+    const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
+
+    // The op row as the start finalizes it, read the way the metrics read
+    // it: no outcome, left out before the row cap. Counted as a cancelled
+    // turn, every refusal — and every re-wake into a still-full workspace —
+    // would add one, with a near-zero duration.
+    const closed = vi.mocked(releaseTurnKey).mock.calls[0]?.[1];
+    expect(closed?.status).toBe('cancelled');
+    expect(NO_OUTCOME_RESULT_STATUSES).toContain(closed?.agentResultStatus);
+    expect(
+      classifyOutcome(closed?.agentResultStatus ?? null, closed?.status ?? ''),
+    ).toBe('parked');
+  });
+
+  it('still fails a start whose exec the runtime refused for any other reason', async () => {
+    io.windows = [refusedExecWindow('RUNTIME_ERROR', 'exec id is live')];
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
+
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      )?.args,
+    ).toMatchObject({
+      runId: 'run-1',
+      execId: 'exec-1',
+      failureCode: 'harness_error',
+    });
+    expect(
+      mutations.some(
+        (m) => m.name === 'tasks/agent_runs:parkTaskAgentRunForCapacity',
       ),
     ).toBe(false);
   });

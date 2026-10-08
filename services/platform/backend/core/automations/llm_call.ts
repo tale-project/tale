@@ -236,11 +236,16 @@ interface ServedModel {
  * trigger started, its key's, its projects' and the organization's — and
  * refused with `budget_exceeded` once one is reached; booked after it,
  * reply or not, with the tokens the provider reported.
+ *
+ * `signal` is the turn's: when it aborts (the server is stopping and the
+ * step's grace ran out) the provider request is torn down at once rather
+ * than holding the walker until the reply.
  */
 export function automationLlmCall(
   ctx: ActionCtx,
   organizationId: string,
   runId: string,
+  options: { signal?: AbortSignal } = {},
 ): AutomationLlmCall {
   const models = new Map<string, Promise<ServedModel>>();
   const modelFor = (modelId: string): Promise<ServedModel> => {
@@ -253,6 +258,7 @@ export function automationLlmCall(
           organizationId,
           target,
           maxTokens: LLM_NODE_MAX_TOKENS,
+          ...(options.signal !== undefined && { signal: options.signal }),
         }),
       }),
     );

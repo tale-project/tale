@@ -190,6 +190,12 @@ export const connectorActionSchema = z
      * documentation only (the engine reads it as the output vocabulary). */
     output: z.string().min(1).max(2000),
     effects: effectSchema,
+    /** Calling it twice with the same `ctx.idempotencyKey` has the effect of
+     * calling it once — a set-style write, or a body that forwards the key to
+     * a vendor that de-duplicates on it. A resumed automation run repeats
+     * such a write when it cannot tell whether the first call reached the
+     * vendor; any other write waits for a person instead. Absent = not. */
+    idempotent: z.boolean().optional(),
     /** Deterministic mock body (JS): `input` in scope, returns the mock
      * output. Required — the authoring/test loop runs on it. */
     mock: z.string().min(1),

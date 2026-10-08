@@ -416,7 +416,7 @@ errors:
   PROJECT_AGENT_NOT_FOUND: Impossible de trouver cet agent. Il a peut-être été supprimé.
   PROJECT_ORG_MISMATCH: Ce projet appartient à une autre organisation.
   RATE_LIMITED: Tu fais ça trop souvent. Réessaie dans un instant.
-  PROJECT_LEGAL_HOLD: Ce projet est sous legal hold et ne peut pas être supprimé.
+  PROJECT_LEGAL_HOLD: Ce projet est sous conservation légale et ne peut pas être supprimé.
   PROJECT_CONFIRM_PHRASE_MISMATCH: Tape le nom du projet exactement pour confirmer.
   PROJECT_SHARING_INVALID: Les paramètres de partage sont invalides.
   PROJECT_TEAM_INVALID: Équipe introuvable dans ton organisation.

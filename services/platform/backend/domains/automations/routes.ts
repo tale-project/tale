@@ -12,7 +12,10 @@ import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { assembleAutomationAuthoringHost } from '../../core/automations/authoring_host.ts';
-import { loadConnectorDefinitions } from '../../core/connector_credentials/connector_catalog.ts';
+import {
+  findConnector,
+  loadConnectorDefinitions,
+} from '../../core/connector_credentials/connector_catalog.ts';
 import { resolveWorkflowAgentServing } from '../../core/lib/providers/agent_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import {
@@ -29,6 +32,7 @@ import {
 import { SKILL_ERROR_STATUS } from '../skills/errors.ts';
 import { auditIfPublishRefused } from '../skills/publish.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
+import { legacyRunStopSchema } from './legacy-quarantine.ts';
 import {
   managedAutomationKindSchema,
   managedAutomationWriteSchema,
@@ -36,6 +40,11 @@ import {
   writeManagedAutomation,
 } from './managed-configuration';
 import { getOrgAutomationMetrics } from './metrics.ts';
+import {
+  readOpenInDoubt,
+  resolveInDoubtInTx,
+  type InDoubtAttempt,
+} from './node-attempts.ts';
 import {
   canReadRun,
   readableProject,
@@ -48,6 +57,7 @@ import {
   automationTombstone,
   beginRun,
   cancelRun,
+  requestLegacyRunStopInTx,
   deleteAutomationCascade,
   deleteTrigger,
   getAskRunId,
@@ -66,6 +76,23 @@ import {
   bindingProjectIds,
 } from './store.ts';
 import { uploadAutomationPg } from './upload.ts';
+
+/**
+ * The open in-doubt write as the app reads it: the ledger's attempt, plus
+ * the connector it was sending to in words — its display name from the
+ * shipped catalog, or its slug once nothing ships it — and the action.
+ */
+function describeInDoubt(attempt: InDoubtAttempt) {
+  const separator = attempt.nodeType.indexOf('.');
+  const slug =
+    separator > 0 ? attempt.nodeType.slice(0, separator) : attempt.nodeType;
+  const action = separator > 0 ? attempt.nodeType.slice(separator + 1) : '';
+  return {
+    ...attempt,
+    connector: findConnector(slug)?.displayName ?? slug,
+    action,
+  };
+}
 
 /**
  * /api/app/automations — the automation store surface: immutable versions,
@@ -93,6 +120,17 @@ const saveSchema = z.object({
 });
 
 const deploySchema = z.object({ version: z.number().int().min(1) });
+
+// A draft checked without saving it: the document as the editor holds it, and
+// which parts of the analysis to answer beside the issues (the analysis by
+// default; the inferred types only when asked, since they are the bulky part).
+const validateSchema = z.object({
+  document: z.unknown(),
+  detail: z
+    .array(z.enum(['analysis', 'types']))
+    .max(2)
+    .optional(),
+});
 
 // One strict shape per kind, the REST door's twin: the editor sends only
 // the kind's own fields, and a key of another kind (or an unknown one) is
@@ -128,6 +166,17 @@ const projectsSchema = z.object({
 });
 
 const answerSchema = z.object({ answer: z.string().min(1).max(20_000) });
+
+/** A person's choice about a write that may already have happened, and the
+ * attempt of it the choice is about: a write run again keeps its row and
+ * takes the next number, so a choice about an earlier attempt is refused
+ * (409) instead of deciding a later one. The ledger's `attempt` is an int. */
+const inDoubtResolutionSchema = z
+  .object({
+    resolution: z.enum(['retry', 'skip', 'fail']),
+    attempt: z.number().int().min(1).max(2_147_483_647),
+  })
+  .strict();
 
 const uploadSchema = z.object({
   projectId: z.string().min(1).max(128).optional(),
@@ -204,11 +253,21 @@ function handleError<E extends OrgEnv>(
   throw error;
 }
 
-/** The app and MCP authoring doors share the engine's validation/test gate. */
-function authoringRefusal(
-  c: Context<OrgEnv>,
+/** The parts of a refusal the editor reads as structure, not as a sentence. */
+const REFUSAL_DETAIL_KEYS = ['errors', 'warnings', 'hint', 'report'] as const;
+
+/**
+ * The app and MCP authoring doors share the engine's validation/test gate.
+ *
+ * A refusal keeps its fields at the top level, where other readers of this
+ * door find them, and nests the structured part again under `data`: the
+ * app's fetch layer carries only `data` beside the code and the sentence, so
+ * a refused save or deploy reaches the editor with every issue and where it
+ * is, not as one flattened message.
+ */
+export function authoringRefusalBody(
   result: unknown,
-): Response | null {
+): { body: Record<string, unknown>; status: 400 | 404 | 409 } | null {
   if (!isRecord(result) || typeof result.error !== 'string') return null;
   const code =
     typeof result.code === 'string' ? result.code : 'AUTOMATION_INVALID';
@@ -220,7 +279,31 @@ function authoringRefusal(
           code === 'AUTOMATION_DEPLOY_REJECTED'
         ? 409
         : 400;
-  return c.json({ ...result, error: code, message: result.error }, status);
+  // A refusal's own `data` (a refused run input's schema problems, say)
+  // stays; the detail keys join it.
+  const data: Record<string, unknown> = isRecord(result.data)
+    ? { ...result.data }
+    : {};
+  for (const key of REFUSAL_DETAIL_KEYS) {
+    if (result[key] !== undefined) data[key] = result[key];
+  }
+  return {
+    body: {
+      ...result,
+      error: code,
+      message: result.error,
+      ...(Object.keys(data).length > 0 && { data }),
+    },
+    status,
+  };
+}
+
+function authoringRefusal(
+  c: Context<OrgEnv>,
+  result: unknown,
+): Response | null {
+  const refusal = authoringRefusalBody(result);
+  return refusal === null ? null : c.json(refusal.body, refusal.status);
 }
 
 /** Agent nodes whose `model` is set but `modelProvider` is not — the
@@ -506,6 +589,83 @@ export function createAutomationRoutes(deps: {
     return c.json({ ok: true });
   });
 
+  // The write a run waits on a person about — a call that may already have
+  // reached its service when the run was interrupted. Membership-gated like
+  // every run read; null when nothing of the kind waits.
+  app.get('/runs/:runId/in-doubt', async (c) => {
+    const runId = c.req.param('runId');
+    if ((await visibleRun(c, runId)) === null) return c.json({ inDoubt: null });
+    const attempt = await readOpenInDoubt(deps.sql, c.get('orgId'), runId);
+    return c.json({
+      inDoubt: attempt === null ? null : describeInDoubt(attempt),
+    });
+  });
+
+  // Deciding resumes (or fails) the run, so it is a WRITE with the stop's
+  // gate: a project run needs the project's write access, an organization
+  // run member-level control. A hidden or missing run is "not found". The
+  // decision, its audit row and the run's wake commit together.
+  app.post('/runs/:runId/in-doubt/:attemptId', async (c) => {
+    const body = inDoubtResolutionSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const runId = c.req.param('runId');
+      const control = await controllableRun(c, runId);
+      if (control === 'absent') {
+        throw new AutomationError(
+          'RUN_NOT_FOUND',
+          'this run does not exist',
+          404,
+        );
+      }
+      if (control === 'forbidden') return forbiddenControl(c);
+      const actor = c.get('sessionBundle').user.id;
+      await deps.sql.begin((tx) =>
+        resolveInDoubtInTx(tx, {
+          organizationId: c.get('orgId'),
+          runId,
+          attemptId: c.req.param('attemptId'),
+          attempt: body.data.attempt,
+          resolution: body.data.resolution,
+          actor,
+        }),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+    return c.json({ ok: true });
+  });
+
+  app.post('/runs/:runId/legacy-quarantine', async (c) => {
+    const body = legacyRunStopSchema.safeParse(
+      await c.req.json().catch(() => undefined),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const runId = c.req.param('runId');
+      const control = await controllableRun(c, runId);
+      if (control === 'absent')
+        throw new AutomationError(
+          'RUN_NOT_FOUND',
+          'this run does not exist',
+          404,
+        );
+      if (control === 'forbidden') return forbiddenControl(c);
+      return c.json(
+        await deps.sql.begin((tx) =>
+          requestLegacyRunStopInTx(tx, {
+            organizationId: c.get('orgId'),
+            runId,
+            actor: c.get('sessionBundle').user.id,
+            request: body.data,
+          }),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.post('/runs/:runId/cancel', async (c) => {
     try {
       const runId = c.req.param('runId');
@@ -694,6 +854,41 @@ export function createAutomationRoutes(deps: {
       );
       if (storeError !== undefined) throw storeError;
       return authoringRefusal(c, result) ?? c.json(result, 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Check a draft without saving it — the editor's Problems panel. A suffix
+  // route like every per-automation verb, never a fixed first segment, so it
+  // takes no name away from authors. Read-only: it writes and audits nothing,
+  // but it reads the organization's other automations and triggers to check
+  // the calls between them, so it takes the authoring roles like a save.
+  app.post('/:name{.+}/validate', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = validateSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (body.data.document === undefined) {
+      return invalidBodyIssuesResponse(c, [
+        { path: 'document', message: 'is required' },
+      ]);
+    }
+    try {
+      assembleAutomationAuthoringHost();
+      const store = pgAutomationStore(deps.sql, {
+        organizationId: c.get('orgId'),
+        actor: c.get('sessionBundle').user.id,
+      });
+      const result = await dispatch(
+        'validate_automation',
+        {
+          automation: body.data.document,
+          detail: body.data.detail ?? ['analysis'],
+        },
+        { store },
+      );
+      return authoringRefusal(c, result) ?? c.json(result);
     } catch (error) {
       return handleError(c, error);
     }

@@ -2,6 +2,7 @@ import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { ENGINE_PROTOCOL } from '../../../lib/engine/core/protocol.ts';
 import { MembershipError } from '../../auth/membership.ts';
 import { setEnqueueBoss } from '../../jobs/enqueue.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
@@ -105,6 +106,11 @@ function createRecordingTx(scenario: Scenario): {
     }
     if (text.includes('FROM app.legal_holds')) {
       return scenario.holds;
+    }
+    if (
+      text === "SELECT set_config('tale.automation_writer_protocol', $, true)"
+    ) {
+      return [];
     }
     if (
       text.startsWith(
@@ -433,6 +439,21 @@ describe('deleteOrganization', () => {
     const firstDelete = writes.findIndex((t) => t.startsWith('DELETE FROM'));
     expect(auditInsert).toBeGreaterThanOrEqual(0);
     expect(auditInsert).toBeLessThan(firstDelete);
+
+    // The cascade reaches protected automation rows on this reserved
+    // transaction, so its writer marker must be local and precede deletion.
+    const markers = statements.filter((s) => s.text.includes('set_config'));
+    expect(markers).toEqual([
+      {
+        text: "SELECT set_config('tale.automation_writer_protocol', $, true)",
+        values: [String(ENGINE_PROTOCOL)],
+      },
+    ]);
+    const markerIndex = statements.indexOf(markers[0]!);
+    expect(markerIndex).toBeGreaterThan(holdRead);
+    expect(markerIndex).toBeLessThan(
+      statements.findIndex((s) => s.text.startsWith('DELETE FROM')),
+    );
 
     // Every org-keyed app table the catalog lists, child before parent
     // (tasks and bindings reference projects) and alphabetical otherwise;

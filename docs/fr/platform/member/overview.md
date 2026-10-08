@@ -35,7 +35,7 @@ Modifie ton profil, consulte tes limites d’utilisation et comprends les préf�
 
 </CardGroup>
 
-Passe d’une activité à l’autre avec la [navigation principale](/fr/platform#navigation). Chaque section s’ouvre sur sa première page ; sur ordinateur, **Accueil** rouvre plutôt le chat que tu as lu en dernier, et le choisir à nouveau démarre un nouveau chat. [Accueil](/fr/platform#home) liste aussi tes projets, les tâches ouvertes qui te sont attribuées ou qui attendent ta relecture, et la boîte de réception si ton organisation en a une.
+Passe d’une activité à l’autre avec la [navigation principale](/fr/platform#navigation). Chaque section s’ouvre sur sa première page ; sur ordinateur, **Accueil** ouvre un nouveau chat. [Accueil](/fr/platform#home) liste aussi tes projets, les tâches ouvertes qui te sont attribuées ou qui attendent ta relecture, et la boîte de réception si ton organisation en a une.
 
 ## Confier du travail à un agent de projet
 

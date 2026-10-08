@@ -5,6 +5,7 @@ import {
   IMAGE_GENERATION_TOOL,
   imageGenerationGuidance,
   KNOWLEDGE_READ_TOOLS,
+  KNOWLEDGE_TOOLS_GUIDANCE,
   normalizeToolGrants,
   PROJECT_AGENT_ONLY_TOOLS,
   readTurnOpRef,
@@ -98,6 +99,18 @@ describe('the catalog', () => {
 });
 
 describe('grantedToolsGuidance', () => {
+  it('names discovery as a separate MCP tool, never a grantable operation', () => {
+    for (const guidance of [
+      KNOWLEDGE_TOOLS_GUIDANCE,
+      grantedToolsGuidance(['task_get']),
+      imageGenerationGuidance('/agent/output/task_1'),
+    ]) {
+      expect(guidance).toContain('separate workspace_status MCP tool with {}');
+    }
+    expect(normalizeToolGrants(['workspace_status', 'task_get'])).toEqual([
+      'task_get',
+    ]);
+  });
   it('is undefined when nothing beyond the baseline is granted', () => {
     expect(grantedToolsGuidance([])).toBeUndefined();
   });

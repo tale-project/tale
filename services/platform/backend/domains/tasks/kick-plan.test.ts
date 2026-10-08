@@ -181,6 +181,30 @@ describe('resolveTaskKickStartArgs', () => {
     expect(plan.excludeBrokerTokenHashes).toEqual(['account-b']);
   });
 
+  it('keeps a model-capacity account eligible without forgiving other failed accounts', async () => {
+    const plan = await resolveTaskKickStartArgs(
+      fakeSql({
+        liveSession: { createdAt: 1000 },
+        runs: [
+          run({
+            failureCode: 'model_capacity',
+            harness: 'codex',
+            brokerTokenHash: 'capacity-account',
+          }),
+          run({
+            failureCode: 'harness_error',
+            apiErrorStatus: 429,
+            brokerTokenHash: 'limited-account',
+          }),
+        ],
+      }),
+      { ...KICK, harness: 'codex' },
+    );
+    expect(plan.excludeBrokerTokenHashes).toEqual(['limited-account']);
+    expect(plan.predecessorExecId).toBe('exec-old');
+    expect(plan.resume).toBe('conv-claude-old');
+  });
+
   it('burns the account on the third rotation in a row', async () => {
     const plan = await resolveTaskKickStartArgs(
       fakeSql({

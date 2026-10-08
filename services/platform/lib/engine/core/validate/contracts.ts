@@ -6,7 +6,8 @@
  * value judgments are skipped exactly where a template resolves at runtime,
  * while missing required fields and unknown properties are always decidable.
  * Subautomation references must parse and, when the caller supplies a store,
- * resolve.
+ * resolve — to the document a run executes (the pinned version, else the
+ * deployed one, else the latest), whose body and inputs are then checked.
  *
  * The output-typing rule guards the one bridge from text to data: an
  * unstructured node exposes only `.output.text`, and an llm node becomes
@@ -17,13 +18,18 @@ import type { ErrorObject } from 'ajv';
 
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
-import { nodeTypes, type ConnectorLike, type StoreAdapter } from '../slots';
-import { refsInSource, templateExprsIn, TPL_RE } from '../template';
+import { nodeTypes, scheduleTriggerInput, type ConnectorLike } from '../slots';
+import { pointerFromAjv, pointerTokens, ptr } from '../syntax/pointer';
+import type { ExprSource } from '../syntax/sources';
+import { exprSegments, tokenizeTemplate } from '../syntax/tokens';
 import type { Issue, NodeDef } from '../types';
-import { isValidAutomationName } from './name';
-import { exprSourcesOf } from './references';
-import { compileSchema } from './schema';
+import { parseAutomationRef } from '../typing/children';
+import { normalizeSchema } from '../typing/normalize';
+import { toTs } from '../typing/shape';
+import type { ValidationContext } from './context';
+import { compileSchema, describeSchemaErrors } from './schema';
 import { closestName } from './similar';
+import { analyzable } from './syntax-check';
 
 /** ajv keywords that judge a VALUE — unknowable where the value is still a
  * template; structural keywords (required, additionalProperties) stay. */
@@ -44,32 +50,18 @@ const VALUE_KEYWORDS = new Set([
   'maxItems',
 ]);
 
-/** `nodes.x.output.<field>` — the shape the output-typing rule inspects. */
-const OUTPUT_PATH_RE =
-  /\bnodes\s*\.\s*([A-Za-z_$][\w$]*)\s*\??\.\s*output\s*\??\.\s*([A-Za-z_$][\w$]*)/g;
-
-function parseAutomationRef(
-  ref: string,
-): { name: string; version?: number } | null {
-  const [name, version, ...rest] = ref.split('@');
-  if (rest.length > 0 || !isValidAutomationName(name)) return null;
-  if (version === undefined) return { name };
-  if (!/^\d+$/.test(version)) return null;
-  return { name, version: Number(version) };
-}
-
-function checkConnectorInput(
-  n: NodeDef,
-  input: Record<string, unknown>,
-  connector: ConnectorLike,
-  issues: Issue[],
-): void {
-  // Every path holding a template string is resolved at runtime — its value
-  // is statically unknowable, so value keywords are skipped there.
+/**
+ * The Ajv instance paths of an input mapping that hold a template. Their
+ * values resolve at run time, so they are statically unknowable: value
+ * keywords are skipped there, structural ones still judge.
+ */
+function templatePathsOf(input: unknown): Set<string> {
   const templatePaths = new Set<string>();
   const collect = (v: unknown, path: string): void => {
     if (typeof v === 'string') {
-      if ([...v.matchAll(TPL_RE)].length > 0) templatePaths.add(path);
+      if (v.includes('{{') && exprSegments(tokenizeTemplate(v)).length > 0) {
+        templatePaths.add(path);
+      }
     } else if (Array.isArray(v)) {
       for (const [i, item] of v.entries()) collect(item, `${path}/${i}`);
     } else if (isRecord(v)) {
@@ -77,6 +69,17 @@ function checkConnectorInput(
     }
   };
   collect(input, '');
+  return templatePaths;
+}
+
+function checkConnectorInput(
+  n: NodeDef,
+  base: string,
+  input: Record<string, unknown>,
+  connector: ConnectorLike,
+  issues: Issue[],
+): void {
+  const templatePaths = templatePathsOf(input);
 
   let check;
   try {
@@ -98,16 +101,38 @@ function checkConnectorInput(
       continue;
     }
     const extra = additionalProperty(e);
+    const missing = missingProperty(e);
     const close =
       extra === undefined ? undefined : closestName(extra, schemaProps);
+    const detail = e.message ?? 'is invalid';
+    const valuePointer = pointerFromAjv(base, e.instancePath);
+    const at =
+      missing !== undefined
+        ? {
+            pointer: valuePointer + ptr(missing),
+            subject: 'missing' as const,
+          }
+        : extra !== undefined
+          ? { pointer: valuePointer + ptr(extra), subject: 'key' as const }
+          : { pointer: valuePointer };
     issues.push(
       err(
         'CONNECTOR_INPUT_INVALID',
-        `node "${n.id}" (${n.type}): input${e.instancePath} ${e.message ?? 'is invalid'}${extra === undefined ? '' : ` ("${extra}")`}`,
+        `node "${n.id}" (${n.type}): input${e.instancePath} ${detail}${extra === undefined ? '' : ` ("${extra}")`}`,
         {
           nodeId: n.id,
           path: e.instancePath || undefined,
           hint: `${close === undefined ? '' : `did you mean "${close}"? `}schema: ${JSON.stringify(connector.inputSchema)}`,
+          at,
+          params: {
+            node: n.id,
+            type: n.type,
+            property:
+              missing ?? extra ?? pointerTokens(e.instancePath).at(-1) ?? '',
+            keyword: e.keyword,
+            ...(close !== undefined && { suggestion: close }),
+            detail,
+          },
         },
       ),
     );
@@ -120,12 +145,17 @@ function additionalProperty(e: ErrorObject): string | undefined {
   return typeof name === 'string' ? name : undefined;
 }
 
+function missingProperty(e: ErrorObject): string | undefined {
+  if (e.keyword !== 'required') return undefined;
+  const name: unknown = e.params.missingProperty;
+  return typeof name === 'string' ? name : undefined;
+}
+
 export async function validateContracts(
-  doc: Record<string, unknown>,
+  ctx: ValidationContext,
   validNodes: NodeDef[],
-  issues: Issue[],
-  store: StoreAdapter | undefined,
 ): Promise<void> {
+  const { doc, issues, store } = ctx;
   // Duplicate ids already carry their own error; contract checks run once
   // per id, on the first occurrence.
   const byId = new Map<string, NodeDef>();
@@ -196,9 +226,10 @@ export async function validateContracts(
 
   for (const n of unique) {
     const def = nodeTypes().get(n.type);
+    const base = ptr('nodes', ctx.indexOf(n));
 
     if (def?.connector && isRecord(n.input)) {
-      checkConnectorInput(n, n.input, def.connector, issues);
+      checkConnectorInput(n, `${base}/input`, n.input, def.connector, issues);
     }
 
     // A model nobody serves fails the node on the first live run, and the
@@ -219,6 +250,8 @@ export async function validateContracts(
             nodeId: n.id,
             path: 'model',
             hint: 'pick a model a connected provider serves (Settings → Providers lists them), or connect a provider that serves this one',
+            at: { pointer: `${base}/model` },
+            params: { node: n.id, model: n.model },
           },
         ),
       );
@@ -234,6 +267,8 @@ export async function validateContracts(
             {
               nodeId: n.id,
               hint: 'e.g. "automation": "daily-digest" or "daily-digest@2"',
+              at: { pointer: `${base}/automation` },
+              params: { node: n.id, ref: n.automation },
             },
           ),
         );
@@ -257,72 +292,123 @@ export async function validateContracts(
                 known.length > 0
                   ? `${close === undefined ? '' : `did you mean "${close}"? `}saved automations: ${known.map((w) => w.name).join(', ')}`
                   : 'no automations are saved yet',
+              at: { pointer: `${base}/automation` },
+              params: {
+                node: n.id,
+                automation: parsed.name,
+                ...(parsed.version !== undefined && {
+                  version: parsed.version,
+                }),
+                ...(close !== undefined && { suggestion: close }),
+                known: known.map((w) => w.name),
+              },
             },
           ),
         );
       } else if (store) {
-        try {
-          const got = await store.get(parsed.name, parsed.version);
-          if (got === null) {
-            if (parsed.version !== undefined) {
+        // The document a run of this reference executes, resolved once for
+        // the whole call (`validate`). A reference that resolved to nothing
+        // is asked for again, so a store outage (skipped) is told apart from
+        // a version that does not exist (an error).
+        const child = ctx.children?.get(n.automation);
+        let body: { automation: unknown; version: number } | undefined;
+        if (child !== undefined && child !== null) {
+          body = { automation: child.automation, version: child.version };
+        } else {
+          try {
+            const got = await store.get(parsed.name, parsed.version);
+            if (got !== null) {
+              body = { automation: got.automation, version: got.meta.version };
+            } else if (parsed.version !== undefined) {
               issues.push(
                 err(
                   'SUBAUTOMATION_NOT_FOUND',
                   `node "${n.id}": automation "${parsed.name}" has no version ${parsed.version}`,
-                  { nodeId: n.id, hint: `latest version: ${entry.latest}` },
+                  {
+                    nodeId: n.id,
+                    hint: `latest version: ${entry.latest}`,
+                    at: { pointer: `${base}/automation` },
+                    params: {
+                      node: n.id,
+                      automation: parsed.name,
+                      version: parsed.version,
+                      latest: entry.latest,
+                    },
+                  },
                 ),
               );
             }
-          } else {
-            checkSubautomationBody(n, parsed.name, got.automation, issues);
+          } catch (e) {
+            console.warn(
+              '[engine] skipping subautomation body check (store get failed):',
+              e instanceof Error ? e.message : e,
+            );
           }
-        } catch (e) {
-          console.warn(
-            '[engine] skipping subautomation body check (store get failed):',
-            e instanceof Error ? e.message : e,
-          );
+        }
+        if (body !== undefined) {
+          checkSubautomationBody(n, base, parsed.name, body.automation, issues);
+          checkSubautomationInput(n, base, parsed.name, body, issues);
         }
       }
     }
   }
 
   // Every reference source in the document, node by node plus the output.
-  const allSources: Array<{ src: string; nodeId?: string }> = [];
-  for (const n of unique) {
-    for (const { src } of exprSourcesOf(n))
-      allSources.push({ src, nodeId: n.id });
-  }
-  if (doc.output !== undefined) {
-    for (const e of templateExprsIn(doc.output)) allSources.push({ src: e });
-  }
+  const allSources: ExprSource[] = [
+    ...unique.flatMap((n) => ctx.sources(ctx.indexOf(n))),
+    ...ctx.outputSources(),
+  ];
 
   // The output-typing rule: pathing into an unstructured output beyond
   // `.text` reads a field that will never exist.
-  for (const { src, nodeId } of allSources) {
-    for (const m of src.matchAll(OUTPUT_PATH_RE)) {
-      const target = byId.get(m[1]);
-      if (target === undefined) continue;
-      const targetDef = nodeTypes().get(target.type);
-      if (targetDef === undefined || targetDef.outputKind !== 'unstructured')
-        continue;
-      // An llm node with an outputSchema yields the schema-shaped object.
-      if (target.outputSchema !== undefined) continue;
-      if (m[2] === 'text') continue;
-      issues.push(
-        err(
-          'REF_UNSTRUCTURED_PATH',
-          `${nodeId === undefined ? 'output' : `node "${nodeId}"`}: "nodes.${m[1]}.output.${m[2]}" — node "${target.id}" (${target.type}) returns unstructured text; only .output.text exists`,
-          {
-            nodeId,
-            hint:
-              target.type === 'llm'
-                ? `give "${target.id}" an outputSchema to get structured output, or read nodes.${target.id}.output.text`
-                : `read nodes.${target.id}.output.text, or bridge through an llm node with an outputSchema`,
-          },
-        ),
-      );
+  for (const source of allSources) {
+    const { nodeId, field, pointer } = source;
+    for (const unit of source.units) {
+      if (!analyzable(unit)) continue;
+      for (const site of unit.refs) {
+        const key = site.path.at(0)?.key;
+        if (
+          site.root !== 'nodes' ||
+          site.nodeId === undefined ||
+          site.member !== 'output' ||
+          typeof key !== 'string'
+        ) {
+          continue;
+        }
+        const target = byId.get(site.nodeId);
+        if (target === undefined) continue;
+        const targetDef = nodeTypes().get(target.type);
+        if (targetDef === undefined || targetDef.outputKind !== 'unstructured')
+          continue;
+        // An llm node with an outputSchema yields the schema-shaped object.
+        if (target.outputSchema !== undefined) continue;
+        if (key === 'text') continue;
+        issues.push(
+          err(
+            'REF_UNSTRUCTURED_PATH',
+            `${nodeId === undefined ? 'output' : `node "${nodeId}"`}: "nodes.${site.nodeId}.output.${key}" — node "${target.id}" (${target.type}) returns unstructured text; only .output.text exists`,
+            {
+              nodeId,
+              hint:
+                target.type === 'llm'
+                  ? `give "${target.id}" an outputSchema to get structured output, or read nodes.${target.id}.output.text`
+                  : `read nodes.${target.id}.output.text, or bridge through an llm node with an outputSchema`,
+              at: { pointer, range: site.range },
+              params: {
+                ...(nodeId !== undefined && { node: nodeId }),
+                field,
+                source: target.id,
+                sourceType: target.type,
+                member: key,
+              },
+            },
+          ),
+        );
+      }
     }
   }
+
+  await checkTriggerInput(ctx);
 
   // Document quality.
   if (doc.output === undefined) {
@@ -332,14 +418,24 @@ export async function validateContracts(
         'automation has no "output" — it will return null',
         {
           hint: 'e.g. "output": "{{ nodes.<id>.output }}"',
+          at: { pointer: '/output', subject: 'missing' },
+          params: {},
         },
       ),
     );
   }
 
+  // Every named read counts, even one in code that does not parse yet — a
+  // node being wired up is not dead.
   const referenced = new Set<string>();
-  for (const { src } of allSources) {
-    for (const r of refsInSource(src)) referenced.add(r);
+  for (const source of allSources) {
+    for (const unit of source.units) {
+      for (const site of unit.refs) {
+        if (site.root === 'nodes' && site.nodeId !== undefined) {
+          referenced.add(site.nodeId);
+        }
+      }
+    }
   }
   // An elseOf partner is structurally load-bearing even when nobody reads it.
   for (const n of unique) {
@@ -360,10 +456,137 @@ export async function validateContracts(
         {
           nodeId: n.id,
           hint: `reference nodes.${n.id}.output somewhere, or remove the node`,
+          at: { pointer: ptr('nodes', ctx.indexOf(n)) },
+          params: { node: n.id, reason: 'unread' },
         },
       ),
     );
   }
+}
+
+/**
+ * What the automation's own triggers start runs with, against its inputs
+ * schema: a run checks its input before any node runs, so a schedule whose
+ * input the schema refuses never starts a run — every occurrence is
+ * refused. Only the schedule's input is known ahead (webhook and event runs
+ * carry a payload). A warning: triggers change without a new version.
+ */
+async function checkTriggerInput(ctx: ValidationContext): Promise<void> {
+  const { doc, store, issues } = ctx;
+  if (store?.triggerKinds === undefined) return;
+  if (!isRecord(doc.inputs) || typeof doc.name !== 'string') return;
+  let kinds: ReadonlyArray<string>;
+  try {
+    kinds = await store.triggerKinds(doc.name);
+  } catch (e) {
+    console.warn(
+      '[engine] skipping the trigger input check (store lookup failed):',
+      e instanceof Error ? e.message : e,
+    );
+    return;
+  }
+  if (!kinds.includes('schedule')) return;
+  let check;
+  try {
+    check = compileSchema(doc.inputs);
+  } catch (e) {
+    // INPUTS_SCHEMA_INVALID reports it; there is nothing to check against.
+    console.warn(
+      '[engine] skipping the trigger input check (the inputs schema does not compile):',
+      e instanceof Error ? e.message : e,
+    );
+    return;
+  }
+  if (check(scheduleTriggerInput(Date.now()))) return;
+  const errors = check.errors ?? [];
+  const described = describeSchemaErrors(errors);
+  const missing = described
+    .filter((_, i) => errors[i]?.keyword === 'required')
+    .map((d) => d.path);
+  const problems = described.map((d) =>
+    d.path === '' ? d.message : `${d.path} ${d.message}`,
+  );
+  issues.push(
+    warn(
+      'TRIGGER_INPUT_MISMATCH',
+      `the schedule trigger starts runs with {trigger, firedAt}, which the inputs schema refuses: ${problems.join('; ')} — every scheduled run is refused`,
+      {
+        hint: 'a schedule passes only trigger and firedAt: declare both in the inputs schema and make every other input optional, or start this automation from a webhook, an event or the API',
+        at: { pointer: '/inputs' },
+        params: { kind: 'schedule', missing, problems },
+      },
+    ),
+  );
+}
+
+/**
+ * The parent's input against the inputs schema of the automation it calls:
+ * the called run checks its input before any node runs, so a missing
+ * required key or a key the schema refuses fails this node. Values that are
+ * templates resolve at run time and are judged by their type in the
+ * analysis pass (TYPE_MISMATCH), not here. A warning: the called automation
+ * can change under this version.
+ */
+function checkSubautomationInput(
+  n: NodeDef,
+  base: string,
+  name: string,
+  body: { automation: unknown; version: number },
+  issues: Issue[],
+): void {
+  if (!isRecord(body.automation) || !isRecord(body.automation.inputs)) return;
+  const inputs = body.automation.inputs;
+  let check;
+  try {
+    check = compileSchema(inputs);
+  } catch (e) {
+    console.warn(
+      `[engine] skipping the input check for "${name}" (its inputs schema does not compile):`,
+      e instanceof Error ? e.message : e,
+    );
+    return;
+  }
+  const input = isRecord(n.input) ? n.input : {};
+  if (check(input)) return;
+  const templatePaths = templatePathsOf(input);
+  const errors = (check.errors ?? []).filter(
+    (e) =>
+      !(templatePaths.has(e.instancePath) && VALUE_KEYWORDS.has(e.keyword)),
+  );
+  if (errors.length === 0) return;
+  const described = describeSchemaErrors(errors);
+  const missing: string[] = [];
+  const unknown: string[] = [];
+  for (const [i, d] of described.entries()) {
+    if (errors[i]?.keyword === 'required') missing.push(d.path);
+    else if (errors[i]?.keyword === 'additionalProperties')
+      unknown.push(d.path);
+  }
+  const problems = described.map((d) =>
+    d.path === '' ? d.message : `${d.path} ${d.message}`,
+  );
+  issues.push(
+    warn(
+      'SUBAUTOMATION_INPUT_INVALID',
+      `node "${n.id}": input does not fit the inputs of "${name}@${body.version}": ${problems.join('; ')}`,
+      {
+        nodeId: n.id,
+        hint: `"${name}" expects ${toTs(normalizeSchema(inputs))}`,
+        at: {
+          pointer: `${base}/input`,
+          ...(n.input === undefined && { subject: 'missing' as const }),
+        },
+        params: {
+          node: n.id,
+          automation: name,
+          version: body.version,
+          missing,
+          unknown,
+          problems,
+        },
+      },
+    ),
+  );
 }
 
 /**
@@ -380,6 +603,7 @@ export async function validateContracts(
  */
 function checkSubautomationBody(
   n: NodeDef,
+  base: string,
   name: string,
   body: unknown,
   issues: Issue[],
@@ -396,6 +620,8 @@ function checkSubautomationBody(
           {
             nodeId: n.id,
             hint: 'hoist the agent node into the calling automation and pass its result to the subautomation as input',
+            at: { pointer: `${base}/automation` },
+            params: { node: n.id, automation: name, childNode: subId },
           },
         ),
       );
@@ -409,6 +635,13 @@ function checkSubautomationBody(
           {
             nodeId: n.id,
             hint: `hoist the write into the calling automation, or allow ${sub.type} without approval in the approval policy`,
+            at: { pointer: `${base}/automation` },
+            params: {
+              node: n.id,
+              automation: name,
+              childNode: subId,
+              childType: sub.type,
+            },
           },
         ),
       );

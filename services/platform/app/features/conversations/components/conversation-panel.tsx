@@ -243,13 +243,9 @@ export function ConversationPanel({
   // Mark conversation as read when it's opened and has unread messages
   useEffect(() => {
     if (conversation && selectedConversationId) {
-      // Only mark as read if there are unread messages
-      // (last_message_at is after last_read_at, or last_read_at doesn't exist)
-      const hasUnreadMessages =
-        conversation.last_message_at &&
-        (!conversation.last_read_at ||
-          new Date(conversation.last_message_at) >
-            new Date(conversation.last_read_at));
+      // Delivery/backfill timestamps can precede the read marker. The server's
+      // unread counter is also what the Inbox uses to filter unread threads.
+      const hasUnreadMessages = conversation.unread_count > 0;
 
       if (hasUnreadMessages) {
         markAsRead(

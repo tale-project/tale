@@ -7,7 +7,7 @@ Chaque requête d’IA que Tale émet pour ton organisation est enregistrée une
 
 ## Ce qui compte comme usage
 
-Tale enregistre une requête chaque fois qu’un modèle ou un service mesuré tourne pour ton organisation : une réponse de chat, y compris une réponse régénérée ou modifiée et les deux côtés d’une comparaison de modèles ; le court appel de modèle qui donne son titre à un nouveau chat ; l’appel de modèle d’une étape `llm` d’automatisation ; un tour d’un agent géré qui travaille sur une tâche ou dans une automatisation ; une image que crée un tel agent ; une sortie vocale ; la transcription d’un enregistrement téléversé ; un appel de connecteur mesuré ; et un appel aux endpoints de modèles avec une clé API. Chaque enregistrement porte les tokens ou unités consommés et le coût estimé d’après le tarif public du fournisseur à ce moment-là ; pour un appel aux endpoints de modèles, c’est le coût mesuré par la passerelle de modèles.
+Tale enregistre une requête chaque fois qu’un modèle ou un service mesuré tourne pour ton organisation : une réponse de chat, y compris une réponse régénérée ou modifiée et les deux côtés d’une comparaison de modèles ; le court appel de modèle qui donne son titre à un nouveau chat ; l’appel de modèle d’une étape `llm` d’automatisation ; un tour d’un agent géré qui travaille sur une tâche ou dans une automatisation ; une image que crée un tel agent ; une sortie vocale ; la transcription d’un enregistrement téléversé ; un appel de connector mesuré ; et un appel aux endpoints de modèles avec une clé API. Chaque enregistrement porte les tokens ou unités consommés et le coût estimé d’après le tarif public du fournisseur à ce moment-là ; pour un appel aux endpoints de modèles, c’est le coût mesuré par la passerelle de modèles.
 
 ## À qui une requête est imputée
 
@@ -22,7 +22,7 @@ La règle est la même partout : une requête compte pour la personne qui a dem
 | Une exécution d’agent de projet lancée par une planification, ou une exécution qu’un autre agent a lancée depuis une telle exécution | Personne, comme pour l’exécution lancée par la planification elle-même | — | La ligne **Automatisations (déclencheurs)** sous **Utilisation par utilisateur**, et le nom de l’agent sous **Principaux assistants** |
 | Une image que crée un agent | La personne pour qui l’exécution de l’agent compte : celle qui l’a lancée, ou personne pour une exécution lancée par un déclencheur | La clé API, quand l’exécution a été lancée avec une clé | Le nom de l’agent ou de l’automatisation sous **Principaux assistants**, et le modèle d’images sous **Principaux modèles** |
 | Une sortie vocale ou une transcription | Le membre qui l’a demandée | — | **Sortie vocale** ou **Transcription** sous **Principaux assistants** ; la sortie vocale aussi sous **Principaux modèles vocaux** |
-| Un appel de connecteur mesuré | Le membre dont la requête a provoqué l’appel | — | L’assistant qui l’a fait, ou **Connector** |
+| Un appel de connector mesuré | Le membre dont la requête a provoqué l’appel | — | L’assistant qui l’a fait, ou **Connector** |
 | Un appel aux [endpoints de modèles](/fr/develop/use-tale-from-your-editor#model-endpoints) | Le membre dont la clé API l’a envoyé | La clé API | **Appel API direct** sous **Principaux assistants** |
 
 Une nouvelle tentative d’une exécution d’agent poursuit l’exécution lancée par son initiateur ; son usage reste donc imputé à cette personne. Quand une intégration agit avec une clé API pour un autre membre, l’exécution compte pour ce membre, et la limite de la clé la compte aussi.

@@ -32,6 +32,11 @@ Every subpath below is declared in `package.json` `exports`.
 - **`@tale/shared/schemas/epoch-ms`** — the one timestamp bound: `epochMsSchema`
   takes whole epoch milliseconds from 0 to `EPOCH_MS_MAX`, the latest instant a
   JavaScript `Date` holds; `isEpochMs` is the same test for readers of stored rows.
+- **`@tale/shared/schemas/schedule-rule`** — a schedule trigger's repeat rule:
+  `scheduleRuleSchema` (every N minutes or hours, optionally only on some weekdays
+  and hours, or times of day on a daily, weekly, monthly or yearly rule), the
+  refusal codes it answers (`scheduleIssueCode`), `normalizeScheduleRule` and
+  `sameScheduleRule`, the `"HH:MM"` time helpers and the wall-clock grid arithmetic.
 - **`@tale/shared/net/private-ip`** and **`@tale/shared/utils/{session-idle,model-ref,project-key}`**
   — pure validation helpers used by those contracts and their consumers.
 

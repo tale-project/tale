@@ -409,6 +409,66 @@ const epochMsInput: Json = {
 };
 const int: Json = { type: 'integer' };
 
+/** What a parked run waits on, and the description `Run` and `RunSummary`
+ * share — one vocabulary, so the listing never drifts from the single read. */
+const RUN_WAITING_FOR = [
+  'approval',
+  'ask',
+  'in_doubt',
+  'agent',
+  'room',
+  'repeat',
+] as const;
+const runWaitingForDescription =
+  'Present only while `status` is `waiting`: what the run is ' +
+  'parked on. `approval` — a person’s decision on a gate; `ask` ' +
+  '— a question a person has to answer; `in_doubt` — a write the ' +
+  'run was making when its server stopped may or may not have ' +
+  'reached its service, and a person must decide how to continue ' +
+  '(in the app: run it again, skip it, or fail the run); `agent` — ' +
+  'an agent turn still running, no one to page; `room` — an agent ' +
+  'turn whose start waits for sandbox room, no one to page; ' +
+  '`repeat` — a node polling until its `repeatUntil` condition ' +
+  'holds, no one to page.';
+
+/** Whether and why a run moved between servers — the three keys `Run` and
+ * `RunSummary` share. */
+const runResumeProperties: Record<string, Json> = {
+  resumeCount: {
+    ...int,
+    minimum: 0,
+    description:
+      'How often the run moved to another server: a server that was ' +
+      'being updated or restarted handed it on, or another one took it ' +
+      'over after its own stopped responding. Steps it had finished never ' +
+      'run again. `Run` always carries it; `RunSummary` omits it while it ' +
+      'is 0.',
+  },
+  lastResume: {
+    type: 'object',
+    required: ['reason', 'at'],
+    additionalProperties: false,
+    description:
+      'Why and when the run last moved to another server; absent while it ' +
+      'never did. `shutdown` — its server was being updated or restarted ' +
+      'and handed it on; `lease_expired` — its server stopped responding ' +
+      'and another one took it over.',
+    properties: {
+      reason: { type: 'string', enum: ['shutdown', 'lease_expired'] },
+      at: epochMs,
+    },
+  },
+  stalled: {
+    type: 'boolean',
+    description:
+      'True while a `running` run waits for a server to take it over ' +
+      'after its own stopped (the app reads it as “Interrupted — ' +
+      'resuming”): nothing is working on it right now, and another server ' +
+      'picks it up within about a minute and a half. `Run` always carries ' +
+      'it; `RunSummary` carries it only while true.',
+  },
+};
+
 /** The keys of a run — the `Run` schema in full, and the `RunProjection` a
  * `?fields=` read answers, share them so the two can never drift. */
 const runProperties: Record<string, Json> = {
@@ -422,7 +482,15 @@ const runProperties: Record<string, Json> = {
   },
   status: {
     type: 'string',
-    enum: ['queued', 'running', 'waiting', 'success', 'failed', 'cancelled'],
+    enum: [
+      'queued',
+      'running',
+      'waiting',
+      'quarantined',
+      'success',
+      'failed',
+      'cancelled',
+    ],
   },
   mode: { type: 'string', enum: ['mock', 'live'] },
   startedBy: {
@@ -455,8 +523,8 @@ const runProperties: Record<string, Json> = {
       'The failure or wait reason; null while the run has none — and null ' +
       'again once a cancel lands (the park it named is over). ' +
       'While `waiting` it names the park: `approval:<approvalId>`, ' +
-      '`agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — ' +
-      '`waitingFor` is the ' +
+      '`agent:<nodeId>`, `room:<nodeId>`, `repeat:<nodeId>` or ' +
+      '`in_doubt:<nodeId>` — `waitingFor` is the ' +
       'field to branch on; when `failed`, the failure sentence, and ' +
       '`failureCode` the stable cause to branch on — the sentence is not ' +
       'contractual.',
@@ -472,7 +540,11 @@ const runProperties: Record<string, Json> = {
       '`llm_output_invalid` — the model’s reply did not satisfy the node’s ' +
       '`outputSchema`; `approval_rejected`; `execution_limit` — the ' +
       '100-execution guard; `automation_deleted` — the automation vanished ' +
-      'mid-flight. The provider codes the chat surface documents ' +
+      'mid-flight; `engine_incompatible` — the run’s saved progress could ' +
+      'not be read by this version of Tale, so it was stopped instead of ' +
+      'starting over (no step ran twice); `effect_in_doubt` — a person ' +
+      'failed the run at a write that may already have reached its service ' +
+      'when the run was interrupted. The provider codes the chat surface documents ' +
       '(`credit_exhausted`, `auth_error`, `rate_limited`, ' +
       '`provider_unreachable`, `provider_error`, `model_not_found`, …) — an ' +
       '`llm` node’s provider: the account or the provider, not the ' +
@@ -487,20 +559,15 @@ const runProperties: Record<string, Json> = {
   },
   waitingFor: {
     type: 'string',
-    enum: ['approval', 'ask', 'agent', 'room', 'repeat'],
-    description:
-      'Present only while `status` is `waiting`: what the run is ' +
-      'parked on. `approval` — a person’s decision on a gate; `ask` ' +
-      '— a question a person has to answer; `agent` — an agent turn ' +
-      'still running, no one to page; `room` — an agent turn whose ' +
-      'start waits for sandbox room, no one to page; `repeat` — a ' +
-      'node polling until its `repeatUntil` condition holds, no one ' +
-      'to page.',
+    enum: [...RUN_WAITING_FOR],
+    description: runWaitingForDescription,
   },
+  legacyQuarantine: ref('LegacyRunQuarantine'),
+  ...runResumeProperties,
   claimEpoch: {
     ...int,
     description:
-      'The stepper’s claim fence: incremented each time a worker claims the run (the first claim, a liveness re-poke, a queue retry); a worker holding an older epoch has its writes refused as stale. Diagnostic — above 1 means the run was re-claimed at least once.',
+      'The stepper’s claim fence: incremented on every claim — each turn, a takeover after a server stopped, or a queue retry; a worker holding an older epoch has its writes refused as stale. Diagnostic — above 1 means the run was claimed more than once.',
   },
   chainSeq: {
     ...int,
@@ -4532,7 +4599,7 @@ export function buildSpec(): Json {
     queryParam(
       'status',
       'Only runs in these statuses — one or more of `queued`, `running`, ' +
-        '`waiting`, `success`, `failed`, `cancelled`, comma-separated; any ' +
+        '`waiting`, `quarantined`, `success`, `failed`, `cancelled`, comma-separated; any ' +
         'other value answers 400 `INVALID_QUERY`',
     ),
     queryParam(
@@ -5230,6 +5297,46 @@ export function buildSpec(): Json {
         },
       },
     };
+    paths[`${scope.path}/legacy-quarantine`] = {
+      post: {
+        tags: ['Runs'],
+        summary: 'Request a stop for a quarantined legacy run',
+        description: `${visibility} Requires the developer capability.${scope.project ? ' The project must be active and writable.' : ''} Read the current legacyQuarantine first and acknowledge unknown external effects. Records the authenticated caller’s stop request and requests cancellation of owned sessions; it does not prove termination, undo external effects, clear quarantine, or make the task runnable. An identical retry returns the recorded decision without replacing its actor.`,
+        operationId: scope.project
+          ? 'requestProjectLegacyRunStop'
+          : 'requestLegacyRunStop',
+        security: sec,
+        parameters,
+        requestBody: jsonBody(ref('LegacyRunStopRequest')),
+        responses: {
+          ...standardErrors,
+          '200': jsonResponse(
+            'Stop request recorded; the run remains quarantined',
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: ['requested', 'status', 'legacyQuarantine'],
+              properties: {
+                requested: { type: 'boolean', enum: [true] },
+                status: { type: 'string', enum: ['quarantined'] },
+                legacyQuarantine: ref('LegacyRunQuarantine'),
+              },
+            },
+          ),
+          '403': errorResponse(
+            scope.project
+              ? 'Requires developer capability and write access to an active project'
+              : 'Requires developer capability',
+          ),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`)',
+          ),
+          '409': errorResponse(
+            'Run no longer quarantined or expected claim epoch or observation changed (`RUN_QUARANTINE_CHANGED`); read the run again',
+          ),
+        },
+      },
+    };
     paths[`${scope.path}/cancel`] = {
       post: {
         tags: ['Runs'],
@@ -5267,6 +5374,9 @@ export function buildSpec(): Json {
           ),
           '404': errorResponse('Run missing or outside the visible URL scope'),
           ...standardErrors,
+          '409': errorResponse(
+            'A quarantined legacy run requires an explicit legacy-quarantine stop request (`RUN_QUARANTINED`)',
+          ),
         },
       },
     };
@@ -9520,6 +9630,69 @@ curl -H "Authorization: Bearer <api-key>" \\
             ...triggerFailureProperties,
           },
         },
+        LegacyRunQuarantine: {
+          type: 'object',
+          additionalProperties: false,
+          description:
+            'A legacy execution whose external effects or termination cannot be proven. Present on held runs. A recorded stop request does not resolve the hold or establish that work stopped.',
+          required: [
+            'reason',
+            'observedAt',
+            'claimEpoch',
+            'priorStatus',
+            'resolution',
+          ],
+          properties: {
+            reason: { type: 'string', enum: ['legacy_execution_unproven'] },
+            observedAt: {
+              ...int,
+              minimum: 0,
+              maximum: Number.MAX_SAFE_INTEGER,
+            },
+            claimEpoch: {
+              ...int,
+              minimum: 0,
+              maximum: Number.MAX_SAFE_INTEGER,
+            },
+            priorStatus: {
+              type: 'string',
+              enum: ['queued', 'running', 'waiting'],
+            },
+            resolution: nullable({
+              type: 'object',
+              additionalProperties: false,
+              required: ['action', 'actor', 'at'],
+              properties: {
+                action: { type: 'string', enum: ['stop'] },
+                actor: { ...str, minLength: 1, maxLength: 200 },
+                at: { ...int, minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
+              },
+            }),
+          },
+        },
+        LegacyRunStopRequest: {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'action',
+            'expectedClaimEpoch',
+            'expectedObservedAt',
+            'acknowledgeUnknownExternalEffects',
+          ],
+          properties: {
+            action: { type: 'string', enum: ['stop'] },
+            expectedClaimEpoch: {
+              ...int,
+              minimum: 0,
+              maximum: Number.MAX_SAFE_INTEGER,
+            },
+            expectedObservedAt: epochMsInput,
+            acknowledgeUnknownExternalEffects: {
+              type: 'boolean',
+              enum: [true],
+            },
+          },
+        },
         RunSummary: {
           type: 'object',
           description:
@@ -9571,6 +9744,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'queued',
                 'running',
                 'waiting',
+                'quarantined',
                 'success',
                 'failed',
                 'cancelled',
@@ -9602,8 +9776,8 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'The failure or wait reason, when the run has one. While ' +
                 '`waiting` it names the park: `approval:<approvalId>`, ' +
-                '`agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — ' +
-                '`waitingFor` is the ' +
+                '`agent:<nodeId>`, `room:<nodeId>`, `repeat:<nodeId>` or ' +
+                '`in_doubt:<nodeId>` — `waitingFor` is the ' +
                 'field to branch on; when `failed`, the failure sentence, ' +
                 'and `failureCode` the stable cause — the sentence is not ' +
                 'contractual.',
@@ -9619,18 +9793,14 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
             waitingFor: {
               type: 'string',
-              enum: ['approval', 'ask', 'agent', 'room', 'repeat'],
+              enum: [...RUN_WAITING_FOR],
               description:
-                'Present only while `status` is `waiting`: what the run is ' +
-                'parked on. `approval` — a person’s decision on a gate; `ask` ' +
-                '— a question a person has to answer; `agent` — an agent turn ' +
-                'still running, no one to page; `room` — an agent turn whose ' +
-                'start waits for sandbox room, no one to page; `repeat` — a ' +
-                'node polling until its `repeatUntil` condition holds, no one ' +
-                'to page. ' +
+                `${runWaitingForDescription} ` +
                 '"Runs that need a human" is `waitingFor` in (`approval`, ' +
-                '`ask`), never `status=waiting` alone.',
+                '`ask`, `in_doubt`), never `status=waiting` alone.',
             },
+            legacyQuarantine: ref('LegacyRunQuarantine'),
+            ...runResumeProperties,
             startedAt: epochMs,
             finishedAt: {
               ...epochMs,

@@ -302,7 +302,7 @@ describe('RunApprovalCard — the decision', () => {
 
     expect(
       await screen.findByText(
-        'gmail.send approved — the run resumes on its next poll.',
+        'gmail.send approved — the run resumes right away.',
       ),
     ).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
@@ -344,7 +344,7 @@ describe('RunApprovalCard — the decision', () => {
 
     expect(
       await screen.findByText(
-        'gmail.send approved — the run resumes on its next poll.',
+        'gmail.send approved — the run resumes right away.',
       ),
     ).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Reject' })).toBeNull();
@@ -383,7 +383,7 @@ describe('RunApprovalCard — the decision', () => {
     await user.click(approve);
     expect(
       await screen.findByText(
-        'gmail.send approved — the run resumes on its next poll.',
+        'gmail.send approved — the run resumes right away.',
       ),
     ).toBeVisible();
     expect(decides()).toHaveLength(2);
@@ -536,7 +536,7 @@ describe('RunApprovalCard — controls', () => {
 
     expect(
       await screen.findByText(
-        'gmail.send approved — the run resumes on its next poll.',
+        'gmail.send approved — the run resumes right away.',
       ),
     ).toBeVisible();
   });

@@ -9,6 +9,10 @@ import {
   mockLlmText,
   stubFromSchema,
 } from '../../../lib/engine/core/execute/scope';
+import {
+  connectorIdempotencyKey,
+  subautomationPathPrefix,
+} from '../../../lib/engine/core/protocol';
 import { hasCodeRunner, setCodeRunner } from '../../../lib/engine/core/runner';
 import {
   evalCondition,
@@ -23,6 +27,7 @@ import type {
   Automation,
 } from '../../../lib/engine/core/types';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
+import { processShutdown, type ShutdownState } from '../../lib/shutdown';
 import { harnessResumesConversations } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
@@ -51,7 +56,7 @@ import type {
 import {
   effectsFrom,
   outputsFrom,
-  readCheckpoints,
+  parseRunCheckpoints,
   skippedFrom,
   traceFrom,
   whenSkippedFrom,
@@ -60,9 +65,24 @@ import {
   agentFailureCodeOf,
   NodeFailure,
   runFailureCodeOf,
+  RunStopFailure,
   type RunFailureCode,
 } from './failure';
-import { RUN_HEARTBEAT_INTERVAL_MS } from './liveness';
+import {
+  callThroughLedger,
+  durableLedger,
+  InDoubtPark,
+  passThroughLedger,
+  StaleClaim,
+  type RunLedger,
+} from './ledger';
+import {
+  CUT_TURN_BEAT_MS,
+  FOREACH_CURSOR_COMMIT_ITEMS,
+  FOREACH_CURSOR_COMMIT_MS,
+  IN_DOUBT_POLL_MS,
+  RUN_HEARTBEAT_INTERVAL_MS,
+} from './liveness';
 import { automationLlmCall, type AutomationLlmCall } from './llm_call';
 
 /**
@@ -89,8 +109,10 @@ function stepBudgetMs(): number {
  * nothing while it waits, short enough to feel immediate. */
 const REPEAT_DELAY_MS = 5_000;
 
-/** How often a run parked on a human decision re-checks it. */
-const APPROVAL_POLL_MS = 30_000;
+/** How often a run parked on a human decision re-checks it. Only a
+ * backstop: the decision wakes the run in its own transaction, and a park
+ * that comes after the decision wakes the run itself (`suspendRun`). */
+const APPROVAL_POLL_MS = 600_000;
 
 /** Poll backstop for a parked agent turn — the settle pokes the run the
  * moment it lands, so this only catches a lost poke. */
@@ -116,10 +138,8 @@ const CORE_TYPES = new Set(['transform', 'llm', 'agent', 'subautomation']);
  *
  * A seam rather than an inline call so the approvals domain stays out of this
  * module's imports and so a test can drive suspension and resume without it.
- * `stepRun` installs the real gate for the run it is stepping (see
- * {@link automationApprovalGate}); with no gate installed a live node runs
- * ungated, which is why `startRun` requires the developer capability for a live
- * run.
+ * Every run carries its own gate on its run context, built for the run's own
+ * organization when its turn starts (see {@link automationApprovalGate}).
  */
 export interface AutomationApprovalGate {
   check(request: {
@@ -143,16 +163,18 @@ export interface AutomationApprovalGate {
   >;
 }
 
-let approvalGate: AutomationApprovalGate | null = null;
+let approvalGateOverride: AutomationApprovalGate | null = null;
 
-/** Install the gate. `stepRun` installs the real one per turn; passing `null`
- * takes it back out (what a test does when it is finished with it). Client
- * repositories' native workflow gates import this module by path and call it.
- * @public */
+/** Install a gate that every run in this process uses instead of its own,
+ * until `null` gives each run its real gate back (what a test does when it is
+ * finished with it). The gate is held per run, never in a slot one run's turn
+ * overwrites for another's: two organizations' runs stepped at once by one
+ * worker each ask their own organization's policy. Client repositories'
+ * native workflow gates import this module by path and call it. @public */
 export function setAutomationApprovalGate(
   gate: AutomationApprovalGate | null,
 ): void {
-  approvalGate = gate;
+  approvalGateOverride = gate;
 }
 
 /** How a run gets its agent door. A seam like the approval gate's, but held
@@ -190,6 +212,38 @@ function nodeEffect(nodeType: string): 'read' | 'write' | 'unknown' {
   return action ? action.effects : 'unknown';
 }
 
+/** The connector door's answer as the ledger kept it for a call inside a
+ * subautomation: its output and whether it wrote. A call a person skipped
+ * keeps nothing, and reads as one that returned nothing and wrote nothing. */
+function readDispatchResult(value: unknown): {
+  output: unknown;
+  effects: string;
+} {
+  if (value === null || typeof value !== 'object' || !('output' in value)) {
+    return { output: null, effects: 'read' };
+  }
+  const effects = 'effects' in value ? value.effects : undefined;
+  return {
+    output: value.output,
+    effects: typeof effects === 'string' ? effects : 'read',
+  };
+}
+
+/** Whether a connector node's action declares that calling it twice with
+ * the same idempotency key has the effect of calling it once — the one kind
+ * of write a resumed run may repeat when it cannot tell whether the first
+ * call reached its service. Read from the shipped catalog like
+ * {@link nodeEffect}; anything that does not declare it is not. */
+function nodeIdempotent(nodeType: string): boolean {
+  const separator = nodeType.indexOf('.');
+  if (separator <= 0 || separator === nodeType.length - 1) return false;
+  const connector = findConnector(nodeType.slice(0, separator));
+  const action = connector?.actions.find(
+    (candidate) => candidate.name === nodeType.slice(separator + 1),
+  );
+  return action?.idempotent === true;
+}
+
 /**
  * Whether the node's write stays inside the tenant's own platform surface —
  * true for a connector declaring `auth: platform` (tasks, documents, the
@@ -210,10 +264,10 @@ function nodeIsPlatformInternal(nodeType: string): boolean {
 /**
  * The real gate for one run: a live effectful node is decided by the approvals
  * domain, which records a pending approval keyed to this run and node and
- * reports its state on every re-entry. Built per turn so it acts only for the
- * organization whose run is being stepped; the request's organization is
- * checked against that as belt-and-braces, and a rejected approval fails the
- * node rather than looping.
+ * reports its state on every re-entry. Built per turn and carried on that
+ * run's context, so it acts only for the organization whose run is being
+ * stepped; the request's organization is checked against that as
+ * belt-and-braces, and a rejected approval fails the node rather than looping.
  */
 function automationApprovalGate(
   ctx: ActionCtx,
@@ -280,21 +334,37 @@ interface RunSink {
     executions: number;
   }): Promise<'running' | 'cancelled'>;
   /** Park the run. `continue` means the caller should loop in place instead —
-   * what an inline sub-run does, matching the in-memory executor. */
+   * what an inline sub-run does, matching the in-memory executor. `event`
+   * records why the run parked when its park string says too little. */
   wait(args: {
     detail: string;
     cursor?: NodeCursor;
     executions: number;
     resumeInMs: number;
+    event?: { kind: 'in_doubt'; detail: Record<string, unknown> };
   }): Promise<'suspended' | 'continue' | 'cancelled'>;
-  /** Whether this turn should stop and let a fresh invocation continue. */
+  /** Whether this turn should stop and let a fresh invocation continue: its
+   * budget is spent, or its server is stopping. */
   shouldHandOff(): boolean;
-  /** Hand the run to the scheduler. */
-  handOff(): Promise<void>;
+  /** Hand the run to the scheduler — with a note when its server is
+   * stopping, so the run is counted and shown as resumed after a restart. */
+  handOff(note?: HandOffNote): Promise<void>;
   /** Whether `wait` can actually park the run. False for the inline sink: a
    * step that would have to park (an agent turn, an approval) refuses BEFORE
    * it spends anything, instead of discovering `continue` after the kick. */
   canPark: boolean;
+}
+
+/** Why a walker handed its run on before it was done, when the reason is its
+ * server stopping (the store's `RunHandoff`). A hand-off because the turn's
+ * budget ran out carries none. */
+interface HandOffNote {
+  reason: 'shutdown';
+  /** The node the walker was in, and its forEach item. */
+  nodeId?: string;
+  itemIndex?: number;
+  /** The node's body was cut off mid-call rather than finished. */
+  interrupted?: boolean;
 }
 
 const inlineSink: RunSink = {
@@ -348,6 +418,37 @@ interface RunContext {
   /** The agent door for this run's organization; live agent nodes kick, poll
    * and cancel their sandbox turns through it. */
   agent: AutomationAgentHost;
+  /** The approval gate for this run's organization; live connector nodes ask
+   * it before they act. Held per run, so runs of two organizations stepped
+   * at once never ask each other's. */
+  gate: AutomationApprovalGate;
+  /** Where a live run begins and records every call that reaches outside it
+   * (`ledger.ts`); a mock run's records nothing. */
+  ledger: RunLedger;
+  /** Aborted when a step body still running must stop: its server is
+   * shutting down and the grace for finishing a step ran out, or the job
+   * running this turn was given up on. Every call outside the run listens
+   * to it, and an error raised once it aborted is an interruption, never a
+   * failure of the step. */
+  signal: AbortSignal;
+  /** Whether this turn should hand the run on at its next step boundary
+   * instead of walking on: its server is stopping, or its replica is being
+   * drained for a deploy. */
+  yielding: () => boolean;
+  /** Whether its server is stopping. Only that hands a run on before the
+   * turn's first step: a drained worker hands a step job over before it
+   * reaches a walker, and a drain read a few seconds stale must not bounce a
+   * run back and forth without a step. */
+  shuttingDown: () => boolean;
+}
+
+/** The note a hand-off carries when the walker is yielding to a stopping
+ * server, and none when its budget simply ran out. */
+function yieldNote(
+  run: RunContext,
+  where: Omit<HandOffNote, 'reason'> = {},
+): HandOffNote | undefined {
+  return run.yielding() ? { reason: 'shutdown', ...where } : undefined;
 }
 
 /** A resolved template destined for prompt text: strings pass through,
@@ -373,6 +474,17 @@ interface BodyArgs {
   trace: NodeTrace;
   effects: Effect[];
   depth: number;
+  /** Where in the run this invocation happens: the node's path (its id at
+   * the top level, `<parent>[<item>:<pass>]/<id>` inside a subautomation),
+   * its forEach item and its repeat pass — the address of every call it
+   * makes outside the run. */
+  path: string;
+  itemIndex: number;
+  pass: number;
+  /** The versions this run's subautomations walk (`NodeCursor.pins`) and
+   * this node's key prefix among them. */
+  pins: Record<string, number> | undefined;
+  pinPrefix: string;
 }
 
 /**
@@ -417,24 +529,42 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
     if (record) trace.input = llmInput;
     effects.push({ node: node.id, connector: 'llm', input: llmInput });
     if (run.mode === 'live') {
-      const reply = await run.llm({
-        model,
-        prompt,
-        ...(system !== undefined && { system }),
-        ...(node.outputSchema !== undefined && {
-          outputSchema: node.outputSchema,
-        }),
-      });
-      if (node.outputSchema !== undefined) {
-        if (!('data' in reply)) {
-          throw new NodeFailure(
-            'llm_output_invalid',
-            'the llm call returned plain text for a node with outputSchema — structured output was required',
-          );
-        }
-        return reply.data;
-      }
-      return 'text' in reply ? { text: reply.text } : reply.data;
+      // A model call reaches nothing outside the run but the provider's
+      // meter: one a resumed run cannot account for is simply made again,
+      // and one that finished is never paid for twice.
+      return await callThroughLedger(
+        run.ledger,
+        {
+          nodeId: args.path,
+          itemIndex: args.itemIndex,
+          pass: args.pass,
+          kind: 'llm',
+          nodeType: node.type,
+          input: llmInput,
+          recallable: true,
+        },
+        async () => {
+          const reply = await run.llm({
+            model,
+            prompt,
+            ...(system !== undefined && { system }),
+            ...(node.outputSchema !== undefined && {
+              outputSchema: node.outputSchema,
+            }),
+          });
+          if (node.outputSchema !== undefined) {
+            if (!('data' in reply)) {
+              throw new NodeFailure(
+                'llm_output_invalid',
+                'the llm call returned plain text for a node with outputSchema — structured output was required',
+              );
+            }
+            return reply.data;
+          }
+          return 'text' in reply ? { text: reply.text } : reply.data;
+        },
+        run.signal,
+      );
     }
     return node.outputSchema !== undefined
       ? stubFromSchema(node.outputSchema)
@@ -488,14 +618,22 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       );
     }
     const [subName, subVersion] = ref.split('@');
+    // The version this run fixed for the node the first time it ran, so a
+    // deploy between two turns never changes what a resumed run walks; the
+    // reference itself only when nothing was fixed (an inline walk of a
+    // mock, a run stepped before pins existed).
+    const pinned = args.pins?.[`${args.pinPrefix}${node.id}`];
+    const version =
+      pinned ??
+      (subVersion !== undefined && subVersion !== ''
+        ? Number(subVersion)
+        : undefined);
     const found = await run.ctx.runQuery(
       internal.automations.queries.loadAutomationDocument,
       {
         organizationId: run.organizationId,
         name: subName,
-        ...(subVersion !== undefined && subVersion !== ''
-          ? { version: Number(subVersion) }
-          : {}),
+        ...(version !== undefined && { version }),
       },
     );
     if (!found) {
@@ -506,9 +644,13 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
     const resolved = await evalTemplates(node.input ?? {}, scope());
     if (record) trace.input = { automation: ref, input: resolved };
     // A sub-run is ONE durable step of its parent: its nodes run inline and are
-    // not individually checkpointed, so an interrupted sub-run restarts. Its
-    // effects are folded into the parent's log under `<node>/<subnode>`, the
-    // same addressing the in-memory executor uses.
+    // not individually checkpointed, so an interrupted sub-run walks again from
+    // its first node — and every call its earlier walk made outside the run is
+    // answered by the ledger under its nested path, never made twice blindly.
+    // Its effects are folded into the parent's log under `<node>/<subnode>`,
+    // the same addressing the in-memory executor uses. A park, a stale claim
+    // or a person's "fail the run" inside it is thrown through, not folded
+    // into "subautomation … failed": the calling node acts on it.
     const subEffects: Effect[] = [];
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- documents are validated before they are saved
     const sub = found.document as Automation;
@@ -520,6 +662,9 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       sink: inlineSink,
       effects: subEffects,
       depth: args.depth + 1,
+      pathPrefix: subautomationPathPrefix(args.path, args.itemIndex, args.pass),
+      pins: args.pins,
+      pinPrefix: `${args.pinPrefix}${node.id}/`,
     });
     for (const effect of subEffects) {
       effects.push({
@@ -561,27 +706,98 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   const action = node.type.slice(separator + 1);
   const resolved = await evalTemplates(node.input ?? {}, scope());
   if (record) trace.input = resolved;
-  const index = typeof extra.index === 'number' ? extra.index : 0;
-  const result = await run.ctx.runAction(
-    internal.connectors.execute_action.runConnectorAction,
-    {
-      organizationId: run.organizationId,
-      connector,
-      action,
-      input: resolved,
-      mode: run.mode,
-      caller: { kind: 'workflow', runId: run.runId, nodeId: node.id },
-      // Retry-stable by construction: the run id is durable and the node and
-      // item are positional, so a re-attempted step presents the key the first
-      // attempt used.
-      idempotencyKey: `${run.runId}:${node.id}:${index}`,
-    },
-  );
-  if (result.status !== 'ok') {
-    // A coded `ConnectorError` used to lose its code in the stepper's catch;
-    // the run now says a connector, not the author's code, failed.
-    throw new NodeFailure('connector_error', result.message);
+  const dispatch = async (): Promise<{ output: unknown; effects: string }> => {
+    const result = await run.ctx.runAction(
+      internal.connectors.execute_action.runConnectorAction,
+      {
+        organizationId: run.organizationId,
+        connector,
+        action,
+        input: resolved,
+        mode: run.mode,
+        caller: { kind: 'workflow', runId: run.runId, nodeId: node.id },
+        idempotencyKey: connectorIdempotencyKey(
+          run.runId,
+          args.path,
+          args.itemIndex,
+          args.pass,
+        ),
+        // In-process only: the door hands it to the live host, so a call
+        // still running when the server stops is cut instead of holding the
+        // walker past its grace.
+        signal: run.signal,
+      },
+    );
+    if (result.status !== 'ok') {
+      // A coded `ConnectorError` used to lose its code in the stepper's
+      // catch; the run now says a connector, not the author's code, failed.
+      throw new NodeFailure('connector_error', result.message);
+    }
+    return { output: result.output, effects: result.effects };
+  };
+
+  // A live write goes through the ledger: a resumed run reuses a write that
+  // finished, and one that may or may not have reached its service waits for
+  // a person unless its action may safely be repeated. Reads, and every mock
+  // call, change nothing outside the run and simply run again — at the top
+  // level, where the outputs a node reads are checkpointed.
+  if (run.mode === 'live' && nodeEffect(node.type) === 'write') {
+    const effect = { node: node.id, connector: node.type, input: resolved };
+    let output: unknown;
+    try {
+      output = await callThroughLedger(
+        run.ledger,
+        {
+          nodeId: args.path,
+          itemIndex: args.itemIndex,
+          pass: args.pass,
+          kind: 'connector',
+          nodeType: node.type,
+          input: resolved,
+          recallable: nodeIdempotent(node.type),
+        },
+        async () => (await dispatch()).output,
+        run.signal,
+      );
+    } catch (error) {
+      // A person failed the run here because nobody could tell whether the
+      // write had reached its service: the log keeps it as one that may
+      // have happened.
+      if (error instanceof RunStopFailure) effects.push(effect);
+      throw error;
+    }
+    // Logged whether it ran now, ran on an earlier walk, or was skipped by a
+    // person who could not tell whether it had reached its service.
+    effects.push(effect);
+    return output;
   }
+  // Inside a subautomation every other live call goes through the ledger
+  // too, as one that may simply be made again. The sub-run walks again from
+  // its first node after an interruption, and its writes are addressed by
+  // position: a read answered differently the second time (a record that
+  // arrived in between) would line the list's items up with other items'
+  // writes — reusing one item's result for another that was never sent, and
+  // sending one that was. A finished read answers what the first walk acted
+  // on; one nobody finished is made again.
+  const result =
+    run.mode === 'live' && args.depth > 0
+      ? readDispatchResult(
+          await callThroughLedger(
+            run.ledger,
+            {
+              nodeId: args.path,
+              itemIndex: args.itemIndex,
+              pass: args.pass,
+              kind: 'connector',
+              nodeType: node.type,
+              input: resolved,
+              recallable: true,
+            },
+            dispatch,
+            run.signal,
+          ),
+        )
+      : await dispatch();
   if (result.effects === 'write') {
     effects.push({ node: node.id, connector: node.type, input: resolved });
   }
@@ -601,6 +817,14 @@ interface WalkArgs {
    * however many turns produced it. */
   effects: Effect[];
   depth: number;
+  /** Prepended to every node id to make its path: empty at the top level,
+   * `<parent>[<item>:<pass>]/` inside a subautomation. */
+  pathPrefix: string;
+  /** The subautomation versions a calling node fixed (`NodeCursor.pins`) and
+   * the key prefix of this walk's nodes among them; none at the top level,
+   * where each subautomation node fixes its own. */
+  pins?: Record<string, number>;
+  pinPrefix: string;
 }
 
 /**
@@ -630,10 +854,15 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
     // this turn, otherwise its effect and its checkpoint could straddle the
     // ceiling the hand-off exists to avoid. A turn always advances at least one
     // node, so a budget that is already spent slows a run down instead of
-    // livelocking it.
+    // livelocking it — unless its server is stopping: a turn claimed then
+    // hands on before its first node, even one it would resume mid-loop (its
+    // place there is saved already), and the next server walks it.
     const resuming = checkpoints.cursor?.node === node.id;
-    if (stepped > 0 && !resuming && sink.shouldHandOff()) {
-      await sink.handOff();
+    if (
+      (run.shuttingDown() || (stepped > 0 && !resuming)) &&
+      sink.shouldHandOff()
+    ) {
+      await sink.handOff(yieldNote(run));
       return { kind: 'handed-off' };
     }
     stepped++;
@@ -646,6 +875,9 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
       sink,
       effects: args.effects,
       depth,
+      pathPrefix: args.pathPrefix,
+      pins: args.pins,
+      pinPrefix: args.pinPrefix,
     });
 
     if (outcome.kind === 'suspended' || outcome.kind === 'cancelled') {
@@ -682,6 +914,9 @@ interface StepArgs {
   sink: RunSink;
   effects: Effect[];
   depth: number;
+  pathPrefix: string;
+  pins: Record<string, number> | undefined;
+  pinPrefix: string;
 }
 
 type StepOutcome =
@@ -754,8 +989,66 @@ async function previewNodeInput(
   }
 }
 
+/**
+ * The versions a top-level `subautomation` node walks, fixed the first time
+ * it runs: its own reference, and every subautomation reference inside the
+ * documents it reaches, as deep as subautomations may nest. `name@v` keeps
+ * `v`; a bare name takes the version deployed now. Keyed by the chain of
+ * node ids without items (`batch`, `batch/inner`). A reference that names no
+ * saved automation is left out — the node's body says so when it runs.
+ */
+async function resolveSubautomationPins(
+  run: RunContext,
+  node: NodeDef,
+  depth: number,
+): Promise<Record<string, number>> {
+  const pins: Record<string, number> = {};
+  const visit = async (ref: string, key: string, level: number) => {
+    if (level >= MAX_SUBAUTOMATION_DEPTH) return;
+    const [name, explicit] = ref.split('@');
+    const found = await run.ctx.runQuery(
+      internal.automations.queries.loadAutomationDocument,
+      {
+        organizationId: run.organizationId,
+        name,
+        ...(explicit !== undefined &&
+          explicit !== '' && { version: Number(explicit) }),
+      },
+    );
+    if (!found || typeof found.version !== 'number') return;
+    pins[key] = found.version;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- documents are validated before they are saved
+    const document = found.document as Automation;
+    for (const child of document.nodes ?? []) {
+      if (child.type === 'subautomation' && child.automation !== undefined) {
+        await visit(child.automation, `${key}/${child.id}`, level + 1);
+      }
+    }
+  };
+  await visit(node.automation ?? '', node.id, depth);
+  return pins;
+}
+
 async function stepNode(args: StepArgs): Promise<StepOutcome> {
   const { run, node, input, checkpoints, sink, depth } = args;
+  const path = `${args.pathPrefix}${node.id}`;
+  // Where in the node this turn is — hoisted so a park in the catch below
+  // can say where to come back to.
+  let index = 0;
+  let passes = 0;
+  let outs: unknown[] = [];
+  let pins: Record<string, number> | undefined;
+  // Whether `index`/`passes`/`outs` hold this node's real place yet: an
+  // interruption before they do must not save a cursor that would send a
+  // half-done loop back to its first item.
+  let placed = false;
+  const cursorHere = (): NodeCursor => ({
+    node: node.id,
+    index,
+    passes,
+    outs,
+    ...(pins !== undefined && { pins }),
+  });
   const outputs = outputsFrom(checkpoints);
   const skipped = skippedFrom(checkpoints);
   const whenSkipped = whenSkippedFrom(checkpoints);
@@ -822,7 +1115,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     // A live effectful step asks the human gate before it acts. The answer is
     // re-checked on every re-entry, so an approval granted later simply lets
     // the next turn through.
-    if (run.mode === 'live' && !CORE_TYPES.has(node.type) && approvalGate) {
+    if (run.mode === 'live' && !CORE_TYPES.has(node.type)) {
       // Fail fast on a call that cannot run at all: a connector with no
       // usable credential used to park the run on an approval card, and
       // only the approver's "yes" surfaced the missing credential
@@ -832,7 +1125,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       // The card shows the call the step would make, not the run's input:
       // the same resolution the connector body performs, done ahead of it.
       const preview = await previewNodeInput(node, makeScope(input, outputs));
-      const decision = await approvalGate.check({
+      const decision = await run.gate.check({
         organizationId: run.organizationId,
         automation: run.automation,
         runId: run.runId,
@@ -886,6 +1179,22 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       checkpoints.cursor?.node === node.id
         ? { ...checkpoints.cursor, outs: [...checkpoints.cursor.outs] }
         : { node: node.id, index: 0, passes: 0, outs: [] };
+    ({ index, passes, outs, pins } = cursor);
+    placed = true;
+
+    // A subautomation node fixes the versions it walks the first time it
+    // runs, and records them before any of its own steps acts: a deploy
+    // between two turns of this run then changes nothing it walks. Only a
+    // top-level node can record them; the nodes of its inline walk read them.
+    if (node.type === 'subautomation' && sink.canPark && pins === undefined) {
+      pins = await resolveSubautomationPins(run, node, depth);
+      const status = await sink.commit({
+        cursor: cursorHere(),
+        executions: checkpoints.executions,
+      });
+      if (status === 'cancelled') return { kind: 'cancelled' };
+      checkpoints.cursor = cursorHere();
+    }
 
     let items: unknown[] | null = null;
     if (typeof node.forEach === 'string') {
@@ -906,9 +1215,12 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       node.maxRepeats ?? DEFAULT_MAX_REPEATS,
       REPEATS_HARD_CAP,
     );
-    let { index, passes } = cursor;
-    const outs = cursor.outs;
     let single: unknown;
+    // Where the loop's cursor was last saved: a long loop saves it every few
+    // items, so a walker that dies mid-loop leaves the items it finished
+    // behind it rather than all of them.
+    let savedIndex = index;
+    let savedAt = Date.now();
 
     for (;;) {
       if (items !== null && index >= items.length) break;
@@ -933,6 +1245,11 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         trace,
         effects,
         depth,
+        path,
+        itemIndex: index,
+        pass: passes,
+        pins: pins ?? args.pins,
+        pinPrefix: args.pinPrefix,
       });
 
       if (typeof node.repeatUntil === 'string') {
@@ -948,13 +1265,13 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
           // not finished must not hold an action open.
           const waited = await sink.wait({
             detail: `repeat:${node.id}`,
-            cursor: { node: node.id, index, passes, outs },
+            cursor: cursorHere(),
             executions: checkpoints.executions,
             resumeInMs: REPEAT_DELAY_MS,
           });
           if (waited === 'cancelled') return { kind: 'cancelled' };
           if (waited === 'suspended') {
-            checkpoints.cursor = { node: node.id, index, passes, outs };
+            checkpoints.cursor = cursorHere();
             return { kind: 'suspended' };
           }
           continue;
@@ -973,13 +1290,29 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       // cursor, so the next turn continues at the item after it.
       if (sink.shouldHandOff()) {
         const status = await sink.commit({
-          cursor: { node: node.id, index, passes: 0, outs },
+          cursor: cursorHere(),
           executions: checkpoints.executions,
         });
         if (status === 'cancelled') return { kind: 'cancelled' };
-        checkpoints.cursor = { node: node.id, index, passes: 0, outs };
-        await sink.handOff();
+        checkpoints.cursor = cursorHere();
+        await sink.handOff(
+          yieldNote(run, { nodeId: node.id, itemIndex: index }),
+        );
         return { kind: 'handed-off' };
+      }
+      if (
+        sink.canPark &&
+        (index - savedIndex >= FOREACH_CURSOR_COMMIT_ITEMS ||
+          Date.now() - savedAt >= FOREACH_CURSOR_COMMIT_MS)
+      ) {
+        const status = await sink.commit({
+          cursor: cursorHere(),
+          executions: checkpoints.executions,
+        });
+        if (status === 'cancelled') return { kind: 'cancelled' };
+        checkpoints.cursor = { ...cursorHere(), outs: [...outs] };
+        savedIndex = index;
+        savedAt = Date.now();
       }
     }
 
@@ -988,6 +1321,70 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     trace.output = output;
     return await record({ status: 'ok', output, trace, effects });
   } catch (error) {
+    // This walker lost its run (a newer claim, or the run ended): nothing more
+    // may happen, and the walk unwinds as if the run had been stopped. Inside
+    // a subautomation it unwinds the calling node too.
+    if (error instanceof StaleClaim) {
+      if (!sink.canPark) throw error;
+      return { kind: 'cancelled' };
+    }
+    // A write that may already have reached its service: the run waits at
+    // this node, on the item and pass it was on, until a person decides. A
+    // subautomation cannot park, so it hands the park to its calling node.
+    if (error instanceof InDoubtPark) {
+      if (!sink.canPark) throw error;
+      const cursor = cursorHere();
+      const waited = await sink.wait({
+        detail: `in_doubt:${node.id}`,
+        cursor,
+        executions: checkpoints.executions,
+        resumeInMs: IN_DOUBT_POLL_MS,
+        event: {
+          kind: 'in_doubt',
+          detail: {
+            path: error.address.nodeId,
+            itemIndex: error.address.itemIndex,
+            pass: error.address.pass,
+            attemptId: error.attemptId,
+          },
+        },
+      });
+      if (waited === 'cancelled') return { kind: 'cancelled' };
+      checkpoints.cursor = cursor;
+      return { kind: 'suspended' };
+    }
+    // The step was cut because its server is stopping: it did not fail, and
+    // it is not recorded as done. The run is handed on where it stands — a
+    // loop at the item it was on — and the next server runs the step again;
+    // the effect ledger keeps a write that may already have reached its
+    // service from being repeated blindly. Inside a subautomation the
+    // calling node hands the run on. A person's decision to fail the run is
+    // carried out whatever the server is doing.
+    if (run.signal.aborted && !(error instanceof RunStopFailure)) {
+      if (!sink.canPark) throw error;
+      if (
+        placed &&
+        (typeof node.forEach === 'string' ||
+          typeof node.repeatUntil === 'string')
+      ) {
+        const status = await sink.commit({
+          cursor: cursorHere(),
+          executions: checkpoints.executions,
+        });
+        if (status === 'cancelled') return { kind: 'cancelled' };
+        checkpoints.cursor = cursorHere();
+      }
+      console.warn(
+        `[automations] run ${run.runId}: ${path} was interrupted (${error instanceof Error ? error.message : String(error)}) — handing the run on`,
+      );
+      await sink.handOff({
+        reason: 'shutdown',
+        nodeId: node.id,
+        itemIndex: index,
+        interrupted: true,
+      });
+      return { kind: 'handed-off' };
+    }
     // A failure that knows what to do next says so in the one sentence the
     // run detail and the trace show — `message — hint`, never a JSON blob.
     const message =
@@ -998,7 +1395,10 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
           : String(error);
     trace.status = 'error';
     trace.error = message;
-    if (node.onError === 'continue') {
+    // A person decided the run stops here: `onError: continue` does not
+    // apply, and inside a subautomation the calling node stops with it.
+    if (error instanceof RunStopFailure && !sink.canPark) throw error;
+    if (node.onError === 'continue' && !(error instanceof RunStopFailure)) {
       return await record({
         status: 'skipped',
         reason: 'error',
@@ -1422,6 +1822,40 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
 
 // ------------------------------------------------------------------- action
 
+/** What a stepper turn listens to besides its run. */
+export interface StepRunOptions {
+  /** The job's own signal: aborted when the job is given up on. */
+  signal?: AbortSignal;
+  /** The process's shutdown state; {@link processShutdown} unless a test
+   * brings its own. */
+  shutdown?: ShutdownState;
+  /** Whether this replica is being drained for a deploy (a cached read —
+   * `lib/drain-probe.ts`); never, unless the worker passes its probe. */
+  draining?: () => boolean;
+}
+
+/** The turns this process is stepping right now, so a stopping process can
+ * wait for them to hand their runs on before it releases what is left. */
+const liveTurns = new Set<Promise<unknown>>();
+
+/**
+ * Wait, at most `timeoutMs`, for every turn this process is stepping to end
+ * — once shutdown has begun, each hands its run on at its next step boundary
+ * or when its step is cut. Answers how many are still going.
+ */
+export async function settleLiveTurns(timeoutMs: number): Promise<number> {
+  if (liveTurns.size === 0) return 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    Promise.allSettled(liveTurns),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, timeoutMs);
+    }),
+  ]);
+  clearTimeout(timer);
+  return liveTurns.size;
+}
+
 /**
  * Execute one turn of a run: claim it, step it until it finishes, waits, or
  * runs out of budget, and leave the row in a state the next turn can read.
@@ -1436,6 +1870,21 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
 export async function stepRunImpl(
   ctx: ActionCtx,
   args: { organizationId: string; runId: Id<'automationRuns'> },
+  options: StepRunOptions = {},
+): Promise<{ status: string }> {
+  const turn = stepRunTurn(ctx, args, options);
+  liveTurns.add(turn);
+  const forget = () => {
+    liveTurns.delete(turn);
+  };
+  void turn.then(forget, forget);
+  return await turn;
+}
+
+async function stepRunTurn(
+  ctx: ActionCtx,
+  args: { organizationId: string; runId: Id<'automationRuns'> },
+  options: StepRunOptions,
 ): Promise<{ status: string }> {
   // The engine's sandbox seam for untrusted JavaScript (templates, transform
   // bodies). The bundled backend is deterministic and data-only; a deployment
@@ -1448,14 +1897,40 @@ export async function stepRunImpl(
   });
   if (!claim.claimed) return { status: claim.status };
   const epoch = claim.epoch;
+  // The turn's signal: its job's, joined with the cut of a stopping server.
+  const shutdown = options.shutdown ?? processShutdown;
+  const signal =
+    options.signal === undefined
+      ? shutdown.interrupt
+      : AbortSignal.any([options.signal, shutdown.interrupt]);
+  let cutAt: number | undefined = signal.aborted ? Date.now() : undefined;
+  signal.addEventListener(
+    'abort',
+    () => {
+      cutAt ??= Date.now();
+    },
+    { once: true },
+  );
 
   // Renew the liveness promise for as long as this walker is genuinely
   // working — a node awaiting a slow local model for half an hour stays
   // alive by heartbeat, and only a walker that actually died goes silent
   // and gets its run re-poked by the sweep. A superseded walker stops
-  // beating; its state writes are refused by the same epoch fence.
+  // beating; its state writes are refused by the same epoch fence. So does
+  // a walker whose turn was cut (its job given up on, or its server's step
+  // grace spent) and whose body still has not settled long after: a body
+  // that ignores the cut would otherwise hold the run for good, where a
+  // lapsed lease lets another worker take it over.
   let beating = true;
   const heartbeat = setInterval(() => {
+    if (cutAt !== undefined && Date.now() - cutAt > CUT_TURN_BEAT_MS) {
+      beating = false;
+      clearInterval(heartbeat);
+      console.warn(
+        `[automations] run ${args.runId}: its turn was cut ${CUT_TURN_BEAT_MS} ms ago and has not ended — no longer renewing its lease, so another worker can take it over`,
+      );
+      return;
+    }
     void ctx
       .runMutation(internal.automations.mutations.heartbeatRun, {
         organizationId: args.organizationId,
@@ -1472,7 +1947,7 @@ export async function stepRunImpl(
   }, RUN_HEARTBEAT_INTERVAL_MS);
 
   try {
-    return await stepClaimedRun(ctx, args, epoch);
+    return await stepClaimedRun(ctx, args, epoch, options, signal);
   } finally {
     beating = false;
     clearInterval(heartbeat);
@@ -1484,6 +1959,8 @@ async function stepClaimedRun(
   ctx: ActionCtx,
   args: { organizationId: string; runId: Id<'automationRuns'> },
   epoch: number,
+  options: StepRunOptions,
+  signal: AbortSignal,
 ): Promise<{ status: string }> {
   {
     const loaded = await ctx.runQuery(
@@ -1520,7 +1997,33 @@ async function stepClaimedRun(
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- documents are validated before they are saved
     const automation = loaded.document as Automation;
-    const checkpoints = readCheckpoints(loaded.run.checkpoints);
+    // Progress this engine cannot read fails the run: reading it as "nothing
+    // done yet" would start the run over and repeat every step it finished,
+    // writes included.
+    const parsed = parseRunCheckpoints(loaded.run.checkpoints);
+    if (!parsed.ok) {
+      console.error(
+        `[automations] run ${args.runId} has saved progress this engine cannot read (${parsed.reason}) — failing it instead of starting over`,
+      );
+      const failed = await ctx.runMutation(
+        internal.automations.mutations.finishRun,
+        {
+          organizationId: args.organizationId,
+          runId: args.runId,
+          epoch,
+          status: 'failed',
+          failureCode: 'engine_incompatible',
+          trace: [],
+          effects: [],
+          detail: `this run's saved progress could not be read by this version of Tale (${parsed.reason}); it was stopped instead of starting over, so no step ran twice`,
+          executions: 0,
+        },
+      );
+      return { status: failed.status };
+    }
+    const checkpoints = parsed.checkpoints;
+    const shutdown = options.shutdown ?? processShutdown;
+    const draining = options.draining ?? (() => false);
     const run: RunContext = {
       ctx,
       organizationId: args.organizationId,
@@ -1528,21 +2031,31 @@ async function stepClaimedRun(
       automation: loaded.run.name,
       mode: loaded.run.mode,
       deadline: Date.now() + stepBudgetMs(),
-      // Built fresh every turn, like the approval gate below: the door closes
-      // over this invocation's ctx, the run's own organization, and the run
-      // whose spend each call is.
-      llm: automationLlmCall(ctx, args.organizationId, args.runId),
+      // Built fresh every turn: each door closes over this invocation's ctx
+      // and the run's own organization, and travels with this run alone —
+      // a worker stepping two organizations' runs at once never lets one
+      // run's turn replace the other's gate. Each llm call is the run's
+      // spend.
+      llm: automationLlmCall(ctx, args.organizationId, args.runId, { signal }),
       agent: (agentHostFactory ?? automationAgentHost)(
         ctx,
         args.organizationId,
       ),
+      gate:
+        approvalGateOverride ??
+        automationApprovalGate(ctx, args.organizationId),
+      ledger:
+        loaded.run.mode === 'live'
+          ? durableLedger(ctx, {
+              organizationId: args.organizationId,
+              runId: args.runId,
+              epoch,
+            })
+          : passThroughLedger,
+      signal,
+      yielding: () => shutdown.shuttingDown || draining(),
+      shuttingDown: () => shutdown.shuttingDown,
     };
-
-    // Install the real approval gate for THIS run before any node is stepped,
-    // so a live effectful node consults the approvals domain for the run's own
-    // organization. Re-installed every turn because the closure carries this
-    // invocation's ctx, matching how the connector host is assembled per turn.
-    setAutomationApprovalGate(automationApprovalGate(ctx, args.organizationId));
 
     const sink = durableSink(
       ctx,
@@ -1550,6 +2063,7 @@ async function stepClaimedRun(
       args.runId,
       run.deadline,
       epoch,
+      run.yielding,
     );
     const order = (topoSort(automation.nodes) ?? automation.nodes).map(
       (node) => node.id,
@@ -1565,6 +2079,8 @@ async function stepClaimedRun(
       sink,
       effects,
       depth: 0,
+      pathPrefix: '',
+      pinPrefix: '',
     });
 
     if (
@@ -1615,6 +2131,14 @@ async function stepClaimedRun(
   }
 }
 
+/** The statuses a fenced progress write answers while the walker still holds
+ * a live run. */
+const LIVE_STATUSES: ReadonlySet<string> = new Set([
+  'queued',
+  'running',
+  'waiting',
+]);
+
 /** The sink that makes a run durable: every commit is a row write, every wait
  * schedules the turn that resumes it. Every write carries the walker's claim
  * epoch — a superseded walker's commit reads back 'stale' and unwinds as if
@@ -1625,6 +2149,7 @@ function durableSink(
   runId: Id<'automationRuns'>,
   deadline: number,
   epoch: number,
+  yielding: () => boolean,
 ): RunSink {
   return {
     async commit(args) {
@@ -1642,9 +2167,9 @@ function durableSink(
           executions: args.executions,
         },
       );
-      return result.status === 'cancelled' || result.status === 'stale'
-        ? 'cancelled'
-        : 'running';
+      // Only a live run keeps walking: a stop, a finish another walker
+      // recorded, a newer claim or a run that is gone all end this walk.
+      return LIVE_STATUSES.has(result.status) ? 'running' : 'cancelled';
     },
     async wait(args) {
       const result = await ctx.runMutation(
@@ -1657,20 +2182,22 @@ function durableSink(
           ...(args.cursor !== undefined && { cursor: args.cursor }),
           executions: args.executions,
           resumeInMs: args.resumeInMs,
+          ...(args.event !== undefined && { event: args.event }),
         },
       );
       return result.suspended ? 'suspended' : 'cancelled';
     },
     shouldHandOff() {
-      return Date.now() >= deadline;
+      return Date.now() >= deadline || yielding();
     },
     canPark: true,
-    async handOff() {
+    async handOff(note) {
       await ctx.runMutation(internal.automations.mutations.continueRun, {
         organizationId,
         runId,
         epoch,
         resumeInMs: 0,
+        ...(note !== undefined && { handoff: note }),
       });
     },
   };

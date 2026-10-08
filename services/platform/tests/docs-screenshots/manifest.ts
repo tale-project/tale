@@ -1408,6 +1408,49 @@ export const SHOTS: readonly Shot[] = [
         .first(),
   },
   {
+    // The Editor's Problems list under the canvas: a draft whose triage
+    // prompt reads a node that does not exist — the node's error chip, the
+    // reason under the Prompt field, Save waiting with its reason, and the
+    // list's row with its location and fix.
+    name: 'automation-editor-problems',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await expect(
+        page.getByRole('button', {
+          name: t('automations.detail.versionSelect'),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      const triageStep = page.locator('[data-automation-node="triage"]');
+      await triageStep.waitFor({ timeout: 30_000 });
+      await triageStep.click();
+      const prompt = page.getByRole('textbox', {
+        name: t('automations.editor.fields.prompt'),
+        exact: true,
+      });
+      await prompt.click();
+      await prompt.press('ControlOrMeta+End');
+      await prompt.pressSequentially(' {{ nodes.nope.output }}');
+      // The button's name opens with the panel's title ("Problems: 1 error")
+      // once the check of the draft has settled.
+      const problems = page.getByRole('button', {
+        name: new RegExp(
+          `^${escapeRegExp(t('automations.problems.title'))}: 1 `,
+        ),
+      });
+      await problems.click({ timeout: 30_000 });
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('region', {
+          name: t('automations.problems.title'),
+          exact: true,
+        })
+        .getByRole('listitem')
+        .first(),
+  },
+  {
     // An automation's General tab — its trigger (the pack's schedule: cron,
     // timezone, enabled) above the projects it is bound to. The form paints
     // before the trigger query answers, so gate on the cron field holding

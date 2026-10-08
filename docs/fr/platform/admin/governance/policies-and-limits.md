@@ -65,7 +65,7 @@ Dans la règle de rétention, choisis **Modifier** et configure les catégories 
 
 Vérifie les bornes minimales et maximales du déploiement avant de modifier une durée. Les changements qui demandent une revue ou un délai apparaissent comme propositions ou changements en attente. Lis leur date d’effet sans supposer une application immédiate.
 
-Le délai de grâce est la fenêtre de récupération des enregistrements supprimés provisoirement pris en charge. Une valeur positive laisse du temps pour les restaurer dans la [Corbeille](/fr/platform/admin/governance/trash) ; zéro permet un nettoyage définitif immédiat. Toutes les catégories ne sont pas restaurables. Une [conservation juridique](/fr/platform/admin/governance/legal-hold) protège les données couvertes du nettoyage.
+Le délai de grâce est la fenêtre de récupération des enregistrements supprimés provisoirement pris en charge. Une valeur positive laisse du temps pour les restaurer dans la [Corbeille](/fr/platform/admin/governance/trash) ; zéro permet un nettoyage définitif immédiat. Toutes les catégories ne sont pas restaurables. Une [conservation légale](/fr/platform/admin/governance/legal-hold) protège les données couvertes du nettoyage.
 
 Pour les déploiements autohébergés, la [configuration de rétention](/fr/self-hosted/configuration/retention) explique les contrôles opérateur et le comportement par catégorie. Ne déduis pas une garantie d’archivage d’une règle désactivée ou d’une durée affichée seule.
 

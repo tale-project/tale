@@ -315,6 +315,24 @@ describe('automationLlmCall', () => {
     ).rejects.toThrow(/catalog for "first", "second" was unreachable/);
   });
 
+  it("hands the turn's signal to the model, so a stopping server cuts the request", async () => {
+    credentials = { first: DIRECT };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/small-1', tags: ['chat'] },
+    ]);
+    const stop = new AbortController();
+
+    await automationLlmCall(ctx, ORG, RUN, { signal: stop.signal })({
+      model: 'vendor/small-1',
+      prompt: 'one',
+    });
+
+    expect(createBuilderModel).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({ signal: stop.signal }),
+    );
+  });
+
   it('resolves each model once per door, not once per call', async () => {
     credentials = { first: DIRECT };
     getProviderCatalog.mockResolvedValue([

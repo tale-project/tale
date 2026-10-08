@@ -4,6 +4,7 @@ import {
 } from '@tale/shared/schemas/task-external-issue';
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { LegacyRunQuarantine } from '../../../lib/engine/api/dispatch.ts';
 import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
 import {
   TASK_AUDIT_ACTIONS,
@@ -17,6 +18,7 @@ import {
 import { isUniqueViolation } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { describeLegacyQuarantine } from '../automations/legacy-quarantine.ts';
 import { beginRunInTx } from '../automations/store.ts';
 import { emitEvent } from '../events/emit.ts';
 import { endRepeatForAutomationOwner } from './repeat.ts';
@@ -852,7 +854,7 @@ export async function startWorkflowForTaskInTx(
       SELECT id FROM app.automation_runs
       WHERE org_id = ${args.organizationId}
         AND (project_id = ${args.task.projectId} OR project_id IS NULL)
-        AND status IN ('queued', 'running', 'waiting')
+        AND status IN ('queued', 'running', 'waiting', 'quarantined')
         AND input->'task'->>'id' = ${args.task.id}
       ORDER BY started_at_ms DESC LIMIT 1
     `;
@@ -920,6 +922,7 @@ export async function startWorkflowForTaskInTx(
 /** The 0.4 run wire for the task modal: the inline automation banner reads
  * the LIVE run, the property panel's Run row the LATEST one. */
 export interface LiveAutomationRunForTask {
+  legacyQuarantine?: LegacyRunQuarantine;
   runId: string;
   name: string;
   status: string;
@@ -965,15 +968,17 @@ async function findAutomationRunForTask(
       status: string;
       version: number;
       detail: string | null;
+      legacyQuarantine?: unknown;
+      claimEpoch?: number;
     }[]
   >`
-    SELECT id, name, status, version, detail
+    SELECT id, name, status, version, detail, legacy_quarantine AS "legacyQuarantine", claim_epoch AS "claimEpoch"
     FROM app.automation_runs
     WHERE org_id = ${args.organizationId}
       AND (project_id = ${args.projectId} OR project_id IS NULL)
       AND ${
         options.liveOnly
-          ? sql`status IN ('queued', 'running', 'waiting')`
+          ? sql`status IN ('queued', 'running', 'waiting', 'quarantined')`
           : sql`TRUE`
       }
       AND input -> 'task' ->> 'id' = ${args.taskId}
@@ -988,5 +993,13 @@ async function findAutomationRunForTask(
     status: run.status,
     version: run.version,
     ...(run.detail !== null ? { detail: run.detail } : {}),
+    ...(run.legacyQuarantine == null
+      ? {}
+      : {
+          legacyQuarantine: describeLegacyQuarantine(
+            run.legacyQuarantine,
+            run.claimEpoch ?? Number.NaN,
+          ),
+        }),
   };
 }

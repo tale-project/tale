@@ -46,8 +46,8 @@ import { HomePanel } from '@/app/features/home/components/home-panel';
 import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
 import {
   hasOwnPhoneHeader,
+  isHomePath,
   readHomeLocation,
-  showsHomePanel,
 } from '@/app/features/home/lib/home-paths';
 import { EmbeddingSetupBanner } from '@/app/features/settings/data-residency/components/embedding-setup-banner';
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
@@ -425,7 +425,7 @@ function DashboardLayout() {
  * inbox) the Home panel sits beside the page, mounted ONCE here so moving
  * between those routes keeps it — scroll position, open groups and all —
  * instead of each page bringing its own navigation. Other sections render
- * their page alone.
+ * their page alone, an automation opened inside a project among them.
  */
 function HomeSectionFrame({
   organizationId,
@@ -446,7 +446,7 @@ function HomeSectionFrame({
       ? `project:${location.projectId ?? ''}`
       : location.kind,
   );
-  if (!showsHomePanel(pathname, organizationId)) return <>{children}</>;
+  if (!isHomePath(pathname, organizationId)) return <>{children}</>;
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
       {!isMobile && <HomePanel organizationId={organizationId} />}
