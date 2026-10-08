@@ -1968,7 +1968,9 @@ async function continueOrSettle(
       ? {
           failureCode: spendRefused
             ? ('budget_exceeded' as const)
-            : ('harness_error' as const),
+            : ended?.providerErrorKind === 'model_capacity'
+              ? ('model_capacity' as const)
+              : ('harness_error' as const),
         }
       : {}),
     // The harness-reported provider status (429/401/…) — absent for

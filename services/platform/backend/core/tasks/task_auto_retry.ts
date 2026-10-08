@@ -5,9 +5,12 @@
  * `tasks/mutations.ts` (`kickAutoRetryRun`).
  *
  * Semantics (2026-08-20): after per-request recovery, a failed run retries
- * immediately unless the task is in a rapid crash loop. The harness backs
- * off its requests; an unconfined fresh task start bounds transient broker
- * GET recovery within the admitted run. The loop detector is a CONSECUTIVE-failure budget
+ * immediately unless the task is in a rapid crash loop or the provider
+ * explicitly ended on model capacity. The latter waits one minute without
+ * forgiving an attempt: pinned Codex does not retry that terminal error.
+ * Other harness errors retain their existing request recovery; an unconfined
+ * fresh task start bounds transient broker GET recovery within the admitted
+ * run. The loop detector is a CONSECUTIVE-failure budget
  * with a progress reset, not a sliding window: a sliding window plus any
  * retry spacing lets a deterministically-broken task drip retries forever,
  * while a streak terminates it and still refreshes the budget whenever an
@@ -21,11 +24,18 @@
 
 export const AUTO_RETRY_MAX_ATTEMPTS = 3;
 
+/** Application retry floor after a typed model-capacity failure. Not an
+ * account cooldown or a promise that provider capacity returns in a minute. */
+export const MODEL_CAPACITY_RETRY_DELAY_MS = 60_000;
+
 /** Producer-side failure classification, stamped where each failure is
  * PRODUCED (`settleTaskAgentTurn` callers, the park watchdog, the capacity
  * wake) — never regex-derived from the free-text reason. */
 export type TaskRunFailureCode =
   | 'harness_error'
+  /** The selected model is overloaded, not a failed credential. The retry
+   * waits briefly, still counts, and keeps the prior account eligible. */
+  | 'model_capacity'
   | 'turn_crashed'
   | 'session_gone'
   | 'start_failed'

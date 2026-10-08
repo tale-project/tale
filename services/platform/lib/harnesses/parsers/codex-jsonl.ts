@@ -263,6 +263,9 @@ class CodexJsonlParser implements HarnessEventParser {
       if (failure.apiErrorStatus !== undefined) {
         result.apiErrorStatus = failure.apiErrorStatus;
       }
+      if (failure.providerErrorKind !== undefined) {
+        result.providerErrorKind = failure.providerErrorKind;
+      }
       events.push(result);
       return events;
     }
@@ -292,9 +295,18 @@ class CodexJsonlParser implements HarnessEventParser {
 export function describeTurnFailure(message: string | undefined): {
   message: string;
   apiErrorStatus?: number;
+  providerErrorKind?: 'model_capacity';
 } {
   const text = message?.trim() ?? '';
   if (text === '') return { message: 'Codex turn failed' };
+  // Pinned Codex 0.160.0: protocol/src/error.rs renders ServerOverloaded
+  // with this exact sentence. exec's ThreadErrorEvent exports only message,
+  // dropping codex_error_info; ServerOverloaded has no internal retry delay.
+  // Match its terminal channel only, not assistant/tool text or an invented
+  // HTTP 429. Unknown variants remain ordinary errors.
+  if (text === 'Selected model is at capacity. Please try a different model.') {
+    return { message: text, providerErrorKind: 'model_capacity' };
+  }
   // Vendor errors do not carry the gateway's status_code envelope. Pinned
   // Codex 0.142.5 prints ordinary HTTP failures as `unexpected status NNN`;
   // a ChatGPT usage_limit_reached 429 instead becomes this exact prose prefix.

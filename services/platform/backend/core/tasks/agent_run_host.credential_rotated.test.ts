@@ -208,6 +208,51 @@ describe('a brokered task agent turn the vendor answered 401', () => {
   });
 });
 
+describe('a Codex model-capacity failure', () => {
+  it('retains the conversation and original words without an account-rate-limit mutation', async () => {
+    const message =
+      'Selected model is at capacity. Please try a different model.';
+    io.stdout = ndjson([
+      { type: 'thread.started', thread_id: 'capacity-conversation' },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'msg',
+          type: 'agent_message',
+          text: 'I read the task before the provider refused.',
+        },
+      },
+      { type: 'turn.failed', error: { message } },
+    ]);
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+      brokerTokenHash: 'healthy-account',
+    });
+    await driveTaskAgentTurnImpl(ctx, { ...KEYS, harness: 'codex' });
+    expect(failedMarks(mutations)).toEqual([
+      {
+        name: 'tasks/agent_runs:markTaskAgentRunFailed',
+        args: expect.objectContaining({
+          failureCode: 'model_capacity',
+          error: message,
+          agentSessionId: 'capacity-conversation',
+        }),
+      },
+    ]);
+    expect(failedMarks(mutations)[0]?.args).not.toHaveProperty(
+      'apiErrorStatus',
+    );
+    expect(
+      mutations.some(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      ),
+    ).toBe(false);
+  });
+});
+
 describe('a 401 on a turn the broker did not serve', () => {
   it('stays an ordinary harness error — a static key or the gateway rotates nothing', async () => {
     io.stdout = CLAUDE_REVOKED;

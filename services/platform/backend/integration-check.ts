@@ -144,6 +144,7 @@ import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integ
 import { checkTaskExternalStatusProjection } from './domains/tasks/external-status.integration.ts';
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
+import { checkModelCapacityRetry } from './domains/tasks/model-capacity.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
@@ -61169,6 +61170,10 @@ async function main(): Promise<void> {
       [
         'checkCooledStartRetry',
         () => checkCooledStartRetry(sql, authCtx, record),
+      ],
+      [
+        'checkModelCapacityRetry',
+        () => checkModelCapacityRetry(sql, boss, authCtx, record),
       ],
       [
         'checkSessionOpTranscriptMerge',
