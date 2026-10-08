@@ -19,6 +19,9 @@ import {
   FlowNodeIssueMarker,
   flowNodeIssueFrameClass,
 } from './node-issue-marker';
+import { FlowNodeStatusIcon, type FlowNodeState } from './node-status';
+import type { FlowHighlight } from './paths/highlight';
+import type { FlowFrameState } from './playback/types';
 import type { FlowGraph, FlowGroup, FlowNode } from './types';
 
 export interface FlowStepListProps {
@@ -31,6 +34,12 @@ export interface FlowStepListProps {
   issues?: ReadonlyMap<string, IssueCounts>;
   /** The region a row's button opens (an inspector), if the host has one. */
   controlsId?: string;
+  /** A run shown with the list: each row says how its node went. */
+  run?: FlowFrameState | null;
+  /** A highlight: rows outside it step back and say why. */
+  highlight?: FlowHighlight | null;
+  /** The node a failed run stopped at, in focus. */
+  stoppedAt?: string | null;
   className?: string;
 }
 
@@ -73,6 +82,9 @@ function iconOf(node: FlowNode) {
  * reads, when it runs (its condition folded in) and where it leads; members
  * of a frame sit indented under the frame's words. One Tab stop: ↑ and ↓
  * move between rows, Home and End jump, Enter or Space opens a row.
+ *
+ * With a run, each row carries its node's state glyph and says how it went
+ * first; with a highlight, a row outside it is dashed and says why.
  */
 export function FlowStepList({
   graph,
@@ -81,6 +93,9 @@ export function FlowStepList({
   onSelect,
   issues,
   controlsId,
+  run = null,
+  highlight = null,
+  stoppedAt = null,
   className,
 }: FlowStepListProps) {
   const { t } = useT('flow');
@@ -88,6 +103,14 @@ export function FlowStepList({
   const { i18n } = useTranslation();
   const locale = i18n?.resolvedLanguage ?? i18n?.language ?? 'en';
   const baseId = useId();
+  const quietRest = highlight !== null && highlight.quietRest !== false;
+  const reasons = useMemo(() => {
+    if (!quietRest || highlight?.reasons === undefined) return undefined;
+    const quiet: Record<string, string> = {};
+    for (const [id, reason] of Object.entries(highlight.reasons))
+      if (!highlight.nodes.has(id)) quiet[id] = reason;
+    return quiet;
+  }, [highlight, quietRest]);
   const words = useMemo(
     () =>
       describeFlowGraph(graph, {
@@ -95,8 +118,11 @@ export function FlowStepList({
         tIssues,
         list: flowListFormat(locale),
         issues,
+        run,
+        stoppedAt,
+        reasons,
       }),
-    [graph, t, tIssues, locale, issues],
+    [graph, t, tIssues, locale, issues, run, stoppedAt, reasons],
   );
   const items = useMemo(() => itemsOf(graph), [graph]);
   const order = useMemo(
@@ -153,6 +179,8 @@ export function FlowStepList({
       selected={selectedId === node.id}
       tabbable={tabStop === node.id}
       counts={issues?.get(node.id) ?? NO_ISSUES}
+      state={run?.nodes[node.id]?.state ?? 'idle'}
+      quiet={quietRest && !highlight?.nodes.has(node.id)}
       controlsId={controlsId}
       onActivate={() => onSelect?.(selectedId === node.id ? null : node.id)}
       onKeyDown={(event) => move(node.id, event)}
@@ -196,6 +224,8 @@ function FlowListRow({
   selected,
   tabbable,
   counts,
+  state,
+  quiet,
   controlsId,
   onActivate,
   onKeyDown,
@@ -207,6 +237,8 @@ function FlowListRow({
   selected: boolean;
   tabbable: boolean;
   counts: IssueCounts;
+  state: FlowNodeState;
+  quiet: boolean;
   controlsId?: string;
   onActivate: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
@@ -230,8 +262,10 @@ function FlowListRow({
         onClick={onActivate}
         onKeyDown={onKeyDown}
         onFocus={onFocus}
+        data-flow-quiet={quiet || undefined}
         className={cn(
           'hover:bg-muted/60 flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left',
+          quiet && 'border-border border-dashed',
           'ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
           flowNodeIssueFrameClass(counts),
           selected && 'bg-muted ring-ring ring-2',
@@ -254,6 +288,7 @@ function FlowListRow({
           errors={counts.errors}
           warnings={counts.warnings}
         />
+        <FlowNodeStatusIcon state={state} />
       </button>
       {lines.length > 0 && (
         <span

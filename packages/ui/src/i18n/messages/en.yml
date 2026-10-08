@@ -558,6 +558,9 @@ flow:
   branch:
     'yes': 'Yes'
     'no': 'No'
+  group:
+    items: '{done} of {total, plural, one {# item} other {# items}}'
+    pass: Pass {pass} of {max}
   relation:
     comesFrom: Comes from {list}
     leadsTo: Leads to {list}
@@ -572,6 +575,9 @@ flow:
     skipped: Skipped
     stopped: Stopped here
     notRun: Not run
+    decidedYes: Condition was true
+    decidedNo: Condition was false
+    failedHere: The run stopped here
   list:
     label: Nodes
     reads: Reads {list}

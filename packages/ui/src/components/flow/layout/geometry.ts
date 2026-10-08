@@ -159,6 +159,42 @@ export function trimEnd(
   return out;
 }
 
+/**
+ * Points every `step` px along a route, its two ends included, each with
+ * how far along the route it lies (0–1) — keyframes for something that
+ * travels the route at an even speed.
+ */
+export function sampleRoute(
+  points: readonly FlowPoint[],
+  step: number,
+): Array<FlowPoint & { offset: number }> {
+  const first = points[0];
+  if (first === undefined) return [];
+  let total = 0;
+  for (let index = 1; index < points.length; index++)
+    total += distance(points[index - 1], points[index]);
+  if (total === 0 || step <= 0) return [{ ...first, offset: 0 }];
+  const out: Array<FlowPoint & { offset: number }> = [];
+  let walked = 0;
+  for (let index = 1; index < points.length; index++) {
+    const from = points[index - 1];
+    const to = points[index];
+    const run = distance(from, to);
+    for (let along = 0; along < run; along += step) {
+      const ratio = along / run;
+      out.push({
+        x: from.x + (to.x - from.x) * ratio,
+        y: from.y + (to.y - from.y) * ratio,
+        offset: (walked + along) / total,
+      });
+    }
+    walked += run;
+  }
+  const last = points[points.length - 1];
+  out.push({ x: last.x, y: last.y, offset: 1 });
+  return out;
+}
+
 const fmt = (value: number) => String(Math.round(value * 100) / 100);
 
 /**

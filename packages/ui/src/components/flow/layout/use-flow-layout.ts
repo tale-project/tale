@@ -34,6 +34,12 @@ export interface UseFlowLayoutResult {
   /** The layout before it, while the same picture changed — what a
    *  transition moves from. */
   previous: FlowLayout | null;
+  /** The graph `layout` was computed for: while a relayout is under way
+   *  it is the one before the newest, so what is drawn matches where it
+   *  is drawn. */
+  graph: FlowGraph | null;
+  /** The layout is the newest graph's (no relayout under way). */
+  settled: boolean;
   /** `failed` when the engine could not run and the graph stands in one
    *  column. */
   status: FlowLayoutStatus;
@@ -59,7 +65,8 @@ export function useFlowLayout(
     key: string | null;
     layout: FlowLayout | null;
     previous: FlowLayout | null;
-  }>({ key: null, layout: null, previous: null });
+    graph: FlowGraph | null;
+  }>({ key: null, layout: null, previous: null, graph: null });
   const [fontsLoaded, setFontsLoaded] = useState(false);
 
   useEffect(() => {
@@ -101,7 +108,12 @@ export function useFlowLayout(
     if (!samePicture) {
       const cached = flowLayoutCache.get(signature);
       if (cached) {
-        setState({ key: layoutKey, layout: cached, previous: null });
+        setState({
+          key: layoutKey,
+          layout: cached,
+          previous: null,
+          graph: latest.current.graph,
+        });
         return undefined;
       }
     }
@@ -121,6 +133,7 @@ export function useFlowLayout(
           key: layoutKey,
           layout,
           previous: samePicture ? before.layout : null,
+          graph: current,
         });
       },
       (error: unknown) => {
@@ -133,15 +146,15 @@ export function useFlowLayout(
 
   // A picture this session already laid out shows at once, without a
   // pending frame between two versions.
-  const current =
-    state.key === layoutKey
-      ? state.layout
-      : fontsLoaded
-        ? (flowLayoutCache.peek(signature) ?? null)
-        : null;
+  const ownState = state.key === layoutKey;
+  const peeked =
+    !ownState && fontsLoaded ? (flowLayoutCache.peek(signature) ?? null) : null;
+  const current = ownState ? state.layout : peeked;
   return {
     layout: current,
-    previous: state.key === layoutKey ? state.previous : null,
+    previous: ownState ? state.previous : null,
+    graph: ownState ? state.graph : peeked === null ? null : graph,
+    settled: current !== null && current.signature === signature,
     status:
       current === null
         ? 'pending'

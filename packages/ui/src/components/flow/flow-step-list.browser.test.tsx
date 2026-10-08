@@ -7,7 +7,13 @@ import { userEvent } from 'vitest/browser';
 import { render, screen, within } from '@/tests/utils/render';
 
 import { FlowStepList } from './flow-step-list';
-import { branchFlowGraph, triageFlowGraph } from './testing/flow-fixtures';
+import { highlightForNodes } from './paths/highlight';
+import { flowStateFromOverlay } from './playback/derive-state';
+import {
+  branchFlowGraph,
+  branchRunOverlay,
+  triageFlowGraph,
+} from './testing/flow-fixtures';
 import type { FlowGraph } from './types';
 
 import '../../globals.css';
@@ -120,6 +126,32 @@ describe('FlowStepList', () => {
   it('is named "Nodes" unless the host names it', () => {
     render(<FlowStepList graph={triageFlowGraph()} />);
     expect(screen.getByRole('list', { name: 'Nodes' })).toBeInTheDocument();
+  });
+
+  it('says how each node went in a run, and why a row steps back', () => {
+    const graph = branchFlowGraph();
+    render(
+      <FlowStepList
+        graph={graph}
+        aria-label="Nodes"
+        run={flowStateFromOverlay(graph, branchRunOverlay())}
+        highlight={{
+          ...highlightForNodes(graph, ['fetch', 'merge']),
+          reasons: { notify: 'Not on this path' },
+        }}
+      />,
+    );
+    const fetch = screen.getByRole('button', { name: 'Fetch (Succeeded)' });
+    expect(fetch).toHaveAccessibleDescription(/^Succeeded · 390 ms/);
+    expect(within(fetch).getByRole('img', { name: 'Succeeded' })).toBeVisible();
+    const notify = screen.getByRole('button', { name: 'Notify (Failed)' });
+    expect(notify).toHaveAttribute('data-flow-quiet', 'true');
+    expect(notify).toHaveAccessibleDescription(
+      /^The mail server refused the message Not on this path Reads Merge/,
+    );
+    expect(
+      screen.getByRole('button', { name: 'Fetch (Succeeded)' }),
+    ).not.toHaveAttribute('data-flow-quiet');
   });
 
   it('says so when there is nothing to list', () => {

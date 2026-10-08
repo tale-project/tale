@@ -68,7 +68,8 @@ const TOP_MARGIN = 24;
  *    keeps the graph readable (zoom 0.5 or more), else shows its top at a
  *    readable zoom, centred on its first node.
  *  - `fitKey`           — refit when it changes, while the view is still
- *    where the last fit left it (the graph was laid out again).
+ *    where the last fit left it (the graph was laid out again), easing
+ *    over `refitDuration` (a live relayout glides; a new picture jumps).
  *
  * Viewport moves ease out (quint) over the duration tokens and jump under
  * reduced motion. Everything else spreads onto `<ReactFlow>` untouched;
@@ -89,6 +90,9 @@ export interface FlowCanvasProps extends ReactFlowProps {
   fitPolicy?: FlowFitPolicy;
   /** Refit when this changes, while the view is still the fit. */
   fitKey?: unknown;
+  /** How long a refit for a new `fitKey` eases, in ms (0 under reduced
+   *  motion). @default 0 */
+  refitDuration?: number;
 }
 
 /** The view the last fit left, or `null` while a fit is under way. */
@@ -194,11 +198,13 @@ function FlowAutoFit({
   fitViewOptions,
   policy,
   fitKey,
+  refitDuration = 0,
 }: {
   memo: FitMemo;
   fitViewOptions?: FitViewOptions;
   policy: FlowFitPolicy;
   fitKey: unknown;
+  refitDuration?: number;
 }) {
   const { getViewport, getNodes, getNodesBounds } = useReactFlow();
   const fitAndRemember = useFitAndRemember(memo, policy);
@@ -208,8 +214,13 @@ function FlowAutoFit({
   // Nodes, not "nodes initialized": a canvas that gives its nodes explicit
   // sizes has no handles to measure, and that flag never turns true for it.
   const hasNodes = useStore((state) => state.nodeLookup.size > 0);
+  // The key the last fit was for: a new one eases, a resize jumps.
+  const fittedKey = useRef<{ key: unknown } | null>(null);
   useEffect(() => {
     if (!hasNodes || !width || !height) return undefined;
+    const newKey =
+      fittedKey.current !== null && fittedKey.current.key !== fitKey;
+    fittedKey.current = { key: fitKey };
     // Moved since the last fit: the view is not the fit any more.
     const fitted = memo.current;
     if (fitted !== null && !sameView(getViewport(), fitted)) return undefined;
@@ -226,7 +237,11 @@ function FlowAutoFit({
         );
         if (zoom < (fitViewOptions?.minZoom ?? minZoom)) return;
       }
-      void fitAndRemember(fitViewOptions);
+      void fitAndRemember(
+        newKey
+          ? { ...fitViewOptions, duration: refitDuration }
+          : fitViewOptions,
+      );
     });
     return () => cancelAnimationFrame(frame);
   }, [
@@ -242,6 +257,7 @@ function FlowAutoFit({
     getNodesBounds,
     fitAndRemember,
     fitViewOptions,
+    refitDuration,
   ]);
   return null;
 }
@@ -339,6 +355,7 @@ export function FlowCanvas({
   topEndActions,
   fitPolicy = 'all',
   fitKey,
+  refitDuration,
   children,
   ...flowProps
 }: FlowCanvasProps) {
@@ -361,6 +378,7 @@ export function FlowCanvas({
           fitViewOptions={flowProps.fitViewOptions}
           policy={fitPolicy}
           fitKey={fitKey}
+          refitDuration={refitDuration}
         />
       )}
       {topStartActions && (

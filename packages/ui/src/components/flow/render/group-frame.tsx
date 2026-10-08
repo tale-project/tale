@@ -4,9 +4,12 @@ import type { NodeProps } from '@xyflow/react';
 import { RefreshCw, Repeat } from 'lucide-react';
 import { memo } from 'react';
 
+import { cn } from '../../../lib/cn';
 import { FLOW_EDGE_COLORS, FLOW_EDGE_DASH } from '../edge-palette';
 import { roundedOrthogonalPath } from '../layout/geometry';
+import { FLOW_MOTION_CLASS } from '../motion/flow-motion';
 import type { FlowGroup, FlowRect } from '../types';
+import { useFlowRender, type FlowPhase } from './flow-render-context';
 
 export interface FlowFrameData extends Record<string, unknown> {
   group: FlowGroup;
@@ -15,6 +18,9 @@ export interface FlowFrameData extends Record<string, unknown> {
   /** The members' boxes, relative to the frame (where a repeat's loop
    *  arc runs). */
   members: readonly FlowRect[];
+  /** Joining (a new or resized frame fades in) or leaving with a live
+   *  relayout. */
+  phase?: FlowPhase;
 }
 
 /** How far a repeat's loop arc stands off its node's right side. */
@@ -26,19 +32,27 @@ const ARC_OFFSET = 20;
  * host's words in its header. Decoration only — every member's description
  * says the same — so it is hidden from assistive technology and never
  * takes a pointer. A repeat draws its loop as a dashed arc in its right
- * gutter, from the node's foot back to its head.
+ * gutter, from the node's foot back to its head. In a run, a counter in
+ * its top-right corner says how far it got ("12 of 50 items", "Pass 3 of
+ * 5"); the member's strip says the same.
  */
 export const FlowGroupFrameView = memo(function FlowGroupFrameView({
   data,
 }: NodeProps & { data: FlowFrameData }) {
-  const { group, header, members } = data;
+  const { group, header, members, phase } = data;
+  const { frameCounters } = useFlowRender();
+  const counter = phase === 'exit' ? undefined : frameCounters.get(group.id);
   const Icon = group.kind === 'repeat' ? RefreshCw : Repeat;
   const member = members[0];
   return (
     <div
       aria-hidden="true"
-      data-flow-frame={group.id}
-      className="border-border bg-muted/30 pointer-events-none relative size-full rounded-xl border border-dashed"
+      data-flow-frame={phase === 'exit' ? undefined : group.id}
+      className={cn(
+        'border-border bg-muted/30 pointer-events-none relative size-full rounded-xl border border-dashed',
+        phase === 'enter' && FLOW_MOTION_CLASS.fadeIn,
+        phase === 'exit' && FLOW_MOTION_CLASS.fadeOut,
+      )}
     >
       <div
         data-slot="flow-frame-header"
@@ -53,6 +67,15 @@ export const FlowGroupFrameView = memo(function FlowGroupFrameView({
         <Icon className="size-3.5 shrink-0" />
         <span className="truncate">{group.label}</span>
       </div>
+      {counter && (
+        <span
+          data-slot="flow-frame-counter"
+          className="bg-background text-foreground border-border absolute right-2 inline-flex h-5 items-center rounded-full border px-2 text-xs font-medium tabular-nums"
+          style={{ top: header.y + (header.height - 20) / 2 }}
+        >
+          {counter}
+        </span>
+      )}
       {group.kind === 'repeat' && member && (
         <svg className="absolute inset-0 size-full overflow-visible">
           <path

@@ -130,10 +130,11 @@ export const FlowEntryNodeView = memo(function FlowEntryNodeView({
   data,
 }: NodeProps & { data: FlowNodeData<FlowEntryNode> }) {
   const { t } = useT('flow');
-  const { node } = data;
+  const { node, phase } = data;
   return (
     <FlowNodeButton
       id={node.id}
+      phase={phase}
       className="bg-card text-card-foreground border-border flex flex-col rounded-lg border shadow-sm"
     >
       <span className="flex min-h-0 flex-1 flex-col px-3 pt-3">

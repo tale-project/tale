@@ -813,6 +813,49 @@
   animation: row-enter 0.2s ease-out;
 }
 
+/* Workflow canvas motion (components/flow/motion/flow-motion.ts names the
+   timings; every one is skipped under reduced motion). A node that joins a
+   relaid chart grows in from the exit scale, one that leaves shrinks back
+   to it, a re-routed line fades out, a changed node's ring fades away, and
+   a running node's top bar sweeps across. Opacity and transform only. */
+@keyframes flow-enter {
+  from {
+    opacity: 0;
+    transform: scale(var(--scale-exit));
+  }
+}
+
+@keyframes flow-exit {
+  to {
+    opacity: 0;
+    transform: scale(var(--scale-exit));
+  }
+}
+
+@keyframes flow-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes flow-ring-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes flow-running-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
 /* Structured message sections (chat / agent output rendering). */
 .structured-conclusion {
   border-left: 2px solid hsl(var(--primary));

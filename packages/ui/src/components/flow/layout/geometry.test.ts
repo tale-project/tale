@@ -8,6 +8,7 @@ import {
   joinSections,
   rectsOverlap,
   roundedOrthogonalPath,
+  sampleRoute,
   segmentCrossesRect,
   trimEnd,
 } from './geometry';
@@ -184,5 +185,41 @@ describe('rectangles', () => {
         { x: -5, y: 0, width: 4, height: 4 },
       ]),
     ).toEqual({ x: -5, y: 0, width: 15, height: 15 });
+  });
+});
+
+describe('sampleRoute', () => {
+  it('walks the route at an even step, both ends included', () => {
+    const samples = sampleRoute(
+      [
+        { x: 0, y: 0 },
+        { x: 0, y: 16 },
+        { x: 20, y: 16 },
+      ],
+      8,
+    );
+    expect(samples.map(({ x, y }) => [x, y])).toEqual([
+      [0, 0],
+      [0, 8],
+      [0, 16],
+      [8, 16],
+      [16, 16],
+      [20, 16],
+    ]);
+    expect(samples.map((sample) => sample.offset)).toEqual([
+      0,
+      8 / 36,
+      16 / 36,
+      24 / 36,
+      32 / 36,
+      1,
+    ]);
+  });
+
+  it('gives a point route its one point', () => {
+    expect(sampleRoute([{ x: 3, y: 4 }], 8)).toEqual([
+      { x: 3, y: 4, offset: 0 },
+    ]);
+    expect(sampleRoute([], 8)).toEqual([]);
   });
 });

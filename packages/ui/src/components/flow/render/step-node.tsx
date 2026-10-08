@@ -9,16 +9,20 @@ import { cn } from '../../../lib/cn';
 import { ISSUE_SEVERITY_CHIP_CLASS } from '../../feedback/issue-severity';
 import { SKELETON_PULSE } from '../../feedback/skeleton';
 import { FlowNodeIssueMarker } from '../node-issue-marker';
+import { FlowNodeStatusIcon } from '../node-status';
 import type { FlowChip, FlowIcon, FlowStepNode } from '../types';
 import {
   FlowNodeButton,
   FlowNodeStrip,
   useFlowRender,
+  type FlowPhase,
 } from './flow-render-context';
 
 /** The data React Flow carries for a box. */
 export interface FlowNodeData<T> extends Record<string, unknown> {
   node: T;
+  /** Joining or leaving with a live relayout. */
+  phase?: FlowPhase;
 }
 
 const CHIP_TONE: Record<NonNullable<FlowChip['tone']>, string> = {
@@ -44,7 +48,8 @@ function FlowChipPill({ chip }: { chip: FlowChip }) {
   );
 }
 
-/** The title row every box shares: icon tile, title, glyphs, problems. */
+/** The title row every box shares: icon tile, title, glyphs, problems and,
+ *  in a run, the state's glyph. */
 export function FlowNodeTitleRow({
   id,
   icon: Icon,
@@ -56,8 +61,9 @@ export function FlowNodeTitleRow({
   title: string;
   trailing?: ReactNode;
 }) {
-  const { issues } = useFlowRender();
+  const { issues, looks } = useFlowRender();
   const counts = issues.get(id);
+  const state = looks.get(id)?.state ?? 'idle';
   return (
     <span className="flex h-5 items-center gap-2">
       <span className="bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-md">
@@ -74,6 +80,7 @@ export function FlowNodeTitleRow({
             warnings={counts.warnings}
           />
         )}
+        <FlowNodeStatusIcon state={state} className="size-3.5" />
       </span>
     </span>
   );
@@ -89,7 +96,7 @@ export const FlowStepNodeView = memo(function FlowStepNodeView({
   data,
 }: NodeProps & { data: FlowNodeData<FlowStepNode> }) {
   const { t } = useT('flow');
-  const { node } = data;
+  const { node, phase } = data;
   const chips = node.chips ?? [];
   const shown = chips.slice(0, 2);
   const hidden = chips.length - shown.length;
@@ -97,6 +104,7 @@ export const FlowStepNodeView = memo(function FlowStepNodeView({
   return (
     <FlowNodeButton
       id={node.id}
+      phase={phase}
       dashed={node.conditional === true || node.unreachable === true}
       className="bg-card text-card-foreground border-border flex flex-col rounded-lg border shadow-sm"
     >

@@ -1,5 +1,7 @@
 import type { IssueCounts } from '../feedback/issue-summary';
 import { flowNodeIssueText } from './node-issue-marker';
+import { FLOW_NODE_STATE } from './node-status';
+import type { FlowFrameState, FlowNodeRunInfo } from './playback/types';
 import type { FlowEdge, FlowGraph, FlowNode, FlowRow } from './types';
 
 /** Translates a key of the `flow` namespace (or of `issues`, with `ns`). */
@@ -16,7 +18,8 @@ export interface FlowWords {
   /** The accessible description: where the node sits, what it comes from
    *  and leads to, when it runs, what it reads, and the host's sentences. */
   descriptions: ReadonlyMap<string, string>;
-  /** The line along a box's foot when no run is shown. */
+  /** The line along a box's foot: what it reads, or in a run how it
+   *  went, or why it steps back from a highlight. */
   strips: ReadonlyMap<string, string>;
   /** The title of a node as other sentences name it. */
   titles: ReadonlyMap<string, string>;
@@ -44,6 +47,51 @@ export function flowNodeTitle(node: FlowNode, t: FlowTranslate): string {
   return node.label;
 }
 
+/**
+ * A node's run in words: a condition's decision, Start's and End's own
+ * line, or a step's state (or the host's reason) and its detail — "Failed
+ * · 1.2 s", "Running · 12 of 50 items". The node the run stopped at says so
+ * when the host gave no error line.
+ */
+export function flowRunText(
+  node: FlowNode,
+  info: FlowNodeRunInfo,
+  t: FlowTranslate,
+  stoppedHere = false,
+): string {
+  const state =
+    info.state === 'idle' ? '' : t(FLOW_NODE_STATE[info.state].labelKey);
+  if (node.kind === 'gate')
+    return info.decision === undefined
+      ? state
+      : t(info.decision ? 'state.decidedYes' : 'state.decidedNo');
+  if (node.kind === 'entry' || node.kind === 'exit')
+    return info.detail ?? info.reason ?? state;
+  const words =
+    info.reason ??
+    (stoppedHere && info.state === 'failed' ? t('state.failedHere') : state);
+  const detail =
+    info.detail ??
+    (info.items?.total === undefined
+      ? undefined
+      : t('group.items', { done: info.items.done, total: info.items.total })) ??
+    (info.pass?.max === undefined
+      ? undefined
+      : t('group.pass', { pass: info.pass.current, max: info.pass.max }));
+  return detail === undefined || detail === '' ? words : `${words} · ${detail}`;
+}
+
+/** A node's state in one word for its name; a condition's decision. */
+function runName(
+  node: FlowNode,
+  info: FlowNodeRunInfo,
+  t: FlowTranslate,
+): string {
+  if (node.kind === 'gate' && info.decision !== undefined)
+    return t(info.decision ? 'state.decidedYes' : 'state.decidedNo');
+  return info.state === 'idle' ? '' : t(FLOW_NODE_STATE[info.state].labelKey);
+}
+
 function rowText(row: FlowRow, t: FlowTranslate): string {
   const detail = [row.detail, row.note, row.badge?.label]
     .filter(Boolean)
@@ -64,12 +112,22 @@ export function describeFlowGraph(
     tIssues,
     list,
     issues,
+    run,
+    stoppedAt,
+    reasons,
   }: {
     t: FlowTranslate;
     /** Reads the `issues` namespace (a node's problem counts). */
     tIssues: FlowTranslate;
     list: (items: readonly string[]) => string;
     issues?: ReadonlyMap<string, IssueCounts>;
+    /** A run shown on the chart: every node says how it went. */
+    run?: FlowFrameState | null;
+    /** The node the run stopped at, in focus: without an error line its
+     *  strip says the run stopped here. */
+    stoppedAt?: string | null;
+    /** Why a node steps back from a highlight, by id: its strip says so. */
+    reasons?: Readonly<Record<string, string>>;
   },
 ): FlowWords {
   const byId = new Map(graph.nodes.map((node) => [node.id, node]));
@@ -145,11 +203,24 @@ export function describeFlowGraph(
       issues?.get(node.id) ?? NO_ISSUES,
     );
     const title = titleOf(node.id);
-    const base =
+    const plain =
       node.kind === 'gate'
         ? t('gate.name', { node: node.label, condition: node.condition })
         : title;
+    const info = run?.nodes[node.id];
+    const stateName = info ? runName(node, info, t) : '';
+    const base =
+      stateName === ''
+        ? plain
+        : t('node.rowWithDetail', { label: plain, detail: stateName });
     names.set(node.id, issueText === '' ? base : `${base} ${issueText}`);
+    const runText = info
+      ? flowRunText(node, info, t, stoppedAt === node.id)
+      : '';
+    const reason = reasons?.[node.id];
+    // The run's words, or the highlight's reason, are said once more in the
+    // description only when they add something to the name's state word.
+    const extra = [runText === stateName ? '' : runText, reason ?? ''];
 
     const parts: (string | null | undefined)[] = [
       t('node.position', { index: index + 1, count }),
@@ -157,7 +228,8 @@ export function describeFlowGraph(
     let listLines: (string | null | undefined)[] = [];
     if (node.kind === 'step') {
       const reads = readsOf(node);
-      strips.set(node.id, reads);
+      strips.set(node.id, reason ?? (runText || reads));
+      parts.push(...extra);
       parts.push(
         comesFrom(node.id),
         ...conditions(node.id),
@@ -167,12 +239,15 @@ export function describeFlowGraph(
       if (node.unreachable) parts.push(t('node.unreachable'));
       parts.push(node.description);
       listLines = [
+        runText,
+        reason,
         reads,
         ...conditions(node.id),
         leadsTo(node.id),
         node.unreachable ? t('node.unreachable') : null,
       ];
     } else if (node.kind === 'gate') {
+      parts.push(...extra);
       const out = outgoing.get(node.id) ?? [];
       const yes = out.find((edge) => edge.kind === 'branch-yes');
       const no = out.find((edge) => edge.kind === 'branch-no');
@@ -188,8 +263,8 @@ export function describeFlowGraph(
       parts.push(node.description);
     } else if (node.kind === 'entry') {
       const leads = leadsTo(node.id);
-      strips.set(node.id, leads ?? '');
-      parts.push(leads);
+      strips.set(node.id, reason ?? (runText || (leads ?? '')));
+      parts.push(...extra, leads);
       parts.push(
         node.description ??
           [
@@ -207,6 +282,7 @@ export function describeFlowGraph(
             .join('. '),
       );
       listLines = [
+        runText,
         node.triggers.length > 0
           ? section(t('node.triggers'), node.triggers, '')
           : null,
@@ -219,8 +295,8 @@ export function describeFlowGraph(
       ];
     } else {
       const from = comesFrom(node.id);
-      strips.set(node.id, from ?? '');
-      parts.push(from);
+      strips.set(node.id, reason ?? (runText || (from ?? '')));
+      parts.push(...extra, from);
       const outcomes = node.outcomes ?? [];
       parts.push(
         node.description ??
@@ -240,6 +316,7 @@ export function describeFlowGraph(
             .join('. '),
       );
       listLines = [
+        runText,
         section(
           t('node.outputs'),
           node.outputs,

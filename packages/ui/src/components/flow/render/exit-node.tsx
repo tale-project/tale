@@ -21,11 +21,12 @@ export const FlowExitNodeView = memo(function FlowExitNodeView({
   data,
 }: NodeProps & { data: FlowNodeData<FlowExitNode> }) {
   const { t } = useT('flow');
-  const { node } = data;
+  const { node, phase } = data;
   const outcomes = node.outcomes ?? [];
   return (
     <FlowNodeButton
       id={node.id}
+      phase={phase}
       className="bg-card text-card-foreground border-border flex flex-col rounded-lg border shadow-sm"
     >
       <span className="flex min-h-0 flex-1 flex-col px-3 pt-3">
