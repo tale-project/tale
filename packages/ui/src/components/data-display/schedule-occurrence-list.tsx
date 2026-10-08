@@ -181,7 +181,10 @@ export function ScheduleOccurrenceList({
           {emptyText ?? t('occurrences.empty')}
         </p>
       ) : (
+        // An explicit list role: Safari drops the list semantics of a list
+        // styled without markers.
         <ol
+          role="list"
           aria-labelledby={headingId}
           className={cn(
             'flex flex-col',

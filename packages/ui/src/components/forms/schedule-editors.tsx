@@ -176,7 +176,9 @@ export function ScheduleTimesEditor({
         <span id={atId} className={LABEL_CLASSES}>
           {t('editor.at')}
         </span>
-        <ul aria-labelledby={atId} className="flex flex-col gap-2">
+        {/* An explicit list role: Safari drops the list semantics of a
+            list styled without markers. */}
+        <ul role="list" aria-labelledby={atId} className="flex flex-col gap-2">
           {draft.times.map((time, index) => {
             const key = rowKeys[index] ?? `row-${index}`;
             const duplicate = draft.times

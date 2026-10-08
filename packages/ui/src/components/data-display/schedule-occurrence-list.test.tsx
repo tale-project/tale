@@ -32,6 +32,8 @@ describe('ScheduleOccurrenceList', () => {
       name: 'Next runs · Europe/Zurich',
     });
     expect(list.tagName).toBe('OL');
+    // Safari keeps an unmarked list a list only with the role said.
+    expect(list).toHaveAttribute('role', 'list');
     expect(rows()).toEqual([
       'Tue, Oct 13, 9:00 AM',
       'Wed, Oct 14, 9:00 AM',

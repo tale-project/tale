@@ -311,6 +311,8 @@ describe('RecurrencePicker in time mode', () => {
         ).toHaveFocus(),
       );
       const at = within(dialog).getByRole('list', { name: 'At' });
+      // Safari keeps an unmarked list a list only with the role said.
+      expect(at).toHaveAttribute('role', 'list');
       expect(within(at).getAllByRole('group')).toHaveLength(2);
       await user.click(
         within(dialog).getByRole('button', { name: 'Add time' }),
