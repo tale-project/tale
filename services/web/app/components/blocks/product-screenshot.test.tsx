@@ -232,25 +232,55 @@ describe('captured product motion', () => {
     expect(screen.getByRole('img')).toBeDefined();
   });
 
-  it('leaves the poster and an explicit Play action when autoplay is blocked', async () => {
-    play.mockRejectedValueOnce(
-      new DOMException('User gesture required', 'NotAllowedError'),
-    );
-    const { container } = render(<ProductScreenshot page="agents" />);
-    await runningVideo(container);
-    await waitFor(() =>
+  it.each(['NotAllowedError', 'AbortError'])(
+    'keeps the media and explicit Play action after a recoverable %s',
+    async (name) => {
+      let rejectPlay: ((reason: DOMException) => void) | undefined;
+      play.mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectPlay = reject;
+          }),
+      );
+      const { container } = render(<ProductScreenshot page="agents" />);
+      const video = await runningVideo(container);
+      const sources = Array.from(video.querySelectorAll('source'));
+      const sourcePaths = sources.map((source) => source.getAttribute('src'));
+      expect(sources).toHaveLength(2);
+      expect(rejectPlay).toBeDefined();
+      rejectPlay?.(new DOMException('Playback needs a user retry', name));
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: 'pages.playMotion' }),
+        ).toBeDefined(),
+      );
+      expect(screen.getByRole('img')).toBeDefined();
+      expect(container.querySelector('video')).toBe(video);
       expect(
-        screen.getByRole('button', { name: 'pages.playMotion' }),
-      ).toBeDefined(),
-    );
-    expect(screen.getByRole('img')).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'pages.playMotion' }));
-    await waitFor(() =>
+        container.querySelector('figure')?.dataset.productMotionState,
+      ).toBe('paused');
+      expect(video.querySelectorAll('source')[0]).toBe(sources[0]);
+      expect(video.querySelectorAll('source')[1]).toBe(sources[1]);
+      const attempts = play.mock.calls.length;
+      fireEvent.click(screen.getByRole('button', { name: 'pages.playMotion' }));
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: 'pages.pauseMotion' }),
+        ).toBeDefined(),
+      );
+      expect(play).toHaveBeenCalledTimes(attempts + 1);
+      expect(play.mock.contexts.at(-1)).toBe(video);
+      expect(container.querySelector('video')).toBe(video);
+      expect(video.querySelectorAll('source')[0]).toBe(sources[0]);
+      expect(video.querySelectorAll('source')[1]).toBe(sources[1]);
+      expect(sources.map((source) => source.getAttribute('src'))).toEqual(
+        sourcePaths,
+      );
       expect(
-        screen.getByRole('button', { name: 'pages.pauseMotion' }),
-      ).toBeDefined(),
-    );
-  });
+        container.querySelector('figure')?.dataset.productMotionState,
+      ).toBe('playing');
+    },
+  );
 
   it('removes failed media and preserves the responsive image and original inspection link', async () => {
     const { container } = render(<ProductScreenshot page="agents" />);

@@ -59,7 +59,8 @@ The eight product heroes also have individual native interactions in English, Ge
 including separate phone takes. Silent WebM clips use an H.264 MP4 fallback and matching native
 first-frame posters from the same image optimizer. Reduced motion and unplayable media retain
 the static capture. Playback has localized pause and resume controls;
-the full-resolution screenshot link remains available.
+the full-resolution screenshot link remains available. If autoplay is blocked or the browser
+interrupts playback to save power, the poster and Play control remain available for a user retry.
 
 ```bash
 bun run web:animations -- --state-dir /absolute/path/to/isolated-capture-state --config-dir /absolute/path/to/platform/config

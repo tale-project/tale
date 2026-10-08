@@ -100,8 +100,12 @@ function useProductMotion(
     let cancelled = false;
     void video.play().catch((error: unknown) => {
       if (cancelled) return;
-      // A blocked autoplay can be started with the user's Play button.
-      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+      // Autoplay policy and browser power-saving interruptions can be
+      // retried with the user's Play button without discarding the media.
+      if (
+        error instanceof DOMException &&
+        (error.name === 'NotAllowedError' || error.name === 'AbortError')
+      ) {
         setManualPause(true);
       } else {
         setFailedKey(key);
