@@ -33,6 +33,13 @@ export const RUN_LEASE_MS = 30_000;
  * event loop) still do not read as death. */
 export const RUN_HEARTBEAT_INTERVAL_MS = 10_000;
 
+/** How long a walker keeps renewing its lease once its turn was cut — its
+ * job given up on, or its server's step grace spent. A body that honours the
+ * cut settles well inside it (the step grace is 20 s); one that ignores it
+ * stops holding the run, its lease lapses, and another worker takes the run
+ * over. */
+export const CUT_TURN_BEAT_MS = 30_000;
+
 /** Overdue runs re-poked per sweep tick, oldest promise first. */
 export const LIVENESS_SWEEP_LIMIT = 50;
 

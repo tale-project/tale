@@ -77,6 +77,7 @@ import {
   type RunLedger,
 } from './ledger';
 import {
+  CUT_TURN_BEAT_MS,
   FOREACH_CURSOR_COMMIT_ITEMS,
   FOREACH_CURSOR_COMMIT_MS,
   IN_DOUBT_POLL_MS,
@@ -209,6 +210,23 @@ function nodeEffect(nodeType: string): 'read' | 'write' | 'unknown' {
     (candidate) => candidate.name === nodeType.slice(separator + 1),
   );
   return action ? action.effects : 'unknown';
+}
+
+/** The connector door's answer as the ledger kept it for a call inside a
+ * subautomation: its output and whether it wrote. A call a person skipped
+ * keeps nothing, and reads as one that returned nothing and wrote nothing. */
+function readDispatchResult(value: unknown): {
+  output: unknown;
+  effects: string;
+} {
+  if (value === null || typeof value !== 'object' || !('output' in value)) {
+    return { output: null, effects: 'read' };
+  }
+  const effects = 'effects' in value ? value.effects : undefined;
+  return {
+    output: value.output,
+    effects: typeof effects === 'string' ? effects : 'read',
+  };
 }
 
 /** Whether a connector node's action declares that calling it twice with
@@ -710,7 +728,8 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   // A live write goes through the ledger: a resumed run reuses a write that
   // finished, and one that may or may not have reached its service waits for
   // a person unless its action may safely be repeated. Reads, and every mock
-  // call, change nothing outside the run and simply run again.
+  // call, change nothing outside the run and simply run again — at the top
+  // level, where the outputs a node reads are checkpointed.
   if (run.mode === 'live' && nodeEffect(node.type) === 'write') {
     const effect = { node: node.id, connector: node.type, input: resolved };
     let output: unknown;
@@ -741,7 +760,33 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
     effects.push(effect);
     return output;
   }
-  const result = await dispatch();
+  // Inside a subautomation every other live call goes through the ledger
+  // too, as one that may simply be made again. The sub-run walks again from
+  // its first node after an interruption, and its writes are addressed by
+  // position: a read answered differently the second time (a record that
+  // arrived in between) would line the list's items up with other items'
+  // writes — reusing one item's result for another that was never sent, and
+  // sending one that was. A finished read answers what the first walk acted
+  // on; one nobody finished is made again.
+  const result =
+    run.mode === 'live' && args.depth > 0
+      ? readDispatchResult(
+          await callThroughLedger(
+            run.ledger,
+            {
+              nodeId: args.path,
+              itemIndex: args.itemIndex,
+              pass: args.pass,
+              kind: 'connector',
+              nodeType: node.type,
+              input: resolved,
+              recallable: true,
+            },
+            dispatch,
+            run.signal,
+          ),
+        )
+      : await dispatch();
   if (result.effects === 'write') {
     effects.push({ node: node.id, connector: node.type, input: resolved });
   }
@@ -799,11 +844,11 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
     // ceiling the hand-off exists to avoid. A turn always advances at least one
     // node, so a budget that is already spent slows a run down instead of
     // livelocking it — unless its server is stopping: a turn claimed then
-    // hands on before its first node, and the next server walks it.
+    // hands on before its first node, even one it would resume mid-loop (its
+    // place there is saved already), and the next server walks it.
     const resuming = checkpoints.cursor?.node === node.id;
     if (
-      (stepped > 0 || run.shuttingDown()) &&
-      !resuming &&
+      (run.shuttingDown() || (stepped > 0 && !resuming)) &&
       sink.shouldHandOff()
     ) {
       await sink.handOff(yieldNote(run));
@@ -1841,14 +1886,40 @@ async function stepRunTurn(
   });
   if (!claim.claimed) return { status: claim.status };
   const epoch = claim.epoch;
+  // The turn's signal: its job's, joined with the cut of a stopping server.
+  const shutdown = options.shutdown ?? processShutdown;
+  const signal =
+    options.signal === undefined
+      ? shutdown.interrupt
+      : AbortSignal.any([options.signal, shutdown.interrupt]);
+  let cutAt: number | undefined = signal.aborted ? Date.now() : undefined;
+  signal.addEventListener(
+    'abort',
+    () => {
+      cutAt ??= Date.now();
+    },
+    { once: true },
+  );
 
   // Renew the liveness promise for as long as this walker is genuinely
   // working — a node awaiting a slow local model for half an hour stays
   // alive by heartbeat, and only a walker that actually died goes silent
   // and gets its run re-poked by the sweep. A superseded walker stops
-  // beating; its state writes are refused by the same epoch fence.
+  // beating; its state writes are refused by the same epoch fence. So does
+  // a walker whose turn was cut (its job given up on, or its server's step
+  // grace spent) and whose body still has not settled long after: a body
+  // that ignores the cut would otherwise hold the run for good, where a
+  // lapsed lease lets another worker take it over.
   let beating = true;
   const heartbeat = setInterval(() => {
+    if (cutAt !== undefined && Date.now() - cutAt > CUT_TURN_BEAT_MS) {
+      beating = false;
+      clearInterval(heartbeat);
+      console.warn(
+        `[automations] run ${args.runId}: its turn was cut ${CUT_TURN_BEAT_MS} ms ago and has not ended — no longer renewing its lease, so another worker can take it over`,
+      );
+      return;
+    }
     void ctx
       .runMutation(internal.automations.mutations.heartbeatRun, {
         organizationId: args.organizationId,
@@ -1865,7 +1936,7 @@ async function stepRunTurn(
   }, RUN_HEARTBEAT_INTERVAL_MS);
 
   try {
-    return await stepClaimedRun(ctx, args, epoch, options);
+    return await stepClaimedRun(ctx, args, epoch, options, signal);
   } finally {
     beating = false;
     clearInterval(heartbeat);
@@ -1878,6 +1949,7 @@ async function stepClaimedRun(
   args: { organizationId: string; runId: Id<'automationRuns'> },
   epoch: number,
   options: StepRunOptions,
+  signal: AbortSignal,
 ): Promise<{ status: string }> {
   {
     const loaded = await ctx.runQuery(
@@ -1941,10 +2013,6 @@ async function stepClaimedRun(
     const checkpoints = parsed.checkpoints;
     const shutdown = options.shutdown ?? processShutdown;
     const draining = options.draining ?? (() => false);
-    const signal =
-      options.signal === undefined
-        ? shutdown.interrupt
-        : AbortSignal.any([options.signal, shutdown.interrupt]);
     const run: RunContext = {
       ctx,
       organizationId: args.organizationId,

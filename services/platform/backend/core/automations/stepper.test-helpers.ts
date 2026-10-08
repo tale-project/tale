@@ -55,6 +55,8 @@ export interface FakeWorld {
   progress: Array<Record<string, unknown>>;
   /** Every saved-automation lookup, in order. */
   lookups: Array<Record<string, unknown>>;
+  /** How many times a walker renewed its lease. */
+  heartbeats: number;
   /** Answers the next `recordProgress` with this status instead of the
    * run's, once. */
   answerNextProgress?: string;
@@ -109,6 +111,7 @@ export function fakeStepperWorld(options: {
     finished: [],
     progress: [],
     lookups: [],
+    heartbeats: 0,
   };
   let nextAttemptId = 1;
 
@@ -216,7 +219,10 @@ export function fakeStepperWorld(options: {
         world.afterClaim?.();
         return { claimed: true, epoch };
       }
-      if (name.endsWith(':heartbeatRun')) return { alive: true };
+      if (name.endsWith(':heartbeatRun')) {
+        world.heartbeats += 1;
+        return { alive: true };
+      }
       if (name.endsWith(':evaluateApprovalGate')) return { decision: 'allow' };
       if (name.endsWith(':beginNodeAttempt')) return begin(args);
       if (name.endsWith(':finishNodeAttempt')) return finishAttempt(args);

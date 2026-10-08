@@ -202,7 +202,7 @@ describe('the stepper and the effect ledger', () => {
       status: 'failed',
       failureCode: 'effect_in_doubt',
       detail:
-        'send: send was failed by a person: the step may already have run',
+        'send: a person chose to fail the run here, since the step may already have run',
       // It may have happened, so the effect log keeps it.
       effects: [expect.objectContaining({ node: 'send' })],
     });
@@ -304,6 +304,86 @@ describe('the stepper and the effect ledger', () => {
     });
     expect(world.connectorCalls.map((call) => call.idempotencyKey)).toEqual([
       'run-1:batch[1:0]/send:0',
+    ]);
+  });
+
+  it('walks a subautomation again over the records its first walk read, so no item is skipped or sent twice [AUTO-R19]', async () => {
+    // Ada's nightly batch lists the new invoices and sends each one. The
+    // list's answer changes between two walks: a new invoice arrived.
+    const child = automation(
+      [
+        { id: 'list', type: 'webdav.list', input: { path: '/invoices' } },
+        {
+          id: 'send',
+          type: 'webdav.write',
+          forEach: '{{ nodes.list.output.entries }}',
+          input: { path: '{{ item }}', content: 'due' },
+        },
+      ],
+      '{{ nodes.send.output }}',
+    );
+    let listed = ['A', 'B', 'C'];
+    const world = fakeStepperWorld({
+      document: automation(
+        [{ id: 'batch', type: 'subautomation', automation: 'send-new' }],
+        '{{ nodes.batch.output }}',
+      ),
+      saved: { 'send-new': { versions: { 2: child }, deployed: 2 } },
+      connector: async (args) =>
+        args.action === 'list'
+          ? { status: 'ok', output: { entries: listed }, effects: 'read' }
+          : { status: 'ok', output: { sent: args.input }, effects: 'write' },
+    });
+    await expect(stepRunImpl(world.ctx, RUN)).resolves.toEqual({
+      status: 'success',
+    });
+    const sentPaths = () =>
+      world.connectorCalls
+        .filter((call) => call.action === 'write')
+        .map((call) => (call.input as { path: string }).path);
+    expect(sentPaths()).toEqual(['A', 'B', 'C']);
+
+    // The server stopped while C was being sent, before the batch node was
+    // recorded: only the ledger survived, with C's send left open.
+    world.run.status = 'queued';
+    world.run.checkpoints = { nodes: {}, executions: 0 };
+    world.finished.length = 0;
+    const openSend = world.ledger.get(ledgerKey('batch[0:0]/send', 2, 0));
+    if (openSend === undefined) throw new Error('no ledger row for C');
+    openSend.status = 'started';
+    delete openSend.output;
+    listed = ['X', 'A', 'B', 'C'];
+
+    await expect(stepRunImpl(world.ctx, RUN)).resolves.toEqual({
+      status: 'running',
+    });
+    // The list was not asked again, and the run waits on C — the item
+    // whose send may have happened — not on another one.
+    expect(
+      world.connectorCalls.filter((call) => call.action === 'list'),
+    ).toHaveLength(1);
+    expect(world.suspended.at(-1)).toMatchObject({
+      detail: 'in_doubt:batch',
+      event: {
+        detail: {
+          path: 'batch[0:0]/send',
+          itemIndex: 2,
+          attemptId: openSend.id,
+        },
+      },
+    });
+    expect(openSend.input).toEqual({ path: 'C', content: 'due' });
+
+    // Ada checks the accounting system and has it send C again.
+    openSend.resolution = 'retry';
+    await expect(stepRunImpl(world.ctx, RUN)).resolves.toEqual({
+      status: 'success',
+    });
+    expect(sentPaths()).toEqual(['A', 'B', 'C', 'C']);
+    expect(world.finished[0]?.output).toEqual([
+      { sent: { path: 'A', content: 'due' } },
+      { sent: { path: 'B', content: 'due' } },
+      { sent: { path: 'C', content: 'due' } },
     ]);
   });
 

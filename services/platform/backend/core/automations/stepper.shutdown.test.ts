@@ -184,6 +184,47 @@ describe('a run whose server starts shutting down [AUTO-R22]', () => {
   });
 });
 
+describe('a run claimed while its server is stopping [AUTO-R22]', () => {
+  it('hands a loop it would resume on before its next item, keeping its place', async () => {
+    // Noah's import had listed two of three folders when its last server
+    // stopped; the step job lands on a server that is stopping too.
+    const cursor = {
+      node: 'list',
+      index: 2,
+      passes: 0,
+      outs: [[{ path: '/a' }], [{ path: '/b' }]],
+    };
+    const world = fakeStepperWorld({
+      document: {
+        ...THREE_READS,
+        nodes: [
+          {
+            id: 'list',
+            type: 'webdav.list',
+            forEach: '{{ input.folders }}',
+            input: { path: '{{ item }}' },
+          },
+        ],
+        output: '{{ nodes.list.output }}',
+      } as Automation,
+      input: { folders: ['/a', '/b', '/c'] },
+      checkpoints: { nodes: {}, executions: 2, cursor },
+      connector: async (args) => read([args.input]),
+    });
+    shutdown.begin('SIGTERM', 20_000);
+
+    await expect(stepRunImpl(world.ctx, RUN, { shutdown })).resolves.toEqual({
+      status: 'running',
+    });
+
+    expect(world.connectorCalls).toEqual([]);
+    expect(world.continued).toEqual([
+      expect.objectContaining({ handoff: { reason: 'shutdown' } }),
+    ]);
+    expect(world.run.checkpoints.cursor).toEqual(cursor);
+  });
+});
+
 describe('a step still running when the shutdown grace runs out [AUTO-R22]', () => {
   it('is cut and handed on, neither failed nor recorded as done', async () => {
     const world = fakeStepperWorld({
@@ -356,5 +397,37 @@ describe('settleLiveTurns', () => {
     await expect(settleLiveTurns(1_000)).resolves.toBe(0);
     await expect(turn).resolves.toEqual({ status: 'running' });
     expect(world.continued).toHaveLength(1);
+  });
+});
+
+describe('a turn whose body ignores its cut', () => {
+  it('stops renewing its lease soon after the cut, so another worker can take the run over [AUTO-R16]', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const job = new AbortController();
+      // A connector body that never returns and never looks at the signal.
+      const world = fakeStepperWorld({
+        document: THREE_READS,
+        connector: () => new Promise(() => undefined),
+      });
+      void stepRunImpl(world.ctx, RUN, { shutdown, signal: job.signal });
+
+      await vi.advanceTimersByTimeAsync(25_000);
+      expect(world.heartbeats).toBe(2);
+
+      // The job queue gives up on the job: the turn is cut, the body hangs.
+      job.abort(new Error('the job expired'));
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(world.heartbeats).toBe(5);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(world.heartbeats).toBe(5);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('no longer renewing its lease'),
+      );
+    } finally {
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });

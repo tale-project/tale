@@ -186,9 +186,11 @@ export async function callThroughLedger(
         begun.error,
       );
     case 'fail':
+      // The run detail names the top-level node already: never the nested
+      // path of a write inside a subautomation.
       throw new RunStopFailure(
         'effect_in_doubt',
-        `${call.nodeId} was failed by a person: the step may already have run`,
+        'a person chose to fail the run here, since the step may already have run',
       );
     case 'in_doubt':
       throw new InDoubtPark(begun.attemptId, address);

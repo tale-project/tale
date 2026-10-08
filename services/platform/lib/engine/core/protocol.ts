@@ -16,8 +16,12 @@ export const ENGINE_PROTOCOL = 1;
  * the pass. Retry-stable by construction — the run id is durable and the rest
  * is positional — so a re-attempted step presents the key its first attempt
  * used, while two passes of one repeat present two keys. A first pass carries
- * no pass suffix: that is the key earlier releases presented, so a run
- * interrupted on one presents the same key on the next.
+ * no pass suffix: for a top-level node that is the key earlier releases
+ * presented, so a run interrupted on one presents the same key on the next.
+ * A node inside a subautomation gets a new key: earlier releases keyed it by
+ * its own id alone (`<run>:<id>:<item>`), which two items of the calling
+ * node's loop shared, so a vendor that de-duplicates on the key does not
+ * catch a nested write repeated across that upgrade.
  */
 export function connectorIdempotencyKey(
   runId: string,
