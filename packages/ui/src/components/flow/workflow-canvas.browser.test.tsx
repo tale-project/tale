@@ -414,6 +414,30 @@ describe('WorkflowCanvas', () => {
     }
   });
 
+  it("keeps the host's corner controls in a controlled List view", async () => {
+    const onLayout = vi.fn();
+    render(
+      <WorkflowCanvas
+        graph={triageFlowGraph()}
+        aria-label="Triage GitHub issues"
+        layoutKey="controlled-list"
+        view="list"
+        topStart={<button type="button">Canvas, List or Source</button>}
+        topEnd={<button type="button">Paths</button>}
+        onLayout={onLayout}
+      />,
+    );
+    expect(
+      screen.getByRole('list', { name: 'Triage GitHub issues' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Canvas, List or Source' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Paths' })).toBeInTheDocument();
+    // A controlled view hides the built-in toggle.
+    expect(screen.queryByRole('button', { name: 'Show as chart' })).toBeNull();
+  });
+
   it('switches to the List view and back, and remembers the choice', async () => {
     await renderLaidOut(triageFlowGraph());
     await userEvent.click(screen.getByRole('button', { name: 'Show as list' }));

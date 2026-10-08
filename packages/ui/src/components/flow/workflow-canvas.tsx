@@ -346,9 +346,12 @@ function WorkflowCanvasInner({
   );
   const { layout, status } = useFlowLayout(graph, { layoutKey, edgeLabel });
 
+  // Once per layout, whatever the identity of the host's callback.
+  const onLayoutRef = useRef(onLayout);
+  onLayoutRef.current = onLayout;
   useEffect(() => {
-    if (layout) onLayout?.(layout);
-  }, [layout, onLayout]);
+    if (layout) onLayoutRef.current?.(layout);
+  }, [layout]);
 
   const words = useMemo(
     () =>
@@ -513,9 +516,12 @@ function WorkflowCanvasInner({
       {notice}
       {view === 'list' ? (
         <div ref={swapRef} className={cn(frameClass, 'overflow-y-auto')}>
-          <div className="flex items-center justify-end gap-1 px-3 pt-3">
-            {topEnd}
-            {viewToggle}
+          <div className="flex items-center gap-1 px-3 pt-3">
+            {topStart}
+            <span className="ml-auto flex items-center gap-1">
+              {topEnd}
+              {viewToggle}
+            </span>
           </div>
           <FlowStepList
             graph={graph}
