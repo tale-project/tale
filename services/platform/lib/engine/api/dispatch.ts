@@ -38,7 +38,7 @@
 import { execute, type ExecuteOptions } from '../core/execute';
 import type { StoreAdapter } from '../core/slots';
 import { nodeTypes } from '../core/slots';
-import type { Automation, RunResult } from '../core/types';
+import type { Automation, Issue, RunResult } from '../core/types';
 import { connectorOutputShape } from '../core/typing/signature';
 import { validate, type ValidateOptions } from '../core/validate';
 import { searchCatalog } from './catalog-search';
@@ -180,6 +180,11 @@ export interface TriggerView {
 export interface SetTriggerOutcome {
   revoked?: 'webhook';
   token?: string;
+  /** A schedule's next start; null while it is switched off. */
+  nextRunAt?: number | null;
+  /** What the deployed version would make of what the trigger sends — a
+   * warning never refuses the bind. */
+  warnings?: Issue[];
 }
 
 /**
@@ -935,6 +940,15 @@ export async function dispatch(
                 token: outcome.token,
                 note: `trigger recorded; the webhook token is shown once — list_triggers never returns it, and rotateToken: true mints a new one${deployed ? '' : '. The automation has no deployed version, so deliveries are refused until one is deployed'}`,
               }
+            : {}),
+          ...(outcome?.nextRunAt !== undefined
+            ? { nextRunAt: outcome.nextRunAt }
+            : {}),
+          // Saved either way; what the deployed version would refuse in
+          // every run the trigger starts, said now rather than at the first
+          // occurrence.
+          ...(outcome?.warnings !== undefined && outcome.warnings.length > 0
+            ? { warnings: outcome.warnings }
             : {}),
         };
       } catch (e) {

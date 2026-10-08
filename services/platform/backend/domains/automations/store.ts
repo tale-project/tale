@@ -24,11 +24,13 @@ import {
   scheduleOfTrigger,
   storedScheduleRuleSchema,
 } from '../../../lib/automations/schedule/occurrences.ts';
+import { triggerInputSample } from '../../../lib/automations/trigger-input.ts';
 import type {
   LegacyRunQuarantine,
   RunSummary,
 } from '../../../lib/engine/api/dispatch.ts';
 import { ENGINE_PROTOCOL } from '../../../lib/engine/core/protocol.ts';
+import type { Issue } from '../../../lib/engine/core/types.ts';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
   AUTOMATION_NAME_RE,
@@ -37,6 +39,10 @@ import {
   compileSchemaCached,
   describeSchemaErrors,
 } from '../../../lib/engine/core/validate/schema.ts';
+import {
+  type InputsCheck,
+  triggerInputWarnings,
+} from '../../../lib/engine/core/validate/trigger-input.ts';
 import { formatIsoDate } from '../../../lib/shared/calendar.ts';
 import {
   EMITTED_EVENT_TYPES,
@@ -622,7 +628,7 @@ export async function deploy(
       definitionSha256: string;
     };
   },
-): Promise<{ name: string; version: number }> {
+): Promise<DeployResult> {
   const row = await versionRow(
     sql,
     args.organizationId,
@@ -742,7 +748,41 @@ export async function deploy(
     }
     await emitDefinitionHint(tx, args.organizationId, args.name);
   });
-  return { name: args.name, version: args.version };
+  return {
+    name: args.name,
+    version: args.version,
+    trigger: await deployedTrigger(sql, args.organizationId, args.name),
+  };
+}
+
+/** What a deploy answers: the version that runs now, and the trigger that
+ * starts it — whether it is on, when it next runs, and what it would meet
+ * in this version — so the editor can offer to turn on a trigger that is
+ * off, or to review one whose runs would be refused. */
+export interface DeployResult {
+  name: string;
+  version: number;
+  trigger: {
+    kind: string;
+    enabled: boolean;
+    nextRunAt: number | null;
+    warnings: Issue[];
+  } | null;
+}
+
+async function deployedTrigger(
+  sql: Sql,
+  organizationId: string,
+  name: string,
+): Promise<DeployResult['trigger']> {
+  const bound = (await listTriggers(sql, organizationId, name))[0];
+  if (bound === undefined) return null;
+  return {
+    kind: bound.kind,
+    enabled: bound.enabled,
+    nextRunAt: bound.nextRunAt,
+    warnings: await triggerWarnings(sql, organizationId, name, bound),
+  };
 }
 
 export interface AutomationListing {
@@ -1178,6 +1218,8 @@ export interface CheckedTrigger {
   rotateToken: boolean;
   /** When a schedule starts; null for webhook and event triggers. */
   schedule: Schedule | null;
+  /** The fixed input every run it starts receives, or null. */
+  input: Record<string, unknown> | null;
 }
 
 /** The most problems one refusal lists. */
@@ -1289,6 +1331,7 @@ export function checkTrigger(trigger: unknown, now: number): CheckedTrigger {
     event: null,
     rotateToken: false,
     schedule: null,
+    input: value.input ?? null,
   } satisfies CheckedTrigger;
   switch (value.kind) {
     case 'schedule':
@@ -1514,13 +1557,14 @@ export async function setTrigger(
       INSERT INTO app.automation_triggers AS t (
         org_id, name, kind, cron, timezone, event, token_hash, enabled,
         created_by, created_at_ms, updated_at_ms,
-        schedule_rule, catch_up, next_due_at_ms
+        schedule_rule, catch_up, next_due_at_ms, run_input
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${trigger.kind},
         ${trigger.cron}, ${trigger.timezone},
         ${trigger.event}, ${mintedHash}, ${trigger.enabled},
         ${args.actor}, ${now}, ${now},
-        ${jsonParam(tx, trigger.scheduleRule)}, ${trigger.catchUp}, ${nextDue}
+        ${jsonParam(tx, trigger.scheduleRule)}, ${trigger.catchUp}, ${nextDue},
+        ${jsonParam(tx, trigger.input)}
       )
       ON CONFLICT (org_id, name) DO UPDATE SET
         kind = EXCLUDED.kind,
@@ -1529,6 +1573,7 @@ export async function setTrigger(
         schedule_rule = EXCLUDED.schedule_rule,
         catch_up = EXCLUDED.catch_up,
         next_due_at_ms = EXCLUDED.next_due_at_ms,
+        run_input = EXCLUDED.run_input,
         event = EXCLUDED.event,
         token_hash = CASE
           WHEN EXCLUDED.kind <> 'webhook' THEN NULL
@@ -1604,12 +1649,21 @@ export async function setTrigger(
     };
   });
   const landed = rows[0]?.tokenHash ?? null;
+  // Saved either way: a warning says what every run this trigger starts
+  // would meet in the version that runs, and the person decides.
+  const warnings = await triggerWarnings(
+    sql,
+    args.organizationId,
+    args.name,
+    trigger,
+  );
   return {
     ...(minted !== undefined && landed !== null && landed === mintedHash
       ? { token: minted }
       : {}),
     ...(revoked ? { revoked: 'webhook' as const } : {}),
     ...(trigger.kind === 'schedule' ? { nextRunAt } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }
 
@@ -1621,6 +1675,54 @@ export interface SetTriggerResult {
   revoked?: 'webhook';
   /** A schedule's next start; null while it is switched off. */
   nextRunAt?: number | null;
+  /** What the deployed version would make of what this trigger sends
+   * (`TRIGGER_INPUT_MISMATCH`, `TRIGGER_INPUT_NOT_TEMPLATED`); absent when
+   * nothing is wrong. */
+  warnings?: Issue[];
+}
+
+/**
+ * What a trigger would meet in the version that runs: the input it would
+ * send checked against that version's inputs schema (none deployed, or none
+ * declared, checks nothing), and its fixed input checked for a template.
+ * The validator asks the same through the store's `triggerInput` seam.
+ */
+async function triggerWarnings(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  name: string,
+  trigger: {
+    kind: string;
+    event: string | null;
+    input: Readonly<Record<string, unknown>> | null;
+  },
+): Promise<Issue[]> {
+  const sample = triggerInputSample(trigger, Date.now());
+  if (sample === null) return [];
+  let check: InputsCheck | null = null;
+  const deployed = await deployedVersion(sql, organizationId, name);
+  if (deployed !== undefined) {
+    const row = await versionRow(sql, organizationId, name, deployed);
+    if (
+      row !== null &&
+      isRecord(row.document) &&
+      isRecord(row.document.inputs)
+    ) {
+      try {
+        check = compileSchemaCached(
+          `${organizationId}/${name}@${deployed}:${row.createdAt}`,
+          row.document.inputs,
+        );
+      } catch (error) {
+        // The version's own check reports a schema that does not compile.
+        console.warn(
+          `[automations] ${organizationId}/${name}@${deployed}: the trigger input is not checked, the inputs schema does not compile`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+  }
+  return triggerInputWarnings(check, sample);
 }
 
 export async function deleteTrigger(
@@ -1683,6 +1785,8 @@ export interface TriggerListing {
   /** What a schedule does with missed occurrences; null for other kinds. */
   catchUp: 'latest' | 'skip' | null;
   event: string | null;
+  /** The fixed input every run it starts receives, or null. */
+  input: Record<string, unknown> | null;
   hasToken: boolean;
   enabled: boolean;
   /** A schedule's next start (the earliest one it has not handled yet);
@@ -1720,7 +1824,7 @@ function toTriggerListing(row: TriggerListingRow, now: number): TriggerListing {
   const rule = isSchedule && !hasCron && stored.success ? stored.data : null;
   let nextRunAt: number | null = null;
   if (isSchedule && row.enabled) {
-    if (nextDueAt !== null) {
+    if (typeof nextDueAt === 'number') {
       nextRunAt = nextDueAt;
     } else {
       const read = scheduleOfTrigger({
@@ -1755,6 +1859,7 @@ export async function listTriggers(
            schedule_rule AS "scheduleRule",
            catch_up AS "catchUp",
            next_due_at_ms::float8 AS "nextDueAt",
+           run_input AS "input",
            (token_hash IS NOT NULL AND token_hash <> '') AS "hasToken",
            enabled,
            last_fired_at_ms::float8 AS "lastFiredAt",
@@ -2436,7 +2541,8 @@ export async function beginRunInTx(
           'AUTOMATION_INPUT_INVALID',
           `Run input does not match the automation inputs schema${named}`,
           400,
-          { issues },
+          // The version that refused it: a trigger's skip notice names it.
+          { issues, version },
         );
       }
     }

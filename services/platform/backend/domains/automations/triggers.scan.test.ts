@@ -509,6 +509,40 @@ describe('scanScheduledTriggers', () => {
     ).toBe(true);
   });
 
+  it('fits a refusal of long, multi-byte problems into its column, problems first', async () => {
+    const fake = fakeScan({ due: [['t1']], rows: { t1: scheduleRow('t1') } });
+    const issues = Array.from({ length: 10 }, (_, i) => ({
+      path: `field${i}`,
+      message: 'é'.repeat(800),
+    }));
+    vi.mocked(beginRunInTx).mockRejectedValueOnce(
+      new AutomationError('AUTOMATION_INPUT_INVALID', 'ü'.repeat(900), 400, {
+        issues,
+        version: 2,
+      }),
+    );
+
+    await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    const raw = String(decisionsOf(fake)[0]?.values[11]);
+    // 0171 caps the column at 8 KiB of jsonb text.
+    expect(new TextEncoder().encode(raw).length).toBeLessThanOrEqual(6144);
+    const detail = JSON.parse(raw) as {
+      reason: string;
+      code: string;
+      version: number;
+      issues?: unknown[];
+      message: string;
+    };
+    expect(detail).toMatchObject({
+      reason: 'start_refused',
+      code: 'AUTOMATION_INPUT_INVALID',
+      version: 2,
+    });
+    expect(detail.issues?.length ?? 0).toBeLessThan(10);
+    expect(detail.message.length).toBeLessThanOrEqual(500);
+  });
+
   it('lets a failure that is not a refusal fail the row’s transaction', async () => {
     const fake = fakeScan({ due: [['t1']], rows: { t1: scheduleRow('t1') } });
     vi.mocked(beginRunInTx).mockRejectedValueOnce(new Error('connection lost'));

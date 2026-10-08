@@ -262,3 +262,38 @@ describe('triggerSkipDetailSchema', () => {
     ).toBe(false);
   });
 });
+
+describe('staticInputSchema, through the write schema', () => {
+  it('takes a JSON object of values on every kind', () => {
+    for (const kind of ['schedule', 'webhook', 'event'] as const) {
+      const base =
+        kind === 'schedule'
+          ? { kind, cron: '0 9 * * *' }
+          : kind === 'event'
+            ? { kind, event: 'task.created' }
+            : { kind };
+      expect(
+        issuesOf({ ...base, input: { owner: 'tale', tags: ['a'], n: 1 } }),
+      ).toEqual([]);
+    }
+  });
+
+  it.each([
+    ['an array', [1, 2], 'input.not_object', 'input'],
+    ['text', 'owner=tale', 'input.not_object', 'input'],
+    [
+      'a field the trigger sets itself',
+      { owner: 'tale', payload: {} },
+      'input.reserved_key',
+      'input',
+    ],
+    [
+      'more than 16 KiB',
+      { note: 'x'.repeat(16 * 1024) },
+      'input.too_large',
+      'input',
+    ],
+  ])('refuses %s', (_case, input, code, path) => {
+    expect(issuesOf({ kind: 'webhook', input })).toEqual([{ path, code }]);
+  });
+});

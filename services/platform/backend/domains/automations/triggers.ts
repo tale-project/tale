@@ -14,7 +14,7 @@ import {
   SCHEDULE_ON_TIME_GRACE_MS,
   scheduleOfTrigger,
 } from '../../../lib/automations/schedule/occurrences.ts';
-import { scheduleTriggerInput } from '../../../lib/engine/core/slots.ts';
+import { triggerRunInput } from '../../../lib/engine/core/slots.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   deliveryIdentity,
@@ -101,6 +101,8 @@ interface TriggerRow {
   catchUp: 'latest' | 'skip' | null;
   /** The earliest occurrence not handled yet; null when not computed. */
   nextDueAt: number | null;
+  /** The fixed input every run it starts receives (0172), or null. */
+  runInput: Record<string, unknown> | null;
   tokenHash: string | null;
   event: string | null;
   enabled: boolean;
@@ -123,7 +125,7 @@ interface TriggerRow {
 const TRIGGER_COLUMNS = `
   id, org_id AS "organizationId", name, kind, cron, timezone,
   schedule_rule AS "scheduleRule", catch_up AS "catchUp",
-  next_due_at_ms::float8 AS "nextDueAt",
+  next_due_at_ms::float8 AS "nextDueAt", run_input AS "runInput",
   token_hash AS "tokenHash", event, enabled,
   last_fired_at_ms::float8 AS "lastFiredAt",
   last_due_at_ms::float8 AS "lastDueAt",
@@ -164,17 +166,55 @@ async function stampSkipped(
   await sql`
     UPDATE app.automation_triggers
     SET last_skipped_at_ms = ${at}, last_skip_reason = ${detail.reason},
-        last_skip_detail = ${jsonParam(sql, detail)}
+        last_skip_detail = ${detailParam(sql, detail)}
     WHERE id = ${triggerId}
   `;
 }
 
-/** A sentence, cut to what a skip detail keeps. */
-function bounded(message: string): string {
-  return message.length <= SKIP_DETAIL_MAX_MESSAGE
-    ? message
-    : `${message.slice(0, SKIP_DETAIL_MAX_MESSAGE - 1)}…`;
+/** A sentence, cut to `limit` characters. */
+function bounded(message: string, limit = SKIP_DETAIL_MAX_MESSAGE): string {
+  return message.length <= limit ? message : `${message.slice(0, limit - 1)}…`;
 }
+
+/** What a skip detail may weigh as JSON: the column's CHECK allows 8 KiB of
+ * jsonb text (0171), which spaces its JSON out a little. */
+const SKIP_DETAIL_BYTES = 6144;
+
+const encoder = new TextEncoder();
+const bytesOf = (value: unknown): number =>
+  encoder.encode(JSON.stringify(value)).length;
+
+/** The detail as stored: a refusal's problems are dropped from the last,
+ * and then its sentence shortened, until it fits — ten problems of long,
+ * multi-byte text must not fail the stamp, and with it the scan. */
+function fittedDetail(detail: TriggerSkipDetail): TriggerSkipDetail {
+  let fitted = detail;
+  while (bytesOf(fitted) > SKIP_DETAIL_BYTES) {
+    if (fitted.reason === 'start_refused' && fitted.issues !== undefined) {
+      const { issues, ...rest } = fitted;
+      fitted =
+        issues.length > 1 ? { ...rest, issues: issues.slice(0, -1) } : rest;
+    } else if (
+      (fitted.reason === 'start_refused' ||
+        fitted.reason === 'unusable_cron') &&
+      fitted.message.length > 40
+    ) {
+      fitted = {
+        ...fitted,
+        message: bounded(fitted.message, Math.floor(fitted.message.length / 2)),
+      };
+    } else {
+      break;
+    }
+  }
+  return fitted;
+}
+
+/** A skip detail as one jsonb parameter, fitted to its column. */
+const detailParam = (
+  sql: Sql | TransactionSql,
+  detail: TriggerSkipDetail,
+): ReturnType<typeof jsonParam> => jsonParam(sql, fittedDetail(detail));
 
 /** What a refused start leaves in the skip detail: its code, the version
  * that refused it, its sentence and its first problems. */
@@ -354,10 +394,10 @@ async function processScheduleRow(
         UPDATE app.automation_triggers
         SET next_due_at_ms = NULL, last_skipped_at_ms = ${now},
             last_skip_reason = 'unusable_cron',
-            last_skip_detail = ${jsonParam(tx, {
+            last_skip_detail = ${detailParam(tx, {
               reason: 'unusable_cron',
               message: bounded(message),
-            } satisfies TriggerSkipDetail)}
+            })}
         WHERE id = ${row.id}
       `;
       return { kind: 'unusable' };
@@ -409,7 +449,10 @@ async function processScheduleRow(
         const started = await beginRunInTx(tx, {
           organizationId: row.organizationId,
           name: row.name,
-          input: scheduleTriggerInput(fire),
+          input: triggerRunInput(
+            { kind: 'schedule', firedAt: fire },
+            row.runInput,
+          ),
           mode: 'live',
           startedBy: `trigger:${row.id}`,
         });
@@ -451,7 +494,7 @@ async function processScheduleRow(
         last_run_id = CASE WHEN ${fired}::boolean THEN ${runId}::text ELSE last_run_id END,
         last_skipped_at_ms = CASE WHEN ${skip !== null}::boolean THEN ${now}::bigint ELSE last_skipped_at_ms END,
         last_skip_reason = CASE WHEN ${skip !== null}::boolean THEN ${skip?.reason ?? null}::text ELSE last_skip_reason END,
-        last_skip_detail = CASE WHEN ${skip !== null}::boolean THEN ${jsonParam(tx, skip)}::jsonb ELSE last_skip_detail END
+        last_skip_detail = CASE WHEN ${skip !== null}::boolean THEN ${skip === null ? null : detailParam(tx, skip)}::jsonb ELSE last_skip_detail END
       WHERE id = ${row.id}
     `;
     return {
@@ -722,7 +765,10 @@ export async function dispatchAutomationEvent(
     const run = await beginRunInTx(tx, {
       organizationId: args.organizationId,
       name: trigger.name,
-      input: { trigger: 'event', event: args.event, payload: args.payload },
+      input: triggerRunInput(
+        { kind: 'event', event: args.event, payload: args.payload },
+        trigger.runInput,
+      ),
       mode: 'live',
       startedBy: `trigger:${trigger.id}`,
     });
@@ -898,7 +944,10 @@ async function acceptWebhookDelivery(
     const started = await beginRunInTx(tx, {
       organizationId: trigger.organizationId,
       name: trigger.name,
-      input: { trigger: 'webhook', payload: args.payload },
+      input: triggerRunInput(
+        { kind: 'webhook', payload: args.payload },
+        trigger.runInput,
+      ),
       mode: 'live',
       startedBy: `trigger:${trigger.id}`,
       ...scope,

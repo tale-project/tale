@@ -193,13 +193,14 @@ be sent again.
 
 An automation's trigger is a schedule, a webhook or a platform event. Saving another kind
 replaces the one it had. A trigger starts a live run of the deployed version (`AUTO-R5`) and
-hands it a fixed input:
+hands it an input of its own fields. A trigger may also carry a fixed input, values every run
+it starts receives; the trigger's own fields are set over it:
 
 | Trigger | Starts a run when | The run's input |
 | --- | --- | --- |
-| Schedule | its repeat rule or cron expression comes due in its time zone | `{ trigger: "schedule", firedAt }` |
-| Webhook | a request reaches its address | `{ trigger: "webhook", payload }` |
-| Platform event | the named event happens in the organization | `{ trigger: "event", event, payload }` |
+| Schedule | its repeat rule or cron expression comes due in its time zone | `{ …input, trigger: "schedule", firedAt }` |
+| Webhook | a request reaches its address | `{ …input, trigger: "webhook", payload }` |
+| Platform event | the named event happens in the organization | `{ …input, trigger: "event", event, payload }` |
 
 ### AUTO-R10 · A trigger that could never start a run is refused when it is saved
 
@@ -210,9 +211,10 @@ a repeat rule with no time of day, a time not written HH:MM, more than twelve ti
 interval the rule does not offer, a day the named month never has, a window whose start is its
 end or in which no start ever falls, or a start date that is not a calendar day; a repeat rule
 without a time zone; a time zone that is blank or does not exist; an event trigger without an
-event name, or with a name the platform never raises; and a field that belongs to another kind
-of trigger, such as a cron expression on a webhook. A window may run overnight, from 22:00 to
-06:00.
+event name, or with a name the platform never raises; a fixed input that is not a JSON object,
+names a field the trigger sets itself, or is larger than 16 KiB; and a field that belongs to
+another kind of trigger, such as a cron expression on a webhook. A window may run overnight,
+from 22:00 to 06:00.
 
 - **Example**: Noah saves a schedule with the cron expression `0 0 30 2 *` → refused, with the
   message "day-of-month 30 never occurs in month 2", and the trigger he had stays.
@@ -289,6 +291,20 @@ was saved, are not missed.
 - **Example**: Ada's schedule runs every day at 09:00, and the platform is down from 08:30 to
   10:15 → with Latest, a run starts at 10:15 for the 09:00 occurrence; with Skip, no run
   starts, and the trigger shows one missed occurrence.
+
+### AUTO-R29 · A trigger whose input the deployed version refuses is saved with a warning
+
+Saving a trigger, and deploying a version, checks what the trigger will hand each run against
+the inputs of the version that runs: its own fields and its fixed input, an event's payload
+too, but never a webhook's body, which is unknown until a request comes. A refusal there would
+refuse every run the trigger starts, so the save names it (`TRIGGER_INPUT_MISMATCH`), and a
+template in the fixed input, which arrives as text and is never filled in, too
+(`TRIGGER_INPUT_NOT_TEMPLATED`). The trigger is saved either way, and the deploy answers
+whether the trigger is on.
+
+- **Example**: Ada turns on the GitHub triage schedule, whose inputs require `owner` and
+  `repo`, without a fixed input → it is saved, with a warning naming both; she adds both as
+  its fixed input and saves again → no warning.
 
 ## When a run ends
 
@@ -508,6 +524,8 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   check only that the project belongs to the organization (`saveVersion` and `bindProject` in
   `store.ts`). The project settings of an existing automation refuse an archived project
   (`AUTO-R8`) and answer a project the author cannot read like a missing one.
-- **`AUTO-R6` gives a webhook no warning when it is saved.** A webhook trigger can be saved for
-  a version whose inputs no delivery fits, and every delivery is then refused; the same ledger
-  records it.
+- **A webhook's body is never checked when it is saved.** `AUTO-R29` warns about what is known
+  before a request comes — a required field the fixed input lacks, a `payload` the inputs do
+  not take — but a delivery whose body the inputs refuse is refused only when it comes, and the
+  contract debt ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records that it
+  moves no trigger stamp.

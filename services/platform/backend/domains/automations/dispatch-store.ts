@@ -1,13 +1,13 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { triggerInputSample } from '../../../lib/automations/trigger-input.ts';
 import type {
   DispatchStore,
   RunDetail,
   TriggerView,
   VersionSummary,
 } from '../../../lib/engine/api/dispatch.ts';
-import type { TriggerKind } from '../../../lib/engine/core/slots.ts';
 import type { Automation } from '../../../lib/engine/core/types.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import { runStarterUserId } from '../../../lib/shared/run-starter.ts';
@@ -304,21 +304,13 @@ export function pgAutomationStore(
     deployedVersion: async (name) =>
       (await deployedVersion(sql, organizationId, name)) ?? null,
     modelAvailable: (modelId, nodeType) => modelAvailability(modelId, nodeType),
-    // The enabled triggers of the automation — what the validator checks the
-    // inputs schema against (a schedule's input is known ahead).
-    triggerKinds: async (name) => {
-      const kinds = new Set<TriggerKind>();
-      for (const row of await listTriggers(sql, organizationId, name)) {
-        if (!row.enabled) continue;
-        if (
-          row.kind === 'schedule' ||
-          row.kind === 'webhook' ||
-          row.kind === 'event'
-        ) {
-          kinds.add(row.kind);
-        }
-      }
-      return [...kinds];
+    // What the automation's enabled trigger sends — what the validator
+    // checks the inputs schema and the fixed input against. The same sample
+    // the store's save and deploy warnings check.
+    triggerInput: async (name) => {
+      const row = (await listTriggers(sql, organizationId, name))[0];
+      if (row === undefined || !row.enabled) return null;
+      return triggerInputSample(row, Date.now());
     },
     save: async (automation, message, options) => {
       const name = assertAutomationName(automation.name ?? '');
@@ -374,14 +366,7 @@ export function pgAutomationStore(
         trigger: input,
         actor,
       });
-      return outcome.revoked === undefined && outcome.token === undefined
-        ? undefined
-        : {
-            ...(outcome.revoked === undefined
-              ? {}
-              : { revoked: outcome.revoked }),
-            ...(outcome.token === undefined ? {} : { token: outcome.token }),
-          };
+      return Object.keys(outcome).length === 0 ? undefined : outcome;
     },
     authorizeRun: async (name, mode) => {
       await authorizeInlineRun(sql, name, mode);

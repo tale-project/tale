@@ -130,22 +130,39 @@ describe('the MCP trigger view carries the failure streak', () => {
   });
 });
 
-describe('the validator reads the kinds of the enabled triggers', () => {
-  it('names each enabled kind once and leaves a paused trigger out', async () => {
+describe('the validator reads what the enabled trigger sends', () => {
+  it('samples the enabled trigger, its fixed input under the trigger fields', async () => {
     const { engine, statements } = store([
-      row(),
-      row({ id: 'trg_2', kind: 'webhook', cron: null }),
-      row({ id: 'trg_3', kind: 'schedule', cron: '0 7 * * *' }),
-      row({ id: 'trg_4', kind: 'event', cron: null, enabled: false }),
+      row({ input: { owner: 'tale', repo: 'tale' } }),
     ]);
-    expect(await engine.triggerKinds?.('ops/nightly')).toEqual([
-      'schedule',
-      'webhook',
-    ]);
+    const sample = await engine.triggerInput?.('ops/nightly');
+    expect(sample).toMatchObject({
+      kind: 'schedule',
+      input: {
+        owner: 'tale',
+        repo: 'tale',
+        trigger: 'schedule',
+        firedAt: expect.any(Number),
+      },
+      ignorePointers: [],
+      fixedInput: { owner: 'tale', repo: 'tale' },
+    });
     const select = statements.find((s) =>
       s.text.includes('FROM app.automation_triggers'),
     );
     expect(select?.values).toContain('org_1');
     expect(select?.values).toContain('ops/nightly');
+  });
+
+  it('sets a webhook’s unknown body aside, and says nothing of a trigger that is off', async () => {
+    const webhook = store([row({ kind: 'webhook', cron: null })]);
+    expect(await webhook.engine.triggerInput?.('ops/nightly')).toMatchObject({
+      kind: 'webhook',
+      ignorePointers: ['/payload'],
+    });
+    const off = store([row({ enabled: false })]);
+    expect(await off.engine.triggerInput?.('ops/nightly')).toBeNull();
+    const none = store([]);
+    expect(await none.engine.triggerInput?.('ops/nightly')).toBeNull();
   });
 });

@@ -14654,6 +14654,48 @@ async function checkAutomationTriggerDelivery(
     planText,
   );
 
+  // 0172 — a fixed input rides into the run under the trigger's own
+  // fields, and the bind stores it; the column refuses a non-object.
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: {
+      kind: 'schedule',
+      cron: '* * * * *',
+      timezone: 'UTC',
+      input: { fence: 'fixed' },
+    },
+    actor: 'itest',
+  });
+  await backdateStamp();
+  await triggersModule.scanScheduledTriggers(sql);
+  const fixedRun = await sql<{ input: unknown }[]>`
+    SELECT r.input FROM app.automation_runs r
+    JOIN app.automation_triggers t ON r.id = t.last_run_id
+    WHERE t.org_id = ${orgId} AND t.name = ${name}
+  `;
+  const fixedInput = z
+    .object({ fence: z.literal('fixed'), trigger: z.literal('schedule') })
+    .safeParse(store.decodeRunInput(fixedRun[0]?.input));
+  const refusedColumn = await sql
+    .begin(async (tx) => {
+      await tx`
+        UPDATE app.automation_triggers SET run_input = '[1, 2]'::jsonb
+        WHERE org_id = ${orgId} AND name = ${name}
+      `;
+      return 'stored';
+    })
+    .catch((error: unknown) =>
+      error instanceof Error && /check constraint/i.test(error.message)
+        ? 'refused'
+        : `failed: ${String(error)}`,
+    );
+  record(
+    'a schedule hands its run the fixed input under its own fields, and the column holds only an object',
+    fixedInput.success && refusedColumn === 'refused',
+    `run input=${JSON.stringify(fixedRun[0]?.input)} (want fence: "fixed" beside trigger: "schedule"), an array → ${refusedColumn} (want refused)`,
+  );
+
   // Back to the fence's minute schedule for the webhook probes below.
   await store.setTrigger(sql, {
     organizationId: orgId,

@@ -23,7 +23,7 @@ import type {
 } from '../api/dispatch';
 import { execute } from '../core/execute';
 import { cloneData } from '../core/execute/scope';
-import type { StoreAdapter } from '../core/slots';
+import { type StoreAdapter, triggerRunInput } from '../core/slots';
 import type { Automation, RunResult } from '../core/types';
 
 /** The trigger kinds a host accepts. `api-key` is deliberately absent: a
@@ -83,6 +83,8 @@ export function memoryStore(
   const versions = new Map<string, StoredVersion[]>();
   const deployed = new Map<string, number>();
   const triggers = new Map<string, TriggerView>();
+  /** Each trigger's fixed input, beside the view that never shows it. */
+  const fixedInputs = new Map<string, Record<string, unknown>>();
   const runs: RunDetail[] = [];
   let runSeq = 0;
 
@@ -177,6 +179,16 @@ export function memoryStore(
         hasToken: typeof trigger.tokenHash === 'string',
         enabled: trigger.enabled !== false,
       });
+      const input: unknown = trigger.input;
+      if (
+        typeof input === 'object' &&
+        input !== null &&
+        !Array.isArray(input)
+      ) {
+        fixedInputs.set(name, { ...input });
+      } else {
+        fixedInputs.delete(name);
+      }
       // Nothing durable is revoked here: the selftest store holds no
       // webhook URL a partner posts to.
       return undefined;
@@ -191,12 +203,37 @@ export function memoryStore(
       );
     },
     async deleteTrigger(name) {
+      fixedInputs.delete(name);
       return { deleted: triggers.delete(name) };
     },
-    async triggerKinds(name) {
+    /** What the enabled trigger sends, as the platform host computes it: a
+     * schedule fires now, a webhook's body is unknown (an empty object whose
+     * problems are not held against it). This store keeps no event
+     * payloads, so an event trigger tells nothing. */
+    async triggerInput(name) {
       const one = triggers.get(name);
-      const kind = TRIGGER_KINDS.find((k) => k === one?.kind);
-      return one?.enabled === true && kind !== undefined ? [kind] : [];
+      if (one?.enabled !== true) return null;
+      const fixedInput = fixedInputs.get(name) ?? null;
+      if (one.kind === 'schedule') {
+        return {
+          kind: 'schedule',
+          input: triggerRunInput(
+            { kind: 'schedule', firedAt: Date.now() },
+            fixedInput,
+          ),
+          ignorePointers: [],
+          fixedInput,
+        };
+      }
+      if (one.kind === 'webhook') {
+        return {
+          kind: 'webhook',
+          input: triggerRunInput({ kind: 'webhook', payload: {} }, fixedInput),
+          ignorePointers: ['/payload'],
+          fixedInput,
+        };
+      }
+      return null;
     },
 
     /**

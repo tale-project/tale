@@ -52,6 +52,11 @@ beforeAll(async () => {
     kind: 'schedule',
     cron: '0 6 * * *',
   });
+  // The webhook whose fixed input trigger-input-not-templated reads.
+  await store.setTrigger('templated-hook', {
+    kind: 'webhook',
+    input: { owner: '{{ payload.repository.owner }}', repo: 'tale' },
+  });
 
   const noop: Automation = {
     version: 1,
@@ -752,6 +757,13 @@ const fixtures: Record<string, unknown> = {
       additionalProperties: false,
     },
   }),
+  'trigger-input-not-templated': flow({
+    name: 'templated-hook',
+    inputs: {
+      type: 'object',
+      properties: { owner: { type: 'string' }, repo: { type: 'string' } },
+    },
+  }),
   'tests-input-invalid': flow({
     inputs: {
       type: 'object',
@@ -841,6 +853,7 @@ const VALIDATION_CODES: IssueCode[] = [
   'OUTPUT_MAYBE_EMPTY',
   'SUBAUTOMATION_INPUT_INVALID',
   'TRIGGER_INPUT_MISMATCH',
+  'TRIGGER_INPUT_NOT_TEMPLATED',
   'TESTS_INPUT_INVALID',
   'TESTS_EFFECT_UNKNOWN',
   'TESTS_EXPECT_TYPE',

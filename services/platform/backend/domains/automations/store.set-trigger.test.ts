@@ -25,7 +25,8 @@ interface Statement {
 
 /** Positions of parameters in the upsert: the VALUES list (org, name,
  * kind, cron, timezone, event, token_hash, enabled, created_by, created_at,
- * updated_at, schedule_rule, catch_up, next_due), then the rotate flag and
+ * updated_at, schedule_rule, catch_up, next_due, run_input), then the
+ * rotate flag and
  * the managed flag the ON CONFLICT branch decides on. */
 const TOKEN_HASH_PARAM = 6;
 const CRON_PARAM = 3;
@@ -33,8 +34,9 @@ const TIMEZONE_PARAM = 4;
 const SCHEDULE_RULE_PARAM = 11;
 const CATCH_UP_PARAM = 12;
 const NEXT_DUE_PARAM = 13;
-const ROTATE_PARAM = 14;
-const MANAGED_PARAM = 15;
+const RUN_INPUT_PARAM = 14;
+const ROTATE_PARAM = 15;
+const MANAGED_PARAM = 16;
 
 /**
  * Scripted `sql`: the locked read of the row being replaced answers
@@ -56,6 +58,9 @@ function fakeUpsert(
     enabled?: boolean;
     nextDueAt?: number | null;
   } | null = null,
+  /** The inputs schema of the deployed version; nothing is deployed when
+   * absent. */
+  deployedInputs?: Record<string, unknown>,
 ): {
   sql: Sql;
   /** The trigger-table statements — the write shape under test. */
@@ -90,6 +95,22 @@ function fakeUpsert(
     }
     if (text.includes('UPDATE app.user_notifications')) {
       return Promise.resolve([{ userId: 'admin_1' }]);
+    }
+    // The warnings' read of the version that runs, after the bind.
+    if (text.includes('FROM app.automation_deployments')) {
+      return Promise.resolve(
+        deployedInputs === undefined ? [] : [{ version: 7 }],
+      );
+    }
+    if (text.includes('FROM app.automations')) {
+      return Promise.resolve([
+        {
+          name: 'ops/greet',
+          version: 7,
+          document: { inputs: deployedInputs },
+          createdAt: 1,
+        },
+      ]);
     }
     if (!text.includes('INSERT INTO app.automation_triggers')) {
       throw new Error(`unexpected statement: ${text}`);
@@ -126,9 +147,11 @@ describe('setTrigger', () => {
     await setTrigger(fake.sql, args({ kind: 'schedule', cron: '0 9 * * 1' }));
 
     // The locked read of the row being replaced, then the ONE write — never
-    // a SELECT-then-INSERT that decides existence in JavaScript.
-    expect(fake.statements).toHaveLength(2);
-    const [read, statement] = fake.statements;
+    // a SELECT-then-INSERT that decides existence in JavaScript. After the
+    // bind, only the read of the version that runs, for the warnings.
+    expect(fake.statements).toHaveLength(3);
+    const [read, statement, deployedRead] = fake.statements;
+    expect(deployedRead?.text).toContain('FROM app.automation_deployments');
     expect(read?.text).toContain('FOR UPDATE');
     expect(read?.values).toEqual(['org_1', 'ops/greet']);
     expect(statement?.text).toContain(
@@ -216,8 +239,9 @@ describe('setTrigger', () => {
       'consecutive_failures = CASE WHEN ? THEN t.consecutive_failures ELSE 0 END',
     );
     expect(upsertOf(fake.statements)?.values[MANAGED_PARAM]).toBe(false);
-    // A save that finds no pause dismisses nothing: the read and the write.
-    expect(fake.statements).toHaveLength(2);
+    // A save that finds no pause dismisses nothing: the read and the write,
+    // then the read of the version that runs, for the warnings.
+    expect(fake.statements).toHaveLength(3);
   });
 
   it('clears the pause of a schedule its failures paused, and the notices of it [AUTO-R13]', async () => {
@@ -479,5 +503,83 @@ describe('setTrigger — the next start of a schedule', () => {
     expect(cronValues[TIMEZONE_PARAM]).toBeNull();
     expect(cronValues[SCHEDULE_RULE_PARAM]).toBeNull();
     expect(cronValues[CATCH_UP_PARAM]).toBeNull();
+  });
+});
+
+/**
+ * A trigger whose input the deployed version would refuse is saved, with a
+ * warning that names what is missing; a fixed input that has it saves
+ * clean, and is stored as the run input it adds.
+ */
+describe('setTrigger — warnings about what the trigger sends [AUTO-R29]', () => {
+  const ownerRepo = {
+    type: 'object',
+    required: ['owner', 'repo'],
+    properties: { owner: { type: 'string' }, repo: { type: 'string' } },
+  };
+
+  it('saves Ada’s GitHub schedule without owner and repo, and warns naming both', async () => {
+    const fake = fakeUpsert('fresh', null, ownerRepo);
+    const outcome = await setTrigger(
+      fake.sql,
+      args({ kind: 'schedule', cron: '0 7 * * *', timezone: 'UTC' }),
+    );
+    expect(upsertOf(fake.statements)).toBeDefined();
+    expect(outcome.warnings).toEqual([
+      expect.objectContaining({
+        level: 'warning',
+        code: 'TRIGGER_INPUT_MISMATCH',
+        at: { pointer: '/inputs' },
+        params: {
+          kind: 'schedule',
+          missing: ['owner', 'repo'],
+          problems: ['owner is required', 'repo is required'],
+        },
+      }),
+    ]);
+  });
+
+  it('saves clean once the fixed input has them, and stores that input', async () => {
+    const fake = fakeUpsert('fresh', null, ownerRepo);
+    const outcome = await setTrigger(
+      fake.sql,
+      args({
+        kind: 'schedule',
+        cron: '0 7 * * *',
+        timezone: 'UTC',
+        input: { owner: 'tale', repo: 'tale' },
+      }),
+    );
+    expect(outcome.warnings).toBeUndefined();
+    expect(upsertOf(fake.statements)?.values[RUN_INPUT_PARAM]).toBe(
+      JSON.stringify({ owner: 'tale', repo: 'tale' }),
+    );
+  });
+
+  it('warns about a template in the fixed input even with nothing deployed', async () => {
+    const fake = fakeUpsert('fresh');
+    const outcome = await setTrigger(
+      fake.sql,
+      args({ kind: 'webhook', input: { owner: '{{ payload.owner }}' } }),
+    );
+    expect(outcome.warnings?.map((warning) => warning.code)).toEqual([
+      'TRIGGER_INPUT_NOT_TEMPLATED',
+    ]);
+  });
+
+  it('refuses a fixed input that names a field the trigger sets itself', async () => {
+    const fake = fakeUpsert('fresh');
+    await expect(
+      setTrigger(
+        fake.sql,
+        args({ kind: 'webhook', input: { payload: { forged: true } } }),
+      ),
+    ).rejects.toMatchObject({
+      code: 'AUTOMATION_TRIGGER_INVALID',
+      data: {
+        issues: [expect.objectContaining({ code: 'input.reserved_key' })],
+      },
+    });
+    expect(fake.statements).toHaveLength(0);
   });
 });

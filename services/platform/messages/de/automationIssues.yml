@@ -311,8 +311,13 @@ codes:
   TRIGGER_INPUT_MISMATCH:
     title: Trigger-Eingabe wird abgelehnt
     explanation: Der Trigger startet Läufe mit einer Eingabe, die das Eingabeschema der Automatisierung nicht akzeptiert. Jeder Lauf, den er startet, wird deshalb abgelehnt.
-    cause: '{kind, select, schedule {Der Zeitplan} other {Der Trigger}} {missingCount, plural, =0 {startet Läufe mit einer Eingabe, die das Eingabeschema ablehnt.} one {startet Läufe ohne {missingList}.} other {startet Läufe ohne {missingList}.}}'
-    fix: Mach diese Eingaben optional oder starte die Automatisierung über einen Webhook, ein Ereignis oder die API.
+    cause: '{kind, select, schedule {Der Zeitplan} webhook {Der Webhook} other {Das Ereignis}} {missingCount, plural, =0 {startet Läufe mit einer Eingabe, die das Eingabeschema ablehnt.} one {startet Läufe ohne {missingList}.} other {startet Läufe ohne {missingList}.}}'
+    fix: Gib dem Trigger eine feste Eingabe mit diesen Feldern oder mach sie optional.
+  TRIGGER_INPUT_NOT_TEMPLATED:
+    title: Feste Eingabe wird nicht ausgefüllt
+    explanation: Die feste Eingabe enthält nur Daten. Ein Template darin kommt als Text an und wird nie ausgewertet.
+    cause: '{pathsList} {pathsCount, plural, one {enthält} other {enthalten}} ein Template.'
+    fix: Übernimm Werte aus dem Feld payload stattdessen mit einer transform-Node.
   TESTS_INPUT_INVALID:
     title: Test-Eingabe wird abgelehnt
     explanation: Die Eingabe des Tests passt nicht zum Eingabeschema der Automatisierung. Der Lauf lehnt sie deshalb ab, und der Test kann nicht bestehen.

@@ -167,6 +167,55 @@ export const catchUpSchema = z.enum(['latest', 'skip']).meta({
 
 export type CatchUp = z.infer<typeof catchUpSchema>;
 
+/** The fields a trigger sets on every run's input itself; a fixed input
+ * may not name them. */
+export const TRIGGER_WRAPPER_KEYS = [
+  'trigger',
+  'firedAt',
+  'event',
+  'payload',
+] as const;
+
+/** The most a fixed input may weigh, as JSON. */
+export const STATIC_INPUT_MAX_BYTES = 16 * 1024;
+
+const encoder = new TextEncoder();
+
+/**
+ * Values a trigger adds to every run's input: a JSON object, at most 16 KiB.
+ * The trigger's own fields are set over it, so it may not name them. Plain
+ * data: a template in it is never evaluated.
+ */
+export const staticInputSchema = z
+  .record(z.string(), z.json(), {
+    error: 'The fixed input must be a JSON object.',
+  })
+  .superRefine((input, ctx) => {
+    const reserved = TRIGGER_WRAPPER_KEYS.filter((key) =>
+      Object.hasOwn(input, key),
+    );
+    if (reserved.length > 0) {
+      addIssue(
+        ctx,
+        'input.reserved_key',
+        `Remove ${reserved.map((key) => `"${key}"`).join(', ')}: the trigger sets these fields itself.`,
+        [],
+      );
+    }
+    if (encoder.encode(JSON.stringify(input)).length > STATIC_INPUT_MAX_BYTES) {
+      addIssue(
+        ctx,
+        'input.too_large',
+        'The fixed input is larger than 16 KiB.',
+        [],
+      );
+    }
+  })
+  .meta({
+    description:
+      "Values the trigger adds to every run's input, as a JSON object of at most 16 KiB. The trigger's own fields (trigger, firedAt, event, payload) are set over it, so it cannot name them; a template in it is plain text, never evaluated. Omit it to clear it: saving a trigger replaces it whole.",
+  });
+
 const enabledSchema = z.boolean().meta({
   description: 'Whether it starts runs. Omitted reads as true.',
 });
@@ -175,6 +224,7 @@ const scheduleWriteSchema = z
   .strictObject({
     kind: z.literal('schedule'),
     enabled: enabledSchema.optional(),
+    input: staticInputSchema.optional(),
     cron: z.string().max(200).optional().meta({
       description:
         'A five-field cron expression — the advanced form; give it or `repeat`, not both.',
@@ -230,6 +280,7 @@ const scheduleWriteSchema = z
 const webhookWriteSchema = z.strictObject({
   kind: z.literal('webhook'),
   enabled: enabledSchema.optional(),
+  input: staticInputSchema.optional(),
   rotateToken: z.boolean().optional().meta({
     description:
       'Mint a new address; the one it replaces stops working at once.',
@@ -239,6 +290,7 @@ const webhookWriteSchema = z.strictObject({
 const eventWriteSchema = z.strictObject({
   kind: z.literal('event'),
   enabled: enabledSchema.optional(),
+  input: staticInputSchema.optional(),
   event: z.string().max(200).optional().meta({
     description: 'The platform event that starts a run.',
   }),
@@ -301,7 +353,9 @@ export function triggerIssues(
     const coded =
       issue.code === 'custom' && isTriggerIssueCode(issue.params?.code)
         ? issue.params.code
-        : scheduleIssueCode(issue);
+        : path === 'input' && issue.code === 'invalid_type'
+          ? 'input.not_object'
+          : scheduleIssueCode(issue);
     return [{ path, code: coded ?? issue.code, message: issue.message }];
   });
 }
