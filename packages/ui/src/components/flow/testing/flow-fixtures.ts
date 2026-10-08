@@ -14,6 +14,8 @@ import {
   Square,
 } from 'lucide-react';
 
+import type { FlowRealRun } from '../playback/build-timeline';
+import type { FlowRunOverlay } from '../playback/types';
 import type {
   FlowEdge,
   FlowEdgeKind,
@@ -716,4 +718,247 @@ export function syntheticDoc(count = 40, seed = 7): SyntheticDocNode[] {
 export function syntheticFlowGraph(count = 40, seed = 7): FlowGraph {
   const doc = syntheticDoc(count, seed);
   return flowGraphFromDoc(doc, [doc.at(-1)?.id ?? 's00']);
+}
+
+/** When the recorded runs below started: Thu 9 Oct 2025, 07:00 UTC. */
+const RUN_STARTED = Date.UTC(2025, 9, 9, 7, 0, 0);
+
+/**
+ * A recorded run of Triage GitHub issues that fails: Score works through
+ * four issues, one at a time, and the model refuses the third — Report
+ * never runs. Real epoch times, as a host records them.
+ */
+export function triageFailedRun(): FlowRealRun {
+  const at = (ms: number) => RUN_STARTED + ms;
+  return {
+    startedAt: at(0),
+    endedAt: at(5_000),
+    spans: [
+      {
+        nodeId: 'issues',
+        startedAt: at(50),
+        endedAt: at(1_250),
+        outcome: 'succeeded',
+        detail: '1.2 s',
+      },
+      {
+        nodeId: 'open_issues',
+        startedAt: at(1_260),
+        endedAt: at(1_290),
+        outcome: 'succeeded',
+        detail: '30 ms',
+      },
+      ...[
+        [1_300, 2_900],
+        [2_900, 4_100],
+      ].map(([from = 0, to = 0], item) => ({
+        nodeId: 'score',
+        startedAt: at(from),
+        endedAt: at(to),
+        outcome: 'succeeded' as const,
+        item,
+      })),
+      {
+        nodeId: 'score',
+        startedAt: at(4_100),
+        endedAt: at(5_000),
+        outcome: 'failed',
+        reason: 'The model provider refused the request',
+        item: 2,
+      },
+      {
+        nodeId: 'score',
+        startedAt: at(5_000),
+        endedAt: at(5_000),
+        outcome: 'not-run',
+        item: 3,
+      },
+    ],
+    travels: [
+      { edgeId: '__start>issues', at: at(0), target: 'issues' },
+      {
+        edgeId: 'issues>open_issues',
+        at: at(1_250),
+        target: 'open_issues',
+        summary: '4 issues',
+      },
+      {
+        edgeId: 'open_issues>score',
+        at: at(1_290),
+        target: 'score',
+        summary: '4 open issues',
+      },
+    ],
+  };
+}
+
+/**
+ * A recorded run of the branch fixture that succeeds: Urgent's condition
+ * says No and Normal's says Yes, so Urgent and Low are skipped; Notify
+ * fails and the run goes on; Poll repeats three times; the run waits for
+ * an approval on the way.
+ */
+export function branchRun(): FlowRealRun {
+  const at = (ms: number) => RUN_STARTED + ms;
+  const skipped = 'Skipped: the condition is false';
+  return {
+    startedAt: at(0),
+    endedAt: at(4_600),
+    spans: [
+      {
+        nodeId: 'fetch',
+        startedAt: at(10),
+        endedAt: at(400),
+        outcome: 'succeeded',
+        detail: '390 ms',
+      },
+      {
+        nodeId: 'enrich',
+        startedAt: at(410),
+        endedAt: at(900),
+        outcome: 'succeeded',
+        detail: '490 ms',
+      },
+      {
+        nodeId: 'classify',
+        startedAt: at(410),
+        endedAt: at(1_600),
+        outcome: 'succeeded',
+        detail: '1.2 s',
+      },
+      {
+        nodeId: '__gate:urgent',
+        startedAt: at(1_610),
+        endedAt: at(1_610),
+        outcome: 'succeeded',
+        decision: false,
+      },
+      {
+        nodeId: 'urgent',
+        startedAt: at(1_610),
+        endedAt: at(1_610),
+        outcome: 'skipped',
+        reason: skipped,
+      },
+      {
+        nodeId: '__gate:normal',
+        startedAt: at(1_620),
+        endedAt: at(1_620),
+        outcome: 'succeeded',
+        decision: true,
+      },
+      {
+        nodeId: 'low',
+        startedAt: at(1_620),
+        endedAt: at(1_620),
+        outcome: 'skipped',
+        reason: skipped,
+      },
+      {
+        nodeId: 'normal',
+        startedAt: at(1_630),
+        endedAt: at(2_400),
+        outcome: 'waiting',
+        reason: 'Waiting for approval',
+      },
+      {
+        nodeId: 'normal',
+        startedAt: at(2_400),
+        endedAt: at(3_000),
+        outcome: 'succeeded',
+        detail: '1.4 s',
+      },
+      {
+        nodeId: 'merge',
+        startedAt: at(3_010),
+        endedAt: at(3_100),
+        outcome: 'succeeded',
+        detail: '90 ms',
+      },
+      {
+        nodeId: 'notify',
+        startedAt: at(3_110),
+        endedAt: at(3_400),
+        outcome: 'failed',
+        reason: 'The mail server refused the message',
+      },
+      ...[1, 2, 3].map((pass) => ({
+        nodeId: 'poll',
+        startedAt: at(3_110 + (pass - 1) * 500),
+        endedAt: at(3_110 + pass * 500),
+        outcome: 'succeeded' as const,
+        pass,
+      })),
+      {
+        nodeId: '__end',
+        startedAt: at(4_600),
+        endedAt: at(4_600),
+        outcome: 'succeeded',
+        detail: 'Succeeded in 4.6 s',
+      },
+    ],
+    travels: [
+      { edgeId: '__start>fetch', at: at(0), target: 'fetch' },
+      { edgeId: 'fetch>classify', at: at(400), target: 'classify' },
+      { edgeId: 'fetch>enrich', at: at(400), target: 'enrich' },
+      {
+        edgeId: 'classify>__gate:urgent',
+        at: at(1_600),
+        target: '__gate:urgent',
+      },
+      {
+        edgeId: '__gate:urgent>__gate:normal',
+        at: at(1_610),
+        target: '__gate:normal',
+      },
+      { edgeId: '__gate:normal>normal', at: at(1_620), target: 'normal' },
+      { edgeId: 'fetch>normal', at: at(1_620), target: 'normal' },
+      { edgeId: 'normal>merge', at: at(3_000), target: 'merge' },
+      { edgeId: 'enrich>merge', at: at(3_000), target: 'merge' },
+      { edgeId: 'merge>notify', at: at(3_100), target: 'notify' },
+      { edgeId: 'merge>poll', at: at(3_100), target: 'poll' },
+      { edgeId: 'merge>__end', at: at(4_600), target: '__end' },
+      { edgeId: 'poll>__end', at: at(4_600), target: '__end' },
+    ],
+    waits: [
+      {
+        startedAt: at(1_630),
+        endedAt: at(2_400),
+        label: 'Waited 0.8 s for approval',
+      },
+    ],
+  };
+}
+
+/**
+ * The branch fixture's last run as an overlay — where each node ended,
+ * without time: what an editor shows as "last run".
+ */
+export function branchRunOverlay(): FlowRunOverlay {
+  const skipped = 'Skipped: the condition is false';
+  return {
+    finished: true,
+    nodes: {
+      __start: { state: 'succeeded', detail: 'Started 07:00 by hand' },
+      fetch: { state: 'succeeded', detail: '390 ms' },
+      enrich: { state: 'succeeded', detail: '490 ms' },
+      classify: { state: 'succeeded', detail: '1.2 s' },
+      '__gate:urgent': { state: 'succeeded', decision: false },
+      urgent: { state: 'skipped', reason: skipped },
+      '__gate:normal': { state: 'succeeded', decision: true },
+      normal: { state: 'succeeded', detail: '1.4 s' },
+      low: { state: 'skipped', reason: skipped },
+      merge: { state: 'succeeded', detail: '90 ms' },
+      notify: {
+        state: 'failed',
+        reason: 'The mail server refused the message',
+      },
+      poll: {
+        state: 'succeeded',
+        detail: '1.5 s',
+        pass: { current: 3, max: 5 },
+      },
+      __end: { state: 'succeeded', detail: 'Succeeded in 4.6 s' },
+    },
+  };
 }

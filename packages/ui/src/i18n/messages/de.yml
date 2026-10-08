@@ -578,3 +578,14 @@ flow:
     empty: Noch keine Nodes
   paths:
     showAll: Alle zeigen
+  playback:
+    label: Zeitachse des Laufs
+    play: Abspielen
+    pause: Pausieren
+    previous: Vorheriges Ereignis
+    next: Nächstes Ereignis
+    speed: Wiedergabegeschwindigkeit
+    position: '{elapsed} von {total}'
+    valueText: '{position} – {events}'
+    live: Live
+    followLive: Live folgen

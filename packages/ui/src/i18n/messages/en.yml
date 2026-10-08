@@ -578,3 +578,14 @@ flow:
     empty: No nodes yet
   paths:
     showAll: Show all
+  playback:
+    label: Run timeline
+    play: Play
+    pause: Pause
+    previous: Previous event
+    next: Next event
+    speed: Playback speed
+    position: '{elapsed} of {total}'
+    valueText: '{position} — {events}'
+    live: Live
+    followLive: Follow live

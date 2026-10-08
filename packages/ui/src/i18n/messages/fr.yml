@@ -578,3 +578,14 @@ flow:
     empty: Aucun nœud pour l'instant
   paths:
     showAll: Tout afficher
+  playback:
+    label: Chronologie de l'exécution
+    play: Lire
+    pause: Mettre en pause
+    previous: Événement précédent
+    next: Événement suivant
+    speed: Vitesse de lecture
+    position: '{elapsed} sur {total}'
+    valueText: '{position} – {events}'
+    live: En direct
+    followLive: Suivre en direct

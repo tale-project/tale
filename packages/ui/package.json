@@ -155,6 +155,8 @@
     "./flow/node-issue-marker": "./src/components/flow/node-issue-marker.tsx",
     "./flow/node-status": "./src/components/flow/node-status.tsx",
     "./flow/paths": "./src/components/flow/paths/highlight.ts",
+    "./flow/playback": "./src/components/flow/playback/index.ts",
+    "./flow/playback-bar": "./src/components/flow/playback/flow-playback-bar.tsx",
     "./flow/types": "./src/components/flow/types.ts",
     "./flow/use-elk-layout": "./src/components/flow/layout/use-elk-layout.ts",
     "./flow/workflow-canvas": "./src/components/flow/workflow-canvas.tsx",
