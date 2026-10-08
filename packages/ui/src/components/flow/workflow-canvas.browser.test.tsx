@@ -276,6 +276,46 @@ describe('WorkflowCanvas', () => {
     expect(document.activeElement?.closest('[data-flow-node]')).toBeNull();
   });
 
+  it('brings a node that takes keyboard focus, or that the host names, into view', async () => {
+    const { getByTestId, rerender } = await renderLaidOut(triageFlowGraph(), {
+      width: 600,
+      height: 320,
+      fitPolicy: 'auto',
+    });
+    const frame = getByTestId('frame').getBoundingClientRect();
+    const inside = (id: string) => {
+      const box = document
+        .querySelector(`[data-flow-node="${id}"]`)
+        ?.getBoundingClientRect();
+      return (
+        box !== undefined &&
+        box.top >= frame.top - 1 &&
+        box.bottom <= frame.bottom + 1 &&
+        box.left >= frame.left - 1 &&
+        box.right <= frame.right + 1
+      );
+    };
+    // Too tall to read whole: shown from Start at a readable zoom.
+    expect(inside('__start')).toBe(true);
+    expect(inside('__end')).toBe(false);
+    screen.getByRole('button', { name: 'Before the chart' }).focus();
+    await userEvent.tab();
+    await userEvent.keyboard('{End}');
+    await waitFor(() => expect(inside('__end')).toBe(true));
+    await viewportAtRest();
+    expect(inside('__end')).toBe(true);
+    rerender(
+      <Harness
+        graph={triageFlowGraph()}
+        width={600}
+        height={320}
+        fitPolicy="auto"
+        revealId="__start"
+      />,
+    );
+    await waitFor(() => expect(inside('__start')).toBe(true));
+  });
+
   it('describes each node: where it sits, where it leads, what it reads', async () => {
     await renderLaidOut(triageFlowGraph());
     const score = screen.getByRole('button', { name: 'Score' });

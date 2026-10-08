@@ -432,7 +432,9 @@ function WorkflowCanvasInner({
         if (key === undefined || layout === null) return;
         event.preventDefault();
         const next = flowNeighbour(graph, layout, id, key);
-        if (next !== null) buttonOf(next)?.focus();
+        // The canvas pans the box into view itself; the browser's own
+        // scroll-into-view would shift the clipped frame instead.
+        if (next !== null) buttonOf(next)?.focus({ preventScroll: true });
       },
       onFocusNode: (id, event: FocusEvent<HTMLButtonElement>) => {
         setLastFocused(id);
