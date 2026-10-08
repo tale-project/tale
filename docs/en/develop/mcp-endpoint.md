@@ -193,7 +193,7 @@ Write each `/` in an automation name as `%2F`: `tale://automations/billing%2Fdun
 | `debug_failed_run` | `runId` | Explain why the run failed, reproduce the failure on the mocks and propose the smallest fix |
 | `add_trigger` | `name`, `kind` (optional: `schedule`, `webhook` or `event`) | Decide what starts the automation, and ask before calling `set_trigger` |
 
-Each argument is a single word, because clients such as Claude Code split arguments at spaces. A prompt whose run or automation the key holder cannot read returns `-32602` with that read's code.
+Each argument is a single word, because clients such as Claude Code split arguments at spaces. An argument sent empty counts as left out. A prompt whose run or automation the key holder cannot read returns `-32602` with that read's code.
 
 ## What the key may do
 

@@ -193,7 +193,7 @@ Schreibe jeden `/` in einem Automatisierungsnamen als `%2F`: `tale://automations
 | `debug_failed_run` | `runId` | Erklären, warum der Lauf fehlgeschlagen ist, den Fehler mit Mocks nachstellen und die kleinste Korrektur vorschlagen |
 | `add_trigger` | `name`, `kind` (optional: `schedule`, `webhook` oder `event`) | Festlegen, was die Automatisierung startet, und vor `set_trigger` nachfragen |
 
-Jedes Argument ist ein einzelnes Wort, weil Clients wie Claude Code die Argumente an Leerzeichen trennen. Ein Prompt, dessen Lauf oder Automatisierung der Schlüsselinhaber nicht lesen darf, liefert `-32602` mit dem Code dieses Lesezugriffs.
+Jedes Argument ist ein einzelnes Wort, weil Clients wie Claude Code die Argumente an Leerzeichen trennen. Ein leer gesendetes Argument gilt als weggelassen. Ein Prompt, dessen Lauf oder Automatisierung der Schlüsselinhaber nicht lesen darf, liefert `-32602` mit dem Code dieses Lesezugriffs.
 
 ## Was der Schlüssel darf
 

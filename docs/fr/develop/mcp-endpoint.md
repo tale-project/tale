@@ -193,7 +193,7 @@ En plus des outils, le point d’accès sert des ressources, qu’un client lit 
 | `debug_failed_run` | `runId` | Expliquer pourquoi l’exécution a échoué, reproduire l’échec sur les simulations et proposer la plus petite correction |
 | `add_trigger` | `name`, `kind` (facultatif : `schedule`, `webhook` ou `event`) | Choisir ce qui lance l’automatisation, et demander avant d’appeler `set_trigger` |
 
-Chaque argument est un seul mot, car des clients comme Claude Code séparent les arguments aux espaces. Un prompt dont l’exécution ou l’automatisation n’est pas lisible par le titulaire de la clé renvoie `-32602` avec le code de cette lecture.
+Chaque argument est un seul mot, car des clients comme Claude Code séparent les arguments aux espaces. Un argument envoyé vide compte comme omis. Un prompt dont l’exécution ou l’automatisation n’est pas lisible par le titulaire de la clé renvoie `-32602` avec le code de cette lecture.
 
 ## Ce que la clé peut faire
 

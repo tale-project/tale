@@ -70,7 +70,15 @@ export async function getPrompt(
       'Invalid params: a prompt’s arguments are an object of strings',
     );
   }
-  const parsed = prompt.args.safeParse(raw, {
+  // A client that asks the person for each argument in a form sends one
+  // they left empty as an empty string; it was not given, so an optional
+  // argument is simply absent and a required one is missing.
+  const given = Object.fromEntries(
+    Object.entries(raw).filter(
+      ([, value]) => !(typeof value === 'string' && value.trim() === ''),
+    ),
+  );
+  const parsed = prompt.args.safeParse(given, {
     reportInput: true,
     error: houseIssueMessage,
   });

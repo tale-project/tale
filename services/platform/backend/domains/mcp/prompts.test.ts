@@ -198,6 +198,46 @@ describe('prompts/get [MCP-R24]', () => {
     expect(engine).not.toHaveBeenCalled();
   });
 
+  it('takes an argument sent empty as one left out, as a form-filling client sends it', async () => {
+    const engine = vi.fn<Engine>(async (_caller, method) =>
+      method === 'get_docs' ? { docs: '# Triggers reference' } : VIEW,
+    );
+    // Mia leaves the optional name empty → a new automation, nothing read.
+    const create = await rpc(engine, 'prompts/get', {
+      name: 'edit_automation',
+      arguments: { name: '' },
+    });
+    expect(create.result?.messages).toHaveLength(1);
+    expect(create.result?.messages?.[0]?.content.text).toContain(
+      'Create a new Tale automation.',
+    );
+    expect(engine).not.toHaveBeenCalled();
+    // An empty optional kind leaves all three kinds' advice in.
+    const trigger = await rpc(engine, 'prompts/get', {
+      name: 'add_trigger',
+      arguments: { name: 'billing/dunning', kind: ' ' },
+    });
+    expect(trigger.error).toBeUndefined();
+    for (const advice of ['For a schedule', 'For an event', 'For a webhook']) {
+      expect(trigger.result?.messages?.[0]?.content.text).toContain(advice);
+    }
+    // A required argument sent empty is missing, not "blank".
+    expect(
+      (
+        await rpc(engine, 'prompts/get', {
+          name: 'debug_failed_run',
+          arguments: { runId: '' },
+        })
+      ).error,
+    ).toMatchObject({
+      code: -32602,
+      data: {
+        code: 'INVALID_ARGUMENTS',
+        issues: [expect.objectContaining({ path: 'runId' })],
+      },
+    });
+  });
+
   it('is one call against a batch’s budget, however many reads it attaches', async () => {
     const engine = vi.fn<Engine>(async (_caller, method) =>
       method === 'get_docs' ? { docs: 'x' } : VIEW,
