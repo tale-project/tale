@@ -6,6 +6,7 @@ import type {
 } from '../../core/knowledge/embedding.ts';
 import type { BudgetViolation } from '../governance/budget-gate.ts';
 import {
+  directCallBlocked,
   type DirectCallSubject,
   isDirectCallLease,
   openTokenCall,
@@ -16,6 +17,30 @@ import {
 /** The longest one embedding request may hold its worst case: a batch's
  * own ceiling (15 minutes), with room to spare. */
 const EMBEDDING_CALL_MAX_MS = 20 * 60 * 1000;
+
+/** The tokens one embedding request is reckoned to need before the work's
+ * first request is known: one chunk of Tale's size, which `embedding.ts`
+ * puts at 700–1,000 tokens. */
+const ONE_CHUNK_TOKENS = 1_024;
+
+/**
+ * Whether embedding work for `subject` would be refused at its first
+ * request: the hold every embedding request takes — at least a cent, and a
+ * chunk's tokens — measured against the caps that bind the subject, holding
+ * nothing (`directCallBlocked`). The early answer for indexing that waits on
+ * a limit: a file, an email or a website is not read again only to be
+ * refused, as it would be while a cap keeps less than a cent of room —
+ * where requests costing a fraction of a cent leave it.
+ */
+export function embeddingBlocked(
+  sql: Sql,
+  args: { organizationId: string; subject: DirectCallSubject },
+): Promise<BudgetViolation | null> {
+  return directCallBlocked(sql, {
+    ...args,
+    worstCase: { cents: 1, tokens: ONE_CHUNK_TOKENS },
+  });
+}
 
 /**
  * The meter an embedder's requests are held and booked through, as the

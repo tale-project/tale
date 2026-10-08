@@ -77,13 +77,30 @@ function fileSql(
   thread?: { owner: string; projectId: string | null },
 ) {
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    if (strings.join('?').includes('FROM app.thread_metadata')) {
+    const text = strings.join('?');
+    if (text.includes('FROM app.thread_metadata')) {
       return Promise.resolve(
         thread !== undefined && values[2] === thread.owner
           ? [{ projectId: thread.projectId }]
           : [],
       );
     }
+    // organizationId, userId: `user-1` is the one member here.
+    if (text.includes('FROM "member"')) {
+      return Promise.resolve(
+        values[1] === 'user-1'
+          ? [
+              {
+                id: 'm-1',
+                organizationId: 'org-1',
+                userId: 'user-1',
+                role: 'member',
+              },
+            ]
+          : [],
+      );
+    }
+    if (text.includes('FROM app.api_key_owners')) return Promise.resolve([]);
     return Promise.resolve(file === null ? [] : [file]);
   };
   return tag as unknown as Sql;
@@ -152,16 +169,19 @@ describe('an uploaded recording’s transcription', () => {
         storageId: 's3:org/gone',
       }),
     ).resolves.toBeNull();
-    // A file nobody uploaded is the organization's.
-    await expect(
-      uploadTranscriptionSubject(fileSql(row({ uploadedBy: null })), {
-        organizationId: 'org-1',
-        storageId: 's3:org/rec',
-      }),
-    ).resolves.toEqual({
-      userId: AUTOMATION_SUBJECT_ID,
-      agentSlug: '__transcription__',
-    });
+    // A file nobody uploaded is the organization's, and so is one an
+    // automation filed: `workflow` is no person.
+    for (const uploadedBy of [null, 'workflow']) {
+      await expect(
+        uploadTranscriptionSubject(fileSql(row({ uploadedBy })), {
+          organizationId: 'org-1',
+          storageId: 's3:org/rec',
+        }),
+      ).resolves.toEqual({
+        userId: AUTOMATION_SUBJECT_ID,
+        agentSlug: '__transcription__',
+      });
+    }
   });
 
   it('holds its whole length at the per-minute price, and books the minutes transcribed [GOV-R5]', async () => {

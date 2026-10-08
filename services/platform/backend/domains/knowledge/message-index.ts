@@ -38,11 +38,8 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
 import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
-import {
-  directCallBlocked,
-  type DirectCallSubject,
-} from '../governance/direct-calls.ts';
-import { embeddingMeter } from './embedding-meter.ts';
+import type { DirectCallSubject } from '../governance/direct-calls.ts';
+import { embeddingBlocked, embeddingMeter } from './embedding-meter.ts';
 import { isMessageCorpusLive } from './liveness.ts';
 import { knowledgeShimHandlers } from './service.ts';
 
@@ -60,7 +57,10 @@ const USAGE_LIMIT_RETRY_MS = 60 * 60 * 1000;
  * Put a message a usage limit refused back in the queue, to be tried again
  * once the limit may allow it: in an hour, or just after its period resets
  * when that comes first. A message has no status row to park it on, so its
- * job carries the wait; one waiting job per message.
+ * job carries the wait — one waiting job per message: when a job for it is
+ * already queued, that job takes the turn. The queue's default policy reads
+ * a singleton key as a label only (`jobs/tasks.ts`), so the waiting job is
+ * looked for rather than keyed.
  */
 async function deferForUsageLimit(
   sql: Sql,
@@ -68,6 +68,19 @@ async function deferForUsageLimit(
   reason: string,
   resetsAtMs: number | undefined,
 ): Promise<void> {
+  const queued = await sql<{ id: string }[]>`
+    SELECT id FROM pgboss.job
+    WHERE name = 'rag.index_message' AND state IN ('created', 'retry')
+      AND data->>'messageId' = ${messageId}
+    LIMIT 1
+  `;
+  if (queued.length > 0) {
+    console.info('[knowledge] email body already waits for a usage limit', {
+      messageId,
+      reason,
+    });
+    return;
+  }
   const now = Date.now();
   const at =
     resetsAtMs !== undefined && resetsAtMs > now
@@ -77,10 +90,7 @@ async function deferForUsageLimit(
     sql,
     'rag.index_message',
     { messageId },
-    {
-      startAfter: new Date(at),
-      singletonKey: `rag-index-message-usage-limit-${messageId}`,
-    },
+    { startAfter: new Date(at) },
   );
   console.info('[knowledge] email body waits for a usage limit', {
     messageId,
@@ -194,7 +204,7 @@ export async function indexConversationMessage(
   });
   const sentAt = new Date(message.sentAt);
   const log = { messageId, orgSlug };
-  const blocked = await directCallBlocked(sql, {
+  const blocked = await embeddingBlocked(sql, {
     organizationId: message.organizationId,
     subject: MAIL_EMBEDDING_SUBJECT,
   });

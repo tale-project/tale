@@ -48,8 +48,17 @@ function fakeSql(rows: Row[]): {
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$');
     if (text.includes("metadata ->> 'embeddingLimitedAt' IS NOT NULL")) {
+      // One keyset page: the ids after the cursor, up to the limit.
+      const after =
+        values.find((value): value is string => typeof value === 'string') ??
+        '';
+      const limit = values.find((value) => typeof value === 'number');
       return Promise.resolve(
-        rows.filter((row) => row.metadata?.embeddingLimitedAt != null),
+        rows
+          .filter((row) => row.metadata?.embeddingLimitedAt != null)
+          .filter((row) => row.id > after)
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .slice(0, typeof limit === 'number' ? limit : undefined),
       );
     }
     if (text.includes('UPDATE app.websites SET')) {
@@ -146,6 +155,7 @@ describe('resumeUsageLimitedScans', () => {
   it('scans a noted site again under its requester once their limits have room [WEB-R11]', async () => {
     const { sql } = fakeSql([noted]);
     await expect(resumeUsageLimitedScans(sql)).resolves.toBe(1);
+    // Asked as the scan's first request will be: a cent and a chunk's tokens.
     expect(directCallBlocked).toHaveBeenCalledWith(sql, {
       organizationId: 'org-1',
       subject: {
@@ -153,6 +163,7 @@ describe('resumeUsageLimitedScans', () => {
         agentSlug: '__embedding__',
         apiKeyId: 'key-1',
       },
+      worstCase: { cents: 1, tokens: 1_024 },
     });
     expect(addJobInTx).toHaveBeenCalledWith(sql, 'websites.scan', {
       domain: 'ruler.example',
@@ -177,6 +188,61 @@ describe('resumeUsageLimitedScans', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
+  it('leaves a site whose last scan failed to its failure cadence, and a resumed one keeps its bookkeeping', async () => {
+    const failing = fakeSql([
+      {
+        ...noted,
+        metadata: { ...noted.metadata, corpusConnectionFailures: 1 },
+      },
+    ]);
+    await expect(resumeUsageLimitedScans(failing.sql)).resolves.toBe(0);
+    expect(directCallBlocked).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+
+    const { sql, updates } = fakeSql([noted]);
+    await expect(resumeUsageLimitedScans(sql)).resolves.toBe(1);
+    // Queued without clearing what a failed scan would count.
+    expect(updates[0]).toMatchObject({ scanHeartbeatAt: expect.any(Number) });
+    expect(updates[0]).not.toHaveProperty('corpusConnectionFailures');
+    expect(updates[0]).not.toHaveProperty('scanPausedAt');
+  });
+
+  it('reaches every noted site, however many wait ahead of it [WEB-R11]', async () => {
+    const blocked = Array.from({ length: 200 }, (_, index) => ({
+      ...noted,
+      id: `w-${String(index).padStart(3, '0')}`,
+    }));
+    const free = {
+      ...noted,
+      id: 'w-200',
+      metadata: {
+        embeddingLimitedAt: 1,
+        embeddingLimitRequestedBy: { userId: 'user-2' },
+      },
+    };
+    vi.mocked(directCallBlocked).mockImplementation(async (_sql, args) =>
+      args.subject.userId === 'user-1'
+        ? {
+            scope: 'user',
+            code: 'COST_LIMIT',
+            period: 'monthly',
+            used: 100,
+            limit: 100,
+            reason: 'x',
+            resetsAt: Date.UTC(2026, 10, 1),
+          }
+        : null,
+    );
+    const { sql } = fakeSql([...blocked, free]);
+
+    await expect(resumeUsageLimitedScans(sql)).resolves.toBe(1);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'websites.scan',
+      expect.objectContaining({ requestedBy: { userId: 'user-2' } }),
+    );
+  });
+
   it('books a scheduled scan’s resume to the organization', async () => {
     const { sql } = fakeSql([
       { ...noted, metadata: { embeddingLimitedAt: 1 } },
@@ -185,6 +251,7 @@ describe('resumeUsageLimitedScans', () => {
     expect(directCallBlocked).toHaveBeenCalledWith(sql, {
       organizationId: 'org-1',
       subject: { userId: '__automation__', agentSlug: '__embedding__' },
+      worstCase: { cents: 1, tokens: 1_024 },
     });
     expect(addJobInTx).toHaveBeenCalledWith(sql, 'websites.scan', {
       domain: 'ruler.example',

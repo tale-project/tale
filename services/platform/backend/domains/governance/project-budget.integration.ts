@@ -687,6 +687,8 @@ export async function checkProjectBudgets(
         transcriptionSubject.projectIds?.[0] === projectId &&
         strangerSubject !== null &&
         strangerSubject.projectIds === undefined &&
+        // The stranger is no member: the recording is no person's spend.
+        strangerSubject.userId === '__automation__' &&
         removedSubject === null &&
         transcription.allowed &&
         whileTranscribing - beforeTranscription === 6 &&
@@ -695,7 +697,7 @@ export async function checkProjectBudgets(
         transcriptionBooked[0]?.userId === userId &&
         Math.abs((transcriptionBooked[0]?.cost ?? 0) - 0.88) < 1e-9 &&
         transcriptionBooked[0]?.seconds === 88,
-      `subject=${JSON.stringify(transcriptionSubject)} (want the uploader in the project) stranger=${JSON.stringify(strangerSubject)} (want no project) removed=${JSON.stringify(removedSubject)} (want null) held ${whileTranscribing - beforeTranscription} then ${afterTranscription - beforeTranscription} (want 6 then 0) booked=${JSON.stringify(transcriptionBooked)} (want 0.88 cents, 88 s, the uploader)`,
+      `subject=${JSON.stringify(transcriptionSubject)} (want the uploader in the project) stranger=${JSON.stringify(strangerSubject)} (want no project, booked to __automation__ — its uploader is no member) removed=${JSON.stringify(removedSubject)} (want null) held ${whileTranscribing - beforeTranscription} then ${afterTranscription - beforeTranscription} (want 6 then 0) booked=${JSON.stringify(transcriptionBooked)} (want 0.88 cents, 88 s, the uploader)`,
     );
   } finally {
     await unlink(budgetsFile).catch((error: unknown) => {

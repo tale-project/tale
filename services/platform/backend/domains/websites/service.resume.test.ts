@@ -34,6 +34,7 @@ vi.mock('../../lib/org-config.ts', () => ({
 vi.mock('./scan-queue.ts', () => ({
   listScanningRowsWithoutJob: vi.fn(),
   lastFailedScanJob: vi.fn(),
+  previousScanRequester: vi.fn(async () => null),
   scanCycleStartedAt: vi.fn(),
   scanJobEnded: vi.fn(async () => false),
 }));
@@ -55,6 +56,7 @@ import { TASK_QUEUE_OPTIONS } from '../../jobs/tasks.ts';
 import {
   lastFailedScanJob,
   listScanningRowsWithoutJob,
+  previousScanRequester,
   scanCycleStartedAt,
   type ScanningRowWithoutJob,
   scanJobEnded,
@@ -383,6 +385,50 @@ describe('runWebsitesScan', () => {
       embeddingMeter: expect.objectContaining({ open: expect.any(Function) }),
       signal,
     });
+  });
+
+  it('carries on a taken-over scan under the requester its last link named [WEB-R11]', async () => {
+    vi.mocked(previousScanRequester).mockResolvedValueOnce({
+      userId: 'mia',
+      apiKeyId: 'key-1',
+    });
+    const payload = {
+      domain: 'example.com',
+      orgSlug: 'acme',
+      organizationId: 'org-1',
+      takeover: CLAIM,
+      scanStartedAt: new Date(NOW - HOUR).toISOString(),
+    };
+
+    await runWebsitesScan(fakeSql().sql, payload, { jobId: 'job-7' });
+
+    expect(previousScanRequester).toHaveBeenCalledWith(expect.anything(), {
+      domain: 'example.com',
+      organizationId: 'org-1',
+      jobId: 'job-7',
+    });
+    expect(scanWebsiteImpl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        requestedBy: { userId: 'mia', apiKeyId: 'key-1' },
+      }),
+    );
+  });
+
+  it('asks nothing for a continuation link, which carries its own requester', async () => {
+    await runWebsitesScan(fakeSql().sql, {
+      domain: 'example.com',
+      orgSlug: 'acme',
+      organizationId: 'org-1',
+      continuation: 2,
+      scanStartedAt: new Date(NOW - HOUR).toISOString(),
+    });
+
+    expect(previousScanRequester).not.toHaveBeenCalled();
+    expect(scanWebsiteImpl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.not.objectContaining({ requestedBy: expect.anything() }),
+    );
   });
 
   /**

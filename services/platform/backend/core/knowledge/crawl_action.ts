@@ -600,7 +600,7 @@ export async function scanWebsiteImpl(
       const unembedded = renderDeferred
         ? 0
         : await indexer.embedVectorless(deadline);
-      await indexer.finish();
+      await indexer.finish(renderDeferred ? undefined : unembedded);
 
       const remaining =
         (await countDuePages(sql, args.domain, scanStartedAt)) + unembedded;
@@ -2250,9 +2250,10 @@ export class PageIndexer {
     });
   }
 
-  /** Post-loop bookkeeping: the homepage's title names the site itself. */
-  async finish(): Promise<void> {
-    await this.noteUsageLimit();
+  /** Post-loop bookkeeping: the homepage's title names the site itself.
+   * `vectorlessLeft` is what the vector backfill left behind, when it ran. */
+  async finish(vectorlessLeft?: number): Promise<void> {
+    await this.noteUsageLimit(vectorlessLeft);
     if (!this.indexedAny) return;
     const { domain } = this.identity;
     const homepageRows = await this.sql.unsafe<Array<{ title: string | null }>>(
@@ -2274,11 +2275,16 @@ export class PageIndexer {
   /**
    * Tell the website row whether a usage limit stopped this link's
    * embedding — the row then says so, and the hourly pass resumes the scan
-   * once the limit allows it — or that the link embedded again, which
-   * clears the note. A failure to record is logged; the scan stands.
+   * once the limit allows it — or that the note no longer holds: the link
+   * embedded again, or nothing is left without vectors (another
+   * organization's scan of the shared domain embedded it, the pages went,
+   * or no model is set to embed them). A failure to record is logged; the
+   * scan stands.
    */
-  private async noteUsageLimit(): Promise<void> {
-    if (this.limited === null && !this.embeddedAny) return;
+  private async noteUsageLimit(vectorlessLeft?: number): Promise<void> {
+    if (this.limited === null && !this.embeddedAny && vectorlessLeft !== 0) {
+      return;
+    }
     try {
       await this.ctx.runMutation(
         internal.websites.internal_mutations.recordEmbeddingLimit,

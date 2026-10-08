@@ -1172,6 +1172,22 @@ export async function processErasure(
     return onedrive.length + googleDrive.length;
   });
 
+  // A website whose scan a usage limit stopped names who asked for the scan
+  // (`metadata.embeddingLimitRequestedBy`, a member and the key they used),
+  // so the hourly pass resumes it as their spend. The note stays — the
+  // site's pages still wait for their vectors — but no longer names the
+  // subject: the scan resumes as the organization's.
+  await pass('websiteScanNotes', async () => {
+    const cleared = await sql<{ id: string }[]>`
+      UPDATE app.websites
+         SET metadata = metadata - 'embeddingLimitRequestedBy'
+       WHERE org_id = ${organizationId}
+         AND metadata -> 'embeddingLimitRequestedBy' ->> 'userId' = ${targetUserId}
+      RETURNING id
+    `;
+    return cleared.length;
+  });
+
   // The org-level security and system bells ABOUT the subject, which are a
   // different table from the per-user inbox the `notifications` pass above
   // clears. `subject_user_id` exists for exactly this — 0002_notifications

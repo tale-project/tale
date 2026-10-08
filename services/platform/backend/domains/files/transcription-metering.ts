@@ -1,9 +1,6 @@
 import type { Sql } from 'postgres';
 
-import {
-  AUTOMATION_SUBJECT_ID,
-  TRANSCRIPTION_SLUG,
-} from '../../../lib/shared/constants/usage.ts';
+import { TRANSCRIPTION_SLUG } from '../../../lib/shared/constants/usage.ts';
 import { estimateTranscriptionCostCents } from '../../core/governance/cost_estimation.ts';
 import {
   type DirectCallLease,
@@ -12,7 +9,7 @@ import {
   releaseDirectCall,
   settleDirectCall,
 } from '../governance/direct-calls.ts';
-import { fileAttachmentProjectId } from './attachment-project.ts';
+import { fileAttachmentProjectId, fileSpenderUserId } from './attribution.ts';
 
 /**
  * A transcription is a direct call (`governance/direct-calls.ts`) billed by
@@ -82,8 +79,9 @@ export async function openTranscriptionCall(
 
 /**
  * Whose spend an uploaded recording's transcription is: its uploader's —
- * the organization's when nobody is named — and the project's it was added
- * in (`fileAttachmentProjectId`). Null when the recording is gone or its
+ * the organization's when nobody who acts in it is named
+ * (`fileSpenderUserId`) — and the project's it was added in
+ * (`fileAttachmentProjectId`). Null when the recording is gone or its
  * transcription was cancelled: nothing is to be charged then.
  */
 export async function uploadTranscriptionSubject(
@@ -113,7 +111,7 @@ export async function uploadTranscriptionSubject(
     threadId: row.threadId,
   });
   return {
-    userId: row.uploadedBy ?? AUTOMATION_SUBJECT_ID,
+    userId: await fileSpenderUserId(sql, args.organizationId, [row.uploadedBy]),
     agentSlug: TRANSCRIPTION_SLUG,
     ...(projectId !== null ? { projectIds: [projectId] } : {}),
   };

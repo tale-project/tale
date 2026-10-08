@@ -32,6 +32,7 @@ import {
   syncWebsiteStatuses,
   WebsiteError,
   websiteDomainImmutableError,
+  websiteForReader,
   type WebsiteRow,
 } from './service.ts';
 
@@ -116,7 +117,7 @@ export function createWebsiteRoutes(deps: {
       cursor: c.req.query('cursor') ?? null,
       limit: Number(c.req.query('limit') ?? '25') || 25,
     });
-    return c.json(result);
+    return c.json({ ...result, page: result.page.map(websiteForReader) });
   });
 
   app.get('/count', async (c) => {
@@ -167,7 +168,7 @@ export function createWebsiteRoutes(deps: {
 
   app.get('/:websiteId', async (c) => {
     try {
-      return c.json(await loadOwnedWebsite(deps.sql, c));
+      return c.json(websiteForReader(await loadOwnedWebsite(deps.sql, c)));
     } catch (error) {
       return handleError(c, error);
     }
@@ -203,7 +204,7 @@ export function createWebsiteRoutes(deps: {
           ? { scanInterval: body.data.scanInterval }
           : {}),
       });
-      return c.json(updated);
+      return c.json(updated === null ? null : websiteForReader(updated));
     } catch (error) {
       return handleError(c, error);
     }

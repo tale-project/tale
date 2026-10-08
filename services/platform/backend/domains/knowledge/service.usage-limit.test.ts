@@ -78,6 +78,9 @@ interface Query {
   values: unknown[];
 }
 
+/** Who acts in the organization: a member, never `workflow`. */
+const MEMBERS = new Set(['drive-owner', 'user-1']);
+
 /** The file being indexed, the document holding it (by default a synced
  * drive's), and the chat it names. */
 function fakeSql(
@@ -113,6 +116,22 @@ function fakeSql(
     }
     if (text.includes('AS "createdBy"')) {
       return Promise.resolve(doc === null ? [] : [doc]);
+    }
+    if (text.includes('FROM "member"')) {
+      // organizationId, userId: only the people acting in the organization.
+      const userId = values[1];
+      return Promise.resolve(
+        typeof userId === 'string' && MEMBERS.has(userId)
+          ? [
+              {
+                id: `m-${userId}`,
+                organizationId: 'org-1',
+                userId,
+                role: 'member',
+              },
+            ]
+          : [],
+      );
     }
     if (text.includes('FROM app.thread_metadata')) {
       // thread_id, org_id, the uploader: only the owner's chat answers.
@@ -174,6 +193,8 @@ describe('indexUploadedFile at a usage limit', () => {
         agentSlug: '__embedding__',
         projectIds: ['p-1'],
       },
+      // Asked as its first request will be: a cent and a chunk's tokens.
+      worstCase: { cents: 1, tokens: 1_024 },
     });
     expect(embedderForOrg).toHaveBeenCalledWith(
       expect.anything(),
@@ -220,9 +241,28 @@ describe('indexUploadedFile at a usage limit', () => {
           agentSlug: '__embedding__',
           ...(projectIds !== undefined ? { projectIds } : {}),
         },
+        worstCase: { cents: 1, tokens: 1_024 },
       });
     },
   );
+
+  it('books a document an automation filed to automations, never to a person named “workflow”', async () => {
+    vi.mocked(indexWholeDocument).mockResolvedValue({ chunks: 1 } as never);
+    await indexUploadedFile(
+      fakeSql([], {
+        file: { uploadedBy: 'workflow' },
+        doc: { createdBy: 'workflow', projectId: null },
+      }),
+      'file-1',
+    );
+
+    expect(directCallBlocked).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        subject: { userId: '__automation__', agentSlug: '__embedding__' },
+      }),
+    );
+  });
 
   it('parks the file before a byte is read when a limit binds its indexing [GOV-R4] [KNOW-R17]', async () => {
     vi.mocked(directCallBlocked).mockResolvedValueOnce(CAP);

@@ -517,4 +517,32 @@ describe('PageIndexer at a usage limit', () => {
       domain: 'ruler.example',
     });
   });
+
+  it('clears the note when nothing is left without vectors, though the link embedded nothing [WEB-R11]', async () => {
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const ctx = { runMutation } as unknown as ActionCtx;
+    const indexer = new PageIndexer(ctx, storedPageCorpus().sql, identity);
+
+    // Another organization's scan of the shared domain embedded what was
+    // left, or the pages went: the backfill found none.
+    await indexer.finish(0);
+
+    expect(runMutation).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      domain: 'ruler.example',
+    });
+  });
+
+  it('leaves the note alone while pages still wait for vectors, or when the backfill did not run', async () => {
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const ctx = { runMutation } as unknown as ActionCtx;
+    const indexer = new PageIndexer(ctx, storedPageCorpus().sql, identity);
+
+    await indexer.finish(3);
+    await indexer.finish();
+
+    expect(runMutation).not.toHaveBeenCalled();
+  });
 });

@@ -8,10 +8,7 @@ import {
   parseMessageRef,
 } from '../../../lib/knowledge/message-ref.ts';
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
-import {
-  AUTOMATION_SUBJECT_ID,
-  EMBEDDING_SLUG,
-} from '../../../lib/shared/constants/usage.ts';
+import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage.ts';
 import {
   isAudioOrVideo,
   isImage,
@@ -98,7 +95,10 @@ import {
   toChatBudgetRefusal,
 } from '../chat/budget-admission.ts';
 import { indexingStateFrom } from '../file_metadata/indexing-state.ts';
-import { fileAttachmentProjectId } from '../files/attachment-project.ts';
+import {
+  fileAttachmentProjectId,
+  fileSpenderUserId,
+} from '../files/attribution.ts';
 import {
   documentFolderPathFrom,
   folderTreePaths,
@@ -107,12 +107,13 @@ import {
   subtreeDocumentFolderPaths,
 } from '../folders/paths.ts';
 import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
-import {
-  directCallBlocked,
-  type DirectCallSubject,
-} from '../governance/direct-calls.ts';
+import type { DirectCallSubject } from '../governance/direct-calls.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
-import { embeddingMeter, refusedEmbeddingCap } from './embedding-meter.ts';
+import {
+  embeddingBlocked,
+  embeddingMeter,
+  refusedEmbeddingCap,
+} from './embedding-meter.ts';
 import { isCorpusRefLive } from './liveness.ts';
 import type { ReleaseOutcome } from './release.ts';
 import {
@@ -1067,10 +1068,11 @@ async function activeDocumentHoldingRef(
  * Whose spend a file's embedding is: the person who uploaded it; else the
  * creator of the document that holds it — a synced drive's owner, the run
  * an agent wrote it for; else nobody (`__automation__`), as for an emailed
- * attachment. In that document's project, else the project the file was
- * added in (`fileAttachmentProjectId`).
+ * attachment or a document an automation filed (`fileSpenderUserId`). In
+ * that document's project, else the project the file was added in
+ * (`fileAttachmentProjectId`).
  */
-async function fileIndexingSubject(
+export async function fileIndexingSubject(
   sql: Sql,
   file: {
     organizationId: string;
@@ -1096,7 +1098,10 @@ async function fileIndexingSubject(
   const projectId =
     doc?.projectId ?? (await fileAttachmentProjectId(sql, file));
   return {
-    userId: file.uploadedBy ?? doc?.createdBy ?? AUTOMATION_SUBJECT_ID,
+    userId: await fileSpenderUserId(sql, file.organizationId, [
+      file.uploadedBy,
+      doc?.createdBy,
+    ]),
     agentSlug: EMBEDDING_SLUG,
     ...(projectId != null ? { projectIds: [projectId] } : {}),
   };
@@ -1208,7 +1213,7 @@ export async function indexUploadedFile(
   // them parks the file here, before any bytes are read or extracted — the
   // hourly re-queue tries it again once the limit may allow it.
   const subject = await fileIndexingSubject(sql, file);
-  const blocked = await directCallBlocked(sql, {
+  const blocked = await embeddingBlocked(sql, {
     organizationId: file.organizationId,
     subject,
   });

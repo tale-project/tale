@@ -114,13 +114,22 @@ function row(overrides: Partial<MessageRow> = {}): MessageRow {
   };
 }
 
-function fakeSql(message: MessageRow | null): {
+function fakeSql(
+  message: MessageRow | null,
+  options: { waitingJob?: boolean } = {},
+): {
   sql: Sql;
   reads: unknown[][];
 } {
   const reads: unknown[][] = [];
-  const fn = (_strings: TemplateStringsArray, ...values: unknown[]) => {
+  const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
     reads.push(values);
+    // The queue, asked whether a job for the message already waits.
+    if (strings.join('?').includes('FROM pgboss.job')) {
+      return Promise.resolve(
+        options.waitingJob === true ? [{ id: 'j-1' }] : [],
+      );
+    }
     return Promise.resolve(message === null ? [] : [message]);
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
@@ -328,9 +337,11 @@ describe('indexConversationMessage', () => {
   it('books the body’s embedding to the organization, request by request [GOV-R5]', async () => {
     const { sql } = fakeSql(row());
     await indexConversationMessage(sql, MESSAGE_ID);
+    // Asked as its first request will be: a cent and a chunk's tokens.
     expect(mocks.directCallBlocked).toHaveBeenCalledWith(sql, {
       organizationId: 'org_1',
       subject: { userId: '__automation__', agentSlug: '__embedding__' },
+      worstCase: { cents: 1, tokens: 1_024 },
     });
     expect(mocks.embedderForOrg).toHaveBeenCalledWith(
       expect.anything(),
@@ -363,7 +374,6 @@ describe('indexConversationMessage', () => {
       {
         // The period resets sooner than an hour: just after it.
         startAfter: new Date(resetsAt + 60_000),
-        singletonKey: `rag-index-message-usage-limit-${MESSAGE_ID}`,
       },
     );
 
@@ -374,6 +384,27 @@ describe('indexConversationMessage', () => {
       indexConversationMessage(sql, MESSAGE_ID),
     ).resolves.toBeUndefined();
     expect(mocks.addJobInTx).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves the wait to a job for the message that is already queued', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    mocks.directCallBlocked.mockResolvedValueOnce({
+      scope: 'org',
+      code: 'COST_LIMIT',
+      period: 'monthly',
+      used: 100,
+      limit: 100,
+      reason: 'x',
+      resetsAt: Date.now() + 86_400_000,
+    });
+    const { sql } = fakeSql(row(), { waitingJob: true });
+
+    await expect(
+      indexConversationMessage(sql, MESSAGE_ID),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.embedderForOrg).not.toHaveBeenCalled();
+    expect(mocks.addJobInTx).not.toHaveBeenCalled();
   });
 
   it('throws once pg-boss gave up on the job, whatever the cause', async () => {

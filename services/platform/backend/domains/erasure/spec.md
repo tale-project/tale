@@ -59,6 +59,7 @@ without a new approval. A request that has finished in the meantime is not run a
 | requests to the model API still in progress | kept, with the person's identity replaced by a pseudonym |
 | finished model calls Tale made for them (an automation's `llm` step, a chat title, Improve with AI, a transcription, the embeddings of their uploads and searches) | deleted |
 | such model calls still in progress | kept, with the person's identity replaced by a pseudonym, so their cost is booked under it |
+| a website scan a usage limit stopped while it was theirs to pay for | kept, no longer naming them: it resumes as the organization's |
 
 The receipt counts each of these steps.
 

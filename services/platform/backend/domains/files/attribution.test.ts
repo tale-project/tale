@@ -3,12 +3,14 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { fileAttachmentProjectId } from './attachment-project.ts';
+import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
+import { fileAttachmentProjectId, fileSpenderUserId } from './attribution.ts';
 
 /**
- * The one rule for the project a file was added in, which its
- * transcription and its indexing both count toward: the project named when
- * it was registered, else the uploader's own chat's.
+ * The rules a file's transcription and its indexing share: whose spend the
+ * work is — the first named who acts in the organization, else nobody's —
+ * and the project it counts toward — the one named when the file was
+ * registered, else the uploader's own chat's.
  */
 
 interface Statement {
@@ -77,5 +79,58 @@ describe('fileAttachmentProjectId', () => {
       fileAttachmentProjectId(fake.sql, { ...file, threadId: null }),
     ).resolves.toBeNull();
     expect(fake.statements).toEqual([]);
+  });
+});
+
+/** An organization whose members are `people`, and no API key identity. */
+function memberSql(people: readonly string[]): Sql {
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?');
+    const userId = values[1];
+    if (text.includes('FROM "member"')) {
+      return Promise.resolve(
+        typeof userId === 'string' && people.includes(userId)
+          ? [
+              {
+                id: `m-${userId}`,
+                organizationId: 'org-1',
+                userId,
+                role: 'member',
+              },
+            ]
+          : [],
+      );
+    }
+    return Promise.resolve([]);
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
+  return tag as unknown as Sql;
+}
+
+describe('fileSpenderUserId', () => {
+  it('names the uploader who acts in the organization [GOV-R14]', async () => {
+    await expect(
+      fileSpenderUserId(memberSql(['mia']), 'org-1', ['mia', 'noah']),
+    ).resolves.toBe('mia');
+  });
+
+  it('passes over a name no one acts under to the next — the document’s creator', async () => {
+    await expect(
+      fileSpenderUserId(memberSql(['drive-owner']), 'org-1', [
+        'workflow',
+        'drive-owner',
+      ]),
+    ).resolves.toBe('drive-owner');
+  });
+
+  it('books to automations when nobody named acts in the organization', async () => {
+    await expect(
+      fileSpenderUserId(memberSql([]), 'org-1', [
+        'workflow',
+        null,
+        undefined,
+        '',
+      ]),
+    ).resolves.toBe(AUTOMATION_SUBJECT_ID);
   });
 });

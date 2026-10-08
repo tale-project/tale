@@ -77,8 +77,10 @@ import {
 } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
-import { directCallBlocked } from '../governance/direct-calls.ts';
-import { embeddingMeter } from '../knowledge/embedding-meter.ts';
+import {
+  embeddingBlocked,
+  embeddingMeter,
+} from '../knowledge/embedding-meter.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 import {
@@ -88,6 +90,7 @@ import {
 import {
   lastFailedScanJob,
   listScanningRowsWithoutJob,
+  previousScanRequester,
   scanCycleStartedAt,
   type ScanningRowWithoutJob,
   scanJobEnded,
@@ -617,55 +620,91 @@ export async function recordEmbeddingLimit(
   });
 }
 
-/** How many noted sites one hourly pass looks at. */
+/**
+ * A website row as a reader is sent it: who a usage-limit note waits on
+ * (`embeddingLimitRequestedBy` — a member and the key they used) is the
+ * scan's own bookkeeping, never shown to whoever opens the site.
+ */
+export function websiteForReader(row: WebsiteRow): WebsiteRow {
+  if (
+    !isRecord(row.metadata) ||
+    !('embeddingLimitRequestedBy' in row.metadata)
+  ) {
+    return row;
+  }
+  const { embeddingLimitRequestedBy: _requester, ...metadata } = row.metadata;
+  return { ...row, metadata };
+}
+
+/** How many noted sites one page of the hourly pass reads. */
 const USAGE_LIMIT_RESUME_BATCH = 200;
+
+/** A requester as a payload or a note stored it; undefined for anything
+ * else. */
+function parseScanRequester(value: unknown): ScanRequester | undefined {
+  if (!isRecord(value) || typeof value.userId !== 'string') return undefined;
+  return {
+    userId: value.userId,
+    ...(typeof value.apiKeyId === 'string' ? { apiKeyId: value.apiKeyId } : {}),
+  };
+}
 
 /** The requester a usage-limit note recorded, read back off the row. */
 function notedRequester(metadata: unknown): ScanRequester | undefined {
-  if (!isRecord(metadata)) return undefined;
-  const noted: unknown = metadata.embeddingLimitRequestedBy;
-  if (!isRecord(noted) || typeof noted.userId !== 'string') return undefined;
-  return {
-    userId: noted.userId,
-    ...(typeof noted.apiKeyId === 'string' ? { apiKeyId: noted.apiKeyId } : {}),
-  };
+  return isRecord(metadata)
+    ? parseScanRequester(metadata.embeddingLimitRequestedBy)
+    : undefined;
 }
 
 /**
  * The hourly pass over the sites whose scan a usage limit stopped
  * embedding (`recordEmbeddingLimit`): a site whose requester's limits have
- * room again is scanned now, under the same requester, and the scan embeds
- * the pages stored without vectors. A site still over its limit is left
- * for the next pass — nothing is fetched for it; a paused or scanning site
- * is left alone.
+ * room for the next embedding request again (`embeddingBlocked`) is scanned
+ * now, under the same requester, and the scan embeds the pages stored
+ * without vectors. A site still over its limit is left for the next pass —
+ * nothing is fetched for it. Every noted site is looked at, page by page,
+ * so none waits behind the ones still blocked. A paused or scanning site is
+ * left alone, and so is one whose last scan failed: its failure cadence
+ * decides when it is tried again, and its failure bookkeeping stands.
  */
 export async function resumeUsageLimitedScans(sql: Sql): Promise<number> {
-  const rows = await sql<WebsiteRow[]>`
-    SELECT ${sql.unsafe(WEBSITE_COLUMNS)} FROM app.websites
-    WHERE metadata ->> 'embeddingLimitedAt' IS NOT NULL
-      AND status IS DISTINCT FROM 'scanning'
-      AND status IS DISTINCT FROM 'deleting'
-    ORDER BY (metadata ->> 'embeddingLimitedAt')::float8, id
-    LIMIT ${USAGE_LIMIT_RESUME_BATCH}
-  `;
   let queued = 0;
-  for (const website of rows) {
-    if (scanPausedAt(website.metadata ?? undefined) !== null) continue;
-    const requestedBy = notedRequester(website.metadata);
-    const blocked = await directCallBlocked(sql, {
-      organizationId: website.organizationId,
-      subject: {
-        userId: requestedBy?.userId ?? AUTOMATION_SUBJECT_ID,
-        agentSlug: EMBEDDING_SLUG,
-        ...(requestedBy?.apiKeyId !== undefined
-          ? { apiKeyId: requestedBy.apiKeyId }
-          : {}),
-      },
-    });
-    if (blocked !== null) continue;
-    if ((await scanWebsiteNow(sql, website, requestedBy)).queued) queued += 1;
+  let after = '';
+  for (;;) {
+    const rows = await sql<WebsiteRow[]>`
+      SELECT ${sql.unsafe(WEBSITE_COLUMNS)} FROM app.websites
+      WHERE metadata ->> 'embeddingLimitedAt' IS NOT NULL
+        AND status IS DISTINCT FROM 'scanning'
+        AND status IS DISTINCT FROM 'deleting'
+        AND id > ${after}
+      ORDER BY id
+      LIMIT ${USAGE_LIMIT_RESUME_BATCH}
+    `;
+    for (const website of rows) {
+      const metadata = website.metadata ?? undefined;
+      if (scanPausedAt(metadata) !== null) continue;
+      if (connectionFailureCount(metadata) > 0) continue;
+      const requestedBy = notedRequester(website.metadata);
+      const blocked = await embeddingBlocked(sql, {
+        organizationId: website.organizationId,
+        subject: {
+          userId: requestedBy?.userId ?? AUTOMATION_SUBJECT_ID,
+          agentSlug: EMBEDDING_SLUG,
+          ...(requestedBy?.apiKeyId !== undefined
+            ? { apiKeyId: requestedBy.apiKeyId }
+            : {}),
+        },
+      });
+      if (blocked !== null) continue;
+      await queueScan(sql, website, requestedBy, { keepFailures: true });
+      queued += 1;
+    }
+    const last = rows[rows.length - 1];
+    if (last === undefined || rows.length < USAGE_LIMIT_RESUME_BATCH) {
+      return queued;
+    }
+    after = last.id;
   }
-  return queued;
 }
 
 /** Clear the failure bookkeeping after a completed scan (the 0.4 twin). */
@@ -1470,12 +1509,16 @@ export async function deregisterAndDeleteWebsite(
 /**
  * Put a site back on the crawl now: the row reads `scanning`, its failure
  * bookkeeping is cleared and a scan is queued — in one transaction, so a row
- * never reads `scanning` without the job that will scan it.
+ * never reads `scanning` without the job that will scan it. A pass that
+ * resumes a scan on its own (`keepFailures`) leaves the failure bookkeeping
+ * as it is, so the backoff and the pause after repeated failures still
+ * hold for it.
  */
 async function queueScan(
   sql: Sql,
   website: WebsiteRow,
   requestedBy?: ScanRequester,
+  options: { keepFailures?: boolean } = {},
 ): Promise<void> {
   const orgSlug = await requireSlug(sql, website.organizationId);
   await sql.begin(async (tx) => {
@@ -1483,10 +1526,14 @@ async function queueScan(
       websiteId: website.id,
       status: 'scanning',
       metadata: {
-        scanPausedAt: null,
-        corpusConnectionFailures: null,
-        lastScanAttemptAt: null,
-        lastSyncError: null,
+        ...(options.keepFailures === true
+          ? {}
+          : {
+              scanPausedAt: null,
+              corpusConnectionFailures: null,
+              lastScanAttemptAt: null,
+              lastSyncError: null,
+            }),
         // Queued now: the scheduler leaves the row to this scan rather than
         // reading its last completed scan as a stuck one.
         scanHeartbeatAt: Date.now(),
@@ -1802,22 +1849,63 @@ export async function runWebsitesScan(
   if ((payload.continuation ?? 0) === 0) {
     await restoreSiteRegistration(sql, payload);
   }
+  const requestedBy =
+    payload.requestedBy ??
+    (await takenOverScanRequester(sql, payload, job?.jobId));
   await scanWebsiteImpl(crawlCtx(sql, job?.jobId), {
     ...payload,
+    ...(requestedBy !== undefined ? { requestedBy } : {}),
     // The scan's embeddings are its requester's spend — the organization's
     // (`__automation__`) for a scan the scheduler started.
     embeddingMeter: embeddingMeter(sql, {
       organizationId: payload.organizationId,
       subject: {
-        userId: payload.requestedBy?.userId ?? AUTOMATION_SUBJECT_ID,
+        userId: requestedBy?.userId ?? AUTOMATION_SUBJECT_ID,
         agentSlug: EMBEDDING_SLUG,
-        ...(payload.requestedBy?.apiKeyId !== undefined
-          ? { apiKeyId: payload.requestedBy.apiKeyId }
+        ...(requestedBy?.apiKeyId !== undefined
+          ? { apiKeyId: requestedBy.apiKeyId }
           : {}),
       },
     }),
     ...(job?.signal === undefined ? {} : { signal: job.signal }),
   });
+}
+
+/**
+ * The requester of the scan a link takes over, when it names none: a link
+ * that resumes an interrupted scan (`takeover`, `resumeInterruptedScans`),
+ * or a first link on a row still reading `scanning` — the scheduler's
+ * takeover of a stuck scan — carries on the scan its predecessor ran,
+ * under the requester the latest earlier link of the domain named. A
+ * scheduled scan starts on a row that is not scanning, and stays the
+ * organization's.
+ */
+async function takenOverScanRequester(
+  sql: Sql,
+  payload: {
+    domain: string;
+    organizationId: string;
+    continuation?: number;
+    takeover?: string;
+  },
+  jobId: string | undefined,
+): Promise<ScanRequester | undefined> {
+  if (payload.takeover === undefined) {
+    if ((payload.continuation ?? 0) !== 0) return undefined;
+    const website = await getWebsiteByDomain(
+      sql,
+      payload.organizationId,
+      payload.domain,
+    );
+    if (website?.status !== 'scanning') return undefined;
+  }
+  return parseScanRequester(
+    await previousScanRequester(sql, {
+      domain: payload.domain,
+      organizationId: payload.organizationId,
+      ...(jobId !== undefined ? { jobId } : {}),
+    }),
+  );
 }
 
 /** Corpus → row push for one (orgSlug, domain) — the fan-out target. */

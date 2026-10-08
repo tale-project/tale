@@ -591,6 +591,43 @@ describe('processErasure', () => {
     expect(settle?.values[2]).toMatchObject({ directCalls: 2 });
   });
 
+  it('takes the subject’s name off a website note a usage limit left, keeping the note [ERASE-R5]', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('UPDATE app.websites')) return [{ id: 'site-1' }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    const stripped = fake.statements.find((s) =>
+      s.text.startsWith('UPDATE app.websites'),
+    );
+    expect(stripped?.text).toContain(
+      "SET metadata = metadata - 'embeddingLimitRequestedBy'",
+    );
+    expect(stripped?.values).toEqual(['org_1', 'subject']);
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ websiteScanNotes: 1 });
+  });
+
   it('holds the model-endpoint requests pass off like any other while a hold binds the subject [ERASE-R1]', async () => {
     // The first hold read (the cascade's gate) passes; every per-pass
     // re-read finds the subject held, so no pass touches a row.
