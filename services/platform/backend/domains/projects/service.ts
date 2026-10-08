@@ -24,8 +24,8 @@ import { isHarnessSlug } from '../../../lib/harnesses/types.ts';
 import {
   agentHandleBase,
   deriveAgentHandles,
-  handleFitsBase,
   nextAgentHandle,
+  renameKeepsHandle,
 } from '../../../lib/shared/agent-handle.ts';
 import {
   agentLegacyHandleVariants,
@@ -2493,8 +2493,10 @@ export async function updateProjectAgent(
   // The handle follows the name [PROJ-R19]: a save whose name no longer
   // gives the stored handle takes the new name's, freeing the old one. A
   // rename that changes only case or punctuation keeps it, and so does
-  // every other save. Agents the previous release added get theirs here,
-  // since this save writes anyway.
+  // every other save; a rename that drops a number keeps nothing ("Tax
+  // agent 2025" to "Tax agent" leaves `tax-agent-2025` behind, although it
+  // reads like the new name's twin). Agents the previous release added get
+  // theirs here, since this save writes anyway.
   const reserved = await reservedHandlesInTx(tx, auth.organizationId);
   const { taken } = await healProjectAgentHandles(tx, {
     organizationId: auth.organizationId,
@@ -2507,7 +2509,8 @@ export async function updateProjectAgent(
   for (const handle of reserved) taken.add(handle);
   const base = agentHandleBase(fields.name);
   const keepsHandle =
-    agent.handle !== null && handleFitsBase(agent.handle, base);
+    agent.handle !== null &&
+    renameKeepsHandle(agent.handle, agent.name, fields.name);
   let handle =
     keepsHandle && agent.handle !== null
       ? agent.handle

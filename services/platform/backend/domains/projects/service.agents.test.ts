@@ -1007,6 +1007,14 @@ describe('renaming an agent gives it the handle of its new name [PROJ-R19]', () 
     expect(updatedHandle(model.statements)).toEqual(['qa-bot']);
   });
 
+  it('drops a number the old name carried, though the old handle reads like a twin of the new one', async () => {
+    const { tx, statements } = handleTx({
+      agent: { name: 'Tax agent 2025', handle: 'tax-agent-2025' },
+    });
+    await updateProjectAgent(tx, auth, { ...config, name: 'Tax agent' });
+    expect(updatedHandle(statements)).toEqual(['tax-agent']);
+  });
+
   it('writes nothing, a handle included, for a save that changes nothing [PROJ-R10]', async () => {
     const { tx, statements } = handleTx({
       agent: { name: 'Reviewer', handle: null, secrets: [] },

@@ -9,6 +9,7 @@ import {
   handleFitsBase,
   isAgentHandle,
   nextAgentHandle,
+  renameKeepsHandle,
 } from './agent-handle';
 
 describe('an agent handle is its name in plain letters [PROJ-R18]', () => {
@@ -89,6 +90,22 @@ describe('an agent handle is its name in plain letters [PROJ-R18]', () => {
     expect(handleFitsBase('qa-bot-1', 'qa-bot')).toBe(false);
     expect(handleFitsBase('qa-bot-01', 'qa-bot')).toBe(false);
     expect(handleFitsBase('research-bot', 'qa-bot')).toBe(false);
+  });
+
+  it('keeps a handle across a rename only while it still reads as the new name [PROJ-R19]', () => {
+    expect(renameKeepsHandle('qa-bot', 'QA Bot', 'qa bot')).toBe(true);
+    expect(renameKeepsHandle('qa-bot-02', 'QA Bot', 'QA-Bot!')).toBe(true);
+    expect(renameKeepsHandle('qa-bot', 'Research Bot', 'QA Bot')).toBe(true);
+    expect(renameKeepsHandle('research-bot', 'Research Bot', 'QA Bot')).toBe(
+      false,
+    );
+    // The old name's own handle, not a twin's suffix: the number goes too.
+    expect(
+      renameKeepsHandle('tax-agent-2025', 'Tax agent 2025', 'Tax agent'),
+    ).toBe(false);
+    expect(renameKeepsHandle('tax-agent-10', 'Tax agent', 'tax agent')).toBe(
+      true,
+    );
   });
 
   it('gives the oldest agent the clean handle and skips reserved ones', () => {

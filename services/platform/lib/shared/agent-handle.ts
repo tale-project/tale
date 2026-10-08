@@ -100,6 +100,23 @@ export function handleFitsBase(handle: string, base: string): boolean {
   return n >= 2 && agentHandleCandidate(base, n) === handle;
 }
 
+/** Whether an agent keeps `handle` when a save renames it from `previousName`
+ * to `name`: while the handle is one the new name offers, except when it was
+ * the old name's own handle and only looks like a numbered twin of the new
+ * one. "Tax agent 2025" (`@tax-agent-2025`) renamed "Tax agent" answers to
+ * `@tax-agent`, not to `@tax-agent-2025`. */
+export function renameKeepsHandle(
+  handle: string,
+  previousName: string,
+  name: string,
+): boolean {
+  const base = agentHandleBase(name);
+  if (handle === base) return true;
+  return (
+    handleFitsBase(handle, base) && handle !== agentHandleBase(previousName)
+  );
+}
+
 /** Whether a stored or typed value has a handle's shape. */
 export function isAgentHandle(value: string): boolean {
   return value.length <= AGENT_HANDLE_MAX && AGENT_HANDLE_RE.test(value);
