@@ -584,6 +584,37 @@ describe('RecurrencePicker in time mode', () => {
       ).toBeNull();
     });
 
+    it('drops rows in when they are turned on, not when the view opens on them', async () => {
+      const { user } = render(
+        <Required
+          initial={{
+            frequency: 'hourly',
+            interval: 2,
+            minute: 0,
+            window: {
+              weekdays: [1, 2, 3, 4, 5],
+              hours: { from: '08:00', to: '18:00' },
+            },
+          }}
+        />,
+      );
+      const dialog = await openPicker(user);
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Custom interval' }),
+      );
+      await within(dialog).findByRole('group', { name: 'From' });
+      // The view's own fade brings the saved minute and hours in.
+      expect(dialog.querySelector('.animate-row-enter')).toBeNull();
+      const onlyBetween = within(dialog).getByRole('checkbox', {
+        name: 'Only between',
+      });
+      await user.click(onlyBetween);
+      expect(within(dialog).queryByRole('group', { name: 'From' })).toBeNull();
+      await user.click(onlyBetween);
+      const from = within(dialog).getByRole('group', { name: 'From' });
+      expect(from.closest('.animate-row-enter')).not.toBeNull();
+    });
+
     it('asks for the minute past the hour once the step is in hours', async () => {
       const onChange = vi.fn();
       const { user } = render(<Required onChange={onChange} />);

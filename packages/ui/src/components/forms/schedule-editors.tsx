@@ -356,9 +356,11 @@ export function ScheduleIntervalEditor({
   };
   const hoursRef = useRef<HTMLDivElement>(null);
   const focusHours = useRef(false);
-  // The minute-past row drops in when the unit switches to hours, not when
-  // the view opens on an hourly rule.
+  // The minute-past row drops in when the unit switches to hours, and the
+  // hours of the day when Only between is checked: not when the view opens
+  // on a rule that already has them.
   const [unitSwitched, setUnitSwitched] = useState(false);
+  const [hoursToggled, setHoursToggled] = useState(false);
 
   useEffect(() => {
     if (!focusHours.current) return;
@@ -413,6 +415,7 @@ export function ScheduleIntervalEditor({
   const toggleHours = (on: boolean) => {
     if (on) {
       focusHours.current = true;
+      setHoursToggled(true);
       onDraftChange({ ...draft, windowHours: draft.lastWindowHours });
       return;
     }
@@ -493,7 +496,12 @@ export function ScheduleIntervalEditor({
           onCheckedChange={(checked) => toggleHours(checked === true)}
         />
         {draft.windowHours !== null && (
-          <div className="animate-row-enter flex flex-col gap-1.5 pl-6">
+          <div
+            className={cn(
+              'flex flex-col gap-1.5 pl-6',
+              hoursToggled && 'animate-row-enter',
+            )}
+          >
             <div ref={hoursRef} className={ROW_CLASSES}>
               <TimeField
                 aria-label={t('editor.windowFrom')}
