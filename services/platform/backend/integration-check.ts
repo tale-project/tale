@@ -56397,6 +56397,9 @@ async function checkWatchdogs(
        'itest:wd', ${now}, ${now + 24 * 3_600_000})
   `;
   const sandboxWatchdogs = await import('./domains/sandbox/watchdogs.ts');
+  const { checkSandboxWatchdogVisits } =
+    await import('./domains/sandbox/watchdog-visits.integration.ts');
+  await checkSandboxWatchdogVisits(sql, ctx, record);
   await sandboxWatchdogs.runSandboxWatchdog(sql, { skipReconcile: true });
   const ttlRows = await sql<{ sessionId: string; status: string }[]>`
     SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
