@@ -18,6 +18,11 @@ import {
   ChatBudgetExceededError,
 } from '../chat/budget-admission.ts';
 import { createPgTurnStore } from '../chat/store.ts';
+import {
+  openTranscriptionCall,
+  settleTranscriptionCall,
+  uploadTranscriptionSubject,
+} from '../files/transcription-metering.ts';
 import { settleSessionOpSpend } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
 import { readInFlightReservations } from './budget-reservations.ts';
@@ -37,7 +42,8 @@ const createdSchema = z.object({ id: z.string() });
  * turns in flight there; a model request in the project is held to it and
  * stamps the project on its op, whose hold then counts toward the project;
  * an automation run spends in every project it is in, its agent steps and
- * its llm steps alike; and nothing outside the project is bound by it.
+ * its llm steps alike; a recording added to one of its chats is transcribed
+ * on its budget; and nothing outside the project is bound by it.
  *
  * `ctx` is the suite's owner. The lane makes its own project and threads,
  * and removes them with its budgets file and its bookings.
@@ -605,6 +611,68 @@ export async function checkProjectBudgets(
         afterRound - beforeRound === 4,
       `voice chunk held ${whileVoiced - baseline} then ${afterVoiced - baseline} (want 3 then 0), direct call held ${whileDirect - baseline} (want 5), released=${released} then ${afterRelease - baseline} (want ≥1 then 0), late booking=${JSON.stringify(lateBooking)} (want 1.5 cents), next round raised the reply's hold by ${afterRound - beforeRound} (want 4)`,
     );
+
+    // A recording added to the project's chat: its transcription is its
+    // uploader's spend and the project's, held at its whole length (ten
+    // minutes at 0.6¢ a minute) while it runs and booked at the minutes the
+    // provider transcribed.
+    const recording = `s3:itest/recording-${suffix}`;
+    await sql`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, uploaded_by,
+        thread_id, created_at_ms
+      ) VALUES (
+        ${orgId}, ${recording}, 'call.m4a', 'audio/mp4', 1, ${userId},
+        ${projectThread}, ${now}
+      )
+    `;
+    const transcriptionSubject = await uploadTranscriptionSubject(sql, {
+      organizationId: orgId,
+      storageId: recording,
+    });
+    const whisper = {
+      organizationId: orgId,
+      provider: 'itest',
+      model: `itest-whisper-${suffix}`,
+      centsPerAudioMinute: 0.6,
+    };
+    const beforeTranscription = await heldInProject();
+    const transcription = await openTranscriptionCall(sql, {
+      ...whisper,
+      subject: transcriptionSubject,
+      audioDurationSec: 600,
+    });
+    const whileTranscribing = await heldInProject();
+    if (transcription.allowed) {
+      await settleTranscriptionCall(sql, {
+        ...whisper,
+        lease: transcription.lease,
+        audioDurationSec: 88,
+      });
+    }
+    const afterTranscription = await heldInProject();
+    const transcriptionBooked = await sql<
+      { userId: string; cost: number; seconds: number }[]
+    >`
+      SELECT user_id AS "userId", cost_estimate_cents::float8 AS cost,
+             audio_duration_sec::float8 AS seconds
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND model = ${whisper.model}
+        AND agent_slug = '__transcription__' AND granularity = 'monthly'
+    `;
+    record(
+      'project budgets: a recording’s transcription is held in its chat’s project at its whole length and booked under its uploader',
+      transcriptionSubject.userId === userId &&
+        transcriptionSubject.projectIds?.[0] === projectId &&
+        transcription.allowed &&
+        whileTranscribing - beforeTranscription === 6 &&
+        afterTranscription === beforeTranscription &&
+        transcriptionBooked.length === 1 &&
+        transcriptionBooked[0]?.userId === userId &&
+        Math.abs((transcriptionBooked[0]?.cost ?? 0) - 0.88) < 1e-9 &&
+        transcriptionBooked[0]?.seconds === 88,
+      `subject=${JSON.stringify(transcriptionSubject)} (want the uploader in the project) held ${whileTranscribing - beforeTranscription} then ${afterTranscription - beforeTranscription} (want 6 then 0) booked=${JSON.stringify(transcriptionBooked)} (want 0.88 cents, 88 s, the uploader)`,
+    );
   } finally {
     await unlink(budgetsFile).catch((error: unknown) => {
       console.warn('[itest] project budgets: budgets file not removed', error);
@@ -619,7 +687,17 @@ export async function checkProjectBudgets(
       WHERE org_id = ${orgId}
         AND ((session_id = 'direct-call:llm-step'
               AND agent_slug = ${automationName})
-          OR session_id = 'direct-call:itest')
+          OR session_id = 'direct-call:itest'
+          OR (session_id = 'direct-call:transcription'
+              AND model_ref = ${`itest/itest-whisper-${suffix}`}))
+    `;
+    await sql`
+      DELETE FROM app.file_metadata
+      WHERE org_id = ${orgId} AND storage_ref = ${`s3:itest/recording-${suffix}`}
+    `;
+    await sql`
+      DELETE FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND model = ${`itest-whisper-${suffix}`}
     `;
     await sql`
       DELETE FROM app.tts_audio_chunks

@@ -23,7 +23,7 @@ import type {
  * (`app.sandbox_session_ops`), and while one of its `generate_image` calls
  * runs, that call's estimate and image requests on top; a call the platform
  * makes straight to a provider for an automation's `llm` step, a chat
- * title or the Inbox's Improve (`direct-calls.ts`) holds its worst case on
+ * title, the Inbox's Improve or a transcription (`direct-calls.ts`) holds its worst case on
  * an op row of its own until it is booked; a voice output chunk holds its
  * estimate on its pending row (`app.tts_audio_chunks`). An admission adds
  * every other hold to the booked usage under the organization's admission

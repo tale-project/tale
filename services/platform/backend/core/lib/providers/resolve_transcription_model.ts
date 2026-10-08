@@ -34,6 +34,8 @@ export interface ResolvedTranscriptionModel {
   readonly apiKey: string;
   /** OpenRouter STT models share JSON support; verbose output varies by model. */
   readonly responseFormat?: 'json' | 'verbose_json';
+  /** The catalog's price per minute of audio, when it names one. */
+  readonly centsPerAudioMinute?: number;
 }
 
 export interface TranscriptionModelOption {
@@ -173,6 +175,11 @@ async function candidatesFor(
             providerName: provider.name,
             baseUrl,
             apiKey: credential.secret,
+            ...(entry.transcription?.centsPerAudioMinute !== undefined
+              ? {
+                  centsPerAudioMinute: entry.transcription.centsPerAudioMinute,
+                }
+              : {}),
             ...(provider.catalog.source === 'openrouter-api' ||
             isOpenRouterProvider({ providerName: provider.name, baseUrl })
               ? { responseFormat: 'json' as const }

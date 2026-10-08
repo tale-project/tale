@@ -387,6 +387,7 @@ dictation:
   discard: Discard recording
   permissionDenied: Microphone access denied. Allow it in your browser settings.
   serviceUnavailable: Dictation is unavailable right now. The browser could not reach its speech service; check the connection and try again.
+  limitReached: Usage limit reached. Try the recording again once the limit resets or is raised.
 citations:
   source: Source {number}
   page: Page {page}

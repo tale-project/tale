@@ -49,12 +49,12 @@ import {
 
 export class FileError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404 | 409 | 413 | 503;
+  readonly status: 400 | 403 | 404 | 409 | 413 | 429 | 503;
 
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 | 409 | 413 | 503 = 400,
+    status: 400 | 403 | 404 | 409 | 413 | 429 | 503 = 400,
   ) {
     super(message);
     this.name = 'FileError';

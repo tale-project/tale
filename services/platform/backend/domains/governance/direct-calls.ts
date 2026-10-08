@@ -12,8 +12,8 @@ import { incrementUsageLedger } from './service.ts';
 
 /**
  * A call the platform makes straight to a provider, with no gateway key in
- * between — an automation's `llm` step, a chat title, the Inbox's Improve —
- * held against the caps that bind whoever it is for, the way a managed turn
+ * between — an automation's `llm` step, a chat title, the Inbox's Improve, a
+ * transcription — held against the caps that bind whoever it is for, the way a managed turn
  * holds its allowance:
  *
  *  1. OPEN — before the call, its worst case is measured against every cap
@@ -22,7 +22,8 @@ import { incrementUsageLedger } from './service.ts';
  *     budget-admission lock), and admitted whole or not at all: a call
  *     whose worst case no longer fits is refused with the cap's own
  *     sentence. The worst case is the call's priced ceiling — a text
- *     model's estimated prompt plus its whole output cap. An admitted call
+ *     model's estimated prompt plus its whole output cap, a transcription's
+ *     whole recording at its price per minute. An admitted call
  *     is recorded on an op row (`app.sandbox_session_ops`, `session_id`
  *     `direct-call:<lane>`), stamped with the subject, the lane's label,
  *     the API key and the projects, whose `budget_cents` is the hold every

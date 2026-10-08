@@ -2,10 +2,10 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import { TRANSCRIPTION_SLUG } from '../../../lib/shared/constants/usage.ts';
+import { probeAudioDurationSec } from '../../core/file_metadata/audio_preprocess.ts';
 import { transcribeAudioImpl } from '../../core/file_metadata/transcribe_audio.ts';
 import { pickExtensionFromMime } from '../../core/file_metadata/transcribe_dictation.ts';
 import { requestTranscription } from '../../core/file_metadata/transcription_request.ts';
-import { estimateTranscriptionCostCents } from '../../core/governance/cost_estimation.ts';
 import { resolveTranscriptionModel } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
@@ -14,12 +14,18 @@ import {
   type ShimScheduler,
 } from '../../lib/ctx-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
-import { incrementUsageLedger } from '../governance/service.ts';
 import {
   heartbeatJobByStorageRef,
   settleHandoffJobsByStorageRef,
 } from '../video_links/service.ts';
 import { FileError } from './service.ts';
+import {
+  openTranscriptionCall,
+  releaseTranscriptionCall,
+  settleTranscriptionCall,
+  type TranscriptionModelFacts,
+  uploadTranscriptionSubject,
+} from './transcription-metering.ts';
 
 /**
  * Audio transcription — the 0.5 host for the REUSED 0.4 pipeline
@@ -244,20 +250,32 @@ function transcriptionHandlers(sql: Sql): ShimHandlers {
       await heartbeatJobByStorageRef(sql, args);
       return null;
     },
-    'governance/internal_mutations:recordTranscriptionUsage': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the engine passes exactly this shape
-      const args = raw as {
-        organizationId: string;
-        userId: string;
-        teamId?: string;
-        agentSlug: string;
-        model: string;
-        provider: string;
+    // The transcription is the uploader's spend: its whole length is held
+    // before the provider hears it, and the minutes it transcribed booked
+    // after (transcription-metering.ts).
+    'file_metadata/internal_mutations:openTranscriptionCall': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the pipeline passes exactly this shape
+      const args = raw as TranscriptionModelFacts & {
+        storageId: string;
         audioDurationSec: number;
-        costEstimateCents: number;
-        timestamp: number;
       };
-      await recordTranscriptionUsage(sql, args);
+      return openTranscriptionCall(sql, {
+        ...args,
+        subject: await uploadTranscriptionSubject(sql, args),
+      });
+    },
+    'file_metadata/internal_mutations:settleTranscriptionCall': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the pipeline passes exactly this shape
+      const args = raw as Parameters<typeof settleTranscriptionCall>[1];
+      await settleTranscriptionCall(sql, args);
+      return null;
+    },
+    'file_metadata/internal_mutations:releaseTranscriptionCall': async (
+      raw,
+    ) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the pipeline passes exactly this shape
+      const args = raw as Parameters<typeof releaseTranscriptionCall>[1];
+      await releaseTranscriptionCall(sql, args);
       return null;
     },
   };
@@ -284,36 +302,6 @@ function transcriptionScheduler(sql: Sql): ShimScheduler {
     }
     throw new Error(`[transcription] unmapped scheduled ref: ${name}`);
   };
-}
-
-/** Ledger minutes for one transcription call (the 0.4 governance twin). */
-async function recordTranscriptionUsage(
-  sql: Sql | TransactionSql,
-  args: {
-    organizationId: string;
-    userId: string;
-    teamId?: string;
-    agentSlug: string;
-    model: string;
-    provider: string;
-    audioDurationSec: number;
-    costEstimateCents: number;
-    timestamp: number;
-  },
-): Promise<void> {
-  await incrementUsageLedger(sql, {
-    organizationId: args.organizationId,
-    userId: args.userId,
-    ...(args.teamId !== undefined ? { teamId: args.teamId } : {}),
-    agentSlug: args.agentSlug,
-    model: args.model,
-    provider: args.provider,
-    inputTokens: 0,
-    outputTokens: 0,
-    costEstimateCents: args.costEstimateCents,
-    timestamp: args.timestamp,
-    audioDurationSec: args.audioDurationSec,
-  });
 }
 
 // -------------------------------------------------------------------- jobs
@@ -479,26 +467,62 @@ export async function transcribeDictation(
   const audioBlob = new Blob([args.audio as BlobPart], {
     type: args.mimeType,
   });
-  const result = await requestTranscription({
-    model: modelData,
-    blob: audioBlob,
-    fileName: `dictation.${ext}`,
-    timeoutMs: DICTATION_TIMEOUT_MS,
+  const fileName = `dictation.${ext}`;
+  // A dictation is the dictating member's spend: its length is held
+  // before the provider hears it, and refused when a limit has too little
+  // room for it. The length is read off the clip itself — 0 when its
+  // container names none, which still holds and counts the request.
+  const model = {
+    organizationId: args.organizationId,
+    provider: modelData.providerName,
+    model: modelData.modelId,
+    ...(modelData.centsPerAudioMinute !== undefined
+      ? { centsPerAudioMinute: modelData.centsPerAudioMinute }
+      : {}),
+  };
+  const probedSec = await probeAudioDurationSec(audioBlob, fileName).catch(
+    (error: unknown) => {
+      console.warn('[dictation] reading the clip length failed:', error);
+      return 0;
+    },
+  );
+  const admission = await openTranscriptionCall(sql, {
+    ...model,
+    subject: { userId: args.userId, agentSlug: TRANSCRIPTION_SLUG },
+    audioDurationSec: probedSec,
   });
+  if (!admission.allowed) {
+    throw new FileError('BUDGET_EXCEEDED', admission.reason, 429);
+  }
+  let result: Awaited<ReturnType<typeof requestTranscription>>;
+  try {
+    result = await requestTranscription({
+      model: modelData,
+      blob: audioBlob,
+      fileName,
+      timeoutMs: DICTATION_TIMEOUT_MS,
+    });
+  } catch (error) {
+    await releaseTranscriptionCall(sql, { lease: admission.lease }).catch(
+      (releaseError: unknown) => {
+        console.warn(
+          "[dictation] releasing the call's hold failed; it lapses at its deadline:",
+          releaseError,
+        );
+      },
+    );
+    throw error;
+  }
 
   const text = result.text ?? '';
-  const durationSec = result.duration ?? 0;
-  if (durationSec > 0) {
-    await recordTranscriptionUsage(sql, {
-      organizationId: args.organizationId,
-      userId: args.userId,
-      agentSlug: TRANSCRIPTION_SLUG,
-      model: modelData.modelId,
-      provider: modelData.providerName,
-      audioDurationSec: durationSec,
-      costEstimateCents: estimateTranscriptionCostCents(durationSec, undefined),
-      timestamp: Date.now(),
-    });
-  }
+  // What the provider reports it heard, else the clip's own length.
+  const durationSec = result.duration ?? probedSec;
+  await settleTranscriptionCall(sql, {
+    ...model,
+    lease: admission.lease,
+    audioDurationSec: durationSec,
+  }).catch((error: unknown) => {
+    console.warn('[dictation] usage write failed:', error);
+  });
   return { text };
 }

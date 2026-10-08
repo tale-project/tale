@@ -1039,12 +1039,13 @@ export async function processErasure(
   });
 
   // Calls the platform made straight to a provider for the subject — an
-  // automation's `llm` step, a chat title, Improve: one op row each (kind
-  // `direct-call`), the settlement's record of whose call it is. A row whose
-  // call was booked, or closed having spent nothing, has done its work and
-  // is deleted. A call still running — or past its deadline, which a late
-  // end still books — keeps its row and loses the identity, so it books
-  // under the pseudonym. Before the ledger pass, as the requests above.
+  // automation's `llm` step, a chat title, Improve, a transcription: one op
+  // row each (kind `direct-call`), the settlement's record of whose call it
+  // is. A row whose call was booked, or closed having spent nothing, has
+  // done its work and is deleted. A call still running — or past its
+  // deadline, which a late end still books — keeps its row and loses the
+  // identity, so it books under the pseudonym. Before the ledger pass, as
+  // the requests above.
   await pass('directCalls', async () => {
     const removed = await sql<{ id: string }[]>`
       DELETE FROM app.sandbox_session_ops

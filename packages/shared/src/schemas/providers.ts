@@ -563,6 +563,17 @@ export const modelCatalogEntrySchema = z
       .optional(),
     /** Text-to-speech facts; static-catalog sources only. */
     tts: modelCatalogTtsSchema.optional(),
+    /** Transcription facts; static-catalog sources only. A transcription
+     * model bills by the minute of audio, which `pricing`'s per-token
+     * figures cannot express. */
+    transcription: z
+      .object({
+        /** What a minute of audio costs: the usage ledger's estimate, and
+         * the hold a transcription takes while it runs. */
+        centsPerAudioMinute: z.number().nonnegative().finite().optional(),
+      })
+      .strict()
+      .optional(),
     /** Embedding facts for an embedding-tagged entry; static-catalog sources
      * only (live listings publish no vector width — this is exactly the
      * fact an operator otherwise has to look up by hand). `recommended`

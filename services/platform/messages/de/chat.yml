@@ -389,6 +389,7 @@ dictation:
   discard: Aufnahme verwerfen
   permissionDenied: Mikrofonzugriff verweigert. Erlaube ihn in den Browsereinstellungen.
   serviceUnavailable: Diktat ist gerade nicht verfügbar. Der Browser erreicht seinen Sprachdienst nicht; prüfe die Verbindung und versuche es erneut.
+  limitReached: Nutzungslimit erreicht. Versuch die Aufnahme erneut, sobald das Limit zurückgesetzt oder erhöht ist.
 citations:
   source: Quelle {number}
   page: Seite {page}
