@@ -143,7 +143,9 @@ ships an optional DaemonSet, `45-sandbox-prepull.yaml`: no-op init
 containers of the runtime, egress and gateway images behind a pause
 container (`1m` / `4Mi` requests), on the same `${VERSION}` tags as the
 rest of the manifests and with the session placement as a commented-out
-selector and toleration.
+selector and toleration. The guide applies it and waits for its rollout
+before the other manifests, so an upgrade's runtime image is on every node
+before the spawner rolls to it.
 
 ## RBAC (namespaced Role — no cluster scope, no `pods/exec`)
 

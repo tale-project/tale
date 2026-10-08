@@ -737,7 +737,18 @@ spec:
 
 C’est l’image du runtime qui compte : chaque Pod de session et son sidecar de sortie démarrent à partir d’elle. Les images du proxy de sortie et de la passerelle évitent un téléchargement quand ces Deployments changent de nœud ; retire leurs conteneurs d’initialisation si les sessions tournent sur des nœuds dédiés que ces Deployments n’utilisent jamais. Si tu définis `SANDBOX_K8S_NODE_SELECTOR` et `SANDBOX_K8S_TOLERATIONS`, donne les mêmes valeurs au DaemonSet pour qu’il tourne exactement sur les nœuds des sessions.
 
-Les tags des images suivent `${VERSION}` comme dans tous les autres fichiers : ajoute `45-sandbox-prepull.yaml` à la boucle d’application, et chaque mise à niveau télécharge la nouvelle version sur chaque nœud. Si tu appliques le fichier à part, relève ses tags à chaque version ; sinon il garde les anciennes images sur les nœuds et la première session retélécharge la nouvelle. Lors d’une mise à niveau, applique ce fichier en premier et attends `kubectl -n tale rollout status ds/sandbox-image-prepull` avant le reste, pour que la nouvelle image du runtime soit en place avant que le spawner crée des sessions à partir d’elle.
+Les tags des images suivent `${VERSION}` comme dans tous les autres fichiers. Applique ce fichier à part, avant la boucle, et attends que chaque nœud ait téléchargé les images ; lors d’une mise à niveau, la nouvelle image du runtime est alors en place avant que le spawner bascule dessus et crée des sessions à partir d’elle. La première commande crée le namespace lors d’une première installation et ne change rien lors d’une mise à niveau :
+
+```bash
+envsubst '${VERSION}' < 00-namespace.yaml | kubectl apply -f -
+envsubst '${VERSION}' < 45-sandbox-prepull.yaml | kubectl apply -f -
+kubectl -n tale rollout status ds/sandbox-image-prepull --timeout=15m
+for f in 00-namespace.yaml 10-stores.yaml 20-application.yaml 30-proxy.yaml 40-sandbox.yaml; do
+  envsubst '${VERSION}' < "$f" | kubectl apply -f -
+done
+```
+
+Exécute les mêmes commandes à chaque mise à niveau, avec la nouvelle `VERSION` exportée. Une copie appliquée sans `envsubst`, ou oubliée lors d’une mise à niveau, garde ses anciens tags : elle maintient les anciennes images sur les nœuds, et la première session sur chaque nœud retélécharge la nouvelle.
 
 ### Ce que le spawner impose
 

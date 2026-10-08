@@ -737,7 +737,18 @@ spec:
 
 The runtime image is the one that matters: every session Pod and its egress sidecar start from it. The egress and gateway images spare a pull when those Deployments move to another node; remove their init containers when sessions run on dedicated nodes those Deployments never use. If you set `SANDBOX_K8S_NODE_SELECTOR` and `SANDBOX_K8S_TOLERATIONS`, give the DaemonSet the same values so it runs on exactly the session nodes.
 
-The image tags follow `${VERSION}` like every other file, so add `45-sandbox-prepull.yaml` to the apply loop and each upgrade pulls the new release onto every node. A copy you apply on its own needs its tags bumped with each release; otherwise it keeps old images on the nodes and the first session pulls the new one again. On an upgrade, apply this file first and wait for `kubectl -n tale rollout status ds/sandbox-image-prepull` before the rest, so the new runtime image is in place before the spawner creates sessions from it.
+The image tags follow `${VERSION}` like every other file. Apply this file on its own, before the loop, and wait until every node has pulled the images; on an upgrade, the new runtime image is then in place before the spawner rolls to it and creates sessions from it. The first command creates the namespace on a first install and changes nothing on an upgrade:
+
+```bash
+envsubst '${VERSION}' < 00-namespace.yaml | kubectl apply -f -
+envsubst '${VERSION}' < 45-sandbox-prepull.yaml | kubectl apply -f -
+kubectl -n tale rollout status ds/sandbox-image-prepull --timeout=15m
+for f in 00-namespace.yaml 10-stores.yaml 20-application.yaml 30-proxy.yaml 40-sandbox.yaml; do
+  envsubst '${VERSION}' < "$f" | kubectl apply -f -
+done
+```
+
+Run the same commands for every upgrade, with the new `VERSION` exported. A copy applied without `envsubst`, or left out of an upgrade, keeps its old tags: it holds old images on the nodes, and the first session on each node pulls the new one again.
 
 ### What the spawner enforces
 

@@ -737,7 +737,18 @@ spec:
 
 Entscheidend ist das Runtime-Image: Jeder Session-Pod und sein Egress-Sidecar starten daraus. Die Images von Egress und Gateway ersparen einen Download, wenn diese Deployments auf einen anderen Node wechseln; entferne ihre Init-Container, wenn Sessions auf eigenen Nodes laufen, die diese Deployments nie nutzen. Setzt du `SANDBOX_K8S_NODE_SELECTOR` und `SANDBOX_K8S_TOLERATIONS`, gib dem DaemonSet dieselben Werte, damit es genau auf den Session-Nodes läuft.
 
-Die Image-Tags folgen wie in jeder anderen Datei `${VERSION}`. Nimm `45-sandbox-prepull.yaml` deshalb in die Apply-Schleife auf, dann lädt jedes Upgrade das neue Release auf jeden Node. Wendest du die Datei separat an, musst du ihre Tags mit jedem Release anheben; sonst hält sie alte Images auf den Nodes, und die erste Session lädt das neue Image wieder selbst. Wende die Datei bei einem Upgrade zuerst an und warte auf `kubectl -n tale rollout status ds/sandbox-image-prepull`, bevor du den Rest anwendest, damit das neue Runtime-Image bereitliegt, bevor der Spawner Sessions daraus anlegt.
+Die Image-Tags folgen wie in jeder anderen Datei `${VERSION}`. Wende diese Datei separat vor der Schleife an und warte, bis jeder Node die Images geladen hat; bei einem Upgrade liegt das neue Runtime-Image dann bereit, bevor der Spawner darauf umstellt und Sessions daraus anlegt. Der erste Befehl legt bei einer Erstinstallation den Namespace an und ändert bei einem Upgrade nichts:
+
+```bash
+envsubst '${VERSION}' < 00-namespace.yaml | kubectl apply -f -
+envsubst '${VERSION}' < 45-sandbox-prepull.yaml | kubectl apply -f -
+kubectl -n tale rollout status ds/sandbox-image-prepull --timeout=15m
+for f in 00-namespace.yaml 10-stores.yaml 20-application.yaml 30-proxy.yaml 40-sandbox.yaml; do
+  envsubst '${VERSION}' < "$f" | kubectl apply -f -
+done
+```
+
+Führe bei jedem Upgrade dieselben Befehle mit der neuen, exportierten `VERSION` aus. Eine Kopie, die du ohne `envsubst` anwendest oder bei einem Upgrade auslässt, behält ihre alten Tags: Sie hält alte Images auf den Nodes, und die erste Session auf jedem Node lädt das neue Image wieder selbst.
 
 ### Was der Spawner durchsetzt
 
