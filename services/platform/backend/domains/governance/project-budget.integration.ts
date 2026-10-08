@@ -9,11 +9,11 @@ import { z } from 'zod';
 import { buildPeriodKeyFromTimestamp } from '../../core/governance/helpers.ts';
 import type { RecordCheck } from '../../integration-lane-helpers.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
-import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import {
   checkLlmStepBudget,
   recordLlmStepUsage,
 } from '../automations/llm-metering.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import {
   assertChatTurnBudget,
   ChatBudgetExceededError,
