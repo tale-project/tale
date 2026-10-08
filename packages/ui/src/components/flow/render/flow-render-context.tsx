@@ -99,11 +99,6 @@ const PLAIN: FlowNodeLook = {
   highlighted: 'none',
 };
 
-/** The look of a node, plain when the chart has nothing to say about it. */
-export function useFlowNodeLook(id: string): FlowNodeLook {
-  return useFlowRender().looks.get(id) ?? PLAIN;
-}
-
 /** The run states that mean "it did not run here": a dashed border. */
 const PASSED_BY: ReadonlySet<FlowNodeState> = new Set([
   'skipped',
