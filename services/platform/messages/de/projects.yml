@@ -281,6 +281,7 @@ agents:
     task_upsert_by_external_ref: Externes Element mit einer Aufgabe abgleichen
     document_find: Dokumente finden
     knowledge_entry_find: Wissenseinträge finden
+    knowledge_entry_write: Wissenseinträge hinzufügen und bearbeiten
     contact_find: Kontakte finden
     product_find: Produkte finden
     website_find: Websites auflisten

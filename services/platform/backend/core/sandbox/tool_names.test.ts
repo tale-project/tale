@@ -77,7 +77,7 @@ describe('normalizeToolGrants', () => {
 });
 
 describe('the catalog', () => {
-  it('classifies task_* creates and document_create as writes', () => {
+  it('classifies task_* creates, document_create and knowledge_entry_write as writes', () => {
     for (const name of [
       'task_create',
       'task_comment',
@@ -85,6 +85,7 @@ describe('the catalog', () => {
       'task_start_agent',
       'task_upsert_by_external_ref',
       'document_create',
+      'knowledge_entry_write',
     ]) {
       expect(WRITE_EFFECT_TOOLS).toContain(name);
     }
@@ -120,6 +121,15 @@ describe('grantedToolsGuidance', () => {
     expect(guidance).toContain('task_find');
     expect(guidance).toContain('task_create');
     expect(guidance).toContain('change real organization data');
+  });
+
+  it('names knowledge entries among the data a write changes', () => {
+    const guidance = grantedToolsGuidance([
+      'knowledge_entry_find',
+      'knowledge_entry_write',
+    ]);
+    expect(guidance).toContain('knowledge_entry_write');
+    expect(guidance).toContain('(tasks, documents, knowledge entries)');
   });
 
   it('omits the write warning for a read-only grant', () => {

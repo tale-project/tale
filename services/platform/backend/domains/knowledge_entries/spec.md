@@ -105,6 +105,15 @@ is recorded in the audit log. A save that repeats the current text writes nothin
 - **Example**: Noah gives the project's agent the knowledge-entry write tool. The agent saves
   `Support hours` as 8–18 → a new entry appears, and its Source reads Agent.
 
+### KENTRY-R11 · A run a member started cannot write entries
+
+Entries are shared with the whole organization, while a run a member started acts only on its
+own task. Such a run's saves are refused (`member_run`) and nothing is written; a run an
+editor started writes as the agent's equipment allows.
+
+- **Example**: Mia, a member, starts the project's agent on her task. The agent tries to save
+  `Support hours` → refused as `member_run`, and the entry is unchanged.
+
 ### KENTRY-R12 · An agent's edit of a fact that changed since it read it is refused
 
 To change an entry's text, the agent names the version it read. A save that names none, or one

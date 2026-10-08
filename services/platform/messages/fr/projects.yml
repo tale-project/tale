@@ -279,6 +279,7 @@ agents:
     task_upsert_by_external_ref: Synchroniser un élément externe vers une tâche
     document_find: Trouver des documents
     knowledge_entry_find: Trouver des entrées de connaissances
+    knowledge_entry_write: Ajouter et modifier des entrées de connaissances
     contact_find: Trouver des contacts
     product_find: Trouver des produits
     website_find: Lister les sites web
