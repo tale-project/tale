@@ -327,14 +327,35 @@ enforce per-session disk quotas; those require a quota-capable storage backend.
 
 ## Native admission foundation tests
 
-The host admission modules are an inactive foundation. They do not expose a
-phase execution tool or change ordinary session admission. Unit tests cover
-conservative resource accounting, durable unknown outcomes, exact owner
-identity and response deadlines. The strict probe tests require fresh owner,
-daemon, kernel and filesystem provenance and refuse unavailable readings.
-The probe currently supports one verified filesystem shared by the workspace
-and Docker metadata; separate filesystems remain unsupported. These fixtures
-do not establish native host telemetry or enable ordinary admission.
+The native admission coordinator is disabled at boot, with no enabling environment
+setting and no phase execution tool. The default path performs no native admission
+I/O and preserves ordinary session behavior. The internal enabled path shares one
+private durable journal across create, acquire and fresh exec; normal quota and
+fairness gates remain. Slow Docker startup runs outside the admission queue while
+its durable growth hold remains counted. Already-held ordinary growth is reused;
+unknown RPC replies stay occupied, and retained output attaches without a fresh POST.
+
+Module and fake-runnerd tests cover this routing, complete daemon inventory,
+pressure samples, owned journal paths and restart lineage. An ended predecessor's
+metadata record is retained under its immutable ID; only native termination proof
+allows a journal's generation to change, preserving every unresolved hold. Healthy
+telemetry cannot clear an unknown activity reply. A phase hold never ages out.
+
+Ordinary attempt UUIDs encode the durable journal epoch. Released issued attempts
+retain at most 128 recent readbacks; their older IDs cannot be reserved again.
+Legacy IDs and every unresolved or phase record remain retained. Reconciliation
+uses one complete inventory and one batched snapshot; unchanged observations do
+not rewrite the journal. Tests exercise 4097 completed growth cycles through an
+instrumented snapshot adapter, real-file reopen and a 20-session scan/write count.
+These counts establish bounded work in the fixtures, not native-host latency.
+
+The internal v1 path refuses DinD, build-cache helpers, competing spawners and
+unknown writers, Kubernetes, connected devices and remote Docker. It requires an
+explicit empty Docker workload allowlist and one verified filesystem shared by the
+workspace and Docker metadata. It never changes those capabilities to make a host
+eligible. Arbitrary host-root operations and other Docker daemons are outside this
+single-daemon boundary. These tests do not establish native topology or telemetry,
+and do not make the phase execution feature available.
 
 To exercise the owner with real independent processes, select an already-present
 immutable Docker image that contains the workspace's pinned Bun and Docker CLI.

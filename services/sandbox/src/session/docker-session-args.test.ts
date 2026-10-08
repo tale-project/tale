@@ -5,6 +5,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { buildkitdEndpoint } from '../buildkitd.ts';
+import { ordinaryAdmissionId } from '../host-admission-journal.ts';
 import type { SpawnerConfig } from '../types.ts';
 import { buildDockerSessionRunArgs } from './docker-session-args.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
@@ -77,20 +78,26 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).not.toContain('TALE_DIND=1');
     expect(args).toContain('--read-only');
   });
-  test('records the internal create attempt as a validated ownership label', () => {
-    const createAttemptId = '01020304-0506-4708-890a-0b0c0d0e0f10';
-    const args = buildDockerSessionRunArgs(cfg, {
-      ...goodInput,
-      createAttemptId,
-    });
-    expect(args).toContain(`tale.create-attempt=${createAttemptId}`);
-    expect(() =>
-      buildDockerSessionRunArgs(cfg, {
+  test.each([
+    '01020304-0506-4708-890a-0b0c0d0e0f10',
+    ordinaryAdmissionId(0),
+    ordinaryAdmissionId(Number.MAX_SAFE_INTEGER - 1),
+  ])(
+    'records internal create attempt %s as a validated ownership label',
+    (createAttemptId) => {
+      const args = buildDockerSessionRunArgs(cfg, {
         ...goodInput,
-        createAttemptId: 'unsafe\nattempt',
-      }),
-    ).toThrow(/createAttemptId/);
-  });
+        createAttemptId,
+      });
+      expect(args).toContain(`tale.create-attempt=${createAttemptId}`);
+      expect(() =>
+        buildDockerSessionRunArgs(cfg, {
+          ...goodInput,
+          createAttemptId: 'unsafe\nattempt',
+        }),
+      ).toThrow(/createAttemptId/);
+    },
+  );
 
   test('an agent can opt out of inner Docker while the deployment supports it', () => {
     const args = buildDockerSessionRunArgs(

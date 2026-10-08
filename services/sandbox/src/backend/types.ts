@@ -94,6 +94,8 @@ export interface SessionSpec {
    * process env — docker inspect must never show user values. */
   env: Record<string, string>;
   createdAtMs: number;
+  /** Native coordinator custody. Generated in-process, never accepted from a request. */
+  createAttemptId?: string;
   /** Caller cancellation; never serialized into the container or Pod. */
   signal?: AbortSignal;
 }

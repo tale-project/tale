@@ -342,3 +342,182 @@ describe('inactive native lifetime owner foundation', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+function recoveryFixture() {
+  const priorCid = 'd'.repeat(64);
+  const nextRecord = 'e'.repeat(64);
+  const priorGeneration = '11111111-1111-4111-8111-111111111111';
+  const priorLabels = {
+    'tale.host-admission.version': '1',
+    'tale.host-admission.daemon': 'daemon-id',
+    'tale.host-admission.boot': BOOT,
+    'tale.host-admission.container': priorCid,
+    'tale.host-admission.started': START,
+    'tale.host-admission.generation': priorGeneration,
+  };
+  const state = {
+    priorRunning: false,
+    priorStatus: 'exited',
+    priorPresent: true,
+    priorImage: IMAGE,
+    failCreateAfterRename: false,
+    recordName: HOST_ADMISSION_OWNER_NAME,
+    currentLabels: null as Record<string, string> | null,
+  };
+  const calls: string[][] = [];
+  const result = (stdout: string, exitCode = 0): RunDockerResult => ({
+    stdout,
+    exitCode,
+    stderr: '',
+    stdoutTruncated: false,
+    stderrTruncated: false,
+  });
+  const docker = (args: string[]): Promise<RunDockerResult> => {
+    calls.push(args);
+    if (args[0] === 'context')
+      return Promise.resolve(
+        result(JSON.stringify('unix:///var/run/docker.sock')),
+      );
+    if (args[0] === 'info')
+      return Promise.resolve(result(JSON.stringify('daemon-id')));
+    if (args[0] === 'exec')
+      return Promise.resolve(
+        result(args[2] === 'cat' ? BOOT : 'mnt:[100]\npid:[200]\n'),
+      );
+    if (args[0] === 'create') {
+      if (state.recordName === HOST_ADMISSION_OWNER_NAME || state.currentLabels)
+        return Promise.resolve(result('', 1));
+      if (state.failCreateAfterRename)
+        throw new Error('transport lost after rename');
+      state.currentLabels = {};
+      for (let i = 0; i < args.length; i++)
+        if (args[i] === '--label') {
+          const label = args[i + 1] ?? '';
+          const split = label.indexOf('=');
+          state.currentLabels[label.slice(0, split)] = label.slice(split + 1);
+        }
+      return Promise.resolve(result(nextRecord));
+    }
+    if (args[0] === 'rename') {
+      expect(args[1]).toBe(RECORD);
+      state.recordName = args[2] ?? '';
+      return Promise.resolve(result(''));
+    }
+    if (args[0] === 'ps')
+      return Promise.resolve(
+        result(
+          args.includes(`id=${priorCid}`)
+            ? state.priorPresent
+              ? `${priorCid}\n`
+              : ''
+            : `${RECORD}\n`,
+        ),
+      );
+    if (args[0] === 'inspect') {
+      const target = args.at(-1);
+      const prior = target === priorCid;
+      const oldRecord =
+        target === RECORD ||
+        (target === HOST_ADMISSION_OWNER_NAME && state.currentLabels === null);
+      const currentRecord =
+        target === HOST_ADMISSION_OWNER_NAME && state.currentLabels !== null;
+      return Promise.resolve(
+        result(
+          JSON.stringify({
+            id: prior
+              ? priorCid
+              : oldRecord
+                ? RECORD
+                : currentRecord
+                  ? nextRecord
+                  : CID,
+            image: prior ? state.priorImage : IMAGE,
+            startedAt:
+              oldRecord || currentRecord ? '0001-01-01T00:00:00Z' : START,
+            running: prior ? state.priorRunning : !oldRecord && !currentRecord,
+            status: prior
+              ? state.priorStatus
+              : oldRecord || currentRecord
+                ? 'created'
+                : 'running',
+            pidMode: '',
+            labels: oldRecord
+              ? priorLabels
+              : currentRecord
+                ? state.currentLabels
+                : {},
+          }),
+        ),
+      );
+    }
+    throw new Error('Unexpected recovery call');
+  };
+  const make = () =>
+    new DockerAdmissionOwner({
+      docker,
+      platform: 'linux',
+      env: { HOSTNAME: CID.slice(0, 12) },
+      readFile: () => Promise.resolve(`${BOOT}\n`),
+      readlink: (path) =>
+        Promise.resolve(path.endsWith('/mnt') ? 'mnt:[100]' : 'pid:[200]'),
+      monotonic: () => 0,
+    });
+  return {
+    state,
+    calls,
+    make,
+    prior: {
+      daemonId: 'daemon-id',
+      hostBootId: BOOT,
+      authorityGeneration: priorGeneration,
+      filesystemId: 'old-filesystem',
+    },
+  };
+}
+
+describe('native owner restart lineage', () => {
+  test('known ended owner is retained under immutable history name and its generation can be reconciled', async () => {
+    const { make, calls, prior } = recoveryFixture();
+    const owner = make();
+    expect(await owner.acquire(true)).toMatchObject({
+      recordId: 'e'.repeat(64),
+    });
+    await owner.assertPriorRetired(prior);
+    expect(calls.filter((args) => args[0] === 'rename')).toEqual([
+      ['rename', RECORD, `${HOST_ADMISSION_OWNER_NAME}-retired-${RECORD}`],
+    ]);
+    expect(
+      calls.some((args) => ['rm', 'stop', 'kill'].includes(args[0] ?? '')),
+    ).toBe(false);
+  });
+  test.each(['running', 'restarting', 'image'] as const)(
+    'a %s predecessor is not stolen',
+    async (fault) => {
+      const { make, state, calls } = recoveryFixture();
+      if (fault === 'running') state.priorRunning = true;
+      if (fault === 'restarting') state.priorStatus = 'restarting';
+      if (fault === 'image') state.priorImage = `sha256:${'f'.repeat(64)}`;
+      await rejects(make().acquire(true), /still active or changed/);
+      expect(calls.some((args) => args[0] === 'rename')).toBe(false);
+    },
+  );
+  test('an exactly absent predecessor can be retired but returning live predecessor cannot certify journal transfer', async () => {
+    const { make, state, prior } = recoveryFixture();
+    state.priorPresent = false;
+    const owner = make();
+    await owner.acquire(true);
+    state.priorPresent = true;
+    state.priorRunning = true;
+    await rejects(owner.assertPriorRetired(prior), /still active or changed/);
+  });
+  test('a crash after rename preserves enough lineage for a fresh owner process', async () => {
+    const { make, state, prior } = recoveryFixture();
+    state.failCreateAfterRename = true;
+    await rejects(make().acquire(true), /transport lost/);
+    state.failCreateAfterRename = false;
+    const fresh = make();
+    await fresh.acquire(true);
+    await fresh.assertPriorRetired(prior);
+    expect(state.recordName).toContain('-retired-');
+  });
+});
