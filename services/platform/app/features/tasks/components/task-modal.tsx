@@ -15,6 +15,11 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Input } from '@tale/ui/input';
 import { Row, Stack } from '@tale/ui/layout';
 import {
+  PropertyDivider,
+  PropertyList,
+  PropertyRow,
+} from '@tale/ui/property-list';
+import {
   ResponsiveDialog,
   ResponsiveDialogContent,
   ResponsiveDialogDescription,
@@ -324,98 +329,15 @@ function ModalLayout({
         >
           <TaskLogViewport scrollRef={mainScrollRef}>{main}</TaskLogViewport>
         </Stack>
-        <Stack
+        <PropertyList
           as="aside"
           className="shrink-0 md:-mr-2 md:min-h-0 md:w-[17rem] md:overflow-y-auto md:border-l md:py-0.5 md:pr-2 md:pl-6"
         >
           {panel}
-        </Stack>
+        </PropertyList>
       </div>
       {footer && <div className="shrink-0">{footer}</div>}
     </Stack>
-  );
-}
-
-/** One property in the side panel: a fixed-width muted label beside its control
- *  (or above it, for controls that wrap, like Labels).
- *
- *  The label WRAPS inside its column instead of overflowing it: the column is a
- *  fixed width so every control lines up, and a label longer than it — which
- *  English never produces but a German compound does on the first try — used to
- *  paint over its own control and give the whole panel a horizontal scrollbar.
- *  Wrapping keeps the field name fully readable, which truncation would not.
- *  This is the SAFETY NET, not the plan: a label that needs two lines here is a
- *  label to shorten per locale (`hyphens-auto` softens the break to a syllable
- *  only where the browser ships a dictionary for the document's `lang`). */
-function PropertyField({
-  label,
-  children,
-  stacked,
-  trailing,
-}: {
-  label: string;
-  children: ReactNode;
-  /** `true` → label above the control at every width, for a control that wraps
-   *  (Labels, Dependencies). `'md'` → stacked only where the panel is narrow
-   *  (md+); below that the control moves up beside its label, into the same
-   *  label column as the row variant. */
-  stacked?: boolean | 'md';
-  /** Optional control beside the field name (e.g. manage-labels settings). */
-  trailing?: ReactNode;
-}) {
-  if (stacked) {
-    // `'md'`: below the md breakpoint the dialog is a bottom drawer and the
-    // property panel spans its FULL width, so a fixed-width control (a date)
-    // fits beside its label with room to spare — stacking there spends a whole
-    // row of a sheet that already scrolls. From md up the panel narrows to
-    // 17rem, where the label column plus that control no longer fit on one
-    // line, so it goes back to stacked.
-    const inlineWhenWide = stacked === 'md';
-    return (
-      <div
-        className={cn(
-          'flex flex-col gap-1.5',
-          inlineWhenWide &&
-            'flex-row items-center gap-2 md:flex-col md:items-stretch md:gap-1.5',
-        )}
-      >
-        <Row
-          gap={1}
-          align="center"
-          className={cn(
-            'min-h-4',
-            // The SAME label column as the row variant below, so the control
-            // starts in one vertical line with Status / Priority / Assignee
-            // rather than floating at the panel's edge.
-            inlineWhenWide && 'w-20 shrink-0 md:w-auto',
-          )}
-        >
-          <span
-            className={cn(
-              'text-muted-foreground text-xs font-medium',
-              // Same safety net as the row variant: wrap a long label inside
-              // its own column instead of shoving the control off the sheet.
-              inlineWhenWide && 'break-words hyphens-auto',
-            )}
-          >
-            {label}
-          </span>
-          {trailing}
-        </Row>
-        <div className="w-full min-w-0">{children}</div>
-      </div>
-    );
-  }
-  // The label centres on the row's first `h-7` line — the height every value
-  // control here shares — rather than hanging from its top edge, where it sat
-  // above the middle of a taller control. A label that wraps grows the row.
-  return (
-    <Row gap={2} align="start" className="min-h-7 shrink-0">
-      <span className="text-muted-foreground flex min-h-7 w-20 shrink-0 items-center text-xs font-medium break-words hyphens-auto">
-        {label}
-      </span>
-      <div className="min-w-0 flex-1">{children}</div>
-    </Row>
   );
 }
 
@@ -438,19 +360,14 @@ function TaskDetailsSkeleton({ showProject }: { showProject: boolean }) {
   return (
     <>
       {labels.map((label, index) => (
-        <PropertyField key={label} label={label}>
+        <PropertyRow key={label} label={label}>
           <span className="block w-28 max-w-full text-sm leading-7">
             <SkeletonText seed={index + 3} />
           </span>
-        </PropertyField>
+        </PropertyRow>
       ))}
     </>
   );
-}
-
-/** A thin divider between property-panel groups. */
-function PanelDivider() {
-  return <div className="border-border/60 border-t" aria-hidden="true" />;
 }
 
 // ───────────────────────────────── Create ─────────────────────────────────
@@ -1108,7 +1025,7 @@ function CreateTaskBody({
         }
         panel={
           <>
-            <PropertyField label={t('fields.status')}>
+            <PropertyRow label={t('fields.status')}>
               <StatusPicker
                 status={status}
                 onChange={(next) => {
@@ -1117,16 +1034,16 @@ function CreateTaskBody({
                 }}
                 align="end"
               />
-            </PropertyField>
-            <PropertyField label={t('fields.priority')}>
+            </PropertyRow>
+            <PropertyRow label={t('fields.priority')}>
               <PriorityPicker
                 priority={priority}
                 onChange={setPriority}
                 align="end"
                 showLabel
               />
-            </PropertyField>
-            <PropertyField label={t('fields.assignee')}>
+            </PropertyRow>
+            <PropertyRow label={t('fields.assignee')}>
               <AssigneePicker
                 organizationId={organizationId}
                 projectId={projectId}
@@ -1149,24 +1066,24 @@ function CreateTaskBody({
                 }}
                 onUnassign={() => setAssignee(null)}
               />
-            </PropertyField>
-            <PropertyField label={t('startDate.label')}>
+            </PropertyRow>
+            <PropertyRow label={t('startDate.label')}>
               <DatePicker
                 variant="ghost"
                 className="w-full"
                 value={startDate}
                 onChange={(ms) => setStartDate(ms ?? undefined)}
               />
-            </PropertyField>
-            <PropertyField label={t('dueDate.label')}>
+            </PropertyRow>
+            <PropertyRow label={t('dueDate.label')}>
               <DatePicker
                 variant="ghost"
                 className="w-full"
                 value={dueDate}
                 onChange={(ms) => setDueDate(ms ?? undefined)}
               />
-            </PropertyField>
-            <PropertyField label={t('repeat.label')}>
+            </PropertyRow>
+            <PropertyRow label={t('repeat.label')}>
               <TaskRepeatField
                 value={repeat}
                 dueDate={dueDate}
@@ -1177,9 +1094,9 @@ function CreateTaskBody({
                   if (patch.dueDate !== undefined) setDueDate(patch.dueDate);
                 }}
               />
-            </PropertyField>
-            <PanelDivider />
-            <PropertyField
+            </PropertyRow>
+            <PropertyDivider />
+            <PropertyRow
               label={t('fields.labels')}
               stacked
               trailing={
@@ -1201,7 +1118,7 @@ function CreateTaskBody({
                 projectId={projectId}
                 canManage={canEditProject}
               />
-            </PropertyField>
+            </PropertyRow>
             <LabelManageDialog
               open={labelsManageOpen}
               onOpenChange={setLabelsManageOpen}
@@ -1650,7 +1567,7 @@ export function EditTaskBody({
 
   const labelsField = (
     <>
-      <PropertyField
+      <PropertyRow
         label={t('fields.labels')}
         stacked
         trailing={
@@ -1677,7 +1594,7 @@ export function EditTaskBody({
               .catch(onMutationError)
           }
         />
-      </PropertyField>
+      </PropertyRow>
       <LabelManageDialog
         open={labelsManageOpen}
         onOpenChange={setLabelsManageOpen}
@@ -1689,7 +1606,7 @@ export function EditTaskBody({
 
   const repeatField =
     repeatState.kind === 'hidden' ? null : (
-      <PropertyField label={t('repeat.label')}>
+      <PropertyRow label={t('repeat.label')}>
         <TaskRepeatField
           id={repeatControlId}
           value={task.repeat ?? null}
@@ -1718,7 +1635,7 @@ export function EditTaskBody({
             )}
           </div>
         )}
-      </PropertyField>
+      </PropertyRow>
     );
 
   const dependenciesField = (
@@ -2065,7 +1982,7 @@ export function EditTaskBody({
         </Row>
       )}
       {showProjectLink && project !== null && (
-        <PropertyField label={t('fields.project')}>
+        <PropertyRow label={t('fields.project')}>
           <Link
             to="/dashboard/$id/projects/$projectId/tasks/board"
             params={{
@@ -2082,9 +1999,9 @@ export function EditTaskBody({
           >
             {project.name}
           </Link>
-        </PropertyField>
+        </PropertyRow>
       )}
-      <PropertyField label={t('fields.status')}>
+      <PropertyRow label={t('fields.status')}>
         <StatusPicker
           status={task.status}
           disabled={!canMutate}
@@ -2116,8 +2033,8 @@ export function EditTaskBody({
             })()
           }
         />
-      </PropertyField>
-      <PropertyField label={t('fields.priority')}>
+      </PropertyRow>
+      <PropertyRow label={t('fields.priority')}>
         <PriorityPicker
           priority={task.priority ?? null}
           disabled={!canMutate}
@@ -2129,8 +2046,8 @@ export function EditTaskBody({
               .catch(onMutationError)
           }
         />
-      </PropertyField>
-      <PropertyField label={t('fields.assignee')}>
+      </PropertyRow>
+      <PropertyRow label={t('fields.assignee')}>
         <AssigneePicker
           organizationId={task.organizationId}
           projectId={task.projectId}
@@ -2163,11 +2080,11 @@ export function EditTaskBody({
           }
           onUnassign={() => assignTask.mutate({ taskId: task._id })}
         />
-      </PropertyField>
+      </PropertyRow>
       {/* The agent lane's status + verbs live WITH the assignee — the
                 run is Alice's state, not a second card in the task body. */}
       {task.assigneeType === 'agent' && task.assigneeId && (
-        <PropertyField label={t('agentRun.label')}>
+        <PropertyRow label={t('agentRun.label')}>
           <TaskAgentRunEntry
             organizationId={task.organizationId}
             taskId={task._id}
@@ -2178,26 +2095,26 @@ export function EditTaskBody({
             }
             assigneeLive={assigneeLive}
           />
-        </PropertyField>
+        </PropertyRow>
       )}
       {/* The automation lane's twin: the latest subject-linked run's
                 state and its step timeline, kept after the run finished so
                 the result can still be audited from the task. Absent until a
                 run exists — the subject panel's Start is the way in. */}
       {ownedBy !== null && latestRun !== null && (
-        <PropertyField label={t('run.label')}>
+        <PropertyRow label={t('run.label')}>
           <TaskAutomationRunEntry
             organizationId={task.organizationId}
             projectId={task.projectId}
             run={latestRun}
             name={ownedBy.displayName}
           />
-        </PropertyField>
+        </PropertyRow>
       )}
-      <PropertyField label={t('fields.reviewer')}>
+      <PropertyRow label={t('fields.reviewer')}>
         <TaskReviewerField task={task} canEdit={canEditProject} />
-      </PropertyField>
-      <PropertyField label={t('startDate.label')}>
+      </PropertyRow>
+      <PropertyRow label={t('startDate.label')}>
         <DatePicker
           variant="ghost"
           className="w-full"
@@ -2209,8 +2126,8 @@ export function EditTaskBody({
               .catch(onMutationError)
           }
         />
-      </PropertyField>
-      <PropertyField label={t('dueDate.label')}>
+      </PropertyRow>
+      <PropertyRow label={t('dueDate.label')}>
         <DatePicker
           variant="ghost"
           className="w-full"
@@ -2222,12 +2139,12 @@ export function EditTaskBody({
               .catch(onMutationError)
           }
         />
-      </PropertyField>
+      </PropertyRow>
       {/* An automation's task keeps its Repeat row in the fold below: it
           only says why the task does not repeat. */}
       {ownedBy === null && repeatField}
 
-      <PanelDivider />
+      <PropertyDivider />
       {/* Labels and dependencies are the BOARD's vocabulary. On an
                 automation-owned task they are noise around the two properties
                 that matter there (who owns it, where it stands), so they fold
@@ -2248,13 +2165,13 @@ export function EditTaskBody({
       ) : (
         <>
           {labelsField}
-          <PanelDivider />
+          <PropertyDivider />
           {dependenciesField}
         </>
       )}
 
-      <PanelDivider />
-      <PropertyField label={t('fields.author')}>
+      <PropertyDivider />
+      <PropertyRow label={t('fields.author')}>
         <div className="flex min-h-7 min-w-0 items-center gap-1.5">
           <AssigneeAvatar
             assigneeType={task.createdByType}
@@ -2265,20 +2182,20 @@ export function EditTaskBody({
             {author.name}
           </span>
         </div>
-      </PropertyField>
-      <PropertyField label={t('fields.created')}>
+      </PropertyRow>
+      <PropertyRow label={t('fields.created')}>
         <span className="text-foreground block text-sm leading-7">
           {formatDate(new Date(task.createdAt), 'medium')}
         </span>
-      </PropertyField>
+      </PropertyRow>
       {/* Closes this section: who made the task, when — and whether the
                 viewer hears about it. Watching needs read access only, so it
                 sits outside the work gate that follows. */}
       <TaskWatchControl taskId={task._id} />
       {canWork && (
         <>
-          <PanelDivider />
-          {/* shrink-0, like every PropertyField row: the panel is a
+          <PropertyDivider />
+          {/* shrink-0, like every PropertyRow: the panel is a
                     height-constrained flex column, and a flex item's automatic
                     minimum size only protects text — a fixed-height control
                     compresses to its one-line min-content, which rendered this
