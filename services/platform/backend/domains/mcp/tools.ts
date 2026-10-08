@@ -45,7 +45,7 @@ export interface ArgumentIssue {
 
 /** How many issues one refusal lists — enough to fix any real call in one
  * round trip, never a hostile call echoed back at length. */
-export const MAX_ARGUMENT_ISSUES = 50;
+const MAX_ARGUMENT_ISSUES = 50;
 
 function byPath(a: ArgumentIssue, b: ArgumentIssue): number {
   if (a.path === b.path) return 0;
@@ -143,7 +143,7 @@ function plainData(value: unknown): Record<string, unknown> | undefined {
  * agent); a domain error (`AutomationError`, `ConfigurationError`,
  * `ActorAuthError`, …) gives its code, sentence, hint and data.
  */
-export function refusalFromThrown(error: unknown): Refusal | null {
+function refusalFromThrown(error: unknown): Refusal | null {
   const limited = rateLimitExceededCause(error);
   if (limited !== null) {
     return {
