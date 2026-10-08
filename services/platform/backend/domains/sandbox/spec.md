@@ -123,6 +123,22 @@ limit, because what frees is an empty workspace, not room.
 - **Example**: Ada destroys an agent's workspace. While its row reads **Destroying**, Mia
   starts the agent on a task → the start is refused with the reason `destroy_pending`.
 
+## Agent workers
+
+Every run of a project agent that works at the same time as another works in a sandbox of its
+own, a worker. One agent working three tasks at once has three workers.
+
+### SBX-R18 · A worker gives its slot back as soon as its own run ends
+
+A worker stops and frees its slot once no run of its own is left: none working in it, and none
+that has taken it and not started yet. The agent's other workers do not keep it up. A pinned
+worker keeps its slot (`SBX-R10`), and a worker whose last process is still ending keeps it
+until that process has ended.
+
+- **Example**: Ada's agent Scribe works "Release notes" in one worker and "Changelog" in
+  another. "Release notes" finishes → its worker stops and its slot is free at once, while
+  "Changelog" keeps working.
+
 ## Pinning and destroying a workspace
 
 An owner or admin can pin a workspace, so that it stays on, and destroy one, to delete it at
@@ -249,8 +265,8 @@ request is refused the same way (`budget_exceeded`) and holds nothing either.
 - **Waiting for room**: what a task run, an automation step and a crawl do after `SBX-R8` and
   `SBX-R9` belongs to the tasks, automations and websites domains. Not covered here: a
   deployment that is full or short of memory, a workspace whose runtime already runs four execs,
-  the place in line a waiting start gets, giving a slot back when a turn ends, and waking the
-  waiting runs (`sessions.ts`, `idle-release.ts`, `core/node_only/sandbox/capacity_refusal.ts`).
+  the place in line a waiting start gets, and waking the waiting runs (`sessions.ts`,
+  `idle-release.ts`, `core/node_only/sandbox/capacity_refusal.ts`).
 - **Health checks and repair**: ending a session after its lifetime while sparing a turn that
   is still working, closing a crawler's sandbox that disappeared, collecting failed starts,
   reclaiming the sandboxes of ended runs and crawls, and picking a turn up again after a

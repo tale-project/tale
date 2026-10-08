@@ -63,7 +63,7 @@ const KEYS = { organizationId: 'org-1', runId: 'run-1', taskId: 'task-1' };
 
 /** The parked-run wake's claim, as its statement opens. */
 const CLAIM =
-  'SELECT id, org_id AS "organizationId", exec_id AS "execId", task_id AS "taskId" FROM app.project_agent_runs';
+  'SELECT r.id, r.org_id AS "organizationId", r.exec_id AS "execId", r.task_id AS "taskId" FROM app.project_agent_runs r';
 
 describe('cancelAgentRunInTx — the run must belong to the authorized task', () => {
   beforeEach(() => {
@@ -605,8 +605,22 @@ describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its d
     expect(claim).toContain("status = 'queued'");
     expect(claim).toContain('waiting_for_capacity_at_ms IS NOT NULL');
     expect(claim).toContain('deadline_at_ms > ?');
-    expect(claim).toContain('FOR UPDATE SKIP LOCKED');
+    expect(claim).toContain('FOR UPDATE OF r SKIP LOCKED');
     expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('wakes the parked run of the agent with the fewest runs working first, then the oldest park', async () => {
+    const { sql, statements } = fakeSql(() => []);
+    await wakeOrganizationParkedAgentRun(sql, 'org-1');
+    const claim = statements.find((text) => text.startsWith(CLAIM)) ?? '';
+    const order = claim.slice(claim.indexOf('ORDER BY'));
+    // The agent's working runs count first: one agent's burst of parked
+    // runs never stands ahead of every other agent's later start.
+    expect(order).toContain('working.agent_id = r.agent_id');
+    expect(order).toContain("working.status = 'running'");
+    expect(order.indexOf('working.agent_id')).toBeLessThan(
+      order.indexOf('r.waiting_for_capacity_at_ms'),
+    );
   });
 
   it('un-parks the claimed run and re-enqueues its turn in the same transaction', async () => {
@@ -654,10 +668,10 @@ describe('wakeParkedAgentRuns — the release edge reaches every organization', 
     const claims = calls.filter((call) => call.text.startsWith(CLAIM));
     expect(claims.map((call) => call.text)).toEqual([
       expect.stringContaining(
-        'WHERE CASE WHEN ? THEN org_id = ? ELSE org_id <> ? END',
+        'WHERE CASE WHEN ? THEN r.org_id = ? ELSE r.org_id <> ? END',
       ),
       expect.stringContaining(
-        'WHERE CASE WHEN ? THEN org_id = ? ELSE org_id <> ? END',
+        'WHERE CASE WHEN ? THEN r.org_id = ? ELSE r.org_id <> ? END',
       ),
     ]);
     expect(claims.map((call) => call.values.slice(0, 3))).toEqual([

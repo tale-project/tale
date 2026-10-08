@@ -37,7 +37,7 @@ const PARKED_WAKES_PER_TICK = 4;
  */
 export async function runTaskAgentWatchdog(sql: Sql): Promise<{
   failed: number;
-  /** Standing sessions hibernated because no live turn held them. */
+  /** Agent workers hibernated because no live turn held them. */
   released: number;
   woken: number;
 }> {
@@ -101,10 +101,11 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
     if (didFail) failed += 1;
   }
 
-  // Backstop for a slot held by nothing. A settle defers its release to a
-  // queued sibling turn of the same agent; when that turn dies before it
-  // starts (cancelled, deleted, superseded by a retry), no later edge ever
-  // releases the agent's standing session and the org's project budget is
+  // Backstop for a slot held by nothing. A settle leaves a worker up while a
+  // live run names it — one that claimed it, or a fresh kick still naming
+  // the family's first worker; when that run dies before it starts
+  // (cancelled, deleted, superseded by a retry) or claims another worker,
+  // no later edge ever releases that worker and the org's project budget is
   // held until the 24 h TTL. The release re-checks the same guards under
   // the org's admission lock, so a live turn that appeared since is left
   // alone.
@@ -120,7 +121,7 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
       )
       AND NOT EXISTS (
         SELECT 1 FROM app.project_agent_runs r
-        WHERE r.org_id = s.org_id AND r.agent_id = s.owner_id
+        WHERE r.org_id = s.org_id AND r.session_id = s.session_id
           AND r.status IN ('queued', 'running')
           AND r.waiting_for_capacity_at_ms IS NULL
       )

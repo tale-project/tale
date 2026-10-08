@@ -895,9 +895,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         /** The workspace of the turn that ended. */
         sessionId?: string;
       };
-      // Stop the agent's standing session unless a sibling turn is live —
-      // and wake the oldest parked runs on the freed slot, and the oldest
-      // run parked on the ended turn's workspace.
+      // Stop each of the agent's workers no live run names — and wake the
+      // next parked runs on a freed slot, or the agent's oldest parked run
+      // when the ended turn's worker stayed up.
       return releaseProjectAgentSessionSlot(sql, args);
     },
 

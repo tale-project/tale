@@ -24,8 +24,8 @@ import { SANDBOX_SESSION_HELD_REASON } from '../../core/tasks/run_park_reason.ts
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
+  wakeAgentParkedAgentRun,
   wakeParkedAgentRuns,
-  wakeSessionParkedAgentRun,
 } from '../tasks/agent-runs.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
 import {
@@ -338,22 +338,24 @@ export async function setSessionPinned(
 }
 
 /**
- * Release a project agent's standing-session slot at the end of a turn —
- * the ONE seam behind the host's settle release, its rollback after a
- * failed resume-create, the deadline watchdog's slot free and the task
- * watchdog's orphan backstop. The session hibernates (`stopped`: compute
- * released, workspace preserved, slot freed) unless a sibling turn's op is
- * still running on it, a live turn of the agent (queued or running, not
- * parked for capacity) still owns the slot before its exec exists, or the
- * row is pinned. The guard is the agent's, not the workspace's: a live turn
- * of the agent holds every workspace it owns — its standing one and one per
- * member who starts its runs — until the agent's last turn ends. A freed slot is a release edge: the org's oldest parked
- * run, and the oldest parked run of the other organizations (the sandbox
- * host is shared), are woken at once instead of idling until the 2-minute
- * watchdog tick (`wakeParkedAgentRuns`). A release that names the workspace
- * of the turn that ended also wakes the oldest run parked on that workspace,
- * stopped or not: the ended exec gave back one of its runtime's live-exec
- * places (`wakeSessionParkedAgentRun`). Best-effort — a wake failure must
+ * Release a project agent's idle workers at the end of a turn — the ONE
+ * seam behind the host's settle release, its rollback after a failed
+ * resume-create, a park, the deadline watchdog's slot free and the task
+ * watchdog's orphan backstop. Each of the agent's live, unpinned workers
+ * hibernates (`stopped`: compute released, workspace preserved, slot freed)
+ * unless an op is still running on it, or a live run (queued or running,
+ * not parked for capacity) names it — the run working there, one that has
+ * claimed it and not started yet, or a fresh kick that still names its
+ * family's first worker. The guard is the worker's: a worker gives its slot
+ * back as soon as its own run ends, whatever the agent's other workers are
+ * doing. A freed slot is a release edge: the organization's next parked run,
+ * and the next parked run of the other organizations (the sandbox host is
+ * shared), are woken at once instead of idling until the 2-minute watchdog
+ * tick (`wakeParkedAgentRuns`). A release that names the workspace of the
+ * turn that ended and did not stop it — pinned, or still held — also wakes
+ * the agent's oldest parked run: that worker is free for it without a slot
+ * of its own, and the ended exec gave back one of its runtime's live-exec
+ * places (`wakeAgentParkedAgentRun`). Best-effort — a wake failure must
  * never fail the release.
  */
 export async function releaseProjectAgentSessionSlot(
@@ -396,7 +398,7 @@ export async function releaseProjectAgentSessionSlot(
       )
       AND NOT EXISTS (
         SELECT 1 FROM app.project_agent_runs r
-        WHERE r.org_id = s.org_id AND r.agent_id = s.owner_id
+        WHERE r.org_id = s.org_id AND r.session_id = s.session_id
           AND r.status IN ('queued', 'running')
           AND r.waiting_for_capacity_at_ms IS NULL
       )
@@ -412,10 +414,14 @@ export async function releaseProjectAgentSessionSlot(
       },
     );
   }
-  if (args.sessionId !== undefined && opts.wake !== false) {
-    await wakeSessionParkedAgentRun(sql, {
+  if (
+    args.sessionId !== undefined &&
+    opts.wake !== false &&
+    !rows.some((row) => row.sessionId === args.sessionId)
+  ) {
+    await wakeAgentParkedAgentRun(sql, {
       organizationId: args.organizationId,
-      sessionId: args.sessionId,
+      agentId: args.agentId,
     }).catch((error: unknown) => {
       console.warn('[sandbox] workspace wake failed:', error);
     });

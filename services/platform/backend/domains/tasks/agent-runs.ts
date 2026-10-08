@@ -786,8 +786,13 @@ export async function cancelAgentRun(
 }
 
 /**
- * Claim ONE parked run — the oldest park of one organization, or the oldest
- * of every organization but one — and re-enqueue its turn. A spurious wake
+ * Claim ONE parked run — the next of one organization, or the next of every
+ * organization but one — and re-enqueue its turn. Next is fair between
+ * agents before it is first-come: the parked run of the agent with the
+ * fewest runs working (running, or queued and not parked) goes first, the
+ * oldest park among those. One agent handed thirty tasks at once would
+ * otherwise park twenty-eight runs ahead of every other agent's later start
+ * and take every worker that frees, one after another. A spurious wake
  * (nobody parked) is a cheap no-op; a failed restart re-parks, re-arming
  * the claim. A parked run already past its deadline is NOT a candidate: it
  * belongs to the task-agent watchdog's deadline lane (failed as "waited for
@@ -806,17 +811,24 @@ async function wakeOldestParkedAgentRun(
     : scope.outsideOrganizationId;
   return sql.begin(async (tx) => {
     const parked = await tx<ParkedRun[]>`
-      SELECT id, org_id AS "organizationId", exec_id AS "execId",
-             task_id AS "taskId"
-      FROM app.project_agent_runs
-      WHERE CASE WHEN ${inside} THEN org_id = ${organizationId}
-              ELSE org_id <> ${organizationId} END
-        AND status = 'queued'
-        AND waiting_for_capacity_at_ms IS NOT NULL
-        AND deadline_at_ms > ${Date.now()}
-      ORDER BY waiting_for_capacity_at_ms
+      SELECT r.id, r.org_id AS "organizationId", r.exec_id AS "execId",
+             r.task_id AS "taskId"
+      FROM app.project_agent_runs r
+      WHERE CASE WHEN ${inside} THEN r.org_id = ${organizationId}
+              ELSE r.org_id <> ${organizationId} END
+        AND r.status = 'queued'
+        AND r.waiting_for_capacity_at_ms IS NOT NULL
+        AND r.deadline_at_ms > ${Date.now()}
+      ORDER BY (
+          SELECT count(*) FROM app.project_agent_runs working
+          WHERE working.org_id = r.org_id AND working.agent_id = r.agent_id
+            AND (working.status = 'running'
+              OR (working.status = 'queued'
+                AND working.waiting_for_capacity_at_ms IS NULL))
+        ),
+        r.waiting_for_capacity_at_ms
       LIMIT 1
-      FOR UPDATE SKIP LOCKED
+      FOR UPDATE OF r SKIP LOCKED
     `;
     const run = parked[0];
     if (!run) return 0;
@@ -883,15 +895,17 @@ export async function wakeParkedAgentRun(
   });
 }
 
-/** Wake the OLDEST run parked on one workspace, when a turn of that workspace
- * has ended: its exec gave back one of the runtime's live-exec places, the
- * room a run whose exec was refused for want of one (`EXEC_LIMIT`) waits
- * for — and any other run parked on the workspace finds it up. One claim,
- * single-winner like every wake: a run that still finds no place parks
- * again, and the watchdog's sweep stays the backstop. */
-export async function wakeSessionParkedAgentRun(
+/** Wake the agent's OLDEST parked run, when a turn of the agent ended and
+ * its worker stayed up (pinned, or still held): that worker is free for the
+ * agent's next run without a slot of its own, and the ended exec gave back
+ * one of its runtime's live-exec places — the room a run whose exec was
+ * refused for want of one (`EXEC_LIMIT`) waits for. A park gives its worker
+ * back, so a parked run names no worker to be woken by; it is found by its
+ * agent. One claim, single-winner like every wake: a run that still finds no
+ * room parks again, and the watchdog's sweep stays the backstop. */
+export async function wakeAgentParkedAgentRun(
   sql: Sql,
-  args: { organizationId: string; sessionId: string },
+  args: { organizationId: string; agentId: string },
 ): Promise<number> {
   return sql.begin(async (tx) => {
     const parked = await tx<ParkedRun[]>`
@@ -899,7 +913,7 @@ export async function wakeSessionParkedAgentRun(
              task_id AS "taskId"
       FROM app.project_agent_runs
       WHERE org_id = ${args.organizationId}
-        AND session_id = ${args.sessionId}
+        AND agent_id = ${args.agentId}
         AND status = 'queued'
         AND waiting_for_capacity_at_ms IS NOT NULL
         AND deadline_at_ms > ${Date.now()}
@@ -914,7 +928,7 @@ export async function wakeSessionParkedAgentRun(
   });
 }
 
-/** Claim one organization's OLDEST parked run and re-enqueue its turn — the
+/** Claim one organization's next parked run and re-enqueue its turn — the
  * watchdog's per-organization wake (see {@link wakeOldestParkedAgentRun}). */
 export async function wakeOrganizationParkedAgentRun(
   sql: Sql,
@@ -925,8 +939,8 @@ export async function wakeOrganizationParkedAgentRun(
 
 /**
  * The release-edge wake: room freed by one organization's session goes to
- * that organization's OLDEST parked run, and to the oldest parked run of
- * every other organization. The organization's own budget is what its
+ * that organization's next parked run, and to the next parked run of every
+ * other organization ({@link wakeOldestParkedAgentRun} says which is next). The organization's own budget is what its
  * release freed; the sandbox host is shared, so the same release can free
  * host room a run of another organization waits for — and an organization
  * that runs nothing of its own has no release edge that would ever wake
