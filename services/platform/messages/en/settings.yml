@@ -1004,6 +1004,7 @@ apiKeys:
     key: Key
     created: Added
     lastUsed: Last used
+    expires: Expires
   form:
     name: Key name
     namePlaceholder: Enter key name...
@@ -1017,8 +1018,17 @@ apiKeys:
       30days: 30 days
       90days: 90 days
       1year: 1 year
+      custom: Custom date
       never: Never
+    expiresOn: The key expires on {date}.
+    neverExpiresHint: The key works until it is revoked.
+    expiryDate: Expiration date
+    expiryDateHint: Pick a day up to one year from today.
+    expiryDateRequired: Pick an expiration date.
+    expiryDateRange: Pick a day between tomorrow and one year from today.
   neverUsed: Never used
+  neverExpires: Never
+  expired: Expired
   description: Manage API keys for external connectors
   title: API keys
 apiDocs:
@@ -1615,14 +1625,11 @@ dataResidency:
     modelTag: Model tag
     dimensions: Vector width
     dimensionsHint:
-      'Stated, never guessed: the exact dimension count this model produces.
-      Changing it later strands vectors already written at the old width.'
+      'Stated, never guessed: the exact dimension count this model produces,
+      one of {widths}. After a change, the indexed documents and website
+      pages are embedded again at the new width.'
     baseUrl: Base URL
     baseUrlHint: OpenAI-compatible endpoint; leave blank for the provider's own.
-    sharedDbNote:
-      On the deployment's shared database, all organizations share one
-      vector width — it is pinned when the first vector is written. Give
-      this organization its own knowledge database to choose freely.
     removed:
       Embedding model removed — knowledge search is unavailable until a new
       one is configured.
@@ -1638,7 +1645,7 @@ dataResidency:
       invalid: The embedding settings are invalid. Check the fields and try again.
       providerRequired: Choose a provider.
       modelRequired: Enter the model tag.
-      dimensionsInvalid: Enter a whole number between 1 and 16000.
+      dimensionsInvalid: 'Enter a supported vector width: {widths}.'
       baseUrlInvalid: Enter an http(s) URL, or leave blank.
       credentialNotFound: The selected credential no longer exists — choose another.
       credentialMismatch: The selected credential belongs to a different provider.

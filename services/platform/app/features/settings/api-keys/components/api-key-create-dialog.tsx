@@ -5,18 +5,28 @@ import { Button } from '@tale/ui/button';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { FormSection } from '@tale/ui/form-section';
 import { Input } from '@tale/ui/input';
-import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
 import { useForm } from '@tale/ui/use-form';
 import { useToast } from '@tale/ui/use-toast';
+import dayjs from 'dayjs';
 import { Copy, Check } from 'lucide-react';
-import { useMemo, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useState, type RefObject } from 'react';
 import * as z from 'zod';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useCreateApiKey } from '../hooks/use-api-keys';
+import {
+  API_KEY_EXPIRY_CHOICES,
+  type ApiKeyExpiryChoice,
+  DEFAULT_API_KEY_EXPIRY,
+  DEFAULT_CUSTOM_EXPIRY_DAYS,
+  expiresInSeconds,
+  expiryDays,
+  isCustomExpiryInRange,
+} from '../lib/expiry';
+import { ApiKeyExpiryField } from './api-key-expiry-field';
 
 /** Better Auth's apiKey plugin caps the key name at its `maximumNameLength`
  *  default (32) — `convex/auth.ts` sets no override. Mirror it client-side so a
@@ -33,7 +43,9 @@ interface ApiKeyCreateDialogProps {
 
 type ApiKeyFormData = {
   name: string;
-  expiresIn: string;
+  expiry: ApiKeyExpiryChoice;
+  /** The day picked under "Custom date" (local midnight, ms), or null. */
+  expiryDate: number | null;
 };
 
 export function ApiKeyCreateDialog({
@@ -51,67 +63,78 @@ export function ApiKeyCreateDialog({
 
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-
-  const expiresOptions = useMemo(
-    () => [
-      {
-        value: '604800',
-        label: tSettings('apiKeys.form.expiresOptions.7days'),
-      },
-      {
-        value: '2592000',
-        label: tSettings('apiKeys.form.expiresOptions.30days'),
-      },
-      {
-        value: '7776000',
-        label: tSettings('apiKeys.form.expiresOptions.90days'),
-      },
-      {
-        value: '31536000',
-        label: tSettings('apiKeys.form.expiresOptions.1year'),
-      },
-      { value: '0', label: tSettings('apiKeys.form.expiresOptions.never') },
-    ],
-    [tSettings],
-  );
+  // The lifetime counts whole days from the moment the form opened: the
+  // date the field shows is the date the key gets.
+  const [openedAt, setOpenedAt] = useState(() => Date.now());
+  useEffect(() => {
+    if (open) setOpenedAt(Date.now());
+  }, [open]);
 
   const nameRequiredError = tSettings('apiKeys.form.nameRequired');
   const nameTooLongError = tCommon('validation.maxLength', {
     field: tSettings('apiKeys.form.name'),
     max: API_KEY_NAME_MAX,
   });
+  const expiryDateRequiredError = tSettings('apiKeys.form.expiryDateRequired');
+  const expiryDateRangeError = tSettings('apiKeys.form.expiryDateRange');
   const schema = useMemo(
     () =>
-      z.object({
-        name: z
-          .string()
-          .trim()
-          .min(1, nameRequiredError)
-          .max(API_KEY_NAME_MAX, nameTooLongError),
-        expiresIn: z.string(),
-      }),
-    [nameRequiredError, nameTooLongError],
+      z
+        .object({
+          name: z
+            .string()
+            .trim()
+            .min(1, nameRequiredError)
+            .max(API_KEY_NAME_MAX, nameTooLongError),
+          expiry: z.enum(API_KEY_EXPIRY_CHOICES),
+          expiryDate: z.number().nullable(),
+        })
+        .superRefine((data, ctx) => {
+          if (data.expiry !== 'custom') return;
+          if (data.expiryDate === null) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['expiryDate'],
+              message: expiryDateRequiredError,
+            });
+          } else if (!isCustomExpiryInRange(data.expiryDate, openedAt)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['expiryDate'],
+              message: expiryDateRangeError,
+            });
+          }
+        }),
+    [
+      nameRequiredError,
+      nameTooLongError,
+      expiryDateRequiredError,
+      expiryDateRangeError,
+      openedAt,
+    ],
   );
 
   const form = useForm<ApiKeyFormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',
-      expiresIn: '2592000',
+      expiry: DEFAULT_API_KEY_EXPIRY,
+      expiryDate: null,
     },
   });
 
   const { handleSubmit, register, reset, formState, setValue, watch } = form;
-  const expiresInValue = watch('expiresIn');
+  const expiry = watch('expiry');
+  const expiryDate = watch('expiryDate');
 
   const onSubmit = async (data: ApiKeyFormData) => {
+    const days = expiryDays(data.expiry, data.expiryDate, openedAt);
+    // The schema refuses a custom choice without a date.
+    if (days === undefined) return;
     try {
-      const expiresIn =
-        data.expiresIn === '0' ? undefined : parseInt(data.expiresIn, 10);
-
       const result = await createKey({
         name: data.name,
-        expiresIn,
+        expiresIn: expiresInSeconds(days),
       });
 
       setCreatedKey(result.key);
@@ -233,14 +256,35 @@ export function ApiKeyCreateDialog({
           required
           errorMessage={formState.errors.name?.message}
         />
-        <Select
-          id="expiresIn"
-          label={tSettings('apiKeys.form.expiresIn')}
-          value={expiresInValue}
-          onValueChange={(value) =>
-            setValue('expiresIn', value, { shouldDirty: true })
+        <ApiKeyExpiryField
+          choice={expiry}
+          customDate={expiryDate}
+          now={openedAt}
+          onChoiceChange={(choice) => {
+            setValue('expiry', choice, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
+            // The calendar opens on a date a month out rather than empty.
+            if (choice === 'custom' && expiryDate === null) {
+              setValue(
+                'expiryDate',
+                dayjs(openedAt)
+                  .startOf('day')
+                  .add(DEFAULT_CUSTOM_EXPIRY_DAYS, 'day')
+                  .valueOf(),
+                { shouldDirty: true, shouldValidate: true },
+              );
+            }
+          }}
+          onCustomDateChange={(date) =>
+            setValue('expiryDate', date, {
+              shouldDirty: true,
+              shouldTouch: true,
+              shouldValidate: true,
+            })
           }
-          options={expiresOptions}
+          customDateError={formState.errors.expiryDate?.message}
         />
       </FormSection>
     </FormDialog>

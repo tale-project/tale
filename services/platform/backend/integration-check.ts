@@ -99,6 +99,7 @@ import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.int
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
 import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
+import { checkVectorWidths } from './domains/knowledge/vector-width.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import {
   checkConcurrentEntryCreation,
@@ -165,6 +166,7 @@ import {
   errorText,
   fullCoverageBlockers,
   isSkippedCheck,
+  ITEST_VECTOR_WIDTH,
   itestObjectStore,
   recordSkip,
   requestedLanes,
@@ -8777,7 +8779,7 @@ async function checkKnowledge(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -8938,9 +8940,11 @@ async function checkKnowledge(
     >`
       SELECT count(*)::text AS total,
              count(*) FILTER (WHERE c.passage_repeat)::text AS repeats,
-             count(*) FILTER (WHERE c.embedding IS NOT NULL)::text AS embedded
+             count(v.chunk_id)::text AS embedded
       FROM private_knowledge.chunks c
       JOIN private_knowledge.documents d ON d.id = c.document_id
+      LEFT JOIN private_knowledge.${dupPool(`chunk_vectors_${ITEST_VECTOR_WIDTH}`)} v
+        ON v.chunk_id = c.id
       WHERE d.org_slug = ${orgSlug} AND d.file_id = ${dup.storageRef}
     `;
     const dupTotal = Number(dupChunks[0]?.total ?? '0');
@@ -9554,7 +9558,7 @@ async function checkIndexingReleaseRace(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -9873,7 +9877,7 @@ async function checkEmbeddingCredentialRefusal(
       JSON.stringify({
         providerSlug,
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -10123,7 +10127,7 @@ async function checkCorpusPurgeConsistency(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -10822,15 +10826,20 @@ async function checkCorpusPurgeConsistency(
 }
 
 /** OpenAI-shaped embeddings response for a raw request body — deterministic
- * 8-dim vectors from character statistics; base64 Float32 when asked (the
- * OpenAI SDK's default decode path). */
+ * vectors from eight character statistics, repeated to the width the request
+ * asks for (`dimensions`; the fixtures' width without one — repeating a
+ * vector changes none of its cosines); base64 Float32 when asked (the OpenAI
+ * SDK's default decode path). */
 function fakeEmbeddingsPayload(rawBody: string): string {
   const parsed = z
     .object({
       input: z.union([z.string(), z.array(z.string())]),
       encoding_format: z.string().optional(),
+      dimensions: z.number().int().positive().optional(),
     })
     .safeParse(JSON.parse(rawBody || '{}'));
+  const width =
+    (parsed.success ? parsed.data.dimensions : undefined) ?? ITEST_VECTOR_WIDTH;
   const inputs = parsed.success
     ? Array.isArray(parsed.data.input)
       ? parsed.data.input
@@ -10839,13 +10848,17 @@ function fakeEmbeddingsPayload(rawBody: string): string {
   const wantsBase64 =
     parsed.success && parsed.data.encoding_format === 'base64';
   const data = inputs.map((text, index) => {
-    const vector = Array.from({ length: 8 }, (_, i) => {
+    const statistics = Array.from({ length: 8 }, (_, i) => {
       let acc = 0;
       for (let j = i; j < text.length; j += 8) {
         acc += text.charCodeAt(j) % 97;
       }
       return (acc % 1000) / 1000 + 0.001;
     });
+    const vector = Array.from(
+      { length: width },
+      (_, i) => statistics[i % statistics.length] ?? 0,
+    );
     const embedding = wantsBase64
       ? Buffer.from(new Float32Array(vector).buffer).toString('base64')
       : vector;
@@ -11213,7 +11226,7 @@ async function checkChat(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: aiBase,
       }),
     );
@@ -17822,7 +17835,7 @@ async function checkRestResources(
       JSON.stringify({
         providerSlug: 'restchat',
         model: 'rest-chat-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: aiBase,
       }),
     );
@@ -45910,6 +45923,7 @@ async function checkChatDeferredAuto(
 
   // ---- a live fake provider (catalog + streaming completions) -------------
   const AUTO_ANSWER = 'Deferred answer done.';
+  const capturedPrompts: string[] = [];
   const autoServer = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk: unknown) => {
@@ -45934,6 +45948,7 @@ async function checkChatDeferredAuto(
         return;
       }
       if (url.endsWith('/chat/completions')) {
+        capturedPrompts.push(body);
         res.setHeader('content-type', 'text/event-stream');
         const sse = (payload: unknown): string =>
           `data: ${JSON.stringify(payload)}\n\n`;
@@ -46147,6 +46162,209 @@ async function checkChatDeferredAuto(
         `${base}/api/app/connector-credentials/${connectorCredential.data.credentialId}?orgId=${orgId}`,
         { method: 'DELETE', headers: { cookie, origin: base } },
       );
+    }
+
+    // Real-PG attachment boundary: deny new parks, sanitize already-parked
+    // failures, and rebuild legacy poisoned history under the CURRENT reader.
+    const { pollDeferredSend } =
+      await import('./domains/chat/deferred-sends.ts');
+    const { runChatTurn } = await import('./domains/chat/service.ts');
+    const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+    const { userTurnParts } = await import('../lib/chat/turn.ts');
+    const { toJson } = await import('./db/sql.ts');
+    const foreignOrg = randomUUID();
+    const foreignUser = randomUUID();
+    await sql`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (${foreignOrg}, 'Attachment boundary tenant', ${`boundary-${foreignOrg}`}, now())
+    `;
+    await sql`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt", "updatedAt")
+      VALUES (${foreignUser}, ${`boundary-${foreignUser}@door.test`}, 'Attachment owner', true, now(), now())
+    `;
+    const boundaryThreads: string[] = [];
+    try {
+      for (const fileOrg of [orgId, foreignOrg]) {
+        const sentinel = `PRIVATE_TRANSCRIPT_${randomUUID()}`;
+        const ref = `s3:boundary-${randomUUID()}`;
+        const attachments = [
+          {
+            fileId: ref,
+            fileName: 'private.wav',
+            fileType: 'audio/wav',
+            fileSize: 10,
+          },
+        ];
+        await sql`
+          INSERT INTO app.file_metadata (org_id, storage_ref, file_name, content_type, size,
+            uploaded_by, transcript, transcription_status, created_at_ms)
+          VALUES (${fileOrg}, ${ref}, 'private.wav', 'audio/wav', 10,
+            ${foreignUser}, ${sentinel}, 'completed', ${Date.now()})
+        `;
+        const created = z.object({ id: z.string() }).parse(
+          await (
+            await post(`/api/app/chat/threads?orgId=${orgId}`, {
+              title: 'Attachment boundary',
+            })
+          ).json(),
+        );
+        const threadId = created.id;
+        boundaryThreads.push(threadId);
+        const startPrompt = capturedPrompts.length;
+        const park = await post(
+          `/api/app/chat/threads/${threadId}/deferred-sends?orgId=${orgId}`,
+          {
+            text: 'Summarize',
+            modelId: 'auto-pick-model',
+            attachments,
+          },
+        );
+        const unexpectedParks = await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.deferred_sends WHERE thread_id = ${threadId}
+        `;
+        record(
+          'attachment boundary: unreadable audio is refused at parking',
+          park.status === 400 && unexpectedParks[0]?.count === '0',
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} status=${park.status} rows=${unexpectedParks[0]?.count}`,
+        );
+        // Remove only this fixture's unexpected park on the baseline so the
+        // worker cannot race the deliberate legacy row below.
+        await sql`DELETE FROM app.deferred_sends WHERE thread_id = ${threadId}`;
+        const legacy = await sql<{ id: string }[]>`
+          INSERT INTO app.deferred_sends (org_id, user_id, thread_id, user_text,
+            attachments, model_id, status, created_at_ms, waiting_since_ms)
+          VALUES (${orgId}, ${userId}, ${threadId}, 'Legacy parked send',
+            ${sql.json(toJson(attachments))}, 'auto-pick-model', 'waiting', ${Date.now()}, ${Date.now()})
+          RETURNING id
+        `;
+        await pollDeferredSend(sql, legacy[0]?.id ?? '');
+        const trace = await sql<{ parts: unknown }[]>`
+          SELECT parts FROM app.messages WHERE thread_id = ${threadId} AND role = 'user'
+        `;
+        record(
+          'attachment boundary: refused legacy park leaves no attachment parts',
+          trace.length === 1 && !JSON.stringify(trace).includes(ref),
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} userRows=${trace.length} containsRef=${JSON.stringify(trace).includes(ref)}`,
+        );
+        const metaQuery =
+          chatShimHandlers(sql)[
+            'file_metadata/internal_queries:getByStorageId'
+          ];
+        if (!metaQuery) throw new Error('metadata handler missing');
+        record(
+          'attachment boundary: metadata refuses an unreadable transcript',
+          (await metaQuery({
+            organizationId: orgId,
+            userId,
+            storageId: ref,
+          })) === null,
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'}`,
+        );
+        const next = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Next turn',
+        });
+        // Existing persisted poison must also be harmless, independently of
+        // the new trace fix. The last row is a user row for regenerate.
+        await appendMessageRow(sql, {
+          organizationId: orgId,
+          threadId,
+          role: 'user',
+          parts: userTurnParts('Legacy attachment', attachments),
+          text: 'Legacy attachment',
+        });
+        const regenerated = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: '',
+          resend: true,
+        });
+        const later = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Read prior history',
+        });
+        const prompts = capturedPrompts.slice(startPrompt);
+        record(
+          'attachment boundary: next turn, regenerate and legacy history never expose foreign audio',
+          next.status === 'completed' &&
+            regenerated.status === 'completed' &&
+            later.status === 'completed' &&
+            prompts.length >= 3 &&
+            prompts.every(
+              (prompt) => !prompt.includes(sentinel) && !prompt.includes(ref),
+            ),
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} outcomes=${next.status},${regenerated.status},${later.status} calls=${prompts.length} leaked=${prompts.some((prompt) => prompt.includes(sentinel))}`,
+        );
+        await sql`DELETE FROM app.messages WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.threads WHERE id = ${threadId}`;
+        await sql`DELETE FROM app.file_metadata WHERE storage_ref = ${ref}`;
+      }
+      const ownRef = `s3:boundary-own-${randomUUID()}`;
+      const ownSentinel = `OWN_TRANSCRIPT_${randomUUID()}`;
+      const ownThread = z.object({ id: z.string() }).parse(
+        await (
+          await post(`/api/app/chat/threads?orgId=${orgId}`, {
+            title: 'Readable audio control',
+          })
+        ).json(),
+      );
+      boundaryThreads.push(ownThread.id);
+      await sql`
+        INSERT INTO app.file_metadata (org_id, storage_ref, file_name, content_type, size,
+          uploaded_by, transcript, transcription_status, created_at_ms)
+        VALUES (${orgId}, ${ownRef}, 'own.wav', 'audio/wav', 10,
+          ${userId}, ${ownSentinel}, 'completed', ${Date.now()})
+      `;
+      try {
+        const beforeOwn = capturedPrompts.length;
+        const ownOutcome = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId: ownThread.id,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Summarize my audio',
+          attachments: [
+            {
+              fileId: ownRef,
+              fileName: 'own.wav',
+              fileType: 'audio/wav',
+              fileSize: 10,
+            },
+          ],
+        });
+        record(
+          'attachment boundary: own completed audio still reaches the model',
+          ownOutcome.status === 'completed' &&
+            capturedPrompts
+              .slice(beforeOwn)
+              .some((prompt) => prompt.includes(ownSentinel)),
+          `outcome=${ownOutcome.status} calls=${capturedPrompts.length - beforeOwn}`,
+        );
+      } finally {
+        await sql`DELETE FROM app.file_metadata WHERE storage_ref = ${ownRef}`;
+      }
+    } finally {
+      for (const threadId of boundaryThreads) {
+        await sql`DELETE FROM app.deferred_sends WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.generations WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.messages WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.threads WHERE id = ${threadId}`;
+      }
+      await sql`DELETE FROM app.file_metadata WHERE uploaded_by = ${foreignUser}`;
+      await sql`DELETE FROM "user" WHERE "id" = ${foreignUser}`;
+      await sql`DELETE FROM "organization" WHERE "id" = ${foreignOrg}`;
     }
 
     // ---- deferred sends ---------------------------------------------------
@@ -61349,6 +61567,14 @@ async function main(): Promise<void> {
       ['checkSlackInbound', () => checkSlackInbound(sql, baseUrl, authCtx)],
       ['checkRecoverySweeps', () => checkRecoverySweeps(sql, authCtx)],
       ['checkRagStatusHintScope', () => checkRagStatusHintScope(sql, record)],
+      [
+        'checkVectorWidths',
+        () =>
+          checkVectorWidths(sql, {
+            record,
+            embeddingsPayload: fakeEmbeddingsPayload,
+          }),
+      ],
       ['checkRagWatchdogBatch', () => checkRagWatchdogBatch(sql, record)],
       [
         'checkPolicySweeps',
