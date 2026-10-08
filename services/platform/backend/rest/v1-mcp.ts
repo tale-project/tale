@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
+import { mcpCallLogLine, recordMcpActivity } from '../domains/mcp/activity.ts';
 import { callerFromRest } from '../domains/mcp/caller.ts';
 import { mcpHost } from '../domains/mcp/engine-host.ts';
 import { handleMcpRequest } from '../domains/mcp/protocol.ts';
@@ -52,8 +53,15 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         400,
       );
     }
-    return handleMcpRequest(callerFromRest(c), c.req.raw, {
+    const caller = callerFromRest(c);
+    return handleMcpRequest(caller, c.req.raw, {
       host,
+      // Every answered call writes one log line and adds to its day's
+      // counters — never what it carried (`domains/mcp/activity.ts`).
+      observe: async (record) => {
+        console.log(mcpCallLogLine(caller, record));
+        await recordMcpActivity(deps.sql, caller, record);
+      },
       // The door charged this HTTP request once; every further tool call a
       // batch carries draws from the same `rest:api` budget, so a batch is
       // never cheaper than the requests it stands for.

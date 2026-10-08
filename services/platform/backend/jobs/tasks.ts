@@ -79,6 +79,8 @@ export interface TaskPayloads {
   'maintenance.rate_limit_gc': Record<string, never>;
   /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
   'maintenance.login_attempts_ttl': Record<string, never>;
+  /** Daily delete of MCP call counters past their 90 days (cron). */
+  'maintenance.mcp_activity_ttl': Record<string, never>;
   /** Daily delete of auth sessions a day past their expiry (cron). */
   'maintenance.expired_sessions': Record<string, never>;
   /** Sweep delivered realtime hints past the retention horizon (cron) — the
@@ -474,6 +476,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'task.start_workflow': { retryLimit: 3, retryDelay: 5, expireInSeconds: 300 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
+  'maintenance.mcp_activity_ttl': { retryLimit: 2, expireInSeconds: 300 },
   // Bounded batches that stop on the job's signal; a backlog past the batch
   // budget waits for the next night rather than for a retry.
   'maintenance.expired_sessions': { retryLimit: 2, expireInSeconds: 600 },

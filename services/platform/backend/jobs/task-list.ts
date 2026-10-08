@@ -749,6 +749,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         `[maintenance] login_attempts_ttl removed ${attempts.count} attempts, ${counters.count} counters, ${twoFactor.count} 2fa attempts`,
       );
     },
+    'maintenance.mcp_activity_ttl': async () => {
+      const { sweepMcpActivity } = await import('../domains/mcp/activity.ts');
+      const deleted = await sweepMcpActivity(deps.sql);
+      console.log(`[maintenance] mcp_activity_ttl removed ${deleted} rows`);
+    },
     'rag.index_file': async (payload, context) => {
       const input = z.object({ fileId: z.string().min(1) }).parse(payload);
       // A document can take longer than the job's budget (a slow embedding

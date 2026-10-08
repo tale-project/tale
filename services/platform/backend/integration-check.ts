@@ -14852,6 +14852,85 @@ async function checkMcp(
     missingRunShape.success &&
     missingRunShape.data.code === 'RUN_NOT_FOUND';
 
+  // The call counters (0180, MCP-R21): an initialize that names its client
+  // and a refused call land in the day's row of the key that made them;
+  // nothing a call carried is kept; a day past the 90-day window is swept.
+  const sentinel = `SENTINEL-${randomUUID()}`;
+  await rpc({
+    jsonrpc: '2.0',
+    id: 93,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'itest\u202Eclient', version: '1.0.0' },
+    },
+  });
+  await rpc({
+    jsonrpc: '2.0',
+    id: 94,
+    method: 'tools/call',
+    params: { name: 'get_run', arguments: { runId: sentinel } },
+  });
+  const activity = await sql<
+    {
+      method: string;
+      tool: string;
+      calls: number;
+      refusals: number;
+      clientName: string | null;
+      credentialId: string;
+      userId: string;
+    }[]
+  >`
+    SELECT method, tool, calls, refusals, client_name AS "clientName",
+           credential_id AS "credentialId", user_id AS "userId"
+    FROM app.mcp_client_activity WHERE org_id = ${orgId}
+  `;
+  const initRow = activity.find(
+    (row) => row.method === 'initialize' && row.clientName === 'itestclient',
+  );
+  const getRunRow = activity.find(
+    (row) => row.method === 'tools/call' && row.tool === 'get_run',
+  );
+  const memberSaveRow = activity.find(
+    (row) =>
+      row.method === 'tools/call' &&
+      row.tool === 'save_automation' &&
+      row.userId === memberUserId,
+  );
+  const leaked = JSON.stringify(activity).includes(sentinel);
+  const oldDay = 20000101;
+  await sql`
+    INSERT INTO app.mcp_client_activity (
+      org_id, user_id, credential_kind, credential_id, method, tool, day,
+      calls, last_at_ms
+    ) VALUES (
+      ${orgId}, ${memberUserId}, 'api-key', 'itest-old-key', 'ping', '',
+      ${oldDay}, 1, 0
+    ) ON CONFLICT DO NOTHING
+  `;
+  const activitySweep = createTaskList({ sql })['maintenance.mcp_activity_ttl'];
+  if (activitySweep !== undefined) await activitySweep({});
+  const oldLeft = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.mcp_client_activity
+    WHERE org_id = ${orgId} AND day = ${oldDay}
+  `;
+  record(
+    'MCP calls are counted per key and day, never what they carried (MCP-R21)',
+    initRow !== undefined &&
+      initRow.credentialId !== '' &&
+      getRunRow !== undefined &&
+      getRunRow.calls >= 2 &&
+      getRunRow.refusals >= 1 &&
+      memberSaveRow !== undefined &&
+      memberSaveRow.refusals >= 1 &&
+      memberSaveRow.credentialId !== initRow.credentialId &&
+      !leaked &&
+      oldLeft[0]?.n === 0,
+    `init=${JSON.stringify(initRow ?? null)}, get_run=${JSON.stringify(getRunRow ?? null)}, memberSave=${JSON.stringify(memberSaveRow ?? null)}, leaked=${leaked}, oldLeft=${oldLeft[0]?.n} (want 0)`,
+  );
+
   record(
     'platform MCP endpoint (/api/v1/mcp)',
     initOk &&

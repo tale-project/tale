@@ -456,6 +456,44 @@ describe('processErasure', () => {
     expect(settle?.values[2]).toMatchObject({ automationRuns: 3 });
   });
 
+  it("deletes the subject's coding-agent call counters in the organization", async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('DELETE FROM app.mcp_client_activity'))
+        return [{ day: 20261007 }, { day: 20261008 }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    const removed = fake.statements.find((s) =>
+      s.text.startsWith('DELETE FROM app.mcp_client_activity'),
+    );
+    expect(removed?.text).toBe(
+      'DELETE FROM app.mcp_client_activity WHERE org_id = ? AND user_id = ? RETURNING day',
+    );
+    expect(removed?.values).toEqual(['org_1', 'subject']);
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ mcpActivity: 2 });
+  });
+
   /**
    * A request through the model endpoints for API keys is an op row stamped
    * with the key holder. One whose spend is booked and whose key is deleted

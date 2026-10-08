@@ -64,6 +64,19 @@ One request can carry many calls, so one header cannot name a start. A request w
 - **Example**: Ada's script sends `start_run` with an `Idempotency-Key` header → refused, naming
   the header, and no run starts.
 
+## What is kept of a call
+
+### MCP-R21 · A call is counted per organization, person and key, never what it carried
+
+Every answered call adds one to a counter of its organization, its person, the API key, the method
+and the tool, for its day (UTC), with whether it was refused or failed, and the name the client gave
+itself when it connected. No argument, result or address is kept, so nothing an agent pasted into a
+call ends up in the counters or in the log line the call writes. The same key in two organizations
+counts twice, once in each. Counters are kept 90 days, and an erasure of the person removes theirs.
+
+- **Example**: Ada's agent calls `get_run` three times in Acme and once in Beta → Acme counts three
+  `get_run` calls of Ada's key that day, Beta one, and neither holds the run id she asked for.
+
 ## Protocol versions
 
 ### MCP-R16 · A protocol revision it does not speak is answered with the revisions it does

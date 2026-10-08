@@ -52,10 +52,16 @@ import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
 import { defineAbilityFor } from '../../../lib/permissions/ability';
+import { displayClientName } from '../../../lib/shared/client-name';
 import {
   INEXACT_NUMBER_MESSAGE,
   parseJsonExact,
 } from '../../../lib/utils/json-exact';
+import {
+  isRecordedMethod,
+  type McpCallOutcome,
+  type McpCallRecord,
+} from './activity';
 import type { McpCaller } from './caller';
 
 type McpTool = (typeof MCP_TOOLS)[number];
@@ -130,6 +136,8 @@ interface JsonRpcReply {
    * itself could not be acted on, 200 for every answer to a well-formed
    * request — a JSON-RPC error included. A batch always answers 200. */
   readonly status: 200 | 400;
+  /** How a tool call went, for the call record — set on a tool result. */
+  readonly toolOutcome?: { outcome: McpCallOutcome; code?: string };
 }
 
 function rpcResult(id: JsonRpcId, result: unknown): JsonRpcReply {
@@ -186,10 +194,21 @@ function toolResult(
   id: JsonRpcId,
   result: unknown,
 ): JsonRpcReply {
-  return rpcResult(id, {
-    content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    isError: isFailureShaped(tool, result),
-  });
+  const isError = isFailureShaped(tool, result);
+  const code =
+    isRecord(result) && typeof result.code === 'string'
+      ? result.code
+      : undefined;
+  return {
+    ...rpcResult(id, {
+      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      isError,
+    }),
+    toolOutcome: {
+      outcome: isError ? 'refused' : 'ok',
+      ...(isError && code !== undefined ? { code } : {}),
+    },
+  };
 }
 
 // ------------------------------------------------------ argument validation
@@ -270,6 +289,11 @@ export interface McpRequestOptions {
    * alone (-32000 with `data.retryAfterMs`) while the rest of the batch goes
    * on. */
   readonly admit?: () => Promise<{ retryAfterMs: number } | null>;
+  /** Told of every answered request message whose method the endpoint
+   * serves — never of a notification, and never what the call carried.
+   * The door counts it (`activity.ts`); awaited, so the count is true when
+   * the answer leaves. */
+  readonly observe?: (record: McpCallRecord) => Promise<void>;
 }
 
 /** What one request has spent so far — shared by the messages of a batch. */
@@ -277,9 +301,72 @@ interface RequestState {
   toolCalls: number;
 }
 
+/**
+ * What the call record says of one answered message: its method, the tool a
+ * `tools/call` named when the inventory holds it (a name a client invented
+ * is never recorded), how it went, and on `initialize` the name the client
+ * gave itself. Never an argument.
+ */
+function callRecord(
+  message: Record<string, unknown>,
+  method: McpCallRecord['method'],
+  reply: JsonRpcReply,
+  ms: number,
+): McpCallRecord {
+  const params = isRecord(message.params) ? message.params : {};
+  const named = params.name;
+  const tool =
+    method === 'tools/call' &&
+    typeof named === 'string' &&
+    MCP_TOOLS.some((candidate) => candidate.name === named)
+      ? named
+      : undefined;
+  const error = reply.body.error;
+  const outcome: { outcome: McpCallOutcome; code?: string } =
+    reply.toolOutcome ??
+    (isRecord(error)
+      ? { outcome: 'refused', code: String(error.code) }
+      : { outcome: 'ok' });
+  const clientName =
+    method === 'initialize' && isRecord(params.clientInfo)
+      ? displayClientName(params.clientInfo.name)
+      : null;
+  return {
+    method,
+    ...(tool === undefined ? {} : { tool }),
+    ...outcome,
+    ms,
+    ...(clientName === null ? {} : { clientName }),
+  };
+}
+
+/** One JSON-RPC message → its reply (null for a notification), told to the
+ * door's observer when its method is one the endpoint serves. */
+async function handleMessage(
+  caller: McpCaller,
+  message: unknown,
+  options: McpRequestOptions,
+  state: RequestState,
+): Promise<JsonRpcReply | null> {
+  const started = performance.now();
+  const reply = await answerMessage(caller, message, options, state);
+  if (
+    reply !== null &&
+    options.observe !== undefined &&
+    isRecord(message) &&
+    typeof message.method === 'string' &&
+    isRecordedMethod(message.method)
+  ) {
+    await options.observe(
+      callRecord(message, message.method, reply, performance.now() - started),
+    );
+  }
+  return reply;
+}
+
 /** One JSON-RPC message → its reply, or null for a notification (a message
  * without an id is acknowledged, never answered). */
-async function handleMessage(
+async function answerMessage(
   caller: McpCaller,
   message: unknown,
   options: McpRequestOptions,
@@ -430,10 +517,13 @@ async function handleMessage(
         // above. Surface the message as a tool error rather than a protocol
         // error, so the client's model can read it and adjust.
         const text = error instanceof Error ? error.message : String(error);
-        return rpcResult(id, {
-          content: [{ type: 'text', text }],
-          isError: true,
-        });
+        return {
+          ...rpcResult(id, {
+            content: [{ type: 'text', text }],
+            isError: true,
+          }),
+          toolOutcome: { outcome: 'error' },
+        };
       }
     }
 

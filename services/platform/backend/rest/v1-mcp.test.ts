@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { recordMcpActivity } from '../domains/mcp/activity.ts';
 import type { McpCaller } from '../domains/mcp/caller.ts';
 import type { McpHost } from '../domains/mcp/protocol.ts';
 import {
@@ -26,6 +27,10 @@ const { engine, capability } = vi.hoisted(() => ({
 
 vi.mock('../domains/mcp/engine-host.ts', () => ({
   mcpHost: () => ({ engine, capability }),
+}));
+vi.mock('../domains/mcp/activity.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../domains/mcp/activity.ts')>()),
+  recordMcpActivity: vi.fn(async () => undefined),
 }));
 vi.mock('../lib/rate-limit.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/rate-limit.ts')>()),
@@ -111,6 +116,64 @@ describe('POST /api/v1/mcp', () => {
       { id: 3, error: { code: -32000, data: { retryAfterMs: 1500 } } },
     ]);
     expect(engine).toHaveBeenCalledTimes(2);
+  });
+
+  it('counts every answered call under the proven caller and logs one line, never what it carried [MCP-R21]', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const sentinel = 'SENTINEL-sk-live-4b1d';
+    await post([
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-06-18',
+          clientInfo: { name: 'Claude\u202ECode', version: '2.1' },
+        },
+      },
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: {
+          name: 'list_automations',
+          arguments: { note: sentinel },
+        },
+      },
+      { jsonrpc: '2.0', method: 'notifications/initialized' },
+    ]);
+
+    const caller = expect.objectContaining({
+      organizationId: 'org-acme',
+      userId: 'user-ada',
+      credential: { kind: 'api-key', apiKeyId: 'key-laptop' },
+    });
+    expect(recordMcpActivity).toHaveBeenCalledTimes(2);
+    expect(recordMcpActivity).toHaveBeenNthCalledWith(
+      1,
+      sql,
+      caller,
+      expect.objectContaining({
+        method: 'initialize',
+        outcome: 'ok',
+        clientName: 'ClaudeCode',
+      }),
+    );
+    expect(recordMcpActivity).toHaveBeenNthCalledWith(
+      2,
+      sql,
+      caller,
+      expect.objectContaining({
+        method: 'tools/call',
+        tool: 'list_automations',
+      }),
+    );
+    const lines = log.mock.calls.map((args) => String(args[0]));
+    expect(lines.filter((line) => line.startsWith('[mcp] '))).toHaveLength(2);
+    expect(
+      JSON.stringify(vi.mocked(recordMcpActivity).mock.calls),
+    ).not.toContain(sentinel);
+    expect(lines.join('\n')).not.toContain(sentinel);
   });
 
   it('refuses an Idempotency-Key header and runs nothing [MCP-R20]', async () => {

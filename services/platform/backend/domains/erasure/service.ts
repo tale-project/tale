@@ -1002,6 +1002,18 @@ export async function processErasure(
     return removed.length;
   });
 
+  // The subject's coding agents' daily call counters (when, which method and
+  // tool, the client's own name): kept for their activity view, never as
+  // evidence, so they go with the person.
+  await pass('mcpActivity', async () => {
+    const removed = await sql<{ day: number }[]>`
+      DELETE FROM app.mcp_client_activity
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING day
+    `;
+    return removed.length;
+  });
+
   // Requests through the model endpoints for API keys: one op row per
   // request (`app.sandbox_session_ops`, kind `model-api`), stamped with the
   // key holder. A row whose spend is booked and whose key is deleted (or was
