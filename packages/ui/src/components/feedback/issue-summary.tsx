@@ -117,8 +117,9 @@ function CountPart({
  * reader. A changed number pops once; reduced motion keeps it still.
  *
  * A check runs at every pause in typing, so it never changes the button's
- * width: the last counts stay and the spinner takes the first one's glyph
- * (with none, "Checking…" stands where "No problems" did).
+ * width: the last counts stay and the spinner takes the first one's glyph.
+ * With none, "No problems" and "Checking…" share one grid cell, the idle
+ * one invisible, so the button is as wide as the wider of the two.
  */
 export const IssueCountButton = forwardRef<
   HTMLButtonElement,
@@ -186,21 +187,29 @@ export const IssueCountButton = forwardRef<
         <span>{t('checkFailed')}</span>
       </>
     );
-  } else if (checking && total === 0) {
-    content = (
-      <>
-        <CheckingGlyph />
-        <span>{t('checking')}</span>
-      </>
-    );
   } else if (total === 0) {
     content = (
       <>
-        <CircleCheck
-          aria-hidden="true"
-          className="text-muted-foreground size-4 shrink-0"
-        />
-        <span>{summary}</span>
+        {checking ? (
+          <CheckingGlyph />
+        ) : (
+          <CircleCheck
+            aria-hidden="true"
+            className="text-muted-foreground size-4 shrink-0"
+          />
+        )}
+        <span className="grid justify-items-start">
+          <span
+            className={cn('col-start-1 row-start-1', checking && 'invisible')}
+          >
+            {summary}
+          </span>
+          <span
+            className={cn('col-start-1 row-start-1', !checking && 'invisible')}
+          >
+            {t('checking')}
+          </span>
+        </span>
       </>
     );
   } else {
@@ -234,9 +243,11 @@ export interface IssueAnnouncerProps {
   counts: IssueCounts;
   status: IssueCheckStatus;
   /**
-   * Identifies one settled result. The announcer speaks once per new key
-   * while `status` is `ready` — so a host keys it per finished check, never
-   * per keystroke. The key the announcer mounts with is never spoken.
+   * Identifies one result worth saying. The announcer speaks once per new
+   * key while `status` is `ready` — so a host changes the key when the
+   * result changes (or answers something, such as a refused save), never
+   * per keystroke or per finished check. The key the announcer mounts with
+   * is never spoken.
    */
   announceKey: string | number;
   /** Leads the sentence when the result answers something ("Saving was refused"). */

@@ -118,11 +118,7 @@ export function Field({
         error || issuesId ? (
           <>
             {error ? (
-              <p
-                id={errorId}
-                className="text-xs text-[color:var(--color-danger)]"
-                role="alert"
-              >
+              <p id={errorId} className="text-destructive text-xs" role="alert">
                 {error}
               </p>
             ) : null}

@@ -207,6 +207,36 @@ describe('EditorActions — invalidReason', () => {
     expect(toastMock).not.toHaveBeenCalled();
   });
 
+  function pressSave(): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', {
+      key: 's',
+      metaKey: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(event);
+    return event;
+  }
+
+  it('⌘S keeps the browser from saving the page and shows why Save waits', async () => {
+    const save = vi.fn();
+    renderActions({ save });
+    expect(pressSave().defaultPrevented).toBe(true);
+    expect(screen.getByRole('button', { name: 'actions.save' })).toHaveFocus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(REASON);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('⌘S leaves focus where it is when the reason stands inline', () => {
+    renderActions({}, { inlineReason: true });
+    expect(pressSave().defaultPrevented).toBe(true);
+    expect(document.body).toHaveFocus();
+  });
+
+  it('⌘S with nothing to save is the browser shortcut again', () => {
+    renderActions({ isDirty: false });
+    expect(pressSave().defaultPrevented).toBe(false);
+  });
+
   it('gives no reason when there is nothing to save', () => {
     renderActions({ isDirty: false });
     expect(screen.getByRole('button', { name: 'actions.save' })).toBeDisabled();

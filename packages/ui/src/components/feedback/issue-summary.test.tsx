@@ -103,7 +103,7 @@ describe('IssueCountButton', () => {
   });
 
   it('says "Checking…" in place of "No problems" while a check runs', () => {
-    render(
+    const { rerender } = render(
       <IssueCountButton
         counts={{ errors: 0, warnings: 0 }}
         status="checking"
@@ -111,7 +111,16 @@ describe('IssueCountButton', () => {
     );
     expect(
       screen.getByRole('button', { name: 'Problems: Checking…' }),
-    ).toHaveTextContent(/^Checking…$/);
+    ).toBeInTheDocument();
+    // Both labels hold the one grid cell, so the button keeps its width;
+    // only the label that applies is visible.
+    expect(screen.getByText('Checking…')).not.toHaveClass('invisible');
+    expect(screen.getByText('No problems')).toHaveClass('invisible');
+    rerender(
+      <IssueCountButton counts={{ errors: 0, warnings: 0 }} status="ready" />,
+    );
+    expect(screen.getByText('Checking…')).toHaveClass('invisible');
+    expect(screen.getByText('No problems')).not.toHaveClass('invisible');
   });
 
   it('says it could not check', () => {

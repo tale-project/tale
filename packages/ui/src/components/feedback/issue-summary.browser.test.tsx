@@ -1,6 +1,9 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, waitFor } from '@testing-library/react';
 import axe from 'axe-core';
+import type { i18n as I18n } from 'i18next';
+import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cdp } from 'vitest/browser';
 
@@ -138,6 +141,53 @@ describe.each(['light', 'dark'])('issue counts contrast (%s)', (theme) => {
       );
     },
   );
+});
+
+describe.each([
+  ['en', 'No problems'],
+  ['de', 'Keine Probleme'],
+  ['fr', 'Aucun problème'],
+])('IssueCountButton width in %s', (locale, none) => {
+  // The tree holds the language it detected while it is mounted; unmount
+  // it, then hand the shared i18n instance back in English.
+  const shared: { i18n?: I18n } = {};
+  function CaptureI18n() {
+    const { i18n } = useTranslation();
+    useEffect(() => {
+      shared.i18n = i18n;
+    }, [i18n]);
+    return null;
+  }
+  afterEach(async () => {
+    cleanup();
+    localStorage.removeItem('user-locale');
+    await shared.i18n?.changeLanguage('en-US');
+  });
+
+  it('keeps its width while a check runs on a draft with no problems', async () => {
+    localStorage.setItem('user-locale', locale);
+    const counts = { errors: 0, warnings: 0 };
+    const { rerender } = render(
+      <>
+        <CaptureI18n />
+        <IssueCountButton counts={counts} status="ready" />
+      </>,
+    );
+    const button = await screen.findByRole('button', { name: none });
+    const ready = button.getBoundingClientRect().width;
+    rerender(
+      <>
+        <CaptureI18n />
+        <IssueCountButton counts={counts} status="checking" />
+      </>,
+    );
+    await waitFor(() => {
+      expect(button).not.toHaveAttribute('aria-label', none);
+    });
+    const checking = button.getBoundingClientRect().width;
+    expect(ready).toBeGreaterThan(0);
+    expect(checking).toBe(ready);
+  });
 });
 
 describe('issue counts motion', () => {

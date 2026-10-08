@@ -4,7 +4,13 @@ import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { ExternalLink } from '@tale/ui/external-link';
 import { useT } from '@tale/ui/i18n/client';
 import { useSwapFade } from '@tale/ui/use-swap-fade';
-import { CircleAlert, CircleCheck, CornerDownLeft, Info } from 'lucide-react';
+import {
+  CircleAlert,
+  CircleCheck,
+  CornerDownLeft,
+  Info,
+  LoaderCircle,
+} from 'lucide-react';
 import {
   forwardRef,
   useCallback,
@@ -193,7 +199,8 @@ export function IssueDetail({
           variant="compact"
           summary={t('technicalDetails')}
           summaryTabIndex={tabIndex}
-          className="pt-0.5"
+          // A 24px target, apart from "Learn more" below it.
+          className="pt-0.5 [&>summary]:py-1"
         >
           <div className="text-muted-foreground mt-1 font-mono text-xs break-words whitespace-pre-wrap">
             {issue.technical}
@@ -201,11 +208,11 @@ export function IssueDetail({
         </CollapsibleDetails>
       )}
       {comfortable && issue.docsHref !== undefined && (
-        <p className="text-xs">
+        <p className="pt-1 text-xs">
           <ExternalLink
             href={issue.docsHref}
             tabIndex={tabIndex}
-            className="text-foreground font-medium underline underline-offset-2"
+            className="text-foreground inline-flex min-h-6 items-center font-medium underline underline-offset-2"
           >
             {t('learnMore')}
           </ExternalLink>
@@ -426,7 +433,17 @@ export const IssueList = forwardRef<IssueListHandle, IssueListProps>(
           </p>
         )}
         {issues.length === 0 ? (
-          failed ? null : (
+          failed ? null : status === 'checking' ? (
+            // Nothing to keep on screen: a running check claims nothing,
+            // as the count button beside the list does.
+            <p className="text-muted-foreground flex gap-2 px-3 py-2 text-sm">
+              <LoaderCircle
+                aria-hidden="true"
+                className="mt-0.5 size-4 shrink-0 motion-safe:animate-spin"
+              />
+              <span>{t('checking')}</span>
+            </p>
+          ) : (
             <p
               className={cn(
                 'text-muted-foreground flex gap-2 px-3 py-2 text-sm',

@@ -134,17 +134,26 @@ export function EditorActions({
     onEvent?.({ type: 'discard', entityKind });
   }, [controller, entityKind, onEvent]);
 
+  const saveRef = useRef<HTMLButtonElement>(null);
+
   // ⌘S / Ctrl+S — only while the cluster is mounted AND dirty. Suppresses
-  // the browser's native page-save dialog only in that narrow window.
+  // the browser's native page-save dialog only in that narrow window, even
+  // when the edits cannot be saved: the page's HTML is never what the
+  // author meant to save.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!canEdit) return;
       const isSaveCombo =
         (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's';
       if (!isSaveCombo) return;
-      if (!controller.isDirty || controller.isSaving || !controller.isValid)
-        return;
+      if (!controller.isDirty || controller.isSaving) return;
       e.preventDefault();
+      if (!controller.isValid) {
+        // Say why nothing saved: focus on Save opens its reason (an inline
+        // reason already stands beside it).
+        if (!inlineReason) saveRef.current?.focus();
+        return;
+      }
       void runSave();
     };
     window.addEventListener('keydown', handler);
@@ -156,6 +165,7 @@ export function EditorActions({
     controller.isDirty,
     controller.isSaving,
     controller.isValid,
+    inlineReason,
     runSave,
   ]);
 
@@ -214,6 +224,7 @@ export function EditorActions({
         {t('actions.discard')}
       </Button>
       <Button
+        ref={saveRef}
         type={formId ? 'submit' : 'button'}
         size="sm"
         form={formId}

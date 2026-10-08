@@ -186,6 +186,12 @@ describe('IssueList — states', () => {
     expect(screen.queryByRole('list')).toBeNull();
   });
 
+  it('says "Checking…", not "No problems", while a check runs on an empty list', () => {
+    render(<IssueList issues={[]} status="checking" />);
+    expect(screen.getByText('Checking…')).toBeVisible();
+    expect(screen.queryByText('No problems')).toBeNull();
+  });
+
   it('marks the list busy and dims it while a check runs', () => {
     const { container } = render(
       <IssueList issues={ISSUES} status="checking" />,
@@ -220,6 +226,18 @@ describe('IssueList — states', () => {
 });
 
 describe('IssueDetail', () => {
+  it('gives "Technical details" and "Learn more" 24px targets that do not overlap', () => {
+    render(<IssueDetail issue={ISSUES[0]!} />);
+    const summary = screen.getByText('Technical details').closest('summary');
+    const link = screen.getByRole('link', { name: /Learn more/ });
+    expect(summary).not.toBeNull();
+    const a = summary?.getBoundingClientRect();
+    const b = link.getBoundingClientRect();
+    expect(a?.height).toBeGreaterThanOrEqual(24);
+    expect(b.height).toBeGreaterThanOrEqual(24);
+    expect(b.top).toBeGreaterThanOrEqual(a?.bottom ?? Infinity);
+  });
+
   it('renders nothing for an issue without detail', () => {
     const { container } = render(
       <IssueDetail issue={{ id: 'x', severity: 'info', title: 'Note' }} />,
