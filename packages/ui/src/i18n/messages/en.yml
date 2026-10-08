@@ -497,3 +497,29 @@ codeEditor:
     onLine: on line
     replacedMatches: Replaced $ matches
     replacedMatchOnLine: Replaced a match on line $
+
+schemaTree:
+  label: Fields
+  kinds:
+    string: text
+    number: a number
+    integer: a whole number
+    boolean: true or false
+    object: an object
+    'null': empty
+    any: anything
+    array: list of {item}
+  kindsPlural:
+    string: texts
+    number: numbers
+    integer: whole numbers
+    boolean: true/false values
+    object: objects
+    array: lists
+    any: values
+  oneOf: one of {values}
+  required: required
+  optional: optional
+  maybeEmpty: may be empty
+  more: '{count, plural, one {# more field} other {# more fields}}'
+  asTypeScript: Show as TypeScript

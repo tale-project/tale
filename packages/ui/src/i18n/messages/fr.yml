@@ -497,3 +497,29 @@ codeEditor:
     onLine: à la ligne
     replacedMatches: $ correspondances remplacées
     replacedMatchOnLine: Correspondance remplacée à la ligne $
+
+schemaTree:
+  label: Champs
+  kinds:
+    string: texte
+    number: un nombre
+    integer: un nombre entier
+    boolean: vrai ou faux
+    object: un objet
+    'null': vide
+    any: quelconque
+    array: liste {item}
+  kindsPlural:
+    string: de textes
+    number: de nombres
+    integer: de nombres entiers
+    boolean: de valeurs vrai/faux
+    object: d'objets
+    array: de listes
+    any: de valeurs
+  oneOf: l'un de {values}
+  required: obligatoire
+  optional: facultatif
+  maybeEmpty: peut être vide
+  more: '{count, plural, one {# autre champ} many {# autres champs} other {# autres champs}}'
+  asTypeScript: Afficher en TypeScript

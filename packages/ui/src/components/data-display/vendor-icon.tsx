@@ -1,12 +1,13 @@
 'use client';
 
-import { cn } from '@tale/ui/cn';
 import { Plug } from 'lucide-react';
 import { useState } from 'react';
 
+import { cn } from '../../lib/cn';
+
 /**
- * A vendor's shipped icon — a connector's or an AI provider's — falling back to
- * the generic plug glyph. Not every vendor ships an `icon.svg` (WebDAV
+ * `@tale/ui/vendor-icon` — a vendor's shipped icon (a connector's, an AI
+ * provider's), falling back to the generic plug glyph. Not every vendor ships an `icon.svg` (WebDAV
  * doesn't), and a served icon can still fail to load. Decorative either way:
  * the vendor's name sits right next to it, so the image carries an empty alt
  * instead of doubling the heading for screen readers.

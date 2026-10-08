@@ -12,6 +12,7 @@ import {
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
+import { VendorIcon } from '@tale/ui/vendor-icon';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -25,7 +26,6 @@ import {
 } from './adapter';
 import { CredentialAddDialog } from './credential-add-dialog';
 import { CredentialRowActions } from './credential-row-actions';
-import { VendorIcon } from './vendor-icon';
 
 /** The per-surface copy the shared table cannot name for itself. */
 export interface CredentialTableLabels {

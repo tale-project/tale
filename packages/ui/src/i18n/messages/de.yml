@@ -497,3 +497,29 @@ codeEditor:
     onLine: in Zeile
     replacedMatches: $ Treffer ersetzt
     replacedMatchOnLine: Treffer in Zeile $ ersetzt
+
+schemaTree:
+  label: Felder
+  kinds:
+    string: Text
+    number: eine Zahl
+    integer: eine ganze Zahl
+    boolean: wahr oder falsch
+    object: ein Objekt
+    'null': leer
+    any: beliebig
+    array: Liste von {item}
+  kindsPlural:
+    string: Texten
+    number: Zahlen
+    integer: ganzen Zahlen
+    boolean: Wahrheitswerten
+    object: Objekten
+    array: Listen
+    any: Werten
+  oneOf: eines von {values}
+  required: Pflicht
+  optional: optional
+  maybeEmpty: kann leer sein
+  more: '{count, plural, one {# weiteres Feld} other {# weitere Felder}}'
+  asTypeScript: Als TypeScript zeigen
