@@ -16,6 +16,17 @@ mock.module('../docker/get-container-version', () => ({
 mock.module('../state/get-current-color', () => ({
   getCurrentColor: getCurrentColorMock,
 }));
+// Other suites in this process mock the stop and remove helpers with stubs of
+// their own, and Bun's module mocks are process-wide: bind both back to this
+// file's docker spy, so the colour's teardown is the one this suite drives.
+mock.module('../docker/stop-container', () => ({
+  stopContainer: async (name: string) =>
+    ((await dockerMock('stop', name)) as { success: boolean }).success,
+}));
+mock.module('../docker/remove-container', () => ({
+  removeContainer: async (name: string) =>
+    ((await dockerMock('rm', '-f', name)) as { success: boolean }).success,
+}));
 
 const {
   colorLooksUp,
@@ -202,7 +213,12 @@ describe('removeColorContainers', () => {
     });
 
     const removal = removeColorContainers('tale-blue');
-    while (releases.length < 2) await Bun.sleep(1);
+    // Bounded, so a teardown that never reaches docker fails here with the
+    // stops it did see instead of hanging until the runner's timeout.
+    for (let waited = 0; releases.length < 2 && waited < 2_000; waited += 5) {
+      await Bun.sleep(5);
+    }
+    expect(releases).toHaveLength(2);
     // Both stops are under way before either finished.
     expect(events).toEqual([
       'stop tale-blue-backend-worker-1',
