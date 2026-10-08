@@ -290,6 +290,7 @@ detail:
   showDetails: Show details
   hideDetails: Hide details
   openBoard: Board
+  openPage: Open as page
   copyLink: Copy link
   linkCopied: Link copied
   copyKey: 'Copy {key}'

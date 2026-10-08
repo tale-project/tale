@@ -291,6 +291,7 @@ detail:
   showDetails: Afficher les détails
   hideDetails: Masquer les détails
   openBoard: Tableau
+  openPage: Ouvrir en pleine page
   copyLink: Copier le lien
   linkCopied: Lien copié
   copyKey: 'Copier {key}'

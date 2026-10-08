@@ -28,8 +28,6 @@ import {
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { ThreadHeaderSeparator } from '@tale/ui/thread-header';
-import { Tooltip } from '@tale/ui/tooltip';
 import { useCopy } from '@tale/ui/use-copy';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
@@ -125,7 +123,6 @@ import { StatusPicker } from './status-picker';
 import { TaskAgentRunEntry } from './task-agent-run-entry';
 import { TaskAgentRunFailureNotice } from './task-agent-run-failure-notice';
 import { TaskArchiveDialog } from './task-archive-dialog';
-import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
 import { TaskAutomationBadge } from './task-automation-badge';
 import { TaskAutomationRunEntry } from './task-automation-run-entry';
@@ -140,8 +137,10 @@ import { TaskDependencies } from './task-dependencies';
 import { TaskDetailFallback } from './task-detail-fallback';
 import { TaskExternalIssueCard } from './task-external-issue-card';
 import { TaskExternalStatusCard } from './task-external-status-card';
+import { TaskDialogHeaderActions } from './task-header-actions';
 import { SubtaskProgress } from './task-indicators';
 import { TaskInputFilesCard } from './task-input-files';
+import { TaskMetaLine } from './task-meta-line';
 import { TaskOutcomeFilesCard } from './task-outcome-files';
 import { TaskPageLayout } from './task-page-layout';
 import { TaskParentLink } from './task-parent-link';
@@ -252,11 +251,21 @@ export function TaskModal({
       <ResponsiveDialogContent
         ref={contentRef}
         className={cn(
-          'max-w-3xl',
-          // Edit mode: pin the dialog height so it never jumps as comments /
-          // activity / agent runs load; the columns scroll internally instead.
-          bodyTaskId && 'flex h-[85dvh] flex-col overflow-hidden',
+          // Edit mode: wider, for a reading column beside the property panel,
+          // and of a pinned height so it never jumps as comments / activity /
+          // agent runs load; the columns scroll internally instead.
+          bodyTaskId
+            ? 'flex h-[85dvh] max-w-5xl flex-col overflow-hidden'
+            : 'max-w-3xl',
         )}
+        headerActions={
+          bodyTaskId ? (
+            <TaskDialogHeaderActions
+              organizationId={organizationId}
+              taskId={bodyTaskId}
+            />
+          ) : undefined
+        }
         // Edit mode: Radix would focus (and text-select) the first tabbable —
         // the inline-editable title. Focus the dialog explicitly: cancelling
         // alone also skips Radix's container fallback and leaves the opener
@@ -1697,8 +1706,14 @@ export function EditTaskBody({
     </section>
   );
 
+  // The page's identity in the dialog's own header: the status as a glyph
+  // tile, the title, and one quiet line of context — project, key, status —
+  // so the dialog and the page read as the same task. The dialog's action
+  // cluster (Copy link, Open as page, Close) floats at the top-right; the
+  // header leaves it room from `md` up (the phone's drawer gives the cluster
+  // a band of its own).
   const headerNode = (
-    <Stack gap={2}>
+    <Stack gap={2} className="md:pr-28">
       {task.parentTaskId && (
         <TaskParentLink
           parentTaskId={task.parentTaskId}
@@ -1706,39 +1721,47 @@ export function EditTaskBody({
           onOpenTask={onOpenTask}
         />
       )}
-      {identifier && (
-        <Text
-          as="span"
-          variant="muted"
-          className="font-mono text-xs tracking-wide"
-        >
-          {identifier}
-        </Text>
-      )}
-      {isArchived && <TaskArchivedBadge />}
-      {surface === 'dialog' ? (
-        <ResponsiveDialogTitle className="sr-only">
-          {task.title}
-        </ResponsiveDialogTitle>
-      ) : (
-        <h1 className="sr-only">{task.title}</h1>
-      )}
-      {canMutate ? (
-        <EditableTitle
-          key={task._id}
-          value={task.title}
-          ariaLabel={t('fields.title')}
-          onSave={(title) =>
-            void updateTask
-              .mutateAsync({ taskId: task._id, title })
-              .catch(onMutationError)
-          }
-        />
-      ) : (
-        <h2 className="text-foreground text-lg leading-snug font-semibold">
-          {task.title}
-        </h2>
-      )}
+      <Row gap={3} align="start">
+        <span className="bg-muted mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg">
+          <TaskStatusGlyph status={task.status} />
+        </span>
+        <Stack gap={1} className="min-w-0 flex-1">
+          {surface === 'dialog' ? (
+            <ResponsiveDialogTitle className="sr-only">
+              {task.title}
+            </ResponsiveDialogTitle>
+          ) : (
+            <h1 className="sr-only">{task.title}</h1>
+          )}
+          {canMutate ? (
+            <EditableTitle
+              key={task._id}
+              value={task.title}
+              ariaLabel={t('fields.title')}
+              onSave={(title) =>
+                void updateTask
+                  .mutateAsync({ taskId: task._id, title })
+                  .catch(onMutationError)
+              }
+            />
+          ) : (
+            <h2 className="text-foreground text-lg leading-snug font-semibold">
+              {task.title}
+            </h2>
+          )}
+          <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+            <TaskMetaLine
+              {...(project !== null && project !== undefined
+                ? { projectName: project.name }
+                : {})}
+              {...(identifier ? { identifier } : {})}
+              onCopyKey={copyIdentifier}
+              status={task.status}
+              isArchived={isArchived}
+            />
+          </div>
+        </Stack>
+      </Row>
     </Stack>
   );
 
@@ -2278,48 +2301,16 @@ export function EditTaskBody({
               </>
             }
             meta={
-              <>
-                {/* In a narrow header — a phone, or a tablet's column beside
-                    the rail and the panel — the key and the status are what
-                    fit beside the actions; the project name steps aside. */}
-                {project !== null && project !== undefined && (
-                  <span className="hidden min-w-0 truncate @xl/thread-header:inline">
-                    {project.name}
-                  </span>
-                )}
-                {identifier && (
-                  <>
-                    {project !== null && project !== undefined && (
-                      <span className="hidden @xl/thread-header:contents">
-                        <ThreadHeaderSeparator />
-                      </span>
-                    )}
-                    {/* The key is what people quote in a message or a
-                        commit — one click copies it. */}
-                    <Tooltip
-                      content={t('detail.copyKey', { key: identifier })}
-                      side="bottom"
-                    >
-                      <button
-                        type="button"
-                        onClick={copyIdentifier}
-                        aria-label={t('detail.copyKey', { key: identifier })}
-                        className="hover:text-foreground focus-visible:ring-ring -mx-0.5 shrink-0 cursor-copy rounded px-0.5 font-mono text-[11px] tracking-tight transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                      >
-                        {identifier}
-                      </button>
-                    </Tooltip>
-                  </>
-                )}
-                <ThreadHeaderSeparator />
-                <span className="shrink-0">{t(`status.${task.status}`)}</span>
-                {isArchived && (
-                  <>
-                    <ThreadHeaderSeparator />
-                    <TaskArchivedBadge className="shrink-0 px-1.5 py-px text-[10px]" />
-                  </>
-                )}
-              </>
+              <TaskMetaLine
+                projectVisibility="wide"
+                {...(project !== null && project !== undefined
+                  ? { projectName: project.name }
+                  : {})}
+                {...(identifier ? { identifier } : {})}
+                onCopyKey={copyIdentifier}
+                status={task.status}
+                isArchived={isArchived}
+              />
             }
             actions={pageActions}
             brief={briefNode}
