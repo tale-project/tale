@@ -17,7 +17,9 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { SERVER_INSTRUCTIONS } from '../../../lib/mcp/instructions';
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
+import { API_CONTRACT_VERSION } from '../../../lib/shared/constants/api-contract';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { currentRequestChannel } from '../../lib/request-channel';
 import type { McpCaller } from './caller';
@@ -146,35 +148,53 @@ describe('initialize', () => {
       jsonrpc: '2.0',
       id: 1,
       result: {
-        protocolVersion: '2025-06-18',
+        protocolVersion: '2025-11-25',
         capabilities: { tools: { listChanged: false } },
         serverInfo: {
           name: 'tale-platform',
           title: 'Tale platform',
-          version: '1.0.0',
+          version: API_CONTRACT_VERSION,
+          description:
+            'Edit, check, test, deploy and debug the automations of a Tale organization.',
+          websiteUrl: 'https://docs.tale.dev/develop/mcp-endpoint',
         },
+        instructions: SERVER_INSTRUCTIONS,
       },
     });
   });
 
-  it('echoes a proposed revision it speaks, and answers the newest otherwise [MCP-R16]', async () => {
-    const older = await call({
+  it('teaches the agent how to work here in its instructions', async () => {
+    const { payload } = await call({
       jsonrpc: '2.0',
       id: 1,
       method: 'initialize',
-      params: { protocolVersion: '2025-03-26', capabilities: {} },
+      params: { protocolVersion: '2025-06-18', capabilities: {} },
     });
-    expect(older.payload.result).toMatchObject({
-      protocolVersion: '2025-03-26',
-    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- asserted below
+    const { instructions } = payload.result as { instructions: string };
+    expect(instructions).toContain('validate_automation');
+    expect(instructions).toContain('Ask the person before deploy_automation');
+    expect(instructions.length).toBeLessThanOrEqual(2048);
+  });
+
+  it('echoes a proposed revision it speaks, and answers the newest otherwise [MCP-R16]', async () => {
+    for (const version of ['2025-11-25', '2025-06-18', '2025-03-26']) {
+      const spoken = await call({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: { protocolVersion: version, capabilities: {} },
+      });
+      expect(spoken.payload.result).toMatchObject({ protocolVersion: version });
+    }
     const unknown = await call({
       jsonrpc: '2.0',
       id: 1,
       method: 'initialize',
-      params: { protocolVersion: '2025-11-25', capabilities: {} },
+      params: { protocolVersion: '2024-11-05', capabilities: {} },
     });
     expect(unknown.payload.result).toMatchObject({
-      protocolVersion: '2025-06-18',
+      protocolVersion: '2025-11-25',
     });
   });
 
@@ -1223,13 +1243,24 @@ describe('protocol errors', () => {
     expect(refused.status).toBe(400);
     // The body is read before the header is judged, so the refusal carries
     // the message's own id — a client matching replies by id used to get
-    // `null` here.
-    expect(await refused.json()).toMatchObject({
+    // `null` here. -32022 is the code a client speaking several revisions
+    // recognises and retries on, with the revisions to choose from.
+    expect(await refused.json()).toEqual({
+      jsonrpc: '2.0',
       id: 1,
-      error: { code: -32600, message: expect.stringContaining('2024-11-05') },
+      error: {
+        code: -32022,
+        message: expect.stringContaining('2024-11-05'),
+        data: {
+          supported: ['2025-11-25', '2025-06-18', '2025-03-26'],
+          requested: '2024-11-05',
+        },
+      },
     });
-    const accepted = await serve(request('2025-03-26'));
-    expect(accepted.status).toBe(200);
+    for (const version of ['2025-11-25', '2025-06-18', '2025-03-26']) {
+      const accepted = await serve(request(version));
+      expect(accepted.status, version).toBe(200);
+    }
   });
 
   it('refuses a body that is not JSON (-32700)', async () => {

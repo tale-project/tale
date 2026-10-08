@@ -6509,7 +6509,7 @@ export function buildSpec(): Json {
           code: {
             type: 'integer',
             description:
-              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, a `tools/call` without a name), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait). Arguments that do not match a tool’s advertised input schema are a tool result flagged `isError` with the code `INVALID_ARGUMENTS`, never an error envelope',
+              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, a `tools/call` without a name), -32022 unsupported protocol revision (`data.supported`), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait). Arguments that do not match a tool’s advertised input schema are a tool result flagged `isError` with the code `INVALID_ARGUMENTS`, never an error envelope',
           },
           message: str,
         },
@@ -6523,8 +6523,10 @@ export function buildSpec(): Json {
       tags: ['MCP'],
       summary: 'The platform MCP endpoint',
       description:
-        'JSON-RPC over HTTP (MCP protocol 2025-06-18, or 2025-03-26 when the ' +
-        'client proposes it; JSON responses only, no SSE). One message per ' +
+        'JSON-RPC over HTTP (MCP protocol 2025-11-25, or 2025-06-18 or ' +
+        '2025-03-26 when the client proposes it; JSON responses only, no ' +
+        'SSE). `initialize` answers `instructions` and reports the API ' +
+        'contract version as `serverInfo.version`. One message per ' +
         'request, or a JSON-RPC batch answered as an array. Authenticate with ' +
         'the same Bearer org API key as the REST API. Call `tools/list` for ' +
         'the tool inventory — automation authoring, run and trigger management, ' +
@@ -6560,7 +6562,7 @@ export function buildSpec(): Json {
             'A notification (a message without an id), or a batch of notifications alone — acknowledged, no body',
         },
         '400': jsonResponse(
-          'The body could not be acted on: not JSON (-32700), not a JSON-RPC 2.0 message, an id that is not a string or an integer, an empty batch, or an unsupported `MCP-Protocol-Version` header (-32600)',
+          'The body could not be acted on: not JSON (-32700); not a JSON-RPC 2.0 message, an id that is not a string or an integer, or an empty batch (-32600); or an `MCP-Protocol-Version` header naming a revision the endpoint does not speak (-32022, with `data.supported` listing the ones it does and `data.requested`)',
           jsonRpcError,
         ),
         '401': standardErrors['401'],

@@ -40,6 +40,12 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { SERVER_INSTRUCTIONS } from '../../../lib/mcp/instructions';
+import {
+  MCP_PROTOCOL_VERSIONS,
+  MCP_SERVER_CAPABILITIES,
+  MCP_SERVER_INFO,
+} from '../../../lib/mcp/server';
 import { MCP_TOOLS, findMcpTool } from '../../../lib/mcp/tools';
 import { displayClientName } from '../../../lib/shared/client-name';
 import {
@@ -59,16 +65,15 @@ import {
   type ToolCallContext,
 } from './tools';
 
-/**
- * The protocol revisions this endpoint speaks, newest first. `initialize`
- * echoes the client's proposal when it is one of these and answers the
- * newest otherwise — the lifecycle's rule for a proposal the server lacks.
- * Both fit a JSON-only tools server: 2025-03-26 requires receiving batches,
- * which the transport does; 2025-06-18 dropped batching and added the
- * `MCP-Protocol-Version` request header, which is checked on every request.
- */
-const PROTOCOL_VERSIONS: readonly string[] = ['2025-06-18', '2025-03-26'];
-const LATEST_PROTOCOL_VERSION = '2025-06-18';
+/** The revision `initialize` answers when a client proposes one this
+ * endpoint does not speak — the newest it does. */
+const LATEST_PROTOCOL_VERSION = MCP_PROTOCOL_VERSIONS[0] ?? '2025-11-25';
+
+/** The JSON-RPC code a request naming an unsupported revision gets: MCP's
+ * `UnsupportedProtocolVersion`, which a client that speaks several
+ * revisions recognises and retries on, with `data.supported` to choose
+ * from. */
+const UNSUPPORTED_PROTOCOL_VERSION = -32022;
 
 /** How many messages one batch may carry. 2025-03-26 requires receiving
  * batches and says nothing about their size; without a cap one HTTP request
@@ -270,15 +275,13 @@ async function answerMessage(
       const proposed = isRecord(params) ? params.protocolVersion : undefined;
       return rpcResult(id, {
         protocolVersion:
-          typeof proposed === 'string' && PROTOCOL_VERSIONS.includes(proposed)
+          typeof proposed === 'string' &&
+          MCP_PROTOCOL_VERSIONS.includes(proposed)
             ? proposed
             : LATEST_PROTOCOL_VERSION,
-        capabilities: { tools: { listChanged: false } },
-        serverInfo: {
-          name: 'tale-platform',
-          title: 'Tale platform',
-          version: '1.0.0',
-        },
+        capabilities: MCP_SERVER_CAPABILITIES,
+        serverInfo: MCP_SERVER_INFO,
+        instructions: SERVER_INSTRUCTIONS,
       });
     }
 
@@ -382,21 +385,22 @@ export async function handleMcpRequest(
       rpcError(null, -32700, 'Parse error: the body is not JSON', 400),
     );
   }
-  // 2025-06-18 clients name the negotiated revision on every request; one
-  // this endpoint never negotiates is a client mistake the transport answers
-  // with 400, as that revision specifies. Older clients send nothing. The
-  // body is read first so the refusal can echo the message's own id (null
-  // for a batch) — a client matching replies by id used to get `null`.
+  // 2025-06-18 and later clients name the negotiated revision on every
+  // request; one this endpoint never negotiates is a client mistake the
+  // transport answers with 400. Older clients send nothing. The body is
+  // read first so the refusal can echo the message's own id (null for a
+  // batch) — a client matching replies by id used to get `null`.
   const claimed = request.headers.get('mcp-protocol-version');
-  if (claimed !== null && !PROTOCOL_VERSIONS.includes(claimed)) {
+  if (claimed !== null && !MCP_PROTOCOL_VERSIONS.includes(claimed)) {
     const echoed =
       isRecord(message) && isJsonRpcId(message.id) ? message.id : null;
     return respond(
       rpcError(
         echoed,
-        -32600,
-        `Unsupported MCP-Protocol-Version "${claimed}" — this endpoint speaks ${PROTOCOL_VERSIONS.join(' and ')}`,
+        UNSUPPORTED_PROTOCOL_VERSION,
+        `Unsupported protocol version "${claimed}" — this endpoint speaks ${MCP_PROTOCOL_VERSIONS.join(', ')}`,
         400,
+        { supported: [...MCP_PROTOCOL_VERSIONS], requested: claimed },
       ),
     );
   }

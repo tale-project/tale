@@ -380,5 +380,23 @@
  * codes (MAYBE_NULL, UNCAUGHT_FAILURE, UNREACHABLE, TYPE_MISMATCH and the
  * rest of the analysis) and one more error (ITEM_WITHOUT_FOREACH, a
  * warning before). No REST operation changes. Additive.
+ *
+ * 3.20.0 — 2026-10-08: the MCP endpoint speaks protocol revision 2025-11-25
+ * beside 2025-06-18 and 2025-03-26, answers an `MCP-Protocol-Version` it
+ * does not speak with -32022 naming the `supported` revisions, answers
+ * `initialize` with `instructions`, and reports this contract version as
+ * `serverInfo.version`. Tool arguments that miss a tool's schema are a tool
+ * result `INVALID_ARGUMENTS` listing every problem under `data.issues`
+ * (`path`, `code`, `message`) where they were a -32602 naming the first; a
+ * refusal a tool throws keeps its code, and an unexpected failure is
+ * `INTERNAL_ERROR` with `data.requestId`. Read tools declare an
+ * `outputSchema` and answer `structuredContent`; the text block is compact
+ * JSON. Tools carry `_meta` hints (`anthropic/requiresUserInteraction` on
+ * `deploy_automation` and `set_trigger`, `anthropic/maxResultSizeChars`).
+ * Tools that execute an automation draw from the `rest:execute` budget
+ * (`RATE_LIMITED`, `data.retryAfterMs`), and `run_deployed`, `start_run`,
+ * `cancel_run` and `delete_trigger` refuse a member before anything runs.
+ * No REST operation changes. A script that matched the -32602 argument
+ * error, or read the indented text, reads the tool result instead.
  */
-export const API_CONTRACT_VERSION = '3.19.0';
+export const API_CONTRACT_VERSION = '3.20.0';

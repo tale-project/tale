@@ -14402,9 +14402,41 @@ async function checkMcp(
     method: 'initialize',
     params: {},
   });
+  // The newest revision, the server instructions within what clients keep,
+  // and the contract version as the server's (3.20.0).
+  const { API_CONTRACT_VERSION } =
+    await import('../lib/shared/constants/api-contract.ts');
+  const { MCP_TOOLS } = await import('../lib/mcp/tools.ts');
   const initOk = z
-    .object({ result: z.object({ protocolVersion: z.literal('2025-06-18') }) })
+    .object({
+      result: z.object({
+        protocolVersion: z.literal('2025-11-25'),
+        instructions: z.string().min(1).max(2048),
+        serverInfo: z.object({ version: z.literal(API_CONTRACT_VERSION) }),
+      }),
+    })
     .safeParse(init.body).success;
+  const unsupported = await fetch(`${base}/api/v1/mcp`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`,
+      'x-organization-slug': orgSlug,
+      'mcp-protocol-version': '2024-11-05',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 31, method: 'ping' }),
+  });
+  const unsupportedOk =
+    unsupported.status === 400 &&
+    z
+      .object({
+        id: z.literal(31),
+        error: z.object({
+          code: z.literal(-32022),
+          data: z.object({ supported: z.array(z.string()).min(3) }),
+        }),
+      })
+      .safeParse(await unsupported.json()).success;
   const note = await rpc({
     jsonrpc: '2.0',
     method: 'notifications/initialized',
@@ -14934,6 +14966,8 @@ async function checkMcp(
   record(
     'platform MCP endpoint (/api/v1/mcp)',
     initOk &&
+      unsupportedOk &&
+      toolNames.length === MCP_TOOLS.length &&
       note.status === 202 &&
       batch.status === 200 &&
       batchReplies.success &&
@@ -14966,7 +15000,7 @@ async function checkMcp(
       knowledge.isError === (knowledgeShape.data.status === 'unavailable') &&
       annotationsOk &&
       refusalsOk,
-    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchReplies.success ? 'array' : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, annotations=${annotationsOk}, unknownName=${missingVersionsShape.success ? `${missingVersionsShape.data.code}+hint` : JSON.stringify(missingVersions.value).slice(0, 80)}, unknownRun=${missingRunShape.success ? `${missingRunShape.data.code}+hint` : JSON.stringify(missingRun.value).slice(0, 80)}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
+    `init=${initOk}, unsupported→${unsupportedOk ? '-32022' : '?'}, note→${note.status}, batch→${batch.status}/${batchReplies.success ? 'array' : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, annotations=${annotationsOk}, unknownName=${missingVersionsShape.success ? `${missingVersionsShape.data.code}+hint` : JSON.stringify(missingVersions.value).slice(0, 80)}, unknownRun=${missingRunShape.success ? `${missingRunShape.data.code}+hint` : JSON.stringify(missingRun.value).slice(0, 80)}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
   );
   // This check spent ~16 requests of the shared `rest:api` token bucket the
   // three REST checks right after it live off — hand the bucket back (an

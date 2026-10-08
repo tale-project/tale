@@ -120,12 +120,13 @@ counts twice, once in each. Counters are kept 90 days, and an erasure of the per
 
 ### MCP-R16 · A protocol revision it does not speak is answered with the revisions it does
 
-The endpoint speaks the MCP revisions 2025-06-18 and 2025-03-26. A client whose `initialize`
-proposes another revision is answered with the newest one the endpoint speaks; a request whose
-`MCP-Protocol-Version` header names another revision is refused with the revisions it speaks.
+The endpoint speaks the MCP revisions 2025-11-25, 2025-06-18 and 2025-03-26. A client whose
+`initialize` proposes another revision is answered with the newest one the endpoint speaks; a
+request whose `MCP-Protocol-Version` header names another revision is refused (`-32022`) with the
+revisions it speaks under `data.supported`, so a client that speaks several can pick one and retry.
 
-- **Example**: Ada's client sends `MCP-Protocol-Version: 2024-11-05` → refused, naming 2025-06-18
-  and 2025-03-26; its `initialize` proposing 2024-11-05 is answered with 2025-06-18.
+- **Example**: Ada's client sends `MCP-Protocol-Version: 2024-11-05` → refused, naming 2025-11-25,
+  2025-06-18 and 2025-03-26; its `initialize` proposing 2024-11-05 is answered with 2025-11-25.
 
 ## Not yet
 

@@ -1,0 +1,784 @@
+{
+  "get_docs": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "docs": {
+          "type": "string"
+        }
+      },
+      "required": ["docs"],
+      "additionalProperties": {}
+    }
+  },
+  "get_catalog": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "Only node types of this kind.",
+          "type": "string",
+          "enum": ["transform", "llm", "agent", "subautomation", "connector"]
+        },
+        "compact": {
+          "description": "Names and descriptions only — no input schemas. The full catalog is large (over 100 KB); prefer search_catalog or compact for discovery.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "node_types": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "kind"],
+            "additionalProperties": {}
+          }
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["node_types"],
+      "additionalProperties": {}
+    }
+  },
+  "search_catalog": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Capability keywords — verbs and objects, e.g. \"send email\"."
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": {}
+          }
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["matches"],
+      "additionalProperties": {}
+    }
+  },
+  "validate_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "The automation document — name, inputs, nodes, output, tests. get_docs is the grammar; the engine validates it and answers with the problems."
+        }
+      },
+      "required": ["automation"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "valid": {
+          "type": "boolean"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": {}
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": {}
+          }
+        },
+        "analysis": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {}
+        },
+        "types": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {}
+        }
+      },
+      "required": ["valid", "errors", "warnings"],
+      "additionalProperties": {}
+    }
+  },
+  "run_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "The automation document — name, inputs, nodes, output, tests. get_docs is the grammar; the engine validates it and answers with the problems."
+        },
+        "input": {
+          "description": "The run's input — any JSON value the automation's own inputs schema accepts; the engine validates it."
+        },
+        "mode": {
+          "description": "mock (default) runs against deterministic mocks.",
+          "type": "string",
+          "enum": ["mock", "live"]
+        }
+      },
+      "required": ["automation"],
+      "additionalProperties": false
+    }
+  },
+  "test_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "The automation document — name, inputs, nodes, output, tests. get_docs is the grammar; the engine validates it and answers with the problems."
+        }
+      },
+      "required": ["automation"],
+      "additionalProperties": false
+    }
+  },
+  "save_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "The automation document — name, inputs, nodes, output, tests. get_docs is the grammar; the engine validates it and answers with the problems."
+        },
+        "message": {
+          "description": "Why this version — shown in the version history.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": ["automation"],
+      "additionalProperties": false
+    }
+  },
+  "get_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "version": {
+          "description": "Read this saved version instead of the latest one; \"deployed\" reads the version that actually runs (list_automations shows deployedVersion).",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "const": "deployed"
+            }
+          ]
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "meta": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "number"
+            }
+          },
+          "required": ["version"],
+          "additionalProperties": {}
+        },
+        "automation": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {}
+        }
+      },
+      "required": ["meta", "automation"],
+      "additionalProperties": {}
+    }
+  },
+  "list_automations": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "automations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["name"],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["automations"],
+      "additionalProperties": {}
+    }
+  },
+  "deploy_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The saved version to promote — list_versions shows them."
+        }
+      },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    }
+  },
+  "set_trigger": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "trigger": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "schedule"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether the trigger starts runs; false keeps it bound but paused."
+                },
+                "cron": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "timezone": {
+                  "type": "string",
+                  "maxLength": 100
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "webhook"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether the trigger starts runs; false keeps it bound but paused."
+                },
+                "rotateToken": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "event"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether the trigger starts runs; false keeps it bound but paused."
+                },
+                "event": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            }
+          ],
+          "description": "The trigger — {kind: \"schedule\" | \"webhook\" | \"event\", …}, one shape per kind (a key of another kind is refused by name); get_docs describes each kind. A webhook trigger answers its token ONCE, in this call — list_triggers never returns it; rotateToken: true mints a new one."
+        }
+      },
+      "required": ["name", "trigger"],
+      "additionalProperties": false
+    }
+  },
+  "run_deployed": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "input": {
+          "description": "The run's input — any JSON value the automation's own inputs schema accepts; the engine validates it."
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$",
+          "description": "Names this start so a retry of a timed-out call answers the run it already started (`duplicate: true`) instead of starting another — the same ledger as the REST `Idempotency-Key`: one key, one run, for a day; a repeat with a different input is refused (`IDEMPOTENCY_KEY_REUSED`). Printable ASCII, 1–255 characters."
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  },
+  "start_run": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "input": {
+          "description": "The run's input — any JSON value the automation's own inputs schema accepts; the engine validates it."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Run this exact version instead of the deployed one. Rarely needed."
+        },
+        "projectId": {
+          "description": "The project the run operates in — its task and document tools act there. The caller must have edit access to this active project. Omit only for an organization-wide automation or when the host already pins a project. A bound automation requires an explicit allowed project.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$",
+          "description": "Names this start so a retry of a timed-out call answers the run it already started (`duplicate: true`) instead of starting another — the same ledger as the REST `Idempotency-Key`: one key, one run, for a day; a repeat with a different input is refused (`IDEMPOTENCY_KEY_REUSED`). Printable ASCII, 1–255 characters."
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  },
+  "list_runs": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Only this automation's runs. Omit for every run the caller can read in the current scope."
+        },
+        "limit": {
+          "description": "How many runs to return (default 50).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "runs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "runId": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": ["runId", "status"],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["runs"],
+      "additionalProperties": {}
+    }
+  },
+  "get_run": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The run handle start_run and list_runs return."
+        }
+      },
+      "required": ["runId"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": ["runId", "status"],
+          "additionalProperties": {}
+        }
+      },
+      "required": ["run"],
+      "additionalProperties": {}
+    }
+  },
+  "cancel_run": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The run handle start_run and list_runs return."
+        }
+      },
+      "required": ["runId"],
+      "additionalProperties": false
+    }
+  },
+  "list_versions": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "deployedVersion": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number"
+              }
+            },
+            "required": ["version"],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["deployedVersion", "versions"],
+      "additionalProperties": {}
+    }
+  },
+  "list_triggers": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Only this automation's trigger. Omit for every trigger in the organization."
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "triggers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            },
+            "required": ["name", "kind"],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["triggers"],
+      "additionalProperties": {}
+    }
+  },
+  "delete_trigger": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  },
+  "search_capabilities": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "pattern": "\\S",
+          "description": "What you want to do, in the words a person would use."
+        },
+        "limit": {
+          "description": "How many matches to return (default 8).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": ["id"],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["capabilities"],
+      "additionalProperties": {}
+    }
+  },
+  "invoke_capability": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The capability id from search_capabilities, e.g. \"automation.billing/dunning-reminder\"."
+        },
+        "input": {
+          "description": "Arguments — any JSON value the capability's own input schema accepts; the surface validates them."
+        },
+        "credential": {
+          "description": "Which stored credential to act as. Omit to use the organization's default.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$",
+          "description": "Names this start so a retry of a timed-out call answers the run it already started (`duplicate: true`) instead of starting another — the same ledger as the REST `Idempotency-Key`: one key, one run, for a day; a repeat with a different input is refused (`IDEMPOTENCY_KEY_REUSED`). Printable ASCII, 1–255 characters."
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    }
+  },
+  "get_knowledge": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "pattern": "\\S",
+          "description": "What to look for, in the words a person would use (at most 2,000 characters — the REST search’s cap)."
+        },
+        "limit": {
+          "description": "How many passages to return (default 10).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "corpus": {
+          "description": "Which knowledge to search: the organization's own documents ('private' — the REST search spells it 'documents'), its crawled web pages ('public-web' — REST: 'web'), or both ('all', the default). Either spelling is taken.",
+          "type": "string",
+          "enum": ["private", "public-web", "all", "documents", "web"]
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "ok"
+        },
+        "passages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["status", "passages"],
+      "additionalProperties": {}
+    }
+  }
+}
