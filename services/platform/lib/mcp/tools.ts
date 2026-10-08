@@ -19,6 +19,8 @@
  * second source of truth that drifts.
  */
 
+import { triggerWriteJsonSchema } from '@tale/shared/schemas/automation-trigger';
+
 import { METHODS, type Method } from '../engine/api/methods';
 import { KNOWLEDGE_QUERY_MAX } from '../knowledge/types';
 
@@ -263,21 +265,6 @@ const IDEMPOTENCY_KEY: Record<string, unknown> = {
     'Names this start so a retry of a timed-out call answers the run it already started (`duplicate: true`) instead of starting another — the same ledger as the REST `Idempotency-Key`: one key, one run, for a day; a repeat with a different input is refused (`IDEMPOTENCY_KEY_REUSED`). Printable ASCII, 1–255 characters.',
 };
 
-/** One trigger kind, strictly: a key of another kind is refused by name. */
-const TRIGGER_KIND = (
-  kind: string,
-  properties: Record<string, unknown>,
-): Record<string, unknown> => ({
-  type: 'object',
-  additionalProperties: false,
-  required: ['kind'],
-  properties: {
-    kind: { const: kind },
-    enabled: { type: 'boolean' },
-    ...properties,
-  },
-});
-
 /** No `type`: an automation's own `inputs` schema may be an array or a
  * scalar, and the engine validates the value against it — the tool schema
  * only says where the input goes. */
@@ -379,17 +366,9 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
     {
       name: AUTOMATION_NAME,
       trigger: {
+        ...triggerWriteJsonSchema('draft-2020-12'),
         description:
-          'The trigger — {kind: "schedule" | "webhook" | "event", …}, one shape per kind (a key of another kind is refused by name); get_docs describes each kind. A webhook trigger answers its token ONCE, in this call — list_triggers never returns it; rotateToken: true mints a new one.',
-        discriminator: { propertyName: 'kind' },
-        oneOf: [
-          TRIGGER_KIND('schedule', {
-            cron: { type: 'string', maxLength: 200 },
-            timezone: { type: 'string', maxLength: 100 },
-          }),
-          TRIGGER_KIND('webhook', { rotateToken: { type: 'boolean' } }),
-          TRIGGER_KIND('event', { event: { type: 'string', maxLength: 200 } }),
-        ],
+          'The trigger — {kind: "schedule" | "webhook" | "event", …}, one shape per kind (a key of another kind is refused by name); get_docs describes each kind. A schedule takes a repeat rule (`repeat`, with `timezone` and optionally `startDate`) or a cron expression. Saving replaces the trigger whole: send back the `startDate` and `input` list_triggers shows to keep them. A webhook trigger answers its token ONCE, in this call — list_triggers never returns it; rotateToken: true mints a new one. The answer carries `warnings` when the deployed version would refuse what the trigger sends.',
       },
     },
     ['name', 'trigger'],

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { canonicalTimeZone } from '../time-zone';
+import { epochMsSchema } from './epoch-ms';
 import {
   SCHEDULE_ISSUE_CODES,
   scheduleIssueCode,
@@ -287,14 +288,24 @@ const webhookWriteSchema = z.strictObject({
   }),
 });
 
-const eventWriteSchema = z.strictObject({
-  kind: z.literal('event'),
-  enabled: enabledSchema.optional(),
-  input: staticInputSchema.optional(),
-  event: z.string().max(200).optional().meta({
-    description: 'The platform event that starts a run.',
-  }),
-});
+const eventWriteSchema = z
+  .strictObject({
+    kind: z.literal('event'),
+    enabled: enabledSchema.optional(),
+    input: staticInputSchema.optional(),
+    event: z.string().max(200).optional().meta({
+      description: 'The platform event that starts a run.',
+    }),
+  })
+  .superRefine((trigger, ctx) => {
+    // An absent event is the store's to refuse, with the events it can
+    // name; a blank one is no event at all.
+    if (trigger.event !== undefined && trigger.event.trim() === '') {
+      addIssue(ctx, 'event.required', 'Pick the event that starts a run.', [
+        'event',
+      ]);
+    }
+  });
 
 /**
  * A trigger as a caller writes it — one strict shape per kind. Saving is a
@@ -361,14 +372,25 @@ export function triggerIssues(
 }
 
 /** Missed occurrences, as a skip's detail counts them. */
-export const missedSummarySchema = z.strictObject({
-  count: z.number().int().min(1),
-  /** `count` stopped at its cap; more were missed. */
-  capped: z.boolean(),
-  firstAt: z.number(),
-  lastAt: z.number(),
-  policy: catchUpSchema,
-});
+export const missedSummarySchema = z
+  .strictObject({
+    count: z
+      .number()
+      .int()
+      .min(1)
+      .meta({ description: 'How many occurrences were missed, up to 1,000.' }),
+    capped: z
+      .boolean()
+      .meta({ description: 'The count stopped at 1,000; more were missed.' }),
+    firstAt: epochMsSchema.meta({
+      description: 'Epoch milliseconds of the first missed occurrence',
+    }),
+    lastAt: epochMsSchema.meta({
+      description: 'Epoch milliseconds of the last missed occurrence',
+    }),
+    policy: catchUpSchema,
+  })
+  .meta({ description: 'The occurrences a schedule missed and did not run.' });
 
 export type MissedSummary = z.infer<typeof missedSummarySchema>;
 
@@ -393,12 +415,16 @@ export const triggerSkipDetailSchema = z.discriminatedUnion('reason', [
   }),
   z.strictObject({
     reason: z.literal('not_deployed'),
-    occurrence: z.number(),
+    occurrence: epochMsSchema.meta({
+      description: 'Epoch milliseconds of the occurrence or event it skipped',
+    }),
     missed: missedSummarySchema.optional(),
   }),
   z.strictObject({
     reason: z.literal('start_refused'),
-    occurrence: z.number(),
+    occurrence: epochMsSchema.meta({
+      description: 'Epoch milliseconds of the occurrence or event it skipped',
+    }),
     code: z.string().max(100),
     version: z.number().int().nullable(),
     message: z.string().max(SKIP_DETAIL_MAX_MESSAGE),
@@ -415,3 +441,99 @@ export const triggerSkipDetailSchema = z.discriminatedUnion('reason', [
 ]);
 
 export type TriggerSkipDetail = z.infer<typeof triggerSkipDetailSchema>;
+
+/** Why a trigger last started nothing — the skip ledger's closed set. */
+export const TRIGGER_SKIP_REASONS = [
+  'not_deployed',
+  'unusable_cron',
+  'start_refused',
+  'paused_after_failures',
+  'missed_occurrences',
+] as const;
+
+const nullableEpochMs = epochMsSchema.nullable();
+
+/**
+ * A trigger as a reader sees it — never the secret that verifies a webhook.
+ * A schedule says what it runs on (`repeat` with its `startDate`, or
+ * `cron`), in which zone, what it does with missed occurrences and when it
+ * next runs; every kind says what fixed input it adds, and its health: the
+ * last run it started, the last time it came due and started nothing and
+ * why, and its failures in a row.
+ */
+export const triggerViewSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  kind: z.enum(['schedule', 'webhook', 'event']),
+  cron: z.string().nullable(),
+  repeat: scheduleRuleSchema.nullable(),
+  startDate: z.string().nullable(),
+  timezone: z.string().nullable(),
+  catchUp: catchUpSchema.nullable(),
+  input: z.record(z.string(), z.unknown()).nullable(),
+  event: z.string().nullable(),
+  hasToken: z.boolean(),
+  enabled: z.boolean(),
+  nextRunAt: nullableEpochMs,
+  lastFiredAt: nullableEpochMs,
+  lastRunId: z.string().nullable(),
+  lastSkippedAt: nullableEpochMs,
+  lastSkipReason: z.enum(TRIGGER_SKIP_REASONS).nullable(),
+  lastSkipDetail: triggerSkipDetailSchema.nullable(),
+  consecutiveFailures: z.number().int().min(0),
+  lastFailedAt: nullableEpochMs,
+  lastFailureCode: z.string().nullable(),
+  lastFailedRunId: z.string().nullable(),
+});
+
+export type TriggerView = z.output<typeof triggerViewSchema>;
+
+type JsonSchema = Record<string, unknown>;
+
+function isJsonSchema(value: unknown): value is JsonSchema {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * {@link triggerWriteSchema} as JSON Schema, for a door that publishes it —
+ * MCP's tool list (`draft-2020-12`) and the OpenAPI document
+ * (`openapi-3.0`). Its descriptions are the schema's own. The fixed input is
+ * a free-form object here: "any JSON value" needs a recursive definition
+ * the host embedding this schema would have to carry, and the doors check
+ * the values themselves.
+ */
+export function triggerWriteJsonSchema(
+  target: 'draft-2020-12' | 'openapi-3.0',
+): JsonSchema {
+  const rendered: JsonSchema = z.toJSONSchema(triggerWriteSchema, {
+    target,
+    io: 'input',
+  });
+  const {
+    $schema: _schema,
+    $defs: _defs,
+    definitions: _definitions,
+    ...rest
+  } = rendered;
+  const branches: unknown[] = Array.isArray(rest.oneOf) ? rest.oneOf : [];
+  return { ...rest, oneOf: branches.map(withFreeFormInput) };
+}
+
+/** One kind's branch with its fixed input published as a free-form object
+ * under its own description. */
+function withFreeFormInput(branch: unknown): unknown {
+  if (!isJsonSchema(branch) || !isJsonSchema(branch.properties)) return branch;
+  const input = branch.properties.input;
+  if (!isJsonSchema(input)) return branch;
+  return {
+    ...branch,
+    properties: {
+      ...branch.properties,
+      input: {
+        type: 'object',
+        additionalProperties: true,
+        description: input.description,
+      },
+    },
+  };
+}

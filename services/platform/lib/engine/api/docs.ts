@@ -154,8 +154,8 @@ Authoring methods:
 - save_automation      params {automation, message?}  → save as a new immutable version; answers {name, version, testsPassed?, warnings} — errors refuse the save, warnings never do
 - get_automation       params {name, version?}        → fetch a saved version
 - list_automations     params {}                      → saved automations with their latest and deployed versions and the projects they are installed in
-- deploy_automation    params {name, version}         → mark the version triggers run
-- set_trigger          params {name, trigger}         → host-managed trigger binding
+- deploy_automation    params {name, version}         → mark the version triggers run; answers the bound trigger ({kind, enabled, nextRunAt, warnings}, or null) so you can turn on one that is off
+- set_trigger          params {name, trigger}         → bind what starts the automation, replacing the trigger whole. A schedule takes a repeat rule or a cron: {kind: "schedule", repeat: {frequency: "weekly", interval: 1, weekdays: [1, 2, 3, 4, 5], times: ["09:00", "17:30"]}, timezone: "Europe/Zurich", catchUp: "latest"} — or {kind: "schedule", cron: "0 9 * * 1-5", timezone: "UTC"}; any kind takes a fixed input, values every run receives under the trigger's own fields ({input: {owner: "tale"}}). Send back the startDate and input list_triggers shows, or the save resets them (startDate to today). Answers nextRunAt for a schedule, and warnings when the deployed version would refuse what the trigger sends
 - run_deployed         params {name, input, idempotencyKey?} → run the deployed version (live on a deployment) and WAIT for the finished result; a run that outlives the wait answers with its runId to poll. idempotencyKey shares start_run's and the REST door's ledger: a repeat answers the first run with duplicate: true
 (run_automation validates automatically — you rarely need validate_automation.)
 

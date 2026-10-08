@@ -3,6 +3,7 @@
 import { z } from 'zod/v4';
 
 import { automationSettingsSchema } from './automation-settings';
+import { triggerWriteSchema } from './automation-trigger';
 import { isValidSkillSlug } from './skills';
 import { taskSubjectContractSchema } from './task-contract';
 
@@ -30,24 +31,30 @@ export const MAX_AUTOMATION_BUNDLE_ENTRIES = 500;
 const MAX_PACK_SKILLS = 20;
 
 /**
- * What starts a pack's automation. The kinds mirror the trigger store: a pack
- * DECLARES what it wants and the host creates the binding once per
- * organization, so an organization's own edits always win afterwards. There is
- * no `api-key` kind — a programmatic start is what the REST and MCP surfaces
- * are for, and the store refuses the kind, so a pack that declared it would ask
- * for a binding that cannot be created.
+ * What starts a pack's automation — the shared trigger contract
+ * (`triggerWriteSchema`), so a pack declares a trigger exactly as the editor,
+ * REST and MCP write one: a schedule's repeat rule or cron in a zone, a
+ * webhook, an event, and any fixed input. A pack DECLARES what it wants and
+ * the host creates the binding once per organization, so an organization's
+ * own edits always win afterwards. Two keys are not a pack's to declare: a
+ * schedule's `startDate` (the anchor is the day the pack is installed) and a
+ * webhook's `rotateToken` (a pack mints nothing to rotate). There is no
+ * `api-key` kind — a programmatic start is what the REST and MCP surfaces
+ * are for.
  */
-export const automationTriggerSchema = z
-  .object({
-    kind: z.enum(['schedule', 'webhook', 'event']),
-    /** Cron expression, for `schedule`. */
-    cron: z.string().min(1).optional(),
-    /** IANA timezone the cron is read in, for `schedule`. */
-    timezone: z.string().min(1).optional(),
-    /** Platform event name, for `event`. */
-    event: z.string().min(1).optional(),
-  })
-  .strict();
+export const automationTriggerSchema = triggerWriteSchema.superRefine(
+  (trigger, ctx) => {
+    for (const key of ['startDate', 'rotateToken'] as const) {
+      if (key in trigger) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `a pack does not declare "${key}"`,
+          path: [key],
+        });
+      }
+    }
+  },
+);
 
 /** Per-locale overrides for the manifest's display text; absent locales fall
  * back to the top-level fields, which are authored in English. */

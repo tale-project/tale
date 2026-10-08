@@ -588,13 +588,21 @@ export function pgAutomationStore(
           enabled: row.enabled,
         };
         if (row.cron !== null) view.cron = row.cron;
+        if (row.repeat !== null) view.repeat = row.repeat;
+        if (row.startDate !== null) view.startDate = row.startDate;
         if (row.timezone !== null) view.timezone = row.timezone;
+        if (row.catchUp !== null) view.catchUp = row.catchUp;
+        if (row.input !== null) view.input = row.input;
         if (row.event !== null) view.event = row.event;
+        if (row.nextRunAt !== null) view.nextRunAt = row.nextRunAt;
         if (row.lastFiredAt !== null) view.lastFiredAt = row.lastFiredAt;
         if (row.lastRunId !== null) view.lastRunId = row.lastRunId;
         if (row.lastSkippedAt !== null) view.lastSkippedAt = row.lastSkippedAt;
         if (row.lastSkipReason !== null) {
           view.lastSkipReason = row.lastSkipReason;
+        }
+        if (row.lastSkipDetail !== null) {
+          view.lastSkipDetail = row.lastSkipDetail;
         }
         view.consecutiveFailures = row.consecutiveFailures;
         if (row.lastFailedAt !== null) view.lastFailedAt = row.lastFailedAt;

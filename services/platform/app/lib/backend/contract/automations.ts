@@ -7,7 +7,13 @@
  * actually serve them.
  */
 
+import type {
+  TriggerView,
+  TriggerWrite,
+} from '@tale/shared/schemas/automation-trigger';
+
 import type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
+import type { Issue } from '@/lib/engine/core/types';
 export type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
 
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
@@ -150,7 +156,20 @@ export interface AutomationsContract {
   'automations/mutations:deployAutomation': {
     kind: 'mutation';
     args: { organizationId: string; name: string; version: number };
-    returns: { name: string; version: number };
+    /** `trigger` is what starts the automation now that this version runs:
+     * whether it is on, its next start, and what this version would make
+     * of what it sends (`TRIGGER_INPUT_MISMATCH`,
+     * `TRIGGER_INPUT_NOT_TEMPLATED`); null when nothing starts it. */
+    returns: {
+      name: string;
+      version: number;
+      trigger?: {
+        kind: TriggerView['kind'];
+        enabled: boolean;
+        nextRunAt: number | null;
+        warnings: Issue[];
+      } | null;
+    };
   };
   'automations/mutations:saveAutomation': {
     kind: 'mutation';
@@ -180,17 +199,19 @@ export interface AutomationsContract {
       rotateToken?: boolean;
       organizationId: string;
       name: string;
-      trigger: {
-        cron?: string;
-        event?: string;
-        timezone?: string;
-        enabled?: boolean;
-        kind: 'schedule' | 'webhook' | 'event';
-      };
+      /** The shared write contract: one strict shape per kind. */
+      trigger: TriggerWrite;
     };
     /** `revoked` names a live webhook URL this bind replaced with another
-     * kind — it stopped answering the moment the bind committed. */
-    returns: { token?: string; revoked?: 'webhook' };
+     * kind — it stopped answering the moment the bind committed.
+     * `nextRunAt` is a schedule's next start; `warnings` what the deployed
+     * version would make of what the trigger sends. */
+    returns: {
+      token?: string;
+      revoked?: 'webhook';
+      nextRunAt?: number | null;
+      warnings?: Issue[];
+    };
   };
   'automations/mutations:startRun': {
     kind: 'mutation';
@@ -387,35 +408,11 @@ export interface AutomationsContract {
   'automations/queries:listTriggers': {
     kind: 'query';
     args: { name?: string; organizationId: string };
-    returns: Array<{
-      id?: string;
-      /** The last time this binding started a run — `lastRunId` names it. */
-      lastFiredAt?: number;
-      lastRunId?: string | null;
-      /** The last time it came due and started nothing, and why — or, for
-       * `paused_after_failures`, when the schedule paused itself. */
-      lastSkippedAt?: number | null;
-      lastSkipReason?:
-        | 'not_deployed'
-        | 'unusable_cron'
-        | 'start_refused'
-        | 'paused_after_failures'
-        | null;
-      /** Permanent failures in a row among the runs it started since its
-       * last save; the last of them is `lastFailedAt` / `lastFailureCode` /
-       * `lastFailedRunId`. */
-      consecutiveFailures?: number;
-      lastFailedAt?: number | null;
-      lastFailureCode?: string | null;
-      lastFailedRunId?: string | null;
-      hasToken: boolean;
-      enabled: boolean;
-      event?: string;
-      timezone?: string;
-      cron?: string;
-      name: string;
-      kind: 'schedule' | 'webhook' | 'event' | 'api-key';
-    }>;
+    /** The shared read shape: a schedule's rule or cron, its zone, catch-up
+     * policy and next start; the fixed input; the fire ledger (the last run,
+     * the last skip, why, and its detail) and the failure streak. Never the
+     * webhook secret: `hasToken` says one exists. */
+    returns: TriggerView[];
   };
   'automations/queries:listVersions': {
     kind: 'query';

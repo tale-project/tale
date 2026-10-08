@@ -1,10 +1,12 @@
 import {
+  TRIGGER_ISSUE_CODES,
+  TRIGGER_SKIP_REASONS,
   type ParsedTriggerWrite,
   type TriggerIssue,
   triggerIssues,
   type TriggerKind,
-  type TriggerSkipDetail,
   triggerSkipDetailSchema,
+  type TriggerView,
   type TriggerWrite,
   triggerWriteSchema,
 } from '@tale/shared/schemas/automation-trigger';
@@ -13,6 +15,7 @@ import {
   type ScheduleRule,
 } from '@tale/shared/schemas/schedule-rule';
 import type { Sql, TransactionSql } from 'postgres';
+import type { z } from 'zod';
 
 import {
   CronImpossibleDateError,
@@ -807,6 +810,8 @@ export interface AutomationListing {
   trigger: {
     kind: string;
     enabled: boolean;
+    /** A schedule's next start; null while it is off or not a schedule. */
+    nextRunAt: number | null;
     lastFiredAt: number | null;
     lastSkippedAt: number | null;
     lastSkipReason: TriggerListing['lastSkipReason'];
@@ -866,29 +871,16 @@ export async function listAutomations(
     list.push(binding.projectId);
     byName.set(binding.automationName, list);
   }
-  const triggers = await sql<
-    {
-      name: string;
-      kind: string;
-      enabled: boolean;
-      lastFiredAt: number | null;
-      lastSkippedAt: number | null;
-      lastSkipReason: TriggerListing['lastSkipReason'];
-    }[]
-  >`
-    SELECT name, kind, enabled,
-           last_fired_at_ms::float8 AS "lastFiredAt",
-           last_skipped_at_ms::float8 AS "lastSkippedAt",
-           last_skip_reason AS "lastSkipReason"
-    FROM app.automation_triggers
-    WHERE org_id = ${organizationId}
-  `;
+  // The one trigger read, so the listing's health and next start are the
+  // binding's own (a schedule's next start is computed there when the scan
+  // has not yet).
   const triggerByName = new Map(
-    triggers.map((row) => [
+    (await listTriggers(sql, organizationId)).map((row) => [
       row.name,
       {
         kind: row.kind,
         enabled: row.enabled,
+        nextRunAt: row.nextRunAt,
         lastFiredAt: row.lastFiredAt,
         lastSkippedAt: row.lastSkippedAt,
         lastSkipReason: row.lastSkipReason,
@@ -1234,6 +1226,29 @@ function triggerRefusal(issues: readonly TriggerIssue[]): AutomationError {
   );
 }
 
+/**
+ * How a door answers a trigger body its schema refused: a rule of the
+ * trigger (no repeat rule or cron, a time not written HH:MM, a blank zone,
+ * a fixed input that names a trigger field) is the store's own refusal,
+ * `AUTOMATION_TRIGGER_INVALID` with each problem coded, so the app words
+ * it per field and an API caller meets one code for every trigger rule;
+ * null when the body's shape is wrong (an unknown key, a key of another
+ * kind, a missing kind, a wrong type), which the door answers as the body
+ * refusal it gives every route.
+ */
+export function triggerBodyRefusal(
+  error: z.ZodError,
+  value: unknown,
+): AutomationError | null {
+  const issues = triggerIssues(error, value);
+  const ruled = issues.every(
+    (issue) =>
+      issue.code !== 'trigger.key_other_kind' &&
+      TRIGGER_ISSUE_CODES.some((code) => code === issue.code),
+  );
+  return ruled ? triggerRefusal(issues) : null;
+}
+
 function checkSchedule(
   trigger: Extract<ParsedTriggerWrite, { kind: 'schedule' }>,
   now: number,
@@ -1482,12 +1497,15 @@ export async function setTrigger(
         cron: string | null;
         timezone: string | null;
         scheduleRule: unknown;
+        catchUp: 'latest' | 'skip' | null;
+        input: Record<string, unknown> | null;
         enabled: boolean;
         nextDueAt: number | null;
       }[]
     >`
       SELECT id, kind, token_hash AS "tokenHash", cron, timezone, enabled,
-             schedule_rule AS "scheduleRule",
+             schedule_rule AS "scheduleRule", catch_up AS "catchUp",
+             run_input AS "input",
              next_due_at_ms::float8 AS "nextDueAt",
              last_skip_reason AS "lastSkipReason"
       FROM app.automation_triggers
@@ -1520,16 +1538,31 @@ export async function setTrigger(
           'Managed schedules cannot replace another trigger kind.',
           409,
         );
+      const stored =
+        before === undefined
+          ? null
+          : storedScheduleRuleSchema.safeParse(before.scheduleRule);
       const current = managedScheduleValue(
         args.managed.projectId,
         args.name,
-        before ?? null,
+        before === undefined
+          ? null
+          : {
+              ...before,
+              repeat: stored?.success === true ? stored.data.repeat : null,
+              startDate:
+                stored?.success === true ? stored.data.startDate : null,
+            },
       );
       const desired = managedScheduleValue(args.managed.projectId, args.name, {
         kind: trigger.kind,
         cron: trigger.cron,
         timezone: trigger.timezone,
         enabled: trigger.enabled,
+        repeat: trigger.scheduleRule?.repeat ?? null,
+        startDate: trigger.scheduleRule?.startDate ?? null,
+        catchUp: trigger.catchUp,
+        input: trigger.input,
       });
       assertManagedHash(
         managedConfigurationHash(current),
@@ -1755,53 +1788,18 @@ export async function deleteTrigger(
  * is the one that is a state, not an occurrence: the schedule turned itself
  * off. `missed_occurrences` counts the occurrences a schedule did not start
  * while the platform was not running. */
-export type TriggerSkipReason =
-  | 'not_deployed'
-  | 'unusable_cron'
-  | 'start_refused'
-  | 'paused_after_failures'
-  | 'missed_occurrences';
+export type TriggerSkipReason = (typeof TRIGGER_SKIP_REASONS)[number];
 
 /** A trigger binding as a reader sees it — never the secret that verifies
- * it. The fire ledger (0096) is the binding's health: `lastFiredAt` and
- * `lastRunId` name the last run it started (a schedule's `lastFiredAt` is
- * the occurrence it started for), `lastSkippedAt`, `lastSkipReason` and
- * `lastSkipDetail` the last time it came due and started nothing (or when
- * a schedule paused itself). The failure streak (0124) counts the
- * permanent failures in a row among the runs it started since its last
- * save; `lastFailedAt`, `lastFailureCode` and `lastFailedRunId` name the
- * last of them. */
-export interface TriggerListing {
-  id: string;
-  name: string;
-  kind: string;
-  /** A schedule's cron expression; null when it runs on a repeat rule. */
-  cron: string | null;
-  /** A schedule's repeat rule; null when it runs on a cron expression. */
-  repeat: ScheduleRule | null;
-  /** The day the repeat rule starts on, in its zone. */
-  startDate: string | null;
-  timezone: string | null;
-  /** What a schedule does with missed occurrences; null for other kinds. */
-  catchUp: 'latest' | 'skip' | null;
-  event: string | null;
-  /** The fixed input every run it starts receives, or null. */
-  input: Record<string, unknown> | null;
-  hasToken: boolean;
-  enabled: boolean;
-  /** A schedule's next start (the earliest one it has not handled yet);
-   * null when it is switched off, is not a schedule, or never comes due. */
-  nextRunAt: number | null;
-  lastFiredAt: number | null;
-  lastRunId: string | null;
-  lastSkippedAt: number | null;
-  lastSkipReason: TriggerSkipReason | null;
-  lastSkipDetail: TriggerSkipDetail | null;
-  consecutiveFailures: number;
-  lastFailedAt: number | null;
-  lastFailureCode: string | null;
-  lastFailedRunId: string | null;
-}
+ * it — exactly the published read shape (`triggerViewSchema`). The fire
+ * ledger (0096) is the binding's health: `lastFiredAt` and `lastRunId` name
+ * the last run it started (a schedule's `lastFiredAt` is the occurrence it
+ * started for), `lastSkippedAt`, `lastSkipReason` and `lastSkipDetail` the
+ * last time it came due and started nothing (or when a schedule paused
+ * itself). The failure streak (0124) counts the permanent failures in a row
+ * among the runs it started since its last save; `lastFailedAt`,
+ * `lastFailureCode` and `lastFailedRunId` name the last of them. */
+export type TriggerListing = TriggerView;
 
 interface TriggerListingRow extends Omit<
   TriggerListing,

@@ -389,5 +389,20 @@
  * and project-write gates. The request does not clear the hold or prove
  * termination. Ordinary cancel refuses held runs (`RUN_QUARANTINED`);
  * stale stop requests answer `RUN_QUARANTINE_CHANGED`. Additive.
+ *
+ * 3.21.0 — 2026-10-08: a schedule trigger runs on a repeat rule
+ * (`repeat`, the `ScheduleRule` schema, from `startDate` in `timezone`) or
+ * on a cron expression, and says what it does with occurrences it missed
+ * (`catchUp`: `latest` or `skip`); every trigger kind takes a fixed `input`
+ * that each run it starts receives under the trigger's own fields. The
+ * `PUT …/triggers` body is the shared trigger contract, and a rule it
+ * breaks answers `AUTOMATION_TRIGGER_INVALID` with each problem coded
+ * under `data.issues`; its 200 adds `nextRunAt` and `warnings`
+ * (`TRIGGER_INPUT_MISMATCH`, `TRIGGER_INPUT_NOT_TEMPLATED`). `Trigger`
+ * reads `repeat`, `startDate`, `catchUp`, `input`, `nextRunAt` and
+ * `lastSkipDetail`, and `lastSkipReason` gains `missed_occurrences`; the
+ * listing's `trigger` adds `nextRunAt`. Newly refused, as fixes: a blank
+ * `timezone` (it saved and never fired) and `cron` together with `repeat`.
+ * Additive otherwise.
  */
-export const API_CONTRACT_VERSION = '3.20.0';
+export const API_CONTRACT_VERSION = '3.21.0';

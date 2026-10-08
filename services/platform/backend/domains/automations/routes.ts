@@ -1,3 +1,4 @@
+import { triggerWriteSchema } from '@tale/shared/schemas/automation-trigger';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -71,6 +72,7 @@ import {
   setAutomationProjects,
   setTrigger,
   toRunDetail,
+  triggerBodyRefusal,
   versionRow,
   deployedVersion,
   bindingProjectIds,
@@ -131,35 +133,6 @@ const validateSchema = z.object({
     .max(2)
     .optional(),
 });
-
-// One strict shape per kind, the REST door's twin: the editor sends only
-// the kind's own fields, and a key of another kind (or an unknown one) is
-// refused instead of stored — the store guards the same rule for callers
-// that reach it without a schema (`assertTriggerValid`).
-const triggerSchema = z.discriminatedUnion('kind', [
-  z
-    .object({
-      kind: z.literal('schedule'),
-      cron: z.string().max(200).optional(),
-      timezone: z.string().max(100).optional(),
-      enabled: z.boolean().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('webhook'),
-      enabled: z.boolean().optional(),
-      rotateToken: z.boolean().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('event'),
-      event: z.string().max(200).optional(),
-      enabled: z.boolean().optional(),
-    })
-    .strict(),
-]);
 
 const projectsSchema = z.object({
   projectIds: z.array(z.string().min(1)).max(100),
@@ -935,12 +908,20 @@ export function createAutomationRoutes(deps: {
     }
   });
 
+  // The shared trigger contract, the REST door's twin: one strict shape
+  // per kind, so a key of another kind (or an unknown one) is refused
+  // instead of stored. A rule of the trigger answers the store's own coded
+  // refusal, which the editor words per field.
   app.post('/:name{.+}/trigger', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
-    const body = triggerSchema.safeParse(await c.req.json());
+    const raw: unknown = await c.req.json();
+    const body = triggerWriteSchema.safeParse(raw);
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      const refusal = triggerBodyRefusal(body.error, raw);
+      return refusal === null
+        ? invalidBodyResponse(c, body.error)
+        : handleError(c, refusal);
     }
     try {
       return c.json(

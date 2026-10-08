@@ -11,6 +11,13 @@
  * backend/rest/* adapters over the domain services), not an aspiration.
  */
 
+import {
+  STATIC_INPUT_MAX_BYTES,
+  TRIGGER_SKIP_REASONS,
+  triggerSkipDetailSchema,
+  triggerViewSchema,
+  triggerWriteJsonSchema,
+} from '@tale/shared/schemas/automation-trigger';
 import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import {
   PROJECT_AGENT_BINDINGS_MAX,
@@ -18,6 +25,7 @@ import {
   PROJECT_SHARED_TEAMS_MAX,
   projectAgentInputSchema,
 } from '@tale/shared/schemas/projects';
+import { scheduleRuleSchema } from '@tale/shared/schemas/schedule-rule';
 import {
   MAX_SKILL_BODY_BYTES,
   MAX_SKILL_DESCRIPTION_LENGTH,
@@ -605,21 +613,20 @@ const triggerHealthProperties: Json = {
       'schedule paused itself.',
   },
   lastSkipReason: {
-    ...nullable({
-      type: 'string',
-      enum: [
-        'not_deployed',
-        'unusable_cron',
-        'start_refused',
-        'paused_after_failures',
-      ],
-    }),
+    ...nullable({ type: 'string', enum: [...TRIGGER_SKIP_REASONS] }),
     description:
       '`not_deployed`: the automation had no deployed version to run — ' +
-      'deploy one. `unusable_cron`: the schedule’s expression or time zone ' +
-      'could not be read; the scheduler leaves the binding alone until it ' +
-      'is edited. `start_refused`: the deployed version’s `inputs` schema ' +
-      'refused the run’s input (`{trigger, firedAt}` for a schedule). ' +
+      'deploy one. `unusable_cron`: the schedule’s repeat rule, cron ' +
+      'expression or time zone could not be read; the scheduler leaves the ' +
+      'binding alone until it is edited. `start_refused`: the run could not ' +
+      'start — the deployed version’s `inputs` schema refused the run’s ' +
+      'input (`{…input, trigger, firedAt}` for a schedule; ' +
+      '`AUTOMATION_INPUT_INVALID`), or its project could not start runs ' +
+      '(`PROJECT_ARCHIVED` and the other project refusals); ' +
+      '`lastSkipDetail.code` names which. `missed_occurrences`: the schedule ' +
+      'came due while the platform was not running — ' +
+      '`lastSkipDetail.missed` counts the occurrences it did not start, and ' +
+      '`firedLatest` says whether it started the latest one late. ' +
       '`paused_after_failures`: the schedule turned itself off ' +
       `(\`enabled: false\`) after ${PERMANENT_FAILURES_BEFORE_PAUSE} runs ` +
       'in a row failed for a reason the next occurrence would repeat — fix the ' +
@@ -662,6 +669,266 @@ const triggerFailureProperties: Json = {
     description:
       'That run — `GET …/runs/{runId}` has its failure sentence; null once ' +
       'the run is deleted.',
+  },
+};
+
+function isJsonRecord(value: unknown): value is Json {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** A zod rendering spelled the way the house spells nullability
+ * (`nullable` above): a typeless `oneOf` carries `nullable` on each branch,
+ * and a nullable enum lists null. */
+function houseNullability(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(houseNullability);
+  if (!isJsonRecord(node)) return node;
+  const { nullable: isNullable, ...rest } = Object.fromEntries(
+    Object.entries(node).map(([key, value]) => [key, houseNullability(value)]),
+  );
+  return isNullable === true ? nullable(rest) : rest;
+}
+
+/** The trigger a `PUT …/triggers` binds: the shared write contract
+ * (`triggerWriteSchema`) the app's editor and MCP `set_trigger` send,
+ * rendered to JSON Schema — one strict branch per kind — with the events
+ * the platform raises as the event branch's closed set. */
+const triggerWriteSpec: Json = (() => {
+  const rendered = triggerWriteJsonSchema('openapi-3.0');
+  const branches: unknown[] = Array.isArray(rendered.oneOf)
+    ? rendered.oneOf
+    : [];
+  return {
+    ...rendered,
+    oneOf: branches.map(houseTriggerBranch),
+    description:
+      'One strict shape per `kind`; a key of another kind is refused like ' +
+      'an unknown key. A schedule runs on a repeat rule (`repeat`, read in ' +
+      '`timezone`, which it requires, from `startDate`) or on a five-field ' +
+      '`cron` (read in `timezone`, UTC when absent), never both. Any kind ' +
+      `takes a fixed \`input\` (a JSON object of at most ${STATIC_INPUT_MAX_BYTES / 1024} KiB). ` +
+      'The PUT replaces the trigger whole: an omitted `catchUp` reads as ' +
+      '`latest`, an omitted `input` clears it, and an omitted `startDate` ' +
+      'means today in `timezone` — send back the `startDate` and `input` ' +
+      '`GET …/triggers` reads to keep them.',
+  };
+})();
+
+/** One kind's branch of the trigger body as the document publishes it: a
+ * schedule's rule as the `ScheduleRule` component, an event's name from
+ * the events the platform raises. */
+function houseTriggerBranch(branch: unknown): unknown {
+  if (!isJsonRecord(branch) || !isJsonRecord(branch.properties)) {
+    return branch;
+  }
+  if (isJsonRecord(branch.properties.repeat)) {
+    return {
+      ...branch,
+      properties: { ...branch.properties, repeat: ref('ScheduleRule') },
+    };
+  }
+  const event = branch.properties.event;
+  if (!isJsonRecord(event)) return branch;
+  return {
+    ...branch,
+    properties: {
+      ...branch.properties,
+      event: {
+        ...event,
+        enum: [...EMITTED_EVENT_TYPES],
+        description:
+          'The platform event that starts the automation — one of the ' +
+          'events the platform raises. Any other name answers 400 ' +
+          '`AUTOMATION_TRIGGER_INVALID`, naming this list.',
+      },
+    },
+  };
+}
+
+/** A trigger as `GET …/triggers` reads it: the shared read contract
+ * (`triggerViewSchema`) rendered to JSON Schema, with the house's words for
+ * each field. Open at the top, as every read is. */
+const triggerViewSpec: Json = (() => {
+  const { additionalProperties: _closed, ...rendered } = z.toJSONSchema(
+    triggerViewSchema,
+    { target: 'openapi-3.0', io: 'output' },
+  );
+  const shaped = houseNullability(rendered);
+  const base = isJsonRecord(shaped) ? shaped : {};
+  const properties = isJsonRecord(base.properties) ? base.properties : {};
+  const field = (key: string, description: string): Json => ({
+    ...(isJsonRecord(properties[key]) ? properties[key] : {}),
+    description,
+  });
+  return {
+    ...base,
+    description:
+      'The binding, and its health: `lastFiredAt` and `lastRunId` name ' +
+      'the last run it started, `lastSkippedAt` and `lastSkipReason` ' +
+      '(with `lastSkipDetail`) the last time it came due and started ' +
+      'nothing. A schedule says what it runs on — `repeat` from ' +
+      '`startDate`, or `cron` — in which `timezone`, what it does with ' +
+      'missed occurrences (`catchUp`) and when it next runs (`nextRunAt`). ' +
+      'A binding is alive when `lastFiredAt` keeps pace with its cadence; ' +
+      'one whose `lastSkippedAt` is the newer stamp is coming due and not ' +
+      'running — the reason says what to fix. `consecutiveFailures` counts ' +
+      'the runs it started that failed in a row, and `lastFailedAt`, ' +
+      '`lastFailureCode` and `lastFailedRunId` name the last of them — a ' +
+      'schedule that reaches the threshold pauses itself.',
+    properties: {
+      ...properties,
+      id: field(
+        'id',
+        'The binding’s id — what a run’s `startedBy` (`trigger:<id>`) names',
+      ),
+      cron: field(
+        'cron',
+        'A schedule’s five-field cron expression; null when it runs on a ' +
+          'repeat rule, and for a webhook or an event.',
+      ),
+      repeat: {
+        ...nullable(ref('ScheduleRule')),
+        description:
+          'A schedule’s repeat rule — the shape the PUT takes; null when it ' +
+          'runs on a cron expression, and for a webhook or an event.',
+      },
+      startDate: field(
+        'startDate',
+        'The day the repeat rule starts on, `YYYY-MM-DD` in `timezone`: no ' +
+          'start comes before it, and "every 2 weeks" counts from it. Send ' +
+          'it back on a PUT to keep the rule in step; null without a ' +
+          'repeat rule.',
+      ),
+      timezone: field(
+        'timezone',
+        'The zone the schedule reads in, in its canonical spelling; null ' +
+          'for a cron expression without one (read in UTC) and for a ' +
+          'webhook or an event.',
+      ),
+      catchUp: field(
+        'catchUp',
+        'What a schedule does with occurrences it missed while the ' +
+          'platform was not running: `latest` starts the most recent one ' +
+          'once, however late; `skip` starts it only when it is at most 10 ' +
+          'minutes late. Null for a webhook or an event.',
+      ),
+      input: {
+        ...nullable(obj),
+        description:
+          'The fixed input every run it starts receives, under the ' +
+          'trigger’s own fields; null when it has none. Send it back on a ' +
+          'PUT to keep it.',
+      },
+      event: field(
+        'event',
+        'The platform event that starts an event trigger; null for the ' +
+          'other kinds.',
+      ),
+      hasToken: {
+        ...bool,
+        description: 'A webhook secret exists (never returned here)',
+      },
+      nextRunAt: field(
+        'nextRunAt',
+        'Epoch milliseconds of a schedule’s next start — the earliest ' +
+          'occurrence it has not handled yet; null while it is switched off, ' +
+          'for a webhook or an event, and for a schedule that never comes ' +
+          'due again.',
+      ),
+      lastRunId: {
+        ...nullable(str),
+        description:
+          'The run `lastFiredAt` started; null until one has, and again ' +
+          'once that run is deleted.',
+      },
+      lastSkipDetail: {
+        ...nullable(ref('TriggerSkipDetail')),
+        description:
+          'The facts behind `lastSkipReason`. Null with ' +
+          '`paused_after_failures` (its facts are the failure fields) and ' +
+          'for a skip recorded without them.',
+      },
+      ...triggerHealthProperties,
+      ...triggerFailureProperties,
+    },
+  };
+})();
+
+/** A schedule's repeat rule: the shared zod schema every door validates a
+ * rule with, rendered to JSON Schema — one branch per frequency. */
+const scheduleRuleSpec: Json = {
+  ...z.toJSONSchema(scheduleRuleSchema, {
+    target: 'openapi-3.0',
+    io: 'output',
+  }),
+  description:
+    'When a schedule starts, read in its time zone. `minutely` and ' +
+    '`hourly` step a grid from local midnight (`interval` divides the hour ' +
+    'or the day), optionally only on some `weekdays` and between some ' +
+    '`hours` (`to` before `from` runs overnight; "00:00" runs until ' +
+    'midnight). `daily`, `weekly`, `monthly` and `yearly` name the days ' +
+    'as a task’s repeat rule does (0 is Sunday … 6 is Saturday; weeks run ' +
+    'Monday to Sunday; a shorter month uses its last day) and add `times`, ' +
+    '1 to 12 times of day as "HH:MM"; `interval` repeats every N of them, ' +
+    'counted from `startDate`. Through a daylight-saving change, a time ' +
+    'that does not exist that day moves forward by the gap, a time that ' +
+    'occurs twice starts once at the first, and a grid keeps its pace in ' +
+    'real time.',
+};
+
+/** Why a trigger last started nothing, with its facts: the shared zod
+ * schema the store writes and reads them with, one branch per reason. */
+const triggerSkipDetailSpec: Json = {
+  ...(houseNullability(
+    z.toJSONSchema(triggerSkipDetailSchema, {
+      target: 'openapi-3.0',
+      io: 'output',
+    }),
+  ) as Json),
+  description:
+    'The facts behind a trigger’s `lastSkipReason`, by `reason` (which ' +
+    'equals it): the `occurrence` a `not_deployed` or `start_refused` ' +
+    'skip was for — the instant a schedule came due, or an event or ' +
+    'delivery arrived; a refusal’s `code`, the `version` that refused ' +
+    '(always set for `AUTOMATION_INPUT_INVALID`) and its `message` and ' +
+    '`issues`; under `missed`, the occurrences a schedule missed while the ' +
+    'platform was not running (`count`, `capped` when it stopped at 1,000, ' +
+    'the `firstAt` and `lastAt` of them, the `policy` it applied) and ' +
+    'whether it started the latest one late (`firedLatest`); an ' +
+    '`unusable_cron` skip’s `message`.',
+};
+
+/** One warning a trigger bind (or a deploy) answers: what the deployed
+ * version would make of what the trigger sends. */
+const triggerWarningSpec: Json = {
+  type: 'object',
+  required: ['level', 'code', 'message'],
+  // The codes are warnings, not REST error codes: named here in prose,
+  // without the backticks the error-code registry test reads as one.
+  description:
+    'A warning, never a refusal: the trigger is saved either way. ' +
+    'TRIGGER_INPUT_MISMATCH: the deployed version’s `inputs` schema ' +
+    'refuses the input the trigger hands a run (`params.kind`, ' +
+    '`params.missing` — the required fields it lacks — and ' +
+    '`params.problems`); a webhook’s body is not judged. ' +
+    'TRIGGER_INPUT_NOT_TEMPLATED: the fixed input holds a template ' +
+    '(`params.paths`), which arrives as text and is never evaluated.',
+  properties: {
+    level: { type: 'string', enum: ['warning'] },
+    code: {
+      type: 'string',
+      enum: ['TRIGGER_INPUT_MISMATCH', 'TRIGGER_INPUT_NOT_TEMPLATED'],
+    },
+    message: str,
+    hint: str,
+    at: {
+      type: 'object',
+      properties: { pointer: str },
+      description: 'Where in the automation document: `/inputs`',
+    },
+    params: {
+      ...obj,
+      description: 'The facts the sentence names, by name',
+    },
   },
 };
 
@@ -5037,53 +5304,28 @@ export function buildSpec(): Json {
         'live webhook revokes its URL — the response says so (`revoked`). ' +
         'For a webhook trigger the plaintext token is returned ONCE in this ' +
         'response (and again only with `rotateToken: true`); the platform ' +
-        'stores a hash. Each kind takes its own keys — `cron` and `timezone` ' +
-        'only with `schedule`, `event` only with `event`, `rotateToken` only ' +
-        'with `webhook`, `enabled` with any — and a key of another kind is ' +
-        'refused like an unknown key (`INVALID_BODY`, named under ' +
-        '`data.issues`). The 200 says whether the automation has a version ' +
-        'to run (`deployed`): binding before deploying is accepted, and such ' +
-        'a trigger skips every occurrence as `not_deployed` — visible on ' +
-        '`GET /api/v1/automations` — until a version is deployed.',
+        'stores a hash. Each kind takes its own keys — `repeat`, `cron`, ' +
+        '`startDate`, `timezone` and `catchUp` only with `schedule`, `event` ' +
+        'only with `event`, `rotateToken` only with `webhook`, `enabled` and ' +
+        '`input` with any — and a key of another kind is refused like an ' +
+        'unknown key (`INVALID_BODY`, named under `data.issues`). A rule the ' +
+        'trigger breaks (a schedule with neither a repeat rule nor a cron, ' +
+        'or both; a time not written HH:MM; a blank or unknown zone; a fixed ' +
+        'input naming a field the trigger sets) answers 400 ' +
+        '`AUTOMATION_TRIGGER_INVALID` with each problem under ' +
+        '`data.issues` (`{path, code, message}`). The PUT is a full ' +
+        'replace: send back the `startDate` and `input` `GET …/triggers` ' +
+        'reads to keep them. The 200 says whether the automation has a ' +
+        'version to run (`deployed`): binding before deploying is accepted, ' +
+        'and such a trigger skips every occurrence as `not_deployed` — ' +
+        'visible on `GET /api/v1/automations` — until a version is ' +
+        'deployed. It names a schedule’s next start (`nextRunAt`) and, in ' +
+        '`warnings`, what the deployed version would make of what the ' +
+        'trigger sends.',
       operationId: 'setAutomationTrigger',
       security: sec,
       parameters: [automationNameParam],
-      requestBody: jsonBody({
-        type: 'object',
-        required: ['kind'],
-        additionalProperties: false,
-        properties: {
-          kind: { type: 'string', enum: ['schedule', 'webhook', 'event'] },
-          cron: {
-            type: 'string',
-            description:
-              'Only with `kind: schedule`: the five-field cron expression. ' +
-              'One that can never fire — a field out of range, a day no ' +
-              'named month has (`0 0 30 2 *`) — answers 400 ' +
-              '`AUTOMATION_TRIGGER_INVALID`.',
-          },
-          timezone: {
-            type: 'string',
-            description:
-              'Only with `kind: schedule`: the IANA zone the cron is read ' +
-              'in (UTC when absent)',
-          },
-          event: {
-            type: 'string',
-            enum: [...EMITTED_EVENT_TYPES],
-            description:
-              'Only with `kind: event`: the platform event that starts the ' +
-              'automation — one of the events the platform raises. Any other ' +
-              'name answers 400 `AUTOMATION_TRIGGER_INVALID`, naming this list.',
-          },
-          enabled: { type: 'boolean', default: true },
-          rotateToken: {
-            type: 'boolean',
-            description:
-              'Only with `kind: webhook`: mint (and return) a fresh token',
-          },
-        },
-      }),
+      requestBody: jsonBody(triggerWriteSpec),
       responses: {
         '200': jsonResponse('Trigger bound', {
           type: 'object',
@@ -5111,13 +5353,28 @@ export function buildSpec(): Json {
                 'back. Absent on a first bind and on a re-bind of the same ' +
                 'kind (which keeps the token).',
             },
+            nextRunAt: {
+              ...nullable(epochMs),
+              description:
+                'Epoch milliseconds of a schedule’s next start, as ' +
+                '`GET …/triggers` reads it; null while it is switched off ' +
+                'or never comes due again. Absent for a webhook or an event.',
+            },
+            warnings: {
+              type: 'array',
+              items: ref('TriggerWarning'),
+              description:
+                'What the deployed version would make of what the trigger ' +
+                'sends — the trigger is saved either way. Absent when ' +
+                'nothing is wrong, and when no version is deployed.',
+            },
           },
         }),
         '403': errorResponse('Needs the developer capability'),
         '404': errorResponse('Automation not found'),
         ...standardErrors,
         '400': errorResponse(
-          'Invalid body (`INVALID_BODY` — an unknown key, a key that belongs to another kind, each named under `data.issues`), or a trigger that could never fire: a cron that matches nothing (including a day no named month has, `0 0 30 2 *`), a time zone that is not an IANA zone, an event the platform does not raise (`AUTOMATION_TRIGGER_INVALID`)',
+          'Invalid body (`INVALID_BODY` — an unknown key, a key that belongs to another kind, each named under `data.issues`), or a trigger that breaks a rule or could never fire (`AUTOMATION_TRIGGER_INVALID`, each problem under `data.issues` as `{path, code, message}`): neither a repeat rule nor a cron, or both; a repeat rule without a time zone, with a time not written HH:MM, more than 12 times, an interval it does not offer, a day the month never has, a window whose start equals its end or in which it never runs, or a start date that is no calendar day; a cron that matches nothing (including a day no named month has, `0 0 30 2 *`); a blank time zone or one that is not an IANA zone; a fixed input that is not an object, names a field the trigger sets, or is larger than 16 KiB; an event the platform does not raise',
         ),
       },
     },
@@ -9367,6 +9624,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               required: [
                 'kind',
                 'enabled',
+                'nextRunAt',
                 'lastFiredAt',
                 'lastSkippedAt',
                 'lastSkipReason',
@@ -9377,18 +9635,26 @@ curl -H "Authorization: Bearer <api-key>" \\
                   enum: ['schedule', 'webhook', 'event'],
                 },
                 enabled: bool,
+                nextRunAt: {
+                  ...nullable(epochMs),
+                  description:
+                    'Epoch milliseconds of a schedule’s next start, as ' +
+                    '`GET …/triggers` reads it; null while it is switched ' +
+                    'off, and for a webhook or an event.',
+                },
                 ...triggerHealthProperties,
               },
               description:
                 'What starts the automation, if a trigger is bound: its kind, ' +
-                'whether it is switched on, and its health — the same ' +
-                '`lastFiredAt`, `lastSkippedAt` and `lastSkipReason` that ' +
+                'whether it is switched on, when a schedule next runs, and ' +
+                'its health — the same `nextRunAt`, `lastFiredAt`, ' +
+                '`lastSkippedAt` and `lastSkipReason` that ' +
                 '`GET …/triggers` reads, so one listing call finds every ' +
                 'binding that is enabled and not firing (a `lastSkipReason` ' +
                 'of `not_deployed` beside a null `deployedVersion` is a ' +
                 'trigger waiting for a deploy); null when none is bound. ' +
-                '`GET …/triggers` has the rest — the cron, the event, ' +
-                '`lastRunId`.',
+                '`GET …/triggers` has the rest — the repeat rule or cron, ' +
+                'the event, `lastRunId`, `lastSkipDetail`.',
             }),
             projectIds: {
               type: 'array',
@@ -9526,59 +9792,10 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
           },
         },
-        Trigger: {
-          type: 'object',
-          description:
-            'The binding, and its health: `lastFiredAt` and `lastRunId` name ' +
-            'the last run it started, `lastSkippedAt` and `lastSkipReason` ' +
-            'the last time it came due and started nothing. A binding is ' +
-            'alive when `lastFiredAt` keeps pace with its cadence; one whose ' +
-            '`lastSkippedAt` is the newer stamp is coming due and not running ' +
-            '— the reason says what to fix. `consecutiveFailures` counts the ' +
-            'runs it started that failed in a row, and `lastFailedAt`, ' +
-            '`lastFailureCode` and `lastFailedRunId` name the last of them — ' +
-            'a schedule that reaches the threshold pauses itself.',
-          required: [
-            'id',
-            'name',
-            'kind',
-            'hasToken',
-            'enabled',
-            'lastFiredAt',
-            'lastRunId',
-            'lastSkippedAt',
-            'lastSkipReason',
-            'consecutiveFailures',
-            'lastFailedAt',
-            'lastFailureCode',
-            'lastFailedRunId',
-          ],
-          properties: {
-            id: {
-              ...str,
-              description:
-                'The binding’s id — what a run’s `startedBy` (`trigger:<id>`) names',
-            },
-            name: str,
-            kind: { type: 'string', enum: ['schedule', 'webhook', 'event'] },
-            cron: nullable(str),
-            timezone: nullable(str),
-            event: nullable(str),
-            hasToken: {
-              ...bool,
-              description: 'A webhook secret exists (never returned here)',
-            },
-            enabled: bool,
-            lastRunId: {
-              ...nullable(str),
-              description:
-                'The run `lastFiredAt` started; null until one has, and again ' +
-                'once that run is deleted.',
-            },
-            ...triggerHealthProperties,
-            ...triggerFailureProperties,
-          },
-        },
+        Trigger: triggerViewSpec,
+        TriggerWarning: triggerWarningSpec,
+        TriggerSkipDetail: triggerSkipDetailSpec,
+        ScheduleRule: scheduleRuleSpec,
         LegacyRunQuarantine: {
           type: 'object',
           additionalProperties: false,

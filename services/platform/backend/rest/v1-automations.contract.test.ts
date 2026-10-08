@@ -994,6 +994,90 @@ describe('triggers of an automation nobody saved', () => {
       code: 'AUTOMATION_TRIGGER_INVALID',
     });
   });
+
+  /**
+   * The body is the shared trigger contract: a rule the trigger breaks is
+   * the store's own refusal, each problem coded under `data.issues`, the
+   * one code an API caller meets for every trigger rule — not an
+   * `INVALID_BODY` beside it.
+   */
+  it('PUT refuses a schedule with neither a repeat rule nor a cron, coded', async () => {
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', '{"kind": "schedule", "timezone": "UTC"}'),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'AUTOMATION_TRIGGER_INVALID',
+      data: {
+        issues: [{ path: 'repeat', code: 'schedule.cron_or_repeat' }],
+      },
+    });
+    expect(setTrigger).not.toHaveBeenCalled();
+  });
+
+  it('PUT refuses a repeat rule with a time not written HH:MM, coded per field', async () => {
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json(
+        'PUT',
+        '{"kind": "schedule", "repeat": {"frequency": "daily", "interval": 1, "times": ["9:00"]}, "timezone": "Europe/Zurich"}',
+      ),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'AUTOMATION_TRIGGER_INVALID',
+      data: {
+        issues: [{ path: 'repeat.times.0', code: 'schedule.time_format' }],
+      },
+    });
+    expect(setTrigger).not.toHaveBeenCalled();
+  });
+
+  it('PUT binds a repeat rule in its canonical zone and answers its next start and warnings', async () => {
+    const warning = {
+      level: 'warning' as const,
+      code: 'TRIGGER_INPUT_MISMATCH',
+      message: 'the schedule trigger starts runs without owner',
+      at: { pointer: '/inputs' },
+      params: { kind: 'schedule', missing: ['owner'], problems: [] },
+    };
+    vi.mocked(setTrigger).mockResolvedValue({
+      nextRunAt: 1_791_536_400_000,
+      warnings: [warning],
+    });
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json(
+        'PUT',
+        JSON.stringify({
+          kind: 'schedule',
+          repeat: {
+            frequency: 'weekly',
+            interval: 1,
+            weekdays: [5, 1],
+            times: ['17:30', '09:00'],
+          },
+          timezone: ' europe/zurich ',
+          catchUp: 'skip',
+          input: { owner: 'tale' },
+        }),
+      ),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      name: SAVED,
+      nextRunAt: 1_791_536_400_000,
+      warnings: [warning],
+      deployed: true,
+    });
+    expect(vi.mocked(setTrigger).mock.calls[0]?.[1].trigger).toMatchObject({
+      kind: 'schedule',
+      timezone: 'Europe/Zurich',
+      catchUp: 'skip',
+      input: { owner: 'tale' },
+    });
+  });
 });
 
 /**

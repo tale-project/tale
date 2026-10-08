@@ -7,6 +7,8 @@ import {
   triggerIssues,
   type TriggerIssue,
   triggerSkipDetailSchema,
+  triggerViewSchema,
+  triggerWriteJsonSchema,
   triggerWriteSchema,
   timeZoneSchema,
 } from './automation-trigger';
@@ -138,6 +140,11 @@ describe('triggerWriteSchema', () => {
         { path: 'cron', code: 'trigger.key_other_kind' },
         { path: 'every', code: 'unrecognized_keys' },
       ],
+    ],
+    [
+      'a blank event',
+      { kind: 'event', event: '  ' },
+      [{ path: 'event', code: 'event.required' }],
     ],
     [
       'a schedule key on an event',
@@ -295,5 +302,105 @@ describe('staticInputSchema, through the write schema', () => {
     ],
   ])('refuses %s', (_case, input, code, path) => {
     expect(issuesOf({ kind: 'webhook', input })).toEqual([{ path, code }]);
+  });
+});
+
+describe('triggerViewSchema', () => {
+  const view = {
+    id: 'trg_1',
+    name: 'ops/nightly',
+    kind: 'schedule',
+    cron: null,
+    repeat: daily,
+    startDate: '2026-10-08',
+    timezone: 'Europe/Zurich',
+    catchUp: 'latest',
+    input: { owner: 'tale' },
+    event: null,
+    hasToken: false,
+    enabled: true,
+    nextRunAt: 1_791_536_400_000,
+    lastFiredAt: null,
+    lastRunId: null,
+    lastSkippedAt: null,
+    lastSkipReason: null,
+    lastSkipDetail: null,
+    consecutiveFailures: 0,
+    lastFailedAt: null,
+    lastFailureCode: null,
+    lastFailedRunId: null,
+  };
+
+  it('reads a schedule on a repeat rule, its zone, its next start and its fixed input', () => {
+    expect(triggerViewSchema.parse(view)).toEqual(view);
+  });
+
+  it('names the webhook secret only as hasToken: a token key is refused', () => {
+    expect(triggerViewSchema.safeParse({ ...view, token: 'x' }).success).toBe(
+      false,
+    );
+  });
+
+  it('takes the reason a schedule missed occurrences', () => {
+    expect(
+      triggerViewSchema.parse({
+        ...view,
+        lastSkippedAt: 9_000,
+        lastSkipReason: 'missed_occurrences',
+        lastSkipDetail: {
+          reason: 'missed_occurrences',
+          missed: {
+            count: 2,
+            capped: false,
+            firstAt: 1_000,
+            lastAt: 2_000,
+            policy: 'latest',
+          },
+          firedLatest: true,
+        },
+      }).lastSkipReason,
+    ).toBe('missed_occurrences');
+  });
+});
+
+/**
+ * The JSON Schema the doors publish (MCP's tool list, the OpenAPI
+ * document) is the write schema itself: one strict branch per kind, the
+ * descriptions from its `.meta`, and nothing a host would have to resolve
+ * against a root it does not carry.
+ */
+describe('triggerWriteJsonSchema', () => {
+  it.each(['draft-2020-12', 'openapi-3.0'] as const)(
+    'renders one strict branch per kind with no reference to resolve (%s)',
+    (target) => {
+      const schema = triggerWriteJsonSchema(target);
+      const text = JSON.stringify(schema);
+      expect(text).not.toContain('$ref');
+      expect(text).not.toContain('$defs');
+      expect(schema).not.toHaveProperty('$schema');
+      expect(schema.oneOf).toHaveLength(3);
+      expect(schema).toMatchObject({
+        oneOf: [
+          { additionalProperties: false, properties: { repeat: {} } },
+          { additionalProperties: false, properties: { rotateToken: {} } },
+          { additionalProperties: false, properties: { event: {} } },
+        ],
+      });
+    },
+  );
+
+  it('publishes the fixed input as a free-form object with its own words', () => {
+    const input = {
+      type: 'object',
+      additionalProperties: true,
+      description: expect.stringContaining('16 KiB'),
+    };
+    expect(triggerWriteJsonSchema('draft-2020-12')).toMatchObject({
+      oneOf: [
+        { properties: { input } },
+        { properties: { input } },
+        { properties: { input } },
+      ],
+    });
   });
 });

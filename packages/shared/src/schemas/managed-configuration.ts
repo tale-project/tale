@@ -3,12 +3,14 @@ import { z } from 'zod';
 import { AGENT_TOOL_CATALOG, normalizeToolGrants } from '../agent-tool-grants';
 import { isValidAutomationName } from '../automation-name';
 import { TASK_DESCRIPTION_MAX } from '../task-limits';
+import { isoDateSchema, staticInputSchema } from './automation-trigger';
 import { configurationHashSchema } from './configuration';
 import {
   PROJECT_AGENT_INSTRUCTIONS_MAX,
   PROJECT_AGENT_BINDINGS_MAX,
   PROJECT_INSTRUCTIONS_MAX_CHARS,
 } from './projects';
+import { scheduleRuleSchema } from './schedule-rule';
 
 /** Explicit adoption: these resources never find a target by display name or
  * create a second project, agent or standing task. Native writers retain the
@@ -64,13 +66,36 @@ export const managedAutomationDeploymentSchema = z.strictObject({
   name,
   definitionSha256: configurationHashSchema,
 });
-export const managedAutomationScheduleSchema = z.strictObject({
-  ...project,
-  name,
-  cron: z.string().min(1).max(200),
-  timezone: z.string().min(1).max(100),
-  enabled: z.boolean(),
-});
+/** What a managed schedule may add beside its definition: `catchUp` only
+ * when it is `skip` (the default `latest` is left out) and a fixed input only
+ * when it has one, so a schedule that sets neither hashes as before. */
+const scheduleExtras = {
+  catchUp: z.literal('skip').optional(),
+  input: staticInputSchema.optional(),
+};
+
+/** A managed schedule runs on a cron expression or a repeat rule. The cron
+ * shape keeps exactly the keys it always had, so an existing schedule's hash
+ * does not move and nothing reads as drifted. */
+export const managedAutomationScheduleSchema = z.union([
+  z.strictObject({
+    ...project,
+    name,
+    cron: z.string().min(1).max(200),
+    timezone: z.string().min(1).max(100),
+    enabled: z.boolean(),
+    ...scheduleExtras,
+  }),
+  z.strictObject({
+    ...project,
+    name,
+    repeat: scheduleRuleSchema,
+    startDate: isoDateSchema,
+    timezone: z.string().min(1).max(100),
+    enabled: z.boolean(),
+    ...scheduleExtras,
+  }),
+]);
 
 export const managedPlatformResourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({

@@ -408,6 +408,7 @@ describe('organization run scope', () => {
         trigger: {
           kind: 'schedule',
           enabled: true,
+          nextRunAt: 1_700_000_300_000,
           lastFiredAt: null,
           lastSkippedAt: 1_700_000_000_000,
           lastSkipReason: 'not_deployed',
@@ -425,6 +426,7 @@ describe('organization run scope', () => {
           trigger: {
             kind: 'schedule',
             enabled: true,
+            nextRunAt: 1_700_000_300_000,
             lastFiredAt: null,
             lastSkippedAt: 1_700_000_000_000,
             lastSkipReason: 'not_deployed',

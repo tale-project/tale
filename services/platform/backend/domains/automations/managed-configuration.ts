@@ -154,14 +154,21 @@ export async function writeManagedAutomation(
         'Managed schedule requires its reviewed definition digest.',
         409,
       );
+    const schedule = resource.config;
     await setTrigger(sql, {
       ...scope,
       name,
       trigger: {
         kind: 'schedule',
-        cron: resource.config.cron,
-        timezone: resource.config.timezone,
-        enabled: resource.config.enabled,
+        ...('cron' in schedule
+          ? { cron: schedule.cron }
+          : { repeat: schedule.repeat, startDate: schedule.startDate }),
+        timezone: schedule.timezone,
+        enabled: schedule.enabled,
+        ...(schedule.catchUp !== undefined
+          ? { catchUp: schedule.catchUp }
+          : {}),
+        ...(schedule.input !== undefined ? { input: schedule.input } : {}),
       },
       managed: {
         projectId,
