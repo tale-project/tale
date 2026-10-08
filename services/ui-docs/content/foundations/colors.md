@@ -66,6 +66,10 @@ Code has roles of its own: `--code-foreground` and `--code-token-keyword`, `-str
 
 Every token clears 4.5:1 on the page, the code-block surface (`bg-bg-elevated`), a card and the muted surface, and on the editor's template tint; `code-palette.test.ts` checks each pair in both themes. The editor's chrome adds `--code-line-number`, `--code-selection`, `--code-template-tint`, `--code-match` and the problem underlines `--code-squiggle-error`, `-warning` and `-info`, which keep 3:1. Use the roles for code, not for other text.
 
+## Colour the lines of a workflow
+
+A [workflow canvas](/docs/components/workflow-canvas) draws its lines from `FLOW_EDGE_COLORS` in `@tale/ui/flow/edge-palette`: `--muted-foreground` for the flow, `--success` for a Yes branch, `--destructive` only for the way into a failure, `--foreground` for emphasis and `--info-foreground` for activity. A No branch is amber, never red, through its own `--flow-edge-negative`: amber-700 in the light theme, because the warning amber is 2.2:1 on white and too faint for a line, and amber-500 in the dark one. Every line keeps 3:1 against the canvas in both themes, and shape carries the rest: dashed for an order, dotted for the end of a run.
+
 ## Add a color only when the meaning is missing
 
 First inspect the existing tokens and neighboring components. If a new semantic role is needed, add its token and intended theme treatment centrally. Record which foreground/background pairing it supports and check rest, hover, focus, selected, and error states.

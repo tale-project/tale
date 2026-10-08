@@ -19,7 +19,7 @@ and stories live together under `src/components/<family>/`.
 | Layout and navigation | `page-layout`, `adaptive-header`, `sub-panel`, `header-breadcrumbs`, `tab-navigation` |
 | Dialogs and feedback | `dialog/form-dialog`, `dialog/delete-dialog`, `toaster`, `use-toast`, `use-retry-focus` |
 | Problems a check found | `issue-list`, `issue-summary`, `issue-severity`, `field-issue-messages`, `issue-focus`, `flow/node-issue-marker` |
-| Editing and diagrams | `editor`, `wizard/*`, `catalog/*`, `filters/*`, `flow/*` |
+| Editing and diagrams | `editor`, `wizard/*`, `catalog/*`, `filters/*`, `flow/workflow-canvas`, `flow/flow-step-list`, `flow/layout`, `flow/*` |
 | Documentation sites | `docs/docs-layout`, `docs/docs-header`, `docs/docs-article`, `docs/docs-not-found`, `docs/page-actions`, `search/static-index/*` |
 | Shared infrastructure | `i18n/*`, `markdown/*`, `seo/*`, `server`, `monitoring/*`, `theme`, `testing/*` |
 | Large custom collections | `use-virtual-list`; [windowing and focus guidance](https://ui.tale.dev/docs/patterns/list-page#bound-a-custom-collections-rendering) |

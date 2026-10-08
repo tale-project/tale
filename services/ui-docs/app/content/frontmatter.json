@@ -111,6 +111,13 @@
       "description": "Show brief completion feedback, avoid duplicate viewports, and keep essential information on the page."
     }
   },
+  "components/workflow-canvas": {
+    "slug": "components/workflow-canvas",
+    "frontmatter": {
+      "title": "Workflow canvas",
+      "description": "Draw a workflow from its data with an automatic layout, lines that route round every box, a keyboard path through it and a List view that says the same in text."
+    }
+  },
   "foundations/accessibility": {
     "slug": "foundations/accessibility",
     "frontmatter": {

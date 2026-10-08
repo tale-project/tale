@@ -29,6 +29,7 @@
         "components/schema-tree",
         "components/issue-list",
         "components/flow-node-issues",
+        "components/workflow-canvas",
         "components/field-issues",
         "components/recurrence-picker",
         "components/schedule-occurrence-list",

@@ -17,6 +17,7 @@
     "components/tabs-and-navigation",
     "components/time-field",
     "components/toast",
+    "components/workflow-canvas",
     "foundations/accessibility",
     "foundations/colors",
     "foundations/icons",
