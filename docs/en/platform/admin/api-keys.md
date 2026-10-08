@@ -18,7 +18,7 @@ Owners and Admins can also create a key for another member, a team, a project, o
 1. Select **Create API key**.
 2. Enter a **Key name** that identifies the caller, such as `Billing sync` or `Document import`.
 3. As an Owner or Admin, choose under **Belongs to** whom the key is for. **You** is preselected; the other choices are described [below](#create-a-key-for-someone-else).
-4. Choose **Expiration**: 7, 30, or 90 days, one year, a **Custom date**, or never. The form starts at 30 days and names, under the field, the day the key will expire. With **Custom date**, pick that day in the **Expiration date** calendar, from tomorrow up to one year ahead.
+4. Choose **Expiration**: 7, 30, or 90 days, one year, a **Custom date**, or never. The form starts at 30 days and names, under the field, the day the key will expire. With **Custom date**, pick that day in the **Expiration date** calendar, among the available dates. An expiring key must last at least 24 hours and at most 365 days; after a clock change, the earliest available date may be later than tomorrow.
 5. Create the key and copy its secret into the caller's approved secret store before closing the confirmation.
 
 The complete secret is shown once. The table later shows only a masked fragment, whom the key belongs to, the day it expires, the creation date, and when it was last used. It lists your own keys and the keys an Admin made for you in this organization; Owners and Admins also see every key made here for a member, a team, a project, or the organization, though never the keys members made for themselves. Under **Belongs to**, a team's, a project's, or the organization's key shows the role it acts as, and a key made for a member shows who made it.
