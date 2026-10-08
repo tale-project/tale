@@ -18,6 +18,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { SERVER_INSTRUCTIONS } from '../../../lib/mcp/instructions';
+import { MCP_SERVER_INFO } from '../../../lib/mcp/server';
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
 import { API_CONTRACT_VERSION } from '../../../lib/shared/constants/api-contract';
 import { AppError } from '../../../lib/shared/errors/app-error';
@@ -198,6 +199,17 @@ describe('initialize', () => {
       params: { protocolVersion: '2024-11-05', capabilities: {} },
     });
     expect(unknown.payload.result).toMatchObject({
+      protocolVersion: '2025-11-25',
+    });
+    // A modern revision is never negotiated: a 2026-07-28 client does not
+    // initialize, so a proposal of it is answered like any other unknown.
+    const modern = await call({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: { protocolVersion: '2026-07-28', capabilities: {} },
+    });
+    expect(modern.payload.result).toMatchObject({
       protocolVersion: '2025-11-25',
     });
   });
@@ -1336,7 +1348,7 @@ describe('protocol errors', () => {
         code: -32022,
         message: expect.stringContaining('2024-11-05'),
         data: {
-          supported: ['2025-11-25', '2025-06-18', '2025-03-26'],
+          supported: ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26'],
           requested: '2024-11-05',
         },
       },
@@ -1680,5 +1692,527 @@ describe('batch budget [MCP-R19]', () => {
     const { serve } = context(vi.fn().mockResolvedValue({ automations: [] }));
     await serve(rpc(listCall(1)), admit);
     expect(admit).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The modern revision (2026-07-28) on the same endpoint: no handshake, the
+ * revision and the client's capabilities in every request's `_meta`,
+ * mirrored into headers a proxy can route on; one message per request; and
+ * answers that say they are complete, name the server and, where a client
+ * may cache, for how long.
+ */
+describe('the modern revision, beside the legacy ones [MCP-R26]', () => {
+  const MODERN = '2026-07-28';
+  const SERVER_META = { 'io.modelcontextprotocol/serverInfo': MCP_SERVER_INFO };
+
+  /** The envelope a modern client puts in every request's `_meta`. */
+  function envelope(
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      'io.modelcontextprotocol/protocolVersion': MODERN,
+      'io.modelcontextprotocol/clientInfo': {
+        name: 'claude-code',
+        version: '2.1.294',
+      },
+      'io.modelcontextprotocol/clientCapabilities': {},
+      ...overrides,
+    };
+  }
+
+  /** One modern request with the headers the body implies, unless a test
+   * overrides them (`null` leaves one out). */
+  function modernRequest(
+    method: string,
+    params: Record<string, unknown> = {},
+    headers: Record<string, string | null> = {},
+    meta: Record<string, unknown> = envelope(),
+  ): Request {
+    const named =
+      method === 'resources/read'
+        ? params.uri
+        : method === 'tools/call' || method === 'prompts/get'
+          ? params.name
+          : undefined;
+    const all: Record<string, string | null> = {
+      'content-type': 'application/json',
+      'mcp-protocol-version': MODERN,
+      'mcp-method': method,
+      ...(typeof named === 'string' ? { 'mcp-name': named } : {}),
+      ...headers,
+    };
+    return new Request('https://app.example.test/api/v1/mcp', {
+      method: 'POST',
+      headers: Object.fromEntries(
+        Object.entries(all).filter(
+          (entry): entry is [string, string] => entry[1] !== null,
+        ),
+      ),
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 7,
+        method,
+        params: { ...params, _meta: meta },
+      }),
+    });
+  }
+
+  async function modern(
+    request: Request,
+    dispatch = vi.fn(),
+    options: Partial<McpRequestOptions> = {},
+  ): Promise<{ status: number; payload: Record<string, unknown> }> {
+    const caller = keyCaller();
+    const response = await handleMcpRequest(caller, request, {
+      host: { engine: dispatch, platform: dispatch, capability: dispatch },
+      ...options,
+    });
+    return {
+      status: response.status,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
+      payload: (await response.json()) as Record<string, unknown>,
+    };
+  }
+
+  it('answers server/discover with the revisions, capabilities, instructions and who it is', async () => {
+    const { status, payload } = await modern(modernRequest('server/discover'));
+    expect(status).toBe(200);
+    expect(payload).toEqual({
+      jsonrpc: '2.0',
+      id: 7,
+      result: {
+        resultType: 'complete',
+        supportedVersions: [
+          '2026-07-28',
+          '2025-11-25',
+          '2025-06-18',
+          '2025-03-26',
+        ],
+        capabilities: {
+          tools: { listChanged: false },
+          resources: { subscribe: false, listChanged: false },
+          prompts: { listChanged: false },
+        },
+        instructions: SERVER_INSTRUCTIONS,
+        _meta: SERVER_META,
+        ttlMs: 3_600_000,
+        cacheScope: 'private',
+      },
+    });
+  });
+
+  it('keeps server/discover out of the legacy revisions, and initialize and ping out of the modern one', async () => {
+    const legacy = await call({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'server/discover',
+    });
+    expect(legacy.status).toBe(200);
+    expect(legacy.payload.error).toMatchObject({ code: -32601 });
+
+    for (const method of ['initialize', 'ping', 'subscriptions/listen']) {
+      const removed = await modern(modernRequest(method));
+      expect(removed.status, method).toBe(404);
+      expect(removed.payload, method).toMatchObject({
+        id: 7,
+        error: { code: -32601 },
+      });
+    }
+    const initialize = await modern(modernRequest('initialize'));
+    expect((initialize.payload.error as { message: string }).message).toContain(
+      'server/discover',
+    );
+  });
+
+  it('lists the same tools, prompts and templates, each cacheable for an hour by this key alone', async () => {
+    const legacyTools = await call({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+    });
+    const tools = await modern(modernRequest('tools/list'));
+    expect(tools.status).toBe(200);
+    expect(tools.payload.result).toEqual({
+      ...(legacyTools.payload.result as Record<string, unknown>),
+      resultType: 'complete',
+      _meta: SERVER_META,
+      ttlMs: 3_600_000,
+      cacheScope: 'private',
+    });
+    for (const method of ['prompts/list', 'resources/templates/list']) {
+      const { payload } = await modern(modernRequest(method));
+      expect(payload.result, method).toMatchObject({
+        resultType: 'complete',
+        _meta: SERVER_META,
+        ttlMs: 3_600_000,
+        cacheScope: 'private',
+      });
+    }
+  });
+
+  it('answers a tool call as complete and names the server, with no cache hint', async () => {
+    const dispatch = vi.fn().mockResolvedValue({ automations: [] });
+    const { status, payload } = await modern(
+      modernRequest('tools/call', { name: 'list_automations', arguments: {} }),
+      dispatch,
+    );
+    expect(status).toBe(200);
+    expect(payload.result).toEqual({
+      content: [{ type: 'text', text: '{"automations":[]}' }],
+      structuredContent: { automations: [] },
+      isError: false,
+      resultType: 'complete',
+      _meta: SERVER_META,
+    });
+  });
+
+  it('acts as the client the request names, so the audit rows and the saved version can name it', async () => {
+    const seen: unknown[] = [];
+    const dispatch = vi.fn(async () => {
+      seen.push(currentRequestChannel());
+      return { automations: [] };
+    });
+    const records: unknown[] = [];
+    await modern(
+      modernRequest(
+        'tools/call',
+        { name: 'list_automations', arguments: {} },
+        {},
+        envelope({
+          'io.modelcontextprotocol/clientInfo': {
+            name: 'Claude‮ Code',
+            version: '2.1.294',
+          },
+        }),
+      ),
+      dispatch,
+      {
+        observe: async (record) => {
+          records.push(record);
+        },
+      },
+    );
+    expect(dispatch).toHaveBeenCalledWith(
+      { ...keyCaller(), clientName: 'Claude Code' },
+      'list_automations',
+      {},
+    );
+    expect(seen).toEqual([
+      expect.objectContaining({ via: 'mcp', clientName: 'Claude Code' }),
+    ]);
+    expect(records).toEqual([
+      expect.objectContaining({
+        method: 'tools/call',
+        tool: 'list_automations',
+        outcome: 'ok',
+        clientName: 'Claude Code',
+      }),
+    ]);
+  });
+
+  it('counts server/discover with the client name it carries', async () => {
+    const records: unknown[] = [];
+    await modern(modernRequest('server/discover'), vi.fn(), {
+      observe: async (record) => {
+        records.push(record);
+      },
+    });
+    expect(records).toEqual([
+      expect.objectContaining({
+        method: 'server/discover',
+        outcome: 'ok',
+        clientName: 'claude-code',
+      }),
+    ]);
+  });
+
+  it('answers an address that reads nothing as -32602, keeping the refusal’s code', async () => {
+    const dispatch = vi.fn().mockResolvedValue({
+      error: 'no saved automation is named "hr/onboarding"',
+      code: 'AUTOMATION_NOT_FOUND',
+      hint: 'list_automations names the ones you can read',
+    });
+    const uri = 'tale://automations/hr%2Fonboarding';
+    const { status, payload } = await modern(
+      modernRequest('resources/read', { uri }),
+      dispatch,
+    );
+    expect(status).toBe(200);
+    expect(payload.error).toMatchObject({
+      code: -32602,
+      data: { uri, code: 'AUTOMATION_NOT_FOUND' },
+    });
+    // The legacy revisions keep -32002 for the same read.
+    const legacy = await call(
+      { jsonrpc: '2.0', id: 2, method: 'resources/read', params: { uri } },
+      dispatch,
+    );
+    expect(legacy.payload.error).toMatchObject({ code: -32002 });
+  });
+
+  it('lets a client keep a reference for an hour, the resource list for a minute, an automation not at all', async () => {
+    const dispatch = vi.fn(async (_caller: unknown, method: string) =>
+      method === 'get_docs'
+        ? { docs: '# Authoring' }
+        : method === 'list_automations'
+          ? { automations: [] }
+          : { name: 'billing/dunning', version: 3 },
+    );
+    const docs = await modern(
+      modernRequest('resources/read', { uri: 'tale://docs/authoring' }),
+      dispatch,
+    );
+    expect(docs.payload.result).toMatchObject({
+      contents: [{ uri: 'tale://docs/authoring', text: '# Authoring' }],
+      resultType: 'complete',
+      ttlMs: 3_600_000,
+      cacheScope: 'private',
+    });
+    const automation = await modern(
+      modernRequest('resources/read', {
+        uri: 'tale://automations/billing%2Fdunning',
+      }),
+      dispatch,
+    );
+    expect(automation.payload.result).toMatchObject({
+      ttlMs: 0,
+      cacheScope: 'private',
+    });
+    const listed = await modern(modernRequest('resources/list'), dispatch);
+    expect(listed.payload.result).toMatchObject({
+      resultType: 'complete',
+      ttlMs: 60_000,
+      cacheScope: 'private',
+    });
+  });
+
+  it('answers a prompt as complete, with nothing to cache', async () => {
+    const dispatch = vi.fn().mockResolvedValue({ docs: '# Triggers' });
+    const { payload } = await modern(
+      modernRequest('prompts/get', {
+        name: 'edit_automation',
+        arguments: {},
+      }),
+      dispatch,
+    );
+    const result = payload.result as Record<string, unknown>;
+    expect(result).toMatchObject({
+      resultType: 'complete',
+      _meta: SERVER_META,
+    });
+    expect(result.ttlMs).toBeUndefined();
+    expect(result.cacheScope).toBeUndefined();
+  });
+
+  it('refuses a header that does not say what the body says with 400 and -32020, running nothing', async () => {
+    const dispatch = vi.fn().mockResolvedValue({ automations: [] });
+    const listing = { name: 'list_automations', arguments: {} };
+    const cases: Array<[string, Request]> = [
+      [
+        'a revision header naming another revision',
+        modernRequest('tools/call', listing, {
+          'mcp-protocol-version': '2025-11-25',
+        }),
+      ],
+      [
+        'no revision header',
+        modernRequest('tools/call', listing, { 'mcp-protocol-version': null }),
+      ],
+      [
+        'no method header',
+        modernRequest('tools/call', listing, { 'mcp-method': null }),
+      ],
+      [
+        'a method header naming another method',
+        modernRequest('tools/call', listing, { 'mcp-method': 'tools/list' }),
+      ],
+      [
+        'no name header',
+        modernRequest('tools/call', listing, { 'mcp-name': null }),
+      ],
+      [
+        'a name header naming another tool',
+        modernRequest('tools/call', listing, {
+          'mcp-name': 'delete_automation',
+        }),
+      ],
+      [
+        'a name header that is not Base64',
+        modernRequest('tools/call', listing, {
+          'mcp-name': '=?base64?not base64?=',
+        }),
+      ],
+    ];
+    for (const [label, request] of cases) {
+      const { status, payload } = await modern(request, dispatch);
+      expect(status, label).toBe(400);
+      expect(payload, label).toMatchObject({ id: 7, error: { code: -32020 } });
+    }
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('reads a name header sent in Base64, the form a name a header cannot carry takes', async () => {
+    const dispatch = vi.fn().mockResolvedValue({ docs: '# Authoring' });
+    const uri = 'tale://docs/authoring';
+    const { status } = await modern(
+      modernRequest(
+        'resources/read',
+        { uri },
+        { 'mcp-name': `=?base64?${Buffer.from(uri).toString('base64')}?=` },
+      ),
+      dispatch,
+    );
+    expect(status).toBe(200);
+  });
+
+  it('refuses a request without the envelope its revision header promises with 400 and -32602, naming what is missing', async () => {
+    const request = new Request('https://app.example.test/api/v1/mcp', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'mcp-protocol-version': MODERN,
+        'mcp-method': 'tools/list',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 9, method: 'tools/list' }),
+    });
+    const { status, payload } = await modern(request);
+    expect(status).toBe(400);
+    expect(payload).toMatchObject({
+      id: 9,
+      error: {
+        code: -32602,
+        data: {
+          missing: [
+            'io.modelcontextprotocol/protocolVersion',
+            'io.modelcontextprotocol/clientCapabilities',
+          ],
+        },
+      },
+    });
+  });
+
+  it('refuses a revision in _meta it does not speak with 400 and -32022, listing the ones it does [MCP-R16]', async () => {
+    const { status, payload } = await modern(
+      modernRequest(
+        'tools/list',
+        {},
+        { 'mcp-protocol-version': '2027-01-01' },
+        envelope({ 'io.modelcontextprotocol/protocolVersion': '2027-01-01' }),
+      ),
+    );
+    expect(status).toBe(400);
+    expect(payload).toMatchObject({
+      id: 7,
+      error: {
+        code: -32022,
+        data: {
+          supported: ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26'],
+          requested: '2027-01-01',
+        },
+      },
+    });
+  });
+
+  it('refuses a batch on the modern revision, whole', async () => {
+    const message = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+      params: { _meta: envelope() },
+    };
+    const dispatch = vi.fn();
+    const variants: Record<string, string>[] = [
+      { 'content-type': 'application/json' },
+      { 'content-type': 'application/json', 'mcp-protocol-version': MODERN },
+    ];
+    for (const headers of variants) {
+      const response = await handleMcpRequest(
+        keyCaller(),
+        new Request('https://app.example.test/api/v1/mcp', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify([
+            { jsonrpc: '2.0', id: 0, method: 'ping' },
+            message,
+          ]),
+        }),
+        {
+          host: { engine: dispatch, platform: dispatch, capability: dispatch },
+        },
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        id: null,
+        error: { code: -32600 },
+      });
+    }
+  });
+
+  it('acknowledges a modern notification with 202, and never answers a session id', async () => {
+    const response = await handleMcpRequest(
+      keyCaller(),
+      new Request('https://app.example.test/api/v1/mcp', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'mcp-protocol-version': MODERN,
+          'mcp-method': 'notifications/cancelled',
+          'mcp-session-id': 'a-session-from-2025',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'notifications/cancelled',
+          params: { requestId: 3, _meta: envelope() },
+        }),
+      }),
+      { host: { engine: vi.fn(), platform: vi.fn(), capability: vi.fn() } },
+    );
+    expect(response.status).toBe(202);
+    expect(response.headers.get('mcp-session-id')).toBeNull();
+  });
+
+  it('serves a legacy and a modern client on one key, call after call', async () => {
+    const dispatch = vi.fn().mockResolvedValue({ automations: [] });
+    const { serve } = context(dispatch);
+    const legacyInit = await serve(
+      rpc({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: { protocolVersion: '2025-11-25', capabilities: {} },
+      }),
+    );
+    const discovered = await modern(modernRequest('server/discover'), dispatch);
+    const legacyCall = await serve(
+      new Request('https://app.example.test/api/v1/mcp', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'mcp-protocol-version': '2025-11-25',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'tools/call',
+          params: { name: 'list_automations', arguments: {} },
+        }),
+      }),
+    );
+    const modernCall = await modern(
+      modernRequest('tools/call', { name: 'list_automations', arguments: {} }),
+      dispatch,
+    );
+    expect(legacyInit.status).toBe(200);
+    expect(discovered.status).toBe(200);
+    expect(legacyCall.status).toBe(200);
+    const legacyBody = (await legacyCall.json()) as {
+      result: Record<string, unknown>;
+    };
+    // The legacy answer stays as it was: no modern fields.
+    expect(legacyBody.result.resultType).toBeUndefined();
+    expect(legacyBody.result._meta).toBeUndefined();
+    expect(modernCall.payload.result).toMatchObject({ resultType: 'complete' });
+    expect(dispatch).toHaveBeenCalledTimes(2);
   });
 });

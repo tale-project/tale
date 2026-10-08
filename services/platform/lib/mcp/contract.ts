@@ -3,12 +3,16 @@ import { createHash } from 'node:crypto';
 import { type McpToolListing, toolListing } from './listing';
 import { MCP_PROMPTS } from './prompts';
 import { MCP_RESOURCE_TEMPLATES, MCP_STATIC_RESOURCES } from './resources';
-import { MCP_PROTOCOL_VERSIONS, MCP_SERVER_CAPABILITIES } from './server';
+import {
+  MCP_LEGACY_PROTOCOL_VERSIONS,
+  MCP_MODERN_PROTOCOL_VERSIONS,
+  MCP_SERVER_CAPABILITIES,
+} from './server';
 import { MCP_TOOLS } from './tools';
 
 /**
  * The fingerprint of what an MCP client can depend on: the protocol
- * revisions, the capabilities, every tool's name, input and output
+ * revisions of each era, the capabilities, every tool's name, input and output
  * schemas, annotations and client hints, every fixed resource's address and
  * type, every address template, and every prompt's name and arguments. `contract.test.ts` holds it to the
  * one recorded beside `API_CONTRACT_VERSION` (`contract-fingerprint.json`),
@@ -88,7 +92,10 @@ export function mcpInventoryFingerprint(
   tools: readonly McpToolListing[] = MCP_TOOLS.map(toolListing),
 ): string {
   const contract = {
-    protocolVersions: MCP_PROTOCOL_VERSIONS,
+    protocolVersions: {
+      modern: MCP_MODERN_PROTOCOL_VERSIONS,
+      legacy: MCP_LEGACY_PROTOCOL_VERSIONS,
+    },
     capabilities: MCP_SERVER_CAPABILITIES,
     tools: tools.map((tool) => ({
       name: tool.name,

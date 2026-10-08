@@ -233,7 +233,7 @@ One request can carry many calls, so one header cannot name a start. A request w
 
 Every answered call adds one to a counter of its organization, its person, the API key, the method
 and the tool, for its day (UTC), with whether it was refused or failed, and the name the client gave
-itself when it connected. No argument, result or address is kept, so nothing an agent pasted into a
+itself — when it connected on the 2025 revisions, on every call on 2026-07-28. No argument, result or address is kept, so nothing an agent pasted into a
 call ends up in the counters or in the log line the call writes. The same key in two organizations
 counts twice, once in each. Counters are kept 90 days, and an erasure of the person removes theirs.
 
@@ -254,13 +254,33 @@ client's name when the client gave one.
 
 ### MCP-R16 · A protocol revision it does not speak is answered with the revisions it does
 
-The endpoint speaks the MCP revisions 2025-11-25, 2025-06-18 and 2025-03-26. A client whose
-`initialize` proposes another revision is answered with the newest one the endpoint speaks; a
-request whose `MCP-Protocol-Version` header names another revision is refused (`-32022`) with the
-revisions it speaks under `data.supported`, so a client that speaks several can pick one and retry.
+The endpoint speaks the MCP revisions 2026-07-28, 2025-11-25, 2025-06-18 and 2025-03-26. A client
+whose `initialize` proposes another revision — 2026-07-28 included, which never initializes — is
+answered with the newest one `initialize` opens, 2025-11-25; a request whose `MCP-Protocol-Version`
+header or `_meta` names another revision is refused (`-32022`) with the revisions it speaks under
+`data.supported`, so a client that speaks several can pick one and retry.
 
-- **Example**: Ada's client sends `MCP-Protocol-Version: 2024-11-05` → refused, naming 2025-11-25,
-  2025-06-18 and 2025-03-26; its `initialize` proposing 2024-11-05 is answered with 2025-11-25.
+- **Example**: Ada's client sends `MCP-Protocol-Version: 2024-11-05` → refused, naming 2026-07-28,
+  2025-11-25, 2025-06-18 and 2025-03-26; its `initialize` proposing 2024-11-05 is answered with
+  2025-11-25.
+
+### MCP-R26 · One endpoint serves both protocol eras, each request by its own rules
+
+A request whose `_meta` names its revision (2026-07-28) is served on its own, with nothing kept
+from an earlier one: it needs no `initialize`, `server/discover` says what the server speaks, and
+its `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers must say what its body says, or it
+is refused (`-32020`) before anything runs. It carries one message — a batch naming 2026-07-28 is
+refused whole —, a method that revision does not have (`initialize`, `ping`) is answered 404, an
+address that reads nothing is `-32602`, and every answer says it is complete and names the server,
+with how long a client may keep what can be cached, for this key alone. A request without that
+envelope is served as before (`initialize`, batches, `-32002`). Both reach the same tools with the
+same rules, and a 2026-07-28 client names itself on every call, so what it writes names it.
+
+- **Example**: Ada's Claude Code asks `server/discover` and lists the automations on 2026-07-28,
+  while her deployment script, on the same key, sends `initialize` and a batch on 2025-11-25 → both
+  are answered; the version Claude Code saves records "claude-code" as its client.
+- **Example**: A proxy rewrites Ada's `Mcp-Name: get_run` to `cancel_run` without touching the body
+  → refused with `-32020`, and no run is read or stopped.
 
 ## Resources and prompts
 
@@ -274,8 +294,8 @@ Reading a resource is the tool call it stands for — `tale://automations/{name}
 `get_automation`, `tale://runs/{runId}` is `get_run`, `tale://docs/{topic}` is `get_docs` — for the
 same person, in the same organization, through the same checks; the list of resources names only
 the automations `list_automations` would. An address that reads nothing answers "resource not
-found" (`-32002`) with the tool's own refusal code, whether the thing does not exist or the person
-cannot see it. A prompt attaches the automation, run or reference it is about by reading it the
+found" (`-32002`, or `-32602` on 2026-07-28) with the tool's own refusal code, whether the thing
+does not exist or the person cannot see it. A prompt attaches the automation, run or reference it is about by reading it the
 same way, and a prompt whose run or automation cannot be read is refused with that code.
 
 - **Example**: Mia, an ordinary member, is not in the HR team. Her agent reads
@@ -301,7 +321,11 @@ deployment of a release. A signed-in person downloads it in the app; an agent re
   runs and triggers) is held by the [automations spec](../automations/spec.md); the capability
   surface's own rules (searching and invoking capabilities, retrieving knowledge) are not covered.
 - A client of the 2025 protocol revisions names itself only when it connects, not on each call, so
-  a version its agent saves records the door and the key but no client name.
+  a version its agent saves records the door and the key but no client name; a 2026-07-28 client
+  names itself on every call (MCP-R26).
 - The tool inventory and each tool's arguments (`lib/mcp/tools.ts`, `lib/mcp/args.ts`).
-- A client cannot subscribe to a resource or be told that a list changed: the lists are read
-  again when a client reconnects.
+- A client cannot subscribe to a resource or be told that a list changed (`subscriptions/listen`
+  answers 404 on 2026-07-28): the lists are read again when a client reconnects, or on 2026-07-28
+  once the time the answer named has passed.
+- The 2026-07-28 revision's questions back to the client (an answer that asks for input) and its
+  per-request log level are not used: every answer is complete.

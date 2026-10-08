@@ -443,6 +443,19 @@
  * the kind's `reference`. In a batch, a resource read or listing and a
  * prompt draw from the request budget like a tool call. The session route
  * `GET /api/app/mcp/skill` downloads the Tale skill (`SKILL.md`).
+ * The endpoint also speaks MCP 2026-07-28, request by request beside the
+ * 2025 revisions: a request whose `params._meta` names its revision (with
+ * the client's capabilities and, optionally, its name) needs no
+ * `initialize`; `server/discover` answers the revisions, capabilities and
+ * instructions; its `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name`
+ * headers must say what its body says (else 400 -32020), a missing envelope
+ * is 400 -32602, a revision it does not speak is 400 -32022 (now listing
+ * 2026-07-28 too), a batch is refused (400 -32600), and `initialize`,
+ * `ping` and unknown methods are 404 -32601; every result adds `resultType`
+ * and the server under `_meta`, the lists, reads and `server/discover` add
+ * `ttlMs` and `cacheScope: "private"`, and a read that finds nothing is
+ * -32602 with the same `data`. The client a 2026-07-28 request names is
+ * recorded with the call and on the versions and audit rows it writes.
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
  */

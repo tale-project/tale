@@ -6513,7 +6513,7 @@ export function buildSpec(): Json {
           code: {
             type: 'integer',
             description:
-              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, a `tools/call` without a name, a malformed resource address, an unknown prompt or its arguments), -32002 a resource address that reads nothing (`data.code` names the refusal), -32603 a resource read that failed unexpectedly (`data.requestId`), -32022 unsupported protocol revision (`data.supported`), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait). Arguments that do not match a tool’s advertised input schema are a tool result flagged `isError` whose text names the tool-error code INVALID_ARGUMENTS (a tool code, not a REST one), never an error envelope',
+              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, a `tools/call` without a name, a malformed resource address, an unknown prompt or its arguments; on 2026-07-28 also a missing or malformed `params._meta` envelope, `data.missing` / `data.malformed`, and a resource address that reads nothing), -32002 a resource address that reads nothing on the 2025 revisions (`data.code` names the refusal), -32603 a resource read that failed unexpectedly (`data.requestId`), -32020 a 2026-07-28 request whose `MCP-Protocol-Version`, `Mcp-Method` or `Mcp-Name` header is missing or does not say what its body says, -32022 unsupported protocol revision (`data.supported`), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait). Arguments that do not match a tool’s advertised input schema are a tool result flagged `isError` whose text names the tool-error code INVALID_ARGUMENTS (a tool code, not a REST one), never an error envelope',
           },
           message: str,
         },
@@ -6527,11 +6527,19 @@ export function buildSpec(): Json {
       tags: ['MCP'],
       summary: 'The platform MCP endpoint',
       description:
-        'JSON-RPC over HTTP (MCP protocol 2025-11-25, or 2025-06-18 or ' +
-        '2025-03-26 when the client proposes it; JSON responses only, no ' +
-        'SSE). `initialize` answers `instructions` and reports the API ' +
-        'contract version as `serverInfo.version`. One message per ' +
-        'request, or a JSON-RPC batch answered as an array. Authenticate with ' +
+        'JSON-RPC over HTTP, both MCP protocol eras on one endpoint ' +
+        '(JSON responses only, no SSE). On 2025-11-25, or 2025-06-18 or ' +
+        '2025-03-26 when the client proposes it, the client opens with ' +
+        '`initialize`, which answers `instructions` and reports the API ' +
+        'contract version as `serverInfo.version`; a request carries one ' +
+        'message, or a JSON-RPC batch answered as an array. On 2026-07-28 ' +
+        'there is no `initialize`: every request carries its revision and ' +
+        'the client’s capabilities in `params._meta`, mirrored into the ' +
+        '`MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers; ' +
+        '`server/discover` answers the revisions, capabilities and ' +
+        'instructions; a request carries one message; and every result adds ' +
+        '`resultType` and the server under `_meta`, with `ttlMs` and ' +
+        '`cacheScope` where a client may cache it. Authenticate with ' +
         'the same Bearer org API key as the REST API. Call `tools/list` for ' +
         'the tool inventory — automation authoring, run and trigger management, ' +
         'and the organization’s capability surface — and the `get_docs` tool ' +
@@ -6552,7 +6560,7 @@ export function buildSpec(): Json {
             maxItems: 20,
             items: jsonRpcMessage,
             description:
-              'A JSON-RPC batch — at most 20 messages; every tool call beyond the first draws from the request budget like a request of its own',
+              'A JSON-RPC batch, on the 2025 revisions only — at most 20 messages; every tool call, resource read or listing, or prompt beyond the first draws from the request budget like a request of its own',
           },
         ],
       }),
@@ -6568,7 +6576,11 @@ export function buildSpec(): Json {
             'A notification (a message without an id), or a batch of notifications alone — acknowledged, no body',
         },
         '400': jsonResponse(
-          'The body could not be acted on: not JSON (-32700); not a JSON-RPC 2.0 message, an id that is not a string or an integer, or an empty batch (-32600); or an `MCP-Protocol-Version` header naming a revision the endpoint does not speak (-32022, with `data.supported` listing the ones it does and `data.requested`)',
+          'The body could not be acted on: not JSON (-32700); not a JSON-RPC 2.0 message, an id that is not a string or an integer, an empty batch, or a batch naming 2026-07-28 (-32600); an `MCP-Protocol-Version` header or a `_meta` revision the endpoint does not speak (-32022, with `data.supported` listing the ones it does and `data.requested`); or, on 2026-07-28, a missing or malformed `params._meta` envelope (-32602) or a header that is missing or does not say what the body says (-32020). Nothing runs',
+          jsonRpcError,
+        ),
+        '404': jsonResponse(
+          'On 2026-07-28 only: a method that revision does not have — `initialize`, `ping` or one the endpoint does not serve (-32601). The 2025 revisions answer an unknown method with 200',
           jsonRpcError,
         ),
         '401': standardErrors['401'],

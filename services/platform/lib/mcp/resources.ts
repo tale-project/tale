@@ -1,4 +1,8 @@
 import { MCP_DOC_TOPICS, type McpDocTopic } from './docs/topics';
+import {
+  MCP_FRESH_FOR_A_LISTING_MS,
+  MCP_FRESH_FOR_A_RELEASE_MS,
+} from './server';
 
 /**
  * The MCP endpoint's resources — what a client can read by address instead
@@ -250,4 +254,24 @@ export function resourceTarget(
     };
   }
   return { problem: 'unknown' };
+}
+
+/**
+ * How long a client may keep what reading `uri` answered, in milliseconds
+ * (the modern revision's `ttlMs`): a reference and a core node kind's
+ * section change only with a release; the connector catalog when someone
+ * connects a connector, so for a minute; an automation and a run not at
+ * all — an agent reads an automation again right after its own save, and a
+ * cached copy would show the version before it.
+ */
+export function resourceFreshnessMs(uri: string): number {
+  const target = resourceTarget(uri);
+  if ('problem' in target) return 0;
+  if (target.tool === 'get_docs') return MCP_FRESH_FOR_A_RELEASE_MS;
+  if (target.tool === 'get_catalog') {
+    return target.args.kind === 'connector'
+      ? MCP_FRESH_FOR_A_LISTING_MS
+      : MCP_FRESH_FOR_A_RELEASE_MS;
+  }
+  return 0;
 }

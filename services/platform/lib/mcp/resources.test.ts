@@ -7,6 +7,7 @@ import {
   CATALOG_KINDS,
   MCP_RESOURCE_TEMPLATES,
   MCP_STATIC_RESOURCES,
+  resourceFreshnessMs,
   resourceTarget,
   runResourceUri,
 } from './resources';
@@ -126,6 +127,34 @@ describe('the resource addresses', () => {
       'tale://runs/%20',
     ]) {
       expect(resourceTarget(uri), uri).toEqual({ problem: 'invalid' });
+    }
+  });
+});
+
+describe('how long a client may keep a read, on 2026-07-28 [MCP-R26]', () => {
+  test('a reference and a core node kind for an hour, the connector catalog for a minute', () => {
+    for (const topic of MCP_DOC_TOPICS) {
+      expect(resourceFreshnessMs(`tale://docs/${topic}`), topic).toBe(
+        3_600_000,
+      );
+    }
+    for (const kind of CATALOG_KINDS) {
+      expect(resourceFreshnessMs(`tale://catalog/${kind}`), kind).toBe(
+        kind === 'connector' ? 60_000 : 3_600_000,
+      );
+    }
+  });
+
+  test('an automation, one of its versions and a run not at all — an agent reads again after its own save', () => {
+    for (const uri of [
+      automationResourceUri('billing/dunning'),
+      automationResourceUri('billing/dunning', 3),
+      automationResourceUri('billing/dunning', 'deployed'),
+      runResourceUri('run_1'),
+      'tale://projects/p1',
+      'tale://automations/billing/versions/x',
+    ]) {
+      expect(resourceFreshnessMs(uri), uri).toBe(0);
     }
   });
 });

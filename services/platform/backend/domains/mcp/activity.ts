@@ -19,6 +19,7 @@ import type { McpCaller } from './caller.ts';
  * rows by inventing method names. */
 export const MCP_RECORDED_METHODS = [
   'initialize',
+  'server/discover',
   'ping',
   'tools/list',
   'tools/call',
@@ -50,7 +51,8 @@ export interface McpCallRecord {
   readonly code?: string;
   readonly ms: number;
   /** What the client called itself on this message, through
-   * `displayClientName` — `initialize` only on the legacy protocol. */
+   * `displayClientName` — on every request of the modern revision, on
+   * `initialize` only on the legacy ones. */
   readonly clientName?: string;
 }
 
