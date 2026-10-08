@@ -94,6 +94,17 @@ exec's group and replaced its environment. runnerd's startup line names the
 shim it uses (`execShim=`). On SIGTERM, runnerd passes the signal on to every
 live exec, and to what exited execs left waiting, before it exits.
 
+**An exec's command ranks above runnerd for the OOM killer.** runnerd keeps
+the score its container starts with (`--oom-score-adj=500` on Docker); before
+the shim runs the command it raises the command's adjustment to 900, never
+lowering a higher one, and everything the command starts inherits it, while
+the shim itself keeps runnerd's. When a session reaches its memory limit, the
+kernel's OOM killer, which picks the highest score, ends a build or a test run
+before runnerd, whose end would be the container's and every exec's in it.
+Raising a score needs no privilege, so this holds with every capability
+dropped; where the kernel has no such file or refuses the write, the command
+runs with the score it inherited and nothing is reported.
+
 runnerd is the only child of the container's init, so its end is the
 container's, and every exec in it ends too. An error nothing handled does not
 take the session with it: an unhandled promise rejection (which Node 24 turns
