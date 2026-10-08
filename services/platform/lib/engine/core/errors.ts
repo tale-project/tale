@@ -171,7 +171,13 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     family: 'document',
     params: ['count', 'max'],
   },
-  SECRET_IN_DOCUMENT: { level: 'error', family: 'document', params: ['kind'] },
+  // `kind` describes the hit in English ("API key (sk-…)").
+  SECRET_IN_DOCUMENT: {
+    level: 'error',
+    family: 'document',
+    params: ['kind'],
+    technical: ['kind'],
+  },
   TESTS_INVALID: { level: 'error', family: 'test', params: ['test?', 'keys?'] },
   NODE_NOT_OBJECT: { level: 'error', family: 'node', params: ['index'] },
   NODE_ID_INVALID: { level: 'error', family: 'node', params: ['index', 'id?'] },

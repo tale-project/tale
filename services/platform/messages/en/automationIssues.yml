@@ -1,0 +1,341 @@
+# How a validation issue reads to a person: one entry per engine issue code
+# (lib/engine/core/errors.ts) with title, explanation, cause and fix, plus
+# the phrases the derived params are built from. Rendered by
+# app/features/automations/lib/issue-text.ts; guarded by
+# lib/i18n/automation-issue-keys.test.ts.
+levels:
+  error: Error
+  warning: Warning
+unknownCode:
+  title: Problem without a description
+  explanation: This version of the app doesn't describe this problem yet. The technical details show the engine's own message.
+quote: '"{text}"'
+more: '{count, plural, one {# more} other {# more}}'
+place: '{hasNode, select, true {In {fieldLabel} of {nodeLabel}} other {{field, select, output {In the automation output} other {In {fieldLabel}}}}}'
+reasons:
+  when: when its own condition is false
+  else: when {partnerLabel} runs instead
+  upstream: when {viaLabel} is skipped
+  error: when it fails, because it continues on error
+  sometimes: on some runs
+sources:
+  node: '{nodeLabel}'
+  input: the run input
+  item: each item
+  ownInput: this node's input
+  passOutput: this pass's result
+  data: this data
+places:
+  document: Automation
+  output: Output
+  inputs: Inputs
+  tests: Tests
+  name: Name
+  version: Version
+  nodes: Nodes
+codes:
+  AUTOMATION_NOT_OBJECT:
+    title: Document isn't an automation
+    explanation: An automation document is a mapping of fields such as name, nodes and output. Anything else can't be read as an automation.
+    cause: The document isn't a mapping of fields.
+    fix: Start the document with version, name, nodes and output.
+  UNKNOWN_TOP_FIELD:
+    title: Unknown top-level field
+    explanation: The top level of a document takes only the fields Tale knows. An unknown field is refused rather than ignored, so a typo can't go unnoticed.
+    cause: The document has a field "{field}".
+    fix: '{field, select, edges {Remove it. Edges come from the references between nodes, so a document has no edge list.} other {Remove it, or use one of these fields: {allowedList}.}}'
+  VERSION_UNSUPPORTED:
+    title: Unsupported version
+    explanation: This version of Tale reads documents of format version 1.
+    cause: The document declares version {version}.
+    fix: Set version to 1.
+  VERSION_MISSING:
+    title: Version missing
+    explanation: A document says which format version it uses, so later versions of Tale keep reading it the same way.
+    cause: The document has no version field.
+    fix: 'Add version: 1 at the top of the document.'
+  NAME_INVALID:
+    title: Name missing or invalid
+    explanation: The name identifies the automation. It is lowercase, with "/" between folders, such as billing/dunning-reminder.
+    cause: '{name, select, none {The document has no name.} other {"{name}" isn''t a valid name.}}'
+    fix: Use lowercase letters and digits, "-" or "_" between words and "/" between folders, with at most 200 characters.
+  INPUTS_SCHEMA_INVALID:
+    title: Inputs schema is invalid
+    explanation: The inputs field describes the data a run receives, as a JSON Schema. A run can't be checked against a schema that doesn't work.
+    cause: The inputs field isn't a valid JSON Schema object.
+    fix: Fix the schema, for example an object type with one property per input. The technical details show what the check found.
+  NODES_MISSING:
+    title: No nodes
+    explanation: An automation does its work in nodes. Without any, there is nothing to run.
+    cause: The nodes list is missing or empty.
+    fix: Add at least one node.
+  NODES_TOO_MANY:
+    title: Too many nodes
+    explanation: An automation holds a limited number of nodes, so it stays readable and quick to check.
+    cause: The automation has {count} nodes, and the limit is {max}.
+    fix: Move groups of related nodes into saved automations and call them with subautomation nodes.
+  SECRET_IN_DOCUMENT:
+    title: Credential in the document
+    explanation: Documents are stored and shared as plain text, so they never hold credentials. Tale adds secrets when the automation runs, from the connector's configuration.
+    cause: A value in the document looks like an API key, a token or a password.
+    fix: Remove the value and store the credential on the connector instead.
+  TESTS_INVALID:
+    title: Test is malformed
+    explanation: Each test has a name, an input and, optionally, what it expects. A test in any other shape can't run.
+    cause: '{test, select, none {The tests field isn''t a list of tests.} other {{keysCount, plural, =0 {Test {testNumber} isn''t written as name, input and expect.} other {The expect part of test {testNumber} has unknown keys: {keysList}.}}}}'
+    fix: Write each test as name, input and, optionally, expect with output and effects.
+  NODE_NOT_OBJECT:
+    title: Node isn't an object
+    explanation: Each entry in nodes is an object with at least an id and a type.
+    cause: Entry {position} in the nodes list isn't an object.
+    fix: Replace it with a node, or remove it.
+  NODE_ID_INVALID:
+    title: Node id missing or invalid
+    explanation: Every node needs an id in snake_case, such as fetch_orders. Other nodes read its output through this id.
+    cause: '{id, select, none {Node {position} has no id.} other {Node {position} has the id "{id}".}}'
+    fix: Use lowercase letters, digits and underscores, starting with a letter.
+  NODE_ID_DUPLICATE:
+    title: Duplicate node id
+    explanation: Node ids are unique, because references find a node by its id.
+    cause: Node {firstPosition} already has the id "{node}".
+    fix: Rename one of the two nodes, and update the references that should point to it.
+  UNKNOWN_NODE_TYPE:
+    title: Unknown node type
+    explanation: A node's type is transform, llm, agent, subautomation or the name of a capability from the catalog.
+    cause: '{type, select, none {{nodeLabel, select, none {A node} other {{nodeLabel}}} has no type.} connector {{nodeLabel, select, none {A node} other {{nodeLabel}}} has the type "connector", which isn''t a capability name.} other {{nodeLabel, select, none {A node} other {{nodeLabel}}} has the type "{type}", which this deployment doesn''t know.}}'
+    fix: '{suggestion, select, none {{type, select, connector {Set the type to the name of the capability itself, as the catalog lists it.} other {Use transform, llm, agent, subautomation or the name of a capability from the catalog.}}} other {Did you mean "{suggestion}"?}}'
+  NODE_UNKNOWN_FIELD:
+    title: Field doesn't belong to this node
+    explanation: Each node type takes only its own fields. An unknown field is refused rather than ignored, so a typo can't go unnoticed.
+    cause: '{nodeLabel} ({type}) has no field "{field}".'
+    fix: 'Remove it, or use one of these fields: {allowedList}.'
+  NODE_MISSING_FIELD:
+    title: Required field missing
+    explanation: Some fields are required for a node type, such as the code of a transform or the model of an llm node.
+    cause: '{nodeLabel} ({type}) needs {fieldLabel}.'
+    fix: Fill in {fieldLabel}.
+  NODE_FIELD_TYPE:
+    title: Field has the wrong type
+    explanation: Node fields have fixed types. Conditions and loops are templates, an input is an object, and an agent's lists are lists of names.
+    cause: '{expected, select, repeatUntil {{fieldLabel} of {nodeLabel} only works together with a "Repeat until" condition.} other {{fieldLabel} of {nodeLabel} must be {expected, select, template {one template, such as ''{{'' nodes.check.output.ok ''}}''} nodeId {the id of another node} object {an object} string {text} stringArray {a list of names} filesMap {a mapping from names to files or folders} other {{expected}}}.}}'
+    fix: '{expected, select, repeatUntil {Add a "Repeat until" condition, or remove {fieldLabel}.} other {Give {fieldLabel} a value of that type.}}'
+  CODE_SYNTAX:
+    title: Code has a syntax error
+    explanation: A transform's code is the body of a JavaScript function. Code that doesn't parse can't run.
+    cause: The code of {nodeLabel} doesn't parse.
+    fix: Fix the syntax at the marked position. The technical details show the parser's message.
+  CODE_NO_IO:
+    title: Code can't reach the network
+    explanation: Transform code runs without network or module access, so a call such as fetch or require fails when the node runs.
+    cause: The code of {nodeLabel} uses "{token}".
+    fix: Fetch the data in a capability node, and pass its output to this node through this node's input.
+  CODE_NO_RETURN:
+    title: Code returns nothing
+    explanation: A transform's output is what its code returns. Without a return statement, the output is empty.
+    cause: The code of {nodeLabel} has no return statement.
+    fix: End the code with return and the value the node should produce.
+  OUTPUT_SCHEMA_INVALID:
+    title: Output schema is invalid
+    explanation: An output schema is a JSON Schema object that turns a model's answer into named fields.
+    cause: The output schema of {nodeLabel} isn't a valid JSON Schema object.
+    fix: Fix the schema, for example an object type with the properties you need. The technical details show what the check found.
+  ELSEOF_TARGET_INVALID:
+    title: '"Else of" names the wrong node'
+    explanation: '"Else of" makes a node the alternative of another node that has a "When" condition. It runs exactly when that node is skipped by its condition.'
+    cause: '{reason, select, self {{nodeLabel} names itself in "Else of".} other {"{target}" isn''t another node with a "When" condition.}}'
+    fix: In "Else of", name another node that has a "When" condition.
+  REPEAT_MAX_INVALID:
+    title: Repeat limit out of range
+    explanation: The repeat limit is a whole number from 1 to 20, so every loop ends.
+    cause: '{nodeLabel} sets the limit to {value}.'
+    fix: Use a whole number from 1 to 20.
+  ONERROR_INVALID:
+    title: Invalid error handling
+    explanation: On error is either fail, which stops the run at the node, or continue, which records the failure and skips the nodes that read this one.
+    cause: '{nodeLabel} sets it to "{value}".'
+    fix: Use fail or continue.
+  SUBAUTOMATION_REF_INVALID:
+    title: Called automation is written incorrectly
+    explanation: A subautomation node names the automation it calls as name or name@version.
+    cause: '{nodeLabel} calls "{ref}".'
+    fix: Write the automation's name, optionally followed by @ and a version number, such as billing/reminder@3.
+  SUBAUTOMATION_NOT_FOUND:
+    title: Called automation not found
+    explanation: A subautomation node calls a saved automation of this organization, so that automation must exist in the version the node names.
+    cause: '{version, select, none {No saved automation is named {automationLabel}.} other {{automationLabel} has no version {version}{latest, select, none {} other {. The latest is version {latest}}}.}}'
+    fix: '{suggestion, select, none {{version, select, none {Save that automation first, or call one that exists.} other {Call a version that exists, or leave out the version to call the deployed one.}}} other {Did you mean "{suggestion}"?}}'
+  SUBAUTOMATION_HAS_AGENT_NODE:
+    title: Called automation contains an agent node
+    explanation: An agent node runs as a turn that can pause and resume, which a called automation can't do. A live run fails at this node.
+    cause: '{automationLabel} contains the agent node {childNodeLabel}.'
+    fix: Run the agent node in this automation instead, or replace it with an llm node in the called one.
+  SUBAUTOMATION_HAS_WRITE:
+    title: Called automation performs a write
+    explanation: A called automation can't wait for an approval. When the approval policy asks a person to release a write, the run fails.
+    cause: '{automationLabel} writes through {childNodeLabel} ({childType}).'
+    fix: Move the write into this automation, or make sure the approval policy releases it without asking.
+  EXPR_SYNTAX:
+    title: Expression has a syntax error
+    explanation: A template holds one JavaScript expression between '{{' and '}}'. An expression that doesn't parse fails when the node runs.
+    cause: '{place}, ''{{'' {expr} ''}}'' doesn''t parse.'
+    fix: Fix the expression at the marked position. The technical details show the parser's message.
+  REF_UNKNOWN_NODE:
+    title: Reference to an unknown node
+    explanation: nodes.<id> reads the output of the node with that id. No node has this id, so the read fails when the automation runs.
+    cause: '{place}, nodes.{ref} names a node that doesn''t exist.'
+    fix: '{suggestion, select, none {{knownCount, plural, =0 {Add the node, or remove the reference.} other {Use the id of an existing node: {knownList}.}}} other {Did you mean "{suggestion}"?}}'
+  REF_SELF:
+    title: Node reads itself
+    explanation: A node can't read its own output, because the output exists only after the node has run.
+    cause: '{place}, {nodeLabel} reads its own output.'
+    fix: Read another node, or compute the value inside this node.
+  REF_NOT_OUTPUT:
+    title: Node read without .output
+    explanation: A node's result is under nodes.<id>.output. A node has no other members to read.
+    cause: '{place}, nodes.{source}.{member} leaves out .output.'
+    fix: Read the result through .output, such as nodes.{source}.output.
+  REF_BARE:
+    title: Node read without .output
+    explanation: nodes.<id> on its own isn't the node's result, which is under .output.
+    cause: '{place}, nodes.{source} is used without .output.'
+    fix: Write nodes.{source}.output, or read one of its fields.
+  REF_CYCLE:
+    title: Nodes read each other in a circle
+    explanation: The run order follows the references between nodes. Nodes that read each other in a circle have no order, so the automation can't run.
+    cause: The circle is {cycleList}.
+    fix: Remove one of these references to break the circle.
+  REF_UNSTRUCTURED_PATH:
+    title: Text output has no fields
+    explanation: Some nodes return plain text, such as an llm node without an output schema. Their output has only .text, so other fields don't exist.
+    cause: '{place}, nodes.{source}.output.{member} reads a field, but {sourceLabel} returns only text ({sourceType}).'
+    fix: '{sourceType, select, llm {Give {sourceLabel} an output schema, or read nodes.{source}.output.text.} other {Read nodes.{source}.output.text, or turn the text into fields with an llm node that has an output schema.}}'
+  ITEM_WITHOUT_FOREACH:
+    title: Item used outside a loop
+    explanation: item and index exist only in a node that runs "For each". Elsewhere, a template or condition that uses them fails, and code reads them as undefined.
+    cause: '{place}, {namesCount, plural, one {{namesList} is used} other {{namesList} are used}}, but {nodeLabel} has no "For each".'
+    fix: Add "For each" to {nodeLabel}, or read the value from the run input or from another node.
+  INPUT_KEY_UNKNOWN:
+    title: Input isn't declared
+    explanation: input.<key> reads a value from the run input. The inputs schema doesn't declare this key, so a run may not have it.
+    cause: '{place}, input.{key} reads "{key}", which the inputs schema doesn''t declare.'
+    fix: '{suggestion, select, none {Declare "{key}" in the inputs schema{declaredCount, plural, =0 {} other {, or use one of these inputs: {declaredList}}}.} other {Did you mean "{suggestion}"?}}'
+  TEMPLATE_UNTERMINATED:
+    title: Template isn't closed
+    explanation: A '{{' without its '}}' stays plain text instead of being filled in.
+    cause: '{place}, a ''{{'' has no closing ''}}''.'
+    fix: Close the template with '}}', or remove the stray '{{'.
+  EXPR_UNKNOWN_NAME:
+    title: Unknown name
+    explanation: An expression can use only the names its field provides, such as input and nodes, and JavaScript's built-ins. Any other name fails when the node runs.
+    cause: '{place}, "{name}" isn''t available.{availableCount, plural, =0 {} one { Available there: {availableList}.} other { Available there: {availableList}.}}'
+    fix: '{suggestion, select, none {{name, select, output {output exists only in "Repeat until". Read nodes.<id>.output instead.} other {Use one of the available names.}}} other {Did you mean "{suggestion}"?}}'
+  ITEM_OUT_OF_SCOPE:
+    title: Item used before the loop
+    explanation: '"When" and "For each" are read once, before the node goes through its items, so item and index don''t exist there yet. The node fails.'
+    cause: '{place}, "{name}" is used.'
+    fix: '{field, select, when {To skip some items, filter the list in "For each" instead.} other {"For each" names the list itself. Read it from the run input or from another node.}}'
+  REF_UNKNOWN_FIELD:
+    title: Field doesn't exist
+    explanation: A reference reads a field its data doesn't have, so it finds nothing when the automation runs.
+    cause: '{place}, {ref} reads "{key}" from {sourceLabel}, which has no such field.{listWrapped, select, true { That value is a list.} other {{knownCount, plural, =0 {} other { Its fields: {knownList}.}}}}'
+    fix: '{suggestion, select, none {{listWrapped, select, true {Read one item of the list, or map over it.} other {{root, select, input {{field, select, code {Add "{key}" to the input of this node to pass it in.} other {Declare "{key}" in the inputs schema, or read a field it declares.}}} other {Use a field that exists, or change what produces this data.}}}}} other {Did you mean "{suggestion}"?}}'
+  TYPE_MISMATCH:
+    title: Value has the wrong type
+    explanation: A value reaches a place that needs a different kind of data, so the node is likely to fail.
+    cause: '{consumer, select, forEach {"For each" of {nodeLabel} needs a list, but {expr} is {actual}.} subautomationInput {The input "{property}" of {automationLabel} needs {expected}, but {expr} is {actual}.} other {The input "{property}" of {nodeLabel} needs {expected}, but {expr} is {actual}.}}'
+    fix: '{consumer, select, forEach {Point "For each" at a list{suggestion, select, none {} other {, such as ''{{'' {expr}.{suggestion} ''}}''}}.} other {Pass a value of type {expected}.}}'
+  TEMPLATE_NULL_INTERPOLATION:
+    title: Value may be missing inside text
+    explanation: A value placed inside text can be empty. When it is, the node fails instead of writing "undefined" into the text.
+    cause: '{place}, {expr} {why, select, optional {is optional} other {can be null}}.'
+    fix: Give it a fallback, such as '{{' {expr} ?? "" '}}'.
+  FOREACH_NOT_ARRAY:
+    title: '"For each" isn''t a list'
+    explanation: '"For each" runs a node once per item of a list. This value can never be a list, so the node fails every time it runs.'
+    cause: '{reason, select, notATemplate {"For each" of {nodeLabel} is "{value}", which has no template, so it stays plain text.} mixedText {Text around the template turns "For each" of {nodeLabel} into text.} other {"For each" of {nodeLabel} is always {kind, select, null {null} undefined {undefined} string {text} number {a number} boolean {true or false} object {an object} other {{kind}}}.}}'
+    fix: Write "For each" as one template that gives a list, such as '{{' nodes.fetch.output.items '}}'.
+  AGENT_ITERATION_UNSUPPORTED:
+    title: Agent nodes can't repeat
+    explanation: An agent node runs one turn. It can't run once per item or repeat yet, so a live run fails at this node.
+    cause: '{nodeLabel} uses {fieldLabel}.'
+    fix: Give each item its own agent node, or do the per-item work in an llm node.
+  MAYBE_NULL:
+    title: Reads a node that may be skipped
+    explanation: A condition or the output reads a field of a node that doesn't always run. When that node is skipped, its output is empty and reading a field of it fails.
+    cause: '{place}, {ref} reads {sourceLabel}, which is skipped {reasonText}.'
+    fix: Guard the read, for example {suggestion}. Or add an alternative node with "Else of".
+  UNCAUGHT_FAILURE:
+    title: A tolerated failure isn't handled
+    explanation: A node continues when it fails, but another place reads its result without a fallback. When the node fails, that read fails too, so the run fails anyway, with a less helpful error.
+    cause: '{failingIsSource, select, true {{place}, {ref} reads {sourceLabel}, which continues on error.} other {{place}, {ref} reads {sourceLabel}, which is skipped when {failingLabel} fails, and {failingLabel} continues on error.}}'
+    fix: Guard the read, for example {suggestion}. Or let {failingLabel} stop the run when it fails.
+  UNREACHABLE:
+    title: Node can never run
+    explanation: No combination of conditions lets this node run, so it never does its work.
+    cause: '{cause, select, constantWhen {The "When" condition of {nodeLabel} is always false.} elsePartnerAlwaysRuns {{nodeLabel} stands in for {partnerLabel}, which always runs.} elsePartnerUnreachable {{nodeLabel} stands in for {partnerLabel}, which never runs.} readsPartner {{nodeLabel} reads {partnerLabel}, the node it stands in for.} exclusiveBranches {{nodeLabel} reads {aLabel} and {bLabel}, which never run together.} other {{nodeLabel} reads {viaLabel}, which can never run.}}'
+    fix: '{cause, select, constantWhen {Make the condition depend on data, or remove the node.} other {A node that reads a skipped node is skipped too. Combine alternative branches in the automation output, or remove this node.}}'
+  CONDITION_CONSTANT:
+    title: Condition never changes
+    explanation: This condition always gives the same answer, so it decides nothing.
+    cause: '{field, select, repeatUntil {{fieldLabel} of {nodeLabel} is always true, so the node runs once.} other {{cause, select, mixedText {Text around the template makes {fieldLabel} of {nodeLabel} non-empty text, which always counts as true.} other {{fieldLabel} of {nodeLabel} is always true.}}}}'
+    fix: '{cause, select, mixedText {Write the condition as one template, with no text around it.} other {Remove the condition, or make it depend on data.}}'
+  REPEAT_NEVER_TRUE:
+    title: Loop never stops early
+    explanation: '"Repeat until" is always false, so the node always runs the maximum number of passes.'
+    cause: '{nodeLabel} runs all {maxRepeats} passes every time.'
+    fix: Make the condition read the result of the pass, such as '{{' output.status === "done" '}}'.
+  REPEAT_UNTIL_STATIC:
+    title: Loop condition ignores the result
+    explanation: '"Repeat until" doesn''t read the result of the pass, so it gives the same answer after every pass.'
+    cause: The "Repeat until" condition of {nodeLabel} reads neither output nor the result of the node itself.
+    fix: Make the condition read the result of the pass, such as '{{' output.status === "done" '}}'.
+  OUTPUT_MAYBE_EMPTY:
+    title: Output may be empty
+    explanation: The output reads only nodes that are sometimes skipped. On those runs, the automation returns empty values.
+    cause: '{nodesCount, plural, one {The output reads only {nodesList}, which doesn''t run} other {The output reads only {nodesList}, and none of them runs}} {rootReason, select, when {when {rootLabel} is skipped by its condition.} error {when {rootLabel} fails, because it continues on error.} other {when {rootLabel} runs, because its alternative is then skipped.}}'
+    fix: Also read a node that always runs, or add an alternative node with "Else of".
+  CONNECTOR_INPUT_INVALID:
+    title: Input doesn't fit the capability
+    explanation: Each capability declares the input it accepts. Input that doesn't fit is refused, so the node fails.
+    cause: '{keyword, select, required {{nodeLabel} ({type}) needs the input "{property}".} additionalProperties {{nodeLabel} ({type}) doesn''t take an input "{property}".} other {{property, select, none {The input of {nodeLabel} ({type}) doesn''t fit what the capability accepts.} other {The input "{property}" of {nodeLabel} ({type}) doesn''t fit what the capability accepts.}}}}'
+    fix: '{suggestion, select, none {Change the input to what the capability accepts. The technical details show what the check found.} other {Did you mean "{suggestion}"?}}'
+  SUBAUTOMATION_INPUT_INVALID:
+    title: Input doesn't fit the called automation
+    explanation: The values passed to the called automation don't match what it accepts, so it refuses to start and this node fails.
+    cause: '{missingCount, plural, =0 {{unknownCount, plural, =0 {{automationLabel} version {version} doesn''t accept these values.} other {{automationLabel} version {version} doesn''t take {unknownList}.}}} other {{unknownCount, plural, =0 {{automationLabel} version {version} needs {missingList}.} other {{automationLabel} version {version} needs {missingList} and doesn''t take {unknownList}.}}}}'
+    fix: Pass the inputs it declares, under the names it uses.
+  TRIGGER_INPUT_MISMATCH:
+    title: Trigger input is refused
+    explanation: The trigger starts runs with input the automation's inputs don't accept, so every run it starts is refused.
+    cause: '{kind, select, schedule {The schedule} other {The trigger}} {missingCount, plural, =0 {starts runs with input the inputs schema refuses.} other {starts runs without {missingList}.}}'
+    fix: Make those inputs optional, or start this automation from a webhook, an event or the API.
+  TESTS_INPUT_INVALID:
+    title: Test input is refused
+    explanation: The input of the test doesn't match the automation's inputs, so the run refuses it and the test can't pass.
+    cause: The test "{name}" {missingCount, plural, =0 {has values the inputs don't accept} other {is missing {missingList}}}.
+    fix: Change the test input so it matches the inputs.
+  TESTS_EFFECT_UNKNOWN:
+    title: Test expects an impossible action
+    explanation: The test expects an action that no node of this automation performs, so it can never pass.
+    cause: The test "{name}" expects "{connector}".{possibleCount, plural, =0 { No node here performs an action.} other { The nodes here perform {possibleList}.}}
+    fix: '{suggestion, select, none {Expect an action a node performs.} other {Did you mean "{suggestion}"?}}'
+  TESTS_EXPECT_TYPE:
+    title: Test expects the wrong type
+    explanation: The test expects a value of a type the automation never returns, so it can't pass.
+    cause: The test "{name}" expects output.{property} to be {expected}, but the automation returns {actual} there.
+    fix: Fix the expectation, or change the output.
+  LLM_MODEL_UNAVAILABLE:
+    title: Model isn't available
+    explanation: The model of an llm or agent node must be served by one of the organization's connected providers. Otherwise, a live run fails at this node.
+    cause: '{nodeLabel} uses "{model}", which no connected provider serves.'
+    fix: Pick a model a connected provider serves, or connect the provider for this one.
+  OUTPUT_MISSING:
+    title: No output
+    explanation: The output is what the automation returns. Without one, every run returns nothing.
+    cause: The document has no output field.
+    fix: Add an output that reads the results you need, such as '{{' nodes.summary.output.text '}}'.
+  UNUSED_NODE:
+    title: Output never used
+    explanation: Nothing reads the output of this node and it has no effect, so running it does no useful work.
+    cause: '{reason, select, readersUnreachable {Only nodes that can never run read {nodeLabel}.} other {Nothing reads the output of {nodeLabel}, neither a node nor the automation output.}}'
+    fix: Read its output where you need it, or remove the node.

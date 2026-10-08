@@ -274,6 +274,12 @@ editor:
     forEachDescription: Run once per item of the array the expression resolves to.
     repeatUntil: Repeat until
     repeatUntilDescription: Re-run this node until the expression is truthy.
+    maxRepeats: Maximum repeats
+    onError: On error
+    output: Output
+    type: Type
+    id: ID
+    modelProvider: Provider
 bindings:
   title: Projects
   countBadge: '{count, plural, one {Bound to # project} other {Bound to # projects}}'

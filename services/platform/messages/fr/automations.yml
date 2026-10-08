@@ -285,6 +285,12 @@ editor:
     forEachDescription: S’exécute une fois par élément du tableau que produit l’expression.
     repeatUntil: Répéter jusqu’à
     repeatUntilDescription: Relancer ce nœud jusqu’à ce que l’expression soit vraie.
+    maxRepeats: Répétitions maximales
+    onError: En cas d’erreur
+    output: Sortie
+    type: Type
+    id: Identifiant
+    modelProvider: Fournisseur
 bindings:
   title: Projets
   countBadge: '{count, plural, one {Lié à # projet} other {Lié à # projets}}'

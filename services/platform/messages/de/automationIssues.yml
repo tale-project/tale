@@ -1,0 +1,336 @@
+levels:
+  error: Fehler
+  warning: Warnung
+unknownCode:
+  title: Problem ohne Beschreibung
+  explanation: Diese Version der App beschreibt dieses Problem noch nicht. Die technischen Details zeigen die Meldung der Engine selbst.
+quote: „{text}“
+more: '{count, plural, one {noch #} other {noch #}}'
+place: '{hasNode, select, true {Im Feld {fieldLabel} von {nodeLabel}} other {{field, select, output {In der Ausgabe der Automatisierung} other {Im Feld {fieldLabel}}}}}'
+reasons:
+  when: wenn ihre eigene Bedingung falsch ist
+  else: wenn stattdessen {partnerLabel} läuft
+  upstream: wenn {viaLabel} übersprungen wird
+  error: wenn sie fehlschlägt, weil sie bei Fehler weiterläuft
+  sometimes: in manchen Läufen
+sources:
+  node: '{nodeLabel}'
+  input: der Eingabe des Laufs
+  item: jedem Element
+  ownInput: der Eingabe dieser Node
+  passOutput: dem Ergebnis dieses Durchgangs
+  data: diesen Daten
+places:
+  document: Automatisierung
+  output: Ausgabe
+  inputs: Eingaben
+  tests: Tests
+  name: Name
+  version: Version
+  nodes: Nodes
+codes:
+  AUTOMATION_NOT_OBJECT:
+    title: Dokument ist keine Automatisierung
+    explanation: Ein Automatisierungsdokument ist eine Zuordnung von Feldern wie name, nodes und output. Alles andere lässt sich nicht als Automatisierung lesen.
+    cause: Das Dokument ist keine Zuordnung von Feldern.
+    fix: Beginne das Dokument mit version, name, nodes und output.
+  UNKNOWN_TOP_FIELD:
+    title: Unbekanntes Feld auf oberster Ebene
+    explanation: Auf der obersten Ebene eines Dokuments sind nur die Felder erlaubt, die Tale kennt. Ein unbekanntes Feld wird abgelehnt statt ignoriert, damit kein Tippfehler unbemerkt bleibt.
+    cause: Das Dokument hat ein Feld „{field}“.
+    fix: '{field, select, edges {Entferne es. Kanten entstehen aus den Referenzen zwischen Nodes, deshalb hat ein Dokument keine Kantenliste.} other {Entferne es oder verwende eines dieser Felder: {allowedList}.}}'
+  VERSION_UNSUPPORTED:
+    title: Nicht unterstützte Version
+    explanation: Diese Version von Tale liest Dokumente im Format der Version 1.
+    cause: Das Dokument gibt Version {version} an.
+    fix: Setze version auf 1.
+  VERSION_MISSING:
+    title: Version fehlt
+    explanation: Ein Dokument gibt an, welche Formatversion es verwendet, damit spätere Versionen von Tale es weiterhin gleich lesen.
+    cause: Das Dokument hat kein Feld version.
+    fix: 'Füge oben im Dokument version: 1 hinzu.'
+  NAME_INVALID:
+    title: Name fehlt oder ist ungültig
+    explanation: Der Name identifiziert die Automatisierung. Er ist kleingeschrieben, mit „/“ zwischen Ordnern, etwa billing/dunning-reminder.
+    cause: '{name, select, none {Das Dokument hat keinen Namen.} other {„{name}“ ist kein gültiger Name.}}'
+    fix: Verwende Kleinbuchstaben und Ziffern, „-“ oder „_“ zwischen Wörtern und „/“ zwischen Ordnern, mit höchstens 200 Zeichen.
+  INPUTS_SCHEMA_INVALID:
+    title: Eingabeschema ist ungültig
+    explanation: Das Feld inputs beschreibt als JSON-Schema die Daten, die ein Lauf erhält. Gegen ein Schema, das nicht funktioniert, lässt sich kein Lauf prüfen.
+    cause: Das Feld inputs ist kein gültiges JSON-Schema-Objekt.
+    fix: Korrigiere das Schema, etwa als Objekttyp mit einer Eigenschaft pro Eingabe. Die technischen Details zeigen, was die Prüfung gefunden hat.
+  NODES_MISSING:
+    title: Keine Nodes
+    explanation: Eine Automatisierung erledigt ihre Arbeit in Nodes. Ohne Nodes gibt es nichts auszuführen.
+    cause: Die Liste nodes fehlt oder ist leer.
+    fix: Füge mindestens eine Node hinzu.
+  NODES_TOO_MANY:
+    title: Zu viele Nodes
+    explanation: Eine Automatisierung enthält nur eine begrenzte Zahl von Nodes, damit sie lesbar und schnell prüfbar bleibt.
+    cause: Die Automatisierung hat {count} Nodes, erlaubt sind {max}.
+    fix: Lagere Gruppen zusammengehöriger Nodes in gespeicherte Automatisierungen aus und rufe sie mit subautomation-Nodes auf.
+  SECRET_IN_DOCUMENT:
+    title: Zugangsdaten im Dokument
+    explanation: Dokumente werden als Klartext gespeichert und geteilt, deshalb enthalten sie nie Zugangsdaten. Tale fügt Secrets erst beim Lauf hinzu, aus der Konfiguration des Connectors.
+    cause: Ein Wert im Dokument sieht wie ein API-Schlüssel, ein Token oder ein Passwort aus.
+    fix: Entferne den Wert und hinterlege die Zugangsdaten stattdessen beim Connector.
+  TESTS_INVALID:
+    title: Test ist fehlerhaft aufgebaut
+    explanation: Jeder Test hat einen Namen, eine Eingabe und optional seine Erwartung. Ein Test in einer anderen Form kann nicht laufen.
+    cause: '{test, select, none {Das Feld tests ist keine Liste von Tests.} other {{keysCount, plural, =0 {Test {testNumber} ist nicht als name, input und expect geschrieben.} other {Der Teil expect von Test {testNumber} hat unbekannte Schlüssel: {keysList}.}}}}'
+    fix: Schreibe jeden Test als name, input und optional expect mit output und effects.
+  NODE_NOT_OBJECT:
+    title: Node ist kein Objekt
+    explanation: Jeder Eintrag in nodes ist ein Objekt mit mindestens einer id und einem type.
+    cause: Eintrag {position} der Liste nodes ist kein Objekt.
+    fix: Ersetze ihn durch eine Node oder entferne ihn.
+  NODE_ID_INVALID:
+    title: Node-ID fehlt oder ist ungültig
+    explanation: Jede Node braucht eine ID in snake_case, etwa fetch_orders. Andere Nodes lesen ihre Ausgabe über diese ID.
+    cause: '{id, select, none {Node {position} hat keine ID.} other {Node {position} hat die ID „{id}“.}}'
+    fix: Verwende Kleinbuchstaben, Ziffern und Unterstriche, beginnend mit einem Buchstaben.
+  NODE_ID_DUPLICATE:
+    title: Doppelte Node-ID
+    explanation: Node-IDs sind eindeutig, weil Referenzen eine Node über ihre ID finden.
+    cause: Node {firstPosition} hat bereits die ID „{node}“.
+    fix: Benenne eine der beiden Nodes um und passe die Referenzen an, die auf sie zeigen sollen.
+  UNKNOWN_NODE_TYPE:
+    title: Unbekannter Node-Typ
+    explanation: Der Typ einer Node ist transform, llm, agent, subautomation oder der Name einer Capability aus dem Katalog.
+    cause: '{type, select, none {{nodeLabel, select, none {Eine Node} other {{nodeLabel}}} hat keinen Typ.} connector {{nodeLabel, select, none {Eine Node} other {{nodeLabel}}} hat den Typ „connector“, der kein Capability-Name ist.} other {{nodeLabel, select, none {Eine Node} other {{nodeLabel}}} hat den Typ „{type}“, den dieses Deployment nicht kennt.}}'
+    fix: '{suggestion, select, none {{type, select, connector {Setze als Typ den Namen der Capability selbst, so wie der Katalog sie aufführt.} other {Verwende transform, llm, agent, subautomation oder den Namen einer Capability aus dem Katalog.}}} other {Meintest du „{suggestion}“?}}'
+  NODE_UNKNOWN_FIELD:
+    title: Feld gehört nicht zu dieser Node
+    explanation: Jeder Node-Typ akzeptiert nur seine eigenen Felder. Ein unbekanntes Feld wird abgelehnt statt ignoriert, damit kein Tippfehler unbemerkt bleibt.
+    cause: '{nodeLabel} ist eine {type}-Node und hat kein Feld „{field}“.'
+    fix: 'Entferne es oder verwende eines dieser Felder: {allowedList}.'
+  NODE_MISSING_FIELD:
+    title: Pflichtfeld fehlt
+    explanation: Manche Felder sind für einen Node-Typ Pflicht, etwa der Code einer transform-Node oder das Modell einer llm-Node.
+    cause: '{nodeLabel} ist eine {type}-Node und braucht {fieldLabel}.'
+    fix: Fülle {fieldLabel} aus.
+  NODE_FIELD_TYPE:
+    title: Feld hat den falschen Typ
+    explanation: Node-Felder haben feste Typen. Bedingungen und Schleifen sind Templates, eine Eingabe ist ein Objekt, und die Listen einer Agent-Node sind Listen von Namen.
+    cause: '{expected, select, repeatUntil {{fieldLabel} von {nodeLabel} wirkt nur zusammen mit einer Bedingung „Wiederholen bis“.} other {{fieldLabel} von {nodeLabel} muss {expected, select, template {ein einzelnes Template sein, etwa ''{{'' nodes.check.output.ok ''}}''} nodeId {die ID einer anderen Node sein} object {ein Objekt sein} string {Text sein} stringArray {eine Liste von Namen sein} filesMap {eine Zuordnung von Namen zu Dateien oder Ordnern sein} other {vom Typ {expected} sein}}.}}'
+    fix: '{expected, select, repeatUntil {Füge eine Bedingung „Wiederholen bis“ hinzu oder entferne {fieldLabel}.} other {Gib {fieldLabel} einen Wert dieses Typs.}}'
+  CODE_SYNTAX:
+    title: Code enthält einen Syntaxfehler
+    explanation: Der Code einer transform-Node ist der Rumpf einer JavaScript-Funktion. Code, der sich nicht parsen lässt, kann nicht laufen.
+    cause: Der Code von {nodeLabel} lässt sich nicht parsen.
+    fix: Korrigiere die Syntax an der markierten Stelle. Die technischen Details zeigen die Meldung des Parsers.
+  CODE_NO_IO:
+    title: Code hat keinen Netzwerkzugriff
+    explanation: Transform-Code läuft ohne Netzwerk- und Modulzugriff. Ein Aufruf wie fetch oder require schlägt deshalb fehl, sobald die Node läuft.
+    cause: Der Code von {nodeLabel} verwendet „{token}“.
+    fix: Hole die Daten mit einer Capability-Node und reiche ihre Ausgabe über die Eingabe dieser Node weiter.
+  CODE_NO_RETURN:
+    title: Code gibt nichts zurück
+    explanation: Die Ausgabe einer transform-Node ist das, was ihr Code zurückgibt. Ohne return-Anweisung bleibt die Ausgabe leer.
+    cause: Der Code von {nodeLabel} hat keine return-Anweisung.
+    fix: Beende den Code mit return und dem Wert, den die Node liefern soll.
+  OUTPUT_SCHEMA_INVALID:
+    title: Ausgabeschema ist ungültig
+    explanation: Ein Ausgabeschema ist ein JSON-Schema-Objekt, das die Antwort eines Modells in benannte Felder verwandelt.
+    cause: Das Ausgabeschema von {nodeLabel} ist kein gültiges JSON-Schema-Objekt.
+    fix: Korrigiere das Schema, etwa als Objekttyp mit den Eigenschaften, die du brauchst. Die technischen Details zeigen, was die Prüfung gefunden hat.
+  ELSEOF_TARGET_INVALID:
+    title: „Sonst zu“ nennt die falsche Node
+    explanation: „Sonst zu“ macht eine Node zur Alternative einer anderen Node mit einer Bedingung „Wenn“. Sie läuft genau dann, wenn jene Node durch ihre Bedingung übersprungen wird.
+    cause: '{reason, select, self {{nodeLabel} nennt sich in „Sonst zu“ selbst.} other {„{target}“ ist keine andere Node mit einer Bedingung „Wenn“.}}'
+    fix: Nenne in „Sonst zu“ eine andere Node, die eine Bedingung „Wenn“ hat.
+  REPEAT_MAX_INVALID:
+    title: Wiederholungsgrenze außerhalb des Bereichs
+    explanation: Die Wiederholungsgrenze ist eine ganze Zahl von 1 bis 20, damit jede Schleife endet.
+    cause: '{nodeLabel} setzt die Grenze auf {value}.'
+    fix: Verwende eine ganze Zahl von 1 bis 20.
+  ONERROR_INVALID:
+    title: Ungültige Fehlerbehandlung
+    explanation: Bei Fehler gilt entweder fail, das den Lauf an der Node anhält, oder continue, das den Fehler festhält und die Nodes überspringt, die diese Node lesen.
+    cause: '{nodeLabel} setzt den Wert „{value}“.'
+    fix: Verwende fail oder continue.
+  SUBAUTOMATION_REF_INVALID:
+    title: Aufgerufene Automatisierung ist falsch geschrieben
+    explanation: Eine subautomation-Node nennt die aufgerufene Automatisierung als name oder name@version.
+    cause: '{nodeLabel} ruft „{ref}“ auf.'
+    fix: Schreibe den Namen der Automatisierung, optional gefolgt von @ und einer Versionsnummer, etwa billing/reminder@3.
+  SUBAUTOMATION_NOT_FOUND:
+    title: Aufgerufene Automatisierung nicht gefunden
+    explanation: Eine subautomation-Node ruft eine gespeicherte Automatisierung dieser Organisation auf. Diese muss in der genannten Version existieren.
+    cause: '{version, select, none {Keine gespeicherte Automatisierung heißt {automationLabel}.} other {{automationLabel} hat keine Version {version}{latest, select, none {} other {. Die neueste ist Version {latest}}}.}}'
+    fix: '{suggestion, select, none {{version, select, none {Speichere diese Automatisierung zuerst oder rufe eine bestehende auf.} other {Rufe eine bestehende Version auf oder lass die Version weg, um die live geschaltete aufzurufen.}}} other {Meintest du „{suggestion}“?}}'
+  SUBAUTOMATION_HAS_AGENT_NODE:
+    title: Aufgerufene Automatisierung enthält eine Agent-Node
+    explanation: Eine Agent-Node läuft als Turn, der pausieren und weiterlaufen kann. Das kann eine aufgerufene Automatisierung nicht, deshalb schlägt ein Live-Lauf an dieser Node fehl.
+    cause: '{automationLabel} enthält die Agent-Node {childNodeLabel}.'
+    fix: Führe die Agent-Node stattdessen in dieser Automatisierung aus oder ersetze sie in der aufgerufenen durch eine llm-Node.
+  SUBAUTOMATION_HAS_WRITE:
+    title: Aufgerufene Automatisierung schreibt
+    explanation: Eine aufgerufene Automatisierung kann nicht auf eine Freigabe warten. Verlangt die Freigaberichtlinie, dass eine Person einen Schreibzugriff freigibt, schlägt der Lauf fehl.
+    cause: '{automationLabel} schreibt über {childNodeLabel} ({childType}).'
+    fix: Verlege den Schreibzugriff in diese Automatisierung oder sorge dafür, dass die Freigaberichtlinie ihn ohne Rückfrage freigibt.
+  EXPR_SYNTAX:
+    title: Ausdruck enthält einen Syntaxfehler
+    explanation: Ein Template enthält einen JavaScript-Ausdruck zwischen '{{' und '}}'. Ein Ausdruck, der sich nicht parsen lässt, schlägt fehl, sobald die Node läuft.
+    cause: '{place} lässt sich ''{{'' {expr} ''}}'' nicht parsen.'
+    fix: Korrigiere den Ausdruck an der markierten Stelle. Die technischen Details zeigen die Meldung des Parsers.
+  REF_UNKNOWN_NODE:
+    title: Referenz auf eine unbekannte Node
+    explanation: nodes.<id> liest die Ausgabe der Node mit dieser ID. Keine Node hat diese ID, deshalb schlägt das Lesen fehl, sobald die Automatisierung läuft.
+    cause: '{place} nennt nodes.{ref} eine Node, die es nicht gibt.'
+    fix: '{suggestion, select, none {{knownCount, plural, =0 {Füge die Node hinzu oder entferne die Referenz.} other {Verwende die ID einer bestehenden Node: {knownList}.}}} other {Meintest du „{suggestion}“?}}'
+  REF_SELF:
+    title: Node liest sich selbst
+    explanation: Eine Node kann ihre eigene Ausgabe nicht lesen, denn die Ausgabe gibt es erst, wenn die Node gelaufen ist.
+    cause: '{place} liest {nodeLabel} ihre eigene Ausgabe.'
+    fix: Lies eine andere Node oder berechne den Wert in dieser Node selbst.
+  REF_NOT_OUTPUT:
+    title: Node ohne .output gelesen
+    explanation: Das Ergebnis einer Node liegt unter nodes.<id>.output. Andere Bestandteile einer Node gibt es nicht zu lesen.
+    cause: '{place} lässt nodes.{source}.{member} das .output aus.'
+    fix: Lies das Ergebnis über .output, etwa nodes.{source}.output.
+  REF_BARE:
+    title: Node ohne .output gelesen
+    explanation: nodes.<id> allein ist nicht das Ergebnis der Node. Das liegt unter .output.
+    cause: '{place} steht nodes.{source} ohne .output.'
+    fix: Schreibe nodes.{source}.output oder lies eines seiner Felder.
+  REF_CYCLE:
+    title: Nodes lesen einander im Kreis
+    explanation: Die Reihenfolge eines Laufs folgt den Referenzen zwischen Nodes. Nodes, die einander im Kreis lesen, haben keine Reihenfolge, deshalb kann die Automatisierung nicht laufen.
+    cause: 'Der Kreis: {cycleList}.'
+    fix: Entferne eine dieser Referenzen, um den Kreis aufzubrechen.
+  REF_UNSTRUCTURED_PATH:
+    title: Text-Ausgabe hat keine Felder
+    explanation: Manche Nodes geben reinen Text zurück, etwa eine llm-Node ohne Ausgabeschema. Die Ausgabe solcher Nodes hat nur .text, andere Felder gibt es nicht.
+    cause: '{place} liest nodes.{source}.output.{member} ein Feld, aber {sourceLabel} gibt nur Text zurück ({sourceType}).'
+    fix: '{sourceType, select, llm {Gib {sourceLabel} ein Ausgabeschema oder lies nodes.{source}.output.text.} other {Lies nodes.{source}.output.text oder verwandle den Text mit einer llm-Node mit Ausgabeschema in Felder.}}'
+  ITEM_WITHOUT_FOREACH:
+    title: „item“ außerhalb einer Schleife verwendet
+    explanation: item und index gibt es nur in einer Node mit „Für jedes“. Anderswo schlägt ein Template oder eine Bedingung damit fehl, und Code liest sie als undefined.
+    cause: '{place} {namesCount, plural, one {wird {namesList} verwendet} other {werden {namesList} verwendet}}, aber {nodeLabel} hat kein „Für jedes“.'
+    fix: Füge {nodeLabel} ein „Für jedes“ hinzu oder lies den Wert aus der Eingabe des Laufs oder aus einer anderen Node.
+  INPUT_KEY_UNKNOWN:
+    title: Eingabe ist nicht deklariert
+    explanation: input.<key> liest einen Wert aus der Eingabe des Laufs. Das Eingabeschema deklariert diesen Schlüssel nicht, deshalb fehlt er einem Lauf womöglich.
+    cause: '{place} liest input.{key} den Wert „{key}“, den das Eingabeschema nicht deklariert.'
+    fix: '{suggestion, select, none {Deklariere „{key}“ im Eingabeschema{declaredCount, plural, =0 {} other { oder verwende eine dieser Eingaben: {declaredList}}}.} other {Meintest du „{suggestion}“?}}'
+  TEMPLATE_UNTERMINATED:
+    title: Template ist nicht geschlossen
+    explanation: Ein '{{' ohne sein '}}' bleibt reiner Text, statt ausgefüllt zu werden.
+    cause: '{place} hat ein ''{{'' kein schließendes ''}}''.'
+    fix: Schließe das Template mit '}}' oder entferne das überzählige '{{'.
+  EXPR_UNKNOWN_NAME:
+    title: Unbekannter Name
+    explanation: Ein Ausdruck kann nur die Namen verwenden, die sein Feld bereitstellt, etwa input und nodes, sowie die eingebauten Namen von JavaScript. Jeder andere Name schlägt fehl, sobald die Node läuft.
+    cause: '{place} gibt es „{name}“ nicht.{availableCount, plural, =0 {} one { Verfügbar ist dort: {availableList}.} other { Verfügbar sind dort: {availableList}.}}'
+    fix: '{suggestion, select, none {{name, select, output {output gibt es nur in „Wiederholen bis“. Lies stattdessen nodes.<id>.output.} other {Verwende einen der verfügbaren Namen.}}} other {Meintest du „{suggestion}“?}}'
+  ITEM_OUT_OF_SCOPE:
+    title: „item“ vor der Schleife verwendet
+    explanation: „Wenn“ und „Für jedes“ werden einmal gelesen, bevor die Node ihre Elemente durchläuft. item und index gibt es dort noch nicht, deshalb schlägt die Node fehl.
+    cause: '{place} wird „{name}“ verwendet.'
+    fix: '{field, select, when {Um einzelne Elemente auszulassen, filtere stattdessen die Liste in „Für jedes“.} other {„Für jedes“ nennt die Liste selbst. Lies sie aus der Eingabe des Laufs oder aus einer anderen Node.}}'
+  REF_UNKNOWN_FIELD:
+    title: Feld gibt es nicht
+    explanation: Eine Referenz liest ein Feld, das ihre Daten nicht haben, und findet deshalb nichts, sobald die Automatisierung läuft.
+    cause: '{place} liest {ref} das Feld „{key}“ aus {sourceLabel}, aber dieses Feld gibt es dort nicht.{listWrapped, select, true { Dieser Wert ist eine Liste.} other {{knownCount, plural, =0 {} other { Vorhandene Felder: {knownList}.}}}}'
+    fix: '{suggestion, select, none {{listWrapped, select, true {Lies ein einzelnes Element der Liste oder gehe sie mit map durch.} other {{root, select, input {{field, select, code {Füge „{key}“ der Eingabe dieser Node hinzu, um den Wert weiterzureichen.} other {Deklariere „{key}“ im Eingabeschema oder lies ein Feld, das es deklariert.}}} other {Verwende ein vorhandenes Feld oder ändere, was diese Daten erzeugt.}}}}} other {Meintest du „{suggestion}“?}}'
+  TYPE_MISMATCH:
+    title: Wert hat den falschen Typ
+    explanation: Ein Wert landet an einer Stelle, die eine andere Art von Daten braucht. Die Node schlägt deshalb wahrscheinlich fehl.
+    cause: '{consumer, select, forEach {„Für jedes“ von {nodeLabel} braucht eine Liste, aber {expr} ist {actual}.} subautomationInput {Die Eingabe „{property}“ von {automationLabel} braucht {expected}, aber {expr} ist {actual}.} other {Die Eingabe „{property}“ von {nodeLabel} braucht {expected}, aber {expr} ist {actual}.}}'
+    fix: '{consumer, select, forEach {Lass „Für jedes“ auf eine Liste zeigen{suggestion, select, none {} other {, etwa ''{{'' {expr}.{suggestion} ''}}''}}.} other {Übergib einen Wert vom Typ {expected}.}}'
+  TEMPLATE_NULL_INTERPOLATION:
+    title: Wert im Text kann fehlen
+    explanation: Ein Wert, der in Text eingesetzt wird, kann leer sein. Dann schlägt die Node fehl, statt „undefined“ in den Text zu schreiben.
+    cause: '{place} {why, select, optional {ist {expr} optional} other {kann {expr} null sein}}.'
+    fix: Gib einen Ersatzwert an, etwa '{{' {expr} ?? "" '}}'.
+  FOREACH_NOT_ARRAY:
+    title: „Für jedes“ ist keine Liste
+    explanation: „Für jedes“ führt eine Node einmal pro Element einer Liste aus. Dieser Wert kann nie eine Liste sein, deshalb schlägt die Node bei jedem Lauf fehl.
+    cause: '{reason, select, notATemplate {„Für jedes“ von {nodeLabel} ist „{value}“. Ohne Template bleibt das reiner Text.} mixedText {Text um das Template macht „Für jedes“ von {nodeLabel} zu Text.} other {„Für jedes“ von {nodeLabel} ist immer {kind, select, null {null} undefined {undefined} string {Text} number {eine Zahl} boolean {wahr oder falsch} object {ein Objekt} other {{kind}}}.}}'
+    fix: Schreibe „Für jedes“ als ein einzelnes Template, das eine Liste ergibt, etwa '{{' nodes.fetch.output.items '}}'.
+  AGENT_ITERATION_UNSUPPORTED:
+    title: Agent-Nodes können sich nicht wiederholen
+    explanation: Eine Agent-Node führt einen Turn aus. Sie kann noch nicht einmal pro Element laufen oder sich wiederholen, deshalb schlägt ein Live-Lauf an dieser Node fehl.
+    cause: '{nodeLabel} verwendet {fieldLabel}.'
+    fix: Gib jedem Element seine eigene Agent-Node oder erledige die Arbeit pro Element in einer llm-Node.
+  MAYBE_NULL:
+    title: Liest eine Node, die übersprungen werden kann
+    explanation: Eine Bedingung oder die Ausgabe liest ein Feld einer Node, die nicht immer läuft. Wird diese Node übersprungen, ist ihre Ausgabe leer, und das Lesen eines ihrer Felder schlägt fehl.
+    cause: '{place} liest {ref} aus {sourceLabel}, die übersprungen wird, {reasonText}.'
+    fix: Sichere das Lesen ab, zum Beispiel mit {suggestion}. Oder füge mit „Sonst zu“ eine alternative Node hinzu.
+  UNCAUGHT_FAILURE:
+    title: Ein tolerierter Fehler wird nicht abgefangen
+    explanation: Eine Node läuft bei einem Fehler weiter, aber eine andere Stelle liest ihr Ergebnis ohne Ersatzwert. Schlägt die Node fehl, schlägt auch das Lesen fehl. Der Lauf scheitert also trotzdem, nur mit einer weniger hilfreichen Meldung.
+    cause: '{failingIsSource, select, true {{place} liest {ref} aus {sourceLabel}, die bei Fehler weiterläuft.} other {{place} liest {ref} aus {sourceLabel}, die übersprungen wird, wenn {failingLabel} fehlschlägt, und {failingLabel} läuft bei Fehler weiter.}}'
+    fix: Sichere das Lesen ab, zum Beispiel mit {suggestion}. Oder lass {failingLabel} den Lauf anhalten, wenn sie fehlschlägt.
+  UNREACHABLE:
+    title: Node kann nie laufen
+    explanation: Keine Kombination von Bedingungen lässt diese Node laufen, deshalb erledigt sie nie ihre Arbeit.
+    cause: '{cause, select, constantWhen {Die Bedingung „Wenn“ von {nodeLabel} ist immer falsch.} elsePartnerAlwaysRuns {{nodeLabel} springt für {partnerLabel} ein, die immer läuft.} elsePartnerUnreachable {{nodeLabel} springt für {partnerLabel} ein, die nie läuft.} readsPartner {{nodeLabel} liest {partnerLabel}, für die sie einspringt.} exclusiveBranches {{nodeLabel} liest {aLabel} und {bLabel}, die nie zusammen laufen.} other {{nodeLabel} liest {viaLabel}, die nie laufen kann.}}'
+    fix: '{cause, select, constantWhen {Lass die Bedingung von Daten abhängen oder entferne die Node.} other {Eine Node, die eine übersprungene Node liest, wird ebenfalls übersprungen. Führe alternative Zweige in der Ausgabe der Automatisierung zusammen oder entferne diese Node.}}'
+  CONDITION_CONSTANT:
+    title: Bedingung ändert sich nie
+    explanation: Diese Bedingung liefert immer dieselbe Antwort und entscheidet deshalb nichts.
+    cause: '{field, select, repeatUntil {{fieldLabel} von {nodeLabel} ist immer wahr, deshalb läuft die Node genau einmal.} other {{cause, select, mixedText {Text um das Template macht {fieldLabel} von {nodeLabel} zu nicht leerem Text, und der gilt immer als wahr.} other {{fieldLabel} von {nodeLabel} ist immer wahr.}}}}'
+    fix: '{cause, select, mixedText {Schreibe die Bedingung als ein einzelnes Template, ohne Text drumherum.} other {Entferne die Bedingung oder lass sie von Daten abhängen.}}'
+  REPEAT_NEVER_TRUE:
+    title: Schleife endet nie vorzeitig
+    explanation: „Wiederholen bis“ ist immer falsch, deshalb durchläuft die Node immer die Höchstzahl an Durchgängen.
+    cause: '{nodeLabel} durchläuft jedes Mal alle {maxRepeats} Durchgänge.'
+    fix: Lass die Bedingung das Ergebnis des Durchgangs lesen, etwa '{{' output.status === "done" '}}'.
+  REPEAT_UNTIL_STATIC:
+    title: Schleifenbedingung ignoriert das Ergebnis
+    explanation: „Wiederholen bis“ liest das Ergebnis des Durchgangs nicht und liefert deshalb nach jedem Durchgang dieselbe Antwort.
+    cause: Die Bedingung „Wiederholen bis“ von {nodeLabel} liest weder output noch das Ergebnis der Node selbst.
+    fix: Lass die Bedingung das Ergebnis des Durchgangs lesen, etwa '{{' output.status === "done" '}}'.
+  OUTPUT_MAYBE_EMPTY:
+    title: Ausgabe kann leer sein
+    explanation: Die Ausgabe liest nur Nodes, die manchmal übersprungen werden. In diesen Läufen liefert die Automatisierung leere Werte.
+    cause: '{nodesCount, plural, one {Die Ausgabe liest nur {nodesList}, und diese läuft nicht,} other {Die Ausgabe liest nur {nodesList}, und keine davon läuft,}} {rootReason, select, when {wenn {rootLabel} durch ihre Bedingung übersprungen wird.} error {wenn {rootLabel} fehlschlägt, weil sie bei Fehler weiterläuft.} other {wenn {rootLabel} läuft, weil ihre Alternative dann übersprungen wird.}}'
+    fix: Lies zusätzlich eine Node, die immer läuft, oder füge mit „Sonst zu“ eine alternative Node hinzu.
+  CONNECTOR_INPUT_INVALID:
+    title: Eingabe passt nicht zur Capability
+    explanation: Jede Capability legt fest, welche Eingabe sie akzeptiert. Eine unpassende Eingabe wird abgelehnt, deshalb schlägt die Node fehl.
+    cause: '{keyword, select, required {{nodeLabel} ({type}) braucht die Eingabe „{property}“.} additionalProperties {{nodeLabel} ({type}) akzeptiert keine Eingabe „{property}“.} other {{property, select, none {Die Eingabe von {nodeLabel} ({type}) passt nicht zu dem, was die Capability akzeptiert.} other {Die Eingabe „{property}“ von {nodeLabel} ({type}) passt nicht zu dem, was die Capability akzeptiert.}}}}'
+    fix: '{suggestion, select, none {Passe die Eingabe an das an, was die Capability akzeptiert. Die technischen Details zeigen, was die Prüfung gefunden hat.} other {Meintest du „{suggestion}“?}}'
+  SUBAUTOMATION_INPUT_INVALID:
+    title: Eingabe passt nicht zur aufgerufenen Automatisierung
+    explanation: Die Werte, die an die aufgerufene Automatisierung gehen, passen nicht zu dem, was sie akzeptiert. Sie startet deshalb nicht, und diese Node schlägt fehl.
+    cause: '{missingCount, plural, =0 {{unknownCount, plural, =0 {{automationLabel} Version {version} akzeptiert diese Werte nicht.} one {{automationLabel} Version {version} akzeptiert {unknownList} nicht.} other {{automationLabel} Version {version} akzeptiert {unknownList} nicht.}}} one {{unknownCount, plural, =0 {{automationLabel} Version {version} braucht {missingList}.} one {{automationLabel} Version {version} braucht {missingList} und akzeptiert {unknownList} nicht.} other {{automationLabel} Version {version} braucht {missingList} und akzeptiert {unknownList} nicht.}}} other {{unknownCount, plural, =0 {{automationLabel} Version {version} braucht {missingList}.} one {{automationLabel} Version {version} braucht {missingList} und akzeptiert {unknownList} nicht.} other {{automationLabel} Version {version} braucht {missingList} und akzeptiert {unknownList} nicht.}}}}'
+    fix: Übergib die Eingaben, die sie deklariert, unter den Namen, die sie verwendet.
+  TRIGGER_INPUT_MISMATCH:
+    title: Trigger-Eingabe wird abgelehnt
+    explanation: Der Trigger startet Läufe mit einer Eingabe, die das Eingabeschema der Automatisierung nicht akzeptiert. Jeder Lauf, den er startet, wird deshalb abgelehnt.
+    cause: '{kind, select, schedule {Der Zeitplan} other {Der Trigger}} {missingCount, plural, =0 {startet Läufe mit einer Eingabe, die das Eingabeschema ablehnt.} one {startet Läufe ohne {missingList}.} other {startet Läufe ohne {missingList}.}}'
+    fix: Mach diese Eingaben optional oder starte die Automatisierung über einen Webhook, ein Ereignis oder die API.
+  TESTS_INPUT_INVALID:
+    title: Test-Eingabe wird abgelehnt
+    explanation: Die Eingabe des Tests passt nicht zum Eingabeschema der Automatisierung. Der Lauf lehnt sie deshalb ab, und der Test kann nicht bestehen.
+    cause: Der Test „{name}“ {missingCount, plural, =0 {hat Werte, die das Eingabeschema nicht akzeptiert} one {lässt {missingList} aus} other {lässt {missingList} aus}}.
+    fix: Passe die Test-Eingabe an das Eingabeschema an.
+  TESTS_EFFECT_UNKNOWN:
+    title: Test erwartet eine unmögliche Aktion
+    explanation: Der Test erwartet eine Aktion, die keine Node dieser Automatisierung ausführt. Er kann deshalb nie bestehen.
+    cause: Der Test „{name}“ erwartet „{connector}“.{possibleCount, plural, =0 { Keine Node hier führt eine Aktion aus.} one { Die Nodes hier führen {possibleList} aus.} other { Die Nodes hier führen {possibleList} aus.}}
+    fix: '{suggestion, select, none {Erwarte eine Aktion, die eine Node ausführt.} other {Meintest du „{suggestion}“?}}'
+  TESTS_EXPECT_TYPE:
+    title: Test erwartet den falschen Typ
+    explanation: Der Test erwartet einen Wert von einem Typ, den die Automatisierung nie zurückgibt. Er kann deshalb nicht bestehen.
+    cause: Der Test „{name}“ erwartet für output.{property} den Typ {expected}, aber die Automatisierung gibt dort {actual} zurück.
+    fix: Korrigiere die Erwartung oder ändere die Ausgabe.
+  LLM_MODEL_UNAVAILABLE:
+    title: Modell ist nicht verfügbar
+    explanation: Das Modell einer llm- oder Agent-Node muss von einem der verbundenen Anbieter der Organisation bereitgestellt werden. Sonst schlägt ein Live-Lauf an dieser Node fehl.
+    cause: '{nodeLabel} verwendet „{model}“, das kein verbundener Anbieter bereitstellt.'
+    fix: Wähle ein Modell, das ein verbundener Anbieter bereitstellt, oder verbinde den Anbieter dieses Modells.
+  OUTPUT_MISSING:
+    title: Keine Ausgabe
+    explanation: Die Ausgabe ist das, was die Automatisierung zurückgibt. Ohne Ausgabe liefert jeder Lauf nichts.
+    cause: Das Dokument hat kein Feld output.
+    fix: Füge eine Ausgabe hinzu, die die benötigten Ergebnisse liest, etwa '{{' nodes.summary.output.text '}}'.
+  UNUSED_NODE:
+    title: Ausgabe wird nie verwendet
+    explanation: Nichts liest die Ausgabe dieser Node, und sie bewirkt nichts. Sie auszuführen bringt deshalb nichts.
+    cause: '{reason, select, readersUnreachable {Nur Nodes, die nie laufen können, lesen {nodeLabel}.} other {Nichts liest die Ausgabe von {nodeLabel}, weder eine Node noch die Ausgabe der Automatisierung.}}'
+    fix: Lies ihre Ausgabe dort, wo du sie brauchst, oder entferne die Node.

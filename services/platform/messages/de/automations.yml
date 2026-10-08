@@ -284,6 +284,12 @@ editor:
     forEachDescription: Läuft einmal pro Element des Arrays, das der Ausdruck ergibt.
     repeatUntil: Wiederholen bis
     repeatUntilDescription: Diese Node wiederholen, bis der Ausdruck wahr ist.
+    maxRepeats: Maximale Wiederholungen
+    onError: Bei Fehler
+    output: Ausgabe
+    type: Typ
+    id: ID
+    modelProvider: Anbieter
 bindings:
   title: Projekte
   countBadge: '{count, plural, one {An # Projekt gebunden} other {An # Projekte gebunden}}'
