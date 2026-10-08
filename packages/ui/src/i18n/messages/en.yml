@@ -161,6 +161,7 @@ common:
     dateFilterUnavailable: Date filter unavailable
   datePicker:
     chooseDay: Choose
+    unavailableDay: Not available
     month: Month
     calendar: Calendar
     clear: Clear date
@@ -309,6 +310,10 @@ recurrence:
   custom: Custom
   back: Back to presets
   workweekRange: Mon–Fri
+  nextRuns: Next runs
+  scheduleLabel: Schedule
+  customInterval: Custom interval
+  customTimes: Custom times
   nextDates: Next dates
   sentence:
     daily: '{count, plural, one {Daily} other {Every # days}}'
@@ -323,6 +328,31 @@ recurrence:
     yearly: '{count, plural, one {Yearly} other {Every # years}}'
     monthDay: 'day {day}'
     dayCount: '{count, plural, one {# day} other {# days}}'
+  schedule:
+    sentence:
+      minutely: '{count, plural, one {Every minute} other {Every # minutes}}'
+      hourly: '{count, plural, one {Every hour} other {Every # hours}}'
+      hourlyAt: '{count, plural, one {Every hour} other {Every # hours}} at {minute, plural, one {# minute} other {# minutes}} past the hour'
+      withTimes: '{rule} at {times}'
+      withWindow: '{rule}, {window}'
+    hoursRange: '{from}–{to}'
+    dayRange: '{first}–{last}'
+    compact:
+      at: '{days} at {times}'
+      timeCount: '{count, plural, one {# time} other {# times}}'
+      minutePast: ':{mm}'
+      hoursRange: '{from}–{to}'
+  occurrences:
+    dateTime: '{date}, {time}'
+    inZone: '{label} · {zone}'
+    viewerZone: 'Your time zone is {zone}.'
+    local: '{time} in your time zone'
+    localOtherDay: '{date}, {time} in your time zone'
+    clockChange: Clock change
+    shiftedForward: '{time} doesn''t exist that day, so this run starts at {actual}.'
+    repeatedHour: '{time} happens twice that day; it runs once, at the first.'
+    intervalRepeated: 'Clocks go back: this hour repeats, and runs keep their real-time spacing.'
+    empty: No upcoming runs.
   editor:
     unit: Unit
     units:
@@ -336,6 +366,28 @@ recurrence:
       weekly: '{count, plural, one {week} other {weeks}}'
       monthly: '{count, plural, one {month} other {months}}'
       yearly: '{count, plural, one {year} other {years}}'
+    intervalOption:
+      minutely: '{count, plural, one {minute} other {# minutes}}'
+      hourly: '{count, plural, one {hour} other {# hours}}'
+    minutePast: '{count, plural, one {minute} other {minutes}} past the hour'
+    at: At
+    timeName: 'Time {index}'
+    addTime: Add time
+    removeTime: 'Remove {time}'
+    maxTimes: 'Up to {count} times a day.'
+    duplicateTime: Already in the list — it runs once.
+    onlyBetween: Only between
+    and: and
+    windowFrom: From
+    windowUntil: Until
+    windowHint:
+      sameDay: 'Each day, the first run starts at {first} and the last at {last}.'
+      overnight: 'Runs overnight: the first starts at {first}, the last at {last} the next morning.'
+      nextMorning: 'Runs the next morning: the first starts at {first}, the last at {last}.'
+      once: 'Each day, it runs once, at {time}.'
+      onceNextMorning: 'Each day, it runs once, at {time} the next morning.'
+      allDay: The same start and end means all day.
+      none: No run falls between these times. Widen the hours or pick a shorter interval.
     onWeekdays: 'On'
     onDay: On day
     onDate: 'On'
@@ -350,6 +402,14 @@ recurrence:
     friday: Fr
     saturday: Sa
     sunday: Su
+
+timeField:
+  hours: Hours
+  minutes: Minutes
+  dayPeriod: AM/PM
+  minuteValue: '{minute, plural, one {# minute} other {# minutes}}'
+  empty: Empty
+  pasteInvalid: That isn't a time. Paste one like {example}.
 
 siteFooter:
   copyright: © {year} Tale by Ruler GmbH. MIT licensed.

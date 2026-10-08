@@ -97,3 +97,10 @@ export function useDeleteAutomation() {
     errorToast: false,
   });
 }
+
+/** Request a stop without claiming that a legacy run has stopped. */
+export function useRequestLegacyRunStop() {
+  return useBackendMutation('automations/mutations:requestLegacyRunStop', {
+    errorToast: false,
+  });
+}

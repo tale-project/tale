@@ -216,7 +216,12 @@ export async function validateReferences(
           if (!analyzable(unit)) continue;
           for (const site of unit.refs) {
             const iterVar = site.name === 'item' || site.name === 'index';
-            if (!iterVar || site.guards.includes('typeof')) continue;
+            if (
+              !iterVar ||
+              site.guards.includes('typeof') ||
+              site.guards.includes('unreachable')
+            )
+              continue;
             if (inCode && (site.root === 'item' || site.root === 'index')) {
               codeHits.push({ source, site });
             } else if (!inCode && site.root === 'free') {

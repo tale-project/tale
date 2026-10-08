@@ -62,7 +62,8 @@ export function TaskRunDetailsDialog({
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-3xl">
-        <ResponsiveDialogTitle className="flex items-center gap-2 text-base font-semibold">
+        {/* `pr-8` keeps a long title clear of the corner Close. */}
+        <ResponsiveDialogTitle className="flex items-center gap-2 pr-8 text-base font-semibold">
           {live
             ? t('run.detailsTitleLive', { name })
             : t('run.detailsTitle', { name })}

@@ -16,7 +16,9 @@ import { Drawer as DrawerPrimitive } from 'vaul';
 
 import { useIsMobile } from '../../hooks/use-is-mobile';
 import { useRestoreFocus } from '../../hooks/use-restore-focus';
+import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
+import { CLOSE_BUTTON_CLASS } from './close-button-class';
 import { PagePointerPin } from './page-pointer-pin';
 
 /**
@@ -128,8 +130,27 @@ ResponsiveDialogClose.displayName = 'ResponsiveDialogClose';
 interface ResponsiveDialogContentProps {
   children: ReactNode;
   className?: string;
+  /**
+   * The close control's accessible name. Defaults to the shared translated
+   * "Close"; pass a more specific verb when the close does something more
+   * specific ("Hide problems").
+   */
   closeLabel?: string;
+  /**
+   * Leave out the close control. Escape, the backdrop and (on a phone) a
+   * swipe still dismiss, so give the reader another visible way out unless
+   * the moment deliberately blocks one.
+   */
   hideClose?: boolean;
+  /**
+   * Icon actions that belong to the dialog's chrome — "Open as page",
+   * "Copy link" — drawn in one cluster at the top-right, just before Close,
+   * on the centred dialog and on the phone's drawer alike. Each control
+   * needs its own accessible name. The cluster follows the content in the
+   * tab order, so Close stays the last stop and the actions the ones before
+   * it. Reserve room for the cluster on the content's first row.
+   */
+  headerActions?: ReactNode;
   /**
    * Radix `onOpenAutoFocus` passthrough. Call `event.preventDefault()` to stop
    * the focus scope from focusing (and text-selecting) the first tabbable
@@ -159,8 +180,9 @@ export const ResponsiveDialogContent = forwardRef<
     {
       children,
       className,
-      closeLabel = 'Close',
-      hideClose,
+      closeLabel,
+      hideClose = false,
+      headerActions,
       onOpenAutoFocus,
       restoreFocusRef,
       preventCloseAutoFocus = false,
@@ -168,6 +190,13 @@ export const ResponsiveDialogContent = forwardRef<
     ref,
   ) => {
     const isMobile = useIsMobile();
+    const { t } = useT('common');
+    const closeName = closeLabel ?? t('aria.close');
+    const hasHeaderActions =
+      headerActions !== undefined &&
+      headerActions !== null &&
+      headerActions !== false;
+    const hasCluster = hasHeaderActions || !hideClose;
     // Most consumers open this dialog from state (a task card, a row) and
     // render no `ResponsiveDialogTrigger`, so Radix has nothing to focus on
     // close and the document falls to <body> (WCAG 2.4.3). Capture the opener
@@ -204,11 +233,47 @@ export const ResponsiveDialogContent = forwardRef<
             )}
           >
             <PagePointerPin />
+            {hasCluster ? (
+              // The grabber shares a 40px band with the action cluster, so
+              // the cluster never covers the content — at rest or scrolled
+              // under it.
+              <div className="flex h-10 shrink-0 justify-center">
+                <div
+                  aria-hidden="true"
+                  className="bg-muted mt-3 h-1.5 w-12 rounded-full"
+                />
+              </div>
+            ) : (
+              <div
+                aria-hidden="true"
+                className="bg-muted mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full"
+              />
+            )}
             <div
-              aria-hidden="true"
-              className="bg-muted mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full"
-            />
-            <div className="overflow-y-auto px-4 pt-4 pb-6">{children}</div>
+              className={cn(
+                'overflow-y-auto px-4 pb-6',
+                hasCluster ? 'pt-1' : 'pt-4',
+              )}
+            >
+              {children}
+            </div>
+            {hasCluster && (
+              <div
+                // A tap on Close must not start a swipe of the sheet.
+                data-vaul-no-drag=""
+                className="absolute top-1 right-[calc(var(--safe-right)+0.5rem)] flex items-center gap-1"
+              >
+                {headerActions}
+                {!hideClose && (
+                  <DrawerPrimitive.Close
+                    aria-label={closeName}
+                    className={CLOSE_BUTTON_CLASS}
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </DrawerPrimitive.Close>
+                )}
+              </div>
+            )}
           </DrawerPrimitive.Content>
         </DrawerPrimitive.Portal>
       );
@@ -245,13 +310,20 @@ export const ResponsiveDialogContent = forwardRef<
         >
           <PagePointerPin />
           {children}
-          {!hideClose && (
-            <DialogPrimitive.Close
-              aria-label={closeLabel}
-              className="ring-offset-background focus-visible:ring-ring absolute top-3 right-3 rounded-md p-1 opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
-            >
-              <X className="size-4" aria-hidden="true" />
-            </DialogPrimitive.Close>
+          {/* After the content, so Close stays the last tab stop and the
+              header actions the ones just before it. */}
+          {hasCluster && (
+            <div className="absolute top-3 right-3 flex items-center gap-1">
+              {headerActions}
+              {!hideClose && (
+                <DialogPrimitive.Close
+                  aria-label={closeName}
+                  className={CLOSE_BUTTON_CLASS}
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </DialogPrimitive.Close>
+              )}
+            </div>
           )}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

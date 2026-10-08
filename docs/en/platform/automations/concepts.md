@@ -82,7 +82,9 @@ A tool without an output schema is unstructured. To turn its text into structure
 
 ## What Tale checks before a run {#checks}
 
-Tale checks the whole document when you save it, when you deploy a version, and whenever a client calls `validate_automation`. An **error** describes something that fails for certain, and it stops both saving and deploying. A **warning** points at something that can fail or does no useful work; it never stops a save or a deployment, so you decide whether to act on it. Each problem names its node and field and, inside a template, a condition, or code, the exact expression.
+Tale checks the whole document when you save it, when you deploy a version, and whenever a client calls `validate_automation`. An **error** describes a definite failure or code that exceeds the analysis limits, and it stops both saving and deploying. A **warning** points at something that can fail or does no useful work; it never stops a save or a deployment, so you decide whether to act on it. Each problem names its node and field and, inside a template, a condition, or code, the exact expression.
+
+To keep checks responsive, each expression and each `transform` body is limited to 8192 UTF-16 code units, 512 JavaScript tokens and 64 levels of syntax or syntax-tree nesting. Whitespace around a template expression does not count toward its size; whitespace in a transform body does. Plain text outside templates is not code. These limits can reject previously valid code: shorten it or split the work across nodes before saving or deploying again.
 
 ### References and names {#checks-references}
 

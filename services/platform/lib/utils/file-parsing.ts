@@ -153,12 +153,21 @@ type CSVParseOptions = {
   hasHeaders?: boolean;
 };
 
-/** One CSV record: its trimmed fields, and whether its quotes failed to
- * pair up (a quoted field never closed, or text after a closing quote). */
-type CSVRecord = { values: string[]; unpairedQuotes: boolean };
+/** One CSV record: its trimmed fields, whether its quotes failed to pair up
+ * (a quoted field never closed, or text after a closing quote), and its
+ * spreadsheet row. */
+type CSVRecord = {
+  values: string[];
+  unpairedQuotes: boolean;
+  /** 1-based; every record is one row — a blank line, and a quoted cell
+   * across line breaks (LF or CRLF), count one row each. */
+  line: number;
+};
 
 type CSVParseOutput = {
   headers: string[] | null;
+  /** The header record's row, when headers are present. */
+  headerLine: number | null;
   /** The header record's quotes failed to pair up. */
   headerUnpairedQuotes: boolean;
   rows: CSVRecord[];
@@ -197,7 +206,9 @@ function parseCSVRecords(text: string, delimiter: string): CSVRecord[] {
   };
   const endRecord = (next: number) => {
     endField();
-    records.push({ values: fields, unpairedQuotes });
+    // Rows are counted by record, not by line break: the breaks inside a
+    // quoted cell belong to the cell, as in the spreadsheet it came from.
+    records.push({ values: fields, unpairedQuotes, line: records.length + 1 });
     fields = [];
     unpairedQuotes = false;
     recordStart = next;
@@ -208,6 +219,8 @@ function parseCSVRecords(text: string, delimiter: string): CSVRecord[] {
       // The text ended inside quotes: read that quote as a literal
       // character, and what follows it again, unquoted.
       field = `${quote.before}"`;
+      // No record ended inside the quotes, so the replayed records keep
+      // their rows.
       i = quote.at + 1;
       quote = null;
       unpairedQuotes = true;
@@ -281,7 +294,12 @@ function parseCSVText(
     headerUnpairedQuotes = header.unpairedQuotes;
   }
 
-  return { headers, headerUnpairedQuotes, rows };
+  return {
+    headers,
+    headerLine: header?.line ?? null,
+    headerUnpairedQuotes,
+    rows,
+  };
 }
 
 /**
@@ -299,16 +317,19 @@ export function parseCSVWithMapper<T>(
   } = {},
 ): FileParseResult<T> {
   const { recordMapper, requiredColumns, ...csvOptions } = options;
-  const { headers, headerUnpairedQuotes, rows } = parseCSVText(csvText, {
-    ...csvOptions,
-    hasHeaders: !!recordMapper,
-  });
+  const { headers, headerLine, headerUnpairedQuotes, rows } = parseCSVText(
+    csvText,
+    {
+      ...csvOptions,
+      hasHeaders: !!recordMapper,
+    },
+  );
   const result = emptyResult<T>();
 
   // A header whose quotes don't pair up names no column reliably: refuse the
-  // file at line 1 instead of importing under misread headers.
+  // file at the header's row instead of importing under misread headers.
   if (headerUnpairedQuotes) {
-    result.rowErrors.push({ row: 1, quotes: 'unpaired' });
+    result.rowErrors.push({ row: headerLine ?? 1, quotes: 'unpaired' });
     return result;
   }
 
@@ -321,9 +342,7 @@ export function parseCSVWithMapper<T>(
     }
   }
 
-  const firstLine = headers ? 2 : 1;
-  rows.forEach(({ values: row, unpairedQuotes }, index) => {
-    const line = firstLine + index;
+  rows.forEach(({ values: row, unpairedQuotes, line }, index) => {
     // `,,,,` is not a record: skipped like an empty line, never refused.
     if (isBlankRecord(row)) return;
     // A row whose quotes don't pair up may hold misread cells: refused.

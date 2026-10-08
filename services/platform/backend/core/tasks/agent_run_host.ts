@@ -87,6 +87,7 @@ import {
   TurnBudgetExceededError,
 } from '../node_only/sandbox/turn_budget';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
+import type { BrokerTransportScope } from '../provider_credentials/broker_transport';
 import {
   credentialRetryAtMs,
   resolveProviderCredential,
@@ -840,6 +841,7 @@ async function mintTurnServing(
     excludeBrokerTokenHashes?: string[];
   },
   resolved: TaskServing,
+  brokerTransport?: BrokerTransportScope,
 ): Promise<PreparedServing> {
   if (resolved.lane === 'gateway') {
     // Claude Code + a connector with a native Anthropic harness endpoint
@@ -916,15 +918,21 @@ async function mintTurnServing(
       ...(vision !== null ? { visionPolyfillReads: vision.polyfillReads } : {}),
     };
   }
-  const credential = await resolveProviderCredential(ctx, {
-    organizationId: args.organizationId,
-    providerSlug: resolved.providerSlug,
-    requireBrokerAccountId: harnessRequiresSubscriptionAccountId(args.harness),
-    ...(args.excludeBrokerTokenHashes !== undefined &&
-    args.excludeBrokerTokenHashes.length > 0
-      ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
-      : {}),
-  });
+  const credential = await resolveProviderCredential(
+    ctx,
+    {
+      organizationId: args.organizationId,
+      providerSlug: resolved.providerSlug,
+      requireBrokerAccountId: harnessRequiresSubscriptionAccountId(
+        args.harness,
+      ),
+      ...(args.excludeBrokerTokenHashes !== undefined &&
+      args.excludeBrokerTokenHashes.length > 0
+        ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
+        : {}),
+    },
+    brokerTransport,
+  );
   if (
     credential.authMethod !== 'subscription-key' &&
     credential.authMethod !== 'subscription-broker'
@@ -1125,6 +1133,7 @@ export interface StartTaskAgentTurnArgs extends TurnKeys {
 export async function startTaskAgentTurnImpl(
   ctx: ActionCtx,
   args: StartTaskAgentTurnArgs,
+  execution?: { signal?: AbortSignal },
 ): Promise<null> {
   {
     // Idempotency gate: the kick, the capacity wake, and the watchdog retry
@@ -1309,7 +1318,44 @@ export async function startTaskAgentTurnImpl(
           ? visionUnreadableGuidance(resolved.vision)
           : '';
 
-      const prepared = await mintTurnServing(ctx, args, resolved);
+      // Added transport waiting is only for an unconfined fresh start.
+      // Member starts and steer retain their existing single-shot behavior.
+      const brokerTransport: BrokerTransportScope | undefined =
+        resolved.lane === 'subscription' &&
+        !(await isTurnConfined(ctx, args.runId))
+          ? {
+              deadlineAt: args.deadlineAt,
+              ...(execution?.signal !== undefined
+                ? { signal: execution.signal }
+                : {}),
+              assertCurrent: async () => {
+                const confined = await isTurnConfined(ctx, args.runId);
+                const current = await ctx.runQuery(
+                  internal.tasks.agent_runs.getTaskAgentRunForDrive,
+                  { runId: args.runId },
+                );
+                if (
+                  current === null ||
+                  current.status !== 'queued' ||
+                  current.execId !== args.execId ||
+                  current.sessionId !== args.sessionId ||
+                  current.organizationId !== args.organizationId ||
+                  Date.now() >= args.deadlineAt ||
+                  confined
+                ) {
+                  throw new Error(
+                    'The task no longer authorizes this credential request.',
+                  );
+                }
+              },
+            }
+          : undefined;
+      const prepared = await mintTurnServing(
+        ctx,
+        args,
+        resolved,
+        brokerTransport,
+      );
       // Clear a predecessor's account when this launch uses another lane.
       // Fenced on THIS exec, like the selected-account stamp itself.
       await ctx.runMutation(
@@ -1757,6 +1803,9 @@ function isResumeLaunchFailure(
   return (
     errored &&
     !emptyAnswer &&
+    // A model-wide capacity refusal says nothing about the resume handle.
+    // Keep it for the counted delayed retry instead of launching fresh now.
+    window.ended?.providerErrorKind !== 'model_capacity' &&
     window.text === '' &&
     window.timeline.length === 0 &&
     (window.agentSessionId === undefined ||
@@ -1922,7 +1971,9 @@ async function continueOrSettle(
       ? {
           failureCode: spendRefused
             ? ('budget_exceeded' as const)
-            : ('harness_error' as const),
+            : ended?.providerErrorKind === 'model_capacity'
+              ? ('model_capacity' as const)
+              : ('harness_error' as const),
         }
       : {}),
     // The harness-reported provider status (429/401/…) — absent for

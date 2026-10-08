@@ -361,6 +361,7 @@ const turnEndSchema = z.object({
     .optional(),
   isError: z.boolean().optional(),
   apiErrorStatus: z.number().optional(),
+  providerErrorKind: z.literal('model_capacity').optional(),
 });
 const turnCheckpointSchema = z.object({
   version: z.literal(1),

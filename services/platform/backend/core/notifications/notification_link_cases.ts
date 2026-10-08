@@ -146,6 +146,14 @@ export const PERSONAL_LINK_CASES: Record<
     row: { params: { name: 'Sam Rivera', budgets: true } },
     path: `/dashboard/${ORG}/settings/governance/policies-limits`,
   },
+  // The member's API keys, where the key made for them is listed and
+  // revoked.
+  api_key_created: {
+    row: {
+      params: { name: 'Sam Rivera', keyName: 'Billing sync', apiKeys: true },
+    },
+    path: `/dashboard/${ORG}/settings/api/rest`,
+  },
   workforce_digest: {
     row: { params: { title: 'Your week' } },
     path: `/dashboard/${ORG}`,

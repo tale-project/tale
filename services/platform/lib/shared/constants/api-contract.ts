@@ -381,7 +381,26 @@
  * rest of the analysis) and one more error (ITEM_WITHOUT_FOREACH, a
  * warning before). No REST operation changes. Additive.
  *
- * 3.21.0 — 2026-10-08: the MCP endpoint speaks protocol revision 2025-11-25
+ * 3.20.0 — 2026-10-08: runs may be `quarantined` and carry
+ * `legacyQuarantine`, a bounded description of legacy execution whose
+ * external effects remain uncertain. Both run scopes expose
+ * `POST …/runs/{runId}/legacy-quarantine`: an exact-observation stop
+ * request with explicit acknowledgement, behind the existing developer
+ * and project-write gates. The request does not clear the hold or prove
+ * termination. Ordinary cancel refuses held runs (`RUN_QUARANTINED`);
+ * stale stop requests answer `RUN_QUARANTINE_CHANGED`. Additive.
+ *
+ * 3.21.0 — 2026-10-08: API keys can belong to a member an Owner or Admin
+ * made them for, or to a team, a project or the organization itself. Such a
+ * key works in its one organization: it needs no `X-Organization-Slug`, and
+ * one naming another organization answers 403 `ORG_FORBIDDEN`. A project's
+ * key reaches its own project, the project list, `/me` and the model
+ * endpoints; any other route answers 403 `API_KEY_SCOPE_FORBIDDEN`.
+ * `GET /api/v1/me` answers `key.owner` (`kind`, `team`, `project`), lists
+ * the bound organization alone, and an empty `user.email` for a key that
+ * is not a person. Additive.
+ *
+ * 3.22.0 — 2026-10-08: the MCP endpoint speaks protocol revision 2025-11-25
  * beside 2025-06-18 and 2025-03-26, answers an `MCP-Protocol-Version` it
  * does not speak with -32022 naming the `supported` revisions, answers
  * `initialize` with `instructions`, and reports this contract version as
@@ -413,7 +432,8 @@
  * `deploy_automation` takes `expectedDeployedVersion`
  * (`AUTOMATION_DEPLOYMENT_STALE`) and answers `previousVersion`; `start_run`
  * takes `mode` — `live`, the default, or `mock`, any saved version and open
- * to every member; `list_runs` filters by `mode` and `statuses` and pages
+ * to every member; `list_runs` filters by `mode` and `statuses` (the REST
+ * list's, `quarantined` included) and pages
  * with `cursor` / `nextCursor`; `list_versions` answers `createdVia`,
  * `clientName` and `deployments`. New tools: `delete_automation`,
  * `set_automation_projects`, `answer_run_ask` (each asking the person first,
@@ -469,4 +489,4 @@
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
  */
-export const API_CONTRACT_VERSION = '3.21.0';
+export const API_CONTRACT_VERSION = '3.22.0';

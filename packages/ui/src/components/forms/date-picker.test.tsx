@@ -352,3 +352,63 @@ describe('DatePicker popper container', () => {
     expect(screen.getByRole('dialog', { name: 'Calendar' })).toBeVisible();
   });
 });
+
+describe('DatePicker bounds', () => {
+  const SEP_15_2026 = new Date(2026, 8, 15).getTime();
+
+  it('offers only the days between minDate and maxDate', async () => {
+    const onChange = vi.fn();
+    const { user } = render(
+      <DatePicker
+        value={SEP_15_2026}
+        minDate={new Date(2026, 8, 10).getTime()}
+        maxDate={new Date(2026, 8, 20).getTime()}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Sep 15, 2026' }));
+
+    const before = screen.getByRole('gridcell', {
+      name: /September 9th, 2026$/,
+    });
+    const inside = screen.getByRole('gridcell', {
+      name: /September 12th, 2026$/,
+    });
+    const after = screen.getByRole('gridcell', {
+      name: /September 21st, 2026$/,
+    });
+    expect(before).toHaveAttribute('aria-disabled', 'true');
+    expect(after).toHaveAttribute('aria-disabled', 'true');
+    expect(inside).toHaveAttribute('aria-disabled', 'false');
+    // A day that cannot be picked says so in the UI language, not in
+    // react-datepicker's built-in English.
+    expect(before).toHaveAccessibleName(/^Not available /);
+    expect(inside).toHaveAccessibleName(/^Choose /);
+
+    await user.click(before);
+    expect(onChange).not.toHaveBeenCalled();
+    await user.click(inside);
+    expect(onChange).toHaveBeenCalledWith(new Date(2026, 8, 12).getTime());
+  });
+
+  it('is named by the label it points at and keeps the chosen date', () => {
+    render(
+      <>
+        <span id="expiry-label">Expiration date</span>
+        <span id="expiry-hint">Up to one year from today.</span>
+        <DatePicker
+          id="expiry"
+          aria-labelledby="expiry-label expiry"
+          aria-describedby="expiry-hint"
+          value={SEP_29_2026}
+          onChange={vi.fn()}
+        />
+      </>,
+    );
+    const trigger = screen.getByRole('button', {
+      name: 'Expiration date Sep 29, 2026',
+    });
+    expect(trigger).toHaveAttribute('id', 'expiry');
+    expect(trigger).toHaveAccessibleDescription('Up to one year from today.');
+  });
+});

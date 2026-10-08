@@ -40,6 +40,7 @@ import {
   isDatabaseUnavailable,
   noteSwallowedDatabaseError,
 } from '../db/unavailable.ts';
+import { readApiKeyOwner } from '../domains/api_keys/owners.ts';
 import { logJoinedOrganization } from '../domains/audit_logs/service.ts';
 import {
   recordUserScopedSecurityEvent,
@@ -76,6 +77,7 @@ import { readGovernancePolicy } from '../lib/org-config.ts';
 import { emitHintInTx } from '../realtime/outbox.ts';
 import { ac, orgRoles } from './access.ts';
 import {
+  API_KEY_BOUND_MESSAGE,
   API_KEY_CREATE_FORBIDDEN_MESSAGE,
   API_KEY_CREATE_PATH,
   mayCreateApiKeys,
@@ -216,6 +218,8 @@ function toEpochMs(value: unknown): number | null {
 function resolveApiKeyLifecycle(mw: {
   path: string;
   body: unknown;
+  /** Absent on the server's own call (`auth.api.*` without a request). */
+  request?: unknown;
   context: { returned?: unknown; session?: unknown };
 }): ApiKeyLifecycle | null {
   if (
@@ -227,8 +231,15 @@ function resolveApiKeyLifecycle(mw: {
   }
   const returned = mw.context.returned;
   if (returned instanceof APIError || !isRecord(returned)) return null;
-  // Create and update also serve server-side calls that carry no session;
-  // the returned row then names its owner.
+  // The server's own call (no request) is the app's door for a key bound to
+  // ONE organization (`domains/api_keys/service.ts` — a key an Owner or
+  // Admin made for a member, a team, a project or the organization). That
+  // door writes its own audit row there, naming the admin; recorded here it
+  // would name the key's holder as its maker, in every organization they
+  // belong to.
+  if (mw.request === undefined) return null;
+  // The create endpoint runs no session middleware: the returned row names
+  // its owner.
   const session = sessionPayloadUser(mw.context.session);
   const userId =
     session?.id ??
@@ -947,6 +958,28 @@ export function createAuth(config: AuthConfig) {
             throw new APIError('FORBIDDEN', {
               message: API_KEY_CREATE_FORBIDDEN_MESSAGE,
               code: 'API_KEY_CREATE_FORBIDDEN',
+            });
+          }
+          return;
+        }
+        // A key bound to one organization — one an Owner or Admin made for
+        // a member — is that organization's to change: its holder cannot
+        // stretch its expiry or rename it here, and it is ended through the
+        // organization's own door (`/api/app/api-keys`), which stamps its
+        // binding and writes the trail there.
+        if (
+          (mw.path === API_KEY_UPDATE_PATH ||
+            mw.path === API_KEY_DELETE_PATH) &&
+          mw.request !== undefined
+        ) {
+          const keyId = isRecord(mw.body) ? getString(mw.body, 'keyId') : null;
+          if (keyId && (await readApiKeyOwner(sql, keyId)) !== null) {
+            console.warn(
+              `[api-key] refused a ${mw.path} of a key bound to an organization`,
+            );
+            throw new APIError('FORBIDDEN', {
+              message: API_KEY_BOUND_MESSAGE,
+              code: 'API_KEY_ORGANIZATION_MANAGED',
             });
           }
           return;

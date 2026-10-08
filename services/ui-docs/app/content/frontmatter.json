@@ -55,11 +55,25 @@
       "description": "List problems a check found in the reader's words, take the reader to each one, and count and announce the result."
     }
   },
+  "components/property-list": {
+    "slug": "components/property-list",
+    "frontmatter": {
+      "title": "Property list",
+      "description": "Line up a record's properties beside their labels, and offer them as chips under a form."
+    }
+  },
   "components/recurrence-picker": {
     "slug": "components/recurrence-picker",
     "frontmatter": {
       "title": "Recurrence picker",
-      "description": "Let people choose how something repeats — one-click presets or a custom rule — and show the dates it produces."
+      "description": "Let people choose how something repeats, or when a schedule runs — one-click presets or a custom rule — and show the dates or runs it produces."
+    }
+  },
+  "components/schedule-occurrence-list": {
+    "slug": "components/schedule-occurrence-list",
+    "frontmatter": {
+      "title": "Schedule occurrence list",
+      "description": "Show the next times a schedule starts, in the schedule's time zone, with the reader's own time and any clock change spelled out."
     }
   },
   "components/tabs-and-navigation": {
@@ -67,6 +81,13 @@
     "frontmatter": {
       "title": "Tabs and navigation",
       "description": "Choose local panels or route navigation, preserve drafts deliberately, and keep every destination reachable."
+    }
+  },
+  "components/time-field": {
+    "slug": "components/time-field",
+    "frontmatter": {
+      "title": "Time field",
+      "description": "Let people enter a time of day in their own hour cycle, with segmented parts they can step, type or paste."
     }
   },
   "components/toast": {

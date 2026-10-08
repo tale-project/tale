@@ -482,7 +482,15 @@ const runProperties: Record<string, Json> = {
   },
   status: {
     type: 'string',
-    enum: ['queued', 'running', 'waiting', 'success', 'failed', 'cancelled'],
+    enum: [
+      'queued',
+      'running',
+      'waiting',
+      'quarantined',
+      'success',
+      'failed',
+      'cancelled',
+    ],
   },
   mode: { type: 'string', enum: ['mock', 'live'] },
   startedBy: {
@@ -552,6 +560,7 @@ const runProperties: Record<string, Json> = {
     enum: [...RUN_WAITING_FOR],
     description: runWaitingForDescription,
   },
+  legacyQuarantine: ref('LegacyRunQuarantine'),
   ...runResumeProperties,
   claimEpoch: {
     ...int,
@@ -4588,7 +4597,7 @@ export function buildSpec(): Json {
     queryParam(
       'status',
       'Only runs in these statuses — one or more of `queued`, `running`, ' +
-        '`waiting`, `success`, `failed`, `cancelled`, comma-separated; any ' +
+        '`waiting`, `quarantined`, `success`, `failed`, `cancelled`, comma-separated; any ' +
         'other value answers 400 `INVALID_QUERY`',
     ),
     queryParam(
@@ -5290,6 +5299,46 @@ export function buildSpec(): Json {
         },
       },
     };
+    paths[`${scope.path}/legacy-quarantine`] = {
+      post: {
+        tags: ['Runs'],
+        summary: 'Request a stop for a quarantined legacy run',
+        description: `${visibility} Requires the developer capability.${scope.project ? ' The project must be active and writable.' : ''} Read the current legacyQuarantine first and acknowledge unknown external effects. Records the authenticated caller’s stop request and requests cancellation of owned sessions; it does not prove termination, undo external effects, clear quarantine, or make the task runnable. An identical retry returns the recorded decision without replacing its actor.`,
+        operationId: scope.project
+          ? 'requestProjectLegacyRunStop'
+          : 'requestLegacyRunStop',
+        security: sec,
+        parameters,
+        requestBody: jsonBody(ref('LegacyRunStopRequest')),
+        responses: {
+          ...standardErrors,
+          '200': jsonResponse(
+            'Stop request recorded; the run remains quarantined',
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: ['requested', 'status', 'legacyQuarantine'],
+              properties: {
+                requested: { type: 'boolean', enum: [true] },
+                status: { type: 'string', enum: ['quarantined'] },
+                legacyQuarantine: ref('LegacyRunQuarantine'),
+              },
+            },
+          ),
+          '403': errorResponse(
+            scope.project
+              ? 'Requires developer capability and write access to an active project'
+              : 'Requires developer capability',
+          ),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`)',
+          ),
+          '409': errorResponse(
+            'Run no longer quarantined or expected claim epoch or observation changed (`RUN_QUARANTINE_CHANGED`); read the run again',
+          ),
+        },
+      },
+    };
     paths[`${scope.path}/cancel`] = {
       post: {
         tags: ['Runs'],
@@ -5327,6 +5376,9 @@ export function buildSpec(): Json {
           ),
           '404': errorResponse('Run missing or outside the visible URL scope'),
           ...standardErrors,
+          '409': errorResponse(
+            'A quarantined legacy run requires an explicit legacy-quarantine stop request (`RUN_QUARANTINED`)',
+          ),
         },
       },
     };
@@ -7209,6 +7261,17 @@ send under \`data.organizations\`; \`GET /api/v1/me\` lists them too, as its
 top-level \`organizations\`. The slug is matched without regard to case; a
 blank or whitespace-only header reads as absent.
 
+A key an Owner or Admin made for a member, a team, a project or the
+organization itself works in that one organization only, so it needs no
+\`X-Organization-Slug\` (one naming another organization answers 403
+\`ORG_FORBIDDEN\`). A team's, a project's or the organization's key is not a
+person: it acts with the role it was made with, a team's key sees what that
+team sees, and a project's key reaches its own project alone — the model
+endpoints, \`GET /me\`, \`GET /projects\` and the routes under
+\`/projects/{projectId}\` — while any other route answers 403
+\`API_KEY_SCOPE_FORBIDDEN\`. \`GET /api/v1/me\` names whose key it is, as
+\`key.owner\`.
+
 ## Requests
 
 Bodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole
@@ -7299,7 +7362,8 @@ UTF-16 code units\`, \`must be one of "a", "b"\` — and a refused \`limit\` or
 \`cursor\` (\`INVALID_LIMIT\`, \`INVALID_CURSOR\`) names its parameter there
 too, so branch on \`path\` and the \`code\`, never on the sentence. The door's own refusals are
 \`UNAUTHORIZED\`, \`ORG_SLUG_REQUIRED\`, \`ORG_SLUG_INVALID\`,
-\`ORG_FORBIDDEN\`, \`INVALID_URL\` (a NUL in the URL), \`URI_TOO_LONG\`,
+\`ORG_FORBIDDEN\`, \`API_KEY_SCOPE_FORBIDDEN\` (a project's key outside its
+project), \`INVALID_URL\` (a NUL in the URL), \`URI_TOO_LONG\`,
 \`INVALID_QUERY\`, \`INVALID_LIMIT\`, \`INVALID_CURSOR\`, \`INVALID_BODY\`,
 \`BODY_TOO_LARGE\`, \`METHOD_NOT_ALLOWED\`, \`NOT_FOUND\`, \`RATE_LIMITED\`,
 \`REQUEST_TIMEOUT\` (408 — the request did not finish arriving within 15
@@ -8418,7 +8482,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               nullable: true,
               description:
                 'The API key this request authenticated with — keys are minted, rotated and revoked in the app (Settings > API > REST), never through this surface, so this is where an unattended caller sees its own expiry coming. `null` only when the key was revoked while the request was in flight.',
-              required: ['id', 'name', 'expiresAt'],
+              required: ['id', 'name', 'expiresAt', 'owner'],
               additionalProperties: false,
               properties: {
                 id: str,
@@ -8431,10 +8495,47 @@ curl -H "Authorization: Bearer <api-key>" \\
                   description:
                     'When the key stops authenticating; `null` for a key minted to never expire',
                 },
+                owner: {
+                  type: 'object',
+                  description:
+                    'Whose key it is. `user`: a person’s own key, working in every organization they belong to. `member`: a key an Owner or Admin made for that member, working in this organization only. `team`, `project`, `organization`: a key that is not a person — it acts as its own identity with the role it was made with (`organization.role`), in this organization only; a team’s key sees what that team sees, and a project’s key reaches its project alone (any other route answers 403 `API_KEY_SCOPE_FORBIDDEN`). A key bound to one organization needs no `X-Organization-Slug`; one naming another organization answers 403 `ORG_FORBIDDEN`',
+                  required: ['kind', 'team', 'project'],
+                  additionalProperties: false,
+                  properties: {
+                    kind: {
+                      type: 'string',
+                      enum: [
+                        'user',
+                        'member',
+                        'team',
+                        'project',
+                        'organization',
+                      ],
+                    },
+                    team: {
+                      ...nullable({
+                        type: 'object',
+                        required: ['id', 'name'],
+                        properties: { id: str, name: nullable(str) },
+                      }),
+                      description: 'The team a team’s key belongs to',
+                    },
+                    project: {
+                      ...nullable({
+                        type: 'object',
+                        required: ['id', 'name'],
+                        properties: { id: str, name: nullable(str) },
+                      }),
+                      description: 'The project a project’s key belongs to',
+                    },
+                  },
+                },
               },
             },
             user: {
               type: 'object',
+              description:
+                'Who the key acts as: its holder, or — for a team’s, a project’s or the organization’s key — the key’s own identity, whose `email` is empty',
               required: ['id', 'email'],
               properties: { id: str, email: str },
             },
@@ -8454,7 +8555,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             organizations: {
               type: 'array',
               description:
-                'Every organization the key holder belongs to (disabled memberships excluded)',
+                'Every organization the key holder belongs to (disabled memberships excluded); for a key bound to one organization, that organization alone',
               items: {
                 type: 'object',
                 required: ['id', 'slug', 'name', 'role'],
@@ -9554,6 +9655,69 @@ curl -H "Authorization: Bearer <api-key>" \\
             ...triggerFailureProperties,
           },
         },
+        LegacyRunQuarantine: {
+          type: 'object',
+          additionalProperties: false,
+          description:
+            'A legacy execution whose external effects or termination cannot be proven. Present on held runs. A recorded stop request does not resolve the hold or establish that work stopped.',
+          required: [
+            'reason',
+            'observedAt',
+            'claimEpoch',
+            'priorStatus',
+            'resolution',
+          ],
+          properties: {
+            reason: { type: 'string', enum: ['legacy_execution_unproven'] },
+            observedAt: {
+              ...int,
+              minimum: 0,
+              maximum: Number.MAX_SAFE_INTEGER,
+            },
+            claimEpoch: {
+              ...int,
+              minimum: 0,
+              maximum: Number.MAX_SAFE_INTEGER,
+            },
+            priorStatus: {
+              type: 'string',
+              enum: ['queued', 'running', 'waiting'],
+            },
+            resolution: nullable({
+              type: 'object',
+              additionalProperties: false,
+              required: ['action', 'actor', 'at'],
+              properties: {
+                action: { type: 'string', enum: ['stop'] },
+                actor: { ...str, minLength: 1, maxLength: 200 },
+                at: { ...int, minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
+              },
+            }),
+          },
+        },
+        LegacyRunStopRequest: {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'action',
+            'expectedClaimEpoch',
+            'expectedObservedAt',
+            'acknowledgeUnknownExternalEffects',
+          ],
+          properties: {
+            action: { type: 'string', enum: ['stop'] },
+            expectedClaimEpoch: {
+              ...int,
+              minimum: 0,
+              maximum: Number.MAX_SAFE_INTEGER,
+            },
+            expectedObservedAt: epochMsInput,
+            acknowledgeUnknownExternalEffects: {
+              type: 'boolean',
+              enum: [true],
+            },
+          },
+        },
         RunSummary: {
           type: 'object',
           description:
@@ -9605,6 +9769,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'queued',
                 'running',
                 'waiting',
+                'quarantined',
                 'success',
                 'failed',
                 'cancelled',
@@ -9659,6 +9824,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 '"Runs that need a human" is `waitingFor` in (`approval`, ' +
                 '`ask`, `in_doubt`), never `status=waiting` alone.',
             },
+            legacyQuarantine: ref('LegacyRunQuarantine'),
             ...runResumeProperties,
             startedAt: epochMs,
             finishedAt: {

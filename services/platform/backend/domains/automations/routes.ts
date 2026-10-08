@@ -32,6 +32,7 @@ import {
 import { SKILL_ERROR_STATUS } from '../skills/errors.ts';
 import { auditIfPublishRefused } from '../skills/publish.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
+import { legacyRunStopSchema } from './legacy-quarantine.ts';
 import {
   managedAutomationKindSchema,
   managedAutomationWriteSchema,
@@ -56,6 +57,7 @@ import {
   automationTombstone,
   beginRun,
   cancelRun,
+  requestLegacyRunStopInTx,
   deleteAutomationCascade,
   deleteTrigger,
   getAskRunId,
@@ -165,9 +167,15 @@ const projectsSchema = z.object({
 
 const answerSchema = z.object({ answer: z.string().min(1).max(20_000) });
 
-/** A person's choice about a write that may already have happened. */
+/** A person's choice about a write that may already have happened, and the
+ * attempt of it the choice is about: a write run again keeps its row and
+ * takes the next number, so a choice about an earlier attempt is refused
+ * (409) instead of deciding a later one. The ledger's `attempt` is an int. */
 const inDoubtResolutionSchema = z
-  .object({ resolution: z.enum(['retry', 'skip', 'fail']) })
+  .object({
+    resolution: z.enum(['retry', 'skip', 'fail']),
+    attempt: z.number().int().min(1).max(2_147_483_647),
+  })
   .strict();
 
 const uploadSchema = z.object({
@@ -617,6 +625,7 @@ export function createAutomationRoutes(deps: {
           organizationId: c.get('orgId'),
           runId,
           attemptId: c.req.param('attemptId'),
+          attempt: body.data.attempt,
           resolution: body.data.resolution,
           actor,
         }),
@@ -625,6 +634,36 @@ export function createAutomationRoutes(deps: {
       return handleError(c, error);
     }
     return c.json({ ok: true });
+  });
+
+  app.post('/runs/:runId/legacy-quarantine', async (c) => {
+    const body = legacyRunStopSchema.safeParse(
+      await c.req.json().catch(() => undefined),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const runId = c.req.param('runId');
+      const control = await controllableRun(c, runId);
+      if (control === 'absent')
+        throw new AutomationError(
+          'RUN_NOT_FOUND',
+          'this run does not exist',
+          404,
+        );
+      if (control === 'forbidden') return forbiddenControl(c);
+      return c.json(
+        await deps.sql.begin((tx) =>
+          requestLegacyRunStopInTx(tx, {
+            organizationId: c.get('orgId'),
+            runId,
+            actor: c.get('sessionBundle').user.id,
+            request: body.data,
+          }),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.post('/runs/:runId/cancel', async (c) => {

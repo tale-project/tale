@@ -10,7 +10,7 @@ Prüfe zu Beginn einer Integration drei Dinge: Der Schlüssel authentifiziert si
 
 <Frame caption="Verwende pro Integration einen erkennbaren Schlüssel, den du unabhängig ersetzen oder widerrufen kannst.">
 
-![Im Dialog zum Erstellen eines API-Schlüssels legst du vor der Erstellung einen Namen und die Gültigkeitsdauer fest.](/images/get-started/settings-api-keys.webp)
+![Im Dialog zum Erstellen eines API-Schlüssels legst du vor der Erstellung einen Namen und die Gültigkeitsdauer fest; Inhaber und Admins wählen außerdem, wem der Schlüssel gehört.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 

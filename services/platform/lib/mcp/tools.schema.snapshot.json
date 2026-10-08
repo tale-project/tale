@@ -687,6 +687,7 @@
               "queued",
               "running",
               "waiting",
+              "quarantined",
               "success",
               "failed",
               "cancelled"

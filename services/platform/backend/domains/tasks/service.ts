@@ -18,7 +18,7 @@ import {
   sameTaskRepeat,
   type TaskRepeat,
 } from '../../../lib/shared/task-repeat.ts';
-import { findOrganizationMember } from '../../auth/membership.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import { assertExpectedHash } from '../../core/lib/config_store/precondition.ts';
 import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import {
@@ -1275,6 +1275,20 @@ function normalizeAttachments(
 }
 
 /**
+ * The start-date bell's stamp for a start being written now. A start that
+ * has already arrived — today, picked as the new task's default, or a day
+ * in the past — was set by someone looking at the task, so it is written as
+ * already announced and the hourly sweep sends no "starts today" bell for
+ * it; a start still ahead stays unstamped and rings when its day comes.
+ */
+function startArrivedStamp(
+  startDate: number | null,
+  now: number,
+): number | null {
+  return startDate !== null && startDate <= now ? now : null;
+}
+
+/**
  * Attachments are client-named blob refs. Each ref NEW to the task must be
  * the caller's own upload (their upload intent inside its TTL, or the file
  * row they registered) — a document's ref, which every reader of that
@@ -1403,9 +1417,9 @@ export async function createTask(
     INSERT INTO app.tasks (
       org_id, project_id, title, description, attachments, status, priority,
       label_ids, assignee_type, assignee_id, parent_task_id, start_date_ms,
-      due_date_ms, repeat_rule, rank, number, created_by, created_by_type,
-      created_at_ms, updated_at_ms, status_changed_at_ms, completed_at_ms,
-      source_thread_id
+      start_notified_at_ms, due_date_ms, repeat_rule, rank, number, created_by,
+      created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms,
+      completed_at_ms, source_thread_id
     ) VALUES (
       ${auth.organizationId}, ${args.projectId}, ${title},
       ${description ?? null},
@@ -1413,7 +1427,9 @@ export async function createTask(
       ${status}, ${args.priority ?? null},
       ${labelIds ?? []}, ${assignee?.assigneeType ?? null},
       ${assignee?.assigneeId ?? null}, ${args.parentTaskId ?? null},
-      ${args.startDate ?? null}, ${args.dueDate ?? null},
+      ${args.startDate ?? null},
+      ${startArrivedStamp(args.startDate ?? null, now)},
+      ${args.dueDate ?? null},
       ${repeat !== null ? tx.json(toJson(repeat)) : null}, ${rank}, ${number},
       ${auth.userId}, 'user', ${now}, ${now}, ${now},
       ${TERMINAL_STATUSES.has(status) ? now : null},
@@ -1867,8 +1883,9 @@ async function updateTaskFields(
   // A rescheduled task re-enters the date ladder: a changed due date clears
   // the SLA rung (so "due soon", the nudge and the escalations fire again
   // for the new date) and a changed start date clears the one-shot start
-  // stamp. Without this the ladder stayed off for good once it had fired —
-  // the common "overdue → pushed out" flow silenced every later alert.
+  // stamp — or sets it, when the new start has already arrived. Without this
+  // the ladder stayed off for good once it had fired — the common "overdue →
+  // pushed out" flow silenced every later alert.
   const dueChanged = args.dueDate !== undefined && dueDate !== task.dueDate;
   const startChanged =
     args.startDate !== undefined && startDate !== task.startDate;
@@ -1880,7 +1897,8 @@ async function updateTaskFields(
       sla_level = CASE WHEN ${dueChanged}::boolean THEN NULL ELSE sla_level END,
       sla_level_at_ms = CASE WHEN ${dueChanged}::boolean THEN NULL
                              ELSE sla_level_at_ms END,
-      start_notified_at_ms = CASE WHEN ${startChanged}::boolean THEN NULL
+      start_notified_at_ms = CASE WHEN ${startChanged}::boolean
+                                  THEN ${startArrivedStamp(startDate, Date.now())}::bigint
                                   ELSE start_notified_at_ms END,
       attachments = CASE WHEN ${nextAttachments !== undefined}::boolean
                          THEN ${nextAttachments !== undefined && nextAttachments.length > 0 ? tx.json(toJson(nextAttachments)) : null}::jsonb
@@ -4341,7 +4359,7 @@ async function taskHasLiveAutomationRun(
     SELECT id FROM app.automation_runs
     WHERE org_id = ${task.organizationId}
       AND (project_id = ${task.projectId} OR project_id IS NULL)
-      AND status IN ('queued', 'running', 'waiting')
+      AND status IN ('queued', 'running', 'waiting', 'quarantined')
       AND input -> 'task' ->> 'id' = ${task.id}
     LIMIT 1
   `;
@@ -4787,7 +4805,7 @@ export async function deferredAgentKickRefusal(
       : 'not_permitted';
   }
   if (starter.kind === 'unknown') return 'not_permitted';
-  const member = await findOrganizationMember(
+  const member = await findActingMember(
     tx,
     args.organizationId,
     starter.userId,

@@ -13,6 +13,7 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 import { recoverStalledWorkflowAgentTurns } from './reattach.ts';
 
 interface Statement {
@@ -29,7 +30,10 @@ function fakeSql(): { sql: Sql; statements: Statement[] } {
     statements.push({ text: strings.join('?'), values });
     return Promise.resolve([]);
   };
-  return { sql: fn as unknown as Sql, statements };
+  const sql = Object.assign(fn, {
+    begin: async (callback: (tx: typeof fn) => unknown) => callback(fn),
+  });
+  return { sql: sql as unknown as Sql, statements };
 }
 
 describe('listStalledWorkflowAgentTurns', () => {
@@ -41,8 +45,11 @@ describe('listStalledWorkflowAgentTurns', () => {
     });
 
     expect(result).toEqual({ examined: 0, resumed: 0 });
-    expect(fake.statements).toHaveLength(1);
-    const listing = fake.statements[0]?.text ?? '';
+    expect(fake.statements).toHaveLength(2);
+    expect(fake.statements[0]?.text).toContain(
+      "set_config('tale.automation_writer_protocol'",
+    );
+    const listing = fake.statements[1]?.text ?? '';
     expect(listing).toContain("r.status = 'waiting'");
     // The candidate predicates are the query's, not a JS pass over a page.
     expect(listing).toContain(
@@ -59,9 +66,9 @@ describe('listStalledWorkflowAgentTurns', () => {
     expect(listing).toContain('FOR UPDATE OF r SKIP LOCKED');
     expect(listing).toContain('SET recovery_checked_at_ms');
     expect(listing).not.toMatch(/ORDER BY r\.started_at_ms DESC/);
-    expect(fake.statements[0]?.values).toContain(25);
+    expect(fake.statements[1]?.values).toContain(25);
     // The staleness cut is a parameter, evaluated per row in SQL.
-    const staleBefore = fake.statements[0]?.values[0];
+    const staleBefore = fake.statements[1]?.values[0];
     expect(staleBefore).toBeTypeOf('number');
     expect(staleBefore as number).toBeLessThanOrEqual(Date.now() - 60_000);
   });
@@ -94,19 +101,27 @@ describe('recoverStalledWorkflowAgentTurns — the drive-chain fence', () => {
       ...values: unknown[]
     ): Promise<unknown[]> => {
       statements.push({ text: strings.join('?'), values });
-      return Promise.resolve(script[statements.length - 1] ?? []);
+      if (
+        strings
+          .join('?')
+          .includes("set_config('tale.automation_writer_protocol'")
+      )
+        return Promise.resolve([]);
+      return Promise.resolve(script[statements.length - 2] ?? []);
     };
 
     const result = await recoverStalledWorkflowAgentTurns(
-      fn as unknown as Sql,
+      Object.assign(fn, {
+        begin: async (callback: (tx: typeof fn) => unknown) => callback(fn),
+      }) as unknown as Sql,
       { probe: () => Promise.resolve({ state: 'running' as const }) },
     );
 
     expect(result).toEqual({ examined: 1, resumed: 0 });
-    expect(statements).toHaveLength(2);
-    expect(statements[1]?.text).toContain('FROM pgboss.job');
-    expect(statements[1]?.values.slice(0, 2)).toEqual([
-      'automation.agent_drive',
+    expect(statements).toHaveLength(3);
+    expect(statements[2]?.text).toContain('FROM pgboss.job');
+    expect(statements[2]?.values.slice(0, 2)).toEqual([
+      physicalTaskQueue('automation.agent_drive'),
       'exec_1',
     ]);
   });

@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
 import {
   DEFAULT_SESSION_TTL_MS,
   MAX_SESSION_TTL_MS,
@@ -74,7 +75,11 @@ function fakeSql(
 }
 
 /** The family behind a stub door that sets the request variables. */
-function mount(sql: Sql, role = 'admin') {
+function mount(
+  sql: Sql,
+  role = 'admin',
+  apiKeyOwner: ApiKeyOwner | null = null,
+) {
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('userId', 'user-1');
@@ -84,6 +89,7 @@ function mount(sql: Sql, role = 'admin') {
     c.set('role', role);
     c.set('orgExplicit', true);
     c.set('clientIp', '203.0.113.9');
+    c.set('apiKeyOwner', apiKeyOwner);
     return next();
   });
   app.route('/', createRestBrowserSessionRoutes({ sql }));
@@ -144,6 +150,34 @@ describe('POST /browser-sessions/import', () => {
     expect(queries.map((q) => q.text)).toEqual([
       expect.stringContaining('FROM "member" WHERE "userId"'),
     ]);
+  });
+
+  it('judges a key bound to one organization by that membership alone [APIKEY-R5]', async () => {
+    // Mia is an admin elsewhere and on the allowlist, but the key an admin
+    // of org-1 made for her acts as a member here, and here alone.
+    vi.stubEnv('TALE_DEPLOYMENT_CONFIG_ADMINS', 'ops@example.com');
+    const { sql, queries } = fakeSql(ADMIN);
+    const bound: ApiKeyOwner = {
+      apiKeyId: 'key-1',
+      organizationId: 'org-1',
+      kind: 'member',
+      keyUserId: 'key-identity',
+      principalUserId: 'user-1',
+      teamId: null,
+      projectId: null,
+      role: null,
+      name: 'Sync',
+      createdBy: 'admin-1',
+      createdAt: 1,
+      revokedAt: null,
+      revokedBy: null,
+    };
+    const res = await mount(sql, 'member', bound).request(importRequest({}));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({
+      code: 'FORBIDDEN_INSTANCE_ADMIN',
+    });
+    expect(queries.some((q) => q.text.includes('FROM "member"'))).toBe(false);
   });
 
   it('refuses a malformed body from an allowlisted administrator, and inserts nothing', async () => {

@@ -21,6 +21,7 @@ import {
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import { createAuditLog, lockAuditChain } from '../audit_logs/service.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import {
   indexedMessageRefsOf,
   queueMessageRefRelease,
@@ -1452,6 +1453,7 @@ async function sweepAutomationRuns(
   const cutoff =
     Date.now() - (days + (org.config.deletionGraceDays ?? 0)) * DAY_MS;
   await destroyInTx(sql, trail, async (tx) => {
+    await markAutomationWriterInTx(tx);
     // The delete clears a purged run from the trigger that names it
     // (`last_run_id`, `last_failed_run_id`: `ON DELETE SET NULL`), a write
     // of that trigger row, so when a trigger names a run of the batch the

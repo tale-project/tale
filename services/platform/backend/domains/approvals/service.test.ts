@@ -3,6 +3,7 @@ import type { Sql } from 'postgres';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import { setEnqueueBoss } from '../../jobs/enqueue';
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 import {
   ApprovalError,
   assertRoleMayDecideKind,
@@ -281,7 +282,7 @@ describe('decideApproval — the decision wakes its run in the same transaction 
 
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith(
-      'automation.step',
+      physicalTaskQueue('automation.step'),
       { organizationId: 'org-1', runId: 'run-1' },
       expect.objectContaining({
         db: expect.any(Object),

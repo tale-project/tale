@@ -175,6 +175,10 @@ entries:
   # owners and admins for more usage credits.
   - 'inbox.usageCreditsRequested'
   - 'inbox.usageCreditsRequestedBody'
+  # Keys made for a member (domains/api_keys/service.ts): an Owner or Admin
+  # created an API key that acts as the member in this organization.
+  - 'inbox.apiKeyCreatedForYou'
+  - 'inbox.apiKeyCreatedForYouBody'
   # Paused schedules (domains/automations/trigger-failures.ts): a schedule
   # stopped itself after repeated permanent failures; owners and admins.
   - 'inbox.automationTriggerPaused'
@@ -293,6 +297,8 @@ entries:
   # app/features/automations/lib/run-view.ts (`runReasonKey`) and rendered by
   # the run list and the run header.
   - 'automations.runs.waiting'
+  # The same runReasonKey projection supplies the held-run list explanation.
+  - 'automations.runs.quarantine.reason'
 
   # How a validation issue reads: app/features/automations/lib/issue-text.ts
   # renders `codes.<CODE>.{title,explanation,cause,fix}` from the issue's

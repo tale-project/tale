@@ -66,6 +66,8 @@ cloudSyncNeedsReauth: Synchronisation cloud à reconnecter
 cloudSyncNeedsReauthBody: 'Tale n’a plus accès à {provider} avec ton compte, donc « {itemName} » n’est plus synchronisé. Reconnecte {provider} depuis Documents pour reprendre.'
 usageCreditsRequested: Crédits d’utilisation demandés
 usageCreditsRequestedBody: '{name} a atteint une limite d’utilisation et demande plus de crédits.'
+apiKeyCreatedForYou: Clé API créée pour toi
+apiKeyCreatedForYouBody: '{name} a créé la clé API « {keyName} » pour toi. Elle agit en ton nom dans cette organisation ; si tu n’en as pas besoin, révoque-la sous Paramètres > API > REST.'
 automationTriggerPaused: Planification en pause
 automationTriggerPausedBody: '« {name} » a échoué {failures} fois de suite ({code}), sa planification est donc en pause. Corrige l’automatisation, puis réactive son déclencheur.'
 agentRunFailed: Échec de l’exécution de l’agent

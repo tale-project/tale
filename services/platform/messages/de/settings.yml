@@ -336,6 +336,7 @@ teams:
   deleteImpact:
     summary: 'Dieses Team hat {members, plural, one {# Mitglied} other {# Mitglieder}}. Es gehört zur Reichweite von {projects, plural, one {# Projekt} other {# Projekten}}, {folders, plural, one {# Ordner} other {# Ordnern}} und {documents, plural, one {# Dokument} other {# Dokumenten}}, und {conversations, plural, one {# Unterhaltung liegt} other {# Unterhaltungen liegen}} in seiner Warteschlange.'
     becomeOrgWide: '{count, plural, one {# Element hat kein weiteres Team und wird} other {# Elemente haben kein weiteres Team und werden}} für alle in der Organisation sichtbar.'
+    apiKeys: '{count, plural, one {# API-Schlüssel gehört diesem Team und funktioniert danach nicht mehr.} other {# API-Schlüssel gehören diesem Team und funktionieren danach nicht mehr.}}'
   description: Teams innerhalb deiner Organisation erstellen und verwalten für
     granulare Zugriffskontrolle
 credentials:
@@ -1049,7 +1050,10 @@ apiKeys:
   createKeySubmit: Schlüssel erstellen
   keyCreated: API-Schlüssel erstellt
   keyCreatedDescription: Kopiere deinen API-Schlüssel jetzt. Er wird nicht erneut angezeigt.
+  keyCreatedDescriptionForOthers: Kopiere den API-Schlüssel jetzt. Er wird nicht erneut angezeigt.
+  keyCreatedForMember: Gib den Schlüssel über einen sicheren Kanal an {name} weiter. Eine Benachrichtigung informiert {name} darüber.
   yourApiKey: Dein API-Schlüssel
+  newApiKey: Neuer API-Schlüssel
   keyRevoked: API-Schlüssel widerrufen
   keyRevokeFailed: API-Schlüssel konnte nicht widerrufen werden
   keyCreateFailed: API-Schlüssel konnte nicht erstellt werden
@@ -1062,6 +1066,18 @@ apiKeys:
     key: Schlüssel
     created: Hinzugefügt
     lastUsed: Zuletzt verwendet
+    expires: Läuft ab
+    owner: Gehört zu
+  owner:
+    you: Dir
+    team: Team {name}
+    project: Projekt {name}
+    organization: Organisation
+    formerMember: Ehemaliges Mitglied
+    deletedTeam: Gelöschtes Team
+    deletedProject: Gelöschtes Projekt
+    actsAs: Handelt als {role}
+    madeBy: Erstellt von {name}
   form:
     name: Schlüsselname
     namePlaceholder: Schlüsselnamen eingeben...
@@ -1075,8 +1091,47 @@ apiKeys:
       30days: 30 Tage
       90days: 90 Tage
       1year: 1 Jahr
+      custom: Eigenes Datum
       never: Nie
+    expiresOn: Der Schlüssel läuft am {date} ab.
+    neverExpiresHint: Der Schlüssel funktioniert, bis er widerrufen wird.
+    expiryDate: Ablaufdatum
+    expiryDateHint: Wähle einen Tag, höchstens ein Jahr im Voraus.
+    expiryDateRequired: Wähle ein Ablaufdatum.
+    expiryDateRange: Wähle einen Tag zwischen morgen und einem Jahr ab heute.
+    owner: Gehört zu
+    ownerOptions:
+      self: Dir
+      member: Einem anderen Mitglied
+      team: Einem Team
+      project: Einem Projekt
+      organization: Der Organisation
+    ownerHints:
+      member: Der Schlüssel handelt als dieses Mitglied, mit dessen Rolle und Teams, und nur in dieser Organisation. Das Mitglied wird benachrichtigt und kann ihn widerrufen.
+      team: Der Schlüssel gehört dem Team, nicht einer Person. Er handelt mit der gewählten Rolle, sieht, was das Team sieht, und funktioniert weiter, wenn du gehst.
+      project: Der Schlüssel gehört dem Projekt, nicht einer Person. Er handelt mit der gewählten Rolle und erreicht nur dieses Projekt.
+      organization: Der Schlüssel gehört der Organisation, nicht einer Person. Er handelt mit der gewählten Rolle und funktioniert weiter, wenn du gehst.
+    member: Mitglied
+    memberPlaceholder: Mitglied auswählen
+    memberSearch: Mitglieder suchen...
+    memberEmpty: Kein Mitglied mit einer niedrigeren Rolle als deiner
+    memberNoMatch: Kein passendes Mitglied
+    team: Team
+    teamPlaceholder: Team auswählen
+    teamSearch: Teams suchen...
+    teamEmpty: Keine Teams
+    teamNoMatch: Kein passendes Team
+    project: Projekt
+    projectPlaceholder: Projekt auswählen
+    projectSearch: Projekte suchen...
+    projectEmpty: Keine aktiven Projekte
+    projectNoMatch: Kein passendes Projekt
+    role: Handelt als
+    roleHint: Die Rolle des Schlüssels in dieser Organisation. Sie kann nicht höher sein als deine eigene.
+    targetRequired: Wähle aus, wem der Schlüssel gehört.
   neverUsed: Nie verwendet
+  neverExpires: Nie
+  expired: Abgelaufen
   description: API-Schlüssel für externe Connectors verwalten
   title: API-Schlüssel
 apiDocs:
@@ -1690,15 +1745,11 @@ dataResidency:
     dimensions: Vektorbreite
     dimensionsHint:
       'Angegeben, nie geraten: die exakte Dimensionszahl, die dieses Modell
-      erzeugt. Eine spätere Änderung macht bereits geschriebene Vektoren der
-      alten Breite unbrauchbar.'
+      erzeugt — eine von {widths}. Nach einer Änderung erhalten die
+      indexierten Dokumente und Website-Seiten neue Vektoren in der neuen
+      Breite.'
     baseUrl: Basis-URL
     baseUrlHint: OpenAI-kompatibler Endpunkt; leer lassen für den des Anbieters.
-    sharedDbNote:
-      Auf der gemeinsamen Datenbank des Deployments teilen sich alle
-      Organisationen eine Vektorbreite — sie wird beim ersten geschriebenen
-      Vektor festgelegt. Gib dieser Organisation eine eigene Wissensdatenbank,
-      um frei zu wählen.
     removed:
       Embedding-Modell entfernt — die Wissenssuche ist nicht verfügbar, bis
       ein neues eingerichtet ist.
@@ -1714,7 +1765,7 @@ dataResidency:
       invalid: Die Embedding-Einstellungen sind ungültig. Prüfe die Felder und versuch es erneut.
       providerRequired: Wähle einen Anbieter.
       modelRequired: Gib das Modell-Tag ein.
-      dimensionsInvalid: Gib eine ganze Zahl zwischen 1 und 16000 ein.
+      dimensionsInvalid: 'Gib eine unterstützte Vektorbreite ein: {widths}.'
       baseUrlInvalid: Gib eine http(s)-URL ein oder lass das Feld leer.
       credentialNotFound: Die gewählten Zugangsdaten existieren nicht mehr — wähle andere.
       credentialMismatch: Die gewählten Zugangsdaten gehören zu einem anderen Anbieter.

@@ -1345,7 +1345,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       await wakeParkedAgentRun(deps.sql, input);
     },
 
-    'task.agent_turn': async (payload) => {
+    'task.agent_turn': async (payload, context) => {
       const input = z
         .object({
           organizationId: z.string().min(1),
@@ -1502,6 +1502,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
               : {}),
           ...plan,
         },
+        context !== undefined ? { signal: context.signal } : undefined,
       );
     },
     'task.agent_retry': agentRetry,

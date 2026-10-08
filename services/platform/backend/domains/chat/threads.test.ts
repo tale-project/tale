@@ -33,6 +33,8 @@ vi.mock('../legal_holds/service.ts', async (original) => ({
 }));
 vi.mock('../../auth/membership.ts', () => ({
   findOrganizationMember,
+  // The acting member is the person's own row here: no API key identity.
+  findActingMember: findOrganizationMember,
   getUserTeamIds,
 }));
 

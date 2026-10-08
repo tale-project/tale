@@ -6,7 +6,9 @@ import {
   MembershipError,
 } from '../../auth/membership.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { deleteOrganizationApiKeysInTx } from '../api_keys/retire.ts';
 import { logSuccess } from '../audit_logs/service.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import {
   loadActiveHolds,
   LegalHoldError,
@@ -568,6 +570,13 @@ export async function deleteOrganization(
   // naming them go with the cascade below, so what their teardown needs is
   // read (and its jobs queued) first. The jobs become visible on commit.
   await scheduleOrganizationSandboxRetirement(tx, organizationId);
+  await markAutomationWriterInTx(tx);
+  // The keys bound to the organization go with their secrets and the
+  // identities its team, project and organization keys acted as — before
+  // the cascade below takes their bindings: a member's key whose binding
+  // vanished would read as that person's own key, valid in every other
+  // organization they belong to.
+  await deleteOrganizationApiKeysInTx(tx, organizationId);
   // The app-side cascade: every app-schema table keyed by org_id (projects,
   // tasks, documents, conversations, automations, credentials, usage, the
   // per-user preference and memory rows, SSO provenance, …), read from the

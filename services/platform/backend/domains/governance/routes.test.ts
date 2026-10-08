@@ -641,9 +641,10 @@ describe('GET /my/api-keys', () => {
       }).request('/my/api-keys?orgId=o1');
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ mayCreate, holdsKeys });
-      // The person's right and keys, whichever organization's page asks.
+      // The person's right, whichever organization's page asks, and the keys
+      // that work here: their own, and the ones made for them in this one.
       expect(mayCreateApiKeys).toHaveBeenCalledWith(expect.anything(), 'u1');
-      expect(keyReads).toEqual([['u1']]);
+      expect(keyReads).toEqual([['u1', 'o1']]);
     },
   );
 });

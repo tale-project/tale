@@ -13,6 +13,7 @@ import type {
   SkillDocumentView,
   SkillSummaryView,
 } from '../../backend/core/skills/views.ts';
+import { legacyRunStopSchema } from '../../backend/domains/automations/legacy-quarantine.ts';
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
 import { API_CONTACT_STATUSES } from '../../backend/domains/conversations/api-sync.ts';
 import { PLATFORM_CAPABILITIES } from '../../backend/domains/governance/competence.ts';
@@ -2635,5 +2636,76 @@ describe('the document is OpenAPI 3.0', () => {
     };
     walk(spec, '$');
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('legacy quarantine public contract', () => {
+  const request = {
+    action: 'stop',
+    expectedClaimEpoch: 4,
+    expectedObservedAt: 1700000000000,
+    acknowledgeUnknownExternalEffects: true,
+  };
+  const hold = {
+    reason: 'legacy_execution_unproven',
+    observedAt: 1700000000000,
+    claimEpoch: 4,
+    priorStatus: 'running',
+    resolution: null,
+  };
+  it.each(['/api/v1/runs/{runId}', '/api/v1/projects/{id}/runs/{runId}'])(
+    '%s has an exact stop-request schema matching the native boundary',
+    (path) => {
+      const operation = paths[`${path}/legacy-quarantine`]?.post;
+      const requestBody = operation?.requestBody as Json;
+      const content = requestBody.content as Record<string, Json>;
+      const schema = content['application/json']?.schema as Json;
+      const validate = ajv.compile({ ...schema, components: spec.components });
+      for (const body of [
+        request,
+        {},
+        { ...request, action: 'resume' },
+        { ...request, acknowledgeUnknownExternalEffects: false },
+        { ...request, expectedClaimEpoch: -1 },
+        { ...request, expectedObservedAt: Number.MAX_SAFE_INTEGER + 1 },
+        { ...request, expectedObservedAt: 9e15 },
+        { ...request, expectedObservedAt: 1.5 },
+        { ...request, actor: 'someone-else' },
+        { ...request, projectId: 'other' },
+      ]) {
+        expect(validate(body)).toBe(
+          legacyRunStopSchema.safeParse(body).success,
+        );
+      }
+      expect(validate(request)).toBe(true);
+      const responses = operation?.responses as Record<string, Json>;
+      expect(responses['409']?.description).toContain('RUN_QUARANTINE_CHANGED');
+    },
+  );
+
+  it('shares the bounded public hold across full, summary and projected reads', () => {
+    const schemas = (spec.components as Json).schemas as Record<string, Json>;
+    for (const name of ['Run', 'RunSummary', 'RunProjection']) {
+      const properties = schemas[name]?.properties as Record<string, Json>;
+      expect(properties.status?.enum).toContain('quarantined');
+      expect(properties.legacyQuarantine).toEqual({
+        $ref: '#/components/schemas/LegacyRunQuarantine',
+      });
+    }
+    const validate = ajv.compile(schemas.LegacyRunQuarantine as Json);
+    expect(validate(hold)).toBe(true);
+    expect(
+      validate({
+        ...hold,
+        resolution: { action: 'stop', actor: 'user-1', at: 1700000000001 },
+      }),
+    ).toBe(true);
+    expect(validate({ ...hold, prior: { leaseOwner: 'private' } })).toBe(false);
+    expect(
+      validate({
+        ...hold,
+        resolution: { action: 'resume', actor: 'user-1', at: 1700000000001 },
+      }),
+    ).toBe(false);
   });
 });

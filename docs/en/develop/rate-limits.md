@@ -3,7 +3,7 @@ title: Handle rate limits
 description: Plan REST, MCP and webhook traffic, interpret Retry-After and retry accepted work without duplicating it.
 ---
 
-Tale limits API traffic by the key holder. All API keys belonging to the same person share that person’s budget. Account for every integration and polling worker using that identity, rather than budgeting each key independently.
+Tale limits API traffic by the key holder. All API keys belonging to the same person share that person’s budget; a key an Owner or Admin made for a member, a team, a project, or the organization has a budget of its own. Account for every integration and polling worker using that identity, rather than budgeting each key independently.
 
 The limits below describe the current backend. An operator’s proxy or a downstream provider may impose additional limits.
 
@@ -64,4 +64,4 @@ An `ETag` response of `304` still costs a request. It saves response bytes, not 
 
 Request only the fields you need, such as `?fields=status,finishedAt` on a run. Slow down when a run is waiting for a human, and stop polling terminal runs. Follow [Start a run, then poll it](/develop/api-reference#start-a-run-then-poll-it) for states and idempotent starts.
 
-For larger imports, use supported batch operations such as `POST /api/v1/contacts/bulk`, and spread batches over time. Creating more keys for the same user does not increase the budget. If a workflow needs its own service identity, provision that identity through your normal account and permission process; do not use key rotation as a retry strategy.
+For larger imports, use supported batch operations such as `POST /api/v1/contacts/bulk`, and spread batches over time. Creating more keys for the same user does not increase the budget. A workflow that needs an identity and a budget of its own can use a key an Owner or Admin makes for a team, a project, or the organization; do not use key rotation as a retry strategy.

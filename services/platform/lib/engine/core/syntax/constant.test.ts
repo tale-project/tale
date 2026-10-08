@@ -43,4 +43,9 @@ describe('foldConstant', () => {
   ])('%s is not constant', (expr) => {
     expect(fold(expr)).toEqual({ ok: false });
   });
+
+  it.each(['2n ** 8n', '1n / 0n', '2n ** -1n', '1n + "x"'])(
+    'does not fold BigInt arithmetic: %s',
+    (expr) => expect(fold(expr)).toEqual({ ok: false }),
+  );
 });

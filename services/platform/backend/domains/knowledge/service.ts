@@ -13,12 +13,13 @@ import {
   isImage,
   shouldRagIndexOnUpload,
 } from '../../../lib/shared/file-types.ts';
-import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
+import { findActingMember, isAdminRole } from '../../auth/membership.ts';
 import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
 import { applyCorpusSchema } from '../../core/knowledge/ddl.ts';
 import {
+  chunkVectorsTable,
   EmbeddingDimensionMismatch,
-  pinDimensions,
+  UnsupportedVectorWidth,
 } from '../../core/knowledge/dimensions.ts';
 import {
   isOnDemandReadableName,
@@ -468,8 +469,11 @@ async function retrievalCallerFor(
   organizationId: string,
   userId: string,
 ): Promise<{ userId: string; isAdmin: boolean } | undefined> {
-  const member = await findOrganizationMember(sql, organizationId, userId);
+  const member = await findActingMember(sql, organizationId, userId);
   if (member === null || member.role === 'disabled') return undefined;
+  // A project's own API key reaches its project alone: no conversation's
+  // mail or attachment is retrievable for it.
+  if (member.apiKeyOwner?.kind === 'project') return undefined;
   return { userId, isAdmin: isAdminRole(member.role) };
 }
 
@@ -1117,13 +1121,6 @@ export async function indexUploadedFile(
     );
     const pool = await getKnowledgePoolForOrg(orgSlug);
     const dbUrl = await resolveOrgUrl(orgSlug);
-    await pinDimensions({
-      sql: pool,
-      dbUrl,
-      schema: PRIVATE_KNOWLEDGE_SCHEMA,
-      dimensions: embedder.dimensions,
-      context: `organization "${orgSlug}"`,
-    });
 
     const piiPolicy = await readGovernancePolicy(orgSlug, 'pii_config').catch(
       () => null,
@@ -1309,13 +1306,17 @@ export async function indexUploadedFile(
       });
       return;
     }
-    // The model answers vectors of another width than the settings state
-    // (a provider that ignores the requested `dimensions`), or than the
-    // database is pinned to. Nothing heals by waiting — the same call
-    // answers the same width — so the job ends here with both numbers on
-    // the file; an admin corrects the width or the model and saves, which
-    // re-queues the document.
-    if (error instanceof EmbeddingDimensionMismatch) {
+    // The model answers vectors of another width than the settings state (a
+    // provider that ignores the requested `dimensions`), or the settings
+    // state a width no table stores (a file written before the widths were
+    // a list). Nothing heals by waiting — the same call answers the same
+    // width — so the job ends here with the numbers on the file; an admin
+    // corrects the width or the model and saves, which re-queues the
+    // document.
+    if (
+      error instanceof EmbeddingDimensionMismatch ||
+      error instanceof UnsupportedVectorWidth
+    ) {
       await recordIndexingFailure(sql, {
         ...failure,
         ragError: `${error.message} Correct the embedding settings under Settings → Data residency → Embedding model (the vector width, or the model) and save; indexing then resumes by itself.`,
@@ -1456,6 +1457,100 @@ export async function requeueEmbeddingBlockedDocuments(
     await hintDocumentLists(tx, rows);
     return { requeued: rows.length };
   });
+}
+
+/** Refs per transaction of {@link requeueDocumentsWithoutVectors} — bounded
+ * work per lock hold. */
+const VECTORLESS_REQUEUE_BATCH = 200;
+
+/**
+ * Re-queue everything the organization has indexed that has no vector of the
+ * width its embedding model now states. After a move to a model of another
+ * width that is every document and every email body: each stays findable by
+ * its words, and would be missing from search by meaning until someone
+ * indexed it again, one at a time. Run by the embedding save — the
+ * documents' half of what `websitesAfterEmbeddingChange` does for the
+ * organization's websites.
+ *
+ * Decided by what the corpus holds, never by comparing the old settings
+ * with the new: a save that leaves the width alone finds nothing here, and a
+ * document without vectors for any other reason is picked up as well.
+ * Indexing one embeds it again from its first chunk (`readStoredState`
+ * counts the chunks that have a vector of this width).
+ *
+ * Only a file whose indexing reads `completed` is moved: one in flight, one
+ * that failed and one whose uploader chose not to index it are left as they
+ * are. Each batch's flips and enqueues share ONE transaction, and the jobs
+ * run at DEFAULT priority, as in {@link requeueEmbeddingBlockedDocuments}.
+ */
+export async function requeueDocumentsWithoutVectors(
+  sql: Sql,
+  args: { organizationId: string; orgSlug: string },
+): Promise<{ requeued: number }> {
+  const config = await readOrgEmbeddingConfig(args.orgSlug);
+  if (config === null) return { requeued: 0 };
+  const vectors = chunkVectorsTable(
+    PRIVATE_KNOWLEDGE_SCHEMA,
+    config.dimensions,
+    `organization "${args.orgSlug}"`,
+  );
+  const pool = await getKnowledgePoolForOrg(args.orgSlug);
+  const lacking = await pool.unsafe<{ ref: string }[]>(
+    `SELECT d.file_id AS ref
+       FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+      WHERE d.org_slug = $1 AND d.status = 'completed'
+        AND EXISTS (
+          SELECT 1 FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+           WHERE c.document_id = d.id AND c.org_slug = d.org_slug
+             AND NOT c.passage_repeat
+             AND NOT EXISTS (SELECT 1 FROM ${vectors} v
+                              WHERE v.chunk_id = c.id))
+      ORDER BY d.file_id`,
+    [args.orgSlug],
+  );
+
+  let requeued = 0;
+  for (
+    let start = 0;
+    start < lacking.length;
+    start += VECTORLESS_REQUEUE_BATCH
+  ) {
+    const refs = lacking
+      .slice(start, start + VECTORLESS_REQUEUE_BATCH)
+      .map((row) => row.ref);
+    // An email body is a message, not a file row: its job is its own.
+    const messageIds = refs.flatMap((ref) => parseMessageRef(ref) ?? []);
+    const fileRefs = refs.filter((ref) => !isMessageRef(ref));
+    requeued += await sql.begin(async (tx) => {
+      const rows =
+        fileRefs.length === 0
+          ? []
+          : await tx<({ id: string } & MovedStatusRow)[]>`
+              UPDATE app.file_metadata fm SET
+                rag_status = 'queued',
+                rag_queued_at_ms = ${Date.now()},
+                rag_error = NULL,
+                rag_error_code = NULL
+              WHERE fm.org_id = ${args.organizationId}
+                AND fm.rag_status = 'completed'
+                AND fm.storage_ref = ANY(${fileRefs})
+                AND fm.skip_rag_indexing IS DISTINCT FROM true
+              RETURNING fm.id, fm.org_id AS "orgId",
+                        ${tx.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
+            `;
+      for (const row of rows) {
+        await addJobInTx(tx, 'rag.index_file', { fileId: row.id });
+      }
+      for (const messageId of messageIds) {
+        await addJobInTx(tx, 'rag.index_message', { messageId });
+      }
+      // The lists show these rows as indexed; tell them they are queued
+      // again (`status-hints.ts`: none for a batch no list shows).
+      await hintDocumentLists(tx, rows);
+      return rows.length + messageIds.length;
+    });
+  }
+  return { requeued };
 }
 
 /**

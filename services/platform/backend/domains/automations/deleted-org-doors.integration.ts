@@ -1,3 +1,12 @@
+import { randomUUID } from 'node:crypto';
+
+import type { Sql } from 'postgres';
+
+import {
+  hashWebhookToken,
+  mintWebhookToken,
+} from '../../core/automations/webhook_token.ts';
+import { emitEvent } from '../events/emit.ts';
 /**
  * Real Postgres proof that the webhook door and the event door — the
  * schedule scan's two siblings (`deleted-org-schedules.integration.ts`) —
@@ -10,15 +19,7 @@
  * in the organization's name start nothing, and each binding ends up
  * disabled — never fired, never stamped skipped — and named in one line.
  */
-import { randomUUID } from 'node:crypto';
-
-import type { Sql } from 'postgres';
-
-import {
-  hashWebhookToken,
-  mintWebhookToken,
-} from '../../core/automations/webhook_token.ts';
-import { emitEvent } from '../events/emit.ts';
+import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 interface TriggerState {
   enabled: boolean;
@@ -154,7 +155,10 @@ export async function checkDeletedOrgDoors(
     console.warn = warn;
     console.error = error;
     // Only a door that failed this proof started runs; they go too.
-    await sql`DELETE FROM app.automation_runs WHERE org_id = ${deadOrgId}`;
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`DELETE FROM app.automation_runs WHERE org_id = ${deadOrgId}`;
+    });
     await sql`
       DELETE FROM app.automation_triggers WHERE org_id = ${deadOrgId}
     `;

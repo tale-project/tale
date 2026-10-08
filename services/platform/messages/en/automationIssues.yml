@@ -129,10 +129,10 @@ codes:
     cause: '{expected, select, repeatUntil {{fieldLabel} of {nodeLabel} only works together with a "Repeat until" condition.} other {{fieldLabel} of {nodeLabel} must be {expected, select, template {one template, such as ''{{'' nodes.check.output.ok ''}}''} nodeId {the id of another node} object {an object} string {text} stringArray {a list of names} filesMap {a mapping from names to files or folders} other {{expected}}}.}}'
     fix: '{expected, select, repeatUntil {Add a "Repeat until" condition, or remove {fieldLabel}.} other {Give {fieldLabel} a value of that type.}}'
   CODE_SYNTAX:
-    title: Code has a syntax error
-    explanation: A transform's code is the body of a JavaScript function. Code that doesn't parse can't run.
-    cause: The code of {nodeLabel} doesn't parse.
-    fix: Fix the syntax at the marked position. The technical details show the parser's message.
+    title: Code cannot be validated
+    explanation: Transform code must have valid JavaScript syntax and fit the analysis limits before saving or deployment.
+    cause: '{parseLimited, select, true {The code exceeds the analysis size or depth limit.} other {The code of {nodeLabel} doesn''t parse.}}'
+    fix: '{parseLimited, select, true {Shorten the code or reduce its nesting, then validate again.} other {Fix the syntax at the marked position. The technical details show the parser''s message.}}'
   CODE_NO_IO:
     title: Code can't reach the network
     explanation: Transform code runs without network or module access, so a call such as fetch or require fails when the node runs.
@@ -184,10 +184,10 @@ codes:
     cause: '{automationLabel} writes through {childNodeLabel} ({childType}).'
     fix: Move the write into this automation, or make sure the approval policy releases it without asking.
   EXPR_SYNTAX:
-    title: Expression has a syntax error
-    explanation: A template holds one JavaScript expression between '{{' and '}}'. An expression that doesn't parse fails when the node runs.
-    cause: '{place}, ''{{'' {expr} ''}}'' doesn''t parse.'
-    fix: Fix the expression at the marked position. The technical details show the parser's message.
+    title: Expression cannot be validated
+    explanation: A template expression must have valid JavaScript syntax and fit the analysis limits before saving or deployment.
+    cause: '{parseLimited, select, true {The code exceeds the analysis size or depth limit.} other {{place}, ''{{'' {expr} ''}}'' doesn''t parse.}}'
+    fix: '{parseLimited, select, true {Shorten the code or reduce its nesting, then validate again.} other {Fix the expression at the marked position. The technical details show the parser''s message.}}'
   REF_UNKNOWN_NODE:
     title: Reference to an unknown node
     explanation: nodes.<id> reads the output of the node with that id. No node has this id, so the read fails when the automation runs.

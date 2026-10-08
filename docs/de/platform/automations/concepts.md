@@ -82,7 +82,9 @@ Ein Werkzeug ohne Ausgabeschema liefert unstrukturierte Ausgabe. Soll daraus str
 
 ## Was Tale vor einem Lauf prüft {#checks}
 
-Tale prüft das ganze Dokument, wenn du es speicherst, wenn du eine Version bereitstellst und wann immer ein Client `validate_automation` aufruft. Ein **Fehler** beschreibt etwas, das sicher scheitert, und verhindert Speichern wie Bereitstellen. Eine **Warnung** zeigt auf etwas, das scheitern kann oder nichts Nützliches tut. Sie verhindert weder Speichern noch Bereitstellen; du entscheidest selbst, ob du etwas änderst. Jedes Problem nennt seine Node und sein Feld und, in einem Template, einer Bedingung oder in Code, den genauen Ausdruck.
+Tale prüft das ganze Dokument, wenn du es speicherst, wenn du eine Version bereitstellst und wann immer ein Client `validate_automation` aufruft. Ein **Fehler** beschreibt etwas, das sicher scheitert, oder Code, der die Analysegrenzen überschreitet. Er verhindert Speichern wie Bereitstellen. Eine **Warnung** zeigt auf etwas, das scheitern kann oder nichts Nützliches tut. Sie verhindert weder Speichern noch Bereitstellen; du entscheidest selbst, ob du etwas änderst. Jedes Problem nennt seine Node und sein Feld und, in einem Template, einer Bedingung oder in Code, den genauen Ausdruck.
+
+Damit die Prüfung zügig bleibt, gelten für jeden Ausdruck und jeden `transform`-Code Grenzen von 8192 UTF-16-Codeeinheiten, 512 JavaScript-Tokens und 64 Verschachtelungsebenen in der Syntax oder im Syntaxbaum. Leerraum um einen Template-Ausdruck zählt nicht zu seiner Größe; Leerraum im Transform-Code zählt mit. Reiner Text außerhalb von Templates ist kein Code. Diese Grenzen können zuvor gültigen Code ablehnen. Kürze ihn oder verteile die Arbeit auf mehrere Nodes, bevor du erneut speicherst oder bereitstellst.
 
 ### Referenzen und Namen {#checks-references}
 

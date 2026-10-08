@@ -124,10 +124,10 @@ codes:
     cause: '{expected, select, repeatUntil {{fieldLabel} de {nodeLabel} ne fonctionne qu’avec une condition « Répéter jusqu’à ».} other {{fieldLabel} de {nodeLabel} doit être {expected, select, template {un seul template, comme ''{{'' nodes.check.output.ok ''}}''} nodeId {l’identifiant d’un autre nœud} object {un objet} string {du texte} stringArray {une liste de noms} filesMap {une association de noms à des fichiers ou des dossiers} other {de type {expected}}}.}}'
     fix: '{expected, select, repeatUntil {Ajoute une condition « Répéter jusqu’à », ou retire {fieldLabel}.} other {Donne à {fieldLabel} une valeur de ce type.}}'
   CODE_SYNTAX:
-    title: Erreur de syntaxe dans le code
-    explanation: Le code d’un nœud transform est le corps d’une fonction JavaScript. Un code qui ne s’analyse pas ne peut pas s’exécuter.
-    cause: Le code de {nodeLabel} ne s’analyse pas.
-    fix: Corrige la syntaxe à l’endroit marqué. Les détails techniques montrent le message de l’analyseur.
+    title: Le code ne peut pas être validé
+    explanation: Le code transform doit avoir une syntaxe JavaScript valide et respecter les limites d’analyse avant l’enregistrement ou le déploiement.
+    cause: '{parseLimited, select, true {Le code dépasse la limite de taille ou d’imbrication de l’analyse.} other {Le code de {nodeLabel} ne s’analyse pas.}}'
+    fix: '{parseLimited, select, true {Raccourcis le code ou réduis son imbrication, puis valide à nouveau.} other {Corrige la syntaxe à l’endroit marqué. Les détails techniques montrent le message de l’analyseur.}}'
   CODE_NO_IO:
     title: Le code n’a pas accès au réseau
     explanation: Le code d’un nœud transform s’exécute sans accès au réseau ni aux modules. Un appel comme fetch ou require échoue donc dès que le nœud s’exécute.
@@ -179,10 +179,10 @@ codes:
     cause: '{automationLabel} écrit par {childNodeLabel} ({childType}).'
     fix: Déplace l’écriture dans cette automatisation, ou assure-toi que la politique d’approbation la valide sans demander.
   EXPR_SYNTAX:
-    title: Erreur de syntaxe dans une expression
-    explanation: Un template contient une expression JavaScript entre '{{' et '}}'. Une expression qui ne s’analyse pas échoue dès que le nœud s’exécute.
-    cause: '{place}, ''{{'' {expr} ''}}'' ne s’analyse pas.'
-    fix: Corrige l’expression à l’endroit marqué. Les détails techniques montrent le message de l’analyseur.
+    title: L’expression ne peut pas être validée
+    explanation: Une expression de template doit avoir une syntaxe JavaScript valide et respecter les limites d’analyse avant l’enregistrement ou le déploiement.
+    cause: '{parseLimited, select, true {Le code dépasse la limite de taille ou d’imbrication de l’analyse.} other {{place}, ''{{'' {expr} ''}}'' ne s’analyse pas.}}'
+    fix: '{parseLimited, select, true {Raccourcis le code ou réduis son imbrication, puis valide à nouveau.} other {Corrige l’expression à l’endroit marqué. Les détails techniques montrent le message de l’analyseur.}}'
   REF_UNKNOWN_NODE:
     title: Référence à un nœud inconnu
     explanation: nodes.<id> lit la sortie du nœud qui porte cet identifiant. Aucun nœud ne le porte, donc la lecture échoue dès que l’automatisation s’exécute.

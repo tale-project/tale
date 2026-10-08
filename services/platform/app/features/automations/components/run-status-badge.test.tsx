@@ -9,6 +9,13 @@ import { NodeStatusIcon, RunBadge, RunStatusBadge } from './run-status-badge';
 // the badge still renders, it just freezes — hence an explicit class assertion.
 
 describe('run status icons', () => {
+  it('shows a legacy hold without claiming work or recovery is running', () => {
+    const { container } = render(<RunBadge status="quarantined" stalled />);
+    expect(screen.getByText('On hold')).toBeInTheDocument();
+    expect(screen.queryByText('Interrupted — resuming')).toBeNull();
+    expect(container.querySelector('svg')).not.toHaveClass('animate-spin');
+  });
+
   it('spins the running run badge, and respects reduced motion', () => {
     const { container } = render(<RunBadge status="running" />);
     const svg = container.querySelector('svg');

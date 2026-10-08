@@ -8,6 +8,12 @@ import { z } from 'zod';
 import { externalDepError } from '../../utils/fail';
 import { BACKUP_VOLUME, GATEWAY_VOLUME } from '../backup/constants';
 import { validateAdditionalSiteUrls } from '../config/ensure-env';
+import { AUTOMATION_PROTOCOL_MIGRATION } from './automation-model';
+import {
+  bundledBackendIdentity,
+  installedAutomationProtocol,
+  requireAutomationProtocol,
+} from './automation-protocol';
 import { runtimeCommand, runtimeSleep } from './runtime-command';
 import {
   activateConfiguration,
@@ -857,6 +863,67 @@ export async function applyRuntime(
       );
     }
   }
+  const databases = containers.filter(
+    (container) =>
+      container.Config.Labels?.['com.docker.compose.service'] === 'db',
+  );
+  const checkInstalledProtocol = async () => {
+    if (!(existing || projectVolumes.length > 0 || databases.length > 0))
+      return;
+    requireRuntime(
+      databases.length === 1,
+      'The installed automation writer protocol requires one existing database.',
+    );
+    const backendBefore = await bundledBackendIdentity(
+      [options.composeProject],
+      dependencies,
+    );
+    const ledgerFloor = await installedAutomationProtocol(
+      databases[0].Id,
+      options.composeProject,
+      dependencies,
+    );
+    requireAutomationProtocol(
+      backendBefore.protocol === 2 ? 2 : ledgerFloor,
+      bundle.automationWriterProtocol ?? 1,
+    );
+    requireRuntime(
+      backendBefore.identity ===
+        (await bundledBackendIdentity([options.composeProject], dependencies))
+          .identity,
+      'Installed backend database identity changed during admission.',
+    );
+  };
+  await checkInstalledProtocol();
+  if (bundle.automationWriterProtocol === 2) {
+    const platformImage = bundle.images.find((image) =>
+      image.services.includes('platform'),
+    );
+    requireRuntime(
+      platformImage?.automationWriterProtocol === 2 &&
+        platformImage.services.includes('backend-api') &&
+        platformImage.services.includes('backend-worker') &&
+        bundle.migrations?.[0].ids.includes(AUTOMATION_PROTOCOL_MIGRATION),
+      'Runtime automation writer protocol is not bound to its source and backend images.',
+    );
+    await runtimeCommand(
+      ['pull', '--platform', bundle.platform, platformImage.reference],
+      dependencies,
+      { timeout: 1800 },
+    );
+    const verified = await inspectRuntimeImage(
+      platformImage.reference,
+      platformImage.repository,
+      bundle.platform,
+      bundle.revision,
+      dependencies,
+    );
+    requireRuntime(
+      verified.digest === platformImage.digest &&
+        verified.automationWriterProtocol === 2,
+      'Runtime image automation writer protocol differs from its prepared capability.',
+    );
+  }
   // Read before anything changes: the result keeps what the rollout found.
   const gateway = gatewayState(
     receipt,
@@ -950,6 +1017,9 @@ export async function applyRuntime(
       'Pulled runtime image digest differs from its bundle.',
     );
   }
+  // Pulls may outlast an already-started backend migration. Read again before
+  // the first file mutation, and again at the final startup boundary below.
+  await checkInstalledProtocol();
   mkdirSync(join(options.stateDirectory, '.tale'), {
     recursive: true,
     mode: 0o750,
@@ -1042,6 +1112,7 @@ export async function applyRuntime(
     cwd: sourceDirectory,
     operation: 'compose-validation',
   });
+  await checkInstalledProtocol();
   await runtimeCommand(
     [
       ...composeArgs,

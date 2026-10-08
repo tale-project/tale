@@ -27,9 +27,11 @@ La règle est la même partout : une requête compte pour la personne qui a dem
 
 Une nouvelle tentative d’une exécution d’agent poursuit l’exécution lancée par son initiateur ; son usage reste donc imputé à cette personne. Quand une intégration agit avec une clé API pour un autre membre, l’exécution compte pour ce membre, et la limite de la clé la compte aussi.
 
+Une clé API qu’un admin a créée pour un membre compte pour ce membre, comme sa propre clé. Une clé qui appartient à une équipe, à un projet ou à l’organisation ([Clés API](/fr/platform/admin/api-keys#create-a-key-for-someone-else)) n’est pas une personne : ce qu’elle demande compte pour la clé elle-même. L’analyse de l’usage la présente sur sa propre ligne sous **Utilisation par utilisateur**, sous le nom de la clé avec son équipe, son projet ou l’organisation en dessous, et ne la compte jamais comme utilisateur actif. La clé d’une équipe compte aussi dans l’usage de son équipe.
+
 ## Quelles limites s’appliquent
 
-- **Les limites personnelles, d’équipe et de rôle** s’appliquent à la personne à qui une requête est imputée. Une exécution lancée par une planification, un webhook ou un événement n’a pas de telle personne et n’est mesurée par rapport à aucune d’elles.
+- **Les limites personnelles, d’équipe et de rôle** s’appliquent à la personne à qui une requête est imputée. Une exécution lancée par une planification, un webhook ou un événement n’a pas de telle personne et n’est mesurée par rapport à aucune d’elles. La clé propre d’une équipe, d’un projet ou de l’organisation non plus, sauf que la clé d’une équipe est tenue par la limite de son équipe.
 - **Les limites de l’organisation** s’appliquent à toute requête, y compris aux exécutions lancées par un déclencheur.
 - **Les limites de clé API** s’appliquent aux requêtes authentifiées par cette clé : les messages de chat qu’elle a envoyés, ses appels aux endpoints de modèles et les exécutions qu’elle a lancées.
 

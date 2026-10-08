@@ -372,6 +372,18 @@ runs:
   # Une écriture qui a peut-être déjà atteint son service quand l’exécution a
   # été interrompue : Tale ne peut pas le savoir, alors une personne décide
   # de la suite.
+  quarantine:
+    title: "Résultat inconnu"
+    reason: "Suspendue : le résultat du travail précédent est inconnu."
+    body: "Cette exécution a commencé avant la mise à jour. Tale ne peut pas vérifier si le travail précédent s’est arrêté ou a atteint un service externe. L’exécution reste suspendue et ne sera pas relancée automatiquement."
+    missing: "Impossible de charger les détails de la suspension. Recharge-les avant de demander un arrêt."
+    stop: "Demander l’arrêt"
+    requested: "Arrêt demandé. L’exécution reste suspendue jusqu’à confirmation de l’arrêt du travail précédent. Les actions déjà effectuées ne sont pas annulées."
+    confirmTitle: "Demander l’arrêt de cette exécution ?"
+    confirmBody: "Tale demandera l’arrêt des sessions qu’il peut identifier. Cela ne confirme pas l’arrêt du travail précédent et n’annule rien de ce qu’un service externe a reçu. L’exécution restera suspendue."
+    changed: "La suspension a changé. Ferme cette fenêtre et consulte les détails actuels avant de décider."
+    failed: "Impossible d’enregistrer la demande d’arrêt."
+    reload: "Recharger les détails"
   inDoubt:
     title: 'Cette étape a peut-être déjà été exécutée : {node}'
     body: '{item, select, none {L’exécution a été interrompue pendant que cette étape envoyait des données à {connector}.} other {L’exécution a été interrompue pendant que cette étape envoyait l’élément {item} à {connector}.}} Tale ne peut pas savoir si {connector} a reçu cet envoi. Vérifie dans {connector} : s’il l’a reçu, ignore l’étape ; sinon, relance-la.'
@@ -449,6 +461,7 @@ runs:
     mock: Essai
     live: Réel
   status:
+    quarantined: Suspendue
     queued: En file d’attente
     running: En cours
     waiting: En attente

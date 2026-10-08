@@ -435,6 +435,16 @@ default means deleting the override and fixing what surfaces:
 
 ## Contract debt ledger
 
+- **The session-bound connector runner has no caller** — agent connector calls through the
+  sandbox bridge run on the in-process live runner (2026-10), so nothing starts a live
+  connector body as a `node -e` program in a session any more. The machinery for it stays:
+  `engine_exec_runner.ts` (`sandboxProgramRunnerForSession`), the sandbox-exec runner, `lib/connectors/portable-live.ts`,
+  `core/connectors/hostcall_token.ts`, the `/api/connectors/hostcall` route in
+  `domains/connectors/bridge-routes.ts` with its body limit in
+  `domains/sandbox/door-body-limit.ts`, the dispatcher's portable branch, the hostcall secret
+  in `backend/env.ts`, and the device relay's allowance for the route
+  (`services/sandbox/src/devices/relay-policy.ts`). Paying it down means deleting them together
+  with their tests; `runConnectorAction` no longer accepts a session to run in.
 - **Unbounded named-array lists on `/api/v1`** — `GET /automations`,
   `GET /projects/{id}/automations`, the two `…/versions` listings, `GET /projects/{id}/folders`
   (per level) and `GET /browser-sessions` answer the whole set with no `LIMIT`; declared
@@ -637,10 +647,25 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   means a migration that drops both once a release has run without them, with the erasure pass
   and its breakdown category going in the same change.
 - **`private_knowledge.semantic_cache` is an empty table** — the knowledge baseline creates it, and
-  `backend/core/knowledge/dimensions.ts` and `teardown.ts` still keep it in step, but the cache
-  seam that could have filled it was removed without ever shipping an implementation
-  (2026-09-27). Paying it down means a knowledge-db migration that drops it, with that upkeep
-  removed in the same change.
+  `backend/core/knowledge/teardown.ts` still keeps it in step, but the cache seam that could have
+  filled it was removed without ever shipping an implementation (2026-09-27). Paying it down means
+  a knowledge-db migration that drops it, with that upkeep removed in the same change.
+- **`chunks.embedding` is retired, not dropped** — vectors live in a table per width beside the
+  chunks (`chunk_vectors_<width>`, knowledge-db migrations `15` and `16`, 2026-10-06), and nothing
+  reads the old column in either corpus schema. It stays for one release, with its HNSW index and
+  `create_chunks_hnsw_index()`, because the previous image still uses it while a deployment
+  rolls: the `chunks_mirror_legacy_embedding` trigger copies what that image writes into the
+  table of its width, and this image writes the column too whenever it is declared at the width
+  being written (`legacyColumnWidth` in `backend/core/knowledge/dimensions.ts`, asked of the
+  catalog per document slice and per crawl link), so the previous image finds what this one
+  indexes, during the roll and after a rollback. The mirror trigger names no column, because
+  the previous image pins an undeclared column with `ALTER COLUMN ... TYPE vector(<width>)`,
+  which Postgres refuses for a column a trigger definition uses. Until the column goes, a migrated corpus stores the vectors of that one width twice,
+  and maintains the old HNSW index for them. Paying it down means one knowledge-db migration per
+  schema, a release after every image has stopped writing the column, that copies any row the
+  trigger missed, then drops the trigger and its function, the index,
+  `create_chunks_hnsw_index()` and the column — and, in the same change, `legacyColumnWidth`
+  with its writers in `indexing.ts` and `crawl_action.ts`.
 - **Nine `app.projects` settings columns are retired, not dropped** — `knowledge_mode`,
   `agent_mode`, `recommended_agent_slugs`, `allowed_agent_slugs`, `model_mode`,
   `recommended_models`, `allowed_models`, `connectors_mode` and `allowed_connector_slugs` lost
@@ -692,7 +717,7 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   (`backend/domains/automations/routes.ts`) and the card on the run page and in the task
   panel: `/api/v1` and MCP name the wait but offer no door, and the card names a write inside a
   subautomation by its raw path (`batch[1:0]/send`) (2026-10). Paying it down means
-  `GET {run}/in-doubt` and `POST {run}/in-doubt/{attemptId}` `{resolution, actor?}` in both
+  `GET {run}/in-doubt` and `POST {run}/in-doubt/{attemptId}` `{resolution, attempt, actor?}` in both
   scopes of `backend/rest/v1-automations.ts` beside the ask doors (the stop's write gate,
   `rest:execute` charged, the store's 409s re-coded at the door), an MCP tool, a contract bump,
   and a readable name for a nested path.
@@ -716,15 +741,15 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   `backend/domains/erasure/service.ts`), so the id stays on a run someone else started
   (2026-10). Paying it down means a pass that pseudonymises both columns the way review
   decisions are, with its breakdown category and a case in the erasure tests.
-- **The first roll onto run leases is protected one way** — while the image before run leases
-  still serves, it claims a run without honouring a live lease and repeats a write without the
-  effect ledger, keeps its containers' 10 s stop grace, and answers the deploy's `drain-status`
-  without counting automation steps. A run it was stepping when it stopped is taken over once
-  its own three-minute promise lapsed and a sweep found it (`sweepOverdueRuns` turns the lapsed
-  promise into a lapsed lease), so about four minutes after its last heartbeat. A write inside a
-  subautomation that it was making is sent again under a new idempotency key: it keyed a nested
-  write by the inner node's id alone (2026-10). Nothing is left to build: once every deployment
-  has rolled past the release that brought leases, delete this entry.
+- **Legacy execution holds need a proven retirement before release** — migration 0163 preserves
+  pre-protocol queued/running/waiting runs as `quarantined`, fences legacy database writers and
+  keeps their task subjects occupied. An already-admitted legacy external call can still finish;
+  the database cannot establish its outcome. The app and REST stop-request doors record an
+  explicit acknowledgement and request owned session cancellation, but deliberately keep the
+  run, asks and task exclusion on hold (2026-10). Paying this down requires source-bound proof
+  that the old execution is retired, an authorized decision about unknown external effects, and
+  a guarded release contract. Never clear the hold or manufacture node-attempt evidence merely
+  because a stop was requested, a lease expired, or the old containers disappeared.
 - **A run lease compares the clocks of the hosts it spans** — the stepper stamps and checks the
   30 s lease with its own host's clock (`claimRun`, `heartbeatRun`, `sweepOverdueRuns`), and the
   read model's `stalled` compares it with the database's. Workers on hosts whose clocks differ by

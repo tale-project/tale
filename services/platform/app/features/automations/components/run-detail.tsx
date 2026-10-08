@@ -60,6 +60,7 @@ import { NodeInspector } from './node-inspector';
 import { approvalIdFromDetail, RunApprovalCard } from './run-approval-card';
 import { RunAskCard } from './run-ask-card';
 import { RunInDoubtCard } from './run-in-doubt-card';
+import { RunQuarantineCard } from './run-quarantine-card';
 import { RunBadge } from './run-status-badge';
 
 /**
@@ -295,7 +296,7 @@ function RunDetailBody({
             })}
           </Text>
         )}
-        {!isRunFinished(status) && (
+        {!isRunFinished(status) && status !== 'quarantined' && (
           <Button
             variant="secondary"
             size="sm"
@@ -313,7 +314,8 @@ function RunDetailBody({
             recovery, told apart from anything the reader did. On a row of
             its own under the run's identity, and only once a server has it
             again: until then the Interrupted badge says where it stands. */}
-        {typeof run.resumeCount === 'number' &&
+        {status !== 'quarantined' &&
+          typeof run.resumeCount === 'number' &&
           run.resumeCount > 0 &&
           run.stalled !== true && (
             <Text as="p" variant="muted" className="basis-full text-xs">
@@ -335,7 +337,7 @@ function RunDetailBody({
           approval card, a question), so it asks first — like the delete and
           revoke doors do. */}
       <ConfirmDialog
-        open={confirmStop}
+        open={confirmStop && status !== 'quarantined'}
         onOpenChange={setConfirmStop}
         title={t('runs.cancelConfirm.title')}
         description={t('runs.cancelConfirm.body')}
@@ -359,10 +361,20 @@ function RunDetailBody({
       {refusal !== null && (
         <Alert variant="destructive" description={refusal} />
       )}
-      {pendingAsk !== null && (
+      {status !== 'quarantined' && pendingAsk !== null && (
         <RunAskCard organizationId={organizationId} ask={pendingAsk} />
       )}
       {(() => {
+        if (status === 'quarantined') {
+          return (
+            <RunQuarantineCard
+              organizationId={organizationId}
+              runId={runId}
+              quarantine={run.legacyQuarantine}
+              onReload={() => void runQuery.refetch()}
+            />
+          );
+        }
         // A live run parked on a write approval carries `approval:<id>` as
         // its detail — render the decision card instead of the raw string.
         // On a finished run that reference is history, so nothing renders.

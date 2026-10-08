@@ -124,10 +124,10 @@ codes:
     cause: '{expected, select, repeatUntil {{fieldLabel} von {nodeLabel} wirkt nur zusammen mit einer Bedingung „Wiederholen bis“.} other {{fieldLabel} von {nodeLabel} muss {expected, select, template {ein einzelnes Template sein, etwa ''{{'' nodes.check.output.ok ''}}''} nodeId {die ID einer anderen Node sein} object {ein Objekt sein} string {Text sein} stringArray {eine Liste von Namen sein} filesMap {eine Zuordnung von Namen zu Dateien oder Ordnern sein} other {vom Typ {expected} sein}}.}}'
     fix: '{expected, select, repeatUntil {Füge eine Bedingung „Wiederholen bis“ hinzu oder entferne {fieldLabel}.} other {Gib {fieldLabel} einen Wert dieses Typs.}}'
   CODE_SYNTAX:
-    title: Code enthält einen Syntaxfehler
-    explanation: Der Code einer transform-Node ist der Rumpf einer JavaScript-Funktion. Code, der sich nicht parsen lässt, kann nicht laufen.
-    cause: Der Code von {nodeLabel} lässt sich nicht parsen.
-    fix: Korrigiere die Syntax an der markierten Stelle. Die technischen Details zeigen die Meldung des Parsers.
+    title: Code lässt sich nicht validieren
+    explanation: Transform-Code muss gültige JavaScript-Syntax verwenden und die Analysegrenzen einhalten, bevor du speicherst oder bereitstellst.
+    cause: '{parseLimited, select, true {Der Code überschreitet die Längen- oder Verschachtelungsgrenze der Analyse.} other {Der Code von {nodeLabel} lässt sich nicht parsen.}}'
+    fix: '{parseLimited, select, true {Kürze den Code oder verringere seine Verschachtelung und prüfe ihn erneut.} other {Korrigiere die Syntax an der markierten Stelle. Die technischen Details zeigen die Meldung des Parsers.}}'
   CODE_NO_IO:
     title: Code hat keinen Netzwerkzugriff
     explanation: Transform-Code läuft ohne Netzwerk- und Modulzugriff. Ein Aufruf wie fetch oder require schlägt deshalb fehl, sobald die Node läuft.
@@ -179,10 +179,10 @@ codes:
     cause: '{automationLabel} schreibt über {childNodeLabel} ({childType}).'
     fix: Verlege den Schreibzugriff in diese Automatisierung oder sorge dafür, dass die Freigaberichtlinie ihn ohne Rückfrage freigibt.
   EXPR_SYNTAX:
-    title: Ausdruck enthält einen Syntaxfehler
-    explanation: Ein Template enthält einen JavaScript-Ausdruck zwischen '{{' und '}}'. Ein Ausdruck, der sich nicht parsen lässt, schlägt fehl, sobald die Node läuft.
-    cause: '{place} lässt sich ''{{'' {expr} ''}}'' nicht parsen.'
-    fix: Korrigiere den Ausdruck an der markierten Stelle. Die technischen Details zeigen die Meldung des Parsers.
+    title: Ausdruck lässt sich nicht validieren
+    explanation: Ein Template-Ausdruck muss gültige JavaScript-Syntax verwenden und die Analysegrenzen einhalten, bevor du speicherst oder bereitstellst.
+    cause: '{parseLimited, select, true {Der Code überschreitet die Längen- oder Verschachtelungsgrenze der Analyse.} other {{place} lässt sich ''{{'' {expr} ''}}'' nicht parsen.}}'
+    fix: '{parseLimited, select, true {Kürze den Code oder verringere seine Verschachtelung und prüfe ihn erneut.} other {Korrigiere den Ausdruck an der markierten Stelle. Die technischen Details zeigen die Meldung des Parsers.}}'
   REF_UNKNOWN_NODE:
     title: Referenz auf eine unbekannte Node
     explanation: nodes.<id> liest die Ausgabe der Node mit dieser ID. Keine Node hat diese ID, deshalb schlägt das Lesen fehl, sobald die Automatisierung läuft.

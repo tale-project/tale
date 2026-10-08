@@ -21,6 +21,7 @@ import {
   RunInDoubtCard,
   inDoubtNodeFromDetail,
 } from '@/app/features/automations/components/run-in-doubt-card';
+import { RunQuarantineCard } from '@/app/features/automations/components/run-quarantine-card';
 import { useRunPendingAsk } from '@/app/features/automations/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
@@ -416,6 +417,32 @@ function TaskSubjectPanelBody({
       setBusy(false);
     }
   };
+
+  if (run?.status === 'quarantined') {
+    return (
+      <section aria-labelledby={headingId} className="flex flex-col gap-3">
+        {ownershipContext}
+        <RunQuarantineCard
+          key={run.runId}
+          organizationId={organizationId}
+          runId={run.runId}
+          quarantine={run.legacyQuarantine}
+          canRequestStop={canEdit}
+          onReload={() => void runQuery.refetch()}
+        />
+        <TaskRunDetailsDialog
+          organizationId={organizationId}
+          projectId={task.projectId}
+          automationSlug={run.name}
+          runId={run.runId}
+          name={displayName}
+          live={false}
+          open={detailsOpen}
+          onOpenChange={setDetailsOpen}
+        />
+      </section>
+    );
+  }
 
   const stateLine =
     state.kind === 'running'

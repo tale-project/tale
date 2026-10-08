@@ -225,6 +225,7 @@ describe('teamDeletionImpact', () => {
               documentsSole: 7,
               conversations: 5,
               syncConfigs: 1,
+              apiKeys: 2,
             },
           ]
         : undefined,
@@ -239,8 +240,13 @@ describe('teamDeletionImpact', () => {
       documents: { scoped: 10, becomeOrgWide: 7 },
       conversations: { queued: 5 },
       syncConfigs: { scoped: 1 },
+      apiKeys: 2,
     });
     const read = statements[0];
+    // The team's own live API keys, which stop working with it.
+    expect(read?.text).toContain(
+      'o.owner_kind = \'team\' AND o.team_id = t."id" AND o.revoked_at_ms IS NULL',
+    );
     // "Sole" = the audience IS exactly this team; "scoped" = contains it.
     expect(read?.text).toContain('@> ?::text[]');
     expect(read?.text).toContain('= ?::text[]');

@@ -41,7 +41,7 @@ interface Statement {
   values: unknown[];
 }
 
-type Answer = (text: string) => unknown[] | undefined;
+type Answer = (text: string, values: unknown[]) => unknown[] | undefined;
 
 /** Scripted `sql`: the first matching answer wins, anything else is empty. */
 function fakeSql(answer: Answer): { sql: Sql; statements: Statement[] } {
@@ -52,7 +52,7 @@ function fakeSql(answer: Answer): { sql: Sql; statements: Statement[] } {
   ): Promise<unknown[]> => {
     const text = strings.join('?');
     statements.push({ text, values });
-    return Promise.resolve(answer(text) ?? []);
+    return Promise.resolve(answer(text, values) ?? []);
   };
   fn.unsafe = (text: string): { raw: string } => ({ raw: text });
   fn.json = (value: unknown): { json: unknown } => ({ json: value });
@@ -411,22 +411,44 @@ describe('readOpenInDoubt', () => {
 });
 
 describe('resolveInDoubtInTx', () => {
-  const decide = (sql: Sql, resolution: 'retry' | 'skip' | 'fail' = 'skip') =>
+  const decide = (
+    sql: Sql,
+    resolution: 'retry' | 'skip' | 'fail' = 'skip',
+    about = 1,
+  ) =>
     resolveInDoubtInTx(sql as unknown as TransactionSql, {
       organizationId: 'org_1',
       runId: 'run_1',
       attemptId: 'att_1',
+      attempt: about,
       resolution,
       actor: 'u_mia',
     });
 
-  function decisionFake(run: Record<string, unknown> | null, resolved = true) {
-    return fakeSql((text) => {
+  /** The attempt number a statement binds after `AND attempt =`, if any. */
+  function boundAttempt(text: string, values: unknown[]): unknown {
+    const at = text
+      .split('?')
+      .findIndex((part) => part.trimEnd().endsWith('AND attempt ='));
+    return at === -1 ? undefined : values[at];
+  }
+
+  /** `rowAttempt` is the number the attempt row holds now: like the table,
+   * the update matches it unless the statement binds another number. */
+  function decisionFake(
+    run: Record<string, unknown> | null,
+    resolved = true,
+    rowAttempt = 1,
+  ) {
+    return fakeSql((text, values) => {
       if (text.includes('FROM app.automation_runs')) {
         return run === null ? [] : [run];
       }
       if (text.includes('UPDATE app.automation_node_attempts')) {
-        return resolved ? [{ nodeId: 'send', itemIndex: 2, pass: 0 }] : [];
+        const bound = boundAttempt(text, values);
+        return resolved && (bound === undefined || bound === rowAttempt)
+          ? [{ nodeId: 'send', itemIndex: 2, pass: 0 }]
+          : [];
       }
       if (text.includes('UPDATE app.automation_runs')) return [{ id: 'run_1' }];
       if (text.includes('INSERT INTO app.automation_run_events')) {
@@ -456,9 +478,11 @@ describe('resolveInDoubtInTx', () => {
             ? 'event'
             : s.text.includes('UPDATE app.automation_runs')
               ? 'wake'
-              : 'other',
+              : s.text.includes("set_config('tale.automation_writer_protocol'")
+                ? 'protocol'
+                : 'other',
     );
-    expect(order).toEqual(['run', 'attempt', 'event', 'wake']);
+    expect(order).toEqual(['run', 'attempt', 'event', 'protocol', 'wake']);
     expect(fake.statements[0]?.text).toContain('FOR UPDATE');
     expect(fake.statements[1]?.text).toContain(
       "AND kind = 'connector' AND status = 'started' AND resolution IS NULL",
@@ -531,6 +555,30 @@ describe('resolveInDoubtInTx', () => {
     expect(update?.text).toContain(
       'ORDER BY shown.started_at_ms DESC, shown.id DESC',
     );
+  });
+
+  it('refuses a choice about an earlier attempt of the same write [AUTO-R19]', async () => {
+    // Run it again kept the row and took attempt 2, and that attempt was
+    // interrupted too. A choice about attempt 1 that lands now must not
+    // send the write again, skip it or fail the run: it decides nothing,
+    // records nothing and wakes nothing.
+    const fake = decisionFake(inDoubtRun('live'), true, 2);
+    for (const resolution of ['retry', 'skip', 'fail'] as const) {
+      await expect(decide(fake.sql, resolution, 1)).rejects.toMatchObject({
+        code: 'IN_DOUBT_ALREADY_RESOLVED',
+        status: 409,
+      });
+    }
+    expect(
+      statementWith(fake.statements, 'INSERT INTO app.automation_run_events'),
+    ).toBeUndefined();
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+
+    // A choice about attempt 2 itself is taken.
+    await decide(fake.sql, 'skip', 2);
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
   });
 
   it('refuses a second decision about the same write', async () => {

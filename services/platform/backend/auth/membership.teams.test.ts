@@ -41,6 +41,39 @@ describe('getUserTeamIds', () => {
     const [statement] = statements;
     expect(statement?.text).toContain('JOIN "team" t ON t."id" = tm."teamId"');
     expect(statement?.text).toContain('t."organizationId" = ?');
-    expect(statement?.values).toEqual(['user_1', 'org_1']);
+    expect(statement?.values).toEqual(['user_1', 'org_1', 'user_1', 'org_1']);
+  });
+
+  // A key that is not a person has no `teamMember` row: a team's key sees
+  // with its team, a project's key with its project's own teams, and only
+  // while the key is live and bound to this organization.
+  it('gives a team key its team and a project key its project’s teams [APIKEY-R6]', async () => {
+    const statements: string[] = [];
+    const tag = Object.assign(
+      (strings: TemplateStringsArray) => {
+        const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+        statements.push(text);
+        if (text.includes('FROM "teamMember" tm')) {
+          return Promise.resolve([
+            { teamId: 'team-sales', projectId: null },
+            { teamId: null, projectId: 'project-alpha' },
+          ]);
+        }
+        if (text.includes('FROM app.projects')) {
+          return Promise.resolve([{ teamIds: ['team-sales', 'team-ops'] }]);
+        }
+        return Promise.resolve([]);
+      },
+      { unsafe: (fragment: string) => fragment },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for postgres.js
+    const sql = tag as unknown as Sql;
+
+    await expect(getUserTeamIds(sql, 'org_1', 'key_identity')).resolves.toEqual(
+      ['team-sales', 'team-ops'],
+    );
+    expect(statements[0]).toContain("o.owner_kind = 'team'");
+    expect(statements[0]).toContain('o.revoked_at_ms IS NULL');
+    expect(statements[1]).toContain('FROM app.projects');
   });
 });

@@ -18,6 +18,7 @@ import {
 import { requireSession, type AuthEnv } from './auth/session.ts';
 import { runWithSwallowedDatabaseErrors } from './db/unavailable.ts';
 import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
+import { createApiKeyRoutes } from './domains/api_keys/routes.ts';
 import { createApprovalRoutes } from './domains/approvals/routes.ts';
 import { createAuditLogRoutes } from './domains/audit_logs/routes.ts';
 import { createAutomationRoutes } from './domains/automations/routes.ts';
@@ -388,6 +389,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // Internal app API (the surface the web app consumes); one sub-app per
   // ported domain.
   app.route('/api/app/agent-secrets', createAgentSecretRoutes(deps));
+  app.route('/api/app/api-keys', createApiKeyRoutes(deps));
   app.route('/api/app/audit-logs', createAuditLogRoutes(deps));
   app.route('/api/app/branding', createBrandingRoutes(deps));
   app.route('/api/app/deployment', createDeploymentRoutes(deps));

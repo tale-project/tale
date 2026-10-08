@@ -7,6 +7,9 @@ export const RUN_STATUSES = [
   'queued',
   'running',
   'waiting',
+  // Held at a protocol cutover: its external outcome is unknown, so it is
+  // neither resumed nor cancelled until a person stops it.
+  'quarantined',
   'success',
   'failed',
   'cancelled',

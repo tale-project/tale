@@ -1,0 +1,937 @@
+import type { Sql } from 'postgres';
+
+import { loadConnectorDefinitions } from '../../../lib/connectors/catalog.ts';
+import { ConnectorError } from '../../../lib/connectors/errors.ts';
+import { NodeFailure } from '../../core/automations/failure.ts';
+import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
+import { WORKFLOW_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
+import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
+import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
+import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
+import { evaluateApprovalGate } from '../approvals/gate.ts';
+import { dismissAgentQuestionNotifications } from '../collab/service.ts';
+import {
+  assertConnectorCredentialInService,
+  ConnectorCredentialError,
+} from '../connector_credentials/service.ts';
+import { runConnectorAction } from '../connectors/service.ts';
+import { listFilesByFolder } from '../documents/agent-list.ts';
+import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
+import { scheduleGatewayKeyReconcile } from '../sandbox/spend-settlement.ts';
+import { loadAgentLanguageContext } from '../tasks/agent-language.ts';
+import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
+import { retractAskOnTask } from './ask-retraction.ts';
+import { automationAskShimHandlers } from './ask-shim.ts';
+import {
+  claimRun,
+  continueRun,
+  deployedVersion,
+  emitRunHint,
+  finishRun,
+  heartbeatRun,
+  recordProgress,
+  suspendRun,
+  versionRow,
+} from './store.ts';
+
+/**
+ * ONE projection for every ask read the agent host consumes through
+ * `readAskRow` — which discards any row missing `_id`, `runId`, `nodeId`,
+ * `execId`, `question`, `expiresAt` or `status`. The pending read once carried
+ * a narrower column list (no runId/execId/status), so the host read every
+ * pending ask as malformed: a turn that asked and ended cleanly settled as a
+ * completed node instead of parking, the answer route found nothing to
+ * resume, and the 7-day expiry never ran. Both reads share this list so the
+ * two cannot drift apart again.
+ */
+interface AskRowRecord {
+  _id: string;
+  runId: string;
+  nodeId: string;
+  execId: string;
+  question: string;
+  expiresAt: number;
+  status: string;
+  agentSessionId: string | null;
+  answer: string | null;
+  taskId: string | null;
+}
+
+const ASK_ROW_COLUMNS = `
+  id AS "_id", run_id AS "runId", node_id AS "nodeId", exec_id AS "execId",
+  question, expires_at_ms::float8 AS "expiresAt", status,
+  agent_session_id AS "agentSessionId", answer, task_id AS "taskId"
+`;
+
+/** The host's `AskRow` shape: optional fields are omitted, never null. */
+function askRowOf(row: AskRowRecord): Record<string, unknown> {
+  return {
+    _id: row._id,
+    runId: row.runId,
+    nodeId: row.nodeId,
+    execId: row.execId,
+    question: row.question,
+    expiresAt: row.expiresAt,
+    status: row.status,
+    ...(row.agentSessionId !== null
+      ? { agentSessionId: row.agentSessionId }
+      : {}),
+    ...(row.answer !== null ? { answer: row.answer } : {}),
+    ...(row.taskId !== null ? { taskId: row.taskId } : {}),
+  };
+}
+
+/**
+ * Handler map for the REUSED automation stepper
+ * (`convex/automations/stepper.ts` — claim/heartbeat/progress/suspend/
+ * continue/finish + the two loads), running the whole run contract over the
+ * PG store with pg-boss scheduling. The llm node resolves its serving
+ * connector through the same provider/credential seams the chat lane's shim
+ * already answers (spread first).
+ *
+ * Deliberately ABSENT (fail-loud until their domains land): the connector
+ * executor (`connectors/execute_action:runConnectorAction` — connector
+ * dispatch is retired pending its redesign) and the agent-node hosts.
+ * The approval gate allows platform-internal writes and refuses outbound
+ * ones with a named reason — outbound effects only exist on connector
+ * nodes, which fail earlier anyway.
+ */
+/** What {@link automationShimHandlers}' credential probe answers: usable,
+ * refused (with the dispatcher's prose), or `unknown` — the probe could not
+ * tell, and the approval proceeds so the connector body gives the verdict. */
+export type CredentialProbe =
+  | { usable: true }
+  | { usable: false; message: string; hint: string }
+  | { usable: 'unknown'; reason: string };
+
+/**
+ * A connector that authenticates as the platform needs no credential; any
+ * other checks that the organization's default credential is in service —
+ * the ROW only (exists, not disabled, not needs-reauth), never a decrypt
+ * or an OAuth refresh: the gate re-enters on every wake while a run waits
+ * for approval, and each pass used to refresh the grant. A connector the
+ * catalog does not know is left to the dispatcher, which names it. Only a
+ * credential refusal is a refusal — anything else (the database) is not a
+ * fact about the credential, so the probe says it cannot tell rather than
+ * failing the node on an unrelated error.
+ */
+export async function probeCredentialUsable(
+  sql: Sql,
+  args: { organizationId: string; connectorSlug: string },
+): Promise<CredentialProbe> {
+  const connector = loadConnectorDefinitions().find(
+    (entry) => entry.name === args.connectorSlug,
+  );
+  if (
+    connector === undefined ||
+    connector.auth.some((method) => method.method === 'platform')
+  ) {
+    return { usable: true };
+  }
+  try {
+    await assertConnectorCredentialInService(sql, args);
+    return { usable: true };
+  } catch (error) {
+    if (error instanceof ConnectorCredentialError) {
+      return {
+        usable: false,
+        message: `no usable credential for ${args.connectorSlug}: ${error.message}`,
+        hint: 'connect the connector, or mark one of its credentials as the default',
+      };
+    }
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[automations] credential probe for ${args.connectorSlug} could not tell (${reason}); leaving the verdict to the connector`,
+    );
+    return { usable: 'unknown', reason };
+  }
+}
+
+export function automationShimHandlers(sql: Sql): ShimHandlers {
+  return {
+    // The task-agent turn shim carries the chat + sandbox handler families
+    // (knowledge, entity legs, session ops, gateway bookkeeping) — the
+    // automation agent node runs on the same substrate.
+    ...agentTurnShimHandlers(sql),
+    // The ask lane's CREATE side, stated here rather than inherited: it is
+    // this domain's own contract, not something the sandbox map lends it.
+    ...automationAskShimHandlers(sql),
+
+    // The agent node's `files:` mounts: a folder id string, {folderId} or a
+    // hub {folderPath} stages the folder's TREE into the session workspace.
+    // `handler_names` declared this ref and the host dispatched it from day
+    // one, but no map answered it — every folder mount failed the turn with
+    // an un-shimmed-query error instead of the host's own not-found /
+    // truncated refusals (only inline `{content}` ever worked).
+    'documents/internal_queries:listFilesByFolderInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        folderId?: string;
+        folderPath?: string;
+        recursive?: boolean;
+      };
+      return listFilesByFolder(sql, args);
+    },
+
+    'automations/mutations:claimRun': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as { organizationId: string; runId: string };
+      return claimRun(sql, args.organizationId, args.runId);
+    },
+    'automations/mutations:heartbeatRun': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        runId: string;
+        epoch: number;
+      };
+      return heartbeatRun(sql, args.organizationId, args.runId, args.epoch);
+    },
+    'automations/mutations:recordProgress': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as Parameters<typeof recordProgress>[1];
+      return recordProgress(sql, args);
+    },
+    'automations/mutations:suspendRun': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as Parameters<typeof suspendRun>[1];
+      return suspendRun(sql, args);
+    },
+    'automations/mutations:continueRun': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as Parameters<typeof continueRun>[1];
+      return continueRun(sql, args);
+    },
+    'automations/mutations:finishRun': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as Parameters<typeof finishRun>[1];
+      return finishRun(sql, args);
+    },
+
+    'automations/queries:loadRunForStep': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as { organizationId: string; runId: string };
+      const rows = await sql<
+        {
+          id: string;
+          organizationId: string;
+          name: string;
+          version: number;
+          status: string;
+          mode: 'mock' | 'live';
+          startedBy: string;
+          input: unknown;
+          checkpoints: unknown;
+          startedAt: number;
+        }[]
+      >`
+        SELECT id, org_id AS "organizationId", name, version, status, mode,
+               started_by AS "startedBy", input, checkpoints,
+               started_at_ms::float8 AS "startedAt"
+        FROM app.automation_runs
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      const run = rows[0];
+      if (!run) return null;
+      const version = await versionRow(
+        sql,
+        args.organizationId,
+        run.name,
+        run.version,
+      );
+      if (!version) return null;
+      return { run, document: version.document };
+    },
+
+    'automations/queries:loadAutomationDocument': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        name: string;
+        version?: number;
+      };
+      const version =
+        args.version ??
+        (await deployedVersion(sql, args.organizationId, args.name));
+      const row = await versionRow(
+        sql,
+        args.organizationId,
+        args.name,
+        version,
+      );
+      return row ? { version: row.version, document: row.document } : null;
+    },
+
+    'approvals/gate:evaluateApprovalGate': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper's gate passes exactly this shape
+      const args = raw as Parameters<typeof evaluateApprovalGate>[1];
+      return evaluateApprovalGate(sql, args);
+    },
+
+    'connectors/execute_action:runConnectorAction': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper assembles exactly the door's arg shape
+      const args = raw as Parameters<typeof runConnectorAction>[1];
+      try {
+        return await runConnectorAction(sql, args);
+      } catch (error) {
+        // A coded connector refusal reaches the stepper as the node failure
+        // it is — its sentence and its hint, classified `connector_error`.
+        // It used to be re-thrown as an `AppError`, whose `message` is the
+        // JSON of its data, so the run's failure detail printed a raw
+        // `{"code":…}` blob (2026-09-26 evaluation, D-09).
+        if (error instanceof ConnectorError) {
+          throw new NodeFailure('connector_error', error.message, error.hint);
+        }
+        throw error;
+      }
+    },
+
+    /**
+     * Whether a live call of this connector could resolve a credential at
+     * all — asked by the stepper BEFORE it parks a run on an approval card,
+     * so nobody is asked to approve an action that cannot run. The same
+     * lookup the dispatcher performs (the org default; a run names no
+     * credential), with the dispatcher's own prose on failure.
+     */
+    'connector_credentials/queries:probeCredentialUsableInternal': async (
+      raw,
+    ) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as { organizationId: string; connectorSlug: string };
+      return probeCredentialUsable(sql, args);
+    },
+
+    // ------------------------------------------- the agent node's run seams
+    'automations/queries:readAgentCursor': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { organizationId: string; runId: string };
+      const rows = await sql<
+        { status: string; detail: string | null; checkpoints: unknown }[]
+      >`
+        SELECT status, detail, checkpoints FROM app.automation_runs
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      const row = rows[0];
+      if (!row) return null;
+      const checkpoints =
+        row.checkpoints !== null && typeof row.checkpoints === 'object'
+          ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper owns this JSON shape
+            (row.checkpoints as { cursor?: unknown })
+          : {};
+      return {
+        status: row.status,
+        ...(row.detail !== null ? { detail: row.detail } : {}),
+        ...(checkpoints.cursor !== undefined
+          ? { cursor: checkpoints.cursor }
+          : {}),
+      };
+    },
+
+    'automations/queries:loadLiveAgentOpForRun': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as { organizationId: string; runId: string };
+      // The run's latest STILL-RUNNING workflow-agent op. A kick creates this
+      // op row BEFORE it schedules the turn start and BEFORE the run's cursor
+      // is persisted, so a `running` op is the durable evidence that a turn is
+      // in flight even when a crash lost the cursor — the stepper adopts it
+      // rather than kicking a SECOND turn (the double-spend guard). Terminal
+      // ops (a settled prior node) are not returned. Provider/model split off
+      // the op's `<provider>/<gatewayModel>` ref (the slug never has a slash).
+      const rows = await sql<
+        {
+          execId: string;
+          sessionId: string;
+          modelRef: string | null;
+          deadlineMs: number | null;
+        }[]
+      >`
+        SELECT exec_id AS "execId", session_id AS "sessionId",
+               model_ref AS "modelRef", deadline_ms::float8 AS "deadlineMs"
+        FROM app.sandbox_session_ops
+        WHERE org_id = ${args.organizationId}
+          AND session_id = ${sessionIdForWorkflowExecution(args.runId)}
+          AND kind = ${WORKFLOW_AGENT_OP_KIND} AND status = 'running'
+        ORDER BY started_at_ms DESC, id DESC
+        LIMIT 1
+      `;
+      const op = rows[0];
+      if (!op) return null;
+      const modelRef = op.modelRef ?? '';
+      const slash = modelRef.indexOf('/');
+      return {
+        execId: op.execId,
+        sessionId: op.sessionId,
+        deadlineAt: op.deadlineMs ?? 0,
+        providerSlug: slash > 0 ? modelRef.slice(0, slash) : '',
+        gatewayModel: slash > 0 ? modelRef.slice(slash + 1) : modelRef,
+      };
+    },
+
+    'automations/mutations:recordAgentTurnSettled': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        runId: string;
+        nodeId: string;
+        execId: string;
+        result: unknown;
+      };
+      return sql.begin(async (tx) => {
+        const rows = await tx<{ status: string; checkpoints: unknown }[]>`
+          SELECT status, checkpoints FROM app.automation_runs
+          WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+          LIMIT 1
+          FOR UPDATE
+        `;
+        const row = rows[0];
+        if (!row) return { recorded: false };
+        if (!['waiting', 'running', 'queued'].includes(row.status)) {
+          // Late settle after a terminal run: the terminal door already
+          // freed the allocation while this op was still running, so its
+          // release job found the runtime busy. Now that the op is final,
+          // the same release captures a fresh ticket for the idle runtime.
+          await stopWorkflowSessionSlotsInTx(tx, {
+            organizationId: args.organizationId,
+            executionId: args.runId,
+            onlyIdle: true,
+          });
+          return { recorded: false };
+        }
+        const checkpoints =
+          row.checkpoints !== null && typeof row.checkpoints === 'object'
+            ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper owns this JSON shape
+              (row.checkpoints as {
+                nodes?: Record<string, unknown>;
+                cursor?: {
+                  node?: string;
+                  agent?: { execId?: string; result?: unknown };
+                };
+                executions?: number;
+              })
+            : {};
+        const cursor = checkpoints.cursor;
+        if (
+          cursor === undefined ||
+          cursor.node !== args.nodeId ||
+          cursor.agent === undefined ||
+          cursor.agent.execId !== args.execId ||
+          cursor.agent.result !== undefined
+        ) {
+          return { recorded: false };
+        }
+        await tx`
+          UPDATE app.automation_runs SET
+            checkpoints = ${tx.json(
+              toJson({
+                nodes: checkpoints.nodes ?? {},
+                cursor: {
+                  ...cursor,
+                  agent: { ...cursor.agent, result: args.result },
+                },
+                executions: checkpoints.executions ?? 0,
+              }),
+            )},
+            wake_at_ms = ${Date.now()}
+          WHERE id = ${args.runId}
+        `;
+        await addJobInTx(tx, 'automation.step', {
+          organizationId: args.organizationId,
+          runId: args.runId,
+        });
+        // The agent result just landed in the cursor — nudge open run views.
+        await emitRunHint(tx, args.organizationId, args.runId);
+        return { recorded: true };
+      });
+    },
+
+    'automations/mutations:stampAgentTurnLaunch': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        runId: string;
+        nodeId: string;
+        execId: string;
+        launchedAt: number;
+        brokerTokenHash?: string | null;
+      };
+      return sql.begin(async (tx) => {
+        const rows = await tx<
+          { status: string; checkpoints: unknown; detail: string | null }[]
+        >`
+          SELECT status, checkpoints, detail FROM app.automation_runs
+          WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+          LIMIT 1
+          FOR UPDATE
+        `;
+        const row = rows[0];
+        if (!row || !['waiting', 'running', 'queued'].includes(row.status)) {
+          return { stamped: false };
+        }
+        const checkpoints =
+          row.checkpoints !== null && typeof row.checkpoints === 'object'
+            ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper owns this JSON shape
+              (row.checkpoints as {
+                nodes?: Record<string, unknown>;
+                cursor?: {
+                  node?: string;
+                  agent?: {
+                    execId?: string;
+                    result?: unknown;
+                    brokerTokenHash?: string;
+                  };
+                };
+                executions?: number;
+              })
+            : {};
+        const cursor = checkpoints.cursor;
+        if (
+          cursor === undefined ||
+          cursor.node !== args.nodeId ||
+          cursor.agent === undefined ||
+          cursor.agent.execId !== args.execId ||
+          cursor.agent.result !== undefined
+        ) {
+          return { stamped: false };
+        }
+        const { brokerTokenHash: _previousBrokerTokenHash, ...previousAgent } =
+          cursor.agent;
+        // A start that waited for sandbox room launched: the run's park
+        // says an agent works now, not that it waits for room.
+        const waitedForRoom = row.detail === `room:${args.nodeId}`;
+        await tx`
+          UPDATE app.automation_runs SET
+            checkpoints = ${tx.json(
+              toJson({
+                nodes: checkpoints.nodes ?? {},
+                cursor: {
+                  ...cursor,
+                  agent: {
+                    ...previousAgent,
+                    launchedAt: args.launchedAt,
+                    ...(args.brokerTokenHash != null
+                      ? { brokerTokenHash: args.brokerTokenHash }
+                      : {}),
+                  },
+                },
+                executions: checkpoints.executions ?? 0,
+              }),
+            )},
+            detail = CASE WHEN detail = ${`room:${args.nodeId}`}
+              THEN ${`agent:${args.nodeId}`} ELSE detail END
+          WHERE id = ${args.runId}
+        `;
+        if (waitedForRoom) {
+          await emitRunHint(tx, args.organizationId, args.runId);
+        }
+        return { stamped: true };
+      });
+    },
+
+    'automations/queries:getRunLanguageContext': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { organizationId: string; runId: string };
+      const runs = await sql<
+        {
+          taskId: string | null;
+          taskTitleTemplate: string | null;
+          projectId: string | null;
+          name: string;
+        }[]
+      >`
+        SELECT r.input -> 'task' ->> 'id' AS "taskId",
+               r.project_id AS "projectId", r.name,
+               a.task_contract -> 'create' ->> 'titleTemplate' AS "taskTitleTemplate"
+        FROM app.automation_runs r
+        LEFT JOIN app.automations a ON a.org_id = r.org_id
+          AND a.name = r.name AND a.version = r.version
+        WHERE r.id = ${args.runId} AND r.org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      const run = runs[0];
+      const bindings =
+        run !== undefined && run.projectId === null
+          ? await sql<{ projectId: string }[]>`
+            SELECT project_id AS "projectId" FROM app.automation_project_bindings
+            WHERE org_id = ${args.organizationId} AND automation_name = ${run.name}
+          `
+          : [];
+      const projectIds =
+        run?.projectId != null
+          ? [run.projectId]
+          : bindings.length > 0
+            ? bindings.map((binding) => binding.projectId)
+            : undefined;
+      const context = await loadAgentLanguageContext(sql, {
+        organizationId: args.organizationId,
+        taskId: run?.taskId,
+        ...(projectIds !== undefined ? { projectIds } : {}),
+      });
+      return {
+        ...context,
+        ...(run?.taskTitleTemplate != null
+          ? { taskTitleTemplate: run.taskTitleTemplate }
+          : {}),
+      };
+    },
+
+    'automations/queries:getRunProjectId': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { organizationId: string; runId: string };
+      const rows = await sql<{ projectId: string | null }[]>`
+        SELECT project_id AS "projectId" FROM app.automation_runs
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      return rows[0]?.projectId ?? null;
+    },
+
+    'automations/queries:getRunProjectContext': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { organizationId: string; runId: string };
+      const runs = await sql<{ projectId: string | null; name: string }[]>`
+        SELECT project_id AS "projectId", name FROM app.automation_runs
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      const run = runs[0];
+      if (!run) return { project: null, boundProjects: [], bound: false };
+      if (run.projectId !== null) {
+        const projects = await sql<
+          { id: string; name: string; key: string | null }[]
+        >`
+          SELECT id, name, key FROM app.projects
+          WHERE id = ${run.projectId} AND org_id = ${args.organizationId}
+          LIMIT 1
+        `;
+        const project = projects[0];
+        return {
+          project:
+            project !== undefined
+              ? {
+                  id: project.id,
+                  name: project.name,
+                  ...(project.key !== null ? { key: project.key } : {}),
+                }
+              : null,
+          boundProjects: [],
+          bound: false,
+        };
+      }
+      const bound = await sql<
+        { id: string; name: string; key: string | null }[]
+      >`
+        SELECT p.id, p.name, p.key
+        FROM app.automation_project_bindings b
+        JOIN app.projects p ON p.id = b.project_id
+        WHERE b.org_id = ${args.organizationId}
+          AND b.automation_name = ${run.name}
+      `;
+      return {
+        project: null,
+        boundProjects: bound.map((project) => ({
+          id: project.id,
+          name: project.name,
+          ...(project.key !== null ? { key: project.key } : {}),
+        })),
+        bound: bound.length > 0,
+      };
+    },
+
+    'projects/internal_queries:getProjectSkillScope': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { projectId: string };
+      const rows = await sql<{ teamIds: string[] | null }[]>`
+        SELECT ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
+        FROM app.projects WHERE id = ${args.projectId} LIMIT 1
+      `;
+      const row = rows[0];
+      if (!row) return null;
+      return { teamIds: row.teamIds ?? [] };
+    },
+
+    'sandbox/session_mutations:hibernateAutomationScopedSession': async (
+      raw,
+    ) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { executionId: string };
+      await sql.begin(async (tx) => {
+        const rows = await tx<{ organizationId: string }[]>`
+          SELECT org_id AS "organizationId" FROM app.automation_runs
+          WHERE id = ${args.executionId} LIMIT 1
+        `;
+        const row = rows[0];
+        if (row === undefined) return;
+        await stopWorkflowSessionSlotsInTx(tx, {
+          organizationId: row.organizationId,
+          executionId: args.executionId,
+          onlyIdle: true,
+        });
+      });
+      return null;
+    },
+
+    // ----------------------------------------------------- the ask lane
+    // The CREATE side (`createAskForExec`) lives in `ask-shim.ts` and is
+    // spread below — the sandbox tool dispatch registers the same handler.
+    'automations/human_asks:getPendingAskForExec': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { sessionId: string; execId: string };
+      const rows = await sql<AskRowRecord[]>`
+        SELECT ${sql.unsafe(ASK_ROW_COLUMNS)}
+        FROM app.automation_human_asks
+        WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
+          AND status = 'pending'
+        LIMIT 1
+      `;
+      const row = rows[0];
+      return row ? askRowOf(row) : null;
+    },
+
+    'automations/human_asks:closeAsk': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        askId: string;
+        status: 'expired' | 'cancelled' | 'answered';
+      };
+      const closed = await sql<{ orgId: string; taskId: string | null }[]>`
+        UPDATE app.automation_human_asks SET status = ${args.status}
+        WHERE id = ${args.askId} AND status = 'pending'
+        RETURNING org_id AS "orgId", task_id AS "taskId"
+      `;
+      const row = closed[0];
+      if (row) {
+        await dismissAgentQuestionNotifications(sql, {
+          organizationId: row.orgId,
+          askId: args.askId,
+        }).catch((error: unknown) => {
+          console.warn('[asks] bell dismissal failed:', error);
+        });
+        // A question that ran out of time is retracted on the task's
+        // timeline like one a cancel closed (K3-5); an answered one carries
+        // its answer there already.
+        if (args.status === 'expired' && typeof row.taskId === 'string') {
+          const taskId = row.taskId;
+          await sql.begin((tx) =>
+            retractAskOnTask(tx, {
+              organizationId: row.orgId,
+              taskId,
+              reason: 'The question expired before it was answered',
+            }),
+          );
+        }
+      }
+      return null;
+    },
+
+    'automations/human_asks:listAnsweredAsksForNode': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        runId: string;
+        nodeId: string;
+      };
+      return sql`
+        SELECT question, answer FROM app.automation_human_asks
+        WHERE run_id = ${args.runId} AND org_id = ${args.organizationId}
+          AND node_id = ${args.nodeId} AND status = 'answered'
+          AND answer IS NOT NULL
+        ORDER BY created_at_ms
+      `;
+    },
+
+    'automations/human_asks:getAskForResume': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { askId: string; organizationId: string };
+      const rows = await sql<AskRowRecord[]>`
+        SELECT ${sql.unsafe(ASK_ROW_COLUMNS)}
+        FROM app.automation_human_asks
+        WHERE id = ${args.askId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      const row = rows[0];
+      return row ? askRowOf(row) : null;
+    },
+
+    'automations/human_asks:retargetAgentCursor': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        runId: string;
+        nodeId: string;
+        fromExecId: string;
+        toExecId?: string;
+        deadlineAt?: number;
+      };
+      // The same guarded patch as `recordAgentTurnSettled`: the run must be
+      // live, parked on this node, on the expected exec, with no result — a
+      // stale resume retargets nothing. FOR UPDATE serializes racing resumes
+      // so exactly one wins the retarget.
+      return sql.begin(async (tx) => {
+        const rows = await tx<{ status: string; checkpoints: unknown }[]>`
+          SELECT status, checkpoints FROM app.automation_runs
+          WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+          FOR UPDATE
+        `;
+        const row = rows[0];
+        if (!row || !['waiting', 'running', 'queued'].includes(row.status)) {
+          return { retargeted: false };
+        }
+        const checkpoints =
+          row.checkpoints !== null && typeof row.checkpoints === 'object'
+            ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper owns this JSON shape
+              (row.checkpoints as {
+                nodes?: unknown;
+                cursor?: {
+                  node?: string;
+                  agent?: {
+                    execId?: string;
+                    result?: unknown;
+                    deadlineAt?: number;
+                  };
+                };
+                executions?: unknown;
+              })
+            : {};
+        const cursor = checkpoints.cursor;
+        if (
+          cursor === undefined ||
+          cursor.node !== args.nodeId ||
+          cursor.agent === undefined ||
+          cursor.agent.execId !== args.fromExecId ||
+          cursor.agent.result !== undefined
+        ) {
+          return { retargeted: false };
+        }
+        const patched = {
+          ...checkpoints,
+          cursor: {
+            ...cursor,
+            agent: {
+              ...cursor.agent,
+              ...(args.toExecId !== undefined ? { execId: args.toExecId } : {}),
+              ...(args.deadlineAt !== undefined
+                ? { deadlineAt: args.deadlineAt }
+                : {}),
+            },
+          },
+        };
+        await tx`
+          UPDATE app.automation_runs SET
+            checkpoints = ${tx.json(toJson(patched))}
+          WHERE id = ${args.runId}
+        `;
+        return { retargeted: true };
+      });
+    },
+
+    // The host holds the ask's id (it just read the pending row for this
+    // exec) and the harness's conversation handle — it keys the park on the
+    // id, not on the (session, exec) pair. The handler used to read
+    // `sessionId`/`execId` here, so the park's first production use threw
+    // UNDEFINED_VALUE and the run recorded a failed node instead of waiting.
+    'automations/human_asks:recordAskParked': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { askId: string; agentSessionId?: string };
+      await sql`
+        UPDATE app.automation_human_asks SET
+          agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id)
+        WHERE id = ${args.askId} AND status = 'pending'
+      `;
+      return null;
+    },
+  };
+}
+
+/** The scheduler seam for the automation shims: the reused hosts' scheduled
+ * refs map onto pg-boss jobs (enqueued OUTSIDE any caller tx — best-effort,
+ * mirroring the 0.4 scheduler's fire-and-forget posture at these sites). */
+export function automationShimScheduler(sql: Sql): ShimScheduler {
+  // Scheduled payloads arrive as unknown JSON — narrow each field instead of
+  // String() (which would stringify a stray object to '[object Object]').
+  const str = (value: unknown): string =>
+    typeof value === 'string' ? value : '';
+  return async (functionName, delayMs, args) => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the scheduled refs carry the payloads their handlers re-validate
+    const payload = args as Record<string, unknown>;
+    const startAfter =
+      delayMs > 0 ? { startAfter: new Date(Date.now() + delayMs) } : {};
+    if (
+      await scheduleGatewayKeyReconcile(sql, functionName, delayMs, payload)
+    ) {
+      return;
+    }
+    if (functionName === 'automations/agent_host:startWorkflowAgentTurn') {
+      await addJobInTx(
+        sql,
+        'automation.agent_turn',
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the host builds exactly the start args
+        payload as never,
+        startAfter,
+      );
+      return;
+    }
+    if (functionName === 'automations/agent_host:driveWorkflowAgentTurn') {
+      // The turn's self-chain: `continueOrSettle` re-schedules one attach
+      // window after every `running` window. Without this mapping the chain
+      // dies at the FIRST re-schedule, settling a working turn as failed
+      // while the agent keeps going (observed live — the task lane's
+      // scheduler seam documents the same trap).
+      await addJobInTx(
+        sql,
+        'automation.agent_drive',
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the host builds exactly the drive keys its handler re-validates
+        payload as never,
+        startAfter,
+      );
+      return;
+    }
+    if (
+      functionName ===
+      'automations/agent_host:resumeWorkflowAgentTurnWithAnswer'
+    ) {
+      await addJobInTx(
+        sql,
+        'automation.ask_resume',
+        {
+          organizationId: str(payload.organizationId),
+          askId: str(payload.askId),
+        },
+        startAfter,
+      );
+      return;
+    }
+    if (functionName === 'automations/stepper:stepRun') {
+      await addJobInTx(
+        sql,
+        'automation.step',
+        {
+          organizationId: str(payload.organizationId),
+          runId: str(payload.runId),
+        },
+        startAfter,
+      );
+      return;
+    }
+    if (functionName === 'automations/mutations:pollParkedRun') {
+      await addJobInTx(
+        sql,
+        'automation.poll',
+        {
+          organizationId: str(payload.organizationId),
+          runId: str(payload.runId),
+          seq: Number(payload.seq ?? 0),
+          pollMs: Number(payload.pollMs ?? 1000),
+        },
+        startAfter,
+      );
+      return;
+    }
+    throw new Error(
+      `[automations] no job mapping for scheduled function: ${functionName}`,
+    );
+  };
+}

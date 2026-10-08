@@ -204,6 +204,7 @@ describe('in-doubt adapters', () => {
           organizationId: 'org1',
           runId: 'r1',
           attemptId: 'a/1',
+          attempt: 2,
           resolution: 'skip',
         },
         {},
@@ -212,8 +213,11 @@ describe('in-doubt adapters', () => {
     expect(fetchSpy.mock.calls[0]?.[0]).toBe(
       '/api/app/automations/runs/r1/in-doubt/a%2F1?orgId=org1',
     );
+    // The attempt the choice is about: the door refuses an earlier attempt
+    // of the same write instead of deciding a later one.
     expect(jsonBody(fetchSpy.mock.calls[0]?.[1])).toEqual({
       resolution: 'skip',
+      attempt: 2,
     });
 
     const client = new QueryClient();
@@ -222,5 +226,28 @@ describe('in-doubt adapters', () => {
     adapter?.invalidate?.(client, { organizationId: 'org1' }, {});
     expect(client.getQueryState(card)?.isInvalidated).toBe(true);
     client.clear();
+  });
+
+  it('sends no decision that names no attempt', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(200, { ok: true }));
+    const adapter =
+      automationWriteAdapters['automations/mutations:resolveRunInDoubt'];
+    for (const attempt of [undefined, 0, 1.5, '1']) {
+      expect(() =>
+        adapter?.run(
+          {
+            organizationId: 'org1',
+            runId: 'r1',
+            attemptId: 'a1',
+            attempt,
+            resolution: 'skip',
+          },
+          {},
+        ),
+      ).toThrow('Missing attempt for adapted write');
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
