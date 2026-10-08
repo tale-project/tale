@@ -4,9 +4,9 @@
 
 A connector lets an agent or an automation act in an outside system: read a mailbox, file a
 ticket, fetch issues. These rules cover whom such a call acts for, when it is refused, how an
-account is connected by signing in at the outside system, and what importing tasks through a
-connector may write. The catalog of connectors and what each one can do are not covered; see
-Not yet.
+account is connected by signing in at the outside system, what importing tasks through a
+connector may write, and where an agent's call runs. The catalog of connectors and what each
+one can do are not covered; see Not yet.
 
 ## Whom a connector call acts for
 
@@ -117,6 +117,18 @@ leaves the task's status and its description as they are in Tale.
 
 - **Example**: An issue was imported and Mia moved its task to Done. The import runs again →
   the task is still Done, and there is one task for the issue.
+
+## Where a connector call runs
+
+### CONN-R13 · An agent's connector call runs on the platform, never inside the agent's sandbox
+
+The connector's code runs in the platform with the organization's credential, and the
+sandbox gets back only the result. No process of the agent's sandbox is handed the
+credential for the call.
+
+- **Example**: Mia's agent reads GlitchTip issues through the connector → the call runs on
+  the platform with the organization's GlitchTip token, and nothing in Mia's sandbox sees
+  the token.
 
 ## Not yet
 

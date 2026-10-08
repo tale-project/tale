@@ -11,7 +11,8 @@
  * The second half pins WHOM a call acts for: the token's own user, or the
  * starter of the live task run on the exec the token names (`connectorCaller`),
  * read from the run on every call, and only while that person is still an
- * active member.
+ * active member — and WHERE it runs: on the platform, never in the calling
+ * sandbox.
  */
 
 import type { Sql } from 'postgres';
@@ -292,12 +293,26 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
         connector: 'glitchtip',
         action: 'list_import_issues',
         caller: { kind: 'user', userId: 'user_starter' },
-        execSessionId: 'pa-agent_1',
       });
       expect(toolCalls).toHaveLength(1);
       expect(toolCalls[0]).toContain('user_starter');
     },
   );
+
+  it('runs the action’s live body on the platform, never in the calling sandbox [CONN-R13]', async () => {
+    tokenWith(TASK_TURN);
+
+    await post('/execute', LIST_ISSUES);
+
+    // No session for the body to run in: the door runs it in process, so
+    // the credential never reaches a program in the agent's own session.
+    expect(runConnectorAction.mock.calls[0]?.[1]).toMatchObject({
+      mode: 'live',
+    });
+    expect(runConnectorAction.mock.calls[0]?.[1]).not.toHaveProperty(
+      'execSessionId',
+    );
+  });
 
   it('acts for the member a REST start named (the api-key door) [CONN-R1]', async () => {
     runs.set('exec_1', { status: 'running', startedBy: 'api-key:user_1' });

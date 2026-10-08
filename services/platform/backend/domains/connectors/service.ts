@@ -63,9 +63,9 @@ import { pgTaskStore } from './task-store.ts';
  * run's own workflow session over the automations ctx shim — the same
  * session the run's agent nodes use. A live yaml-js body runs on the
  * host-capable in-process runner (the shipped catalog is trusted code, and
- * `ctx.http` is the same policed live host either way) unless the caller
- * owns a sandbox session, in which case the body runs out of process on the
- * session-bound runner and phones its host calls home.
+ * `ctx.http` is the same policed live host either way) — the external-turn
+ * bridge included, so a sandboxed agent's call never runs its body, or
+ * carries its credential, inside the agent's own session.
  */
 
 let mailTransportOverride: MailTransport | undefined;
@@ -257,11 +257,15 @@ export interface RunConnectorArgs {
   caller: ConnectorCaller;
   idempotencyKey?: string;
   /**
-   * A live sandbox session to run a yaml-js body IN, out of process. Only
-   * the external-turn bridge owns one; every other live caller (automation
-   * runs, chat, the platform's own senders) runs the body on the in-process
-   * live runner. The runner is per-invocation ON PURPOSE — the
-   * process-global slot is shared by every concurrent org.
+   * A live sandbox session to run a yaml-js body IN, out of process. No
+   * caller passes one: every live caller — automation runs, chat, the
+   * platform's own senders and the external-turn bridge — runs the body on
+   * the in-process live runner. The bridge must not: the session-bound
+   * runner starts the body as a `node -e` program in the agent's own
+   * session, with its scope (credential secrets included) on the command
+   * line every process of that session can read. The runner is
+   * per-invocation ON PURPOSE — the process-global slot is shared by every
+   * concurrent org.
    */
   execSessionId?: string;
   /**

@@ -44,6 +44,8 @@ import { runConnectorAction } from './service.ts';
  *    the task run on the exec the token names (`connectorCaller`), read
  *    from the run on every call and only while that run is live; a call
  *    runs only while that person is still an active member of the org.
+ *    The action's live body runs here, in the platform process, like an
+ *    automation's or chat's call — never in the calling sandbox.
  *  - `hostcall` authenticates a one-run HMAC capability minted at dispatch,
  *    bound to (org, connector, action, credential). It carries no secret:
  *    the door re-resolves the credential itself, so a leaked token cannot
@@ -286,11 +288,9 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
           input: dispatchArgs.input,
           mode: 'live',
           caller: { kind: 'user', userId: dispatchArgs.userId },
-          execSessionId: dispatchArgs.execSessionId,
         }),
       {
         organizationId: auth.organizationId,
-        sessionId: auth.sessionId,
         userId: caller.userId,
         slug,
         operation,
