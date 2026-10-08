@@ -147,6 +147,37 @@ describe('engine purity', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('the MCP tool inventory loads none of the engine behind the methods', () => {
+    // The settings page lists the MCP tools from lib/mcp/tools.ts; the
+    // method names it needs are a leaf, so the page never downloads the
+    // parser, the schema validator or the YAML loader to show a list.
+    const resolveModule = (from: string, spec: string): string | null => {
+      const target = path.resolve(path.dirname(from), spec);
+      for (const candidate of [`${target}.ts`, path.join(target, 'index.ts')]) {
+        if (existsSync(candidate)) return candidate;
+      }
+      return null;
+    };
+    const reached = new Set<string>();
+    const pending = [path.resolve(ENGINE_ROOT, '../mcp/tools.ts')];
+    while (pending.length > 0) {
+      const file = pending.pop();
+      if (file === undefined || reached.has(file)) continue;
+      reached.add(file);
+      for (const spec of importsOf(file)) {
+        if (!spec.startsWith('.')) continue;
+        const next = resolveModule(file, spec);
+        if (next !== null) pending.push(next);
+      }
+    }
+    expect(reached.size).toBeGreaterThan(1);
+    const heavy = new Set(['acorn', 'ajv', 'yaml', 'periscopic']);
+    const offenders = [...reached].filter((f) =>
+      importsOf(f).some((s) => heavy.has(s)),
+    );
+    expect(offenders).toEqual([]);
+  });
+
   it('the node-vm runner is the only module touching node:vm', () => {
     const runnerDir = path.join(ENGINE_ROOT, 'runners');
     const nodeImportsByFile = Object.fromEntries(

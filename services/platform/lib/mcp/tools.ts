@@ -19,7 +19,7 @@
  * second source of truth that drifts.
  */
 
-import { METHODS, type Method } from '../engine/api/dispatch';
+import { METHODS, type Method } from '../engine/api/methods';
 import { KNOWLEDGE_QUERY_MAX } from '../knowledge/types';
 
 /** The three groups the inventory is presented in — the settings page and the

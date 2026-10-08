@@ -43,31 +43,10 @@ import { connectorOutputShape } from '../core/typing/signature';
 import { validate, type ValidateOptions } from '../core/validate';
 import { searchCatalog } from './catalog-search';
 import { authoringReference } from './docs';
+import { METHODS } from './methods';
 import { runAutomationTests } from './tests';
 
-export const METHODS = [
-  'get_docs',
-  'get_catalog',
-  'search_catalog',
-  'validate_automation',
-  'run_automation',
-  'test_automation',
-  'save_automation',
-  'get_automation',
-  'list_automations',
-  'deploy_automation',
-  'set_trigger',
-  'run_deployed',
-  'start_run',
-  'list_runs',
-  'get_run',
-  'cancel_run',
-  'list_versions',
-  'list_triggers',
-  'delete_trigger',
-] as const;
-
-export type Method = (typeof METHODS)[number];
+export { METHODS, type Method } from './methods';
 
 /** A trigger binding the host persists and acts on. The engine only records
  * it; scheduling and delivery are the host's job. */
