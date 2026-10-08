@@ -15035,6 +15035,417 @@ async function checkMcp(
   await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
 }
 
+/**
+ * The MCP authoring tools at the editor's parity, on the real schema and the
+ * real HTTP door (MCP-R1–R4, R9, R14; AUTO-R26, AUTO-R27; migration 0181): a
+ * save carries the version fields it leaves out and records its door, a
+ * stale base version or live version refuses as data, a member's agent
+ * starts a recorded mock run of any saved version but not a live one, an
+ * automation installed only in a team project the member cannot read is
+ * "not found" over MCP and REST, installations and deletes go through, and
+ * every one of those writes leaves an audit row stamped `via: mcp`.
+ */
+async function checkMcpAuthoringParity(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
+  const mintKey = async (ownCookie: string, label: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: ownCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name: label }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const ownerKey = await mintKey(cookie, 'itest-mcp-parity');
+  let rpcId = 500;
+  /** One tool call: whether it was refused, and the JSON it answered. */
+  const tool = async (
+    name: string,
+    args: Record<string, unknown>,
+    key = ownerKey,
+  ): Promise<{ isError: boolean; value: Record<string, unknown> }> => {
+    rpcId += 1;
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'x-organization-slug': orgSlug,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: rpcId,
+        method: 'tools/call',
+        params: { name, arguments: args },
+      }),
+    });
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+          isError: z.boolean(),
+        }),
+      })
+      .safeParse(await res.json());
+    if (!parsed.success) return { isError: true, value: {} };
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return {
+      isError: parsed.data.result.isError,
+      value: value.success ? value.data : {},
+    };
+  };
+  const name = 'itest-parity/dunning';
+  const doc = { ...DOC_EXAMPLE.automation, name };
+  const settings = {
+    folder: 'Reports',
+    forms: [
+      {
+        file: 'settings.json',
+        title: 'Reminder settings',
+        fields: [{ key: 'days', label: 'Days', type: 'number' }],
+      },
+    ],
+  };
+  const taskContract = { workflow: name };
+
+  // MCP-R1: the editor saves v1 with its settings and task contract; the
+  // agent's v2 sends neither, and keeps both.
+  const appSave = await fetch(
+    `${base}/api/app/automations/${name}/save?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        document: doc,
+        message: 'app',
+        settings,
+        taskContract,
+      }),
+    },
+  );
+  const agentSave = await tool('save_automation', {
+    automation: doc,
+    message: 'agent',
+    baseVersion: 1,
+  });
+  const rows = await sql<
+    {
+      version: number;
+      settings: unknown;
+      taskContract: unknown;
+      createdVia: string | null;
+      apiKeyId: string | null;
+    }[]
+  >`
+    SELECT version, settings, task_contract AS "taskContract",
+           created_via AS "createdVia", api_key_id AS "apiKeyId"
+    FROM app.automations WHERE org_id = ${orgId} AND name = ${name}
+    ORDER BY version
+  `;
+  const v2 = rows.find((row) => row.version === 2);
+  record(
+    'MCP save keeps the settings and task contract it leaves out, and records its door (MCP-R1, 0181)',
+    appSave.status === 201 &&
+      !agentSave.isError &&
+      agentSave.value.version === 2 &&
+      JSON.stringify(agentSave.value.carried) ===
+        JSON.stringify(['settings', 'taskContract']) &&
+      agentSave.value.baseVersionChecked === true &&
+      JSON.stringify(v2?.settings) === JSON.stringify(settings) &&
+      JSON.stringify(v2?.taskContract) === JSON.stringify(taskContract) &&
+      v2?.createdVia === 'mcp' &&
+      typeof v2.apiKeyId === 'string' &&
+      rows.find((row) => row.version === 1)?.createdVia === 'app',
+    `app save → ${appSave.status} (want 201), agent save=${JSON.stringify(agentSave.value).slice(0, 160)}, v2=${JSON.stringify(v2 ?? null).slice(0, 200)}`,
+  );
+
+  // MCP-R2: a save from v1 after v2 landed is refused, naming v2; a version
+  // field that does not fit its reader is refused with every problem.
+  const stale = await tool('save_automation', {
+    automation: doc,
+    baseVersion: 1,
+  });
+  const invalid = await tool('save_automation', {
+    automation: doc,
+    baseVersion: 2,
+    settings: { bogus: true },
+  });
+  const afterRefusals = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.automations
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const invalidIssues = z
+    .object({
+      data: z.object({ issues: z.array(z.object({ path: z.string() })) }),
+    })
+    .safeParse(invalid.value);
+  record(
+    'MCP save from a stale base version is refused with the latest (MCP-R2)',
+    stale.isError &&
+      stale.value.code === 'AUTOMATION_VERSION_STALE' &&
+      z.object({ latestVersion: z.literal(2) }).safeParse(stale.value.data)
+        .success &&
+      invalid.isError &&
+      invalid.value.code === 'INVALID_ARGUMENTS' &&
+      invalidIssues.success &&
+      invalidIssues.data.data.issues.some((issue) =>
+        issue.path.startsWith('settings'),
+      ) &&
+      afterRefusals[0]?.n === 2,
+    `stale=${JSON.stringify(stale.value).slice(0, 160)}, invalid=${JSON.stringify(invalid.value).slice(0, 160)}, versions=${afterRefusals[0]?.n} (want 2)`,
+  );
+
+  // MCP-R3: a deploy naming the wrong live version is refused; the right one
+  // answers what was live before, and an older version rolls back.
+  const first = await tool('deploy_automation', {
+    name,
+    version: 2,
+    expectedDeployedVersion: null,
+  });
+  const staleDeploy = await tool('deploy_automation', {
+    name,
+    version: 1,
+    expectedDeployedVersion: 1,
+  });
+  const rollback = await tool('deploy_automation', {
+    name,
+    version: 1,
+    expectedDeployedVersion: 2,
+  });
+  const restore = await tool('deploy_automation', {
+    name,
+    version: 2,
+    expectedDeployedVersion: 1,
+  });
+  const live = await sql<{ version: number }[]>`
+    SELECT version FROM app.automation_deployments
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  record(
+    'MCP deploy names the version it replaces and rolls back (MCP-R3)',
+    !first.isError &&
+      first.value.previousVersion === null &&
+      staleDeploy.isError &&
+      staleDeploy.value.code === 'AUTOMATION_DEPLOYMENT_STALE' &&
+      !rollback.isError &&
+      rollback.value.previousVersion === 2 &&
+      !restore.isError &&
+      live[0]?.version === 2,
+    `first=${JSON.stringify(first.value).slice(0, 120)}, stale=${String(staleDeploy.value.code)}, rollback=${JSON.stringify(rollback.value.previousVersion)}, live=v${live[0]?.version}`,
+  );
+
+  // The version view and the history.
+  const viewed = await tool('get_automation', { name });
+  const history = await tool('list_versions', { name });
+  const deployments = z
+    .object({ deployments: z.array(z.object({ version: z.number() })) })
+    .safeParse(history.value);
+  record(
+    'MCP get_automation answers the whole version, list_versions its deployments',
+    !viewed.isError &&
+      viewed.value.latestVersion === 2 &&
+      viewed.value.deployedVersion === 2 &&
+      viewed.value.createdVia === 'mcp' &&
+      JSON.stringify(viewed.value.settings) === JSON.stringify(settings) &&
+      deployments.success &&
+      deployments.data.deployments.length >= 3,
+    `view=${JSON.stringify(viewed.value).slice(0, 200)}, deployments=${deployments.success ? deployments.data.deployments.length : 'ERR'} (want ≥3)`,
+  );
+
+  // MCP-R4: a member's agent starts a recorded mock run of an undeployed
+  // version, and is refused a live one.
+  const v3 = await tool('save_automation', { automation: doc, baseVersion: 2 });
+  const { cookie: memberCookie, userId: memberId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-parity-member',
+    'member',
+  );
+  const memberKey = await asKeyCreator(sql, { orgId, userId: memberId }, () =>
+    mintKey(memberCookie, 'itest-mcp-parity-member'),
+  );
+  const mock = await tool(
+    'start_run',
+    { name, mode: 'mock', input: { min_total: 5, orders: [] } },
+    memberKey,
+  );
+  const liveRefused = await tool(
+    'start_run',
+    { name, mode: 'live', input: { min_total: 5, orders: [] } },
+    memberKey,
+  );
+  const mockRun = await sql<
+    { mode: string; version: number; startedBy: string }[]
+  >`
+    SELECT mode, version, started_by AS "startedBy" FROM app.automation_runs
+    WHERE org_id = ${orgId}
+      AND id = ${typeof mock.value.runId === 'string' ? mock.value.runId : ''}
+  `;
+  const page = await tool(
+    'list_runs',
+    { name, mode: 'mock', limit: 1 },
+    memberKey,
+  );
+  record(
+    "a member's agent starts a recorded mock run of any saved version, not a live one (MCP-R4)",
+    !v3.isError &&
+      !mock.isError &&
+      mockRun[0]?.mode === 'mock' &&
+      mockRun[0].version === 3 &&
+      mockRun[0].startedBy === `api-key:${memberId}` &&
+      liveRefused.isError &&
+      liveRefused.value.code === 'FORBIDDEN_DEVELOPER_SETTINGS' &&
+      !page.isError &&
+      'nextCursor' in page.value,
+    `mock=${JSON.stringify(mock.value).slice(0, 120)} row=${JSON.stringify(mockRun[0] ?? null)}, live=${String(liveRefused.value.code)}, page=${JSON.stringify(page.value).slice(0, 80)}`,
+  );
+
+  // MCP-R9 / AUTO-R26: installed only in a team project the member is not
+  // in, the automation is "not found" to them over MCP and REST.
+  const now = Date.now();
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt", "updatedAt")
+    VALUES (gen_random_uuid(), 'Parity HR', ${orgId}, ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, team_id, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Parity HR project', ${teamRows[0]?.id ?? ''}, ${userId},
+            ${now}, ${now})
+    RETURNING id
+  `;
+  const hrProject = projectRows[0]?.id ?? '';
+  const installed = await tool('set_automation_projects', {
+    name,
+    add: [hrProject],
+  });
+  const memberRead = await tool('get_automation', { name }, memberKey);
+  const memberList = await tool('list_automations', {}, memberKey);
+  const restRead = async (key: string) =>
+    (
+      await fetch(`${base}/api/v1/automations/itest-parity__dunning/versions`, {
+        headers: {
+          authorization: `Bearer ${key}`,
+          'x-organization-slug': orgSlug,
+        },
+      })
+    ).status;
+  const memberRest = await restRead(memberKey);
+  const ownerRest = await restRead(ownerKey);
+  const ownerRead = await tool('get_automation', { name });
+  record(
+    'an automation installed only in a project the member cannot read is hidden from them on MCP and REST (MCP-R9, AUTO-R26)',
+    !installed.isError &&
+      JSON.stringify(installed.value.added) === JSON.stringify([hrProject]) &&
+      memberRead.isError &&
+      memberRead.value.code === 'AUTOMATION_NOT_FOUND' &&
+      !JSON.stringify(memberList.value).includes(name) &&
+      memberRest === 404 &&
+      ownerRest === 200 &&
+      !ownerRead.isError,
+    `install=${JSON.stringify(installed.value).slice(0, 100)}, member get=${String(memberRead.value.code)}, member list hides=${!JSON.stringify(memberList.value).includes(name)}, REST member→${memberRest} owner→${ownerRest}`,
+  );
+  const removed = await tool('set_automation_projects', {
+    name,
+    remove: [hrProject],
+  });
+  const notInstalled = await tool('set_automation_projects', {
+    name,
+    remove: [hrProject],
+  });
+  const metrics = await tool(
+    'get_automation_metrics',
+    { mode: 'mock' },
+    memberKey,
+  );
+
+  // delete_automation against the latest version — once the member's mock
+  // run has finished, since a run still going refuses the delete — then the
+  // audit trail.
+  const mockSettled = await waitFor(async () => {
+    const statuses = await sql<{ status: string }[]>`
+      SELECT status FROM app.automation_runs
+      WHERE org_id = ${orgId} AND name = ${name}
+        AND status IN ('queued', 'running', 'waiting')
+    `;
+    return statuses.length === 0;
+  }, 30_000);
+  const staleDelete = await tool('delete_automation', {
+    name,
+    expectedLatestVersion: 1,
+  });
+  const deleted = await tool('delete_automation', {
+    name,
+    expectedLatestVersion: 3,
+  });
+  const audit = await sql<
+    {
+      action: string;
+      via: string | null;
+      tool: string | null;
+      requestId: string | null;
+    }[]
+  >`
+    SELECT action, metadata->>'via' AS via, metadata->>'tool' AS tool,
+           request_id AS "requestId"
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'automation'
+      AND resource_id = ${name}
+    ORDER BY ts
+  `;
+  const viaMcp = (action: string, toolName: string) =>
+    audit.some(
+      (row) =>
+        row.action === action &&
+        row.via === 'mcp' &&
+        row.tool === toolName &&
+        row.requestId !== null,
+    );
+  record(
+    'every MCP write to an automation leaves an audit row naming the coding agent (MCP-R14, AUTO-R27)',
+    !removed.isError &&
+      JSON.stringify(removed.value.removed) === JSON.stringify([hrProject]) &&
+      notInstalled.isError &&
+      notInstalled.value.code === 'AUTOMATION_NOT_INSTALLED' &&
+      !metrics.isError &&
+      mockSettled &&
+      staleDelete.isError &&
+      staleDelete.value.code === 'AUTOMATION_VERSION_STALE' &&
+      !deleted.isError &&
+      deleted.value.versions === 3 &&
+      audit.some(
+        (row) => row.action === 'automation.version.saved' && row.via === null,
+      ) &&
+      viaMcp('automation.version.saved', 'save_automation') &&
+      viaMcp('automation.deployed', 'deploy_automation') &&
+      viaMcp('automation.project.bound', 'set_automation_projects') &&
+      viaMcp('automation.project.unbound', 'set_automation_projects') &&
+      viaMcp('automation.deleted', 'delete_automation'),
+    `removed=${JSON.stringify(removed.value).slice(0, 80)}, notInstalled=${String(notInstalled.value.code)}, deleted=${JSON.stringify(deleted.value).slice(0, 80)}, audit=${JSON.stringify(audit.map((row) => `${row.action}/${row.via ?? '-'}/${row.tool ?? '-'}`))}`,
+  );
+
+  // The lanes after this one spend the same request and execution budgets.
+  await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
+}
+
 /** The retired standalone goal-authoring endpoint no longer accepts work. */
 async function checkRetiredBuilderRoute(
   base: string,
@@ -61054,6 +61465,11 @@ async function main(): Promise<void> {
         () => checkTriggerStreakLockOrder(sql, authCtx, record),
       ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
+      [
+        'checkMcpAuthoringParity',
+        () =>
+          checkMcpAuthoringParity(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
       [
         'checkRetiredBuilderRoute',
         () => checkRetiredBuilderRoute(baseUrl, authCtx),
