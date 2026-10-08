@@ -105,9 +105,9 @@ exceed the sum of its containers' limits. An agent Pod is limited to `2Gi`
 (its workspace is a PVC, which does not count), a crawler render to `6Gi`, a
 DinD agent to `22Gi`; the request never exceeds the limit. A session past its
 limit is evicted on its own instead of filling the node until DiskPressure
-evicts the platform's Pods beside it, and under node disk pressure the
-kubelet ranks Pods by priority, then by how far their use exceeds their
-request. The memory-backed `/tmp` and `/dev/shm` count against memory
+evicts the platform's Pods beside it. Under node disk pressure the kubelet
+evicts Pods using more than they request first, by priority, then by how far
+their use exceeds their request. The memory-backed `/tmp` and `/dev/shm` count against memory
 instead. An evicted agent session's Pod stays `Failed` until its next resume
 removes it and recreates the session on the intact workspace PVC.
 
@@ -120,7 +120,8 @@ schedule beside the database and platform Pods and starve them. Label and
 taint dedicated nodes, select and tolerate them here, and give sessions a
 PriorityClass below the platform's with `preemptionPolicy: Never`: the
 scheduler may then preempt a session to place a platform Pod, never the
-reverse, and the kubelet ranks sessions first when it evicts. The values are
+reverse, and among Pods over their requests the kubelet evicts sessions
+first. The values are
 held to the apiserver's rules at boot (label keys and values, a toleration's
 operator, effect and `tolerationSeconds`, a DNS-subdomain class name), so a
 typo stops the spawner instead of failing every create. The spawner needs no

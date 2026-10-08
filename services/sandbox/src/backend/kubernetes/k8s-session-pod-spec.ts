@@ -118,8 +118,9 @@ function memoryBytes(quantity: string): number {
  * filesystem (an inner dockerd's under DinD) and the container logs, which
  * the kubelet rotates at 50 MiB by default. Without them a session can fill
  * a node until DiskPressure evicts the platform's Pods beside it; with them
- * the kubelet evicts the session alone, and under node disk pressure it ranks
- * Pods by priority, then by how far their use exceeds their request. */
+ * the kubelet evicts the session alone, and under node disk pressure it
+ * evicts Pods using more than they request first, by priority, then by how
+ * far their use exceeds their request. */
 const EPHEMERAL_STORAGE = { request: '256Mi', headroom: '2Gi' } as const;
 
 /** sizeLimit of a DinD session's inner Docker store (`/var/lib/docker`). A
