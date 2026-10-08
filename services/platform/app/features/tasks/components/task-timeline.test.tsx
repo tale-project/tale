@@ -141,6 +141,9 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'agentRuns.trigger.automation': 'automation',
         'agentRuns.trigger.delegated': 'delegated',
         'agentRuns.trigger.manual': 'manual',
+        'agentRun.waiting.org_limit': 'Waiting for a worker',
+        'agentRun.waitingWhy.org_limit':
+          "All of your organization's agent workers are busy.",
       };
       return (
         labels[key] ?? (values ? `${key}(${JSON.stringify(values)})` : key)
@@ -485,6 +488,33 @@ describe('TaskTimeline — runs no person started', () => {
     expect(screen.getByText('delegated')).toBeInTheDocument();
     expect(screen.getByText(/started by/)).toBeInTheDocument();
     expect(screen.getByText('Fleet manager')).toBeInTheDocument();
+  });
+
+  it('says why a waiting run waits, on its own line under the run', () => {
+    timelineMocks.runs = [
+      {
+        runId: 'run_4',
+        agentSlug: 'agent-worker',
+        trigger: 'manual',
+        status: 'queued',
+        waitingForCapacity: true,
+        waitingReason: 'org_limit',
+        startedAt: Date.now(),
+        costCents: 0,
+      },
+    ];
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+    expect(screen.getByText('Waiting for a worker')).toBeInTheDocument();
+    expect(
+      screen.getByText("All of your organization's agent workers are busy."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('agentRuns.status.queued')).toBeNull();
   });
 
   it('names neither for a run a person started', () => {
