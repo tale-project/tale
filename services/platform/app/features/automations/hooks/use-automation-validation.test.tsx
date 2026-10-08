@@ -102,6 +102,8 @@ describe('useAutomationValidation', () => {
       expect.objectContaining({ code: 'REF_UNKNOWN_NODE' }),
     ]);
     expect(result.current.settledFor).toBe(documentHash(stored));
+    // The text the issues' ranges index into, kept beside the result.
+    expect(result.current.settledDocument).toBe(stored);
     expect(validate).toHaveBeenCalledWith(
       'org-1',
       'support/triage',

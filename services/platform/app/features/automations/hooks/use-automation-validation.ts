@@ -140,6 +140,9 @@ export interface AutomationValidation {
   warnings: AutomationIssue[];
   /** Hash of the document the shown result belongs to. */
   settledFor: string | null;
+  /** The document the shown result belongs to: the text an issue's range
+   * indexes into, while the one on screen may have moved on. */
+  settledDocument: RawDocument | null;
   /** Hash of the document on screen. */
   currentHash: string | null;
   /** Why the last check failed, when it did. */
@@ -155,6 +158,7 @@ export interface AutomationValidation {
 interface Settled {
   hash: string;
   answer: DraftCheck;
+  document: RawDocument;
 }
 
 /** What every check asks for beside the issues: the canvas words why a
@@ -231,11 +235,16 @@ export function useAutomationValidation({
   if (
     query.data !== undefined &&
     !query.isPlaceholderData &&
+    target !== null &&
     targetHash !== null &&
     (settledRef.current?.hash !== targetHash ||
       settledRef.current.answer !== query.data)
   ) {
-    settledRef.current = { hash: targetHash, answer: query.data };
+    settledRef.current = {
+      hash: targetHash,
+      answer: query.data,
+      document: target,
+    };
   }
   const settled = enabled ? settledRef.current : null;
 
@@ -261,6 +270,7 @@ export function useAutomationValidation({
     errors,
     warnings,
     settledFor: settled?.hash ?? null,
+    settledDocument: settled?.document ?? null,
     currentHash,
     ...(status === 'failed' && { failure: query.error }),
     analysis: settled?.answer.analysis ?? null,

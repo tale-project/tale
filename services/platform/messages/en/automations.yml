@@ -282,6 +282,7 @@ editor:
   unknownType: 'Unknown node type: {type}'
   catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
   invalidJson: This is not valid JSON yet, so the node was not changed.
+  fixSuggestion: 'Replace with {name}'
   versionNotFound:
     title: "Version {version} doesn't exist"
     description: This automation has no version with that number — the link may be stale, or the number mistyped.
