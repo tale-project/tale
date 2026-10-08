@@ -26,10 +26,12 @@ function visibleSaveButton(page: Page): Locator {
     .filter({ visible: true });
 }
 
-/** Isolate the single table row whose name cell matches `name` exactly. */
+/** Isolate the single table row that names `name` exactly — by its text,
+ * not its whole cell: a cell can carry more beneath the name (an API key's
+ * masked key sits under its name). */
 function rowByName(page: Page, name: string): Locator {
   return page.getByRole('row').filter({
-    has: page.getByRole('cell', { name, exact: true }),
+    has: page.getByText(name, { exact: true }),
   });
 }
 
