@@ -209,12 +209,12 @@ describe('MentionText — stored mentions', () => {
   it('leaves code, an escaped @ and an unknown handle as written', () => {
     const { container } = render(
       <MentionText
-        body={'`@ada` and \\@ada and @nobody\n\n```\n@ada\n```'}
+        body={'`@ada` and \\@ada and @Nobody.\n\n```\n@ada\n```'}
         organizationId="org_1"
       />,
     );
     expect(container.querySelector('[data-slot="mention-chip"]')).toBeNull();
-    expect(container).toHaveTextContent('@ada and @ada and @nobody');
+    expect(container).toHaveTextContent('@ada and @ada and @Nobody.');
   });
 
   it('reads an older handle as whom the comment named when two answer to it', () => {

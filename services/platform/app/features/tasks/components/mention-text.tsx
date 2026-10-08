@@ -8,7 +8,7 @@ import {
   type MentionElementProps,
   remarkMentions,
 } from '@tale/ui/mentions/remark-mentions';
-import { useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import ReactMarkdown, { type Options } from 'react-markdown';
 
 import {
@@ -48,11 +48,14 @@ interface MentionLabels {
  * `@handle` nobody answers to stays the words it was. */
 function MentionElement({
   props,
+  written,
   mentions,
   prefer,
   labels,
 }: {
   props: MentionElementProps;
+  /** The mention as the text spells it. */
+  written: ReactNode;
   mentions: MentionHandleIndex;
   prefer: ReadonlySet<string> | undefined;
   labels: MentionLabels;
@@ -104,7 +107,7 @@ function MentionElement({
       />
     );
   }
-  return <>@{handle}</>;
+  return <>{written}</>;
 }
 
 /**
@@ -162,11 +165,12 @@ function MentionTextContent({
       ...markdownComponents,
       'tale-mention': ({
         node: _node,
-        children: _children,
+        children,
         ...props
-      }: MentionElementProps & { node?: unknown; children?: unknown }) => (
+      }: MentionElementProps & { node?: unknown; children?: ReactNode }) => (
         <MentionElement
           props={props}
+          written={children}
           mentions={index}
           prefer={prefer}
           labels={labels}
