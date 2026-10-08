@@ -8,8 +8,10 @@
  *  - a `turn-ended` whose background-task ledger is still open is a lingering
  *    turn, not a finished one — the process stays alive until the ledger
  *    settles (the `types.ts` `task-started`/`task-settled` contract);
- *  - a real exit still finalizes a held result, and a plain hold-stdin turn
- *    with no background work is still cut and reaped after the grace.
+ *  - a real exit still finalizes a held result;
+ *  - a hold-stdin turn with no background work gets its stdin closed and
+ *    ends on the CLI's own exit, and is cut and reaped after the grace only
+ *    when it does not exit.
  *
  * And how a terminal window classifies: a turn that ended cleanly with
  * nothing at all from the model (live: a serving cluster that failed
@@ -55,6 +57,11 @@ const transport = vi.hoisted(() => ({
     }
   },
   resumedAt: [] as number[],
+  stdinWrites: [] as Array<{ execId: string; eof?: boolean }>,
+  /** How the live exec answers a stdin EOF: by exiting, by ignoring it, or
+   * the write itself failing. */
+  onEof: 'exit' as 'exit' | 'ignore' | 'fail',
+  exitOnEof: undefined as (() => void) | undefined,
 }));
 
 vi.mock('../node_only/sandbox/helpers/session_client', () => ({
@@ -85,6 +92,20 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
   sessionCancelExec: async (_sessionId: string, execId: string) => {
     transport.cancelled.push(execId);
     return true;
+  },
+  sessionWriteExecStdin: async (
+    _sessionId: string,
+    execId: string,
+    write: { dataBase64?: string; eof?: boolean },
+  ) => {
+    transport.stdinWrites.push({ execId, eof: write.eof });
+    if (transport.onEof === 'fail') throw new Error('spawner unreachable');
+    // Only the exec live at the write exits; a write after the drain ended
+    // must not end the next test's exec.
+    const exit = transport.exitOnEof;
+    if (write.eof === true && transport.onEof === 'exit' && exit !== undefined)
+      setTimeout(exit, 20);
+    return { ok: true };
   },
   drainSessionExecResilient: async (
     _sessionId: string,
@@ -133,13 +154,19 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
     }
     if (transport.exitAfterStdout)
       return { exitCode: transport.exitCode, errorCode: transport.errorCode };
-    // A live exec: the drain only ends when the window (or the cut) aborts.
-    await new Promise<never>((_resolve, reject) => {
-      signal.addEventListener('abort', () => reject(signal.reason), {
-        once: true,
+    // A live exec: the drain only ends when the window (or the cut) aborts,
+    // or when the process exits on a stdin EOF.
+    try {
+      await new Promise<void>((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), {
+          once: true,
+        });
+        transport.exitOnEof = resolve;
       });
-    });
-    throw new Error('unreachable');
+    } finally {
+      transport.exitOnEof = undefined;
+    }
+    return { exitCode: 0 };
   },
 }));
 
@@ -220,6 +247,9 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     transport.exitCode = 0;
     transport.errorCode = undefined;
     transport.protocolFailure = false;
+    transport.stdinWrites = [];
+    transport.onEof = 'exit';
+    transport.exitOnEof = undefined;
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -263,7 +293,11 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     transport.stdout = ndjson([CLAUDE_TASK_SETTLED]);
     const terminal = await drainHarnessWindow({ ...args, windowMs: 2000 });
     expect(terminal.kind).toBe('terminal');
-    expect(transport.cancelled).toEqual(['checkpoint-bg']);
+    // Stdin closes only once the restored ledger settles; the CLI exits.
+    expect(transport.stdinWrites).toEqual([
+      { execId: 'checkpoint-bg', eof: true },
+    ]);
+    expect(transport.cancelled).toEqual([]);
   });
 
   it.each(['missing', 'failed'] as const)(
@@ -963,7 +997,10 @@ describe('drainHarnessWindow end-of-turn rules', () => {
         windowMs: 10000,
       });
       expect(terminal.kind).toBe('terminal');
-      expect(transport.cancelled).toEqual(['replay-background']);
+      expect(transport.stdinWrites).toEqual([
+        { execId: 'replay-background', eof: true },
+      ]);
+      expect(transport.cancelled).toEqual([]);
     } finally {
       await replay.dispose();
       await rm(directory, { recursive: true, force: true });
@@ -977,6 +1014,7 @@ describe('drainHarnessWindow end-of-turn rules', () => {
       CLAUDE_RESULT,
       CLAUDE_TASK_SETTLED,
     ]);
+    transport.onEof = 'ignore';
 
     const result = await drainHarnessWindow({
       sessionId: 'sandbox',
@@ -992,12 +1030,15 @@ describe('drainHarnessWindow end-of-turn rules', () => {
       expect(result.ended?.status).toBe('completed');
       expect(classifyHarnessEnd(result).errored).toBe(false);
     }
-    // The lingering hold-stdin process is reaped exactly once.
+    // Stdin closes only once the ledger is empty, and the lingering
+    // hold-stdin process is reaped exactly once.
+    expect(transport.stdinWrites).toEqual([{ execId: 'bg-claude', eof: true }]);
     expect(transport.cancelled).toEqual(['bg-claude']);
   });
 
-  it('cuts and reaps a plain hold-stdin turn with no background work', async () => {
+  it('closes the stdin of a plain hold-stdin turn and ends on its own exit, without the grace or a reap', async () => {
     transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+    const started = Date.now();
 
     const result = await drainHarnessWindow({
       sessionId: 'sandbox',
@@ -1008,12 +1049,74 @@ describe('drainHarnessWindow end-of-turn rules', () => {
 
     expect(result.kind).toBe('terminal');
     if (result.kind === 'terminal') {
-      expect(result.exited).toBe(false);
+      expect(result.exited).toBe(true);
+      expect(result.execResult?.exitCode).toBe(0);
       expect(result.ended?.finalText).toBe(
         'The report is being generated in the background.',
       );
+      expect(classifyHarnessEnd(result).errored).toBe(false);
     }
-    expect(transport.cancelled).toEqual(['plain-claude']);
+    expect(transport.stdinWrites).toEqual([
+      { execId: 'plain-claude', eof: true },
+    ]);
+    expect(transport.cancelled).toEqual([]);
+    // Well inside the 1.5 s grace the turn used to sit out on every reply.
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
+  it.each(['ignore', 'fail'] as const)(
+    'cuts and reaps a hold-stdin turn after the grace when its stdin EOF is %sed',
+    async (onEof) => {
+      transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+      transport.onEof = onEof;
+
+      const result = await drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'plain-claude',
+        harness: 'claude-code',
+        windowMs: 10_000,
+      });
+
+      expect(result.kind).toBe('terminal');
+      if (result.kind === 'terminal') {
+        expect(result.exited).toBe(false);
+        expect(result.ended?.finalText).toBe(
+          'The report is being generated in the background.',
+        );
+      }
+      expect(transport.stdinWrites).toEqual([
+        { execId: 'plain-claude', eof: true },
+      ]);
+      expect(transport.cancelled).toEqual(['plain-claude']);
+    },
+  );
+
+  it('never closes stdin while a background task is open, nor on a close-stdin harness', async () => {
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      CLAUDE_TASK_STARTED,
+      CLAUDE_RESULT,
+    ]);
+    const lingering = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'bg-claude',
+      harness: 'claude-code',
+      windowMs: 50,
+    });
+    expect(lingering.kind).toBe('running');
+
+    // Another exec: the stand-in keeps one checkpoint for all of them.
+    transport.checkpoint = null;
+    transport.stdout = readFixture('pi', 'shell-turn');
+    transport.exitAfterStdout = true;
+    const closed = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'pi-turn',
+      harness: 'pi',
+    });
+    expect(closed.kind).toBe('terminal');
+
+    expect(transport.stdinWrites).toEqual([]);
   });
 });
 
@@ -1070,6 +1173,9 @@ describe('classifyHarnessEnd', () => {
     transport.exitCode = 0;
     transport.errorCode = undefined;
     transport.protocolFailure = false;
+    transport.stdinWrites = [];
+    transport.onEof = 'exit';
+    transport.exitOnEof = undefined;
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -1143,18 +1249,19 @@ describe('classifyHarnessEnd', () => {
   });
 
   it('fails a turn whose model answered nothing (the live empty 200)', async () => {
-    // As it ran: the held-stdin CLI lingers after its result, so the turn
-    // ends on the grace cut, not on an exit.
+    // The held-stdin CLI lingers after its result until the window closes
+    // its stdin; the turn then ends on the CLI's own exit, which is clean.
     const result = await drainCapture('empty-answer-turn', { exits: false });
 
-    expect(result.exited).toBe(false);
+    expect(result.exited).toBe(true);
+    expect(result.execResult?.exitCode).toBe(0);
     expect(result.ended?.isError).toBe(false);
     expect(classifyHarnessEnd(result)).toEqual({
       errored: true,
       reason: EMPTY_ANSWER,
       emptyAnswer: true,
     });
-    expect(transport.cancelled).toEqual(['exec-empty-answer-turn']);
+    expect(transport.cancelled).toEqual([]);
   });
 
   it('keeps a reasoning-only turn: the result counts its tokens', async () => {

@@ -32,6 +32,8 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
     >();
   return {
     ...actual,
+    // The window closes a Claude turn's held stdin; no spawner answers here.
+    sessionWriteExecStdin: async () => ({ ok: true }),
     sessionGetExecCheckpoint: async () => null,
     sessionPutExecCheckpoint: async () => undefined,
     drainSessionExecResilient: async (

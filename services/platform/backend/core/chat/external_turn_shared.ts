@@ -48,6 +48,7 @@ import {
   sessionCancelExec,
   sessionGetExecCheckpoint,
   sessionPutExecCheckpoint,
+  sessionWriteExecStdin,
   type ExecCursor,
   type SessionExecCheckpoint,
   sessionStageFiles,
@@ -65,10 +66,11 @@ import {
 export const SKILLS_DIR = 'workspace/.tale/skills';
 /** One drain window; well under the Convex action execution ceiling. */
 const DRAIN_WINDOW_MS = 90_000;
-/** After the parser sees `turn-ended`, how long to keep draining for the
- * exec's natural exit (which carries a close-stdin harness's exit code)
- * before cutting the window. A hold-stdin harness (claude-code) never exits
- * on its own — without the cut, every reply would sit out the full window. */
+/** After the parser sees `turn-ended` with no background task open, how long
+ * to keep draining for the exec's natural exit (which carries its exit code)
+ * before cutting the window and reaping the exec. A hold-stdin harness
+ * (claude-code) exits once its stdin is closed, which the window does at that
+ * moment; the cut is the fallback for a process that does not. */
 const TURN_ENDED_EXIT_GRACE_MS = 1_500;
 /** Floor between two mid-window notifications of the accumulating output —
  * the cadence of the `onText`/`onTimeline` progress sinks, so a host's
@@ -114,6 +116,15 @@ export function isManagedHarness(harness: string): boolean {
   if (!isHarnessSlug(harness)) return false;
   const def = loadHarnesses().find((h) => h.slug === harness);
   return def?.credentialPolicy.managed === true;
+}
+
+/** Whether a harness holds its stdin open as a steering channel (the
+ * `ndjson-user-message` stdin mode): such a CLI answers turn after turn and
+ * exits only on stdin EOF. */
+function harnessHoldsStdin(harness: string): boolean {
+  if (!isHarnessSlug(harness)) return false;
+  const def = loadHarnesses().find((h) => h.slug === harness);
+  return def?.exec.stdin.mode === 'ndjson-user-message';
 }
 
 /** Whether a harness mounts MCP servers — and so the platform bridge every
@@ -457,12 +468,46 @@ export async function drainHarnessWindow(args: {
 
   // A hold-stdin harness (claude-code) lingers after its reply waiting for
   // more input, so its process exit can be a whole window away from the
-  // `turn-ended` event that actually ends the turn. Cut the drain shortly
-  // after the parser sees `turn-ended`; the grace lets a harness that DOES
-  // exit deliver its terminal result (and exit code) first.
+  // `turn-ended` event that actually ends the turn. Once the turn has ended
+  // with no background task open, the window closes that stdin — the CLI's
+  // own way to finish: it writes its transcript and exits with its real exit
+  // code, which the drain then reports. The grace bounds the wait for that
+  // exit (and for a close-stdin harness's own); when it elapses the drain is
+  // cut and the exec reaped, so a process that ignores the EOF cannot hold
+  // the turn open.
   let replayComplete = args.start !== undefined;
   const turnEndedCut = new AbortController();
   let turnEndedGrace: ReturnType<typeof setTimeout> | undefined;
+  const holdsStdin = harnessHoldsStdin(args.harness);
+  let stdinClosed = false;
+  const closeHeldStdin = () => {
+    if (!holdsStdin || stdinClosed) return;
+    stdinClosed = true;
+    void Promise.resolve()
+      .then(() =>
+        sessionWriteExecStdin(args.sessionId, args.execId, { eof: true }),
+      )
+      .then(
+        (wrote) => {
+          // STDIN_CLOSED: an earlier window already sent it; NOT_FOUND: the
+          // exec is gone. Neither leaves anything for the grace cut to miss.
+          if (
+            !wrote.ok &&
+            wrote.reason !== 'STDIN_CLOSED' &&
+            wrote.reason !== 'NOT_FOUND'
+          ) {
+            console.warn(
+              `[harness-window] ${args.execId}: stdin EOF refused (${wrote.reason ?? 'unknown'}); the grace cut reaps the exec`,
+            );
+          }
+        },
+        (err: unknown) =>
+          console.warn(
+            `[harness-window] ${args.execId}: stdin EOF failed; the grace cut reaps the exec:`,
+            err,
+          ),
+      );
+  };
 
   // The background-task ledger (`types.ts` contract): a harness that
   // launched background work reports `task-started`/`task-settled` pairs,
@@ -477,6 +522,7 @@ export async function drainHarnessWindow(args: {
       () => turnEndedCut.abort(),
       TURN_ENDED_EXIT_GRACE_MS,
     );
+    closeHeldStdin();
   };
   const disarmTurnEndedCut = () => {
     if (turnEndedGrace === undefined) return;
@@ -830,8 +876,9 @@ export async function drainHarnessWindow(args: {
     };
   }
 
-  // A harness that lingers after its turn (held-open stdin) has ended the turn
-  // but not the process — reap it so it can't hold the session.
+  // A harness that lingers after its turn (held-open stdin it did not exit
+  // on) has ended the turn but not the process — reap it so it can't hold
+  // the session.
   if (!exited && ended !== undefined) {
     await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
       console.warn('[harness-window] linger reap failed:', err),
