@@ -1,6 +1,5 @@
 import {
   TRIGGER_ISSUE_CODES,
-  TRIGGER_SKIP_REASONS,
   type ParsedTriggerWrite,
   type TriggerIssue,
   triggerIssues,
@@ -1782,13 +1781,6 @@ export async function deleteTrigger(
     return true;
   });
 }
-
-/** Why a binding started nothing — the skip ledger's closed set (the
- * column's CHECK, migrations 0096, 0124 and 0171). `paused_after_failures`
- * is the one that is a state, not an occurrence: the schedule turned itself
- * off. `missed_occurrences` counts the occurrences a schedule did not start
- * while the platform was not running. */
-type TriggerSkipReason = (typeof TRIGGER_SKIP_REASONS)[number];
 
 /** A trigger binding as a reader sees it — never the secret that verifies
  * it — exactly the published read shape (`triggerViewSchema`). The fire
