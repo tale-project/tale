@@ -10,7 +10,11 @@
  * repeating task's own series by a seeded property test.
  */
 
-import type { ScheduleRule } from '@tale/shared/schemas/schedule-rule';
+import {
+  gridMinuteAtOrAfter,
+  type ScheduleRule,
+  windowRangesOn,
+} from '@tale/shared/schemas/schedule-rule';
 import { describe, expect, it } from 'vitest';
 
 import { firstOccurrenceBetween } from '../../../backend/core/automations/cron.ts';
@@ -375,6 +379,126 @@ describe('grids through daylight-saving changes', () => {
       cursor = previous - 1;
     }
     expect(backward.toReversed()).toEqual(forward);
+  });
+});
+
+/** Every whole minute in [from, to] whose wall clock is on the rule's grid
+ * and inside its window — the grid class's definition, read minute by
+ * minute with no jumps. */
+function gridByDefinition(
+  value: Extract<ScheduleRule, { frequency: 'minutely' | 'hourly' }>,
+  zone: string,
+  from: number,
+  to: number,
+): number[] {
+  const step =
+    value.frequency === 'hourly'
+      ? {
+          frequency: value.frequency,
+          interval: value.interval,
+          minute: value.minute,
+        }
+      : { frequency: value.frequency, interval: value.interval };
+  const starts: number[] = [];
+  for (let ms = from; ms <= to; ms += MINUTE) {
+    const clock = wallClockIn(ms, zone);
+    const minute = clock.hour * 60 + clock.minute;
+    if (gridMinuteAtOrAfter(step, minute) !== minute) continue;
+    const window = value.window;
+    if (window !== undefined) {
+      const yesterday = new Date(
+        Date.UTC(clock.year, clock.month - 1, clock.day - 1),
+      ).getUTCDay();
+      const ranges = windowRangesOn(
+        window.hours,
+        window.weekdays.includes(clock.weekday),
+        window.weekdays.includes(yesterday),
+      );
+      if (!ranges.some(([lo, hi]) => minute >= lo && minute < hi)) continue;
+    }
+    starts.push(ms);
+  }
+  return starts;
+}
+
+describe('grid walks against the grid by definition', () => {
+  const zones: [string, string[]][] = [
+    ['Europe/Zurich', ['2026-03-29T01:00Z', '2026-10-25T01:00Z']],
+    ['America/New_York', ['2026-03-08T07:00Z', '2026-11-01T06:00Z']],
+    ['Australia/Lord_Howe', ['2026-04-04T15:00Z', '2026-10-03T15:30Z']],
+    ['Asia/Kolkata', ['2026-03-29T01:00Z']],
+  ];
+  const rules: Extract<ScheduleRule, { frequency: 'minutely' | 'hourly' }>[] = [
+    { frequency: 'minutely', interval: 4 },
+    { frequency: 'minutely', interval: 20 },
+    { frequency: 'minutely', interval: 30 },
+    { frequency: 'hourly', interval: 1, minute: 30 },
+    { frequency: 'hourly', interval: 2, minute: 0 },
+    { frequency: 'hourly', interval: 3, minute: 15 },
+    { frequency: 'hourly', interval: 8, minute: 45 },
+    {
+      frequency: 'minutely',
+      interval: 12,
+      window: { weekdays: [0, 6], hours: { from: '23:00', to: '04:00' } },
+    },
+    {
+      frequency: 'hourly',
+      interval: 2,
+      minute: 0,
+      window: { weekdays: [0, 1, 6], hours: { from: '01:00', to: '05:00' } },
+    },
+  ];
+
+  it('finds every start, a repeated hour twice, forward and back', () => {
+    const mismatches: string[] = [];
+    for (const [zone, changes] of zones) {
+      for (const change of changes) {
+        const from = at(change) - 8 * HOUR;
+        const to = at(change) + 8 * HOUR;
+        for (const value of rules) {
+          const schedule = rule(value, zone);
+          const expected = gridByDefinition(value, zone, from, to);
+          const forward = between(schedule, from, to);
+          const backward: number[] = [];
+          let cursor = to;
+          for (;;) {
+            const previous = previousOccurrence(schedule, cursor, from);
+            if (previous === null) break;
+            backward.push(previous);
+            cursor = previous - 1;
+          }
+          for (const [walk, found] of [
+            ['forward', forward],
+            ['back', backward.toReversed()],
+          ] as const) {
+            if (found.join() !== expected.join()) {
+              mismatches.push(
+                `${JSON.stringify(value)} in ${zone} around ${change}, ${walk}: ${found.map(iso).join(' ')} | expected ${expected.map(iso).join(' ')}`,
+              );
+            }
+          }
+        }
+      }
+    }
+    expect(mismatches).toEqual([]);
+  });
+
+  it('starts the repeated 02:00 of an every-2-hours grid in Zurich', () => {
+    const schedule = rule(
+      { frequency: 'hourly', interval: 2, minute: 0 },
+      'Europe/Zurich',
+    );
+    expect(
+      between(schedule, at('2026-10-24T22:00Z'), at('2026-10-25T05:00Z')).map(
+        iso,
+      ),
+    ).toEqual([
+      '2026-10-24T22:00Z',
+      '2026-10-25T00:00Z',
+      '2026-10-25T01:00Z',
+      '2026-10-25T03:00Z',
+      '2026-10-25T05:00Z',
+    ]);
   });
 });
 
