@@ -2261,6 +2261,10 @@ describe('removeOrganizationFromGateway', () => {
     org_10__acme__llama: [
       { id: 'k-prefix-c', name: 'tale-org_10-org_10__acme__llama' },
     ],
+    // The record of an organization whose id is org_1's followed by `_`.
+    [`${ORG}___acme__llama`]: [
+      { id: 'k-underscore-c', name: `tale-${ORG}_-${ORG}___acme__llama` },
+    ],
   });
 
   it("removes the organization's keys from shared records and its own records, and nothing of another organization's", async () => {
@@ -2278,6 +2282,9 @@ describe('removeOrganizationFromGateway', () => {
       ],
       org_10__acme__llama: [
         { id: 'k-prefix-c', name: 'tale-org_10-org_10__acme__llama' },
+      ],
+      [`${ORG}___acme__llama`]: [
+        { id: 'k-underscore-c', name: `tale-${ORG}_-${ORG}___acme__llama` },
       ],
     });
     expect(calls.filter((call) => call.startsWith('DELETE')).sort()).toEqual([
@@ -2310,7 +2317,7 @@ describe('removeOrganizationFromGateway', () => {
       /list providers failed \(403\)/,
     );
     expect(calls).toEqual(['GET /api/providers']);
-    expect(store.size).toBe(6);
+    expect(store.size).toBe(Object.keys(shared()).length);
   });
 
   it('tries every record, then throws naming the ones it could not clear', async () => {

@@ -1242,8 +1242,9 @@ export interface GatewayOrganizationRemoval {
  * Idempotent: a record or key already gone counts as removed, and a second
  * run finds nothing to do. Every record is tried; the call throws when the
  * gateway cannot be listed or any removal failed, so the caller retries.
- * Organization ids carry no `__`, so the `<org>__` prefix of an own record
- * never matches another organization's.
+ * An own record is `<org>__<slug>__<model>`; one that goes on with another
+ * `_` after `<org>__` is the record of an organization whose id continues
+ * with `_`, and is left alone.
  */
 export async function removeOrganizationFromGateway(
   organizationId: string,
@@ -1260,7 +1261,10 @@ export async function removeOrganizationFromGateway(
     pushedProviderFingerprints.delete(memoKey);
     recentProviderKeys.delete(memoKey);
     try {
-      if (provider.startsWith(ownPrefix)) {
+      if (
+        provider.startsWith(ownPrefix) &&
+        provider[ownPrefix.length] !== '_'
+      ) {
         await deleteGatewayProvider(provider);
         removed.records += 1;
         continue;
