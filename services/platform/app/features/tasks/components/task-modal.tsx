@@ -291,6 +291,10 @@ export function TaskModal({
         </ResponsiveDialogDescription>
         {bodyTaskId ? (
           <EditTaskBody
+            // One body per task, as on the task page: a switch through a
+            // subtask, parent, dependency or next-task link opens the next
+            // task fresh, on its newest message, with nothing sliding in.
+            key={bodyTaskId}
             taskId={bodyTaskId}
             onOpenTask={onOpenTask}
             onClose={() => onOpenChange(false)}
@@ -337,6 +341,7 @@ function ModalLayout({
       };
     }
 )) {
+  const { t } = useT('tasks');
   return (
     <Stack className="min-h-0 flex-1">
       <div className="shrink-0">{header}</div>
@@ -371,8 +376,11 @@ function ModalLayout({
         )}
         <PropertyList
           as="aside"
+          aria-label={t('detail.details')}
           className="shrink-0 md:-mr-2 md:min-h-0 md:w-[17rem] md:overflow-y-auto md:border-l md:py-0.5 md:pr-2 md:pl-6"
         >
+          {/* The panel's own headings sit under it, not under the thread's. */}
+          <h2 className="sr-only">{t('detail.details')}</h2>
           {panel}
         </PropertyList>
       </div>

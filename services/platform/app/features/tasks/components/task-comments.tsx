@@ -390,9 +390,10 @@ export function TaskCommentComposer({
           as="p"
           id={hint ? 'new-comment-hint' : undefined}
           variant="caption"
-          // A keyboard shortcut means nothing on a phone's touch keyboard;
-          // the send button keeps its place either way.
-          className={cn('min-w-0 truncate', !hint && 'max-md:invisible')}
+          // A hint is an instruction and wraps in full; the keyboard
+          // shortcut is one short line, and means nothing on a phone's touch
+          // keyboard. The send button keeps its place either way.
+          className={cn('min-w-0', !hint && 'truncate max-md:invisible')}
         >
           {hint ??
             t('actions.commentShortcut', {

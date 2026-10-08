@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   isAdmin: false,
   ownedBy: null as Record<string, unknown> | null,
   candidateReads: 0,
+  runs: [] as Record<string, unknown>[],
 }));
 
 const baseTask = {
@@ -78,6 +79,9 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
         },
         isLoading: false,
       };
+    }
+    if (name === 'tasks/queries:listTaskAgentRuns' && args !== 'skip') {
+      return { data: state.runs, isLoading: false };
     }
     return { data: undefined, isLoading: false };
   },
@@ -183,6 +187,7 @@ beforeEach(() => {
   state.isAdmin = false;
   state.ownedBy = null;
   state.candidateReads = 0;
+  state.runs = [];
 });
 
 describe('TaskModal — a member works their own task', () => {
@@ -268,6 +273,34 @@ describe('TaskModal — the discussion', () => {
       conversation.compareDocumentPosition(composer) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+});
+
+describe('TaskModal — what the agent cost', () => {
+  const run = (runId: string, costCents: number) => ({
+    runId,
+    agentSlug: 'researcher',
+    trigger: 'manual',
+    status: 'completed',
+    startedAt: 1,
+    costCents,
+  });
+
+  it('sums the runs in the details, also once a person owns the task', async () => {
+    state.runs = [run('run-1', 125), run('run-2', 250)];
+    openTask({ ...baseTask, assigneeType: 'user', assigneeId: 'u-editor' });
+
+    expect(await screen.findByText('Agent cost')).toBeInTheDocument();
+    expect(screen.getByText('3.75 total')).toBeInTheDocument();
+  });
+
+  it('shows no such row while no run cost anything', async () => {
+    state.runs = [run('run-1', 0)];
+    state.access = { canEdit: true, canCreate: true };
+    openTask(baseTask);
+
+    await screen.findByRole('textbox', { name: 'Title' });
+    expect(screen.queryByText('Agent cost')).not.toBeInTheDocument();
   });
 });
 
