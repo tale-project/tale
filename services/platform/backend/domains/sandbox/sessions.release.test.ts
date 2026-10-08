@@ -133,6 +133,7 @@ describe('releaseProjectAgentSessionSlot', () => {
     expect(wakeAgentParkedAgentRun).toHaveBeenCalledExactlyOnceWith(sql, {
       organizationId: 'org-1',
       agentId: 'agent-1',
+      sessionId: 'pa-agent-1',
     });
   });
 

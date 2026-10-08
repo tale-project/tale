@@ -15,6 +15,7 @@ import {
   launchAgentRun,
   listTaskAgentRunSummaries,
   settleAgentRun,
+  wakeAgentParkedAgentRun,
   wakeOrganizationParkedAgentRun,
   wakeParkedAgentRuns,
   withdrawWaitingAgentRunInTx,
@@ -1366,5 +1367,45 @@ describe('the worker a run reads as working in [TASK-R24]', () => {
     );
     const card = await getLatestAgentRunCardForTask(sql, 'org-1', 'task-1');
     expect(card?.worker).toBe(3);
+  });
+});
+
+describe('wakeAgentParkedAgentRun — a worker that stays up wakes its own family [SBX-R18]', () => {
+  const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
+
+  it('wakes the oldest parked run of the ended worker’s family only', async () => {
+    const { sql, calls } = fakeSql((text) =>
+      text.startsWith('SELECT id, org_id AS "organizationId"')
+        ? [
+            {
+              id: 'run-5',
+              organizationId: 'org-1',
+              execId: 'exec-5',
+              taskId: 'task-5',
+            },
+          ]
+        : [],
+    );
+    await expect(
+      wakeAgentParkedAgentRun(sql, {
+        organizationId: 'org-1',
+        agentId: AGENT,
+        sessionId: standingWorkerSessionId(AGENT, 2),
+      }),
+    ).resolves.toBe(1);
+    const claim = calls.find((call) =>
+      call.text.startsWith('SELECT id, org_id AS "organizationId"'),
+    );
+    expect(claim?.text).toContain(
+      "regexp_replace(session_id, '-w[1-9][0-9]*$', '') = ?",
+    );
+    // Worker 2's family is the agent's own: its first worker's id.
+    expect(claim?.values).toContain(standingWorkerSessionId(AGENT, 1));
+    expect(claim?.text).toContain('ORDER BY waiting_for_capacity_at_ms');
+    expect(addJobInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'task.agent_turn',
+      { organizationId: 'org-1', runId: 'run-5', execId: 'exec-5' },
+    );
   });
 });

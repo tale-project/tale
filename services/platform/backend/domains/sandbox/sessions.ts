@@ -449,6 +449,7 @@ export async function releaseProjectAgentSessionSlot(
     await wakeAgentParkedAgentRun(sql, {
       organizationId: args.organizationId,
       agentId: args.agentId,
+      sessionId: args.sessionId,
     }).catch((error: unknown) => {
       console.warn('[sandbox] workspace wake failed:', error);
     });

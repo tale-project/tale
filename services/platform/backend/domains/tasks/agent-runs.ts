@@ -958,18 +958,25 @@ export async function wakeParkedAgentRun(
   });
 }
 
-/** Wake the agent's OLDEST parked run, when a turn of the agent ended and
- * its worker stayed up (pinned, or still held): that worker is free for the
- * agent's next run without a slot of its own, and the ended exec gave back
- * one of its runtime's live-exec places — the room a run whose exec was
- * refused for want of one (`EXEC_LIMIT`) waits for. A park gives its worker
- * back, so a parked run names no worker to be woken by; it is found by its
- * agent. One claim, single-winner like every wake: a run that still finds no
- * room parks again, and the watchdog's sweep stays the backstop. */
+/** Wake the agent's OLDEST parked run of the ended turn's workspace family,
+ * when that turn ended and its worker stayed up (pinned, or still held):
+ * that worker is free for the family's next run without a slot of its own,
+ * and the ended exec gave back one of its runtime's live-exec places — the
+ * room a run whose exec was refused for want of one (`EXEC_LIMIT`) waits
+ * for. A park gives its worker back and names its family's first worker
+ * again, so a parked run is found by its agent and family, not by the
+ * worker it last held; a run of another family (a member's, or the
+ * agent's own for a member's worker) could not work in the freed worker
+ * and is left parked. One claim, single-winner like every wake: a run that
+ * still finds no room parks again, and the watchdog's sweep stays the
+ * backstop. */
 export async function wakeAgentParkedAgentRun(
   sql: Sql,
-  args: { organizationId: string; agentId: string },
+  args: { organizationId: string; agentId: string; sessionId: string },
 ): Promise<number> {
+  const family =
+    projectAgentWorker(args.agentId, args.sessionId)?.base ??
+    args.sessionId.replace(/-w[1-9][0-9]*$/, '');
   return sql.begin(async (tx) => {
     const parked = await tx<ParkedRun[]>`
       SELECT id, org_id AS "organizationId", exec_id AS "execId",
@@ -977,6 +984,7 @@ export async function wakeAgentParkedAgentRun(
       FROM app.project_agent_runs
       WHERE org_id = ${args.organizationId}
         AND agent_id = ${args.agentId}
+        AND regexp_replace(session_id, '-w[1-9][0-9]*$', '') = ${family}
         AND status = 'queued'
         AND waiting_for_capacity_at_ms IS NOT NULL
         AND deadline_at_ms > ${Date.now()}
