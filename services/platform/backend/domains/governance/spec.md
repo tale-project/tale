@@ -69,7 +69,7 @@ and when it resets. When several limits are reached, the token limit is named fi
 What running work may still cost is set aside against the person's and the organization's
 limits, so several things started at the same moment cannot overrun a limit together: a chat
 reply's every round as it starts, an agent's allowance, a voice chunk's estimate, and the
-largest possible cost of a call Tale makes straight to a model — an automation's `llm` step, a
+estimated largest cost of a call Tale makes straight to a model — an automation's `llm` step, a
 chat's title, a rewrite with Improve with AI. Such a call is refused when a limit has too little
 room for that cost; a chat's title is then made from the first message, without a call. With no
 limit set, work gets the deployment's default allowance.
@@ -164,6 +164,10 @@ It counts only in the organization it was granted in.
 - **A project's limit and transcription**: an audio or video file transcribed for a project's
   chat is booked to the person who added it, not to the project, and a project's limit warns
   no one before it is reached.
+- **Transcriptions, embeddings and a video link's download hold nothing while they run**: a
+  transcription is counted once it is done and never checked before it starts; the embeddings
+  that index knowledge and search it are not counted at all; a video link's download is checked
+  against the spend already counted, not against work in flight.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.

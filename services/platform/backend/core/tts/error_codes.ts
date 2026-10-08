@@ -54,7 +54,7 @@ export const ttsErrorCodeLiterals = [
   'PROVIDER_INVALID_RESPONSE',
   'PROVIDER_ERROR',
   // Server-side watchdog flips a stuck-`pending` row to `failed` after
-  // `PENDING_STALE_MS + TTS_WATCHDOG_BUFFER_MS`. UX treats this as a
+  // `TTS_PENDING_STALE_MS + TTS_WATCHDOG_BUFFER_MS`. UX treats this as a
   // transient PROVIDER_ERROR-equivalent.
   'WATCHDOG_TIMEOUT',
 ] as const;
