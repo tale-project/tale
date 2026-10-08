@@ -260,10 +260,16 @@ export async function checkManagedAutomationConfiguration(
       ),
     );
     const after = await listTriggers(sql, ctx.orgId, name);
+    // Only the cron and the next run it implies move: 01:00 instead of 00:00
+    // on the same next 29 February, one hour later.
     assert.deepEqual(
       [...after],
       before.map((trigger) =>
-        Object.assign({}, trigger, { cron: changed.cron }),
+        Object.assign({}, trigger, {
+          cron: changed.cron,
+          nextRunAt:
+            trigger.nextRunAt === null ? null : trigger.nextRunAt + 3_600_000,
+        }),
       ),
     );
     for (const reason of [null, 'paused_after_failures']) {

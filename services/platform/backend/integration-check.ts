@@ -14601,7 +14601,17 @@ async function checkAutomationTriggerDelivery(
       await tx.unsafe(ddl);
     });
   }
-  await triggersModule.scanScheduledTriggers(sql);
+  // The trim resumes each schedule from now (the parked time is not made
+  // up): a scan at the same moment computes its next minute and claims
+  // nothing yet; a scan a minute later claims it — in UTC, with no
+  // deployment to run, so as not_deployed.
+  const resumedAt = Date.now();
+  const firstPass = await triggersModule.scanScheduledTriggers(sql, {
+    now: resumedAt,
+  });
+  await triggersModule.scanScheduledTriggers(sql, {
+    now: resumedAt + 61_000,
+  });
   const zones = await sql<
     {
       name: string;
@@ -14630,12 +14640,16 @@ async function checkAutomationTriggerDelivery(
         (zone) =>
           zone.lastSkipReason === 'not_deployed' && (zone.lastDueAt ?? 0) > 0,
       ),
-    `file=${scheduleFile ?? 'missing'}, rows=${JSON.stringify(zones)} (want zones null and "UTC", each claimed as not_deployed)`,
+    `file=${scheduleFile ?? 'missing'}, first pass undeployed=${firstPass.undeployed}, rows=${JSON.stringify(zones)} (want zones null and "UTC", each claimed as not_deployed a minute after the trim)`,
   );
 
-  // Probe 7 — the due walk reads the partial index, not the table.
+  // Probe 7 — the due walk reads the partial index, not the table. On the
+  // harness's handful of rows the planner may prefer any index plus a sort,
+  // so sorting is ruled out as well: the plan must take the walk's order
+  // from an index, and only the partial index gives it.
   const plan = await sql.begin(async (tx) => {
     await tx`SET LOCAL enable_seqscan = off`;
+    await tx`SET LOCAL enable_sort = off`;
     return tx<{ 'QUERY PLAN': string }[]>`
       EXPLAIN SELECT id, next_due_at_ms::float8 AS "nextDueAt"
       FROM app.automation_triggers
