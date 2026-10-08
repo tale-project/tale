@@ -53,10 +53,12 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    session: its run is its subject, through `resolveAutomationRunAttribution` — the mapping the
    run's agent turns resolve through too — and `domains/automations/llm-metering.ts` measures that
    subject before each call and books the call after it. Every lane that measures a run's subject
-   builds it with `loadAttributedBudgetSubject` (`attributed-subject.ts`). Every call the platform
-   makes straight to a provider — an `llm` step, a chat title, the Inbox's Improve — is a direct
-   call (`direct-calls.ts`): its worst case is held on an op row (kind `direct-call`) under the
-   subject its lane names, and its cost booked under that row's stamp. A run's `started_by` is
+   builds it with `loadAttributedBudgetSubject` (`attributed-subject.ts`). A call the platform
+   makes straight to a provider for an `llm` step, a chat title or the Inbox's Improve is a direct
+   call (`direct-calls.ts`): it is recorded on an op row (kind `direct-call`) under the subject its
+   lane names — holding its worst case while a budget binds, nothing otherwise — and its cost
+   booked under that row's stamp, once. Voice output holds on its pending chunk row instead;
+   transcriptions, embeddings and a video link's download hold nothing yet (spec, Not yet). A run's `started_by` is
    parsed only by `parseRunStarter` (`lib/shared/run-starter.ts`); a `split(':')` on a starter
    anywhere else is a defect.
 7. **Door fields keep their format.** `automation_runs.started_by` stays `user:<id>` /
@@ -128,9 +130,11 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 - `core/automations/llm_call.test.ts`, `domains/automations/llm-metering.test.ts` — an
   automation's `llm` step is held before each call, refused with `budget_exceeded` when a cap has
   too little room, and booked under its run's subject after it, an empty reply included.
-- `domains/governance/direct-calls.test.ts` — a direct call holds its worst case whole (nothing
-  while no budget binds), books once under its op row's stamp (a call past its deadline too),
-  and its lost hold lapses; `domains/chat/title-meter.test.ts`, `core/chat/generate_title.test.ts`,
+- `domains/governance/direct-calls.test.ts` — a direct call holds its worst case whole (a row
+  that holds nothing while no budget binds), books once under its op row's stamp (a call past
+  its deadline too, and under the pseudonym once its person was erased), and its lost hold
+  lapses; `domains/erasure/service.lifecycle.test.ts` — erasure deletes a person's finished
+  direct-call rows and pseudonymises the running ones before the ledger pass; `domains/chat/title-meter.test.ts`, `core/chat/generate_title.test.ts`,
   `jobs/task-list.generate-title.test.ts`, `domains/conversations/improve.test.ts` — the title and
   Improve calls are held under their member (and key) and pick only models the member may use;
   `domains/tts/service.project-budget.test.ts` — a voice chunk holds its estimate under the

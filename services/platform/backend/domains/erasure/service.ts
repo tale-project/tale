@@ -9,7 +9,10 @@ import {
 } from '../../core/governance/erasure_constants.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
-import { MODEL_API_OP_KIND } from '../../core/sandbox/session_constants.ts';
+import {
+  DIRECT_CALL_OP_KIND,
+  MODEL_API_OP_KIND,
+} from '../../core/sandbox/session_constants.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
@@ -1029,6 +1032,30 @@ export async function processErasure(
     const pseudonymised = await sql<{ id: string }[]>`
       UPDATE app.sandbox_session_ops SET user_id = ${ERASED_SUBJECT}
       WHERE org_id = ${organizationId} AND kind = ${MODEL_API_OP_KIND}
+        AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return removed.length + pseudonymised.length;
+  });
+
+  // Calls the platform made straight to a provider for the subject — an
+  // automation's `llm` step, a chat title, Improve: one op row each (kind
+  // `direct-call`), the settlement's record of whose call it is. A row whose
+  // call was booked, or closed having spent nothing, has done its work and
+  // is deleted. A call still running — or past its deadline, which a late
+  // end still books — keeps its row and loses the identity, so it books
+  // under the pseudonym. Before the ledger pass, as the requests above.
+  await pass('directCalls', async () => {
+    const removed = await sql<{ id: string }[]>`
+      DELETE FROM app.sandbox_session_ops
+      WHERE org_id = ${organizationId} AND kind = ${DIRECT_CALL_OP_KIND}
+        AND user_id = ${targetUserId}
+        AND (spent_cents IS NOT NULL OR status = 'cancelled')
+      RETURNING id
+    `;
+    const pseudonymised = await sql<{ id: string }[]>`
+      UPDATE app.sandbox_session_ops SET user_id = ${ERASED_SUBJECT}
+      WHERE org_id = ${organizationId} AND kind = ${DIRECT_CALL_OP_KIND}
         AND user_id = ${targetUserId}
       RETURNING id
     `;

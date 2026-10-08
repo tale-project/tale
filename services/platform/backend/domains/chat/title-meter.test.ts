@@ -33,7 +33,6 @@ const LEASE = {
   organizationId: 'org-1',
   sessionId: 'direct-call:title',
   execId: 'e1',
-  held: true,
   subject: SUBJECT,
 };
 const CALL = {

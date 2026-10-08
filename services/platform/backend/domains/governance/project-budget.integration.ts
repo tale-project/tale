@@ -156,6 +156,66 @@ export async function checkProjectBudgets(
   };
 
   try {
+    // Before any budget binds the organization: a direct call is recorded
+    // on a row that holds nothing, and booked from that row exactly once.
+    const unheldSlug = `itest-unheld-${suffix}`;
+    const memberHolds = async (): Promise<number> =>
+      (
+        await readInFlightReservations(sql, {
+          organizationId: orgId,
+          userId,
+          userTeamIds: [],
+        })
+      ).user?.requests ?? 0;
+    const holdsBefore = await memberHolds();
+    const unheld = await openDirectCall(sql, {
+      organizationId: orgId,
+      lane: 'itest',
+      // No project: its booking stays out of the project buckets below.
+      subject: { userId, agentSlug: unheldSlug },
+      worstCase: { cents: 5, tokens: 10 },
+      maxDurationMs: 60_000,
+    });
+    const unheldRows = unheld.allowed
+      ? await sql<{ budgetCents: number | null; userId: string | null }[]>`
+          SELECT budget_cents AS "budgetCents", user_id AS "userId"
+          FROM app.sandbox_session_ops
+          WHERE org_id = ${orgId} AND session_id = ${unheld.lease.sessionId}
+            AND exec_id = ${unheld.lease.execId}
+        `
+      : [];
+    const holdsWhileUnheld = await memberHolds();
+    const unheldSpend = {
+      provider: 'itest',
+      model: `itest-model-${suffix}`,
+      inputTokens: 4,
+      outputTokens: 2,
+      costCents: 0.5,
+    };
+    const unheldSettles = unheld.allowed
+      ? [
+          await settleDirectCall(sql, unheld.lease, unheldSpend),
+          await settleDirectCall(sql, unheld.lease, unheldSpend),
+        ]
+      : [];
+    const unheldBooked = await sql<{ cost: number }[]>`
+      SELECT cost_estimate_cents::float8 AS cost FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = ${unheldSlug}
+        AND granularity = 'monthly'
+    `;
+    record(
+      'project budgets: with no budget bound, a direct call is recorded without a hold and booked from its row once',
+      unheld.allowed &&
+        unheldRows.length === 1 &&
+        unheldRows[0]?.budgetCents === null &&
+        unheldRows[0].userId === userId &&
+        holdsWhileUnheld === holdsBefore &&
+        unheldSettles.join() === 'settled,already_settled' &&
+        unheldBooked.length === 1 &&
+        unheldBooked[0]?.cost === 0.5,
+      `admitted=${unheld.allowed} row=${JSON.stringify(unheldRows)} (want one, no budget_cents, the member) member's holds ${holdsBefore} then ${holdsWhileUnheld} (want unchanged) settles=${unheldSettles.join()} (want settled,already_settled) booked=${JSON.stringify(unheldBooked)} (want 0.5 cents, once)`,
+    );
+
     await mkdir(governanceDir, { recursive: true });
     await writeFile(
       budgetsFile,
@@ -538,7 +598,6 @@ export async function checkProjectBudgets(
       whileVoiced - baseline === 3 &&
         afterVoiced === baseline &&
         lost.allowed &&
-        lost.lease.held &&
         whileDirect - baseline === 5 &&
         released >= 1 &&
         afterRelease === baseline &&
@@ -584,7 +643,7 @@ export async function checkProjectBudgets(
     await sql`
       DELETE FROM app.usage_ledger
       WHERE org_id = ${orgId}
-        AND agent_slug = ANY(${[agentSlug, automationName, `itest-direct-${suffix}`]})
+        AND agent_slug = ANY(${[agentSlug, automationName, `itest-direct-${suffix}`, `itest-unheld-${suffix}`]})
     `;
     await sql`
       DELETE FROM app.project_usage

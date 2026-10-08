@@ -1,9 +1,10 @@
 /**
  * A direct provider call holds its worst case on an op row while it runs
- * and is booked in the hold's place once it ends — or holds nothing while
- * no budget binds its organization. The reservation itself
- * (`reserveTurnBudget`) and the ledger writer are stand-ins; the SQL is
- * scripted. The real-Postgres proof is the project-budget lane.
+ * and is booked in the hold's place once it ends — or, while no budget
+ * binds its organization, is recorded on a row that holds nothing and
+ * booked from that. The reservation itself (`reserveTurnBudget`) and the
+ * ledger writer are stand-ins; the SQL is scripted. The real-Postgres proof
+ * is the project-budget lane.
  */
 
 import type { Sql } from 'postgres';
@@ -99,7 +100,6 @@ describe('openDirectCall [GOV-R5]', () => {
         organizationId: 'org-1',
         sessionId: 'direct-call:improve',
         execId: expect.any(String),
-        held: true,
         subject: SUBJECT,
       },
     });
@@ -116,15 +116,37 @@ describe('openDirectCall [GOV-R5]', () => {
     });
   });
 
-  it('holds nothing while no budget binds the organization', async () => {
+  it('records a call that holds nothing while no budget binds the organization', async () => {
     mocks.budgetPolicyActive.mockResolvedValue(false);
-    const { sql } = fakeSql();
+    const { sql, statements } = fakeSql();
 
-    await expect(openDirectCall(sql, OPEN)).resolves.toMatchObject({
+    const admission = await openDirectCall(sql, OPEN);
+    expect(admission).toMatchObject({
       allowed: true,
-      lease: { held: false, subject: SUBJECT },
+      lease: { sessionId: 'direct-call:improve', subject: SUBJECT },
     });
     expect(mocks.reserveTurnBudget).not.toHaveBeenCalled();
+    // A row with no `budget_cents`: no admission counts it, and the settle
+    // books from it like any other.
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.text).toContain(
+      'INSERT INTO app.sandbox_session_ops ( org_id, session_id, exec_id, kind, status, user_id, agent_slug, api_key_id, project_ids, model_ref, deadline_ms, heartbeat_at_ms, started_at_ms )',
+    );
+    if (!admission.allowed) throw new Error('admitted');
+    expect(statements[0]?.values).toEqual([
+      'org-1',
+      'direct-call:improve',
+      admission.lease.execId,
+      'direct-call',
+      'user-1',
+      'inbox-improve',
+      'key-1',
+      ['project-1'],
+      'openai/gpt-5-mini',
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Number),
+    ]);
   });
 
   it('refuses a call whose worst case a cap has no room for, in the cap’s own words [GOV-R4]', async () => {
@@ -170,7 +192,6 @@ describe('settleDirectCall', () => {
       organizationId: 'org-1',
       sessionId: 'direct-call:improve',
       execId: 'exec-1',
-      held: true,
       subject: SUBJECT,
     };
 
@@ -200,55 +221,85 @@ describe('settleDirectCall', () => {
     expect(mocks.incrementUsageLedger).toHaveBeenCalledTimes(1);
   });
 
-  it('books a call that held nothing straight from its lease', async () => {
-    const { sql, statements } = fakeSql();
+  it('books an unheld call from its row too — once, under whoever the row names now', async () => {
+    // An erasure that ran mid-call left the row under the pseudonym.
+    const { sql } = fakeSql((text) =>
+      text.startsWith('UPDATE app.sandbox_session_ops')
+        ? [
+            {
+              userId: 'erased-user',
+              agentSlug: 'thread-title',
+              apiKeyId: null,
+              projectIds: null,
+            },
+          ]
+        : [],
+    );
+    const lease = {
+      organizationId: 'org-1',
+      sessionId: 'direct-call:title',
+      execId: 'exec-1',
+      subject: { userId: 'user-1', agentSlug: 'thread-title' },
+    };
+    await expect(settleDirectCall(sql, lease, SPEND)).resolves.toBe('settled');
+    expect(mocks.incrementUsageLedger).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        userId: 'erased-user',
+        agentSlug: 'thread-title',
+        costEstimateCents: 0.4,
+      }),
+    );
+    // Its row deleted (the erasure removed a finished one) books nothing.
+    await expect(settleDirectCall(fakeSql().sql, lease, SPEND)).resolves.toBe(
+      'already_settled',
+    );
+    expect(mocks.incrementUsageLedger).toHaveBeenCalledTimes(1);
+  });
+
+  it('books a row that names nobody as the organization’s', async () => {
+    const { sql } = fakeSql((text) =>
+      text.startsWith('UPDATE app.sandbox_session_ops')
+        ? [
+            {
+              userId: null,
+              agentSlug: null,
+              apiKeyId: null,
+              projectIds: null,
+            },
+          ]
+        : [],
+    );
     await settleDirectCall(
       sql,
       {
         organizationId: 'org-1',
-        sessionId: 'direct-call:improve',
+        sessionId: 'direct-call:title',
         execId: 'exec-1',
-        held: false,
         subject: { userId: AUTOMATION_SUBJECT_ID, agentSlug: 'thread-title' },
       },
       SPEND,
     );
-    expect(statements).toEqual([]);
     expect(mocks.incrementUsageLedger).toHaveBeenCalledWith(
       sql,
-      expect.objectContaining({
-        userId: AUTOMATION_SUBJECT_ID,
-        agentSlug: 'thread-title',
-        costEstimateCents: 0.4,
-      }),
+      expect.objectContaining({ userId: AUTOMATION_SUBJECT_ID }),
     );
   });
 });
 
 describe('releasing holds', () => {
-  it('closes an unsettled hold without a booking, and leaves a call that held nothing alone', async () => {
+  it('closes an unsettled call’s row without a booking', async () => {
     const held = fakeSql();
     await releaseDirectCall(held.sql, {
       organizationId: 'org-1',
       sessionId: 'direct-call:improve',
       execId: 'exec-1',
-      held: true,
       subject: SUBJECT,
     });
     expect(held.statements[0]?.text).toContain(
       'AND spend_settled_at_ms IS NULL',
     );
     expect(mocks.incrementUsageLedger).not.toHaveBeenCalled();
-
-    const unheld = fakeSql();
-    await releaseDirectCall(unheld.sql, {
-      organizationId: 'org-1',
-      sessionId: 'direct-call:improve',
-      execId: 'exec-2',
-      held: false,
-      subject: SUBJECT,
-    });
-    expect(unheld.statements).toEqual([]);
   });
 
   it('lets a lost call’s hold lapse at its deadline, and deletes settled rows a day on', async () => {
@@ -339,7 +390,6 @@ describe('a text model’s call', () => {
         organizationId: 'o',
         sessionId: 's',
         execId: 'e',
-        held: true,
         subject: { userId: 'u', agentSlug: 'a' },
       }),
     ).toBe(true);

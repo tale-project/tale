@@ -36,7 +36,6 @@ const LEASE = {
   organizationId: 'org-1',
   sessionId: 'direct-call:llm-step',
   execId: 'exec-1',
-  held: true,
   subject: { userId: 'user-2', agentSlug: 'invoices/monthly' },
 };
 const CALL = {

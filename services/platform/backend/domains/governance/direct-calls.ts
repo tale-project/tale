@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
+import { DIRECT_CALL_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import { estimateTurnCostCents } from '../chat/store.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
 import { budgetPolicyActive, type BudgetViolation } from './budget-gate.ts';
@@ -11,36 +12,37 @@ import { incrementUsageLedger } from './service.ts';
 
 /**
  * A call the platform makes straight to a provider, with no gateway key in
- * between — an automation's `llm` step, a chat title, the Inbox's Improve,
- * voice output, a transcription, an embedding request — held against the
- * caps that bind whoever it is for, the way a managed turn holds its
- * allowance:
+ * between — an automation's `llm` step, a chat title, the Inbox's Improve —
+ * held against the caps that bind whoever it is for, the way a managed turn
+ * holds its allowance:
  *
  *  1. OPEN — before the call, its worst case is measured against every cap
  *     that binds its subject, after the booked spend and every hold in
  *     flight (`reserveTurnBudget`, kind `direct-call`, under the
  *     budget-admission lock), and admitted whole or not at all: a call
  *     whose worst case no longer fits is refused with the cap's own
- *     sentence. An admitted call's worst case is recorded as a hold on an
- *     op row (`app.sandbox_session_ops`, `session_id`
+ *     sentence. The worst case is the call's priced ceiling — a text
+ *     model's estimated prompt plus its whole output cap. An admitted call
+ *     is recorded on an op row (`app.sandbox_session_ops`, `session_id`
  *     `direct-call:<lane>`), stamped with the subject, the lane's label,
- *     the API key and the projects, where every later admission counts it.
+ *     the API key and the projects, whose `budget_cents` is the hold every
+ *     later admission counts.
  *  2. SETTLE — after the call, what it cost is booked into the usage ledger
- *     under that stamp, and the hold released, in one transaction. A call
- *     that spent nothing releases its hold without a booking.
+ *     under the row's stamp, and the hold released, in one transaction. A
+ *     call that spent nothing is closed without a booking.
  *  3. A call whose process died never settles: once its deadline passes,
  *     the sandbox watchdog releases its hold ({@link releaseStaleDirectCalls}),
  *     and a day after the call started the row goes
  *     ({@link sweepSettledDirectCalls}) — the ledger keeps the spend.
  *
  * Settling books once: the booked figure (`spent_cents`) is the gate, not
- * the released hold, so a call that outlives its deadline is still booked
- * when it does end. In an organization whose budget policy binds nothing,
- * a call holds nothing — there is no cap to overshoot — and its settle
- * books straight from the subject its lease carries.
+ * the released hold, so a replayed settle books nothing twice and a call
+ * that outlives its deadline is still booked when it does end. In an
+ * organization whose budget policy binds nothing, a call is recorded all
+ * the same — on a row that holds nothing (`budget_cents` NULL), which no
+ * admission counts — so its settle books from the row as well: once, and
+ * under the pseudonym if the person was erased while it ran.
  */
-
-const DIRECT_CALL_OP_KIND = 'direct-call';
 
 /** How long a settled call's row stays: the ledger keeps the spend. */
 const SETTLED_ROW_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -59,14 +61,11 @@ export interface DirectCallSubject {
   projectIds?: readonly string[];
 }
 
-/** One admitted call: its hold's op row, when it holds one, and whose
- * call it is. */
+/** One admitted call: its op row, and whose call it is. */
 export interface DirectCallLease {
   organizationId: string;
   sessionId: string;
   execId: string;
-  /** Whether an op row holds the call — false while no budget binds. */
-  held: boolean;
   subject: DirectCallSubject;
 }
 
@@ -79,7 +78,6 @@ export function isDirectCallLease(value: unknown): value is DirectCallLease {
     typeof Reflect.get(value, 'organizationId') === 'string' &&
     typeof Reflect.get(value, 'sessionId') === 'string' &&
     typeof Reflect.get(value, 'execId') === 'string' &&
-    typeof Reflect.get(value, 'held') === 'boolean' &&
     typeof subject === 'object' &&
     subject !== null &&
     typeof Reflect.get(subject, 'userId') === 'string' &&
@@ -116,11 +114,15 @@ export async function openDirectCall(
     organizationId: args.organizationId,
     sessionId: `${DIRECT_CALL_OP_KIND}:${args.lane}`,
     execId: randomUUID(),
-    held: true,
     subject: args.subject,
   };
+  const deadlineAtMs = Date.now() + args.maxDurationMs;
   if (!(await budgetPolicyActive(sql, args.organizationId))) {
-    return { allowed: true, lease: { ...lease, held: false } };
+    await recordUnheldCall(sql, lease, {
+      deadlineAtMs,
+      ...(args.modelRef !== undefined ? { modelRef: args.modelRef } : {}),
+    });
+    return { allowed: true, lease };
   }
   const allowance = await reserveTurnBudget(sql, {
     organizationId: args.organizationId,
@@ -141,7 +143,7 @@ export async function openDirectCall(
         : {}),
     },
     whole: { prospectiveTokens: Math.max(0, Math.ceil(args.worstCase.tokens)) },
-    deadlineAtMs: Date.now() + args.maxDurationMs,
+    deadlineAtMs,
   });
   if (allowance.allowed) return { allowed: true, lease };
   return {
@@ -154,6 +156,31 @@ export async function openDirectCall(
       ? { violation: allowance.violation }
       : {}),
   };
+}
+
+/** Record a call that holds nothing — no budget binds its organization —
+ * on its op row: no lock, no check, and no `budget_cents`, so no admission
+ * counts it; the row is there for the settle to book from. */
+async function recordUnheldCall(
+  sql: Sql,
+  lease: DirectCallLease,
+  args: { deadlineAtMs: number; modelRef?: string },
+): Promise<void> {
+  const now = Date.now();
+  const projectIds = lease.subject.projectIds ?? [];
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, user_id, agent_slug,
+      api_key_id, project_ids, model_ref, deadline_ms, heartbeat_at_ms,
+      started_at_ms
+    ) VALUES (
+      ${lease.organizationId}, ${lease.sessionId}, ${lease.execId},
+      ${DIRECT_CALL_OP_KIND}, 'running', ${lease.subject.userId},
+      ${lease.subject.agentSlug}, ${lease.subject.apiKeyId ?? null},
+      ${projectIds.length > 0 ? [...projectIds] : null},
+      ${args.modelRef ?? null}, ${args.deadlineAtMs}, ${now}, ${now}
+    )
+  `;
 }
 
 /** A text model's call, by its connector and catalog id. */
@@ -248,7 +275,7 @@ export interface DirectCallSpend {
 /**
  * Book the call's spend under its op row's stamp and release its hold, in
  * one transaction. `'already_settled'` when it was booked before — a replay
- * books nothing twice.
+ * books nothing twice — or its row is gone (an erasure deleted it).
  */
 export async function settleDirectCall(
   sql: Sql,
@@ -256,26 +283,6 @@ export async function settleDirectCall(
   spend: DirectCallSpend,
 ): Promise<'settled' | 'already_settled'> {
   const now = Date.now();
-  if (!lease.held) {
-    await sql.begin((tx) =>
-      bookDirectCall(
-        tx,
-        lease.organizationId,
-        {
-          userId: lease.subject.userId,
-          agentSlug: lease.subject.agentSlug,
-          apiKeyId: lease.subject.apiKeyId ?? null,
-          projectIds:
-            lease.subject.projectIds !== undefined
-              ? [...lease.subject.projectIds]
-              : null,
-        },
-        spend,
-        now,
-      ),
-    );
-    return 'settled';
-  }
   return sql.begin(async (tx) => {
     const rows = await tx<
       {
@@ -342,13 +349,12 @@ async function bookDirectCall(
   });
 }
 
-/** Release the hold of a call that spent nothing — refused upstream before
+/** Close the row of a call that spent nothing — refused upstream before
  * any work, or cancelled before it was sent — without a booking. */
 export async function releaseDirectCall(
   sql: Sql | TransactionSql,
   lease: DirectCallLease,
 ): Promise<void> {
-  if (!lease.held) return;
   const now = Date.now();
   await sql`
     UPDATE app.sandbox_session_ops SET

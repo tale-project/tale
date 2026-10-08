@@ -57,6 +57,8 @@ without a new approval. A request that has finished in the meantime is not run a
 | runs of a project agent | kept, with the person's identity replaced by a pseudonym |
 | finished requests to the model API | deleted |
 | requests to the model API still in progress | kept, with the person's identity replaced by a pseudonym |
+| finished model calls Tale made for them (an automation's `llm` step, a chat title, Improve with AI) | deleted |
+| such model calls still in progress | kept, with the person's identity replaced by a pseudonym, so their cost is booked under it |
 
 The receipt counts each of these steps.
 

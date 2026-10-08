@@ -22,9 +22,9 @@ import type {
  * holds its gateway allowance on its op row until its spend is booked
  * (`app.sandbox_session_ops`), and while one of its `generate_image` calls
  * runs, that call's estimate and image requests on top; a call the platform
- * makes straight to a provider (an automation's `llm` step, a chat title,
- * the Inbox's Improve — `direct-calls.ts`) holds its worst case on an op
- * row of its own until it is booked; a voice output chunk holds its
+ * makes straight to a provider for an automation's `llm` step, a chat
+ * title or the Inbox's Improve (`direct-calls.ts`) holds its worst case on
+ * an op row of its own until it is booked; a voice output chunk holds its
  * estimate on its pending row (`app.tts_audio_chunks`). An admission adds
  * every other hold to the booked usage under the organization's admission
  * lock, so the holds it reads cannot change until its own is written.
