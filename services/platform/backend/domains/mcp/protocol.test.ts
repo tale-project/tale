@@ -149,7 +149,11 @@ describe('initialize', () => {
       id: 1,
       result: {
         protocolVersion: '2025-11-25',
-        capabilities: { tools: { listChanged: false } },
+        capabilities: {
+          tools: { listChanged: false },
+          resources: { subscribe: false, listChanged: false },
+          prompts: { listChanged: false },
+        },
         serverInfo: {
           name: 'tale-platform',
           title: 'Tale platform',
@@ -1381,11 +1385,11 @@ describe('protocol errors', () => {
     const { payload } = await call({
       jsonrpc: '2.0',
       id: 14,
-      method: 'resources/list',
+      method: 'completion/complete',
     });
     expect(payload.error).toMatchObject({
       code: -32601,
-      message: 'Method "resources/list" is not supported',
+      message: 'Method "completion/complete" is not supported',
     });
   });
 

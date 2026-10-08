@@ -42,7 +42,11 @@ import type { Automation, RunResult } from '../core/types';
 import { connectorOutputShape } from '../core/typing/signature';
 import { validate, type ValidateOptions } from '../core/validate';
 import { searchCatalog } from './catalog-search';
-import { authoringReference } from './docs';
+import {
+  authoringReference,
+  CORE_NODE_KIND_REFERENCE,
+  type CoreNodeKind,
+} from './docs';
 import { METHODS } from './methods';
 import { runAutomationTests } from './tests';
 
@@ -408,6 +412,10 @@ function coreKindHint(word: string): string | undefined {
     : `"${coreKind.type}" is a core node kind, not a catalog capability — get_docs describes it`;
 }
 
+function isCoreNodeKind(kind: string): kind is CoreNodeKind {
+  return Object.hasOwn(CORE_NODE_KIND_REFERENCE, kind);
+}
+
 async function missingAutomation(
   store: DispatchStore,
   name: string,
@@ -579,6 +587,13 @@ export interface DispatchContext {
    * with the run handle instead of the result. Hosts keep the defaults;
    * tests shorten them. */
   liveRunWait?: { timeoutMs?: number; pollMs?: number };
+  /**
+   * The host's further references `get_docs {topic}` serves beside the
+   * engine's own authoring reference (the MCP endpoint's triggers,
+   * validation and skill texts): the text of a topic, or undefined for one
+   * the host does not serve. Absent, only the authoring reference is served.
+   */
+  docs?: (topic: string) => string | undefined;
 }
 
 /** The default patience of a one-piece live run: long enough for the quick
@@ -879,10 +894,19 @@ export async function dispatch(
   const { store } = ctx;
 
   switch (method) {
-    case 'get_docs':
+    case 'get_docs': {
       // The authoring reference serves MCP clients in the endpoint's own
       // dialect; it does not impose a host's system prompt or persona.
-      return { docs: authoringReference() };
+      const topic = asString(p.topic) || 'authoring';
+      if (topic === 'authoring') return { docs: authoringReference() };
+      const docs = ctx.docs?.(topic);
+      if (docs !== undefined) return { docs };
+      return {
+        error: `no reference on "${topic}" here`,
+        code: 'INVALID_PARAMS',
+        hint: 'omit topic for the authoring reference — the topics this host serves are listed in the tool schema',
+      };
+    }
 
     case 'get_catalog': {
       // The whole catalog with every input schema runs past 100 KB;
@@ -896,7 +920,18 @@ export async function dispatch(
       // why (2026-09-19 evaluation, K8-4) — now the same hint search_catalog
       // gives.
       const core = kind === '' ? undefined : coreKindHint(kind);
-      if (core !== undefined) return { node_types: [], hint: core };
+      if (core !== undefined) {
+        // The kind's own section of the reference rides along, so a
+        // narrowed read (and the `tale://catalog/<kind>` resource built on
+        // it) answers what the kind is, not only where to look.
+        return {
+          node_types: [],
+          hint: core,
+          ...(isCoreNodeKind(kind)
+            ? { reference: CORE_NODE_KIND_REFERENCE[kind] }
+            : {}),
+        };
+      }
       const node_types = [];
       for (const t of nodeTypes().values()) {
         if (kind !== '' && t.kind !== kind) continue;

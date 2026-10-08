@@ -21,6 +21,7 @@ import {
 } from '../automations/dispatch-store.ts';
 import { dispatchCapabilityAs } from '../chat/capabilities.ts';
 import type { McpCaller } from './caller.ts';
+import { mcpDocs } from './docs.ts';
 import { dispatchPlatformTool } from './platform-tools.ts';
 import type { McpHost } from './tools.ts';
 
@@ -53,7 +54,8 @@ export function engineScope(caller: McpCaller): PgStoreScope {
 }
 
 /** One engine method against the caller's organization, live execution
- * enabled: the store's own run-control methods authorize the actor. */
+ * enabled: the store's own run-control methods authorize the actor.
+ * `get_docs` serves the endpoint's references beside the engine's own. */
 async function dispatchEngineMethod(
   sql: Sql,
   caller: McpCaller,
@@ -62,7 +64,7 @@ async function dispatchEngineMethod(
 ): Promise<unknown> {
   assembleEngineHost();
   const store = pgAutomationStore(sql, engineScope(caller));
-  return dispatch(method, params, { store, allowLive: true });
+  return dispatch(method, params, { store, allowLive: true, docs: mcpDocs });
 }
 
 /** The two surfaces a tool call reaches, bound to the database. */

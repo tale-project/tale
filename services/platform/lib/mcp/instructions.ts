@@ -35,7 +35,7 @@ export const INSTRUCTION_FRAGMENTS: readonly InstructionFragment[] = [
     ],
   },
   {
-    text: 'Grammar: call get_docs once per session before you write a document. Discover instead of guessing: search_catalog and get_catalog list the node types this deployment can run.',
+    text: 'Grammar: call get_docs (or read tale://docs/authoring) once per session before you write a document; get_docs with topic "triggers" or "validation" answers those references. Discover instead of guessing: search_catalog and get_catalog list the node types this deployment can run.',
     tools: ['get_docs', 'search_catalog', 'get_catalog'],
   },
   {
@@ -81,6 +81,10 @@ export const INSTRUCTION_FRAGMENTS: readonly InstructionFragment[] = [
   {
     text: "A failed run: get_run, read its status, error and trace, fix the document, reproduce with run_automation and the run's input.",
     tools: ['get_run', 'run_automation'],
+  },
+  {
+    text: 'Resources tale://automations/{name} and tale://runs/{runId} read like get_automation and get_run.',
+    tools: ['get_automation', 'get_run'],
   },
 ];
 

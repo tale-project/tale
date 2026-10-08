@@ -5,6 +5,8 @@ import { z } from 'zod';
 import type { Method } from '../engine/api/methods';
 import { KNOWLEDGE_QUERY_MAX } from '../knowledge/types';
 import { automationPresentationSchema } from '../shared/schemas/automation_presentation';
+import { MCP_DOC_TOPICS } from './docs/topics';
+import { CATALOG_KINDS } from './resources';
 import { triggerArgSchema } from './trigger-args';
 
 /**
@@ -136,10 +138,17 @@ const runStatus = z.enum([
 
 /** The arguments of every engine method — exhaustive over `Method`. */
 export const ENGINE_TOOL_ARGS = {
-  get_docs: z.strictObject({}),
+  get_docs: z.strictObject({
+    topic: z
+      .enum(MCP_DOC_TOPICS)
+      .optional()
+      .describe(
+        'Which reference: "authoring" (the default — the automation grammar and every method), "triggers" (what starts an automation, each kind\'s fields and the events), "validation" (how to read a validation result, and every issue code) or "skill" (the Tale skill, SKILL.md). Each is also the resource tale://docs/<topic>.',
+      ),
+  }),
   get_catalog: z.strictObject({
     kind: z
-      .enum(['transform', 'llm', 'agent', 'subautomation', 'connector'])
+      .enum(CATALOG_KINDS)
       .optional()
       .describe('Only node types of this kind.'),
     compact: z

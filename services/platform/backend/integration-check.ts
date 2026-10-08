@@ -14450,7 +14450,7 @@ async function checkMcp(
   const unknownMethod = await rpc({
     jsonrpc: '2.0',
     id: 3,
-    method: 'resources/list',
+    method: 'completion/complete',
   });
   const unknownCode = z
     .object({ error: z.object({ code: z.number() }) })

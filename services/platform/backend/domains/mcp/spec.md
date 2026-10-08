@@ -7,7 +7,8 @@ what the key holder's role lets it read and change, how an agent's save, deploy 
 editor's rules, how a refusal or a bad argument reaches the agent, what a request and a batch of
 calls cost, what is kept of a call, and which protocol revisions the endpoint speaks. The rest of
 what a call does once it reaches an automation, the capability surface, and the tool inventory
-itself are not covered; see Not yet.
+itself are not covered; see Not yet. Resources and prompts are reads the tools already answer, and
+the Tale skill is the one file an agent installs to work here.
 
 ## Who can do what
 
@@ -196,9 +197,10 @@ neither does a call refused for its arguments or its role.
 ### MCP-R19 · A batch of calls costs as many requests as the calls it carries
 
 One request may carry up to 20 messages; a larger batch is refused whole. The request is charged
-to the key holder's request budget, and every tool call after the first is charged again. Once the
-budget is spent, each remaining call is answered with the wait (`retryAfterMs`) and nothing runs
-for it, while the calls before it stand.
+to the key holder's request budget, and every call after the first that reads or acts — a tool
+call, a resource read or listing, a prompt — is charged again. Once the budget is spent, each
+remaining call is answered with the wait (`retryAfterMs`) and nothing runs for it, while the calls
+before it stand.
 
 - **Example**: Ada's budget has room for two more requests. Her script sends one request carrying
   three tool calls → the first two run, and the third is answered with the time to wait.
@@ -260,6 +262,39 @@ revisions it speaks under `data.supported`, so a client that speaks several can 
 - **Example**: Ada's client sends `MCP-Protocol-Version: 2024-11-05` → refused, naming 2025-11-25,
   2025-06-18 and 2025-03-26; its `initialize` proposing 2024-11-05 is answered with 2025-11-25.
 
+## Resources and prompts
+
+An agent can read some things by address instead of by tool call — Claude Code offers them as
+`@tale:` mentions — and a person can start common work from a prompt (`/tale:edit_automation`).
+Both are reads a tool already answers.
+
+### MCP-R24 · A resource or a prompt reads only what the same tool call would
+
+Reading a resource is the tool call it stands for — `tale://automations/{name}` is
+`get_automation`, `tale://runs/{runId}` is `get_run`, `tale://docs/{topic}` is `get_docs` — for the
+same person, in the same organization, through the same checks; the list of resources names only
+the automations `list_automations` would. An address that reads nothing answers "resource not
+found" (`-32002`) with the tool's own refusal code, whether the thing does not exist or the person
+cannot see it. A prompt attaches the automation, run or reference it is about by reading it the
+same way, and a prompt whose run or automation cannot be read is refused with that code.
+
+- **Example**: Mia, an ordinary member, is not in the HR team. Her agent reads
+  `tale://automations/hr%2Fonboarding`, installed only in an HR project → "resource not found" with
+  `AUTOMATION_NOT_FOUND`, exactly as `get_automation` answers; `hr/onboarding` is not in her list
+  of resources, and `/tale:add_trigger hr/onboarding` is refused with the same code.
+
+### MCP-R25 · The Tale skill is one file for every deployment and holds no secret
+
+The Tale skill (`SKILL.md`) teaches a coding agent how to work here: the editing loop, testing,
+triggers, debugging a run, reading a refusal, and the rules (ask before going live, never handle a
+secret). It is built from the tools the server has, names only those and the addresses it serves,
+and names no address of a deployment, no organization and no key, so one file serves every
+deployment of a release. A signed-in person downloads it in the app; an agent reads it as
+`tale://docs/skill`.
+
+- **Example**: Ada downloads `SKILL.md` from her Tale, and Ben from his, both on the same release →
+  the two files are the same, and neither names a host, an organization or a key.
+
 ## Not yet
 
 - What a call does once it reaches an automation beyond the rules above (versions, deployment,
@@ -268,3 +303,5 @@ revisions it speaks under `data.supported`, so a client that speaks several can 
 - A client of the 2025 protocol revisions names itself only when it connects, not on each call, so
   a version its agent saves records the door and the key but no client name.
 - The tool inventory and each tool's arguments (`lib/mcp/tools.ts`, `lib/mcp/args.ts`).
+- A client cannot subscribe to a resource or be told that a list changed: the lists are read
+  again when a client reconnects.

@@ -268,7 +268,8 @@ const METHOD_ANNOTATIONS: Record<Method, McpToolAnnotations> = {
 
 /** One-line tool descriptions; `get_docs` is the deep reference. */
 const METHOD_DESCRIPTIONS: Record<Method, string> = {
-  get_docs: 'The automation grammar and authoring guide, as text.',
+  get_docs:
+    'The automation grammar and authoring guide, as text — or, with topic, the triggers reference, the validation reference or the Tale skill.',
   get_catalog: 'Every node type this deployment can execute.',
   search_catalog: 'Search the node-type catalog by keyword.',
   validate_automation:

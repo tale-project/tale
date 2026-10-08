@@ -25,17 +25,22 @@
  * `INTERNAL_ERROR` with the request id. The key proves who is calling; the
  * role decides what the call may do.
  *
- * Protocol notes: `initialize`/`ping`/`tools/*` only. The envelope is checked
- * before anything is dispatched — a `jsonrpc` other than "2.0" or an id that
- * is not a string or an integer is -32600, and such an id is never echoed
- * back. A JSON-RPC batch of at most `MAX_BATCH_MESSAGES` messages is accepted
- * and answered as an array (a batch of notifications alone answers 202), and
- * every tool call a batch carries beyond the first is admitted through the
- * host's `admit` hook — the REST door charged the HTTP request once, so a
- * batch is never cheaper than the requests it stands for. An unknown tool is
- * -32602; arguments that miss the tool's schema are a tool error
- * (`INVALID_ARGUMENTS`), never a protocol error. A notification gets 202
- * with no body as the streamable-HTTP transport specifies.
+ * Resources and prompts (`resources.ts`, `prompts.ts`) are reads the tools
+ * already answer: an address is its tool call, through the same checks, and
+ * a prompt attaches what it is about with the caller's own rights.
+ *
+ * Protocol notes: `initialize`/`ping`/`tools/*`/`resources/*`/`prompts/*`
+ * only. The envelope is checked before anything is dispatched — a `jsonrpc`
+ * other than "2.0" or an id that is not a string or an integer is -32600,
+ * and such an id is never echoed back. A JSON-RPC batch of at most
+ * `MAX_BATCH_MESSAGES` messages is accepted and answered as an array (a
+ * batch of notifications alone answers 202), and every tool call, resource
+ * read, resource listing or prompt a batch carries beyond the first is
+ * admitted through the host's `admit` hook — the REST door charged the HTTP
+ * request once, so a batch is never cheaper than the requests it stands
+ * for. An unknown tool is -32602; arguments that miss the tool's schema are
+ * a tool error (`INVALID_ARGUMENTS`), never a protocol error. A notification
+ * gets 202 with no body as the streamable-HTTP transport specifies.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -58,6 +63,13 @@ import {
   type McpCallRecord,
 } from './activity';
 import type { McpCaller } from './caller';
+import { getPrompt, listPrompts } from './prompts';
+import {
+  listResources,
+  listResourceTemplates,
+  type MethodReply,
+  readResource,
+} from './resources';
 import {
   callTool,
   listTools,
@@ -95,8 +107,10 @@ interface JsonRpcReply {
    * itself could not be acted on, 200 for every answer to a well-formed
    * request — a JSON-RPC error included. A batch always answers 200. */
   readonly status: 200 | 400;
-  /** How a tool call went, for the call record — set on a tool result. */
-  readonly toolOutcome?: { outcome: McpCallOutcome; code?: string };
+  /** How the call went, for the call record — set where the JSON-RPC
+   * envelope alone does not say (a tool result flagged `isError`, a fault
+   * answered as -32603). */
+  readonly outcome?: { outcome: McpCallOutcome; code?: string };
 }
 
 function rpcResult(id: JsonRpcId, result: unknown): JsonRpcReply {
@@ -146,7 +160,9 @@ export interface McpRequestOptions {
 
 /** What one request has spent so far — shared by the messages of a batch. */
 interface RequestState {
-  toolCalls: number;
+  /** Calls that reach a surface — tool calls, resource reads and listings,
+   * prompts — answered so far. */
+  calls: number;
   /** The HTTP request's id — the door's `X-Request-Id`, or one minted here
    * for a caller that came without (a test, a future door). */
   readonly requestId: string;
@@ -174,7 +190,7 @@ function callRecord(
       : undefined;
   const error = reply.body.error;
   const outcome: { outcome: McpCallOutcome; code?: string } =
-    reply.toolOutcome ??
+    reply.outcome ??
     (isRecord(error)
       ? { outcome: 'refused', code: String(error.code) }
       : { outcome: 'ok' });
@@ -188,6 +204,61 @@ function callRecord(
     ...outcome,
     ms,
     ...(clientName === null ? {} : { clientName }),
+  };
+}
+
+/**
+ * The admission of one call that reaches a surface: the door charged the
+ * HTTP request itself, so the first call of a request is free here and every
+ * further one a batch carries is charged through the host's hook.
+ */
+function admission(
+  options: McpRequestOptions,
+  state: RequestState,
+): () => Promise<{ retryAfterMs: number } | null> {
+  return async () => {
+    if (state.calls > 0 && options.admit !== undefined) {
+      const wait = await options.admit();
+      if (wait !== null) return wait;
+    }
+    state.calls += 1;
+    return null;
+  };
+}
+
+/** What a call that reaches a surface runs with: the host, the request id,
+ * the execution budget and this request's admission. */
+function surfaceContext(
+  options: McpRequestOptions,
+  state: RequestState,
+): ToolCallContext {
+  return {
+    host: options.host,
+    requestId: state.requestId,
+    ...(options.charge === undefined ? {} : { charge: options.charge }),
+    admit: admission(options, state),
+  };
+}
+
+/** The refusal of a batch call whose request budget is spent. */
+function budgetSpent(id: JsonRpcId, retryAfterMs: number): JsonRpcReply {
+  return rpcError(
+    id,
+    -32000,
+    `Rate limit exceeded — this batch has spent the key holder's request budget; retry after ${Math.ceil(retryAfterMs / 1000)} s`,
+    200,
+    { retryAfterMs },
+  );
+}
+
+/** A resource or prompt method's answer as its JSON-RPC reply. */
+function methodReply<T>(id: JsonRpcId, reply: MethodReply<T>): JsonRpcReply {
+  if (reply.kind === 'admission') return budgetSpent(id, reply.retryAfterMs);
+  if (reply.kind === 'result') return rpcResult(id, reply.result);
+  const { code, message, data, outcome } = reply.error;
+  return {
+    ...rpcError(id, code, message, 200, data),
+    outcome: { outcome, code: String(code) },
   };
 }
 
@@ -308,36 +379,73 @@ async function answerMessage(
       if (tool === undefined) {
         return rpcError(id, -32602, `Unknown tool "${params.name}"`);
       }
-      const reply = await callTool(caller, tool, params.arguments, {
-        host: options.host,
-        requestId: state.requestId,
-        ...(options.charge === undefined ? {} : { charge: options.charge }),
-        // The door charged the HTTP request itself; every further call a
-        // batch carries is charged here, once its arguments hold.
-        admit: async () => {
-          if (state.toolCalls > 0 && options.admit !== undefined) {
-            const wait = await options.admit();
-            if (wait !== null) return wait;
-          }
-          state.toolCalls += 1;
-          return null;
-        },
-      });
+      // Charged once its arguments hold (`callTool`).
+      const reply = await callTool(
+        caller,
+        tool,
+        params.arguments,
+        surfaceContext(options, state),
+      );
       if (reply.kind === 'admission') {
-        return rpcError(
-          id,
-          -32000,
-          `Rate limit exceeded — this batch has spent the key holder's request budget; retry after ${Math.ceil(reply.retryAfterMs / 1000)} s`,
-          200,
-          { retryAfterMs: reply.retryAfterMs },
-        );
+        return budgetSpent(id, reply.retryAfterMs);
       }
       const { result, outcome, code } = reply.answer;
       return {
         ...rpcResult(id, result),
-        toolOutcome: { outcome, ...(code === undefined ? {} : { code }) },
+        outcome: { outcome, ...(code === undefined ? {} : { code }) },
       };
     }
+
+    case 'resources/list':
+      return methodReply(
+        id,
+        await listResources(
+          caller,
+          isRecord(params) ? params.cursor : undefined,
+          surfaceContext(options, state),
+        ),
+      );
+
+    case 'resources/templates/list':
+      // Answered whole, like tools/list: a cursor was never issued.
+      if (isRecord(params) && params.cursor !== undefined) {
+        return rpcError(
+          id,
+          -32602,
+          'Invalid params: this server answers resources/templates/list whole and never issues a cursor',
+        );
+      }
+      return rpcResult(id, listResourceTemplates());
+
+    case 'resources/read':
+      return methodReply(
+        id,
+        await readResource(
+          caller,
+          isRecord(params) ? params.uri : undefined,
+          surfaceContext(options, state),
+        ),
+      );
+
+    case 'prompts/list':
+      if (isRecord(params) && params.cursor !== undefined) {
+        return rpcError(
+          id,
+          -32602,
+          'Invalid params: this server answers prompts/list whole and never issues a cursor',
+        );
+      }
+      return rpcResult(id, listPrompts());
+
+    case 'prompts/get':
+      return methodReply(
+        id,
+        await getPrompt(
+          caller,
+          isRecord(params) ? params : {},
+          surfaceContext(options, state),
+        ),
+      );
 
     default:
       return rpcError(id, -32601, `Method "${method}" is not supported`);
@@ -405,7 +513,7 @@ export async function handleMcpRequest(
     );
   }
   const state: RequestState = {
-    toolCalls: 0,
+    calls: 0,
     requestId: caller.requestId ?? randomUUID(),
   };
   if (Array.isArray(message)) {

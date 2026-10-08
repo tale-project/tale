@@ -22,10 +22,13 @@ export const MCP_PROTOCOL_VERSIONS: readonly string[] = [
   '2025-03-26',
 ];
 
-/** What `initialize` says the server can do: tools, whose list never
- * changes while a session lasts. */
+/** What `initialize` says the server can do: tools, resources and prompts,
+ * none of whose lists changes while a session lasts, and no resource a
+ * client can subscribe to. */
 export const MCP_SERVER_CAPABILITIES = {
   tools: { listChanged: false },
+  resources: { subscribe: false, listChanged: false },
+  prompts: { listChanged: false },
 } as const;
 
 /** Who the server is. `version` is the API contract's — one number for the

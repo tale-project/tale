@@ -5,7 +5,11 @@ import {
   dispatch,
   type DispatchStore,
 } from './dispatch';
-import { DOC_EXAMPLE } from './docs';
+import {
+  authoringReference,
+  CORE_NODE_KIND_REFERENCE,
+  DOC_EXAMPLE,
+} from './docs';
 import { runAutomationTests } from './tests';
 
 vi.mock('./tests', () => ({ runAutomationTests: vi.fn() }));
@@ -559,8 +563,8 @@ describe('the MCP door’s hints name its own tools', () => {
     );
   });
 
-  it.each(['transform', 'llm', 'agent', 'subautomation'])(
-    'get_catalog {kind: %j} answers the core-kind hint beside its empty list',
+  it.each(['transform', 'llm', 'agent', 'subautomation'] as const)(
+    'get_catalog {kind: %j} answers the core-kind hint and the kind’s own section beside its empty list',
     async (kind) => {
       const result = await dispatch(
         'get_catalog',
@@ -570,7 +574,10 @@ describe('the MCP door’s hints name its own tools', () => {
       expect(result).toEqual({
         node_types: [],
         hint: `"${kind}" is a core node kind, not a catalog capability — get_docs describes it`,
+        reference: CORE_NODE_KIND_REFERENCE[kind],
       });
+      // The section is the reference's own words, not a copy of them.
+      expect(authoringReference()).toContain(CORE_NODE_KIND_REFERENCE[kind]);
     },
   );
 });

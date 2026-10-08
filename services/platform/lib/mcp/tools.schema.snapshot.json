@@ -2,7 +2,13 @@
   "get_docs": {
     "inputSchema": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "topic": {
+          "description": "Which reference: \"authoring\" (the default — the automation grammar and every method), \"triggers\" (what starts an automation, each kind's fields and the events), \"validation\" (how to read a validation result, and every issue code) or \"skill\" (the Tale skill, SKILL.md). Each is also the resource tale://docs/<topic>.",
+          "type": "string",
+          "enum": ["authoring", "triggers", "validation", "skill"]
+        }
+      },
       "additionalProperties": false
     },
     "outputSchema": {
@@ -523,10 +529,12 @@
                   "description": "Whether the trigger starts runs; false keeps it bound but paused."
                 },
                 "cron": {
+                  "description": "Five fields — minute hour day-of-month month day-of-week — e.g. \"0 9 * * 1\" for 09:00 every Monday; required. An expression that can never fire (a 30 February) is refused.",
                   "type": "string",
                   "maxLength": 200
                 },
                 "timezone": {
+                  "description": "The IANA time zone the cron reads its clock in, e.g. \"Europe/Zurich\"; UTC when omitted.",
                   "type": "string",
                   "maxLength": 100
                 }
@@ -546,6 +554,7 @@
                   "description": "Whether the trigger starts runs; false keeps it bound but paused."
                 },
                 "rotateToken": {
+                  "description": "true mints a new token, answered once in this call, and the URL of the old one stops working; re-binding the webhook without it keeps its token.",
                   "type": "boolean"
                 }
               },
@@ -564,6 +573,7 @@
                   "description": "Whether the trigger starts runs; false keeps it bound but paused."
                 },
                 "event": {
+                  "description": "The event that starts a run — one list_events names; required.",
                   "type": "string",
                   "maxLength": 200
                 }
@@ -572,7 +582,7 @@
               "additionalProperties": false
             }
           ],
-          "description": "The trigger — {kind: \"schedule\" | \"webhook\" | \"event\", …}, one shape per kind (a key of another kind is refused by name); get_docs describes each kind. A webhook trigger answers its token ONCE, in this call — list_triggers never returns it; rotateToken: true mints a new one."
+          "description": "The trigger — {kind: \"schedule\" | \"webhook\" | \"event\", …}, one shape per kind (a key of another kind is refused by name); get_docs with topic \"triggers\" describes each kind. A webhook trigger answers its token ONCE, in this call — list_triggers never returns it; rotateToken: true mints a new one."
         }
       },
       "required": ["name", "trigger"],

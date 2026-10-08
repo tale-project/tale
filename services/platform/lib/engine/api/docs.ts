@@ -198,8 +198,8 @@ ${exampleDocumentYaml()}
 A refusal comes back as data — \`{error, code?, hint?}\` — never as a protocol error, so read \`error\` and \`hint\` and adjust.
 
 Authoring methods:
-- get_docs             params {}                      → this reference
-- get_catalog          params {kind?, compact?}       → every node type this deployment can execute — large in full; kind narrows to one node kind, compact drops the input schemas
+- get_docs             params {topic?}                → this reference; topic names another one the host serves (the MCP endpoint: "triggers", "validation", "skill")
+- get_catalog          params {kind?, compact?}       → every node type this deployment can execute — large in full; kind narrows to one node kind (a core kind answers its section of this reference), compact drops the input schemas
 - search_catalog       params {query}                 → find capabilities by keywords
 - validate_automation  params {automation}            → static analysis only: {valid, errors, warnings, analysis, types} (see Reading validation results)
 - run_automation       params {automation, input}     → validate + execute against the deterministic mocks with a test input; returns output, per-node trace, effects

@@ -5,6 +5,7 @@ import { dispatch } from '../../../lib/engine/api/dispatch.ts';
 import { pgAutomationStore } from '../automations/dispatch-store.ts';
 import { dispatchCapabilityAs } from '../chat/capabilities.ts';
 import type { McpCaller } from './caller.ts';
+import { mcpDocs } from './docs.ts';
 import { engineScope, mcpHost } from './engine-host.ts';
 
 vi.mock('../../../lib/connectors/dispatcher.ts', () => ({
@@ -87,7 +88,7 @@ describe('mcpHost', () => {
     expect(dispatch).toHaveBeenCalledWith(
       'start_run',
       { name: 'billing/dunning' },
-      { store: { kind: 'store' }, allowLive: true },
+      { store: { kind: 'store' }, allowLive: true, docs: mcpDocs },
     );
   });
 

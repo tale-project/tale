@@ -430,6 +430,19 @@
  * `list_harnesses`, `list_skills`, `list_connectors`, `list_agent_secrets`
  * (names and masked previews for owners, admins and developers, an empty
  * list for anyone else), `list_projects` and `list_events`.
+ * The endpoint serves resources and prompts: `resources/list` (the
+ * references `tale://docs/{authoring,triggers,validation,skill}`, the node
+ * kinds `tale://catalog/{kind}`, then every automation the key holder can
+ * see, 100 a page with `nextCursor`), `resources/templates/list`
+ * (`tale://automations/{name}`, `…/versions/{version}`, `tale://runs/{runId}`)
+ * and `resources/read`, which reads exactly as the matching tool does and
+ * answers a read that finds nothing with -32002 and the refusal's
+ * `data.code`; `prompts/list` and `prompts/get` (`edit_automation`,
+ * `debug_failed_run`, `add_trigger`, attaching what they are about).
+ * `get_docs` takes `topic`; `get_catalog` narrowed to a core kind answers
+ * the kind's `reference`. In a batch, a resource read or listing and a
+ * prompt draw from the request budget like a tool call. The session route
+ * `GET /api/app/mcp/skill` downloads the Tale skill (`SKILL.md`).
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
  */

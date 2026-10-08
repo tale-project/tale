@@ -68,7 +68,8 @@ import {
 /** Rows per page of the scan walk — a page size, not a cap: the walk goes on
  * until every enabled schedule has been examined. */
 const SCAN_PAGE_SIZE = 200;
-const DEFAULT_TIMEZONE = 'UTC';
+/** The zone a schedule reads its clock in when it names none. */
+export const DEFAULT_TIMEZONE = 'UTC';
 const MINUTE_MS = 60_000;
 /** How many bindings one log line names; the rest are counted. */
 const NAMES_IN_LOG = 5;

@@ -58,7 +58,7 @@ function byPath(a: ArgumentIssue, b: ArgumentIssue): number {
  * each key is named as its own problem so the agent can fix what it named.
  * Never an argument's value.
  */
-function argumentIssues(error: z.ZodError): ArgumentIssue[] {
+export function argumentIssues(error: z.ZodError): ArgumentIssue[] {
   return error.issues
     .flatMap((issue): ArgumentIssue[] => {
       const path = issue.path.map(String);
@@ -244,6 +244,9 @@ export interface ToolAnswer {
   };
   readonly outcome: McpCallOutcome;
   readonly code?: string;
+  /** What the surface answered, before it was rendered — what a resource
+   * read built on the tool serves (`resources.ts`). */
+  readonly value: unknown;
 }
 
 /**
@@ -287,6 +290,7 @@ function answer(
     },
     outcome: outcome ?? (isError ? 'refused' : 'ok'),
     ...(isError && code !== undefined ? { code } : {}),
+    value,
   };
 }
 

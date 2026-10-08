@@ -135,6 +135,30 @@ describe('dispatch — the shared method table', () => {
     }
   });
 
+  it('get_docs serves a topic the host provides, the authoring reference for "authoring", and refuses any other', async () => {
+    const docs = vi.fn((topic: string) =>
+      topic === 'triggers' ? '# Triggers reference' : undefined,
+    );
+    const ctx = { store: dispatchStore(), docs };
+    expect(await dispatch('get_docs', { topic: 'triggers' }, ctx)).toEqual({
+      docs: '# Triggers reference',
+    });
+    const authoring = await dispatch('get_docs', { topic: 'authoring' }, ctx);
+    expect(authoring).toEqual(await dispatch('get_docs', {}, ctx));
+    expect(docs).toHaveBeenCalledTimes(1);
+    expect(
+      await dispatch('get_docs', { topic: 'settings' }, ctx),
+    ).toMatchObject({ code: 'INVALID_PARAMS' });
+    // A host that serves no further references answers the same refusal.
+    expect(
+      await dispatch(
+        'get_docs',
+        { topic: 'triggers' },
+        { store: dispatchStore() },
+      ),
+    ).toMatchObject({ code: 'INVALID_PARAMS' });
+  });
+
   it('get_catalog lists the built-in node types with their output kind', async () => {
     const { node_types } = (await dispatch(
       'get_catalog',

@@ -1,20 +1,25 @@
 import { createHash } from 'node:crypto';
 
 import { type McpToolListing, toolListing } from './listing';
+import { MCP_PROMPTS } from './prompts';
+import { MCP_RESOURCE_TEMPLATES, MCP_STATIC_RESOURCES } from './resources';
 import { MCP_PROTOCOL_VERSIONS, MCP_SERVER_CAPABILITIES } from './server';
 import { MCP_TOOLS } from './tools';
 
 /**
  * The fingerprint of what an MCP client can depend on: the protocol
- * revisions, the capabilities, and every tool's name, input and output
- * schemas, annotations and client hints. `contract.test.ts` holds it to the
+ * revisions, the capabilities, every tool's name, input and output
+ * schemas, annotations and client hints, every fixed resource's address and
+ * type, every address template, and every prompt's name and arguments. `contract.test.ts` holds it to the
  * one recorded beside `API_CONTRACT_VERSION` (`contract-fingerprint.json`),
  * the way `scripts/openapi/spec.test.ts` holds the REST surface: a change
  * to it is a contract change, and the version — which `initialize` answers
  * as the server's — moves with it.
  *
  * Prose is outside it, as in the OpenAPI fingerprint: a reworded tool or
- * field description, or the server instructions, are not a contract change.
+ * field description, a resource's or a prompt's title or description, the
+ * server instructions, the references and the skill are not a contract
+ * change.
  */
 
 /** Keywords whose value is a map of schemas, a schema, or a list of them. */
@@ -94,6 +99,20 @@ export function mcpInventoryFingerprint(
           : withoutProse(tool.outputSchema),
       annotations: tool.annotations,
       meta: tool._meta ?? null,
+    })),
+    resources: MCP_STATIC_RESOURCES.map(({ uri, mimeType }) => ({
+      uri,
+      mimeType,
+    })),
+    resourceTemplates: MCP_RESOURCE_TEMPLATES.map(
+      ({ uriTemplate, mimeType }) => ({ uriTemplate, mimeType }),
+    ),
+    prompts: MCP_PROMPTS.map((prompt) => ({
+      name: prompt.name,
+      arguments: prompt.arguments.map(({ name, required }) => ({
+        name,
+        required,
+      })),
     })),
   };
   return createHash('sha256').update(canonical(contract)).digest('hex');

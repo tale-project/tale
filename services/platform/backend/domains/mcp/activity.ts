@@ -22,6 +22,11 @@ export const MCP_RECORDED_METHODS = [
   'ping',
   'tools/list',
   'tools/call',
+  'resources/list',
+  'resources/templates/list',
+  'resources/read',
+  'prompts/list',
+  'prompts/get',
 ] as const;
 
 export type McpRecordedMethod = (typeof MCP_RECORDED_METHODS)[number];
