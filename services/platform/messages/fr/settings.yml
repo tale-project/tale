@@ -1704,15 +1704,11 @@ dataResidency:
     dimensions: Largeur des vecteurs
     dimensionsHint:
       "Déclarée, jamais devinée : le nombre exact de dimensions que produit
-      ce modèle. La changer plus tard rend inutilisables les vecteurs déjà
-      écrits à l'ancienne largeur."
+      ce modèle, parmi {widths}. Après un changement, les documents et les
+      pages de sites déjà indexés reçoivent de nouveaux vecteurs à la
+      nouvelle largeur."
     baseUrl: URL de base
     baseUrlHint: Endpoint compatible OpenAI ; vide pour celui du fournisseur.
-    sharedDbNote:
-      Sur la base partagée du déploiement, toutes les organisations partagent
-      une même largeur de vecteurs — elle est fixée à l'écriture du premier
-      vecteur. Donne à cette organisation sa propre base de connaissances
-      pour choisir librement.
     removed: Modèle d'embedding supprimé — la recherche de connaissances est
       indisponible tant qu'un nouveau modèle n'est pas configuré.
     removeConfirm:
@@ -1727,7 +1723,7 @@ dataResidency:
       invalid: Les paramètres d'embedding sont invalides. Vérifie les champs et réessaie.
       providerRequired: Choisis un fournisseur.
       modelRequired: Saisis le tag du modèle.
-      dimensionsInvalid: Saisis un nombre entier entre 1 et 16000.
+      dimensionsInvalid: 'Saisis une largeur de vecteurs prise en charge : {widths}.'
       baseUrlInvalid: Saisis une URL http(s), ou laisse le champ vide.
       credentialNotFound: Les identifiants choisis n'existent plus — choisis-en d'autres.
       credentialMismatch: Les identifiants choisis appartiennent à un autre fournisseur.

@@ -40,6 +40,7 @@ import {
   fetchKnowledgeDocument,
   KnowledgeError,
   searchKnowledgeForOrg,
+  requeueDocumentsWithoutVectors,
   requeueEmbeddingBlockedDocuments,
 } from './service.ts';
 
@@ -297,6 +298,35 @@ export function createKnowledgeRoutes(deps: {
     }
   };
 
+  // So do the documents already indexed: vectors are kept per width, so a
+  // model of another width finds none of theirs, and each would be missing
+  // from search by meaning until someone indexed it again. Best-effort like
+  // the websites — the setting is saved either way, and saving it again
+  // picks up whatever a failure here left.
+  const documentsFollowEmbedding = async (
+    organizationId: string,
+    orgSlug: string,
+  ): Promise<number> => {
+    try {
+      const { requeued } = await requeueDocumentsWithoutVectors(deps.sql, {
+        organizationId,
+        orgSlug,
+      });
+      if (requeued > 0) {
+        console.info(
+          `[knowledge] embedding configured for ${orgSlug}: re-queued ${requeued} indexed document(s) that have no vector of the model's width`,
+        );
+      }
+      return requeued;
+    } catch (error) {
+      console.warn(
+        `[knowledge] embedding saved for ${orgSlug}: the indexed documents could not follow:`,
+        error instanceof Error ? error.message : error,
+      );
+      return 0;
+    }
+  };
+
   app.get('/embedding', async (c) => {
     const denied = requireKnowledgeAdmin(c);
     if (denied) return denied;
@@ -365,8 +395,12 @@ export function createKnowledgeRoutes(deps: {
           `[knowledge] embedding configured for ${orgSlug}: re-queued ${requeued} document(s) that had failed on the embedding model`,
         );
       }
+      const reembedded = await documentsFollowEmbedding(
+        c.get('orgId'),
+        orgSlug,
+      );
       await websitesFollowEmbedding(c.get('orgId'), orgSlug, 'saved');
-      return c.json({ ok: true, requeued });
+      return c.json({ ok: true, requeued: requeued + reembedded });
     } catch (error) {
       return handleAdminError(c, error);
     }

@@ -1673,15 +1673,11 @@ dataResidency:
     dimensions: Vektorbreite
     dimensionsHint:
       'Angegeben, nie geraten: die exakte Dimensionszahl, die dieses Modell
-      erzeugt. Eine spätere Änderung macht bereits geschriebene Vektoren der
-      alten Breite unbrauchbar.'
+      erzeugt — eine von {widths}. Nach einer Änderung erhalten die
+      indexierten Dokumente und Website-Seiten neue Vektoren in der neuen
+      Breite.'
     baseUrl: Basis-URL
     baseUrlHint: OpenAI-kompatibler Endpunkt; leer lassen für den des Anbieters.
-    sharedDbNote:
-      Auf der gemeinsamen Datenbank des Deployments teilen sich alle
-      Organisationen eine Vektorbreite — sie wird beim ersten geschriebenen
-      Vektor festgelegt. Gib dieser Organisation eine eigene Wissensdatenbank,
-      um frei zu wählen.
     removed:
       Embedding-Modell entfernt — die Wissenssuche ist nicht verfügbar, bis
       ein neues eingerichtet ist.
@@ -1697,7 +1693,7 @@ dataResidency:
       invalid: Die Embedding-Einstellungen sind ungültig. Prüfe die Felder und versuch es erneut.
       providerRequired: Wähle einen Anbieter.
       modelRequired: Gib das Modell-Tag ein.
-      dimensionsInvalid: Gib eine ganze Zahl zwischen 1 und 16000 ein.
+      dimensionsInvalid: 'Gib eine unterstützte Vektorbreite ein: {widths}.'
       baseUrlInvalid: Gib eine http(s)-URL ein oder lass das Feld leer.
       credentialNotFound: Die gewählten Zugangsdaten existieren nicht mehr — wähle andere.
       credentialMismatch: Die gewählten Zugangsdaten gehören zu einem anderen Anbieter.
