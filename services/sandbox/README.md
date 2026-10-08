@@ -340,6 +340,10 @@ pressure samples, owned journal paths and restart lineage. An ended predecessor'
 metadata record is retained under its immutable ID; only native termination proof
 allows a journal's generation to change, preserving every unresolved hold. Healthy
 telemetry cannot clear an unknown activity reply. A phase hold never ages out.
+A restart of the same Docker container changes its start timestamp and remains
+refused. Recovery currently requires a replacement owner after native proof that
+the exact predecessor has stopped or disappeared; it is not automatic recovery
+of the same container.
 
 Ordinary attempt UUIDs encode the durable journal epoch. Released issued attempts
 retain at most 128 recent readbacks; their older IDs cannot be reserved again.
