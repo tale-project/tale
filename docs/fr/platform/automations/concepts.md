@@ -42,7 +42,7 @@ tests:
     input: { invoiceId: 'inv-1' }
 ```
 
-Le bloc `ui` conserve la disposition du canvas. Déplacer un nœud modifie sa position, sans changer son exécution.
+Tale dispose le canevas à partir des références entre les nœuds : personne ne place un nœud à la main. Un bloc `ui` contient des métadonnées libres que Tale conserve telles quelles et ignore.
 
 ### Les liaisons se déduisent, elles ne se déclarent pas
 

@@ -42,7 +42,7 @@ tests:
     input: { invoiceId: 'inv-1' }
 ```
 
-The `ui` block stores canvas positions. Moving a node changes the layout, without changing its execution.
+Tale lays out the canvas from the references between nodes, so nobody places a node. A `ui` block is free metadata: Tale keeps it as written and ignores it.
 
 ### Edges are derived, not declared
 

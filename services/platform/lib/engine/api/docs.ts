@@ -182,6 +182,7 @@ An automation is a node graph. Execution order is computed automatically from da
 - "inputs": JSON Schema describing the runtime input.
 - "output": the automation's return value (templates allowed inside).
 - "tests": [{name, input, expect: {output?, effects?: [{connector, input}]}}] — acceptance tests run by test_automation.
+- "ui": free metadata. Tale lays the canvas out from the references; never write positions — "ui" is kept but ignored.
 
 YAML gotchas (top causes of failure):
 - ALWAYS double-quote any string containing {{ }} or starting with # — unquoted they break YAML.

@@ -42,7 +42,7 @@ tests:
     input: { invoiceId: 'inv-1' }
 ```
 
-Der `ui`-Block speichert die Positionen auf dem Canvas. Verschieben ändert die Anordnung, nicht die Ausführung einer Node.
+Tale ordnet den Canvas anhand der Verweise zwischen den Nodes an, niemand platziert eine Node von Hand. Ein `ui`-Block ist freie Metadaten: Tale behält ihn unverändert und ignoriert ihn.
 
 ### Kanten entstehen, sie werden nicht deklariert
 
