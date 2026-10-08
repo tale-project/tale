@@ -1803,6 +1803,9 @@ function isResumeLaunchFailure(
   return (
     errored &&
     !emptyAnswer &&
+    // A model-wide capacity refusal says nothing about the resume handle.
+    // Keep it for the counted delayed retry instead of launching fresh now.
+    window.ended?.providerErrorKind !== 'model_capacity' &&
     window.text === '' &&
     window.timeline.length === 0 &&
     (window.agentSessionId === undefined ||
@@ -1968,7 +1971,9 @@ async function continueOrSettle(
       ? {
           failureCode: spendRefused
             ? ('budget_exceeded' as const)
-            : ('harness_error' as const),
+            : ended?.providerErrorKind === 'model_capacity'
+              ? ('model_capacity' as const)
+              : ('harness_error' as const),
         }
       : {}),
     // The harness-reported provider status (429/401/…) — absent for

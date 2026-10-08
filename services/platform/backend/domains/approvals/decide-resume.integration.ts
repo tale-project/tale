@@ -1,3 +1,10 @@
+import { randomUUID } from 'node:crypto';
+
+import type { Sql } from 'postgres';
+import { z } from 'zod';
+
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
+import { suspendRun } from '../automations/store.ts';
 /**
  * Real Postgres proof for the decision door's resume: a decision and the
  * wake of its parked run commit together — a wake that cannot be queued
@@ -15,12 +22,7 @@
  * job of these runs a day out, so the harness worker never picks one up and
  * each job stays countable.
  */
-import { randomUUID } from 'node:crypto';
-
-import type { Sql } from 'postgres';
-import { z } from 'zod';
-
-import { suspendRun } from '../automations/store.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { evaluateApprovalGate, type EvaluateApprovalGateArgs } from './gate.ts';
 
 const decideAnswer = z.looseObject({
@@ -63,7 +65,9 @@ export async function checkApprovalDecisionResume(
     approvalId: string;
     gate: EvaluateApprovalGateArgs;
   }> => {
-    const inserted = await sql<{ id: string }[]>`
+    const inserted = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs
         (org_id, name, version, project_id, status, mode, started_by, input,
          detail, wake_at_ms, claim_epoch, started_at_ms)
@@ -73,6 +77,7 @@ export async function checkApprovalDecisionResume(
               ${Date.now() + 86_400_000}, ${WALKER_EPOCH}, ${Date.now()})
       RETURNING id
     `;
+    });
     const runId = inserted[0]?.id ?? '';
     runs.push(runId);
     const gate: EvaluateApprovalGateArgs = {
@@ -92,10 +97,13 @@ export async function checkApprovalDecisionResume(
     const approvalId =
       minted.decision === 'needs-approval' ? (minted.approvalId ?? '') : '';
     if (status === 'waiting') {
-      await sql`
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`
         UPDATE app.automation_runs SET detail = ${`approval:${approvalId}`}
         WHERE id = ${runId}
       `;
+      });
     }
     return { runId, approvalId, gate };
   };
@@ -112,7 +120,7 @@ export async function checkApprovalDecisionResume(
   const pollJobs = async (runId: string): Promise<number> => {
     const rows = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM pgboss.job
-      WHERE name = 'automation.poll' AND data->>'runId' = ${runId}
+      WHERE name = ${physicalTaskQueue('automation.poll')} AND data->>'runId' = ${runId}
         AND data->>'organizationId' = ${orgId}
     `;
     return Number(rows[0]?.count ?? '-1');
@@ -127,7 +135,7 @@ export async function checkApprovalDecisionResume(
   const stepJobs = async (runId: string): Promise<number> => {
     const rows = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM pgboss.job
-      WHERE name = 'automation.step' AND data->>'runId' = ${runId}
+      WHERE name = ${physicalTaskQueue('automation.step')} AND data->>'runId' = ${runId}
         AND data->>'organizationId' = ${orgId}
     `;
     return Number(rows[0]?.count ?? '-1');
@@ -160,7 +168,7 @@ export async function checkApprovalDecisionResume(
   // The step queue's table, as pg-boss created it for this deployment.
   const queue = await sql<{ table: string }[]>`
     SELECT table_name AS "table" FROM pgboss.queue
-    WHERE name = 'automation.step'
+    WHERE name = ${physicalTaskQueue('automation.step')}
   `;
   const jobTable = queue[0]?.table ?? 'job';
   const faultTable = `itest_decide_resume_${randomUUID().replaceAll('-', '')}`;
@@ -173,7 +181,7 @@ export async function checkApprovalDecisionResume(
     LANGUAGE plpgsql AS $fn$
     DECLARE hit public.${faultTable};
     BEGIN
-      IF NEW.name = 'automation.step' THEN
+      IF NEW.name = '${physicalTaskQueue('automation.step')}' THEN
         SELECT * INTO hit FROM public.${faultTable}
         WHERE run_id = NEW.data->>'runId';
         IF FOUND AND hit.faulted THEN
@@ -364,15 +372,18 @@ export async function checkApprovalDecisionResume(
     if (runs.length > 0) {
       await sql`
         DELETE FROM pgboss.job
-        WHERE name IN ('automation.step', 'automation.poll')
+        WHERE name IN (${physicalTaskQueue('automation.step')}, ${physicalTaskQueue('automation.poll')})
           AND data->>'runId' IN ${sql(runs)}
       `;
-      await sql`
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`
         UPDATE app.automation_runs
         SET status = 'cancelled', wake_at_ms = NULL,
             finished_at_ms = ${Date.now()}
         WHERE id IN ${sql(runs)} AND status IN ('queued', 'running', 'waiting')
       `;
+      });
     }
   }
 }

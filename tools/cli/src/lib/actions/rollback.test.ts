@@ -9,6 +9,7 @@ import {
   setActiveOutputMode,
 } from '../../utils/output-mode';
 import { setProjectId } from '../project/project-context';
+import { deploy } from './deploy';
 import { rollback } from './rollback';
 
 // getProjectId() (used for container names) throws unless seeded. Seed the
@@ -44,6 +45,11 @@ const execMock = mock(async () => ({
   stderr: '',
   exitCode: 0,
 }));
+let protocolFloor = 1;
+let installedWriterProtocol = 1;
+let migrateDuringPull = false;
+let targetProtocol: string | undefined;
+const databaseId = 'a'.repeat(64);
 
 mock.module('../state/get-current-color', () => ({
   getCurrentColor: getCurrentColorMock,
@@ -75,6 +81,7 @@ mock.module('../docker/ensure-volumes', () => ({
 }));
 mock.module('../docker/ensure-network', () => ({
   ensureNetwork: ensureNetworkMock,
+  ensureSandboxNetwork: ensureNetworkMock,
 }));
 mock.module('../docker/wait-for-healthy', () => ({
   waitForHealthy: waitForHealthyMock,
@@ -106,6 +113,7 @@ mock.module('../../utils/logger', () => ({
   header: mock(),
   blank: mock(),
   debug: mock(),
+  notice: mock(),
 }));
 const env: DeploymentEnv = {
   BACKEND_UPSTREAM: '',
@@ -132,15 +140,128 @@ function expectRunbookPrinted(): void {
   // `tale migrate down` retired with the Convex runtime; the runbook must
   // name only commands that exist.
   expect(infoLines.some((line) => line.includes('migrate down'))).toBe(false);
+  expect(
+    infoLines.some((line) => line.includes('cannot undo external effects')),
+  ).toBe(true);
+  expect(
+    infoLines.some((line) => line.includes('compatible forward repair')),
+  ).toBe(true);
 }
 
 beforeEach(() => {
+  protocolFloor = 1;
+  installedWriterProtocol = 1;
+  migrateDuringPull = false;
+  targetProtocol = undefined;
+  execMock.mockImplementation(
+    async (_command?: string, args: string[] = []) => {
+      let value: unknown = '';
+      if (args[0] === 'ps' && args.includes('--no-trunc')) {
+        value = args.at(-1)?.includes('.Label')
+          ? args.includes('label=com.docker.compose.project=tale-blue')
+            ? `${'c'.repeat(64)}\tbackend-api\n${'d'.repeat(64)}\tbackend-worker`
+            : ''
+          : databaseId;
+      }
+      if (args[0] === 'container' && args[1] === 'inspect')
+        value = [
+          {
+            Id: databaseId,
+            Image: `sha256:${'b'.repeat(64)}`,
+            RestartCount: 0,
+            Config: {
+              Image: 'example/db:1',
+              Labels: {
+                'com.docker.compose.project': 'tale',
+                'com.docker.compose.service': 'db',
+                'com.docker.compose.container-number': '1',
+                'com.docker.compose.oneoff': 'False',
+              },
+            },
+            State: { Running: true, StartedAt: '2026-10-08T00:00:00Z' },
+          },
+        ];
+      if (
+        args[0] === 'container' &&
+        args[1] === 'inspect' &&
+        args[2] !== databaseId
+      )
+        value = args.slice(2).map((id) => ({
+          Id: id,
+          Image: `sha256:${'e'.repeat(64)}`,
+          RestartCount: 0,
+          Config: {
+            Labels: {
+              'com.docker.compose.project': 'tale-blue',
+              'com.docker.compose.service':
+                id === 'c'.repeat(64) ? 'backend-api' : 'backend-worker',
+              'com.docker.compose.container-number': '1',
+              'com.docker.compose.oneoff': 'False',
+            },
+            Env: ['DATABASE_URL=postgresql://tale:synthetic@db:5432/tale_app'],
+          },
+          State: {
+            Running: installedWriterProtocol !== 2,
+            StartedAt: '2026-10-08T00:00:00Z',
+          },
+        }));
+      if (args[0] === 'exec' && args.includes('-i'))
+        value = {
+          schema: 'public',
+          ids:
+            protocolFloor === 2
+              ? ['0001_initial.sql', '0163_automation_legacy_protocol.sql']
+              : ['0001_initial.sql'],
+        };
+      if (args[0] === 'image')
+        value = [
+          {
+            Id: `sha256:${'c'.repeat(64)}`,
+            Os: 'linux',
+            Architecture: 'amd64',
+            RepoDigests: [
+              `ghcr.io/tale-project/tale/tale-platform@sha256:${'d'.repeat(64)}`,
+            ],
+            Config: {
+              Labels:
+                targetProtocol === undefined
+                  ? {}
+                  : {
+                      'io.tale.automation-writer-protocol': targetProtocol,
+                      'org.opencontainers.image.version': '0.9.2',
+                      'org.opencontainers.image.revision': 'e'.repeat(40),
+                      'org.opencontainers.image.source':
+                        'https://github.com/tale-project/tale',
+                    },
+            },
+          },
+        ];
+      if (args[0] === 'image' && args[2]?.startsWith('sha256:'))
+        value = args.slice(2).map((Id) => ({
+          Id,
+          Config: {
+            Labels: {
+              'io.tale.automation-writer-protocol': String(
+                installedWriterProtocol,
+              ),
+            },
+          },
+        }));
+      return {
+        success: true,
+        exitCode: 0,
+        stdout: typeof value === 'string' ? value : JSON.stringify(value),
+        stderr: '',
+      };
+    },
+  );
   // Keep the real lock: a module mock here also disables sibling deployment
   // suites' guards in Bun's shared process.
   env.DEPLOY_DIR = mkdtempSync(join(tmpdir(), 'tale-rollback-test-'));
   // One platform replica in the live colour, so the version probe has
   // something to read.
   dockerMock.mockImplementation((...args: string[]) => {
+    if (args[0] === 'pull' && migrateDuringPull) protocolFloor = 2;
     const argv = args.join(' ');
     let stdout = '';
     if (args[0] === 'ps' && argv.includes('project=tale-blue')) {
@@ -260,6 +381,79 @@ describe('rollback confirmation', () => {
     stopContainerMock.mockResolvedValue(true);
     removeContainerMock.mockResolvedValue(true);
   }
+
+  test('installed protocol refuses a preprotocol patch before volumes, Compose or traffic mutation', async () => {
+    arrangePatchRollback();
+    protocolFloor = 2;
+    await expect(
+      rollback({ env, assumeYes: true }, { pullImage: pullImageMock }),
+    ).rejects.toThrow('automation writer protocol');
+    expect(ensureVolumesMock).not.toHaveBeenCalled();
+    expect(ensureNetworkMock).not.toHaveBeenCalled();
+    expect(dockerComposeMock).not.toHaveBeenCalled();
+    expect(setCurrentColorMock).not.toHaveBeenCalled();
+  });
+
+  test('ordinary tag deploy also refuses an incompatible writer before infrastructure', async () => {
+    arrangePatchRollback();
+    protocolFloor = 2;
+    await expect(
+      deploy({
+        env,
+        version: '0.9.2',
+        services: ['platform'],
+        stop: false,
+        hostAlias: '',
+        dryRun: false,
+        skipBackup: true,
+      }),
+    ).rejects.toThrow('automation writer protocol');
+    expect(ensureVolumesMock).not.toHaveBeenCalled();
+    expect(ensureNetworkMock).not.toHaveBeenCalled();
+    expect(dockerComposeMock).not.toHaveBeenCalled();
+    expect(setCurrentColorMock).not.toHaveBeenCalled();
+  });
+
+  for (const action of ['deploy', 'rollback'] as const) {
+    for (const interval of ['already-created writer', 'during pull'] as const) {
+      test(`${action} refuses a floor advanced by ${interval} before mutation`, async () => {
+        arrangePatchRollback();
+        if (interval === 'already-created writer') installedWriterProtocol = 2;
+        else {
+          migrateDuringPull = true;
+          pullImageMock.mockImplementation(async () => {
+            protocolFloor = 2;
+            return true;
+          });
+        }
+        const operation =
+          action === 'rollback'
+            ? rollback({ env, assumeYes: true }, { pullImage: pullImageMock })
+            : deploy({
+                env,
+                version: '0.9.2',
+                services: ['platform'],
+                stop: false,
+                hostAlias: '',
+                dryRun: false,
+                skipBackup: true,
+              });
+        await expect(operation).rejects.toThrow('automation writer protocol');
+        expect(ensureVolumesMock).not.toHaveBeenCalled();
+        expect(ensureNetworkMock).not.toHaveBeenCalled();
+        expect(dockerComposeMock).not.toHaveBeenCalled();
+        expect(setCurrentColorMock).not.toHaveBeenCalled();
+      });
+    }
+  }
+
+  test('a compatible protocol image retains ordinary rollback behavior', async () => {
+    arrangePatchRollback();
+    protocolFloor = 2;
+    targetProtocol = '2';
+    await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+    expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
+  });
 
   test('proceeds with a patch-level rollback once the operator confirms', async () => {
     arrangePatchRollback();

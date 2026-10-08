@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import { sessionOpLastSignOfLifeMs } from '../../core/sandbox/agent_deadline.ts';
 import type { SandboxAgentOpKind } from '../../core/sandbox/session_constants.ts';
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 
 /**
  * The agent-turn recovery primitives shared by the task and automation
@@ -80,7 +81,7 @@ export async function driveJobPending(
   const rows = await sql<{ pending: boolean }[]>`
     SELECT EXISTS (
       SELECT 1 FROM pgboss.job
-      WHERE name = ${args.queue} AND data ->> 'execId' = ${args.execId}
+      WHERE name = ${physicalTaskQueue(args.queue)} AND data ->> 'execId' = ${args.execId}
         AND (state IN ('created', 'retry')
           OR (state = 'active'
             AND started_on >= to_timestamp(${args.staleBeforeMs / 1000})))

@@ -58,6 +58,16 @@ export interface TriggerSpec {
 /** One run as the management methods report it. Ids are strings here: the
  * engine addresses a run by whatever handle the host minted, without learning
  * what a host's identifier is made of. */
+export interface LegacyRunQuarantine {
+  reason: 'legacy_execution_unproven';
+  observedAt: number;
+  claimEpoch: number;
+  priorStatus: 'queued' | 'running' | 'waiting';
+  /** An operator requested owned cancellation; external outcome and cleanup
+   * remain unproven. This does not release the hold or restart the run. */
+  resolution: { action: 'stop'; actor: string; at: number } | null;
+}
+
 export interface RunSummary {
   /** The run id — `runId` repeats it: a listing row named the run `runId`
    * where the single read names it `id`, so a client had two names for
@@ -71,6 +81,7 @@ export interface RunSummary {
    * build the run's URL. */
   projectId?: string | null;
   status: string;
+  legacyQuarantine?: LegacyRunQuarantine;
   mode: string;
   startedBy: string;
   /** Which kind of trigger started a `trigger:<id>` run — read off the

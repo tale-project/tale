@@ -101,7 +101,16 @@ image a container still uses.
 `tale rollback` is limited to a recorded compatible patch version. Recovery across
 minor or major migrations uses a snapshot and its matching version; see the
 [upgrade guide](../../docs/en/self-hosted/operate/upgrades.md) before crossing a
-release line. The 0.5 cutover requires a fresh deployment from earlier lines.
+release line. After the automation writer-protocol cutover, deploy and rollback
+also require a compatible, source-identified image and a readable installed
+protocol floor. Already-created protocol-2 backend images raise that floor even
+before their migration commits. The CLI rereads it after slow preparation;
+concurrent manual or older-CLI mutation is outside its deployment lock.
+An older CLI cannot enforce this guard; a snapshot cannot undo
+external effects. Repair forward with a compatible runtime. Tag deployments with
+an external `DATABASE_URL` or a custom application database are refused until a
+separately verified database readback path is available. The 0.5 cutover requires
+a fresh deployment from earlier lines.
 
 Commands such as `reset`, `restore`, `--override` and `--override-all` change or
 replace state. Read their reference and preview what is available before using

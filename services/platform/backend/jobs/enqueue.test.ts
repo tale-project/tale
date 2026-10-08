@@ -46,6 +46,24 @@ function createFakeTx(): {
 }
 
 describe('addJobInTx', () => {
+  it('sends new automation work only to its protocol queue, with the original payload and policy', async () => {
+    const calls = installFakeBoss();
+    const { tx } = createFakeTx();
+    const payload = { organizationId: 'org-1', runId: 'run-1' };
+    await addJobInTx(tx, 'automation.step', payload, {
+      singletonKey: 'run-1',
+      priority: 7,
+    });
+    expect(calls[0]?.name).toBe('automation.v2.step');
+    expect(calls[0]?.data).toBe(payload);
+    expect(calls[0]?.options).toMatchObject({
+      singletonKey: 'run-1',
+      priority: 7,
+      group: { id: 'org-1' },
+      heartbeatSeconds: TASK_QUEUE_OPTIONS['automation.step'].heartbeatSeconds,
+    });
+  });
+
   it('sends through pg-boss with a tx-bound db adapter', async () => {
     const calls = installFakeBoss();
     const { tx, unsafeCalls } = createFakeTx();

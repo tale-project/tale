@@ -1,3 +1,9 @@
+import { randomUUID } from 'node:crypto';
+
+import type { Sql } from 'postgres';
+
+import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
+import { scanScheduledTriggers } from '../automations/triggers.ts';
 /** Real Postgres proof of a scheduled issue import that resumes across its
  * occurrences (`import-cursors.ts`, migration 0140).
  *
@@ -23,12 +29,7 @@
  * back at the same empty cursor; a save holding a position from before a
  * restart is refused although the new pass reaches the same cursor again; a
  * stale end-of-list cannot complete a running pass; and no revision repeats. */
-import { randomUUID } from 'node:crypto';
-
-import type { Sql } from 'postgres';
-
-import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
-import { scanScheduledTriggers } from '../automations/triggers.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { pgTaskStore } from '../connectors/task-store.ts';
 import { IMPORT_CURSOR_MAX_ATTEMPTS } from './import-cursors.ts';
 
@@ -708,10 +709,13 @@ export async function checkImportCursorContinuation(
       DELETE FROM app.automation_triggers
       WHERE org_id = ${orgId} AND name IN (${name}, ${importer})
     `;
-    await sql`
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
       DELETE FROM app.automation_runs
       WHERE org_id = ${orgId} AND name IN (${name}, ${importer})
     `;
+    });
     await sql`
       DELETE FROM app.automation_deployments
       WHERE org_id = ${orgId} AND name IN (${name}, ${importer})

@@ -21,6 +21,7 @@ export type RunStatus =
   | 'queued'
   | 'running'
   | 'waiting'
+  | 'quarantined'
   | 'success'
   | 'failed'
   | 'cancelled';
@@ -29,6 +30,7 @@ const RUN_STATUSES: ReadonlySet<string> = new Set<RunStatus>([
   'queued',
   'running',
   'waiting',
+  'quarantined',
   'success',
   'failed',
   'cancelled',
@@ -97,6 +99,9 @@ export function runReasonKey(run: {
       ? { kind: 'failed', detail: run.detail }
       : undefined;
   }
+  if (status === 'quarantined') {
+    return { kind: 'waiting', key: 'runs.quarantine.reason', values: {} };
+  }
   if (status !== 'waiting') return undefined;
   const waitingFor = readRunWaitingFor(run.waitingFor);
   if (waitingFor === undefined) return undefined;
@@ -151,6 +156,7 @@ export function cursorNodeStatus(
 ): CursorNodeStatus {
   if (!run) return 'running';
   const status = readRunStatus(run.status);
+  if (status === 'quarantined') return 'interrupted';
   if (status === 'running' && run.stalled === true) return 'interrupted';
   if (
     status === 'waiting' &&
@@ -271,7 +277,7 @@ export function readRunCursorNode(
 
 /**
  * The auto-retry attempt a LIVE run's parked agent turn is on (1-based), or
- * null when the run is finished, not parked on an agent turn, or still on
+ * null when the run is held or finished, not parked on an agent turn, or still on
  * its original attempt. The counter lives only in the stepper's cursor, so
  * a terminal run always reads null — its attempt count survives in the
  * failure detail instead.
@@ -279,7 +285,9 @@ export function readRunCursorNode(
 export function readRunAgentRetry(
   run: RunLike | null | undefined,
 ): number | null {
-  if (!run || isRunFinished(readRunStatus(run.status))) return null;
+  if (!run) return null;
+  const status = readRunStatus(run.status);
+  if (status === 'quarantined' || isRunFinished(status)) return null;
   const checkpoints = run.checkpoints;
   if (!isRecord(checkpoints)) return null;
   const cursor = checkpoints.cursor;

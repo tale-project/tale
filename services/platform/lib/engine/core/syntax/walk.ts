@@ -26,6 +26,7 @@ import isReference from 'is-reference';
 import { analyze, type Scope } from 'periscopic';
 import { walk } from 'zimmerframe';
 
+import { foldConstant } from './constant';
 import { ES_GLOBALS } from './globals';
 import { RUNTIME_ECMA_VERSION } from './parse';
 
@@ -36,6 +37,7 @@ export type GuardKind =
   | 'nullish-left'
   | 'or-left'
   | 'and-guarded'
+  | 'unreachable'
   | 'ternary-guarded'
   | 'typeof';
 
@@ -289,6 +291,19 @@ function guardsOf(f: Found, all: Found[]): GuardKind[] {
   return [...guards];
 }
 
+/** Reachability has no lexical scope here. Refuse every identifier,
+ * including the normally constant globals which a local can shadow. */
+function literalOnly(node: Node): boolean {
+  let safe = true;
+  walk<Node, null>(node, null, {
+    _(child, { next }) {
+      if (child.type === 'Identifier') safe = false;
+      else next();
+    },
+  });
+  return safe;
+}
+
 function guardLogical(
   a: LogicalExpression,
   child: Node,
@@ -298,8 +313,21 @@ function guardLogical(
   if (a.left === child) {
     if (a.operator === '??') guards.add('nullish-left');
     else if (a.operator === '||') guards.add('or-left');
-  } else if (a.right === child && a.operator === '&&' && testedIn(a.left)) {
-    guards.add('and-guarded');
+  } else if (a.right === child) {
+    if (a.operator === '&&' && testedIn(a.left)) guards.add('and-guarded');
+    const left = literalOnly(a.left)
+      ? foldConstant(a.left)
+      : { ok: false as const };
+    if (
+      left.ok &&
+      ((a.operator === '||' && left.value) ||
+        (a.operator === '&&' && !left.value) ||
+        (a.operator === '??' &&
+          left.value !== null &&
+          left.value !== undefined))
+    ) {
+      guards.add('unreachable');
+    }
   }
 }
 

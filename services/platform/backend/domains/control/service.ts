@@ -8,6 +8,7 @@ import {
 } from '../../../lib/shared/schemas/password.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 import { replicaColour } from '../../lib/instance.ts';
 import { scaffoldNewOrganization } from '../organizations/scaffold.ts';
 import {
@@ -153,9 +154,13 @@ export async function countAutomationWork(sql: Sql): Promise<AutomationWork> {
       AND (${drain.colour}::text IS NULL
         OR substring(lease_owner from '[^:]*$') = ${drain.colour}::text)
   `;
+  // Old workers can still own legacy drive windows during a roll. Count
+  // those too; this is observation only, never a subscription or proof
+  // that legacy effect-capable execution has stopped.
   const drives = await sql<{ count: number }[]>`
     SELECT count(*)::int AS count FROM pgboss.job
-    WHERE name IN ('automation.agent_drive', 'task.agent_drive')
+    WHERE name IN (${physicalTaskQueue('automation.agent_drive')},
+                   'automation.agent_drive', 'task.agent_drive')
       AND state = 'active'
       AND started_on <= to_timestamp(${drain.startedAt ?? now} / 1000.0)
   `;

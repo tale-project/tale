@@ -10,6 +10,7 @@ import { traceBackendTask, traceWorkerPhase } from '../tracing.ts';
 import { bossDbInTx } from './enqueue.ts';
 import type { BackendTaskList } from './task-list.ts';
 import {
+  physicalTaskQueue,
   queueGroupConcurrency,
   slotQueueSlots,
   TASK_WORKER_BATCH_LIMITS,
@@ -154,12 +155,13 @@ async function handOver(
 export async function startWorker(options: WorkerOptions): Promise<void> {
   const concurrency = options.concurrency ?? 5;
   for (const [name, handler] of Object.entries(options.taskList)) {
+    const queue = physicalTaskQueue(name);
     const pollSeconds = TASK_WORKER_IDLE_POLL_SECONDS.get(name) ?? 2;
     const groupConcurrency = queueGroupConcurrency(name, {
       automationOrgConcurrency: options.automationOrgConcurrency,
     });
     await options.boss.work(
-      name,
+      queue,
       {
         ...(TASK_WORKER_SLOT_QUEUES.has(name)
           ? {
@@ -218,7 +220,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
                   const sql = options.sql;
                   const data = job.data;
                   const outcome = await traceWorkerPhase('handover', () =>
-                    handOver(options.boss, sql, name, job, data),
+                    handOver(options.boss, sql, queue, job, data),
                   );
                   if (outcome === 'claim_ended') {
                     console.log(

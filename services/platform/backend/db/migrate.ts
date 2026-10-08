@@ -172,7 +172,7 @@ function isDataMigration(value: unknown): value is DataMigration {
 }
 
 /** Apply one migration file inside the transaction that records it. */
-async function applyMigrationFile(
+export async function applyMigrationFileInTx(
   tx: postgres.TransactionSql,
   file: string,
 ): Promise<void> {
@@ -271,7 +271,7 @@ async function migrateOnce(
       }
       log(`[backend] applying app migration ${file}`);
       await sql.begin(async (tx) => {
-        await applyMigrationFile(tx, file);
+        await applyMigrationFileInTx(tx, file);
         await tx`INSERT INTO app_migrations (name) VALUES (${file})`;
       });
     }

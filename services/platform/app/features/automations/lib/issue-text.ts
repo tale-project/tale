@@ -15,6 +15,7 @@
  */
 
 import { CODE_META, CODES, type IssueCode } from '@/lib/engine/core/errors';
+import { PARSE_LIMIT_MESSAGE } from '@/lib/engine/core/syntax/parse';
 import type { Issue, IssueParamValue } from '@/lib/engine/core/types';
 
 import { humanizeNodeId } from './node-label';
@@ -143,7 +144,8 @@ function derivedParamsOf(code: IssueCode): readonly string[] {
   const meta = CODE_META[code];
   const technical = new Set(meta.technical ?? []);
   const nodeIds = nodeIdParamsOf(code);
-  const derived: string[] = [];
+  const derived: string[] =
+    code === 'CODE_SYNTAX' || code === 'EXPR_SYNTAX' ? ['parseLimited'] : [];
   for (const declared of meta.params) {
     const name = paramName(declared);
     if (technical.has(name)) continue;
@@ -359,6 +361,9 @@ export function issueParamsForText(
   const selects = new Set(SELECT_PARAMS[code] ?? []);
   const nodeIds = nodeIdParamsOf(code);
   const values: TextValues = {};
+  if (code === 'CODE_SYNTAX' || code === 'EXPR_SYNTAX') {
+    values.parseLimited = String(params.detail === PARSE_LIMIT_MESSAGE);
+  }
 
   for (const declared of meta.params) {
     const name = paramName(declared);

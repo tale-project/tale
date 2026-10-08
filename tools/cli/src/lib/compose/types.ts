@@ -82,6 +82,8 @@ export type DeploymentColor = 'blue' | 'green';
 export interface ServiceConfig {
   version: string;
   registry: string;
+  /** Exact platform digest admitted by the automation protocol fence. */
+  platformImage?: string;
 }
 
 /**
@@ -223,11 +225,17 @@ export function imageRepoForService(
 
 /** The full image reference a service runs under the given registry+version. */
 export function imageRef(
-  config: Pick<ServiceConfig, 'registry' | 'version'>,
+  config: Pick<ServiceConfig, 'registry' | 'version' | 'platformImage'>,
   service: ServiceName,
 ): string {
   if (service in THIRD_PARTY_IMAGES) {
     return THIRD_PARTY_IMAGES[service as keyof typeof THIRD_PARTY_IMAGES];
   }
+  if (
+    config.platformImage &&
+    (service === 'platform' ||
+      (BACKEND_TIER_SERVICES as readonly string[]).includes(service))
+  )
+    return config.platformImage;
   return `${config.registry}/${imageRepoForService(service as Exclude<ServiceName, keyof typeof THIRD_PARTY_IMAGES>)}:${config.version}`;
 }

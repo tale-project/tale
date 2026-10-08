@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 
 import { toJson } from '../../db/sql.ts';
 import type { RecordCheck } from '../../integration-lane-helpers.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { archiveTask, createTask, deleteTask } from './service.ts';
 
 export async function checkTaskSubtreeDeletion(
@@ -95,13 +96,16 @@ export async function checkTaskSubtreeDeletion(
       ${randomUUID()}, ${randomUUID()}, 'queued', 'claude-code', 'itest-model',
       ${`user:${userId}`}, ${now}, ${now + 60_000}, ${now})
   `;
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (id, org_id, project_id, name, version,
       status, mode, started_by, started_at_ms, input)
     VALUES (${automationRunId}, ${orgId}, ${projectId}, 'itest-deep-delete', 1,
       'waiting', 'live', ${`user:${userId}`}, ${now},
       ${sql.json(toJson({ task: { id: deepestId } }))})
   `;
+  });
 
   const result = await transactSerializable(sql, (tx) =>
     deleteTask(tx, auth, rootId),
