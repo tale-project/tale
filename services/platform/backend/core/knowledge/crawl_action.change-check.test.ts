@@ -485,10 +485,8 @@ describe('scanWebsiteImpl — a page that changed', () => {
         handed = true;
         return Promise.resolve([page]);
       }
-      if (statement.includes('bool_or(embedding IS NULL)')) {
-        return Promise.resolve([
-          { present: true, current: true, vectorless: false },
-        ]);
+      if (statement.includes('bool_and(content_hash')) {
+        return Promise.resolve([{ present: true, current: true }]);
       }
       if (statement.includes('FILTER (WHERE u.status')) {
         return Promise.resolve([
