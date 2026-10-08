@@ -656,6 +656,28 @@ describe('MessageThread long thread', () => {
     expect(voicePlayer.unmounted).toHaveBeenCalledWith('a0');
   });
 
+  it('hands focus back to the pencil when an edit is cancelled', async () => {
+    render(
+      <Harness
+        items={toSettledItems(conversation(2))}
+        threadId="thread-edit-focus"
+        intentRef={{ current: false }}
+        isGenerating={false}
+        onEditSubmit={async () => false}
+      />,
+    );
+    await nextFrame();
+    await page.getByTestId('message-edit-button').first().click();
+    const editor = screen.getByRole('textbox');
+    await expect.poll(() => document.activeElement).toBe(editor);
+
+    await userEvent.keyboard('{Escape}');
+    await expect
+      .poll(() => document.activeElement?.getAttribute('data-testid'))
+      .toBe('message-edit-button');
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
   it('keeps an older edit draft after focus and scroll leave its awake row', async () => {
     render(
       <Harness

@@ -172,18 +172,23 @@ function MessageItemComponent({ deferred, ...props }: MessageItemProps) {
 
 /** A dormant row's stand-in: the message's words as plain text, in the
  * shape of its bubble — what find-in-page and a screen reader need, at a
- * fraction of the full row's cost. */
+ * fraction of the full row's cost. A user's bubble keeps the room of the
+ * footer row (time, edit) the awake bubble carries under it, so waking moves
+ * nothing below. */
 function DormantMessage({ message }: { message: ChatMessageItem }) {
   if (message.role === 'user') {
     return (
-      <div
-        className={cn(
-          THREAD_OWN_BUBBLE_WIDTH_CLASS,
-          THREAD_OWN_BUBBLE_SURFACE_CLASS,
-          'max-h-96 overflow-hidden whitespace-pre-line',
-        )}
-      >
-        {message.text}
+      <div className="flex w-full min-w-0 flex-col items-end gap-1">
+        <div
+          className={cn(
+            THREAD_OWN_BUBBLE_WIDTH_CLASS,
+            THREAD_OWN_BUBBLE_SURFACE_CLASS,
+            'max-h-96 overflow-hidden whitespace-pre-line',
+          )}
+        >
+          {message.text}
+        </div>
+        <div className="h-7" />
       </div>
     );
   }
@@ -332,6 +337,21 @@ function UserBubble({
   const { t } = useT('chat');
   const { formatDateHeader, formatDate } = useFormatDate();
   const [editing, setEditing] = useState(false);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef(false);
+
+  // Closing the editor (Escape, Cancel, a started edit) hands focus back to
+  // the pencil that opened it, so a keyboard reader keeps their place in the
+  // transcript instead of starting over from the top of the page.
+  const closeEditor = () => {
+    restoreFocusRef.current = true;
+    setEditing(false);
+  };
+  useEffect(() => {
+    if (editing || !restoreFocusRef.current) return;
+    restoreFocusRef.current = false;
+    editButtonRef.current?.focus();
+  }, [editing]);
 
   // "Today, 14:32" / "Yesterday, 09:15" / a localized date + time — revealed
   // on hover alongside the edit affordance (a chat has no day dividers).
@@ -346,10 +366,10 @@ function UserBubble({
           // The form closes only once the edit STARTED; a refusal that wrote
           // nothing (a reached usage cap) hands the draft back instead.
           const accepted = (await onEditSubmit?.(message, text)) ?? false;
-          if (accepted) setEditing(false);
+          if (accepted) closeEditor();
           return accepted;
         }}
-        onCancel={() => setEditing(false)}
+        onCancel={closeEditor}
       />
     );
   }
@@ -373,6 +393,7 @@ function UserBubble({
         ? {
             actions: (
               <Button
+                ref={editButtonRef}
                 size="icon"
                 variant="ghost"
                 title={t('editMessage')}
