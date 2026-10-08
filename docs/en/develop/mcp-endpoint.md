@@ -50,7 +50,7 @@ curl --fail-with-body "$TALE_URL/api/v1/mcp" \
   --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_docs","arguments":{}}}'
 ```
 
-A successful `get_docs` result contains the automation reference as text and has no error flag set. To inspect tool schemas instead, send `method: "tools/list"`. The current inventory has 22 tools. Keep the JSON-RPC `id` so a client can match a result to its request.
+A successful `get_docs` result contains the automation reference as text and has no error flag set. Add `"arguments":{"topic":"triggers"}` for the triggers reference (each trigger kind's fields, the input its runs start with, and the events), `"validation"` for how to read a validation result and every issue code, or `"skill"` for the [Tale skill](/develop/use-tale-from-your-editor#tale-skill). To inspect tool schemas instead, send `method: "tools/list"`. Keep the JSON-RPC `id` so a client can match a result to its request.
 
 ### Transport and batches
 
@@ -62,7 +62,7 @@ A successful `get_docs` result contains the automation reference as text and has
 | `OPTIONS` | HTTP `204`, `Allow: POST, OPTIONS`; no key required |
 | Any other HTTP method | HTTP `405`, `Allow: POST, OPTIONS` |
 
-Every additional tool call in a batch consumes the same request budget as a separate call. If a batch exhausts its budget, the refused entry is JSON-RPC `-32000` with `data.retryAfterMs`; the enclosing HTTP response remains `200` and has no `Retry-After`. A single request rejected at the HTTP boundary gets REST `429`. Handle both cases using the [rate-limit guidance](/develop/rate-limits).
+Every additional tool call, resource read or listing, or prompt in a batch consumes the same request budget as a separate call. If a batch exhausts its budget, the refused entry is JSON-RPC `-32000` with `data.retryAfterMs`; the enclosing HTTP response remains `200` and has no `Retry-After`. A single request rejected at the HTTP boundary gets REST `429`. Handle both cases using the [rate-limit guidance](/develop/rate-limits).
 
 The endpoint supplies no CORS headers for browser key use. Keep the API key on a trusted server or in the MCP client's credential store. A request whose `Origin` header names a site the deployment does not accept is logged, and refused with `403` `ORIGIN_FORBIDDEN` where the operator enforces that check ([environment reference](/self-hosted/configuration/environment-reference#mcp-endpoint)). Coding agents in a terminal send no `Origin`.
 
@@ -165,6 +165,36 @@ Each answer carries a `hint` that names the tool or the setting that changes it.
 
 The capability registry currently contains deployed automations. It does not include builtin tools, connector actions, skills, or external MCP servers. Invoking a deployed automation is the same live operation as `run_deployed`. If approval is needed, a `pending` result lets the client explain that a person must decide before execution continues.
 
+## Resources and prompts {#resources-and-prompts}
+
+Besides tools, the endpoint serves resources, which a client reads by address, and prompts: ready-made requests a person starts work from. Both read what a tool already answers, for the same person and through the same checks.
+
+### Read by address {#resources}
+
+`resources/list` names the fixed resources, then every automation the key holder can see, 100 per page; follow `nextCursor` for the next page. `resources/templates/list` returns the address patterns, and `resources/read` returns a resource's contents.
+
+| Address | Contents | Read like |
+| --- | --- | --- |
+| `tale://docs/authoring`, `tale://docs/triggers`, `tale://docs/validation`, `tale://docs/skill` | The references, as Markdown | `get_docs` with that `topic` |
+| `tale://catalog/{kind}` (`transform`, `llm`, `agent`, `subautomation`, `connector`) | A core node kind's section of the reference, or the connector actions | `get_catalog` with that `kind` |
+| `tale://automations/{name}` | The latest saved version, as JSON | `get_automation` |
+| `tale://automations/{name}/versions/{version}` | One saved version; `{version}` is a number or `deployed` | `get_automation` with `version` |
+| `tale://runs/{runId}` | One run with its output, trace and effects | `get_run` |
+
+Write each `/` in an automation name as `%2F`: `tale://automations/billing%2Fdunning`. An address that reads nothing returns JSON-RPC `-32002` with the refusal's code in `data.code`, such as `AUTOMATION_NOT_FOUND`; an automation the key holder cannot see returns the same error as one that does not exist. A malformed address, such as a version that is not a number, returns `-32602`.
+
+### Start from a prompt {#prompts}
+
+`prompts/list` names three prompts, and `prompts/get` returns the message with what it is about attached as a resource. Claude Code lists them as `/tale:edit_automation` and so on.
+
+| Prompt | Arguments | What it asks the agent to do |
+| --- | --- | --- |
+| `edit_automation` | `name` (optional) | Change the automation or create one, validate it, test it on the mocks and save it with `baseVersion`; it deploys nothing |
+| `debug_failed_run` | `runId` | Explain why the run failed, reproduce the failure on the mocks and propose the smallest fix |
+| `add_trigger` | `name`, `kind` (optional: `schedule`, `webhook` or `event`) | Decide what starts the automation, and ask before calling `set_trigger` |
+
+Each argument is a single word, because clients such as Claude Code split arguments at spaces. A prompt whose run or automation the key holder cannot read returns `-32602` with that read's code.
+
 ## What the key may do
 
 | Operation | Required access |
@@ -185,7 +215,8 @@ Read `GET /api/v1/me` before configuring privileged tools: `capabilities.develop
 | Result | How to handle it |
 | --- | --- |
 | JSON-RPC `-32601` | Correct the unknown method |
-| JSON-RPC `-32602` | Correct the tool name using `tools/list` |
+| JSON-RPC `-32602` | Correct the tool name using `tools/list`, a prompt's name or arguments using `prompts/list`, or a resource address |
+| JSON-RPC `-32002` | The resource address reads nothing; `data.code` names the refusal, such as `AUTOMATION_NOT_FOUND` |
 | JSON-RPC `-32022` (HTTP `400`) | Send `MCP-Protocol-Version` with one of the revisions in `data.supported` |
 | Tool result with `isError: true` | Read its text payload's stable `code`, explanatory `error`, and actionable `hint`; `data` may contain field problems |
 | `validate_automation` with `valid: false` | Normal validation result; inspect `errors` and where each one is ([Read a validation result](#validation-result)), even though `isError` remains false. Warnings never make a document invalid |
@@ -194,7 +225,7 @@ Read `GET /api/v1/me` before configuring privileged tools: `capabilities.develop
 
 Tool refusal codes include `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `AUTOMATION_VERSION_STALE`, `AUTOMATION_DEPLOYMENT_STALE`, `AUTOMATION_NAME_TAKEN`, `AUTOMATION_HAS_ACTIVE_RUNS`, `AUTOMATION_NOT_INSTALLED`, `HUMAN_ASK_NOT_FOUND`, `HUMAN_ASK_NOT_PENDING`, `HUMAN_ASK_EXPIRED`, `EMPTY_ANSWER`, `INVALID_CURSOR`, `LIVE_MODE_UNAVAILABLE`, and `NOT_SUPPORTED`. The latter means the host does not support that run/version/trigger operation. `start_run` refuses a reused `idempotencyKey` with different arguments as `IDEMPOTENCY_KEY_REUSED`; `invoke_capability` refuses an id the registry does not hold — a saved-only automation is not in it — as `CAPABILITY_NOT_FOUND` and input its schema rejects as `CAPABILITY_INPUT_INVALID`; `get_knowledge` lifts the knowledge endpoint's own codes through (`KNOWLEDGE_UNAVAILABLE` when the search itself failed). Platform errors retain their own code, hint, and optional data; for example, missing developer access returns `FORBIDDEN_DEVELOPER_SETTINGS`. `INVALID_ARGUMENTS` lists every argument problem; a value outside an enumerated set is refused with the set named. `RATE_LIMITED` means the tool needed an execution and the key holder's [execution budget](/develop/rate-limits) is spent: wait `data.retryAfterMs`. `INTERNAL_ERROR` means the call failed unexpectedly; its `data.requestId` is the id to quote to whoever runs the deployment.
 
-An unknown automation name is an error even for `list_versions`, `list_runs`, and `list_triggers`; an empty list means an existing automation has no matching items. The one exception is run history: a deleted automation keeps its runs, so `list_runs {name}` answers them for as long as they exist, and only a name that never ran is `AUTOMATION_NOT_FOUND`. `get_catalog` narrowed to a core node kind (`transform`, `llm`, `agent`, `subautomation`) answers an empty list with a `hint` pointing at `get_docs`, as `search_catalog` does. Invalid documents passed to tools that need a valid one, search failures, and missing deployments set `isError: true`. Only the validation tool reports an invalid document as its ordinary verdict.
+An unknown automation name is an error even for `list_versions`, `list_runs`, and `list_triggers`; an empty list means an existing automation has no matching items. The one exception is run history: a deleted automation keeps its runs, so `list_runs {name}` answers them for as long as they exist, and only a name that never ran is `AUTOMATION_NOT_FOUND`. `get_catalog` narrowed to a core node kind (`transform`, `llm`, `agent`, `subautomation`) answers an empty list with a `hint` pointing at `get_docs`, as `search_catalog` does, and the kind's own section of the reference as `reference`. Invalid documents passed to tools that need a valid one, search failures, and missing deployments set `isError: true`. Only the validation tool reports an invalid document as its ordinary verdict.
 
 ## Where this fits
 

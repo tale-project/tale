@@ -1,6 +1,6 @@
 # MCP
 
-> **Prefix** `MCP-` · **Reset** none · **Cost** 1 box
+> **Prefix** `MCP-` · **Reset** none · **Cost** 5 boxes
 
 Exercise Tale's MCP endpoint, `/api/v1/mcp`, from a real coding agent: connecting a client with an
 API key and working in the organization through it. A person drives the agent in a terminal beside
@@ -39,3 +39,32 @@ and behind Caddy (mode C) trust its internal CA first, as setup.md describes. Cr
   organization's automations → `claude mcp list` reports `tale` as connected; the /mcp panel
   shows the `tale` server with its tools; the agent's answer names exactly the automations
   `/dashboard/{org}/automations` lists.
+
+## Prompts, resources and the skill
+
+These boxes reuse the connection of `MCP-F1` and an automation the signed-in person can open whose
+document has at least one transform node; `billing/dunning` stands for its name below.
+
+- [ ] `MCP-F3` · **Edit an automation from a prompt** — In Claude Code, type `/`, pick
+  "/tale:edit_automation", run it as "/tale:edit_automation billing/dunning", and ask for one small
+  change (a new field in the output) → the `/` menu lists "/tale:edit_automation",
+  "/tale:debug_failed_run" and "/tale:add_trigger"; the agent validates the change and runs it
+  on the mocks before it saves; after a reload, the automation in `/dashboard/{org}/automations`
+  has one more version, the deployed version is unchanged, and nothing was deployed.
+- [ ] `MCP-F7` · **Mention a run as a resource** — Ask the agent to start `billing/dunning` with
+  `start_run` and mode "mock", copy the run id it answers, then send a message that mentions
+  `@tale:tale://runs/<run id>` and asks what the run returned → typing `@tale:` offers Tale's
+  resources; the message carries the run as an attachment; the agent's answer matches the
+  output the run shows in the app.
+- [ ] `MCP-F8` · **Explain a failed run from a prompt** — Ask the agent to save a version of
+  `billing/dunning` whose transform node throws an error and to start it with mode "mock", then
+  run "/tale:debug_failed_run <run id>" with the failed run's id → the agent names the failing
+  node and its error in plain words, reproduces the failure with `run_automation`, proposes one
+  fix and asks before saving it; after a reload, no version beyond the failing one was saved
+  until you agreed.
+- [ ] `MCP-F11` · **Install the Tale skill** — Save the skill with the `curl` command of "Install
+  the Tale skill" in the editor guide (docs `develop/use-tale-from-your-editor#tale-skill`),
+  restart Claude Code in that folder, and type `/` → the menu lists "/tale" with the skill's
+  description; `.claude/skills/tale/SKILL.md` names no host, organization or key; asked to add a
+  field to `billing/dunning`, the agent validates and runs it on the mocks and asks before
+  deploying.

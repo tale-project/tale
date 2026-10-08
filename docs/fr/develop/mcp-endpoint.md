@@ -50,7 +50,7 @@ curl --fail-with-body "$TALE_URL/api/v1/mcp" \
   --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_docs","arguments":{}}}'
 ```
 
-Un résultat `get_docs` réussi contient la référence des automatisations en texte et ne porte pas d'indicateur d'erreur. Pour consulter les schémas des outils, envoie plutôt `method: "tools/list"`. L'inventaire actuel compte 22 outils. Conserve l'`id` JSON-RPC pour associer chaque résultat à sa requête.
+Un résultat `get_docs` réussi contient la référence des automatisations en texte et ne porte pas d'indicateur d'erreur. Ajoute `"arguments":{"topic":"triggers"}` pour la référence des déclencheurs (les champs de chaque type de déclencheur, l’entrée avec laquelle ses exécutions démarrent et les événements), `"validation"` pour lire un résultat de validation et connaître chaque code d’erreur, ou `"skill"` pour le [skill Tale](/fr/develop/use-tale-from-your-editor#tale-skill). Pour consulter les schémas des outils, envoie plutôt `method: "tools/list"`. Conserve l'`id` JSON-RPC pour associer chaque résultat à sa requête.
 
 ### Transport et lots
 
@@ -62,7 +62,7 @@ Un résultat `get_docs` réussi contient la référence des automatisations en t
 | `OPTIONS` | HTTP `204`, `Allow: POST, OPTIONS` ; aucune clé requise |
 | Autre méthode HTTP | HTTP `405`, `Allow: POST, OPTIONS` |
 
-Chaque appel d'outil supplémentaire d'un lot consomme le même budget qu'un appel séparé. Si le lot épuise son budget, l'entrée refusée contient JSON-RPC `-32000` avec `data.retryAfterMs`. La réponse HTTP reste `200`, sans `Retry-After`. Une requête unique refusée à l'entrée HTTP reçoit le `429` REST. Gère les deux cas selon les [limites de débit](/fr/develop/rate-limits).
+Chaque appel d'outil, lecture ou liste de ressources ou prompt supplémentaire d'un lot consomme le même budget qu'un appel séparé. Si le lot épuise son budget, l'entrée refusée contient JSON-RPC `-32000` avec `data.retryAfterMs`. La réponse HTTP reste `200`, sans `Retry-After`. Une requête unique refusée à l'entrée HTTP reçoit le `429` REST. Gère les deux cas selon les [limites de débit](/fr/develop/rate-limits).
 
 Le point d'accès ne fournit pas d'en-têtes CORS pour utiliser une clé dans une page web. Conserve la clé sur un serveur de confiance ou dans le stockage d'identifiants du client MCP. Une requête dont l’en-tête `Origin` nomme un site que le déploiement n’accepte pas est journalisée, et refusée avec `403` `ORIGIN_FORBIDDEN` là où l’opérateur impose cette vérification ([référence de l’environnement](/fr/self-hosted/configuration/environment-reference#mcp-endpoint)). Les agents de code lancés dans un terminal n’envoient pas d’`Origin`.
 
@@ -165,6 +165,36 @@ Chaque réponse porte un `hint` qui nomme l’outil ou le paramètre qui la fait
 
 Le registre de capacités contient actuellement les automatisations déployées. Il n'inclut ni outils intégrés, ni actions de connectors, ni skills, ni serveurs MCP externes. Appeler une automatisation déployée correspond à la même opération réelle que `run_deployed`. Si une approbation est nécessaire, le résultat `pending` permet au client d'expliquer qu'une personne doit décider avant la poursuite.
 
+## Ressources et prompts {#resources-and-prompts}
+
+En plus des outils, le point d’accès sert des ressources, qu’un client lit par leur adresse, et des prompts : des requêtes prêtes à l’emploi par lesquelles une personne commence un travail. Les deux lisent ce qu’un outil renvoie déjà, pour la même personne et avec les mêmes contrôles.
+
+### Lire par adresse {#resources}
+
+`resources/list` nomme d’abord les ressources fixes, puis chaque automatisation que le titulaire de la clé peut voir, 100 par page ; suis `nextCursor` pour la page suivante. `resources/templates/list` renvoie les modèles d’adresse, et `resources/read` le contenu d’une ressource.
+
+| Adresse | Contenu | Se lit comme |
+| --- | --- | --- |
+| `tale://docs/authoring`, `tale://docs/triggers`, `tale://docs/validation`, `tale://docs/skill` | Les références, en Markdown | `get_docs` avec ce `topic` |
+| `tale://catalog/{kind}` (`transform`, `llm`, `agent`, `subautomation`, `connector`) | La section de la référence consacrée à un type de nœud de base, ou les actions des connectors | `get_catalog` avec ce `kind` |
+| `tale://automations/{name}` | La dernière version enregistrée, en JSON | `get_automation` |
+| `tale://automations/{name}/versions/{version}` | Une version enregistrée ; `{version}` est un numéro ou `deployed` | `get_automation` avec `version` |
+| `tale://runs/{runId}` | Une exécution avec sa sortie, sa trace et ses effets | `get_run` |
+
+Écris chaque `/` d’un nom d’automatisation sous la forme `%2F` : `tale://automations/billing%2Fdunning`. Une adresse qui ne trouve rien renvoie JSON-RPC `-32002` avec le code du refus dans `data.code`, par exemple `AUTOMATION_NOT_FOUND`. Une automatisation que le titulaire de la clé ne peut pas voir renvoie la même erreur qu’une automatisation qui n’existe pas. Une adresse mal formée, par exemple une version qui n’est pas un nombre, renvoie `-32602`.
+
+### Partir d’un prompt {#prompts}
+
+`prompts/list` nomme trois prompts, et `prompts/get` renvoie le message avec, en pièce jointe sous forme de ressource, ce dont il traite. Claude Code les affiche sous la forme `/tale:edit_automation`, et ainsi de suite.
+
+| Prompt | Arguments | Ce qu’il demande à l’agent |
+| --- | --- | --- |
+| `edit_automation` | `name` (facultatif) | Modifier l’automatisation ou en créer une, la valider, la tester sur les simulations et l’enregistrer avec `baseVersion` ; il ne met rien en service |
+| `debug_failed_run` | `runId` | Expliquer pourquoi l’exécution a échoué, reproduire l’échec sur les simulations et proposer la plus petite correction |
+| `add_trigger` | `name`, `kind` (facultatif : `schedule`, `webhook` ou `event`) | Choisir ce qui lance l’automatisation, et demander avant d’appeler `set_trigger` |
+
+Chaque argument est un seul mot, car des clients comme Claude Code séparent les arguments aux espaces. Un prompt dont l’exécution ou l’automatisation n’est pas lisible par le titulaire de la clé renvoie `-32602` avec le code de cette lecture.
+
 ## Ce que la clé peut faire
 
 | Opération | Accès nécessaire |
@@ -185,7 +215,8 @@ Avant de configurer des outils privilégiés, lis `GET /api/v1/me` : `capabiliti
 | Résultat | Traitement |
 | --- | --- |
 | JSON-RPC `-32601` | Corriger la méthode inconnue |
-| JSON-RPC `-32602` | Corriger le nom de l'outil à partir de `tools/list` |
+| JSON-RPC `-32602` | Corriger le nom de l'outil à partir de `tools/list`, le nom ou les arguments d’un prompt à partir de `prompts/list`, ou une adresse de ressource |
+| JSON-RPC `-32002` | L’adresse de ressource ne trouve rien ; `data.code` nomme le refus, par exemple `AUTOMATION_NOT_FOUND` |
 | JSON-RPC `-32022` (HTTP `400`) | Envoyer `MCP-Protocol-Version` avec une des révisions de `data.supported` |
 | Résultat avec `isError: true` | Lire le `code` stable, l'`error` explicative et le `hint` dans le texte ; `data` peut détailler les champs invalides |
 | `validate_automation` avec `valid: false` | Verdict normal de validation ; examiner `errors` et leurs emplacements ([Lire un résultat de validation](#validation-result)), même si `isError` reste false. Les avertissements ne rendent jamais un document invalide |
@@ -194,7 +225,7 @@ Avant de configurer des outils privilégiés, lis `GET /api/v1/me` : `capabiliti
 
 Les codes de refus comprennent `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `AUTOMATION_VERSION_STALE`, `AUTOMATION_DEPLOYMENT_STALE`, `AUTOMATION_NAME_TAKEN`, `AUTOMATION_HAS_ACTIVE_RUNS`, `AUTOMATION_NOT_INSTALLED`, `HUMAN_ASK_NOT_FOUND`, `HUMAN_ASK_NOT_PENDING`, `HUMAN_ASK_EXPIRED`, `EMPTY_ANSWER`, `INVALID_CURSOR`, `LIVE_MODE_UNAVAILABLE` et `NOT_SUPPORTED`. Ce dernier indique que l'hôte ne prend pas en charge l'opération sur les exécutions, versions ou déclencheurs. `start_run` refuse un `idempotencyKey` réutilisé avec d’autres arguments par `IDEMPOTENCY_KEY_REUSED` ; `invoke_capability` refuse un id que le registre ne tient pas — une automatisation seulement enregistrée n’y est pas — par `CAPABILITY_NOT_FOUND` et une entrée que son schéma rejette par `CAPABILITY_INPUT_INVALID` ; `get_knowledge` transmet les codes propres de la porte des connaissances (`KNOWLEDGE_UNAVAILABLE` quand la recherche elle-même a échoué). Les erreurs de plateforme conservent leur code, leur conseil et leurs données éventuelles ; par exemple, l'absence d'accès développeur renvoie `FORBIDDEN_DEVELOPER_SETTINGS`. `INVALID_ARGUMENTS` liste chaque problème d’argument ; une valeur hors d’un ensemble énuméré est refusée et le message nomme l’ensemble. `RATE_LIMITED` signifie que l’outil avait besoin d’une exécution et que le [budget d’exécution](/fr/develop/rate-limits) du détenteur de la clé est épuisé : attends `data.retryAfterMs`. `INTERNAL_ERROR` signifie que l’appel a échoué de façon inattendue ; communique son `data.requestId` à l’équipe qui exploite le déploiement.
 
-Un nom d'automatisation inconnu est aussi une erreur pour `list_versions`, `list_runs` et `list_triggers`. Une liste vide signifie qu'une automatisation existante n'a pas d'éléments correspondants. La seule exception est l’historique des exécutions : une automatisation supprimée conserve ses exécutions, `list_runs {name}` les renvoie donc tant qu’elles existent, et seul un nom qui n’a jamais tourné donne `AUTOMATION_NOT_FOUND`. `get_catalog` restreint à un type de nœud de base (`transform`, `llm`, `agent`, `subautomation`) répond une liste vide accompagnée d’un `hint` renvoyant à `get_docs`, comme le fait `search_catalog`. Un document invalide soumis à un outil qui exige un document valide, une recherche échouée ou un déploiement absent produisent `isError: true`. Seul l'outil de validation présente un document invalide comme son verdict normal.
+Un nom d'automatisation inconnu est aussi une erreur pour `list_versions`, `list_runs` et `list_triggers`. Une liste vide signifie qu'une automatisation existante n'a pas d'éléments correspondants. La seule exception est l’historique des exécutions : une automatisation supprimée conserve ses exécutions, `list_runs {name}` les renvoie donc tant qu’elles existent, et seul un nom qui n’a jamais tourné donne `AUTOMATION_NOT_FOUND`. `get_catalog` restreint à un type de nœud de base (`transform`, `llm`, `agent`, `subautomation`) répond une liste vide accompagnée d’un `hint` renvoyant à `get_docs`, comme le fait `search_catalog`, et de la section de la référence consacrée à ce type de nœud sous `reference`. Un document invalide soumis à un outil qui exige un document valide, une recherche échouée ou un déploiement absent produisent `isError: true`. Seul l'outil de validation présente un document invalide comme son verdict normal.
 
 ## Où ça se place
 

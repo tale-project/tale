@@ -349,6 +349,36 @@ To share the server with a team through a committed `.mcp.json`, reference the k
 
 `claude mcp list` reports whether Claude Code can reach the server.
 
+### Prompts and resources in Claude Code {#prompts-and-resources}
+
+With the server registered as `tale`, type `/` in Claude Code to find Tale's prompts: `/tale:edit_automation`, `/tale:debug_failed_run` and `/tale:add_trigger`. Put the arguments after the command, separated by spaces, for example `/tale:debug_failed_run <run-id>`. Each prompt attaches what it is about and tells the agent to ask you before anything is deployed.
+
+Type `@` to mention a Tale resource, for example `@tale:tale://runs/<run-id>` for a run or `@tale:tale://docs/triggers` for the triggers reference. Claude Code reads it with your key and attaches it to your message. [Resources and prompts](/develop/mcp-endpoint#resources-and-prompts) lists every address and prompt.
+
+### Install the Tale skill {#tale-skill}
+
+The Tale skill is a `SKILL.md` file in the Agent Skills format. It teaches your agent how to work in Tale: the editing loop, testing on the mocks, triggers, debugging a failed run, reading a refusal, and the rules it keeps, such as asking you before anything is deployed. It is not one of your organization's skills, and it names no host, organization or key, so one copy serves every project. Save it where your agent reads skills:
+
+| Agent | This project | All your projects |
+| --- | --- | --- |
+| Claude Code | `.claude/skills/tale/SKILL.md` | `~/.claude/skills/tale/SKILL.md` |
+| Codex | `.agents/skills/tale/SKILL.md` | `~/.agents/skills/tale/SKILL.md` |
+
+Read it from the MCP endpoint with your key. The example saves it for Claude Code in the current project; change the folder for another agent:
+
+```bash
+mkdir -p .claude/skills/tale
+curl --fail-with-body "$TALE_URL/api/v1/mcp" \
+  --header "Authorization: Bearer $TALE_API_KEY" \
+  --header "X-Organization-Slug: $TALE_ORG_SLUG" \
+  --header 'MCP-Protocol-Version: 2025-11-25' \
+  --header 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"tale://docs/skill"}}' \
+  | jq -r '.result.contents[0].text' > .claude/skills/tale/SKILL.md
+```
+
+A connected agent can also read `tale://docs/skill` and save the file itself. The skill matches the Tale release it came from, so fetch it again after an update; the references it points to are read from your deployment every time.
+
 ## Let a project agent edit scripts
 
 To have the edit made inside Tale, in a sandbox and with a person's review, hand the script to a [project agent](/platform/projects/project-agents). Tale runs an agent runtime such as OpenCode in a sandbox, on the model the agent is configured with. The run counts against the budgets of the member who started it and is recorded under that person; a run you start over REST is booked to you, not to the API key. The edited files come back as the task's deliverables, and the task waits in review for a person. [Choose an agent runtime](/platform/agents/harnesses) compares the agent runtimes; OpenCode runs only through Tale's model gateway, so it never receives a provider key.
