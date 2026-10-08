@@ -54,28 +54,30 @@ export const FlowGroupFrameView = memo(function FlowGroupFrameView({
         phase === 'exit' && FLOW_MOTION_CLASS.fadeOut,
       )}
     >
+      {/* One row: the header's words in the box the layout kept for them,
+          and in a run the counter at the frame's right edge. A long label
+          ends in an ellipsis before the counter, never under it. */}
       <div
-        data-slot="flow-frame-header"
-        className="text-muted-foreground absolute flex items-center gap-1.5 px-1 text-xs leading-4 font-medium"
-        style={{
-          left: header.x,
-          top: header.y,
-          width: header.width,
-          height: header.height,
-        }}
+        className="absolute right-2 flex items-center gap-2"
+        style={{ left: header.x, top: header.y, height: header.height }}
       >
-        <Icon className="size-3.5 shrink-0" />
-        <span className="truncate">{group.label}</span>
-      </div>
-      {counter && (
-        <span
-          data-slot="flow-frame-counter"
-          className="bg-background text-foreground border-border absolute right-2 inline-flex h-5 items-center rounded-full border px-2 text-xs font-medium tabular-nums"
-          style={{ top: header.y + (header.height - 20) / 2 }}
+        <div
+          data-slot="flow-frame-header"
+          className="text-muted-foreground flex min-w-0 items-center gap-1.5 px-1 text-xs leading-4 font-medium"
+          style={{ width: header.width }}
         >
-          {counter}
-        </span>
-      )}
+          <Icon className="size-3.5 shrink-0" />
+          <span className="truncate">{group.label}</span>
+        </div>
+        {counter && (
+          <span
+            data-slot="flow-frame-counter"
+            className="bg-background text-foreground border-border ml-auto inline-flex h-5 shrink-0 items-center rounded-full border px-2 text-xs font-medium whitespace-nowrap tabular-nums"
+          >
+            {counter}
+          </span>
+        )}
+      </div>
       {group.kind === 'repeat' && member && (
         <svg className="absolute inset-0 size-full overflow-visible">
           <path

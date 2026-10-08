@@ -228,10 +228,13 @@ describe('WorkflowCanvas with a run', () => {
     expect(node('report')).toHaveAttribute('data-flow-quiet', 'true');
     expect(look('score>report')).toBe('quiet');
     expect(node('__end')).toHaveAttribute('data-flow-state', 'failed');
-    // The frame counts the items.
-    expect(
-      document.querySelector('[data-slot="flow-frame-counter"]')?.textContent,
-    ).toBe('4 of 4 items');
+    // The frame counts the items, beside its words, never over them.
+    const counter = document.querySelector('[data-slot="flow-frame-counter"]');
+    expect(counter?.textContent).toBe('4 of 4 items');
+    const header = document.querySelector('[data-slot="flow-frame-header"]');
+    expect(header?.getBoundingClientRect().right).toBeLessThanOrEqual(
+      (counter?.getBoundingClientRect().left ?? 0) + 0.5,
+    );
 
     rerun({
       playback: { timeline, t: timeline.duration },
