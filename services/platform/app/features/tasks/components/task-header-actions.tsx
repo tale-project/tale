@@ -59,7 +59,7 @@ export function TaskCopyLinkButton({
 /** Leave the dialog for the task's page — a real link, so a modifier or
  * middle click opens it in a new tab and Back returns to the board with the
  * dialog open. */
-export function TaskOpenPageButton({
+function TaskOpenPageButton({
   organizationId,
   taskId,
 }: {

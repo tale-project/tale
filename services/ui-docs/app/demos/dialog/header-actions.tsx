@@ -35,7 +35,7 @@ export default function DialogHeaderActions() {
                 size="sm"
                 variant="ghost"
                 asChild
-                slotChild={<a href="#open-as-page" />}
+                slotChild={<a href="#open-as-page" aria-label="Open as page" />}
                 aria-label="Open as page"
               />
             </>

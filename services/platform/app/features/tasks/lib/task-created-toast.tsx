@@ -3,7 +3,7 @@ import { Button } from '@tale/ui/button';
 import { toast } from '@tale/ui/use-toast';
 
 /** Long enough to read the name and reach Open before it fades. */
-export const TASK_CREATED_TOAST_MS = 10_000;
+const TASK_CREATED_TOAST_MS = 10_000;
 
 /**
  * The one notice a created task gets: what was created, and an **Open**
