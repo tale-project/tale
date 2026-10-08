@@ -102,7 +102,7 @@ export function StartFields({
       </section>
       <DocumentJsonField
         field="inputs"
-        label={t('editor.start.schema')}
+        label={t('detail.runInput.schema')}
         description={t('editor.start.inputsDescription')}
         expect="object"
         value={inputs}

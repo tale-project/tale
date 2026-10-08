@@ -298,7 +298,6 @@ editor:
     trigger: Trigger
     editTrigger: Change in General
     inputs: Inputs
-    schema: Input schema
     inputsDescription: "The data each run receives, as a JSON Schema. A run whose input doesn't match is refused before any node runs."
   end:
     title: End

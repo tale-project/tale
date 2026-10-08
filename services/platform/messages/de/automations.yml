@@ -305,7 +305,6 @@ editor:
     trigger: Trigger
     editTrigger: In Allgemein ändern
     inputs: Eingaben
-    schema: Eingabeschema
     inputsDescription: Die Daten, die jeder Lauf erhält, als JSON-Schema. Ein Lauf mit unpassender Eingabe wird abgelehnt, bevor eine Node läuft.
   end:
     title: Ende

@@ -304,7 +304,6 @@ editor:
     trigger: Déclencheur
     editTrigger: Modifier dans Général
     inputs: Entrées
-    schema: Schéma d’entrée
     inputsDescription: Les données que reçoit chaque exécution, sous forme de schéma JSON. Une exécution dont l’entrée ne correspond pas est refusée avant qu’un nœud ne s’exécute.
   end:
     title: Fin
