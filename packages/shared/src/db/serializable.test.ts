@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isSerializationFailure,
+  localQueueDepth,
   markRetryQueueKey,
   RETRY_QUEUE_LOCK_CLASS,
   retryQueueKeyOf,
@@ -519,5 +520,87 @@ describe('transactSerializable — nested retry queues, failure paths', () => {
       .filter((s) => s.text.startsWith('SELECT pg_advisory_lock'))
       .map((s) => s.values[1]);
     expect(locks).toEqual(['task-comment:t_1', 'audit-chain:org_1']);
+  });
+});
+
+describe('transactSerializable — the process-local queue', () => {
+  it('starts queued on the given keys, without a first optimistic attempt', async () => {
+    const { runner, beginAttempts, reservations } = createQueueRunner([]);
+    const result = await transactSerializable(
+      runner,
+      async (tx) => {
+        await tx`SELECT 1`;
+        return 'ok';
+      },
+      { sleep: noSleep, queueKeys: [queueKey] },
+    );
+    expect(result).toBe('ok');
+    expect(beginAttempts()).toBe(0);
+    expect(texts(reservations[0]?.statements ?? [])).toEqual([
+      'SELECT pg_advisory_lock(?, hashtext(?))',
+      'BEGIN ISOLATION LEVEL SERIALIZABLE',
+      'SELECT 1',
+      'COMMIT',
+      'SELECT pg_advisory_unlock(?, hashtext(?))',
+    ]);
+  });
+
+  it('holds one connection per hot key: the next queued attempt reserves only once the first is done', async () => {
+    const { runner, reservations } = createQueueRunner([]);
+    let releaseFirst: () => void = () => undefined;
+    const firstHeld = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const first = transactSerializable(
+      runner,
+      async () => {
+        await firstHeld;
+        return 'first';
+      },
+      { sleep: noSleep, queueKeys: [queueKey] },
+    );
+    const second = transactSerializable(
+      runner,
+      () => Promise.resolve('second'),
+      {
+        sleep: noSleep,
+        queueKeys: [queueKey],
+      },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // The second waits in memory: no connection reserved, none parked on
+    // the database lock.
+    expect(reservations).toHaveLength(1);
+    expect(localQueueDepth(queueKey)).toBe(2);
+    releaseFirst();
+    expect(await first).toBe('first');
+    expect(await second).toBe('second');
+    expect(reservations).toHaveLength(2);
+    expect(reservations.every((r) => r.released() === 1)).toBe(true);
+    expect(localQueueDepth(queueKey)).toBe(0);
+  });
+
+  it('lets the queue go on after an attempt that failed for good', async () => {
+    const { runner } = createQueueRunner([], {
+      failOn: (text) =>
+        text.startsWith('SELECT boom') ? sqlstateError('23505') : undefined,
+    });
+    await expect(
+      transactSerializable(
+        runner,
+        async (tx) => {
+          await tx`SELECT boom`;
+          return 'never';
+        },
+        { sleep: noSleep, queueKeys: [queueKey] },
+      ),
+    ).rejects.toMatchObject({ code: '23505' });
+    expect(localQueueDepth(queueKey)).toBe(0);
+    await expect(
+      transactSerializable(runner, () => Promise.resolve('next'), {
+        sleep: noSleep,
+        queueKeys: [queueKey],
+      }),
+    ).resolves.toBe('next');
   });
 });

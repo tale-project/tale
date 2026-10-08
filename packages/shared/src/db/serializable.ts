@@ -180,6 +180,51 @@ function transactionOver(reserved: ReservedSql): TransactionSql {
 }
 
 /**
+ * The queued attempts of THIS process, per key: a promise chain each queued
+ * attempt joins before it reserves a connection.
+ *
+ * The database lock alone orders queued attempts across processes, but each
+ * one waits for it on a connection it has already reserved. A burst of
+ * writes to one hot key (an organization's audit chain) used to park one
+ * pooled connection per waiting retry on `pg_advisory_lock`, until the pool
+ * was empty and every other request of the process — reads included —
+ * queued behind them for its whole deadline. Waiting here first costs no
+ * connection: per process, one attempt per key holds a connection at a
+ * time, and the rest wait in memory.
+ */
+const localQueues = new Map<string, { tail: Promise<void>; waiting: number }>();
+
+/** Join the process-local queue of `key`; resolves with its release. */
+async function acquireLocal(key: string): Promise<() => void> {
+  let entry = localQueues.get(key);
+  if (entry === undefined) {
+    entry = { tail: Promise.resolve(), waiting: 0 };
+    localQueues.set(key, entry);
+  }
+  const queue = entry;
+  queue.waiting += 1;
+  let release: () => void = () => undefined;
+  const done = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const previous = queue.tail;
+  queue.tail = previous.then(() => done);
+  await previous;
+  return () => {
+    release();
+    queue.waiting -= 1;
+    if (queue.waiting === 0 && localQueues.get(key) === queue) {
+      localQueues.delete(key);
+    }
+  };
+}
+
+/** Queued attempts of this process waiting on, or holding, `key` (tests). */
+export function localQueueDepth(key: string): number {
+  return localQueues.get(key)?.waiting ?? 0;
+}
+
+/**
  * One serializable attempt queued on `keys`: session advisory locks in that
  * order → BEGIN → callback → COMMIT → unlocks in reverse, all on one
  * reserved connection. A key that cannot be locked releases the ones
@@ -188,6 +233,22 @@ function transactionOver(reserved: ReservedSql): TransactionSql {
  * would block that key for everyone until the connection dies.
  */
 async function beginQueued<T>(
+  reserve: () => Promise<ReservedSql>,
+  keys: readonly string[],
+  callback: (tx: TransactionSql) => Promise<T>,
+): Promise<T> {
+  // In the keys' own order, like the database locks below, so two queued
+  // attempts of this process never hold their keys in opposite orders.
+  const releases: (() => void)[] = [];
+  try {
+    for (const key of keys) releases.push(await acquireLocal(key));
+    return await beginQueuedOnConnection(reserve, keys, callback);
+  } finally {
+    for (const release of releases.reverse()) release();
+  }
+}
+
+async function beginQueuedOnConnection<T>(
   reserve: () => Promise<ReservedSql>,
   keys: readonly string[],
   callback: (tx: TransactionSql) => Promise<T>,
@@ -254,12 +315,27 @@ function isSubsetOf(
  * connection faults. Each retry runs in a fresh transaction; a retry after a
  * failure marked with queue keys runs queued on those keys (see above).
  */
+export interface SerializableOptions extends RetryOptions {
+  /**
+   * Start queued on these keys instead of waiting to lose on them first:
+   * for a write that is known to append to a contended resource (an
+   * organization's audit chain under a burst of task writes), the first
+   * attempt then takes its place in the queue before its snapshot — no
+   * attempt is wasted and no deadlock can form against a queued retry.
+   * Ignored by a runner that cannot reserve a connection.
+   */
+  queueKeys?: readonly string[];
+}
+
 export function transactSerializable<T>(
   sql: SerializableTransactionRunner,
   callback: (tx: TransactionSql) => Promise<T>,
-  options: RetryOptions = {},
+  options: SerializableOptions = {},
 ): Promise<T> {
-  let queueKeys: readonly string[] | undefined;
+  let queueKeys: readonly string[] | undefined =
+    options.queueKeys !== undefined && options.queueKeys.length > 0
+      ? options.queueKeys
+      : undefined;
   const reserve = sql.reserve?.bind(sql);
   const attempt = (): Promise<T> =>
     queueKeys !== undefined && reserve !== undefined
@@ -269,12 +345,13 @@ export function transactSerializable<T>(
     options.isTransient ??
     ((error: unknown) =>
       isSerializationFailure(error) || isTransientDbError(error));
+  const { queueKeys: _initialKeys, ...retryOptions } = options;
   return withRetry(attempt, {
     attempts: 5,
     baseDelayMs: 20,
     timeoutMs: 30_000,
     sleep: jitteredSleep,
-    ...options,
+    ...retryOptions,
     isTransient: (error) => {
       // A queued attempt that loses to a writer outside its inner queues is
       // re-marked with fewer keys than it held; the held list is a superset
