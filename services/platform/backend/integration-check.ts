@@ -15178,6 +15178,64 @@ async function checkMcpAuthoringParity(
     `app save → ${appSave.status} (want 201), agent save=${JSON.stringify(agentSave.value).slice(0, 160)}, v2=${JSON.stringify(v2 ?? null).slice(0, 200)}`,
   );
 
+  // MCP-R1 under a race: agent saves that carry and editor saves that set
+  // the settings land in whatever order the name lock gives them, and each
+  // agent version carries exactly the version before it — read under the
+  // lock, never a copy that went stale while it waited.
+  const raceName = 'itest-parity/racing';
+  const raceDoc = { ...DOC_EXAMPLE.automation, name: raceName };
+  const formOf = (title: string) => ({
+    forms: [
+      {
+        file: 'settings.json',
+        title,
+        fields: [{ key: 'days', label: 'Days', type: 'number' }],
+      },
+    ],
+  });
+  const editorSave = (title: string) =>
+    fetch(`${base}/api/app/automations/${raceName}/save?orgId=${orgId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        document: raceDoc,
+        message: title,
+        settings: formOf(title),
+      }),
+    });
+  const raceStart = await editorSave('start');
+  const [editorRacers, agentRacers] = await Promise.all([
+    Promise.all(['editor 1', 'editor 2', 'editor 3'].map(editorSave)),
+    Promise.all(
+      [1, 2, 3].map(() =>
+        tool('save_automation', { automation: raceDoc, message: 'agent' }),
+      ),
+    ),
+  ]);
+  const raceRows = await sql<
+    { version: number; settings: unknown; createdVia: string | null }[]
+  >`
+    SELECT version, settings, created_via AS "createdVia"
+    FROM app.automations WHERE org_id = ${orgId} AND name = ${raceName}
+    ORDER BY version
+  `;
+  const carriedInOrder = raceRows.every(
+    (row, index) =>
+      row.createdVia !== 'mcp' ||
+      JSON.stringify(row.settings) ===
+        JSON.stringify(raceRows[index - 1]?.settings),
+  );
+  record(
+    'MCP saves racing editor saves each carry the version just before them (MCP-R1)',
+    raceStart.status === 201 &&
+      editorRacers.every((res) => res.status === 201) &&
+      agentRacers.every((answer) => !answer.isError) &&
+      raceRows.map((row) => row.version).join(',') === '1,2,3,4,5,6,7' &&
+      raceRows.filter((row) => row.createdVia === 'mcp').length === 3 &&
+      carriedInOrder,
+    `editor=${editorRacers.map((res) => res.status).join(',')}, agent=${agentRacers.map((answer) => String(answer.isError)).join(',')}, rows=${JSON.stringify(raceRows.map((row) => `${row.version}/${row.createdVia}/${JSON.stringify(row.settings).slice(32, 52)}`))}`,
+  );
+
   // MCP-R2: a save from v1 after v2 landed is refused, naming v2; a version
   // field that does not fit its reader is refused with every problem.
   const stale = await tool('save_automation', {
