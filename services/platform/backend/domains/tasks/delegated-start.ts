@@ -12,7 +12,11 @@ import {
   type AutoRetryRunFacts,
 } from '../../core/tasks/task_auto_retry.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
-import { kickAgentRun, type StartedVia } from './agent-runs.ts';
+import {
+  kickAgentRun,
+  withdrawWaitingAgentRunInTx,
+  type StartedVia,
+} from './agent-runs.ts';
 import { predictWorkerWait } from './agent-workers.ts';
 import { openTaskBlockerIds } from './dependencies.ts';
 import { TaskError } from './errors.ts';
@@ -766,12 +770,30 @@ export async function startDelegatedAgentRun(
 
   // The task's own live run carries the work: a schedule's occurrence that
   // finds its role still working, or a request for work already under way.
-  const live = await tx<{ id: string; agentId: string }[]>`
-    SELECT id, agent_id AS "agentId" FROM app.project_agent_runs
+  const live = await tx<
+    { id: string; agentId: string; withdrawable: boolean }[]
+  >`
+    SELECT id, agent_id AS "agentId",
+           (waiting_for_capacity_at_ms IS NOT NULL AND launched_at_ms IS NULL)
+             AS withdrawable
+    FROM app.project_agent_runs
     WHERE task_id = ${task.id} AND status IN ('queued', 'running')
     LIMIT 1
   `;
-  const liveRun = live[0];
+  let liveRun: (typeof live)[number] | undefined = live[0];
+  // Another agent's run that still waits for a worker and never launched
+  // has done nothing yet: handing the task to this agent withdraws it, as a
+  // person's reassignment does — once every check below has admitted the
+  // start, so a start refused for another reason leaves it waiting.
+  let withdraw = false;
+  if (
+    liveRun !== undefined &&
+    liveRun.agentId !== agent.id &&
+    liveRun.withdrawable
+  ) {
+    withdraw = true;
+    liveRun = undefined;
+  }
   if (liveRun !== undefined) {
     if (liveRun.agentId !== agent.id) {
       throw new TaskError(
@@ -837,6 +859,14 @@ export async function startDelegatedAgentRun(
     };
   }
 
+  if (withdraw && !(await withdrawWaitingAgentRunInTx(tx, task))) {
+    // A wake took it a moment ago: it is about to work.
+    throw new TaskError(
+      'TASK_HAS_LIVE_RUN',
+      'Another agent is working this task; it cannot pass to a different agent until that run ends',
+      409,
+    );
+  }
   if (task.assigneeType !== 'agent' || task.assigneeId !== agent.id) {
     await agentAssignTaskToAgentTrusted(tx, {
       task,

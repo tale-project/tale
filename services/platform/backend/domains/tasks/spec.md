@@ -332,6 +332,13 @@ working, and among those to the one that has waited longest.
 - **Example**: Scribe was handed thirty tasks at once and every worker is busy. Ada then starts
   Lector once → the next worker that frees goes to Lector's run, ahead of Scribe's waiting runs.
 
+Until it starts, a waiting run can be taken back: stopping it cancels it, and handing the task to
+someone else cancels it on the way. A run that has started is still stopped before the task
+can pass to someone else.
+
+- **Example**: Scribe's run on "Press kit" waits for a worker. Ada assigns "Press kit" to
+  Lector → Scribe's waiting run is cancelled and the task is Lector's.
+
 ### TASK-R26 · Automations and agents can start an agent that is busy on another task
 
 A start by an automation step, a schedule or a manager agent is answered `started` while the

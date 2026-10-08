@@ -49,6 +49,7 @@ vi.mock('./agent-runs.ts', async () => {
   return {
     cancelAgentRunInTx: vi.fn(),
     kickAgentRun: vi.fn(),
+    withdrawWaitingAgentRunInTx: vi.fn(async () => false),
     isStandardAgentRefusal: (error: unknown) =>
       error instanceof errors.TaskError &&
       (error.code === 'STANDARD_AGENT_OFF' ||

@@ -15,6 +15,7 @@ import {
   settleAgentRun,
   wakeOrganizationParkedAgentRun,
   wakeParkedAgentRuns,
+  withdrawWaitingAgentRunInTx,
 } from './agent-runs.ts';
 import {
   announceAgentRunFailed,
@@ -121,6 +122,60 @@ describe('cancelAgentRunInTx — the run must belong to the authorized task', ()
       harness: 'opencode',
       deadlineAt: 1000,
     });
+  });
+});
+
+describe('withdrawWaitingAgentRunInTx — a waiting run is taken back before it starts [TASK-R25]', () => {
+  beforeEach(() => {
+    vi.mocked(recordTaskAgentRunLedgerEntry).mockReset();
+  });
+
+  const TASK = { id: 'task-1', organizationId: 'org-1' };
+  const SELECT_WAITING = 'SELECT id FROM app.project_agent_runs';
+
+  it('cancels the task’s parked run that never launched, under its row lock', async () => {
+    const { tx, statements } = fakeTx((text) => {
+      if (text.startsWith(SELECT_WAITING)) return [{ id: 'run-1' }];
+      if (text.startsWith('UPDATE app.project_agent_runs')) {
+        return [
+          {
+            id: 'run-1',
+            execId: 'exec-1',
+            sessionId: 'pa-1',
+            agentId: 'agent-1',
+            harness: 'opencode',
+            deadlineAt: 1000,
+          },
+        ];
+      }
+      return [];
+    });
+    await expect(withdrawWaitingAgentRunInTx(tx, TASK)).resolves.toBe(true);
+    const select = statements.find((text) => text.startsWith(SELECT_WAITING));
+    expect(select).toContain('WHERE task_id = ? AND org_id = ?');
+    expect(select).toContain("status = 'queued'");
+    expect(select).toContain('waiting_for_capacity_at_ms IS NOT NULL');
+    expect(select).toContain('launched_at_ms IS NULL');
+    expect(select).toContain('FOR UPDATE');
+    const update = statements.find((text) =>
+      text.startsWith('UPDATE app.project_agent_runs'),
+    );
+    expect(update).toContain("status = 'cancelled'");
+    expect(recordTaskAgentRunLedgerEntry).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ runId: 'run-1', finalStatus: 'cancelled' }),
+    );
+  });
+
+  it('leaves a run that works, or was woken a moment ago, alone', async () => {
+    const { tx, statements } = fakeTx(() => []);
+    await expect(withdrawWaitingAgentRunInTx(tx, TASK)).resolves.toBe(false);
+    expect(
+      statements.some((text) =>
+        text.startsWith('UPDATE app.project_agent_runs'),
+      ),
+    ).toBe(false);
+    expect(recordTaskAgentRunLedgerEntry).not.toHaveBeenCalled();
   });
 });
 

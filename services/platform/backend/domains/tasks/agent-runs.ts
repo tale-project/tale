@@ -792,6 +792,35 @@ export async function cancelAgentRun(
 }
 
 /**
+ * Withdraw the task's agent run when it is waiting for a worker and has
+ * never launched: cancelled like a Stop, so the task can pass to someone
+ * else. A run that waits has not begun any work, so nothing of it is lost,
+ * and a reassignment no longer has to stop it first. The run row is locked
+ * before it is judged: a wake that restarted it a moment ago leaves it
+ * unparked, and a run that is working (or about to) is never withdrawn —
+ * the caller still refuses then. True when a run was withdrawn.
+ */
+export async function withdrawWaitingAgentRunInTx(
+  tx: TransactionSql,
+  task: { id: string; organizationId: string },
+): Promise<boolean> {
+  const waiting = await tx<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs
+    WHERE task_id = ${task.id} AND org_id = ${task.organizationId}
+      AND status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL
+      AND launched_at_ms IS NULL
+    FOR UPDATE
+  `;
+  const run = waiting[0];
+  if (run === undefined) return false;
+  return cancelAgentRunInTx(tx, {
+    organizationId: task.organizationId,
+    runId: run.id,
+    taskId: task.id,
+  });
+}
+
+/**
  * Claim ONE parked run — the next of one organization, or the next of every
  * organization but one — and re-enqueue its turn. Next is fair between
  * agents before it is first-come: the parked run of the agent with the

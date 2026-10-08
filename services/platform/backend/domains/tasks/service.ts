@@ -86,6 +86,7 @@ import {
   cancelAgentRunInTx,
   isStandardAgentRefusal,
   kickAgentRun,
+  withdrawWaitingAgentRunInTx,
 } from './agent-runs.ts';
 import { assertAutomationForTask } from './automation-access.ts';
 import { openTaskBlockerIds } from './dependencies.ts';
@@ -2944,7 +2945,9 @@ export async function agentUpdateTaskPriorityTrusted(
  * `workflow` sentinel) as the actor: the assignee, the activity line, the
  * audit row (`viaAgent`, as the agent's other writes) and the assignment
  * bells. A live run holds the task for its current worker, so a transfer
- * under one is refused exactly as the picker refuses it.
+ * under one is refused exactly as the picker refuses it — unless that run
+ * still waits for a worker and never launched: then the transfer withdraws
+ * it, as the picker's does.
  */
 export async function agentAssignTaskToAgentTrusted(
   tx: TransactionSql,
@@ -2959,6 +2962,7 @@ export async function agentAssignTaskToAgentTrusted(
           assigneeId: args.agentId,
         };
   if (!assigneeChanges(task, assignee)) return;
+  await withdrawWaitingAgentRunInTx(tx, task);
   if (await taskHasLiveRun(tx, task)) {
     throw new TaskError(
       'TASK_HAS_LIVE_RUN',
@@ -3135,13 +3139,17 @@ export async function assignTask(
   // in_review park) a card that now shows someone else's name, and "Run
   // agent" answering already_running for the wrong agent. The refusal
   // names itself — the picker cancels the run first, then reassigns (its
-  // confirmed-handoff flow).
-  if (assigneeChanges(task, assignee) && (await taskHasLiveRun(tx, task))) {
-    throw new TaskError(
-      'TASK_HAS_LIVE_RUN',
-      'A live run holds this task; cancel it before reassigning',
-      409,
-    );
+  // confirmed-handoff flow). A run that still waits for a worker and never
+  // launched has done nothing yet: the reassignment withdraws it instead.
+  if (assigneeChanges(task, assignee)) {
+    await withdrawWaitingAgentRunInTx(tx, task);
+    if (await taskHasLiveRun(tx, task)) {
+      throw new TaskError(
+        'TASK_HAS_LIVE_RUN',
+        'A live run holds this task; cancel it before reassigning',
+        409,
+      );
+    }
   }
 
   await tx`
