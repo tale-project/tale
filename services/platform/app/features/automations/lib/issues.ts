@@ -18,6 +18,7 @@ import { pointerTokens } from '@/lib/engine/core/syntax/pointer';
 import type { Automation, NodeDef } from '@/lib/engine/core/types';
 import type { WireAutomationIssue } from '@/lib/shared/schemas/automation-issues';
 
+import { END_ID, START_ID, gateIdOf } from './flow-ids';
 import {
   issueText,
   type IssueTextContext,
@@ -159,18 +160,45 @@ function nodeOf(
   return null;
 }
 
-/** Errors and warnings per node id, for the canvas markers. */
+/**
+ * The canvas box an issue is marked on: Start for the run input (and a
+ * trigger whose wrapper the input schema refuses), End for the output, a
+ * node's condition for its `when`, else the node. A place the canvas does
+ * not draw (the name, the tests) has none: Problems lists it.
+ */
+function canvasBoxOf(
+  issue: WireAutomationIssue,
+  doc: Automation,
+): string | null {
+  const tokens = pointerTokens(pointerOf(issue));
+  if (tokens[0] === 'inputs' || issue.code === 'TRIGGER_INPUT_MISMATCH') {
+    return START_ID;
+  }
+  if (tokens[0] === 'output') return END_ID;
+  const found = nodeOf(issue, doc);
+  if (found === null) return null;
+  const inWhen =
+    tokens[0] === 'nodes' &&
+    tokens[1] === String(found.index) &&
+    tokens[2] === 'when';
+  return inWhen && typeof found.node.when === 'string'
+    ? gateIdOf(found.node.id)
+    : found.node.id;
+}
+
+/** Errors and warnings per canvas box (a node, its condition, Start or
+ *  End), for the canvas markers. */
 export function issueCountsByNode(
   issues: readonly WireAutomationIssue[],
   doc: Automation,
 ): ReadonlyMap<string, IssueCounts> {
   const counts = new Map<string, IssueCounts>();
   for (const issue of issues) {
-    const found = nodeOf(issue, doc);
-    if (found === null) continue;
-    const current = counts.get(found.node.id) ?? { errors: 0, warnings: 0 };
+    const box = canvasBoxOf(issue, doc);
+    if (box === null) continue;
+    const current = counts.get(box) ?? { errors: 0, warnings: 0 };
     counts.set(
-      found.node.id,
+      box,
       issue.level === 'error'
         ? { ...current, errors: current.errors + 1 }
         : { ...current, warnings: current.warnings + 1 },

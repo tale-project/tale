@@ -32,8 +32,10 @@ import {
   ResponsiveDialogDescription,
   ResponsiveDialogTitle,
 } from '@tale/ui/responsive-dialog';
+import { SegmentedControl } from '@tale/ui/segmented-control';
 import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
 import { useMediaQuery } from '@tale/ui/use-media-query';
 import { useToast } from '@tale/ui/use-toast';
@@ -55,7 +57,10 @@ import {
   useState,
 } from 'react';
 
-import { useProjects } from '@/app/features/projects/hooks/queries';
+import {
+  useProjectHarnesses,
+  useProjects,
+} from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
@@ -63,6 +68,7 @@ import { ptr } from '@/lib/engine/core/syntax/pointer';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import { savedWarningsSchema } from '@/lib/shared/schemas/automation-issues';
+import { stableStringify } from '@/lib/shared/utils/stable-stringify';
 
 import { mergeNodeTypes } from '../hooks/backend';
 import {
@@ -74,16 +80,19 @@ import {
   useAutomation,
   useAutomationProjects,
   useAutomationRuns,
+  useAutomationTriggers,
   useNodeTypeCatalog,
 } from '../hooks/queries';
 import {
   useAutomationValidation,
   useInvalidateAutomationValidation,
+  VALIDATION_DEBOUNCE_MS,
 } from '../hooks/use-automation-validation';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { automationDetailPathname } from '../lib/detail-paths';
 import { DOCUMENT_DIRTY_KEY } from '../lib/dirty-keys';
-import { readDocument, readPositions } from '../lib/document';
+import { readDocument } from '../lib/document';
+import type { AutomationEditorView } from '../lib/editor-search';
 import {
   automationErrorCode,
   automationErrorIssues,
@@ -92,7 +101,7 @@ import {
   isMissingAutomationRead,
   type AutomationErrorIssues,
 } from '../lib/errors';
-import { buildGraph } from '../lib/graph';
+import { flowGraphTarget } from '../lib/flow-ids';
 import { fieldsWithIssueControl } from '../lib/inspector-fields';
 import {
   issueCountsByNode,
@@ -101,19 +110,22 @@ import {
   withIssueIds,
   type AutomationIssue,
 } from '../lib/issues';
+import { nodeCatalogView, nodeTitle } from '../lib/node-face';
 import {
   cursorNodeStatus,
   nodeStatusMap,
   projectRun,
   readRunCursorNode,
+  readRunStatus,
 } from '../lib/run-view';
+import { triggerLines, triggerRows } from '../lib/trigger-summary';
 import {
   AUTOMATION_EDITOR_WORKBENCH_GRID,
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
   AUTOMATION_WORKBENCH_COMPACT_QUERY,
   AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
 } from '../lib/workbench';
-import { AutomationCanvas } from './automation-canvas';
+import { AutomationCanvas, type CanvasRun } from './automation-canvas';
 import { AutomationEditorActions } from './automation-editor-actions';
 import {
   AutomationProblemsDock,
@@ -125,6 +137,7 @@ import {
   type AutomationRunRequest,
 } from './automation-run-dialog';
 import { AutomationVersionPicker } from './automation-version-picker';
+import { CodingAgentButton } from './coding-agent-entry';
 import { NodeFields, NodeInspector } from './node-inspector';
 
 /**
@@ -200,6 +213,34 @@ interface AutomationEditorProps {
   /** The author picked a version to look at — `undefined` asks for the latest
    * again (after a save appends one). */
   onSelectVersion: (version: number | undefined) => void;
+  /** The route's `?view=`: the chart or the List view. */
+  view?: AutomationEditorView;
+  /** The route's `?node=`: the node (or Start, or End) to open on load. */
+  node?: string;
+  /** The reader switched the view or opened a node (`null`: closed it); the
+   * route keeps it in the URL without a history entry. */
+  onSearchChange?: (change: {
+    view?: AutomationEditorView;
+    node?: string | null;
+  }) => void;
+}
+
+/**
+ * A draft as the canvas draws it: at a pause in the edits (the pause the
+ * draft check waits for too), and gone at once when the draft goes, so a
+ * discarded draft never comes back for a moment under the next one.
+ */
+function usePausedDraft(draft: Automation | null): Automation | null {
+  const [paused, setPaused] = useState<Automation | null>(null);
+  useEffect(() => {
+    if (draft === null) {
+      setPaused(null);
+      return undefined;
+    }
+    const handle = setTimeout(() => setPaused(draft), VALIDATION_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [draft]);
+  return draft === null ? null : paused;
 }
 
 /** Route parameters can change without unmounting the page. Keep the draft
@@ -265,6 +306,9 @@ function AutomationEditorScope({
   version,
   showVersionHistory,
   onSelectVersion,
+  view: viewParam,
+  node: nodeParam,
+  onSearchChange,
 }: AutomationEditorProps) {
   const { t } = useT('automations');
   const isMobile = useIsMobile();
@@ -280,7 +324,20 @@ function AutomationEditorScope({
   // saving, deploying, triggering, and LIVE runs demand the
   // `developerSettings` ability — hiding what would only fail server-side.
   const canAuthor = ability.can('read', 'developerSettings');
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // A `?node=` link opens its node on load. Start and End have no inspector
+  // of their own yet, so a link to them opens nothing.
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(() =>
+    nodeParam === undefined || flowGraphTarget(nodeParam).kind !== 'node'
+      ? null
+      : nodeParam,
+  );
+  // The open node follows into the URL (`?node=`), replacing the entry.
+  const writtenNodeRef = useRef<string | null>(selectedNodeId);
+  useEffect(() => {
+    if (writtenNodeRef.current === selectedNodeId) return;
+    writtenNodeRef.current = selectedNodeId;
+    onSearchChange?.({ node: selectedNodeId });
+  }, [selectedNodeId, onSearchChange]);
   const deselectNode = useCallback(() => {
     const id = selectedNodeId;
     setSelectedNodeId(null);
@@ -294,6 +351,15 @@ function AutomationEditorScope({
   /** The version the draft was built on — pinned on its first edit, sent
    * with the save so the store can refuse a draft another tab overtook. */
   const draftBaseRef = useRef<number | undefined>(undefined);
+  /** The same base, for the notice that a newer version landed under the
+   * draft. */
+  const [draftBase, setDraftBase] = useState<number | undefined>(undefined);
+  /** The document the draft started from: the canvas keeps drawing it until
+   * the first pause in the edits. */
+  const [draftOrigin, setDraftOrigin] = useState<Automation | null>(null);
+  /** The version this tab saved last: following it to the latest is no
+   * news to its author. */
+  const savedHereRef = useRef<number | undefined>(undefined);
   const draftEpochRef = useRef(0);
   /** A save the store refused because a version landed after the draft
    * started: the author decides — drop the draft and reload, or save on
@@ -401,8 +467,14 @@ function AutomationEditorScope({
     [deployedQuery.data?.document],
   );
   const automation = draft ?? stored;
-  const graph = useMemo(() => buildGraph(automation), [automation]);
-  const positions = useMemo(() => readPositions(automation), [automation]);
+  // The canvas redraws a draft at a pause in the edits — the pause the
+  // check waits for too — so typing a reference never relays it out per
+  // keystroke; until the first pause it keeps the document the draft started
+  // from, whatever version lands meanwhile. A stored version (opened, saved,
+  // switched to) shows at once.
+  const pausedDraft = usePausedDraft(draft);
+  const canvasDocument =
+    draft === null ? stored : (pausedDraft ?? draftOrigin ?? stored);
 
   const runs = runsQuery.data ?? [];
   const lastRun = runs[0];
@@ -415,12 +487,12 @@ function AutomationEditorScope({
       showLastRun && lastRun
         ? nodeStatusMap(
             lastRunProjection,
-            graph.nodes.map((node) => node.id),
+            (automation?.nodes ?? []).map((node) => node.id),
             readRunCursorNode(lastRun),
             cursorNodeStatus(lastRun),
           )
         : undefined,
-    [showLastRun, lastRun, lastRunProjection, graph.nodes],
+    [showLastRun, lastRun, lastRunProjection, automation?.nodes],
   );
 
   const nodeTypes = useMemo(
@@ -489,6 +561,182 @@ function AutomationEditorScope({
         : issueCountsByNode([...shownErrors, ...shownWarnings], automation),
     [automation, shownErrors, shownWarnings],
   );
+
+  // ── The canvas ────────────────────────────────────────────────────────
+  // What the canvas draws besides the document: the catalog's words and
+  // icons, the served models' names, what starts a run, what the check
+  // worked out, and the last run.
+  const triggersQuery = useAutomationTriggers(organizationId, automationSlug);
+  const harnesses = useProjectHarnesses(organizationId);
+  const { formatDate } = useFormatDate();
+  const catalog = useMemo(
+    () => nodeCatalogView(nodeTypes, catalogQuery.data?.connectors ?? []),
+    [nodeTypes, catalogQuery.data?.connectors],
+  );
+  const modelNames = useMemo(
+    () =>
+      new Map(
+        (harnesses.data?.models ?? []).map((model) => [model.id, model.label]),
+      ),
+    [harnesses.data?.models],
+  );
+  const modelLabel = useCallback(
+    (id: string) => modelNames.get(id),
+    [modelNames],
+  );
+  const deployedVersionNow = automationQuery.data?.deployedVersion;
+  const triggerRowsShown = useMemo(
+    () =>
+      triggerRows(
+        triggerLines(triggersQuery.data ?? [], {
+          deployed: deployedVersionNow !== undefined,
+          t,
+        }),
+        { t, formatDate: (at) => formatDate(at, 'long') },
+      ),
+    [triggersQuery.data, deployedVersionNow, t, formatDate],
+  );
+  const validationTypes = validation.types ?? null;
+  const validationAnalysis = validation.analysis ?? null;
+  const canvasCheck = useMemo(
+    () => ({
+      status: !canAuthor
+        ? ('off' as const)
+        : validation.status === 'idle' || validation.status === 'checking'
+          ? ('pending' as const)
+          : validation.status,
+      analysis: validationAnalysis,
+      types: validationTypes,
+    }),
+    [canAuthor, validation.status, validationAnalysis, validationTypes],
+  );
+  const startNotice = useMemo(() => {
+    const cause = issueViews.find(
+      (view) => view.issue.code === 'TRIGGER_INPUT_MISMATCH',
+    )?.item.cause;
+    return typeof cause === 'string' ? cause : null;
+  }, [issueViews]);
+  const canvasRun = useMemo<CanvasRun | undefined>(
+    () =>
+      showLastRun && lastRun && runStatusByNode !== undefined
+        ? {
+            statusByNode: runStatusByNode,
+            projection: lastRunProjection,
+            status: readRunStatus(lastRun.status),
+          }
+        : undefined,
+    [showLastRun, lastRun, runStatusByNode, lastRunProjection],
+  );
+  const layoutKey = `${automationSlug}:${version ?? 'latest'}`;
+
+  /** A box picked on the canvas: a node opens its inspector, a condition
+   * opens its node at the condition's field. Start and End have no
+   * inspector of their own yet. */
+  const selectOnCanvas = useCallback(
+    (id: string | null) => {
+      if (id === null) {
+        setSelectedNodeId(null);
+        return;
+      }
+      const target = flowGraphTarget(id);
+      if (target.kind === 'node') {
+        setSelectedNodeId(target.nodeId);
+        return;
+      }
+      if (target.kind !== 'gate') return;
+      setSelectedNodeId(target.nodeId);
+      const index =
+        automation?.nodes.findIndex((node) => node.id === target.nodeId) ?? -1;
+      if (index >= 0) requestIssueFocus(ptr('nodes', index, 'when'));
+    },
+    [automation, requestIssueFocus],
+  );
+
+  const [viewChoice, setViewChoice] = useState<
+    AutomationEditorView | undefined
+  >(viewParam);
+  // Below 24rem the chart is too narrow to read; the List view says the same.
+  const narrowCanvas = useMediaQuery('(width < 24rem)');
+  const canvasView =
+    viewChoice === 'list' || (viewChoice === undefined && narrowCanvas)
+      ? ('list' as const)
+      : ('chart' as const);
+  const changeView = useCallback(
+    (next: AutomationEditorView) => {
+      setViewChoice(next);
+      onSearchChange?.({ view: next });
+    },
+    [onSearchChange],
+  );
+
+  // ── A newer version saved elsewhere ─────────────────────────────────
+  // Following the latest (no `?version=`), a version another window or a
+  // coding agent saves replaces the one on screen: with no draft the
+  // canvas glides to it, rings what changed and says so; under a draft
+  // nothing moves, and a notice offers to show it.
+  const shownVersion = automationQuery.data?.version;
+  const [canvasChange, setCanvasChange] = useState<
+    { ids: ReadonlySet<string>; key: number } | undefined
+  >(undefined);
+  const [canvasNews, setCanvasNews] = useState({ text: '', key: 0 });
+  const seenRef = useRef<{
+    version: number | undefined;
+    asked: number | undefined;
+    doc: Automation | null;
+  }>({ version: shownVersion, asked: version, doc: stored });
+  useEffect(() => {
+    const seen = seenRef.current;
+    seenRef.current = { version: shownVersion, asked: version, doc: stored };
+    if (
+      seen.version === undefined ||
+      shownVersion === undefined ||
+      seen.version === shownVersion ||
+      seen.asked !== version ||
+      version !== undefined ||
+      shownVersion < seen.version ||
+      savedHereRef.current === shownVersion ||
+      draft !== null ||
+      stored === null ||
+      seen.doc === null
+    ) {
+      return;
+    }
+    const before = new Map(
+      seen.doc.nodes.map((node) => [node.id, stableStringify(node)]),
+    );
+    setCanvasChange({
+      ids: new Set(
+        stored.nodes
+          .filter((node) => before.get(node.id) !== stableStringify(node))
+          .map((node) => node.id),
+      ),
+      key: shownVersion,
+    });
+    const said = [t('canvas.updated', { version: shownVersion })];
+    if (
+      selectedNodeId !== null &&
+      !stored.nodes.some((node) => node.id === selectedNodeId)
+    ) {
+      said.push(
+        t('canvas.selectionRemoved', { node: nodeTitle(selectedNodeId) }),
+      );
+      setSelectedNodeId(null);
+    }
+    setCanvasNews((previous) => ({
+      text: said.join(' '),
+      key: previous.key + 1,
+    }));
+  }, [shownVersion, version, stored, draft, selectedNodeId, t]);
+  const newerVersion =
+    draft !== null &&
+    version === undefined &&
+    draftBase !== undefined &&
+    shownVersion !== undefined &&
+    shownVersion > draftBase &&
+    savedHereRef.current !== shownVersion
+      ? shownVersion
+      : null;
+
   const selectedNodeIssues = useMemo(
     () =>
       issueViews.filter(
@@ -651,6 +899,8 @@ function AutomationEditorScope({
       // overtook the draft, not the one it was built on.
       if (draft === null) {
         draftBaseRef.current = automationQuery.data?.version;
+        setDraftBase(automationQuery.data?.version);
+        setDraftOrigin(automation);
         draftEpochRef.current += 1;
       }
       setDraft(patchNode(automation, selectedNodeId, patch));
@@ -705,6 +955,8 @@ function AutomationEditorScope({
   const discardDraft = useCallback(() => {
     draftEpochRef.current += 1;
     setDraft(null);
+    setDraftBase(undefined);
+    setDraftOrigin(null);
   }, []);
 
   // Save waits while the check stands on errors — the draft's own, or,
@@ -849,7 +1101,7 @@ function AutomationEditorScope({
   const lookingIsLive =
     lookingVersion !== undefined && lookingVersion === meta?.deployedVersion;
   const selectedNode =
-    graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
+    automation.nodes.find((node) => node.id === selectedNodeId) ?? null;
   const selectedNodeIndex = automation.nodes.findIndex(
     (node) => node.id === selectedNodeId,
   );
@@ -899,6 +1151,8 @@ function AutomationEditorScope({
       });
     }
     draftBaseRef.current = saved.version;
+    setDraftBase(saved.version);
+    savedHereRef.current = saved.version;
     setDraft((current) => (current === automation ? null : current));
     setSaveMessage('');
     // The save appended a version; show it, whichever one was on screen.
@@ -1148,6 +1402,18 @@ function AutomationEditorScope({
       {canAuthor && <AutomationEditorActions />}
     </div>
   );
+  const viewSwitch = (
+    <SegmentedControl
+      aria-label={t('canvas.view.label')}
+      value={canvasView === 'list' ? 'list' : 'canvas'}
+      onValueChange={(next) => changeView(next === 'list' ? 'list' : 'canvas')}
+      options={[
+        { value: 'canvas', label: t('canvas.view.canvas') },
+        { value: 'list', label: t('canvas.view.list') },
+      ]}
+      className="bg-background shadow-sm"
+    />
+  );
   const canvasToolbarActions = (
     <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
       {automationActions}
@@ -1206,8 +1472,31 @@ function AutomationEditorScope({
             nothing started, which the author has to read next to the automation
             it concerns. Save feedback goes through the editor cluster instead.
             The alerts keep the page inset, in a band above the workbench. */}
-        {(refusal !== null || deployRefusal !== null || deployedReadError) && (
+        {(refusal !== null ||
+          deployRefusal !== null ||
+          deployedReadError ||
+          newerVersion !== null) && (
           <div className="border-border flex flex-col gap-3 border-b p-4">
+            {newerVersion !== null && draftBase !== undefined && (
+              <Alert
+                variant="info"
+                title={t('canvas.newerVersion.title')}
+                description={t('canvas.newerVersion.body', {
+                  version: newerVersion,
+                  base: draftBase,
+                })}
+              >
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="mt-2"
+                  onClick={discardDraft}
+                >
+                  {t('canvas.newerVersion.show', { version: newerVersion })}
+                </Button>
+              </Alert>
+            )}
             {deployedReadError && (
               <CatalogLoadError
                 message={
@@ -1240,42 +1529,72 @@ function AutomationEditorScope({
           )}
         >
           <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>
-            {lastRun ? (
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-end p-2">
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className="pointer-events-auto"
-                  aria-pressed={showLastRun}
-                  title={
-                    showLastRun
-                      ? t('detail.hideLastRun')
-                      : t('detail.showLastRun')
-                  }
-                  tooltipSide="left"
-                  onClick={() => {
-                    setShowLastRun((shown) => !shown);
-                  }}
-                >
-                  {showLastRun ? (
-                    <EyeOff className="size-4" aria-hidden="true" />
-                  ) : (
-                    <Eye className="size-4" aria-hidden="true" />
-                  )}
-                </Button>
-              </div>
-            ) : null}
-            <AutomationCanvas
-              graph={graph}
-              positions={positions}
-              selectedNodeId={selectedNodeId}
-              onSelectNode={setSelectedNodeId}
-              inspectorId={inspectorId}
-              framed={false}
-              centerActions={isMobile ? canvasToolbarActions : undefined}
-              {...(runStatusByNode !== undefined && { runStatusByNode })}
-              issueCountsByNode={countsByNode}
-            />
+            {canvasDocument !== null && (
+              <AutomationCanvas
+                automation={canvasDocument}
+                layoutKey={layoutKey}
+                catalog={catalog}
+                modelLabel={modelLabel}
+                triggers={triggerRowsShown}
+                check={canvasCheck}
+                startNotice={startNotice}
+                issueCounts={countsByNode}
+                selectedId={selectedNodeId}
+                onSelect={selectOnCanvas}
+                revealId={selectedNodeId}
+                inspectorId={inspectorId}
+                {...(canvasRun !== undefined && { run: canvasRun })}
+                {...(canvasChange !== undefined && { changed: canvasChange })}
+                framed={false}
+                view={canvasView}
+                onViewChange={(next) =>
+                  changeView(next === 'list' ? 'list' : 'canvas')
+                }
+                topStart={viewSwitch}
+                topEnd={
+                  <>
+                    {lastRun ? (
+                      <Button
+                        variant="secondary"
+                        size="icon-sm"
+                        aria-pressed={showLastRun}
+                        title={
+                          showLastRun
+                            ? t('detail.hideLastRun')
+                            : t('detail.showLastRun')
+                        }
+                        tooltipSide="bottom"
+                        onClick={() => {
+                          setShowLastRun((shown) => !shown);
+                        }}
+                      >
+                        {showLastRun ? (
+                          <EyeOff className="size-4" aria-hidden="true" />
+                        ) : (
+                          <Eye className="size-4" aria-hidden="true" />
+                        )}
+                      </Button>
+                    ) : null}
+                    {canAuthor && (
+                      <CodingAgentButton
+                        organizationId={organizationId}
+                        automationSlug={automationSlug}
+                      />
+                    )}
+                  </>
+                }
+                {...(isMobile && { toolbar: canvasToolbarActions })}
+                {...(canAuthor && {
+                  emptyAction: (
+                    <CodingAgentButton
+                      organizationId={organizationId}
+                      automationSlug={automationSlug}
+                      variant="primary"
+                    />
+                  ),
+                })}
+              />
+            )}
             {/* Under the canvas, spanning its column only, so the inspector
                 beside it keeps its full height. Below `lg` the list opens
                 in a sheet instead (further down). */}
@@ -1340,6 +1659,19 @@ function AutomationEditorScope({
           handingOn={handingOn}
         />
       )}
+      {/* What changed on the canvas while the reader looked: a version
+          saved elsewhere, a node it no longer has. */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-slot="canvas-announcer"
+      >
+        {canvasNews.text === '' ? null : (
+          <span key={canvasNews.key}>{canvasNews.text}</span>
+        )}
+      </div>
       {canAuthor && (
         <IssueAnnouncer
           counts={issueCounts}

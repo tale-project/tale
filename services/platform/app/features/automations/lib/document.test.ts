@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DOC_EXAMPLE } from '@/lib/engine/api/docs';
 
-import { readDocument, readPositions } from './document';
+import { readDocument } from './document';
 
 /**
  * A stored document arrives as `v.any()`. These tests pin the narrowing to the
@@ -98,20 +98,5 @@ describe('readDocument', () => {
       type: 'agent',
       skills: ['docx', 'pdf'],
     });
-  });
-});
-
-describe('readPositions', () => {
-  it('reads hand-placed positions from the canvas metadata', () => {
-    const automation = readDocument({
-      name: 'a',
-      nodes: [{ id: 'n', type: 'transform', code: 'return 1;' }],
-      ui: { positions: { n: { x: 10, y: 20 }, bad: { x: 'left' } } },
-    });
-    expect(readPositions(automation)).toEqual({ n: { x: 10, y: 20 } });
-  });
-
-  it('reads no positions from a document that placed none', () => {
-    expect(readPositions(readDocument(DOC_EXAMPLE.automation))).toEqual({});
   });
 });

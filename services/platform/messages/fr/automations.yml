@@ -200,30 +200,88 @@ trigger:
     body: L’URL actuelle cesse de fonctionner dès que le nouveau token est généré. Copie la nouvelle URL et mets à jour chaque système expéditeur.
   revokedToast: L’ancienne URL du webhook a été révoquée — les expéditeurs qui l’utilisent reçoivent désormais 404.
 canvas:
-  ariaLabel: Canvas de l’automatisation
-  readsFrom: 'Lit {nodes}'
+  ariaLabel: Canevas de l’automatisation
   unpinnedModel: Pas de fournisseur épinglé — chaque exécution en choisit un.
   empty:
     title: Cette version ne contient aucun nœud
-    description:
-      Un document d'automatisation est une liste de nœuds. Ajoutes-en un au
-      document et il apparaît ici.
+    description: Une automatisation travaille avec des nœuds. Demande à ton agent de code d’en ajouter.
   cycle:
     title: Ces nœuds se référencent en boucle
     description:
       L’ordre affiché est celui dans lequel les nœuds sont écrits, pas
       celui dans lequel ils s’exécuteraient, car le moteur ne peut pas
       exécuter une boucle. Retire l’une des références pour la rompre.
+  view:
+    label: Vue
+    canvas: Canevas
+    list: Liste
+  legend:
+    data: 'Trait plein : lit la sortie du nœud au-dessus'
+    control: 'Trait tireté : s’exécute après lui, sans lire sa sortie'
+    gate: 'Condition : décide si le nœud en dessous s’exécute'
+    yes: 'Oui : s’exécute quand la condition est remplie'
+    no: 'Non : s’exécute quand la condition n’est pas remplie'
+    completion: 'Trait pointillé : l’exécution se termine après ce nœud'
+    conditional: 'Cadre tireté : peut ne pas s’exécuter, ou ne s’est pas exécuté'
+    loop: 'Cadre : s’exécute une fois par élément, ou se répète'
+  readsNothing: Ne lit aucun autre nœud
+  node:
+    returnsUnknown: Structure connue après une exécution
+    returns: 'Renvoie {shape}'
+    writes: Modifie des données dans {connector}. Une exécution en service peut attendre une approbation.
+    asks: Peut poser une question et attendre la réponse.
+    catalog:
+      transform: Transformation
+      llm: Modèle de langage
+      agent: Agent
+      subautomation: 'Appelle {automation}'
+      subautomationUnset: Appelle une automatisation
+      connector: '{connector} · {action}'
+      withModel: '{type} · {model}'
+      unknown: 'Type inconnu {type}'
+    source:
+      input: 'entrée ({keys})'
+      inputAll: entrée
+      item: chaque élément
+  gate:
+    asCode: Écrite en code
   edge:
-    data: '{target} lit la sortie de {source}'
-    control: '{target} s’exécute après {source}'
+    carries: 'Transporte {fields}'
   controlFlow:
-    when: 'si {value}'
-    elseOf: 'sinon de {value}'
-    forEach: 'pour chaque {value}'
-    repeatUntil: 'répéter jusqu’à {value}'
-    repeatUntilCapped: 'répéter jusqu’à {value}, {maxRepeats}× au plus'
-    onError: continuer en cas d’erreur
+    forEach: 'Pour chaque élément de {list}'
+    forEachRaw: Pour chaque élément de sa liste
+    repeatUntilCapped: 'Se répète jusqu’à : {condition}, {maxRepeats} fois au plus'
+    repeatRaw: 'Se répète jusqu’à ce que sa condition soit remplie, {maxRepeats} fois au plus'
+    onError: Continue en cas d’erreur
+  updated: 'Affichage de la v{version}.'
+  selectionRemoved: '{node} ne fait plus partie de cette version.'
+  newerVersion:
+    title: Une version plus récente a été enregistrée
+    body: 'La v{version} a été enregistrée pendant ta modification. Ton brouillon part de la v{base}.'
+    show: 'Afficher la v{version} et abandonner mon brouillon'
+  start:
+    manual: À la main, via l’API ou MCP
+    manualOnly: Seulement à la main, via l’API ou MCP — aucun déclencheur
+    webhook: Une requête vers son URL de webhook
+    event: 'Quand {event}'
+    scheduleZone: '{schedule} · {zone}'
+    off: Désactivé
+    notLive: Attend une version en service
+    anyInput: N’importe quelle entrée JSON
+    noFields: Aucun champ d’entrée
+    fromTrigger: du déclencheur
+    description: '{triggers}. Entrée : {fields}.'
+  end:
+    returnsNode: 'La sortie de {node}'
+    returnsNothing: Rien — cette automatisation n’a pas de sortie
+    fieldFrom: 'de {nodes}'
+    maybeEmpty: peut être vide
+    emptyOnPath: vide sur ce chemin
+    succeeded: renvoie la sortie
+    failed: '{count, plural, =0 {aucun nœud n’arrête l’exécution} one {quand # nœud échoue} other {quand l’un des # nœuds échoue}}'
+    stopped: quand quelqu’un l’arrête
+    someEmpty: Certaines exécutions renvoient des valeurs vides
+    failedAt: 'Échec à {node}'
 editor:
   unknownType: 'Type de nœud inconnu : {type}'
   catalogUnavailable:
@@ -549,7 +607,7 @@ problems:
   refusedDeploy: Cette version a des problèmes qui empêchent sa mise en service. Ils sont listés dans Problèmes.
   refusedDeployDraft: Cette version a des problèmes qui empêchent sa mise en service. Abandonne ton brouillon pour les voir dans Problèmes.
   open: Afficher les problèmes
-  notEditableHere: Cette partie de l’automatisation ne se modifie pas ici. Modifie-la via MCP, l’API ou un paquet téléversé.
+  notEditableHere: Modifie-le avec ton agent de code.
   nodeTitle: Problèmes de ce nœud
   filter:
     label: Afficher les problèmes
@@ -558,3 +616,71 @@ problems:
     warnings: Avertissements
   emptyFiltered: '{filter, select, errors {Aucune erreur} warnings {Aucun avertissement} other {Aucun problème}}'
   fieldPart: '{part} : {message}'
+condition:
+  gt: '{a} est supérieur à {b}'
+  gte: '{a} vaut au moins {b}'
+  lt: '{a} est inférieur à {b}'
+  lte: '{a} vaut au plus {b}'
+  eq: '{a} vaut {b}'
+  neq: '{a} ne vaut pas {b}'
+  empty: '{a} est vide'
+  notEmpty: '{a} n’est pas vide'
+  set: '{a} est défini'
+  notSet: '{a} n’est pas défini'
+  contains: '{a} contient {b}'
+  notContains: '{a} ne contient pas {b}'
+  startsWith: '{a} commence par {b}'
+  endsWith: '{a} se termine par {b}'
+  ref:
+    node: '{path} de {node}'
+    nodeOutput: 'la sortie de {node}'
+    input: '{path} de l’entrée'
+    inputWhole: l’entrée
+    item: '{path} de l’élément'
+    itemWhole: l’élément
+    index: la position de l’élément
+    output: '{path} du résultat de ce passage'
+    outputWhole: le résultat de ce passage
+    length: 'le nombre de {inner}'
+  literal:
+    valueTrue: vrai
+    valueFalse: faux
+    valueNull: vide
+  quote: '« {text} »'
+paths:
+  button: '{count, plural, one {# chemin} other {# chemins}}'
+  title: Chemins possibles
+  description: Chaque chemin qu’une exécution réussie peut prendre. Survole-en un ou sélectionne-le pour le voir sur le canevas.
+  single: 'Chaque exécution suit le même chemin : {count, plural, one {son # nœud s’exécute} other {les # nœuds s’exécutent}}.'
+  row: 'Chemin {index}'
+  rowRuns: '{ran, plural, one {# nœud sur {total} s’exécute} other {# nœuds sur {total} s’exécutent}}'
+  clause:
+    runs: '{node} s’exécute'
+    skipped: '{node} est ignoré'
+    fails: '{node} échoue, l’exécution continue'
+    succeeds: '{node} réussit'
+  more: '{count, plural, one {# autre chemin n’est pas listé} other {# autres chemins ne sont pas listés}}'
+  truncated: Cette automatisation a {count} conditions, trop pour lister chaque chemin. Chaque nœud indique quand même quand il s’exécute.
+  halts:
+    title: Arrête l’exécution en cas d’échec
+    row: '{node} échoue si {reasons}'
+  showing: 'Chemin {index} affiché : {ran, plural, one {# nœud sur {total} s’exécute} other {# nœuds sur {total} s’exécutent}}.'
+  pill: 'Chemin {index} · {ran, plural, one {# nœud sur {total} s’exécute} other {# nœuds sur {total} s’exécutent}}'
+  skip:
+    when: 'Ignoré : condition non remplie'
+    else: 'Ignoré : {node} s’exécute'
+    upstream: 'Ignoré : {node} est ignoré'
+    error: Échoue, l’exécution continue
+failureReason:
+  external: un service appelé échoue
+  code: son code lève une erreur
+  expression: l’une de ses expressions échoue
+  iteration: sa liste ne peut pas être parcourue
+  inputContract: son entrée est refusée
+  subautomation: l’automatisation appelée échoue
+codingAgent:
+  button: Modifier avec ton agent de code
+  body: Les agents de code comme Claude Code, Codex et Cursor modifient les automatisations via le serveur MCP de Tale. Ils lisent cette automatisation, la modifient, la vérifient et enregistrent une nouvelle version, qui apparaît ensuite ici.
+  nameLabel: Nom de cette automatisation
+  setUp: Configurer MCP
+  learnMore: Connecter un agent de code

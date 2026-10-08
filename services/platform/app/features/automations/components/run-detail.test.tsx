@@ -143,16 +143,30 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 }));
 vi.mock('./automation-canvas', () => ({
   AutomationCanvas: ({
-    graph,
-    runStatusByNode,
+    automation,
+    layoutKey,
+    revealId,
+    run,
   }: {
-    graph: { nodes: Array<{ id: string; type: string }> };
-    runStatusByNode: ReadonlyMap<string, string>;
+    automation: { nodes: Array<{ id: string; type: string }> };
+    layoutKey: string;
+    revealId?: string | null;
+    run?: {
+      statusByNode: ReadonlyMap<string, string>;
+      status: string;
+      startedBy?: string;
+    };
   }) => (
-    <ul data-testid="canvas">
-      {graph.nodes.map((node) => (
+    <ul
+      data-testid="canvas"
+      data-layout-key={layoutKey}
+      data-reveal-id={revealId ?? undefined}
+      data-run-status={run?.status}
+      data-started-by={run?.startedBy}
+    >
+      {automation.nodes.map((node) => (
         <li key={node.id}>
-          {node.id} ({node.type}): {runStatusByNode.get(node.id)}
+          {node.id} ({node.type}): {run?.statusByNode.get(node.id)}
         </li>
       ))}
     </ul>
@@ -963,7 +977,10 @@ describe('RunDetail without a version document', () => {
     state.trace = [{ node: 'draft', type: 'llm', status: 'ok' }];
     state.versionError = new Error('network down');
     renderRun();
-    expect(screen.getByTestId('canvas')).not.toHaveTextContent('draft');
+    expect(screen.queryByTestId('canvas')).toBeNull();
+    // The failure says itself where the chart would be.
+    expect(screen.getByText("Couldn't load the automation")).toBeVisible();
+    expect(screen.getByText('network down')).toBeVisible();
   });
 
   it('prefers the version document when it exists', () => {
@@ -1000,4 +1017,67 @@ it('renders a quarantine without acting on a retained approval or pretending to 
   expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   expect(screen.queryByText('Interrupted — resuming')).toBeNull();
   expect(readApproval).not.toHaveBeenCalled();
+});
+
+describe('RunDetail canvas', () => {
+  it('opens a failed run on its failure', () => {
+    state.status = 'failed';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.trace = [
+      { node: 'draft', type: 'llm', status: 'ok' },
+      {
+        node: 'send',
+        type: 'imap-smtp.send',
+        status: 'error',
+        error: 'SMTP refused',
+      },
+    ];
+    state.versionDocument = {
+      name: 'docs-approval-proof',
+      nodes: [
+        { id: 'draft', type: 'llm' },
+        {
+          id: 'send',
+          type: 'imap-smtp.send',
+          input: { body: '{{ nodes.draft.output }}' },
+        },
+        {
+          id: 'archive',
+          type: 'transform',
+          input: { sent: '{{ nodes.send.output }}' },
+          code: 'return input.sent;',
+        },
+      ],
+    };
+    renderRun();
+    const canvas = screen.getByTestId('canvas');
+    // The node that failed comes into view, with the run laid over it.
+    expect(canvas).toHaveAttribute('data-reveal-id', 'send');
+    expect(canvas).toHaveAttribute('data-run-status', 'failed');
+    expect(canvas).toHaveTextContent('send (imap-smtp.send): error');
+    expect(canvas).toHaveAttribute(
+      'data-layout-key',
+      expect.stringContaining(':run:'),
+    );
+  });
+
+  it('says on Start who started the run', () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.startedBy = 'user:user-dana';
+    state.trace = [{ node: 'draft', type: 'llm', status: 'ok' }];
+    state.versionDocument = {
+      name: 'docs-approval-proof',
+      nodes: [{ id: 'draft', type: 'llm' }],
+    };
+    renderRun();
+    expect(screen.getByTestId('canvas')).toHaveAttribute(
+      'data-started-by',
+      expect.stringContaining('Dana K.'),
+    );
+  });
 });

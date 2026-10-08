@@ -206,9 +206,10 @@ output:
       beside or under the canvas.
 - [ ] `AUTO-F13` · **Canvas graph** — On the workbench, inspect the canvas →
       Region labelled **Automation canvas** (`automations.canvas.ariaLabel`); each
-      node is a box naming its type and inputs it reads
-      (`automations.canvas.readsFrom`); edges carry data/order semantics
-      (`automations.canvas.edge.data` / `automations.canvas.edge.control`); a
+      node is a box naming its type and the nodes it reads (`flow.list.reads`,
+      else `automations.canvas.readsNothing`); the legend says what each line
+      means (`automations.canvas.legend.data` /
+      `automations.canvas.legend.control`); a
       versionless/empty document shows `automations.canvas.empty.title`
 - [ ] `AUTO-F14` · **Node inspector** — Click a node; **Close**
       (`common.aria.close`); Escape; click the box again; click empty canvas →

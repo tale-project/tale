@@ -43,6 +43,7 @@ const { automation, check } = vi.hoisted(() => {
     type: string;
     code: string;
     input?: Record<string, string>;
+    when?: string;
   }[] = [
     { id: 'pulls', type: 'transform', code: 'return { items: [] };' },
     {
@@ -58,17 +59,12 @@ const { automation, check } = vi.hoisted(() => {
       code: 'return { text: "" };',
     },
   ];
-  // Every node placed, so the canvas never waits on the layout engine.
-  const positions: Record<string, { x: number; y: number }> = {
-    pulls: { x: 0, y: 0 },
-    diff: { x: 0, y: 196 },
-    summary: { x: 0, y: 392 },
-  };
+  // The canvas lays every document out itself (ELK, in a worker); nothing
+  // is placed by hand.
   return {
     automation: {
       name: 'pr-digest',
       nodes,
-      ui: { positions },
       deployedVersion: 1 as number | undefined,
     },
     /** What the draft check answers: nothing, unless a test plants a problem. */
@@ -139,6 +135,7 @@ vi.mock('@/app/features/projects/hooks/queries', async (importOriginal) => ({
     typeof import('@/app/features/projects/hooks/queries')
   >()),
   useProjects: () => ({ projects: [], isLoading: false }),
+  useProjectHarnesses: () => ({ data: { harnesses: [], models: [] } }),
 }));
 
 vi.mock('../hooks/queries', async (importOriginal) => ({
@@ -178,6 +175,7 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
   }),
   useAutomationRuns: () => ({ data: [] }),
   useAutomationProjects: () => ({ data: [] }),
+  useAutomationTriggers: () => ({ data: [] }),
   useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
 }));
 
@@ -341,13 +339,40 @@ function scrollContainerOf(element: Element) {
  * A real pointer click: React Flow's pane reads the event's window on
  * mousedown, which a synthesized event does not carry. */
 async function selectNode(id: string) {
+  await expectLaidOut();
   await userEvent.click(
     await screen.findByRole('button', { name: new RegExp(`^${id}`, 'i') }),
   );
   await screen.findByRole('textbox', { name: 'Code' });
 }
 
+/** The chart is drawn: the canvas laid the document out (in a worker, the
+ * first time a while), the frame is no longer busy and the view has come to
+ * rest. */
+async function expectLaidOut() {
+  const canvas = await screen.findByRole(
+    'group',
+    { name: 'Automation canvas' },
+    { timeout: 20_000 },
+  );
+  await vi.waitFor(() => expect(canvas).toHaveAttribute('aria-busy', 'false'), {
+    timeout: 20_000,
+  });
+  await viewportAtRest(canvas);
+  return canvas;
+}
+
+/** The canvas as it is shown: the chart, or the List view that stands in
+ * for it on a narrow screen. */
+function canvasView() {
+  return (
+    screen.queryByRole('group', { name: 'Automation canvas' }) ??
+    screen.getByRole('list', { name: 'Automation canvas' })
+  );
+}
+
 async function expectWholeCanvas() {
+  await expectLaidOut();
   for (const name of ZOOM_CONTROLS) {
     const control = await screen.findByRole('button', { name });
     expect(unclippedShare(control), name).toBeCloseTo(1, 2);
@@ -416,11 +441,8 @@ describe('automation editor workbench in Chromium', () => {
       expect(bounds.bottom).toBeLessThanOrEqual(
         strip.getBoundingClientRect().bottom,
       );
-      expect(
-        screen
-          .getByRole('group', { name: 'Automation canvas' })
-          .contains(picker),
-      ).toBe(false);
+      // Narrower than 24rem the List view stands in for the chart.
+      expect(canvasView().contains(picker)).toBe(false);
       await userEvent.click(picker);
       const history = await screen.findByRole('dialog', { name: 'Versions' });
       expect(history.getBoundingClientRect().left).toBeGreaterThanOrEqual(0);
@@ -472,7 +494,7 @@ describe('automation editor workbench in Chromium', () => {
       await screen.findByText('General settings');
       await userEvent.click(screen.getByRole('button', { name: 'Version' }));
       await userEvent.click(await screen.findByRole('radio', { name: /^v1/ }));
-      await screen.findByRole('group', { name: 'Automation canvas' });
+      await vi.waitFor(() => canvasView());
       expect(screen.getByRole('button', { name: 'Version' })).toHaveTextContent(
         'v1',
       );
@@ -658,18 +680,44 @@ describe('automation editor workbench in Chromium', () => {
   it('pans a picked box back into view when the inspector narrows the canvas', async () => {
     await page.viewport(1280, 800);
     const { nodes } = automation;
-    const { positions } = automation.ui;
-    // A box fitted against the canvas's right edge: the inspector's column
-    // opens right over where it was drawn.
+    // Six nodes that read nothing make the chart as wide as the canvas
+    // once it is fitted: the right-most box sits against the canvas's
+    // right edge, where the inspector's column opens.
     automation.nodes = [
       ...nodes,
-      { id: 'archive', type: 'transform', code: 'return {};' },
+      ...['archive', 'backup', 'cleanup', 'digest', 'export'].map((id) => ({
+        id,
+        type: 'transform',
+        code: 'return {};',
+      })),
     ];
-    automation.ui.positions = { ...positions, archive: { x: 1600, y: 0 } };
     try {
       renderEditorTab();
       const canvas = await expectWholeCanvas();
-      const box = await screen.findByRole('button', { name: /^archive/i });
+      const roots = [
+        'pulls',
+        'archive',
+        'backup',
+        'cleanup',
+        'digest',
+        'export',
+      ];
+      const boxes = await Promise.all(
+        roots.map((id) =>
+          screen.findByRole('button', { name: new RegExp(`^${id}`, 'i') }),
+        ),
+      );
+      const box = boxes.reduce((right, candidate) =>
+        candidate.getBoundingClientRect().right >
+        right.getBoundingClientRect().right
+          ? candidate
+          : right,
+      );
+      // The inspector's column is 22rem wide.
+      const inspectorWidth = 22 * 16;
+      expect(box.getBoundingClientRect().right).toBeGreaterThan(
+        canvas.getBoundingClientRect().right - inspectorWidth,
+      );
       await userEvent.click(box);
       await screen.findByRole('textbox', { name: 'Code' });
       await expect
@@ -683,21 +731,18 @@ describe('automation editor workbench in Chromium', () => {
       // frame before the 200ms pan ends: measure where the view comes to rest.
       await viewportAtRest(canvas);
 
-      // Closing hands the width back without moving the graph: focus returns
-      // to the box, which is already in sight.
-      const settled = box.getBoundingClientRect();
+      // Closing hands the width back: focus returns to the box, and the
+      // view — still the canvas's own fit, nobody moved it — follows the
+      // canvas back to its full width with the box in sight.
       await userEvent.keyboard('{Escape}');
       await expect.poll(() => document.activeElement).toBe(box);
-      // A pan that must not come has no event to await: the pause gives one
-      // time to show. A runner too slow to draw it in time can only miss it,
-      // never fail a graph that holds still.
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      await viewportAtRest(canvas);
+      const frame = canvas.getBoundingClientRect();
       const after = box.getBoundingClientRect();
-      expect(after.left).toBeCloseTo(settled.left, 0);
-      expect(after.top).toBeCloseTo(settled.top, 0);
+      expect(after.left).toBeGreaterThanOrEqual(frame.left - 1);
+      expect(after.right).toBeLessThanOrEqual(frame.right + 1);
     } finally {
       automation.nodes = nodes;
-      automation.ui.positions = positions;
     }
   });
 
@@ -868,4 +913,126 @@ describe('automation editor workbench in Chromium', () => {
     expect(save).toBeDisabled();
     expect(save).toHaveAccessibleDescription('Fix 1 error to save');
   });
+});
+
+describe('automation editor paths in Chromium', () => {
+  /** Summary runs only when the diff has text: two ways a run can go. */
+  async function withCondition(test: () => Promise<void>) {
+    const { nodes } = automation;
+    automation.nodes = nodes.map((node) =>
+      node.id === 'summary'
+        ? { ...node, when: '{{ nodes.diff.output.text !== "" }}' }
+        : node,
+    );
+    try {
+      await test();
+    } finally {
+      automation.nodes = nodes;
+    }
+  }
+
+  it('lists the paths in a panel under the view switch that stays open while a node is picked', async () =>
+    withCondition(async () => {
+      await page.viewport(1280, 800);
+      renderEditorTab();
+      const canvas = await expectWholeCanvas();
+      const button = screen.getByRole('button', { name: '2 paths' });
+      expect(button).toHaveAttribute('aria-expanded', 'false');
+      await userEvent.click(button);
+      const panel = await screen.findByRole('region', {
+        name: 'Possible paths',
+      });
+      expect(button).toHaveAttribute('aria-expanded', 'true');
+      expect(button).toHaveAttribute('aria-controls', panel.id);
+      // Under the view switch, inside the canvas's top-left corner.
+      const viewSwitch = screen.getByRole('radiogroup', { name: 'View' });
+      const panelBox = panel.getBoundingClientRect();
+      const canvasBox = canvas.getBoundingClientRect();
+      expect(panelBox.top).toBeGreaterThanOrEqual(
+        viewSwitch.getBoundingClientRect().bottom,
+      );
+      expect(panelBox.left).toBeGreaterThanOrEqual(canvasBox.left);
+      expect(panelBox.bottom).toBeLessThanOrEqual(canvasBox.bottom);
+
+      const row = within(panel).getByRole('button', { name: /^Path 2/ });
+      await userEvent.click(row);
+      expect(row).toHaveAttribute('aria-pressed', 'true');
+      // Not a popover: picking a node leaves the list open. (The panel
+      // names Pulls too, as a node that ends a run when it fails: the box
+      // is picked by its own mark.)
+      const pulls = canvas.querySelector<HTMLElement>(
+        '[data-flow-node="pulls"]',
+      );
+      if (pulls === null) throw new Error('no Pulls box');
+      await userEvent.click(pulls);
+      await screen.findByRole('textbox', { name: 'Code' });
+      expect(
+        screen.getByRole('region', { name: 'Possible paths' }),
+      ).toBeVisible();
+      expect(row).toHaveAttribute('aria-pressed', 'true');
+
+      await userEvent.click(
+        within(panel).getByRole('button', { name: 'Close' }),
+      );
+      await vi.waitFor(() =>
+        expect(
+          screen.queryByRole('region', { name: 'Possible paths' }),
+        ).toBeNull(),
+      );
+      expect(button).toHaveAttribute('aria-expanded', 'false');
+    }));
+
+  it('opens the List view on a 375px phone, pins a path from a sheet and leaves a pill to undo it', async () =>
+    withCondition(async () => {
+      await page.viewport(375, 812);
+      renderEditorTab();
+      // Narrower than 24rem, the chart is too small to read: the List view
+      // says the same, and the view switch says which one is shown.
+      await screen.findByRole('list', { name: 'Automation canvas' });
+      expect(screen.getByRole('radio', { name: 'List' })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      );
+      await userEvent.click(screen.getByRole('button', { name: '2 paths' }));
+      const sheet = await screen.findByRole('dialog', {
+        name: 'Possible paths',
+      });
+      await userEvent.click(
+        within(sheet).getByRole('button', { name: /^Path 2/ }),
+      );
+      await vi.waitFor(() =>
+        expect(
+          screen.queryByRole('dialog', { name: 'Possible paths' }),
+        ).toBeNull(),
+      );
+      const pill = await screen.findByText(/^Path 2 · /);
+      expect(pill).toBeVisible();
+      await userEvent.click(screen.getByRole('button', { name: 'Show all' }));
+      await vi.waitFor(() =>
+        expect(screen.queryByText(/^Path 2 · /)).toBeNull(),
+      );
+    }));
+
+  it.each([375, 390])(
+    'keeps every canvas verb at least 24px on a %ipx phone',
+    async (width) =>
+      withCondition(async () => {
+        await page.viewport(width, 812);
+        renderEditorTab();
+        await screen.findByRole('button', { name: 'Test run' });
+        const verbs = [
+          screen.getByRole('radio', { name: 'Canvas' }),
+          screen.getByRole('radio', { name: 'List' }),
+          screen.getByRole('button', { name: '2 paths' }),
+          screen.getByRole('button', { name: 'Edit with your coding agent' }),
+          screen.getByRole('button', { name: 'Test run' }),
+        ];
+        for (const verb of verbs) {
+          const box = verb.getBoundingClientRect();
+          expect(box.width, verb.textContent ?? '').toBeGreaterThanOrEqual(24);
+          expect(box.height, verb.textContent ?? '').toBeGreaterThanOrEqual(24);
+          expect(box.right).toBeLessThanOrEqual(width);
+        }
+      }),
+  );
 });

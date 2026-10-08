@@ -101,6 +101,47 @@ describe('issueCountsByNode', () => {
     );
     expect(counts.get('draft_reply')).toEqual({ errors: 1, warnings: 1 });
     expect(counts.get('fetch_issues')).toEqual({ errors: 0, warnings: 1 });
+    expect(counts.get('__end')).toEqual({ errors: 1, warnings: 0 });
+  });
+
+  it('marks a condition, Start and End on their own boxes', () => {
+    const doc: Automation = {
+      ...DOC,
+      nodes: [
+        ...DOC.nodes,
+        {
+          id: 'notify',
+          type: 'transform',
+          when: '{{ nodes.nope.output }}',
+          code: 'return 1;',
+        },
+      ],
+    };
+    const counts = issueCountsByNode(
+      [
+        issue({ code: 'A', at: { pointer: '/nodes/2/when', range: [3, 8] } }),
+        issue({ code: 'B', at: { pointer: '/nodes/2/code' } }),
+        issue({ code: 'C', at: { pointer: '/inputs/properties/email' } }),
+        issue({
+          code: 'TRIGGER_INPUT_MISMATCH',
+          level: 'warning',
+          at: { pointer: '/inputs' },
+        }),
+        issue({ code: 'D', at: { pointer: '/output/summary' } }),
+        // The document's name is on no box: Problems lists it.
+        issue({ code: 'E', at: { pointer: '/name' } }),
+        // A `when` that is no string draws no condition: the node has it.
+        issue({ code: 'F', at: { pointer: '/nodes/0/when' } }),
+      ],
+      doc,
+    );
+    expect(Object.fromEntries(counts)).toEqual({
+      '__gate:notify': { errors: 1, warnings: 0 },
+      notify: { errors: 1, warnings: 0 },
+      __start: { errors: 1, warnings: 1 },
+      __end: { errors: 1, warnings: 0 },
+      fetch_issues: { errors: 1, warnings: 0 },
+    });
   });
 });
 

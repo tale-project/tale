@@ -9,18 +9,12 @@
  * useless exactly when it is needed most. What cannot be understood is
  * dropped, never guessed.
  *
- * `ui` is the engine's declared canvas metadata — "ignored by the engine" — and
- * is where this feature keeps what the canvas needs and the executor must not
- * see: hand-placed node positions.
+ * `ui` is the engine's declared free metadata. The canvas lays every
+ * automation out from its references and never reads it; it is carried
+ * through a save as it was.
  */
 
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
-
-/** Where a node sits on the canvas when an author placed it by hand. */
-export interface NodePosition {
-  x: number;
-  y: number;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -114,20 +108,4 @@ export function readDocument(value: unknown): Automation | null {
     );
   }
   return automation;
-}
-
-/** Hand-placed node positions, from `ui.positions`. Nodes without an entry are
- * laid out automatically. */
-export function readPositions(
-  automation: Automation | null,
-): Record<string, NodePosition> {
-  const raw = automation?.ui?.positions;
-  if (!isRecord(raw)) return {};
-  const out: Record<string, NodePosition> = {};
-  for (const [id, value] of Object.entries(raw)) {
-    if (!isRecord(value)) continue;
-    const { x, y } = value;
-    if (typeof x === 'number' && typeof y === 'number') out[id] = { x, y };
-  }
-  return out;
 }

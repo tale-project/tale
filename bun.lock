@@ -322,7 +322,6 @@
         "@tanstack/react-router": "1.168.10",
         "@tanstack/react-table": "8.21.3",
         "@xmldom/xmldom": "0.8.15",
-        "@xyflow/react": "12.10.2",
         "acorn": "8.18.0",
         "ajv": "8.20.0",
         "aws4fetch": "^1.0.20",

@@ -1375,7 +1375,7 @@ export const SHOTS: readonly Shot[] = [
     route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
     // Select the LLM step so the inspector shows a node's fields instead of
     // its "select a node" hint — the frame then teaches both halves at once.
-    // A node box is a button carrying `data-automation-node=<id>` (the same
+    // A node box is a button carrying `data-flow-node=<id>` (the same
     // attribute the inspector's Close restores focus to).
     prepare: async (page) => {
       await expect(
@@ -1390,7 +1390,7 @@ export const SHOTS: readonly Shot[] = [
           exact: true,
         }),
       ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-      const triageStep = page.locator('[data-automation-node="triage"]');
+      const triageStep = page.locator('[data-flow-node="triage"]');
       await triageStep.waitFor({ timeout: 30_000 });
       await triageStep.click();
     },
@@ -1417,7 +1417,7 @@ export const SHOTS: readonly Shot[] = [
           exact: true,
         }),
       ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-      const triageStep = page.locator('[data-automation-node="triage"]');
+      const triageStep = page.locator('[data-flow-node="triage"]');
       await triageStep.waitFor({ timeout: 30_000 });
       await triageStep.click();
       const prompt = page.getByRole('textbox', {
@@ -1529,7 +1529,7 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page
-        .locator('[data-automation-node="report"]')
+        .locator('[data-flow-node="report"]')
         .getByText(t('automations.runs.nodeStatus.ok'), { exact: true }),
   },
   {

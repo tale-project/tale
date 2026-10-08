@@ -124,6 +124,7 @@ vi.mock('../hooks/use-automation-validation', () => ({
     };
   },
   useInvalidateAutomationValidation: () => invalidateValidation,
+  VALIDATION_DEBOUNCE_MS: 400,
 }));
 
 // `EditorActions` owns every piece of save feedback and reaches for the
@@ -246,6 +247,7 @@ vi.mock('../hooks/queries', async (importOriginal) => {
     useAutomationRuns: () => ({ data: runsData }),
     useAutomationProjects: () => ({ data: projectsData.bound }),
     useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
+    useAutomationTriggers: () => ({ data: [] }),
   };
 });
 
@@ -279,36 +281,73 @@ vi.mock('@tanstack/react-router', async () => {
   };
 });
 
-// The canvas is a React Flow viewport and jsdom performs no layout; the page
-// only needs it to hand a node to the inspector, so the stub offers that.
+// The canvas is a laid-out chart and jsdom performs no layout; the page only
+// needs it to hand a box to the inspector and to carry the page's own
+// controls in its corners, so the stub offers that.
 vi.mock('./automation-canvas', () => ({
   AutomationCanvas: ({
-    graph,
-    onSelectNode,
+    automation,
+    layoutKey,
+    onSelect,
     inspectorId,
-    runStatusByNode,
+    run,
+    changed,
+    view,
+    topStart,
+    topEnd,
+    toolbar,
   }: {
-    graph: { nodes: readonly { id: string }[] };
-    onSelectNode: (nodeId: string | null) => void;
+    automation: { nodes: readonly { id: string; when?: string }[] };
+    layoutKey: string;
+    onSelect: (id: string | null) => void;
     inspectorId: string;
-    runStatusByNode?: ReadonlyMap<string, string>;
+    run?: { statusByNode: ReadonlyMap<string, string> };
+    changed?: { ids: ReadonlySet<string>; key: string | number };
+    view?: string;
+    topStart?: React.ReactNode;
+    topEnd?: React.ReactNode;
+    toolbar?: React.ReactNode;
   }) => (
-    <div data-testid="canvas" data-inspector-id={inspectorId}>
-      {graph.nodes.map((node) => (
+    <div
+      data-testid="canvas"
+      data-inspector-id={inspectorId}
+      data-layout-key={layoutKey}
+      data-view={view}
+      data-changed={
+        changed === undefined ? undefined : [...changed.ids].sort().join(',')
+      }
+    >
+      <div data-testid="canvas-top-start">{topStart}</div>
+      <div data-testid="canvas-top-end">{topEnd}</div>
+      {automation.nodes.map((node) => (
         <button
           key={node.id}
           type="button"
           onClick={() => {
-            onSelectNode(node.id);
+            onSelect(node.id);
           }}
-          data-run-status={runStatusByNode?.get(node.id)}
+          data-run-status={run?.statusByNode.get(node.id)}
         >
           {`select ${node.id}`}
         </button>
       ))}
-      <button type="button" onClick={() => onSelectNode(null)}>
+      {automation.nodes
+        .filter((node) => node.when !== undefined)
+        .map((node) => (
+          <button
+            key={`gate-${node.id}`}
+            type="button"
+            onClick={() => {
+              onSelect(`__gate:${node.id}`);
+            }}
+          >
+            {`select the condition of ${node.id}`}
+          </button>
+        ))}
+      <button type="button" onClick={() => onSelect(null)}>
         deselect
       </button>
+      {toolbar}
     </div>
   ),
 }));
@@ -388,6 +427,22 @@ const saveButton = () => screen.getByRole('button', { name: 'Save' });
 const discardButton = () => screen.getByRole('button', { name: 'Discard' });
 const whenField = () => screen.getByRole('textbox', { name: 'When' });
 const versionPicker = () => screen.getByRole('button', { name: 'Version' });
+/** The live region that counts problems; the canvas has one of its own. */
+const issueAnnouncer = () => {
+  const region = screen
+    .getAllByRole('status')
+    .find((element) => element.dataset.slot === 'issue-announcer');
+  if (region === undefined) throw new Error('No problems announcer');
+  return region;
+};
+/** The live region that says what changed on the canvas. */
+const canvasAnnouncer = () => {
+  const region = screen
+    .getAllByRole('status')
+    .find((element) => element.dataset.slot === 'canvas-announcer');
+  if (region === undefined) throw new Error('No canvas announcer');
+  return region;
+};
 
 /** Select the one node and edit a field every node type accepts. */
 async function editTheNode(user: ReturnType<typeof renderPage>['user']) {
@@ -1012,9 +1067,12 @@ describe('AutomationEditor', () => {
       startedAt: 1_700_000_200_000,
     });
     const { user } = renderPage();
-    const hide = screen.getByRole('button', { name: 'Hide last run' });
+    // Among the canvas's own verbs, in its top-right corner.
+    const hide = within(screen.getByTestId('canvas-top-end')).getByRole(
+      'button',
+      { name: 'Hide last run' },
+    );
     expect(hide).toHaveAttribute('aria-pressed', 'true');
-    expect(hide.closest('.absolute')).not.toBeNull();
     expect(
       screen.queryByRole('link', { name: 'Open the last run' }),
     ).toBeNull();
@@ -1830,9 +1888,7 @@ describe('AutomationEditor problems', () => {
     // The server's errors hold Save until the draft changes.
     expect(saveButton()).toHaveAttribute('aria-disabled', 'true');
     await waitFor(() =>
-      expect(screen.getByRole('status')).toHaveTextContent(
-        'Saving was refused. 1 error',
-      ),
+      expect(issueAnnouncer()).toHaveTextContent('Saving was refused. 1 error'),
     );
   });
 
@@ -1857,7 +1913,7 @@ describe('AutomationEditor problems', () => {
 
   it('says a draft check only when its counts change', async () => {
     const { user } = renderPage();
-    const status = () => screen.getByRole('status');
+    const status = issueAnnouncer;
     // The stored version had no problems: a clean draft is no news.
     await editTheNode(user);
     await user.type(whenField(), 'y');
@@ -1913,7 +1969,7 @@ describe('AutomationEditor problems', () => {
     const { user } = renderPage();
     await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
     await waitFor(() =>
-      expect(screen.getByRole('status')).toHaveTextContent(/^1 error$/),
+      expect(issueAnnouncer()).toHaveTextContent(/^1 error$/),
     );
   });
 
@@ -1953,7 +2009,7 @@ describe('AutomationEditor problems', () => {
       screen.getByRole('region', { name: 'Problems' }),
     ).getByRole('button', { name: /Error:/ });
     expect(row).toHaveAttribute('aria-disabled', 'true');
-    expect(row).toHaveAccessibleDescription(/can't be edited here/);
+    expect(row).toHaveAccessibleDescription(/with your coding agent/);
   });
 
   it('checks nothing and shows no Problems for a member', () => {
@@ -1968,5 +2024,167 @@ describe('AutomationEditor problems', () => {
     const { user, container } = renderPage();
     await user.click(problemsButton());
     await checkAccessibility(container);
+  });
+});
+
+describe('AutomationEditor canvas', () => {
+  const twoNodes = {
+    name: 'billing/dunning',
+    nodes: [
+      { id: 'summary', type: 'llm', prompt: 'One sentence, please.' },
+      {
+        id: 'notify',
+        type: 'transform',
+        when: '{{ nodes.summary.output !== null }}',
+        input: { text: '{{ nodes.summary.output }}' },
+        code: 'return input.text;',
+      },
+    ],
+  };
+
+  it('follows a version saved elsewhere, rings what changed and says so', async () => {
+    const { user, rerender } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'select summary' }));
+    expect(screen.getByTestId('canvas')).toHaveAttribute(
+      'data-layout-key',
+      'billing/dunning:latest',
+    );
+
+    // A coding agent saves v4: Summary changed, Notify is new.
+    state.version = 4;
+    state.document = {
+      ...twoNodes,
+      nodes: [
+        { id: 'summary', type: 'llm', prompt: 'Two sentences, please.' },
+        ...twoNodes.nodes.slice(1),
+      ],
+    };
+    rerender(page());
+
+    await waitFor(() =>
+      expect(canvasAnnouncer()).toHaveTextContent('Now showing v4.'),
+    );
+    const canvas = screen.getByTestId('canvas');
+    // The same picture, glided to: the key stays, the changed nodes ring.
+    expect(canvas).toHaveAttribute('data-layout-key', 'billing/dunning:latest');
+    expect(canvas).toHaveAttribute('data-changed', 'notify,summary');
+    // The open node is still there, so it stays open.
+    expect(inspector()).not.toBeNull();
+  });
+
+  it('closes the open node when the newer version no longer has it', async () => {
+    state.document = twoNodes;
+    const { user, rerender } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'select notify' }));
+    expect(inspector()).not.toBeNull();
+
+    state.version = 4;
+    state.document = { ...twoNodes, nodes: twoNodes.nodes.slice(0, 1) };
+    rerender(page());
+
+    await waitFor(() =>
+      expect(canvasAnnouncer()).toHaveTextContent(
+        'Now showing v4. Notify is no longer in this version.',
+      ),
+    );
+    expect(inspector()).toBeNull();
+  });
+
+  it('says nothing new about the version this tab saved', async () => {
+    const { user, rerender } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => expect(saveMutation.mutateAsync).toHaveBeenCalled());
+
+    state.version = 4;
+    rerender(page());
+    expect(canvasAnnouncer()).toHaveTextContent('');
+    expect(
+      screen.queryByRole('button', { name: /discard my draft/ }),
+    ).toBeNull();
+  });
+
+  it('leaves a draft where it is and offers the newer version', async () => {
+    const { user, rerender } = renderPage();
+    await editTheNode(user);
+
+    state.version = 4;
+    state.document = twoNodes;
+    rerender(page());
+
+    expect(screen.getByText('A newer version was saved')).toBeVisible();
+    expect(
+      screen.getByText(
+        'v4 was saved while you were editing. Your draft is based on v3.',
+      ),
+    ).toBeVisible();
+    // Nothing on the canvas moved: the draft is still what it shows.
+    expect(screen.queryByRole('button', { name: 'select notify' })).toBeNull();
+    expect(screen.getByTestId('canvas')).not.toHaveAttribute('data-changed');
+    expect(whenField()).toHaveValue('x');
+
+    await user.click(
+      screen.getByRole('button', { name: 'Show v4 and discard my draft' }),
+    );
+    expect(
+      await screen.findByRole('button', { name: 'select notify' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('A newer version was saved')).toBeNull();
+    expect(saveButton()).toBeDisabled();
+  });
+
+  it('opens the node a link names, and keeps the open node in the link', async () => {
+    const onSearchChange = vi.fn();
+    const { user } = renderPage({ node: 'summary', onSearchChange });
+    expect(inspector()).not.toBeNull();
+    expect(onSearchChange).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'deselect' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ node: null });
+    await user.click(screen.getByRole('button', { name: 'select summary' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ node: 'summary' });
+  });
+
+  it('opens a node at its condition when the condition is picked', async () => {
+    state.document = twoNodes;
+    const { user } = renderPage();
+    await user.click(
+      screen.getByRole('button', { name: 'select the condition of notify' }),
+    );
+    expect(inspector()).not.toBeNull();
+    await waitFor(() => expect(whenField()).toHaveFocus());
+  });
+
+  it('switches between the chart and the List view and keeps it in the link', async () => {
+    const onSearchChange = vi.fn();
+    const { user } = renderPage({ view: 'list', onSearchChange });
+    const canvas = screen.getByTestId('canvas');
+    expect(canvas).toHaveAttribute('data-view', 'list');
+
+    const views = within(screen.getByTestId('canvas-top-start')).getByRole(
+      'radiogroup',
+      { name: 'View' },
+    );
+    await user.click(within(views).getByRole('radio', { name: 'Canvas' }));
+    expect(canvas).toHaveAttribute('data-view', 'chart');
+    expect(onSearchChange).toHaveBeenLastCalledWith({ view: 'canvas' });
+  });
+
+  it('puts the coding-agent entry among the canvas verbs for an author', () => {
+    renderPage();
+    expect(
+      within(screen.getByTestId('canvas-top-end')).getByRole('button', {
+        name: 'Edit with your coding agent',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('offers no coding-agent entry to a member', () => {
+    validationMock.canAuthor = false;
+    renderPage();
+    expect(
+      screen.queryByRole('button', { name: 'Edit with your coding agent' }),
+    ).toBeNull();
   });
 });

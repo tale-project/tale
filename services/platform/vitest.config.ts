@@ -38,6 +38,9 @@ export default defineConfig({
       '@sentry/browser',
       '@sentry/tanstackstart-react',
       'ajv',
+      // The flow canvas lays itself out with ELK behind a dynamic import.
+      'elkjs/lib/elk-api',
+      'elkjs/lib/elk.bundled.js',
       'framer-motion',
       'he',
       'qrcode.react',
