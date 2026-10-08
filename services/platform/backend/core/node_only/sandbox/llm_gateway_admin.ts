@@ -1860,7 +1860,20 @@ async function sendResize(
     if (res.ok) return 'resized';
     const said = sanitizeError(await res.text());
     if (res.status < 500) {
-      console.warn(`${failed} (${res.status}): ${said}`);
+      // The gateway resolves the base URL a write carries and refuses one
+      // whose host no longer resolves, so a record of a removed connector or
+      // a decommissioned host is refused at every pass. Deleting such a
+      // record is safe, since a provision sets up one still in use again; a
+      // built-in provider's record carries no base URL and holds every
+      // organization's key, so the hint is never given for it.
+      const carriesBaseUrl =
+        isRecord(record.network_config) &&
+        typeof record.network_config.base_url === 'string';
+      console.warn(
+        carriesBaseUrl
+          ? `${failed} (${res.status}): ${said}; it keeps its workers. If its upstream is gone for good, delete it from the gateway (DELETE /api/providers/${encodeURIComponent(name)}): a provision sets up a record still in use again`
+          : `${failed} (${res.status}): ${said}; it keeps its workers`,
+      );
       return 'refused';
     }
     console.warn(`${failed} (${res.status}): ${said}; reading it back`);

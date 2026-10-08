@@ -1288,7 +1288,7 @@ describe('shrinkProviderPools — records no provision rewrites', () => {
     expect(recordWrites(calls).map(([name]) => name)).toEqual([CUSTOM_NAME]);
   });
 
-  it('goes on past a record the gateway refuses, which keeps its pool', async () => {
+  it('goes on past a record the gateway refuses, which keeps its pool, and never suggests deleting a built-in provider’s shared record', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const info = vi.spyOn(console, 'info').mockImplementation(() => {});
     const calls = stubRecords([STALE_STANDARD, STALE_CUSTOM], {
@@ -1301,12 +1301,28 @@ describe('shrinkProviderPools — records no provision rewrites', () => {
       CUSTOM_NAME,
     ]);
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "resizing provider 'openai' to 512 workers failed (400): Invalid base URL",
-      ),
+      "[llm-gateway] resizing provider 'openai' to 512 workers failed (400): Invalid base URL; it keeps its workers",
     );
     expect(info).toHaveBeenCalledWith(
       '[llm-gateway] provider worker resize finished: 1 resized, 1 refused, 0 unconfirmed',
+    );
+  });
+
+  it('tells how to clear a record the gateway refuses because its upstream host no longer resolves', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    stubPass([STALE_CUSTOM], (method) =>
+      method === 'GET'
+        ? Response.json(STALE_CUSTOM)
+        : new Response(
+            'Invalid base URL: failed to resolve hostname llm.example.com',
+            { status: 400 },
+          ),
+    );
+    const mod = await loadModule();
+    await mod.shrinkProviderPools();
+    expect(warn).toHaveBeenCalledWith(
+      `[llm-gateway] resizing provider '${CUSTOM_NAME}' to 64 workers failed (400): Invalid base URL: failed to resolve hostname llm.example.com; it keeps its workers. If its upstream is gone for good, delete it from the gateway (DELETE /api/providers/${CUSTOM_NAME}): a provision sets up a record still in use again`,
     );
   });
 
