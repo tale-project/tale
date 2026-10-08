@@ -351,5 +351,13 @@ recurrence:
     saturday: Sa
     sunday: Di
 
+timeField:
+  hours: Heures
+  minutes: Minutes
+  dayPeriod: AM/PM
+  minuteValue: '{minute, plural, one {# minute} other {# minutes}}'
+  empty: Vide
+  pasteInvalid: Ce n’est pas une heure. Colle-en une comme {example}.
+
 siteFooter:
   copyright: © {year} Tale par Ruler GmbH. Sous licence MIT.

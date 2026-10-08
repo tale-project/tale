@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { CalendarSync } from 'lucide-react';
-import { type ReactNode, useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useState } from 'react';
 
 import type {
   CalendarDay,
   RecurrenceReference,
   RecurrenceRule,
 } from '../../lib/recurrence/rule';
+import { InLocale } from '../../storybook/in-locale';
 import { TooltipProvider } from '../overlays/tooltip';
 import { Checkbox } from './checkbox';
 import { RecurrencePicker } from './recurrence-picker';
@@ -77,33 +77,6 @@ function toyNextDates(rule: RecurrenceRule): CalendarDay[] {
     if (matches) found.push(toDay(ms));
   }
   return found;
-}
-
-/** Renders its children once the shared i18n instance speaks `locale`. */
-function InLocale({
-  locale,
-  children,
-}: {
-  locale: string;
-  children: ReactNode;
-}) {
-  const { i18n } = useTranslation();
-  const [ready, setReady] = useState(i18n.language === locale);
-  useEffect(() => {
-    const previous = i18n.language;
-    i18n
-      .changeLanguage(locale)
-      .then(() => setReady(true))
-      .catch((error: unknown) => {
-        console.error('[stories] could not switch the language', error);
-      });
-    return () => {
-      i18n.changeLanguage(previous).catch((error: unknown) => {
-        console.error('[stories] could not restore the language', error);
-      });
-    };
-  }, [i18n, locale]);
-  return ready ? children : null;
 }
 
 function PickerRender({

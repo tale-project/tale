@@ -8,6 +8,7 @@
     "components/input",
     "components/recurrence-picker",
     "components/tabs-and-navigation",
+    "components/time-field",
     "components/toast",
     "foundations/accessibility",
     "foundations/colors",

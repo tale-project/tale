@@ -10,6 +10,7 @@ import { DatePicker } from './date-picker';
 import { NumberStepper } from './number-stepper';
 import { RecurrencePicker } from './recurrence-picker';
 import { Switch } from './switch';
+import { TimeField } from './time-field';
 import { ToggleChipGroup } from './toggle-chip-group';
 
 import '../../globals.css';
@@ -173,6 +174,38 @@ describe('recurrence controls keep their targets (real layout)', () => {
     ).getAllByRole('radio')) {
       expect(size(segment).height).toBeGreaterThanOrEqual(24);
       expect(size(segment).width).toBeGreaterThanOrEqual(24);
+    }
+  });
+});
+
+describe('time field parts keep their targets (real layout)', () => {
+  it.each([
+    ['default', 1280],
+    ['default', 375],
+    ['sm', 1280],
+  ] as const)('gives every %s part 24px at %ipx', async (fieldSize, width) => {
+    await page.viewport(width, 800);
+    render(
+      <div className="p-8">
+        <TimeField
+          aria-label="Start"
+          hourCycle={12}
+          size={fieldSize}
+          value={{ hour: 21, minute: 5 }}
+          onValueChange={() => {}}
+        />
+      </div>,
+    );
+    const group = screen.getByRole('group', { name: 'Start' });
+    for (const part of within(group).getAllByRole('spinbutton')) {
+      expect(
+        size(part).width,
+        part.getAttribute('aria-label') ?? '',
+      ).toBeGreaterThanOrEqual(24);
+      expect(
+        size(part).height,
+        part.getAttribute('aria-label') ?? '',
+      ).toBeGreaterThanOrEqual(24);
     }
   });
 });

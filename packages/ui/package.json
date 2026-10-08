@@ -359,6 +359,8 @@
     "./theme": "./src/theme/index.ts",
     "./theme-switcher": "./src/components/site/theme-switcher.tsx",
     "./theme/assets": "./src/theme/theme-assets.tsx",
+    "./time-field": "./src/components/forms/time-field.tsx",
+    "./time-of-day": "./src/lib/time-of-day.ts",
     "./toast": "./src/components/feedback/toast.tsx",
     "./toaster": "./src/components/feedback/toaster.tsx",
     "./toggle-chip-group": "./src/components/forms/toggle-chip-group.tsx",

@@ -24,6 +24,7 @@
       "pages": [
         "components/button",
         "components/input",
+        "components/time-field",
         "components/recurrence-picker",
         "components/data-table",
         "components/dialog",

@@ -48,6 +48,13 @@
       "description": "Choose local panels or route navigation, preserve drafts deliberately, and keep every destination reachable."
     }
   },
+  "components/time-field": {
+    "slug": "components/time-field",
+    "frontmatter": {
+      "title": "Time field",
+      "description": "Let people enter a time of day in their own hour cycle, with segmented parts they can step, type or paste."
+    }
+  },
   "components/toast": {
     "slug": "components/toast",
     "frontmatter": {
