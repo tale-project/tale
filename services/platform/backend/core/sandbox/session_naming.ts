@@ -83,32 +83,109 @@ export function memberSessionIdForProjectAgent(
     : `pa-${fnv1a64Hex(agentId)}${member}`;
 }
 
-/** Whether a project agent's run works in its standing session, rather than
- * a workspace of runs a member started. */
+/** A worker number's `-w<n>` suffix: canonical only, so `-w1`, `-w0` and
+ * leading zeros never name a worker (worker 1 carries no suffix). */
+const WORKER_SUFFIX_RE = /-w([1-9][0-9]*)$/;
+
+/** The `-m` part of a member's workspace id: `-m` and 16 hex. */
+const MEMBER_SUFFIX_RE = /-m[0-9a-f]{16}$/;
+
+/**
+ * The session of worker `worker` (1-based) of one of the agent's workspace
+ * families, whose worker 1 is `base` — the agent's standing session or one
+ * member's workspace with it. Each run of an agent working at the same time
+ * as another works in a worker of its own: worker 1 keeps the family's own
+ * id, so every workspace that existed before workers did is worker 1; worker
+ * n >= 2 appends `-w<n>`. The id stays inside the <=64-char budget: a base
+ * too long to keep verbatim with the suffix has its agent part folded into
+ * a hash, as {@link memberSessionIdForProjectAgent} folds it.
+ */
+export function workerSessionId(
+  agentId: string,
+  base: string,
+  worker: number,
+): string {
+  if (!Number.isInteger(worker) || worker < 1) {
+    throw new RangeError(`worker ${worker} is not a worker number`);
+  }
+  if (worker === 1) return base;
+  const suffix = `-w${worker}`;
+  if (base.length + suffix.length <= 64) return `${base}${suffix}`;
+  const standing = standingSessionIdForProjectAgent(agentId);
+  const rest = base.startsWith(standing) ? base.slice(standing.length) : '';
+  return `pa-${fnv1a64Hex(agentId)}${rest}${suffix}`;
+}
+
+/** Worker `worker` of the agent's standing family. */
+export function standingWorkerSessionId(
+  agentId: string,
+  worker: number,
+): string {
+  return workerSessionId(
+    agentId,
+    standingSessionIdForProjectAgent(agentId),
+    worker,
+  );
+}
+
+/** Worker `worker` of one member's family with the agent. */
+export function memberWorkerSessionId(
+  agentId: string,
+  memberKey: string,
+  worker: number,
+): string {
+  return workerSessionId(
+    agentId,
+    memberSessionIdForProjectAgent(agentId, memberKey),
+    worker,
+  );
+}
+
+/** Which of the agent's workspace families a session id belongs to — its
+ * standing one (`agent`) or one member's (`member`) — which worker of it the
+ * id names, and the family's base (its worker 1); null when the id is none
+ * of the agent's. Canonical ids only: an id no derivation above yields for
+ * this agent is not the agent's, whatever it starts with. */
+export function projectAgentWorker(
+  agentId: string,
+  sessionId: string,
+): { scope: 'agent' | 'member'; worker: number; base: string } | null {
+  const standing = standingSessionIdForProjectAgent(agentId);
+  const suffix = WORKER_SUFFIX_RE.exec(sessionId);
+  const worker = suffix === null ? 1 : Number(suffix[1]);
+  if (!Number.isSafeInteger(worker)) return null;
+  if (workerSessionId(agentId, standing, worker) === sessionId) {
+    return { scope: 'agent', worker, base: standing };
+  }
+  const head = suffix === null ? sessionId : sessionId.slice(0, suffix.index);
+  const member = MEMBER_SUFFIX_RE.exec(head);
+  if (member === null) return null;
+  // `memberSessionIdForProjectAgent`: the agent part is kept verbatim while
+  // the id fits, else folded.
+  const base =
+    standing.length + member[0].length <= 64
+      ? `${standing}${member[0]}`
+      : `pa-${fnv1a64Hex(agentId)}${member[0]}`;
+  return workerSessionId(agentId, base, worker) === sessionId
+    ? { scope: 'member', worker, base }
+    : null;
+}
+
+/** Whether a project agent's run works in one of its standing workers,
+ * rather than in a workspace of runs a member started. */
 export function isStandingProjectAgentSession(
   agentId: string,
   sessionId: string,
 ): boolean {
-  return sessionId === standingSessionIdForProjectAgent(agentId);
+  return projectAgentWorker(agentId, sessionId)?.scope === 'agent';
 }
 
-/** Whether a session id is one of a project agent's: its standing session,
- * or the workspace of any member's runs with it — the inverse of the two
+/** Whether a session id is one of a project agent's: any worker of its
+ * standing family, or of any member's family with it — the inverse of the
  * derivations above, for a session no row names any more. */
 export function isProjectAgentSession(
   agentId: string,
   sessionId: string,
 ): boolean {
-  if (isStandingProjectAgentSession(agentId, sessionId)) return true;
-  // `memberSessionIdForProjectAgent`: the member suffix is `-m` + 16 hex.
-  const suffixLength = 18;
-  const standing = standingSessionIdForProjectAgent(agentId);
-  const prefix =
-    standing.length + suffixLength <= 64
-      ? standing
-      : `pa-${fnv1a64Hex(agentId)}`;
-  return (
-    sessionId.length === prefix.length + suffixLength &&
-    sessionId.startsWith(`${prefix}-m`)
-  );
+  return projectAgentWorker(agentId, sessionId) !== null;
 }
