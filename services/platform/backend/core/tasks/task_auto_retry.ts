@@ -4,9 +4,10 @@
  * database; the orchestration (collect → decide → kick) lives in
  * `tasks/mutations.ts` (`kickAutoRetryRun`).
  *
- * Semantics (2026-08-20): a failed run auto-retries immediately — no
- * backoff, the harness already backed off per-request — unless the task is
- * in a rapid crash loop. The loop detector is a CONSECUTIVE-failure budget
+ * Semantics (2026-08-20): after per-request recovery, a failed run retries
+ * immediately unless the task is in a rapid crash loop. The harness backs
+ * off its requests; an unconfined fresh task start bounds transient broker
+ * GET recovery within the admitted run. The loop detector is a CONSECUTIVE-failure budget
  * with a progress reset, not a sliding window: a sliding window plus any
  * retry spacing lets a deterministically-broken task drip retries forever,
  * while a streak terminates it and still refreshes the budget whenever an
