@@ -18,6 +18,7 @@ import type { z } from 'zod';
 
 import { METHODS, type Method } from '../engine/api/methods';
 import { CAPABILITY_TOOL_ARGS, ENGINE_TOOL_ARGS } from './args';
+import { READ_TOOL_RESULTS } from './results';
 
 /** The three groups the inventory is presented in — the settings page and the
  * docs table both read the list in this order. */
@@ -69,6 +70,63 @@ export interface McpToolSpec {
    * the request the door already charged; `execute` also one execution
    * (`rest:execute`, the REST API's run-start budget). */
   readonly lane: 'api' | 'execute';
+  /** What every answer that is not a refusal carries — read tools only:
+   * `tools/list` advertises it as the `outputSchema`, and the answer carries
+   * it as `structuredContent` beside the same JSON as text. */
+  readonly result: z.ZodObject | null;
+  /** Whether a client must ask the person before every call, even where it
+   * otherwise runs tools without asking (Claude Code honours
+   * `_meta["anthropic/requiresUserInteraction"]`): going live is the
+   * person's call. */
+  readonly requiresUserInteraction: boolean;
+  /** How large an answer a client should keep inline
+   * (`_meta["anthropic/maxResultSizeChars"]`) — the tools whose answers run
+   * past a client's default cap. */
+  readonly maxResultChars?: number;
+}
+
+/** Tools that put a version live or decide what starts one: a client asks
+ * the person before each call, whatever its permission mode. */
+const ASK_FIRST_TOOLS: ReadonlySet<string> = new Set([
+  'deploy_automation',
+  'set_trigger',
+]);
+
+/** The tools whose answers run long — the reference, the catalog, an
+ * analysis with its inferred types, a run's trace — and the size a client
+ * keeps inline instead of cutting or saving it to a file. */
+const MAX_RESULT_CHARS: Readonly<Record<string, number>> = {
+  get_docs: 100_000,
+  get_catalog: 250_000,
+  validate_automation: 200_000,
+  run_automation: 200_000,
+  get_automation: 200_000,
+  run_deployed: 200_000,
+  get_run: 250_000,
+};
+
+const RESULTS: ReadonlyMap<string, z.ZodObject> = new Map(
+  Object.entries(READ_TOOL_RESULTS),
+);
+
+type ContractFields =
+  | 'lane'
+  | 'result'
+  | 'requiresUserInteraction'
+  | 'maxResultChars';
+
+/** A tool with what the inventory says of it beyond its surface and
+ * arguments: its budget, its answer, and the client hints. */
+function withContract(spec: Omit<McpToolSpec, ContractFields>): McpToolSpec {
+  const maxResultChars = MAX_RESULT_CHARS[spec.name];
+  return Object.assign(spec, {
+    lane: EXECUTE_TOOLS.has(spec.name)
+      ? ('execute' as const)
+      : ('api' as const),
+    result: RESULTS.get(spec.name) ?? null,
+    requiresUserInteraction: ASK_FIRST_TOOLS.has(spec.name),
+    ...(maxResultChars === undefined ? {} : { maxResultChars }),
+  });
 }
 
 /** Tools whose in-app equivalents sit behind the developer capability —
@@ -96,10 +154,6 @@ const EXECUTE_TOOLS: ReadonlySet<string> = new Set([
   'start_run',
   'invoke_capability',
 ]);
-
-function laneOf(name: string): McpToolSpec['lane'] {
-  return EXECUTE_TOOLS.has(name) ? 'execute' : 'api';
-}
 
 /** A read: changes nothing, repeats freely, stays inside the platform. */
 const READ: McpToolAnnotations = {
@@ -263,28 +317,28 @@ const CAPABILITY_TOOL_ANNOTATIONS: Record<
  * them), then the platform capability tools.
  */
 export const MCP_TOOLS: readonly McpToolSpec[] = [
-  ...METHODS.map((name) => ({
-    name,
-    description: METHOD_DESCRIPTIONS[name],
-    args: ENGINE_TOOL_ARGS[name],
-    annotations: METHOD_ANNOTATIONS[name],
-    kind: 'engine' as const,
-    group: METHOD_GROUPS[name],
-    role: DEVELOPER_TOOLS.has(name)
-      ? ('developer' as const)
-      : ('member' as const),
-    lane: laneOf(name),
-  })),
-  ...CAPABILITY_TOOL_NAMES.map((name) => ({
-    name,
-    description: CAPABILITY_TOOL_DESCRIPTIONS[name],
-    args: CAPABILITY_TOOL_ARGS[name],
-    annotations: CAPABILITY_TOOL_ANNOTATIONS[name],
-    kind: 'capability' as const,
-    group: 'capability' as const,
-    role: 'member' as const,
-    lane: laneOf(name),
-  })),
+  ...METHODS.map((name) =>
+    withContract({
+      name,
+      description: METHOD_DESCRIPTIONS[name],
+      args: ENGINE_TOOL_ARGS[name],
+      annotations: METHOD_ANNOTATIONS[name],
+      kind: 'engine',
+      group: METHOD_GROUPS[name],
+      role: DEVELOPER_TOOLS.has(name) ? 'developer' : 'member',
+    }),
+  ),
+  ...CAPABILITY_TOOL_NAMES.map((name) =>
+    withContract({
+      name,
+      description: CAPABILITY_TOOL_DESCRIPTIONS[name],
+      args: CAPABILITY_TOOL_ARGS[name],
+      annotations: CAPABILITY_TOOL_ANNOTATIONS[name],
+      kind: 'capability',
+      group: 'capability',
+      role: 'member',
+    }),
+  ),
 ];
 
 /** The tool of that name, if the inventory holds one. */

@@ -245,3 +245,46 @@ describe('MCP tool roles and budgets', () => {
     }
   });
 });
+
+/**
+ * What an answer promises: every read tool states the shape of its answer
+ * (a client validates against it), and no tool that acts does — what it
+ * answers depends on what it did. The tools that put something live ask
+ * the person first, whatever the client's permission mode.
+ */
+describe('MCP tool answers and client hints', () => {
+  test('every read tool states its answer, and only read tools do', () => {
+    for (const tool of MCP_TOOLS) {
+      expect(tool.result !== null, tool.name).toBe(
+        tool.annotations.readOnlyHint,
+      );
+    }
+  });
+
+  test('every stated answer is an object schema both validator generations accept', () => {
+    const draft2020 = new Ajv2020({ strict: false });
+    for (const tool of MCP_TOOLS) {
+      if (tool.result === null) continue;
+      const schema = toolJsonSchema(tool.result, 'output');
+      expect(schema.type, tool.name).toBe('object');
+      expect(schema.$schema, tool.name).toBeUndefined();
+      expect(
+        draft2020.validateSchema(schema),
+        `${tool.name}: ${JSON.stringify(draft2020.errors)}`,
+      ).toBe(true);
+    }
+  });
+
+  test('only deploying and binding a trigger ask the person before every call', () => {
+    expect(
+      MCP_TOOLS.filter((tool) => tool.requiresUserInteraction).map(
+        (tool) => tool.name,
+      ),
+    ).toEqual(['deploy_automation', 'set_trigger']);
+    for (const tool of MCP_TOOLS) {
+      if (tool.annotations.readOnlyHint) {
+        expect(tool.requiresUserInteraction, tool.name).toBe(false);
+      }
+    }
+  });
+});

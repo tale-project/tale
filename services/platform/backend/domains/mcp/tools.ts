@@ -32,17 +32,43 @@ export interface McpToolListing {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: Record<string, unknown>;
+  readonly outputSchema?: Record<string, unknown>;
   readonly annotations: McpToolSpec['annotations'];
+  readonly _meta?: Record<string, unknown>;
+}
+
+/** The client hints a tool carries in `_meta`, when it carries any: ask the
+ * person before every call (going live), and keep a large answer inline. */
+function toolMeta(tool: McpToolSpec): Record<string, unknown> | undefined {
+  const meta: Record<string, unknown> = {
+    ...(tool.requiresUserInteraction
+      ? { 'anthropic/requiresUserInteraction': true }
+      : {}),
+    ...(tool.maxResultChars === undefined
+      ? {}
+      : { 'anthropic/maxResultSizeChars': tool.maxResultChars }),
+  };
+  return Object.keys(meta).length === 0 ? undefined : meta;
+}
+
+/** One tool as `tools/list` advertises it. */
+export function toolListing(tool: McpToolSpec): McpToolListing {
+  const meta = toolMeta(tool);
+  return {
+    name: tool.name,
+    description: tool.description,
+    inputSchema: toolJsonSchema(tool.args, 'input'),
+    ...(tool.result === null
+      ? {}
+      : { outputSchema: toolJsonSchema(tool.result, 'output') }),
+    annotations: tool.annotations,
+    ...(meta === undefined ? {} : { _meta: meta }),
+  };
 }
 
 /** The whole inventory, in the advertised order. */
 export function listTools(): McpToolListing[] {
-  return MCP_TOOLS.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    inputSchema: toolJsonSchema(tool.args, 'input'),
-    annotations: tool.annotations,
-  }));
+  return MCP_TOOLS.map(toolListing);
 }
 
 // ------------------------------------------------------------ arguments
@@ -252,12 +278,36 @@ function isFailureShaped(tool: McpToolSpec, result: unknown): boolean {
 export interface ToolAnswer {
   readonly result: {
     readonly content: ReadonlyArray<{ type: 'text'; text: string }>;
+    readonly structuredContent?: Record<string, unknown>;
     readonly isError: boolean;
   };
   readonly outcome: McpCallOutcome;
   readonly code?: string;
 }
 
+/**
+ * Off the production path, say so loudly when a read tool's answer misses
+ * the schema it advertises: a client that validates (the MCP SDKs do)
+ * would refuse the call. Production never pays for the check.
+ */
+function checkAgainstSchema(tool: McpToolSpec, value: unknown): void {
+  if (tool.result === null || process.env.NODE_ENV === 'production') return;
+  const checked = tool.result.safeParse(value);
+  if (!checked.success) {
+    console.error(
+      `[mcp] ${tool.name} answered outside its outputSchema:`,
+      checked.error.issues.map((issue) => issue.path.join('.')),
+    );
+  }
+}
+
+/**
+ * The answer as the agent reads it: the JSON as one compact text block
+ * (pretty-printing cost about a quarter more tokens for the same facts),
+ * plus — for a read tool whose call did its job — the same object as
+ * `structuredContent`, which the tool's `outputSchema` describes. A refusal
+ * carries text only.
+ */
 function answer(
   tool: McpToolSpec,
   value: unknown,
@@ -266,9 +316,12 @@ function answer(
   const isError = outcome === 'error' || isFailureShaped(tool, value);
   const code =
     isRecord(value) && typeof value.code === 'string' ? value.code : undefined;
+  const structured = !isError && tool.result !== null && isRecord(value);
+  if (structured) checkAgainstSchema(tool, value);
   return {
     result: {
-      content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+      content: [{ type: 'text', text: JSON.stringify(value) }],
+      ...(structured ? { structuredContent: value } : {}),
       isError,
     },
     outcome: outcome ?? (isError ? 'refused' : 'ok'),
