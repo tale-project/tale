@@ -317,11 +317,17 @@ function isTransientConnectionFailure(error: unknown): boolean {
   );
 }
 
-/** One acquire's or create's allowance of retries of transient spawner
- * answers ({@link SPAWNER_TRANSIENT_RETRY_BUDGET_MS}). */
+/** One call's allowance of retries of transient spawner answers: an
+ * acquire's or a create's {@link SPAWNER_TRANSIENT_RETRY_BUDGET_MS}, or, for
+ * an exec drain riding out a spawner outage, as long as its caller's signal
+ * lets it run. */
 class SpawnerRetryBudget {
-  private readonly deadline = Date.now() + SPAWNER_TRANSIENT_RETRY_BUDGET_MS;
+  private readonly deadline: number;
   private retries = 0;
+
+  constructor(budgetMs: number = SPAWNER_TRANSIENT_RETRY_BUDGET_MS) {
+    this.deadline = Date.now() + budgetMs;
+  }
 
   /** How long to wait before asking again — the spawner's own hint when it
    * gave one, else a doubling backoff — or undefined once that wait would
@@ -340,6 +346,25 @@ class SpawnerRetryBudget {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Wait `ms`, or reject with the signal's reason the moment it aborts. */
+function sleepUnlessAborted(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 /** Send one acquire or create request, waiting out a refused connection
@@ -365,6 +390,90 @@ async function spawnerFetchRetryingConnection(
       await sleep(waitMs);
     }
   }
+}
+
+/** A spawner call answered with a status its caller has no answer of its own
+ * for (a 404 is {@link SessionNotFoundError}). Keeps the status and the
+ * spawner's `retry-after`, so a drain can tell "not now" from a verdict. */
+export class SpawnerStatusError extends Error {
+  readonly status: number;
+  readonly retryAfterMs: number | undefined;
+  constructor(message: string, res: Response) {
+    super(message);
+    this.name = 'SpawnerStatusError';
+    this.status = res.status;
+    this.retryAfterMs = parseRetryAfterMs(res);
+  }
+}
+
+/** The {@link SpawnerStatusError} a refused stream request is, its body
+ * released: a drain that asks again every few seconds must not hold a
+ * connection per refused answer until it is collected. Not awaited — a
+ * cancel acknowledgement can stall. */
+function spawnerStatusErrorOf(
+  message: string,
+  res: Response,
+): SpawnerStatusError {
+  void res.body?.cancel().catch((error: unknown) => {
+    console.warn('[session_client] releasing a refused answer failed:', error);
+  });
+  return new SpawnerStatusError(message, res);
+}
+
+/** The answers that say "not now" rather than anything about the exec: the
+ * spawner is at capacity (429), nothing answered behind a proxy (502), it is
+ * booting, adopting its sessions or could not list them in time (503
+ * `session_unavailable`), or a gateway stopped waiting for it (504). */
+const SPAWNER_NOT_NOW_STATUSES: ReadonlySet<number> = new Set([
+  429, 502, 503, 504,
+]);
+
+/** The exec's stream broke before it delivered the exec's result: the
+ * connection dropped mid-read (the spawner restarted, the network cut it).
+ * It says nothing about the exec, which runnerd keeps running; a re-attach
+ * resumes after the cursor. A stream the spawner closed cleanly without a
+ * result is not this: it still costs the drain one of its failures. */
+class ExecStreamDroppedError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'ExecStreamDroppedError';
+  }
+}
+
+/**
+ * Whether an exec drain lost the exec to the way there rather than to a
+ * verdict on it. Transport: the spawner did not take or answer the request
+ * ({@link SpawnerUnreachableError} — every fetch failure, the refused, reset
+ * and unresolved connections a restart causes included), the stream broke
+ * mid-read, the spawner answered "not now" ({@link SPAWNER_NOT_NOW_STATUSES}),
+ * or a call to it timed out. Everything else is a verdict: a 404
+ * ({@link SessionNotFoundError}), a replay or protocol gap, an error the
+ * stream itself reported.
+ *
+ * Wider than the connection codes an acquire or a create waits out
+ * ({@link isTransientConnectionFailure}): a drain runs against an exec the
+ * same `SANDBOX_URL` already started, so a name that stops resolving while
+ * the spawner's container is replaced is the spawner being away, not a
+ * misconfiguration to fail fast on.
+ */
+export function isSpawnerTransportFailure(error: unknown): boolean {
+  if (
+    error instanceof SpawnerUnreachableError ||
+    error instanceof ExecStreamDroppedError
+  )
+    return true;
+  if (error instanceof SpawnerStatusError)
+    return SPAWNER_NOT_NOW_STATUSES.has(error.status);
+  return error instanceof Error && error.name === 'TimeoutError';
+}
+
+/** What a drain that rides out a spawner outage tells its caller about its
+ * hold on the exec's stream. */
+export interface ExecStreamContact {
+  /** The spawner answered with the exec's stream. */
+  onAttached(): void;
+  /** The stream was lost to the transport; the drain attaches again. */
+  onLost(error: unknown): void;
 }
 
 /** The exec SSE went silent past the idle-read deadline (no events AND no
@@ -1733,8 +1842,9 @@ export async function sessionGetExecCheckpoint(
         transientStatus = [408, 429, 500, 502, 503, 504].includes(
           response.status,
         );
-        throw new Error(
+        throw new SpawnerStatusError(
           `sandbox exec checkpoint read failed (${response.status})`,
+          response,
         );
       }
       return z
@@ -1832,6 +1942,7 @@ async function sessionExec(
   signal: AbortSignal,
   callbacks: SessionExecCallbacks = {},
   cursor?: ExecCursor,
+  onAttached?: () => void,
 ): Promise<SessionExecResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec`;
   const bodyJson = JSON.stringify(body);
@@ -1854,9 +1965,19 @@ async function sessionExec(
     });
     if (res.status === 404) throw new SessionNotFoundError(sessionId);
     if (!res.ok || !res.body) {
-      throw new Error(`sandbox session exec failed (${res.status})`);
+      throw spawnerStatusErrorOf(
+        `sandbox session exec failed (${res.status})`,
+        res,
+      );
     }
-    return await consumeExecSse(res.body, body.execId, callbacks, cursor);
+    return await consumeExecSse(
+      res.body,
+      body.execId,
+      callbacks,
+      cursor,
+      false,
+      onAttached,
+    );
   } finally {
     // Own this attachment's transport without aborting the caller's turn.
     subscription.abort();
@@ -1878,6 +1999,7 @@ async function sessionAttachExec(
   callbacks: SessionExecCallbacks = {},
   cursor?: ExecCursor,
   timeoutMs?: number,
+  onAttached?: () => void,
 ): Promise<SessionExecResult> {
   callbacks.onReplayStarted?.();
   const query = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
@@ -1901,9 +2023,19 @@ async function sessionAttachExec(
     });
     if (res.status === 404) throw new SessionNotFoundError(sessionId);
     if (!res.ok || !res.body) {
-      throw new Error(`sandbox session attach failed (${res.status})`);
+      throw spawnerStatusErrorOf(
+        `sandbox session attach failed (${res.status})`,
+        res,
+      );
     }
-    return await consumeExecSse(res.body, execId, callbacks, cursor, true);
+    return await consumeExecSse(
+      res.body,
+      execId,
+      callbacks,
+      cursor,
+      true,
+      onAttached,
+    );
   } finally {
     subscription.abort();
   }
@@ -1920,6 +2052,15 @@ async function sessionAttachExec(
  * reconnect makes progress) so a truly-dead exec doesn't loop forever; a
  * caller-aborted signal stops immediately (an explicit Stop already yields a
  * terminal 'cancelled' result, so it doesn't reach here).
+ *
+ * A caller that passes `contact` rides out a spawner outage instead: a
+ * transport failure ({@link isSpawnerTransportFailure} — a restart, a
+ * partition, a "not now" answer) costs none of that budget. The drain waits
+ * the spawner's `retry-after`, or a backoff doubling from 250 ms to 5 s, and
+ * attaches again, for as long as the caller's signal lets it run; `contact`
+ * hears when the stream is lost and when it flows again, so the caller can
+ * bound the outage across its windows. Only a caller whose signal ends the
+ * drain may pass it.
  */
 export async function drainSessionExecResilient(
   sessionId: string,
@@ -1929,6 +2070,7 @@ export async function drainSessionExecResilient(
   opts: {
     cursor?: ExecCursor;
     resumeSinceSeq?: number;
+    contact?: ExecStreamContact;
   } = {},
 ): Promise<SessionExecResult> {
   // External cursor lets the caller (run_agent) read the resume position; on a
@@ -1949,11 +2091,30 @@ export async function drainSessionExecResilient(
   // an exec that produced output existed, and re-running it would execute
   // the turn twice — and never on a resume, whose caller owns that recovery.
   let recreate = !startWithAttach;
+  // The outage being ridden out (with `contact`): when the stream was lost,
+  // and the waits between attempts, which start short again after it flows.
+  let outage: { since: number; budget: SpawnerRetryBudget } | undefined;
+  const onAttached = () => {
+    if (outage !== undefined) {
+      console.warn(
+        `[session_client] exec ${body.execId}: the spawner serves the stream again after ${Date.now() - outage.since} ms`,
+      );
+      outage = undefined;
+    }
+    opts.contact?.onAttached();
+  };
   for (;;) {
     try {
       if (recreate) {
         recreate = false;
-        return await sessionExec(sessionId, body, signal, callbacks, cursor);
+        return await sessionExec(
+          sessionId,
+          body,
+          signal,
+          callbacks,
+          cursor,
+          onAttached,
+        );
       }
       return await sessionAttachExec(
         sessionId,
@@ -1963,6 +2124,7 @@ export async function drainSessionExecResilient(
         callbacks,
         cursor,
         body.timeoutMs,
+        onAttached,
       );
     } catch (err) {
       if (signal.aborted) throw err;
@@ -1985,12 +2147,32 @@ export async function drainSessionExecResilient(
       // an arbitrarily long quiet phase can never exhaust MAX_RECONNECT_ATTEMPTS
       // — the only bound on a quiet phase is the action window (signal abort).
       if (err instanceof ExecStreamIdleError) {
+        opts.contact?.onLost(err);
         seqAtAttemptStart = cursor.lastSeq;
         continue;
       }
       // Progress since the last failure resets the consecutive-failure budget.
       if (cursor.lastSeq > seqAtAttemptStart) attempt = 0;
       seqAtAttemptStart = cursor.lastSeq;
+      if (opts.contact !== undefined && isSpawnerTransportFailure(err)) {
+        opts.contact.onLost(err);
+        if (outage === undefined) {
+          outage = {
+            since: Date.now(),
+            budget: new SpawnerRetryBudget(Number.POSITIVE_INFINITY),
+          };
+          console.warn(
+            `[session_client] exec ${body.execId} lost its stream to the transport (sinceSeq=${cursor.lastSeq}); attaching again until the spawner answers:`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+        const waitMs =
+          outage.budget.nextWaitMs(
+            err instanceof SpawnerStatusError ? err.retryAfterMs : undefined,
+          ) ?? SPAWNER_TRANSIENT_RETRY_MAX_MS;
+        await sleepUnlessAborted(waitMs, signal);
+        continue;
+      }
       attempt += 1;
       if (attempt > MAX_RECONNECT_ATTEMPTS) throw err;
       recreate =
@@ -2069,8 +2251,13 @@ async function consumeExecSse(
   callbacks: SessionExecCallbacks,
   cursor?: ExecCursor,
   attaching = false,
+  /** Called once, at the stream's first bytes: the spawner serves the exec
+   * again. Not at the response headers — a connection that is accepted and
+   * cut before a byte arrives has not reached the exec. */
+  onAttached?: () => void,
 ): Promise<SessionExecResult> {
   const reader = body.getReader();
+  let delivered = false;
   const decoder = new TextDecoder('utf-8');
   const frameBudget = new SseFrameBudget();
   let result: SessionExecResult | null = null;
@@ -2192,7 +2379,16 @@ async function consumeExecSse(
       let chunk: Awaited<ReturnType<typeof reader.read>>;
       try {
         chunk = await Promise.race([
-          reader.read(),
+          // A read that fails is the connection breaking under the stream;
+          // an abort is the caller's own cut and passes as it came.
+          reader.read().catch((cause: unknown) => {
+            if (cause instanceof Error && cause.name === 'AbortError')
+              throw cause;
+            throw new ExecStreamDroppedError(
+              `sandbox exec ${execId} stream broke: ${cause instanceof Error ? cause.message : String(cause)}`,
+              { cause },
+            );
+          }),
           new Promise<never>((_, reject) => {
             idleTimer = setTimeout(
               () => reject(new ExecStreamIdleError(execId)),
@@ -2205,6 +2401,10 @@ async function consumeExecSse(
       }
       const { value, done } = chunk;
       if (done) break;
+      if (!delivered && value.byteLength > 0) {
+        delivered = true;
+        onAttached?.();
+      }
       const text = decoder.decode(value, { stream: true });
       frameBudget.accept(text);
       parser.feed(text);

@@ -39,8 +39,11 @@ import {
   connectorsBridgeUrlForSessions,
   harnessMountsMcp,
   harnessResumesConversations,
+  nextWindowDelayMs,
   removeStagedSubscription,
   resolveHarnessTurnContextWindow,
+  SPAWNER_OUTAGE_BUDGET_MS,
+  spawnerOutageOutlasted,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
@@ -225,6 +228,9 @@ interface TurnKeys {
   harness: string;
   deadlineAt: number;
   sessionCreatedAt?: number;
+  /** Since when the turn's spawner has been out of reach, carried from one
+   * drive window to the next while it stays away. */
+  spawnerOutageSince?: number;
 }
 
 /**
@@ -1787,6 +1793,9 @@ export async function driveTaskAgentTurnImpl(
         onText: progress.onText,
         onTimeline: progress.onTimeline,
         ...(options.signal !== undefined && { signal: options.signal }),
+        ...(args.spawnerOutageSince !== undefined && {
+          spawnerOutageSince: args.spawnerOutageSince,
+        }),
       });
     } catch (err) {
       console.error('[task-agent] drive window threw:', err);
@@ -1894,6 +1903,28 @@ async function continueOrSettle(
    * echo from a live conversation's first-response error. */
   attemptedResume?: string,
 ): Promise<void> {
+  if (spawnerOutageOutlasted(window)) {
+    // The spawner stayed out of reach past the outage budget: stop waiting
+    // and settle as a drain failure does — reap the exec first (best-effort:
+    // the spawner may answer again by now), since a Retry would otherwise
+    // launch beside a CLI that is still working.
+    console.error(
+      `[task-agent] the sandbox spawner stayed out of reach for ${args.execId} past the outage budget — settling the run`,
+    );
+    await sessionCancelExec(args.sessionId, args.execId).catch((cancelErr) =>
+      console.warn(
+        '[task-agent] exec cancel after the spawner outage failed:',
+        cancelErr,
+      ),
+    );
+    await settleTaskAgentTurn(ctx, args, {
+      errored: true,
+      reason: `the sandbox service could not be reached for ${Math.round(SPAWNER_OUTAGE_BUDGET_MS / 60_000)} minutes, so the agent run was stopped`,
+      text: '',
+      failureCode: 'turn_crashed',
+    });
+    return;
+  }
   if (window.kind === 'running') {
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: args.organizationId,
@@ -1910,7 +1941,7 @@ async function continueOrSettle(
         : {}),
     });
     await ctx.scheduler.runAfter(
-      0,
+      nextWindowDelayMs(window),
       internal.tasks.agent_run_host.driveTaskAgentTurn,
       {
         organizationId: args.organizationId,
@@ -1923,6 +1954,9 @@ async function continueOrSettle(
         deadlineAt: args.deadlineAt,
         ...(args.sessionCreatedAt !== undefined
           ? { sessionCreatedAt: args.sessionCreatedAt }
+          : {}),
+        ...(window.spawnerOutageSince !== undefined
+          ? { spawnerOutageSince: window.spawnerOutageSince }
           : {}),
       },
     );

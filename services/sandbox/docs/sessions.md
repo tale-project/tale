@@ -275,6 +275,18 @@ the `Retry-After` for up to 20 seconds, and wait out a refused, reset or unresol
 spawner (a restart) within the same budget, before the turn's start fails. A confirmed missing or
 stopped session still returns 404 so its preserved workspace can be resumed.
 
+A running task or automation agent turn rides out a spawner it cannot reach. runnerd keeps the exec
+running in its session while the spawner restarts, crashes or is cut off, so the platform's drain
+reads a transport failure — no connection, a stream that broke mid-read, a `429`, `502`, `503` or
+`504`, a call that timed out — as an outage rather than a verdict on the turn: it waits the
+`Retry-After`, or a backoff doubling from 250 ms to 5 s, and attaches again after its cursor,
+without spending its budget of five consecutive failures. A drive window that ends with the stream
+still lost ends `running`; the next window follows five seconds later, resumes from the exec's
+checkpoint and carries when the outage began. Only an outage that lasts 10 minutes — at most a third
+of runnerd's orphan window (`TALE_EXTERNAL_TURN_DEADLINE_MS`, counted from the last attach) —
+settles the run as failed, once and with the exec cancelled first; the work-turn deadline still
+applies. A 404, a replay or protocol gap and an error the stream itself reports stay verdicts.
+
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity
 clock are authoritative. On boot the spawner re-adopts running sessions

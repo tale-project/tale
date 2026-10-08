@@ -17,6 +17,11 @@
  * nothing at all from the model (live: a serving cluster that failed
  * mid-prefill answered an empty 200) is a failure, while a turn that only
  * called tools, only reasoned, or only reported output tokens is not.
+ *
+ * And how a window meets a spawner it cannot reach: it ends `running` with
+ * the outage's start rather than failing the turn, keeps an outage that
+ * outlasts it measured from where it began, and clears it once the stream
+ * flows again.
  */
 
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -67,10 +72,19 @@ const transport = vi.hoisted(() => ({
   sessionOps: [] as string[],
   deleteFailure: undefined as Error | undefined,
   deleteSkips: [] as Array<{ path: string; reason: string }>,
+  /** A failure the checkpoint read throws instead of answering. */
+  checkpointFailure: undefined as Error | undefined,
+  /** What the drain tells the window about its stream before it follows
+   * the exec: nothing, a stream lost to the transport, or one that flows. */
+  contactEvent: 'none' as 'none' | 'lost' | 'attached',
 }));
 
 vi.mock('../node_only/sandbox/helpers/session_client', () => ({
   SessionNotFoundError: class SessionNotFoundError extends Error {},
+  // The real classifier reads its own error classes; this transport marks
+  // an unreachable spawner by name.
+  isSpawnerTransportFailure: (error: unknown) =>
+    error instanceof Error && error.name === 'SpawnerUnreachableError',
   ExecReplayGapError: transport.Gap,
   ExecStreamProtocolError: class ExecStreamProtocolError extends Error {},
   sessionStageFiles: async (
@@ -86,6 +100,8 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
     return { deleted: paths, skipped: transport.deleteSkips };
   },
   sessionGetExecCheckpoint: async () => {
+    if (transport.checkpointFailure !== undefined)
+      throw transport.checkpointFailure;
     if (transport.checkpointAfterGap !== 'none') {
       await new Promise((resolve) => setTimeout(resolve, 1600));
       if (transport.checkpointAfterGap === 'failed')
@@ -133,10 +149,17 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
       onReplayStarted?: () => void;
       onReplayComplete?: () => void;
     },
-    opts: { cursor: { lastSeq: number }; resumeSinceSeq?: number },
+    opts: {
+      cursor: { lastSeq: number };
+      resumeSinceSeq?: number;
+      contact?: { onAttached(): void; onLost(error: unknown): void };
+    },
   ) => {
     if (signal.aborted) throw signal.reason;
     if (opts.resumeSinceSeq === undefined) transport.sessionOps.push('launch');
+    if (transport.contactEvent === 'lost')
+      opts.contact?.onLost(new Error('connect ECONNREFUSED'));
+    if (transport.contactEvent === 'attached') opts.contact?.onAttached();
     callbacks.onReplayStarted?.();
     if (opts.resumeSinceSeq !== undefined)
       transport.resumedAt.push(opts.resumeSinceSeq);
@@ -1676,4 +1699,125 @@ describe('incomplete replay refusal', () => {
       expect(result.reason).toContain('replay');
     },
   );
+});
+
+describe('a window that cannot reach the spawner', () => {
+  beforeEach(() => {
+    transport.replayComplete = true;
+    transport.stdout = '';
+    transport.stderr = '';
+    transport.replayTail = '';
+    transport.cancelled = [];
+    transport.exitAfterStdout = false;
+    transport.checkpoint = null;
+    transport.gapCheckpoint = null;
+    transport.gapAfterStdout = false;
+    transport.checkpointAfterGap = 'none';
+    transport.stdoutDelayMs = 0;
+    transport.resumedAt = [];
+    transport.protocolFailure = false;
+    transport.sessionOps = [];
+    transport.checkpointFailure = undefined;
+    transport.contactEvent = 'none';
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  const unreachable = () =>
+    Object.assign(new Error('sandbox spawner unreachable'), {
+      name: 'SpawnerUnreachableError',
+    });
+
+  it('ends running from the outage when the checkpoint read finds no spawner, leaving the exec alone', async () => {
+    transport.checkpointFailure = unreachable();
+    const before = Date.now();
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'checkpoint-refused',
+      harness: 'pi',
+      windowMs: 60_000,
+    });
+
+    expect(result.kind).toBe('running');
+    if (result.kind !== 'running') return;
+    expect(result.spawnerOutageSince).toBeGreaterThanOrEqual(before);
+    expect(transport.resumedAt).toEqual([]);
+    expect(transport.cancelled).toEqual([]);
+  });
+
+  it('keeps measuring an outage from the window that saw it begin', async () => {
+    transport.checkpointFailure = unreachable();
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'still-away',
+      harness: 'pi',
+      windowMs: 60_000,
+      spawnerOutageSince: 1_234,
+    });
+
+    expect(result).toMatchObject({
+      kind: 'running',
+      spawnerOutageSince: 1_234,
+    });
+  });
+
+  it('still fails on a checkpoint read refused for another reason', async () => {
+    transport.checkpointFailure = new Error(
+      'Invalid SANDBOX_URL configuration',
+    );
+
+    await expect(
+      drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'misconfigured',
+        harness: 'pi',
+        windowMs: 60_000,
+      }),
+    ).rejects.toThrow('Invalid SANDBOX_URL configuration');
+  });
+
+  it('ends running from the outage when its stream is lost until the window ends', async () => {
+    transport.contactEvent = 'lost';
+    const before = Date.now();
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'stream-lost',
+      harness: 'pi',
+      windowMs: 50,
+    });
+
+    expect(result.kind).toBe('running');
+    if (result.kind !== 'running') return;
+    expect(result.spawnerOutageSince).toBeGreaterThanOrEqual(before);
+    expect(transport.cancelled).toEqual([]);
+  });
+
+  it('clears a carried outage once the stream flows again', async () => {
+    transport.contactEvent = 'attached';
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'back-again',
+      harness: 'pi',
+      windowMs: 50,
+      spawnerOutageSince: 1_234,
+    });
+
+    expect(result.kind).toBe('running');
+    expect(result).not.toHaveProperty('spawnerOutageSince');
+  });
+
+  it('reports no outage for a window that neither lost nor found the stream', async () => {
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'quiet',
+      harness: 'pi',
+      windowMs: 50,
+    });
+
+    expect(result.kind).toBe('running');
+    expect(result).not.toHaveProperty('spawnerOutageSince');
+  });
 });

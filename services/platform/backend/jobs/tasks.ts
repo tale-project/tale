@@ -72,6 +72,8 @@ export interface TaskPayloads {
     harness: string;
     deadlineAt: number;
     sessionCreatedAt?: number;
+    /** Since when the turn's spawner has been out of reach. */
+    spawnerOutageSince?: number;
   };
   /** Steer a LIVE task-agent turn with a comment (stdin or exec restart). */
   'task.agent_steer': {
@@ -162,6 +164,8 @@ export interface TaskPayloads {
     providerSlug: string;
     gatewayModel: string;
     deadlineAt: number;
+    /** Since when the turn's spawner has been out of reach. */
+    spawnerOutageSince?: number;
   };
   /** Fire-and-forget AI naming of a thread from its first user message —
    * best-effort with a hard budget; the fallback title wins on any miss. */

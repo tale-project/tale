@@ -10,6 +10,7 @@ import {
   ExecDiskFullError,
   ExecStreamProtocolError,
   ExecOutputGapError,
+  isSpawnerTransportFailure,
   SandboxDeviceOfflineError,
   sandboxDeploymentLimits,
   sandboxDeviceDisconnect,
@@ -22,12 +23,14 @@ import {
   sessionCreate,
   SessionFileTooLargeError,
   sessionIsAlive,
+  SessionNotFoundError,
   sessionDestroyWorkspace,
   sessionReadFile,
   sessionStopIfIdle,
   sessionStageFiles,
   type SessionStageFile,
   SpawnerBusyError,
+  SpawnerStatusError,
 } from './session_client';
 
 const enc = new TextEncoder();
@@ -1121,6 +1124,269 @@ describe('drainSessionExecResilient — a lost first POST', () => {
     ).rejects.toThrow(/not found/);
     expect(methods.filter((m) => m === 'POST')).toHaveLength(1);
   }, 15_000);
+});
+
+/** What Node's fetch throws when the spawner refuses the connection. */
+function refusedConnection(): TypeError {
+  return new TypeError('fetch failed', {
+    cause: Object.assign(new Error('connect ECONNREFUSED'), {
+      code: 'ECONNREFUSED',
+    }),
+  });
+}
+
+/** An SSE response whose connection breaks after the given blocks, the way
+ * Node's fetch reports a spawner that died mid-stream. */
+function brokenSseResponse(blocks: string[]): Response {
+  let delivered = blocks.length === 0;
+  const body = new ReadableStream<Uint8Array>({
+    // The break comes on the read after the blocks: erroring the stream
+    // while they are still queued would discard them.
+    pull(controller) {
+      if (!delivered) {
+        delivered = true;
+        for (const b of blocks) controller.enqueue(enc.encode(b));
+        return;
+      }
+      controller.error(new TypeError('terminated'));
+    },
+  });
+  return new Response(body, {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream' },
+  });
+}
+
+describe('isSpawnerTransportFailure', () => {
+  test('reads the way to the exec failing as transport, and a verdict on it as none', () => {
+    const answer = (status: number) =>
+      new SpawnerStatusError(
+        `sandbox session attach failed (${status})`,
+        new Response(null, { status }),
+      );
+    const unresolved = new SpawnerUnreachableError(
+      'GET',
+      '/v1/sessions/s/exec/e/attach',
+      'http://sandbox:8003',
+      new TypeError('fetch failed', {
+        cause: Object.assign(new Error('getaddrinfo ENOTFOUND sandbox'), {
+          code: 'ENOTFOUND',
+        }),
+      }),
+    );
+    for (const transport of [
+      unresolved,
+      answer(429),
+      answer(502),
+      answer(503),
+      answer(504),
+      new DOMException('The operation timed out.', 'TimeoutError'),
+    ])
+      expect(isSpawnerTransportFailure(transport)).toBe(true);
+    for (const verdict of [
+      answer(500),
+      answer(401),
+      new SessionNotFoundError('s'),
+      new ExecStreamProtocolError('Invalid sandbox stdout event'),
+      new Error('exec e failed'),
+      new TypeError('fetch failed'),
+    ])
+      expect(isSpawnerTransportFailure(verdict)).toBe(false);
+  });
+
+  test('keeps the retry-after the spawner answered', () => {
+    const error = new SpawnerStatusError(
+      'sandbox session attach failed (503)',
+      new Response(null, { status: 503, headers: { 'retry-after': '1' } }),
+    );
+    expect(error.status).toBe(503);
+    expect(error.retryAfterMs).toBe(1_000);
+  });
+});
+
+describe('drainSessionExecResilient riding out a spawner outage', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Records what the drain tells its caller about the stream. */
+  function contactLog() {
+    const events: string[] = [];
+    return {
+      events,
+      contact: {
+        onAttached: () => {
+          events.push('attached');
+        },
+        onLost: () => {
+          events.push('lost');
+        },
+      },
+    };
+  }
+
+  test('waits out a restart that breaks the stream, refuses connections and answers 503, then resumes after the cursor', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const calls: Array<{ url: string; method: string }> = [];
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (url: any, init?: any) => {
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-member-access
+      calls.push({ url: String(url), method: String(init?.method ?? 'GET') });
+      const n = calls.length;
+      // The spawner dies under the stream it was serving…
+      if (n === 1)
+        return brokenSseResponse([
+          'event: stdout\ndata: {"text":"AB","seq":2}\n\n',
+        ]);
+      // …refuses connections while it restarts — more often than the
+      // drain's budget of consecutive failures…
+      if (n <= 8) throw refusedConnection();
+      // …answers "not now" while it adopts its sessions…
+      if (n === 9)
+        return new Response(JSON.stringify({ error: 'session_unavailable' }), {
+          status: 503,
+          headers: { 'retry-after': '1' },
+        });
+      // …and serves the exec again.
+      return sseResponse([
+        'event: stdout\ndata: {"text":"CD","seq":3}\n\n',
+        RESULT_OK,
+      ]);
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+    const { events, contact } = contactLog();
+    const stdout: string[] = [];
+
+    const drained = drainSessionExecResilient(
+      's',
+      { execId: 'e', command: ['x'], timeoutMs: 1_000 },
+      new AbortController().signal,
+      { onStdout: (text) => stdout.push(text) },
+      { contact },
+    );
+    // 250 ms doubling to the 5 s cap over the refusals, then the 1 s hint.
+    await vi.advanceTimersByTimeAsync(23_749);
+    expect(calls).toHaveLength(9);
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await drained;
+
+    expect(result.status).toBe('completed');
+    // Each delta once: the re-attach asked for what follows the cursor.
+    expect(stdout).toEqual(['AB', 'CD']);
+    expect(calls).toHaveLength(10);
+    expect(calls[0]?.method).toBe('POST');
+    expect(
+      calls
+        .slice(1)
+        .every(
+          (call) =>
+            call.method === 'GET' &&
+            call.url.endsWith('/exec/e/attach?sinceSeq=2'),
+        ),
+    ).toBe(true);
+    expect(events).toEqual([
+      'attached',
+      ...Array.from({ length: 9 }, () => 'lost'),
+      'attached',
+    ]);
+  });
+
+  test('keeps riding out until the caller ends the drain, never claiming contact', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let n = 0;
+    globalThis.fetch = (async () => {
+      n += 1;
+      throw refusedConnection();
+    }) as unknown as typeof fetch;
+    const { events, contact } = contactLog();
+    const window = new AbortController();
+
+    const drained = drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      window.signal,
+      {},
+      { resumeSinceSeq: 4, contact },
+    ).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(60_000);
+    window.abort();
+
+    expect(await drained).toBeInstanceOf(DOMException);
+    expect(n).toBeGreaterThan(10);
+    expect(events.length).toBe(n);
+    expect(events.every((event) => event === 'lost')).toBe(true);
+  });
+
+  test('a connection accepted and cut before its first byte is not contact', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let n = 0;
+    globalThis.fetch = (async () => {
+      n += 1;
+      return n === 1 ? brokenSseResponse([]) : sseResponse([RESULT_OK]);
+    }) as unknown as typeof fetch;
+    const { events, contact } = contactLog();
+
+    const drained = drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {},
+      { resumeSinceSeq: 0, contact },
+    );
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect((await drained).status).toBe('completed');
+    expect(events).toEqual(['lost', 'attached']);
+  });
+
+  test('a verdict still ends the drain at once', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let n = 0;
+    globalThis.fetch = (async () => {
+      n += 1;
+      if (n === 1) throw refusedConnection();
+      return new Response(JSON.stringify({ error: 'not_found' }), {
+        status: 404,
+      });
+    }) as unknown as typeof fetch;
+
+    const drained = drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {},
+      { resumeSinceSeq: 3, contact: contactLog().contact },
+    ).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(await drained).toBeInstanceOf(SessionNotFoundError);
+    expect(n).toBe(2);
+  });
+
+  test('without contact, a spawner that stays away still fails the drain on its budget', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let n = 0;
+    globalThis.fetch = (async () => {
+      n += 1;
+      throw refusedConnection();
+    }) as unknown as typeof fetch;
+
+    const drained = drainSessionExecResilient(
+      's',
+      { execId: 'e', command: ['x'] },
+      new AbortController().signal,
+    ).catch((error: unknown) => error);
+    // The linear backoff of the five retries: 0.5 + 1 + 1.5 + 2 + 2.5 s.
+    await vi.advanceTimersByTimeAsync(7_500);
+
+    expect(await drained).toBeInstanceOf(SpawnerUnreachableError);
+    expect(n).toBe(6);
+  });
 });
 
 describe('chunkStageFiles', () => {
