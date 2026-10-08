@@ -47,7 +47,6 @@ const neverDispatches: Dispatch = () => {
 
 const BASE = {
   organizationId: 'org_1',
-  sessionId: 'session_1',
   userId: 'user_1',
 };
 
@@ -111,18 +110,15 @@ describe('dispatchBridgeConnectorImpl', () => {
       callArgs: { query: 'hello' },
     });
 
-    expect(runDispatch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        organizationId: 'org_1',
-        connector: 'tavily',
-        action: 'search',
-        input: { query: 'hello' },
-        userId: 'user_1',
-        // The turn's own session doubles as the connector's out-of-process
-        // runner.
-        execSessionId: 'session_1',
-      }),
-    );
+    // Exactly these: no session rides along, so the live body runs in the
+    // platform process and never in the calling turn's sandbox.
+    expect(runDispatch).toHaveBeenCalledWith({
+      organizationId: 'org_1',
+      connector: 'tavily',
+      action: 'search',
+      input: { query: 'hello' },
+      userId: 'user_1',
+    });
     expect(result).toEqual({ status: 'ok', output: { results: [1] } });
   });
 
