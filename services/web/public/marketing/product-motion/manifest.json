@@ -174,92 +174,6 @@
       }
     },
     {
-      "page": "home",
-      "locale": "en",
-      "variant": "desktop",
-      "sourceShot": "project-task-detail",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 1280,
-        "height": 800
-      },
-      "dpr": 1,
-      "width": 1280,
-      "height": 800,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 656,
-      "action": {
-        "id": "draft-task-comment",
-        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
-        "afterAssertion": "textbox: The revised brief is ready for your review.",
-        "beforeFrameHash": "0a05f046cc955318123e94e9034e492e6f30faa4f0ac5e553ac7a327b9bfebdc",
-        "afterFrameHash": "4a2271a18baa8df31ca8278469887fc2ff4a6a944da590b0af2d92c864bfc400",
-        "completedAtMs": 2592,
-        "beforeAtMs": 500,
-        "afterAtMs": 2842,
-        "inkRegion": {
-          "left": 281,
-          "top": 628,
-          "width": 430,
-          "height": 120
-        }
-      },
-      "webm": {
-        "bytes": 204517,
-        "sha256": "6cd6a5ec246140f4ab92a64e650bb9f37f5b8ef977e41c8a6a47f58084997957",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 102903,
-        "sha256": "7085741eeee07ba3ee9a42e87ca0288685a82c7c679cee138af3a7763f0d9972",
-        "durationMs": 8000
-      }
-    },
-    {
-      "page": "home",
-      "locale": "en",
-      "variant": "mobile",
-      "sourceShot": "project-task-detail",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 390,
-        "height": 820
-      },
-      "dpr": 2,
-      "width": 390,
-      "height": 820,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 689,
-      "action": {
-        "id": "draft-task-comment",
-        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
-        "afterAssertion": "textbox: The revised brief is ready for your review.",
-        "beforeFrameHash": "e05bac09dd5ec6db7556c1c4daab137519fe7ddcb24b20a58f1d803b55088127",
-        "afterFrameHash": "f1070ef4a5751f837a6dc726f57ad66fac7717b2dd66dfbaab715aa4be2efe02",
-        "completedAtMs": 2467,
-        "beforeAtMs": 500,
-        "afterAtMs": 2717,
-        "inkRegion": {
-          "left": 16,
-          "top": 698,
-          "width": 358,
-          "height": 120
-        }
-      },
-      "webm": {
-        "bytes": 101876,
-        "sha256": "a0d027563c45c140aca4b4e69df799cd5bcc85089d559ebbf4a3e85882986497",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 54961,
-        "sha256": "e57c4b56e1385c7f6bedddcf5375e1edc5b670f26e44530e62902fa72bba6d67",
-        "durationMs": 8000
-      }
-    },
-    {
       "page": "hub",
       "locale": "en",
       "variant": "desktop",
@@ -342,92 +256,6 @@
       "mp4": {
         "bytes": 45987,
         "sha256": "1bfb60efa08eb29a22d41a2cb3ac6cf105f723ac52d7f715567850e48fa08870",
-        "durationMs": 8000
-      }
-    },
-    {
-      "page": "projects",
-      "locale": "en",
-      "variant": "desktop",
-      "sourceShot": "projects-task-board",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 1280,
-        "height": 800
-      },
-      "dpr": 1,
-      "width": 1280,
-      "height": 800,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 749,
-      "action": {
-        "id": "open-task-brief",
-        "beforeAssertion": "task board: Sign off the launch checklist",
-        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
-        "beforeFrameHash": "cc3fc50359324f978419533f10d6dea05f2b4489b957a3419228fcfa1023dfc4",
-        "afterFrameHash": "0a61eaa0279c33809740a1b59a5fd978993599bf75de8dc273f4fceb26b60e85",
-        "completedAtMs": 1267,
-        "beforeAtMs": 500,
-        "afterAtMs": 1517,
-        "inkRegion": {
-          "left": 257,
-          "top": 60,
-          "width": 767,
-          "height": 679
-        }
-      },
-      "webm": {
-        "bytes": 435061,
-        "sha256": "c021365ad78f87a2f7e82222a49d241de88d92c97f9372b04a2dc64efe846759",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 339783,
-        "sha256": "56f3be4a850e734f3d2a01adb37162e0b30b9d2b075236862c5f05501f1ef918",
-        "durationMs": 8000
-      }
-    },
-    {
-      "page": "projects",
-      "locale": "en",
-      "variant": "mobile",
-      "sourceShot": "projects-task-board",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 390,
-        "height": 820
-      },
-      "dpr": 2,
-      "width": 390,
-      "height": 820,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 749,
-      "action": {
-        "id": "open-task-brief",
-        "beforeAssertion": "task board: Sign off the launch checklist",
-        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
-        "beforeFrameHash": "09f55a232293ef3e41856bf09dc9937127a5aa6859686089bf8a6cd18518d4e4",
-        "afterFrameHash": "8e5a791d5aa15761e10ed1a3b9e53b888a5077fac383acb171c7234a60c265ca",
-        "completedAtMs": 1273,
-        "beforeAtMs": 500,
-        "afterAtMs": 1523,
-        "inkRegion": {
-          "left": 0,
-          "top": 407,
-          "width": 390,
-          "height": 413
-        }
-      },
-      "webm": {
-        "bytes": 261197,
-        "sha256": "545e31486fa5176392800bc8ecff2aeed9efefc6b1f319fe853e1019a261f7ef",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 193624,
-        "sha256": "6b140ea94ff911f0b1f4141709a725a3ffff5c955a50ffdab3239eea2333ee92",
         "durationMs": 8000
       }
     },
@@ -862,92 +690,6 @@
       }
     },
     {
-      "page": "home",
-      "locale": "de",
-      "variant": "desktop",
-      "sourceShot": "project-task-detail",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 1280,
-        "height": 800
-      },
-      "dpr": 1,
-      "width": 1280,
-      "height": 800,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 641,
-      "action": {
-        "id": "draft-task-comment",
-        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
-        "afterAssertion": "textbox: Das überarbeitete Briefing ist bereit zur Prüfung.",
-        "beforeFrameHash": "c8c17a20d2e50010389ca8a605827a7a743302c5548d3cd98141968b0a951761",
-        "afterFrameHash": "7d96e9f450dafdd15b8f9d5f0a1434601491cd2bc107022bda4c0d05d7575b09",
-        "completedAtMs": 2698,
-        "beforeAtMs": 500,
-        "afterAtMs": 2948,
-        "inkRegion": {
-          "left": 281,
-          "top": 628,
-          "width": 430,
-          "height": 120
-        }
-      },
-      "webm": {
-        "bytes": 219056,
-        "sha256": "dbfee94239fb263ffd9c0e5f80c27cd14272ebd2d626afa81d832edddd347f4f",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 110600,
-        "sha256": "888b0710854b3dd7a0b96ae545df0be226d1e4c7ee75c9c8aad1dd5b4aa9c022",
-        "durationMs": 8000
-      }
-    },
-    {
-      "page": "home",
-      "locale": "de",
-      "variant": "mobile",
-      "sourceShot": "project-task-detail",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 390,
-        "height": 820
-      },
-      "dpr": 2,
-      "width": 390,
-      "height": 820,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 669,
-      "action": {
-        "id": "draft-task-comment",
-        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
-        "afterAssertion": "textbox: Das überarbeitete Briefing ist bereit zur Prüfung.",
-        "beforeFrameHash": "9ac5644a204821b231b591a3f9d13fb9c827fd2ce372d02239e17a9ce99ff060",
-        "afterFrameHash": "4b9f11a96bf6b1d3f4a8991e4446c783fed7008050d100a2f6ca54ca8fcac05f",
-        "completedAtMs": 2695,
-        "beforeAtMs": 500,
-        "afterAtMs": 2945,
-        "inkRegion": {
-          "left": 16,
-          "top": 698,
-          "width": 358,
-          "height": 120
-        }
-      },
-      "webm": {
-        "bytes": 108625,
-        "sha256": "91c4b3044c6d03250b4c944c3249209ddbefab5a8d463f2a6c1d187e27713a84",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 58514,
-        "sha256": "2c610216425cef8104e8dac09ad67e6c3b7ea10f8dcdbb7d1365fe36ae83295c",
-        "durationMs": 8000
-      }
-    },
-    {
       "page": "hub",
       "locale": "de",
       "variant": "desktop",
@@ -1030,92 +772,6 @@
       "mp4": {
         "bytes": 47305,
         "sha256": "5ca3749b75d300192a9d70c22be7ca9ae7f0308afdabce6e6e85dd39b4c7e78f",
-        "durationMs": 8000
-      }
-    },
-    {
-      "page": "projects",
-      "locale": "de",
-      "variant": "desktop",
-      "sourceShot": "projects-task-board",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 1280,
-        "height": 800
-      },
-      "dpr": 1,
-      "width": 1280,
-      "height": 800,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 754,
-      "action": {
-        "id": "open-task-brief",
-        "beforeAssertion": "task board: Sign off the launch checklist",
-        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
-        "beforeFrameHash": "a2e68d2a54b73df45f2c9bd784cd5abad84b48a9a7d6fc773b4de5ca55391dd7",
-        "afterFrameHash": "691ca028cbba6f7d2e18a2ddc5b7f06f0a9f883128d3e483fc22894ae9fdfdf0",
-        "completedAtMs": 1280,
-        "beforeAtMs": 500,
-        "afterAtMs": 1530,
-        "inkRegion": {
-          "left": 257,
-          "top": 61,
-          "width": 766,
-          "height": 679
-        }
-      },
-      "webm": {
-        "bytes": 544902,
-        "sha256": "4b4cba22d6e76253c9c60d7d18a5c6333ca9ff49b516ad1793b20f75ffeda274",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 421028,
-        "sha256": "24c74fea0ea05c22a0246ac139a0c2aa6a2117954241aaf1488c86410112a72f",
-        "durationMs": 8000
-      }
-    },
-    {
-      "page": "projects",
-      "locale": "de",
-      "variant": "mobile",
-      "sourceShot": "projects-task-board",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 390,
-        "height": 820
-      },
-      "dpr": 2,
-      "width": 390,
-      "height": 820,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 751,
-      "action": {
-        "id": "open-task-brief",
-        "beforeAssertion": "task board: Sign off the launch checklist",
-        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
-        "beforeFrameHash": "4ade03f18142be0b18a9fd9a38c751b2c8451c89c1fbda8e086c458a175017ee",
-        "afterFrameHash": "4e71405922e04808432e1fc099e975e1d0a08845dfe0d36551d3c3955c566a2a",
-        "completedAtMs": 1226,
-        "beforeAtMs": 500,
-        "afterAtMs": 1476,
-        "inkRegion": {
-          "left": 0,
-          "top": 459,
-          "width": 390,
-          "height": 361
-        }
-      },
-      "webm": {
-        "bytes": 322061,
-        "sha256": "67376dca6e24aa4d32733b1902a69e4dc9b97809ec2620cefb292e60be7722fb",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 225617,
-        "sha256": "aca60420e7e412b26f318e0aeb456f6679820210768130034af00e6fef67d114",
         "durationMs": 8000
       }
     },
@@ -1550,92 +1206,6 @@
       }
     },
     {
-      "page": "home",
-      "locale": "fr",
-      "variant": "desktop",
-      "sourceShot": "project-task-detail",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 1280,
-        "height": 800
-      },
-      "dpr": 1,
-      "width": 1280,
-      "height": 800,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 685,
-      "action": {
-        "id": "draft-task-comment",
-        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
-        "afterAssertion": "textbox: Le brief révisé est prêt pour ta relecture.",
-        "beforeFrameHash": "c100dd0a8d4e2b39bf62b84d57dcb564b07ebbb7a063a2cbee900b69a07f5f55",
-        "afterFrameHash": "b77913d333f1c7c10f297b5f4597bd3667b058d7b4d222e91b5b98649337f38b",
-        "completedAtMs": 2431,
-        "beforeAtMs": 500,
-        "afterAtMs": 2681,
-        "inkRegion": {
-          "left": 281,
-          "top": 628,
-          "width": 430,
-          "height": 120
-        }
-      },
-      "webm": {
-        "bytes": 214612,
-        "sha256": "106187d1e6298edf396fa3870bc7069b8a1be237a98ef2ed7e481d7dac9b650e",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 108457,
-        "sha256": "30c76e81425d165a7bc738741430dc55407febb2f61cef09e5cce6d76261fd1f",
-        "durationMs": 8000
-      }
-    },
-    {
-      "page": "home",
-      "locale": "fr",
-      "variant": "mobile",
-      "sourceShot": "project-task-detail",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 390,
-        "height": 820
-      },
-      "dpr": 2,
-      "width": 390,
-      "height": 820,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 692,
-      "action": {
-        "id": "draft-task-comment",
-        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
-        "afterAssertion": "textbox: Le brief révisé est prêt pour ta relecture.",
-        "beforeFrameHash": "0fc7f6f63074cd03c155ed16de912ad315b9bab1ed07de6dd585d300ba52695e",
-        "afterFrameHash": "e3ee2c49b105412226668f79adc1af7e53da1c0da68cb9b22ef73b6c0a9bc5b2",
-        "completedAtMs": 2427,
-        "beforeAtMs": 500,
-        "afterAtMs": 2677,
-        "inkRegion": {
-          "left": 16,
-          "top": 698,
-          "width": 358,
-          "height": 120
-        }
-      },
-      "webm": {
-        "bytes": 105612,
-        "sha256": "54ed795281df3822fa33dfc1cef306849cd5b68751a79608b5b271a1bb27413c",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 56638,
-        "sha256": "c891d9bb54cdc8db803b4d368f443db10bc45741a6e4e5edbda44d51f1c55c3c",
-        "durationMs": 8000
-      }
-    },
-    {
       "page": "hub",
       "locale": "fr",
       "variant": "desktop",
@@ -1718,92 +1288,6 @@
       "mp4": {
         "bytes": 46589,
         "sha256": "b88b5cc112fb45ff0774820a35d5421d8fc4187c292c58ff3debd090d185159c",
-        "durationMs": 8000
-      }
-    },
-    {
-      "page": "projects",
-      "locale": "fr",
-      "variant": "desktop",
-      "sourceShot": "projects-task-board",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 1280,
-        "height": 800
-      },
-      "dpr": 1,
-      "width": 1280,
-      "height": 800,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 750,
-      "action": {
-        "id": "open-task-brief",
-        "beforeAssertion": "task board: Sign off the launch checklist",
-        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
-        "beforeFrameHash": "b57d41e33665a5b6599a984e84568c184e06f59359e8874839c30e892ba36f89",
-        "afterFrameHash": "0571e3b9a0226c7b07778d21d1bcf2a31b179888ce210a54749ea0bd09cfc5bb",
-        "completedAtMs": 1245,
-        "beforeAtMs": 500,
-        "afterAtMs": 1495,
-        "inkRegion": {
-          "left": 258,
-          "top": 61,
-          "width": 765,
-          "height": 677
-        }
-      },
-      "webm": {
-        "bytes": 497784,
-        "sha256": "43c585037c78a446b259ea5729116d857122b698ddf8f8ab403aeb333e4b8aea",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 410706,
-        "sha256": "9c986ffb65cc858b88d7314a4c1fce695a7b53afe3578f42c00ac2c749d35e84",
-        "durationMs": 8000
-      }
-    },
-    {
-      "page": "projects",
-      "locale": "fr",
-      "variant": "mobile",
-      "sourceShot": "projects-task-board",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 390,
-        "height": 820
-      },
-      "dpr": 2,
-      "width": 390,
-      "height": 820,
-      "durationMs": 8000,
-      "fps": 24,
-      "recordedFrameCount": 754,
-      "action": {
-        "id": "open-task-brief",
-        "beforeAssertion": "task board: Sign off the launch checklist",
-        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
-        "beforeFrameHash": "cefc6dee1dbb57ce2e2e9657286a84a49c19cd78081acac986746fd4f5f5c225",
-        "afterFrameHash": "154ac35eeec49d8518c7b1debac3326f88ba024011624422936324f642bae263",
-        "completedAtMs": 1246,
-        "beforeAtMs": 500,
-        "afterAtMs": 1496,
-        "inkRegion": {
-          "left": 0,
-          "top": 451,
-          "width": 390,
-          "height": 369
-        }
-      },
-      "webm": {
-        "bytes": 288644,
-        "sha256": "92598cc36f8b6c78d5857c15c1a83463b2d79ef50ada79a07cbdab2ef9ff16fe",
-        "durationMs": 8000
-      },
-      "mp4": {
-        "bytes": 225193,
-        "sha256": "98470a7f326df352e96b0e844014f85410f6ecf2a76dd55fd9a06851d6065868",
         "durationMs": 8000
       }
     },
@@ -2062,6 +1546,522 @@
       "mp4": {
         "bytes": 133228,
         "sha256": "41ad526638aa1773b07f9487d253117fc2ee07d351cad0c53c7d6b56e8b02e99",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "en",
+      "variant": "desktop",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 646,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: The revised brief is ready for your review.",
+        "beforeFrameHash": "c2722961a1104a80121717c7f62285ec7cbe75ce3acb0bc4434a38161a0d2e41",
+        "afterFrameHash": "61181d09259c72b57c410896d642d22bd0baa09ff5dc6fd08787491f833319d7",
+        "completedAtMs": 2567,
+        "beforeAtMs": 500,
+        "afterAtMs": 2817,
+        "inkRegion": {
+          "left": 153,
+          "top": 524,
+          "width": 686,
+          "height": 120
+        }
+      },
+      "webm": {
+        "bytes": 180596,
+        "sha256": "0a927436111d5eb1f78460a094dabe0fb54625738c4222c730b5c08ad442977a",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 93195,
+        "sha256": "761842f230ae8880816797633e385375fbc1a277a269841faa9718401e1076d7",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "en",
+      "variant": "mobile",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 686,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: The revised brief is ready for your review.",
+        "beforeFrameHash": "14e3d5324f57276378245849533e45f1f46ad304df7421f962ef278721eddf69",
+        "afterFrameHash": "11fd03f5afe7fe2c4878d68ca50cb1d973b5f99a3dddc0292d67e6783554ecfa",
+        "completedAtMs": 2476,
+        "beforeAtMs": 500,
+        "afterAtMs": 2726,
+        "inkRegion": {
+          "left": 16,
+          "top": 704,
+          "width": 358,
+          "height": 116
+        }
+      },
+      "webm": {
+        "bytes": 108519,
+        "sha256": "2c7ca160e1ae5eb4570ee47aa332337bdfae6853e937b65df263f4a5c3d20fd0",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 58371,
+        "sha256": "4d036f9459f5158dcb40b193c89fb311b88b5d052ed82fd8136fd99eff8d9f44",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "en",
+      "variant": "desktop",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 676,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "b2182b175685a577488aebdeca66e898d8783072e77763c41f520e89efe373cc",
+        "afterFrameHash": "4b9fb30918ea0d2a6e5d4276e904fa9b51ad6ca2993b1d7d46e1cbcdf6bfe66c",
+        "completedAtMs": 1264,
+        "beforeAtMs": 500,
+        "afterAtMs": 1514,
+        "inkRegion": {
+          "left": 128,
+          "top": 60,
+          "width": 1024,
+          "height": 680
+        }
+      },
+      "webm": {
+        "bytes": 465446,
+        "sha256": "2f5878d25a786cca02e2892b73a6747b80b5f08289ab4252dae428eb57a80dda",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 351927,
+        "sha256": "efff3c756abebffc1fa2f328ecf1ef6173301618e7d84ca0dcc5e640cf73a1a3",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "en",
+      "variant": "mobile",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 753,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "3489126504e98f7ede5c566422176ec5cf1e873f973b3d66402b2b693d5a9002",
+        "afterFrameHash": "d3f4d9b2d1b645d056a461702328787a82342cd30f9bc14f4fbbc50699a5427d",
+        "completedAtMs": 1262,
+        "beforeAtMs": 500,
+        "afterAtMs": 1512,
+        "inkRegion": {
+          "left": 0,
+          "top": 365,
+          "width": 390,
+          "height": 455
+        }
+      },
+      "webm": {
+        "bytes": 256111,
+        "sha256": "21408c2f8f6ee5a877ef23ff2893fcff23c76824b89344126bb2e960d8203022",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 187718,
+        "sha256": "3ac77a0f459262f3cc633405dea6db13ad30e1adc56c96712143502fa616dd82",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "de",
+      "variant": "desktop",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 674,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: Das überarbeitete Briefing ist bereit zur Prüfung.",
+        "beforeFrameHash": "38a6ef937ad6b0f95ee19337267b3eb7d512ca29a610da158077600f0af9a15a",
+        "afterFrameHash": "52d707824921d14763f2411b2d40def8d5329091226c4cf123642c381bc17ef5",
+        "completedAtMs": 2717,
+        "beforeAtMs": 500,
+        "afterAtMs": 2967,
+        "inkRegion": {
+          "left": 153,
+          "top": 524,
+          "width": 686,
+          "height": 120
+        }
+      },
+      "webm": {
+        "bytes": 195122,
+        "sha256": "0b911b2d2cead2b4b0a98d1414e5172e70a8c83a347cc48dcee0f734f22afe41",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 100338,
+        "sha256": "f711f45b00d4a2bbe07412f5d633bdc71043b3a1e7f91bd80ded4f6f62713802",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "de",
+      "variant": "mobile",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 656,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: Das überarbeitete Briefing ist bereit zur Prüfung.",
+        "beforeFrameHash": "c8d3038b5d8021eb97c7f54da521b6c934736e6f7d52feb2968de620f01974d8",
+        "afterFrameHash": "fde833a25f729d7e51bef12f7af8232b91e21fd0289ae1a35cc91b9bb5826f7c",
+        "completedAtMs": 2789,
+        "beforeAtMs": 500,
+        "afterAtMs": 3039,
+        "inkRegion": {
+          "left": 16,
+          "top": 704,
+          "width": 358,
+          "height": 116
+        }
+      },
+      "webm": {
+        "bytes": 115776,
+        "sha256": "b9fd8a0acfc36ccb261e53c9047918cccf7cca546f67bd10cd52c5dfb8bb6937",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 61765,
+        "sha256": "5f917e676d70f1149fe441a67903abd3b88980af428255f2ae29286238084526",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "de",
+      "variant": "desktop",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 745,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "15c5ad1900e43a9c25a62707f0c8319fd9850acf2c6c15c9ff48ad40f72ebe36",
+        "afterFrameHash": "e8970448803c36896e80065ff893c7117866ed78b5af0f863b081a975978c5b5",
+        "completedAtMs": 1270,
+        "beforeAtMs": 500,
+        "afterAtMs": 1520,
+        "inkRegion": {
+          "left": 131,
+          "top": 62,
+          "width": 1018,
+          "height": 676
+        }
+      },
+      "webm": {
+        "bytes": 472042,
+        "sha256": "94d4038840951575139d10a0092a98ed0a1a4143671863abe1d31162687abbf4",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 355192,
+        "sha256": "e632ed4a5a9327e1bf8e9423cff9d5eb3316804b5f393be8a46c8b0a54368add",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "de",
+      "variant": "mobile",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 758,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "4d9930ae75ead795bff3b6e72585dcd3ccb9f5f35d365069b2fc21a461961b7e",
+        "afterFrameHash": "084f29205adca873a30d4155aee1802eddb56160c3ca6b2b6e478f617ce9e9c4",
+        "completedAtMs": 1253,
+        "beforeAtMs": 500,
+        "afterAtMs": 1503,
+        "inkRegion": {
+          "left": 0,
+          "top": 241,
+          "width": 390,
+          "height": 579
+        }
+      },
+      "webm": {
+        "bytes": 292258,
+        "sha256": "fd1dcf9020212c87b67ad6e51341b9ad79fa01e104f1bf065a89245bb1c06888",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 208826,
+        "sha256": "eaf84678d63f634308867f191064e4b16841cd7c695aec4e94f699f3c0c1bae1",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "fr",
+      "variant": "desktop",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 580,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: Le brief révisé est prêt pour ta relecture.",
+        "beforeFrameHash": "75d7dfb0d026839b74848029342858802abe587da60082a5b086d16ccb165b6a",
+        "afterFrameHash": "cd3786bcec5739e76bfded26ef5c274aaefdc465dfebf744d8a254e446d88b10",
+        "completedAtMs": 2635,
+        "beforeAtMs": 500,
+        "afterAtMs": 2885,
+        "inkRegion": {
+          "left": 153,
+          "top": 524,
+          "width": 686,
+          "height": 120
+        }
+      },
+      "webm": {
+        "bytes": 191937,
+        "sha256": "a35a312c1b4d09b77694c4020a58ed465b7a4e945b493108dc3a3fc9489b2767",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 98974,
+        "sha256": "e0fd48e0b0e59219da206f622e79acb4ebcf61be6ebf3101a6ae0f0b977db1ac",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "home",
+      "locale": "fr",
+      "variant": "mobile",
+      "sourceShot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 684,
+      "action": {
+        "id": "draft-task-comment",
+        "beforeAssertion": "dialog: Sign off the launch checklist; comment draft empty",
+        "afterAssertion": "textbox: Le brief révisé est prêt pour ta relecture.",
+        "beforeFrameHash": "85d0d5f8fc4f994ab1d078b1369efa5f66b472369e9e66d134f8dde641831f0b",
+        "afterFrameHash": "d5a4827d9eeb10f25412a9659751f76026d680d56f0e80b2182d6eba173f1ebf",
+        "completedAtMs": 2548,
+        "beforeAtMs": 500,
+        "afterAtMs": 2798,
+        "inkRegion": {
+          "left": 16,
+          "top": 704,
+          "width": 358,
+          "height": 116
+        }
+      },
+      "webm": {
+        "bytes": 112700,
+        "sha256": "2005dad73fbd274808d154487cdb0924f7e390109af9018c6f39beda1637bc39",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 61240,
+        "sha256": "fa445bd5eb96e33a38eaf13e0a5db72870ea67b4c01b280a245a1e6265e68adf",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "fr",
+      "variant": "desktop",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "dpr": 1,
+      "width": 1280,
+      "height": 800,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 748,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "f2d6d268c274b3171ff686aad5b36f9dc807361e2fd04d9b99328e0d24a4f207",
+        "afterFrameHash": "f01f42b0d8bd451fe2aa5e6d5219457307478db39a18bb396247fbdf7df5b5b8",
+        "completedAtMs": 1288,
+        "beforeAtMs": 500,
+        "afterAtMs": 1538,
+        "inkRegion": {
+          "left": 131,
+          "top": 62,
+          "width": 1018,
+          "height": 676
+        }
+      },
+      "webm": {
+        "bytes": 515132,
+        "sha256": "20b296a86600651672bbcd79f8be7c7074262c2967e21ce5de4ae8954f2d86e6",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 410033,
+        "sha256": "99f098a5870c541d47090c02a00a6389f75944f5acccdbcc8d29a8a10812c168",
+        "durationMs": 8000
+      }
+    },
+    {
+      "page": "projects",
+      "locale": "fr",
+      "variant": "mobile",
+      "sourceShot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 820
+      },
+      "dpr": 2,
+      "width": 390,
+      "height": 820,
+      "durationMs": 8000,
+      "fps": 24,
+      "recordedFrameCount": 762,
+      "action": {
+        "id": "open-task-brief",
+        "beforeAssertion": "task board: Sign off the launch checklist",
+        "afterAssertion": "dialog: Sign off the launch checklist; comment textbox",
+        "beforeFrameHash": "d4703bcf2f21557f451cc350f6cc81f49adf1b6ba421ed6f1723216dba58305e",
+        "afterFrameHash": "579e18fb3a5559353a9c862b65859727dd7a547a0f726eb52c9fdce3ab852d7b",
+        "completedAtMs": 1239,
+        "beforeAtMs": 500,
+        "afterAtMs": 1489,
+        "inkRegion": {
+          "left": 0,
+          "top": 507,
+          "width": 390,
+          "height": 313
+        }
+      },
+      "webm": {
+        "bytes": 303486,
+        "sha256": "a2412563a8d54fb5720fb9cce1f90d6eb12550553df837783757e9ffd68754c4",
+        "durationMs": 8000
+      },
+      "mp4": {
+        "bytes": 244312,
+        "sha256": "b49a2c68cd61bc0a910ea95e9e66a8eb63979cc486f38177bf1d11e00cd2013c",
         "durationMs": 8000
       }
     }

@@ -7,10 +7,10 @@ export type {
 export const PRODUCT_MOTION = motionRegistry({
   chat: ['en', 'de', 'fr'],
   agents: ['en', 'de', 'fr'],
-  home: ['en', 'de', 'fr'],
   hub: ['en', 'de', 'fr'],
-  projects: ['en', 'de', 'fr'],
   knowledge: ['en', 'de', 'fr'],
   governance: ['en', 'de', 'fr'],
   automations: ['en', 'de', 'fr'],
+  home: ['en', 'de', 'fr'],
+  projects: ['en', 'de', 'fr'],
 });

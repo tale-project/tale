@@ -5,7 +5,7 @@
 export const PRODUCT_SCREENSHOTS = {
   home: {
     source: 'project-task-detail',
-    crop: { left: 0, top: 0, width: 950, height: 1700 },
+    crop: { left: 0, top: 0, width: 1470, height: 1700 },
   },
   hub: {
     source: 'home-inbox',

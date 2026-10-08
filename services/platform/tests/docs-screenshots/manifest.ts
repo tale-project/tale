@@ -509,8 +509,15 @@ export const SHOTS: readonly Shot[] = [
         .getByText(DEMO_PROJECTS[0].tasks[0].title, { exact: true })
         .click();
     },
+    // The separate activity query can settle after the task and its comments.
+    // Wait for its seeded history before capturing the populated reading column.
     readyWhen: (page) =>
-      page.getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title }),
+      page
+        .getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title })
+        .getByRole('heading', {
+          name: t('tasks.detail.activity'),
+          exact: true,
+        }),
     localizedReadyWhen: (page) =>
       page
         .getByRole('dialog', {

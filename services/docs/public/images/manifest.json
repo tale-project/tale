@@ -179,7 +179,8 @@
       },
       "dpr": 2,
       "width": 1536,
-      "height": 1000
+      "height": 1012,
+      "locale": "en"
     },
     {
       "file": "images/platform/chat-document-attachment.webp",
@@ -353,7 +354,7 @@
         "height": 1000
       },
       "dpr": 2,
-      "width": 1536,
+      "width": 2048,
       "height": 1700,
       "locale": "de"
     },
@@ -469,7 +470,7 @@
         "height": 1000
       },
       "dpr": 2,
-      "width": 1536,
+      "width": 2048,
       "height": 1700,
       "locale": "fr"
     },
@@ -763,7 +764,7 @@
         "height": 1000
       },
       "dpr": 2,
-      "width": 1536,
+      "width": 2048,
       "height": 1700,
       "locale": "en"
     },
@@ -777,7 +778,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/project-task-standard-agent.webp",
